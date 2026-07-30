@@ -97,39 +97,23 @@ GRANT UPDATE (tariff_id, commercial_access_state, updated_at)
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.list_platform_organization_members(uuid)
   TO app_platform_settings;
--- #1069 / §10.2: migration 0270 owns the canonical CMS-page recount. This closure is also
--- applied to bounded scratch databases that may not include that migration, so keep the grant
--- explicit and guarded rather than aborting the rest of the platform runtime overlay.
-DO $c5a_cms_pages_snapshot_usage_grant$
-BEGIN
-  IF to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL THEN
-    RAISE WARNING '§10.2: app.cms_pages_snapshot_usage(uuid) does not exist -- skipping the guarded app_platform_settings EXECUTE grant.';
-  ELSE
-    GRANT SELECT ON TABLE public.content_pages TO app_owner;
-    GRANT UPDATE (updated_at) ON TABLE public.be_organizations TO app_owner;
-    REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)
-      FROM PUBLIC, app_staff, app_patient, app_platform_settings;
-    GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)
-      TO app_platform_settings;
-  END IF;
-END
-$c5a_cms_pages_snapshot_usage_grant$;
 
--- #1069 / §10.1-10.2: the platform storefront needs two counts, not the underlying course or
--- invite rows. Keep both behind one reviewed app_owner seam so the platform role cannot read course
--- content, invited_email, token_hash, or any other column from either FORCE-RLS relation.
+-- #1069: courses and CMS pages are toggle-only mechanics now (no numeric quota, no usage count).
+-- app.cms_pages_snapshot_usage(uuid) and app.enforce_courses_snapshot_quota() were dropped by
+-- migration 0277; the platform storefront no longer needs a course-row count either.
+-- Keep the seat count behind one reviewed app_owner seam so the platform role cannot read
+-- invited_email, token_hash, or any other column from the FORCE-RLS invite relation.
 DO $c5a_enforced_quota_usage_runtime$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM (
       VALUES
-        ('public.courses'),
         ('public.be_organization_members'),
         ('public.organization_member_invites')
     ) AS expected(name)
     WHERE to_regclass(expected.name) IS NULL
   ) THEN
-    RAISE WARNING '§10.1-10.2: enforced quota-usage relations are incomplete -- skipping the guarded count accessor.';
+    RAISE WARNING '§10.1: enforced quota-usage relations are incomplete -- skipping the guarded count accessor.';
     RETURN;
   END IF;
 
@@ -137,18 +121,13 @@ BEGIN
     CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(
       p_organization_id uuid
     )
-    RETURNS TABLE(courses_used integer, clinic_team_used integer)
+    RETURNS TABLE(clinic_team_used integer)
     LANGUAGE sql
     STABLE
     SECURITY DEFINER
     SET search_path = pg_catalog
     AS $function$
       SELECT
-        (
-          SELECT count(*)::int
-          FROM public.courses AS course
-          WHERE course.organization_id = p_organization_id
-        ) AS courses_used,
         (
           (SELECT count(*) FROM public.be_organization_members AS membership
            WHERE membership.organization_id = p_organization_id
@@ -177,10 +156,8 @@ BEGIN
   ALTER FUNCTION app.read_org_enforced_quota_usage(uuid) OWNER TO app_owner;
   GRANT SELECT ON TABLE public.organization_member_invites TO app_owner;
   REVOKE ALL PRIVILEGES ON TABLE
-    public.courses,
     public.organization_member_invites
   FROM app_platform_settings;
-  DROP POLICY IF EXISTS courses_platform_quota_usage_select ON public.courses;
   DROP POLICY IF EXISTS organization_member_invites_platform_quota_usage_select
     ON public.organization_member_invites;
   REVOKE ALL ON FUNCTION app.read_org_enforced_quota_usage(uuid)
@@ -653,23 +630,21 @@ SELECT 1 / (
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')
 )::int AS c5a_platform_operations_exact_role_wall;
 
--- §10.1-10.2 exact platform usage wall: the storefront gets EXECUTE on count-only accessors and no
--- direct privilege or policy on course/invite rows.
+-- §10.1 exact platform usage wall: the storefront gets EXECUTE on the count-only seat accessor and
+-- no direct privilege or policy on invite rows. Courses/CMS pages are toggle-only mechanics now
+-- (migration 0277) -- there is no course-row count or cms_pages_snapshot_usage accessor to guard.
 DO $c5a_platform_enforced_quota_usage_exact_wall$
 DECLARE
   inventory_ok boolean;
 BEGIN
-  IF to_regclass('public.courses') IS NULL
-     OR to_regclass('public.organization_member_invites') IS NULL
-     OR to_regclass('public.content_pages') IS NULL
-     OR to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL
+  IF to_regclass('public.organization_member_invites') IS NULL
      OR to_regprocedure('app.read_org_enforced_quota_usage(uuid)') IS NULL THEN
-    RAISE WARNING '§10.1-10.2: enforced quota usage prerequisites are incomplete -- skipping the guarded exact wall.';
+    RAISE WARNING '§10.1: enforced quota usage prerequisites are incomplete -- skipping the guarded exact wall.';
     RETURN;
   END IF;
 
 WITH expected(relation_name) AS (
-  VALUES ('courses'), ('organization_member_invites')
+  VALUES ('organization_member_invites')
 ), relations AS (
   SELECT
     expected.relation_name,
@@ -703,19 +678,12 @@ WITH expected(relation_name) AS (
   WHERE 'app_platform_settings'::regrole = ANY(policy.polroles)
 )
 SELECT (
-  (SELECT count(*) FROM relations) = 2
+  (SELECT count(*) FROM relations) = 1
   AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
   AND NOT EXISTS (SELECT 1 FROM actual_acl)
   AND NOT EXISTS (SELECT 1 FROM actual_policy)
-  AND has_table_privilege('app_owner', 'public.courses', 'SELECT')
   AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
   AND has_table_privilege('app_owner', 'public.organization_member_invites', 'SELECT')
-  AND has_table_privilege('app_owner', 'public.content_pages', 'SELECT')
-  AND has_function_privilege(
-    'app_platform_settings',
-    'app.cms_pages_snapshot_usage(uuid)',
-    'EXECUTE'
-  )
   AND has_function_privilege(
     'app_platform_settings',
     'app.read_org_enforced_quota_usage(uuid)',

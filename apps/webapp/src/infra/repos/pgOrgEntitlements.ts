@@ -271,14 +271,13 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       return (await readSnapshot(organizationId)).access;
     },
     async getEnforcedQuotaUsage(organizationId) {
-      const enforcedUsage = await runWebappPgText<{ courses_used: number; clinic_team_used: number }>(
-        `SELECT courses_used, clinic_team_used
+      const enforcedUsage = await runWebappPgText<{ clinic_team_used: number }>(
+        `SELECT clinic_team_used
          FROM app.read_org_enforced_quota_usage($1::uuid)`,
         [organizationId],
       );
       const usage = enforcedUsage.rows[0];
       return {
-        courses: usage?.courses_used ?? 0,
         clinic_team: usage?.clinic_team_used ?? 0,
       };
     },

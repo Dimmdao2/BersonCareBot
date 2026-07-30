@@ -229,13 +229,6 @@ export async function saveContentPage(
       }),
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('saas_quota_reached:cms_pages')) {
-      return {
-        ok: false,
-        error: 'Достигнут лимит страниц CMS по тарифу. Расширьте тариф.',
-      };
-    }
     console.error('saveContentPage failed:', err);
     return { ok: false, error: 'Не удалось сохранить страницу. Попробуйте ещё раз.' };
   }
