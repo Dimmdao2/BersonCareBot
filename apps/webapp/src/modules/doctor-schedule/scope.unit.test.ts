@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canUseOwnSpecialistAppointmentActions,
   doctorScheduleScopeQuery,
+  resolveActiveOwnSpecialistId,
   resolveDoctorScheduleScopeState,
   type DoctorScheduleScopeBootstrap,
 } from './scope';
@@ -48,5 +50,26 @@ describe('doctor schedule client scope', () => {
     expect(
       resolveDoctorScheduleScopeState({ ...bootstrap(true), ownSpecialistId: null }, null, null),
     ).toEqual({ scope: 'clinic', specialistId: null });
+  });
+
+  it('treats an inactive own specialist as absent and defaults a clinic admin to clinic scope', () => {
+    const activeOwnSpecialistId = resolveActiveOwnSpecialistId(OWN_ID, [
+      { id: OTHER_ID },
+    ]);
+
+    expect(activeOwnSpecialistId).toBeNull();
+    expect(
+      resolveDoctorScheduleScopeState(
+        { ...bootstrap(true), ownSpecialistId: activeOwnSpecialistId },
+        null,
+        null,
+      ),
+    ).toEqual({ scope: 'clinic', specialistId: null });
+  });
+
+  it('never treats two missing specialist IDs as permission for own-only appointment actions', () => {
+    expect(canUseOwnSpecialistAppointmentActions(null, null)).toBe(false);
+    expect(canUseOwnSpecialistAppointmentActions(OWN_ID, OWN_ID)).toBe(true);
+    expect(canUseOwnSpecialistAppointmentActions(OWN_ID, OTHER_ID)).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 # #1028 — расписание врача и клиники: ролевой scope
 
-**Статус:** реализация ведётся; S1 и server-side read scope S2 готовы к независимому аудиту.
+**Статус:** S1–S5 реализованы; audit-correction готова к повторной независимой проверке, DEV-smoke не выполнен.
 
 **Карточка:** `#1028`.
 
@@ -65,9 +65,10 @@ reads и mutation routes сейчас не применяют одну роле�
 - API query для calendar, KPI и nearest-free-window: тот же `scope`; выбранный ID передаётся как
   `specialistId` только при `scope=specialist`.
 - Серверная страница расписания передаёт в calendar tab минимальный bootstrap:
-  `canManageAllSpecialists`, собственный `specialistId` и список `{id, displayLabel}` действующих специалистов
-  текущей организации. Источник — существующий server-resolved doctor context/doctor-workspace service, не
-  доверенный клиентский список и не мёртвый HTTP directory endpoint.
+  `canManageAllSpecialists`, собственный active `specialistId` и список `{id, displayLabel}` действующих
+  специалистов текущей организации. Raw workspace ID, которого нет в active directory, передаётся как `null`.
+  Источник — существующий server-resolved doctor context/doctor-workspace service, не доверенный клиентский
+  список и не мёртвый HTTP directory endpoint.
 - Обычному врачу bootstrap не выдаёт управляющий control: сервер резолвит любой запрос в `mine` и собственный
   specialist ID.
 - `clinic_admin` получает `mine|clinic|specialist`; server response возвращает resolved scope, чтобы UI,
@@ -84,6 +85,9 @@ reads и mutation routes сейчас не применяют одну роле�
   `apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts`, только чтобы management-capable `clinic_admin`
   мог открыть существующий schedule route без расширения остальных clinical routes;
 - `apps/webapp/src/app/app/doctor/calendar/DoctorCalendarEventPanel.tsx`;
+- `apps/webapp/src/app/app/doctor/TodayAppointmentFullModal.tsx` и
+  `apps/webapp/src/app/app/doctor/TodayMiniCalendarWithModal.tsx`, только чтобы тот же own-specialist
+  hard-delete contract действовал во всех существующих hosts календарной панели;
 - `apps/webapp/src/app/api/doctor/schedule*/**`;
 - `apps/webapp/src/app/api/doctor/booking-engine/_requireDoctorBookingEngine.ts` и новый/существующий соседний
   typed scope resolver;
@@ -118,7 +122,8 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 - [x] Передать SSR capability bootstrap тем же typed контрактом. Evidence:
   `schedule/page.tsx` → `DoctorScheduleShell` → `ScheduleCalendarTab`; общий тип
   `modules/doctor-schedule/scope.ts`.
-- [ ] Применить тот же server-resolved контракт к create.
+- [x] Применить тот же server-resolved контракт к create. Evidence: `resolveDoctorCreateSpecialist` в обоих
+  manual-create routes; hostile-ID unit/route tests PASS.
 
 ### S2. Calendar, filters и KPI
 
@@ -176,7 +181,7 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   текущей клиники. Evidence: clinic-mode resolver + allowed-manager route test PASS.
 - [x] `POST appointments/[id]/delete`: hard-delete чужой записи запрещён и обычному врачу, и `clinic_admin`;
   UI не предлагает его для чужой записи. Evidence: own-mode resolver; schedule/today calendar panels compare
-  the row specialist with authenticated `ownSpecialistId`.
+  the row specialist with authenticated non-null `ownSpecialistId`.
 - [x] `POST appointments/[id]/manual-no-show`: чужая запись запрещена обеим ролям до отдельного owner ruling.
   Evidence: own-mode resolver before lifecycle side effects; route test PASS.
 - [x] `POST appointments/[id]/comments`: изменение чужой записи запрещено обеим ролям до отдельного owner ruling.
@@ -201,7 +206,7 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   соседней работой по прямому указанию владельца.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 30.07.2026:
   «уже начинай добавлять тесты»; «с тестами — читай инструкцию и разбирайся впредь сам».
 - [x] Добавить минимальные unit/route проверки named schedule-scope failure с независимым oracle и fault
-  injection. Evidence: 8 files / 24 tests PASS; specialist scope, UI request parity, navigation and direct-ID
+  injection. Evidence: 8 files / 26 tests PASS; specialist scope, UI request parity, navigation and direct-ID
   mutations produced their expected failures before restoration.
 - [ ] Независимый аудит сверяет каждый пункт этого плана и server-side IDOR, после чего фиксируются commit SHA
   и фактически выполненные команды.
@@ -211,7 +216,8 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 - [x] Обычный врач не может прочитать или изменить appointment другого специалиста ни списком, ни прямым ID.
   Evidence: server-resolved list/direct-ID scope + unit/route fault-injection evidence.
 - [x] `clinic_admin` на одном экране использует `Моё / Вся клиника / специалист`, а calendar, KPI, filters и
-  nearest-free-window показывают один resolved scope. Evidence: shared client scope + UI request test.
+  nearest-free-window показывают один resolved scope. Evidence: shared client scope + UI request test;
+  inactive own specialist normalizes to clinic scope.
 - [x] `clinic_admin` создаёт, переносит и отменяет запись за специалиста своей клиники; cross-org,
   reassignment и hard-delete чужой записи нейтрально запрещены. Evidence: shared create/direct-ID resolvers
   + mutation route tests.
@@ -236,6 +242,11 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   access; reassignment rejected; foreign hard-delete hidden in schedule/today calendar panels. Combined
   8 files / 24 tests, webapp typecheck and scoped ESLint PASS. Broadening own-mode access produced the
   expected red test before restoration.
+- 30.07.2026 → independent audit of `ac7db7975..505a883d0` found two behavior MUST FIX and one exact-scope
+  omission: inactive own specialist selected broken `mine`; `null === null` exposed a nonworking hard-delete;
+  Today panel hosts were necessary but missing from allowed paths. Corrective branch derives own ID from the
+  active directory, requires a non-null own ID for own-only UI actions, adds both hosts to scope and adds two
+  named unit oracles. Initial audit remains FAIL until independent re-audit of the correction.
 
 ## Не входит
 

@@ -25,6 +25,23 @@ export type DoctorScheduleScopeBootstrap = Pick<
 
 export type DoctorScheduleScopeState = Pick<ResolvedDoctorScheduleScope, 'scope' | 'specialistId'>;
 
+export function resolveActiveOwnSpecialistId(
+  ownSpecialistId: string | null,
+  activeSpecialists: readonly { id: string }[],
+): string | null {
+  if (!ownSpecialistId) return null;
+  return activeSpecialists.some((specialist) => specialist.id === ownSpecialistId)
+    ? ownSpecialistId
+    : null;
+}
+
+export function canUseOwnSpecialistAppointmentActions(
+  ownSpecialistId: string | null,
+  appointmentSpecialistId: string | null,
+): boolean {
+  return ownSpecialistId !== null && appointmentSpecialistId === ownSpecialistId;
+}
+
 export function resolveDoctorScheduleScopeState(
   bootstrap: DoctorScheduleScopeBootstrap,
   rawScope: string | null | undefined,

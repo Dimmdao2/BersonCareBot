@@ -3,6 +3,7 @@ import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireR
 import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
 import { pgDoctorCalendarTimezonePort } from '@/infra/repos/pgDoctorCalendarTimezone';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
+import { resolveActiveOwnSpecialistId } from '@/modules/doctor-schedule/scope';
 import {
   DEFAULT_APP_DISPLAY_TIMEZONE,
   getAppDisplayTimeZone,
@@ -39,7 +40,10 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
   };
   const directory = await buildAppDeps().doctorWorkspace.listDirectory(directoryContext);
   const scheduleScopeBootstrap = {
-    ownSpecialistId: workspace.specialistId,
+    ownSpecialistId: resolveActiveOwnSpecialistId(
+      workspace.specialistId,
+      directory.specialists,
+    ),
     canManageAllSpecialists: workspace.canManageAllSpecialists,
     specialists: directory.specialists.map((specialist) => ({
       id: specialist.id,

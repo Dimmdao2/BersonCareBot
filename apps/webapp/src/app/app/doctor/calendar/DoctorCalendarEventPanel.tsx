@@ -53,6 +53,7 @@ import {
 import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
+import { canUseOwnSpecialistAppointmentActions } from '@/modules/doctor-schedule/scope';
 
 // R21: причины отмены, отправляемые как reason в API.
 const CANCEL_REASONS = [
@@ -776,7 +777,7 @@ function DoctorCalendarEventPanelInner({
                 ))}
               </SelectContent>
             </Select>
-            {selected.specialistId === ownSpecialistId &&
+            {canUseOwnSpecialistAppointmentActions(ownSpecialistId, selected.specialistId) &&
             isStaffDeletableCancelledStatus(selected.status) ? (
               <Button
                 type="button"
