@@ -212,6 +212,11 @@ writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), fu
       worker/wiring, generic emit client surface, `/api/integrator/events`, event contract/CSRF exception, projection
       health/proxy/digest tooling and the outbox table through a migration. Do not delete generic idempotency, delivery
       queues or unrelated service HTTP calls.
+      <br>**РЕШЕНИЕ ВЛАДЕЛЬЦА 30.07.2026:** текущий `jsonStableStringify` сохранить только как детерминированную
+      сериализацию для хеша/ключа идемпотентности; при удалении HTTP transport перенести его из
+      `webappEventsClient`-обвязки в нейтральный модуль. HTTP-body builder и весь смысл
+      `integrator → webapp POST /api/integrator/events` удалить. Кандидат `336e833e3` не интегрировать:
+      сам алгоритм сериализации там идентичен текущему, а добавленная обвязка обслуживает удаляемый HTTP contract.
 
 Execution order: D0 first. After D0, D1, D2 and the code-only portion of D9 may run in parallel where their file scopes
 do not intersect. D3 precedes D4. D5 precedes D6, which precedes D7. D8 may run alongside reminder packages. D10 is
