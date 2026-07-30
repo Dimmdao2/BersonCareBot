@@ -79,7 +79,7 @@ const OVERRIDABLE_MECHANICS = MECHANICS.filter(
 );
 
 const emptyMechanics = (): Record<OrgMechanic, boolean> =>
-  Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])) as Record<
+  Object.fromEntries(CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, false])) as Record<
     OrgMechanic,
     boolean
   >;
@@ -108,7 +108,7 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     includedSeats: tariff.includedSeats === null ? '' : String(tariff.includedSeats),
     isActive: tariff.isActive,
     mechanics: Object.fromEntries(
-      MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
+      CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
     ) as Record<OrgMechanic, boolean>,
     quotas: tariff.quotas,
   };

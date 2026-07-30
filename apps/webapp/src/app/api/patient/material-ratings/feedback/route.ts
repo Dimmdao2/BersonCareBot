@@ -12,6 +12,15 @@ const bodySchema = z.object({
   comment: z.string().nullable().optional(),
 });
 
+function settingBoolean(valueJson: unknown): boolean {
+  return (
+    valueJson !== null &&
+    typeof valueJson === 'object' &&
+    !Array.isArray(valueJson) &&
+    (valueJson as { value?: unknown }).value === true
+  );
+}
+
 export async function POST(req: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
   if (!gate.ok) return gate.response;
@@ -29,6 +38,12 @@ export async function POST(req: Request) {
   }
 
   const deps = buildAppDeps();
+  const ratingsEnabled = settingBoolean(
+    (await deps.systemSettings.getSetting('material_ratings_enabled', 'admin'))?.valueJson ?? null,
+  );
+  if (!ratingsEnabled) {
+    return NextResponse.json({ ok: false, error: 'material_ratings_disabled' }, { status: 403 });
+  }
   const tenant = await resolvePatientEnrollmentOrganizationId(
     { patientOrganization: deps.patientOrganization },
     gate.session.user.userId,

@@ -61,7 +61,11 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   }
   const mechanics: Record<string, boolean> = {};
   for (const mechanic of Object.keys(input.mechanics)) assertMechanic(mechanic);
-  for (const mechanic of MECHANICS) mechanics[mechanic] = input.mechanics[mechanic] === true;
+  for (const mechanic of MECHANICS) {
+    if (MECHANIC_REGISTRY[mechanic].class === 'возможность') {
+      mechanics[mechanic] = input.mechanics[mechanic] === true;
+    }
+  }
   return {
     ...input,
     name,
@@ -110,6 +114,14 @@ export function entitlementsFromSnapshot(
   );
   const result = {} as OrgEntitlements;
   for (const mechanic of MECHANICS) {
+    const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
+    // A capability is the only class controlled by a commercial on/off value. "Never" is
+    // deliberately outside commercial control, while every numeric class is enabled by its
+    // own limit configuration (not by the legacy boolean map).
+    if (mechanicClass !== 'возможность') {
+      result[mechanic] = true;
+      continue;
+    }
     result[mechanic] =
       overrideByMechanic.get(mechanic) ??
       snapshot.tariff?.mechanics[mechanic] ??
@@ -138,7 +150,6 @@ export async function resolveOrgQuotaProjections(
   return MECHANICS.flatMap((mechanic) => {
     const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
     if (mechanicClass !== 'места' && mechanicClass !== 'объём') return [];
-    if (mechanic === 'clinic_team' && !entitlementsFromSnapshot(snapshot).clinic_team) return [];
     // Specialist seats are configured by includedSeats/seatLimitOverride rather than the generic
     // tariff quota map, but are enforced with the same snapshot semantics.
     const clinicTeamOverride = activeOverrides.get('clinic_team');
@@ -226,8 +237,9 @@ export async function isMechanicEnabled(
 
 /**
  * Resolves the effective included specialist seat count for the `clinic_team` mechanic:
- * override > tariff > `CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE`, or `0` when `clinic_team` itself
- * is not enabled for the organization. Always a finite nonnegative integer — there is no
+ * override > tariff > `CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE`. `clinic_team` is a numeric
+ * mechanic, so its legacy boolean value never controls access. Always a finite nonnegative
+ * integer — there is no
  * "unlimited" state for `clinic_team` in C4A (owner decision: "owner scope does not require an
  * unlimited plan"). `null` in stored data means "not explicitly configured", not unlimited.
  */
@@ -240,15 +252,6 @@ export async function resolveClinicSeatLimit(
     port.listOverrides(organizationId),
   ]);
   const activeOverrides = overrides.filter((override) => isOverrideActive(override.expiresAt));
-  const overrideByMechanic = new Map(
-    activeOverrides.map((override) => [override.mechanic, override.enabled]),
-  );
-  const clinicTeamEnabled =
-    overrideByMechanic.get('clinic_team') ??
-    tariff?.mechanics.clinic_team ??
-    MECHANIC_DEFAULT_ENABLED.clinic_team;
-  if (!clinicTeamEnabled) return 0;
-
   const seatOverride = activeOverrides.find((entry) => entry.mechanic === 'clinic_team');
   if (seatOverride?.seatLimitOverride != null) return seatOverride.seatLimitOverride;
   return tariff?.includedSeats ?? CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE;

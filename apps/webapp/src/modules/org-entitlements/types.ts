@@ -24,6 +24,11 @@ type SeatsMechanic = Readonly<{
   label: string;
   quotaEnforcement: 'application_transaction_snapshot';
 }>;
+type StockMechanic = Readonly<{
+  class: 'запас';
+  label: string;
+  quotaEnforcement: 'application_transaction_snapshot';
+}>;
 type StorageMechanic = Readonly<{
   class: 'объём';
   label: string;
@@ -35,7 +40,12 @@ type NeverMechanic = Readonly<{
   label: string;
   quotaEnforcement: 'declared_no_enforcement';
 }>;
-type MechanicDefinition = AbilityMechanic | SeatsMechanic | StorageMechanic | NeverMechanic;
+export type MechanicDefinition =
+  | AbilityMechanic
+  | SeatsMechanic
+  | StockMechanic
+  | StorageMechanic
+  | NeverMechanic;
 
 /**
  * The mechanic class is the primary contract. A possibility or an always-available surface has
