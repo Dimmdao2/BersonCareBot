@@ -350,6 +350,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   ),
   admin_incident_alert_config: restricted('admin', 'global', 'structured'),
   operator_health_alert_config: restricted('admin', 'global', 'structured'),
+  operator_alert_fallback_email: restricted('admin', 'global', 'string', 'absent'),
   operator_health_probe_config: runtime(
     'admin',
     'global',

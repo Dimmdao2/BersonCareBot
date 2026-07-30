@@ -28,6 +28,7 @@ import {
   parseOperatorHealthProjectionThresholds,
   type OperatorHealthProjectionThresholds,
 } from '@/modules/operator-health/operatorHealthProjectionThresholds';
+import { parseOperatorAlertFallbackEmailSetting } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 
 export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   'system-health': '/app/admin/system-health',
@@ -149,6 +150,7 @@ export type AdminDiagnosticsSettings = {
   patientProgramDiscussionMediaSubmissionEnabled: boolean;
   patientBookingUrl: string;
   operatorHealthAlertsConfig: OperatorHealthAlertConfig;
+  operatorAlertFallbackEmail: string;
   operatorHealthProjectionThresholds: OperatorHealthProjectionThresholds;
 };
 
@@ -330,6 +332,10 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       adminSettingsList.find((x) => x.key === 'operator_health_alert_config')?.valueJson ?? null,
       adminSettingsList.find((x) => x.key === 'admin_incident_alert_config')?.valueJson ?? null,
     ),
+    operatorAlertFallbackEmail:
+      parseOperatorAlertFallbackEmailSetting(
+        adminSettingsList.find((x) => x.key === 'operator_alert_fallback_email')?.valueJson ?? null,
+      ) ?? '',
     operatorHealthProjectionThresholds: parseOperatorHealthProjectionThresholds(
       adminSettingsList.find((x) => x.key === 'operator_health_projection_thresholds')?.valueJson ??
         null,

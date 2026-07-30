@@ -42,7 +42,10 @@ export default async function DoctorAdminTechnicalPage() {
         patientBookingUrl={diagnostics.patientBookingUrl}
       />
       <OperatorHealthProbeSettingsSection />
-      <OperatorHealthAlertsSection initialConfig={diagnostics.operatorHealthAlertsConfig} />
+      <OperatorHealthAlertsSection
+        initialConfig={diagnostics.operatorHealthAlertsConfig}
+        initialFallbackEmail={diagnostics.operatorAlertFallbackEmail}
+      />
       <OperatorHealthProjectionThresholdsSection
         initialThresholds={diagnostics.operatorHealthProjectionThresholds}
       />

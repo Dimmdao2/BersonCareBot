@@ -111,7 +111,7 @@ export async function runOperatorHealthDigestTick(
           : 'no_recipients';
     if (reason === 'no_recipients') {
       // D-b: сводка — последняя страховка, и её собственная пустая аудитория не имеет
-      // права быть тихим `return`. Считаем, логируем и уводим в fallback из окружения.
+      // права быть тихим `return`. Считаем, логируем и уводим в обязательный DB-fallback.
       await reportEmptyNotificationAudience({
         topic: 'operator_health_digest',
         severity: 'operational',

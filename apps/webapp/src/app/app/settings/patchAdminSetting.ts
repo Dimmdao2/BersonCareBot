@@ -4,15 +4,24 @@ import { apiJson } from '@/shared/lib/apiJson';
  * PATCH ключей scope=admin через `/api/admin/settings`.
  */
 export async function patchAdminSetting(key: string, value: unknown): Promise<boolean> {
+  return (await patchAdminSettingWithResult(key, value)).ok;
+}
+
+export type PatchAdminSettingResult = { ok: true } | { ok: false; error?: string };
+
+export async function patchAdminSettingWithResult(
+  key: string,
+  value: unknown,
+): Promise<PatchAdminSettingResult> {
   try {
     await apiJson<{ ok: boolean }>('/api/admin/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, value: { value } }),
     });
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : undefined };
   }
 }
 

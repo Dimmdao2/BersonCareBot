@@ -5,16 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/pri
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
-import { patchAdminSetting } from './patchAdminSetting';
+import { patchAdminSettingWithResult } from './patchAdminSetting';
 import {
   normalizeDigestTimeHour,
   type OperatorAlertBlock,
   type OperatorAlertChannels,
   type OperatorHealthAlertConfig,
 } from '@/modules/operator-alerts/operatorHealthAlertConfig';
+import {
+  normalizeOperatorAlertFallbackEmail,
+  type OperatorAlertFallbackEmailError,
+} from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 
 export type OperatorHealthAlertsSectionProps = {
   initialConfig: OperatorHealthAlertConfig;
+  initialFallbackEmail: string;
 };
 
 type BlockDef = {
@@ -33,11 +38,15 @@ const BLOCKS: BlockDef[] = [
 
 function ChannelRow({
   label,
+  ariaLabel,
   checked,
+  disabled = false,
   onCheckedChange,
 }: {
   label: string;
+  ariaLabel: string;
   checked: boolean;
+  disabled?: boolean;
   onCheckedChange: (v: boolean) => void;
 }) {
   return (
@@ -46,21 +55,47 @@ function ChannelRow({
         {label}
       </th>
       <td className="w-px whitespace-nowrap py-2 align-middle text-right">
-        <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
+        <Switch
+          checked={checked}
+          disabled={disabled}
+          onCheckedChange={onCheckedChange}
+          aria-label={ariaLabel}
+        />
       </td>
     </tr>
   );
 }
 
-export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAlertsSectionProps) {
-  const [topics, setTopics] = useState(() => ({ ...initialConfig.topics }));
+function fallbackEmailErrorMessage(error: OperatorAlertFallbackEmailError): string {
+  if (error === 'required') return 'Укажите резервный e-mail для операторских алертов.';
+  if (error === 'too_long') return 'Резервный e-mail не должен быть длиннее 320 символов.';
+  return 'Укажите корректный резервный e-mail для операторских алертов.';
+}
+
+const REQUIRED_CRITICAL_CHANNELS: OperatorAlertChannels = {
+  telegram: true,
+  max: true,
+  web_push: true,
+  sms: true,
+  email: true,
+};
+
+export function OperatorHealthAlertsSection({
+  initialConfig,
+  initialFallbackEmail,
+}: OperatorHealthAlertsSectionProps) {
+  const [topics, setTopics] = useState(() => ({
+    ...initialConfig.topics,
+    critical_enabled: true,
+  }));
   const [channels, setChannels] = useState(() => ({
-    critical: { ...initialConfig.channels.critical },
+    critical: { ...REQUIRED_CRITICAL_CHANNELS },
     digest: { ...initialConfig.channels.digest },
     account_conflicts: { ...initialConfig.channels.account_conflicts },
     support: { ...initialConfig.channels.support },
   }));
   const [digestTime, setDigestTime] = useState(initialConfig.digestTime);
+  const [fallbackEmail, setFallbackEmail] = useState(initialFallbackEmail);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -74,20 +109,34 @@ export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAle
     setError(null);
     const trimmedDigestTime = digestTime.trim();
     if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(trimmedDigestTime)) {
-      setError('Не удалось сохранить');
+      setError('Укажите корректное время суточной сводки.');
+      return;
+    }
+    const checkedFallbackEmail = normalizeOperatorAlertFallbackEmail(fallbackEmail);
+    if (!checkedFallbackEmail.ok) {
+      setError(fallbackEmailErrorMessage(checkedFallbackEmail.error));
       return;
     }
     const normalizedDigestTime = normalizeDigestTimeHour(trimmedDigestTime);
     startTransition(async () => {
-      const ok = await patchAdminSetting('operator_health_alert_config', {
+      const alertsResult = await patchAdminSettingWithResult('operator_health_alert_config', {
         topics,
         channels,
         digestTime: normalizedDigestTime,
       });
-      if (!ok) {
-        setError('Не удалось сохранить');
+      if (!alertsResult.ok) {
+        setError(alertsResult.error ?? 'Не удалось сохранить настройки операторских алертов.');
         return;
       }
+      const fallbackResult = await patchAdminSettingWithResult(
+        'operator_alert_fallback_email',
+        checkedFallbackEmail.value,
+      );
+      if (!fallbackResult.ok) {
+        setError(fallbackResult.error ?? 'Не удалось сохранить резервный e-mail.');
+        return;
+      }
+      setFallbackEmail(checkedFallbackEmail.value);
       setSaved(true);
     });
   }
@@ -98,12 +147,30 @@ export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAle
         <CardTitle className="text-base">Уведомления админу</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium">Резервный e-mail</span>
+          <Input
+            type="email"
+            maxLength={320}
+            required
+            value={fallbackEmail}
+            onChange={(event) => setFallbackEmail(event.target.value)}
+            aria-label="Резервный e-mail операторских алертов"
+          />
+        </label>
+        {!fallbackEmail.trim() ? (
+          <p className="text-sm text-destructive" role="alert">
+            Резервный e-mail не настроен: уведомление с пустой аудиторией останется без резервной
+            доставки.
+          </p>
+        ) : null}
         {BLOCKS.map((def) => (
           <section key={def.block} className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium">{def.title}</p>
               <Switch
-                checked={topics[def.topicKey]}
+                checked={def.block === 'critical' ? true : topics[def.topicKey]}
+                disabled={def.block === 'critical'}
                 onCheckedChange={(v) => setTopics((t) => ({ ...t, [def.topicKey]: v }))}
                 aria-label={def.title}
               />
@@ -125,27 +192,37 @@ export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAle
               <tbody>
                 <ChannelRow
                   label="Telegram"
-                  checked={channels[def.block].telegram}
+                  ariaLabel={`${def.title} — Telegram`}
+                  checked={def.block === 'critical' ? true : channels[def.block].telegram}
+                  disabled={def.block === 'critical'}
                   onCheckedChange={(v) => setBlockChannels(def.block, { telegram: v })}
                 />
                 <ChannelRow
                   label="Max"
-                  checked={channels[def.block].max}
+                  ariaLabel={`${def.title} — Max`}
+                  checked={def.block === 'critical' ? true : channels[def.block].max}
+                  disabled={def.block === 'critical'}
                   onCheckedChange={(v) => setBlockChannels(def.block, { max: v })}
                 />
                 <ChannelRow
                   label="Push"
-                  checked={channels[def.block].web_push}
+                  ariaLabel={`${def.title} — Push`}
+                  checked={def.block === 'critical' ? true : channels[def.block].web_push}
+                  disabled={def.block === 'critical'}
                   onCheckedChange={(v) => setBlockChannels(def.block, { web_push: v })}
                 />
                 <ChannelRow
                   label="SMS"
-                  checked={channels[def.block].sms}
+                  ariaLabel={`${def.title} — SMS`}
+                  checked={def.block === 'critical' ? true : channels[def.block].sms}
+                  disabled={def.block === 'critical'}
                   onCheckedChange={(v) => setBlockChannels(def.block, { sms: v })}
                 />
                 <ChannelRow
                   label="E-mail"
-                  checked={channels[def.block].email}
+                  ariaLabel={`${def.title} — E-mail`}
+                  checked={def.block === 'critical' ? true : channels[def.block].email}
+                  disabled={def.block === 'critical'}
                   onCheckedChange={(v) => setBlockChannels(def.block, { email: v })}
                 />
               </tbody>
