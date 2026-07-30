@@ -730,9 +730,19 @@ first_seen_at: 2026-07-26 03:23:06 +03
 last_seen_at: 2026-07-26 03:24:25 +03
 ```
 
-- [ ] Воспроизвести, какой путь `auth_role_config` выбирает неверный pool, и проверить после deploy 26.07;
-      возможный fix через `publicAuthSnapshot/isOAuthProviderEnabled` не считать доказанным без прогона.
-- [ ] При повторении на TEST разбирать по горячим следам и не удалять signal.
+- [x] Воспроизвести, какой путь `auth_role_config` выбирает неверный pool, и проверить после deploy 26.07;
+      возможный fix через `publicAuthSnapshot/isOAuthProviderEnabled` не считать доказанным без прогона. —
+      2026-07-30: fingerprint агрегировал любой PostgreSQL `42501` семейства `auth_role_config`, поэтому
+      удалённая строка не хранит конкретный key/relation/route. Старый login-path из семи DB allowlist reads
+      удалён коммитом `5f81febc4`; текущий `resolveRoleAsync` не читает role allowlist из БД. TEST deploy
+      `6398c404e` содержит этот fix. Read-only `BEGIN; SET LOCAL ROLE bcb_test_nonstaff_login` доказал:
+      exact DB `bersoncarebot_test`, `EXECUTE` server-runtime accessor = true, прямой `SELECT` из
+      `public.system_settings` = false. `publicAuthSnapshot/isOAuthProviderEnabled` исключён: он помечен
+      отдельным operation family `public_auth_config`.
+- [x] При повторении на TEST разбирать по горячим следам и не удалять signal. — 2026-07-30 read-only запрос
+      `WHERE fingerprint = 'v2:role_pool_mismatch:webapp:auth_role_config'` вернул 0 строк после старта
+      `bersoncarebot-webapp-test.service` 2026-07-29 23:42:18 MSK; повторения на текущем TEST нет. Старый
+      `smoke-e1-webapp-runtime-config.mjs` не запускался, потому что он сам вставляет этот fingerprint.
 
 Связанный, но отдельный defect: deploy closure переигрывал migration `0193` поверх `0201/0202` и падал на
 законной строке.
