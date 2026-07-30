@@ -11,7 +11,6 @@ import {
   entitlementsFromSnapshot,
   fileStorageLimitFromSnapshot,
   resolveClinicSeatLimit,
-  resolveMechanicAccessFromSnapshot,
   resolveOrgQuotaProjections,
 } from '@/modules/org-entitlements/service';
 import type {
@@ -21,7 +20,6 @@ import type {
 import {
   MECHANICS,
   type MechanicDefinition,
-  type OrgEntitlementSnapshot,
   type Tariff,
   type TariffQuotaMap,
 } from '@/modules/org-entitlements/types';
@@ -47,6 +45,9 @@ const unconfiguredPolicies = {
 
 function snapshotPort(): OrgEntitlementsPort {
   return {
+    async resolveMechanicAccess(_organizationId, mechanic) {
+      return { mechanic, state: 'full_access', policySource: 'system', warning: null };
+    },
     async getSnapshot() {
       return {
         tariff: {
@@ -192,6 +193,12 @@ describe('org entitlement mechanic classes', () => {
       { actorId: 'admin', reason: '' },
     );
     const assignedPort: OrgEntitlementsPort = {
+      resolveMechanicAccess: async (_organizationId, mechanic) => ({
+        mechanic,
+        state: 'full_access',
+        policySource: 'system',
+        warning: null,
+      }),
       getSnapshot: async () => ({
         tariff: {
           mechanics: tariff.mechanics,
@@ -241,6 +248,12 @@ describe('org entitlement mechanic classes', () => {
       access: activeAccess,
     };
     const port: OrgEntitlementsPort = {
+      resolveMechanicAccess: async (_organizationId, mechanic) => ({
+        mechanic,
+        state: 'disabled',
+        policySource: 'unconfigured',
+        warning: null,
+      }),
       getSnapshot: async () => snapshot,
       getTariffForOrg: async () => snapshot.tariff,
       listOverrides: async () => [],
@@ -346,168 +359,17 @@ describe('org entitlement mechanic classes', () => {
     void forbidden;
   });
 
-  it('uses mechanic policy before system policy and falls back to system when unset', () => {
-    const snapshot: OrgEntitlementSnapshot = {
-      tariff: {
-        mechanics: { courses: true, booking: true },
-        quotas: {},
-        systemAccessPolicy: {
-          graceDays: 3,
-          readOnlyDays: 2,
-          warningCount: 2,
-          terminalState: 'disabled',
-        },
-        mechanicAccessPolicies: {
-          courses: {
-            graceDays: 0,
-            readOnlyDays: 5,
-            warningCount: 1,
-            terminalState: 'full_access',
-          },
-        },
-        includedSeats: null,
-        includedSeatsWarningAtPercent: null,
-      },
-      overrides: [],
-      access: {
-        lifecycle: 'grace',
-        tariffId: 'tariff',
-        source: 'trial',
-        degradationStartedAt: '2026-07-01T00:00:00.000Z',
-      },
-    };
-    const now = new Date('2026-07-02T00:00:00.000Z');
-
-    expect(resolveMechanicAccessFromSnapshot(snapshot, 'courses', now)).toMatchObject({
-      state: 'read_only',
-      policySource: 'mechanic',
-      warning: null,
-    });
-    expect(resolveMechanicAccessFromSnapshot(snapshot, 'booking', now)).toEqual({
-      mechanic: 'booking',
-      state: 'grace',
-      policySource: 'system',
-      warning: {
-        until: '2026-07-04T00:00:00.000Z',
-        count: 2,
-        nextState: 'read_only',
-      },
-    });
-    const afterBothWindows = new Date('2026-07-10T00:00:00.000Z');
-    expect(resolveMechanicAccessFromSnapshot(snapshot, 'courses', afterBothWindows).state).toBe(
-      'full_access',
-    );
-    expect(resolveMechanicAccessFromSnapshot(snapshot, 'booking', afterBothWindows).state).toBe(
-      'disabled',
-    );
-  });
-
-  it.each(['payments', 'branding'] as const)(
-    'applies the owner-configured grace, read-only and terminal ladder to %s without a special case',
-    (mechanic) => {
-      const degradationStartedAt = '2026-07-01T00:00:00.000Z';
-      const snapshot: OrgEntitlementSnapshot = {
-        tariff: {
-          mechanics: { [mechanic]: true },
-          quotas: {},
-          systemAccessPolicy: null,
-          mechanicAccessPolicies: {
-            [mechanic]: {
-              graceDays: 1,
-              readOnlyDays: 2,
-              warningCount: 2,
-              terminalState: 'disabled',
-            },
-          },
-          includedSeats: null,
-          includedSeatsWarningAtPercent: null,
-        },
-        overrides: [],
-        access: {
-          lifecycle: 'blocked',
-          tariffId: 'tariff',
-          source: 'assignment',
-          degradationStartedAt,
-        },
-      };
-
-      expect(
-        resolveMechanicAccessFromSnapshot(snapshot, mechanic, new Date('2026-07-01T12:00:00.000Z')),
-      ).toMatchObject({
-        state: 'grace',
-        policySource: 'mechanic',
-        warning: { until: '2026-07-02T00:00:00.000Z', nextState: 'read_only' },
-      });
-      expect(
-        resolveMechanicAccessFromSnapshot(snapshot, mechanic, new Date('2026-07-02T12:00:00.000Z'))
-          .state,
-      ).toBe('read_only');
-      expect(
-        resolveMechanicAccessFromSnapshot(snapshot, mechanic, new Date('2026-07-04T00:00:00.000Z'))
-          .state,
-      ).toBe('disabled');
-    },
-  );
-
-  it('keeps a critical mechanic full-access even when tariff, exception and terminal are false', () => {
-    const snapshot: OrgEntitlementSnapshot = {
-      tariff: {
-        mechanics: { patient_card: false },
-        quotas: {},
-        systemAccessPolicy: {
-          graceDays: 0,
-          readOnlyDays: 0,
-          warningCount: 0,
-          terminalState: 'disabled',
-        },
-        mechanicAccessPolicies: {},
-        includedSeats: null,
-        includedSeatsWarningAtPercent: null,
-      },
-      overrides: [
-        {
-          mechanic: 'patient_card',
-          enabled: false,
-          quota: null,
-          expiresAt: null,
-          seatLimitOverride: null,
-        },
-      ],
-      access: { lifecycle: 'blocked', tariffId: 'tariff', source: 'assignment' },
-    };
-
-    expect(resolveMechanicAccessFromSnapshot(snapshot, 'patient_card')).toEqual({
-      mechanic: 'patient_card',
-      state: 'full_access',
-      policySource: 'critical',
-      warning: null,
-    });
-  });
-
   it('allows reads in read-only, refuses them when disabled, and shares visibility across surfaces', async () => {
-    const snapshotForState = (enabled: boolean, lifecycle: 'read_only' | 'blocked') =>
-      ({
-        tariff: {
-          mechanics: { courses: enabled },
-          quotas: {},
-          systemAccessPolicy: {
-            graceDays: 0,
-            readOnlyDays: 1,
-            warningCount: 0,
-            terminalState: 'disabled',
-          },
-          mechanicAccessPolicies: {},
-          includedSeats: null,
-          includedSeatsWarningAtPercent: null,
-        },
-        overrides: [],
-        access: { lifecycle, tariffId: 'tariff', source: 'assignment' },
-      }) satisfies OrgEntitlementSnapshot;
     const port = snapshotPort();
     vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<
       typeof buildAppDeps
     >);
-    port.getSnapshot = async () => snapshotForState(true, 'read_only');
+    port.resolveMechanicAccess = async (_organizationId, mechanic) => ({
+      mechanic,
+      state: 'read_only',
+      policySource: 'system',
+      warning: null,
+    });
 
     await expect(requireEntitlementForRead({ organizationId: 'org' }, 'courses')).resolves.toEqual({
       ok: true,
@@ -524,7 +386,12 @@ describe('org entitlement mechanic classes', () => {
       });
     }
 
-    port.getSnapshot = async () => snapshotForState(false, 'blocked');
+    port.resolveMechanicAccess = async (_organizationId, mechanic) => ({
+      mechanic,
+      state: 'disabled',
+      policySource: 'system',
+      warning: null,
+    });
     const deniedRead = await requireEntitlementForRead({ organizationId: 'org' }, 'courses');
     expect(deniedRead.ok).toBe(false);
     if (!deniedRead.ok) {
@@ -566,26 +433,14 @@ describe('org entitlement mechanic classes', () => {
 
   it('carries the grace date, count and next state through the guard and visibility adapter', async () => {
     const port = snapshotPort();
-    port.getSnapshot = async () => ({
-      tariff: {
-        mechanics: { courses: true },
-        quotas: {},
-        systemAccessPolicy: {
-          graceDays: 3,
-          readOnlyDays: 2,
-          warningCount: 4,
-          terminalState: 'disabled',
-        },
-        mechanicAccessPolicies: {},
-        includedSeats: null,
-        includedSeatsWarningAtPercent: null,
-      },
-      overrides: [],
-      access: {
-        lifecycle: 'grace',
-        tariffId: 'tariff',
-        source: 'trial',
-        degradationStartedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    port.resolveMechanicAccess = async (_organizationId, mechanic) => ({
+      mechanic,
+      state: 'grace',
+      policySource: 'system',
+      warning: {
+        until: '2026-08-02T00:00:00.000Z',
+        count: 4,
+        nextState: 'read_only',
       },
     });
     vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<
@@ -596,7 +451,7 @@ describe('org entitlement mechanic classes', () => {
     expect(read.ok).toBe(true);
     if (read.ok) {
       expect(read.warning).toMatchObject({ count: 4, nextState: 'read_only' });
-      expect(Date.parse(read.warning?.until ?? '')).toBeGreaterThan(Date.now());
+      expect(read.warning?.until).toBe('2026-08-02T00:00:00.000Z');
     }
     expect(
       resolveMechanicSurfaceVisibility({
@@ -618,41 +473,6 @@ describe('org entitlement mechanic classes', () => {
         count: 4,
         nextState: 'read_only',
       },
-    });
-  });
-
-  it('returns explicit unconfigured instead of inventing a system duration or terminal', () => {
-    const snapshot: OrgEntitlementSnapshot = {
-      tariff: {
-        mechanics: { courses: true },
-        quotas: {},
-        ...unconfiguredPolicies,
-        includedSeats: null,
-      },
-      overrides: [],
-      access: { lifecycle: 'blocked', tariffId: 'tariff', source: 'assignment' },
-    };
-
-    expect(resolveMechanicAccessFromSnapshot(snapshot, 'courses')).toEqual({
-      mechanic: 'courses',
-      state: 'unconfigured',
-      policySource: 'unconfigured',
-      warning: null,
-    });
-    expect(
-      resolveMechanicAccessFromSnapshot(
-        {
-          tariff: null,
-          overrides: [],
-          access: { lifecycle: 'active', tariffId: null, source: 'no_trial' },
-        },
-        'courses',
-      ),
-    ).toEqual({
-      mechanic: 'courses',
-      state: 'unconfigured',
-      policySource: 'unconfigured',
-      warning: null,
     });
   });
 

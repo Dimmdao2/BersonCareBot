@@ -90,7 +90,7 @@ try {
   postgres(
     ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
     String.raw`
-CREATE ROLE app_owner NOLOGIN;
+CREATE ROLE app_owner NOLOGIN BYPASSRLS;
 CREATE ROLE app_patient NOLOGIN;
 CREATE ROLE app_staff NOLOGIN;
 
@@ -205,11 +205,11 @@ INSERT INTO public.saas_tariffs (
   included_seats_warning_at_percent
 ) VALUES (
   '95200000-0000-4000-8000-000000000001',
-  '{"courses":true}',
+  '{"courses":true,"patient_diaries":true,"payments":true,"branding":true}',
   '{"courses":{"limit":3}}',
   2,
   '{"graceDays":5,"readOnlyDays":2,"warningCount":3,"terminalState":"disabled"}',
-  '{"courses":{"graceDays":2,"readOnlyDays":4,"warningCount":1,"terminalState":"full_access"}}',
+  '{"courses":{"graceDays":2,"readOnlyDays":4,"warningCount":1,"terminalState":"full_access"},"patient_diaries":{"graceDays":2,"readOnlyDays":3,"warningCount":4,"terminalState":"disabled"},"payments":{"graceDays":2,"readOnlyDays":3,"warningCount":4,"terminalState":"disabled"},"branding":{"graceDays":2,"readOnlyDays":3,"warningCount":4,"terminalState":"disabled"}}',
   80
 );
 INSERT INTO public.be_organizations VALUES (
@@ -235,13 +235,81 @@ SET SESSION AUTHORIZATION app_patient;
 SELECT 1 / ((
   SELECT tariff_system_access_policy =
       '{"graceDays":5,"readOnlyDays":2,"warningCount":3,"terminalState":"disabled"}'::jsonb
-    AND tariff_mechanic_access_policies =
-      '{"courses":{"graceDays":2,"readOnlyDays":4,"warningCount":1,"terminalState":"full_access"}}'::jsonb
+    AND tariff_mechanic_access_policies -> 'courses' =
+      '{"graceDays":2,"readOnlyDays":4,"warningCount":1,"terminalState":"full_access"}'::jsonb
     AND included_seats_warning_at_percent = 80
   FROM app.read_current_patient_organization_entitlements()
   WHERE override_mechanic = 'courses'
 ))::int;
 RESET SESSION AUTHORIZATION;
+
+DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
+DO $$
+BEGIN
+  PERFORM *
+  FROM app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    'patient_diaries'
+  );
+  RAISE EXCEPTION 'unprincipled lifecycle door call unexpectedly succeeded';
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    IF SQLERRM <> 'organization_mechanic_access_principal_required' THEN
+      RAISE;
+    END IF;
+END
+$$;
+
+INSERT INTO public.saas_organization_trials (
+  id, organization_id, tariff_id, ends_at, grace_ends_at,
+  post_trial_behavior, post_trial_tariff_id, status
+) VALUES (
+  '95200000-0000-4000-8000-000000000004',
+  '95200000-0000-4000-8000-000000000002',
+  '95200000-0000-4000-8000-000000000001',
+  statement_timestamp() - interval '1 day',
+  statement_timestamp() + interval '10 days',
+  'blocked', NULL, 'active'
+);
+INSERT INTO app.principal_context VALUES (
+  pg_backend_pid(),
+  '95200000-0000-4000-8000-000000000002',
+  '95200000-0000-4000-8000-000000000003',
+  extract(epoch from now() + interval '5 minutes')::bigint
+);
+SET SESSION AUTHORIZATION app_patient;
+SELECT 1 / ((
+  SELECT state = 'grace'
+    AND policy_source = 'mechanic'
+    AND mutation_allowed
+    AND warning ->> 'count' = '4'
+    AND warning ->> 'nextState' = 'read_only'
+  FROM app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    'patient_diaries'
+  )
+))::int;
+RESET SESSION AUTHORIZATION;
+
+UPDATE public.saas_organization_trials
+SET ends_at = statement_timestamp() - interval '10 days',
+    grace_ends_at = statement_timestamp() - interval '9 days'
+WHERE id = '95200000-0000-4000-8000-000000000004';
+SET SESSION AUTHORIZATION app_staff;
+SELECT 1 / ((
+  SELECT state = 'disabled'
+    AND policy_source = 'mechanic'
+    AND NOT mutation_allowed
+    AND warning IS NULL
+  FROM app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    'patient_diaries'
+  )
+))::int;
+RESET SESSION AUTHORIZATION;
+DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
+DELETE FROM public.saas_organization_trials
+WHERE id = '95200000-0000-4000-8000-000000000004';
 `,
   );
 
@@ -265,8 +333,8 @@ SELECT 1 / ((
   SELECT tariff_quotas = '{"courses":{"limit":3}}'::jsonb
     AND tariff_system_access_policy =
       '{"graceDays":5,"readOnlyDays":2,"warningCount":3,"terminalState":"disabled"}'::jsonb
-    AND tariff_mechanic_access_policies =
-      '{"courses":{"graceDays":2,"readOnlyDays":4,"warningCount":1,"terminalState":"full_access"}}'::jsonb
+    AND tariff_mechanic_access_policies -> 'courses' =
+      '{"graceDays":2,"readOnlyDays":4,"warningCount":1,"terminalState":"full_access"}'::jsonb
     AND included_seats_warning_at_percent = 80
     AND override_quota = '{"limit":4}'::jsonb
     AND lifecycle = 'active'
@@ -309,6 +377,36 @@ SELECT 1 / (
 )::int
 FROM pg_proc procedure
 WHERE procedure.oid = 'app.read_current_patient_organization_entitlements()'::regprocedure;
+
+WITH target_function AS (
+  SELECT procedure.oid, procedure.proowner, procedure.proacl, procedure.prosecdef
+  FROM pg_proc AS procedure
+  WHERE procedure.oid = 'app.resolve_organization_mechanic_access(uuid,text)'::regprocedure
+), expected_acl(grantee, privilege_type, is_grantable) AS (
+  VALUES
+    ('app_owner'::text, 'EXECUTE'::text, false),
+    ('app_staff'::text, 'EXECUTE'::text, false),
+    ('app_patient'::text, 'EXECUTE'::text, false)
+), actual_acl AS (
+  SELECT
+    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee,
+    privilege.privilege_type,
+    privilege.is_grantable
+  FROM target_function
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(target_function.proacl, acldefault('f', target_function.proowner))
+  ) AS privilege
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+)
+SELECT 1 / ((
+  SELECT count(*) = 1
+    AND bool_and(prosecdef AND pg_get_userbyid(proowner) = 'app_owner')
+  FROM target_function
+) AND NOT EXISTS (
+  (SELECT * FROM actual_acl EXCEPT SELECT * FROM expected_acl)
+  UNION ALL
+  (SELECT * FROM expected_acl EXCEPT SELECT * FROM actual_acl)
+))::int;
 
 WITH expected(policy_name, relation_name, required_fragments) AS (
   VALUES

@@ -7,8 +7,10 @@ import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type {
   AccessLifecyclePolicy,
   EffectiveOrgCommercialAccess,
+  MechanicAccessResolution,
   MechanicAccessPolicyMap,
   OrgEntitlementSnapshot,
+  OrgMechanic,
   TariffQuota,
   TariffQuotaMap,
 } from '@/modules/org-entitlements/types';
@@ -35,6 +37,12 @@ type CurrentPatientEntitlementRow = {
   effective_tariff_id: string | null;
   access_source: EffectiveOrgCommercialAccess['source'];
   degradation_started_at: string | null;
+};
+
+type MechanicAccessRow = {
+  state: MechanicAccessResolution['state'];
+  policy_source: MechanicAccessResolution['policySource'];
+  warning: MechanicAccessResolution['warning'];
 };
 
 function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntitlementSnapshot {
@@ -237,6 +245,21 @@ async function readSnapshot(organizationId: string): Promise<OrgEntitlementSnaps
 /** Exact-org effective access. Patient reads use only the signed SECURITY DEFINER capability. */
 export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
   return {
+    async resolveMechanicAccess(organizationId: string, mechanic: OrgMechanic) {
+      const result = await runWebappPgText<MechanicAccessRow>(
+        `SELECT state, policy_source, warning
+         FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)`,
+        [organizationId, mechanic],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('organization_mechanic_access_denied');
+      return {
+        mechanic,
+        state: row.state,
+        policySource: row.policy_source,
+        warning: row.warning,
+      };
+    },
     getSnapshot: readSnapshot,
     async getTariffForOrg(organizationId) {
       return (await readSnapshot(organizationId)).tariff;

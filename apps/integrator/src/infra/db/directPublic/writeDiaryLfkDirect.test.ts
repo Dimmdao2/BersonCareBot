@@ -8,7 +8,7 @@ const PLATFORM_USER_ID = '22222222-2222-4222-8222-222222222222';
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('bot diary entitlement', () => {
-  it('refuses the real direct-public write before INSERT when patient_diaries is off', async () => {
+  function directWriteDb(mutationAllowed: boolean) {
     const inserted = vi.fn();
     const db = {
       tx: async <T>(fn: (tx: DbPort) => Promise<T>) => fn(db as unknown as DbPort),
@@ -21,8 +21,12 @@ describe('bot diary entitlement', () => {
         if (text.includes('FROM public.org_enrollments')) {
           return { rows: [{ organization_id: ORGANIZATION_ID }] };
         }
-        if (text.includes('WITH active_trial')) {
-          return { rows: [{ mechanic_enabled: false, lifecycle: 'active' }] };
+        if (
+          text.includes(
+            'FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)',
+          )
+        ) {
+          return { rows: [{ mutation_allowed: mutationAllowed }] };
         }
         if (text.includes('INSERT INTO public.symptom_trackings')) {
           inserted();
@@ -31,6 +35,11 @@ describe('bot diary entitlement', () => {
         throw new Error(`unexpected query: ${text}`);
       },
     } as unknown as DbPort;
+    return { db, inserted };
+  }
+
+  it('refuses the real direct-public write before INSERT when the database door denies mutation', async () => {
+    const { db, inserted } = directWriteDb(false);
 
     await expect(
       createSymptomTrackingDirect(db, {
@@ -43,6 +52,23 @@ describe('bot diary entitlement', () => {
       code: 'patient_diaries_entitlement_required',
     } satisfies Partial<DiaryLfkDirectWriteError>);
     expect(inserted).not.toHaveBeenCalled();
+  });
+
+  it('allows the real direct-public write while the database door allows mutation', async () => {
+    const { db, inserted } = directWriteDb(true);
+
+    await expect(
+      createSymptomTrackingDirect(db, {
+        integratorUserId: '42',
+        channelCode: 'telegram',
+        externalId: '100',
+        symptomTitle: 'Боль',
+      }),
+    ).resolves.toMatchObject({
+      organizationId: ORGANIZATION_ID,
+      trackingId: '33333333-3333-4333-8333-333333333333',
+    });
+    expect(inserted).toHaveBeenCalledOnce();
   });
 
   it('edits the bot message with the refusal instead of reporting a false success', async () => {

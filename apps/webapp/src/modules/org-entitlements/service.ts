@@ -185,91 +185,6 @@ function isMechanicIncludedFromSnapshot(
   return snapshot.tariff.mechanics[mechanic] === true;
 }
 
-function terminalResolutionState(
-  terminalState: AccessTerminalState,
-): MechanicAccessResolution['state'] {
-  return terminalState;
-}
-
-const DAY_MS = 86_400_000;
-
-/**
- * The single access-lifecycle resolver. It consumes only the server snapshot and the evaluation
- * instant: tariff policy, active per-org exception and the already-resolved commercial state.
- */
-export function resolveMechanicAccessFromSnapshot(
-  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'access'>,
-  mechanic: OrgMechanic,
-  now = new Date(),
-): MechanicAccessResolution {
-  if (MECHANIC_REGISTRY[mechanic].class === 'никогда') {
-    return { mechanic, state: 'full_access', policySource: 'critical', warning: null };
-  }
-  if (snapshot.access.source === 'no_trial' && !snapshot.tariff) {
-    return { mechanic, state: 'unconfigured', policySource: 'unconfigured', warning: null };
-  }
-  if (!isMechanicIncludedFromSnapshot(snapshot, mechanic)) {
-    return { mechanic, state: 'disabled', policySource: 'unconfigured', warning: null };
-  }
-  const commercialLoss =
-    snapshot.access.source === 'no_trial' || snapshot.access.lifecycle !== 'active';
-  if (!commercialLoss) {
-    return { mechanic, state: 'full_access', policySource: 'system', warning: null };
-  }
-  const mechanicPolicy = snapshot.tariff?.mechanicAccessPolicies[mechanic];
-  const policy = mechanicPolicy ?? snapshot.tariff?.systemAccessPolicy;
-  const policySource = mechanicPolicy ? 'mechanic' : policy ? 'system' : 'unconfigured';
-  if (!policy) {
-    return { mechanic, state: 'unconfigured', policySource, warning: null };
-  }
-  const degradationStartedAt =
-    snapshot.access.degradationStartedAt ?? snapshot.access.trialEndsAt;
-  const degradationStartedMs = degradationStartedAt
-    ? Date.parse(degradationStartedAt)
-    : Number.NaN;
-  if (Number.isFinite(degradationStartedMs)) {
-    const nowMs = now.getTime();
-    if (nowMs < degradationStartedMs) {
-      return { mechanic, state: 'full_access', policySource, warning: null };
-    }
-    const graceEndsMs = degradationStartedMs + policy.graceDays * DAY_MS;
-    if (policy.graceDays > 0 && nowMs < graceEndsMs) {
-      return {
-        mechanic,
-        state: 'grace',
-        policySource,
-        warning: {
-          until: new Date(graceEndsMs).toISOString(),
-          count: policy.warningCount,
-          nextState: policy.readOnlyDays > 0 ? 'read_only' : policy.terminalState,
-        },
-      };
-    }
-    const readOnlyEndsMs = graceEndsMs + policy.readOnlyDays * DAY_MS;
-    if (policy.readOnlyDays > 0 && nowMs < readOnlyEndsMs) {
-      return { mechanic, state: 'read_only', policySource, warning: null };
-    }
-    return {
-      mechanic,
-      state: terminalResolutionState(policy.terminalState),
-      policySource,
-      warning: null,
-    };
-  }
-  if (snapshot.access.lifecycle === 'read_only') {
-    return { mechanic, state: 'read_only', policySource, warning: null };
-  }
-  if (snapshot.access.lifecycle === 'blocked' || snapshot.access.source === 'no_trial') {
-    return {
-      mechanic,
-      state: terminalResolutionState(policy.terminalState),
-      policySource,
-      warning: null,
-    };
-  }
-  return { mechanic, state: 'unconfigured', policySource, warning: null };
-}
-
 /**
  * `null` is an explicit unlimited file plan (or the unchanged compatibility path); `undefined`
  * means a tariff was assigned but never configured the file limit and must refuse new growth.
@@ -380,9 +295,8 @@ export async function resolveMechanicAccess(
   port: OrgEntitlementsPort,
   organizationId: string,
   mechanic: OrgMechanic,
-  now = new Date(),
 ): Promise<MechanicAccessResolution> {
-  return resolveMechanicAccessFromSnapshot(await port.getSnapshot(organizationId), mechanic, now);
+  return port.resolveMechanicAccess(organizationId, mechanic);
 }
 
 /** A numeric file ceiling for the repository write transaction; see `fileStorageLimitFromSnapshot`. */

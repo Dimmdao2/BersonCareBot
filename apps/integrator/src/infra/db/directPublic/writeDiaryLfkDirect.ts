@@ -168,67 +168,13 @@ async function assertPatientDiariesMutationAllowed(
   txDb: DbPort,
   organizationId: string,
 ): Promise<void> {
-  const result = await txDb.query<{ mechanic_enabled: boolean; lifecycle: string }>(
-    `WITH active_trial AS (
-       SELECT trial.*
-       FROM public.saas_organization_trials AS trial
-       WHERE trial.organization_id = $1::uuid
-         AND trial.status = 'active'
-       LIMIT 1
-     ), effective AS (
-       SELECT
-         organization.id AS organization_id,
-         CASE
-           WHEN trial.id IS NULL THEN organization.tariff_id
-           WHEN statement_timestamp() <= trial.grace_ends_at THEN trial.tariff_id
-           WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id
-           ELSE trial.tariff_id
-         END AS tariff_id,
-         CASE
-           WHEN trial.id IS NULL THEN 'active'
-           WHEN statement_timestamp() <= trial.ends_at THEN 'active'
-           WHEN statement_timestamp() <= trial.grace_ends_at THEN 'grace'
-           WHEN trial.post_trial_behavior = 'tariff' THEN 'active'
-           ELSE trial.post_trial_behavior
-         END AS lifecycle,
-         CASE
-           WHEN trial.id IS NULL AND organization.commercial_access_state = 'no_trial'
-             THEN 'no_trial'
-           WHEN trial.id IS NULL AND organization.commercial_access_state = 'compatibility'
-             THEN 'compatibility'
-           WHEN trial.id IS NULL THEN 'assignment'
-           ELSE 'trial'
-         END AS access_source
-       FROM public.be_organizations AS organization
-       LEFT JOIN active_trial AS trial ON true
-       WHERE organization.id = $1::uuid
-         AND organization.is_active = true
-     )
-     SELECT
-       COALESCE(
-         entitlement_override.enabled,
-         (tariff.mechanics ->> 'patient_diaries')::boolean,
-         effective.access_source <> 'no_trial'
-       ) AS mechanic_enabled,
-       effective.lifecycle
-     FROM effective
-     LEFT JOIN public.saas_tariffs AS tariff ON tariff.id = effective.tariff_id
-     LEFT JOIN public.saas_org_entitlement_overrides AS entitlement_override
-       ON entitlement_override.organization_id = effective.organization_id
-      AND entitlement_override.mechanic = 'patient_diaries'
-      AND (
-        entitlement_override.expires_at IS NULL
-        OR entitlement_override.expires_at > statement_timestamp()
-      )`,
-    [organizationId],
+  const result = await txDb.query<{ mutation_allowed: boolean }>(
+    `SELECT mutation_allowed
+     FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)`,
+    [organizationId, 'patient_diaries'],
   );
   const access = result.rows[0];
-  if (
-    !access ||
-    access.mechanic_enabled !== true ||
-    access.lifecycle === 'read_only' ||
-    access.lifecycle === 'blocked'
-  ) {
+  if (access?.mutation_allowed !== true) {
     throw new DiaryLfkDirectWriteError('patient_diaries_entitlement_required', {
       organizationId,
     });

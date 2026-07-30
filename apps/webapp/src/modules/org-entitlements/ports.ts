@@ -5,6 +5,7 @@
 import type {
   AccessLifecyclePolicy,
   EffectiveOrgCommercialAccess,
+  MechanicAccessResolution,
   MechanicAccessPolicyMap,
   OrgCommercialAccessState,
   OrgEntitlementSnapshot,
@@ -17,6 +18,11 @@ import type {
 } from './types';
 
 export type OrgEntitlementsPort = {
+  /** Canonical database-computed lifecycle state shared with the integrator. */
+  resolveMechanicAccess(
+    organizationId: string,
+    mechanic: OrgMechanic,
+  ): Promise<MechanicAccessResolution>;
   /** One server-authoritative effective snapshot used by mutation guards. */
   getSnapshot(organizationId: string): Promise<OrgEntitlementSnapshot>;
   /** Resolves the org's tariff via be_organizations.tariff_id. Null when unset (no tariff assigned). */

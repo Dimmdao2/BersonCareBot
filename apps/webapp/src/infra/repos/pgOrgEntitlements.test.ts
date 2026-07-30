@@ -12,7 +12,6 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
 }));
 
 import { createPgOrgEntitlementsPort } from './pgOrgEntitlements';
-import { resolveMechanicAccessFromSnapshot } from '@/modules/org-entitlements/service';
 
 describe('createPgOrgEntitlementsPort usage projection', () => {
   beforeEach(() => {
@@ -33,7 +32,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
     ).resolves.toEqual({ courses: 2, clinic_team: 3 });
   });
 
-  it('projects lifecycle policies from the patient database capability into resolver behaviour', async () => {
+  it('projects lifecycle policies from the patient database capability', async () => {
     const organizationId = '11111111-1111-4111-8111-111111111111';
     getCurrentDbPrincipalMock.mockReturnValue({
       kind: 'patient',
@@ -86,13 +85,30 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
       warningCount: 1,
       terminalState: 'full_access',
     });
-    expect(
-      resolveMechanicAccessFromSnapshot(
-        snapshot,
+  });
+
+  it('maps the canonical database door result without recomputing lifecycle in TypeScript', async () => {
+    runWebappPgTextMock.mockResolvedValue({
+      rows: [
+        {
+          state: 'grace',
+          policy_source: 'mechanic',
+          warning: {
+            until: '2026-07-03T00:00:00.000Z',
+            count: 1,
+            nextState: 'read_only',
+          },
+        },
+      ],
+    });
+
+    await expect(
+      createPgOrgEntitlementsPort().resolveMechanicAccess(
+        '11111111-1111-4111-8111-111111111111',
         'courses',
-        new Date('2026-07-02T00:00:00.000Z'),
       ),
-    ).toMatchObject({
+    ).resolves.toEqual({
+      mechanic: 'courses',
       state: 'grace',
       policySource: 'mechanic',
       warning: {
@@ -101,5 +117,9 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
         nextState: 'read_only',
       },
     });
+    expect(runWebappPgTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('app.resolve_organization_mechanic_access'),
+      ['11111111-1111-4111-8111-111111111111', 'courses'],
+    );
   });
 });
