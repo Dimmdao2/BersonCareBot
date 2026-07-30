@@ -1096,7 +1096,19 @@ WITH required(tbl, priv) AS (
     ('public.user_oauth_bindings', 'INSERT'),
     ('public.login_tokens', 'SELECT'),
     ('public.login_tokens', 'INSERT'),
-    ('public.login_tokens', 'UPDATE')
+    ('public.login_tokens', 'UPDATE'),
+    -- 0276 patient passkeys: app_owner-owned accessors keep opaque account handles, public
+    -- credentials and bounded one-time challenges behind EXECUTE-only runtime functions.
+    ('public.user_passkey_accounts', 'SELECT'),
+    ('public.user_passkey_accounts', 'INSERT'),
+    ('public.user_passkey_credentials', 'SELECT'),
+    ('public.user_passkey_credentials', 'INSERT'),
+    ('public.user_passkey_credentials', 'UPDATE'),
+    ('public.user_passkey_credentials', 'DELETE'),
+    ('public.user_passkey_challenges', 'SELECT'),
+    ('public.user_passkey_challenges', 'INSERT'),
+    ('public.user_passkey_challenges', 'UPDATE'),
+    ('public.user_passkey_challenges', 'DELETE')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1312,7 +1324,10 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # 110 -> 115 (2026-07-30, #1065): migration 0274 adds the atomic password-login admission and
   # ALTCHA accessors and moves the password self-service writers behind app_owner. Their exact
   # protection-table DML grants are pinned above; app_patient/app_staff retain no direct table ACL.
-  local expected_secdef_count=115
+  # 115 -> 124 (#1005): migration 0276 adds nine reviewed passkey accessors. Their exact
+  # account/credential/challenge table grants are pinned above; runtime roles retain no direct
+  # table ACL and receive only the intended EXECUTE capabilities.
+  local expected_secdef_count=124
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1325,7 +1340,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (73 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (83 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){

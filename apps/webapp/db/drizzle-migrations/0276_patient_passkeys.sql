@@ -412,9 +412,16 @@ $function$;
 DO $passkey_owner$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner') THEN
-    ALTER TABLE public.user_passkey_accounts OWNER TO app_owner;
-    ALTER TABLE public.user_passkey_credentials OWNER TO app_owner;
-    ALTER TABLE public.user_passkey_challenges OWNER TO app_owner;
+    -- Public tables keep the canonical database-owner ownership used by the rest of the webapp
+    -- schema. app_owner deliberately has no CREATE on public, so transferring ownership would make
+    -- this migration fail with 42501. Grant only the DML required by the SECURITY DEFINER functions.
+    GRANT SELECT, INSERT
+      ON TABLE public.user_passkey_accounts
+      TO app_owner;
+    GRANT SELECT, INSERT, UPDATE, DELETE
+      ON TABLE public.user_passkey_credentials,
+               public.user_passkey_challenges
+      TO app_owner;
     ALTER FUNCTION app.passkey_get_or_create_account(uuid, text) OWNER TO app_owner;
     ALTER FUNCTION app.passkey_list_current_credentials() OWNER TO app_owner;
     ALTER FUNCTION app.passkey_list_current_exclusions() OWNER TO app_owner;
