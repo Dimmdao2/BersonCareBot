@@ -1,4 +1,14 @@
-# MISSION: audit the extended integrator cleanup plan (Track D-полный, items D11–D18) — read-only
+# MISSION: RE-audit of the corrected integrator cleanup plan (Track D-полный, D11–D19) — read-only
+
+This is the second pass. The first two audits (`AUDIT_TRACKD_SOL_RESULT.md` — FAIL, `AUDIT_TRACKD_OPUS_RESULT.md` —
+PASS WITH FIXES) have been applied by the lead: the booking-constants item was split into «build the consumer first,
+then cut» and moved after the lifecycle move; identity was split into research and a stepwise cutover; the narrow-role
+gate now lists the actual end of canon writes; the one-DB-path item covers the whole `apps/integrator`; the loop
+arithmetic is marked for a named recount; a new D19 requires re-checking the architecture rule after implementation.
+The architecture rule itself was corrected and a target scheme was written into `apps/webapp/ARCHITECTURE.md`.
+
+Your job: verify the corrections actually land, and hunt for what the first pass missed. Do not re-litigate what was
+already fixed — check it and move on.
 
 The owner asked for the plan to be re-checked after it was written: «план надо будет перепроверить после создания —
 учесть всё что мы обсуждали и приведение к одному порту бд». Judge the plan, not the code.
