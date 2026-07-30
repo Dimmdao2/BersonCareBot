@@ -4,7 +4,7 @@ Keys are already registered by step 4.0 (`4d299dc4f`). You add the guards and th
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — items **5.1**, **5.2**, **5.9** only,
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — items **5.1**, **5.2**, **5.9** only,
   plus scope §1 and verification policy §2.
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1 (owner rulings), §5.1 (a disabled
   mechanic blocks creating and changing; everything already created stays visible and exportable), §5.6 (a refusal is
@@ -24,7 +24,7 @@ Keys are already registered by step 4.0 (`4d299dc4f`). You add the guards and th
 
 ## Rules that decide whether this is accepted
 
-1. **Guard creating and changing only. Never guard reading.** Gating a read path would hide content already assigned to
+1. ⛔ **ОТМЕНЕНО 30.07 — это был домысел лида, владелец такого не говорил. Действует: выключенная механика СКРЫВАЕТ раздел и у специалиста, и у его пациентов; политику и длительности задаёт владелец в тарифе (канон §4a).** ~~Guard creating and changing only. Never guard reading.~~ Gating a read path would hide content already assigned to
    a patient — that is a defect, not caution.
 2. **A refusal is visible.** A blocked action must tell the user what became impossible and how to lift it (canon §7
    wording rule: name the action, no invented numbers). A silent 403 that the interface swallows is exactly the defect

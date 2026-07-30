@@ -5,7 +5,7 @@ Your job: verify each fix by behaviour, and hunt for what the fixes themselves m
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`, stages 1 and 2 (scope §1 was widened
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`, stages 1 and 2 (scope §1 was widened
   after finding 6).
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1, §3, §4, §5.
 - **First verdict:** `docs/_TODO/runs/tariff-mechanics/STAGE12_AUDIT_RESULT.md`.

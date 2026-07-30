@@ -6,7 +6,7 @@ Scope is deliberately narrow. Do exactly this and nothing more.
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — stage 2, item **2.6**, scope §1,
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — stage 2, item **2.6**, scope §1,
   verification policy §2.
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §5.6 («отказ всегда видимый.
   Никогда молчаливый дроп») and §7 (the wording rule: name the concrete impossible action and how to lift it).

@@ -6,7 +6,7 @@ before you write a line of code.
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — items **5.3**, **5.4**, **5.7**; scope §1;
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — items **5.3**, **5.4**, **5.7**; scope §1;
   policy §2.
 - **Canon:** `QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1 (owner rulings), §5.1 (a disabled mechanic hides its section for the
   specialist AND for his patients; data survives and returns when it is switched back on), §5.6 (a refusal is always visible), §7 (wording).

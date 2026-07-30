@@ -4,7 +4,7 @@ One defect, mechanical, narrow. Do exactly this.
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`, item **2.3** (CMS stops being a numeric
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`, item **2.3** (CMS stops being a numeric
   quota), scope §1, verification policy §2.
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §2 (what the usage projection is
   for), §3, §5.

@@ -6,7 +6,7 @@ artefacts are fine.
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — stage 1 (1.1–1.4), stage 2 (2.1–2.10),
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — stage 1 (1.1–1.4), stage 2 (2.1–2.10),
   scope §1, verification policy §2. Note item **4.10**: freeing occupied volume belongs to stage 4, and the volume
   limit must not be rolled out to any clinic until it exists — that is not a defect of these stages.
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1, §3, §4, §5.

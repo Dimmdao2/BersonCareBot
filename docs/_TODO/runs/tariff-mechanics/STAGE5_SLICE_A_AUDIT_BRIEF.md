@@ -4,7 +4,7 @@ Three toggles were wired: external calendar (5.1), patient diaries (5.2), the th
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — items 5.1, 5.2, 5.9; scope §1; policy §2.
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — items 5.1, 5.2, 5.9; scope §1; policy §2.
 - **Worker brief (the contract he was given):** `docs/_TODO/runs/tariff-mechanics/STAGE5_SLICE_A_BRIEF.md`.
 - **Worker claims (verify, do not trust):** `docs/_TODO/runs/tariff-mechanics/STAGE5_SLICE_A_REPORT.md`.
 - **Canon:** `QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1, §5.1, §5.6, §8.

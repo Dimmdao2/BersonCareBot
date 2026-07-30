@@ -6,7 +6,7 @@ they run in parallel they collide. You add **all** the new keys and all the prot
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — item **4.0** only, plus scope §1 and
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — item **4.0** only, plus scope §1 and
   verification policy §2. The mechanics you register come from stage 4 (4.4, 4.5) and stage 5 (5.1–5.9).
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §3 (classes), §4 (the full layout —
   this is your list), §8 (the three owner mechanics are disabled for everyone by default and enabled for him through

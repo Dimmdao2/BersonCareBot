@@ -2,7 +2,7 @@
 
 ## Authority — read IN FULL before touching code
 
-- **Plan (your checklist, the only source of «done»):** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`
+- **Plan (your checklist, the only source of «done»):** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`
   — you implement **stage 1 (1.1–1.4) and stage 2 (2.1–2.10) ONLY**. Nothing from stages 3–7. Do not add checkboxes.
 - **Model canon (classes, layout, behaviour, wording):** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md`
   — §1 owner rulings, §2 verified code facts, §3 classes, §4 layout, §5 behaviour at the limit.

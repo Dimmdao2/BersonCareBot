@@ -5,7 +5,7 @@ found more. Treat the **class** of defect, not the individual lines, and do it o
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — items 5.1, 5.2, 5.9; scope §1; policy §2.
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — items 5.1, 5.2, 5.9; scope §1; policy §2.
 - **Verdict you are fixing:** `docs/_TODO/runs/tariff-mechanics/STAGE5_SLICE_A_REAUDIT_RESULT.md` — every MUST FIX and
   the completeness diff table.
 - **Your previous enumeration:** `docs/_TODO/runs/tariff-mechanics/STAGE5_SLICE_A_CORRECTION_RESULT.md`.

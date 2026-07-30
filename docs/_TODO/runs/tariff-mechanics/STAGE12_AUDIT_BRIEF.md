@@ -4,7 +4,7 @@ You audit code, not intentions. The worker's own report is an input signal, neve
 
 ## Authority
 
-- **Plan (the only source of «done»):** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`, stage 1
+- **Plan (the only source of «done»):** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`, stage 1
   (1.1–1.4) and stage 2 (2.1–2.10). Quote each checkbox ID and its full text in your matrix.
 - **Model canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1 (owner rulings),
   §3 (five classes), §4 (layout), §5 (behaviour at the limit).

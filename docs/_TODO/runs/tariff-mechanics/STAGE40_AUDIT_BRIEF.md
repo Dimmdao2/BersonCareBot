@@ -5,7 +5,7 @@ behaviour, and that the declarations are right — thirteen keys the next stages
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — item **4.0**, scope §1, policy §2.
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — item **4.0**, scope §1, policy §2.
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §3 (classes), §4 (the required
   layout — this is the reference list), §8 (owner mechanics default-off, enabled through the existing organization
   exception).

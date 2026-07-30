@@ -5,7 +5,7 @@ be clean when you finish.
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — items 5.1, 5.2, 5.9; scope §1; policy §2.
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — items 5.1, 5.2, 5.9; scope §1; policy §2.
 - **The two previous verdicts:** `STAGE5_SLICE_A_AUDIT_RESULT.md`, `STAGE5_SLICE_A_REAUDIT_RESULT.md` in
   `docs/_TODO/runs/tariff-mechanics/`.
 - **Worker enumeration and claims (verify, do not trust):** `STAGE5_SLICE_A_CORRECTION_RESULT.md`,
