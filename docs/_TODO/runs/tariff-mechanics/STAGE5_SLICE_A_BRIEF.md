@@ -24,7 +24,7 @@ Keys are already registered by step 4.0 (`4d299dc4f`). You add the guards and th
 
 ## Rules that decide whether this is accepted
 
-1. **Guard creating and changing only. Never guard reading.** Gating a read path would hide content already assigned to
+1. ⛔ **ОТМЕНЕНО 30.07 — это был домысел лида, владелец такого не говорил. Действует: выключенная механика СКРЫВАЕТ раздел и у специалиста, и у его пациентов; политику и длительности задаёт владелец в тарифе (канон §4a).** ~~Guard creating and changing only. Never guard reading.~~ Gating a read path would hide content already assigned to
    a patient — that is a defect, not caution.
 2. **A refusal is visible.** A blocked action must tell the user what became impossible and how to lift it (canon §7
    wording rule: name the action, no invented numbers). A silent 403 that the interface swallows is exactly the defect

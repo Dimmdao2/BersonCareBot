@@ -120,10 +120,14 @@ fi
 
 # 5. Запуск. Лог рядом с брифом, run-id — в имени.
 LOG="$(dirname "$BRIEF")/$RUN_ID.log"
-echo "запуск: роль=$ROLE клон=$CLONE_NAME модель=$MODEL effort=$EFFORT слой=$PLAN_SLICE"
+echo "запуск: роль=$ROLE клон=$CLONE_NAME провайдер=${ORCH_PROVIDER:-codex} модель=$MODEL effort=$EFFORT слой=$PLAN_SLICE"
 echo "  клон содержит feat ${HEAD_MAIN:0:9}, своих коммитов сверху: $AHEAD; агентов роли было $LIVE из $CAP; лог $LOG"
 [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, агент НЕ запущен"; exit 0; }
-nohup node "$PORT" --provider codex --model "$MODEL" --effort "$EFFORT" \
+# Провайдер по умолчанию — codex (весь исполнительский поток идёт через него). Владелец 30.07 попросил
+# аудит плана ДВУМЯ моделями, Sol и Opus, поэтому провайдер стал параметром: ORCH_PROVIDER=claude.
+# Мимо порта всё равно ничего не запускается — гейты выше не зависят от провайдера.
+PROVIDER=${ORCH_PROVIDER:-codex}
+nohup node "$PORT" --provider "$PROVIDER" --model "$MODEL" --effort "$EFFORT" \
   --role "$ROLE_FOR_PORT" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
   < "$BRIEF" > "$LOG" 2>&1 &
 echo "  pid=$!"
