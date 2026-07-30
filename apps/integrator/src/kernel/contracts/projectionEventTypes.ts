@@ -12,7 +12,3 @@ export type ReminderProjectionEventType =
   | typeof REMINDER_OCCURRENCE_FINALIZED
   | typeof REMINDER_DELIVERY_LOGGED
   | typeof CONTENT_ACCESS_GRANTED;
-
-export const APPOINTMENT_RECORD_UPSERTED = 'appointment.record.upserted';
-
-export type AppointmentProjectionEventType = typeof APPOINTMENT_RECORD_UPSERTED;

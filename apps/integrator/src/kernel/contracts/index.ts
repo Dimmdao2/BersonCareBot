@@ -134,12 +134,8 @@ export {
   REMINDER_OCCURRENCE_FINALIZED,
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
-  APPOINTMENT_RECORD_UPSERTED,
 } from './projectionEventTypes.js';
-export type {
-  ReminderProjectionEventType,
-  AppointmentProjectionEventType,
-} from './projectionEventTypes.js';
+export type { ReminderProjectionEventType } from './projectionEventTypes.js';
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin } from './messengerStaff.js';
 
