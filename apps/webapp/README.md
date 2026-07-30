@@ -35,7 +35,7 @@ Default local URL: `http://127.0.0.1:5200/app`
 
 **Режим разработки и тестирование UI:** полный гайд для агентов — [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](../../docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) (dev-bypass, `pnpm dev` / `webapp:dev` / `dev:turbo` / `dev:visual`, порты, curl).
 
-**Режим разработки (вход в браузере без Telegram):** в `.env.dev` задайте `NODE_ENV=development` и `ALLOW_DEV_AUTH_BYPASS=true`. На `/app` доступны отдельные входы пациента, специалиста, администратора клиники (`dev:clinic-admin`) и глобального администратора (`dev:admin`). Чистый public/login: `/api/auth/dev-public`; регистрация кабинета: `/api/auth/dev-public?view=registration` (без fake authenticated public role). Полная матрица ролей и TEST→DEV refresh — в гайде выше.
+**Режим разработки (вход в браузере без Telegram):** в `.env.dev` задайте `NODE_ENV=development` и `ALLOW_DEV_AUTH_BYPASS=true`. На `/app` доступны отдельные входы пациента, специалиста, администратора клиники (`dev:clinic-admin`) и глобального администратора (`dev:admin`). Чистый public/login: `/api/auth/dev-public`; регистрация кабинета: `/api/auth/dev-public?view=registration` (без fake authenticated public role). Полная матрица ролей и применение pending migrations к существующей точной `bcb_webapp_dev` через `deploy/host/migrate-dev.sh` — в гайде выше.
 
 ## Environment
 
