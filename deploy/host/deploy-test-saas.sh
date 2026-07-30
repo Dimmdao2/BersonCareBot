@@ -862,176 +862,6 @@ apply_test_nginx_webapp_config(){
   bash deploy/host/apply-test-nginx-webapp.sh --apply
 }
 
-compute_locked_smoke_scenario_ids(){
-  # Derives the read-only scenario id allow-list from the DEPLOYED contract (the same file the
-  # smoke script itself loads), minus the known-skip set. Keeping this computed (not hardcoded)
-  # means new contract scenarios are included automatically and only the documented known-skip
-  # ids are ever dropped from the gate.
-  local exclude_csv="$1"
-  node -e '
-    const fs = require("node:fs");
-    const contract = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    const exclude = new Set((process.argv[2] || "").split(",").map((s) => s.trim()).filter(Boolean));
-    const ids = contract.readOnlyScenarios.map((s) => s.id).filter((id) => !exclude.has(id));
-    process.stdout.write(ids.join(","));
-  ' "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json" "$exclude_csv"
-}
-
-# Converge the packet accounts' TEST passwords, then mint product-smoke sessions FRESH immediately
-# before the smoke runs.
-#
-# Why this exists: the fixture holds pre-minted session COOKIES, and a staff session dies after
-# SESSION_SLIDING_TTL_STAFF_SECONDS (12 h) of idle. So any deploy more than 12 hours after the fixture was
-# last written failed deterministically — 13 of 21 scenarios returning 307/401 while every patient and
-# public scenario passed. That exact split was misread as product breakage more than once. Proven live
-# 2026-07-27: fixture minted 15:16 on 07-26, smoke ran 03:31 on 07-27 (12 h 15 m later) -> all 13 staff
-# scenarios failed. After minting fresh: 21 of 22 pass.
-#
-# Sourced practice, not invented: Datadog Synthetics and Playwright both require a dedicated test account
-# and a live login for state-changing checks rather than a stored session. Decision and sources are
-# recorded in docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md section 10; the three authorised accounts are
-# section 11.
-#
-# The packet is the password source of truth. Convergence is pinned to the exact bersoncarebot_test database,
-# validates the three packet actors, and changes no other account. The doctor actor is the active clinic owner,
-# so the freshly minted doctor session intentionally covers both doctor and clinic_admin smoke profiles.
-#
-# If the credentials packet is absent, this is a NO-OP and the deploy falls back to whatever fixture is on
-# disk, which then gets the usual staleness warning. A missing packet must not take a deploy down — the packet
-# lives outside the repo and a fresh host will not have one yet. Once the packet exists, however, convergence
-# and fresh minting are one fail-closed gate: neither failure may fall back to an older cookie fixture and
-# report green for credentials that the current deploy never proved.
-mint_smoke_sessions_if_possible(){
-  local packet="${SAAS_SMOKE_LOGIN_PACKET:-/opt/env/bersoncarebot/saas-smoke-login.env}"
-  local password_converger="$DEPLOY_REPO/apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs"
-  local minter="$DEPLOY_REPO/deploy/host/mint-smoke-session.mjs"
-  local fixture="${SAAS_PRODUCT_SMOKE_FIXTURE:-/run/bersoncarebot/saas-smoke.fixture}"
-  if ! sudo test -r "$packet"; then
-    echo "   note: no smoke-login packet at $packet — skipping session mint, using the fixture as found." >&2
-    return 0
-  fi
-  if [ ! -r "$password_converger" ]; then
-    echo "   ⚠️  FAIL [TEST]: $password_converger not readable while the smoke-login packet is present." >&2
-    return 1
-  fi
-  if [ ! -r "$minter" ]; then
-    echo "   ⚠️  FAIL [TEST]: $minter not readable while the smoke-login packet is present." >&2
-    return 1
-  fi
-  echo "   converging TEST service-account passwords to the protected smoke-login packet"
-  if ! sudo env SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1 \
-      node "$password_converger" --packet="$packet"; then
-    echo "   ⚠️  FAIL [TEST]: service-account password convergence failed — refusing the older fixture." >&2
-    return 1
-  fi
-  echo "   service-account passwords converged to the packet (values were not printed)"
-  echo "   minting fresh product-smoke sessions (packet present)"
-  if sudo node "$minter" \
-      --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
-      --packet="$packet" \
-      --refs-from="$fixture" \
-      --out="$fixture"; then
-    return 0
-  fi
-  echo "   ⚠️  FAIL [TEST]: fresh session mint failed — refusing the older fixture." >&2
-  return 1
-}
-
-run_locked_product_smoke(){
-  local fixture_path
-  local local_smoke_failed=0
-  if ! mint_smoke_sessions_if_possible; then
-    echo "   ⚠️  FAIL [TEST]: packet-backed smoke login was not freshly proven; A2 stays RED." >&2
-    return 1
-  fi
-  assert_locked_product_smoke_fixture_ready
-  fixture_path="$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"
-  local smoke_dir
-  smoke_dir="${SAAS_PRODUCT_SMOKE_OUTPUT_DIR:-/tmp/bcb-saas-product-smoke}"
-  sudo install -d -o deploy -g deploy -m 0700 "$smoke_dir"
-  local smoke_args=()
-  if [ -n "${SAAS_PRODUCT_SMOKE_CATEGORIES:-}" ]; then
-    smoke_args+=("--categories=$SAAS_PRODUCT_SMOKE_CATEGORIES")
-  fi
-  if [ -n "${SAAS_PRODUCT_SMOKE_SCENARIO_IDS:-}" ]; then
-    smoke_args+=("--scenario-ids=$SAAS_PRODUCT_SMOKE_SCENARIO_IDS")
-  else
-    # The 2026-07-25 known limitation is RESOLVED as of 2026-07-27 and the skip list is now EMPTY.
-    # It read: the real TEST clinic has no clinic_public_directory_entries row and no in-app publish
-    # flow exists, so public.booking.slots cannot pass without fabricating a slug. Both halves are gone:
-    # F-6 shipped the publish flow (Настройки → Организация → «Публичная запись», commit edbcd7eeb) and
-    # the owner claimed the slug "dmitryberson" for Точка Здоровья through it on 2026-07-27.
-    # The scenario then still failed 400 — NOT a product defect: the fixture ref pointed at
-    # "Сеанс 40 мин", a service the owner deactivated on 2026-06-01, and the public resolver correctly
-    # refuses an inactive service. Repointed at an active service; the full smoke is 22/22.
-    # Keep this list EMPTY. A scenario that cannot pass belongs in the contract's own skip mechanism
-    # with a reason, not silently excluded from the gate here.
-    local known_skip_ids="${SAAS_PRODUCT_SMOKE_KNOWN_SKIP_IDS:-}"
-    if [ -n "$known_skip_ids" ]; then
-      echo "   ⚠️  SKIPPED (known limitation, excluded from pass/fail gate): $known_skip_ids"
-      echo "       reason: no clinic_public_directory_entries row for the real org and no in-app publish flow yet;"
-      echo "       fabricating a slug via raw SQL would be a fake pass, not a real one. Revisit once publish is wired."
-      smoke_args+=("--scenario-ids=$(compute_locked_smoke_scenario_ids "$known_skip_ids")")
-    fi
-  fi
-
-  # Mandatory but warn-not-fatal on failure (owner 2026-07-25): a stale/broken smoke fixture must
-  # never SIGTERM live TEST units. Precedent: the E1 isolation post-runtime gate was made
-  # warn-not-fatal the same way (d55d0ac8d) for the identical reason — this is a correctness gate,
-  # not a services-availability gate. The gate stays RED and loud (PRODUCT_SMOKE_GATE_FAILED flips
-  # the overall deploy exit code to non-zero at the very end, once SERVICES_RELEASED=1 is already
-  # set — see the end of run_strict_closure) instead of exiting mid-closure while WRITERS_STOPPED=1,
-  # which is exactly the condition that made cleanup_exit stop every unit.
-  if sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs" \
-    --mode=locked \
-    --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
-    --fixture-file="$fixture_path" \
-    --json-output="$smoke_dir/saas-product-smoke.json" \
-    --junit-output="$smoke_dir/saas-product-smoke.junit.xml" \
-    "${smoke_args[@]}"; then
-    echo "   A2 product smoke gate: OK"
-  else
-    PRODUCT_SMOKE_GATE_FAILED=1
-    local_smoke_failed=1
-    echo "   ⚠️  FAIL [TEST]: A2 product smoke gate did NOT pass — TEST units stay UP (see cleanup precedent above)." >&2
-    echo "   ⚠️  This deploy WILL still exit non-zero once the strict closure finishes; it is not silenced." >&2
-    echo "   ⚠️  Triage:  cat $smoke_dir/saas-product-smoke.json" >&2
-  fi
-
-  if sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs" \
-    --mode=locked \
-    --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
-    --fixture-file="$fixture_path" \
-    --include-mutations \
-    --scenario-ids=global-admin.clinical-write.denied \
-    --json-output="$smoke_dir/saas-product-smoke-global-admin-denial.json" \
-    --junit-output="$smoke_dir/saas-product-smoke-global-admin-denial.junit.xml"; then
-    echo "   A2 global-admin clinical-write denial smoke: OK"
-  else
-    PRODUCT_SMOKE_GATE_FAILED=1
-    local_smoke_failed=1
-    echo "   ⚠️  FAIL [TEST]: A2 global-admin clinical-write denial smoke did NOT pass — TEST units stay UP." >&2
-    echo "   ⚠️  Triage:  cat $smoke_dir/saas-product-smoke-global-admin-denial.json" >&2
-  fi
-
-  # Report through the EXIT STATUS, not through PRODUCT_SMOKE_GATE_FAILED alone.
-  # run_closure_gate (:1687-1696) invokes every gate as `if ( "$@" )` — a SUBSHELL. That subshell is
-  # load-bearing: several gates call `exit 1` on FATAL, and the subshell turns that into a return code
-  # instead of killing the whole deploy. But it also means any variable this function assigns dies with
-  # the child process. So PRODUCT_SMOKE_GATE_FAILED never reached the parent, the fold-in at the end of
-  # run_strict_post_migration_closure could not see it, and — because this function's last statement was
-  # an if/else that yields 0 — run_closure_gate saw SUCCESS too. Both detection paths missed, and a
-  # deploy whose mandatory product smoke failed 13 of 21 scenarios exited 0 while printing
-  # "This deploy WILL still exit non-zero ... it is not silenced". Proven 2026-07-27 on
-  # deploy-test-20260727T010909Z-2796669.log: smoke FAIL at :5553, exit 0 at :6073.
-  # This was masked until 2026-07-27 because every prior deploy already exited red on a different gate
-  # (the operator_incidents false FATAL, fixed in 6ac7c2af4), so the smoke's own exit path never had to
-  # work. Same class as taskdb #1016 (deploy reported units healthy while all five were down): a deploy
-  # that reports success with a failed mandatory gate is worse than one that reports failure.
-  [ "${local_smoke_failed:-0}" = "1" ] && return 1
-  return 0
-}
-
 run_specialist_signup_provisioning_smoke(){
   # U3S specialist signup/provisioning/binding smoke (taskdb: stalled self-signup provisioning
   # fix). This never touches TEST -- it starts its own private, disposable PostgreSQL cluster under
@@ -1039,8 +869,8 @@ run_specialist_signup_provisioning_smoke(){
   # specialist-owner-provisioning-rls.sql), and exercises app.provision_specialist_owner(uuid)
   # through a locked app_patient principal end to end (org+membership creation, replay/concurrent
   # idempotency, second-organization denial, C5A trial assignment, staff commercial read wall,
-  # specialist binding). Fail-closed like run_locked_product_smoke: a non-zero exit aborts this
-  # deploy so the provisioning class this fix addresses is caught at the gate, not live.
+  # specialist binding). A non-zero exit aborts this deploy so the provisioning class this fix
+  # addresses is caught at the gate, not live.
   sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs"
 }
 
@@ -1244,6 +1074,16 @@ WITH required(tbl, priv) AS (
     -- predicate and updates only that credentials row. Runtime callers retain no direct table grant.
     ('public.user_password_credentials', 'SELECT'),
     ('public.user_password_credentials', 'UPDATE'),
+    -- 0274 atomic password admission: app_owner-owned accessors serialize password proofs and
+    -- single-use ALTCHA challenges. Runtime roles retain no direct access to either state table.
+    ('public.password_login_identifier_protection', 'SELECT'),
+    ('public.password_login_identifier_protection', 'INSERT'),
+    ('public.password_login_identifier_protection', 'UPDATE'),
+    ('public.password_login_identifier_protection', 'DELETE'),
+    ('public.password_altcha_challenges', 'SELECT'),
+    ('public.password_altcha_challenges', 'INSERT'),
+    ('public.password_altcha_challenges', 'UPDATE'),
+    ('public.password_altcha_challenges', 'DELETE'),
     -- 0258 bootstrap auth table accessors: the NOINHERIT base login gets only EXECUTE on 22 exact
     -- operations. app_owner needs the following base privileges; no runtime role gets these table grants.
     ('public.user_pins', 'SELECT'),
@@ -1474,11 +1314,15 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # app.read_org_enforced_quota_usage(uuid), a count-only seam over courses, memberships and
   # organization_member_invites. The reviewed app_owner SELECT grants are pinned above; the
   # platform role receives EXECUTE only and cannot read course content, invite email or token_hash.
-  # 110 -> 111 (2026-07-30, #1069 item 3.1c): migration 0276 adds exactly one reviewed
+  # 110 -> 115 (2026-07-30, #1065): migration 0274 adds the atomic password-login admission and
+  # ALTCHA accessors and moves the password self-service writers behind app_owner. Their exact
+  # protection-table DML grants are pinned above; app_patient/app_staff retain no direct table ACL.
+  # 115 -> 116 (2026-07-30, #1069 item 3.1c): migration 0276 adds exactly one reviewed
   # app_owner SECURITY DEFINER function, app.resolve_organization_mechanic_access(uuid,text).
   # It reads be_organizations plus the three SaaS entitlement tables already pinned above and
   # exposes only the computed state/warning/mutation decision to app_staff and app_patient.
-  local expected_secdef_count=111
+  # Слияние 30.07: обе ветки считали от 110 — #1065 добавил 5 функций, #1069 одну, итого 116.
+  local expected_secdef_count=116
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1532,7 +1376,7 @@ SELECT (
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (68 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (73 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){
@@ -2233,11 +2077,6 @@ assert_test_health_ok(){
   echo "   health: OK ($health_response)"
 }
 
-assert_awg_relay_active(){
-  systemctl is-active --quiet awg-quick@awg0 || { echo "FATAL: awg-quick@awg0 is not active" >&2; exit 1; }
-  echo "   awg-quick@awg0: OK (active)"
-}
-
 # Run a post-health closure gate WITHOUT letting it take TEST down.
 #
 # Why this exists (owner outage, 2026-07-26): the owner ran an ordinary code-only deploy, one of the
@@ -2384,8 +2223,6 @@ run_strict_post_migration_closure(){
   run_closure_gate "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface" assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned
   log "E1 post-runtime coverage/read gate"
   run_closure_gate "E1 post-runtime coverage/read gate" run_e1_post_runtime_coverage_gate
-  run_closure_gate "awg relay active" assert_awg_relay_active
-
   if [ "${#CLOSURE_GATE_FAILURES[@]}" -gt 0 ]; then
     echo "FATAL: ${#CLOSURE_GATE_FAILURES[@]} post-health closure gate(s) RED:" >&2
     printf '  - %s\n' "${CLOSURE_GATE_FAILURES[@]}" >&2

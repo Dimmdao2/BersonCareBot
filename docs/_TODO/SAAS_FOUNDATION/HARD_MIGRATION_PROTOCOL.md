@@ -559,7 +559,8 @@ acceptance.
   operator URL. It reads first and fails before the coverage write when a genuine unexplained event is already
   active; it also fails when a new unexplained event appears during the gate or the exact fresh complete coverage
   cannot be reread. The gate never invokes the synthetic scenario cleanup and never deletes genuine events. Both
-  fresh-restore and code-only paths must pass this gate before AWG/DONE.
+  fresh-restore and code-only paths must pass this gate before DONE. `awg-quick@awg0` is a separately operated
+  PROD-relay dependency on the shared host and is not part of TEST deployment readiness.
 
 ## DEV/disposable dormant wrapper
 
