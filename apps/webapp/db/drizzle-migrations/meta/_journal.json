@@ -1940,6 +1940,13 @@
       "when": 1793539200074,
       "tag": "0276_access_lifecycle_ladder_local",
       "breakpoints": true
+    },
+    {
+      "idx": 277,
+      "version": "7",
+      "when": 1793539200075,
+      "tag": "0277_organization_mechanic_access_door_local",
+      "breakpoints": true
     }
   ]
 }

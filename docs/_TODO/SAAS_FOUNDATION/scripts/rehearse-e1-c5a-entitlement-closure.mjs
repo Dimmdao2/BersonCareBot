@@ -191,11 +191,18 @@ TO app_owner;
     `SELECT 1 / (pg_get_function_result('app.read_current_patient_organization_entitlements()'::regprocedure) = '${oldSignature}')::int;`,
   );
 
-  const migration = readFileSync(
+  const lifecycleMigration = readFileSync(
     'apps/webapp/db/drizzle-migrations/0276_access_lifecycle_ladder_local.sql',
     'utf8',
   );
-  postgres(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], migration);
+  postgres(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], lifecycleMigration);
+  const mechanicDoorMigration = readFileSync(
+    'apps/webapp/db/drizzle-migrations/0277_organization_mechanic_access_door_local.sql',
+    'utf8',
+  );
+  postgres(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], mechanicDoorMigration);
+  // Re-applying proves CREATE OR REPLACE and the owner/ACL grants are safe when the door exists.
+  postgres(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], mechanicDoorMigration);
 
   postgres(
     ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
@@ -260,6 +267,31 @@ EXCEPTION
 END
 $$;
 
+INSERT INTO app.principal_context VALUES (
+  pg_backend_pid(),
+  '95200000-0000-4000-8000-000000000009',
+  '95200000-0000-4000-8000-000000000003',
+  extract(epoch from now() + interval '5 minutes')::bigint
+);
+SET SESSION AUTHORIZATION app_staff;
+DO $$
+BEGIN
+  PERFORM *
+  FROM app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    'patient_diaries'
+  );
+  RAISE EXCEPTION 'mismatched lifecycle door call unexpectedly succeeded';
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    IF SQLERRM <> 'organization_mechanic_access_principal_mismatch' THEN
+      RAISE;
+    END IF;
+END
+$$;
+RESET SESSION AUTHORIZATION;
+DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
+
 INSERT INTO public.saas_organization_trials (
   id, organization_id, tariff_id, ends_at, grace_ends_at,
   post_trial_behavior, post_trial_tariff_id, status
@@ -267,7 +299,7 @@ INSERT INTO public.saas_organization_trials (
   '95200000-0000-4000-8000-000000000004',
   '95200000-0000-4000-8000-000000000002',
   '95200000-0000-4000-8000-000000000001',
-  statement_timestamp() - interval '1 day',
+  statement_timestamp() + interval '1 day',
   statement_timestamp() + interval '10 days',
   'blocked', NULL, 'active'
 );
@@ -277,37 +309,178 @@ INSERT INTO app.principal_context VALUES (
   '95200000-0000-4000-8000-000000000003',
   extract(epoch from now() + interval '5 minutes')::bigint
 );
+SET SESSION AUTHORIZATION app_staff;
+DO $$
+DECLARE
+  matching_rows integer;
+BEGIN
+  SELECT count(*) INTO matching_rows
+  FROM (VALUES ('payments'), ('branding')) AS mechanics(mechanic)
+  CROSS JOIN LATERAL app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    mechanics.mechanic
+  ) AS access
+  WHERE access.state = 'full_access'
+    AND access.mutation_allowed;
+  IF matching_rows <> 2 THEN
+    RAISE EXCEPTION 'payments_branding_full_access_ladder_contract_failed';
+  END IF;
+END
+$$;
+RESET SESSION AUTHORIZATION;
+
+UPDATE public.saas_organization_trials
+SET ends_at = statement_timestamp() - interval '1 day',
+    grace_ends_at = statement_timestamp() + interval '10 days'
+WHERE id = '95200000-0000-4000-8000-000000000004';
 SET SESSION AUTHORIZATION app_patient;
-SELECT 1 / ((
-  SELECT state = 'grace'
-    AND policy_source = 'mechanic'
-    AND mutation_allowed
-    AND warning ->> 'count' = '4'
-    AND warning ->> 'nextState' = 'read_only'
+DO $$
+DECLARE
+  access_row record;
+BEGIN
+  SELECT * INTO access_row
   FROM app.resolve_organization_mechanic_access(
     '95200000-0000-4000-8000-000000000002'::uuid,
     'patient_diaries'
-  )
-))::int;
+  );
+  IF access_row.state IS DISTINCT FROM 'grace'
+    OR access_row.policy_source IS DISTINCT FROM 'mechanic'
+    OR access_row.mutation_allowed IS DISTINCT FROM true
+    OR access_row.warning ->> 'count' IS DISTINCT FROM '4'
+    OR access_row.warning ->> 'nextState' IS DISTINCT FROM 'read_only'
+  THEN
+    RAISE EXCEPTION 'grace_warning_contract_failed';
+  END IF;
+END
+$$;
+DO $$
+DECLARE
+  matching_rows integer;
+BEGIN
+  SELECT count(*) INTO matching_rows
+  FROM (VALUES ('payments'), ('branding')) AS mechanics(mechanic)
+  CROSS JOIN LATERAL app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    mechanics.mechanic
+  ) AS access
+  WHERE access.state = 'grace'
+    AND access.mutation_allowed
+    AND access.warning ->> 'nextState' = 'read_only';
+  IF matching_rows <> 2 THEN
+    RAISE EXCEPTION 'payments_branding_grace_ladder_contract_failed';
+  END IF;
+END
+$$;
+RESET SESSION AUTHORIZATION;
+
+UPDATE public.saas_organization_trials
+SET ends_at = statement_timestamp() - interval '3 days',
+    grace_ends_at = statement_timestamp() - interval '2 days'
+WHERE id = '95200000-0000-4000-8000-000000000004';
+SET SESSION AUTHORIZATION app_staff;
+DO $$
+DECLARE
+  access_row record;
+BEGIN
+  SELECT * INTO access_row
+  FROM app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    'patient_diaries'
+  );
+  IF NOT FOUND
+    OR access_row.state IS DISTINCT FROM 'read_only'
+    OR access_row.mutation_allowed IS DISTINCT FROM false
+    OR access_row.warning IS NOT NULL
+  THEN
+    RAISE EXCEPTION 'read_only_read_allowed_mutation_refused_contract_failed';
+  END IF;
+END
+$$;
+DO $$
+DECLARE
+  matching_rows integer;
+BEGIN
+  SELECT count(*) INTO matching_rows
+  FROM (VALUES ('payments'), ('branding')) AS mechanics(mechanic)
+  CROSS JOIN LATERAL app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    mechanics.mechanic
+  ) AS access
+  WHERE access.state = 'read_only'
+    AND NOT access.mutation_allowed;
+  IF matching_rows <> 2 THEN
+    RAISE EXCEPTION 'payments_branding_read_only_ladder_contract_failed';
+  END IF;
+END
+$$;
 RESET SESSION AUTHORIZATION;
 
 UPDATE public.saas_organization_trials
 SET ends_at = statement_timestamp() - interval '10 days',
     grace_ends_at = statement_timestamp() - interval '9 days'
 WHERE id = '95200000-0000-4000-8000-000000000004';
+INSERT INTO public.saas_org_entitlement_overrides VALUES (
+  '95200000-0000-4000-8000-000000000002', 'patient_card', false,
+  NULL, NULL, NULL
+);
 SET SESSION AUTHORIZATION app_staff;
-SELECT 1 / ((
-  SELECT state = 'disabled'
-    AND policy_source = 'mechanic'
-    AND NOT mutation_allowed
-    AND warning IS NULL
+DO $$
+DECLARE
+  access_row record;
+BEGIN
+  SELECT * INTO access_row
   FROM app.resolve_organization_mechanic_access(
     '95200000-0000-4000-8000-000000000002'::uuid,
     'patient_diaries'
-  )
-))::int;
+  );
+  IF access_row.state IS DISTINCT FROM 'disabled'
+    OR access_row.policy_source IS DISTINCT FROM 'mechanic'
+    OR access_row.mutation_allowed IS DISTINCT FROM false
+    OR access_row.warning IS NOT NULL
+  THEN
+    RAISE EXCEPTION 'terminal_disabled_contract_failed';
+  END IF;
+END
+$$;
+DO $$
+DECLARE
+  access_row record;
+BEGIN
+  SELECT * INTO access_row
+  FROM app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    'patient_card'
+  );
+  IF access_row.state IS DISTINCT FROM 'full_access'
+    OR access_row.policy_source IS DISTINCT FROM 'critical'
+    OR access_row.mutation_allowed IS DISTINCT FROM true
+  THEN
+    RAISE EXCEPTION 'critical_mechanic_unlatchable_contract_failed';
+  END IF;
+END
+$$;
+DO $$
+DECLARE
+  matching_rows integer;
+BEGIN
+  SELECT count(*) INTO matching_rows
+  FROM (VALUES ('payments'), ('branding')) AS mechanics(mechanic)
+  CROSS JOIN LATERAL app.resolve_organization_mechanic_access(
+    '95200000-0000-4000-8000-000000000002'::uuid,
+    mechanics.mechanic
+  ) AS access
+  WHERE access.state = 'disabled'
+    AND NOT access.mutation_allowed;
+  IF matching_rows <> 2 THEN
+    RAISE EXCEPTION 'payments_branding_terminal_ladder_contract_failed';
+  END IF;
+END
+$$;
 RESET SESSION AUTHORIZATION;
 DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
+DELETE FROM public.saas_org_entitlement_overrides
+WHERE organization_id = '95200000-0000-4000-8000-000000000002'
+  AND mechanic = 'patient_card';
 DELETE FROM public.saas_organization_trials
 WHERE id = '95200000-0000-4000-8000-000000000004';
 `,

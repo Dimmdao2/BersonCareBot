@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import type { OrgEntitlementSnapshot } from '@/modules/org-entitlements/types';
+import type { OrgEntitlementSnapshot, OrgMechanic } from '@/modules/org-entitlements/types';
 
 const fakes = vi.hoisted(() => ({
   requireOrganizationWorkspaceContext: vi.fn(),
@@ -114,6 +114,24 @@ beforeEach(() => {
     user: { userId, role: 'doctor', displayName: 'Врач' },
   };
   const orgEntitlements = {
+    resolveMechanicAccess: async (_organizationId: string, mechanic: OrgMechanic) =>
+      coursesIncluded
+        ? {
+            mechanic,
+            state: 'grace' as const,
+            policySource: 'system' as const,
+            warning: {
+              until: '2026-08-01T00:00:00.000Z',
+              count: 4,
+              nextState: 'read_only' as const,
+            },
+          }
+        : {
+            mechanic,
+            state: 'disabled' as const,
+            policySource: 'unconfigured' as const,
+            warning: null,
+          },
     getSnapshot: async () => entitlementSnapshot(),
     getTariffForOrg: async () => null,
     listOverrides: async () => [],
