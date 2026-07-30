@@ -129,6 +129,8 @@ export type ScheduleKpisQuery = {
   to: string;
   branchId?: string | null;
   serviceId?: string | null;
+  /** Server-resolved specialist scope; null means the authorized whole-clinic scope. */
+  specialistId?: string | null;
 };
 
 /** Одна точка в дневном ряду динамики записей. */

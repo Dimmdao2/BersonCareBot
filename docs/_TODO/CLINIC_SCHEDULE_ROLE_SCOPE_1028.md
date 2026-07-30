@@ -1,6 +1,6 @@
 # #1028 — расписание врача и клиники: ролевой scope
 
-**Статус:** согласовано владельцем 30.07.2026; реализация не начата.
+**Статус:** реализация ведётся; S1 и server-side read scope S2 готовы к независимому аудиту.
 
 **Карточка:** `#1028`.
 
@@ -93,31 +93,42 @@ reads и mutation routes сейчас не применяют одну роле�
 - `docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`,
   `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md` и этот план.
 
-Любой дополнительный production-path сначала добавляется сюда с доказанной необходимостью. Tests, Stryker,
-миграции, env/deploy/server scripts и другие UI-разделы запрещены.
+Любой дополнительный production-path сначала добавляется сюда с доказанной необходимостью. Colocated unit/route
+tests в перечисленных областях разрешены по текущему owner ruling и test-authoring canon; Stryker, миграции,
+env/deploy/server scripts и другие UI-разделы запрещены.
 
 ## Чек-лист исполнения
 
 ### S1. Единый серверный scope
 
-- [ ] Ввести или переиспользовать один typed resolver ролевого schedule scope: doctor-self и
-  clinic-admin `mine|clinic|specialist`.
-- [ ] Валидировать выбранного специалиста по текущей организации и fail closed для отсутствующего,
-  деактивированного или чужого ID.
-- [ ] Не создавать параллельную модель ролей: использовать существующие `specialistId`,
-  `canManageOrganization`/`canManageAllSpecialists` и organization context.
-- [ ] Зафиксировать typed wire schema `scope + specialistId`, SSR capability bootstrap и resolved-scope response;
-  calendar/KPI/nearest-window/create используют один контракт.
+- [x] Ввести или переиспользовать один typed resolver ролевого schedule scope: doctor-self и
+  clinic-admin `mine|clinic|specialist`. Evidence:
+  `apps/webapp/src/app/api/doctor/booking-engine/_resolveDoctorScheduleScope.ts`.
+- [x] Валидировать выбранного специалиста по текущей организации и fail closed для отсутствующего,
+  деактивированного или чужого ID. Evidence: `_resolveDoctorScheduleScope.unit.test.ts`, 5/5 PASS.
+- [x] Не создавать параллельную модель ролей: использовать существующие `specialistId`,
+  `canManageOrganization`/`canManageAllSpecialists` и organization context. Evidence:
+  `_resolveDoctorScheduleScope.ts`.
+- [x] Зафиксировать typed wire schema `scope + specialistId` и resolved-scope response; calendar/KPI/
+  nearest-window используют один контракт. Evidence: `_resolveDoctorScheduleScope.ts` и три route callsite.
+- [ ] Передать SSR capability bootstrap тем же typed контрактом.
+- [ ] Применить тот же server-resolved контракт к create.
 
 ### S2. Calendar, filters и KPI
 
-- [ ] Calendar API принудительно ограничивает обычного врача его собственным `specialistId`.
-- [ ] Calendar API поддерживает для `clinic_admin` `Моё`, `Вся клиника` и выбранного специалиста.
-- [ ] Доступные значения specialist-filter формируются только из специалистов текущей клиники.
-- [ ] KPI принимает и применяет тот же resolved scope, что календарь.
-- [ ] Остальные calendar filter metadata/counts не показывают данные вне resolved scope.
-- [ ] `GET /api/doctor/schedule/nearest-free-window` использует тот же resolver: doctor-self,
-  clinic-admin mine/clinic/specialist; клиентский `specialistId` сам по себе доступ не расширяет.
+- [x] Calendar API принудительно ограничивает обычного врача его собственным `specialistId`. Evidence:
+  `calendar/route.ts`; hostile-query route test PASS.
+- [x] Calendar API поддерживает для `clinic_admin` `Моё`, `Вся клиника` и выбранного специалиста. Evidence:
+  shared resolver unit test и selected-specialist route test PASS.
+- [x] Доступные значения specialist-filter формируются только из специалистов текущей клиники. Evidence:
+  resolver catalog validation + scoped calendar metadata.
+- [x] KPI принимает и применяет тот же resolved scope, что календарь. Evidence:
+  `schedule-kpis/route.ts`, `pgDoctorCanonicalAppointments.ts`; route test PASS.
+- [x] Остальные calendar filter metadata/counts не показывают данные вне resolved scope. Evidence:
+  `scopeCalendarFilterMeta` ограничивает specialists/service availability, а calendar query ограничивает events.
+- [x] `GET /api/doctor/schedule/nearest-free-window` использует тот же resolver: doctor-self,
+  clinic-admin mine/clinic/specialist; клиентский `specialistId` сам по себе доступ не расширяет. Evidence:
+  `_doctorScheduleScope.route.test.ts` PASS.
 
 ### S3. UI существующего расписания
 
@@ -162,11 +173,15 @@ reads и mutation routes сейчас не применяют одну роле�
 - [ ] Безусловно обновить `ROLE_CAPABILITY_MATRIX.md`: owner ruling 30.07.2026 заменяет future/deferred
   another-specialist appointment row для `clinic_admin`; обычному врачу расширение не даётся.
 - [ ] Обновить `DOCTOR_CABINET_NAVIGATION.md` новым контрактом одного schedule screen и role scope.
-- [ ] Выполнить typecheck и targeted lint по изменённым production-файлам.
+- [x] Выполнить typecheck и targeted lint по изменённым production-файлам. Evidence:
+  `pnpm --filter webapp typecheck` и scoped `eslint` PASS.
 - [ ] Выполнить DEV-smoke существующими `dev:doctor` и `dev:clinic-admin`: self/all/specialist, KPI parity,
   nearest-free-window, create/reschedule/cancel и каждый direct-ID allow/deny из S4/S5.
-- [ ] Тестовые и Stryker-файлы не менять и тестовые suites не запускать: тестовый контур переделывается
-  соседней работой по прямому указанию владельца.
+- [-] ~~Тестовые и Stryker-файлы не менять и тестовые suites не запускать: тестовый контур переделывается
+  соседней работой по прямому указанию владельца.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 30.07.2026:
+  «уже начинай добавлять тесты»; «с тестами — читай инструкцию и разбирайся впредь сам».
+- [x] Добавить минимальные unit/route проверки named schedule-scope failure с независимым oracle и fault
+  injection. Evidence: 2 files / 7 tests PASS; mutation доверия клиентскому specialist ID дала 2 expected FAIL.
 - [ ] Независимый аудит сверяет каждый пункт этого плана и server-side IDOR, после чего фиксируются commit SHA
   и фактически выполненные команды.
 
@@ -184,8 +199,9 @@ reads и mutation routes сейчас не применяют одну роле�
 
 ## Execution log
 
-Пока пусто: реализация не начата. В процессе сюда добавляются только короткие строки
-`дата → пункт → code/runtime evidence → SHA`, без дублирования taskdb-карточки.
+- 30.07.2026 → S1/S2 read scope → shared resolver, calendar/KPI/nearest integration, scoped KPI repository
+  condition; `pnpm --filter webapp typecheck` PASS; scoped ESLint PASS; unit+route 7/7 PASS; hostile
+  specialist-ID fault injection correctly failed unit+route and was restored → SHA фиксируется тем же коммитом.
 
 ## Не входит
 
