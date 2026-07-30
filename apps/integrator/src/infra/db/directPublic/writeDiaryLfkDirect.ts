@@ -51,6 +51,7 @@
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { resolveCanonicalIntegratorUserId } from '../repos/canonicalUserId.js';
+import { resolveOrganizationMechanicLifecycleAccess } from '../organizationMechanicLifecycleDoor.js';
 import {
   collectPlatformUserCandidates,
   DirectPublicWriteError,
@@ -168,13 +169,11 @@ async function assertPatientDiariesMutationAllowed(
   txDb: DbPort,
   organizationId: string,
 ): Promise<void> {
-  const result = await txDb.query<{ mutation_allowed: boolean }>(
-    `SELECT mutation_allowed
-     FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)`,
-    [organizationId, 'patient_diaries'],
-  );
-  const access = result.rows[0];
-  if (access?.mutation_allowed !== true) {
+  const access = await resolveOrganizationMechanicLifecycleAccess(txDb, {
+    organizationId,
+    mechanic: 'patient_diaries',
+  });
+  if (!access.mutationAllowed) {
     throw new DiaryLfkDirectWriteError('patient_diaries_entitlement_required', {
       organizationId,
     });

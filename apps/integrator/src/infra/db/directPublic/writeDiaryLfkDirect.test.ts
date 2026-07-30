@@ -3,6 +3,7 @@ import type { DbPort } from '../../../kernel/contracts/index.js';
 import { createSymptomTrackingDirect, DiaryLfkDirectWriteError } from './writeDiaryLfkDirect.js';
 import { executeAction } from '../../../kernel/domain/executor/executeAction.js';
 import type { DomainContext } from '../../../kernel/contracts/index.js';
+import { runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
 
 const PLATFORM_USER_ID = '22222222-2222-4222-8222-222222222222';
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
@@ -11,6 +12,16 @@ describe('bot diary entitlement', () => {
   function directWriteDb(mutationAllowed: boolean) {
     const inserted = vi.fn();
     const db = {
+      integratorDrizzle: {
+        execute: vi.fn().mockResolvedValue({
+          rows: [
+            {
+              state: mutationAllowed ? 'grace' : 'disabled',
+              mutation_allowed: mutationAllowed,
+            },
+          ],
+        }),
+      },
       tx: async <T>(fn: (tx: DbPort) => Promise<T>) => fn(db as unknown as DbPort),
       query: async (text: string) => {
         if (text.includes('FROM users')) return { rows: [{ merged_into_user_id: null }] };
@@ -20,13 +31,6 @@ describe('bot diary entitlement', () => {
         if (text.includes('FROM public.user_channel_bindings')) return { rows: [] };
         if (text.includes('FROM public.org_enrollments')) {
           return { rows: [{ organization_id: ORGANIZATION_ID }] };
-        }
-        if (
-          text.includes(
-            'FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)',
-          )
-        ) {
-          return { rows: [{ mutation_allowed: mutationAllowed }] };
         }
         if (text.includes('INSERT INTO public.symptom_trackings')) {
           inserted();
@@ -42,12 +46,14 @@ describe('bot diary entitlement', () => {
     const { db, inserted } = directWriteDb(false);
 
     await expect(
-      createSymptomTrackingDirect(db, {
-        integratorUserId: '42',
-        channelCode: 'telegram',
-        externalId: '100',
-        symptomTitle: 'Боль',
-      }),
+      runWithOrganizationPrincipal(ORGANIZATION_ID, () =>
+        createSymptomTrackingDirect(db, {
+          integratorUserId: '42',
+          channelCode: 'telegram',
+          externalId: '100',
+          symptomTitle: 'Боль',
+        }),
+      ),
     ).rejects.toMatchObject({
       code: 'patient_diaries_entitlement_required',
     } satisfies Partial<DiaryLfkDirectWriteError>);
@@ -58,12 +64,14 @@ describe('bot diary entitlement', () => {
     const { db, inserted } = directWriteDb(true);
 
     await expect(
-      createSymptomTrackingDirect(db, {
-        integratorUserId: '42',
-        channelCode: 'telegram',
-        externalId: '100',
-        symptomTitle: 'Боль',
-      }),
+      runWithOrganizationPrincipal(ORGANIZATION_ID, () =>
+        createSymptomTrackingDirect(db, {
+          integratorUserId: '42',
+          channelCode: 'telegram',
+          externalId: '100',
+          symptomTitle: 'Боль',
+        }),
+      ),
     ).resolves.toMatchObject({
       organizationId: ORGANIZATION_ID,
       trackingId: '33333333-3333-4333-8333-333333333333',
