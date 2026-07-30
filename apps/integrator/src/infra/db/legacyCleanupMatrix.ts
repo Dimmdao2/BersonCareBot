@@ -24,7 +24,6 @@ const MIGRATED_DOMAINS = [
   'communication',
   'reminders',
   'appointments',
-  'subscription_mailing',
 ] as const;
 
 export const LEGACY_CLEANUP_MATRIX: LegacyCleanupEntry[] = [
@@ -69,36 +68,6 @@ export const LEGACY_CLEANUP_MATRIX: LegacyCleanupEntry[] = [
     fileOrSymbol: 'readPort booking.*',
     category: 'legacy_product_read',
     stage13Action: 'remove_after_tests',
-  },
-  {
-    domain: 'subscription_mailing',
-    fileOrSymbol: 'repos/topics.ts',
-    category: 'legacy_product_write',
-    stage13Action: 'freeze',
-  },
-  {
-    domain: 'subscription_mailing',
-    fileOrSymbol: 'repos/subscriptions.ts',
-    category: 'legacy_product_write',
-    stage13Action: 'freeze',
-  },
-  {
-    domain: 'subscription_mailing',
-    fileOrSymbol: 'mailing_topics',
-    category: 'legacy_product_write',
-    stage13Action: 'freeze',
-  },
-  {
-    domain: 'subscription_mailing',
-    fileOrSymbol: 'user_subscriptions',
-    category: 'legacy_product_write',
-    stage13Action: 'freeze',
-  },
-  {
-    domain: 'subscription_mailing',
-    fileOrSymbol: 'mailing_logs',
-    category: 'shadow',
-    stage13Action: 'keep',
   },
 ];
 

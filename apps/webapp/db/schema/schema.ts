@@ -285,10 +285,7 @@ export const passwordAltchaChallenges = pgTable(
       sql`identifier_key ~ '^password-email:v1:[0-9a-f]{64}$'`,
     ),
     check('password_altcha_challenge_purpose_check', sql`purpose = 'password_login'`),
-    check(
-      'password_altcha_challenge_digest_check',
-      sql`challenge_digest ~ '^[0-9a-f]{64}$'`,
-    ),
+    check('password_altcha_challenge_digest_check', sql`challenge_digest ~ '^[0-9a-f]{64}$'`),
     index('idx_password_altcha_challenges_identifier_expiry').using(
       'btree',
       table.identifierKey.asc().nullsLast().op('text_ops'),
@@ -823,106 +820,6 @@ export const appointmentRecords = pgTable(
     check(
       'appointment_records_status_check',
       sql`status = ANY (ARRAY['created'::text, 'updated'::text, 'canceled'::text])`,
-    ),
-  ],
-);
-
-export const mailingTopicsWebapp = pgTable(
-  'mailing_topics_webapp',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorTopicId: bigint('integrator_topic_id', { mode: 'number' }).notNull(),
-    code: text().notNull(),
-    title: text().notNull(),
-    key: text().notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    uniqueIndex('idx_mailing_topics_webapp_integrator_id').using(
-      'btree',
-      table.integratorTopicId.asc().nullsLast().op('int8_ops'),
-    ),
-    index('idx_mailing_topics_webapp_key').using(
-      'btree',
-      table.key.asc().nullsLast().op('text_ops'),
-    ),
-    unique('mailing_topics_webapp_integrator_topic_id_key').on(table.integratorTopicId),
-  ],
-);
-
-export const userSubscriptionsWebapp = pgTable(
-  'user_subscriptions_webapp',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }).notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorTopicId: bigint('integrator_topic_id', { mode: 'number' }).notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_user_subscriptions_webapp_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
-    index('idx_user_subscriptions_webapp_topic').using(
-      'btree',
-      table.integratorTopicId.asc().nullsLast().op('int8_ops'),
-    ),
-    index('idx_user_subscriptions_webapp_user').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('int8_ops'),
-    ),
-    unique('user_subscriptions_webapp_integrator_user_id_integrator_top_key').on(
-      table.integratorUserId,
-      table.integratorTopicId,
-    ),
-  ],
-);
-
-export const mailingLogsWebapp = pgTable(
-  'mailing_logs_webapp',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }).notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorMailingId: bigint('integrator_mailing_id', { mode: 'number' }).notNull(),
-    status: text().notNull(),
-    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    errorText: text('error_text'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_mailing_logs_webapp_mailing').using(
-      'btree',
-      table.integratorMailingId.asc().nullsLast().op('int8_ops'),
-    ),
-    index('idx_mailing_logs_webapp_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
-    index('idx_mailing_logs_webapp_user').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('int8_ops'),
-    ),
-    unique('mailing_logs_webapp_integrator_user_id_integrator_mailing_i_key').on(
-      table.integratorUserId,
-      table.integratorMailingId,
     ),
   ],
 );
@@ -3967,45 +3864,6 @@ export const contentAccessGrants = pgTable(
   ],
 );
 
-export const mailings = pgTable(
-  'mailings',
-  {
-    id: bigserial({ mode: 'bigint' }).primaryKey().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    topicId: bigint('topic_id', { mode: 'number' }).notNull(),
-    title: text().notNull(),
-    status: text().default('scheduled').notNull(),
-    scheduledAt: timestamp('scheduled_at', { withTimezone: true, mode: 'string' }),
-    startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }),
-    completedAt: timestamp('completed_at', { withTimezone: true, mode: 'string' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.topicId],
-      foreignColumns: [mailingTopics.id],
-      name: 'mailings_topic_id_fkey',
-    }).onDelete('cascade'),
-  ],
-);
-
-export const mailingTopics = pgTable(
-  'mailing_topics',
-  {
-    id: bigserial({ mode: 'bigint' }).primaryKey().notNull(),
-    code: text().notNull(),
-    title: text().notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    key: text().notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-  },
-  (table) => [unique('subscriptions_code_key').on(table.code)],
-);
-
 export const telegramUsers = pgTable(
   'telegram_users',
   {
@@ -4264,33 +4122,6 @@ export const userWebPushSubscriptions = pgTable(
   ],
 );
 
-export const userSubscriptions = pgTable(
-  'user_subscriptions',
-  {
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    userId: bigint('user_id', { mode: 'number' }).notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    topicId: bigint('topic_id', { mode: 'number' }).notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.topicId],
-      foreignColumns: [mailingTopics.id],
-      name: 'user_subscriptions_subscription_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: 'user_subscriptions_user_id_fkey',
-    }).onDelete('cascade'),
-    primaryKey({ columns: [table.userId, table.topicId], name: 'user_subscriptions_pkey' }),
-  ],
-);
-
 export const systemSettings = pgTable(
   'system_settings',
   {
@@ -4328,31 +4159,5 @@ export const systemSettings = pgTable(
       'system_settings_scope_check',
       sql`scope = ANY (ARRAY['global'::text, 'doctor'::text, 'admin'::text])`,
     ),
-  ],
-);
-
-export const mailingLogs = pgTable(
-  'mailing_logs',
-  {
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    userId: bigint('user_id', { mode: 'number' }).notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    mailingId: bigint('mailing_id', { mode: 'number' }).notNull(),
-    status: text().notNull(),
-    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    error: text(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.mailingId],
-      foreignColumns: [mailings.id],
-      name: 'mailing_logs_mailing_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: 'mailing_logs_user_id_fkey',
-    }).onDelete('cascade'),
-    primaryKey({ columns: [table.userId, table.mailingId], name: 'mailing_logs_pkey' }),
   ],
 );

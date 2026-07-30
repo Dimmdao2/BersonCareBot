@@ -79,21 +79,11 @@ pnpm run stage13-gate
 
 ### Integrator: freeze legacy таблиц (Stage 13)
 
-Триггеры на `mailing_topics` и `user_subscriptions` в БД integrator блокируют записи (проекция идёт в webapp). Для разовых ручных правок в той же сессии:
-
-```sql
-BEGIN;
-SET LOCAL app.stage13_bypass = 'true';
--- корректирующий SQL
-COMMIT;
-```
-
-См. миграцию `20260320_0002_stage13_freeze_bypass.sql` в репозитории integrator.
+Mailing/subscription source and projection tables were retired migration-forward in Track D8 after the exact callgraph found no live producer.
 
 ## Сохранность данных
 
 - **Карточки и настройки пользователей:** backfill-person-domain переносит users → platform*users, identities/contacts → bindings, telegram_state (notify*_) → user*notification_topics (topic_code). Reconcile-person-domain сравнивает по integrator_user_id, phone, display_name, bindings, topics (с маппингом notify*_ → topic_code).
-- **Подписки на рассылки:** backfill-subscription-mailing-domain переносит user_subscriptions (user_id = users.id после миграции 0010) в user_subscriptions_webapp по integrator_user_id.
 - **История записей на приём:** historical backfill переносил provider records в `appointment_records` по `integrator_record_id`; внешний источник выведен 2026-07-27.
 
 Все backfill-скрипты используют upsert/ON CONFLICT; повторный запуск с `--commit` безопасен и не дублирует записи при корректных ключах.

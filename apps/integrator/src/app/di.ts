@@ -65,7 +65,6 @@ import { createCommunicationReadsPort } from '../infra/adapters/communicationRea
 import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.js';
 import { createRemindersWritesPort } from '../infra/adapters/remindersWritesPort.js';
 import { createAppointmentsReadsPort } from '../infra/adapters/appointmentsReadsPort.js';
-import { createSubscriptionMailingReadsPort } from '../infra/adapters/subscriptionMailingReadsPort.js';
 import { createWebPushAccessPort } from '../infra/adapters/webPushAccessPort.js';
 import type { WebPushAccessPort } from '../kernel/contracts/index.js';
 import { createWebPushDeliveryAdapter } from '../integrations/web-push/deliveryAdapter.js';
@@ -182,11 +181,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     integratorWebhookSecret().length >= 16
       ? createAppointmentsReadsPort({ db: dbPort })
       : undefined;
-  /** Subscription/mailing product reads from webapp when configured. */
-  const subscriptionMailingReadsPort =
-    integratorWebhookSecret().length >= 16
-      ? createSubscriptionMailingReadsPort({ db: dbPort })
-      : undefined;
   const dbReadPort =
     input.dbReadPort ??
     createDbReadPort({
@@ -194,7 +188,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       communicationReadsPort,
       ...(remindersReadsPort !== undefined ? { remindersReadsPort } : {}),
       ...(appointmentsReadsPort !== undefined ? { appointmentsReadsPort } : {}),
-      ...(subscriptionMailingReadsPort !== undefined ? { subscriptionMailingReadsPort } : {}),
     });
   const webappEventsPort = createWebappEventsPort({
     getAppBaseUrl: async () => env.APP_BASE_URL,

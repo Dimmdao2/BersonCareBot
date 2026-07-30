@@ -80,14 +80,10 @@ import {
   userReminderOccurrences,
   userReminderDeliveryLogs,
   contentAccessGrants,
-  mailingTopics,
-  mailings,
   telegramState,
   emailSendCooldowns,
   userNotificationTopics,
-  userSubscriptions,
   systemSettings,
-  mailingLogs,
 } from './schema';
 
 export const supportConversationsRelations = relations(supportConversations, ({ one, many }) => ({
@@ -676,8 +672,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   userReminderRules: many(userReminderRules),
   contentAccessGrants: many(contentAccessGrants),
-  userSubscriptions: many(userSubscriptions),
-  mailingLogs: many(mailingLogs),
 }));
 
 export const contactsRelations = relations(contacts, ({ one }) => ({
@@ -762,19 +756,6 @@ export const contentAccessGrantsRelations = relations(contentAccessGrants, ({ on
   }),
 }));
 
-export const mailingsRelations = relations(mailings, ({ one, many }) => ({
-  mailingTopic: one(mailingTopics, {
-    fields: [mailings.topicId],
-    references: [mailingTopics.id],
-  }),
-  mailingLogs: many(mailingLogs),
-}));
-
-export const mailingTopicsRelations = relations(mailingTopics, ({ many }) => ({
-  mailings: many(mailings),
-  userSubscriptions: many(userSubscriptions),
-}));
-
 export const telegramStateRelations = relations(telegramState, ({ one }) => ({
   identity: one(identities, {
     fields: [telegramState.identityId],
@@ -796,32 +777,10 @@ export const userNotificationTopicsRelations = relations(userNotificationTopics,
   }),
 }));
 
-export const userSubscriptionsRelations = relations(userSubscriptions, ({ one }) => ({
-  mailingTopic: one(mailingTopics, {
-    fields: [userSubscriptions.topicId],
-    references: [mailingTopics.id],
-  }),
-  user: one(users, {
-    fields: [userSubscriptions.userId],
-    references: [users.id],
-  }),
-}));
-
 export const systemSettingsRelations = relations(systemSettings, ({ one }) => ({
   platformUser: one(platformUsers, {
     fields: [systemSettings.updatedBy],
     references: [platformUsers.id],
-  }),
-}));
-
-export const mailingLogsRelations = relations(mailingLogs, ({ one }) => ({
-  mailing: one(mailings, {
-    fields: [mailingLogs.mailingId],
-    references: [mailings.id],
-  }),
-  user: one(users, {
-    fields: [mailingLogs.userId],
-    references: [users.id],
   }),
 }));
 

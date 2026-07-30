@@ -40,7 +40,7 @@ Core-слой хранит универсальную модель пользо�
 Для Telegram runtime-state используется integration-таблица `telegram_state`.
 Таблица `telegram_users` сохраняется только как legacy/deprecated storage, активный runtime в нее не пишет и не использует ее как канонический источник identity.
 
-Telegram mailing/subscription цепочка использует канонический `users.id` через integration-таблицы (`user_subscriptions`, `mailing_logs`).
+Mailing/subscription tables were retired by Track D8 after the producer/consumer census proved the domain had no live producer.
 Это не влияет на каноническую identity-модель: активное разрешение identity идет через `identities`, контактов — через `contacts`, runtime-state — через `telegram_state`.
 
 ## Invariants

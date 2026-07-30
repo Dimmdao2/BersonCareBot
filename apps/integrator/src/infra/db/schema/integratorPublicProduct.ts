@@ -8,50 +8,15 @@
 import { sql } from 'drizzle-orm';
 import {
   bigserial,
-  bigint,
-  boolean,
   check,
   index,
   integer,
   jsonb,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   unique,
-  uuid,
 } from 'drizzle-orm/pg-core';
-
-export const mailingTopics = pgTable(
-  'mailing_topics',
-  {
-    id: bigserial({ mode: 'number' }).primaryKey().notNull(),
-    code: text().notNull(),
-    title: text().notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    key: text().notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-  },
-  (table) => [unique('subscriptions_code_key').on(table.code)],
-);
-
-export const userSubscriptions = pgTable(
-  'user_subscriptions',
-  {
-    userId: bigint('user_id', { mode: 'number' }).notNull(),
-    topicId: bigint('topic_id', { mode: 'number' }).notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    organizationId: uuid('organization_id'),
-  },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.topicId], name: 'user_subscriptions_pkey' }),
-  ],
-);
 
 export const bookingCalendarMap = pgTable(
   'booking_calendar_map',
@@ -67,19 +32,6 @@ export const bookingCalendarMap = pgTable(
       .notNull(),
   },
   (table) => [unique('booking_calendar_map_appointment_key_key').on(table.appointmentKey)],
-);
-
-export const mailingLogs = pgTable(
-  'mailing_logs',
-  {
-    userId: bigint('user_id', { mode: 'number' }).notNull(),
-    mailingId: bigint('mailing_id', { mode: 'number' }).notNull(),
-    status: text().notNull(),
-    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    error: text(),
-    organizationId: uuid('organization_id'),
-  },
-  (table) => [primaryKey({ columns: [table.userId, table.mailingId], name: 'mailing_logs_pkey' })],
 );
 
 export const deliveryAttemptLogs = pgTable(

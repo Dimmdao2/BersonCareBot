@@ -72,10 +72,6 @@ export type MergeIntegratorUsersResult = {
   reminderRulesDeletedDuplicate: number;
   reminderRulesReassigned: number;
   contentAccessGrantsReassigned: number;
-  userSubscriptionsDeletedDuplicate: number;
-  userSubscriptionsReassigned: number;
-  mailingLogsDeletedDuplicate: number;
-  mailingLogsReassigned: number;
   projectionOutboxPayloadRewrites: number;
   projectionOutboxIdempotencyRewrites: number;
   projectionOutboxDedupedCancelled: number;
@@ -281,10 +277,6 @@ export async function mergeIntegratorUsers(
           reminderRulesDeletedDuplicate: 0,
           reminderRulesReassigned: 0,
           contentAccessGrantsReassigned: 0,
-          userSubscriptionsDeletedDuplicate: 0,
-          userSubscriptionsReassigned: 0,
-          mailingLogsDeletedDuplicate: 0,
-          mailingLogsReassigned: 0,
           projectionOutboxPayloadRewrites: 0,
           projectionOutboxIdempotencyRewrites: 0,
           projectionOutboxDedupedCancelled: 0,
@@ -312,10 +304,6 @@ export async function mergeIntegratorUsers(
         reminderRulesDeletedDuplicate: 0,
         reminderRulesReassigned: 0,
         contentAccessGrantsReassigned: 0,
-        userSubscriptionsDeletedDuplicate: 0,
-        userSubscriptionsReassigned: 0,
-        mailingLogsDeletedDuplicate: 0,
-        mailingLogsReassigned: 0,
         projectionOutboxPayloadRewrites: 0,
         projectionOutboxIdempotencyRewrites: 0,
         projectionOutboxDedupedCancelled: 0,
@@ -454,42 +442,6 @@ export async function mergeIntegratorUsers(
     );
     const contentAccessGrantsReassigned = cag.rowCount ?? 0;
 
-    const usd = await runIntegratorSql(
-      tx,
-      sql`
-      DELETE FROM user_subscriptions us
-       USING user_subscriptions w
-       WHERE us.user_id = ${loser}::bigint
-         AND w.user_id = ${winner}::bigint
-         AND us.topic_id = w.topic_id
-    `,
-    );
-    const userSubscriptionsDeletedDuplicate = usd.rowCount ?? 0;
-
-    const usr = await runIntegratorSql(
-      tx,
-      sql`UPDATE user_subscriptions SET user_id = ${winner}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner, 'user_subscriptions.organization_id')} WHERE user_id = ${loser}::bigint`,
-    );
-    const userSubscriptionsReassigned = usr.rowCount ?? 0;
-
-    const mld = await runIntegratorSql(
-      tx,
-      sql`
-      DELETE FROM mailing_logs ml
-       USING mailing_logs w
-       WHERE ml.user_id = ${loser}::bigint
-         AND w.user_id = ${winner}::bigint
-         AND ml.mailing_id = w.mailing_id
-    `,
-    );
-    const mailingLogsDeletedDuplicate = mld.rowCount ?? 0;
-
-    const mlr = await runIntegratorSql(
-      tx,
-      sql`UPDATE mailing_logs SET user_id = ${winner}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner, 'mailing_logs.organization_id')} WHERE user_id = ${loser}::bigint`,
-    );
-    const mailingLogsReassigned = mlr.rowCount ?? 0;
-
     const ob = await realignProjectionOutboxInTx(tx, loser, winner);
 
     await runIntegratorSql(
@@ -507,10 +459,6 @@ export async function mergeIntegratorUsers(
       reminderRulesDeletedDuplicate,
       reminderRulesReassigned,
       contentAccessGrantsReassigned,
-      userSubscriptionsDeletedDuplicate,
-      userSubscriptionsReassigned,
-      mailingLogsDeletedDuplicate,
-      mailingLogsReassigned,
       projectionOutboxPayloadRewrites: ob.payloadRewrites,
       projectionOutboxIdempotencyRewrites: ob.keyRewrites,
       projectionOutboxDedupedCancelled: ob.deduped,

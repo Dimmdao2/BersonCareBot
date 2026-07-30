@@ -187,16 +187,6 @@ async function deleteWebappProjectionByIntegratorUserId(
   );
   await runPurgeClientPgText(
     client,
-    `DELETE FROM user_subscriptions_webapp WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM mailing_logs_webapp WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  await runPurgeClientPgText(
-    client,
     `DELETE FROM support_question_messages WHERE question_id IN (
        SELECT id FROM support_questions WHERE conversation_id IN (
          SELECT id FROM support_conversations WHERE integrator_user_id = $1::bigint

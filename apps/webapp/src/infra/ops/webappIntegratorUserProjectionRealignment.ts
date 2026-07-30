@@ -41,17 +41,10 @@ export const WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS = [
     whereClause: (p: string) =>
       `integrator_user_id IS NOT NULL AND integrator_user_id::text = ${p}`,
   },
-  {
-    table: 'user_subscriptions_webapp',
-    whereClause: (p: string) => `integrator_user_id::text = ${p}`,
-  },
-  { table: 'mailing_logs_webapp', whereClause: (p: string) => `integrator_user_id::text = ${p}` },
 ] as const;
 
 /** Tables touched by rekey UPDATE (after subscription/mailing dedup DELETEs). Order matches job script. */
 export const WEBAPP_INTEGRATOR_USER_REALIGNMENT_UPDATE_TABLES = [
-  'user_subscriptions_webapp',
-  'mailing_logs_webapp',
   'reminder_rules',
   'reminder_occurrence_history',
   'reminder_delivery_events',
