@@ -2,7 +2,13 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createContentPort } from '../../../infra/adapters/contentPort.js';
 import { createTemplatePort } from '../../../infra/adapters/templatePort.js';
-import type { Action, DomainContext, OutgoingIntent } from '../../contracts/index.js';
+import type {
+  Action,
+  DbWritePort,
+  DomainContext,
+  OutgoingIntent,
+  WebappEventsPort,
+} from '../../contracts/index.js';
 import { executeAction } from './executeAction.js';
 
 const HOME_SCRIPT_IDS = [
@@ -129,5 +135,91 @@ describe('main menu mini-app retirement', () => {
     expect(browserMarkup).toContain('https://app.example.test/auth');
     expect(browserMarkup).toContain('"url"');
     expect(browserMarkup).not.toContain('web_app');
+  });
+
+  it('keeps post-bind booking menus without restoring an in-bot app launch', async () => {
+    const contentPort = createContentPort({
+      rootDir: path.resolve(process.cwd(), 'src/content'),
+    });
+    const templatePort = createTemplatePort({ contentPort });
+    const writePort: DbWritePort = {
+      writeDb: async (write) => {
+        if (write.type === 'user.phone.link') return { userPhoneLinkApplied: true };
+      },
+    };
+    const webappEventsPort: WebappEventsPort = {
+      emit: async () => ({ ok: true, status: 200 }),
+      listSymptomTrackings: async () => ({ ok: true, trackings: [] }),
+      listLfkComplexes: async () => ({ ok: true, complexes: [] }),
+      completePhoneMessengerBind: async () => ({
+        ok: true,
+        purpose: 'profile_bind' as const,
+      }),
+      completeChannelLink: async () => ({
+        ok: true,
+        needsPhone: false,
+        phoneNormalized: '+79990000993',
+      }),
+    };
+
+    const cases: Array<{ source: 'telegram' | 'max'; action: Action }> = [
+      {
+        source: 'telegram',
+        action: {
+          id: 'phone-messenger-bind-complete-telegram',
+          type: 'webapp.phoneMessengerBind.complete',
+          mode: 'sync',
+          params: {
+            setupToken: 'setup-token-993',
+            channelCode: 'telegram',
+            externalId: '99311',
+            phoneNormalized: '+79990000993',
+          },
+        },
+      },
+      {
+        source: 'max',
+        action: {
+          id: 'phone-messenger-bind-complete-max',
+          type: 'webapp.phoneMessengerBind.complete',
+          mode: 'sync',
+          params: {
+            setupToken: 'setup-token-993',
+            channelCode: 'max',
+            externalId: '99312',
+            phoneNormalized: '+79990000993',
+          },
+        },
+      },
+      {
+        source: 'telegram',
+        action: {
+          id: 'channel-link-complete-telegram',
+          type: 'webapp.channelLink.complete',
+          mode: 'sync',
+          params: {
+            linkToken: 'link-token-993',
+            channelCode: 'telegram',
+            externalId: '99311',
+          },
+        },
+      },
+    ];
+
+    for (const item of cases) {
+      const result = await executeAction(item.action, context(item.source), {
+        contentPort,
+        templatePort,
+        webappEventsPort,
+        writePort,
+      });
+      const serializedIntents = JSON.stringify(result.intents);
+
+      expect(result.status).toBe('success');
+      expect(serializedIntents).toMatch(/Запись на приём|booking\.open/);
+      expect(serializedIntents).not.toContain('web_app');
+      expect(serializedIntents).not.toContain('open_app');
+      expect(serializedIntents).not.toContain('menu.app');
+    }
   });
 });
