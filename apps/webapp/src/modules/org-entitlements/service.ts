@@ -6,6 +6,7 @@ import {
   type OrgEntitlements,
   type OrgQuotaProjection,
   type EffectiveOrgCommercialAccess,
+  type MechanicClass,
   type OrgEntitlementSnapshot,
   type OrgMechanic,
   type Tariff,
@@ -99,6 +100,41 @@ function isOverrideActive(expiresAt: string | null | undefined): boolean {
 }
 
 /**
+ * A numeric quota is commercial configuration, not a capability flag.  `undefined` means the
+ * tariff never configured a limit; `unlimited` is an explicit stored choice, distinct from an
+ * omitted key.  This deliberately covers future `запас` mechanics as well as today's `объём`.
+ */
+function numericQuotaFromSnapshot(
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides'>,
+  mechanic: OrgMechanic,
+): TariffQuota | undefined {
+  const override = snapshot.overrides.find(
+    (entry) => entry.mechanic === mechanic && isOverrideActive(entry.expiresAt),
+  );
+  return (
+    override?.quota ??
+    (snapshot.tariff?.quotas as Partial<Record<OrgMechanic, TariffQuota>> | undefined)?.[mechanic]
+  );
+}
+
+function requiresExplicitNumericQuota(mechanicClass: MechanicClass): boolean {
+  return mechanicClass === 'объём' || mechanicClass === 'запас';
+}
+
+/**
+ * `null` is an explicit unlimited file plan (or the unchanged compatibility path); `undefined`
+ * means a tariff was assigned but never configured the file limit and must refuse new growth.
+ */
+export function fileStorageLimitFromSnapshot(
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'access'>,
+): number | null | undefined {
+  if (!snapshot.tariff || snapshot.access.source === 'compatibility') return null;
+  const quota = numericQuotaFromSnapshot(snapshot, 'files');
+  if (!quota) return undefined;
+  return quota.kind === 'numeric' ? quota.limit : null;
+}
+
+/**
  * Exported so read-only surfaces (owner-facing billing tab) can derive the same effective
  * mechanic map from a single already-fetched `getSnapshot()` result, instead of re-querying via
  * `resolveOrgEntitlements` or reading tariff JSON directly. Same override > tariff > default
@@ -115,11 +151,19 @@ export function entitlementsFromSnapshot(
   const result = {} as OrgEntitlements;
   for (const mechanic of MECHANICS) {
     const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
-    // A capability is the only class controlled by a commercial on/off value. "Never" is
-    // deliberately outside commercial control, while every numeric class is enabled by its
-    // own limit configuration (not by the legacy boolean map).
-    if (mechanicClass !== 'возможность') {
+    // "Never" is deliberately outside commercial control. Seats have their existing finite
+    // baseline. Storage and stock, by contrast, are enabled only by an explicit numeric quota;
+    // an omitted key on an assigned tariff is not an accidental unlimited plan. Organizations
+    // with no tariff retain the compatibility resolver unchanged.
+    if (mechanicClass === 'никогда' || mechanicClass === 'места') {
       result[mechanic] = true;
+      continue;
+    }
+    if (requiresExplicitNumericQuota(mechanicClass)) {
+      result[mechanic] =
+        !snapshot.tariff || snapshot.access.source === 'compatibility'
+          ? true
+          : numericQuotaFromSnapshot(snapshot, mechanic) !== undefined;
       continue;
     }
     result[mechanic] =
@@ -157,11 +201,10 @@ export async function resolveOrgQuotaProjections(
       mechanic === 'clinic_team'
         ? {
             kind: 'numeric',
-            limit: (
+            limit:
               clinicTeamOverride?.seatLimitOverride ??
               snapshot.tariff?.includedSeats ??
-              CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE
-            ),
+              CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE,
             unit: 'seats',
           }
         : mechanic === 'files'
@@ -195,6 +238,14 @@ export async function resolveOrgEntitlementSnapshot(
 ): Promise<{ entitlements: OrgEntitlements; access: EffectiveOrgCommercialAccess }> {
   const snapshot = await port.getSnapshot(organizationId);
   return { entitlements: entitlementsFromSnapshot(snapshot), access: snapshot.access };
+}
+
+/** A numeric file ceiling for the repository write transaction; see `fileStorageLimitFromSnapshot`. */
+export async function resolveFileStorageLimit(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+): Promise<number | null | undefined> {
+  return fileStorageLimitFromSnapshot(await port.getSnapshot(organizationId));
 }
 
 /**

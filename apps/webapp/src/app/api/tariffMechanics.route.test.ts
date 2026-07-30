@@ -2,14 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextResponse } from 'next/server';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
-vi.mock('@/app-layer/guards/requireEntitlement', () => ({ requireEntitlementForMutation: vi.fn() }));
+vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  requireEntitlementForMutation: vi.fn(),
+}));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: vi.fn(),
   requireDoctorWorkspaceApiContext: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
-  withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, _operation: string, fn: () => T): T => fn()),
+  withDoctorWorkspacePrincipal: vi.fn(
+    <T>(_ctx: unknown, _operation: string, fn: () => T): T => fn(),
+  ),
+}));
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
+  withDoctorWorkspacePrincipal: vi.fn(<T>(...args: unknown[]): T => (args.at(-1) as () => T)()),
+}));
+vi.mock('@/app-layer/media/clientMediaFolders', () => ({
+  pgEnsureClientPatientFolder: vi.fn(),
 }));
 vi.mock('@/app/api/booking/bookingTenant', () => ({
   resolvePatientEnrollmentOrganizationId: vi.fn(),
@@ -27,6 +37,7 @@ import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-templates/route';
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
+import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -45,15 +56,30 @@ function request(url: string, body: unknown): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireDoctorWorkspaceApiContext).mockResolvedValue({ ok: true, ctx: workspace } as never);
-  vi.mocked(requireClinicManagementApiContext).mockResolvedValue({ ok: true, ctx: workspace } as never);
-  vi.mocked(requirePatientApiBusinessAccess).mockResolvedValue({ ok: true, session: workspace.session } as never);
+  vi.mocked(requireDoctorWorkspaceApiContext).mockResolvedValue({
+    ok: true,
+    ctx: workspace,
+  } as never);
+  vi.mocked(requireClinicManagementApiContext).mockResolvedValue({
+    ok: true,
+    ctx: workspace,
+  } as never);
+  vi.mocked(requirePatientApiBusinessAccess).mockResolvedValue({
+    ok: true,
+    session: workspace.session,
+  } as never);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
-  vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({ ok: true, organizationId: ORG_ID });
+  vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
+    ok: true,
+    organizationId: ORG_ID,
+  });
   vi.mocked(buildAppDeps).mockReturnValue({
     courses: { createCourse: vi.fn() },
     notifTemplates: { saveManagedTemplate: vi.fn(), saveManagedPresentation: vi.fn() },
     systemSettings: { getSetting: vi.fn().mockResolvedValue({ valueJson: { value: false } }) },
+    doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
+    patientFiles: { createFile: vi.fn() },
+    orgEntitlements: {},
     patientOrganization: {},
     materialRating: {
       putForPatient: vi.fn().mockResolvedValue({
@@ -62,7 +88,9 @@ beforeEach(() => {
         myStars: 5,
       }),
     },
-    materialRatingFeedback: { submitPatientFeedback: vi.fn().mockResolvedValue({ ok: true, id: TARGET_ID }) },
+    materialRatingFeedback: {
+      submitPatientFeedback: vi.fn().mockResolvedValue({ ok: true, id: TARGET_ID }),
+    },
   } as unknown as ReturnType<typeof buildAppDeps>);
 });
 
@@ -114,8 +142,46 @@ describe('tariff and platform mutation gates', () => {
     );
 
     expect(ratingResponse.status).toBe(403);
-    await expect(ratingResponse.json()).resolves.toMatchObject({ error: 'material_ratings_disabled' });
+    await expect(ratingResponse.json()).resolves.toMatchObject({
+      error: 'material_ratings_disabled',
+    });
     expect(feedbackResponse.status).toBe(403);
-    await expect(feedbackResponse.json()).resolves.toMatchObject({ error: 'material_ratings_disabled' });
+    await expect(feedbackResponse.json()).resolves.toMatchObject({
+      error: 'material_ratings_disabled',
+    });
+  });
+
+  it('refuses file metadata creation visibly when the assigned tariff has no file limit', async () => {
+    const createFile = vi.fn();
+    vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: { createFile },
+      orgEntitlements: {
+        getSnapshot: vi.fn().mockResolvedValue({
+          tariff: { mechanics: {}, quotas: {}, includedSeats: null },
+          overrides: [],
+          access: { lifecycle: 'active', tariffId: 'tariff', source: 'assignment' },
+        }),
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await createPatientFile(
+      request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files', {
+        category: 'анализ',
+        fileName: 'result.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1,
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'file_storage_limit_not_configured',
+    });
+    expect(createFile).not.toHaveBeenCalled();
   });
 });

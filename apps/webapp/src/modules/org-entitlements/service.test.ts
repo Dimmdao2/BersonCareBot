@@ -4,15 +4,23 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import {
   createPlatformEntitlementsService,
   entitlementsFromSnapshot,
+  fileStorageLimitFromSnapshot,
   resolveClinicSeatLimit,
   resolveOrgQuotaProjections,
 } from '@/modules/org-entitlements/service';
-import type { OrgEntitlementsPort, PlatformEntitlementsPort } from '@/modules/org-entitlements/ports';
+import type {
+  OrgEntitlementsPort,
+  PlatformEntitlementsPort,
+} from '@/modules/org-entitlements/ports';
 import { MECHANICS, type MechanicDefinition, type Tariff } from '@/modules/org-entitlements/types';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 
-const activeAccess = { lifecycle: 'active' as const, tariffId: 'tariff', source: 'assignment' as const };
+const activeAccess = {
+  lifecycle: 'active' as const,
+  tariffId: 'tariff',
+  source: 'assignment' as const,
+};
 
 function snapshotPort(): OrgEntitlementsPort {
   return {
@@ -85,7 +93,9 @@ describe('org entitlement mechanic classes', () => {
 
   it('allows the patient-card mutation guard when stored tariff and override values are false', async () => {
     const port = snapshotPort();
-    vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<typeof buildAppDeps>);
+    vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<
+      typeof buildAppDeps
+    >);
     const result = await requireEntitlementForMutation({ organizationId: 'org' }, 'patient_card');
 
     expect(result).toEqual({ ok: true });
@@ -134,7 +144,11 @@ describe('org entitlement mechanic classes', () => {
     );
     const assignedPort: OrgEntitlementsPort = {
       getSnapshot: async () => ({
-        tariff: { mechanics: tariff.mechanics, quotas: tariff.quotas, includedSeats: tariff.includedSeats },
+        tariff: {
+          mechanics: tariff.mechanics,
+          quotas: tariff.quotas,
+          includedSeats: tariff.includedSeats,
+        },
         overrides: [],
         access: activeAccess,
       }),
@@ -153,7 +167,9 @@ describe('org entitlement mechanic classes', () => {
     vi.mocked(buildAppDeps).mockReturnValue({
       orgEntitlements: assignedPort,
     } as ReturnType<typeof buildAppDeps>);
-    await expect(requireEntitlementForMutation({ organizationId: 'org' }, 'files')).resolves.toEqual({
+    await expect(
+      requireEntitlementForMutation({ organizationId: 'org' }, 'files'),
+    ).resolves.toEqual({
       ok: true,
     });
     await expect(resolveClinicSeatLimit(assignedPort, 'org')).resolves.toBe(3);
@@ -163,6 +179,48 @@ describe('org entitlement mechanic classes', () => {
         expect.objectContaining({ mechanic: 'clinic_team', quota: { limit: 3, unit: 'seats' } }),
       ]),
     );
+  });
+
+  it('refuses file growth for an assigned tariff that never configured a file limit', async () => {
+    const snapshot = {
+      tariff: { mechanics: {}, quotas: {}, includedSeats: null },
+      overrides: [],
+      access: activeAccess,
+    };
+    const port: OrgEntitlementsPort = {
+      getSnapshot: async () => snapshot,
+      getTariffForOrg: async () => snapshot.tariff,
+      listOverrides: async () => [],
+      getEffectiveCommercialAccess: async () => activeAccess,
+      getEnforcedQuotaUsage: async () => ({ files: 0 }),
+    };
+
+    expect(entitlementsFromSnapshot(snapshot).files).toBe(false);
+    expect(fileStorageLimitFromSnapshot(snapshot)).toBeUndefined();
+    vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<
+      typeof buildAppDeps
+    >);
+    const result = await requireEntitlementForMutation({ organizationId: 'org' }, 'files');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.response.status).toBe(403);
+      await expect(result.response.json()).resolves.toMatchObject({
+        error: 'entitlement_required',
+        mechanic: 'files',
+      });
+    }
+  });
+
+  it('keeps file growth unchanged on the no-tariff compatibility path', async () => {
+    const snapshot = {
+      tariff: null,
+      overrides: [],
+      access: { lifecycle: 'active' as const, tariffId: null, source: 'compatibility' as const },
+    };
+
+    expect(entitlementsFromSnapshot(snapshot).files).toBe(true);
+    expect(fileStorageLimitFromSnapshot(snapshot)).toBeNull();
   });
 
   it('permits a stock mechanic declaration but rejects a period at compile time', () => {

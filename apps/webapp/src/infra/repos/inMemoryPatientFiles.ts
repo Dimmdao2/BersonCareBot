@@ -9,6 +9,7 @@ import type {
   PatientFileRecord,
   PatientFilesPort,
 } from '@/modules/patient-files/ports';
+import { assertPatientFileStorageLimit } from '@/modules/patient-files/service';
 
 const store: Map<string, PatientFileRecord> = new Map();
 
@@ -32,6 +33,11 @@ export const inMemoryPatientFilesPort: PatientFilesPort = {
   },
 
   async createFile(params: CreatePatientFileParams): Promise<PatientFileRecord> {
+    assertPatientFileStorageLimit({
+      usedBytes: Array.from(store.values()).reduce((total, file) => total + file.sizeBytes, 0),
+      addedBytes: params.sizeBytes,
+      limitBytes: params.storageLimitBytes,
+    });
     const record: PatientFileRecord = {
       id: randomUUID(),
       patientUserId: params.patientUserId,

@@ -10,6 +10,19 @@ import type {
   CreatePatientFileParams,
 } from './ports';
 
+export const PATIENT_FILE_STORAGE_LIMIT_EXCEEDED = 'patient_file_storage_limit_exceeded';
+
+/** Shared by every write port implementation before it persists new file metadata. */
+export function assertPatientFileStorageLimit(input: {
+  usedBytes: number;
+  addedBytes: number;
+  limitBytes: number | null | undefined;
+}): void {
+  if (input.limitBytes != null && input.usedBytes + input.addedBytes > input.limitBytes) {
+    throw new Error(PATIENT_FILE_STORAGE_LIMIT_EXCEEDED);
+  }
+}
+
 export type PatientFilesServiceDeps = {
   patientFilesPort: PatientFilesPort;
 };

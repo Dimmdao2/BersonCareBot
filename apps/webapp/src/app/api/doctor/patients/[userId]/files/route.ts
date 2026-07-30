@@ -15,6 +15,8 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { PATIENT_FILE_STORAGE_LIMIT_EXCEEDED } from '@/modules/patient-files/service';
+import { resolveFileStorageLimit } from '@/modules/org-entitlements/service';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { presignGetUrl, presignPutUrl } from '@/app-layer/media/s3Client';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
@@ -138,25 +140,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
 
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');
   if (!entitlement.ok) return entitlement.response;
+  const storageLimitBytes = await resolveFileStorageLimit(
+    deps.orgEntitlements,
+    gate.ctx.organizationId,
+  );
+  // A concurrent tariff edit cannot turn an omitted configuration into an unlimited upload.
+  if (storageLimitBytes === undefined) {
+    return NextResponse.json(
+      { ok: false, error: 'file_storage_limit_not_configured' },
+      { status: 403 },
+    );
+  }
 
   // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
   const patientFolder = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     pgEnsureClientPatientFolder(patientUserId),
   );
 
-  const file = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.files.create', () =>
-    deps.patientFiles.createFile({
-      patientUserId,
-      category,
-      fileName,
-      s3Key,
-      s3Bucket,
-      mimeType,
-      sizeBytes,
-      uploadedByUserId: gate.ctx.session.user.userId,
-      folderId: patientFolder.id,
-    }),
-  );
+  let file;
+  try {
+    file = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.files.create', () =>
+      deps.patientFiles.createFile({
+        patientUserId,
+        category,
+        fileName,
+        s3Key,
+        s3Bucket,
+        mimeType,
+        sizeBytes,
+        storageLimitBytes,
+        uploadedByUserId: gate.ctx.session.user.userId,
+        folderId: patientFolder.id,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === PATIENT_FILE_STORAGE_LIMIT_EXCEEDED) {
+      return NextResponse.json({ ok: false, error: 'file_storage_limit_reached' }, { status: 403 });
+    }
+    throw error;
+  }
 
   // TODO(upload): return presigned PUT URL for direct browser upload when S3 is available.
   let uploadUrl: string | null = null;
