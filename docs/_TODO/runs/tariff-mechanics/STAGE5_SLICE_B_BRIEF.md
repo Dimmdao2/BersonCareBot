@@ -8,8 +8,8 @@ before you write a line of code.
 
 - **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — items **5.3**, **5.4**, **5.7**; scope §1;
   policy §2.
-- **Canon:** `QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1 (owner rulings), §5.1 (block creating and changing, never
-  reading), §5.6 (a refusal is always visible), §7 (wording).
+- **Canon:** `QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1 (owner rulings), §5.1 (a disabled mechanic hides its section for the
+  specialist AND for his patients; data survives and returns when it is switched back on), §5.6 (a refusal is always visible), §7 (wording).
 - **Read this first — the lessons that cost slice A three rounds:**
   `docs/_TODO/runs/tariff-mechanics/STAGE5_SLICE_A_AUDIT_R3_RESULT.md` and `STAGE5_SLICE_A_REAUDIT_RESULT.md`.
 
@@ -31,10 +31,18 @@ before the diff, marked guarded / not-needed / left-open-with-reason.
 
 ## Rules that decide acceptance
 
-1. **Guard creating and changing only.** Never guard reading or exporting; existing tests, filled questionnaires and
-   tasks stay visible.
-2. **A read that writes is a write.** If opening a page materialises rows for your mechanic, make the helper create
-   nothing when the mechanic is off and return the read-only view. Do not gate the page.
+1. **A disabled mechanic HIDES its section — for the specialist and for his patients.** Owner 30.07, verbatim: «если у
+   специалиста нет в тарифе разминок и cms — то ни он не видит в кабинете этого раздела, ни его клиенты не увидят у
+   себя разминок и статей его». So: the navigation entry disappears, the pages refuse a direct URL, and the patient-facing
+   surface of that mechanic disappears too. What is guaranteed instead: **data is not deleted**, it returns unchanged when
+   the mechanic is switched back on, and the clinic's export of its own data always works. Never limited at all (do not
+   touch): patient card, patient app, reminders and notifications, two-factor authentication, the operations log, export,
+   emergency help.
+   ⚠️ The earlier rule «guard creating and changing only, never guard reading» was the lead's own invention, not the
+   owner's decision. It is withdrawn. Do not follow it.
+2. **A read that writes is still a write.** Since the section is hidden anyway, such a path is no longer reachable from
+   the interface — but a direct API call must still be refused, and the helper must create nothing when the mechanic is
+   off. Guard the handler, do not rely on the interface hiding it.
 3. **A refusal is visible** and names the action plus how to lift it (canon §7). No invented numbers, no generic error.
    Check the interface actually shows the backend message — slice A had five places that swallowed it.
 4. **Behaviour proves the gate.** `check-s4-entitlement-coverage.ts:64-68` does not verify the guard call, so a green
