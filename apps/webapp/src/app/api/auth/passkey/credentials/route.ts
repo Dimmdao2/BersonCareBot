@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import {
+  deletePasskeyCredential,
+  listPasskeyCredentials,
+} from '@/app-layer/auth/passkeyRuntime';
 import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
-import { pgPasskeyStore } from '@/infra/repos/pgPasskeyStore';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 
 const deleteSchema = z.object({ credentialId: z.string().min(16).max(1024) });
@@ -24,7 +27,7 @@ async function authorize() {
 export async function GET() {
   const gate = await authorize();
   if (!gate.ok) return gate.response;
-  const credentials = await pgPasskeyStore.listCredentials(gate.session.user.userId);
+  const credentials = await listPasskeyCredentials(gate.session.user.userId);
   return NextResponse.json({ ok: true, credentials });
 }
 
@@ -35,7 +38,7 @@ export async function DELETE(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
-  const deleted = await pgPasskeyStore.deleteCredential(
+  const deleted = await deletePasskeyCredential(
     gate.session.user.userId,
     parsed.data.credentialId,
   );

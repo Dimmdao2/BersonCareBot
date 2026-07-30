@@ -2,12 +2,13 @@ import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import {
+  findPasskeyUserById,
+  finishPatientPasskeyAuthentication,
+} from '@/app-layer/auth/passkeyRuntime';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
-import { pgPasskeyStore } from '@/infra/repos/pgPasskeyStore';
-import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
 import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
-import { finishPasskeyAuthentication } from '@/modules/auth/passkeyAuth';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
@@ -63,13 +64,10 @@ export async function POST(request: Request) {
 
   let userId: string | null = null;
   try {
-    userId = await finishPasskeyAuthentication(
-      {
-        challengeId: parsed.data.challengeId,
-        response: parsed.data.response as AuthenticationResponseJSON,
-      },
-      pgPasskeyStore,
-    );
+    userId = await finishPatientPasskeyAuthentication({
+      challengeId: parsed.data.challengeId,
+      response: parsed.data.response as AuthenticationResponseJSON,
+    });
   } catch {
     userId = null;
   }
@@ -83,7 +81,7 @@ export async function POST(request: Request) {
   if (isPlatformUserUuid(userId)) {
     enterStaffSecuritySelfPrincipal(userId, 'api/auth/passkey/login:passkey-verified-self');
   }
-  const user = await pgUserByPhonePort.findByUserId(userId);
+  const user = await findPasskeyUserById(userId);
   if (!user) {
     return NextResponse.json({ ok: false, error: 'invalid_credentials' }, { status: 401 });
   }

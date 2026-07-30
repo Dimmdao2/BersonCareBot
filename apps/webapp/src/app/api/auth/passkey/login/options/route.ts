@@ -1,8 +1,7 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
-import { pgPasskeyStore } from '@/infra/repos/pgPasskeyStore';
+import { beginPatientPasskeyAuthentication } from '@/app-layer/auth/passkeyRuntime';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
-import { beginPasskeyAuthentication } from '@/modules/auth/passkeyAuth';
 import {
   isOAuthStartRateLimitedByKey,
   resolveOAuthStartRateLimitClientKey,
@@ -26,7 +25,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await beginPasskeyAuthentication(pgPasskeyStore);
+    const result = await beginPatientPasskeyAuthentication();
     return NextResponse.json({ ok: true, ...result });
   } catch {
     return NextResponse.json({ ok: false, error: 'passkey_login_unavailable' }, { status: 503 });

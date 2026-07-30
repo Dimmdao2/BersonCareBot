@@ -1,10 +1,9 @@
 import type { RegistrationResponseJSON } from '@simplewebauthn/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { finishPatientPasskeyRegistration } from '@/app-layer/auth/passkeyRuntime';
 import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
-import { pgPasskeyStore } from '@/infra/repos/pgPasskeyStore';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
-import { finishPasskeyRegistration } from '@/modules/auth/passkeyAuth';
 
 const responseSchema = z
   .object({
@@ -44,14 +43,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const completed = await finishPasskeyRegistration(
-      {
-        userId: gate.session.user.userId,
-        challengeId: parsed.data.challengeId,
-        response: parsed.data.response as RegistrationResponseJSON,
-      },
-      pgPasskeyStore,
-    );
+    const completed = await finishPatientPasskeyRegistration({
+      userId: gate.session.user.userId,
+      challengeId: parsed.data.challengeId,
+      response: parsed.data.response as RegistrationResponseJSON,
+    });
     if (!completed) {
       return NextResponse.json(
         { ok: false, error: 'passkey_verification_failed' },

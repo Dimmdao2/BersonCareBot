@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
+import { beginPatientPasskeyRegistration } from '@/app-layer/auth/passkeyRuntime';
 import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
-import { pgPasskeyStore } from '@/infra/repos/pgPasskeyStore';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
-import { beginPasskeyRegistration } from '@/modules/auth/passkeyAuth';
 
 export async function POST() {
   const gate = await requirePatientApiSession();
@@ -16,7 +15,7 @@ export async function POST() {
   }
 
   try {
-    const result = await beginPasskeyRegistration(gate.session.user.userId, pgPasskeyStore);
+    const result = await beginPatientPasskeyRegistration(gate.session.user.userId);
     return NextResponse.json({ ok: true, ...result });
   } catch {
     return NextResponse.json(
