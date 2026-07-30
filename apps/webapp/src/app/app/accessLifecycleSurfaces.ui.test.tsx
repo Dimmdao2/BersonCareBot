@@ -5,6 +5,7 @@ import type { OrgEntitlementSnapshot, OrgMechanic } from '@/modules/org-entitlem
 
 const fakes = vi.hoisted(() => ({
   requireOrganizationWorkspaceContext: vi.fn(),
+  requireDoctorWorkspaceContext: vi.fn(),
   requirePatientAccess: vi.fn(),
   patientRscPersonalDataGate: vi.fn(),
   getCurrentSession: vi.fn(),
@@ -19,9 +20,13 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn((target: string) => {
     throw new Error(`REDIRECT:${target}`);
   }),
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND');
+  }),
 }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireOrganizationWorkspaceContext: fakes.requireOrganizationWorkspaceContext,
+  requireDoctorWorkspaceContext: fakes.requireDoctorWorkspaceContext,
   requirePatientAccess: fakes.requirePatientAccess,
   patientRscPersonalDataGate: fakes.patientRscPersonalDataGate,
 }));
@@ -45,7 +50,18 @@ vi.mock('@/modules/patient-home/patientGreetingPersonalizedName', () => ({
   patientGreetingPersonalizedName: () => 'Пациент',
 }));
 vi.mock('@/shared/ui/doctor/shell/DoctorWorkspaceShell', () => ({
-  DoctorWorkspaceShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
+  DoctorWorkspaceShell: ({
+    children,
+    coursesEnabled,
+  }: {
+    children: ReactNode;
+    coursesEnabled?: boolean;
+  }) => (
+    <main>
+      {coursesEnabled ? <span role="link">Курсы</span> : null}
+      {children}
+    </main>
+  ),
 }));
 vi.mock('@/shared/ui/patient/PatientAppShell', () => ({
   PatientAppShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
@@ -67,6 +83,7 @@ vi.mock('./patient/home/PatientHomeToday', () => ({
 
 let DoctorSectionLayout: typeof import('./doctor/layout').default;
 let PatientHomePage: typeof import('./patient/page').default;
+let DoctorCoursesPage: typeof import('./doctor/courses/page').default;
 let coursesIncluded = true;
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
@@ -98,10 +115,12 @@ function entitlementSnapshot(): OrgEntitlementSnapshot {
 }
 
 beforeAll(async () => {
-  [{ default: DoctorSectionLayout }, { default: PatientHomePage }] = await Promise.all([
-    import('./doctor/layout'),
-    import('./patient/page'),
-  ]);
+  [{ default: DoctorSectionLayout }, { default: PatientHomePage }, { default: DoctorCoursesPage }] =
+    await Promise.all([
+      import('./doctor/layout'),
+      import('./patient/page'),
+      import('./doctor/courses/page'),
+    ]);
 });
 
 beforeEach(() => {
@@ -149,6 +168,10 @@ beforeEach(() => {
     canManageAllSpecialists: true,
     canAccessClinicalWorkspace: true,
   });
+  fakes.requireDoctorWorkspaceContext.mockResolvedValue({
+    organizationId,
+    session,
+  });
   fakes.requirePatientAccess.mockResolvedValue({
     user: { userId, role: 'patient', displayName: 'Пациент' },
   });
@@ -167,6 +190,7 @@ beforeEach(() => {
     systemSettings: { listSettingsByScope: async () => [] },
     orgBranding: { resolveEffectiveOrgBranding: async () => null },
     patientOrganization: {},
+    courses: { listCoursesForDoctor: vi.fn() },
   });
 });
 
@@ -185,11 +209,26 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
     expect(screen.getByText('Рабочая область')).toBeInTheDocument();
   });
 
+  it('hides the specialist course navigation through the shared visibility adapter', async () => {
+    coursesIncluded = false;
+
+    render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
+
+    expect(screen.queryByRole('link', { name: 'Курсы' })).not.toBeInTheDocument();
+  });
+
   it('hides the patient course entry through the shared visibility adapter', async () => {
     coursesIncluded = false;
 
     render(await PatientHomePage());
 
     expect(screen.getByTestId('patient-home-courses-organization')).toHaveTextContent('hidden');
+  });
+
+  it('does not render a direct specialist course URL through the shared visibility adapter', async () => {
+    coursesIncluded = false;
+
+    await expect(DoctorCoursesPage({})).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(fakes.buildAppDeps().courses.listCoursesForDoctor).not.toHaveBeenCalled();
   });
 });
