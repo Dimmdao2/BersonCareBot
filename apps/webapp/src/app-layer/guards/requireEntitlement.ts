@@ -15,6 +15,30 @@ export type EntitlementDenialReason =
   | 'commercial_read_only'
   | 'commercial_blocked';
 
+/**
+ * Product-facing explanation for a mutation blocked by a tariff mechanic.
+ * Callers supply the concrete action so the UI never has to turn a swallowed 403
+ * into an unexplained disabled control.
+ */
+export function entitlementMutationRefusalMessage(action: string): string {
+  return `Невозможно ${action}: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.`;
+}
+
+export function entitlementMutationRefusalResponse(
+  mechanic: OrgMechanic,
+  action: string,
+): NextResponse {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'entitlement_required',
+      mechanic,
+      message: entitlementMutationRefusalMessage(action),
+    },
+    { status: 403 },
+  );
+}
+
 async function checkEntitlement(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,

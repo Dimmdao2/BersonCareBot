@@ -9,6 +9,7 @@ import {
   type DoctorWorkspaceAccessContext,
 } from '@/app-layer/guards/requireRole';
 import {
+  entitlementMutationRefusalMessage,
   requireEntitlementForReadAction,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
@@ -105,6 +106,15 @@ async function requireDoctorForPatientHomeMutation(): Promise<DoctorWorkspaceAcc
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
   if (!entitlement.ok) throw new Error('forbidden');
+  const todayEntitlement = await requireEntitlementForMutationAction(
+    workspace,
+    'patient_home_today',
+  );
+  if (!todayEntitlement.ok) {
+    throw new Error(
+      entitlementMutationRefusalMessage('изменить настройки главной страницы пациента'),
+    );
+  }
   return workspace;
 }
 
@@ -457,9 +467,7 @@ export async function createContentSectionForPatientHomeBlock(input: {
   }
 }
 
-export async function listPatientHomeCandidates(
-  blockCode: string,
-): Promise<
+export async function listPatientHomeCandidates(blockCode: string): Promise<
   | {
       ok: true;
       items: Array<{

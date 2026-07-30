@@ -141,7 +141,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
                 } else if (result.reason === 'duplicate_daily') {
                   toast.error('Запись «за день» по этому симптому уже есть сегодня');
                 } else {
-                  toast.error('Не удалось сохранить');
+                  toast.error(result.message ?? 'Не удалось сохранить');
                 }
               });
             }}

@@ -8,10 +8,24 @@ import { NextResponse } from 'next/server';
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForMutation: vi.fn(),
+  requireEntitlementForMutationAction: vi.fn(),
+  entitlementMutationRefusalMessage: (action: string) =>
+    'Невозможно ' + action + ': этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+  entitlementMutationRefusalResponse: (mechanic: string, action: string) =>
+    new Response(
+      JSON.stringify({
+        ok: false,
+        error: 'entitlement_required',
+        mechanic,
+        message: `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
+      }),
+      { status: 403, headers: { 'content-type': 'application/json' } },
+    ),
 }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: vi.fn(),
   requireDoctorWorkspaceApiContext: vi.fn(),
+  requireDoctorWorkspaceContext: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
@@ -31,17 +45,24 @@ vi.mock('@/app/api/booking/bookingTenant', () => ({
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import {
   requireClinicManagementApiContext,
   requireDoctorWorkspaceApiContext,
+  requireDoctorWorkspaceContext,
   requirePatientApiBusinessAccess,
 } from '@/app-layer/guards/requireRole';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
+import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
+import { POST as submitMood } from '@/app/api/patient/mood/route';
+import { PATCH as updateWarmupSchedule } from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
 import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-templates/route';
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
+import { PATCH as updatePromoProgram } from '@/app/api/doctor/treatment-program-promo/route';
+import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
 import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/PatientTabFiles';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -73,6 +94,7 @@ beforeEach(() => {
     ok: true,
     session: workspace.session,
   } as never);
+  vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
     ok: true,
@@ -134,6 +156,69 @@ describe('tariff and platform mutation gates', () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it('refuses external-calendar connection visibly when it is not included in the tariff', async () => {
+    const response = await startExternalCalendar();
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'entitlement_required',
+      mechanic: 'external_calendar',
+      message: 'Невозможно подключить внешний календарь: этот раздел не входит в ваш тариф.',
+    });
+  });
+
+  it('refuses diary and warmup/promo writes visibly when their mechanics are disabled', async () => {
+    const [moodResponse, warmupResponse, promoResponse] = await Promise.all([
+      submitMood(
+        request('https://app.example.test/api/patient/mood', {
+          score: 4,
+        }),
+      ),
+      updateWarmupSchedule(
+        request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/warmup-schedule', {
+          timesLocal: ['09:00'],
+        }),
+        { params: Promise.resolve({ userId: TARGET_ID }) },
+      ),
+      updatePromoProgram(
+        request('https://app.example.test/api/doctor/treatment-program-promo', {
+          templateId: TARGET_ID,
+        }),
+      ),
+    ]);
+
+    for (const [response, mechanic, action] of [
+      [moodResponse, 'patient_diaries', 'добавить или изменить запись самочувствия'],
+      [warmupResponse, 'warmups', 'изменить расписание разминок'],
+      [promoResponse, 'promo', 'изменить промо-программу'],
+    ] as const) {
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'entitlement_required',
+        mechanic,
+        message: 'Невозможно ' + action + ': этот раздел не входит в ваш тариф.',
+      });
+    }
+  });
+
+  it('refuses Today configuration visibly when it is not included in the tariff', async () => {
+    vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue({
+      ...workspace,
+      membershipRole: 'owner',
+    } as never);
+    vi.mocked(requireEntitlementForMutationAction).mockResolvedValue({
+      ok: false,
+      reason: 'entitlement_required',
+      mechanic: 'patient_home_today',
+    } as never);
+
+    await expect(savePatientHomePracticeTargetAction(3)).resolves.toMatchObject({
+      ok: false,
+      error:
+        'Невозможно изменить настройки главной страницы пациента: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+    });
   });
 
   it('refuses both rating writes while material ratings are disabled platform-wide', async () => {

@@ -5,6 +5,10 @@
  */
 import { NextResponse } from 'next/server';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { createSignedOAuthState } from '@/modules/auth/oauthSignedState';
 import {
   getGoogleClientId,
@@ -24,6 +28,10 @@ const GOOGLE_CALENDAR_SCOPES = [
 export async function POST() {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'external_calendar');
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse('external_calendar', 'подключить внешний календарь');
+  }
   if (!(await isGoogleCalendarPlatformAvailable())) {
     return NextResponse.json({ ok: false, error: 'integration_disabled' }, { status: 403 });
   }

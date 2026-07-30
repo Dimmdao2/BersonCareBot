@@ -6,7 +6,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { routePaths } from '@/app-layer/routes/paths';
 import { logger, serializeError } from '@/infra/logging/logger';
 
@@ -16,17 +21,37 @@ function parseOptionalInt(raw: unknown): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+async function patientDiariesRefusal(userId: string): Promise<string | null> {
+  const deps = buildAppDeps();
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    userId,
+  );
+  if (!tenant.ok) return 'Не удалось определить клинику для записи дневника';
+  const entitlement = await requireEntitlementForMutation(
+    { organizationId: tenant.organizationId },
+    'patient_diaries',
+  );
+  return entitlement.ok
+    ? null
+    : entitlementMutationRefusalMessage('добавить, изменить или удалить запись дневника');
+}
+
 /** Принимает данные формы, проверяет доступ пациента и комплекс, сохраняет отметку занятия и обновляет страницу. */
-export async function markLfkSession(formData: FormData) {
+export async function markLfkSession(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const complexId = formData.get('complexId');
   if (typeof complexId !== 'string' || !complexId.trim()) {
-    return;
+    return { ok: false };
   }
   const deps = buildAppDeps();
   const complexes = await deps.diaries.listLfkComplexes(session.user.userId);
   if (!complexes.some((c) => c.id === complexId.trim())) {
-    return;
+    return { ok: false };
   }
 
   const dateRaw = formData.get('sessionDate');
@@ -68,9 +93,10 @@ export async function markLfkSession(formData: FormData) {
     });
   } catch (err) {
     logger.error({ err: serializeError(err) }, 'markLfkSession failed');
-    return;
+    return { ok: false };
   }
   revalidatePath(routePaths.diary);
+  return { ok: true };
 }
 
 /** Patient self-creation of LFK complexes is disabled (complexes come from doctor assignments; see ROADMAP_2 §1.2). */
@@ -79,8 +105,12 @@ export async function createLfkComplex(_formData: FormData) {
   return;
 }
 
-export async function updateLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {
+export async function updateLfkJournalSession(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diaryLfkJournal);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const sessionIdRaw = formData.get('sessionId');
   const sessionId = typeof sessionIdRaw === 'string' ? sessionIdRaw.trim() : '';
   const completedAtVal = formData.get('completedAt');
@@ -122,8 +152,12 @@ export async function updateLfkJournalSession(formData: FormData): Promise<{ ok:
   return { ok: true };
 }
 
-export async function deleteLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {
+export async function deleteLfkJournalSession(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diaryLfkJournal);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const sessionIdRaw = formData.get('sessionId');
   const sessionId = typeof sessionIdRaw === 'string' ? sessionIdRaw.trim() : '';
   if (!sessionId) return { ok: false };

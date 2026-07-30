@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { env } from '@/config/env';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import {
   getGoogleClientId,
   getGoogleClientSecret,
@@ -33,6 +34,10 @@ export async function GET(request: Request) {
     return await settingsRedirect({ gcal: 'error', reason: 'unauthorized' });
   }
   const { session, organizationId } = gate.ctx;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'external_calendar');
+  if (!entitlement.ok) {
+    return await settingsRedirect({ gcal: 'error', reason: 'tariff_disabled' });
+  }
 
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get('state') ?? '';

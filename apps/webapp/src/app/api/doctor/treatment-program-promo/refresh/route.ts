@@ -5,11 +5,19 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { refreshDefaultPromoPrograms } from '@/app-layer/treatment-program/refreshDefaultPromoPrograms';
 
 export async function POST() {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlementForMutation(auth.ctx, 'promo');
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse('promo', 'обновить промо-программу');
+  }
 
   const deps = buildAppDeps();
 

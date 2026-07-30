@@ -33,6 +33,8 @@ const GCAL_ERROR_REASON_LABELS: Record<string, string> = {
   not_configured: 'OAuth credentials не заполнены в настройках',
   unauthorized: 'нужна сессия администратора',
   integration_disabled: 'платформа выключила интеграцию Google Calendar',
+  tariff_disabled:
+    'невозможно подключить внешний календарь: этот раздел не входит в тариф клиники. Включите его в тарифе, чтобы подключить календарь',
   access_denied: 'доступ отклонён в окне Google',
 };
 
@@ -44,16 +46,22 @@ function formatGcalErrorMessage(reason: string | null): string {
   return safe.length > 0 ? `Ошибка (${safe})` : 'Ошибка подключения Google Calendar';
 }
 
-async function patchSetting(key: string, value: unknown): Promise<boolean> {
+async function patchSetting(
+  key: string,
+  value: unknown,
+): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     await apiJson<{ ok: boolean }>('/api/admin/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, value: { value } }),
     });
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'Не удалось сохранить настройку календаря',
+    };
   }
 }
 
@@ -124,10 +132,10 @@ export function GoogleCalendarSection({
       setCalendarId(id);
       setCalendarSaveError(null);
       startTransition(async () => {
-        const ok = await patchSetting('google_calendar_id', id);
-        if (!ok) {
+        const result = await patchSetting('google_calendar_id', id);
+        if (!result.ok) {
           setCalendarId(previous);
-          setCalendarSaveError('Не удалось сохранить выбранный календарь');
+          setCalendarSaveError(result.message);
         }
       });
     },
@@ -140,10 +148,10 @@ export function GoogleCalendarSection({
       setEnabled(val);
       setToggleError(null);
       startTransition(async () => {
-        const ok = await patchSetting('google_calendar_enabled', val);
-        if (!ok) {
+        const result = await patchSetting('google_calendar_enabled', val);
+        if (!result.ok) {
           setEnabled(previous);
-          setToggleError('Не удалось сохранить переключатель синхронизации');
+          setToggleError(result.message);
         }
       });
     },

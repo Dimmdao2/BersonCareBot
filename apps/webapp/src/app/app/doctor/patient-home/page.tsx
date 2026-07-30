@@ -1,7 +1,10 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForMutationAction,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { notFound } from 'next/navigation';
 import { parsePatientHomeDailyPracticeTarget } from '@/modules/patient-home/todayConfig';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -31,6 +34,11 @@ export default async function DoctorPatientHomeSettingsPage() {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
   if (!entitlement.ok) notFound();
+  const todayEntitlement = await requireEntitlementForMutationAction(
+    workspace,
+    'patient_home_today',
+  );
+  if (!todayEntitlement.ok) notFound();
   const session = workspace.session;
   const isAdmin = session.user.role === 'admin' && session.adminMode === true;
   const canManagePatientHome = workspace.membershipRole === 'owner' || isAdmin;
