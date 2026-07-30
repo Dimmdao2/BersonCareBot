@@ -318,6 +318,8 @@ export function AuthFlowV2({
     prefetchedAuthConfig?.authChannelPolicy ?? FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY;
   const emailOtpEnabled = authChannelPolicy.email;
   const messengerPhoneEnabled = authChannelPolicy.telegram || authChannelPolicy.max;
+  const phoneLoginEnabled =
+    messengerPhoneEnabled || authChannelPolicy.sms || authChannelPolicy.email;
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -2426,7 +2428,7 @@ export function AuthFlowV2({
         >
           Войти по email
         </Button>
-        {messengerPhoneEnabled ? (
+        {phoneLoginEnabled ? (
           <Button
             type="button"
             variant="link"

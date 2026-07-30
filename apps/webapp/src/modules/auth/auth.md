@@ -192,7 +192,11 @@ Tier **`patient`** (доступ к основному пациентскому 
 ## Email
 
 - Подтверждённый email в учётке используется backend’ом для **OTP на почту** и для потока **email+password** там, где эти API вызываются.
-- **Публичный веб-вход на `/app`:** OTP на **email** доступен, если в `check-phone` пришёл `methods.email` (подтверждённый email в учётке); **`isOtpChannelAvailablePublic`** для **`email`** совпадает с полным набором (для **`sms`** всегда **`false`**). Порядок альтернатив — **`OTP_PUBLIC_OTHER_CHANNELS_ORDER`** (**max** → **email** → **telegram**). **`pickOtpChannelWithPreferencePublic`** учитывает предпочтение **`telegram` / `max` / `email`**, но **никогда** не выберет **`sms`** для публичного веба.
+- **Публичный веб-вход на `/app` по номеру:** клиент не получает список привязанных к номеру каналов, а вызывает
+  `POST /api/auth/phone/start` без `deliveryChannel`. Сервер выбирает SMS, если глобальный канал включён и номер
+  подходит, иначе подтверждённый email. Ответ всегда имеет нейтральный `deliveryChannel: automatic`,
+  одинаковую форму и минимальное окно ответа; отсутствие аккаунта/канала и сбой провайдера не раскрываются.
+  Web Push для регистрации и кодов входа запрещён решением владельца.
 - **Предпочтение канала для кода входа** (`user_channel_preferences.is_preferred_for_auth`): задать можно только **`telegram`**, **`max`**, **`email`**, **`sms`** — см. **`assertChannelAllowedForPreferredAuth`** / **`isChannelAllowedForPreferredAuth`** в `modules/channel-preferences/preferredAuthChannelPolicy.ts`. **`web_push`** и **`vk`** для этого флага **недопустимы** (запись — ошибка **`PreferredAuthChannelNotAllowedError`**); устаревшие строки в БД при **чтении** маскируются, чтобы не расходились карточки каналов и OTP-выбор.
 - **Экран входа по email+паролю на `/app`:** кнопка «Войти по email» (из **`oauth_first`**) или сразу форма (**без OAuth**): **Вход** / **Регистрация** → при необходимости **`POST …/login`**, регистрация **`POST …/register`**, код → **`POST …/register/confirm`**. Повтор кода через повтор **`register`** с тем же email и паролем.
 
@@ -201,7 +205,9 @@ Tier **`patient`** (доступ к основному пациентскому 
 ## Телефон и OTP
 
 - **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`: **4** неверных ввода → блок 10 мин, resend cooldown **60 с**), верификация кода; успешный verify **не** удаляет челлендж (удаление — `consumePhoneOtpChallenge` после post-steps в DI). Доставка — `PhoneOtpDelivery` (telegram / max / email / sms).
-- HTTP `POST /api/auth/phone/start` для **`channel: web`** не принимает доставку **SMS** (`sms_disabled_web`).
+- HTTP `POST /api/auth/phone/start` для автоматического публичного login (`channel: web`, без
+  `deliveryChannel`) выбирает SMS → подтверждённый email. Явный `deliveryChannel: sms` в старом ручном контракте
+  по-прежнему отклоняется (`sms_disabled_web`), чтобы SMS не выбирал клиент в обход серверной политики.
 - `POST /api/auth/phone/confirm`: опционально **`browserCalendarIana`** (IANA из `Intl`, до 120 символов) — после успешного входа выставляет `platform_users.calendar_timezone`, если поле ещё `null`.
 - Для direct OTP **`profile_bind`** `userId` и organization-scope берутся только из сессии на `/phone/start`, сохраняются в challenge и не принимаются телом `/phone/confirm`.
 - Порты: **SmsPort**, **PhoneChallengeStore**, **UserByPhonePort**.
