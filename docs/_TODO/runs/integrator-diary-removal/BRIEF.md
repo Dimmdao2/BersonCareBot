@@ -28,22 +28,28 @@ Everything that lets the BOT create or change diary/LFK data:
 5. The lifecycle-door call for `patient_diaries` in that file becomes dead with it — remove it too. The door itself
    (`app.resolve_organization_mechanic_access`) and its drizzle port stay: they are used by other work.
 
-## What to KEEP — read carefully, this is the part that is easy to get wrong
+## What to KEEP — narrowed by the owner
 
-- **The «Дневник» menu entry stays, pointing at the app.** MAX already behaves this way («Дневник — в приложении»,
-  button «Открыть дневник»). Telegram must end up the same: the user presses «Дневник» and gets the deep link into the
-  webapp diary. Do not remove the person's way to reach the diary — remove only the bot's ability to write it.
-- **Shared helpers stay.** `resolvePlatformUserIdForActor`, `resolveExactActiveOrganizationId` and the actor/deps types
-  are imported by `writeReminderRulesDirect.ts` and `writeSupportConversationsDirect.ts`. Move them to a neutral module
-  in the same layer rather than deleting them with the file, and update those two importers. Do not change their logic.
+Owner sharpened the instruction: «вырезай весь блок lfk-diary в интеграторе». So the whole domain goes, including the
+bot menu entries and every template that belongs to it. Do not preserve an «Открыть дневник» button on your own
+initiative — if the owner wants that link back it is one line of content, and the lead will ask him. Say plainly in your
+report that the entry point disappeared, so nobody discovers it by accident.
+
+**The only things that stay:**
+
+- **Shared helpers.** `resolvePlatformUserIdForActor`, `resolveExactActiveOrganizationId` and the actor/deps types are
+  imported by `writeReminderRulesDirect.ts` and `writeSupportConversationsDirect.ts`. Move them to a neutral module in
+  the same layer, update those two importers, change no logic.
+- **The lifecycle door itself** (`app.resolve_organization_mechanic_access` and its drizzle repository) — other work
+  uses it. Only the diary-specific call disappears with the block.
 - Everything else in the integrator: untouched.
 
 ## Acceptance
 
 - No path in the integrator can create or modify diary/LFK data any more: show the search proving zero remaining callers
   of the four deleted functions and of the deleted action names.
-- The «Дневник» entry still works in both channels and leads to the app (state how you verified: content/scenario level
-  is enough, no live bot run required).
+- Nothing in either channel still offers diary or LFK: show the search over content and scenarios proving the block is
+  gone, and state explicitly that the user no longer has a diary entry point from the bot.
 - The two neighbouring direct writers still compile and their tests pass — the helper move changed nothing for them.
 - `pnpm --dir apps/integrator run typecheck` and `lint` clean; the integrator test files affected run green via exact
   `vitest run <file>`. **No full CI.**
