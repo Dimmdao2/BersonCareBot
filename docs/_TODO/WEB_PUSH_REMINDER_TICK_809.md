@@ -90,7 +90,10 @@ deploy, env/credentials, and PROD.
   `patient-visible-catalog-rls.sql` overlay ran before `test-strict-rls-finalizer.sql`, whose generated base-policy
   pass replaced it, so C4 readiness reproduced `permission denied for table org_enrollments`. The TEST closure-order
   fix includes that existing reviewed overlay from the finalizer itself; it does not add a grant or change the
-  Web Push role.
+  Web Push role. The next named live tick exposed a second least-privilege conflict: the occurrence claim joined
+  `platform_users` and used an unqualified `FOR UPDATE`, which asks PostgreSQL to lock both relations and therefore
+  required forbidden `platform_users` write privilege. The claim now uses `FOR UPDATE OF o SKIP LOCKED`, retaining
+  the mute read while locking only `webapp_reminder_occurrences`.
 
 ## Definition of Done for this source package
 
