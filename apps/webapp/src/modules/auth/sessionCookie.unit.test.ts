@@ -1,4 +1,3 @@
-import { createHmac } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSession, SessionUser } from '@/shared/types/session';
@@ -13,7 +12,6 @@ import {
   sessionTtlSecondsForRole,
 } from '@/modules/auth/sessionCookie';
 import { Factory, fc, fixedClock } from '@/app-layer/testing';
-import { encodeBase64Url } from '@/shared/utils/base64url';
 
 const clock = fixedClock(Date.UTC(2026, 6, 30, 12));
 const nowSeconds = clock.nowSeconds();
@@ -51,14 +49,6 @@ const activeSessionArbitrary = fc
       expiresAt,
     }),
   );
-
-function signPayload(payload: unknown): string {
-  const secret = process.env.SESSION_COOKIE_SECRET;
-  if (!secret) throw new Error('SESSION_COOKIE_SECRET is required by the unit test');
-  const encoded = encodeBase64Url(JSON.stringify(payload));
-  const signature = createHmac('sha256', secret).update(encoded).digest('base64url');
-  return `${encoded}.${signature}`;
-}
 
 describe('session cookie unit behavior', () => {
   beforeEach(() => {
@@ -117,15 +107,15 @@ describe('session cookie unit behavior', () => {
 
     const invalidCookies = [
       'not-a-cookie',
-      signPayload(incomplete),
+      encodeSessionCookie(incomplete as AppSession),
       encodeSessionCookie({ ...valid, expiresAt: nowSeconds }),
-      signPayload({
+      encodeSessionCookie({
         ...valid,
         operatorSession: {
           purpose: 'not_the_visual_exemption',
           expiresAt: valid.expiresAt,
         },
-      }),
+      } as unknown as AppSession),
     ];
 
     for (const raw of invalidCookies) {
