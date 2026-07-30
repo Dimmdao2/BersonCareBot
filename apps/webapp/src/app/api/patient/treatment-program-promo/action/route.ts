@@ -6,6 +6,11 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { routePaths } from '@/app-layer/routes/paths';
 import { revalidatePatientTreatmentProgramUi } from '@/app-layer/cache/revalidatePatientTreatmentProgramUi';
 import { mapTemplateStageItemToInstanceStageItemId } from '@/modules/treatment-program/mapTemplateStageItemToInstanceItem';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 
 const bodySchema = z.object({
   templateStageItemId: z.string().uuid(),
@@ -39,6 +44,18 @@ export async function POST(req: Request) {
 
   const deps = buildAppDeps();
   const userId = gate.session.user.userId;
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    userId,
+  );
+  if (!tenant.ok) return tenant.response;
+  const entitlement = await requireEntitlementForMutation(
+    { organizationId: tenant.organizationId },
+    'promo',
+  );
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse('promo', 'изменить промо-программу');
+  }
 
   const templateId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
   if (!templateId) {

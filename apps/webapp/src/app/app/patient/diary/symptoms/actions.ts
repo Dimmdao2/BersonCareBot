@@ -140,8 +140,12 @@ export async function createSymptomTracking(
   return { ok: false, reason: 'patient_self_create_disabled' };
 }
 
-export async function renameSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
+export async function renameSymptomTracking(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const trackingId = parseOptionalId(formData.get('trackingId'));
   const newTitleRaw = formData.get('newTitle');
   if (!trackingId || typeof newTitleRaw !== 'string') return { ok: false };
@@ -166,8 +170,12 @@ export async function renameSymptomTracking(formData: FormData): Promise<{ ok: b
   return { ok: true };
 }
 
-export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
+export async function archiveSymptomTracking(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const trackingId = parseOptionalId(formData.get('trackingId'));
   if (!trackingId) return { ok: false };
   const deps = buildAppDeps();

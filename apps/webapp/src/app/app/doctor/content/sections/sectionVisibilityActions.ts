@@ -5,6 +5,10 @@ import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import {
+  isWarmupsContentSection,
+  warmupsContentMutationRefusal,
+} from '@/app-layer/content/warmupsContentMutationGuard';
 
 export type SectionVisibilityState = { ok: boolean; error?: string };
 
@@ -19,6 +23,11 @@ export async function setSectionRequiresAuth(
   if (!s) return { ok: false, error: 'Нет slug' };
 
   const deps = buildAppDeps();
+  const section = await deps.contentSections.getBySlug(s);
+  if (isWarmupsContentSection(section)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
   try {
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.section.requires-auth', () =>
       deps.contentSections.update(s, { requiresAuth }),
@@ -47,6 +56,11 @@ export async function setSectionVisibility(
   if (!s) return { ok: false, error: 'Нет slug' };
 
   const deps = buildAppDeps();
+  const section = await deps.contentSections.getBySlug(s);
+  if (isWarmupsContentSection(section)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
   try {
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.section.visibility', () =>
       deps.contentSections.update(s, { isVisible }),

@@ -24,7 +24,7 @@ export function PatientHomePracticeTargetPanel(props: { initialTarget: number })
     try {
       const res = await savePatientHomePracticeTargetAction(n);
       if (!res.ok) {
-        setError('Не удалось сохранить.');
+        setError(res.error);
         return;
       }
       setMessage('Сохранено');

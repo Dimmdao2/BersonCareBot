@@ -134,11 +134,13 @@ export type PhoneLinkFailureReason =
 
 /** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */
 export type DbWriteDbResult = {
-  userPhoneLinkApplied: boolean;
+  userPhoneLinkApplied?: boolean;
   /** Ошибка БД / нет identity: не показывать копию «номер у другого аккаунта». */
   phoneLinkIndeterminate?: boolean;
   /** Уточнение при `userPhoneLinkApplied: false` (binding-first TX-путь). */
   phoneLinkReason?: PhoneLinkFailureReason;
+  /** Visible product refusal for a write blocked by a tariff mechanic. */
+  entitlementRefusalMessage?: string;
 };
 
 /** Исход `setUserPhone` в репозитории (integrator). */

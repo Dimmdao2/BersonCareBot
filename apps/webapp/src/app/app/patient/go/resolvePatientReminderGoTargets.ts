@@ -14,6 +14,7 @@ import {
 import { resolveActiveTreatmentProgramInstanceId } from '@/modules/treatment-program/patientTreatmentProgramEntry';
 import { omitDisabledInstanceStageItemsForPatientApi } from '@/modules/treatment-program/stage-semantics';
 import type { AppSession } from '@/shared/types/session';
+import { canMaterializePromoForPatient } from '@/app-layer/treatment-program/promoMaterializationGate';
 
 type Deps = ReturnType<typeof buildAppDeps>;
 
@@ -106,7 +107,9 @@ export async function resolvePlanStartLessonPathForPatient(
   deps: Deps,
   userId: string,
 ): Promise<string> {
-  const instanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId);
+  const instanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId, () =>
+    canMaterializePromoForPatient({ patientOrganization: deps.patientOrganization }, userId),
+  );
   if (!instanceId) return routePaths.patientTreatmentPrograms;
 
   let href = routePaths.patientTreatmentProgram(instanceId);

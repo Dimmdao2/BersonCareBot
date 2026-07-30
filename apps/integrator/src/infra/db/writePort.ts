@@ -88,6 +88,7 @@ import {
   addSymptomEntryDirect,
   createLfkComplexDirect,
   createSymptomTrackingDirect,
+  DiaryLfkDirectWriteError,
   isDiaryLfkFailClosedError,
 } from './directPublic/writeDiaryLfkDirect.js';
 import {
@@ -136,6 +137,16 @@ import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal
 function runDirectPublicWriteWithOrgPrincipal<T>(fn: () => Promise<T>): Promise<T> {
   const organizationId = getCurrentDbPrincipalOrganizationId();
   return organizationId ? runWithOrganizationPrincipal(organizationId, fn) : fn();
+}
+
+const PATIENT_DIARIES_ENTITLEMENT_REFUSAL =
+  'Невозможно добавить, изменить или удалить запись дневника: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.';
+
+function patientDiariesEntitlementRefusal(error: unknown): DbWriteDbResult | null {
+  return error instanceof DiaryLfkDirectWriteError &&
+    error.code === 'patient_diaries_entitlement_required'
+    ? { entitlementRefusalMessage: PATIENT_DIARIES_ENTITLEMENT_REFUSAL }
+    : null;
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -1164,6 +1175,8 @@ export function createDbWritePort(
               ),
             );
           } catch (err) {
+            const refusal = patientDiariesEntitlementRefusal(err);
+            if (refusal) return refusal;
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
                 { err, mutationType: mutation.type, resource, externalId },
@@ -1217,6 +1230,8 @@ export function createDbWritePort(
               ),
             );
           } catch (err) {
+            const refusal = patientDiariesEntitlementRefusal(err);
+            if (refusal) return refusal;
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
                 { err, mutationType: mutation.type, resource, externalId, trackingId },
@@ -1253,6 +1268,8 @@ export function createDbWritePort(
               ),
             );
           } catch (err) {
+            const refusal = patientDiariesEntitlementRefusal(err);
+            if (refusal) return refusal;
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
                 { err, mutationType: mutation.type, resource, externalId },
@@ -1281,6 +1298,8 @@ export function createDbWritePort(
               ),
             );
           } catch (err) {
+            const refusal = patientDiariesEntitlementRefusal(err);
+            if (refusal) return refusal;
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
                 { err, mutationType: mutation.type, resource, externalId, complexId },

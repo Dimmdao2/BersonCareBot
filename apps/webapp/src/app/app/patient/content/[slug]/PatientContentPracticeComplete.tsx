@@ -116,7 +116,11 @@ export function PatientContentPracticeComplete({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feeling }),
       });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; duplicate?: boolean };
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        duplicate?: boolean;
+        message?: string;
+      };
       if (res.status === 401) {
         setPickedMoodScore(null);
         toast.error('Войдите, чтобы сохранить выполнение.');
@@ -124,7 +128,7 @@ export function PatientContentPracticeComplete({
       }
       if (!res.ok || !data.ok) {
         setPickedMoodScore(null);
-        toast.error('Не удалось сохранить. Попробуйте позже.');
+        toast.error(data.message ?? 'Не удалось сохранить. Попробуйте позже.');
         return;
       }
       warmupSubmittedRef.current = true;

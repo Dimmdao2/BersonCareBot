@@ -22,6 +22,11 @@ import {
 } from '@/app-layer/idempotency/idempotencyStore';
 import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
 import { enterVerifiedIntegratorOrganizationPrincipal } from '@/app-layer/principal/integratorOrganizationPrincipal';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 
 function eventBodyFromParsed(parsed: Record<string, unknown>): {
   eventType: string;
@@ -196,6 +201,32 @@ export async function POST(request: Request) {
       },
     },
     diaries: deps.diaries,
+    diaryMutationGate: {
+      checkPatientDiariesWrite: async (platformUserId: string) => {
+        const tenant = await resolvePatientEnrollmentOrganizationId(
+          { patientOrganization: deps.patientOrganization },
+          platformUserId,
+        );
+        if (!tenant.ok) {
+          return {
+            ok: false,
+            message: 'Не удалось определить клинику для записи дневника',
+          };
+        }
+        const entitlement = await requireEntitlementForMutation(
+          { organizationId: tenant.organizationId },
+          'patient_diaries',
+        );
+        return entitlement.ok
+          ? { ok: true }
+          : {
+              ok: false,
+              message: entitlementMutationRefusalMessage(
+                'добавить, изменить или удалить запись дневника',
+              ),
+            };
+      },
+    },
     users: {
       ...deps.userProjection,
       findByPhone: async (phoneNormalized: string) => {

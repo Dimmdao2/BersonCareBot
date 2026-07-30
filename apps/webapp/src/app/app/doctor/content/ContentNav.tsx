@@ -33,6 +33,7 @@ export type ContentNavSectionEntry = {
 
 export type ContentNavProps = {
   articleSections: ContentNavSectionEntry[];
+  patientHomeTodayEnabled: boolean;
   activePaneKey: ContentNavPaneKey;
   onPaneChange: (key: ContentNavPaneKey) => void;
   /** Count of pages per pane key (warmups|sos|situations|lessons|section:<slug>). */
@@ -151,6 +152,7 @@ type SectionVisState = { slug: string; title: string; isVisible: boolean };
  */
 export function ContentNav({
   articleSections,
+  patientHomeTodayEnabled,
   activePaneKey,
   onPaneChange,
   countsByPaneKey = {},
@@ -199,12 +201,14 @@ export function ContentNav({
         Системные разделы
       </p>
 
-      <Link
-        href="/app/doctor/patient-home"
-        className="flex min-w-0 items-center rounded-md border-l-2 border-transparent py-1.5 pl-2.5 pr-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-      >
-        Главная пациента
-      </Link>
+      {patientHomeTodayEnabled ? (
+        <Link
+          href="/app/doctor/patient-home"
+          className="flex min-w-0 items-center rounded-md border-l-2 border-transparent py-1.5 pl-2.5 pr-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+        >
+          Главная пациента
+        </Link>
+      ) : null}
 
       {SYSTEM_PARENT_CODES.filter((code) => !HIDDEN_SYSTEM_CODES.has(code)).map((code) => (
         <NavRow

@@ -96,12 +96,13 @@ export function PatientHomeMoodCheckin({
         mood?: PatientMoodToday;
         lastEntry?: PatientMoodLastEntry | null;
         error?: string;
+        message?: string;
       };
       if (!res.ok || !data.ok || !data.mood) {
         setSelectedScore(previousSelected);
         setSavedScore(previousSaved);
         setLastEntry(previousLast);
-        toast.error('Не удалось сохранить, попробуйте позже.');
+        toast.error(data.message ?? 'Не удалось сохранить, попробуйте позже.');
         return false;
       }
       setSelectedScore(data.mood.score);

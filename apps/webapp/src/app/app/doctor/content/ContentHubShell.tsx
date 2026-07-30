@@ -40,6 +40,7 @@ export type ContentHubSection = {
 
 export type ContentHubShellProps = {
   sections: ContentHubSection[];
+  patientHomeTodayEnabled: boolean;
   /** Full ContentSectionRow[] needed by ContentForm's section select. */
   fullSections: ContentSectionRow[];
   pagesBySectionSlug: Record<string, ContentPageListRow[]>;
@@ -243,6 +244,7 @@ function computeCountsByPaneKey(
  */
 export function ContentHubShell({
   sections,
+  patientHomeTodayEnabled,
   fullSections,
   pagesBySectionSlug,
   ratingsById,
@@ -276,6 +278,7 @@ export function ContentHubShell({
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2">
         <ContentNav
           articleSections={articleSectionEntries}
+          patientHomeTodayEnabled={patientHomeTodayEnabled}
           activePaneKey={activePaneKey}
           onPaneChange={(key) => {
             setActivePaneKey(key);

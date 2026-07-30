@@ -55,7 +55,7 @@ export function PatientHomeMoodIconsPanel(props: {
         })),
       );
       if (!res.ok) {
-        setError('Не удалось сохранить.');
+        setError(res.error);
         return;
       }
       setMessage('Сохранено');

@@ -7,6 +7,10 @@ import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireE
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { isHelpSectionSlug } from '@/modules/content-sections/types';
+import {
+  isWarmupsContentSection,
+  warmupsContentMutationRefusal,
+} from '@/app-layer/content/warmupsContentMutationGuard';
 
 export type ReorderContentPagesState = { ok: boolean; error?: string };
 
@@ -26,6 +30,11 @@ export async function reorderContentPagesInSection(
   if (ids.length !== orderedIds.length) return { ok: false, error: 'Некорректные id' };
 
   const deps = buildAppDeps();
+  const sectionRow = await deps.contentSections.getBySlug(sec);
+  if (isWarmupsContentSection(sectionRow)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
   try {
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.pages.reorder', () =>
       deps.contentPages.reorderInSection(sec, ids),

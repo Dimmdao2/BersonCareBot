@@ -61,7 +61,7 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
         times: [...times].map((t) => t.trim()),
       });
       if (!result.ok) {
-        setError('Не удалось сохранить.');
+        setError(result.error);
         return;
       }
       setMessage('Сохранено');

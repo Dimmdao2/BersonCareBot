@@ -95,6 +95,39 @@ const REMINDER_TYPES = new Set<string>([
   'reminders.notifSettings.open.callback',
   'reminders.notifSettings.toggle.callback',
 ]);
+
+async function persistDiaryMutation(
+  writePort: ExecutorDeps['writePort'],
+  mutation: DbWriteMutation,
+): Promise<string | null> {
+  if (!writePort) return null;
+  const result = await writePort.writeDb(mutation);
+  return typeof result === 'object' &&
+    result !== null &&
+    typeof result.entitlementRefusalMessage === 'string'
+    ? result.entitlementRefusalMessage
+    : null;
+}
+
+function diaryEntitlementRefusalSendIntent(
+  action: Action,
+  ctx: DomainContext,
+  message: string,
+): OutgoingIntent[] {
+  const chatId = readIncomingChatId(ctx);
+  return chatId === null
+    ? []
+    : [
+        {
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId },
+            message: { text: message },
+          },
+        },
+      ];
+}
 const DELIVERY_TYPES = new Set<string>([
   'callback.answer',
   'message.deliver',
@@ -474,18 +507,24 @@ export async function executeAction(
               error: 'diary.symptom.tracking.created: payload.symptomTitle required',
             };
           }
-          await persistWrites(deps.writePort, [
-            {
-              type: 'diary.symptom.tracking.create',
-              params: {
-                resource: source,
-                externalId: channelUserId,
-                integratorUserId,
-                symptomKey: asString(payload.symptomKey),
-                symptomTitle,
-              },
+          const refusal = await persistDiaryMutation(deps.writePort, {
+            type: 'diary.symptom.tracking.create',
+            params: {
+              resource: source,
+              externalId: channelUserId,
+              integratorUserId,
+              symptomKey: asString(payload.symptomKey),
+              symptomTitle,
             },
-          ]);
+          });
+          if (refusal) {
+            return {
+              actionId: action.id,
+              status: 'success',
+              values: { webappEmit: { ok: false, reason: refusal } },
+              intents: diaryEntitlementRefusalSendIntent(action, ctx, refusal),
+            };
+          }
         } else {
           const title = asString(payload.title);
           if (!title) {
@@ -495,18 +534,24 @@ export async function executeAction(
               error: 'diary.lfk.complex.created: payload.title required',
             };
           }
-          await persistWrites(deps.writePort, [
-            {
-              type: 'diary.lfk.complex.create',
-              params: {
-                resource: source,
-                externalId: channelUserId,
-                integratorUserId,
-                title,
-                origin: payload.origin,
-              },
+          const refusal = await persistDiaryMutation(deps.writePort, {
+            type: 'diary.lfk.complex.create',
+            params: {
+              resource: source,
+              externalId: channelUserId,
+              integratorUserId,
+              title,
+              origin: payload.origin,
             },
-          ]);
+          });
+          if (refusal) {
+            return {
+              actionId: action.id,
+              status: 'success',
+              values: { webappEmit: { ok: false, reason: refusal } },
+              intents: diaryEntitlementRefusalSendIntent(action, ctx, refusal),
+            };
+          }
         }
         return {
           actionId: action.id,
@@ -2862,20 +2907,30 @@ export async function executeAction(
       // public.symptom_entries instead. `userId` here is the integrator-space id (ChannelUserLinkRow);
       // writeDiaryLfkDirect.ts resolves the actual canonical public.platform_users.id from it.
       if (userId && entryChannelUserId) {
-        await persistWrites(deps.writePort, [
-          {
-            type: 'diary.symptom.entry.create',
-            params: {
-              resource: entrySource,
-              externalId: entryChannelUserId,
-              integratorUserId: userId,
-              trackingId,
-              value0_10,
-              entryType,
-              recordedAt: nowIso(ctx),
-            },
+        const refusal = await persistDiaryMutation(deps.writePort, {
+          type: 'diary.symptom.entry.create',
+          params: {
+            resource: entrySource,
+            externalId: entryChannelUserId,
+            integratorUserId: userId,
+            trackingId,
+            value0_10,
+            entryType,
+            recordedAt: nowIso(ctx),
           },
-        ]);
+        });
+        if (refusal) {
+          intents.push({
+            type: 'message.edit',
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              recipient: { chatId },
+              ...(messageId !== null ? { messageId } : {}),
+              message: { text: refusal },
+            },
+          });
+          return { actionId: action.id, status: 'success', intents };
+        }
       }
       const successText = deps.templatePort
         ? (await renderText({
@@ -3200,18 +3255,28 @@ export async function executeAction(
       // public.lfk_sessions instead. `userId` here is the integrator-space id (ChannelUserLinkRow);
       // writeDiaryLfkDirect.ts resolves the actual canonical public.platform_users.id from it.
       if (userId && sessionChannelUserId) {
-        await persistWrites(deps.writePort, [
-          {
-            type: 'diary.lfk.session.create',
-            params: {
-              resource: sessionSource,
-              externalId: sessionChannelUserId,
-              integratorUserId: userId,
-              complexId,
-              completedAt: nowIso(ctx),
-            },
+        const refusal = await persistDiaryMutation(deps.writePort, {
+          type: 'diary.lfk.session.create',
+          params: {
+            resource: sessionSource,
+            externalId: sessionChannelUserId,
+            integratorUserId: userId,
+            complexId,
+            completedAt: nowIso(ctx),
           },
-        ]);
+        });
+        if (refusal) {
+          intents.push({
+            type: 'message.edit',
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              recipient: { chatId },
+              ...(messageId !== null ? { messageId } : {}),
+              message: { text: refusal },
+            },
+          });
+          return { actionId: action.id, status: 'success', intents };
+        }
       }
       const successText = deps.templatePort
         ? (await renderText({

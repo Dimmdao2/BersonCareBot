@@ -88,7 +88,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
                       toast.success('Симптом архивирован');
                       router.refresh();
                     } else {
-                      toast.error('Не удалось архивировать');
+                      toast.error(result.message ?? 'Не удалось архивировать');
                     }
                   } catch {
                     toast.error('Не удалось архивировать');
@@ -223,7 +223,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
                     setRenameOpen(false);
                     router.refresh();
                   } else {
-                    toast.error('Не удалось переименовать');
+                    toast.error(result.message ?? 'Не удалось переименовать');
                   }
                 } catch {
                   toast.error('Не удалось переименовать');

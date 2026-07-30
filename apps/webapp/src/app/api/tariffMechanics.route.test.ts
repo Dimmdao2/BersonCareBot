@@ -6,11 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextResponse } from 'next/server';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForMutation: vi.fn(),
   requireEntitlementForMutationAction: vi.fn(),
   entitlementMutationRefusalMessage: (action: string) =>
-    'Невозможно ' + action + ': этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+    'Невозможно ' +
+    action +
+    ': этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
   entitlementMutationRefusalResponse: (mechanic: string, action: string) =>
     new Response(
       JSON.stringify({
@@ -26,8 +29,10 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: vi.fn(),
   requireDoctorWorkspaceApiContext: vi.fn(),
   requireDoctorWorkspaceContext: vi.fn(),
+  requirePatientAccessWithPhone: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
 }));
+vi.mock('@/modules/auth/service', () => ({ getCurrentSession: vi.fn() }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: vi.fn(
     <T>(_ctx: unknown, _operation: string, fn: () => T): T => fn(),
@@ -50,8 +55,10 @@ import {
   requireClinicManagementApiContext,
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
+  requirePatientAccessWithPhone,
   requirePatientApiBusinessAccess,
 } from '@/app-layer/guards/requireRole';
+import { getCurrentSession } from '@/modules/auth/service';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
@@ -62,7 +69,15 @@ import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
 import { PATCH as updatePromoProgram } from '@/app/api/doctor/treatment-program-promo/route';
+import { POST as createDoctorSymptomTracking } from '@/app/api/doctor/clients/[userId]/symptom-trackings/route';
+import { PATCH as updateAdminSetting } from '@/app/api/admin/settings/route';
+import { POST as updatePatientPromo } from '@/app/api/patient/treatment-program-promo/action/route';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
+import {
+  archiveSymptomTracking,
+  renameSymptomTracking,
+} from '@/app/app/patient/diary/symptoms/actions';
+import { saveContentSection } from '@/app/app/doctor/content/sections/actions';
 import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/PatientTabFiles';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -94,6 +109,8 @@ beforeEach(() => {
     ok: true,
     session: workspace.session,
   } as never);
+  vi.mocked(requirePatientAccessWithPhone).mockResolvedValue(workspace.session as never);
+  vi.mocked(getCurrentSession).mockResolvedValue(null);
   vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
@@ -104,6 +121,19 @@ beforeEach(() => {
     courses: { createCourse: vi.fn() },
     notifTemplates: { saveManagedTemplate: vi.fn(), saveManagedPresentation: vi.fn() },
     systemSettings: { getSetting: vi.fn().mockResolvedValue({ valueJson: { value: false } }) },
+    contentSections: { getBySlug: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
+    diaries: {
+      listSymptomTrackings: vi.fn().mockResolvedValue([
+        {
+          id: TARGET_ID,
+          symptomKey: 'pain',
+          symptomTitle: 'Боль',
+          deletedAt: null,
+        },
+      ]),
+      renameSymptomTracking: vi.fn(),
+      archiveSymptomTracking: vi.fn(),
+    },
     doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
     patientFiles: { createFile: vi.fn() },
     orgEntitlements: {},
@@ -218,6 +248,112 @@ describe('tariff and platform mutation gates', () => {
       ok: false,
       error:
         'Невозможно изменить настройки главной страницы пациента: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+    });
+  });
+
+  it('refuses the doctor tracking route and patient rename/archive actions when diaries are off', async () => {
+    const createResponse = await createDoctorSymptomTracking(
+      request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/symptom-trackings', {
+        symptomTitle: 'Боль',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID }) },
+    );
+    const form = new FormData();
+    form.set('trackingId', TARGET_ID);
+    form.set('newTitle', 'Новая боль');
+    const [renameResult, archiveResult] = await Promise.all([
+      renameSymptomTracking(form),
+      archiveSymptomTracking(form),
+    ]);
+
+    expect(createResponse.status).toBe(403);
+    await expect(createResponse.json()).resolves.toMatchObject({
+      mechanic: 'patient_diaries',
+      message:
+        'Невозможно создать отслеживание в дневнике пациента: этот раздел не входит в ваш тариф.',
+    });
+    for (const result of [renameResult, archiveResult]) {
+      expect(result).toMatchObject({
+        ok: false,
+        message:
+          'Невозможно добавить, изменить или удалить запись дневника: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+      });
+    }
+  });
+
+  it.each([
+    [
+      'patient_home_daily_practice_target',
+      'patient_home_today',
+      'изменить настройки главной страницы пациента',
+    ],
+    ['patient_default_promo_treatment_program_template_id', 'promo', 'изменить промо-программу'],
+  ])(
+    'refuses shared setting %s through its targeted mechanic guard',
+    async (key, mechanic, action) => {
+      const response = await updateAdminSetting(
+        request('https://app.example.test/api/admin/settings', { key, value: 3 }),
+      );
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        mechanic,
+        message: `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
+      });
+    },
+  );
+
+  it('checks both Today and warmups before changing shared warmup settings', async () => {
+    vi.mocked(requireEntitlementForMutation)
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce(denied);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'patient_home_daily_warmup_rotation_enabled',
+        value: true,
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      mechanic: 'warmups',
+      message: 'Невозможно изменить настройки разминок: этот раздел не входит в ваш тариф.',
+    });
+  });
+
+  it('refuses creating a CMS section in the warmups cluster', async () => {
+    vi.mocked(requireEntitlementForMutationAction)
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: false,
+        reason: 'entitlement_required',
+        mechanic: 'warmups',
+      } as never);
+    const form = new FormData();
+    form.set('slug', 'daily-warmups');
+    form.set('title', 'Разминки');
+    form.set('placement', 'warmups');
+
+    await expect(saveContentSection(null, form)).resolves.toMatchObject({
+      ok: false,
+      error:
+        'Невозможно изменить контент разминок: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+    });
+  });
+
+  it('refuses patient promo mutation before it can materialize an instance', async () => {
+    const response = await updatePatientPromo(
+      request('https://app.example.test/api/patient/treatment-program-promo/action', {
+        templateStageItemId: TARGET_ID,
+        markComplete: true,
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      mechanic: 'promo',
+      message: 'Невозможно изменить промо-программу: этот раздел не входит в ваш тариф.',
     });
   });
 

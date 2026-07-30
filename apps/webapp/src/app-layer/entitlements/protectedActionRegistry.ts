@@ -128,7 +128,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-pages.save',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/actions.ts',
     exportName: 'saveContentPage',
     method: 'action',
@@ -138,7 +138,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-pages.lifecycle',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/lifecycleActions.ts',
     exportName: 'applyContentLifecycle',
     method: 'action',
@@ -148,7 +148,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-pages.requires-auth',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/contentPageAuthActions.ts',
     exportName: 'setContentPageRequiresAuth',
     method: 'action',
@@ -168,7 +168,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-sections.save',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/sections/actions.ts',
     exportName: 'saveContentSection',
     method: 'action',
@@ -178,7 +178,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-sections.attach',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/sections/actions.ts',
     exportName: 'attachArticleSectionToSystemFolder',
     method: 'action',
@@ -188,7 +188,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-sections.rename',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/sections/actions.ts',
     exportName: 'renameContentSectionSlug',
     method: 'action',
@@ -198,7 +198,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-sections.delete',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/sections/actions.ts',
     exportName: 'deleteContentSection',
     method: 'action',
@@ -208,7 +208,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-sections.visibility',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/sections/sectionVisibilityActions.ts',
     exportName: 'setSectionVisibility',
     method: 'action',
@@ -218,7 +218,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-sections.requires-auth',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/sections/sectionVisibilityActions.ts',
     exportName: 'setSectionRequiresAuth',
     method: 'action',
@@ -228,7 +228,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-sections.reorder',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/sections/reorderContentSections.ts',
     exportName: 'reorderContentSections',
     method: 'action',
@@ -238,7 +238,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'cms-pages.reorder',
-    mechanic: 'cms_pages',
+    mechanic: ['cms_pages', 'warmups'],
     file: 'src/app/app/doctor/content/reorderContentPages.ts',
     exportName: 'reorderContentPagesInSection',
     method: 'action',
@@ -527,8 +527,8 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'bookingScheduling.deleteScheduleBlock',
   },
   {
-    id: 'payments-and-external-calendar.settings.patch',
-    mechanic: ['payments', 'external_calendar'],
+    id: 'mechanic-settings.patch',
+    mechanic: ['payments', 'external_calendar', 'patient_home_today', 'warmups', 'promo'],
     file: 'src/app/api/admin/settings/route.ts',
     exportName: 'PATCH',
     method: 'PATCH',
@@ -747,6 +747,27 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'refreshDefaultPromoPrograms',
   },
   {
+    id: 'promo.patient-action',
+    mechanic: 'promo',
+    file: 'src/app/api/patient/treatment-program-promo/action/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requirePatientApiBusinessAccess + resolvePatientEnrollmentOrganizationId',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary:
+      'deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient/updateStageItemLocalComment + deps.treatmentProgramProgress.patientCompleteSimpleItem',
+  },
+  {
+    id: 'promo.patient-reminder-materialize',
+    mechanic: 'promo',
+    file: 'src/app/api/patient/reminders/create/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requirePatientApiBusinessAccess + resolvePatientEnrollmentOrganizationId',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient',
+  },
+  {
     id: 'external-calendar.connect.start',
     mechanic: 'external_calendar',
     file: 'src/app/api/admin/google-calendar/start/route.ts',
@@ -787,6 +808,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.warmupFeelingCompletion.applyDailyWarmupFeeling',
   },
   {
+    id: 'patient-diaries.integrator-events',
+    mechanic: 'patient_diaries',
+    file: 'src/app/api/integrator/events/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'verifyIntegratorSignature + resolvePatientEnrollmentOrganizationId',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'handleIntegratorEvent diary mutation handlers',
+  },
+  {
     id: 'patient-diaries.symptoms.create',
     mechanic: 'patient_diaries',
     file: 'src/app/app/patient/diary/symptoms/actions.ts',
@@ -795,6 +826,36 @@ export const PROTECTED_ACTION_MAPPINGS = [
     authContext: 'requirePatientAccessWithPhone + resolvePatientEnrollmentOrganizationId',
     guard: 'requireEntitlementForMutation',
     serviceBoundary: 'deps.diaries.addSymptomEntry',
+  },
+  {
+    id: 'patient-diaries.tracking.doctor-create',
+    mechanic: 'patient_diaries',
+    file: 'src/app/api/doctor/clients/[userId]/symptom-trackings/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requireDoctorWorkspaceApiContext',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'deps.diaries.createSymptomTracking',
+  },
+  {
+    id: 'patient-diaries.tracking.rename',
+    mechanic: 'patient_diaries',
+    file: 'src/app/app/patient/diary/symptoms/actions.ts',
+    exportName: 'renameSymptomTracking',
+    method: 'action',
+    authContext: 'requirePatientAccessWithPhone + resolvePatientEnrollmentOrganizationId',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'deps.diaries.renameSymptomTracking',
+  },
+  {
+    id: 'patient-diaries.tracking.archive',
+    mechanic: 'patient_diaries',
+    file: 'src/app/app/patient/diary/symptoms/actions.ts',
+    exportName: 'archiveSymptomTracking',
+    method: 'action',
+    authContext: 'requirePatientAccessWithPhone + resolvePatientEnrollmentOrganizationId',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'deps.diaries.archiveSymptomTracking',
   },
   {
     id: 'patient-diaries.symptoms.update',
@@ -1101,16 +1162,6 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     file: 'src/app/app/patient/diary/symptoms/actions.ts',
     exportName: 'createSymptomTracking',
     reason: 'patient self-creation is deliberately disabled',
-  },
-  {
-    file: 'src/app/app/patient/diary/symptoms/actions.ts',
-    exportName: 'renameSymptomTracking',
-    reason: 'tracking metadata is not a diary entry',
-  },
-  {
-    file: 'src/app/app/patient/diary/symptoms/actions.ts',
-    exportName: 'archiveSymptomTracking',
-    reason: 'tracking lifecycle is not a diary entry',
   },
   {
     file: 'src/app/app/patient/diary/lfk/actions.ts',
