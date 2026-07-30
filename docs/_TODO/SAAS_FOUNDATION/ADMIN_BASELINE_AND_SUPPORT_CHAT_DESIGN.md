@@ -1,7 +1,14 @@
-# Admin console baseline + support chat — design (#808)
+# Admin console baseline + historical support-chat research (#808)
 
-**Status:** design doc, DOCS-ONLY. No application code, schema, config or migration changed by this pass.
-Written against repo state on `feat/doctor-ui-rebuild`, 2026-07-17.
+> **SUPPORT-ПОЛОВИНА SUPERSEDED 31.07.2026.** Разделы §4–§7 ниже сохраняют исследование от 17.07, но не
+> являются инструкцией к реализации. Поздние решения владельца заменили один continuous chat на отдельные
+> тикеты с репликами/вложениями/статусами/экспортом, platform in-app-only — на обычные настраиваемые
+> уведомления, а interim `/app/doctor/**` — на существующий `/app/admin/**` shell. Текущий исполнительный
+> канон: [`../SUPPORT_TICKETS_1070.md`](../SUPPORT_TICKETS_1070.md). Сохраняющийся канон этого файла —
+> только reality audit и admin-console baseline #808 в §0–§3.
+
+**Status:** admin-baseline design + superseded support research, DOCS-ONLY. No application code, schema,
+config or migration changed by this pass. Written against repo state on `feat/doctor-ui-rebuild`, 2026-07-17.
 
 **Authority order:** `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-17.md` §2 (arms card #808, verbatim: "и
 вообще должно быть еще у админа хотя бы базово (техподдержку еще надо сделать чат)") →

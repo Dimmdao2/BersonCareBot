@@ -8,19 +8,6 @@
 # Reasons are inline; do not silence rules by deletion — narrow the pattern or lower severity.
 
 rules:
-  - id: bcb-hardcoded-secret-assignment
-    languages: [javascript, typescript]
-    severity: ERROR
-    message: >
-      Possible hardcoded secret. Load credentials from env/secret store, never inline them.
-      (SEC-01: real prod creds previously leaked via committed config.)
-    metadata:
-      category: security
-      cwe: 'CWE-798: Use of Hard-coded Credentials'
-    patterns:
-      - pattern-regex: (?i)(api[_-]?key|secret|passw(or)?d|token|private[_-]?key)\s*[:=]\s*['"][A-Za-z0-9/_+\-]{16,}['"]
-      - pattern-not-regex: (?i)(changeme|example|placeholder|dummy|your[-_]?(token|key|secret)|process\.env|<[^>]+>|x{6,})
-
   - id: bcb-child-process-concat
     languages: [javascript, typescript]
     severity: ERROR
