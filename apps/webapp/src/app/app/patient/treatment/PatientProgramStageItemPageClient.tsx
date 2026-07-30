@@ -608,27 +608,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     reportError(null);
     try {
       const previousDraft = await loadLatestMetrics();
-      const result = await postProgramItemComplete({
-        base,
-        itemId: item.id,
-      });
-      if (!result.ok) {
-        reportError(result.error);
-        setMetricsPanelOpen(false);
-        return;
-      }
-      if (result.item) {
-        setDetail(result.item);
-        const updatedItem =
-          result.item.stages.flatMap((s) => s.items).find((x) => x.id === item.id) ?? null;
-        const completedAt = updatedItem?.completedAt ?? new Date().toISOString();
-        setDoneItemIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
-        setLastDoneAtIsoByItemId((prev) => ({ ...prev, [item.id]: completedAt }));
-        setDoneTodayCountByItemId((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
-      }
       setMetricsDraft(previousDraft);
-      await refresh();
-      await loadDiscussionPreview();
     } finally {
       setBusy(null);
     }
@@ -640,15 +620,24 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     reportError(null);
     try {
       const payload = draftToPayload(metricsDraft);
-      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const result = await postProgramItemComplete({
+        base,
+        itemId: item.id,
+        payload,
       });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!res.ok || !data?.ok) {
-        reportError(data?.error ?? 'Не удалось сохранить значения');
+      if (!result.ok) {
+        reportError(result.error);
         return;
+      }
+      if (result.item) {
+        setDetail(result.item);
+        const updatedItem =
+          result.item.stages.flatMap((stage) => stage.items).find((entry) => entry.id === item.id) ??
+          null;
+        const completedAt = updatedItem?.completedAt ?? new Date().toISOString();
+        setDoneItemIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+        setLastDoneAtIsoByItemId((prev) => ({ ...prev, [item.id]: completedAt }));
+        setDoneTodayCountByItemId((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
       }
       setMetricsPanelOpen(false);
       await refresh();

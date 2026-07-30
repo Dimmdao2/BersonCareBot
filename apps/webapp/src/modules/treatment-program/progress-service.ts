@@ -374,51 +374,6 @@ export function createTreatmentProgramProgressService(deps: {
       return { at: row.createdAt, reps, sets, weightKg, difficulty };
     },
 
-    async updateLatestSimpleCompletionMetrics(input: {
-      patientUserId: string;
-      instanceId: string;
-      stageItemId: string;
-      completion: {
-        perceivedDifficulty?: 'easy' | 'medium' | 'hard';
-        reps?: number;
-        sets?: number;
-        weightKg?: number;
-      };
-    }): Promise<void> {
-      assertUuid(input.patientUserId);
-      assertUuid(input.instanceId);
-      assertUuid(input.stageItemId);
-      const payloadPatch: Record<string, unknown> = {
-        source: 'simple_item_complete',
-      };
-      if (
-        input.completion.perceivedDifficulty === 'easy' ||
-        input.completion.perceivedDifficulty === 'medium' ||
-        input.completion.perceivedDifficulty === 'hard'
-      ) {
-        payloadPatch.perceivedDifficulty = input.completion.perceivedDifficulty;
-      }
-      if (typeof input.completion.reps === 'number' && Number.isFinite(input.completion.reps)) {
-        payloadPatch.reps = input.completion.reps;
-      }
-      if (typeof input.completion.sets === 'number' && Number.isFinite(input.completion.sets)) {
-        payloadPatch.sets = input.completion.sets;
-      }
-      if (
-        typeof input.completion.weightKg === 'number' &&
-        Number.isFinite(input.completion.weightKg)
-      ) {
-        payloadPatch.weightKg = input.completion.weightKg;
-      }
-      const ok = await actionLog.updateLatestSimpleDonePayload({
-        patientUserId: input.patientUserId,
-        instanceId: input.instanceId,
-        instanceStageItemId: input.stageItemId,
-        payloadPatch,
-      });
-      if (!ok) throw new Error('Отметка выполнения не найдена');
-    },
-
     async patientEnsureTestAttempt(input: {
       patientUserId: string;
       instanceId: string;
