@@ -317,15 +317,21 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       Побочно: тихий откат в память теперь пишет `warn` ОДИН раз — раньше он молчал, и именно поэтому
       поломка прожила незамеченной. Сам механизм отката не переделывался: нужен ли ему сброс или ретрай —
       **вопрос владельцу**, не наша инициатива.
-- [ ] **C-3 (#1005) Delivery-channel fallback.**
-      🔴 **ЦЕПОЧКА НИЖЕ ПРОТИВОРЕЧИТ РЕШЕНИЮ ВЛАДЕЛЬЦА 27.07 — не брать в работу как написано.** Он дословно:
-      «ТОЧНО НЕ ВЕБ-ПУШ будет способом регистрации и получения кода. Это маразм». Веб-пуш остаётся каналом
-      доставки ОБЫЧНЫХ уведомлений по выбору пациента, но НЕ каналом доставки кода входа. Переписать цепочку
-      без веб-пуша перед исполнением; канон — `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §25.1/§27.
-      Исходная формулировка: Phone entered → SMS if enabled → web-push if subscribed →
-      e-mail if bound. NIST 800-63B treats SMS as restricted and expects an alternative. Two hard edges:
-      uniform response/timing so it cannot be used to test whether a phone has an e-mail; and a code
-      delivered to e-mail proves control of the E-MAIL — it must never stamp phone trust.
+- [x] **C-3 (#1005) Delivery-channel fallback.**
+      Действующая цепочка после решения владельца 27.07: Phone entered → SMS, если канал включён и номер
+      подходит → подтверждённый e-mail, если он привязан. Web Push остаётся только каналом обычных уведомлений
+      и не используется для регистрации или кодов входа. Публичный ответ, сохранённый challenge/lockout и
+      минимальное окно ответа одинаковы при наличии/отсутствии аккаунта и канала; provider delivery идёт через
+      Next `after` после ответа. Код, доставленный на e-mail, подтверждает e-mail и никогда не
+      выставляет phone trust. NIST 800-63B-4 считает SMS restricted и требует альтернативный тип
+      аутентификатора, но не признаёт e-mail допустимым OOB authenticator; e-mail fallback — продуктовое решение
+      владельца, anti-enumeration — OWASP Forgot Password / ASVS 6.3.8. Доказательство:
+      `apps/webapp/src/app/api/auth/phone/start/route.ts` + `phone/confirm/route.ts`,
+      `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts`,
+      `apps/webapp/src/infra/integrations/sms/integratorSmsAdapter.deferred.unit.test.ts`,
+      `apps/webapp/src/infra/integrations/sms/stubSmsAdapter.deferred.unit.test.ts`,
+      `apps/webapp/src/infra/repos/pgPhoneChallengeStore.unit.test.ts`,
+      `apps/webapp/src/shared/ui/patient/auth/PhoneMessengerAuthFlow.ui.test.tsx` (13/13).
 - [x] **C-4 (D5) Admin allowlists → roles.** Remove the DB-resident allowlists that also confer admin;
       recipients derived from roles at send time; owner identity pinned in env.
       **Разведка сделана 26.07 → `docs/_TODO/C4_ADMIN_ALLOWLISTS_2026-07-26.md`.** Главное оттуда:
