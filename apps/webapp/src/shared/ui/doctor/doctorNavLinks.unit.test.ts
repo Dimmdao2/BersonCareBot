@@ -31,4 +31,19 @@ describe('doctor navigation schedule access', () => {
     expect(libraryItems(enabledItems)).toContain('treatment-program-promo');
     expect(libraryItems(disabledItems)).toContain('treatment-program-templates');
   });
+
+  it('removes the courses section when the shared visibility adapter disables it', () => {
+    const capabilities = ['account.self', 'clinical.workspace'] as const;
+    const disabledIds = getDoctorMenuItems({
+      capabilities,
+      coursesEnabled: false,
+    }).map((item) => item.id);
+    const enabledIds = getDoctorMenuItems({
+      capabilities,
+      coursesEnabled: true,
+    }).map((item) => item.id);
+
+    expect(disabledIds).not.toContain('courses');
+    expect(enabledIds).toContain('courses');
+  });
 });

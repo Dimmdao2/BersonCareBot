@@ -1933,6 +1933,13 @@
       "when": 1793539200073,
       "tag": "0275_tariff_mechanics_stage12_local",
       "breakpoints": true
+    },
+    {
+      "idx": 276,
+      "version": "7",
+      "when": 1793539200074,
+      "tag": "0276_access_lifecycle_ladder_local",
+      "breakpoints": true
     }
   ]
 }

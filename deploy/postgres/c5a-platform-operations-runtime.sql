@@ -517,13 +517,10 @@ BEGIN
   IF NOT FOUND THEN
     -- No active trial policy is configured on this platform (owner has not set one), and a
     -- freshly provisioned organization has no tariff assignment either -- "no_trial" here was
-    -- never a product decision anyone made, it is the fallback nobody chose, and it forces every
-    -- mechanic to false in entitlementsFromSnapshot() (org-entitlements/service.ts: "source ===
-    -- no_trial ? false : MECHANIC_DEFAULT_ENABLED"). Land the organization in "compatibility"
-    -- instead -- the same state a migrated legacy clinic gets, which resolves through
-    -- MECHANIC_DEFAULT_ENABLED (owner-reported dead workspace: a brand-new clinic had every
-    -- mechanic switched off). This is also `be_organizations.commercial_access_state`'s own
-    -- column default, so this UPDATE now only reasserts it explicitly instead of overwriting it.
+    -- never a product decision anyone made. Land the organization in "compatibility" instead --
+    -- the same explicit state a migrated legacy clinic gets. This is also
+    -- `be_organizations.commercial_access_state`'s own column default, so this UPDATE only
+    -- reasserts it explicitly instead of overwriting it with an agent-selected mechanic policy.
     -- If a trial policy IS configured later, the branch above (policy FOUND) wins and this
     -- fallback never runs.
     UPDATE public.be_organizations

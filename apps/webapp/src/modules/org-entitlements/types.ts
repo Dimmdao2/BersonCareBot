@@ -88,7 +88,7 @@ export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
 /** Compatibility iterator for resolver and data contracts; keys come only from the registry above. */
 export const MECHANICS = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[];
 
-export type TariffQuotaUnit = 'bytes';
+export type TariffQuotaUnit = 'bytes' | 'items';
 
 /**
  * Owner 2026-07-26 (#1003): the tariff constructor's quota-unit picker showed the raw
@@ -97,44 +97,54 @@ export type TariffQuotaUnit = 'bytes';
  */
 export const QUOTA_UNIT_LABELS: Record<TariffQuotaUnit, string> = {
   bytes: 'Байты',
+  items: 'Штуки',
 };
 
-export type TariffQuota = {
+type NumericQuotaBase = {
   kind: 'numeric' | 'unlimited';
   limit: number | null;
-  /** The only stage-1/2 generic numeric quota: patient-file storage volume. */
-  unit: 'bytes';
+  /** `null` means the owner has not configured an early warning for this number. */
+  warningAtPercent: number | null;
 };
 
-/** `возможность` and `никогда` are intentionally absent: assigning them a number cannot compile. */
-export type TariffQuotaMap = Partial<Record<'files', TariffQuota>>;
+export type StorageQuota = NumericQuotaBase & { unit: 'bytes' };
+export type StockQuota = NumericQuotaBase & { unit: 'items' };
+export type TariffQuota = StorageQuota | StockQuota;
 
 /**
- * C4A/C4C/C4D — scoped fail-closed exceptions to the compatibility default-true resolver (see
- * `resolveOrgEntitlements` in `service.ts`). `clinic_team`, `courses`, and the platform part of
- * `exercise_catalog` require an explicit tariff or organization override. OFF exercise catalog
- * still leaves the organization's own exercises and templates available; it only excludes the
- * platform base library.
+ * The key controls the unit at compile time. Possibility, seats and never-limited mechanics are
+ * intentionally absent, so the constructor cannot attach a generic number to them.
  */
-export const MECHANIC_DEFAULT_ENABLED: Record<OrgMechanic, boolean> = Object.fromEntries(
-  MECHANICS.map((mechanic) => [
-    mechanic,
-    mechanic !== 'clinic_team' &&
-      mechanic !== 'courses' &&
-      mechanic !== 'exercise_catalog' &&
-      mechanic !== 'patient_home_today' &&
-      mechanic !== 'warmups' &&
-      mechanic !== 'promo',
-  ]),
-) as Record<OrgMechanic, boolean>;
+export type TariffQuotaMap = Partial<{
+  files: StorageQuota;
+  patient_count: StockQuota;
+  branches: StockQuota;
+}>;
 
-/**
- * C4A — fail-closed effective seat count used only when `clinic_team` is enabled (by tariff or
- * override) but no explicit seat count was configured (no `includedSeats`, no
- * `seatLimitOverride`). Owner decision (C4C5-05): "solo includes one seat" — this is the same
- * finite baseline, not a real tariff row. Never treated as unlimited; see `resolveClinicSeatLimit`.
- */
-export const CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE = 1;
+export type AccessTerminalState = 'full_access' | 'read_only' | 'disabled';
+
+export type AccessLifecyclePolicy = {
+  graceDays: number;
+  readOnlyDays: number;
+  warningCount: number;
+  terminalState: AccessTerminalState;
+};
+
+export type MechanicAccessPolicyMap = Partial<Record<OrgMechanic, AccessLifecyclePolicy>>;
+
+export type MechanicAccessState =
+  | 'full_access'
+  | 'grace'
+  | 'read_only'
+  | 'disabled'
+  | 'unconfigured';
+
+export type MechanicAccessResolution = {
+  mechanic: OrgMechanic;
+  state: MechanicAccessState;
+  policySource: 'critical' | 'mechanic' | 'system' | 'unconfigured';
+  warning: { until: string; count: number } | null;
+};
 
 export type Tariff = {
   id: string;
@@ -145,12 +155,14 @@ export type Tariff = {
   billingPeriod: 'day' | 'month' | 'year';
   mechanics: Record<string, boolean>;
   quotas: TariffQuotaMap;
+  systemAccessPolicy: AccessLifecyclePolicy | null;
+  mechanicAccessPolicies: MechanicAccessPolicyMap;
   /**
-   * Included specialist seats for `clinic_team`, as configured on this tariff. `null` means this
-   * tariff does not explicitly configure a count (falls back to `CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE`
-   * via `resolveClinicSeatLimit`) — it is never treated as unlimited.
+   * Included specialist seats for `clinic_team`, as configured on this tariff. `null` is explicit
+   * "not configured" and refuses growth; it is never converted into an agent-chosen baseline.
    */
   includedSeats: number | null;
+  includedSeatsWarningAtPercent: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -164,9 +176,8 @@ export type OrgEntitlementOverride = {
   quota: TariffQuota | null;
   expiresAt: string | null;
   /**
-   * Per-org override of the `clinic_team` included-seats count; unused for other mechanics. `null`
-   * means no explicit override (falls back to the tariff, then the fail-closed baseline) — never
-   * unlimited.
+   * Per-org override of the `clinic_team` included-seats count; unused for other mechanics.
+   * `null` means no explicit override and falls back only to the tariff.
    */
   seatLimitOverride: number | null;
   createdAt: string;
@@ -178,14 +189,15 @@ export type OrgEntitlements = Record<OrgMechanic, boolean>;
 /** A product-consumable view of an actually enforced quota. */
 export type OrgQuotaProjection = {
   mechanic: OrgMechanic;
-  quota: { limit: number; unit: 'seats' | 'bytes' };
+  quota: { limit: number; unit: 'seats' | TariffQuotaUnit };
   usage: number;
   threshold: 'below_warning' | 'warning' | 'reached';
   enforcement: (typeof MECHANIC_REGISTRY)[OrgMechanic]['quotaEnforcement'];
 };
 
 export type TrialPostBehavior = 'read_only' | 'blocked' | 'tariff';
-export type TrialStartEvent = 'organization_provisioned';
+/** Operator-authored event key. Empty means invalid; the runtime never substitutes an event. */
+export type TrialStartEvent = string;
 
 export type TrialPolicy = {
   tariffId: string;
@@ -212,13 +224,18 @@ export type EffectiveOrgCommercialAccess = {
    */
   trialEndsAt?: string;
   trialGraceEndsAt?: string;
+  /** Server-derived instant when commercial access stopped being active. */
+  degradationStartedAt?: string;
 };
 
 export type OrgEntitlementSnapshot = {
   tariff: {
     mechanics: Record<string, boolean>;
     quotas: TariffQuotaMap;
+    systemAccessPolicy: AccessLifecyclePolicy | null;
+    mechanicAccessPolicies: MechanicAccessPolicyMap;
     includedSeats: number | null;
+    includedSeatsWarningAtPercent: number | null;
     /** Optional display fields — populated by the staff (non-patient) resolution path only. */
     id?: string;
     name?: string;

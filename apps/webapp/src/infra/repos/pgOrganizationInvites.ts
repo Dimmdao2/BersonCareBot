@@ -12,7 +12,6 @@ import {
   ORGANIZATION_INVITE_ROLES,
   ORGANIZATION_INVITE_STATUSES,
 } from '@/modules/organization-invites/ports';
-import { CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE } from '@/modules/org-entitlements/types';
 
 type InviteRow = {
   id: string;
@@ -138,13 +137,16 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
         if (input.invitedRole === 'doctor') {
           // Atomic, race-safe seat capacity check — the authoritative enforcement (the JS-level
           // clinicSeats.assertSeatAvailableForInvite pre-check is best-effort UX only). Mirrors
-          // resolveClinicSeatLimit's override > tariff > fail-closed-baseline precedence.
+          // resolveClinicSeatLimit's override > tariff precedence.
           // `clinic_team` is numeric, so the legacy boolean map cannot switch this limit off.
           // This is duplicated in SQL because it must run inside this same lock+transaction.
           // `i.invited_email <> $2` excludes this email's own prior pending reservation: a
           // same-email replacement at the limit does not add a reservation, so it must not be
           // counted against itself.
-          const capacity = await runWebappPgText<{ limit_value: number; used_value: number }>(
+          const capacity = await runWebappPgText<{
+            limit_value: number | null;
+            used_value: number;
+          }>(
             `WITH seat_limit AS (
                SELECT COALESCE(
                    (SELECT eo.seat_limit_override FROM saas_org_entitlement_overrides eo
@@ -152,20 +154,19 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
                    (SELECT t.included_seats
                     FROM be_organizations o
                     JOIN saas_tariffs t ON t.id = o.tariff_id
-                   WHERE o.id = $1),
-                   $3::int
+                   WHERE o.id = $1)
                  ) AS value
              )
              SELECT
                (SELECT value FROM seat_limit)::int AS limit_value,
                ${CLINIC_SEAT_USAGE_SQL} AS used_value`,
-            [input.organizationId, input.invitedEmail, CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE],
+            [input.organizationId, input.invitedEmail],
             tx,
           );
           const row = capacity.rows[0];
-          const limitValue = row?.limit_value ?? 0;
+          const limitValue = row?.limit_value;
           const usedValue = row?.used_value ?? 0;
-          if (usedValue >= limitValue) {
+          if (limitValue === null || limitValue === undefined || usedValue >= limitValue) {
             return { ok: false, code: 'seat_limit_reached' };
           }
         }

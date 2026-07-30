@@ -12,7 +12,15 @@ import type {
 const quotaSchema = z.object({
   kind: z.enum(['numeric', 'unlimited']),
   limit: z.number().int().nonnegative().nullable(),
-  unit: z.literal('bytes'),
+  unit: z.enum(['bytes', 'items']),
+  warningAtPercent: z.number().int().min(0).max(100).nullable(),
+});
+
+const accessPolicySchema = z.object({
+  graceDays: z.number().int().nonnegative(),
+  readOnlyDays: z.number().int().nonnegative(),
+  warningCount: z.number().int().nonnegative(),
+  terminalState: z.enum(['full_access', 'read_only', 'disabled']),
 });
 
 const tariffInputSchema = z.object({
@@ -22,8 +30,17 @@ const tariffInputSchema = z.object({
   currency: z.string().trim().min(1).nullable(),
   billingPeriod: z.enum(['day', 'month', 'year']),
   mechanics: z.record(z.string(), z.boolean()),
-  quotas: z.object({ files: quotaSchema.optional() }).strict(),
+  quotas: z
+    .object({
+      files: quotaSchema.optional(),
+      patient_count: quotaSchema.optional(),
+      branches: quotaSchema.optional(),
+    })
+    .strict(),
+  systemAccessPolicy: accessPolicySchema.nullable(),
+  mechanicAccessPolicies: z.record(z.string(), accessPolicySchema),
   includedSeats: z.number().int().nonnegative().nullable(),
+  includedSeatsWarningAtPercent: z.number().int().min(0).max(100).nullable(),
   isActive: z.boolean(),
 });
 
@@ -31,7 +48,7 @@ const trialPolicySchema = z.object({
   tariffId: z.string().uuid(),
   durationDays: z.number().int().positive(),
   graceDays: z.number().int().nonnegative(),
-  startEvent: z.literal('organization_provisioned'),
+  startEvent: z.string().trim().min(1),
   postTrialBehavior: z.enum(['read_only', 'blocked', 'tariff']),
   postTrialTariffId: z.string().uuid().nullable(),
   isActive: z.boolean(),
@@ -85,11 +102,7 @@ const operationSchema = z.discriminatedUnion('action', [
     days: z.number().int().positive().max(3650),
     reason: reasonSchema,
   }),
-]).superRefine((operation, ctx) => {
-  if (operation.action === 'upsert_override' && operation.quota && operation.mechanic !== 'files') {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'tariff_quota_mechanic_invalid' });
-  }
-});
+]);
 
 type TariffInput = Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>;
 

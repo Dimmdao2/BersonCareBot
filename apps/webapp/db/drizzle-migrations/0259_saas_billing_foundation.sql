@@ -234,11 +234,6 @@ VALUES (
         'bankAccount', NULL,
         'taxRegime', NULL,
         'vatRate', NULL
-      ),
-      'lifecyclePolicy', jsonb_build_object(
-        'graceDays', 7,
-        'chargeAttempts', 3,
-        'readOnlyDays', 21
       )
     )
   ),

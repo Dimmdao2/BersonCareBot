@@ -1,26 +1,49 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForMutation,
+  requireEntitlementForPage,
+  requireEntitlementForRead,
+  resolveMechanicSurfaceVisibility,
+} from '@/app-layer/guards/requireEntitlement';
 import {
   createPlatformEntitlementsService,
   entitlementsFromSnapshot,
   fileStorageLimitFromSnapshot,
   resolveClinicSeatLimit,
+  resolveMechanicAccessFromSnapshot,
   resolveOrgQuotaProjections,
 } from '@/modules/org-entitlements/service';
 import type {
   OrgEntitlementsPort,
   PlatformEntitlementsPort,
 } from '@/modules/org-entitlements/ports';
-import { MECHANICS, type MechanicDefinition, type Tariff } from '@/modules/org-entitlements/types';
+import {
+  MECHANICS,
+  type MechanicDefinition,
+  type OrgEntitlementSnapshot,
+  type Tariff,
+  type TariffQuotaMap,
+} from '@/modules/org-entitlements/types';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND');
+  }),
+}));
 
 const activeAccess = {
   lifecycle: 'active' as const,
   tariffId: 'tariff',
   source: 'assignment' as const,
 };
+
+const unconfiguredPolicies = {
+  systemAccessPolicy: null,
+  mechanicAccessPolicies: {},
+  includedSeatsWarningAtPercent: null,
+} as const;
 
 function snapshotPort(): OrgEntitlementsPort {
   return {
@@ -36,11 +59,27 @@ function snapshotPort(): OrgEntitlementsPort {
           },
           // Simulates a historical stored value which the stage-2 migration removes.
           quotas: {
-            files: { kind: 'numeric', limit: 10, unit: 'bytes' },
-            courses: { kind: 'numeric', limit: 1, unit: 'bytes' },
-            patient_app: { kind: 'numeric', limit: 1, unit: 'bytes' },
+            files: {
+              kind: 'numeric',
+              limit: 10,
+              unit: 'bytes',
+              warningAtPercent: null,
+            },
+            courses: {
+              kind: 'numeric',
+              limit: 1,
+              unit: 'bytes',
+              warningAtPercent: null,
+            },
+            patient_app: {
+              kind: 'numeric',
+              limit: 1,
+              unit: 'bytes',
+              warningAtPercent: null,
+            },
           } as never,
           includedSeats: null,
+          ...unconfiguredPolicies,
         },
         overrides: [
           {
@@ -136,8 +175,18 @@ describe('org entitlement mechanic classes', () => {
         currency: null,
         billingPeriod: 'month',
         mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
-        quotas: { files: { kind: 'numeric', limit: 1024, unit: 'bytes' } },
+        quotas: {
+          files: {
+            kind: 'numeric',
+            limit: 1024,
+            unit: 'bytes',
+            warningAtPercent: null,
+          },
+        },
+        systemAccessPolicy: null,
+        mechanicAccessPolicies: {},
         includedSeats: 3,
+        includedSeatsWarningAtPercent: null,
         isActive: true,
       },
       { actorId: 'admin', reason: '' },
@@ -147,7 +196,10 @@ describe('org entitlement mechanic classes', () => {
         tariff: {
           mechanics: tariff.mechanics,
           quotas: tariff.quotas,
+          systemAccessPolicy: tariff.systemAccessPolicy,
+          mechanicAccessPolicies: tariff.mechanicAccessPolicies,
           includedSeats: tariff.includedSeats,
+          includedSeatsWarningAtPercent: tariff.includedSeatsWarningAtPercent,
         },
         overrides: [],
         access: activeAccess,
@@ -183,7 +235,7 @@ describe('org entitlement mechanic classes', () => {
 
   it('refuses file growth for an assigned tariff that never configured a file limit', async () => {
     const snapshot = {
-      tariff: { mechanics: {}, quotas: {}, includedSeats: null },
+      tariff: { mechanics: {}, quotas: {}, includedSeats: null, ...unconfiguredPolicies },
       overrides: [],
       access: activeAccess,
     };
@@ -214,7 +266,7 @@ describe('org entitlement mechanic classes', () => {
 
   it('refuses patient and branch growth for an assigned tariff without their configured limits', () => {
     const snapshot = {
-      tariff: { mechanics: {}, quotas: {}, includedSeats: null },
+      tariff: { mechanics: {}, quotas: {}, includedSeats: null, ...unconfiguredPolicies },
       overrides: [],
       access: activeAccess,
     };
@@ -225,32 +277,291 @@ describe('org entitlement mechanic classes', () => {
     expect(entitlements.branches).toBe(false);
   });
 
-  it('keeps owner-only mechanics disabled by default and enables each through an organization override', () => {
+  it('accepts owner numbers for stock mechanics without opening numbers for possibility mechanics', async () => {
+    let storedTariff: Tariff | null = null;
+    const platformPort: PlatformEntitlementsPort = {
+      listTariffs: async () => [],
+      listOrganizations: async () => [],
+      getTrialPolicy: async () => null,
+      createTariff: async (input) => {
+        storedTariff = {
+          ...input,
+          id: 'stock-tariff',
+          createdAt: '2026-07-30T00:00:00.000Z',
+          updatedAt: '2026-07-30T00:00:00.000Z',
+        };
+        return storedTariff;
+      },
+      updateTariff: async () => {
+        throw new Error('not_used');
+      },
+      archiveTariff: async () => {},
+      assignTariff: async () => {},
+      upsertOverride: async () => {},
+      deleteOverride: async () => {},
+      setTrialPolicy: async () => {},
+      startTrial: async () => null,
+      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
+    };
+    const constructor = createPlatformEntitlementsService(platformPort);
+
+    const tariff = await constructor.createTariff(
+      {
+        name: 'Запасы',
+        description: '',
+        priceMinor: null,
+        currency: null,
+        billingPeriod: 'month',
+        mechanics: {},
+        quotas: {
+          patient_count: {
+            kind: 'numeric',
+            limit: 25,
+            unit: 'items',
+            warningAtPercent: null,
+          },
+          branches: {
+            kind: 'numeric',
+            limit: 2,
+            unit: 'items',
+            warningAtPercent: 50,
+          },
+        },
+        systemAccessPolicy: null,
+        mechanicAccessPolicies: {},
+        includedSeats: null,
+        includedSeatsWarningAtPercent: null,
+        isActive: true,
+      },
+      { actorId: 'admin', reason: '' },
+    );
+
+    expect(tariff.quotas.patient_count?.limit).toBe(25);
+    expect(tariff.quotas.branches?.limit).toBe(2);
+    const forbidden: TariffQuotaMap = {
+      // @ts-expect-error Possibility mechanics cannot receive a number in TariffQuotaMap.
+      courses: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null },
+    };
+    void forbidden;
+  });
+
+  it('uses mechanic policy before system policy and falls back to system when unset', () => {
+    const snapshot: OrgEntitlementSnapshot = {
+      tariff: {
+        mechanics: { courses: true, booking: true },
+        quotas: {},
+        systemAccessPolicy: {
+          graceDays: 3,
+          readOnlyDays: 2,
+          warningCount: 2,
+          terminalState: 'disabled',
+        },
+        mechanicAccessPolicies: {
+          courses: {
+            graceDays: 0,
+            readOnlyDays: 5,
+            warningCount: 1,
+            terminalState: 'disabled',
+          },
+        },
+        includedSeats: null,
+        includedSeatsWarningAtPercent: null,
+      },
+      overrides: [],
+      access: {
+        lifecycle: 'grace',
+        tariffId: 'tariff',
+        source: 'trial',
+        degradationStartedAt: '2026-07-01T00:00:00.000Z',
+      },
+    };
+    const now = new Date('2026-07-02T00:00:00.000Z');
+
+    expect(resolveMechanicAccessFromSnapshot(snapshot, 'courses', now)).toMatchObject({
+      state: 'read_only',
+      policySource: 'mechanic',
+      warning: null,
+    });
+    expect(resolveMechanicAccessFromSnapshot(snapshot, 'booking', now)).toEqual({
+      mechanic: 'booking',
+      state: 'grace',
+      policySource: 'system',
+      warning: { until: '2026-07-04T00:00:00.000Z', count: 2 },
+    });
+  });
+
+  it('keeps a critical mechanic full-access even when tariff, exception and terminal are false', () => {
+    const snapshot: OrgEntitlementSnapshot = {
+      tariff: {
+        mechanics: { patient_card: false },
+        quotas: {},
+        systemAccessPolicy: {
+          graceDays: 0,
+          readOnlyDays: 0,
+          warningCount: 0,
+          terminalState: 'disabled',
+        },
+        mechanicAccessPolicies: {},
+        includedSeats: null,
+        includedSeatsWarningAtPercent: null,
+      },
+      overrides: [
+        {
+          mechanic: 'patient_card',
+          enabled: false,
+          quota: null,
+          expiresAt: null,
+          seatLimitOverride: null,
+        },
+      ],
+      access: { lifecycle: 'blocked', tariffId: 'tariff', source: 'assignment' },
+    };
+
+    expect(resolveMechanicAccessFromSnapshot(snapshot, 'patient_card')).toEqual({
+      mechanic: 'patient_card',
+      state: 'full_access',
+      policySource: 'critical',
+      warning: null,
+    });
+  });
+
+  it('allows reads in read-only, refuses them when disabled, and shares visibility across surfaces', async () => {
+    const snapshotForState = (enabled: boolean, lifecycle: 'read_only' | 'blocked') =>
+      ({
+        tariff: {
+          mechanics: { courses: enabled },
+          quotas: {},
+          systemAccessPolicy: {
+            graceDays: 0,
+            readOnlyDays: 1,
+            warningCount: 0,
+            terminalState: 'disabled',
+          },
+          mechanicAccessPolicies: {},
+          includedSeats: null,
+          includedSeatsWarningAtPercent: null,
+        },
+        overrides: [],
+        access: { lifecycle, tariffId: 'tariff', source: 'assignment' },
+      }) satisfies OrgEntitlementSnapshot;
+    const port = snapshotPort();
+    vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<
+      typeof buildAppDeps
+    >);
+    port.getSnapshot = async () => snapshotForState(true, 'read_only');
+
+    await expect(requireEntitlementForRead({ organizationId: 'org' }, 'courses')).resolves.toEqual({
+      ok: true,
+    });
+    await expect(
+      requireEntitlementForPage({ organizationId: 'org' }, 'courses'),
+    ).resolves.toBeUndefined();
+    const mutation = await requireEntitlementForMutation({ organizationId: 'org' }, 'courses');
+    expect(mutation.ok).toBe(false);
+    if (!mutation.ok) {
+      await expect(mutation.response.json()).resolves.toMatchObject({
+        error: 'commercial_read_only',
+      });
+    }
+
+    port.getSnapshot = async () => snapshotForState(false, 'blocked');
+    const deniedRead = await requireEntitlementForRead({ organizationId: 'org' }, 'courses');
+    expect(deniedRead.ok).toBe(false);
+    if (!deniedRead.ok) {
+      expect(deniedRead.response.status).toBe(403);
+      await expect(deniedRead.response.json()).resolves.toMatchObject({
+        error: 'entitlement_required',
+      });
+    }
+    await expect(
+      requireEntitlementForPage({ organizationId: 'org' }, 'courses'),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(
+      resolveMechanicSurfaceVisibility({
+        mechanic: 'courses',
+        state: 'disabled',
+        policySource: 'system',
+        warning: null,
+      }),
+    ).toEqual({
+      specialistNavigation: false,
+      patientNavigation: false,
+      directUrl: false,
+    });
+    expect(
+      resolveMechanicSurfaceVisibility({
+        mechanic: 'courses',
+        state: 'read_only',
+        policySource: 'system',
+        warning: null,
+      }),
+    ).toEqual({
+      specialistNavigation: true,
+      patientNavigation: true,
+      directUrl: true,
+    });
+  });
+
+  it('returns explicit unconfigured instead of inventing a system duration or terminal', () => {
+    const snapshot: OrgEntitlementSnapshot = {
+      tariff: {
+        mechanics: { courses: true },
+        quotas: {},
+        ...unconfiguredPolicies,
+        includedSeats: null,
+      },
+      overrides: [],
+      access: { lifecycle: 'blocked', tariffId: 'tariff', source: 'assignment' },
+    };
+
+    expect(resolveMechanicAccessFromSnapshot(snapshot, 'courses')).toEqual({
+      mechanic: 'courses',
+      state: 'unconfigured',
+      policySource: 'unconfigured',
+      warning: null,
+    });
+  });
+
+  it('returns no clinic seat number when neither owner level configured one', async () => {
+    const port = snapshotPort();
+    port.getTariffForOrg = async () => ({
+      mechanics: {},
+      quotas: {},
+      systemAccessPolicy: null,
+      mechanicAccessPolicies: {},
+      includedSeats: null,
+      includedSeatsWarningAtPercent: null,
+    });
+
+    await expect(resolveClinicSeatLimit(port, 'org')).resolves.toBeNull();
+  });
+
+  it('uses stored organization exceptions instead of a mechanic default list', () => {
     const base = {
       tariff: null,
       access: { lifecycle: 'active' as const, tariffId: null, source: 'compatibility' as const },
     };
 
     expect(entitlementsFromSnapshot({ ...base, overrides: [] })).toMatchObject({
-      patient_home_today: false,
-      warmups: false,
-      promo: false,
+      patient_home_today: true,
+      warmups: true,
+      promo: true,
     });
     expect(
       entitlementsFromSnapshot({
         ...base,
         overrides: ['patient_home_today', 'warmups', 'promo'].map((mechanic) => ({
           mechanic,
-          enabled: true,
+          enabled: false,
           quota: null,
           expiresAt: null,
           seatLimitOverride: null,
         })),
       }),
     ).toMatchObject({
-      patient_home_today: true,
-      warmups: true,
-      promo: true,
+      patient_home_today: false,
+      warmups: false,
+      promo: false,
     });
   });
 

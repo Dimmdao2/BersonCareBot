@@ -3,7 +3,9 @@
  * assignment / override authoring is P2 global-admin UI). See STORE_P0_ENTITLEMENTS_PLAN.md.
  */
 import type {
+  AccessLifecyclePolicy,
   EffectiveOrgCommercialAccess,
+  MechanicAccessPolicyMap,
   OrgCommercialAccessState,
   OrgEntitlementSnapshot,
   OrgMechanic,
@@ -23,7 +25,10 @@ export type OrgEntitlementsPort = {
   ): Promise<{
     mechanics: Record<string, boolean>;
     quotas?: TariffQuotaMap;
+    systemAccessPolicy: AccessLifecyclePolicy | null;
+    mechanicAccessPolicies: MechanicAccessPolicyMap;
     includedSeats: number | null;
+    includedSeatsWarningAtPercent: number | null;
   } | null>;
   /** Per-org, per-mechanic overrides. May be empty. */
   listOverrides(

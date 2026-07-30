@@ -38,6 +38,7 @@ export function createClinicSeatsService(deps: {
       deps.invitesPort.countSeatReservationsByOrganization(organizationId),
       resolveClinicSeatLimit(deps.orgEntitlementsPort, organizationId),
     ]);
+    if (limit === null) throw new Error('clinic_seat_limit_unconfigured');
     const activeSeatConsumers = members.filter(isSeatConsumingMember).length;
     const used = activeSeatConsumers + inviteSeatReservations;
     return { limit, used, available: Math.max(limit - used, 0) };

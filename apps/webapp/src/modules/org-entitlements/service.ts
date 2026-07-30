@@ -1,11 +1,12 @@
 import {
-  CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE,
-  MECHANIC_DEFAULT_ENABLED,
   MECHANIC_REGISTRY,
   MECHANICS,
+  type AccessLifecyclePolicy,
+  type AccessTerminalState,
   type OrgEntitlements,
   type OrgQuotaProjection,
   type EffectiveOrgCommercialAccess,
+  type MechanicAccessResolution,
   type MechanicClass,
   type OrgEntitlementSnapshot,
   type OrgMechanic,
@@ -21,8 +22,21 @@ function assertMechanic(value: string): asserts value is OrgMechanic {
 }
 
 function assertQuota(mechanic: OrgMechanic, quota: TariffQuota): void {
-  if (MECHANIC_REGISTRY[mechanic].class !== 'объём' || quota.unit !== 'bytes') {
+  const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
+  if (
+    (mechanicClass === 'объём' && quota.unit !== 'bytes') ||
+    (mechanicClass === 'запас' && quota.unit !== 'items') ||
+    (mechanicClass !== 'объём' && mechanicClass !== 'запас')
+  ) {
     throw new Error('tariff_quota_unit_invalid');
+  }
+  if (
+    quota.warningAtPercent !== null &&
+    (!Number.isSafeInteger(quota.warningAtPercent) ||
+      quota.warningAtPercent < 0 ||
+      quota.warningAtPercent > 100)
+  ) {
+    throw new Error('tariff_quota_warning_invalid');
   }
   if (quota.kind === 'unlimited') {
     if (quota.limit !== null) throw new Error('tariff_quota_unlimited_limit_invalid');
@@ -36,11 +50,25 @@ function assertQuota(mechanic: OrgMechanic, quota: TariffQuota): void {
 function normalizeQuotaMap(quotas: TariffQuotaMap): TariffQuotaMap {
   const normalized: TariffQuotaMap = {};
   for (const [key, value] of Object.entries(quotas)) {
-    if (key !== 'files' || !value) throw new Error('tariff_quota_mechanic_invalid');
-    assertQuota('files', value);
-    normalized.files = value;
+    assertMechanic(key);
+    if (!value) throw new Error('tariff_quota_mechanic_invalid');
+    assertQuota(key, value);
+    if (key === 'files' && value.unit === 'bytes') normalized.files = value;
+    else if (key === 'patient_count' && value.unit === 'items') normalized.patient_count = value;
+    else if (key === 'branches' && value.unit === 'items') normalized.branches = value;
+    else throw new Error('tariff_quota_mechanic_invalid');
   }
   return normalized;
+}
+
+function assertAccessPolicy(policy: AccessLifecyclePolicy): void {
+  for (const value of [policy.graceDays, policy.readOnlyDays, policy.warningCount]) {
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error('access_policy_value_invalid');
+  }
+  const terminalStates: AccessTerminalState[] = ['full_access', 'read_only', 'disabled'];
+  if (!terminalStates.includes(policy.terminalState)) {
+    throw new Error('access_policy_terminal_state_invalid');
+  }
 }
 
 function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
@@ -60,6 +88,25 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   ) {
     throw new Error('tariff_seat_limit_invalid');
   }
+  if (
+    input.includedSeatsWarningAtPercent !== null &&
+    (!Number.isSafeInteger(input.includedSeatsWarningAtPercent) ||
+      input.includedSeatsWarningAtPercent < 0 ||
+      input.includedSeatsWarningAtPercent > 100)
+  ) {
+    throw new Error('tariff_seat_warning_invalid');
+  }
+  if (input.systemAccessPolicy) assertAccessPolicy(input.systemAccessPolicy);
+  const mechanicAccessPolicies = {} as Tariff['mechanicAccessPolicies'];
+  for (const [mechanic, policy] of Object.entries(input.mechanicAccessPolicies)) {
+    assertMechanic(mechanic);
+    if (!policy) continue;
+    assertAccessPolicy(policy);
+    if (MECHANIC_REGISTRY[mechanic].class === 'никогда') {
+      throw new Error('critical_mechanic_access_policy_forbidden');
+    }
+    mechanicAccessPolicies[mechanic] = policy;
+  }
   const mechanics: Record<string, boolean> = {};
   for (const mechanic of Object.keys(input.mechanics)) assertMechanic(mechanic);
   for (const mechanic of MECHANICS) {
@@ -74,13 +121,12 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
     currency: input.currency?.trim().toUpperCase() ?? null,
     mechanics,
     quotas: normalizeQuotaMap(input.quotas),
+    mechanicAccessPolicies,
   };
 }
 
 function assertTrialPolicy(policy: TrialPolicy): void {
-  if (policy.startEvent !== 'organization_provisioned') {
-    throw new Error('trial_start_event_unsupported');
-  }
+  if (!policy.startEvent.trim()) throw new Error('trial_start_event_required');
   if (!Number.isSafeInteger(policy.durationDays) || policy.durationDays <= 0) {
     throw new Error('trial_duration_invalid');
   }
@@ -121,6 +167,102 @@ function requiresExplicitNumericQuota(mechanicClass: MechanicClass): boolean {
   return mechanicClass === 'объём' || mechanicClass === 'запас';
 }
 
+function isMechanicIncludedFromSnapshot(
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'access'>,
+  mechanic: OrgMechanic,
+): boolean {
+  const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
+  if (mechanicClass === 'никогда') return true;
+  const override = snapshot.overrides.find(
+    (entry) => entry.mechanic === mechanic && isOverrideActive(entry.expiresAt),
+  );
+  if (override) return override.enabled;
+  if (!snapshot.tariff) return snapshot.access.source === 'compatibility';
+  if (mechanicClass === 'места') return snapshot.tariff.includedSeats !== null;
+  if (requiresExplicitNumericQuota(mechanicClass)) {
+    return numericQuotaFromSnapshot(snapshot, mechanic) !== undefined;
+  }
+  return snapshot.tariff.mechanics[mechanic] === true;
+}
+
+function terminalResolutionState(
+  terminalState: AccessTerminalState,
+): MechanicAccessResolution['state'] {
+  return terminalState;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * The single access-lifecycle resolver. It consumes only the server snapshot and the evaluation
+ * instant: tariff policy, active per-org exception and the already-resolved commercial state.
+ */
+export function resolveMechanicAccessFromSnapshot(
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'access'>,
+  mechanic: OrgMechanic,
+  now = new Date(),
+): MechanicAccessResolution {
+  if (MECHANIC_REGISTRY[mechanic].class === 'никогда') {
+    return { mechanic, state: 'full_access', policySource: 'critical', warning: null };
+  }
+  if (!isMechanicIncludedFromSnapshot(snapshot, mechanic)) {
+    return { mechanic, state: 'disabled', policySource: 'unconfigured', warning: null };
+  }
+  const commercialLoss =
+    snapshot.access.source === 'no_trial' || snapshot.access.lifecycle !== 'active';
+  if (!commercialLoss) {
+    return { mechanic, state: 'full_access', policySource: 'system', warning: null };
+  }
+  const mechanicPolicy = snapshot.tariff?.mechanicAccessPolicies[mechanic];
+  const policy = mechanicPolicy ?? snapshot.tariff?.systemAccessPolicy;
+  const policySource = mechanicPolicy ? 'mechanic' : policy ? 'system' : 'unconfigured';
+  if (!policy) {
+    return { mechanic, state: 'unconfigured', policySource, warning: null };
+  }
+  const degradationStartedAt =
+    snapshot.access.degradationStartedAt ?? snapshot.access.trialEndsAt;
+  const degradationStartedMs = degradationStartedAt
+    ? Date.parse(degradationStartedAt)
+    : Number.NaN;
+  if (Number.isFinite(degradationStartedMs)) {
+    const nowMs = now.getTime();
+    if (nowMs < degradationStartedMs) {
+      return { mechanic, state: 'full_access', policySource, warning: null };
+    }
+    const graceEndsMs = degradationStartedMs + policy.graceDays * DAY_MS;
+    if (policy.graceDays > 0 && nowMs < graceEndsMs) {
+      return {
+        mechanic,
+        state: 'grace',
+        policySource,
+        warning: { until: new Date(graceEndsMs).toISOString(), count: policy.warningCount },
+      };
+    }
+    const readOnlyEndsMs = graceEndsMs + policy.readOnlyDays * DAY_MS;
+    if (policy.readOnlyDays > 0 && nowMs < readOnlyEndsMs) {
+      return { mechanic, state: 'read_only', policySource, warning: null };
+    }
+    return {
+      mechanic,
+      state: terminalResolutionState(policy.terminalState),
+      policySource,
+      warning: null,
+    };
+  }
+  if (snapshot.access.lifecycle === 'read_only') {
+    return { mechanic, state: 'read_only', policySource, warning: null };
+  }
+  if (snapshot.access.lifecycle === 'blocked' || snapshot.access.source === 'no_trial') {
+    return {
+      mechanic,
+      state: terminalResolutionState(policy.terminalState),
+      policySource,
+      warning: null,
+    };
+  }
+  return { mechanic, state: 'unconfigured', policySource, warning: null };
+}
+
 /**
  * `null` is an explicit unlimited file plan (or the unchanged compatibility path); `undefined`
  * means a tariff was assigned but never configured the file limit and must refuse new growth.
@@ -143,33 +285,9 @@ export function fileStorageLimitFromSnapshot(
 export function entitlementsFromSnapshot(
   snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'access'>,
 ): OrgEntitlements {
-  const overrideByMechanic = new Map(
-    snapshot.overrides
-      .filter((override) => isOverrideActive(override.expiresAt))
-      .map((override) => [override.mechanic, override.enabled]),
-  );
   const result = {} as OrgEntitlements;
   for (const mechanic of MECHANICS) {
-    const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
-    // "Never" is deliberately outside commercial control. Seats have their existing finite
-    // baseline. Storage and stock, by contrast, are enabled only by an explicit numeric quota;
-    // an omitted key on an assigned tariff is not an accidental unlimited plan. Organizations
-    // with no tariff retain the compatibility resolver unchanged.
-    if (mechanicClass === 'никогда' || mechanicClass === 'места') {
-      result[mechanic] = true;
-      continue;
-    }
-    if (requiresExplicitNumericQuota(mechanicClass)) {
-      result[mechanic] =
-        !snapshot.tariff || snapshot.access.source === 'compatibility'
-          ? true
-          : numericQuotaFromSnapshot(snapshot, mechanic) !== undefined;
-      continue;
-    }
-    result[mechanic] =
-      overrideByMechanic.get(mechanic) ??
-      snapshot.tariff?.mechanics[mechanic] ??
-      (snapshot.access.source === 'no_trial' ? false : MECHANIC_DEFAULT_ENABLED[mechanic]);
+    result[mechanic] = isMechanicIncludedFromSnapshot(snapshot, mechanic);
   }
   return result;
 }
@@ -197,16 +315,26 @@ export async function resolveOrgQuotaProjections(
     // Specialist seats are configured by includedSeats/seatLimitOverride rather than the generic
     // tariff quota map, but are enforced with the same snapshot semantics.
     const clinicTeamOverride = activeOverrides.get('clinic_team');
-    const quota: TariffQuota | { kind: 'numeric'; limit: number; unit: 'seats' } | undefined =
+    const clinicSeatLimit =
+      clinicTeamOverride?.seatLimitOverride ?? snapshot.tariff?.includedSeats;
+    const quota:
+      | TariffQuota
+      | {
+          kind: 'numeric';
+          limit: number;
+          unit: 'seats';
+          warningAtPercent: number | null;
+        }
+      | undefined =
       mechanic === 'clinic_team'
-        ? {
-            kind: 'numeric',
-            limit:
-              clinicTeamOverride?.seatLimitOverride ??
-              snapshot.tariff?.includedSeats ??
-              CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE,
-            unit: 'seats',
-          }
+        ? clinicSeatLimit === null || clinicSeatLimit === undefined
+          ? undefined
+          : {
+              kind: 'numeric',
+              limit: clinicSeatLimit,
+              unit: 'seats',
+              warningAtPercent: snapshot.tariff?.includedSeatsWarningAtPercent ?? null,
+            }
         : mechanic === 'files'
           ? ((activeOverrides.get(mechanic)?.quota ?? snapshot.tariff?.quotas.files) as
               | TariffQuota
@@ -223,7 +351,8 @@ export async function resolveOrgQuotaProjections(
         threshold:
           currentUsage >= quota.limit
             ? 'reached'
-            : currentUsage * 5 >= quota.limit * 4
+            : quota.warningAtPercent !== null &&
+                currentUsage * 100 >= quota.limit * quota.warningAtPercent
               ? 'warning'
               : 'below_warning',
         enforcement: MECHANIC_REGISTRY[mechanic].quotaEnforcement,
@@ -240,6 +369,15 @@ export async function resolveOrgEntitlementSnapshot(
   return { entitlements: entitlementsFromSnapshot(snapshot), access: snapshot.access };
 }
 
+export async function resolveMechanicAccess(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+  mechanic: OrgMechanic,
+  now = new Date(),
+): Promise<MechanicAccessResolution> {
+  return resolveMechanicAccessFromSnapshot(await port.getSnapshot(organizationId), mechanic, now);
+}
+
 /** A numeric file ceiling for the repository write transaction; see `fileStorageLimitFromSnapshot`. */
 export async function resolveFileStorageLimit(
   port: OrgEntitlementsPort,
@@ -250,12 +388,8 @@ export async function resolveFileStorageLimit(
 
 /**
  * Store P0 — entitlement foundation. Resolves, for EACH canonical mechanic, the precedence
- * override > tariff > `MECHANIC_DEFAULT_ENABLED[mechanic]`. Default-true remains intentional for
- * compatibility mechanics. `clinic_team` (C4A), the current owner-only `courses` surface
- * (C4C), and access to the C4D platform exercise base are scoped exceptions: all default OFF
- * without a tariff or override. An OFF `exercise_catalog` never hides the clinic's own library.
- * See
- * STORE_P0_ENTITLEMENTS_PLAN.md and OWNER_REVIEW_2026-07-18.md §§13, 15.
+ * override > tariff. The no-tariff compatibility commercial state stays explicit full access;
+ * every assigned tariff and organization exception is data configured.
  */
 export async function resolveOrgEntitlements(
   port: OrgEntitlementsPort,
@@ -288,16 +422,12 @@ export async function isMechanicEnabled(
 
 /**
  * Resolves the effective included specialist seat count for the `clinic_team` mechanic:
- * override > tariff > `CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE`. `clinic_team` is a numeric
- * mechanic, so its legacy boolean value never controls access. Always a finite nonnegative
- * integer — there is no
- * "unlimited" state for `clinic_team` in C4A (owner decision: "owner scope does not require an
- * unlimited plan"). `null` in stored data means "not explicitly configured", not unlimited.
+ * override > tariff. `null` is explicit "not configured"; callers must refuse growth.
  */
 export async function resolveClinicSeatLimit(
   port: OrgEntitlementsPort,
   organizationId: string,
-): Promise<number> {
+): Promise<number | null> {
   const [tariff, overrides] = await Promise.all([
     port.getTariffForOrg(organizationId),
     port.listOverrides(organizationId),
@@ -305,7 +435,7 @@ export async function resolveClinicSeatLimit(
   const activeOverrides = overrides.filter((override) => isOverrideActive(override.expiresAt));
   const seatOverride = activeOverrides.find((entry) => entry.mechanic === 'clinic_team');
   if (seatOverride?.seatLimitOverride != null) return seatOverride.seatLimitOverride;
-  return tariff?.includedSeats ?? CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE;
+  return tariff?.includedSeats ?? null;
 }
 
 export async function resolveEffectiveCommercialAccess(

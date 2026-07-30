@@ -6,10 +6,7 @@ import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import '../../styles/doctor.css';
-import {
-  isMechanicIncluded,
-  requireEntitlementForReadAction,
-} from '@/app-layer/guards/requireEntitlement';
+import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import {
@@ -77,8 +74,12 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
-  const coursesEnabled = (await requireEntitlementForReadAction(workspaceAccess, 'courses')).ok;
-  const promoEnabled = await isMechanicIncluded(workspaceAccess, 'promo');
+  const coursesEnabled = (
+    await getMechanicSurfaceVisibility(workspaceAccess, 'courses')
+  ).specialistNavigation;
+  const promoEnabled = (
+    await getMechanicSurfaceVisibility(workspaceAccess, 'promo')
+  ).specialistNavigation;
   const shellBrand = {
     displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'BersonCare',
     logoUrl: effectiveBranding?.paid.logoUrl ?? null,

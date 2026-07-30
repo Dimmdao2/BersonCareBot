@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
+import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  isMechanicEnabled,
-  resolveOrgEntitlementSnapshot,
-} from '@/modules/org-entitlements/service';
-import type { OrgMechanic } from '@/modules/org-entitlements/types';
+import { resolveMechanicAccess } from '@/modules/org-entitlements/service';
+import type {
+  MechanicAccessResolution,
+  OrgMechanic,
+} from '@/modules/org-entitlements/types';
 
 /** A route/action may pass only an already-authorized, server-derived organization. */
 export type EntitlementContext = Readonly<{ organizationId: string }>;
@@ -13,7 +14,8 @@ export type EntitlementSuccess = { ok: true };
 export type EntitlementDenialReason =
   | 'entitlement_required'
   | 'commercial_read_only'
-  | 'commercial_blocked';
+  | 'commercial_blocked'
+  | 'access_lifecycle_unconfigured';
 
 /**
  * Product-facing explanation for a mutation blocked by a tariff mechanic.
@@ -44,19 +46,19 @@ async function checkEntitlement(
   mechanic: OrgMechanic,
   access: EntitlementAccess,
 ): Promise<EntitlementSuccess | { ok: false; reason: EntitlementDenialReason }> {
-  // A tariff mechanic controls writes only. Existing clinic/patient data remains readable and
-  // exportable after a mechanic is switched off; resolving it here would turn a read into a hide.
-  if (access === 'read') return { ok: true };
-  const port = buildAppDeps().orgEntitlements;
-  const snapshot = await resolveOrgEntitlementSnapshot(port, ctx.organizationId);
-  if (!snapshot.entitlements[mechanic]) {
+  const resolution = await resolveMechanicAccess(
+    buildAppDeps().orgEntitlements,
+    ctx.organizationId,
+    mechanic,
+  );
+  if (resolution.state === 'disabled') {
     return { ok: false, reason: 'entitlement_required' };
   }
-  if (snapshot.access.lifecycle === 'read_only') {
-    return { ok: false, reason: 'commercial_read_only' };
+  if (resolution.state === 'unconfigured') {
+    return { ok: false, reason: 'access_lifecycle_unconfigured' };
   }
-  if (snapshot.access.lifecycle === 'blocked') {
-    return { ok: false, reason: 'commercial_blocked' };
+  if (resolution.state === 'read_only' && access === 'mutation') {
+    return { ok: false, reason: 'commercial_read_only' };
   }
   return { ok: true };
 }
@@ -69,16 +71,50 @@ export async function assertMechanicEnabled(
   organizationId: string,
   mechanic: OrgMechanic,
 ): Promise<boolean> {
-  return isMechanicEnabled(buildAppDeps().orgEntitlements, organizationId, mechanic);
+  return (
+    await getMechanicSurfaceVisibility({ organizationId }, mechanic)
+  ).directUrl;
 }
 
-/** UI discovery adapter: hides an entry only when the mechanic itself is absent, not in read-only recovery. */
-export async function isMechanicIncluded(
+/** One visibility adapter shared by specialist navigation, patient navigation and direct pages. */
+export type MechanicSurfaceVisibility = {
+  specialistNavigation: boolean;
+  patientNavigation: boolean;
+  directUrl: boolean;
+};
+
+export function resolveMechanicSurfaceVisibility(
+  resolution: MechanicAccessResolution,
+): MechanicSurfaceVisibility {
+  const visible =
+    resolution.state === 'full_access' ||
+    resolution.state === 'grace' ||
+    resolution.state === 'read_only';
+  return {
+    specialistNavigation: visible,
+    patientNavigation: visible,
+    directUrl: visible,
+  };
+}
+
+export async function getMechanicSurfaceVisibility(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<MechanicSurfaceVisibility> {
+  return resolveMechanicSurfaceVisibility(
+    await resolveMechanicAccess(buildAppDeps().orgEntitlements, ctx.organizationId, mechanic),
+  );
+}
+
+export async function isMechanicVisible(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<boolean> {
-  return assertMechanicEnabled(ctx.organizationId, mechanic);
+  return (await getMechanicSurfaceVisibility(ctx, mechanic)).directUrl;
 }
+
+/** @deprecated Use the shared surface visibility adapter. */
+export const isMechanicIncluded = isMechanicVisible;
 
 /** Read-only API adapter. Lifecycle recovery reads remain available. */
 export async function requireEntitlementForRead(
@@ -141,6 +177,5 @@ export async function requireEntitlementForPage(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<void> {
-  void ctx;
-  void mechanic;
+  if (!(await getMechanicSurfaceVisibility(ctx, mechanic)).directUrl) notFound();
 }

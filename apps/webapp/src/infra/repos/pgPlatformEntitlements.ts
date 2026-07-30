@@ -7,7 +7,9 @@ import type {
   PlatformTrialStatus,
 } from '@/modules/org-entitlements/ports';
 import type {
+  AccessLifecyclePolicy,
   EffectiveOrgCommercialAccess,
+  MechanicAccessPolicyMap,
   OrgCommercialAccessState,
   OrgEntitlementOverride,
   Tariff,
@@ -34,6 +36,8 @@ function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
     ...row,
     billingPeriod: row.billingPeriod as Tariff['billingPeriod'],
     quotas: row.quotas as TariffQuotaMap,
+    systemAccessPolicy: row.systemAccessPolicy as AccessLifecyclePolicy | null,
+    mechanicAccessPolicies: row.mechanicAccessPolicies as MechanicAccessPolicyMap,
   };
 }
 
@@ -105,7 +109,10 @@ function tariffValues(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
     billingPeriod: input.billingPeriod,
     mechanics: input.mechanics,
     quotas: input.quotas,
+    systemAccessPolicy: input.systemAccessPolicy,
+    mechanicAccessPolicies: input.mechanicAccessPolicies,
     includedSeats: input.includedSeats,
+    includedSeatsWarningAtPercent: input.includedSeatsWarningAtPercent,
     isActive: input.isActive,
     updatedAt: new Date().toISOString(),
   };
@@ -138,10 +145,20 @@ function effectiveAccessForPlatform(input: {
     };
   }
   if (input.now <= new Date(trial.endsAt).getTime()) {
-    return { lifecycle: 'active', tariffId: trial.tariffId, source: 'trial' };
+    return {
+      lifecycle: 'active',
+      tariffId: trial.tariffId,
+      source: 'trial',
+      degradationStartedAt: trial.endsAt,
+    };
   }
   if (input.now <= new Date(trial.graceEndsAt).getTime()) {
-    return { lifecycle: 'grace', tariffId: trial.tariffId, source: 'trial' };
+    return {
+      lifecycle: 'grace',
+      tariffId: trial.tariffId,
+      source: 'trial',
+      degradationStartedAt: trial.endsAt,
+    };
   }
   if (trial.postTrialBehavior === 'tariff') {
     return { lifecycle: 'active', tariffId: trial.postTrialTariffId, source: 'post_trial_tariff' };
@@ -150,6 +167,7 @@ function effectiveAccessForPlatform(input: {
     lifecycle: trial.postTrialBehavior === 'blocked' ? 'blocked' : 'read_only',
     tariffId: trial.tariffId,
     source: 'trial',
+    degradationStartedAt: trial.endsAt,
   };
 }
 

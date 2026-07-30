@@ -5,7 +5,9 @@ import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperatio
 import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type {
+  AccessLifecyclePolicy,
   EffectiveOrgCommercialAccess,
+  MechanicAccessPolicyMap,
   OrgEntitlementSnapshot,
   TariffQuota,
   TariffQuotaMap,
@@ -20,7 +22,10 @@ import {
 type CurrentPatientEntitlementRow = {
   tariff_mechanics: Record<string, boolean> | null;
   tariff_quotas: TariffQuotaMap | null;
+  tariff_system_access_policy: AccessLifecyclePolicy | null;
+  tariff_mechanic_access_policies: MechanicAccessPolicyMap | null;
   included_seats: number | null;
+  included_seats_warning_at_percent: number | null;
   override_mechanic: string | null;
   override_enabled: boolean | null;
   override_quota: TariffQuota | null;
@@ -29,6 +34,7 @@ type CurrentPatientEntitlementRow = {
   lifecycle: EffectiveOrgCommercialAccess['lifecycle'];
   effective_tariff_id: string | null;
   access_source: EffectiveOrgCommercialAccess['source'];
+  degradation_started_at: string | null;
 };
 
 function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntitlementSnapshot {
@@ -39,7 +45,10 @@ function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntit
       ? {
           mechanics: first.tariff_mechanics,
           quotas: first.tariff_quotas ?? {},
+          systemAccessPolicy: first.tariff_system_access_policy,
+          mechanicAccessPolicies: first.tariff_mechanic_access_policies ?? {},
           includedSeats: first.included_seats,
+          includedSeatsWarningAtPercent: first.included_seats_warning_at_percent,
         }
       : null,
     overrides: rows.flatMap((row) =>
@@ -59,6 +68,9 @@ function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntit
       lifecycle: first.lifecycle,
       tariffId: first.effective_tariff_id,
       source: first.access_source,
+      ...(first.degradation_started_at
+        ? { degradationStartedAt: first.degradation_started_at }
+        : {}),
     },
   };
 }
@@ -104,7 +116,11 @@ function resolveAccess(input: {
             : 'assignment',
     };
   }
-  const trialDates = { trialEndsAt: trial.endsAt, trialGraceEndsAt: trial.graceEndsAt };
+  const trialDates = {
+    trialEndsAt: trial.endsAt,
+    trialGraceEndsAt: trial.graceEndsAt,
+    degradationStartedAt: trial.endsAt,
+  };
   if (input.now <= new Date(trial.endsAt).getTime()) {
     return { lifecycle: 'active', tariffId: trial.tariffId, source: 'trial', ...trialDates };
   }
@@ -172,7 +188,10 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
             name: saasTariffs.name,
             mechanics: saasTariffs.mechanics,
             quotas: saasTariffs.quotas,
+            systemAccessPolicy: saasTariffs.systemAccessPolicy,
+            mechanicAccessPolicies: saasTariffs.mechanicAccessPolicies,
             includedSeats: saasTariffs.includedSeats,
+            includedSeatsWarningAtPercent: saasTariffs.includedSeatsWarningAtPercent,
           })
           .from(saasTariffs)
           .where(eq(saasTariffs.id, access.tariffId))
@@ -195,7 +214,11 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
             name: tariff.name,
             mechanics: tariff.mechanics,
             quotas: tariff.quotas as TariffQuotaMap,
+            systemAccessPolicy: tariff.systemAccessPolicy as AccessLifecyclePolicy | null,
+            mechanicAccessPolicies:
+              tariff.mechanicAccessPolicies as MechanicAccessPolicyMap,
             includedSeats: tariff.includedSeats,
+            includedSeatsWarningAtPercent: tariff.includedSeatsWarningAtPercent,
           }
         : null,
       overrides: overrides.map((override) => ({

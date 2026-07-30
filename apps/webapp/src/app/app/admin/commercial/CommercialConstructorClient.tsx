@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import {
   MECHANIC_REGISTRY,
   MECHANICS,
+  type AccessLifecyclePolicy,
+  type AccessTerminalState,
+  type MechanicAccessPolicyMap,
   type OrgMechanic,
   type Tariff,
   type TariffQuota,
@@ -66,9 +69,19 @@ type TariffDraft = {
   priceRub: string;
   billingPeriod: Tariff['billingPeriod'];
   includedSeats: string;
+  includedSeatsWarningAtPercent: string;
   isActive: boolean;
   mechanics: Record<OrgMechanic, boolean>;
   quotas: TariffQuotaMap;
+  systemAccessPolicy: AccessPolicyDraft | null;
+  mechanicAccessPolicies: Partial<Record<OrgMechanic, AccessPolicyDraft>>;
+};
+
+type AccessPolicyDraft = {
+  graceDays: string;
+  readOnlyDays: string;
+  warningCount: string;
+  terminalState: AccessTerminalState | null;
 };
 
 const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
@@ -77,6 +90,7 @@ const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
 const OVERRIDABLE_MECHANICS = MECHANICS.filter(
   (mechanic) => MECHANIC_REGISTRY[mechanic].class !== 'никогда',
 );
+const POLICY_MECHANICS = OVERRIDABLE_MECHANICS;
 
 const emptyMechanics = (): Record<OrgMechanic, boolean> =>
   Object.fromEntries(CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, false])) as Record<
@@ -91,10 +105,13 @@ function emptyTariffDraft(): TariffDraft {
     description: '',
     priceRub: '',
     billingPeriod: 'month',
-    includedSeats: '1',
+    includedSeats: '',
+    includedSeatsWarningAtPercent: '',
     isActive: true,
     mechanics: emptyMechanics(),
     quotas: {},
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {},
   };
 }
 
@@ -106,12 +123,54 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     priceRub: tariff.priceMinor === null ? '' : String(tariff.priceMinor / 100),
     billingPeriod: tariff.billingPeriod,
     includedSeats: tariff.includedSeats === null ? '' : String(tariff.includedSeats),
+    includedSeatsWarningAtPercent:
+      tariff.includedSeatsWarningAtPercent === null
+        ? ''
+        : String(tariff.includedSeatsWarningAtPercent),
     isActive: tariff.isActive,
     mechanics: Object.fromEntries(
       CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
     ) as Record<OrgMechanic, boolean>,
     quotas: tariff.quotas,
+    systemAccessPolicy: tariff.systemAccessPolicy
+      ? accessPolicyToDraft(tariff.systemAccessPolicy)
+      : null,
+    mechanicAccessPolicies: Object.fromEntries(
+      Object.entries(tariff.mechanicAccessPolicies).map(([mechanic, policy]) => [
+        mechanic,
+        accessPolicyToDraft(policy),
+      ]),
+    ),
   };
+}
+
+function accessPolicyToDraft(policy: AccessLifecyclePolicy): AccessPolicyDraft {
+  return {
+    graceDays: String(policy.graceDays),
+    readOnlyDays: String(policy.readOnlyDays),
+    warningCount: String(policy.warningCount),
+    terminalState: policy.terminalState,
+  };
+}
+
+function emptyAccessPolicyDraft(): AccessPolicyDraft {
+  return { graceDays: '', readOnlyDays: '', warningCount: '', terminalState: null };
+}
+
+function accessPolicyFromDraft(draft: AccessPolicyDraft | null): AccessLifecyclePolicy | null {
+  if (!draft) return null;
+  const graceDays = nullableNonnegativeInteger(draft.graceDays);
+  const readOnlyDays = nullableNonnegativeInteger(draft.readOnlyDays);
+  const warningCount = nullableNonnegativeInteger(draft.warningCount);
+  if (
+    graceDays === null ||
+    readOnlyDays === null ||
+    warningCount === null ||
+    draft.terminalState === null
+  ) {
+    throw new Error('Заполните все поля лестницы доступа');
+  }
+  return { graceDays, readOnlyDays, warningCount, terminalState: draft.terminalState };
 }
 
 function nullableNonnegativeInteger(value: string): number | null {
@@ -120,10 +179,14 @@ function nullableNonnegativeInteger(value: string): number | null {
   return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
 
-function FileVolumeEditor({
+function NumericLimitEditor({
+  label,
+  unit,
   quota,
   onChange,
 }: {
+  label: string;
+  unit: TariffQuota['unit'];
   quota: TariffQuota | null;
   onChange: (quota: TariffQuota | null) => void;
 }) {
@@ -135,7 +198,8 @@ function FileVolumeEditor({
     onChange({
       kind,
       limit: kind === 'numeric' ? (quota?.limit ?? 0) : null,
-      unit: 'bytes',
+      unit,
+      warningAtPercent: quota?.warningAtPercent ?? null,
     });
   }
 
@@ -151,23 +215,131 @@ function FileVolumeEditor({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">Без квоты</SelectItem>
-          <SelectItem value="numeric">Числовая</SelectItem>
-          <SelectItem value="unlimited">Без лимита</SelectItem>
+          <SelectItem value="none">Не настроено</SelectItem>
+          <SelectItem value="numeric">Число</SelectItem>
+          <SelectItem value="unlimited">Без ограничения</SelectItem>
         </SelectContent>
       </Select>
       {quota?.kind === 'numeric' ? (
         <Input
           type="number"
           min="0"
-          aria-label="Лимит объёма файлов"
+          aria-label={label}
           value={quota.limit ?? 0}
           onChange={(event) =>
             onChange({ ...quota, limit: Math.max(0, Number(event.target.value) || 0) })
           }
         />
       ) : null}
-      {quota ? <p className="self-center text-xs text-muted-foreground">Единица: байты</p> : null}
+      {quota ? (
+        <Input
+          type="number"
+          min="0"
+          max="100"
+          aria-label={`${label}: предупреждать с процента`}
+          placeholder="Предупреждать с, %"
+          value={quota.warningAtPercent ?? ''}
+          onChange={(event) =>
+            onChange({
+              ...quota,
+              warningAtPercent: nullableNonnegativeInteger(event.target.value),
+            })
+          }
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AccessPolicyEditor({
+  title,
+  value,
+  onChange,
+}: {
+  title: string;
+  value: AccessPolicyDraft | null;
+  onChange: (value: AccessPolicyDraft | null) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-xl border border-border/70 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <Label>{title}</Label>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange(value ? null : emptyAccessPolicyDraft())}
+        >
+          {value ? 'Не настроено' : 'Настроить'}
+        </Button>
+      </div>
+      {value ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Label className="space-y-1">
+            <span>Терпение: дней</span>
+            <Input
+              type="number"
+              min="0"
+              required
+              value={value.graceDays}
+              onChange={(event) => onChange({ ...value, graceDays: event.target.value })}
+            />
+          </Label>
+          <Label className="space-y-1">
+            <span>Предупреждений</span>
+            <Input
+              type="number"
+              min="0"
+              required
+              value={value.warningCount}
+              onChange={(event) => onChange({ ...value, warningCount: event.target.value })}
+            />
+          </Label>
+          <Label className="space-y-1">
+            <span>Только чтение: дней</span>
+            <Input
+              type="number"
+              min="0"
+              required
+              value={value.readOnlyDays}
+              onChange={(event) => onChange({ ...value, readOnlyDays: event.target.value })}
+            />
+          </Label>
+          <div className="space-y-1">
+            <Label>Затем</Label>
+            <Select
+              value={value.terminalState ?? 'unset'}
+              onValueChange={(next) => {
+                if (next === 'full_access' || next === 'read_only' || next === 'disabled') {
+                  onChange({ ...value, terminalState: next });
+                }
+              }}
+            >
+              <SelectTrigger
+                displayLabel={
+                  value.terminalState === 'full_access'
+                    ? 'Полный доступ'
+                    : value.terminalState === 'read_only'
+                      ? 'Только чтение'
+                      : value.terminalState === 'disabled'
+                        ? 'Выключено'
+                        : 'Выберите состояние'
+                }
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unset" disabled>
+                  Выберите состояние
+                </SelectItem>
+                <SelectItem value="full_access">Полный доступ</SelectItem>
+                <SelectItem value="read_only">Только чтение</SelectItem>
+                <SelectItem value="disabled">Выключено</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -189,11 +361,9 @@ export function CommercialConstructorClient() {
   const [trialTariffId, setTrialTariffId] = useState('');
   const [trialDuration, setTrialDuration] = useState('');
   const [trialGrace, setTrialGrace] = useState('');
-  const [trialStartEvent, setTrialStartEvent] = useState<TrialPolicy['startEvent']>(
-    'organization_provisioned',
-  );
+  const [trialStartEvent, setTrialStartEvent] = useState<TrialPolicy['startEvent']>('');
   const [postTrialBehavior, setPostTrialBehavior] =
-    useState<TrialPolicy['postTrialBehavior']>('read_only');
+    useState<TrialPolicy['postTrialBehavior'] | null>(null);
   const [postTrialTariffId, setPostTrialTariffId] = useState('none');
   const [trialActive, setTrialActive] = useState(false);
   const [extensionDays, setExtensionDays] = useState('');
@@ -225,8 +395,8 @@ export function CommercialConstructorClient() {
       setTrialTariffId('');
       setTrialDuration('');
       setTrialGrace('');
-      setTrialStartEvent('organization_provisioned');
-      setPostTrialBehavior('read_only');
+      setTrialStartEvent('');
+      setPostTrialBehavior(null);
       setPostTrialTariffId('none');
       setTrialActive(false);
       return;
@@ -300,6 +470,20 @@ export function CommercialConstructorClient() {
   async function saveTariff(event: FormEvent) {
     event.preventDefault();
     const price = tariff.priceRub.trim() ? Math.round(Number(tariff.priceRub) * 100) : null;
+    let systemAccessPolicy: AccessLifecyclePolicy | null;
+    let mechanicAccessPolicies: MechanicAccessPolicyMap;
+    try {
+      systemAccessPolicy = accessPolicyFromDraft(tariff.systemAccessPolicy);
+      mechanicAccessPolicies = Object.fromEntries(
+        Object.entries(tariff.mechanicAccessPolicies).map(([mechanic, policy]) => [
+          mechanic,
+          accessPolicyFromDraft(policy)!,
+        ]),
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Проверьте лестницу доступа');
+      return;
+    }
     const input = {
       name: tariff.name,
       description: tariff.description,
@@ -308,7 +492,12 @@ export function CommercialConstructorClient() {
       billingPeriod: tariff.billingPeriod,
       mechanics: tariff.mechanics,
       quotas: tariff.quotas,
+      systemAccessPolicy,
+      mechanicAccessPolicies,
       includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
+      includedSeatsWarningAtPercent: nullableNonnegativeInteger(
+        tariff.includedSeatsWarningAtPercent,
+      ),
       isActive: tariff.isActive,
     };
     await mutate(
@@ -450,6 +639,22 @@ export function CommercialConstructorClient() {
                   onChange={(event) => setTariff({ ...tariff, includedSeats: event.target.value })}
                 />
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="tariff-seats-warning">Предупреждать с, %</Label>
+                <Input
+                  id="tariff-seats-warning"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={tariff.includedSeatsWarningAtPercent}
+                  onChange={(event) =>
+                    setTariff({
+                      ...tariff,
+                      includedSeatsWarningAtPercent: event.target.value,
+                    })
+                  }
+                />
+              </div>
             </div>
             <div className="space-y-1">
               <Label htmlFor="tariff-description">Описание</Label>
@@ -480,16 +685,63 @@ export function CommercialConstructorClient() {
               })}
               <div className="space-y-2 rounded-xl border border-border/70 p-3">
                 <Label>Файлы пациентов</Label>
-                <FileVolumeEditor
+                <NumericLimitEditor
+                  label="Файлы пациентов"
+                  unit="bytes"
                   quota={tariff.quotas.files ?? null}
-                  onChange={(nextQuota) =>
+                  onChange={(nextQuota) => {
+                    if (nextQuota && nextQuota.unit !== 'bytes') return;
                     setTariff((current) => ({
                       ...current,
-                      quotas: nextQuota ? { files: nextQuota } : {},
-                    }))
-                  }
+                      quotas: { ...current.quotas, files: nextQuota ?? undefined },
+                    }));
+                  }}
                 />
               </div>
+              {(['patient_count', 'branches'] as const).map((mechanic) => (
+                <div
+                  key={mechanic}
+                  className="space-y-2 rounded-xl border border-border/70 p-3"
+                >
+                  <Label>{MECHANIC_REGISTRY[mechanic].label}</Label>
+                  <NumericLimitEditor
+                    label={MECHANIC_REGISTRY[mechanic].label}
+                    unit="items"
+                    quota={tariff.quotas[mechanic] ?? null}
+                    onChange={(nextQuota) => {
+                      if (nextQuota && nextQuota.unit !== 'items') return;
+                      setTariff((current) => ({
+                        ...current,
+                        quotas: { ...current.quotas, [mechanic]: nextQuota ?? undefined },
+                      }));
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <AccessPolicyEditor
+              title="Доступ к системе"
+              value={tariff.systemAccessPolicy}
+              onChange={(systemAccessPolicy) =>
+                setTariff((current) => ({ ...current, systemAccessPolicy }))
+              }
+            />
+            <div className="grid gap-2 md:grid-cols-2">
+              {POLICY_MECHANICS.map((mechanic) => (
+                <AccessPolicyEditor
+                  key={mechanic}
+                  title={MECHANIC_REGISTRY[mechanic].label}
+                  value={tariff.mechanicAccessPolicies[mechanic] ?? null}
+                  onChange={(policy) =>
+                    setTariff((current) => {
+                      const mechanicAccessPolicies = { ...current.mechanicAccessPolicies };
+                      if (policy) mechanicAccessPolicies[mechanic] = policy;
+                      else delete mechanicAccessPolicies[mechanic];
+                      return { ...current, mechanicAccessPolicies };
+                    })
+                  }
+                />
+              ))}
             </div>
             <Label className="flex items-center gap-2">
               <Checkbox
@@ -676,10 +928,18 @@ export function CommercialConstructorClient() {
             />
             Разрешено
           </Label>
-          {overrideMechanic === 'files' ? (
+          {MECHANIC_REGISTRY[overrideMechanic].class === 'объём' ||
+          MECHANIC_REGISTRY[overrideMechanic].class === 'запас' ? (
             <div className="space-y-1">
-              <Label>Объём файлов для организации</Label>
-              <FileVolumeEditor quota={overrideQuota} onChange={setOverrideQuota} />
+              <Label>{MECHANIC_REGISTRY[overrideMechanic].label} для организации</Label>
+              <NumericLimitEditor
+                label={`${MECHANIC_REGISTRY[overrideMechanic].label} для организации`}
+                unit={
+                  MECHANIC_REGISTRY[overrideMechanic].class === 'объём' ? 'bytes' : 'items'
+                }
+                quota={overrideQuota}
+                onChange={setOverrideQuota}
+              />
             </div>
           ) : null}
           {selectedOrganization ? (
@@ -792,6 +1052,10 @@ export function CommercialConstructorClient() {
             className="grid gap-4 md:grid-cols-2"
             onSubmit={(event) => {
               event.preventDefault();
+              if (!postTrialBehavior) {
+                setMessage('Выберите действие после триала');
+                return;
+              }
               void mutate(
                 {
                   action: 'set_trial_policy',
@@ -839,8 +1103,13 @@ export function CommercialConstructorClient() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Старт</Label>
-              <p className="text-sm text-muted-foreground">После создания организации</p>
+              <Label htmlFor="trial-start-event">Событие старта</Label>
+              <Input
+                id="trial-start-event"
+                value={trialStartEvent}
+                required
+                onChange={(event) => setTrialStartEvent(event.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="trial-duration">Триал, дней</Label>
@@ -865,15 +1134,30 @@ export function CommercialConstructorClient() {
             <div className="space-y-1">
               <Label>После триала</Label>
               <Select
-                value={postTrialBehavior}
+                value={postTrialBehavior ?? 'unset'}
                 onValueChange={(value) => {
-                  if (value) setPostTrialBehavior(value);
+                  if (value === 'read_only' || value === 'blocked' || value === 'tariff') {
+                    setPostTrialBehavior(value);
+                  }
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger
+                  displayLabel={
+                    postTrialBehavior === 'read_only'
+                      ? 'Только чтение'
+                      : postTrialBehavior === 'blocked'
+                        ? 'Заблокировать'
+                        : postTrialBehavior === 'tariff'
+                          ? 'Другой тариф'
+                          : 'Выберите действие'
+                  }
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="unset" disabled>
+                    Выберите действие
+                  </SelectItem>
                   <SelectItem value="read_only">Только чтение</SelectItem>
                   <SelectItem value="blocked">Заблокировать</SelectItem>
                   <SelectItem value="tariff">Другой тариф</SelectItem>
@@ -920,7 +1204,10 @@ export function CommercialConstructorClient() {
               />
             </div>
             <div className="md:col-span-2">
-              <Button type="submit" disabled={busy || !trialTariffId}>
+              <Button
+                type="submit"
+                disabled={busy || !trialTariffId || !trialStartEvent.trim() || !postTrialBehavior}
+              >
                 Сохранить правило
               </Button>
             </div>

@@ -19,9 +19,8 @@ import { beOrganizations } from './bookingEngine';
  * deploy/postgres/store-p0-entitlements-rls.sql exactly (RLS/grants live in that overlay, NOT here).
  * See docs/_TODO/SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md.
  *
- * Platform-global tariff catalog. `mechanics` is a map mechanic -> bool; an absent key defaults to
- * enabled for every mechanic except `clinic_team`, which defaults to disabled (see
- * `MECHANIC_DEFAULT_ENABLED` in src/modules/org-entitlements/types.ts).
+ * Platform-global tariff catalog. `mechanics` is the operator-configured mechanic -> bool map.
+ * No per-mechanic fallback policy is selected in code.
  */
 export const saasTariffs = pgTable(
   'saas_tariffs',
@@ -40,12 +39,18 @@ export const saasTariffs = pgTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'::jsonb`),
+    systemAccessPolicy: jsonb('system_access_policy').$type<Record<string, unknown>>(),
+    mechanicAccessPolicies: jsonb('mechanic_access_policies')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     /**
      * C4A — included specialist seats for the `clinic_team` mechanic. `null` means not explicitly
      * configured (resolver falls back to a finite fail-closed baseline, never unlimited); a stored
      * value must be nonnegative.
      */
     includedSeats: integer('included_seats'),
+    includedSeatsWarningAtPercent: integer('included_seats_warning_at_percent'),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -58,6 +63,10 @@ export const saasTariffs = pgTable(
     check(
       'saas_tariffs_included_seats_nonnegative_check',
       sql`${table.includedSeats} IS NULL OR ${table.includedSeats} >= 0`,
+    ),
+    check(
+      'saas_tariffs_included_seats_warning_check',
+      sql`${table.includedSeatsWarningAtPercent} IS NULL OR ${table.includedSeatsWarningAtPercent} BETWEEN 0 AND 100`,
     ),
     check(
       'saas_tariffs_billing_period_check',
@@ -147,10 +156,7 @@ export const saasTrialPolicy = pgTable(
     check('saas_trial_policy_key_check', sql`${table.key} = 'global'`),
     check('saas_trial_policy_duration_check', sql`${table.durationDays} > 0`),
     check('saas_trial_policy_grace_check', sql`${table.graceDays} >= 0`),
-    check(
-      'saas_trial_policy_start_event_check',
-      sql`${table.startEvent} = 'organization_provisioned'`,
-    ),
+    check('saas_trial_policy_start_event_check', sql`length(btrim(${table.startEvent})) > 0`),
     check(
       'saas_trial_policy_post_behavior_check',
       sql`${table.postTrialBehavior} = ANY (ARRAY['read_only'::text, 'blocked'::text, 'tariff'::text])`,
