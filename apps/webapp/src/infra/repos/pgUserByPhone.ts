@@ -253,12 +253,14 @@ export const pgUserByPhonePort: UserByPhonePort = {
            WHERE id = $2`,
             [displayName, userId],
           );
-          trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
-          await runIdentityClientPgText(
-            client,
-            'UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid',
-            [userId],
-          );
+          if (options?.phoneNumberProven === true) {
+            trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
+            await runIdentityClientPgText(
+              client,
+              'UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid',
+              [userId],
+            );
+          }
           return { userId, wasCreated: false };
         }
 
@@ -413,12 +415,14 @@ export const pgUserByPhonePort: UserByPhonePort = {
           }
         }
 
-        trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
-        await runIdentityClientPgText(
-          client,
-          'UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid',
-          [userId],
-        );
+        if (options?.phoneNumberProven === true) {
+          trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
+          await runIdentityClientPgText(
+            client,
+            'UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid',
+            [userId],
+          );
+        }
         return { userId, wasCreated };
       });
 

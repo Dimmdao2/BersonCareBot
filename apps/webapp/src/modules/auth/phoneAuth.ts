@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { SessionUser } from '@/shared/types/session';
 import type { ChannelContext } from './channelContext';
-import type { PhoneChallengeStore } from './phoneChallengeStore';
+import type { PhoneChallengePayload, PhoneChallengeStore } from './phoneChallengeStore';
 import type { PhoneOtpDelivery, SmsPort } from './smsPort';
 import type { UserByPhonePort } from './userByPhonePort';
 import { getRedirectPathForRole } from './redirectPolicy';
@@ -50,6 +50,16 @@ export type StartPhoneAuthOptions = {
 
 function generateChallengeId(): string {
   return randomBytes(16).toString('base64url');
+}
+
+function isPhoneNumberProvenByOtpDelivery(
+  deliveryChannel: NonNullable<PhoneChallengePayload['deliveryChannel']>,
+): boolean {
+  return (
+    deliveryChannel === 'sms' ||
+    deliveryChannel === 'telegram' ||
+    deliveryChannel === 'max'
+  );
 }
 
 /** Создаёт OTP-челлендж без отправки (код возвращается вызывающему для кастомного сообщения бота). */
@@ -171,6 +181,7 @@ export async function confirmPhoneAuth(
 
   const context = challenge.channelContext ?? defaultWebContext();
   const bindResult = await deps.userByPhonePort.createOrBind(challenge.phone, context, {
+    phoneNumberProven: isPhoneNumberProvenByOtpDelivery(deliveryChannel),
     ...(challenge.profileBindUserId ? { profileBindUserId: challenge.profileBindUserId } : {}),
     ...(challenge.profileBindOrganizationId
       ? { profileBindOrganizationId: challenge.profileBindOrganizationId }

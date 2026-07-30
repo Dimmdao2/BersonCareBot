@@ -12,7 +12,7 @@
  * только через `isTrustedPatientPhoneActivation`; не дублировать условие в других модулях.
  */
 export enum TrustedPatientPhoneSource {
-  /** Успешный `createOrBind` после OTP (`pgUserByPhone`, confirm flow). */
+  /** Успешный `createOrBind` после phone-proving OTP (`pgUserByPhone`, confirm flow). */
   OtpCreateOrBind = 'otp_create_or_bind',
   /** `upsertFromProjection` / merge projection в `pgUserProjection`. */
   IntegratorUpsertFromProjection = 'integrator_upsert_from_projection',
