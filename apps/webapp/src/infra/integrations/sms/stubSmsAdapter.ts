@@ -8,6 +8,7 @@ import {
 } from '@/modules/auth/phoneOtpLimits';
 import { generateSmsCode } from '@/modules/auth/smsCode';
 import type {
+  DeferredPhoneOtpDelivery,
   PhoneOtpDelivery,
   SendCodeResult,
   SmsPort,
@@ -38,6 +39,7 @@ export function createStubSmsAdapter(deps: StubSmsAdapterDeps): SmsPort {
       phone: string,
       ttlSec: number,
       delivery?: PhoneOtpDelivery,
+      deferredDelivery?: DeferredPhoneOtpDelivery,
     ): Promise<SendCodeResult> {
       const gate = await assertPhoneCanStartChallenge(phone);
       if (gate.ok !== true) {
@@ -47,12 +49,19 @@ export function createStubSmsAdapter(deps: StubSmsAdapterDeps): SmsPort {
       const challengeId = generateChallengeId();
       const code = generateSmsCode();
       const expiresAt = Math.floor(Date.now() / 1000) + ttlSec;
+      const deliveryChannel =
+        deferredDelivery?.challengeDeliveryChannel ?? deliveryChannelFromOpts(delivery);
       await challengeStore.set(challengeId, {
         phone,
         expiresAt,
         code,
         verifyAttempts: 0,
-        deliveryChannel: deliveryChannelFromOpts(delivery),
+        deliveryChannel,
+        phoneNumberProven:
+          deferredDelivery?.suppressDelivery !== true &&
+          (deliveryChannel === 'sms' ||
+            deliveryChannel === 'telegram' ||
+            deliveryChannel === 'max'),
       });
       await registerPhoneSend(phone);
       return {

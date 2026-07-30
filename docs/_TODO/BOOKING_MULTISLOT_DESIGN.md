@@ -312,7 +312,7 @@ NULL` (`0119_be_appointments_soft_delete.sql:22`), so online multi-slot chains h
       sign-off, а зафиксированного решения в репозитории нет. Формально верно, по сути — нет: решение
       владельцем было **дано устно и не записано**. Тот же класс ошибки, что инцидент с SCH-G1: отсутствие
       записи прочитали как отсутствие решения. Канон: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §13.
-- [ ] **Confirm cancel/reschedule semantics for a partial chain (§3) — genuine open product question.** —
+- [x] **Confirm cancel/reschedule semantics for a partial chain (§3) — genuine open product question.** —
       ПРОВЕРЕНО ПО КОДУ 27.07 (по прямому вопросу владельца). Результат раздвоился:
       **(1) По записям владелец ПРАВ — доп. кода не нужно.** Цепочка = N независимых `be_appointments` с общим
       `chain_id` (`pgBookingEngine.ts:1610-1661`); `cancelBooking` / `runStaffManualCancelAfterCanonical` /
@@ -330,10 +330,17 @@ NULL` (`0119_be_appointments_soft_delete.sql:22`), so online multi-slot chains h
       (стоимость слота − его невозвратная часть по обычной политике отмены, считаемой **посеансно**);
       оставшиеся слоты не затрагиваются. Полностью с примером расчёта —
       `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §13.1.
-      **Пункт остаётся открытым до фикса кода** (`#1056`): продуктовый вопрос закрыт, инженерная работа нет.
+      **Пункт закрыт фиксом кода `#1056`:** продуктовый вопрос и инженерная работа закрыты.
       Что делать: перевести `applyCancelPaymentOutcome`, `recordReschedulePaymentCarryOver` и
       `getAppointmentPaymentSummary` с поиска по `bePayments.appointmentId` на `beAppointments.paymentRef`,
       и реализовать посеансный расчёт возврата/удержания по правилу 7.1.
+      **Доказательство:** `apps/webapp/src/modules/payments/service.ts:74-106,291-304,601-665,695-700`;
+      `apps/webapp/src/infra/repos/pgPayments.ts:339-360,402-414`;
+      `apps/webapp/src/modules/patient-booking/service.ts:627-637`;
+      `apps/webapp/src/app-layer/booking/staffManualCancelAfterCanonical.ts:50-55`;
+      `pnpm --dir apps/webapp typecheck`;
+      targeted ESLint production-файлов и `git diff --check` — PASS 30.07.2026. Test suites не запускались
+      и test-файлы не менялись по явному ограничению brief.
 - [x] **Extend `assertSlotAvailable` (or add a sibling) with `slotCount`-aware chain validation
       (`booking-scheduling/service.ts:180-218`).** — `createBookingSchedulingService`'s availability check now
       takes `slotCount` and calls `isChainFree(input.slotStart, slotCount, durationMinutes, busy)` instead of

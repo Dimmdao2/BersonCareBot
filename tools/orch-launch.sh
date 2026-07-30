@@ -106,6 +106,20 @@ else
   ORCH_OPS=\"<причина>\", тогда authority = сам бриф."
 fi
 
+# 3b. Бриф воркера обязан отсылать к правилам репозитория про тесты. Владелец 30.07: «как писать тесты — не забывай
+#     давать агентам читать правила репо». Механика вместо памяти: без ссылки на правило исполнитель пишет тесты по
+#     своему вкусу — так в этой же ветке появились фиктивные тесты на моках, которые оставались зелёными при удалении
+#     колонок и полей. Обход — ORCH_NO_TESTS="<причина>" (например: чистое удаление, тесты не пишутся), он логируется.
+if [ "$ROLE" = worker ] && [ -z "${ORCH_NO_TESTS:-}" ]; then
+  grep -q "tests-check-behaviour-not-circumstances" "$BRIEF" || die "в брифе воркера нет ссылки на правила репозитория про тесты
+  (.cursor/rules/tests-check-behaviour-not-circumstances.mdc, и обычно .cursor/rules/webapp-tests-lean-no-bloat.mdc).
+  Без них исполнитель пишет тесты по своему вкусу: в этой ветке так появились тесты на моках, зелёные при удалении
+  колонок. Если задача действительно без тестов — запускай с ORCH_NO_TESTS=\"<причина>\"."
+fi
+if [ -n "${ORCH_NO_TESTS:-}" ]; then
+  echo "  без-тестов-режим: $ORCH_NO_TESTS"
+fi
+
 # 4. Для воркера: предыдущая работа этого клона должна быть зарегистрирована в очереди аудита.
 if [ "$ROLE" = worker ]; then
   # Смотрим на СОБСТВЕННЫЕ коммиты клона (без коммитов слияния — их в очереди быть не может,
@@ -122,10 +136,24 @@ fi
 
 # 5. Запуск. Лог рядом с брифом, run-id — в имени.
 LOG="$(dirname "$BRIEF")/$RUN_ID.log"
-echo "запуск: роль=$ROLE клон=$CLONE_NAME модель=$MODEL effort=$EFFORT слой=$PLAN_SLICE"
+echo "запуск: роль=$ROLE клон=$CLONE_NAME провайдер=${ORCH_PROVIDER:-codex} модель=$MODEL effort=$EFFORT слой=$PLAN_SLICE"
 echo "  клон содержит feat ${HEAD_MAIN:0:9}, своих коммитов сверху: $AHEAD; агентов роли было $LIVE из $CAP; лог $LOG"
 [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, агент НЕ запущен"; exit 0; }
-nohup node "$PORT" --provider codex --model "$MODEL" --effort "$EFFORT" \
+# Провайдер по умолчанию — codex (весь исполнительский поток идёт через него). Владелец 30.07 попросил
+# аудит плана ДВУМЯ моделями, Sol и Opus, поэтому провайдер стал параметром: ORCH_PROVIDER=claude.
+# Мимо порта всё равно ничего не запускается — гейты выше не зависят от провайдера.
+PROVIDER=${ORCH_PROVIDER:-codex}
+# ORCH_JOB="worker|worker-hard|reviewer|reviewer-critical|explorer|mechanic" — канонический выбор модели и effort
+# по карте `/home/dev/brain/docs/MODEL_TIERS.md`. Владелец 30.07: «у тебя же есть полный список решения когда и
+# какого агента выбрать» — знание о цене и способностях живёт в одном месте, а не дублируется в каждом вызове.
+# Если ORCH_JOB задан, модель и effort из аргументов ИГНОРИРУЮТСЯ (передавай в них job-имя дважды, для лога).
+if [ -n "${ORCH_JOB:-}" ]; then
+  MODEL_ARGS=(--job "$ORCH_JOB")
+  echo "  job-режим: модель и effort выбирает канон по job=$ORCH_JOB (аргументы модели/effort игнорируются)"
+else
+  MODEL_ARGS=(--model "$MODEL" --effort "$EFFORT")
+fi
+nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
   --role "$ROLE_FOR_PORT" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
   < "$BRIEF" > "$LOG" 2>&1 &
 AGENT_PID=$!

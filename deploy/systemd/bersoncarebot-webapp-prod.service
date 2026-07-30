@@ -1,11 +1,14 @@
 [Unit]
 Description=BersonCare Webapp (Production)
-After=network.target
+Wants=network-online.target
+After=network-online.target
+ConditionHost=adelaide
 
 [Service]
 User=deploy
 Group=deploy
 Type=simple
+ExecCondition=/bin/sh -c 'case " $(/usr/bin/hostname -I) " in *" 135.106.162.170 "*) exit 0;; *) exit 1;; esac'
 WorkingDirectory=/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp
 EnvironmentFile=/opt/env/bersoncarebot/webapp.prod
 EnvironmentFile=-/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp/.runtime-build-id

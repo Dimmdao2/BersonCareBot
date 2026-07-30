@@ -170,16 +170,6 @@ const envSchema = z.object({
     .optional()
     .transform((v) => (v ?? '').trim()),
   /**
-   * Fallback-адресат операторских алертов (design D-b). Живёт в ОКРУЖЕНИИ, а не в
-   * `system_settings`, именно поэтому его нельзя «отключить настройкой» из админки:
-   * пустая аудитория обязана куда-то приземлиться. Пусто → остаётся только счётчик,
-   * и сам счётчик поднимает критический сигнал.
-   */
-  OPERATOR_ALERT_FALLBACK_EMAIL: z
-    .string()
-    .optional()
-    .transform((v) => (v ?? '').trim()),
-  /**
    * ВНЕШНИЙ приёмник dead man's switch (design D-d). Пульс, который излучает наша же
    * мёртвая коробка, ничего не доказывает, поэтому в проде здесь обязан стоять адрес
    * СТОРОННЕГО сервиса. Пусто → пульс только пишется локально (и локально же проверяется).
@@ -248,7 +238,6 @@ const parsed = envSchema.parse({
   TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME?.trim() || 'bersoncare_bot',
   MAX_LOGIN_BOT_NICKNAME: process.env.MAX_LOGIN_BOT_NICKNAME,
   INTERNAL_JOB_SECRET: process.env.INTERNAL_JOB_SECRET,
-  OPERATOR_ALERT_FALLBACK_EMAIL: process.env.OPERATOR_ALERT_FALLBACK_EMAIL,
   OPERATOR_HEARTBEAT_PIPELINE_URL: process.env.OPERATOR_HEARTBEAT_PIPELINE_URL,
   OPERATOR_HEARTBEAT_DIGEST_URL: process.env.OPERATOR_HEARTBEAT_DIGEST_URL,
   LOG_LEVEL: process.env.LOG_LEVEL,

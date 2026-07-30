@@ -1,31 +1,7 @@
-// Load .env (или .env.dev, если .env нет). Use dev DB only when USE_REAL_DATABASE=1.
-import '@testing-library/jest-dom/vitest';
-import { configure } from '@testing-library/react';
-
 // Keep generic unit tests hermetic from a developer/server runtime .env. Suites that
 // exercise the fail-closed principal boundary opt into `locked` explicitly and restore
 // this baseline after each case.
 process.env.DB_PRINCIPAL_CONTEXT_MODE = 'legacy-guc';
-
-// Raise global waitFor/findBy* timeout from 1000ms → 3000ms to prevent
-// timing flakes when the full test suite runs under CPU pressure.
-configure({ asyncUtilTimeout: 3000 });
-
-/** Base UI `Switch` (and similar) dereference `PointerEvent` in handlers; jsdom has `MouseEvent` but not `PointerEvent`. Skip in pure Node test environments. */
-if (
-  typeof globalThis.PointerEvent === 'undefined' &&
-  typeof globalThis.MouseEvent !== 'undefined'
-) {
-  globalThis.PointerEvent = class extends MouseEvent {
-    readonly pointerId: number;
-    readonly pointerType: string;
-    constructor(type: string, init?: PointerEventInit) {
-      super(type, init);
-      this.pointerId = init?.pointerId ?? 1;
-      this.pointerType = init?.pointerType ?? 'mouse';
-    }
-  } as unknown as typeof PointerEvent;
-}
 import path from 'node:path';
 import { config } from 'dotenv';
 config({ quiet: true });

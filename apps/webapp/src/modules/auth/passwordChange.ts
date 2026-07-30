@@ -2,19 +2,19 @@ import type { SessionUser } from '@/shared/types/session';
 import { normalizeEmail } from '@/modules/auth/emailAuth';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import type { StaffSecurityService } from '@/modules/staff-security/service';
-import {
-  waitForPasswordFailureDelay,
-  type PasswordVerificationResult,
+import type {
+  PasswordAltchaProof,
+  PasswordVerificationResult,
 } from '@/modules/auth/passwordLoginProtection';
 
 type PasswordCredentialsPort = {
   tryVerifyLogin(
     emailNormalized: string,
     plainPassword: string,
+    altchaProof?: PasswordAltchaProof,
+    altchaSubmitted?: boolean,
   ): Promise<PasswordVerificationResult>;
-  recordFailedPasswordAttempt(userId: string): Promise<void>;
-  resetFailedPasswordAttempts(userId: string, emailNormalized: string): Promise<void>;
-  updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
+  updatePasswordHash(userId: string, emailNormalized: string, passwordHash: string): Promise<void>;
 };
 
 type PasswordChangeDeps = {
@@ -36,6 +36,8 @@ export type PasswordChangeResult =
         | 'wrong_current_password'
         | 'password_temporarily_locked';
       retryAfterSeconds?: number;
+      captchaRequired?: boolean;
+      captchaRefreshRequired?: boolean;
     };
 
 export function createPasswordChangeService(deps: PasswordChangeDeps) {
@@ -44,6 +46,8 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
       userId: string;
       currentPassword: string;
       newPassword: string;
+      altchaProof?: PasswordAltchaProof;
+      altchaSubmitted?: boolean;
     }): Promise<PasswordChangeResult> {
       const verifiedEmail = await deps.users.getVerifiedEmailForUser(input.userId);
       if (!verifiedEmail) {
@@ -54,24 +58,24 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
       const verified = await deps.credentials.tryVerifyLogin(
         emailNormalized,
         input.currentPassword,
+        input.altchaProof,
+        input.altchaSubmitted,
       );
       if (!verified.ok || verified.userId !== input.userId || !verified.emailVerified) {
-        if (!verified.ok && verified.passwordChecked && verified.accountUserId === input.userId) {
-          await deps.credentials.recordFailedPasswordAttempt(input.userId);
-        }
         if (!verified.ok) {
-          await waitForPasswordFailureDelay(verified.delaySeconds);
-          if (verified.locked) {
-            return {
-              ok: false,
-              error: 'password_temporarily_locked',
-              retryAfterSeconds: verified.retryAfterSeconds,
-            };
-          }
+          return {
+            ok: false,
+            error:
+              verified.locked
+                ? 'password_temporarily_locked'
+                : 'wrong_current_password',
+            retryAfterSeconds: verified.retryAfterSeconds,
+            captchaRequired: verified.captchaRequired,
+            captchaRefreshRequired: verified.captchaRefreshRequired,
+          };
         }
         return { ok: false, error: 'wrong_current_password' };
       }
-      await deps.credentials.resetFailedPasswordAttempts(input.userId, emailNormalized);
 
       const passwordHash = await deps.hashPassword(input.newPassword);
       const security = await deps.staffSecurity.getStatus();
@@ -82,7 +86,7 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
       // replacement cookie can carry the new epoch and remain alive.
       if (security) await deps.staffSecurity.revokeSessions();
       await deps.users.invalidateSessionsForSelf();
-      await deps.credentials.updatePasswordHash(input.userId, passwordHash);
+      await deps.credentials.updatePasswordHash(input.userId, emailNormalized, passwordHash);
 
       const user = await deps.users.findByUserId(input.userId);
       if (!user) {

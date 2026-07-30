@@ -73,9 +73,11 @@ export type PaymentsPort = {
   ): Promise<PaymentIntentRecord | null>;
 
   findPaymentByIntent(intentId: string): Promise<PaymentRecord | null>;
-  findPaymentByAppointment(appointmentId: string): Promise<PaymentRecord | null>;
+  findPaymentById(paymentId: string, organizationId: string): Promise<PaymentRecord | null>;
+  countAppointmentsByPaymentRef(paymentId: string, organizationId: string): Promise<number>;
   createPaymentFromIntent(intent: PaymentIntentRecord): Promise<PaymentRecord>;
   updatePaymentStatus(paymentId: string, status: string, organizationId: string): Promise<void>;
+  getSucceededRefundedAmount(paymentId: string, organizationId: string): Promise<number>;
 
   createRefund(input: {
     organizationId: string;

@@ -1,6 +1,12 @@
 # Host Deployment for BersonCareBot
 
-Этот файл описывает только актуальную operational-модель `BersonCareBot` на хосте.
+> **HOST IDENTITY GATE:** PROD-команды этого файла выполняются только на `135.106.162.170` (`adelaide`).
+> Текущий рабочий хост `151.241.228.122` — DEV/RELAY/TEST; локальные `bersoncarebot-*-prod.service`,
+> `/opt/projects/bersoncarebot` и `*.prod` там являются остатками старой топологии, замаскированы и не должны
+> запускаться. Разделы TEST относятся к `151.x`. Канон host identity:
+> [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md).
+
+Этот файл описывает operational-модель `BersonCareBot` на двух явно разделённых хостах.
 
 В scope входят:
 
@@ -24,6 +30,7 @@
 | Параметр              | Значение                                                                                                                                                                                                                                                        |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Deploy user           | `deploy`                                                                                                                                                                                                                                                        |
+| Prod host              | `135.106.162.170` (`adelaide`)                                                                                                                                                                                                                                  |
 | Prod project dir      | `/opt/projects/bersoncarebot`                                                                                                                                                                                                                                   |
 | Prod env dir          | `/opt/env/bersoncarebot`                                                                                                                                                                                                                                        |
 | PostgreSQL            | `127.0.0.1:5432`                                                                                                                                                                                                                                                |
@@ -35,11 +42,13 @@
 
 ### GitHub Actions (репозиторий)
 
-В `.github/workflows/ci.yml` — набор параллельных job на `push` и `pull_request` (`pnpm install --frozen-lockfile`, затем отдельно lint, typecheck, тесты integrator, **webapp core** по шардам `pnpm test:webapp:fast`, **webapp in-process** по шардам только на `push` в `main`, сборки integrator/webapp, audit). На **pull request** in-process job пропускается (skipped). **Deploy** — после успеха всех нужных job, только при `push` в `main`: по SSH `bash <DEPLOY_PATH>/deploy/host/deploy-prod.sh` (секреты: `DEPLOY_SSH_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PATH`).
+В `.github/workflows/ci.yml` — набор параллельных job на `push` и `pull_request` (`pnpm install --frozen-lockfile`, затем отдельно lint, typecheck, тесты integrator, **webapp core** по шардам `pnpm test:webapp:fast`, **webapp in-process** по шардам только на `push` в `main`, сборки integrator/webapp, audit). На **pull request** in-process job пропускается (skipped). Автодеплоя из `ci.yml` нет.
+
+Production deployment выполняется только отдельным ручным `.github/workflows/deploy-prod.yml`: `workflow_dispatch` → environment approval → exact guard `DEPLOY_HOST=135.106.162.170` → SSH `bash <DEPLOY_PATH>/deploy/host/deploy-prod.sh` (секреты: `DEPLOY_SSH_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PATH`).
 
 Журнал смены версий GitHub Actions и связанных правок репозитория (в т.ч. Next `proxy`): [`docs/archive/2026-05-initiatives/DEPENDENCY_CI_UPDATE_2026-05-14/LOG.md`](../docs/archive/2026-05-initiatives/DEPENDENCY_CI_UPDATE_2026-05-14/LOG.md).
 
-Отдельный workflow `deploy-host.yml` в репозитории **нет** (ранее мог существовать; актуальный путь деплоя — job **Deploy** внутри `ci.yml`).
+Отдельного `deploy-host.yml` нет; актуальный production workflow — ручной `deploy-prod.yml`.
 
 ---
 
@@ -47,7 +56,8 @@
 
 ### Production services
 
-Подтверждены и активны (шаблоны в `deploy/systemd/`; на prod после `deploy-prod`):
+Подтверждены и активны (шаблоны в `deploy/systemd/`; root устанавливает/включает их через bootstrap,
+обычный `deploy-prod.sh` только проверяет и перезапускает):
 
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
@@ -86,6 +96,12 @@ systemctl reset-failed
 | Cutover env                    | `/opt/env/bersoncarebot/cutover.prod`           |
 
 ### systemd units
+
+Каждый PROD template имеет два независимых fail-closed gate: `ConditionHost=adelaide` и `ExecCondition`,
+требующий локальный IPv4 `135.106.162.170`. Проверка IP упорядочена после `network-online.target`. Обычный deploy
+принимает unit только если это regular `root:root 0644` файл из `/etc/systemd/system`, byte-for-byte равный
+reviewed template; активный `FragmentPath` обязан указывать на этот файл, drop-ins запрещены, а
+`NeedDaemonReload` обязан быть `no`.
 
 #### API
 
@@ -135,7 +151,7 @@ systemctl reset-failed
 
 Файл юнита (шаблон в репозитории):
 
-- [`deploy/systemd/bersoncarebot-media-worker-prod.service`](../systemd/bersoncarebot-media-worker-prod.service) → на хосте: `/etc/systemd/system/bersoncarebot-media-worker-prod.service`
+- [`deploy/systemd/bersoncarebot-media-worker-prod.service`](systemd/bersoncarebot-media-worker-prod.service) → на хосте: `/etc/systemd/system/bersoncarebot-media-worker-prod.service`
 
 Эффективная конфигурация:
 
@@ -144,10 +160,11 @@ systemctl reset-failed
 - `ExecStart=/usr/bin/node dist/main.js`
 - Публичного порта нет (только исходящие к БД / S3 / `ffmpeg`).
 
-`deploy-prod.sh` устанавливает unit, собирает `apps/media-worker`, перезапускает сервис при наличии отдельного
-`media-worker.prod` и проверяет `systemctl is-active`. Этот env использует только media operational login; повторное
-использование webapp/integrator credential запрещено. Пользователю **`deploy`** нужен `NOPASSWD` на `install` этого
-unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](../sudoers-deploy.example).
+Root/operator отдельно устанавливает host-gated unit. `deploy-prod.sh` сверяет установленный root-owned unit с
+reviewed template, собирает `apps/media-worker`, перезапускает сервис при наличии отдельного `media-worker.prod` и
+проверяет `systemctl is-active`. Этот env использует только media operational login; повторное использование
+webapp/integrator credential запрещено. Пользователю **`deploy`** нужны только узкие права
+`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](sudoers-deploy.example).
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 
@@ -212,7 +229,7 @@ PTY/non-TTY, повторная ротация и отсутствие утеч�
 
 - `/etc/systemd/system/bersoncarebot-webapp-prod.service`
 
-Эффективная конфигурация (канон — **Next.js standalone**, как в [`deploy/systemd/bersoncarebot-webapp-prod.service`](../systemd/bersoncarebot-webapp-prod.service) и [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md); не `pnpm start`):
+Эффективная конфигурация (канон — **Next.js standalone**, как в [`deploy/systemd/bersoncarebot-webapp-prod.service`](systemd/bersoncarebot-webapp-prod.service) и [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md); не `pnpm start`):
 
 - `User=deploy`, `Group=deploy`
 - `WorkingDirectory=/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp`
@@ -667,24 +684,18 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - integrator dev по факту использует root `.env`, потому что `apps/integrator/src/config/loadEnv.ts` по умолчанию грузит `.env`, а не `.env.dev`
 - dev cutover/backfill/reconcile/gate должен использовать отдельный `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`
 
-### DEV: code-only, schema migration и refresh не смешиваются
+### DEV: code-only и schema migration
 
 - Обычная UI/code работа использует существующую `bcb_webapp_dev` и не запускает DB restore/reset/refresh.
-- Pending migrations текущей ветки на уже подготовленной locked DEV-БД применяются только через
+- Pending migrations текущей ветки на существующей DEV-БД применяются только через
   `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`. Это
-  недеструктивный exact-DEV путь: короткий audited privilege window, существующий `pnpm migrate`, отдельный C4D
-  concurrent-index artifact, обязательный cleanup, существующий DEV runtime-overlay closure и ledger postchecks.
-  Role-topology preflight разрешает ровно одно исходящее из wall-роли auxiliary membership: каноническое U9A
-  `app_platform_settings → app_staff` только с `ADMIN FALSE, INHERIT FALSE, SET TRUE` и exact безопасными атрибутами
-  auxiliary-роли; любое другое ребро или изменение options остаётся fail-closed.
-- `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute` — targeted owner/ACL/runtime repair при актуальном
-  migration ledger; dump/restore не выполняется.
-- `bash deploy/host/refresh-dev-from-test.sh --execute` — отдельная явно разрушительная операция замены данных DEV
-  из TEST. Она не вызывается обычным deploy, build, restart или `migrate-dev.sh`.
+  недеструктивный exact-DEV путь: wrapper проверяет локальные `bcb_webapp_dev`/`bcb_webapp_dev_user` и запускает
+  обычный общий `pnpm run migrate` без изменения ролей/ACL или runtime overlays.
+- TEST→DEV refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. DEV не копирует TEST и не
+  пересоздаётся для обычной разработки; RLS/security acceptance выполняется отдельно в disposable PostgreSQL и TEST.
 
 Wrapper не останавливает и не запускает процессы. Перед `migrate-dev.sh --execute` оператор должен отдельно
-скоординировать единственный DEV writer/server; нельзя поднимать второй Next server. Ручные `GRANT`/`ALTER ROLE`,
-ad hoc SQL или вызов destructive refresh ради pending migration не являются поддерживаемым обходом.
+скоординировать единственный DEV writer/server; нельзя поднимать второй Next server.
 
 ---
 
@@ -703,16 +714,18 @@ bash deploy/host/deploy-prod.sh
 - `pnpm install --frozen-lockfile`
 - `pnpm build`
 - `pnpm --dir apps/webapp build`
-- bootstrap/reinstall systemd units
+- fail-closed проверка ранее установленных root-owned systemd units (без install, `daemon-reload` и `enable`)
 - pre-migrations DB backup
 - `pnpm migrate` (integrator + webapp Drizzle через `scripts/migrate-all.sh`)
 - **post-migrate schema guardrail:** `bash deploy/host/webapp-post-migrate-schema-check.sh` (набор колонок в `public`; см. файл — при ошибке деплой **останавливается до** рестарта сервисов)
-- restart API / worker / webapp (и media-worker при наличии unit)
+- restart API / worker / scheduler / webapp / media-worker
 - health check API
 
 ### Тест-деплой на `151.x` (feat → test)
 
-**Важно — модель отличается от прода:** ветки `test` и авто-деплоя **НЕТ**. CI (`ci.yml`) деплоит только `main`→прод (`on: push: branches: [main]`). Тест-сервер (`151.x`) держит **зеркало** текущей dev-ветки и обновляется **вручную одной командой**.
+**Важно — модель отличается от прода:** ветки `test` и авто-деплоя **НЕТ**. `ci.yml` выполняет проверки и
+ничего не деплоит; production запускается только ручным `deploy-prod.yml`. Тест-сервер (`151.x`) держит
+**зеркало** текущей dev-ветки и обновляется **вручную одной командой**.
 
 ```bash
 # от пользователя dev (скрипт сам делает sudo для deploy/systemctl):
@@ -739,11 +752,13 @@ Settings-запись через `updateSetting` может менять его;
 снимает временные права и передаёт post-migration этап в ту же общую strict closure, что fresh wrapper. Closure
 ставит roles/helpers/grants и E1 telemetry overlay (ambient event-writer + отдельный
 `SAAS_ISOLATION_OPERATOR_DATABASE_URL` для global-admin read/coverage), выполняет base → safe specialized overlays → FORCE/assert,
-запускает отдельный fixture window, затем fail-closed health и обязательный locked product smoke. Поэтому code-only
-миграция не может незаметно вернуть состояние migration 0177 NO FORCE или пропустить fixture/smoke. После рестарта,
-health/nginx и обоих product-smoke общая closure фиксирует и перечитывает реальное E1-покрытие всех шести process
+запускает отдельный fixture reconciliation window, затем fail-closed health и независимые runtime-гейты. Поэтому
+code-only миграция не может незаметно вернуть состояние migration 0177 NO FORCE. После рестарта health/nginx
+общая closure фиксирует и перечитывает реальное E1-покрытие всех шести process
 families через отдельный diagnostic login. Активный unexplained signal или отсутствие exact fresh complete coverage
-останавливает deploy до AWG/DONE; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
+останавливает deploy; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
+Состояние `awg-quick@awg0` не является TEST deploy-гейтом: это отдельный PROD-relay dependency на том же хосте,
+который TEST deploy не запускает, не останавливает и не использует как критерий готовности TEST.
 Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Он не является вариантом
 обычного деплоя и fail-closed без явного подтверждения и hash-bound owner inputs:
 
@@ -763,7 +778,7 @@ Hard wrapper останавливает writers, восстанавливает 
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
-fail-closed до restore, если защищённый TEST-only credential packet или обязательный product-smoke fixture не готов.
+fail-closed до restore, если защищённый TEST-only data fixture packet не готов.
 После миграций, установки protected-principal helpers и базового FORCE finalizer общая closure сама вызывает канонический C4 TEST-bootstrap:
 после read-only source preflight атомарно заменяет каждый затронутый env-файл и добавляет/сохраняет пять отдельных
 local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capability/
@@ -780,29 +795,9 @@ Readiness выполняет не только разрешённые опера
 Web Push surface, Web Push capability — на scheduler/delivery/media/business surfaces; base login не читает таблицы
 напрямую. Точный `operator_job_status` ключ `reminders.web_push_only.tick` проверяется write/read внутри rollback,
 чужие строки невидимы/не обновляются, другой ключ и DELETE обязаны завершиться отказом.
-Product-smoke fixture по умолчанию хранится в canonical external path
-`/run/bersoncarebot/saas-smoke.fixture`: строго `root:deploy 0640`, без symlink-файла или symlink-родителя и вне
-source/deploy repositories. Одна и та же проверка выполняется до restore и повторно непосредственно перед smoke.
-
-Служебные login credentials для smoke хранятся отдельно в
-`/opt/env/bersoncarebot/saas-smoke-login.env` (`root:deploy 0640`). Если пакет присутствует, strict TEST closure
-непосредственно перед mint сессий приводит password credentials только перечисленных в нём врача/clinic-owner,
-глобального администратора и пациента к значениям пакета. Target жёстко закреплён за локальной БД
-`bersoncarebot_test`; врачебная сессия намеренно используется и как `doctor`, и как `clinic_admin`, потому что эта
-учётка имеет `role=doctor` и ровно одну active membership: owner со specialist. Значения паролей не печатаются и
-не передаются через argv/SQL text. Если пакета нет, поведение остаётся fail-soft: mint пропускается с предупреждением,
-а smoke использует существующий fixture и сам оставляет gate красным при невалидной авторизации. Если пакет есть,
-ошибка convergence или свежего mint делает A2 красным: старая cookie-фикстура больше не может дать ложный зелёный
-результат вместо проверки текущего пакетного пароля.
-
-**Как переиздать fixture, если сессии протухли:** инструмент
-`docs/_TODO/SAAS_FOUNDATION/scripts/regenerate-saas-smoke-fixture.mjs` логинится как реальные аккаунты
-на целевом `--base-url` и записывает результат в этот fixture-файл. Он **перезаписывает пароли реальным
-людям** (TEST — прод-дамп), поэтому по решению владельца 2026-07-26 (taskdb `#1017`) **намеренно не
-закоммичен** (`.gitignore`) — лежит только на боксе по этому пути, с гардами (обязательный флаг
-`--i-understand-this-rewrites-real-passwords`, `allowlist` конкретных `user_id`, автобэкап 0600 перед
-записью, жёсткая проверка `--db` на точное совпадение с именем тестовой БД, без обхода). Подробности и
-проверки — `docs/_TODO/SAAS_FOUNDATION/LOG.md`, запись «Owner ruling on regenerate-saas-smoke-fixture.mjs».
+Legacy product-smoke fixture `/run/bersoncarebot/saas-smoke.fixture`, сохранённые сессии/refs и их credential
+convergence/mint выведены из deploy решением владельца 30.07.2026. Отсутствие временного файла в `/run` не блокирует
+сборку, миграции, security closure или запуск TEST. Продуктовые проверки выполняются отдельными целевыми тестами.
 
 Packet создаётся один раз уполномоченным оператором **из root-сессии** (не от `deploy`), без значений в shell
 history. Значения вводятся интерактивным редактором; в repo и docs остаются только имена ключей:
@@ -833,21 +828,7 @@ membership/BYPASS через обязательный cleanup; application runti
 
 - **Merge или force?** → **force.** `test` — одноразовое зеркало dev-ветки, хранить на нём нечего; checkout делается `git checkout -f -B <branch> FETCH_HEAD` (`reset --hard`-семантика). Никаких merge/rebase, расхождение веток не разрешаем — просто перетираем.
 - **Как переносится код (а не `git pull` как на проде):** деплой-репо `/opt/projects/bersoncarebot-test` под `deploy`, а `deploy` **не читает** `/home/dev` (0750) → remote `localrepo` под ним не работает; push в GitHub гейтован. Поэтому ветка переносится **git-bundle через `/tmp`** (world-readable) — полная история, без push, без проблем с правами.
-- **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → strict preflight → stop 5 writers → controlled owner/BYPASS `pnpm migrate` (включая временное membership runtime-owner в `app_owner` для DDL защищённой схемы) → общая roles/helpers/grants/telemetry/base+overlays/FORCE/seed closure → cleanup assertions с обязательным отзывом обоих временных membership и BYPASSRLS → restart locked units → health/nginx/product smoke. Он не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
-- **TEST→DEV не переносит неизменяемость TEST:** локальный `refresh-dev-from-test.sh --execute` после миграций сначала
-  запускает `dev-runtime-overlay-rehydrate.sh --execute`, а затем `dev-post-refresh-unlock.sh --execute`. Runtime
-  wrapper до reset проверяет раздельные owner `DATABASE_URL` (`bcb_webapp_dev_user`) и C0
-  `DATABASE_URL_NONSTAFF` (`bcb_dev_runtime_nonstaff_login`, отдельный от TEST на общем PG-кластере), затем
-  восстанавливает потерянные `--no-acl`
-  grants/helper ownership, затем в обязательном порядке применяет канонические strict locked-helper base policies
-  (`phase4_enforce_locked_context=1`) до специализированных overlays и доказывает фактический runtime read и
-  patient booking capability; unlock wrapper удаляет
-  только скопированные TEST-only `system_settings_test_lock` trigger/function. Оба пути DEV-only и не открывают
-  TEST/PROD. Если миграционный ledger уже актуален, а разошлись только runtime owner/ACL, rehydrate можно вызвать
-  отдельно без dump/restore/reset; если нужен только lock cleanup — отдельно вызвать unlock. DEV rehydrate не
-  выполняет FORCE RLS cutover: он заменяет устаревшие raw-GUC policies на helper-based predicates для уже
-  настроенного locked runtime. Rehydrate не создаёт и не перенастраивает cluster-global runtime login: его
-  credential/topology заранее provision-ит C0/C2 ops-проход.
+- **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → strict preflight → stop 5 writers → controlled owner/BYPASS `pnpm migrate` (включая временное membership runtime-owner в `app_owner` для DDL защищённой схемы) → общая roles/helpers/grants/telemetry/base+overlays/FORCE/seed closure → cleanup assertions с обязательным отзывом обоих временных membership и BYPASSRLS → restart locked units → health/nginx/runtime gates. Он не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
 - **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
 - **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
 - **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный
@@ -910,15 +891,23 @@ RUN_STAGE13_CUTOVER=1 RUN_STAGE13_CUTOVER_DRY_RUN_ONLY=1 bash deploy/host/deploy
 
 ```bash
 cd /opt/projects/bersoncarebot
-bash deploy/host/bootstrap-systemd-prod.sh
+sudo bash deploy/host/bootstrap-systemd-prod.sh
 ```
 
 Скрипт:
 
-- копирует unit templates в `/etc/systemd/system/`
+- выполняется только root на подтверждённом `135.106.162.170` (`adelaide`);
+- требует все пять regular non-symlink templates и проверяет их через `systemd-analyze verify`;
+- не заменяет mask/symlink или другой non-regular target: root сначала отдельно разбирает причину mask;
+- копирует все пять unit templates в `/etc/systemd/system/`;
 - делает `systemctl daemon-reload`
-- включает сервисы
-- стартует их, если env и build artifacts уже есть
+- отвергает неожиданный `FragmentPath`, любые drop-ins и незагруженную конфигурацию;
+- включает сервисы;
+- стартует их, если соответствующие env и build artifacts уже есть.
+
+Обычный `deploy-prod.sh` unit-файлы не заменяет. Он fail-closed проверяет, что установленные файлы — regular
+`root:root 0644` и byte-for-byte совпадают с reviewed templates. При изменении template root повторяет bootstrap
+до обычного deploy.
 
 ---
 
@@ -927,13 +916,12 @@ bash deploy/host/bootstrap-systemd-prod.sh
 Для production deploy нужны passwordless sudo rules минимум на:
 
 - `/opt/backups/scripts/postgres-backup.sh pre-migrations`
-- install unit files в `/etc/systemd/system/`
-- `systemctl daemon-reload`
-- `systemctl enable`
-- `systemctl enable --now`
 - `systemctl restart`
 - `systemctl is-active --quiet`
 - `journalctl -u ... --no-pager`
+
+`install`, `daemon-reload`, `enable` и `enable --now` пользователю `deploy` не выдаются. Provisioning/замена
+unit-файлов выполняются только root через host-gated bootstrap.
 
 Актуальный пример:
 
@@ -975,7 +963,7 @@ cp deploy/env/.env.webapp.prod.example /opt/env/bersoncarebot/webapp.prod
 
 ```bash
 cd /opt/projects/bersoncarebot
-bash deploy/host/bootstrap-systemd-prod.sh
+sudo bash deploy/host/bootstrap-systemd-prod.sh
 ```
 
 ### 4. Первый deploy

@@ -12,8 +12,8 @@
 | `docs/ORCHESTRATOR_CHECKLIST.md`                                 | 13 строк, перечитывать после каждого сжатия контекста                |
 | `tools/orch-launch.sh`                                           | ЕДИНСТВЕННАЯ дверь запуска агентов; отказывает при нарушении условий |
 | `tools/db-facts-snapshot.sh`                                     | снимок фактов живой базы для аудиторов (у них нет доступа к psql)    |
-| `docs/_TODO/SAAS_FOUNDATION/QUOTAS_WHAT_TO_LIMIT_2026-07-28.md`  | разведка: что вообще ограничивать                                    |
-| `docs/_TODO/SAAS_FOUNDATION/QUOTAS_WORLD_PRACTICE_2026-07-28.md` | разведка: механика счёта                                             |
+| `docs/_TODO/SAAS_FOUNDATION/QUOTAS_RESEARCH_2026-07-28.md (часть I)`  | разведка: что вообще ограничивать                                    |
+| `docs/_TODO/SAAS_FOUNDATION/QUOTAS_RESEARCH_2026-07-28.md (часть II)` | разведка: механика счёта                                             |
 
 ## Что сделано 28.07
 

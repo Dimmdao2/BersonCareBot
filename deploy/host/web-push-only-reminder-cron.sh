@@ -16,6 +16,21 @@ PROD_LOCK_FILE="/run/lock/bersoncarebot-prod-web-push-only-reminders.lock"
 fail(){ echo "web-push-only reminder cron: $*" >&2; exit 1; }
 require_root(){ [ "${EUID}" -eq 0 ] || fail "run as root"; }
 
+assert_canonical_prod_host(){
+  local current_hostname address found_ip=0
+  current_hostname="$(hostname -s 2>/dev/null || true)"
+  [ "$current_hostname" = "adelaide" ] ||
+    fail "refusing PROD reminder cron action on host '${current_hostname:-unknown}'; expected adelaide"
+  for address in $(hostname -I 2>/dev/null || true); do
+    if [ "$address" = "135.106.162.170" ]; then
+      found_ip=1
+      break
+    fi
+  done
+  [ "$found_ip" -eq 1 ] ||
+    fail "refusing PROD reminder cron action without local IPv4 135.106.162.170"
+}
+
 run_job(){
   local env_file="$1" endpoint="$2" lock_file="$3"
   require_root
@@ -32,7 +47,7 @@ run_job(){
 }
 
 run_test(){ run_job "$TEST_ENV_FILE" "$TEST_ENDPOINT" "$LOCK_FILE"; }
-run_prod(){ run_job "$PROD_ENV_FILE" "$PROD_ENDPOINT" "$PROD_LOCK_FILE"; }
+run_prod(){ assert_canonical_prod_host; run_job "$PROD_ENV_FILE" "$PROD_ENDPOINT" "$PROD_LOCK_FILE"; }
 
 install_test(){
   require_root
@@ -41,6 +56,7 @@ install_test(){
 }
 
 install_prod(){
+  assert_canonical_prod_host
   require_root
   [ -x "$PROD_PROJECT_ROOT/deploy/host/web-push-only-reminder-cron.sh" ] || fail "canonical PROD checkout/script is unavailable"
   node "$CRONPORT" set "$PROD_JOB_NAME" '* * * * *' "$PROD_PROJECT_ROOT/deploy/host/web-push-only-reminder-cron.sh run-prod"
@@ -65,9 +81,9 @@ case "${1:-}" in
   disable-test) require_root; node "$CRONPORT" disable "$JOB_NAME" ;;
   enable-test) require_root; node "$CRONPORT" enable "$JOB_NAME" ;;
   remove-test) require_root; node "$CRONPORT" remove "$JOB_NAME" ;;
-  disable-prod) require_root; node "$CRONPORT" disable "$PROD_JOB_NAME" ;;
-  enable-prod) require_root; node "$CRONPORT" enable "$PROD_JOB_NAME" ;;
-  remove-prod) require_root; node "$CRONPORT" remove "$PROD_JOB_NAME" ;;
+  disable-prod) assert_canonical_prod_host; require_root; node "$CRONPORT" disable "$PROD_JOB_NAME" ;;
+  enable-prod) assert_canonical_prod_host; require_root; node "$CRONPORT" enable "$PROD_JOB_NAME" ;;
+  remove-prod) assert_canonical_prod_host; require_root; node "$CRONPORT" remove "$PROD_JOB_NAME" ;;
   status) node "$CRONPORT" list | grep -E "${JOB_NAME}|${PROD_JOB_NAME}" || true ;;
   --self-test) self_test ;;
   *) fail "usage: $0 {run-test|run-prod|install-test|install-prod|disable-test|disable-prod|enable-test|enable-prod|remove-test|remove-prod|status|--self-test}" ;;

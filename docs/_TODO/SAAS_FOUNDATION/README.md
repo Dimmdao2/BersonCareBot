@@ -2,14 +2,15 @@
 
 ## Current authority
 
-- [`OWNER_RULINGS_2026-07-15.md`](OWNER_RULINGS_2026-07-15.md) — foundation/tenant/enforcement rulings.
+- [`OWNER_RULINGS_2026-07-15.md`](OWNER_RULINGS_2026-07-15.md) — foundation/tenant/enforcement rulings §§1–17;
+  Rubitime §18 сохранён только как superseded provenance и не входит в current authority.
 - [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
   — latest product/UX authority for tariffs, trial, billing, libraries, clinic entitlement, analytics and current
   TEST interface. It supersedes older product assumptions but does not rewrite foundation safety gates.
 - [`SEQUENCE.md`](SEQUENCE.md) — order of current work.
 - [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md) — TEST-only enforcement and acceptance plan.
-- [`RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](RUBITIME_RETIREMENT_EXECUTION_PLAN.md) — Rubitime history and
-  retirement plan; fresh CSV is the preservation canon.
+- [Rubitime retirement archive](../../archive/2026-07-rubitime-retirement/README.md) — завершённый 2026-07-27
+  workstream; архивные планы и CSV one-shot не являются current authority.
 
 ## Boundary
 
@@ -25,6 +26,7 @@ directory or Git history only when labelled **superseded** and linked to the rul
 - UX filter «мои пациенты», without changing clinic-wide staff visibility: `SEQUENCE.md` §4.4.
 - Standard SaaS engineering for organization provisioning, settings-root split and DB-role granularity:
   `OWNER_RULINGS_2026-07-15.md` §§13–16.
-- Rubitime R1 CSV history proof plus TEST-only R5-R7 proof: `RUBITIME_RETIREMENT_EXECUTION_PLAN.md`.
+- Rubitime runtime отсутствует; история R1–R7 хранится только в `docs/archive/2026-07-rubitime-retirement/`.
+  Ни ссылка на `OWNER_RULINGS_2026-07-15.md`, ни старые открытые боксы не могут повторно разрешить CSV/import/R1–R7.
 - Product/UX execution order and current TEST corrections:
   `../SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` §7.3.

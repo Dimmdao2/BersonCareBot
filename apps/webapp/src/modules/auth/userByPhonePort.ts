@@ -8,6 +8,11 @@ export type CreateOrBindResult = {
 };
 
 export type CreateOrBindOptions = {
+  /**
+   * True only when the verified factor itself proves possession of the phone number.
+   * Delivery to email or another non-phone factor must leave phone trust unchanged.
+   */
+  phoneNumberProven?: boolean;
   /** Current authenticated patient for profile phone binding; never accepted from confirm request. */
   profileBindUserId?: string;
   /** Organization scope resolved from that authenticated session; never accepted from confirm request. */

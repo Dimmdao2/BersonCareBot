@@ -25,12 +25,12 @@ import { formatDoctorFio } from '@/shared/lib/fio';
 import { DoctorGlobalTasksSection } from './DoctorGlobalTasksSection';
 import { DoctorTodayLeftKpiRow } from './DoctorTodayLeftKpiRow';
 import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
+import type { TodayDashboardData } from './loadDoctorTodayDashboard';
 import {
   ON_SUPPORT_LIST_HREF,
   PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
   RECENT_VISITS_LIST_HREF,
-  type TodayDashboardData,
-} from './loadDoctorTodayDashboard';
+} from './doctorTodayLinks';
 
 type Props = {
   data: TodayDashboardData;

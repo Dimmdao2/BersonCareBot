@@ -29,9 +29,16 @@
 - Audit run: `rubitime-981-c2-ops-audit`, read-only against `471fac8fd`.
 - Verdict: `WARN`; operational completion is not done.
 - Atomic denominator: 48 rows — 4 evidence-already-real, 18 code-only, 8 TEST-runtime-needed, 11 owner-live-needed, 4 stale/contradictory and 3 deferred by the current non-destructive cadence.
-- Durable evidence: `TRACK_C_R5_R7_EVIDENCE_MATRIX.md` records every atomic row and the exact remaining gate.
+- Durable historical evidence: `docs/archive/2026-07-rubitime-retirement/TRACK_C_R5_R7_EVIDENCE_MATRIX.md` records the then-open rows; it is no longer a current gate.
 - Current static proof is deliberately narrow: mounted Rubitime routes, integrator runtime imports and API-client tokens are zero; this does not prove cutoff, queues drained, fresh CSV reconciliation, archive/drop or rollback.
 - Next executable gate remains integrated-SHA checks, one accumulated full CI, incremental TEST deploy and runtime smoke/evidence. R7 destructive work remains owner-gated and is not part of routine TEST verification.
+
+## 2026-07-29 — Rubitime retirement archived
+
+- Rubitime was retired on 2026-07-27.
+- Owner: «Rubitime у нас больше нет — убирать в архив явно».
+- Track C plans, evidence and one-shot artifacts moved to `docs/archive/2026-07-rubitime-retirement/`.
+- The old R5–R7 matrix and runbooks are historical evidence, not executable gates.
 
 ## 2026-07-22 — owner-confirmed execution and parallelism model
 

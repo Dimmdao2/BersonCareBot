@@ -549,7 +549,8 @@ Actions:
 - Require explicit owner approval of that exact preview artifact before production apply.
 - Use one canonical apply entrypoint with an immutable reviewed manifest: schema/version, unique IDs, explicit
   approval, expected-before snapshot, run ID and hash. Do not commit the draft XLSX generator/extractor.
-- Verify exact `current_database()` against an explicit dev/test/production target; localhost is not proof of DEV.
+- Verify exact `current_database()` against an explicit DEV/TEST target on current `151.x`. PROD is not localhost
+  here: it is a separately authorized target on `135.106.162.170`.
 - Before mutation, verify the canonical host backup/runbook gate and create a durable `0600` rollback manifest.
 - Apply in one transaction with conditional expected-before updates, abort/skip accounting for drift, and no PII
   console samples. Rollback is conditional on the recorded post-apply state and must not overwrite later edits.

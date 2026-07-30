@@ -5,7 +5,8 @@ Status: active operating checklist for the full multitenant flip work, not only 
 Cadence:
 
 - Re-check this checklist at least every 30 minutes of active work and before every commit.
-- Record material decisions, blockers, validation, audits, and commits in taskdb and the relevant phase log.
+- Record material decisions, blockers, validation, audits, and commits in the canonical plan/relevant phase log.
+  Keep taskdb to title, status, plan link, optional concise description and service fields.
 
 Scope discipline:
 

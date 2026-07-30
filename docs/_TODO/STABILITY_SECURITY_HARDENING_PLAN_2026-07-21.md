@@ -47,7 +47,9 @@ production activation остаются отдельными owner gates.
 - `#881` — отдельный канон Security CI, который здесь не дублируется.
 
 Статус каждого подпункта: `covered`, `residual_gap`, `dependency_waiting`, `owner_gate` или `post_launch`. Новая
-taskdb-карта создаётся только для доказанного `residual_gap` с точным file scope; существующие карты не дублируются.
+Доказанный `residual_gap` добавляется в канонический план существующего workstream. Новая taskdb-карточка
+допустима только для отдельного цельного owner-requested/approved workstream по `docs/TASKDB_RULES.md`;
+точный file scope остаётся в плане, существующие карточки не дублируются.
 В частности, A1/A3/A4/F1 не запускаются как «переписать заново» до этой сверки.
 
 ### Reconciliation result — current branch, reconciled 2026-07-22

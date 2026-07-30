@@ -1,4 +1,10 @@
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> SUPPORTING / NON-STANDALONE SEQUENCE. Current production entrypoint is
+> `docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md`. This file does not authorize a cutover or direct
+> execution. PROD commands are valid only on `135.106.162.170` (`adelaide`) after explicit owner GO; current
+> `151.241.228.122` is DEV/RELAY/TEST and must never source `*.prod` or touch PROD units.
+>
+> Historical verification snapshot 2026-07-23:
+> `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md`.
 
 # ЦЕЛЬ #667 — одна чёткая последовательность деплоя SaaS-изоляции
 

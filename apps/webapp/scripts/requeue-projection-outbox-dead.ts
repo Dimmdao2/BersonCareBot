@@ -2,13 +2,13 @@
 /**
  * Requeue dead rows in integrator `projection_outbox` (same DB as webapp when shared DATABASE_URL).
  *
- * Target use case (F-01): `appointment.record.upserted` events that died with platform_user_id / patient_bookings
- * errors before phone linking was fixed — after linking, reset to pending for another delivery attempt.
+ * Generic operator tool: after repairing the cause of a dead projection, reset selected rows to
+ * pending for another delivery attempt.
  *
  * Usage:
  *   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/requeue-projection-outbox-dead.ts
  *   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/requeue-projection-outbox-dead.ts --commit
- *   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/requeue-projection-outbox-dead.ts --event-type=appointment.record.upserted
+ *   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/requeue-projection-outbox-dead.ts --event-type=reminder.rule.upserted
  */
 
 import 'dotenv/config';

@@ -7,6 +7,10 @@
 Зачем: владелец одним запросом видит «что ждёт его ответа» по всем проектам; ничего не теряется;
 не нужно перечитывать документы.
 
+Содержимое карточки по решению владельца 30.07.2026: короткое название, статус, ссылка на канонический план
+и обязательное краткое понятное описание сути workstream. Ход, подробности, решения, вопросы, проверки
+и доказательства живут в плане, а не в narrative-полях карточки.
+
 ## КРИТИЧНО: только через утилиту-порт, НИКОГДА сырым SQL
 
 - Работать с задачами ТОЛЬКО через `node /home/dev/brain/tools/taskdb.mjs`.
@@ -22,13 +26,15 @@
 - найти задачу: `node /home/dev/brain/tools/taskdb.mjs find bcb "<подстрока>"`
 - что ждёт ответа владельца: `node /home/dev/brain/tools/taskdb.mjs waiting`
 - исключение для нового owner-requested/approved workstream:
-  `node /home/dev/brain/tools/taskdb.mjs add "<заголовок>" "<краткая граница + план>" bcb-lead bcb`
+  `node /home/dev/brain/tools/taskdb.mjs add "<заголовок>" "<обязательное краткое понятное описание>" bcb-lead bcb --plan docs/_TODO/<plan>.md`
 - взять следующую (для авто): `node /home/dev/brain/tools/taskdb.mjs next-json bcb`
 - отметить статус: `node /home/dev/brain/tools/taskdb.mjs set <id> status <todo|doing|blocked|done>`
-- ход/ошибка/вопрос/печати: `set <id> note "..."` | `set <id> question "..."` | `set <id> owner_waiting true` | `set <id> seal_test true` | `set <id> commit_ref <hash>`
+- служебные поля: `set <id> owner_waiting true` | `set <id> seal_test true` | `set <id> seal_audit true` |
+  `set <id> commit_ref <hash>`. Narrative `note`/`question` не заполнять.
 
-Правило: начал задачу — `status doing`; упёрся в решение владельца — `status blocked` + `owner_waiting true` + `question`;
-довёл и проверил — `status done` + `seal_test true` + `commit_ref`. Так владелец видит реальную картину без чтения файлов.
+Правило: начал задачу — `status doing`; упёрся в решение владельца — записал точный вопрос в план,
+поставил `status blocked` + служебный `owner_waiting true`; довёл и проверил — `status done` + требуемые
+seals/`commit_ref`. Владелец видит состояние в карточке, а содержание — по одной ссылке на план.
 
 Для workstream-карточки перед `status done` обязательна полная матрица каждого referenced atomic owner checkbox:
 code/test/runtime evidence либо явный owner defer/cancel со ссылкой и причиной. Aggregate worker `done`, audit

@@ -77,10 +77,8 @@ const checks = [
     'SAAS P0.13 synthetic fixture generator',
     'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-synthetic-fixtures.mjs',
   ],
-  [
-    'SAAS P0.13 executable app smoke',
-    'docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-13-app-dormant-smoke.mjs',
-  ],
+  // #1074 step 1 keeps the dormant-smoke harness but unhooks it until the five removed
+  // app-level target tests are rebuilt under the new suite contract.
   [
     'SAAS Phase 4 generated FORCE target artifact',
     'docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs',

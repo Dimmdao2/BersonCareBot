@@ -13,6 +13,23 @@
 
 **Канонический источник правил:** `.cursor/rules/*.mdc` и `.cursor/rules/test-execution-policy.md`. При расхождении приоритет у файлов в `.cursor/rules/` (там есть `globs` и `alwaysApply` для scoped-правил). При изменении правил обновляйте **оба** места.
 
+**Вопрос сам по себе не является командой.** Он не разрешает начинать, менять, переделывать, запускать или
+останавливать работу, если в нём нет явной инструкции. Но правило применяется к частям сообщения, а не ко всему
+сообщению целиком:
+
+1. Если сообщение содержит и вопрос, и явную задачу — ответить на вопрос **и выполнить задачу**.
+2. Вопрос по ходу уже порученной работы не ставит её на паузу и не отменяет. После ответа продолжать, если владелец
+   явно не сказал остановиться, поставить на паузу, отменить или изменить scope.
+3. Из вопроса нельзя домысливать новую работу; из отсутствия повторной команды «продолжай» нельзя домысливать
+   остановку уже порученной работы.
+
+**Не высасывай проблемы из пальца.** Делай только необходимый и достаточный объём — минимум, чтобы требуемое
+поведение работало. Аудитор ищет только важные ошибки: обязательное поведение реально не работает; достижима
+уязвимость/обход security boundary; возможны data loss/corruption/неверные деньги; реально ломается
+build/runtime/integration. Каждый `MUST FIX` обязан назвать конкретный достижимый сценарий, impact и точное
+нарушенное требование/правило. Style/preferences, теоретические edge cases без actual path, extra hardening,
+alternative architecture и «можно сделать лучше» — не findings; без обязательных доказательств finding удалить.
+
 **STOP-GATE: сначала существующие документы и scripts, потом действия.** Для ЛЮБОЙ существенной задачи агент НЕ имеет права изобретать последовательность, писать новый SQL/script, менять код или запускать команды, пока не:
 
 1. прочитал `AGENTS.md`, `README.md`, `docs/README.md` и релевантные docs/rules/runbooks по теме;
@@ -30,7 +47,7 @@
 - `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` — **dev-серверы, dev-bypass вход в кабинеты, живое UI-тестирование**
 - `deploy/HOST_DEPLOY_README.md`
 - `docs/AGENT_AUTORUN_SCHEME.md` — общий метод автопрохода; `docs/ORCHESTRATION_BINDINGS.md` — **обязательный практический канон BersonCare**, который побеждает generic/host материалы в repo-specific вопросах. Читать оба для любой оркестрованной/автономной работы.
-- `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` — **исторический one-shot runbook: Rubitime выведено 2026-07-27**. Читать только для воспроизведения/аудита завершённого retirement и старых fresh-copy прогонов; это не руководство по текущему runtime.
+- `docs/archive/2026-07-rubitime-retirement/README.md` — **архив выведенного 2026-07-27 Rubitime-контура**. Это исторические доказательства и one-shot материалы, не руководство по текущему runtime.
 
 ---
 
@@ -50,6 +67,7 @@
 9. [Full CI gate](#9-full-ci-gate)
 10. [Test execution and audit policy](#10-test-execution-and-audit-policy)
     10a. [Тест проверяет поведение, а не текст и не обстоятельства запуска](#10a-тест-проверяет-поведение-а-не-текст-и-не-обстоятельства-запуска)
+    10b. [Канон написания тестов](#10b-канон-написания-тестов)
 11. [Webapp-тесты: компактность](#11-webapp-тесты-компактность)
 12. [Plan Authoring And Execution Standard](#12-plan-authoring-and-execution-standard)
 13. [Формат ответа: ИТОГ](#13-формат-ответа-итог)
@@ -86,7 +104,13 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
 - For any server, deploy, prod, systemd, nginx, env, path, port, DB, backup, migration, backfill, reconcile, or cutover question:
   - Treat `docs/ARCHITECTURE/SERVER CONVENTIONS.md` as the primary source of truth for confirmed runtime facts.
   - Use exact names and paths from that file. Never invent or guess paths, service names, env file names, DB names, ports, URLs, or users.
-- **PostgreSQL on host:** Never instruct `psql "$DATABASE_URL"` without the full `set -a && source /opt/env/bersoncarebot/<api.prod|webapp.prod> && set +a` preamble — see раздел [Host: PostgreSQL](#6-host-postgresql-и-database_url). Commands must be copy-paste complete.
+- **Host identity — blocking gate:** current `151.241.228.122` is DEV/RELAY/TEST only; PROD is only
+  `135.106.162.170`. Local `/opt/projects/bersoncarebot`, `*.prod` and `bersoncarebot-*-prod.service` are stale,
+  masked remnants, not runtime PROD. Before any PROD action prove target-host = `135.106.162.170` and obtain
+  explicit owner permission.
+- **PostgreSQL on host:** Never instruct bare `psql "$DATABASE_URL"`. Load the env for the explicitly named
+  DEV/TEST/PROD target; PROD `*.prod` is allowed only on `135.x`. See раздел
+  [Host: PostgreSQL](#6-host-postgresql-и-database_url). Commands must be copy-paste complete.
 - If a required runtime fact is missing or not explicitly confirmed in docs:
   - Say clearly that the value is missing/unconfirmed.
   - Give exact commands to discover it on the host.
@@ -95,7 +119,9 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
   - Store only non-secret operational facts in docs (paths, unit names, port numbers, DB names, env key names, URLs, users, ownership).
   - Never write secrets, passwords, tokens, or full credential-bearing connection strings into repo docs.
 
-**Production-хост:** пользователь `deploy` **не имеет** произвольного `sudo` в SSH — только whitelist (systemctl bersoncarebot-\*, backup). Не давать агенту `sudo rm/chown/cp` от `deploy`; root-операции — явно «от root». Подробно: `docs/ARCHITECTURE/SERVER CONVENTIONS.md` §«КРИТИЧНО: deploy».
+**Production-хост `135.106.162.170`:** sudoers нельзя считать безопасной границей; агент не выполняет там
+`sudo` и вообще не касается PROD без отдельного явного owner-разрешения. Подробно:
+`docs/ARCHITECTURE/SERVER CONVENTIONS.md` §«КРИТИЧНО: deploy».
 
 ### Задачи — только через taskdb-порт, не сырой SQL
 
@@ -112,13 +138,17 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
   Основные команды: `list bcb` · `find bcb "<подстрока>"` · `waiting` · `set <id> <field> <value>`.
   Сначала `find` и дополнение канонического плана; `add` допустим только для нового цельного owner-requested или
   owner-approved workstream по гейту `docs/TASKDB_RULES.md`.
-  Settable fields: `status` · `note` · `question` · `owner_waiting` · `commit_ref` · `seal_test` · `seal_audit` · `auto_ok` · `title` · `meta` · `category`
+  Карточка содержит только название, статус, ссылку на план и обязательное краткое понятное описание.
+  Narrative `note`/`question`/`meta` не использовать для хода, решений, проверок или доказательств: всё это
+  записывается в план. `owner_waiting`, `auto_ok`, seals, acceptance и `commit_ref` — служебное состояние порта.
 
 - **НИКОГДА** не лезть в таблицу `plan_tasks` напрямую — ни `psql`, ни `INSERT/UPDATE/SELECT` из кода/ORM. Один порт = согласованные транзакции + единая точка контроля доступа. Не хватает операции — допиши утилиту (через ведущего/Нео), не обходи её.
 
 - **`accepted` / `accepted_at`** — **только владелец**. Агент НЕ ставит `accepted`. «done» ≠ «accepted».
 
-- Дисциплина статусов: начал → `status doing`; упёрся в решение владельца → `status blocked` + `owner_waiting true` + `question "<вопрос>"`; довёл и проверил → `status done` + `seal_test true` + `commit_ref <hash>`. Ход фиксируй note существующей карточки. Ответ/решение владельца записывай дословно в существующий план/канон, а в note давай точную ссылку; решение не является новой карточкой.
+- Дисциплина статусов: начал → `status doing`; упёрся в решение владельца → записал точный вопрос и контекст
+  в план, поставил `status blocked` + служебный `owner_waiting true`; довёл и проверил → `status done` +
+  требуемые seals/`commit_ref`. Ход и ответ владельца фиксируй в плане/каноне, карточку ими не дополняй.
 - Для workstream-карточки `done` означает закрытие **каждого** referenced atomic owner checkbox по матрице
   code/test/runtime evidence. Aggregate worker `done` или audit `PASS` недостаточны. Пока строка открыта или имеет
   обычный blocker, taskdb остаётся `doing/blocked`; закрыть строку без реализации можно только по явному owner
@@ -131,7 +161,9 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
 ### Прогон тестов и сборок — напрямую разрешено
 
 - **🔴 РЕШЕНИЕ ВЛАДЕЛЬЦА 29.07.2026: полный CI в моменте — ТОЛЬКО ОДИН.** `pnpm run ci` и любой полный прогон тестов запускать ИСКЛЮЧИТЕЛЬНО через общий замок: `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`. Остальные ждут в очереди автоматически (flock), писать протоколы вручную не нужно.
-- **Почему:** на боксе рядом живёт ПРОД — 8 ядер, 31 ГиБ, БЕЗ подкачки. Параллельные прогоны не только толкаются за процессор, но и грозят нехваткой памяти. Цена уже заплачена 29.07: три одновременных прогона столкнулись за общий замок сборки Next (`Another next build process is already running`), прогон CI потерян впустую.
+- **Почему:** `151.x` — общий DEV/TEST-хост; параллельные прогоны толкаются за CPU/RAM и общий замок сборки
+  Next. Цена уже заплачена 29.07: три одновременных прогона получили
+  `Another next build process is already running`, прогон CI потерян впустую. PROD на этом хосте нет.
 - ⛔ **Решение владельца от 2026-07-09 «требование обязательного запуска через `run-tests.sh` временно снято» — SUPERSEDED 29.07.2026.** Не ссылаться на него: именно оно привело к тому, что агенты честно читали канон и шли мимо замка.
 - Точечные проверки (`vitest` по одному файлу, `typecheck`, `lint`) по-прежнему можно запускать напрямую — они короткие и общий ресурс не держат.
 - Уровень проверки выбирается по `.cursor/rules/test-execution-policy.md` и `.cursor/rules/pre-push-ci.mdc`: step/phase/full CI по масштабу риска, без лишних повторов. Команды и результаты проверок указывать честно.
@@ -151,7 +183,7 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
 - **`feat/doctor-ui-rebuild`** (dev): коммить и пушить свободно (авто-push ок).
 - **`main` / `test`: НИКОГДА не пушить/мёрджить без прямой команды владельца.**
 - **Два репо:** `origin` = `Dimmdao2/BersonCareBot` (dev/backup; прод-деплой выключен `if:false`). `dimmdao` = `dimmdao/BersonCareBot` — **производственный**.
-- **Прод-деплой — ручной:** в `dimmdao` → Actions → workflow **«Deploy (production)»** (`workflow_dispatch`, ввод `confirm=deploy`) → аппрув окружения `production`. Гейты: зелёный CI на коммите + human-approval. Затем SSH под юзером `deploy` запускает `deploy/host/deploy-prod.sh` (хост: `git pull main` → install → build → `pnpm migrate` → рестарт systemd). Хост `135.106.162.170`, путь `/opt/projects/bersoncarebot`, секреты `DEPLOY_SSH_KEY/USER/HOST/PATH` + read-only deploy-key для pull. Детали: `deploy/HOST_DEPLOY_README.md`.
+- **Прод-деплой — ручной:** в `dimmdao` → Actions → workflow **«Deploy (production)»** (`workflow_dispatch`, ввод `confirm=deploy`) → аппрув окружения `production`. Гейты: зелёный CI на коммите + human-approval. Затем SSH под юзером `deploy` запускает `deploy/host/deploy-prod.sh` (хост: `git pull main` → проверка заранее установленных root-owned units → build → `pnpm migrate` → restart). Установка/замена units — отдельный root-only bootstrap, не право deploy. Хост `135.106.162.170`, путь `/opt/projects/bersoncarebot`, секреты `DEPLOY_SSH_KEY/USER/HOST/PATH` + read-only deploy-key для pull. Детали: `deploy/HOST_DEPLOY_README.md`.
 
 ### 🔴 Индекс/векторы по коду — ГОТОВ, используй ПЕРЕД сканом кода (экономит токены всем)
 
@@ -166,14 +198,15 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
 
 - **Гранулярность:** только по [`docs/TASKDB_RULES.md`](docs/TASKDB_RULES.md): одна карточка = один цельный
   workstream; этапы, чекбоксы, полное ТЗ и детали живут в одном каноническом плане под `docs/_TODO/`.
-- **`title`** = короткое имя цельного workstream. **`block`** = краткая граница workstream + ссылка на план, не
-  полное ТЗ. **`note`** = краткий ход + точные ссылки на изменённые пункты плана; решения владельца записываются
-  дословно там, где описана проблема. **`category`** = область/страница для группировки. **`commit_ref`** = коммит.
+- **`title`** = короткое имя цельного workstream. **`block`** = ссылка на план + обязательное краткое
+  понятное описание сути/границы, не полное ТЗ. Ход, детали, решения, вопросы, проверки и доказательства —
+  только в плане; `note`/`question`/`meta` для narrative не использовать. **`commit_ref`** = служебная ссылка на коммит.
 - **Слои состояния:** `status` (todo/doing/blocked/done) → `seal_test`/`seal_audit` (агент проверил) → **`accepted`** (+`accepted_at`) = **ВЛАДЕЛЕЦ принял**. «done» ≠ «accepted».
 - **Гейт автономного лупа:** воркер берёт существующую карточку только при
   `status∈(todo,doing) AND owner_waiting=false AND auto_ok=true`. `auto_ok` управляет запуском, а не разрешает
   `add`: мелкая работа и находки остаются пунктами плана.
-- **`meta jsonb`** (после добавления поля): ссылки на доки + AI-данные — `{"docs":{"plan":…,"audit":…,"log":…,"design":…},"ai":{"vectorIds":[…],"indexKeys":[…]}}`. Планы/аудиты/логи остаются ФАЙЛАМИ; в БД — статус + ссылки, не контент.
+- Планы/аудиты/логи остаются файлами. В карточке — одна ссылка на канонический план; остальные документы
+  маршрутизируются из него, а не перечисляются в карточке.
 
 ### 🔴 Чек-листы и коммиты: три состояния галочки, отметка тем же коммитом, номер карточки в сообщении (владелец, 2026-07-29)
 
@@ -197,7 +230,7 @@ _Полный канон разметки: [`docs/_TODO/BACKLOG_CONSOLIDATION_20
 - **Устное решение владельца записывать НЕМЕДЛЕННО** в тот документ, который он читает. «Нет в git» = «не
   записали», а не «не было»; грепом провенанс устного распоряжения не проверяется.
 - **Записать решение ≠ завести задачу.** Владелец 28.07: «я просил? убирай свой самовол». Решение вписывается
-  ТУДА, ГДЕ ОПИСАНА ПРОБЛЕМА — в существующую карточку или файл. Полный гейт новой карточки —
+  ТУДА, ГДЕ ОПИСАНА ПРОБЛЕМА — в существующий план или канон. Полный гейт новой карточки —
   [`docs/TASKDB_RULES.md`](docs/TASKDB_RULES.md). Назначать исполнителем владельца, ставить сроки и помечать «агентам не брать» — не твоё
   решение, даже когда он сказал «я это сделаю».
 
@@ -264,12 +297,23 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 
 _Источник: `.cursor/rules/dev-prod-isolation-no-real-creds.mdc` (alwaysApply)_
 
-Прод и dev — на одной машине. Прод: из `/opt/projects/bersoncarebot` (+ `/opt/env/bersoncarebot/*`, systemd `bersoncarebot-*-prod.service`, БД `bcb_webapp_prod`). Dev: из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, env `/.env` + `apps/webapp/.env.dev`, БД `bcb_webapp_dev`). Канонические пути — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+Среды разнесены: текущий `151.241.228.122` — DEV/RELAY/TEST; PROD — только `135.106.162.170`.
+DEV идёт из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, env `/.env` +
+`apps/webapp/.env.dev`, БД `bcb_webapp_dev`). TEST — `/opt/projects/bersoncarebot-test`, env `*.test`,
+юниты `bersoncarebot-*-test.service`, БД `bersoncarebot_test`. Старые local `/opt/projects/bersoncarebot`,
+`*.prod` и `bersoncarebot-*-prod.service` на `151.x` — запрещённые замаскированные остатки.
+Канонические пути — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
-1. **Реальные креды — только на проде.** Dev-env НЕ содержит реальных prod-секретов внешних каналов (Telegram / MAX / SMSC / S3) — они только в `/opt/env/bersoncarebot/*`. В dev: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`. Нашёл реальные креды в dev-env — очистить и сообщить владельцу.
+1. **Реальные PROD-креды — только на `135.x`.** DEV/TEST на `151.x` не содержат реальных prod-секретов
+   внешних каналов; `*.test` содержат только TEST-креды и обязательные send-safety ограничения.
+   В dev: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`.
+   Нашёл PROD-креды на `151.x` — инцидент: сообщить владельцу, не использовать и не печатать.
 2. **Dev не шлёт реально.** В `development` доставка = no-op/мок. Не делать действий, способных отправить реальное сообщение/SMS в Telegram / SMSC / MAX или записать в реальный S3 из dev (тестовые записи, рассылки, ретраи). `INTEGRATOR_API_URL` в dev — только локальный `127.0.0.1:4200`.
-3. **Dev-БД = изменяемая песочница.** `bcb_webapp_dev` разрешено пересоздавать, сидировать и менять для разработки/UX. TEST→DEV разрешён через `bash deploy/host/refresh-dev-from-test.sh --execute` (ровно `bersoncarebot_test` → `bcb_webapp_dev`, PROD не открывается). Не коммитить dumps/cookie jars/runtime exports; запрет реальной доставки из dev сохраняется.
-4. **Прод не трогать из dev.** Не подключаться к `bcb_webapp_prod`, не читать `/opt/env/*`, не дёргать прод-сервисы — только по явному запросу владельца и канону SERVER CONVENTIONS (+ раздел [Host: PostgreSQL](#6-host-postgresql-и-database_url)).
+3. **Dev-БД = изменяемая песочница.** `bcb_webapp_dev` разрешено сидировать и менять для разработки/UX. Текущие миграции применяются недеструктивно через `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`. TEST→DEV destructive refresh удалён решением владельца 2026-07-30: обычной разработке не нужно копировать TEST или пересоздавать DEV. Не коммитить dumps/cookie jars/runtime exports; запрет реальной доставки из dev сохраняется.
+4. **Прод не трогать из dev.** Не подключаться к `135.x`, PROD-БД, PROD-сервисам/вебхукам и не использовать
+   локальные остатки `*.prod`. PROD-операция требует отдельного явного owner-запроса с указанием PROD и проверки
+   target-host = `135.106.162.170` по SERVER CONVENTIONS (+ раздел
+   [Host: PostgreSQL](#6-host-postgresql-и-database_url)).
 5. **Секреты не печатать.** Значения `.env`/секретов — маскировать; не вставлять креды в чат / логи / коммиты / доки.
 6. **Не удалять `.next`/кэш работающих серверов вслепую** — сперва `pgrep -af next`.
 
@@ -495,12 +539,18 @@ _Источник: `.cursor/rules/host-psql-database-url.mdc` (alwaysApply)_
 ### Жёсткое требование для агентов
 
 1. **Никогда** не выдавать пользователю «голый» `psql "$DATABASE_URL"` / `psql "$INTEGRATOR_DATABASE_URL"` без блока, который **сначала** подгружает нужный env-файл на хосте.
-2. Любая инструкция для **production-хоста** с SQL должна быть **цельной для copy-paste**: `set -a` → `source <файл из SERVER CONVENTIONS>` → `set +a` → затем `psql` или `-f`.
+2. Любая инструкция с SQL должна быть **цельной для copy-paste** и называть среду: `set -a` →
+   `source <файл из SERVER CONVENTIONS>` → `set +a` → затем `psql` или `-f`. Текущий `151.241.228.122`
+   допускает только DEV/TEST env. PROD env используется только в отдельно разрешённой PROD-сессии на
+   `135.106.162.170`.
 3. Явно писать, **какой контекст** нужен: после **unification** (см. `SERVER CONVENTIONS.md`, `DATABASE_UNIFIED_POSTGRES.md`) `DATABASE_URL` в `api.prod` и `webapp.prod` обычно **одинаковый**; различайте схемы **`public`** vs **`integrator`** (`SET search_path`, префиксы таблиц). Для **legacy** cutover/dev с двумя кластерами — `INTEGRATOR_DATABASE_URL` из `cutover.prod` или второй env-файл.
 
-Канонические пути к env на production — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (не придумывать).
+Канонические host identity и пути к env — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (не придумывать).
 
-### Шаблоны production (готовые блоки)
+### Шаблоны production — только удалённый `135.106.162.170`
+
+**Никогда не выполнять эти блоки на текущем `151.241.228.122`.** Локальные `*.prod` — остатки старой
+топологии, а `bersoncarebot-*-prod.service` замаскированы.
 
 **Через `api.prod`** (integrator-процесс; та же БД, что webapp, если unified):
 
@@ -529,11 +579,12 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 Пути к локальным `.env` — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (например webapp dev: `apps/webapp/.env.dev`). Тот же принцип: **сначала** загрузить файл, в котором задан `DATABASE_URL`, **потом** `psql`.
 
-**Prod и dev — в одной PostgreSQL** (`bcb_webapp_prod` + `bcb_webapp_dev` на `127.0.0.1:5432`). Прод трогать нельзя; dev-роль не видит схемы прода — это норма, а не пустая база.
+На `151.x` в локальном PostgreSQL живут DEV (`bcb_webapp_dev`) и TEST (`bersoncarebot_test`).
+Настоящая PROD-БД находится на `135.x`, не является локальной базой этого хоста и из DEV не открывается.
 
 ### Пересоздание / обновление dev-базы из prod-дампа
 
-Канон с командами и граблями — [`docs/ARCHITECTURE/DB_DUMPS/README.md`](docs/ARCHITECTURE/DB_DUMPS/README.md) (раздел «Пересоздание dev-базы из prod-дампа»). Чего **не** делать (ломали вживую): `pg_restore --clean` поверх живой схемы; `--single-transaction` (откат из-за `COMMENT ON EXTENSION`); `REASSIGN OWNED BY bcb_webapp_prod` (задевает боевую базу — владельца задавать через `--no-owner --role=bcb_webapp_dev_user`). Пересоздание базы — только суперюзер `postgres` (роли `bcb_*` без `CREATEDB`): дать команды пользователю, не запускать самому. Миграциями «с нуля» схему не собирать — базу+леджер даёт дамп, `pnpm migrate` накатывает дельту.
+Канон с командами и граблями — [`docs/ARCHITECTURE/DB_DUMPS/README.md`](docs/ARCHITECTURE/DB_DUMPS/README.md) (раздел «Пересоздание dev-базы из prod-дампа»). Чего **не** делать (ломали вживую): `pg_restore --clean` поверх живой схемы; `--single-transaction` (откат из-за `COMMENT ON EXTENSION`); `REASSIGN OWNED BY bcb_webapp_prod` (может задеть shared/legacy local objects — владельца задавать через `--no-owner --role=bcb_webapp_dev_user`; настоящий PROD на `135.x` из этого flow не открывается). Пересоздание базы — только суперюзер `postgres` (роли `bcb_*` без `CREATEDB`): дать команды пользователю, не запускать самому. Миграциями «с нуля» схему не собирать — базу+леджер даёт дамп, `pnpm migrate` накатывает дельту.
 
 ### Скрипты в репозитории
 
@@ -809,7 +860,7 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ### Dev-DB opt-in smoke-тесты
 
-Ряд Vitest-тестов в `apps/webapp` скрыт за флагами `RUN_<DOMAIN>_DEV_DB=1` (плюс `USE_REAL_DATABASE=1` и `DATABASE_URL`). По умолчанию они **пропускаются** (`describe.skipIf`) и **не входят в CI**. Запускаются вручную в dev-среде. `bcb_webapp_dev` в целом является owner-authorized изменяемой песочницей, но текущие `*.devDb.integration.test.ts` сохраняют свой локальный **read-only** контракт; новый mutating smoke требует отдельного opt-in, fixture и cleanup. Полное соглашение: `.cursor/rules/test-execution-policy.md` §«Dev-DB opt-in smoke-тесты».
+Ряд Vitest-тестов в `apps/webapp` скрыт за флагами `RUN_<DOMAIN>_DEV_DB=1` (плюс `USE_REAL_DATABASE=1` и `DATABASE_URL`). По умолчанию они **пропускаются** (`describe.skipIf`) и **не входят в CI**. Текущий legacy-набор сохраняет локальный **read-only** контракт. Новые DEV-DB тесты, расширение набора и mutating smoke заморожены до отдельного аудита ролей/стен, стабилизации схемы БД и явного owner-go. Полное соглашение: `.cursor/rules/test-execution-policy.md` §«Dev-DB opt-in smoke-тесты».
 
 ---
 
@@ -832,7 +883,96 @@ _Источник: `.cursor/rules/tests-check-behaviour-not-circumstances.mdc` (
 - проверять только факт вызова собственной заглушки;
 - подгонять тест под сломанный код — поэтому фильтр годности применяет **не автор теста**.
 
-**Так надо.** Поведение (вход → выход), безопасность (неверный пароль → отказ, повтор → задержка, чужая клиника → пусто), доступ к данным против живой базы. Если структуру кода правда надо охранять — разбирай **дерево разбора TypeScript**, а не текст регуляркой (`typescript` уже в зависимостях; рабочий пример — `apps/webapp/src/app-layer/principal/pagePrincipalCensus.test.ts`). У любого механического гейта обязан быть самотест «сломай специально — убедись, что заметил».
+**Так надо.** Поведение (вход → выход), безопасность (неверный пароль → отказ, повтор → задержка, чужая клиника → пусто). Доступ к данным проверяется на одноразовой PostgreSQL только после аудита ролей/стен, стабилизации БД и owner-go; до этого fake/DEV-smoke не является DB/RLS-доказательством. Если структуру кода правда надо охранять — разбирай **дерево разбора TypeScript**, а не текст регуляркой (`typescript` уже в зависимостях). У любого механического гейта обязан быть самотест «сломай специально — убедись, что заметил»; действующий пример — негативный самотест gitleaks в `.github/workflows/security.yml`.
+
+## 10b. Канон написания тестов
+
+_Источник: `.cursor/rules/test-execution-policy.md` §«Канон написания тестов: необходимый и достаточный объём»._
+_Решения владельца 30.07.2026; независимый разбор —_
+_`docs/_TODO/TESTSUITE_DECISION_POLICY_OPUS5_AUDIT_2026-07-30.md`._
+
+Цель — не максимум тестов и не максимум безопасности любой ценой. Тест нужен только тогда, когда он защищает
+названное поведение от правдоподобной поломки. Перед созданием или сохранением теста агент обязан ответить:
+
+1. **Что именно сломается?** Одна конкретная фраза вида «при входе X система ошибочно делает/возвращает Y».
+2. **Зачем это защищать?** Какое наблюдаемое последствие будет у пользователя, данных, денег, интеграции,
+   доступности или безопасности, если теста не будет?
+3. **Откуда взят oracle?** Только требование владельца, канонический план/контракт, внешний протокол,
+   подтверждённый дефект или ранее наблюдавшееся стабильное поведение. Проверяемая реализация не может сама
+   придумать ожидаемый результат.
+4. **Нет ли уже достаточной защиты?** Другой тест или механический гейт считается защитой только при точной
+   ссылке на реально запускающий его CI workflow/job. Скрипт, package alias или выключенный workflow не считается.
+5. **Какой самый дешёвый публичный слой видит эту поломку?** Использовать его; не поднимать БД/UI/E2E, если тот
+   же класс ошибки полностью ловится unit/route-тестом.
+
+Нет конкретной поломки или независимого oracle — **тест не писать**. Неясное продуктовое ожидание — `OWNER
+QUESTION`, а не догадка агента. Coverage, размер/сложность файла, приватная функция, желание «подстраховаться» или
+сам факт рефакторинга не являются основанием для теста. Refactor без изменения уже защищённого поведения нового
+теста не требует.
+
+### Какой файл писать
+
+- `*.unit.test.ts` — чистая бизнес-логика через публичный API модуля;
+- `fast-check` используется внутри unit-теста; отдельного суффикса для property-based tests нет;
+- `*.contract.test.ts` — только настоящий контракт между границами или сервисами;
+- `*.route.test.ts` — наблюдаемая HTTP-семантика;
+- `*.ui.test.tsx` — поведение, наблюдаемое только через UI;
+- `*.postgres.integration.test.ts` — реальное поведение одноразовой PostgreSQL, но **только после отдельного
+  owner-go из следующего раздела**.
+
+Тестировать каждую функцию отдельно не нужно. Внутренние функции покрываются через публичное поведение модуля;
+прямой unit оправдан только для самостоятельного публичного бизнес-правила. Один сценарий не размножается по
+unit/route/UI/E2E: defense-in-depth допустим, только если каждый слой ловит другой класс поломки.
+Если заявлено поведение маршрута, `*.route.test.ts` вызывает настоящий публичный handler/proxy вместе с его wiring:
+прямой вызов guard/service не доказывает, что маршрут вообще использует эту защиту.
+
+### Что автоматизируется
+
+- Production Zod-схема остаётся единственным источником формы данных; не создавать параллельную test DSL/schema.
+- Fishery/builders строят setup; `fast-check` генерирует и shrink-ит входы; типизированный `test.each` перебирает
+  примеры и роли. Они не придумывают бизнес-ожидание.
+- AI может подготовить черновик, но человек/оркестратор проверяет независимый oracle.
+- Тест не воспроизводит алгоритм кодирования, подписи или протокола нашей реализации, чтобы изготовить себе oracle:
+  некорректные и граничные значения строятся публичным builder/encoder модуля. Независимая реализация внешнего
+  опубликованного протокола по его спецификации допустима — запрет касается копии собственного кода.
+- Целевая мутация/fault injection обязательна один раз на каждый независимый класс поломки — отдельный путь
+  отказа/решения, а не на каждый `it` и не на `describe` целиком. Результат записывается как
+  «что сломано → какое утверждение покраснело». Не строить ради этого новый глобальный фреймворк, если достаточно
+  локальной проверки.
+
+Заглушки допустимы на внешних границах. `toHaveBeenCalled*` не является самостоятельным oracle внутренней
+реализации. Для наблюдаемого side effect (отправка, платёж, аудит, постановка в очередь) допустимо проверять точные
+аргументы и отсутствие вызова в запрещённой ветке.
+
+Не писать тесты текста исходников/SQL, порядка внутренних вызовов и обстоятельств запуска. Не дублировать unit-тестом
+append-only/journal/chokepoint-инвариант, если он уже доказан действующим fail-closed CI-гейтом с точной ссылкой на
+workflow. Legacy keep-set не даёт исключения из этих правил.
+
+### DB/RLS — после аудита и стабилизации БД
+
+Полная PostgreSQL/RLS/ACL/concurrency-матрица строится **после отдельного аудита ролей и стен, стабилизации схемы
+БД и явного owner-go**. До этого:
+
+- не создавать новую DB/RLS test-механику и фиктивные `*.postgres.integration.test.ts`;
+- не подключать новые тесты напрямую к общей `bcb_webapp_dev`;
+- не выдавать fake repository/DEV-smoke за доказательство PostgreSQL, транзакций или RLS;
+- существующие legacy `*.devDb.integration.test.ts` не расширять и не считать merge-гейтом;
+- DB-free unit/route-тест может проверять решение до порта, но не заявляет DB/RLS гарантию.
+
+### Что проверяет аудитор тестов
+
+Аудитор не ищет максимум замечаний. Он отклоняет тест только при реальной ложной защите, неработоспособности,
+уязвимости или нарушении этого канона. Для каждого нового/сохранённого теста он проверяет:
+
+1. названы поломка и последствие;
+2. oracle независим от проверяемой реализации;
+3. выбран самый дешёвый публичный слой и нет бессмысленного дубля;
+4. файл реально выбирается своим Vitest project/CI job; zero-file или висячий include не считается зелёным;
+5. для каждого нового независимого класса поломки записано
+   «целевая мутация/fault injection → покрасневшее утверждение»;
+6. DB/RLS не имитируется до owner-go.
+
+Стиль, вкусовые улучшения и «можно покрыть ещё» не являются audit findings.
 
 ## 11. Webapp-тесты: компактность
 

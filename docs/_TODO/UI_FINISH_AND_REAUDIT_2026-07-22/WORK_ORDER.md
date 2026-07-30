@@ -4,13 +4,14 @@
 **Authority for "done":** the linked _detailed_ plan file of each stage — NEVER the roadmap one-line summary.
 
 > **RE-VERIFIED 2026-07-23:** all production `[x]` across the roadmap and detailed plans (~676) were audited against
-> code. Verified state + remaining-volume: [`PRODUCTION_READINESS_LEDGER_2026-07-23.md`](PRODUCTION_READINESS_LEDGER_2026-07-23.md)
+> code. Historical snapshot: [`PRODUCTION_READINESS_LEDGER_2026-07-23.md`](PRODUCTION_READINESS_LEDGER_2026-07-23.md)
 > and [`CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md`](CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md).
-> 659/676 confirmed; **3 functional fake-done reopened** → `[ ]`: Rubitime _patient/public "create works without
-> Rubitime"_ (Track C — falsified by incident #839 + D0 census; Rubitime create-path coupling still live) and
+> The following is the dated 2026-07-23 snapshot, not current runtime truth: 659/676 confirmed; **3 functional
+> fake-done reopened** → `[ ]`: Rubitime _patient/public "create works without Rubitime"_ (then falsified by
+> incident #839 + D0 census) and
 > `TASK_A` _"Full prod-copy PII rehearsal DONE"_ (no artifact, contradicts its own "NOT YET PROVEN"). 11 live-only
-> items reclassified `[~]`. Reality of the tracks below is unchanged: **Track C NOT done** (`branchServiceId` live,
-> R3C-11 past deadline, R7 not started, no drop migration); **Track D only D0 done**, D1-D10 open.
+> items reclassified `[~]`. **Superseded for Track C:** Rubitime was retired 2026-07-27 and archived by owner
+> ruling 2026-07-29; no R1–R7 work remains executable.
 
 ---
 
@@ -80,13 +81,9 @@ their own UI instead of following detailed plans.
 - Set up **PWA + web-push** for the global-admin account on TEST.
 - Deliverable: exact login steps sent to the owner.
 
-### Track C — Rubitime retirement on TEST (finish the existing plan)
+### Track C — Rubitime retirement: завершён и архивирован
 
-- Master plan: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md` + rounds R1–R5 + DB_CLEANUP_SEQUENCE.
-- Current state: NOT done — Rubitime code/tables still present on TEST (patient cabinet, booking, DoctorToday KPI,
-  `(global-admin)/doctor/admin/booking/integrations`). Finish R1–R5 **on TEST**: stop the exchange, remove
-  `branchServiceId` legacy links, archive, drop rubitime tables on TEST, observe breakage, fix it.
-- Note: this changes booking-related screens — coordinate with Track A.
+Rubitime выведено из эксплуатации 2026-07-27. Владелец 2026-07-29: «Rubitime у нас больше нет — убирать в архив явно». История прохода и доказательств: `docs/archive/2026-07-rubitime-retirement/README.md`. Старые R1–R7 runbook не возобновлять.
 
 ### Track D — direct integrator → `public` writes and legacy projection retirement
 
@@ -98,16 +95,17 @@ data remains. Historical migrations are immutable; PROD is out of scope.
 
 **Точная taskdb-привязка после сверки 29.07:** весь Track D D0–D10 — самостоятельная workstream-карточка `#987`.
 Её результат: исправить неверно закрытый `#635/#621`, перевести canonical domains на прямые transactional writes,
-после parity удалить POST `/api/integrator/events`, projection fanout/outbox, legacy transport и дублирующие
-Rubitime-only tables/settings/queues/projections, сохранив provider-neutral booking/support/reminder/business data.
+после parity удалить POST `/api/integrator/events`, projection fanout/outbox, legacy transport и остаточные
+provider-specific tables/settings/queues/projections, сохранив provider-neutral booking/support/reminder/business data.
 Сначала source/runtime inventory и умеренные независимые блоки; затем direct writers, HTTP/worker shutdown,
 destructive TEST/disposable migration+restore proof и docs/guards/tests. TEST разрешён; PROD и push в
 `main`/`test` запрещены без отдельной команды. Конкурировавший DB `SECURITY DEFINER` вариант D1 не
 канонизировать: выбор approach A зафиксирован в
-`SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`. `#981` остаётся отдельным Rubitime R5–R7
-provenance/cutoff workstream. `#959` — только parent reconciliation, `#984` — master coordination; эти ссылки
+`SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`. Бывший Rubitime workstream `#981` закрыт
+retirement 2026-07-27 и не является текущей очередью. `#959` — только parent reconciliation, `#984` — master coordination; эти ссылки
 не поглощают самостоятельный scope `#987`. Связанные authority inputs:
-`DATABASE_UNIFIED_POSTGRES.md`, T0.4-pre artifacts как inventory, не completion, и Rubitime retirement runbooks.
+`DATABASE_UNIFIED_POSTGRES.md` и T0.4-pre artifacts как inventory, не completion. Архивные Rubitime runbook
+не являются authority для исполнения.
 
 The HTTP-envelope/performance part of Stability E3 (`#980`) is **SUPERSEDED — 2026-07-23 by Track D / taskdb
 `#987`**. Reusable domain schemas may be retained, but no worker may optimize or expand the transport scheduled for
@@ -153,12 +151,30 @@ lfk_sessions` via `directPublic/writeDiaryLfkDirect.ts` (reuses D1 candidate res
       `scratchpad/d2-diary-lfk-report.md`. Follow-up: same ID-space bug in GET reads `listSymptomTrackings`/
       `listLfkComplexes` (not among the 4 event types) left for a separate fix; multi-org patient diary attribution
       fails-closed (product edge — owner Q if multi-clinic diary needed).
-- [ ] **D3 — support conversations and messages.** Direct transactional open/message/status writes and qualified
+- [ ] **D3 — support conversations and messages.** <br>⛔ **SUPERSEDED 30.07 в части «прямая запись из интегратора».** Новая целевая граница
+      (`apps/webapp/ARCHITECTURE.md`, раздел «Целевая схема»): владелец канона — вебапп, у интегратора доступа к
+      продуктовому канону не остаётся. Достижимый сценарий, который поймал аудит: пункт выполняется как написан →
+      интегратор продолжает писать канон → D10 убирает страховку → D17 отзывает права → первое же сообщение пациента
+      получает отказ и теряется; а если грант оставить, узкой роли не будет вовсе. Что остаётся в силе: исправление
+      реальных дефектов домена (беседы без организации, полнота полей, идемпотентность) — но выполняется как ПЕРЕНОС
+      владения доменом в вебапп, а не как ещё один прямой писатель в интеграторе. Direct transactional open/message/status writes and qualified
       public reads; reconcile the two current organization-null conversation rows before tightening/removing legacy
       storage.
-- [ ] **D4 — support questions and delivery audit.** Direct question create/message/answered and delivery-attempt
+- [ ] **D4 — support questions and delivery audit.** <br>⛔ **SUPERSEDED 30.07 в части «прямая запись из интегратора».** Новая целевая граница
+      (`apps/webapp/ARCHITECTURE.md`, раздел «Целевая схема»): владелец канона — вебапп, у интегратора доступа к
+      продуктовому канону не остаётся. Достижимый сценарий, который поймал аудит: пункт выполняется как написан →
+      интегратор продолжает писать канон → D10 убирает страховку → D17 отзывает права → первое же сообщение пациента
+      получает отказ и теряется; а если грант оставить, узкой роли не будет вовсе. Что остаётся в силе: исправление
+      реальных дефектов домена (беседы без организации, полнота полей, идемпотентность) — но выполняется как ПЕРЕНОС
+      владения доменом в вебапп, а не как ещё один прямой писатель в интеграторе. Direct question create/message/answered and delivery-attempt
       writes with tenant mismatch denied; keep `message_drafts` integrator-local as ephemeral state.
-- [ ] **D5 — reminder rules.** `public.reminder_rules` becomes the only business source for CRUD and scheduler reads;
+- [ ] **D5 — reminder rules.** <br>⛔ **SUPERSEDED 30.07 в части «прямая запись из интегратора».** Новая целевая граница
+      (`apps/webapp/ARCHITECTURE.md`, раздел «Целевая схема»): владелец канона — вебапп, у интегратора доступа к
+      продуктовому канону не остаётся. Достижимый сценарий, который поймал аудит: пункт выполняется как написан →
+      интегратор продолжает писать канон → D10 убирает страховку → D17 отзывает права → первое же сообщение пациента
+      получает отказ и теряется; а если грант оставить, узкой роли не будет вовсе. Что остаётся в силе: исправление
+      реальных дефектов домена (беседы без организации, полнота полей, идемпотентность) — но выполняется как ПЕРЕНОС
+      владения доменом в вебапп, а не как ещё один прямой писатель в интеграторе. `public.reminder_rules` becomes the only business source for CRUD and scheduler reads;
       retire `reminder.rule.upserted`, then classify the integrator rule table for migration-backed removal.
       <br>**PARTIAL 2026-07-25** (write-side slice, commit `384e7ca29`): `reminder.rule.upserted` HTTP fanout retired —
       `writePort.ts`'s `reminders.rule.upsert` now writes `public.reminder_rules` directly (`directPublic/
@@ -200,19 +216,166 @@ writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), fu
 - [ ] **D6 — reminder lifecycle, delivery and content grants.** Reconcile/backfill the currently missing failed
       occurrence history before retiring duplicate delivery/content projections; keep only proven technical scheduler
       state.
-- [ ] **D7 — remaining reminder writes.** Replace snooze/skip/done/mute/messenger-topic/notification-settings signed
+- [ ] **D7 — remaining reminder writes.** <br>⛔ **SUPERSEDED 30.07 в части «прямая запись из интегратора».** Новая целевая граница
+      (`apps/webapp/ARCHITECTURE.md`, раздел «Целевая схема»): владелец канона — вебапп, у интегратора доступа к
+      продуктовому канону не остаётся. Достижимый сценарий, который поймал аудит: пункт выполняется как написан →
+      интегратор продолжает писать канон → D10 убирает страховку → D17 отзывает права → первое же сообщение пациента
+      получает отказ и теряется; а если грант оставить, узкой роли не будет вовсе. Что остаётся в силе: исправление
+      реальных дефектов домена (беседы без организации, полнота полей, идемпотентность) — но выполняется как ПЕРЕНОС
+      владения доменом в вебапп, а не как ещё один прямой писатель в интеграторе. Replace snooze/skip/done/mute/messenger-topic/notification-settings signed
       POST adapters with the same validated direct-DB service contract.
 - [ ] **D8 — mailing/subscriptions.** Run an exact producer/consumer callgraph first. If the currently empty source
       and projection tables have no live producer, remove the dead event types/adapters/tables; do not build a new writer
       for a dead domain.
-- [ ] **D9 — Rubitime/appointment retirement, coordinated with Track C.** Remove Rubitime booking branches,
-      appointment projection events/handlers, bridge paths, provider tables/settings and `appointment_records` only
-      after canonical preservation proof. First migrate the still-active retry storage and calendar mapping to
-      provider-neutral structures.
+- [x] **D9a — Rubitime runtime retirement.** Rubitime выведено 2026-07-27; исторические планы и proofs перенесены в
+      `docs/archive/2026-07-rubitime-retirement/` по решению владельца 2026-07-29.
+- [x] **D9b — provider-neutral appointment projection cleanup.** Отдельно проверить оставшиеся
+      `appointment_records`, projection events/handlers, retry storage и calendar mapping; не считать архив Rubitime
+      доказательством удаления provider-neutral данных. **DONE 2026-07-30:** удалены только неиспользуемые
+      `publicAppointmentRecordSync` и `appointment.record.*` transport residues; canonical booking lifecycle,
+      `message_retry_jobs`, `booking_calendar_map` и Google sync сохранены. Доказательство:
+      `apps/integrator/src/kernel/contracts/legacyAppointmentProjectionTransport.contract.test.ts` +
+      целевая fault injection, integrator typecheck и независимый audit PASS.
 - [ ] **D10 — projection transport teardown, last.** Only after an exact zero-producer census, remove fanout/outbox,
       worker/wiring, generic emit client surface, `/api/integrator/events`, event contract/CSRF exception, projection
       health/proxy/digest tooling and the outbox table through a migration. Do not delete generic idempotency, delivery
       queues or unrelated service HTTP calls.
+      <br>**РЕШЕНИЕ ВЛАДЕЛЬЦА 30.07.2026:** текущий `jsonStableStringify` сохранить только как детерминированную
+      сериализацию для хеша/ключа идемпотентности; при удалении HTTP transport перенести его из
+      `webappEventsClient`-обвязки в нейтральный модуль. HTTP-body builder и весь смысл
+      `integrator → webapp POST /api/integrator/events` удалить. Кандидат `336e833e3` не интегрировать:
+      сам алгоритм сериализации там идентичен текущему, а добавленная обвязка обслуживает удаляемый HTTP contract.
+
+### Track D-полный — вычистка интегратора до адаптера каналов (решение владельца 30.07.2026)
+
+Владелец 30.07: «надо расширить тот план до полной вычистки интегратора, чтобы можно было сделать ему правильную
+ограниченную роль. И запустить его, а потом доделать прошлую работу но уже правильно». Цель всей ветки одной строкой:
+**интегратор остаётся приёмом вебхуков и доставкой сообщений, после чего получает узкую роль в базе.** Всё остальное
+уезжает в вебапп. Основание — три независимых исследования 30.07: `docs/_TODO/runs/integrator-role/SYNTHESIS.md`.
+
+Порядок жёсткий: сначала убрать то, что решает продуктовые вопросы, потом транспорт, и только в конце сузить права —
+роль, выданная раньше времени, просто уронит живые пути.
+
+**КТО ОРКЕСТРИРУЕТ И КОГО ЗАПУСКАЕМ (владелец 30.07).** Оркестратор — лид этой сессии, он же и работает им; правило
+мозга про «оркестрация всегда Opus» относится к агентам мозга и на выбор исполнителей здесь не влияет. Исполнители и
+аудиторы — **Codex по максимуму**: terra, luna, sol по типу работы. Вторая модель параллельно (claude) — **только на очень важные
+исследования**, где нужен независимый взгляд, а не на рядовые аудиты этапов (владелец 30.07). По этой ветке это ровно
+одно место: исследование идентичности D15a. Исследование роли интегратора 30.07 таким и было — три модели вслепую, и
+именно расхождение между ними дало главный результат.
+
+**ВЫБОР ИСПОЛНИТЕЛЯ.** Канон — `/home/dev/brain/docs/MODEL_TIERS.md` (таблица `Job → модель/effort`, источник истины в
+коде `lib/agent-runner/model-policy.mjs`). Запуск: `ORCH_JOB=<job> tools/orch-launch.sh …` — тип работы называет лид,
+модель и effort выбирает карта. Своей таблицы здесь НЕТ и не будет: 30.07 я такую написал, владелец её удалил —
+дублировать канон в планах запрещено.
+
+**ЕДИНЫЙ ПОРЯДОК ИСПОЛНЕНИЯ (собран 30.07 по находке аудита: три пункта одновременно объявляли себя последними).**
+Читать только эту последовательность; прежние пометки «always last» и «последним» внутри отдельных пунктов силы не
+имеют.
+
+1. **D12b** — перепись достижимых сценариев исполнителя (кода не меняет, задаёт объём всему остальному).
+2. **D11** ✅ дневник и ЛФК — удалено.
+2а. **D18a** — запрет на НОВЫЙ сырой SQL (ставится перед первой правкой кода, не раньше).
+3. **D12** мёртвые ветки исполнителя.
+4. **D13a** потребитель настроек напоминаний в вебаппе → **D14** решения жизненного цикла записи в вебапп →
+   **D13b** рез констант в интеграторе. Именно в этом порядке: рез раньше потребителя оставит пациентов без напоминаний.
+5. **D3–D8** — по своим доменам, но как ПЕРЕНОС владения в вебапп, а не как прямые писатели (см. пометки SUPERSEDED).
+6. **D15a** исследование идентичности → **D15b** пошаговый перенос.
+7. **D10** — снос транспорта проекции, только когда производителей не осталось.
+8. **D16** — сведение циклов к одному.
+9. **D18c** — перепись остатка сырого SQL и снятие запрета за ненадобностью — список пуст.
+10. **D17** — узкая роль в базе.
+11. **D19** — сверка правила и целевой схемы с тем, что получилось. Физически последний пункт: он проверяет уже
+    выданную роль, поэтому раньше закрыт быть не может.
+
+
+
+- [x] **D11 — блок дневника и ЛФК удалён из бота.** Доэпохи-вебаппа реализация: бот заводил болванку записи и отправлял
+      человека доделывать в приложение. Настоящий дневник живёт в вебаппе. Решение владельца 30.07: «вырезай весь блок
+      lfk-diary в интеграторе». Прогон — `docs/_TODO/runs/integrator-diary-removal/`.
+- [ ] **D12b — перепись ДОСТИЖИМЫХ сценариев исполнителя.** Аудит 30.07: удаление десяти мёртвых веток не закрывает
+      главную цель — в исполнителе остаются живые продуктовые решения. Нужна перепись: каждый достижимый сценарий и
+      действие классифицируются как «канал/доставка — остаётся» либо «продуктовое решение — уезжает в вебапп», с именем
+      и файлом. Без неё заголовок «интегратор = приём и доставка» остаётся декларацией.
+- [ ] **D12 — десять недостижимых веток исполнителя действий.** В `executeAction.ts` старый `switch` содержит ветки,
+      которые новые наборы обработчиков перехватывают раньше: код есть, исполниться не может. Решение владельца 30.07:
+      «просто вырезать; если что-то упадёт — посмотреть, что взять из старого кода и перенести в вебапп».
+- [ ] **D13a — СНАЧАЛА построить потребителя настроек в вебаппе.** ⚠️ Аудит 30.07 опроверг посылку, на которой пункт
+      стоял изначально (и которую лид озвучил владельцу — поправка): настройки `doctor_appointment_reminder_enabled` и
+      `doctor_appointment_reminder_offsets_minutes` существуют только как запись в реестре и экран
+      (`system-settings/registry.ts:127-128`, запись `api/admin/settings/route.ts:179-180,586-607`, чтение — лишь для
+      отрисовки `app/settings/page.tsx:137-147`); **ни один планировщик, джоб или путь отправки их не читает**. Модуль
+      шаблонов покрывает ровно три события — `created`, `cancelled`, `rescheduled` (`notifTemplatesService.ts:21-22`),
+      события «напоминание» в нём нет. Единственный тик напоминаний в вебаппе ходит по `reminder_rules` и только
+      web-push, записи на приём он не видит. То есть константы 24ч/2ч в интеграторе — не «конкурирующая» реализация, а
+      ЕДИНСТВЕННАЯ работающая. Поэтому сначала: чтение двух настроек на клинику, добавление события `reminder` в набор
+      шаблонов, постановка occurrences.
+- [ ] **D13b — только после D13a и D14 вырезать константы интегратора** (смещения 24ч/2ч и тексты в
+      `bookingLifecycleRoute.ts:365-376`). Решение владельца «вырезать нещадно» остаётся в силе — меняется лишь порядок:
+      сначала потребитель, потом рез. Если резать раньше, следующая созданная запись не поставит ни одной задачи,
+      пациент не получит ни напоминания за 24 часа, ни за 2, ошибок в логах не будет, деплой останется зелёным — и это
+      обнаружится по неявкам.
+- [ ] **D14 — решения о жизненном цикле записи уезжают в вебапп.** Что отменить при переносе, слать ли пуш, что писать в
+      календарь, в каком порядке уведомлять. Целевая цепочка (формулировка владельца): создание события → итоговые
+      настройки из базы для этого события и этого пациента → планировщик → воркер → интегратор как отправитель.
+      Переносить вместе с порядком уведомлений, иначе получим дубли или тишину.
+- [ ] **D15a — идентичность: сильное исследование командой ПЕРЕД работой** (решение владельца 30.07). Что именно
+      интегратор решает сам: создание и слияние `platform_users`, доверие к телефону, зачисления, предпочтения по
+      умолчанию. Результат — утверждённая схема переноса, а не отчёт «мы посмотрели».
+- [ ] **D15b — перенос идентичности, отдельными шагами.** Аудит 30.07: пункт нельзя закрывать одним исследованием,
+      иначе план разрешит выдать узкую роль, пока интегратор продолжает создавать и сливать людей — тогда после отзыва
+      прав падает первый же вебхук с новым пользователем, а если права оставить, узкой роли не будет вовсе. Шаги
+      обязательны по отдельности: утверждённая схема → миграция и идемпотентность → переключение вызывающих →
+      живое доказательство на TEST → удаление широких записей из интегратора.
+- [ ] **D16 — один цикл вместо трёх.** После переноса планировщика (D5–D7, D14) и сноса транспорта (D10) у воркера должен остаться один вечный цикл — доставка. Аудит 30.07: арифметика «ровно один» сегодня не сходится, потому что циклов и точек планирования больше, чем три; перед закрытием пункта пересчитать их поимённо и назвать каждый, который остаётся, с причиной. Целевое состояние — один цикл — очередь исходящей доставки с попытками, отступами и «мёртвой полкой». Очередь
+      остаётся в интеграторе: повторы и лимиты у каждого канала свои, и это и есть его польза. Отдельного модуля
+      «воркер-шедулер» не заводим — планировщик уезжает в вебапп, третьей сущности делать нечего.
+- [ ] **D18 — вычистить ВЕСЬ остаток сырого SQL, оба приложения (решение владельца 30.07: «по ходу плана надо вычистить
+      весь остаток сырого sql — то что не миграции и не корректно идёт в дриззл обёртку»).**
+
+      **Порядок — по решению владельца 30.07:** перепись НЕ делается заранее («думаю это имеет смысл делать после
+      вырезания всего того что мы планируем вырезать. А в процессе работы по этапам уже переводить на новый единый
+      drizzle порт всего чего мы касаемся»). Причина принята: ранняя перепись считает код, который исчезнет вместе с
+      D11–D16, и протухает в день составления.
+
+      - [ ] **D18a — запрет на НОВЫЙ сырой SQL.** Механическая проверка запоминает нынешний список файлов с сырыми
+            вызовами и **падает, если появится ещё один** вне разрешённого списка. Старое остаётся долгом, новое не
+            добавляется; по мере чистки список только сокращается и обратно не растёт. Приём в репозитории уже применялся — так заморожен счётчик неклассифицированных ручек в матрице авторизации.
+            Ставится перед первой правкой кода, а не раньше: перепись сценариев кода не меняет, защищать там нечего. Без этого пункта мы не заметим сырой SQL, который добавят по ходу этапов.
+      - [ ] **D18b — перевод по ходу этапов, только тронутого.** Каждый этап переводит на drizzle те файлы, которые он и
+            так правит по своей причине. Соседние файлы не открываем «раз уж мы тут» — иначе этап расползается и аудит
+            перестаёт понимать, что он проверяет. Перевод механический, без изменения поведения, и назван в отчёте
+            отдельной строкой, чтобы аудитор отличал конверсию от правки логики.
+      - [ ] **D18c — перепись остатка и снятие храповика, ПОСЛЕДНИМ.** Когда вырезано всё, что вырезается, и переведено
+            всё, чего касались: перепись поимённо с классификацией «миграция / законная обёртка / чистить», чистка
+            остатка, снижение списка до нуля. Пункт закрывается тем, что проверка перестаёт находить исключения, а не
+            отчётом.
+
+      **Что законно и НЕ трогается:** файлы миграций и деплойные SQL-скрипты; вызовы через параметризованную обёртку
+      drizzle (`sql` tagged template, `.execute()`) со связанными параметрами — образец правильного вызова, дверь
+      жизненного цикла; загрузчик миграций и низкоуровневый клиент пула.
+
+      **Замер на 30.07 (справочно, будет пересчитан в D18c):** 22 файла с сырыми вызовами в интеграторе (крупнейшие —
+      загрузчик миграций 13, `writeIdentityAndPreferencesDirect` 9, `writeSupportQuestionsDirect` 6, клиент пула 6,
+      телеметрия изоляции 5), 20 в вебаппе, при 79 файлах, работающих через законную обёртку. Числа включают законные
+      случаи — именно поэтому нужна классификация, а не голый счёт. Семь файлов `directPublic` владелец забрал себе
+      отдельным воркстримом: они входят в перепись, но не в наш объём работ.
+
+
+
+- [ ] **D17 — узкая роль в базе, последним.** Отдельная роль для интегратора: право писать только то, что нужно приёму и
+      доставке (свои таблицы, очередь, привязки каналов), без доступа к продуктовому канону. Сегодня у него та же роль,
+      что у вебаппа, поэтому никакая изоляция в коде ничего не значит. Выдавать роль можно только после ФАКТИЧЕСКОГО прекращения записей канона: D11, D12, D13a+D13b, D14, D15b, D16, D18 и пункты D3–D8 по своим доменам. Аудит 30.07 поймал, что прежняя формулировка «после D11–D16» неполна: после них интегратор всё ещё пишет канон поддержки и напоминаний, и узкая роль уронит именно их. Проверка — деплой ассертит точный набор прав, несовпадение
+      валит выкатку.
+
+- [ ] **D19 — перепроверить правило и схему ПОСЛЕ реализации (решение владельца 30.07).** Когда D11–D18 закрыты,
+      вернуться к `apps/webapp/ARCHITECTURE.md`: сверить записанную целевую схему с тем, что получилось на самом деле, и
+      при расхождении актуализировать правило, а не подгонять реальность под текст. Проверять по списку: остался ли в
+      интеграторе хоть один путь записи канона; действительно ли к базе ведёт один путь; сошлось ли число вечных циклов;
+      выдана ли узкая роль и совпадает ли она с тем, что ассертит деплой; не появилось ли новых прямых импортов между
+      деревьями приложений вместо пакета. Пункт закрывается только правкой документа (или явной записью «расхождений
+      нет»), а не устным «всё сошлось».
+
+
 
 Execution order: D0 first. After D0, D1, D2 and the code-only portion of D9 may run in parallel where their file scopes
 do not intersect. D3 precedes D4. D5 precedes D6, which precedes D7. D8 may run alongside reminder packages. D10 is
@@ -248,6 +411,6 @@ Report ends with: `closed X/N against <owner plan path>` + a mandatory `NOT DONE
   **push + email to the sender**; technical requests, ticket model, show "do not share patient data" notice.
 - **Message & broadcast history:** NOT deleted (permanent product history). Only technical copies in logs/queues are purged.
 - **Settings-log secrets:** delete old plaintext values; encrypt new ones.
-- **Rubitime:** cut now on TEST (Track C).
+- **Rubitime:** retired 2026-07-27; Track C/R1–R7 не возобновлять. Provider-neutral booking cleanup ведётся отдельно.
 - **Legacy integrator↔webapp HTTP event ports:** retire (direct SQL via the single DB port); table-cleanup
   (Phase 3) deferred until UI works. This is queued AFTER this UI push, not inside it.

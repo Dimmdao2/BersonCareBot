@@ -1,6 +1,6 @@
 import type { ReminderRule } from '@/modules/reminders/types';
 import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/appDisplayTimezone';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 
 /** JSON shape returned by patient reminder APIs (create/PATCH responses). */
 export type PatientReminderRuleJson = {

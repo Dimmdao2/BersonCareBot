@@ -1,5 +1,8 @@
 # Orchestrator mission prompt (paste this to Sol / Codex orchestrator)
 
+> **SUPERSEDED IN PART 2026-07-29:** Rubitime retired 2026-07-27. Track C instructions below are historical and
+> must not be executed; current work starts from `docs/CURRENT_AUTHORITY_MAP.md` and taskdb.
+
 You are the ORCHESTRATOR for the BersonCare repo, running on the DEV+TEST box. Drive the work in
 `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` to real completion. Your job is to orchestrate and
 verify — not to do the content work yourself. Follow this exactly.
@@ -67,9 +70,9 @@ narratives, provenance notes) instead of code. Verification is mandatory; its AR
 check is mechanical, executable — never an essay. Canon: `docs/ORCHESTRATION_BINDINGS.md` §«Документация и
 токен-дисциплина».
 
-- **Verification ≠ documentation.** Prefer an executable gate over prose: a contract test or a census script (the D0
-  gate `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs` is the model). The script + its green
-  run IS the evidence; do not also write an essay about it. A green targeted test closes its matrix row by test name.
+- **Verification ≠ documentation.** Prefer an executable current gate over prose: a contract test or census script.
+  Retired source-text gates in archives are not models. The current script + its green run is the evidence; do not
+  also write an essay about it. A green targeted test closes its matrix row by test name.
 - **Evidence = one line per checkbox**, not narrative: `id → PASS/FAIL/BLOCKED → path:line | test | SHA`. No intro
   paragraphs, no re-stating requirements, no history retelling. If it fits in a commit message / PR body, do not
   create a file for it.
@@ -79,7 +82,8 @@ check is mechanical, executable — never an essay. Canon: `docs/ORCHESTRATION_B
 - **The orchestrator does not write prose with its own (expensive) context.** Delegate any needed write-up to a cheap
   model with a minimal task, or let the worker keep it in its own short log. Agent logs are terse, not essays.
 - **Provenance without theater.** Do not re-transcribe into markdown what already lives in git (diff, commit message)
-  and taskdb (status / commit_ref / note). An owner ruling is one line + link, not a retelling.
+  and taskdb service fields (status / commit_ref). An owner ruling is one line in the canonical plan, not a
+  retelling in the task card.
 - **Stage-boundary smell test:** if a stage produced more lines of documentation than of code/tests, that is a red
   flag of prose-drift. Ask whether the doc is truly needed to start the next stage or is just self-documentation;
   default is do not write it.
@@ -141,8 +145,7 @@ So on a recurring timer (every ~3 hours of active work) spawn an INDEPENDENT ext
   against its linked detailed plan and finish what is not really done. Acceptance via batched live PNGs.
 - **Track B (do early, small):** email-OTP global-admin login for `dimmdao@gmail.com` on TEST + admin PWA/push;
   send the owner exact login steps.
-- **Track C:** finish Rubitime retirement R1–R5 on TEST (stop exchange, drop `branchServiceId`, archive, drop
-  rubitime tables on TEST, fix breakage). Coordinates with Track A on booking screens.
+- **Track C (closed/history):** Rubitime retirement completed 2026-07-27. Do not run R1–R7 or restore provider code.
 
 ## Reporting
 

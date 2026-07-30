@@ -171,37 +171,30 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
      * Alfa-Bank sends a GET/POST callback to a URL you register. The callback includes:
      *   - mdOrder (Alfa's internal order ID = our providerIntentRef)
      *   - orderNumber (our orderNumber = idempotencyKey)
-     *   - checksum (optional, when configured) — SHA-256(orderId + secret) hex
+     *   - checksum — SHA-256(orderId + secret) hex
      *
-     * The idiomatic verification is:
-     *   1. If a checksum is present: verify SHA-256(mdOrder + webhookSecret) === checksum.
-     *   2. Always call getOrderStatusExtended to confirm payment state (anti-replay).
-     *
-     * This adapter performs the checksum verification if present.
-     * The caller (webhook route / service) should call getOrderStatusExtended as a follow-up.
-     *
-     * webhookSecret here is used as the checksum secret if Alfa-Bank's "notification_key"
-     * is configured; if not configured, we fall through as verified=true and rely on
-     * server-side status check.
+     * This route has no getOrderStatusExtended follow-up, so unsigned callbacks must
+     * fail closed instead of being trusted as payment state authority.
      */
     verifyWebhook({ headers, bodyText, webhookSecret }) {
       const inspected = inspectAlfabankWebhook(headers, bodyText);
       const payload = inspected.payload;
       const mdOrder = inspected.intentRef ?? '';
       const checksumField = String(payload['checksum'] ?? '');
+      const checksumSecret = webhookSecret.trim();
 
-      if (checksumField && webhookSecret.trim()) {
-        // Alfa checksum: SHA-256(mdOrder + secret)
-        const expected = createHash('sha256')
-          .update(mdOrder + webhookSecret.trim())
-          .digest('hex');
-        const a = Buffer.from(checksumField.toLowerCase());
-        const b = Buffer.from(expected.toLowerCase());
-        if (a.length !== b.length || !timingSafeEqual(a, b)) {
-          throw new Error('invalid_webhook_signature');
-        }
+      if (!checksumField || !checksumSecret) {
+        throw new Error('invalid_webhook_signature');
       }
-      // If no checksum field configured — accept (caller must verify via getOrderStatusExtended)
+
+      const expected = createHash('sha256')
+        .update(mdOrder + checksumSecret)
+        .digest('hex');
+      const a = Buffer.from(checksumField.toLowerCase());
+      const b = Buffer.from(expected.toLowerCase());
+      if (a.length !== b.length || !timingSafeEqual(a, b)) {
+        throw new Error('invalid_webhook_signature');
+      }
 
       return inspected;
     },

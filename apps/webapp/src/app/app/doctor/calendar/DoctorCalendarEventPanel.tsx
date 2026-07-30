@@ -53,6 +53,7 @@ import {
 import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
+import { canUseOwnSpecialistAppointmentActions } from '@/modules/doctor-schedule/scope';
 
 // R21: причины отмены, отправляемые как reason в API.
 const CANCEL_REASONS = [
@@ -81,6 +82,7 @@ type Props = {
   timeZone: string;
   filterMeta: CalendarFilterMeta;
   activeFilters: CalendarCreateActiveFilters;
+  ownSpecialistId: string | null;
   onClose: () => void;
   onChanged: () => void;
   /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
@@ -91,6 +93,7 @@ type Props = {
   createInitialEnd?: string | null;
   createInitialBranchId?: string | null;
   createInitialServiceId?: string | null;
+  createInitialSpecialistId?: string | null;
   onCreateDirtyChange?: (dirty: boolean) => void;
   /** Dialog hosts keep their standard close; embedded schedule keeps this panel close. */
   showCloseControl?: boolean;
@@ -190,6 +193,7 @@ function DoctorCalendarEventPanelInner({
   timeZone,
   filterMeta,
   activeFilters,
+  ownSpecialistId,
   onClose,
   onChanged,
   startInCreate = false,
@@ -197,6 +201,7 @@ function DoctorCalendarEventPanelInner({
   createInitialEnd = null,
   createInitialBranchId = null,
   createInitialServiceId = null,
+  createInitialSpecialistId = null,
   onCreateDirtyChange,
   showCloseControl = true,
 }: Props) {
@@ -257,7 +262,11 @@ function DoctorCalendarEventPanelInner({
   useEffect(() => {
     if (!startInCreate) return;
     const nextSpecialistId =
-      resolveCalendarCreateFieldValue(filterMeta.specialists, activeFilters.specialistId, null) ??
+      resolveCalendarCreateFieldValue(
+        filterMeta.specialists,
+        activeFilters.specialistId,
+        createInitialSpecialistId,
+      ) ??
       filterMeta.specialists[0]?.id ??
       null;
     const nextBranchId =
@@ -279,7 +288,13 @@ function DoctorCalendarEventPanelInner({
     // R32: подставить выделенное время старта (если открыто через select по сетке)
     if (createInitialStart) setCreateStart(createInitialStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startInCreate, createInitialStart, createInitialBranchId, createInitialServiceId]);
+  }, [
+    startInCreate,
+    createInitialStart,
+    createInitialBranchId,
+    createInitialServiceId,
+    createInitialSpecialistId,
+  ]);
 
   useEffect(() => {
     if (mode !== 'create') onCreateDirtyChange?.(false);
@@ -463,7 +478,7 @@ function DoctorCalendarEventPanelInner({
                       startAt,
                       endAt,
                       durationMinutes: createDurationMinutes,
-                      ...(!isNewPatient ? { specialistId: createSpecialistId } : {}),
+                      specialistId: createSpecialistId,
                       branchId: createBranchId,
                       serviceId: createServiceId,
                     }),
@@ -774,7 +789,8 @@ function DoctorCalendarEventPanelInner({
                 ))}
               </SelectContent>
             </Select>
-            {isStaffDeletableCancelledStatus(selected.status) ? (
+            {canUseOwnSpecialistAppointmentActions(ownSpecialistId, selected.specialistId) &&
+            isStaffDeletableCancelledStatus(selected.status) ? (
               <Button
                 type="button"
                 size="sm"

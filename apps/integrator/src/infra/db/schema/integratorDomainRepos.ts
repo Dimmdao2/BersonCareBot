@@ -1,13 +1,11 @@
 /**
- * Таблицы домена P3 (reminders, public.appointment_records).
+ * Таблицы домена P3 reminders.
  * Колонки и ограничения сверены с миграциями integrator + `apps/webapp/db/schema/schema.ts`
  * (FK в Drizzle не тянем — только уникальные индексы/CHECK, как в P1).
  */
-import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
-  check,
   index,
   integer,
   jsonb,
@@ -135,35 +133,6 @@ export const contentAccessGrants = pgTable(
       'btree',
       table.userId.asc().nullsLast().op('int8_ops'),
       table.expiresAt.desc().nullsFirst().op('int8_ops'),
-    ),
-  ],
-);
-
-/** `public.appointment_records` — default schema в Drizzle = `public`. */
-export const appointmentRecords = pgTable(
-  'appointment_records',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    integratorRecordId: text('integrator_record_id').notNull(),
-    phoneNormalized: text('phone_normalized'),
-    recordAt: timestamp('record_at', { withTimezone: true, mode: 'string' }),
-    status: text().notNull(),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    lastEvent: text('last_event').default('').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    branchId: uuid('branch_id'),
-    deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),
-  },
-  (table) => [
-    unique('appointment_records_integrator_record_id_key').on(table.integratorRecordId),
-    check(
-      'appointment_records_status_check',
-      sql`status = ANY (ARRAY['created'::text, 'updated'::text, 'canceled'::text])`,
     ),
   ],
 );

@@ -18,6 +18,7 @@ const DOCTOR_SCOPE_KEYS = [
   'booking_calendar_default_window',
   'booking_calendar_default_branch_id',
   'booking_calendar_default_service_id',
+  'booking_calendar_default_specialist_id',
 ] as const;
 
 const patchSchema = z.object({

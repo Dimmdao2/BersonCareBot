@@ -523,13 +523,16 @@ export function createPgDoctorCanonicalAppointmentsPort(
       const db = getDrizzle();
       const organizationId = audience.organizationId;
       const nowIso = new Date().toISOString();
-      const { from, to: toExclusive, branchId, serviceId } = query;
+      const { from, to: toExclusive, branchId, serviceId, specialistId } = query;
       const excluded = audience?.excludedUserIds ?? [];
       const userAudience = appointmentUserAudienceCond(excluded);
 
       // Optional branch/service filters
       const branchCond = branchId ? eq(beAppointments.branchId, branchId) : undefined;
       const serviceCond = serviceId ? eq(beAppointments.serviceId, serviceId) : undefined;
+      const specialistCond = specialistId
+        ? eq(beAppointments.specialistId, specialistId)
+        : undefined;
 
       // Base condition: non-cancelled, start_at in [from, toExclusive)
       const activeRangeCond = and(
@@ -541,6 +544,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
         userAudience,
         branchCond,
         serviceCond,
+        specialistCond,
         BE_APPOINTMENTS_NOT_PURGED,
       );
 
@@ -554,6 +558,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
         userAudience,
         branchCond,
         serviceCond,
+        specialistCond,
         BE_APPOINTMENTS_NOT_PURGED,
       );
 

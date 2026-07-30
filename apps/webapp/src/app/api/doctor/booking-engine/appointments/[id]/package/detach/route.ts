@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { runPackageDetach } from '@/app/api/booking-engine/packageDetachShared';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../../../../_requireDoctorBookingEngine';
+import { resolveDoctorAppointmentAccess } from '../../../../_resolveDoctorAppointmentAccess';
 
 const bodySchema = z.object({
   outcome: z.enum(['release_reserve', 'charge_as_delivered', 'refund_consumed']).optional(),
@@ -17,6 +18,10 @@ export async function POST(request: Request, context: RouteContext) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return Response.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  }
+  const appointment = await resolveDoctorAppointmentAccess(gate.ctx, appointmentId, 'own');
+  if (!appointment) {
+    return Response.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   return runPackageDetach({
     organizationId: gate.ctx.organizationId,

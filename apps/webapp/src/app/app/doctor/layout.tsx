@@ -52,11 +52,10 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   }
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;
-  if (!workspaceAccess.canAccessClinicalWorkspace) {
+  if (!workspaceAccess.canAccessClinicalWorkspace && !workspaceAccess.canManageOrganization) {
     // Only a self-signup owner with the already-provisioned specialist card can be in the
     // progressive 2FA-first-run state. Let that request reach the root onboarding page; every
-    // clinical child has its own workspace guard. A management-only admin must keep the
-    // historical organization-settings redirect rather than seeing the owner's 2FA prompt.
+    // clinical child has its own workspace guard.
     if (workspaceAccess.membershipRole === 'owner' && workspaceAccess.specialistId !== null) {
       return children;
     }

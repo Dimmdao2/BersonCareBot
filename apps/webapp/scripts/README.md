@@ -74,9 +74,10 @@ JSON-quoted ключей и отклоняет unknown/duplicate/malformed/shell
 
 Остальные скрипты (`backfill-*`, `reconcile-*`, `*.sql`, …) — назначение и параметры в комментариях в начале каждого файла.
 
-**Исторические one-shot инструменты — Rubitime выведено 2026-07-27:** [`rubitime-appointment-mapping-audit.sql`](rubitime-appointment-mapping-audit.sql) (dry-run метрики), [`backfill-rubitime-appointment-mappings.sql`](backfill-rubitime-appointment-mappings.sql) (восстановление исторических `be_external_entity_mappings`). Они сохранены только для аудита завершённого перехода; перед изменением данных в `platform_users` сверяйтесь с **PLATFORM_IDENTITY_OPS.md**.
-
-**Исторический CSV one-shot (Rubitime выведено 2026-07-27):** [`backfill-rubitime-records-and-clients.ts`](backfill-rubitime-records-and-clients.ts) сохранён только для аудита завершённого переноса записей и клиентов. Это не текущий runtime или штатная operator-команда; история прогонов находится в [`docs/OPERATIONS/RUBITIME_CSV_BACKFILL.md`](../../../docs/OPERATIONS/RUBITIME_CSV_BACKFILL.md).
+**Rubitime выведено 2026-07-27.** Старые mapping/CSV one-shot удалены из `apps/webapp/scripts` и не являются
+доступными operator-командами. Исторические планы и результаты собраны только для чтения в
+[`docs/archive/2026-07-rubitime-retirement/`](../../../docs/archive/2026-07-rubitime-retirement/README.md);
+восстанавливать или запускать удалённые инструменты по архивным инструкциям нельзя.
 
 **Фон CMS-медиа (превью):** [`media-preview-process-tick.ts`](media-preview-process-tick.ts) — батч `processMediaPreviewBatch` вне Next; запуск `pnpm run media-preview:tick` (см. `deploy/HOST_DEPLOY_README.md`, `docs/MEDIA_PREVIEW_PIPELINE.md`).
 

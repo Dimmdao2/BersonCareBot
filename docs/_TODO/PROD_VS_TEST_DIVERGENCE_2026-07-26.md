@@ -249,12 +249,10 @@ migration-time construction is called out explicitly per item — conflating the
   joins to specialist/organization membership, not a direct column. This is a genuine open item independent of
   the cutover itself (flagged in memory as `dormant-multitenant-leak-is-broad` / `saas-enforce-audit-gate-findings`),
   not something this inventory is resolving.
-- **Rubitime/legacy tables travel with the dump and are NOT cleaned by the migration chain.**
-  `docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §2.5 states this explicitly: the fresh-dump
-  restore brings back all Rubitime/legacy tables, and cleanup is a **separate, owner-gated, destructive step**
-  with its own runbook (`RUBITIME_RETIREMENT_EXECUTION_PLAN.md`), currently only partially built (archive
-  tooling proven on TEST 2026-07-25; the `appointment_records` DROP itself is explicitly "STILL BLOCKED, NOT
-  BUILT" per that doc, pending removal of live runtime references).
+- **Historical correction (2026-07-29):** Rubitime runtime was retired 2026-07-27 and its R1–R7 packet is archived.
+  An old dump may still contain provider tables, but current handling is only through reviewed normal migrations
+  plus schema inventory; the archived cleanup scripts are not a current executable dependency. Provider-neutral
+  `appointment_records` cleanup remains a separate concern.
 - **ФИО (structured name) backfill is TEST-hardcoded today.** `apps/webapp/scripts/fio-backfill/*` hardcodes
   `targetDatabase="bersoncarebot_test"` and throws on any other target; a PROD-authorized path
   (`--allow-authorized-prod-target` + exact DB match, mirroring the RLS-finalizer's own gate pattern) landed
@@ -317,8 +315,8 @@ yet fully codified**, correct order:
    before the org-membership seed migration (`0143`) — order matters, already documented and scripted.
 5. The full migration chain (0000–0250), including the fail-fast anchor checks (§2.4) — expect this to
    surface data drift vs. the last rehearsed dump; budget time to fix, not assume it's clean.
-6. Rubitime/legacy cleanup (archive-then-drop) — **partially blocked today** (§4, §5.8); either finish that
-   work first or explicitly defer it and accept the legacy tables ride along into the new PROD.
+6. Retired provider mirrors — handled only by the reviewed normal migration chain; old archive/drop scripts are
+   historical. Provider-neutral appointment cleanup remains a separate owner-reviewed workstream.
 7. The manual grant-overlay sequence from `SAAS_PROD_DEPLOY_PROCESS.md` §3 (7 ordered steps, role names
    substituted for PROD) — currently hand-run, not scripted (taskdb #994 tracks building the script; not done).
 8. The strict-RLS finalizer with the explicit PROD-target flag (§3.5) — after grants, before service restart.

@@ -1094,13 +1094,13 @@ function assertStaticSourceGuards() {
     Object.entries(paths).map(([key, filePath]) => [key, readFileSync(filePath, 'utf8')]),
   );
   assert(
-    source.rollout.includes('getPublicRuntimeBool("specialist_signup_enabled")') &&
+    /getPublicRuntimeBool\(['"]specialist_signup_enabled['"]\)/.test(source.rollout) &&
       source.runtimeConfig.includes('specialist_signup_enabled: false'),
     'specialist signup must remain disabled by default',
   );
   assert(
-    source.registry.includes(
-      'specialist_signup_enabled: runtime("admin", "global", "public", "boolean", "false")',
+    /specialist_signup_enabled:\s*runtime\(['"]admin['"],\s*['"]global['"],\s*['"]public['"],\s*['"]boolean['"],\s*['"]false['"]\)/.test(
+      source.registry,
     ),
     'rollout flag must stay DB-backed',
   );

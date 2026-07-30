@@ -64,6 +64,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Require canonical production host
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          if [ "$DEPLOY_HOST" != "135.106.162.170" ]; then
+            echo "DEPLOY_HOST must be exactly 135.106.162.170 for production." >&2
+            exit 1
+          fi
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.1
         with:

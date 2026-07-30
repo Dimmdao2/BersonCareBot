@@ -70,7 +70,7 @@ export function createRegistryAcquiringGateway(
         const result = await adapter.createIntent({
           amountMinor: input.amountMinor,
           currency: input.currency,
-          idempotencyKey: `acquiring:${input.patientUserId}:${input.amountMinor}:${Date.now()}`,
+          idempotencyKey: input.idempotencyKey,
           metadata: {
             patientUserId: input.patientUserId,
             description: input.description,

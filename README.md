@@ -106,4 +106,4 @@ pnpm run build && pnpm run build:webapp
 
 ## Деплой
 
-Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml): проверки (`pnpm run ci`) и, после успеха на `main`, job **Deploy** по SSH (`deploy/host/deploy-prod.sh`). На хосте: API, worker, scheduler, webapp, media-worker — systemd-юниты `bersoncarebot-*-prod`. Runbook: [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md).
+Workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) выполняет проверки (`pnpm run ci`) и не деплоит автоматически. Production deployment — отдельный ручной [`.github/workflows/deploy-prod.yml`](.github/workflows/deploy-prod.yml) (`workflow_dispatch` + environment approval), который принимает только `DEPLOY_HOST=135.106.162.170`. PROD находится только на `135.106.162.170` (`adelaide`): API, worker, scheduler, webapp, media-worker — systemd-юниты `bersoncarebot-*-prod`. Текущий `151.241.228.122` — DEV/RELAY/TEST и PROD-юниты там запускать нельзя. Runbook: [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md).

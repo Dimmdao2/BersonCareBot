@@ -1,6 +1,6 @@
 -- Rubitime retirement R7: DROP the 7 raw Rubitime provider tables (owner-authorized, TEST only).
--- Runbook: docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md
--- Disposition: docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md
+-- Runbook: docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md
+-- Disposition: docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md
 --
 -- Preconditions already satisfied before this migration was authored:
 --   - R1-R6 complete (see RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md / TEST_R6_R7_PROGRESS_2026-07-24.md).
@@ -43,9 +43,9 @@
 -- The binding runbook order is: R1-R6 import → R7 archive → R7 DROP (drop is LAST, owner-gated). So this
 -- migration now self-defers instead of running out of order: it drops ONLY when the raw tables are empty
 -- or absent, i.e. when there is no history left to lose. On a from-zero run it no-ops with a notice, and
--- the drop is completed at the END of the pipeline by the gated archive tooling
--- (`deploy/host/archive-rubitime-retirement-tables.sh`, which archives + verifies first) —
--- see SAAS_PROD_DEPLOY_PROCESS.md §2.5/§2.1.
+-- the historical drop was completed at the END of the retirement pipeline after archive verification.
+-- That procedure and its now-inert one-shot live only under docs/archive/2026-07-rubitime-retirement/;
+-- they are not current operator entrypoints.
 -- Guard predicate = "is there still raw history to lose?", NOT "does a projection exist". A partially
 -- populated `be_appointments.source='rubitime_projection'` is NOT proof the import ran: PROD already
 -- projects Rubitime into canonical rows continuously, so a fresh prod dump arrives WITH projection rows
@@ -64,7 +64,7 @@ BEGIN
   END IF;
 
   IF v_raw_records > 0 OR v_raw_events > 0 THEN
-    RAISE NOTICE 'R7 raw-table DROP DEFERRED: raw history still present (rubitime_records=%, rubitime_events=%). Import it first (R1-R6 chain), then archive + drop via deploy/host/archive-rubitime-retirement-tables.sh.',
+    RAISE NOTICE 'R7 raw-table DROP DEFERRED: raw history still present (rubitime_records=%, rubitime_events=%). Rubitime retirement tooling is archived and must not be run; resolve through a new owner-approved migration plan.',
       v_raw_records, v_raw_events;
     RETURN;
   END IF;

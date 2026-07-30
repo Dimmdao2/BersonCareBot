@@ -6,11 +6,15 @@
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { logger, serializeError } from '@/infra/logging/logger';
+import { requireDoctorBookingEngine } from '../booking-engine/_requireDoctorBookingEngine';
+import {
+  parseDoctorScheduleScopeQuery,
+  resolveDoctorScheduleScope,
+} from '../booking-engine/_resolveDoctorScheduleScope';
 
 const KpisQuerySchema = z.object({
   from: z.string().min(1, 'from is required'),
@@ -20,7 +24,7 @@ const KpisQuerySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const gate = await requireDoctorWorkspaceApiContext();
+  const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
 
   const url = new URL(req.url);
@@ -38,18 +42,30 @@ export async function GET(req: Request) {
       { status: 400 },
     );
   }
+  const scopeInput = parseDoctorScheduleScopeQuery(url.searchParams);
+  if (!scopeInput.ok) {
+    return NextResponse.json({ ok: false, error: scopeInput.error }, { status: 400 });
+  }
+  const scheduleScope = await resolveDoctorScheduleScope(gate.ctx, scopeInput.value);
+  if (!scheduleScope.ok) {
+    const status = scheduleScope.error === 'schedule_specialist_not_available' ? 404 : 409;
+    return NextResponse.json({ ok: false, error: scheduleScope.error }, { status });
+  }
 
   const deps = buildAppDeps();
   const audience = await loadDoctorAnalyticsAudience();
 
   try {
     const kpis = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.schedule-kpis.read', () =>
-      deps.doctorAppointments.getScheduleKpis(parsed.data, {
-        excludedUserIds: audience?.excludedUserIds ?? [],
-        organizationId: gate.ctx.organizationId,
-      }),
+      deps.doctorAppointments.getScheduleKpis(
+        { ...parsed.data, specialistId: scheduleScope.value.specialistId },
+        {
+          excludedUserIds: audience?.excludedUserIds ?? [],
+          organizationId: gate.ctx.organizationId,
+        },
+      ),
     );
-    return NextResponse.json({ ok: true, kpis });
+    return NextResponse.json({ ok: true, kpis, resolvedScope: scheduleScope.value });
   } catch (e) {
     logger.error(
       { err: serializeError(e), from: parsed.data.from, to: parsed.data.to },

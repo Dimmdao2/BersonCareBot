@@ -110,9 +110,12 @@
 
 ### Post-deploy: backfill «бот заблокирован» (prod, одноразово)
 
-После деплоя кода с `failure_class` и `bot_blocked_at`:
+После деплоя кода с `failure_class` и `bot_blocked_at`, только на `135.106.162.170` (`adelaide`) и после прямой команды владельца:
 
 ```bash
+test "$(hostname -s)" = "adelaide" &&
+  hostname -I | tr ' ' '\n' | grep -Fxq '135.106.162.170' ||
+  { echo "STOP: not canonical PROD 135/adelaide" >&2; exit 1; }
 set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
 -- 1) Маркеры на привязках по dead-очереди и attempts

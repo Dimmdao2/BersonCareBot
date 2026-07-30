@@ -1,0 +1,18 @@
+VERDICT: PASS
+
+1. Dangling call is gone. `getEnforcedQuotaUsage()` now makes only the retained accessor call, [pgOrgEntitlements.ts:227](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:227)–[236](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:236). Exact-search hits are:
+   - Historical migrations: [0225:302](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql:302), [0270:8](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/db/drizzle-migrations/0270_cms_pages_snapshot_quota.sql:8), and the final removal [0275:4](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/db/drizzle-migrations/0275_tariff_mechanics_stage12_local.sql:4). These are migration history, not post-0275 runtime callers.
+   - Private race scripts create the legacy objects in their own `/tmp` PostgreSQL clusters: [CMS script:3](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/scripts/check-cms-pages-quota-race.mjs:3), [195](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/scripts/check-cms-pages-quota-race.mjs:195); [courses script:3](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/scripts/check-c5a-courses-quota-race.mjs:3), [102](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/scripts/check-c5a-courses-quota-race.mjs:102). They are self-contained, not application runtime paths.
+   - The only remaining `cms_pages_snapshot_usage` text in source is the deliberate mocked error string in the new unit test, [pgOrgEntitlements.test.ts:17](/home/dev/dev-projects/bcb-wt-[redacted-token].test.ts:17).
+
+2. Seats survive. The projection selects `clinic_team_used` and returns it as `clinic_team`, [pgOrgEntitlements.ts:228](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:228)–[236](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:236). The new test supplies `clinic_team_used: 3` and requires exactly `{ courses: 2, clinic_team: 3 }`, [test:19](/home/dev/dev-projects/bcb-wt-[redacted-token].test.ts:19)–[24](/home/dev/dev-projects/bcb-wt-[redacted-token].test.ts:24). Yes: silently omitting seats or returning zero would fail that equality assertion.
+
+3. No excess deletion found. Before the fix, `cmsPagesUsageSql.ts` had exactly one importer—the changed repository port; after `c77987aba`, no imports or symbol uses remain. The only removed projection field is `cms_pages`; CMS is now an ability, not a numeric projection ([types.ts:60](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/types.ts:60); plan [§2.1–2.3](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a:117)). Courses and seats remain; actual projections only include enforced classes seats/storage, [service.ts:194](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.ts:194)–[198](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.ts:198).
+
+4. Согласована. Migration `0275` drops only the former courses/CMS quota triggers/functions, [0275:4](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/db/drizzle-migrations/0275_tariff_mechanics_stage12_local.sql:4)–[10](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/db/drizzle-migrations/0275_tariff_mechanics_stage12_local.sql:10). Runtime retains and uses `app.read_org_enforced_quota_usage`, which `0275` does not drop, [pgOrgEntitlements.ts:228](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:228). The audited files are unchanged after `c77987aba`.
+
+MUST FIX
+
+1. None.
+
+Could not check: targeted Vitest could not start because this sandbox mounts Vite’s `.vite-temp` target read-only (`EROFS`); `pnpm --filter webapp typecheck` passed.

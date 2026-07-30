@@ -4,10 +4,5 @@
     [{ "textTemplateKey": "telegram:diary.lfk", "callbackData": "diary.lfk.open" }],
     [{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
   ],
-  "main": [
-    [
-      { "textTemplateKey": "telegram:menu.book", "callbackData": "booking.open" },
-      { "textTemplateKey": "telegram:menu.app", "webAppUrlFact": "links.webappHomeUrl" }
-    ]
-  ]
+  "main": [[{ "textTemplateKey": "telegram:menu.book", "callbackData": "booking.open" }]]
 }

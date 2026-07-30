@@ -12,6 +12,21 @@ fail() {
   exit 1
 }
 
+assert_canonical_prod_host() {
+  local current_hostname address found_ip=0
+  current_hostname="$(hostname -s 2>/dev/null || true)"
+  [ "$current_hostname" = "adelaide" ] ||
+    fail "refusing PROD webapp deploy on host '${current_hostname:-unknown}'; expected adelaide"
+  for address in $(hostname -I 2>/dev/null || true); do
+    if [ "$address" = "135.106.162.170" ]; then
+      found_ip=1
+      break
+    fi
+  done
+  [ "$found_ip" -eq 1 ] ||
+    fail "refusing PROD webapp deploy without local IPv4 135.106.162.170"
+}
+
 require_file() {
   local path="$1"
   local description="$2"
@@ -22,9 +37,29 @@ require_file() {
 
 require_unit_file() {
   local unit="$1"
-  if [ ! -e "/etc/systemd/system/${unit}" ]; then
-    fail "Missing systemd unit ${unit}. Run deploy/host/bootstrap-systemd-webapp-prod.sh on the host first."
-  fi
+  local installed="/etc/systemd/system/${unit}"
+  local source="${PROJECT_ROOT}/deploy/systemd/${unit}"
+  local fragment_path drop_in_paths need_reload
+  [ -f "${source}" ] && [ ! -L "${source}" ] ||
+    fail "Reviewed systemd template is missing or is a symlink: ${source}"
+  [ -f "${installed}" ] && [ ! -L "${installed}" ] ||
+    fail "Missing or non-regular systemd unit ${unit}. Root must run bootstrap-systemd-webapp-prod.sh first."
+  [ "$(stat -c '%U:%G:%a' "${installed}")" = "root:root:644" ] ||
+    fail "Unsafe ownership/mode for ${installed}; expected root:root:644. Root must re-run bootstrap."
+  cmp -s "${source}" "${installed}" ||
+    fail "Installed ${unit} differs from the reviewed repo template. Root must re-run bootstrap."
+  fragment_path="$(/bin/systemctl show --property=FragmentPath --value "${unit}")" ||
+    fail "Cannot inspect loaded fragment for ${unit}."
+  [ "${fragment_path}" = "${installed}" ] ||
+    fail "Systemd loaded ${unit} from unexpected fragment ${fragment_path:-<none>}."
+  drop_in_paths="$(/bin/systemctl show --property=DropInPaths --value "${unit}")" ||
+    fail "Cannot inspect drop-ins for ${unit}."
+  [ -z "${drop_in_paths}" ] ||
+    fail "Unexpected drop-ins can override the reviewed host gate for ${unit}: ${drop_in_paths}"
+  need_reload="$(/bin/systemctl show --property=NeedDaemonReload --value "${unit}")" ||
+    fail "Cannot inspect daemon-reload state for ${unit}."
+  [ "${need_reload}" = "no" ] ||
+    fail "Systemd has not loaded the reviewed ${unit}; root must run bootstrap."
 }
 
 require_sudo_rule() {
@@ -36,6 +71,8 @@ require_sudo_rule() {
   fi
 }
 
+assert_canonical_prod_host
+
 cd "${PROJECT_ROOT}"
 git checkout -- apps/webapp/next-env.d.ts 2>/dev/null || true
 git pull origin main
@@ -44,12 +81,6 @@ if [ -z "${DEPLOY_WEBAPP_PROD_RERUN:-}" ]; then
   export DEPLOY_WEBAPP_PROD_RERUN=1
   exec bash deploy/host/deploy-webapp-prod.sh
 fi
-
-# Reinstall webapp unit from repo so paths match current layout (apps/webapp).
-# Requires deploy user to have NOPASSWD for install and systemctl daemon-reload (see HOST_DEPLOY_README).
-require_sudo_rule "systemd unit install (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" /etc/systemd/system/bersoncarebot-webapp-prod.service
-require_sudo_rule "systemd daemon-reload (bootstrap)" /bin/systemctl daemon-reload
-bash deploy/host/bootstrap-systemd-webapp-prod.sh
 
 require_file "${ENV_FILE}" "Production webapp environment file"
 require_unit_file "${WEBAPP_SERVICE}"

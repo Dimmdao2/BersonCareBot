@@ -1,0 +1,107 @@
+{
+  "_archive_notice": "Rubitime retired 2026-07-27; historical evidence only",
+  "mode": "read-only",
+  "sources": {
+    "appointment_records": {
+      "deleted": 3,
+      "canceled": 87,
+      "max_record_at": "2026-08-29T18:00:00+02:00",
+      "max_updated_at": "2026-07-06T00:19:45.183+02:00",
+      "record_at_null": 0,
+      "record_at_not_null": 403,
+      "total_with_non_null_external_id": 403,
+      "live_created_updated_not_deleted": 315
+    },
+    "integrator_rubitime_records": {
+      "canceled": 13,
+      "max_record_at": "2026-04-21T15:00:00+02:00",
+      "max_updated_at": "2026-04-13T20:45:52.113479+02:00",
+      "record_at_null": 0,
+      "record_at_not_null": 91,
+      "live_created_updated": 78,
+      "total_with_non_null_external_id": 91
+    },
+    "canonical_rubitime_projection": {
+      "max_start_at": "2026-08-29T18:00:00+02:00",
+      "rubitime_projection_live": 258,
+      "rubitime_projection_total": 258
+    }
+  },
+  "table_checks": {
+    "has_be_appointments": true,
+    "has_mapping_metadata": true,
+    "has_appointment_records": true,
+    "has_mapping_organization_id": true,
+    "has_be_appointments_deleted_at": true,
+    "has_be_external_entity_mappings": true,
+    "has_integrator_rubitime_records": true,
+    "has_appointment_records_deleted_at": true
+  },
+  "masked_samples": {
+    "raw_only": [],
+    "legacy_only": [],
+    "status_mismatch": [],
+    "record_at_mismatch": [],
+    "raw_newer_updated_at": [],
+    "legacy_newer_updated_at": [],
+    "legacy_record_at_null_raw_not_null": [],
+    "raw_record_at_null_legacy_not_null": []
+  },
+  "reconciliation": {
+    "shared_count": 91,
+    "raw_only_count": 0,
+    "legacy_only_count": 312,
+    "status_mismatch_count": 4,
+    "record_at_mismatch_count": 2,
+    "raw_newer_updated_at_count": 0,
+    "legacy_newer_updated_at_count": 91,
+    "legacy_record_at_null_raw_not_null_count": 0,
+    "raw_record_at_null_legacy_not_null_count": 0
+  },
+  "mapping_coverage": {
+    "raw": {
+      "total": 91,
+      "mapped": 91,
+      "unmapped": 0,
+      "organization_mismatch": 0,
+      "mapped_to_deleted_canonical": 0,
+      "mapped_to_missing_canonical": 0,
+      "unexpected_canonical_source": 0,
+      "missing_expected_mapping_metadata": 0
+    },
+    "legacy": {
+      "total": 403,
+      "mapped": 274,
+      "unmapped": 129,
+      "organization_mismatch": 0,
+      "mapped_to_deleted_canonical": 0,
+      "mapped_to_missing_canonical": 0,
+      "unexpected_canonical_source": 6,
+      "missing_expected_mapping_metadata": 6
+    },
+    "mapping_totals": {
+      "total": 274,
+      "distinct_external_ids": 274,
+      "distinct_canonical_ids": 264
+    },
+    "canonical_validation": {
+      "total": 274,
+      "organization_mismatch": 0,
+      "unexpected_canonical_source": 6,
+      "canonical_appointment_deleted": 0,
+      "missing_canonical_appointment": 0,
+      "missing_expected_mapping_metadata": 6
+    },
+    "mapping_orphans_without_canonical_appointment": 0
+  },
+  "threshold_minutes": 5,
+  "run": {
+    "script": "docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs",
+    "envFilesLoaded": [],
+    "database": "bcb_webapp_dev",
+    "connectedDatabase": "bcb_webapp_dev",
+    "host": "127.0.0.1",
+    "port": "5432",
+    "sampleSize": 0
+  }
+}
