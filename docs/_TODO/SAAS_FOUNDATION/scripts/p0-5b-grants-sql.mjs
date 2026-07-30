@@ -73,6 +73,8 @@ const migrationOnlyTables = new Set([
 // - SaaS isolation diagnostics are true-global tables behind their own SECURITY DEFINER writer/operator overlay;
 //   ambient app_staff must never receive direct table grants from this broad bootstrap batch.
 // - app_runtime_settings uses dedicated audience-aware patient/staff/worker/integrator grants and policies.
+// - password admission and passkey tables are function-only credential state; broad app_staff DML
+//   would bypass their reviewed SECURITY DEFINER boundaries.
 const overlayManagedAppStaffTables = new Set([
   'public.organization_member_invites',
   'public.patient_invites',
@@ -89,6 +91,11 @@ const overlayManagedAppStaffTables = new Set([
   'public.saas_isolation_events',
   'public.app_runtime_settings',
   'public.app_runtime_settings_audit',
+  'public.password_altcha_challenges',
+  'public.password_login_identifier_protection',
+  'public.user_passkey_accounts',
+  'public.user_passkey_challenges',
+  'public.user_passkey_credentials',
 ]);
 
 // Rubitime retirement: these 8 provider-owned tables are DROP-migrated. The original R7 integrator

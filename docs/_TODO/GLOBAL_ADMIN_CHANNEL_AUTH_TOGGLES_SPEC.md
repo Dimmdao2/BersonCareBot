@@ -3,7 +3,8 @@
 > **Owner requirement, 2026-07-24** — prod-prep feature. Captured verbatim-structured; current-state recon in
 > progress (grounds the plan). Related: `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` (login config,
 > U-contracts), tariff/entitlements/mechanics-flags (`SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`),
-> capability-guard. NOT started — awaiting recon + owner acceptance of the plan.
+> capability-guard. Реализация ведётся по этапам: `#1005` этап 1 закрыт ниже; `#993` mini-app removal поставлен
+> владельцем на паузу.
 
 ## Requirement (owner, plain)
 
@@ -19,7 +20,8 @@ login/registration UI must reflect those toggles **dynamically**.
 - **Email** — with **per-provider** control:
   - **Google / Gmail OAuth** — independent toggle
   - **Yandex OAuth** — independent toggle
-  - **Apple — NOT included** (owner 2026-07-24; even though implemented, no Apple toggle / not offered).
+  - ~~**Apple — NOT included** (owner 2026-07-24; even though implemented, no Apple toggle / not offered).~~
+    **Заменено последующим решением владельца 2026-07-30:** «apple - переключатель в админке.»
 - **2FA / TOTP** — owner 2026-07-24: required for **global admin AND specialists** (staff). The toggle governs
   whether TOTP 2FA is in effect for those roles.
 
@@ -73,7 +75,7 @@ login/registration UI must reflect those toggles **dynamically**.
   Telegram Login Widget / MAX auth codes are SEPARATE → keep untouched. (Not yet located: menu-button mini-app vector,
   staff-login separateness — confirm before removal.)
 
-## Plan (grounded — awaiting owner acceptance; NOT started)
+## Исходный grounded plan (частично реализован; актуальные этапы `#1005` ниже)
 
 1. **Extend the settings registry** with independent boolean toggles: `auth_oauth_google_enabled`,
    `auth_oauth_yandex_enabled`, (`auth_oauth_apple_enabled`?), `auth_2fa_enabled` — add to `registry.ts` +
@@ -91,14 +93,14 @@ login/registration UI must reflect those toggles **dynamically**.
 
 - ✅ **RESOLVED 2026-07-24** — Method ON but unconfigured → **hidden from client + admin-side warning** next to the
   toggle. visible-to-client = `enabled AND configured`.
-- ✅ **RESOLVED 2026-07-24** — **Apple NOT included** (no toggle).
+- ~~✅ **RESOLVED 2026-07-24** — **Apple NOT included** (no toggle).~~
+  **Заменено последующим решением владельца 2026-07-30:** «apple - переключатель в админке.»
 - ✅ **RESOLVED 2026-07-24** — 2FA/TOTP toggle applies to **global admin AND specialists (staff)**.
 - ✅ **RESOLVED 2026-07-24** — Toggle scope: **GLOBAL / platform-wide**, configured by the **global admin only**;
   specialists do NOT access these settings. (Not per-clinic.)
 
-**All owner decisions on this feature are now resolved.** Ready to plan/build when prioritized (build gaps:
-OAuth per-provider toggles, 2FA global gate for admin+staff, admin checkbox UI, per-method configured-check for
-client visibility, mini-app removal).
+Решения этого исходного среза зафиксированы; последующие решения владельца и актуальный порядок выполнения
+ведутся в разделе `#1005` ниже. Mini-app removal (`#993`) поставлен владельцем на паузу.
 
 ## Консолидированный workstream Auth / аккаунт / онбординг (`#993`)
 
@@ -113,9 +115,9 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
 для включённого, но не настроенного метода; удалить Telegram/MAX mini-app entry points, сохранив ботов для кодов
 аутентификации и уведомлений.
 
-- [x] Не предлагать Apple OAuth как способ входа даже при сохранённых legacy credentials: public providers API и
-      SSR snapshot возвращают `apple: false`, прямой `POST /api/auth/oauth/start` отклоняет `provider=apple` —
-      `apps/webapp/src/modules/auth/oauthAppleDisabled.route.test.ts`.
+- [-] ~~Не предлагать Apple OAuth как способ входа даже при сохранённых legacy credentials: public providers API и
+      SSR snapshot возвращают `apple: false`, прямой `POST /api/auth/oauth/start` отклоняет `provider=apple`~~ —
+      ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-07-30: «apple - переключатель в админке.»
 - [x] Удалить Telegram/MAX mini-app launch из ошибки `user.phone.link → no_channel_binding`, сохранив сообщение и
       остановку ошибочного сценария — `apps/integrator/src/kernel/domain/executor/executeActionMiniAppRemoval.unit.test.ts`.
 - [x] Удалить главный/home mini-app launch из Telegram/MAX menu, reply-menu, content-сценариев и post-bind меню,
@@ -126,8 +128,9 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
 - [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
       Telegram/MAX mini-app launch buttons отсутствуют.
 
-Ограничения карточки: toggles глобальные, не per-clinic; Apple не включён; 2FA относится к global admin и staff;
-выключенный метод исчезает из login/registration независимо от наличия ключей.
+Ограничения карточки: toggles глобальные, не per-clinic; Apple управляется отдельным переключателем и остаётся
+скрыт без полного набора credentials; 2FA относится к global admin и staff; выключенный метод исчезает из
+login/registration независимо от наличия ключей.
 
 ### `#985` — owner TEST login, PWA и Web Push
 
@@ -141,7 +144,7 @@ Authority карточки: `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §T
 `58c577ef0` locked-principal binding; `TEST_DEPLOY_EVIDENCE_2026-07-22.md` оставляет owner OTP/PWA acceptance
 открытой.
 
-### `#1005` — fallback доставки кода и обязательная подтверждённая почта
+### `#1005` — политика входа: маршрутизация кода, пароль и 2FA клиентов
 
 Решения владельца, дословно:
 
@@ -154,9 +157,54 @@ Authority карточки: `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §T
 подтверждают номер только когда provider реально передал его. Email и Web Push номер не подтверждают; будущий
 WhatsApp подтверждает его только при таком же доказанном факте.
 
-- [x] Отвязать канал доставки одноразового кода от введённого идентификатора: при вводе телефона выбирать живой
-      канал в порядке SMS, если включён и номер подходит → привязанный подтверждённый email. Web Push решением
-      владельца от 27.07 не используется для регистрации и кодов входа. —
+Уточнение владельца 2026-07-30, дословно:
+
+> «код, пришедший на email, подтверждает email, но не телефон - это верно
+> но если пользователь с УЖЕ подтвержденным телефоном и email ввожит телефон - мы можем прислать на имэйл код
+> для входа. для входа а не для подтверждения телефона.»
+>
+> «Мне от тебя нужен отдельный блок в админке - там где я включаю / выключаю авторизацию кнопками (какие oauth
+> можно использовать, какие мессенджеры, можно ли смс и тд).
+>
+> в новом блоке я должен иметь возможность настраивать все эти пути - куда отправлять код в каком порядке. можно
+> ли войти с паролем без кода и тд.
+> плюс двухфакторка клиентам.»
+
+Последующие решения владельца 2026-07-30, дословно:
+
+> «apple - переключатель в админке.
+> 2FA - пока добровольной»
+>
+> «значит пин надо как и осталоные провайдеры логина включать-выключать в алминке»
+>
+> «тогда план такой.
+> подклчам библиотек, добвляем включение галочкой
+>
+> затем исправляем баги которые ты уже нашел
+> потом вместе продумываем как настроить последовательность подклбчения аутентификационных путей»
+
+Уточнение про trusted phone: широкий перечень допустим для доверенных OAuth/мессенджер-провайдеров, потому что
+это тот же класс доказанного атрибута, что verified email, только для телефона. Провайдер выставляет trust только
+когда реально вернул подтверждённый номер; сам факт OAuth-входа без номера trust не создаёт.
+
+Действующий продуктовый смысл:
+
+- введённый идентификатор и канал доставки кода — разные вещи;
+- email-код может использоваться для **входа** в уже найденный аккаунт только через его уже подтверждённый email;
+  это не подтверждает введённый телефон и не меняет trusted-phone состояние;
+- фиксированный порядок SMS → email ниже описывает только уже реализованное текущее поведение. Целевой порядок
+  допустимых путей доставки должен задаваться global admin в новом блоке auth-policy;
+- тот же блок управляет доступными OAuth/мессенджерами/SMS, разрешением входа только по паролю без дополнительного
+  кода и клиентской 2FA;
+- Apple, PIN и passkey — самостоятельные способы входа с отдельными переключателями в том же global-admin блоке;
+- клиентская 2FA пока добровольная: включение платформенной возможности не принуждает пациента к enrollment;
+- до проектирования настроек требуется отдельное исследование практик зрелых auth-систем и стандартов безопасности:
+  какие комбинации допустимы, какие должны быть запрещены, какие значения безопасны по умолчанию.
+
+- [x] Отвязать канал доставки одноразового кода от введённого идентификатора: в текущей реализации при вводе
+      телефона выбирать живой канал в фиксированном порядке SMS, если включён и номер подходит → привязанный
+      подтверждённый email. Web Push решением владельца от 27.07 пока не используется для регистрации и кодов
+      входа. —
       `apps/webapp/src/app/api/auth/phone/start/route.ts` +
       `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts` +
       `apps/webapp/src/shared/ui/patient/auth/PhoneMessengerAuthFlow.ui.test.tsx` (13/13 narrow).
@@ -172,9 +220,37 @@ WhatsApp подтверждает его только при таком же д�
 - [x] Развести «канал доставки» и «подтверждённый фактор»: код, доставленный по email после ввода телефона,
       подтверждает email и не выставляет trusted-phone признак. —
       `apps/webapp/src/modules/auth/phoneAuth.ts:55,183` +
-      `apps/webapp/src/infra/repos/pgUserByPhone.ts:256,418`
+      `apps/webapp/src/infra/repos/pgUserByPhone.ts` (оба условных пути `phoneNumberProven === true` вызывают один
+      typed Drizzle update в той же транзакции; scan legacy raw `UPDATE ... patient_phone_trust_at` пуст).
+- [ ] Сопоставить текущий код со всей матрицей путей входа и доставки: введённый идентификатор → найденный аккаунт
+      → подтверждённые каналы аккаунта → разрешённые global-admin policy пути → фактический способ входа; отдельно
+      перечислить расхождения, не меняя код до согласования целевой модели.
+- [ ] Зафиксировать по первичным стандартам и официальным реализациям зрелых auth-систем целевую auth-policy:
+      password/passwordless, порядок code-delivery, клиентская 2FA, enrollment/recovery, безопасные значения по
+      умолчанию и запрещённые комбинации; принести владельцу на согласование до разработки.
+- [x] **Этап 1 — passkey и переключатели способов входа.** Подключить поддерживаемые
+      `@simplewebauthn/server` + `@simplewebauthn/browser`; реализовать добровольное добавление/удаление и вход по
+      passkey без передачи биометрии приложению; хранить несколько credentials на аккаунт; добавить в существующий
+      global-admin auth-блок отдельные переключатели passkey, PIN и Apple. Каждый выключенный способ должен
+      отклоняться сервером, а не только исчезать из UI. Apple сохраняет configured-check, безопасный default новых
+      переключателей — `false`. — `apps/webapp/src/modules/auth/passkeyAuth.ts` +
+      `apps/webapp/src/app/api/auth/passkey/**` +
+      `apps/webapp/src/app/app/patient/profile/PasskeySection.tsx` +
+      `apps/webapp/src/app/app/admin/auth/PlatformAuthChannelPolicySection.tsx`; narrow unit/route `8/8`,
+      webapp typecheck, scoped ESLint, Drizzle journal sync и `check:saas-db-regression` — PASS.
+- [ ] **Этап 2 — два подтверждённых бага текущего fallback.** Phone→email разрешён только когда введённый телефон
+      уже trusted и email уже verified; email-код не меняет phone trust. Включённый, но ненастроенный SMS не
+      перехватывает вход: evaluator пропускает его и рассматривает следующий реально доступный канал.
+- [ ] **Этап 3 — только совместно с владельцем.** После этапов 1–2 спроектировать настраиваемую
+      последовательность auth/code-delivery путей. До зафиксированного решения владельца не добавлять порядок,
+      drag-and-drop, скрытые приоритеты или новую универсальную policy-схему.
+- [ ] После согласования этапа 3 реализовать оставшуюся auth-policy: упорядоченные пути доставки,
+      password-only policy и добровольную клиентскую 2FA. Клиентский UI и серверные маршруты применяют одну
+      сохранённую policy fail-closed.
 
-Нормативные ссылки карточки: NIST SP 800-63B-4 — SMS/PSTN является restricted authenticator и требует
+Нормативные ссылки карточки: W3C WebAuthn Level 3 — биометрия остаётся в authenticator и не раскрывается
+Relying Party; стандарт рекомендует разрешать несколько credentials на аккаунт из-за потери/смены устройства.
+NIST SP 800-63B-4 — SMS/PSTN является restricted authenticator и требует
 альтернативного типа аутентификатора; при этом NIST прямо **не** считает email допустимым out-of-band
 authenticator, поэтому email-fallback здесь — отдельное продуктовое решение владельца, а не заявка на
 NIST-AAL. OWASP ASVS 5.0 6.3.8, CWE-204 и OWASP Forgot Password Cheat Sheet задают защиту от enumeration:

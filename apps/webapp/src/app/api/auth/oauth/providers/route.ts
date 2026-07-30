@@ -5,20 +5,20 @@ import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 
 /**
  * GET /api/auth/oauth/providers — какие провайдеры настроены (без секретов).
- * Google / Yandex: independent admin toggle AND credentials configured (owner ruling 2026-07-24).
- * Apple is not an allowed login provider (owner ruling 2026-07-24).
+ * Every provider requires its independent admin toggle AND complete credentials.
  */
 const ROUTE = 'auth/oauth/providers';
 
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/auth/oauth/providers:GET', request);
   const startedAt = Date.now();
-  const [yandex, google] = await Promise.all([
+  const [yandex, google, apple] = await Promise.all([
     isOAuthProviderEnabled('yandex'),
     isOAuthProviderEnabled('google'),
+    isOAuthProviderEnabled('apple'),
   ]);
 
-  const res = NextResponse.json({ ok: true, yandex, google, apple: false });
+  const res = NextResponse.json({ ok: true, yandex, google, apple });
   res.headers.set('Cache-Control', 'private, no-store');
   logAuthRouteTiming({
     route: ROUTE,

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  isOAuthProviderEnabled: vi.fn<(provider: 'google' | 'yandex') => Promise<boolean>>(),
+  isOAuthProviderEnabled: vi.fn<(provider: 'google' | 'yandex' | 'apple') => Promise<boolean>>(),
   resolveRateLimitClientKey: vi.fn(),
   isRateLimited: vi.fn<() => Promise<boolean>>(),
   recordFailure: vi.fn(),
@@ -30,6 +30,7 @@ vi.mock('@/modules/auth/oauthStartRateLimit', () => ({
   isOAuthStartRateLimitedByKey: fakes.isRateLimited,
 }));
 vi.mock('@/modules/auth/oauthSignedState', () => ({
+  createAppleSignedOAuthState: vi.fn(),
   createSignedOAuthState: vi.fn(),
   parseVerifiedSignedOAuthState: vi.fn(),
 }));
@@ -40,6 +41,11 @@ vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getYandexOauthClientId: vi.fn(),
   getYandexOauthClientSecret: vi.fn(),
   getYandexOauthRedirectUri: vi.fn(),
+  getAppleOauthClientId: () => Promise.resolve('apple-client'),
+  getAppleOauthRedirectUri: () => Promise.resolve('https://app.example.test/callback'),
+  getAppleOauthTeamId: () => Promise.resolve('team'),
+  getAppleOauthKeyId: () => Promise.resolve('key'),
+  getAppleOauthPrivateKey: () => Promise.resolve('private-key'),
 }));
 
 import { GET as listProviders } from '@/app/api/auth/oauth/providers/route';
@@ -47,14 +53,14 @@ import { POST as startOAuth } from '@/app/api/auth/oauth/start/route';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fakes.isOAuthProviderEnabled.mockResolvedValue(true);
+  fakes.isOAuthProviderEnabled.mockImplementation(async (provider) => provider !== 'apple');
   fakes.resolveRateLimitClientKey.mockReturnValue({ ok: true, key: 'client-993' });
   fakes.isRateLimited.mockResolvedValue(false);
   fakes.recordFailure.mockResolvedValue(undefined);
 });
 
 describe('public OAuth provider boundary', () => {
-  it('keeps Apple unavailable in both public login entry points', async () => {
+  it('rejects Apple in both public entry points when its independent toggle is off', async () => {
     const providersResponse = await listProviders(
       new Request('https://app.example.test/api/auth/oauth/providers'),
     );
