@@ -572,7 +572,8 @@ Owner decision 2026-07-30 supersedes the former DEV restore/rehydrate procedure:
 Pending shared migrations are applied to the existing DEV database through
 `bash deploy/host/migrate-dev.sh --preflight`, then `bash deploy/host/migrate-dev.sh --execute`. This wrapper
 validates exact local `bcb_webapp_dev`/`bcb_webapp_dev_user` and runs the ordinary repository migration chain; it
-does not copy TEST, restore a dump, change roles/ACL or test RLS walls.
+does not copy TEST, restore a dump or test RLS walls. Only for the migration window it grants the DEV database
+owner membership in `app_owner` and `BYPASSRLS`, then revokes and verifies both on success, failure or signal.
 
 The DEV/disposable rehearsal path is now repo-tracked and separate from TEST services:
 

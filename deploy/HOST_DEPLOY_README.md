@@ -690,7 +690,8 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - Pending migrations текущей ветки на существующей DEV-БД применяются только через
   `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`. Это
   недеструктивный exact-DEV путь: wrapper проверяет локальные `bcb_webapp_dev`/`bcb_webapp_dev_user` и запускает
-  обычный общий `pnpm run migrate` без изменения ролей/ACL или runtime overlays.
+  обычный общий `pnpm run migrate` без runtime overlays. Только на время миграции wrapper выдаёт DEV-владельцу
+  членство в `app_owner` и `BYPASSRLS`, затем обязательно отзывает и проверяет оба полномочия при любом исходе.
 - TEST→DEV refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. DEV не копирует TEST и не
   пересоздаётся для обычной разработки; RLS/security acceptance выполняется отдельно в disposable PostgreSQL и TEST.
 

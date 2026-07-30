@@ -5,8 +5,8 @@ umask 077
 
 # Apply the repository's ordinary pending migrations to the existing local DEV database.
 # This entrypoint never restores, drops, recreates or copies a database. The only role change it
-# may make is a fail-closed temporary bcb_webapp_dev_user -> app_owner membership around
-# `pnpm migrate`; the membership is revoked and verified on success and failure.
+# may make is a fail-closed temporary bcb_webapp_dev_user -> app_owner membership plus temporary
+# BYPASSRLS around `pnpm migrate`; both are revoked and verified on success and failure.
 
 TARGET_DB="bcb_webapp_dev"
 TARGET_ROLE="bcb_webapp_dev_user"
@@ -17,6 +17,8 @@ DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
 SAFE_MIGRATION_ENV="$REPO_ROOT/deploy/env/empty.local-migration.env"
 APP_OWNER_MEMBERSHIP_ADDED=0
 APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
+TARGET_ROLE_BYPASS_ENABLED=0
+TARGET_ROLE_BYPASS_CHANGED_THIS_RUN=0
 CREDENTIAL_DIR=""
 ACTIVE_CHILD_PID=""
 
@@ -26,8 +28,8 @@ Usage: bash deploy/host/migrate-dev.sh --preflight|--execute
 
 Validates the exact existing local bcb_webapp_dev target. --execute then runs the
 repository's ordinary pending integrator and webapp migrations without reset/restore
-or runtime-overlay changes. It temporarily grants the existing app_owner role to the
-DEV migrator only around `pnpm migrate`, then revokes and verifies the membership.
+or runtime-overlay changes. It temporarily grants the existing app_owner role and
+BYPASSRLS to the DEV migrator only around `pnpm migrate`, then revokes and verifies both.
 EOF
 }
 
@@ -90,8 +92,33 @@ grant_migrator_app_owner_membership() {
     fatal "cannot grant temporary DEV app_owner membership"
 }
 
+enable_migrator_bypass() {
+  local bypass
+  bypass="$(
+    postgres_scalar "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$TARGET_ROLE';"
+  )" || fatal "cannot inspect DEV migrator BYPASSRLS"
+  [[ "$bypass" == "false" ]] || fatal "pre-existing $TARGET_ROLE BYPASSRLS"
+
+  # Assume cleanup responsibility before ALTER ROLE starts for the same commit-before-signal case
+  # covered by the temporary membership cleanup.
+  TARGET_ROLE_BYPASS_ENABLED=1
+  TARGET_ROLE_BYPASS_CHANGED_THIS_RUN=1
+  run_tracked sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
+    -c "ALTER ROLE \"$TARGET_ROLE\" BYPASSRLS;" >/dev/null ||
+    fatal "cannot enable temporary DEV migrator BYPASSRLS"
+}
+
 cleanup_elevation() {
-  local cleanup_status=0 membership
+  local cleanup_status=0 membership bypass
+  if [[ "$TARGET_ROLE_BYPASS_ENABLED" == "1" ]]; then
+    if sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
+      -c "ALTER ROLE \"$TARGET_ROLE\" NOBYPASSRLS;" >/dev/null; then
+      TARGET_ROLE_BYPASS_ENABLED=0
+    else
+      cleanup_status=1
+    fi
+  fi
+
   if [[ "$APP_OWNER_MEMBERSHIP_ADDED" == "1" ]]; then
     if sudo -n -u postgres psql -X -d postgres -v ON_ERROR_STOP=1 \
       -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$TARGET_ROLE\";" >/dev/null; then
@@ -106,6 +133,12 @@ cleanup_elevation() {
       postgres_scalar "SELECT pg_has_role('$TARGET_ROLE', '$APP_OWNER_ROLE', 'member');"
     )" || cleanup_status=1
     [[ "$membership" == "f" ]] || cleanup_status=1
+  fi
+  if [[ "$TARGET_ROLE_BYPASS_CHANGED_THIS_RUN" == "1" ]]; then
+    bypass="$(
+      postgres_scalar "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$TARGET_ROLE';"
+    )" || cleanup_status=1
+    [[ "$bypass" == "false" ]] || cleanup_status=1
   fi
   return "$cleanup_status"
 }
@@ -205,6 +238,7 @@ DEV_DATABASE_URL="$(node "$DEV_ENV_PARSER" "$DEV_ENV")" ||
   fatal "DEV DATABASE_URL data parser rejected the env file"
 
 grant_migrator_app_owner_membership
+enable_migrator_bypass
 
 cd "$REPO_ROOT"
 run_tracked env -i \

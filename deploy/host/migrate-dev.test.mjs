@@ -28,11 +28,13 @@ function createMigrationRuntime({
   grantPause = false,
   migrationExitCode = 0,
   migrationPause = false,
+  preexistingBypass = false,
   preexistingMembership = false,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-dev-execute-'));
   const bin = join(root, 'bin');
   const membership = join(root, 'app-owner-membership');
+  const bypass = join(root, 'migrator-bypass');
   const grantStarted = join(root, 'grant-started');
   const migrationStarted = join(root, 'migration-started');
   const migrationStopped = join(root, 'migration-stopped');
@@ -53,6 +55,7 @@ function createMigrationRuntime({
     mode: 0o600,
   });
   writeFileSync(membership, preexistingMembership ? '1\n' : '0\n');
+  writeFileSync(bypass, preexistingBypass ? '1\n' : '0\n');
 
   symlinkSync(process.execPath, join(bin, 'node'));
   writeFileSync(
@@ -68,6 +71,13 @@ printf '%s\\n' 'bcb_webapp_dev_user|bcb_webapp_dev|bcb_webapp_dev_user'
 set -eu
 sql="\${!#}"
 case "$sql" in
+  *"rolbypassrls"*"bcb_webapp_dev_user"*)
+    if [[ "$(cat '${bypass}')" == "1" ]]; then
+      printf '%s\\n' 'true'
+    else
+      printf '%s\\n' 'false'
+    fi
+    ;;
   *"FROM pg_roles"*)
     printf '%s\\n' 'false|false|false|false|true'
     ;;
@@ -87,6 +97,12 @@ case "$sql" in
   *'REVOKE "app_owner" FROM "bcb_webapp_dev_user"'*)
     printf '%s\\n' '0' > '${membership}'
     ;;
+  *'ALTER ROLE "bcb_webapp_dev_user" BYPASSRLS'*)
+    printf '%s\\n' '1' > '${bypass}'
+    ;;
+  *'ALTER ROLE "bcb_webapp_dev_user" NOBYPASSRLS'*)
+    printf '%s\\n' '0' > '${bypass}'
+    ;;
   *)
     printf 'unexpected postgres SQL: %s\\n' "$sql" >&2
     exit 90
@@ -99,6 +115,7 @@ esac
     `#!/usr/bin/env bash
 set -eu
 [[ "$(cat '${membership}')" == "1" ]] || exit 91
+[[ "$(cat '${bypass}')" == "1" ]] || exit 92
 ${migrationPause ? `touch '${migrationStarted}'
 trap 'if [[ "$(cat "${membership}")" != "1" ]]; then touch "${cleanupTooEarly}"; fi; touch "${migrationStopped}"; exit 143' TERM
 sleep 30` : ''}
@@ -111,6 +128,7 @@ exit ${migrationExitCode}
 
   return {
     bin,
+    bypass,
     cleanupTooEarly,
     grantStarted,
     membership,
@@ -237,6 +255,8 @@ test('migrate-dev source retains the ordinary migration and destructive-operatio
   assert.match(source, /current_user \|\| '\|' \|\| current_database\(\)/u);
   assert.match(source, /GRANT \\"\$APP_OWNER_ROLE\\" TO \\"\$TARGET_ROLE\\"/u);
   assert.match(source, /REVOKE \\"\$APP_OWNER_ROLE\\" FROM \\"\$TARGET_ROLE\\"/u);
+  assert.match(source, /ALTER ROLE \\"\$TARGET_ROLE\\" BYPASSRLS/u);
+  assert.match(source, /ALTER ROLE \\"\$TARGET_ROLE\\" NOBYPASSRLS/u);
   assert.match(source, /pre-existing \$TARGET_ROLE membership/u);
   assert.doesNotMatch(
     source,
@@ -244,7 +264,7 @@ test('migrate-dev source retains the ordinary migration and destructive-operatio
   );
   assert.doesNotMatch(
     source,
-    /\b(?:DROP|CREATE) DATABASE\b|pg_dump|pg_restore|ALTER ROLE|0247|C4D/u,
+    /\b(?:DROP|CREATE) DATABASE\b|pg_dump|pg_restore|0247|C4D/u,
   );
 });
 
@@ -258,6 +278,7 @@ test('migrate-dev grants app_owner only around a successful migration and revoke
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /migrate-dev: PASS/u);
   assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
+  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
 });
 
 test('migrate-dev revokes app_owner when the migration command fails', () => {
@@ -269,6 +290,7 @@ test('migrate-dev revokes app_owner when the migration command fails', () => {
 
   assert.equal(result.status, 42, result.stderr);
   assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
+  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
 });
 
 test('migrate-dev refuses to reuse pre-existing app_owner membership', () => {
@@ -281,6 +303,20 @@ test('migrate-dev refuses to reuse pre-existing app_owner membership', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /pre-existing bcb_webapp_dev_user membership in app_owner/u);
   assert.equal(readFileSync(runtime.membership, 'utf8'), '1\n');
+  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
+});
+
+test('migrate-dev refuses pre-existing migrator BYPASSRLS and removes temporary membership', () => {
+  const runtime = createMigrationRuntime({ preexistingBypass: true });
+  const result = spawnSync('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), '--execute'], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /pre-existing bcb_webapp_dev_user BYPASSRLS/u);
+  assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
+  assert.equal(readFileSync(runtime.bypass, 'utf8'), '1\n');
 });
 
 test('migrate-dev revokes a GRANT that completes while SIGTERM is being handled', async () => {
@@ -298,6 +334,7 @@ test('migrate-dev revokes a GRANT that completes while SIGTERM is being handled'
   assert.equal(result.signal, null, result.stderr);
   assert.equal(result.code, 143, result.stderr);
   assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
+  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
 });
 
 test('migrate-dev stops the migration child before revoking app_owner on SIGTERM', async () => {
@@ -317,6 +354,7 @@ test('migrate-dev stops the migration child before revoking app_owner on SIGTERM
   assert.equal(existsSync(runtime.migrationStopped), true);
   assert.equal(existsSync(runtime.cleanupTooEarly), false);
   assert.equal(readFileSync(runtime.membership, 'utf8'), '0\n');
+  assert.equal(readFileSync(runtime.bypass, 'utf8'), '0\n');
 });
 
 test('pgpass rendering escapes libpq separators in the decoded password', () => {
