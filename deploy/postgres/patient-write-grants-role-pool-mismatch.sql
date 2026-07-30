@@ -60,7 +60,14 @@
 --      missing UPDATE grant as SQLSTATE 42501 on 2026-07-30. The baseline remains SELECT, INSERT;
 --      this overlay grants only the four presentation-state columns the upsert actually changes.
 --
--- Why these five are RLS-safe to grant (same reasoning as patient-support-mark-read-grant.sql -- RLS
+--   6. patient_practice_completions UPDATE (feeling)
+--      pgPatientPracticeCompletions.applyDailyWarmupFeeling updates only `feeling` for the exact
+--      completion id + authenticated patient user id. Caller chain: PATCH
+--      /api/patient/practice/completion/[id]/feeling -> applyDailyWarmupFeeling. TEST runtime proved
+--      the missing UPDATE grant as SQLSTATE 42501 on 2026-07-30. The baseline remains SELECT, INSERT;
+--      this overlay grants only the one column changed by that route.
+--
+-- Why these six are RLS-safe to grant (same reasoning as patient-support-mark-read-grant.sql -- RLS
 -- restricts ROWS, a grant never widens rows, only which columns may appear in the SET/INSERT list):
 --   - reminder_journal: policy "saas_org_dormant_p0_8_3" (scratchpad/isolation-flagged-rls-policies.txt)
 --     WITH CHECK admits a patient-context row only when
@@ -74,6 +81,10 @@
 --   - patient_daily_warmup_presentations: policy "saas_org_dormant_p0_8_3" admits a patient-context
 --     row only when user_id = current_patient_user_id(). The column grant excludes user_id and
 --     organization_id, so the patient can only advance state on their own presentation row.
+--   - patient_practice_completions: the same policy admits a patient-context row only when
+--     user_id = current_patient_user_id(). The column grant excludes user_id, organization_id and
+--     every completion identity/source field, so the patient can only attach feeling to their own
+--     existing completion.
 --
 -- EXCLUDED from this overlay (do NOT grant here -- see analysis, owner/orchestrator decision needed
 -- or already resolved elsewhere):
@@ -147,7 +158,7 @@ SELECT 1 / 0 AS patient_write_grants_role_pool_mismatch_abort;
 \endif
 
 \if :{?patient_write_grants_role_pool_mismatch_down}
-\echo 'Patient write grants (role_pool_mismatch) DOWN: revoking the five INSERT/UPDATE column grants from app_patient.'
+\echo 'Patient write grants (role_pool_mismatch) DOWN: revoking the six INSERT/UPDATE column grants from app_patient.'
 
 REVOKE INSERT ("rule_id", "occurrence_id", "action", "snooze_until", "skip_reason")
   ON TABLE "public"."reminder_journal" FROM app_patient;
@@ -164,9 +175,12 @@ REVOKE UPDATE ("completed_at")
 REVOKE UPDATE ("content_page_id", "updated_at", "last_rotation_at", "skip_next_scheduled_rotation")
   ON TABLE "public"."patient_daily_warmup_presentations" FROM app_patient;
 
+REVOKE UPDATE ("feeling")
+  ON TABLE "public"."patient_practice_completions" FROM app_patient;
+
 \echo 'Patient write grants (role_pool_mismatch) DOWN complete.'
 \else
-\echo 'Patient write grants (role_pool_mismatch) UP: granting reminder_journal INSERT + treatment_program_instance* and warmup presentation UPDATE column grants to app_patient.'
+\echo 'Patient write grants (role_pool_mismatch) UP: granting reminder_journal INSERT + treatment_program_instance*, warmup presentation and warmup feeling UPDATE column grants to app_patient.'
 
 GRANT INSERT ("rule_id", "occurrence_id", "action", "snooze_until", "skip_reason")
   ON TABLE "public"."reminder_journal" TO app_patient;
@@ -182,6 +196,9 @@ GRANT UPDATE ("completed_at")
 
 GRANT UPDATE ("content_page_id", "updated_at", "last_rotation_at", "skip_next_scheduled_rotation")
   ON TABLE "public"."patient_daily_warmup_presentations" TO app_patient;
+
+GRANT UPDATE ("feeling")
+  ON TABLE "public"."patient_practice_completions" TO app_patient;
 
 \echo 'Patient write grants (role_pool_mismatch) UP complete.'
 \endif
