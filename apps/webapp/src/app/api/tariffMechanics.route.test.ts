@@ -465,7 +465,9 @@ describe('tariff and platform mutation gates', () => {
     vi.mocked(buildAppDeps).mockReturnValue({
       patientOrganization: {},
       reminders,
-      contentSections: { getBySlug: vi.fn().mockResolvedValue(null) },
+      contentSections: {
+        getBySlug: vi.fn().mockResolvedValue({ systemParentCode: 'warmups' }),
+      },
       contentPages: { getById: vi.fn().mockResolvedValue(null) },
       patientHomeBlocks: {},
       systemSettings: {},

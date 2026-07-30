@@ -6,6 +6,7 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { isContentPageInDailyWarmupBlock } from '@/modules/patient-home/todayConfig';
 import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
+import type { ContentPagesPort } from '@/infra/repos/pgContentPages';
 
 type Deps = {
   patientOrganization: Parameters<typeof resolvePatientEnrollmentOrganizationId>[0]['patientOrganization'];
@@ -19,7 +20,8 @@ type Deps = {
     >;
   };
   patientHomeBlocks: Parameters<typeof isContentPageInDailyWarmupBlock>[1]['patientHomeBlocks'];
-  contentPages: Parameters<typeof isContentPageInDailyWarmupBlock>[1]['contentPages'];
+  contentPages: Parameters<typeof isContentPageInDailyWarmupBlock>[1]['contentPages'] &
+    Pick<ContentPagesPort, 'getById'>;
   contentSections: Parameters<typeof isContentPageInDailyWarmupBlock>[1]['contentSections'];
   systemSettings: Parameters<typeof isContentPageInDailyWarmupBlock>[1]['systemSettings'];
 };
