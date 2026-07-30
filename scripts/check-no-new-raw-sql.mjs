@@ -8,16 +8,20 @@ import ts from 'typescript';
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const scanRoots = ['apps/integrator/src', 'apps/webapp/src'];
 
-// Existing debt, cleaned under plan D18c — do not add.
-// Keep each app's entries sorted. Removing a cleaned file is allowed.
-const rawSqlDebtFiles = {
+// Frozen D18a inventory of every existing raw .query() call. Do not add entries:
+// a newly added call must use the application's Drizzle port instead. D18c removes
+// entries as the legacy calls are converted. Keep each app's entries sorted.
+const rawSqlQueryManifest = {
   integrator: new Set([
+    'apps/integrator/src/infra/db/client.ts',
     'apps/integrator/src/infra/db/directPublic/mergeCandidatesDirect.ts',
     'apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts',
     'apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.rls.integration.test.ts',
     'apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.ts',
     'apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts',
     'apps/integrator/src/infra/db/directPublic/writeSupportQuestionsDirect.ts',
+    'apps/integrator/src/infra/db/integratorPoolProvider.ts',
+    'apps/integrator/src/infra/db/migrate.ts',
     'apps/integrator/src/infra/db/operationalPoolReadiness.ts',
     'apps/integrator/src/infra/db/publicRestrictedSettings.ts',
     'apps/integrator/src/infra/db/publicRuntimeSettings.ts',
@@ -26,16 +30,23 @@ const rawSqlDebtFiles = {
     'apps/integrator/src/infra/db/repos/outgoingDeliveryScope.ts',
     'apps/integrator/src/infra/db/repos/projectionHealthCore.ts',
     'apps/integrator/src/infra/db/repos/schedulerReminderOrganizations.ts',
+    'apps/integrator/src/infra/db/runIntegratorSql.ts',
     'apps/integrator/src/infra/db/writePort.ts',
+    'apps/integrator/src/infra/db/withClient.ts',
     'apps/integrator/src/infra/observability/saasIsolationTelemetry.ts',
     'apps/integrator/src/kernel/domain/executor/handlers/reminders.ts',
   ]),
   webapp: new Set([
+    'apps/webapp/src/infra/db/client.ts',
+    'apps/webapp/src/infra/db/runWebappSql.ts',
+    'apps/webapp/src/infra/db/webappPoolProvider.ts',
+    'apps/webapp/src/infra/db/withClient.ts',
     'apps/webapp/src/infra/adminAuditLog.devDb.integration.test.ts',
     'apps/webapp/src/infra/platformUserFullPurge.devDb.integration.test.ts',
     'apps/webapp/src/infra/platformUserMergePreview.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/broadcastChannelCounts.ts',
     'apps/webapp/src/infra/repos/orgBrandRevisionGuard.devDb.integration.test.ts',
+    'apps/webapp/src/infra/repos/pgAdminPlatformUserStats.ts',
     'apps/webapp/src/infra/repos/pgAuthRateLimitEvents.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgBookingScheduling.deactivateWorkingHours.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgBookingScheduling.readChokepoint.devDb.integration.test.ts',
@@ -64,17 +75,6 @@ const rawSqlDebtFiles = {
   ]),
 };
 
-// These are infrastructure primitives, not application raw-SQL debt: migration loading and
-// the low-level pool/client checkout implementations are explicitly outside D18a's manifest.
-const exemptFiles = new Set([
-  'apps/integrator/src/infra/db/client.ts',
-  'apps/integrator/src/infra/db/migrate.ts',
-  'apps/integrator/src/infra/db/withClient.ts',
-  'apps/webapp/src/infra/db/webappPoolProvider.ts',
-  'apps/webapp/src/infra/db/client.ts',
-  'apps/webapp/src/infra/db/withClient.ts',
-]);
-
 function listSourceFiles(dir) {
   const files = [];
   for (const name of readdirSync(dir)) {
@@ -85,31 +85,90 @@ function listSourceFiles(dir) {
   return files;
 }
 
-function sqlText(node) {
-  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
-  if (ts.isTemplateExpression(node)) return node.head.text;
-  return null;
-}
-
 function rawSqlQueryLines(fileName, source) {
   const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
-  const lines = [];
-  const visit = (node) => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === 'query' &&
-      node.arguments.length > 0
+  const queryAliases = new Set();
+
+  const unwrapExpression = (node) => {
+    let current = node;
+    while (
+      ts.isParenthesizedExpression(current) ||
+      ts.isAsExpression(current) ||
+      ts.isTypeAssertionExpression(current) ||
+      ts.isNonNullExpression(current)
     ) {
-      const text = sqlText(node.arguments[0]);
-      if (text !== null) {
-        lines.push(sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1);
+      current = current.expression;
+    }
+    return current;
+  };
+
+  const isQueryMember = (node) =>
+    (ts.isPropertyAccessExpression(node) && node.name.text === 'query') ||
+    (ts.isElementAccessExpression(node) &&
+      node.argumentExpression &&
+      (ts.isStringLiteral(node.argumentExpression) || ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)) &&
+      node.argumentExpression.text === 'query');
+
+  const isQueryAliasSource = (node) => {
+    const expression = unwrapExpression(node);
+    if (ts.isIdentifier(expression)) return queryAliases.has(expression.text);
+    if (isQueryMember(expression)) return true;
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      return isQueryAliasSource(expression.expression);
+    }
+    if (ts.isCallExpression(expression)) return isQueryAliasSource(expression.expression);
+    return false;
+  };
+
+  // Resolve aliases to a fixed point so `const other = query` is guarded too. This
+  // deliberately tracks only values proven to originate at `.query`, not arbitrary
+  // identifier calls such as a product search helper named `query`.
+  let aliasesChanged = true;
+  while (aliasesChanged) {
+    aliasesChanged = false;
+    const collectAliases = (node) => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        isQueryAliasSource(node.initializer) &&
+        !queryAliases.has(node.name.text)
+      ) {
+        queryAliases.add(node.name.text);
+        aliasesChanged = true;
+      }
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isIdentifier(node.left) &&
+        isQueryAliasSource(node.right) &&
+        !queryAliases.has(node.left.text)
+      ) {
+        queryAliases.add(node.left.text);
+        aliasesChanged = true;
+      }
+      ts.forEachChild(node, collectAliases);
+    };
+    collectAliases(sourceFile);
+  }
+
+  const lines = new Set();
+  const visit = (node) => {
+    if (ts.isCallExpression(node)) {
+      const expression = unwrapExpression(node.expression);
+      if (isQueryMember(expression) || (ts.isIdentifier(expression) && queryAliases.has(expression.text))) {
+        lines.add(sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1);
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
-  return lines;
+  return [...lines].sort((a, b) => a - b);
+}
+
+function rawSqlOffenders(fileName, source, allowedFiles) {
+  const lines = rawSqlQueryLines(fileName, source);
+  return lines.length > 0 && !allowedFiles.has(fileName) ? [`${fileName}:${lines.join(',')}`] : [];
 }
 
 function staleDebtEntries(manifest, liveDebt) {
@@ -136,32 +195,50 @@ function printViolation(offenders, staleDebt) {
 }
 
 function runSelfTest() {
-  const commentPrefixedSql = rawSqlQueryLines(
-    'apps/integrator/src/rawSqlD18aFixture.ts',
-    "pool.query('/* c */ SELECT 1');\n",
-  );
-  const drizzleExecute = rawSqlQueryLines(
+  const fixtures = [
+    ['comment (`--` and `/* */`)', "pool.query('-- c\nSELECT 1');\npool.query('/* c */ SELECT 1');\n"],
+    ['line break', "pool.query(\n  'SELECT 1',\n);\n"],
+    ['template interpolation', 'const column = "id"; pool.query(`SELECT ${column} FROM users`);\n'],
+    ['foreign object', "foreignClient.query('SELECT 1');\n"],
+    [
+      'alias via `bind` / assignment',
+      "const bound = pool.query.bind(pool); bound('SELECT 1');\nconst assigned = pool.query; assigned('SELECT 1');\n",
+    ],
+    ['string concatenation', "pool.query('SELECT ' + column + ' FROM users');\n"],
+  ];
+  const rejectedFixtures = fixtures.map(([label, source], index) => {
+    const file = `apps/integrator/src/rawSqlD18aFixture${index}.ts`;
+    return { label, offenders: rawSqlOffenders(file, source, new Set()) };
+  });
+  const drizzleExecute = rawSqlOffenders(
     'apps/integrator/src/drizzleD18aFixture.ts',
     'db.execute(sql`SELECT 1`);\n',
+    new Set(),
   );
-  const manifestFile = [...rawSqlDebtFiles.integrator].find((file) =>
+  const manifestFile = [...rawSqlQueryManifest.integrator].find((file) =>
     rawSqlQueryLines(file, readFileSync(join(repoRoot, file), 'utf8')).length > 0,
   );
   const manifestWithoutLiveEntry = new Set(
-    [...rawSqlDebtFiles.integrator].filter((file) => file !== manifestFile),
+    [...rawSqlQueryManifest.integrator].filter((file) => file !== manifestFile),
   );
-  const manifestDeletionOffenders = manifestWithoutLiveEntry.has(manifestFile) ? [] : [manifestFile];
+  const manifestDeletionOffenders = manifestFile
+    ? rawSqlOffenders(manifestFile, readFileSync(join(repoRoot, manifestFile), 'utf8'), manifestWithoutLiveEntry)
+    : [];
   if (
-    commentPrefixedSql.length !== 1 ||
+    rejectedFixtures.some(({ offenders }) => offenders.length === 0) ||
     drizzleExecute.length !== 0 ||
     !manifestFile ||
     manifestDeletionOffenders.length !== 1
   ) {
     throw new Error('check-no-new-raw-sql self-test failed');
   }
-  console.error('check-no-new-raw-sql: self-test observed the expected rejection:');
-  printViolation(['apps/integrator/src/rawSqlD18aFixture.ts:1'], []);
-  console.log('check-no-new-raw-sql: self-test OK (comment-prefixed .query(...) is rejected; Drizzle execute passes; missing manifest entry fails).');
+  console.log('check-no-new-raw-sql: self-test expected verdicts:');
+  for (const { label, offenders } of rejectedFixtures) {
+    console.log(`  - ${label}: rejected (${offenders.join(', ')})`);
+  }
+  console.log('  - Drizzle execute: allowed');
+  console.log(`  - removed live manifest entry: rejected (${manifestDeletionOffenders.join(', ')})`);
+  console.log('check-no-new-raw-sql: self-test OK.');
 }
 
 if (process.argv.includes('--self-test')) {
@@ -175,15 +252,15 @@ for (const root of scanRoots) {
   const app = root.includes('/integrator/') ? 'integrator' : 'webapp';
   for (const abs of listSourceFiles(join(repoRoot, root))) {
     const rel = relative(repoRoot, abs).replaceAll('\\', '/');
-    if (exemptFiles.has(rel)) continue;
-    const lines = rawSqlQueryLines(abs, readFileSync(abs, 'utf8'));
+    const source = readFileSync(abs, 'utf8');
+    const lines = rawSqlQueryLines(abs, source);
     if (lines.length === 0) continue;
-    if (!rawSqlDebtFiles[app].has(rel)) offenders.push(`${rel}:${lines.join(',')}`);
-    else liveDebt[app].add(rel);
+    if (rawSqlQueryManifest[app].has(rel)) liveDebt[app].add(rel);
+    else offenders.push(...rawSqlOffenders(rel, source, rawSqlQueryManifest[app]));
   }
 }
 
-const staleDebt = staleDebtEntries(rawSqlDebtFiles, liveDebt);
+const staleDebt = staleDebtEntries(rawSqlQueryManifest, liveDebt);
 
 if (offenders.length > 0 || staleDebt.length > 0) {
   printViolation(offenders, staleDebt);
@@ -191,5 +268,5 @@ if (offenders.length > 0 || staleDebt.length > 0) {
 }
 
 console.log(
-  `check-no-new-raw-sql: OK (integrator debt files: ${rawSqlDebtFiles.integrator.size}; webapp debt files: ${rawSqlDebtFiles.webapp.size})`,
+  `check-no-new-raw-sql: OK (integrator manifest files: ${rawSqlQueryManifest.integrator.size}; webapp manifest files: ${rawSqlQueryManifest.webapp.size})`,
 );
