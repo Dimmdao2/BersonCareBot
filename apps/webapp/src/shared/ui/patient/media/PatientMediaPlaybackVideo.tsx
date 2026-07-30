@@ -19,7 +19,7 @@ import {
   SelectTrigger,
 } from '@/shared/ui/patient/primitives/select';
 import { NoContextMenuVideo } from '@/shared/ui/patient/media/NoContextMenuVideo';
-import { shouldUseNativeHls } from '@/shared/lib/nativeHls';
+import { useNativeHlsPlayback } from '@/shared/lib/nativeHls';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
 import type { MediaAvailableQuality } from '@/modules/media/types';
 import { patientBodyTextClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
@@ -189,9 +189,9 @@ function PlaybackEngine({
     return 'Качество';
   }, [hlsQualityChoice, sortedPlaybackQualities]);
 
-  const useNativeHlsPlayback = shouldUseNativeHls();
+  const nativeHlsPlayback = useNativeHlsPlayback();
   const showHlsJsQualityControls =
-    sourceKind === 'hls' && !useNativeHlsPlayback && sortedPlaybackQualities.length >= 2 && !error;
+    sourceKind === 'hls' && !nativeHlsPlayback && sortedPlaybackQualities.length >= 2 && !error;
 
   const fetchPlaybackJson = useCallback(async (): Promise<MediaPlaybackPayload | null> => {
     try {
@@ -334,7 +334,7 @@ function PlaybackEngine({
         return;
       }
 
-      if (useNativeHlsPlayback) {
+      if (nativeHlsPlayback) {
         attachNativeHls(video, masterUrl, posterUrl);
         return;
       }
@@ -454,7 +454,7 @@ function PlaybackEngine({
     reportPlaybackIssue,
     sortedPlaybackQualities,
     sourceKind,
-    useNativeHlsPlayback,
+    nativeHlsPlayback,
   ]);
 
   const onRetry = useCallback(async () => {

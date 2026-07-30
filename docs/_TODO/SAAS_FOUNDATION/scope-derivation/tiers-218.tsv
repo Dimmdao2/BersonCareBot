@@ -37,7 +37,6 @@ INFRA|integrator.booking_calendar_map
 INFRA|integrator.delivery_attempt_logs
 INFRA|integrator.idempotency_keys
 INFRA|integrator.integration_data_quality_incidents
-INFRA|integrator.mailing_topics
 INFRA|integrator.projection_outbox
 INFRA|integrator.schema_migrations
 INFRA|public.auth_rate_limit_events
@@ -47,7 +46,6 @@ INFRA|public.idempotency_keys
 INFRA|public.integration_webhook_error_events
 INFRA|public.integration_webhook_last_status
 INFRA|public.integrator_push_outbox
-INFRA|public.mailing_topics_webapp
 INFRA|public.operator_health_alert_sent
 INFRA|public.operator_incidents
 INFRA|public.operator_job_status
@@ -72,15 +70,12 @@ SCOPED|integrator.contacts
 SCOPED|integrator.content_access_grants
 SCOPED|integrator.conversation_messages
 SCOPED|integrator.conversations
-SCOPED|integrator.mailing_logs
-SCOPED|integrator.mailings
 SCOPED|integrator.message_drafts
 SCOPED|integrator.question_messages
 SCOPED|integrator.user_questions
 SCOPED|integrator.user_reminder_delivery_logs
 SCOPED|integrator.user_reminder_occurrences
 SCOPED|integrator.user_reminder_rules
-SCOPED|integrator.user_subscriptions
 SCOPED|public.admin_audit_log
 SCOPED|public.be_appointment_cancellations
 SCOPED|public.be_appointment_events
@@ -157,7 +152,6 @@ SCOPED|public.lfk_exercise_media
 SCOPED|public.lfk_exercise_regions
 SCOPED|public.lfk_exercises
 SCOPED|public.lfk_sessions
-SCOPED|public.mailing_logs_webapp
 SCOPED|public.material_ratings
 SCOPED|public.media_files
 SCOPED|public.media_folders
@@ -228,7 +222,6 @@ SCOPED|public.treatment_program_template_stage_groups
 SCOPED|public.treatment_program_template_stage_items
 SCOPED|public.treatment_program_template_stages
 SCOPED|public.treatment_program_templates
-SCOPED|public.user_subscriptions_webapp
 SCOPED|public.webapp_reminder_occurrences
 TELEMETRY|public.media_playback_stats_hourly
 TELEMETRY|public.product_analytics_hourly

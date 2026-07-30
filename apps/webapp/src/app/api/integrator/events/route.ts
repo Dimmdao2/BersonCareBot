@@ -210,7 +210,6 @@ export async function POST(request: Request) {
     preferences: deps.userProjection,
     supportCommunication: deps.supportCommunication,
     reminderProjection: deps.reminderProjection,
-    subscriptionMailingProjection: deps.subscriptionMailingProjection,
   });
   const status = result.accepted ? 202 : result.retryable === false ? 422 : 503;
   const body: Record<string, unknown> = result.accepted

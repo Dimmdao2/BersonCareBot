@@ -759,8 +759,13 @@ COMMENT ON FUNCTION app.password_login_read_altcha_secret() IS
 DO $ownership$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner') THEN
-    ALTER TABLE public.password_login_identifier_protection OWNER TO app_owner;
-    ALTER TABLE public.password_altcha_challenges OWNER TO app_owner;
+    -- Public tables keep the canonical database-owner ownership used by the rest of the webapp
+    -- schema. app_owner deliberately has no CREATE on public, so transferring ownership would make
+    -- this migration fail with 42501. Grant only the DML required by the SECURITY DEFINER functions.
+    GRANT SELECT, INSERT, UPDATE, DELETE
+      ON TABLE public.password_login_identifier_protection,
+               public.password_altcha_challenges
+      TO app_owner;
     ALTER FUNCTION app.password_login_read_altcha_secret() OWNER TO app_owner;
     ALTER FUNCTION app.password_login_issue_altcha_challenge(text, uuid, text, timestamptz)
       OWNER TO app_owner;

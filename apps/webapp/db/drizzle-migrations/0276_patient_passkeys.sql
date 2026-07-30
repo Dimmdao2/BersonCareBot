@@ -1,4 +1,4 @@
--- 0275: voluntary patient passkeys plus global login-method toggles (#1005).
+-- 0276: voluntary patient passkeys plus global login-method toggles (#1005).
 --
 -- WebAuthn biometric/PIN verification stays inside the authenticator. The application stores only
 -- an opaque account handle, the public credential, replay counter and bounded one-time challenges.

@@ -367,7 +367,7 @@ if (process.argv.includes('--self-test')) {
     [
       'P0.10.1 tier completeness invariant OK:',
       'historical tiers-218.tsv rows plus reviewed post-Phase-4 strict-policy exceptions match the actual schema;',
-      'needs-orgid-FINAL=115 SCOPED non-be tables;',
+      'needs-orgid-FINAL and P0.4 batches match;',
       'P0.4 batches cover needs-org exactly;',
       'P0.4.BE FK-path tables stay outside needs-org.',
     ].join(' '),

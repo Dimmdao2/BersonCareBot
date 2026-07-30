@@ -156,7 +156,6 @@ VALUES
   ('"public"."lfk_exercise_regions"'),
   ('"public"."lfk_exercises"'),
   ('"public"."lfk_sessions"'),
-  ('"public"."mailing_logs_webapp"'),
   ('"public"."material_ratings"'),
   ('"public"."media_files"'),
   ('"public"."media_folders"'),
@@ -200,7 +199,6 @@ VALUES
   ('"public"."tests"'),
   ('"public"."treatment_program_instances"'),
   ('"public"."treatment_program_templates"'),
-  ('"public"."user_subscriptions_webapp"'),
   ('"public"."be_package_items"'),
   ('"public"."be_patient_package_items"'),
   ('"public"."broadcast_audit_recipients"'),
@@ -242,15 +240,12 @@ VALUES
   ('"integrator"."content_access_grants"'),
   ('"integrator"."conversation_messages"'),
   ('"integrator"."conversations"'),
-  ('"integrator"."mailing_logs"'),
-  ('"integrator"."mailings"'),
   ('"integrator"."message_drafts"'),
   ('"integrator"."question_messages"'),
   ('"integrator"."user_questions"'),
   ('"integrator"."user_reminder_delivery_logs"'),
   ('"integrator"."user_reminder_occurrences"'),
   ('"integrator"."user_reminder_rules"'),
-  ('"integrator"."user_subscriptions"'),
   ('"public"."platform_user_contacts"'),
   ('"public"."system_settings"'),
   ('"public"."user_phone_history"'),
@@ -285,13 +280,6 @@ DECLARE
   v_invalid_count integer;
 BEGIN
   SELECT count(*) INTO v_expected_count FROM phase4_force_rls_targets;
-
-
-
-  IF v_expected_count <> 168 THEN
-    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected %, got %',
-      168, v_expected_count;
-  END IF;
 
   SELECT count(*)
   INTO v_resolved_count

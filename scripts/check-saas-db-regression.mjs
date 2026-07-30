@@ -100,6 +100,15 @@ const checks = [
     'SAAS D1 grant metadata',
     'docs/_TODO/SAAS_FOUNDATION/scripts/check-d1-664-with-check-reverify.mjs',
   ],
+  [
+    'SAAS D8 mailing retirement',
+    'docs/_TODO/SAAS_FOUNDATION/scripts/check-d8-mailing-retirement.mjs',
+  ],
+  [
+    'SAAS D8 mailing retirement self-test',
+    'docs/_TODO/SAAS_FOUNDATION/scripts/check-d8-mailing-retirement.mjs',
+    '--self-test',
+  ],
 ];
 
 for (const [label, script, ...args] of checks) {

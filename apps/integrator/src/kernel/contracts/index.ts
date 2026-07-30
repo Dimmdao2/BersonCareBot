@@ -124,9 +124,6 @@ export type {
   AppointmentsReadsPort,
   BookingRecordForLinking,
   ActiveBookingRecord,
-  SubscriptionMailingReadsPort,
-  MailingTopicReadRow,
-  UserSubscriptionReadRow,
   WebPushAccessPort,
   WebPushSubscriptionPayload,
   VapidCredentials,
@@ -137,14 +134,8 @@ export {
   REMINDER_OCCURRENCE_FINALIZED,
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
-  MAILING_TOPIC_UPSERTED,
-  USER_SUBSCRIPTION_UPSERTED,
-  MAILING_LOG_SENT,
 } from './projectionEventTypes.js';
-export type {
-  ReminderProjectionEventType,
-  SubscriptionMailingProjectionEventType,
-} from './projectionEventTypes.js';
+export type { ReminderProjectionEventType } from './projectionEventTypes.js';
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin } from './messengerStaff.js';
 

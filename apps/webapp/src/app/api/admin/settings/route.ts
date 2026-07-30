@@ -663,8 +663,7 @@ export async function PATCH(request: Request) {
 
   if (parsed.data.key === 'notifications_topics') {
     const inner = normalizedValue.value;
-    const topics = await deps.subscriptionMailingProjection.listTopics();
-    const knownTopicCodes = new Set(topics.map((t) => t.code));
+    const knownTopicCodes = new Set<string>();
     const checked = normalizeNotificationsTopicsForAdminPatch(inner, { knownTopicCodes });
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });

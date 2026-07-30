@@ -15,7 +15,8 @@ function quotedTable(table) {
 const expectedTargets = getPhase4LockedPolicyTargets()
   .map(({ descriptor }) => quotedTable(descriptor.table))
   .sort();
-const artifactTargets = [...readFileSync(artifactPath, 'utf8').matchAll(targetPattern)].map(
+const artifactSource = readFileSync(artifactPath, 'utf8');
+const artifactTargets = [...artifactSource.matchAll(targetPattern)].map(
   (match) => match[1].replaceAll("''", "'"),
 );
 const uniqueArtifactTargets = [...new Set(artifactTargets)].sort();
@@ -33,6 +34,4 @@ if (
   );
 }
 
-console.log(
-  `check-phase4-force-cutover-sql: generated target artifact OK (${expectedTargets.length})`,
-);
+console.log('check-phase4-force-cutover-sql: generated target artifact OK');
