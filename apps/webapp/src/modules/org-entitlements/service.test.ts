@@ -402,6 +402,53 @@ describe('org entitlement mechanic classes', () => {
     );
   });
 
+  it.each(['payments', 'branding'] as const)(
+    'applies the owner-configured grace, read-only and terminal ladder to %s without a special case',
+    (mechanic) => {
+      const degradationStartedAt = '2026-07-01T00:00:00.000Z';
+      const snapshot: OrgEntitlementSnapshot = {
+        tariff: {
+          mechanics: { [mechanic]: true },
+          quotas: {},
+          systemAccessPolicy: null,
+          mechanicAccessPolicies: {
+            [mechanic]: {
+              graceDays: 1,
+              readOnlyDays: 2,
+              warningCount: 2,
+              terminalState: 'disabled',
+            },
+          },
+          includedSeats: null,
+          includedSeatsWarningAtPercent: null,
+        },
+        overrides: [],
+        access: {
+          lifecycle: 'blocked',
+          tariffId: 'tariff',
+          source: 'assignment',
+          degradationStartedAt,
+        },
+      };
+
+      expect(
+        resolveMechanicAccessFromSnapshot(snapshot, mechanic, new Date('2026-07-01T12:00:00.000Z')),
+      ).toMatchObject({
+        state: 'grace',
+        policySource: 'mechanic',
+        warning: { until: '2026-07-02T00:00:00.000Z', nextState: 'read_only' },
+      });
+      expect(
+        resolveMechanicAccessFromSnapshot(snapshot, mechanic, new Date('2026-07-02T12:00:00.000Z'))
+          .state,
+      ).toBe('read_only');
+      expect(
+        resolveMechanicAccessFromSnapshot(snapshot, mechanic, new Date('2026-07-04T00:00:00.000Z'))
+          .state,
+      ).toBe('disabled');
+    },
+  );
+
   it('keeps a critical mechanic full-access even when tariff, exception and terminal are false', () => {
     const snapshot: OrgEntitlementSnapshot = {
       tariff: {
@@ -486,9 +533,9 @@ describe('org entitlement mechanic classes', () => {
         error: 'entitlement_required',
       });
     }
-    await expect(
-      requireEntitlementForPage({ organizationId: 'org' }, 'courses'),
-    ).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(requireEntitlementForPage({ organizationId: 'org' }, 'courses')).rejects.toThrow(
+      'NEXT_NOT_FOUND',
+    );
     expect(
       resolveMechanicSurfaceVisibility({
         mechanic: 'courses',

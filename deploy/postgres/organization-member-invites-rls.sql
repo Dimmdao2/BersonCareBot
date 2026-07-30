@@ -275,13 +275,15 @@ BEGIN
   -- entitlement at invite-creation time. An invite issued before a downgrade/OFF must not activate
   -- ANY clinic-team membership growth — this applies to every invited role, including `admin`,
   -- which never consumes a numeric seat but still grows the paid clinic-team capability. Mirrors
-  -- isMechanicEnabled's clinic_team default-off precedence (src/modules/org-entitlements/service.ts)
-  -- — duplicated here because it must run inside this same FOR UPDATE-locked transaction to be
-  -- atomic. Checked, and denied, before any platform_users/membership/invite mutation below.
+  -- resolveClinicSeatLimit's override > tariff precedence. `clinic_team` is a numeric seats
+  -- mechanic: the tariff includes it by configuring included_seats, not by writing the legacy
+  -- mechanics JSON. This check is duplicated here because it must run inside this same FOR
+  -- UPDATE-locked transaction to be atomic. Checked, and denied, before any
+  -- platform_users/membership/invite mutation below.
   SELECT COALESCE(
     (SELECT eo.enabled FROM public.saas_org_entitlement_overrides AS eo
      WHERE eo.organization_id = v_invite.organization_id AND eo.mechanic = 'clinic_team'),
-    (SELECT (t.mechanics ->> 'clinic_team')::boolean
+    (SELECT t.included_seats IS NOT NULL
      FROM public.be_organizations AS o
      JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
      WHERE o.id = v_invite.organization_id),
