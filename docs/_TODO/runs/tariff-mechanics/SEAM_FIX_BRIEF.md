@@ -1,5 +1,14 @@
 # MISSION: correction after the seam audit — a migration that may never apply, and two red tests
 
+## Authority
+
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a — item 3.1c and stage 2; scope §1; policy §2.
+- **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §4a (the ladder; the data/code boundary
+  was narrowed by the lead — read item 2 there before touching state names).
+- **Verdicts you are fixing:** `docs/_TODO/runs/tariff-mechanics/AUDIT_SEAM_SOL_RESULT.md` (FAIL, three points) and
+  `AUDIT_SEAM_OPUS_RESULT.md` (structural PASS with the migration warning).
+- **Worker report you are correcting:** `docs/_TODO/runs/tariff-mechanics/STAGE3_SEAM_REPORT.md`.
+
 Sol failed the seam audit on three points, Opus passed it structurally but could not run a single command and raised one
 operational warning that outranks everything else. Fix in this order.
 
