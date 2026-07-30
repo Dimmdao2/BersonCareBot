@@ -632,7 +632,7 @@ export function createPatientBookingService(input: {
                   lifecycleResult.cancelPolicy.lateCancellationBehavior === 'retain_prepayment'
                 : false,
               prepaymentRefunded: lifecycleResult.eligibility
-                ? !lifecycleResult.eligibility.isFree &&
+                ? lifecycleResult.eligibility.isFree ||
                   lifecycleResult.cancelPolicy.lateCancellationBehavior === 'refund_prepayment'
                 : false,
               reason: cancelInput.reason,

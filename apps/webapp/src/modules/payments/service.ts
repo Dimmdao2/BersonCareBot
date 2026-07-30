@@ -71,6 +71,41 @@ export function createPaymentsService(deps: {
     return deps.config.getBookingPaymentSettings(organizationId);
   }
 
+  async function resolveAppointmentPayment(
+    appointmentId: string,
+    organizationId: string,
+    appointment?: BeAppointment | null,
+  ) {
+    const resolvedAppointment =
+      appointment ??
+      (deps.bookingEngine ? await deps.bookingEngine.getAppointment(appointmentId) : null);
+    if (
+      !resolvedAppointment ||
+      resolvedAppointment.organizationId !== organizationId ||
+      !resolvedAppointment.paymentRef
+    ) {
+      return null;
+    }
+    const payment = await deps.port.findPaymentById(resolvedAppointment.paymentRef, organizationId);
+    if (!payment) return null;
+    return { appointment: resolvedAppointment, payment };
+  }
+
+  async function resolveAppointmentAmountMinor(
+    organizationId: string,
+    payment: { id: string; amountMinor: number },
+  ): Promise<number> {
+    const appointmentCount = await deps.port.countAppointmentsByPaymentRef(
+      payment.id,
+      organizationId,
+    );
+    if (appointmentCount <= 1) return payment.amountMinor;
+    if (payment.amountMinor % appointmentCount !== 0) {
+      throw new Error('combined_payment_amount_not_divisible');
+    }
+    return payment.amountMinor / appointmentCount;
+  }
+
   function resolveActiveProvider(settings: BookingPaymentSettings, providerId?: string) {
     const id = providerId?.trim() || settings.defaultProviderId;
     const provider = settings.providers.find((p) => p.id === id && p.enabled);
@@ -253,15 +288,20 @@ export function createPaymentsService(deps: {
       platformUserId?: string | null;
       newStartAt: string;
     }) {
-      const payment = await deps.port.findPaymentByAppointment(input.appointmentId);
-      if (!payment) return { ok: true as const, skipped: true as const };
+      const resolved = await resolveAppointmentPayment(input.appointmentId, input.organizationId);
+      if (!resolved) return { ok: true as const, skipped: true as const };
+      const { appointment, payment } = resolved;
+      const appointmentAmountMinor = await resolveAppointmentAmountMinor(
+        appointment.organizationId,
+        payment,
+      );
       await deps.port.appendHistoryEvent({
         organizationId: input.organizationId,
         appointmentId: input.appointmentId,
         platformUserId: input.platformUserId ?? null,
         paymentId: payment.id,
         eventType: 'prepayment_carried_on_reschedule',
-        amountMinor: payment.amountMinor,
+        amountMinor: appointmentAmountMinor,
         currency: payment.currency,
         providerId: payment.providerId,
         comment: input.newStartAt,
@@ -558,8 +598,13 @@ export function createPaymentsService(deps: {
       prepaymentRefunded: boolean;
       reason?: string;
     }) {
-      const payment = await deps.port.findPaymentByAppointment(input.appointmentId);
-      if (!payment) return { ok: true as const, skipped: true as const };
+      const resolved = await resolveAppointmentPayment(input.appointmentId, input.organizationId);
+      if (!resolved) return { ok: true as const, skipped: true as const };
+      const { appointment, payment } = resolved;
+      const appointmentAmountMinor = await resolveAppointmentAmountMinor(
+        appointment.organizationId,
+        payment,
+      );
 
       if (input.prepaymentRetained) {
         await deps.port.appendHistoryEvent({
@@ -567,7 +612,7 @@ export function createPaymentsService(deps: {
           appointmentId: input.appointmentId,
           paymentId: payment.id,
           eventType: 'prepayment_retained',
-          amountMinor: payment.amountMinor,
+          amountMinor: appointmentAmountMinor,
           currency: payment.currency,
           providerId: payment.providerId,
           comment: input.reason ?? null,
@@ -583,7 +628,7 @@ export function createPaymentsService(deps: {
         const intent = await deps.port.findIntentById(payment.paymentIntentId);
         const refundResult = await adapter.refund({
           providerIntentRef: intent?.providerIntentRef ?? payment.paymentIntentId,
-          amountMinor: payment.amountMinor,
+          amountMinor: appointmentAmountMinor,
           currency: payment.currency,
           idempotencyKey,
           providerConfig: provider,
@@ -592,20 +637,26 @@ export function createPaymentsService(deps: {
           organizationId: input.organizationId,
           paymentId: payment.id,
           appointmentId: input.appointmentId,
-          amountMinor: payment.amountMinor,
+          amountMinor: appointmentAmountMinor,
           currency: payment.currency,
           status: 'succeeded',
           reason: input.reason,
           providerRefundRef: refundResult.providerRefundRef,
         });
-        await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
+        const refundedAmount = await deps.port.getSucceededRefundedAmount(
+          payment.id,
+          input.organizationId,
+        );
+        if (refundedAmount >= payment.amountMinor) {
+          await deps.port.updatePaymentStatus(payment.id, 'refunded', input.organizationId);
+        }
         await deps.port.appendHistoryEvent({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
           paymentId: payment.id,
           refundId: refund.id,
           eventType: 'refund_succeeded',
-          amountMinor: payment.amountMinor,
+          amountMinor: appointmentAmountMinor,
           currency: payment.currency,
           providerId: payment.providerId,
           status: 'succeeded',
@@ -641,7 +692,9 @@ export function createPaymentsService(deps: {
             })
           : null;
 
-      const payment = await deps.port.findPaymentByAppointment(appointmentId);
+      const payment =
+        (await resolveAppointmentPayment(appointmentId, organizationId, appointment))?.payment ??
+        null;
       const intent =
         (payment ? await deps.port.findIntentById(payment.paymentIntentId) : null) ??
         (await deps.port.findLatestIntentByAppointment(appointmentId));

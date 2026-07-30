@@ -51,7 +51,8 @@ export async function runStaffManualCancelAfterCanonical(input: {
         appointmentId: input.appointmentId,
         organizationId: input.organizationId,
         prepaymentRetained: input.decisionType === 'retain_prepayment',
-        prepaymentRefunded: input.decisionType === 'refund_prepayment',
+        prepaymentRefunded:
+          input.decisionType === 'free' || input.decisionType === 'refund_prepayment',
         reason: input.reason,
       });
     } catch {
