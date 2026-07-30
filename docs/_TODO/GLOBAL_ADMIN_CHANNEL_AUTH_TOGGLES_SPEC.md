@@ -108,10 +108,23 @@ workstream-карточку `#993`. Он не объявляет требова�
 
 ### `#993` — канал/auth control plane и mini-app removal
 
-- [ ] Выполнить R1–R3 и grounded plan этого файла целиком: независимые global-admin toggles для Telegram, MAX,
-      SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled AND fully-configured`; admin warning
-      для включённого, но не настроенного метода; удалить Telegram/MAX mini-app entry points, сохранив ботов для
+Требование: выполнить R1–R3 и grounded plan этого файла целиком — независимые global-admin toggles для Telegram,
+MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled AND fully-configured`; admin warning
+для включённого, но не настроенного метода; удалить Telegram/MAX mini-app entry points, сохранив ботов для кодов
+аутентификации и уведомлений.
+
+- [x] Не предлагать Apple OAuth как способ входа даже при сохранённых legacy credentials: public providers API и
+      SSR snapshot возвращают `apple: false`, прямой `POST /api/auth/oauth/start` отклоняет `provider=apple` —
+      `apps/webapp/src/modules/auth/oauthAppleDisabled.route.test.ts`.
+- [x] Удалить Telegram/MAX mini-app launch из ошибки `user.phone.link → no_channel_binding`, сохранив сообщение и
+      остановку ошибочного сценария — `apps/integrator/src/kernel/domain/executor/executeActionMiniAppRemoval.unit.test.ts`.
+- [x] Удалить главный/home mini-app launch из Telegram/MAX menu, reply-menu, content-сценариев и post-bind меню,
+      сохранив booking-действие и обычную browser-auth ссылку —
+      `apps/integrator/src/kernel/domain/executor/executeActionHomeMiniAppRemoval.unit.test.ts`.
+- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из booking/diary/reminder-путей, сохранив ботов для
       кодов аутентификации и уведомлений.
+- [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
+      Telegram/MAX mini-app launch buttons отсутствуют.
 
 Ограничения карточки: toggles глобальные, не per-clinic; Apple не включён; 2FA относится к global admin и staff;
 выключенный метод исчезает из login/registration независимо от наличия ключей.
