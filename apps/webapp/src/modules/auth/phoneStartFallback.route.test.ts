@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ConfirmPhoneAuthResult } from '@/modules/auth/phoneAuth';
+import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
 import type { SessionUser } from '@/shared/types/session';
 import type { PhoneOtpDelivery } from '@/modules/auth/smsPort';
 
@@ -23,6 +25,15 @@ const fakes = vi.hoisted(() => ({
       ) => Promise<{ ok: true } | { ok: false; code: string; retryAfterSeconds?: number }>
     >(),
   registerSend: vi.fn<(phone: string) => Promise<void>>(),
+  getPhoneChallenge: vi.fn<(challengeId: string) => Promise<PhoneChallengePayload | null>>(),
+  confirmPhoneAuth: vi.fn<(challengeId: string, code: string) => Promise<ConfirmPhoneAuthResult>>(),
+  checkConfirmRateLimit:
+    vi.fn<
+      () => Promise<
+        | { limited: false }
+        | { limited: true; reason?: 'proxy_configuration'; retryAfterSeconds?: number }
+      >
+    >(),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({ stampBootstrapPrincipal: vi.fn() }));
@@ -33,6 +44,22 @@ vi.mock('@/app-layer/product-analytics/recordAuthRegistration', () => ({
   recordAuthRegistrationSuccess: vi.fn(),
 }));
 vi.mock('@/modules/auth/service', () => ({ getCurrentSession: vi.fn() }));
+vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({
+  ensureAuthModulePortsBound: vi.fn(),
+}));
+vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
+  checkAuthConfirmRateLimit: fakes.checkConfirmRateLimit,
+}));
+vi.mock('@/app-layer/principal/staffSecuritySelfPrincipal', () => ({
+  enterStaffSecuritySelfPrincipal: vi.fn(),
+}));
+vi.mock('@/modules/auth/verifiedStaffPrimaryLogin', () => ({
+  prepareVerifiedPrimaryLogin: vi.fn(),
+}));
+vi.mock('@/shared/platform-user/isPlatformUserUuid', () => ({
+  isPlatformUserUuid: vi.fn().mockReturnValue(false),
+}));
 vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isAuthChannelEnabled: fakes.isChannelEnabled,
 }));
@@ -46,11 +73,16 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       findByPhone: fakes.findByPhone,
       getVerifiedEmailForUser: fakes.getVerifiedEmail,
     },
-    auth: { startPhoneAuth: fakes.startPhoneAuth },
+    auth: {
+      startPhoneAuth: fakes.startPhoneAuth,
+      getPhoneChallenge: fakes.getPhoneChallenge,
+      confirmPhoneAuth: fakes.confirmPhoneAuth,
+    },
   }),
 }));
 
 import { POST as startPhone } from '@/app/api/auth/phone/start/route';
+import { POST as confirmPhone } from '@/app/api/auth/phone/confirm/route';
 
 const user: SessionUser = {
   userId: '00000000-0000-4000-8000-000000001005',
@@ -87,6 +119,39 @@ beforeEach(() => {
   fakes.isChannelEnabled.mockResolvedValue(true);
   fakes.findByPhone.mockResolvedValue(user);
   fakes.getVerifiedEmail.mockResolvedValue('verified@example.test');
+  fakes.getPhoneChallenge.mockResolvedValue(null);
+  fakes.confirmPhoneAuth.mockResolvedValue({ ok: false, code: 'expired_code' });
+  fakes.checkConfirmRateLimit.mockResolvedValue({ limited: false });
+});
+
+describe('phone login decoy confirmation', () => {
+  it('keeps a missing decoy challenge indistinguishable from a wrong real code', async () => {
+    const decoy = await confirmPhone(
+      request({
+        challengeId: 'decoy-challenge-1005',
+        code: '000000',
+      }),
+    );
+
+    fakes.getPhoneChallenge.mockResolvedValueOnce({
+      phone: '+79991234567',
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+      deliveryChannel: 'email',
+    });
+    fakes.confirmPhoneAuth.mockResolvedValueOnce({ ok: false, code: 'invalid_code' });
+    const realWrongCode = await confirmPhone(
+      request({
+        challengeId: 'real-challenge-1005',
+        code: '000000',
+      }),
+    );
+
+    expect(decoy.status).toBe(400);
+    expect(realWrongCode.status).toBe(400);
+    await expect(decoy.json()).resolves.toEqual(await realWrongCode.json());
+    expect(fakes.isChannelEnabled).toHaveBeenCalledTimes(1);
+    expect(fakes.isChannelEnabled).toHaveBeenCalledWith('email');
+  });
 });
 
 afterEach(() => {

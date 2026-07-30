@@ -325,9 +325,9 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       выставляет phone trust. NIST 800-63B-4 считает SMS restricted и требует альтернативный тип
       аутентификатора, но не признаёт e-mail допустимым OOB authenticator; e-mail fallback — продуктовое решение
       владельца, anti-enumeration — OWASP Forgot Password / ASVS 6.3.8. Доказательство:
-      `apps/webapp/src/app/api/auth/phone/start/route.ts`,
+      `apps/webapp/src/app/api/auth/phone/start/route.ts` + `phone/confirm/route.ts`,
       `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts`,
-      `apps/webapp/src/shared/ui/patient/auth/PhoneMessengerAuthFlow.ui.test.tsx` (5/5).
+      `apps/webapp/src/shared/ui/patient/auth/PhoneMessengerAuthFlow.ui.test.tsx` (6/6).
 - [x] **C-4 (D5) Admin allowlists → roles.** Remove the DB-resident allowlists that also confer admin;
       recipients derived from roles at send time; owner identity pinned in env.
       **Разведка сделана 26.07 → `docs/_TODO/C4_ADMIN_ALLOWLISTS_2026-07-26.md`.** Главное оттуда:

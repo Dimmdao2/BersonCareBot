@@ -145,13 +145,14 @@ WhatsApp подтверждает его только при таком же д�
       канал в порядке SMS, если включён и номер подходит → привязанный подтверждённый email. Web Push решением
       владельца от 27.07 не используется для регистрации и кодов входа. —
       `apps/webapp/src/app/api/auth/phone/start/route.ts` +
-      `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts` (5/5 route+UI).
+      `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts` (6/6 route+UI).
 - [ ] Провести обязательную кампанию сбора и подтверждения email для аккаунтов, у которых мессенджер был
       единственным входом; на TEST-копии зафиксированы **22** аккаунта без email, телефона и пароля.
 - [x] Доказать одинаковые ответ и timing независимо от наличия канала, не раскрывать наличие привязанного email;
       допустима только одинаково ведущая себя маскированная подсказка вида `d***@g***.ru`. — нейтральный
       `deliveryChannel: automatic`, opaque real/decoy challenge и единое минимальное окно ответа:
-      `phone/start/route.ts` + `phoneStartFallback.route.test.ts`.
+      `phone/start/route.ts` + единый `invalid_code` для decoy/real wrong-code в `phone/confirm/route.ts` +
+      `phoneStartFallback.route.test.ts`.
 - [x] Развести «канал доставки» и «подтверждённый фактор»: код, доставленный по email после ввода телефона,
       подтверждает email и не выставляет trusted-phone признак. —
       `apps/webapp/src/modules/auth/phoneAuth.ts:55,183` +
