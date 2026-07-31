@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const getCurrentDbPrincipalMock = vi.hoisted(() => vi.fn());
+const getDrizzleMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: runWebappPgTextMock,
@@ -10,8 +11,33 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@bersoncare/db-principal')>()),
   getCurrentDbPrincipal: getCurrentDbPrincipalMock,
 }));
+vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: getDrizzleMock }));
 
 import { createPgOrgEntitlementsPort } from './pgOrgEntitlements';
+
+/**
+ * `getOwnQuotaUsage` issues six sequential `db.select(...)` calls (branches, patient_count, files,
+ * then the three-part specialist-seat formula). Each `.select()` claims the next row-set from
+ * `resultsQueue` in call order; `.from`/`.where`/`.innerJoin` are no-ops that just keep the chain
+ * awaitable, matching how the real drizzle query builder is used in `pgOrgEntitlements.ts`.
+ */
+function stubSequentialDrizzleSelects(resultsQueue: Array<Array<{ value: number }>>) {
+  let callIndex = 0;
+  return {
+    select: () => {
+      const index = callIndex;
+      callIndex += 1;
+      const node = {
+        from: () => node,
+        innerJoin: () => node,
+        where: () => node,
+        then: (resolve: (rows: Array<{ value: number }>) => void) =>
+          Promise.resolve(resultsQueue[index] ?? []).then(resolve),
+      };
+      return node;
+    },
+  };
+}
 
 describe('createPgOrgEntitlementsPort usage projection', () => {
   beforeEach(() => {
@@ -19,12 +45,30 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
     getCurrentDbPrincipalMock.mockReturnValue(null);
   });
 
-  it('reports specialist-seat usage only, never a courses count (courses is a toggle, not a quota)', async () => {
+  it('reports specialist-seat and branch usage only, never a courses count (courses is a toggle, not a quota)', async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [{ clinic_team_used: 3 }] });
+    getDrizzleMock.mockReturnValue(stubSequentialDrizzleSelects([[{ value: 2 }]]));
 
     await expect(
       createPgOrgEntitlementsPort().getEnforcedQuotaUsage('11111111-1111-4111-8111-111111111111'),
-    ).resolves.toEqual({ clinic_team: 3 });
+    ).resolves.toEqual({ clinic_team: 3, branches: 2 });
+  });
+
+  it('§5a stage 6.1 — sums the three-part seat formula and reports every quota number for the caller\'s own organization', async () => {
+    getDrizzleMock.mockReturnValue(
+      stubSequentialDrizzleSelects([
+        [{ value: 2 }], // branches (active)
+        [{ value: 7 }], // patient_count (invited + active)
+        [{ value: 12345 }], // files (summed bytes)
+        [{ value: 3 }], // clinic_team: active members with a seat
+        [{ value: 1 }], // clinic_team: pending doctor invites
+        [{ value: 1 }], // clinic_team: accepted doctor invites still missing a seat
+      ]),
+    );
+
+    await expect(
+      createPgOrgEntitlementsPort().getOwnQuotaUsage('11111111-1111-4111-8111-111111111111'),
+    ).resolves.toEqual({ branches: 2, patient_count: 7, files: 12345, clinic_team: 5 });
   });
 
   it('projects lifecycle policies from the patient database capability', async () => {

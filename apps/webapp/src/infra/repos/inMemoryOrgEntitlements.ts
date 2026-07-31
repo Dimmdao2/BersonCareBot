@@ -24,5 +24,8 @@ export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
     async getEnforcedQuotaUsage() {
       return {};
     },
+    async getOwnQuotaUsage() {
+      return {};
+    },
   };
 }

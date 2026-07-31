@@ -13,6 +13,7 @@ import {
   fileStorageLimitFromSnapshot,
   resolveClinicSeatLimit,
   resolveOrgQuotaProjections,
+  resolveOwnOrgQuotaProjections,
   TariffDowngradeBlockedError,
 } from '@/modules/org-entitlements/service';
 import type {
@@ -21,9 +22,12 @@ import type {
   PlatformOrganizationSummary,
 } from '@/modules/org-entitlements/ports';
 import {
+  MECHANIC_REGISTRY,
   MECHANICS,
   type MechanicDefinition,
+  type OrgMechanic,
   type Tariff,
+  type TariffQuota,
   type TariffQuotaMap,
 } from '@/modules/org-entitlements/types';
 
@@ -108,6 +112,9 @@ function snapshotPort(): OrgEntitlementsPort {
     },
     async getEnforcedQuotaUsage() {
       return { courses: 1, files: 5, patient_app: 1 };
+    },
+    async getOwnQuotaUsage() {
+      return { files: 5 };
     },
   };
 }
@@ -243,6 +250,7 @@ describe('org entitlement mechanic classes', () => {
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({ files: 0, clinic_team: 0 }),
+      getOwnQuotaUsage: async () => ({ files: 0, clinic_team: 0 }),
     };
 
     expect(tariff.mechanics).not.toHaveProperty('patient_card');
@@ -287,6 +295,7 @@ describe('org entitlement mechanic classes', () => {
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({ files: 0 }),
+      getOwnQuotaUsage: async () => ({ files: 0 }),
     };
 
     expect(entitlementsFromSnapshot(snapshot).files).toBe(false);
@@ -387,6 +396,45 @@ describe('org entitlement mechanic classes', () => {
       courses: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null },
     };
     void forbidden;
+  });
+
+  it('§5a stage 6.1/6.2 — projects "used out of included" for patients and branches, from either usage source', async () => {
+    const snapshot = {
+      tariff: {
+        mechanics: {},
+        quotas: {
+          patient_count: { kind: 'numeric', limit: 25, unit: 'items', warningAtPercent: null },
+          branches: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: 50 },
+        } as TariffQuotaMap,
+        includedSeats: null,
+        ...unconfiguredPolicies,
+      },
+      overrides: [],
+      access: activeAccess,
+    };
+    const platformPort: OrgEntitlementsPort = {
+      resolveMechanicAccess: async (_organizationId, mechanic) => ({
+        mechanic,
+        state: 'full_access',
+        policySource: 'system',
+        warning: null,
+      }),
+      getSnapshot: async () => snapshot,
+      getTariffForOrg: async () => snapshot.tariff,
+      listOverrides: async () => [],
+      getEffectiveCommercialAccess: async () => activeAccess,
+      getEnforcedQuotaUsage: async () => ({ patient_count: 25, branches: 1 }),
+      getOwnQuotaUsage: async () => ({ patient_count: 25, branches: 2 }),
+    };
+
+    await expect(resolveOrgQuotaProjections(platformPort, 'org')).resolves.toEqual([
+      expect.objectContaining({ mechanic: 'patient_count', usage: 25, threshold: 'reached' }),
+      expect.objectContaining({ mechanic: 'branches', usage: 1, threshold: 'warning' }),
+    ]);
+    await expect(resolveOwnOrgQuotaProjections(platformPort, 'org')).resolves.toEqual([
+      expect.objectContaining({ mechanic: 'patient_count', usage: 25, threshold: 'reached' }),
+      expect.objectContaining({ mechanic: 'branches', usage: 2, threshold: 'reached' }),
+    ]);
   });
 
   it('allows reads in read-only, refuses them when disabled, and shares visibility across surfaces', async () => {
@@ -856,5 +904,212 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
         { actorId: null, reason: '' },
       ),
     ).toThrow('access_policy_terminal_state_invalid');
+  });
+});
+
+describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a number (blocker)', () => {
+  function criticalMechanics() {
+    return MECHANICS.filter((mechanic) => MECHANIC_REGISTRY[mechanic].class === 'никогда');
+  }
+
+  function baseTariffInput(
+    overrides: Partial<Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>> = {},
+  ): Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'> {
+    return {
+      name: 'Тест',
+      description: '',
+      priceMinor: null,
+      currency: null,
+      billingPeriod: 'month',
+      mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
+      quotas: {},
+      systemAccessPolicy: null,
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      includedSeats: null,
+      includedSeatsWarningAtPercent: null,
+      isActive: true,
+      ...overrides,
+    };
+  }
+
+  function servicePort(): PlatformEntitlementsPort {
+    return {
+      listTariffs: async () => [],
+      listOrganizations: async () => [],
+      getTrialPolicy: async () => null,
+      getOrganizationMechanicUsage: async () => ({}),
+      createTariff: async (input) => ({
+        ...input,
+        id: 'x',
+        createdAt: '2026-07-31T00:00:00.000Z',
+        updatedAt: '2026-07-31T00:00:00.000Z',
+      }),
+      updateTariff: async () => {
+        throw new Error('not_used');
+      },
+      archiveTariff: async () => {},
+      assignTariff: async () => {},
+      upsertOverride: async () => {},
+      deleteOverride: async () => {},
+      setTrialPolicy: async () => {},
+      startTrial: async () => null,
+      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
+    };
+  }
+
+  it('there really are critical mechanics to check (a canon list, not an accidentally empty one)', () => {
+    expect(criticalMechanics()).toEqual(
+      expect.arrayContaining(['patient_card', 'patient_app', 'patient_diaries']),
+    );
+  });
+
+  it('refuses an access-lifecycle policy on any critical mechanic (no ladder)', () => {
+    const service = createPlatformEntitlementsService(servicePort());
+    for (const mechanic of criticalMechanics()) {
+      expect(() =>
+        service.createTariff(
+          baseTariffInput({
+            mechanicAccessPolicies: {
+              [mechanic]: {
+                graceDays: 1,
+                readOnlyDays: 1,
+                warningCount: 0,
+                terminalState: 'read_only',
+              },
+            },
+          }),
+          { actorId: null, reason: '' },
+        ),
+      ).toThrow('critical_mechanic_access_policy_forbidden');
+    }
+  });
+
+  it('refuses a numeric quota on any critical mechanic (no number)', () => {
+    const service = createPlatformEntitlementsService(servicePort());
+    for (const mechanic of criticalMechanics()) {
+      const quotas = {
+        [mechanic]: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null },
+      } as never;
+      expect(() =>
+        service.createTariff(baseTariffInput({ quotas }), { actorId: null, reason: '' }),
+      ).toThrow('tariff_quota_unit_invalid');
+    }
+  });
+
+  it('keeps every critical mechanic included no matter how the tariff/override tries to disable it', () => {
+    for (const mechanic of criticalMechanics()) {
+      const worstCaseSnapshot = {
+        tariff: {
+          mechanics: Object.fromEntries(MECHANICS.map((entry) => [entry, false])),
+          quotas: {},
+          includedSeats: null,
+          ...unconfiguredPolicies,
+        },
+        overrides: [
+          { mechanic, enabled: false, quota: null, expiresAt: null, seatLimitOverride: null },
+        ],
+        access: { lifecycle: 'blocked' as const, tariffId: null, source: 'no_trial' as const },
+      };
+
+      expect(entitlementsFromSnapshot(worstCaseSnapshot)[mechanic]).toBe(true);
+    }
+  });
+});
+
+describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence, not a new engine', () => {
+  it('shows the numbers, finds who exceeds the new limit, grants an exception, then enables cleanly', async () => {
+    const overrides: Array<{
+      organizationId: string;
+      mechanic: OrgMechanic;
+      enabled: boolean;
+      quota: TariffQuota | null;
+      expiresAt: string | null;
+    }> = [];
+    const platformPort: PlatformEntitlementsPort = {
+      listTariffs: async () => [],
+      listOrganizations: async () => [],
+      getTrialPolicy: async () => null,
+      getOrganizationMechanicUsage: async () => ({}),
+      createTariff: async () => {
+        throw new Error('not_used');
+      },
+      updateTariff: async () => {
+        throw new Error('not_used');
+      },
+      archiveTariff: async () => {},
+      assignTariff: async () => {},
+      upsertOverride: async (input) => {
+        overrides.push(input);
+      },
+      deleteOverride: async () => {},
+      setTrialPolicy: async () => {},
+      startTrial: async () => null,
+      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
+    };
+    const service = createPlatformEntitlementsService(platformPort);
+    const candidateTariff = {
+      mechanics: {},
+      quotas: {
+        patient_count: { kind: 'numeric', limit: 10, unit: 'items', warningAtPercent: null },
+      } as TariffQuotaMap,
+      includedSeats: null,
+      ...unconfiguredPolicies,
+    };
+    const orgPort = (usage: number, override: (typeof overrides)[number] | null): OrgEntitlementsPort => ({
+      resolveMechanicAccess: async (_organizationId, mechanic) => ({
+        mechanic,
+        state: 'full_access',
+        policySource: 'system',
+        warning: null,
+      }),
+      getSnapshot: async () => ({
+        tariff: candidateTariff,
+        overrides: override
+          ? [
+              {
+                mechanic: override.mechanic,
+                enabled: override.enabled,
+                quota: override.quota,
+                expiresAt: override.expiresAt,
+                seatLimitOverride: null,
+              },
+            ]
+          : [],
+        access: activeAccess,
+      }),
+      getTariffForOrg: async () => candidateTariff,
+      listOverrides: async () => [],
+      getEffectiveCommercialAccess: async () => activeAccess,
+      getEnforcedQuotaUsage: async () => ({ patient_count: usage }),
+      getOwnQuotaUsage: async () => ({ patient_count: usage }),
+    });
+
+    // 1) показать числа — 2) найти превысивших: this clinic already has 12 patients, the
+    // candidate tariff's limit is 10.
+    const before = await resolveOrgQuotaProjections(orgPort(12, null), 'org-over-limit');
+    expect(before).toEqual([
+      expect.objectContaining({ mechanic: 'patient_count', usage: 12, threshold: 'reached' }),
+    ]);
+
+    // 3) выдать исключение: an unlimited override for this one organization.
+    await service.upsertOverride(
+      {
+        organizationId: 'org-over-limit',
+        mechanic: 'patient_count',
+        enabled: true,
+        quota: { kind: 'unlimited', limit: null, warningAtPercent: null, unit: 'items' },
+        expiresAt: null,
+      },
+      { actorId: 'owner', reason: 'exceeds new patient_count limit' },
+    );
+    expect(overrides).toEqual([
+      expect.objectContaining({ organizationId: 'org-over-limit', mechanic: 'patient_count' }),
+    ]);
+
+    // 4) включить: with the exception in place, the mechanic is enabled and no longer flagged as
+    // over a (now irrelevant) numeric limit.
+    const after = await resolveOrgQuotaProjections(orgPort(12, overrides[0]!), 'org-over-limit');
+    expect(after).toEqual([]);
   });
 });

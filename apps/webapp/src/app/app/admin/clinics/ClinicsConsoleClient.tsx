@@ -9,6 +9,7 @@ import {
   MECHANIC_REGISTRY,
   QUOTA_UNIT_LABELS,
   type OrgMechanic,
+  type OrgQuotaProjection,
   type Tariff,
   type TariffQuota,
 } from '@/modules/org-entitlements/types';
@@ -30,6 +31,8 @@ export type PlatformClinicsData = {
   organizations: PlatformOrganizationSummary[];
   tariffs: Tariff[];
   enforcedQuotaUsage: Record<string, Partial<Record<OrgMechanic, number>>>;
+  /** §5a stage 6.2 — usage/limit/threshold per organization, from `resolveOrgQuotaProjections`. */
+  quotaProjections: Record<string, OrgQuotaProjection[]>;
 };
 
 export type PlatformClinicMember = {
@@ -174,12 +177,28 @@ function OverridesSection({ organization }: { organization: PlatformOrganization
   );
 }
 
-function UsageSection({ usage }: { usage: Partial<Record<OrgMechanic, number>> | undefined }) {
+const QUOTA_THRESHOLD_LABEL: Record<OrgQuotaProjection['threshold'], string | null> = {
+  below_warning: null,
+  warning: 'Приближается к пределу',
+  reached: 'Превышение',
+};
+
+function UsageSection({
+  usage,
+  projections,
+}: {
+  usage: Partial<Record<OrgMechanic, number>> | undefined;
+  /** §5a stage 6.2 — usage against the organization's actual configured limit, when one exists. */
+  projections: OrgQuotaProjection[];
+}) {
   const trackedMechanics = MECHANICS.filter(
     (mechanic) => MECHANIC_REGISTRY[mechanic].quotaEnforcement !== 'declared_no_enforcement',
   );
   const untrackedMechanics = MECHANICS.filter(
     (mechanic) => MECHANIC_REGISTRY[mechanic].quotaEnforcement === 'declared_no_enforcement',
+  );
+  const projectionByMechanic = new Map(
+    projections.map((projection) => [projection.mechanic, projection]),
   );
 
   return (
@@ -192,18 +211,35 @@ function UsageSection({ usage }: { usage: Partial<Record<OrgMechanic, number>> |
       </DoctorSectionHeader>
       <div className="grid gap-2 sm:grid-cols-2">
         {trackedMechanics.map((mechanic) => {
+          const projection = projectionByMechanic.get(mechanic);
           const value = usage?.[mechanic];
+          const thresholdLabel = projection ? QUOTA_THRESHOLD_LABEL[projection.threshold] : null;
           return (
             <div key={mechanic} className={doctorSectionItemClass}>
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium">{MECHANIC_REGISTRY[mechanic].label}</span>
-                {value === undefined ? (
+                {projection ? (
+                  <span className="text-lg font-semibold tabular-nums">
+                    {projection.usage} из {projection.quota.limit}
+                  </span>
+                ) : value === undefined ? (
                   <span className="text-xs text-muted-foreground">значение не получено</span>
                 ) : (
                   <span className="text-lg font-semibold tabular-nums">{value}</span>
                 )}
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">текущее количество</p>
+              {thresholdLabel ? (
+                <Badge
+                  variant={projection?.threshold === 'reached' ? 'destructive' : 'outline'}
+                  className="mt-1"
+                >
+                  {thresholdLabel}
+                </Badge>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {projection ? 'в пределах лимита' : 'текущее количество'}
+                </p>
+              )}
             </div>
           );
         })}
@@ -318,10 +354,13 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
                 <span className="text-xs text-muted-foreground md:hidden">Тариф: </span>
                 <span>{tariffName(organization, tariffsById)}</span>
               </div>
-              <div>
+              <div className="flex flex-wrap gap-1.5">
                 <Badge variant={lifecycleBadgeVariant(organization.effectiveAccess.lifecycle)}>
                   {LIFECYCLE_LABELS[organization.effectiveAccess.lifecycle]}
                 </Badge>
+                {(data.quotaProjections[organization.id] ?? []).some(
+                  (projection) => projection.threshold === 'reached',
+                ) && <Badge variant="destructive">Превышение</Badge>}
               </div>
               <div className="text-sm text-muted-foreground">
                 <span className="md:hidden">Пробный период: </span>
@@ -439,7 +478,10 @@ function ClinicDetail({
 
       <ClinicAccountsSection members={members} />
       <OverridesSection organization={organization} />
-      <UsageSection usage={data.enforcedQuotaUsage[organization.id]} />
+      <UsageSection
+        usage={data.enforcedQuotaUsage[organization.id]}
+        projections={data.quotaProjections[organization.id] ?? []}
+      />
       {billingError ? (
         <DoctorSection>
           <DoctorSectionTitle>Биллинг не загрузился</DoctorSectionTitle>

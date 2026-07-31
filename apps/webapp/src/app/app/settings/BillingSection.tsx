@@ -11,6 +11,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import type { OrgMechanic } from '@/modules/org-entitlements/types';
+import type { OrgQuotaProjection } from '@/modules/org-entitlements/types';
 import type { SaasBillingOverview } from '@/modules/saas-billing/ports';
 import { SaasBillingOverview as SaasBillingOverviewSection } from '@/shared/ui/doctor/SaasBillingOverview';
 
@@ -20,6 +21,21 @@ export type BillingMechanicRow = {
   enabled: boolean;
 };
 
+/** §5a stage 6.1 — bytes are the only non-count unit today; everything else is a plain number. */
+function formatQuotaValue(value: number, unit: OrgQuotaProjection['quota']['unit']): string {
+  if (unit !== 'bytes') return String(value);
+  if (value < 1024) return `${value} Б`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} КБ`;
+  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} МБ`;
+  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} ГБ`;
+}
+
+const THRESHOLD_LABEL: Record<OrgQuotaProjection['threshold'], string> = {
+  below_warning: '',
+  warning: 'Приближается к пределу',
+  reached: 'Предел достигнут',
+};
+
 type Props = {
   /** `null` when the organization genuinely has no tariff assigned (own tariff, not the resolver's default). */
   tariffName: string | null;
@@ -27,6 +43,12 @@ type Props = {
   commercialStateLabel: string;
   /** Every canonical mechanic (`MECHANICS`), resolved through `resolveOrgEntitlements`/`entitlementsFromSnapshot`. */
   mechanics: BillingMechanicRow[];
+  /**
+   * §5a stage 6.1 — "использовано из включённого" per number (patients, branches, file storage,
+   * specialist seats), from `resolveOwnOrgQuotaProjections`. A mechanic without a configured
+   * numeric limit or without a real usage figure simply does not appear here — never a synthetic 0.
+   */
+  quotaUsage: Array<OrgQuotaProjection & { label: string }>;
   /** Real rows from `saas_billing_*`; empty arrays mean no billing data, never synthetic zeroes. */
   billing: SaasBillingOverview;
 };
@@ -36,7 +58,13 @@ type Props = {
  * "connect a tariff" sentence regardless of what the organization actually has. No tariff-change
  * UI here by design — that stays with the platform administrator.
  */
-export function BillingSection({ tariffName, commercialStateLabel, mechanics, billing }: Props) {
+export function BillingSection({
+  tariffName,
+  commercialStateLabel,
+  mechanics,
+  quotaUsage,
+  billing,
+}: Props) {
   return (
     <>
       <DoctorSection>
@@ -50,6 +78,34 @@ export function BillingSection({ tariffName, commercialStateLabel, mechanics, bi
           </span>
         </div>
         <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
+
+        {quotaUsage.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium text-foreground">Использовано из включённого</p>
+            <ul aria-label="Числа тарифа" className={doctorDnaFlatListClass}>
+              {quotaUsage.map((row) => (
+                <li
+                  key={row.mechanic}
+                  className={`${doctorDnaFlatListRowClass} justify-between gap-2`}
+                >
+                  <span className={doctorDnaFlatListPrimaryClass}>{row.label}</span>
+                  <span className={doctorDnaFlatListMetaClass}>
+                    {formatQuotaValue(row.usage, row.quota.unit)} из{' '}
+                    {formatQuotaValue(row.quota.limit, row.quota.unit)}
+                    {THRESHOLD_LABEL[row.threshold] && (
+                      <Badge
+                        variant={row.threshold === 'reached' ? 'destructive' : 'outline'}
+                        className="ml-2"
+                      >
+                        {THRESHOLD_LABEL[row.threshold]}
+                      </Badge>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <p className="text-sm font-medium text-foreground">Что доступно клинике</p>

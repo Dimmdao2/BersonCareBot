@@ -9,7 +9,10 @@ import {
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
-import { entitlementsFromSnapshot } from '@/modules/org-entitlements/service';
+import {
+  entitlementsFromSnapshot,
+  resolveOwnOrgQuotaProjections,
+} from '@/modules/org-entitlements/service';
 import { MECHANIC_REGISTRY, MECHANICS } from '@/modules/org-entitlements/types';
 import { orgBrandLogoUrl, type OrgBrandingManagementContext } from '@/modules/org-branding/service';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -306,6 +309,11 @@ export default async function SettingsPage({
     label: MECHANIC_REGISTRY[mechanic].label,
     enabled: entitlements[mechanic],
   }));
+  // §5a stage 6.1 — "использовано из включённого". Own-org usage, not the platform report's
+  // cross-org `getEnforcedQuotaUsage` (see resolveOwnOrgQuotaProjections).
+  const quotaUsage = (
+    await resolveOwnOrgQuotaProjections(deps.orgEntitlements, workspace.organizationId)
+  ).map((projection) => ({ ...projection, label: MECHANIC_REGISTRY[projection.mechanic].label }));
 
   return (
     <DoctorAppShell title="Тариф и биллинг" user={workspace.session.user}>
@@ -315,6 +323,7 @@ export default async function SettingsPage({
         tariffName={snapshot.tariff?.name ?? null}
         commercialStateLabel={describeCommercialAccessState(snapshot.access)}
         mechanics={mechanicRows}
+        quotaUsage={quotaUsage}
         billing={billing}
       />
     </DoctorAppShell>
