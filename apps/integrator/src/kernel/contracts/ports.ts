@@ -447,12 +447,27 @@ export type WebappEventsPort = {
   syncSupportUserMessage?(input: {
     body: string;
     idempotencyKey: string;
-  }): Promise<{ ok: boolean; status: number; error?: string }>;
+  }): Promise<{
+    ok: boolean;
+    status: number;
+    error?: string;
+    canonicalWrite?: { conversationId: string; organizationId: string };
+  }>;
   /** Ответ врача из admin_reply для `webapp:platform:{uuid}` (POST /api/integrator/support/admin-reply). */
   applySupportAdminReply?(input: {
     body: string;
     idempotencyKey: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
+  /** Смена статуса webapp-owned обращения (POST /api/integrator/support/status). */
+  setSupportStatus?(input: {
+    body: string;
+    idempotencyKey: string;
+  }): Promise<{
+    ok: boolean;
+    status: number;
+    error?: string;
+    canonicalWrite?: { conversationId: string; organizationId: string };
+  }>;
   /** Начало ответа на наблюдение пациента по упражнению (POST /api/integrator/program-note/reply-begin). */
   beginProgramNoteReply?(input: { stageItemId: string; idempotencyKey: string }): Promise<{
     ok: boolean;

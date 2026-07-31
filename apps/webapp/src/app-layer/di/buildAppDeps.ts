@@ -1261,6 +1261,21 @@ const notifyDoctorOfPatientMessageImpl = async (input: {
 
 const integratorSupportBridge = createIntegratorSupportBridge({
   port: supportCommunicationPort,
+  resolvePatientOrganization: async (platformUserId, verifiedOrganizationId) => {
+    if (!patientOrganizationService) return { ok: false, error: 'organization_not_resolved' };
+    const result = await patientOrganizationService.resolveActiveOrganizationForPatient(
+      platformUserId,
+      verifiedOrganizationId ? { verifiedTargetOrganizationId: verifiedOrganizationId } : {},
+    );
+    return result.ok
+      ? { ok: true, organizationId: result.organizationId }
+      : { ok: false, error: result.reason };
+  },
+  withOrganizationPrincipal: (organizationId, fn) =>
+    withExplicitOrganizationPrincipal(
+      { organizationId, source: 'integrator.support-canonical-write' },
+      fn,
+    ),
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
   sendProgramNoteReply,
   notifyDoctorOfPatientMessage: notifyDoctorOfPatientMessageImpl,

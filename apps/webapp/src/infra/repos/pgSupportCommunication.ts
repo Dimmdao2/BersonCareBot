@@ -235,6 +235,8 @@ export type SupportCommunicationPort = {
     mediaUrl?: string | null;
     mediaType?: string | null;
     organizationId?: string;
+    externalChatId?: string | null;
+    externalMessageId?: string | null;
   }): Promise<{ id: string; created: boolean }>;
   listMessagesSince(
     conversationId: string,
@@ -1147,7 +1149,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
             organization_id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
             external_chat_id, external_message_id, delivery_status, created_at, delivered_at,
             media_url, media_type
-          ) VALUES ($1::uuid, $2, $3::uuid, $4, 'text', $5, $6, NULL, NULL, NULL, $7::timestamptz, $7::timestamptz, $8, $9)
+          ) VALUES ($1::uuid, $2, $3::uuid, $4, 'text', $5, $6, $10, $11, NULL, $7::timestamptz, $7::timestamptz, $8, $9)
           ON CONFLICT (integrator_message_id) DO NOTHING
           RETURNING id`,
           [
@@ -1160,6 +1162,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
             params.createdAt,
             params.mediaUrl ?? null,
             params.mediaType ?? null,
+            params.externalChatId ?? null,
+            params.externalMessageId ?? null,
           ],
           tx,
         );

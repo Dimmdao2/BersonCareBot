@@ -6,6 +6,8 @@ export const integratorSupportSyncUserMessageSchema = z.object({
   text: z.string().min(1).max(4000),
   source: z.enum(['telegram', 'max', 'webapp']),
   createdAt: z.string().min(1),
+  externalChatId: z.string().max(500).nullable().optional(),
+  externalMessageId: z.string().max(500).nullable().optional(),
 });
 
 export const integratorSupportAdminReplySchema = z.object({
@@ -17,7 +19,16 @@ export const integratorSupportAdminReplySchema = z.object({
   programNoteStageItemId: z.string().uuid().optional(),
 });
 
+export const integratorSupportStatusSchema = z.object({
+  integratorConversationId: z.string().min(1).max(200),
+  status: z.enum(['open', 'closed']),
+  lastMessageAt: z.string().min(1).nullable().optional(),
+  closedAt: z.string().min(1).nullable().optional(),
+  closeReason: z.string().max(500).nullable().optional(),
+});
+
 export type IntegratorSupportSyncUserMessageBody = z.infer<
   typeof integratorSupportSyncUserMessageSchema
 >;
 export type IntegratorSupportAdminReplyBody = z.infer<typeof integratorSupportAdminReplySchema>;
+export type IntegratorSupportStatusBody = z.infer<typeof integratorSupportStatusSchema>;

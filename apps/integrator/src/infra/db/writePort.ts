@@ -610,6 +610,7 @@ export function createDbWritePort(
                 ? await resolveCanonicalUserIdFromIdentityId(txDb, rawIdentityId)
                 : null;
           });
+          if (mutation.params.canonicalWriteHandled === true) return;
           // D3: replaces the `support.conversation.opened` HTTP projection fanout. Runs in its OWN
           // transaction AFTER the integrator-local `conversations` row above has already committed — see
           // writeSupportConversationsDirect.ts header ("DURABILITY") for why this must never block/roll
@@ -721,6 +722,7 @@ export function createDbWritePort(
               createdAt,
             });
           });
+          if (mutation.params.canonicalWriteHandled === true) return;
           // D3: replaces the `support.conversation.message.appended` HTTP projection fanout. Own
           // transaction after the integrator-local write above; see writeSupportConversationsDirect.ts
           // header ("DURABILITY"). `conversation_not_found` (parent row not yet visible — e.g. its OWN
@@ -803,6 +805,7 @@ export function createDbWritePort(
               ...(closeReason !== null ? { closeReason } : {}),
             });
           });
+          if (mutation.params.canonicalWriteHandled === true) return;
           // D3: replaces the `support.conversation.status.changed` HTTP projection fanout. Own
           // transaction after the integrator-local write above; see writeSupportConversationsDirect.ts
           // header ("DURABILITY"). `conversation_not_found` (row not opened via D3 yet) and any other

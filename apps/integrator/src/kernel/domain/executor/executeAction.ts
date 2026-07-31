@@ -26,6 +26,11 @@ import {
   handleConversationUserMessage,
 } from './handlers/supportRelay.js';
 import {
+  mirrorPatientUserMessageToWebapp,
+  resolvePlatformUserIdForChannel,
+  setWebappSupportStatus,
+} from '../support/webappSupportSync.js';
+import {
   type ExecutorDeps,
   asRecord,
   asString,
@@ -50,6 +55,7 @@ import {
 import { ADMIN } from './templateKeys.js';
 import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
 import { logger } from '../../../infra/observability/logger.js';
+import { isWebappPlatformConversationId } from '../../../shared/support/platformConversationId.js';
 import {
   phoneLinkChannelBoundElsewhereUserMessage,
   phoneLinkConflictUserMessage,
@@ -1399,8 +1405,27 @@ export async function executeAction(
         };
       }
 
-      const conversationId = randomUUID();
       const firstMessageId = randomUUID();
+      const firstExternalChatId = asString(draft.external_chat_id);
+      const firstExternalMessageId = asString(draft.external_message_id);
+      const platformUserId = await resolvePlatformUserIdForChannel(
+        fullDeps,
+        source,
+        externalId,
+      );
+      const webappSync = platformUserId
+        ? await mirrorPatientUserMessageToWebapp(fullDeps, {
+            platformUserId,
+            integratorMessageId: firstMessageId,
+            text: draftTextCurrent,
+            source,
+            createdAt: ctx.nowIso,
+            externalChatId: firstExternalChatId,
+            externalMessageId: firstExternalMessageId,
+          })
+        : { mirrored: false };
+      const conversationId = webappSync.canonicalWrite?.conversationId ?? randomUUID();
+      const canonicalWriteHandled = Boolean(webappSync.canonicalWrite);
       const questionId = randomUUID();
       const firstQuestionMessageId = randomUUID();
       let userIdentityId = asString(draft.identity_id);
@@ -1423,6 +1448,7 @@ export async function executeAction(
             status: 'waiting_admin',
             openedAt: ctx.nowIso,
             lastMessageAt: ctx.nowIso,
+            canonicalWriteHandled,
           },
         },
         {
@@ -1433,9 +1459,10 @@ export async function executeAction(
             senderRole: 'user',
             text: draftTextCurrent,
             source,
-            externalChatId: asString(draft.external_chat_id),
-            externalMessageId: asString(draft.external_message_id),
+            externalChatId: firstExternalChatId,
+            externalMessageId: firstExternalMessageId,
             createdAt: ctx.nowIso,
+            canonicalWriteHandled,
           },
         },
         ...(userIdentityId
@@ -1487,6 +1514,7 @@ export async function executeAction(
         lastName: asString(draft.last_name),
         username: asString(draft.username),
         channelId: userChannelId,
+        webappSync,
       });
       return {
         actionId: action.id,
@@ -1518,6 +1546,15 @@ export async function executeAction(
       if (!conversationId) {
         return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ID_MISSING' };
       }
+      const webappStatus = isWebappPlatformConversationId(conversationId)
+        ? await setWebappSupportStatus(fullDeps, {
+            integratorConversationId: conversationId,
+            status: 'closed',
+            lastMessageAt: ctx.nowIso,
+            closedAt: ctx.nowIso,
+            closeReason: asString(action.params.closeReason) ?? 'admin_closed',
+          })
+        : {};
       const writes: DbWriteMutation[] = [
         {
           type: 'conversation.state.set',
@@ -1527,6 +1564,7 @@ export async function executeAction(
             lastMessageAt: ctx.nowIso,
             closedAt: ctx.nowIso,
             closeReason: asString(action.params.closeReason) ?? 'admin_closed',
+            canonicalWriteHandled: Boolean(webappStatus.canonicalWrite),
           },
         },
       ];
