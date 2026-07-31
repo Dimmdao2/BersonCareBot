@@ -40,12 +40,14 @@ import {
   markReminderOccurrenceFailed,
   markReminderOccurrenceQueued,
   markReminderOccurrenceSent,
+  expireOrphanedPendingReminderOccurrences,
   markReminderOccurrenceSkippedLocal,
   rescheduleReminderOccurrencePlanned,
   cancelPendingReminderOccurrencesForRule,
   upsertReminderOccurrencePlanned,
   upsertReminderRule,
 } from './repos/reminders.js';
+import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
 import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
 import {
@@ -231,6 +233,11 @@ export function createDbWritePort(
     getDispatchPort?: () => DispatchPort | undefined;
     /** Injectable for deterministic tests; production reads canonical public.system_settings. */
     authChannelPolicy?: (channel: 'telegram' | 'max') => Promise<boolean>;
+    /** Injectable boundary for the scheduler's orphan-expiry maintenance mutation. */
+    expireOrphanedReminderOccurrences?: (
+      db: DbPort,
+      nowIso: string,
+    ) => Promise<FinalizedReminderOccurrenceProjectionContext[]>;
   } = {},
 ): DbWritePort {
   const db = input.db ?? createDbPort();
@@ -239,6 +246,8 @@ export function createDbWritePort(
   const authChannelPolicy =
     input.authChannelPolicy ??
     ((channel: 'telegram' | 'max') => readAuthChannelPolicy(db, channel));
+  const expireOrphanedReminderOccurrences =
+    input.expireOrphanedReminderOccurrences ?? expireOrphanedPendingReminderOccurrences;
   const plainMutationsRequiringPrincipalTx: ReadonlySet<DbWriteMutationType> = new Set([
     'event.log',
     'user.state.set',
@@ -265,6 +274,7 @@ export function createDbWritePort(
       ...(webappEventsPort !== undefined ? { webappEventsPort } : {}),
       ...(getDispatchPort !== undefined ? { getDispatchPort } : {}),
       authChannelPolicy,
+      expireOrphanedReminderOccurrences,
     });
   }
 
@@ -1375,6 +1385,37 @@ export function createDbWritePort(
             }
           });
           await fanoutProjectionsAfterTx(pendingOccFail);
+          return;
+        }
+        case 'reminders.occurrence.expireOrphanedPending': {
+          const nowIso = asNonEmptyString(mutation.params.nowIso);
+          if (!nowIso) return;
+          const expired = await expireOrphanedReminderOccurrences(db, nowIso);
+          const pendingExpired: ProjectionFanoutInput[] = [];
+          for (const context of expired) {
+            const canonicalUserId = await resolveCanonicalIntegratorUserId(db, context.userId);
+            const payload = {
+              integratorOccurrenceId: context.occurrenceId,
+              integratorRuleId: context.ruleId,
+              integratorUserId: canonicalUserId,
+              category: context.category,
+              status: 'failed' as const,
+              deliveryChannel: context.deliveryChannel,
+              errorCode: context.errorCode,
+              occurredAt: context.occurredAt,
+            };
+            pendingExpired.push({
+              eventType: REMINDER_OCCURRENCE_FINALIZED,
+              idempotencyKey: projectionIdempotencyKey(
+                REMINDER_OCCURRENCE_FINALIZED,
+                context.occurrenceId,
+                hashPayload(payload),
+              ),
+              occurredAt: context.occurredAt,
+              payload,
+            });
+          }
+          await fanoutProjectionsAfterTx(pendingExpired);
           return;
         }
         case 'reminders.occurrence.reschedulePlanned': {

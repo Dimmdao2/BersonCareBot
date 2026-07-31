@@ -15,6 +15,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
+import { backfillReminderOccurrenceHistoryRows } from './lib/backfill-reminder-occurrence-history.mjs';
 
 const args = process.argv.slice(2);
 loadCutoverEnv();
@@ -133,6 +134,7 @@ async function backfillReminderOccurrenceHistory() {
   const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT o.id, o.rule_id, r.user_id, r.category, o.status, o.delivery_channel, o.error_code,
+            COALESCE(o.organization_id, r.organization_id)::text AS organization_id,
             COALESCE(o.sent_at, o.failed_at) AS occurred_at
      FROM user_reminder_occurrences o
      JOIN user_reminder_rules r ON r.id = o.rule_id
@@ -140,21 +142,34 @@ async function backfillReminderOccurrenceHistory() {
      ORDER BY occurred_at ASC${limitClause}`,
   );
   console.log(`Reminder occurrence history (sent/failed) to backfill: ${rows.length}`);
-  let n = 0;
+  let inserted = 0;
+  let preserved = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
     if (!dryRun) await dst.query('BEGIN');
     try {
-      for (const row of chunk) {
-        if (!dryRun) {
-          await dst.query(
+      const result = await backfillReminderOccurrenceHistoryRows(chunk, {
+        async listExistingOccurrenceIds(occurrenceIds) {
+          if (occurrenceIds.length === 0) return new Set();
+          const existing = await dst.query(
+            `SELECT integrator_occurrence_id
+             FROM reminder_occurrence_history
+             WHERE integrator_occurrence_id = ANY($1::text[])`,
+            [occurrenceIds],
+          );
+          return new Set(existing.rows.map((row) => String(row.integrator_occurrence_id)));
+        },
+        async insertOccurrenceHistoryIfAbsent(row) {
+          if (dryRun) return true;
+          const result = await dst.query(
             `INSERT INTO reminder_occurrence_history (
-          integrator_occurrence_id, integrator_rule_id, integrator_user_id, category,
+          integrator_occurrence_id, organization_id, integrator_rule_id, integrator_user_id, category,
           status, delivery_channel, error_code, occurred_at
-        ) VALUES ($1, $2, $3::bigint, $4, $5, $6, $7, $8::timestamptz)
+        ) VALUES ($1, $2::uuid, $3, $4::bigint, $5, $6, $7, $8, $9::timestamptz)
         ON CONFLICT (integrator_occurrence_id) DO NOTHING`,
             [
               row.id,
+              row.organization_id,
               row.rule_id,
               String(row.user_id),
               row.category,
@@ -164,9 +179,11 @@ async function backfillReminderOccurrenceHistory() {
               row.occurred_at,
             ],
           );
-        }
-        n++;
-      }
+          return (result.rowCount ?? 0) > 0;
+        },
+      });
+      inserted += result.inserted;
+      preserved += result.preserved;
       if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
@@ -179,7 +196,8 @@ async function backfillReminderOccurrenceHistory() {
       throw err;
     }
   }
-  console.log(`  Occurrence history ${dryRun ? 'would insert' : 'inserted'}: ${n}`);
+  console.log(`  Occurrence history ${dryRun ? 'would insert' : 'inserted'}: ${inserted}`);
+  console.log(`  Existing occurrence history preserved: ${preserved}`);
 }
 
 async function backfillReminderDeliveryEvents() {
