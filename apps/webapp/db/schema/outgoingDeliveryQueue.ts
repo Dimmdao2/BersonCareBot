@@ -30,6 +30,7 @@ export const outgoingDeliveryQueue = pgTable(
     deadAt: timestamp('dead_at', { withTimezone: true, mode: 'string' }),
     lastError: text('last_error'),
     failureClass: text('failure_class'),
+    reclaimCount: integer('reclaim_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

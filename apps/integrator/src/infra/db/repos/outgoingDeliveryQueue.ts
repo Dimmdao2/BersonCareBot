@@ -79,20 +79,87 @@ export async function enqueueOutgoingDeliveryIfAbsent(
   return Boolean(res.rows[0]?.inserted);
 }
 
+export type ReclaimStaleOutgoingDeliveryProcessingResult = {
+  /** Rows returned to "pending" (still under the reclaim cap). */
+  reclaimed: number;
+  /** Rows that hit the reclaim cap and were sent to the dead letter instead. */
+  deadLettered: number;
+};
+
+/** failure_class set when a row is dead-lettered for exceeding the reclaim cap (D10b), not a delivery error. */
+export const OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS = 'reclaim_limit_exceeded';
+
+/**
+ * D10b: a "processing" row not finished within `staleAfterMinutes` is stuck (the worker that
+ * claimed it died mid-flight) — normal capture only picks up "pending"/"failed_retryable", so
+ * without this it would never be retried again. Returned to "pending" so the next capture picks
+ * it back up, unless it has already been reclaimed `maxReclaimCount` times, in which case it goes
+ * to the dead letter (`status = 'dead'`) instead of looping forever.
+ */
 export async function resetStaleOutgoingDeliveryProcessing(
   db: DbPort,
-  staleAfterMinutes = 10,
-): Promise<number> {
+  staleAfterMinutes: number,
+  maxReclaimCount: number,
+): Promise<ReclaimStaleOutgoingDeliveryProcessingResult> {
   const m = Math.max(1, Math.trunc(staleAfterMinutes));
+  const cap = Math.max(1, Math.trunc(maxReclaimCount));
+  const res = await runIntegratorSql<{ status: string }>(
+    db,
+    sql`WITH stale AS (
+       SELECT id
+       FROM public.outgoing_delivery_queue
+       WHERE status = 'processing'
+         AND last_attempt_at IS NOT NULL
+         AND last_attempt_at < now() - ((${String(m)}::text || ' minutes')::interval)
+       FOR UPDATE SKIP LOCKED
+     )
+     UPDATE public.outgoing_delivery_queue q
+     SET reclaim_count = q.reclaim_count + 1,
+         status = CASE WHEN q.reclaim_count + 1 >= ${cap} THEN 'dead' ELSE 'pending' END,
+         next_retry_at = CASE
+           WHEN q.reclaim_count + 1 >= ${cap} THEN q.next_retry_at
+           ELSE now()
+         END,
+         dead_at = CASE WHEN q.reclaim_count + 1 >= ${cap} THEN now() ELSE q.dead_at END,
+         failure_class = CASE
+           WHEN q.reclaim_count + 1 >= ${cap} THEN ${OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS}
+           ELSE q.failure_class
+         END,
+         last_error = CASE
+           WHEN q.reclaim_count + 1 >= ${cap}
+             THEN 'OUTGOING_DELIVERY_RECLAIM_LIMIT_EXCEEDED'
+           ELSE q.last_error
+         END,
+         updated_at = now()
+     FROM stale
+     WHERE q.id = stale.id
+     RETURNING q.status`,
+  );
+  let reclaimed = 0;
+  let deadLettered = 0;
+  for (const row of res.rows) {
+    if (row.status === 'dead') deadLettered += 1;
+    else reclaimed += 1;
+  }
+  return { reclaimed, deadLettered };
+}
+
+/**
+ * D10b: "sent" rows accumulate forever without this (found growing unbounded since March 5 on
+ * dev). Only the queue's working row is removed — `public.notification_delivery_attempts` keeps
+ * the durable delivery history and is never touched here.
+ */
+export async function deleteExpiredSentOutgoingDeliveries(
+  db: DbPort,
+  retentionDays: number,
+): Promise<number> {
+  const d = Math.max(1, Math.trunc(retentionDays));
   const res = await runIntegratorSql<{ id: string }>(
     db,
-    sql`UPDATE public.outgoing_delivery_queue
-     SET status = 'failed_retryable',
-         next_retry_at = now(),
-         updated_at = now()
-     WHERE status = 'processing'
-       AND last_attempt_at IS NOT NULL
-       AND last_attempt_at < now() - ((${String(m)}::text || ' minutes')::interval)
+    sql`DELETE FROM public.outgoing_delivery_queue
+     WHERE status = 'sent'
+       AND sent_at IS NOT NULL
+       AND sent_at < now() - ((${String(d)}::text || ' days')::interval)
      RETURNING id`,
   );
   return res.rows.length;
