@@ -51,6 +51,14 @@ export type OrgEntitlementsPort = {
   getEffectiveCommercialAccess(organizationId: string): Promise<EffectiveOrgCommercialAccess>;
   /** Current usage only for quota keys that have a real database chokepoint. */
   getEnforcedQuotaUsage(organizationId: string): Promise<Partial<Record<OrgMechanic, number>>>;
+  /**
+   * §5a stage 6.1 — the clinic's own "used out of included" numbers, for the caller's own
+   * organization. Reads the same tables and formulas as each mechanic's write-path quota check
+   * (`stockQuotaCheck.ts` callers), under the ordinary staff principal — every source table is
+   * already row-level-security-scoped to the caller's own organization, so this needs no platform
+   * (`app_platform_settings`) privilege the way `getEnforcedQuotaUsage` does.
+   */
+  getOwnQuotaUsage(organizationId: string): Promise<Partial<Record<OrgMechanic, number>>>;
 };
 
 export type PlatformMutationAudit = { actorId: string | null; reason: string };

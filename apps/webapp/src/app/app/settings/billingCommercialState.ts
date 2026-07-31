@@ -29,7 +29,7 @@ export function describeCommercialAccessState(access: EffectiveOrgCommercialAcce
     return 'Доступ заблокирован — обратитесь к администратору платформы.';
   }
   if (access.lifecycle === 'read_only') {
-    return 'Доступ только для чтения — обратитесь к администратору платформы.';
+    return 'Доступ только для чтения: всё созданное видно и выгружается, но создавать и менять нельзя — обратитесь к администратору платформы.';
   }
   if (access.source === 'trial') {
     return access.trialEndsAt

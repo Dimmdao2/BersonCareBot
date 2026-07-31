@@ -245,17 +245,14 @@ export function entitlementsFromSnapshot(
 }
 
 /**
- * Returns a typed threshold projection only for quota keys that are really enforced today.
- * Declared future quota keys intentionally do not appear here.
+ * Shared by both quota-projection entry points below. Returns a typed threshold projection only
+ * for quota keys that are really enforced today (`места`/`запас`/`объём` with a real usage number);
+ * declared future quota keys intentionally do not appear here.
  */
-export async function resolveOrgQuotaProjections(
-  port: OrgEntitlementsPort,
-  organizationId: string,
-): Promise<OrgQuotaProjection[]> {
-  const [snapshot, usage] = await Promise.all([
-    port.getSnapshot(organizationId),
-    port.getEnforcedQuotaUsage(organizationId),
-  ]);
+function projectQuotas(
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides'>,
+  usage: Partial<Record<OrgMechanic, number>>,
+): OrgQuotaProjection[] {
   const activeOverrides = new Map(
     snapshot.overrides
       .filter((override) => isOverrideActive(override.expiresAt))
@@ -263,7 +260,9 @@ export async function resolveOrgQuotaProjections(
   );
   return MECHANICS.flatMap((mechanic) => {
     const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
-    if (mechanicClass !== 'места' && mechanicClass !== 'объём') return [];
+    if (mechanicClass !== 'места' && mechanicClass !== 'запас' && mechanicClass !== 'объём') {
+      return [];
+    }
     // Specialist seats are configured by includedSeats/seatLimitOverride rather than the generic
     // tariff quota map, but are enforced with the same snapshot semantics.
     const clinicTeamOverride = activeOverrides.get('clinic_team');
@@ -287,11 +286,7 @@ export async function resolveOrgQuotaProjections(
               unit: 'seats',
               warningAtPercent: snapshot.tariff?.includedSeatsWarningAtPercent ?? null,
             }
-        : mechanic === 'files'
-          ? ((activeOverrides.get(mechanic)?.quota ?? snapshot.tariff?.quotas.files) as
-              | TariffQuota
-              | undefined)
-          : undefined;
+        : numericQuotaFromSnapshot(snapshot, mechanic);
     const currentUsage = usage[mechanic];
     if (!quota || quota.kind !== 'numeric' || quota.limit === null || currentUsage === undefined)
       return [];
@@ -311,6 +306,37 @@ export async function resolveOrgQuotaProjections(
       },
     ];
   });
+}
+
+/**
+ * Platform (global-admin) view — §5a stage 6.2. Usage comes from the cross-org, platform-only
+ * `getEnforcedQuotaUsage` (SECURITY DEFINER) so the operator can read any organization's numbers.
+ */
+export async function resolveOrgQuotaProjections(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+): Promise<OrgQuotaProjection[]> {
+  const [snapshot, usage] = await Promise.all([
+    port.getSnapshot(organizationId),
+    port.getEnforcedQuotaUsage(organizationId),
+  ]);
+  return projectQuotas(snapshot, usage);
+}
+
+/**
+ * Clinic-facing "used out of included" view — §5a stage 6.1. Usage comes from `getOwnQuotaUsage`,
+ * which reads only the caller's own organization under the ordinary staff principal (no platform
+ * privilege). Same projection logic as the platform view — one resolver, two usage sources.
+ */
+export async function resolveOwnOrgQuotaProjections(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+): Promise<OrgQuotaProjection[]> {
+  const [snapshot, usage] = await Promise.all([
+    port.getSnapshot(organizationId),
+    port.getOwnQuotaUsage(organizationId),
+  ]);
+  return projectQuotas(snapshot, usage);
 }
 
 export async function resolveOrgEntitlementSnapshot(
