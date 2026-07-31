@@ -25,6 +25,10 @@ const BookingLifecyclePayloadSchema = z.object({
     .optional(),
   /** R21: врач снял «Уведомлять пациента» - не слать пациентские каналы/web-push. */
   suppressPatientNotification: z.boolean().optional(),
+  /** D14(1): вебапп решает, отменять ли ожидающие напоминания на этом событии. Отсутствует → прежнее поведение (отменять всегда). */
+  cancelPendingReminders: z.boolean().optional(),
+  /** D14(2): вебапп решает, слать ли пуш пациенту и каким вариантом. null — не слать; строка — слать этот вариант; отсутствует → прежнее поведение. */
+  patientPushVariant: z.enum(['created', 'cancelled', 'rescheduled']).nullable().optional(),
 });
 
 export const BookingLifecycleEventSchema = z.object({

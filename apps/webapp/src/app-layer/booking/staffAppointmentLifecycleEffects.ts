@@ -67,6 +67,8 @@ export async function applyStaffCancelSideEffects(opts: {
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
     suppressPatientNotification: opts.suppressPatientNotification === true,
+    cancelPendingReminders: true,
+    patientPushVariant: 'cancelled',
   });
   const resolvedCancelNotify = resolveBookingNotifyTargets(
     'booking.cancelled',
@@ -121,6 +123,8 @@ export async function applyStaffNoShowSideEffects(opts: {
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
     suppressPatientNotification: opts.suppressPatientNotification === true,
+    cancelPendingReminders: true,
+    patientPushVariant: 'cancelled',
   });
   // Use booking.cancelled policy for notification targets (no separate no-show policy exists yet).
   const noShowNotifyRaw = resolveBookingNotifyTargets(
@@ -167,6 +171,8 @@ export async function applyStaffRescheduleSideEffects(opts: {
     eventType: 'booking.rescheduled',
     appointment: opts.appointment,
     bookingRow: opts.bookingRow,
+    cancelPendingReminders: true,
+    patientPushVariant: 'rescheduled',
   });
   const rescheduleNotify = resolveBookingNotifyTargets(
     'booking.rescheduled',
