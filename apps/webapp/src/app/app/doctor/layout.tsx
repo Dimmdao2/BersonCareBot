@@ -10,7 +10,7 @@ import {
   entitlementGraceWarningMessages,
   getMechanicSurfaceVisibility,
 } from '@/app-layer/guards/requireEntitlement';
-import { cabinetGraceWarningMessage } from '@/app-layer/guards/cabinetAccessGate';
+import { cabinetGraceWarningMessages } from '@/app-layer/guards/cabinetAccessGate';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import {
@@ -102,7 +102,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   // One system-level ladder produces the same text for every mechanic it covers, so identical
   // lines are collapsed — the owner wrote one notification, he sees it once.
   const accessWarnings = [
-    ...(cabinetAccess?.warning ? [cabinetGraceWarningMessage(cabinetAccess.warning)] : []),
+    ...(cabinetAccess?.warning ? cabinetGraceWarningMessages(cabinetAccess.warning, accessNotificationVariables) : []),
     ...new Set(
       [coursesVisibility, promoVisibility, cmsVisibility].flatMap((visibility) =>
         visibility.warning
