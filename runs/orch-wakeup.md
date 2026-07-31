@@ -137,7 +137,10 @@ read-write bind'ов не входит — значит это не времен
 для Track D в `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md` уже стоит с прошлого прохода, менять нечего. Новых
 действий в этом проходе не потребовалось — состояние не изменилось с прошлой записи, отчёт владельцу не
 дублирую.
-- [ ] Конвейер tariff: порт отказал запускать worker-tariff-ladder. ОТКАЗ: в клоне tariff есть несведённые коммиты без записи в /home/dev/dev-projects/BersonCareBot/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md: 3f1633003
+- [x] Конвейер tariff: порт отказал запускать worker-tariff-ladder. ОТКАЗ: в клоне tariff есть несведённые коммиты без записи в /home/dev/dev-projects/BersonCareBot/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md: 3f1633003
   Сначала аудит и строка с вердиктом в очереди, потом новая работа. (2026-07-31 10:32)
-- [ ] Конвейер portsmoke: порт отказал запускать worker-d14. ОТКАЗ: в клоне portsmoke есть несведённые коммиты без записи в /home/dev/dev-projects/BersonCareBot/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md: d2a809b5e
+- [x] Конвейер portsmoke: порт отказал запускать worker-d14. ОТКАЗ: в клоне portsmoke есть несведённые коммиты без записи в /home/dev/dev-projects/BersonCareBot/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md: d2a809b5e
   Сначала аудит и строка с вердиктом в очереди, потом новая работа. (2026-07-31 10:33)
+- [x] fake-silent (учебный, снят проверкой пульса) — снят сторожем 2026-07-31 10:45, лог не рос 41 мин. Разобраться и перезапустить через порт. Лог: /home/dev/dev-projects/bcb-wt-docs3/docs/_TODO/runs/pulse-test/fake-silent.log
+- [ ] Конвейер tariff остановлен: в клоне незакоммиченная работа, нужен салваж. (2026-07-31 10:46)
+- [ ] Конвейер tariff остановлен: в клоне незакоммиченная работа, нужен салваж. (2026-07-31 10:47)
