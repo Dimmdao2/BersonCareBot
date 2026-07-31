@@ -113,7 +113,6 @@ export function incomingCallbackPayloadFromNormalized(
   if (typeof normalized.reminderMuteMinutes === 'number')
     out.reminderMuteMinutes = normalized.reminderMuteMinutes;
   if (normalized.reminderMutePreset === 'tomorrow') out.reminderMutePreset = 'tomorrow';
-  if (typeof normalized.skipReasonCode === 'string') out.skipReasonCode = normalized.skipReasonCode;
   if (typeof normalized.reminderTopicCode === 'string')
     out.reminderTopicCode = normalized.reminderTopicCode;
   if (normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no') {
@@ -175,15 +174,6 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
     const minutes = Math.round(Number(rest));
     if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440) return { action: trimmed };
     return { action: 'rem_mute', reminderMuteMinutes: minutes };
-  }
-  if (trimmed.startsWith('rem_skip_r:')) {
-    const rest = trimmed.slice('rem_skip_r:'.length);
-    const lastColon = rest.lastIndexOf(':');
-    if (lastColon <= 0) return { action: trimmed };
-    const occurrenceId = rest.slice(0, lastColon).trim();
-    const code = rest.slice(lastColon + 1).trim();
-    if (!occurrenceId || !code) return { action: trimmed };
-    return { action: 'rem_skip_r', reminderOccurrenceId: occurrenceId, skipReasonCode: code };
   }
   if (trimmed.startsWith('rem_skip:')) {
     const occurrenceId = trimmed.slice('rem_skip:'.length).trim();

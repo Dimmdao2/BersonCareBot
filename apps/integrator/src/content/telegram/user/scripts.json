@@ -830,90 +830,11 @@
         "mode": "sync",
         "params": {
           "occurrenceId": "{{input.reminderOccurrenceId}}",
-          "reasonCode": "none",
           "channelUserId": "{{actor.channelUserId}}",
           "resource": "telegram",
           "chatId": "{{actor.chatId}}",
           "messageId": "{{input.messageId}}",
           "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.reminder.skip.preset",
-    "source": "telegram",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "rem_skip_r"
-      }
-    },
-    "steps": [
-      {
-        "action": "reminders.skip.applyPreset",
-        "mode": "sync",
-        "params": {
-          "occurrenceId": "{{input.reminderOccurrenceId}}",
-          "reasonCode": "{{input.skipReasonCode}}",
-          "channelUserId": "{{actor.channelUserId}}",
-          "resource": "telegram",
-          "chatId": "{{actor.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "telegram.reminder.skip.freeText",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 50,
-    "match": {
-      "actor": {
-        "isAdmin": false
-      },
-      "context": {
-        "conversationState": {
-          "$startsWith": "waiting_skip_reason:"
-        }
-      },
-      "input": {
-        "textPresent": true,
-        "excludeActions": [
-          "booking.open",
-          "menu.more",
-          "cabinet.open",
-          "start.noticeme",
-          "start.set",
-          "phone.request.cancel",
-          "start.phoneauth"
-        ],
-        "excludeTexts": [
-          "/start",
-          "⚙️ Меню",
-          "Меню",
-          "📅 Запись на приём",
-          "Запись на приём",
-          "👤 Кабинет",
-          "Кабинет",
-          "Отмена",
-          "Вернуться в меню"
-        ],
-        "excludeTextPrefixes": [
-          "/start"
-        ]
-      }
-    },
-    "steps": [
-      {
-        "action": "reminders.skip.applyFreeText",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "resource": "telegram",
-          "chatId": "{{actor.chatId}}"
         }
       }
     ]

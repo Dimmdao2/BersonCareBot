@@ -77,7 +77,6 @@ export type IncomingCallbackUpdate = {
   reminderSnoozeMinutes?: number;
   reminderMuteMinutes?: number;
   reminderMutePreset?: 'tomorrow';
-  skipReasonCode?: string;
   reminderTopicCode?: string;
   questionConfirm?: 'yes' | 'no';
 };
