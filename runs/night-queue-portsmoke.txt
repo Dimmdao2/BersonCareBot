@@ -1,0 +1,2 @@
+# Очередь конвейера для клона bcb-wt-portsmoke. Формат: роль|модель|effort|бриф|слой|run-id
+worker|claude-sonnet-5|medium|/home/dev/dev-projects/bcb-wt-portsmoke/docs/_TODO/runs/integrator-cleanup/D14_BRIEF.md|TrackD|worker-d14
