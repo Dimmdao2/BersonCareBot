@@ -36,20 +36,37 @@ for log in /home/dev/dev-projects/bcb-wt-*/docs/_TODO/runs/*/*.log; do
     continue
   fi
   # Порт сам пишет сердцебиение каждые 30с, поэтому возраст файла ловит только смерть самого порта.
-  # Настоящее молчание модели видно в его же строке: idle_s — сколько секунд агент не выдавал НИЧЕГО.
-  # Это важно для Claude, который часто печатает результат одним куском в конце (вопрос владельца 31.07).
-  idle=$(grep -o 'idle_s=[0-9]*' "$log" 2>/dev/null | tail -1 | cut -d= -f2)
+  #
+  # ⛔ idle_s КАК ПРИЗНАК ЗАВИСАНИЯ НЕ РАБОТАЕТ — проверено 31.07 на живом прогоне. Порт запускает
+  # claude с `--output-format json`, а тот отдаёт ВЕСЬ вывод одним куском в конце: stdout_bytes=0 и
+  # idle_s == elapsed_s всю дорогу, у здорового агента тоже. Прежний детектор объявлял «ЗАВИС» каждый
+  # работающий claude-воркер — ночью он бы вырезал всю живую работу. Это ровно тот случай, о котором
+  # владелец спрашивал: «а что с claude, который вывод делает только в конце?».
+  #
+  # Настоящий признак жизни — РОСТ ПРОЦЕССОРНОГО ВРЕМЕНИ. Считаем по всему поддереву: у самих обёрток
+  # bwrap время всегда ноль, работает только внук-claude (на этом я лично ошибся в замере 31.07).
+  # Снимок обновляем ТОЛЬКО когда время выросло — иначе таймер простоя сбрасывался бы каждым пульсом.
   elapsed=$(grep -o 'elapsed_s=[0-9]*' "$log" 2>/dev/null | tail -1 | cut -d= -f2)
+  cpu=$(python3 "$ROOT/tools/pulse-cpu.py" "$pid" 2>/dev/null || echo 0)
+  snap="$ROOT/runs/pulse-cpu/$run.snap"
+  mkdir -p "$(dirname "$snap")"
+  read -r old_cpu old_at < <(cat "$snap" 2>/dev/null || echo "-1 $now")
+  if [ "${old_cpu:--1}" = -1 ] || [ "$cpu" -gt "${old_cpu:-0}" ]; then
+    echo "$cpu $now" > "$snap"
+    stall=0
+  else
+    stall=$(( now - ${old_at:-$now} ))
+  fi
   if [ "$age" -gt "$SILENT_MAX" ]; then
     silent=$((silent + 1))
     printf 'МОЛЧИТ  %-34s pid=%-8s %s мин без записи в лог → СНЯТЬ И ПЕРЕЗАПУСТИТЬ\n' "$run" "$pid" "$((age / 60))"
-  elif [ -n "${idle:-}" ] && [ "$idle" -gt "$IDLE_OUT_MAX" ]; then
+  elif [ "$stall" -gt "$IDLE_OUT_MAX" ]; then
     silent=$((silent + 1))
-    printf 'ЗАВИС   %-34s pid=%-8s порт жив, но модель молчит %s мин (в работе %s мин) → СНЯТЬ И ПЕРЕЗАПУСТИТЬ\n' \
-      "$run" "$pid" "$((idle / 60))" "$(( ${elapsed:-0} / 60 ))"
+    printf 'ЗАВИС   %-34s pid=%-8s порт жив, но процессор не тратится %s мин (в работе %s мин, CPU %sс) → СНЯТЬ И ПЕРЕЗАПУСТИТЬ\n' \
+      "$run" "$pid" "$((stall / 60))" "$(( ${elapsed:-0} / 60 ))" "$cpu"
   else
     alive=$((alive + 1))
-    printf 'ok      %-34s pid=%-8s лог %sс назад, модель молчит %sс\n' "$run" "$pid" "$age" "${idle:-0}"
+    printf 'ok      %-34s pid=%-8s лог %sс назад, CPU %sс (простой %sс)\n' "$run" "$pid" "$age" "$cpu" "$stall"
   fi
 done
 [ "$((alive + silent + dead))" -gt 0 ] || echo "агентов нет ни одного"
