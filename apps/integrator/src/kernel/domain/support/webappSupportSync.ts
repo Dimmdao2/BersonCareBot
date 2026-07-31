@@ -30,10 +30,15 @@ export async function mirrorPatientUserMessageToWebapp(
     text: string;
     source: string;
     createdAt: string;
+    externalChatId?: string | null;
+    externalMessageId?: string | null;
   },
-): Promise<boolean> {
+): Promise<{
+  mirrored: boolean;
+  canonicalWrite?: { conversationId: string; organizationId: string };
+}> {
   const sync = deps.webappEventsPort?.syncSupportUserMessage;
-  if (!sync) return false;
+  if (!sync) return { mirrored: false };
   const body = JSON.stringify({
     platformUserId: input.platformUserId,
     integratorMessageId: input.integratorMessageId,
@@ -41,6 +46,8 @@ export async function mirrorPatientUserMessageToWebapp(
     source:
       input.source === 'max' ? 'max' : input.source === 'telegram' ? 'telegram' : input.source,
     createdAt: input.createdAt,
+    ...(input.externalChatId !== undefined ? { externalChatId: input.externalChatId } : {}),
+    ...(input.externalMessageId !== undefined ? { externalMessageId: input.externalMessageId } : {}),
   });
   const result = await sync({
     body,
@@ -52,9 +59,40 @@ export async function mirrorPatientUserMessageToWebapp(
       result.status,
       result.error ?? 'unknown',
     );
-    return false;
+    return { mirrored: false };
   }
-  return true;
+  return {
+    mirrored: true,
+    ...(result.canonicalWrite ? { canonicalWrite: result.canonicalWrite } : {}),
+  };
+}
+
+export async function setWebappSupportStatus(
+  deps: ExecutorDeps,
+  input: {
+    integratorConversationId: string;
+    status: 'open' | 'closed';
+    lastMessageAt?: string | null;
+    closedAt?: string | null;
+    closeReason?: string | null;
+  },
+): Promise<{ canonicalWrite?: { conversationId: string; organizationId: string } }> {
+  const setStatus = deps.webappEventsPort?.setSupportStatus;
+  if (!setStatus) return {};
+  const body = JSON.stringify(input);
+  const result = await setStatus({
+    body,
+    idempotencyKey: `support-status:${input.integratorConversationId}:${input.status}:${input.closedAt ?? input.lastMessageAt ?? ''}`,
+  });
+  if (!result.ok) {
+    console.warn(
+      '[support] set webapp support status failed',
+      result.status,
+      result.error ?? 'unknown',
+    );
+    return {};
+  }
+  return result.canonicalWrite ? { canonicalWrite: result.canonicalWrite } : {};
 }
 
 export async function applyWebappAdminReplyFromMessenger(

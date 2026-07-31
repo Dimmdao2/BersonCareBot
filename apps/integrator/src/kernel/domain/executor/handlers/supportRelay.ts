@@ -90,12 +90,25 @@ export async function buildDoctorPatientMessageNotificationIntents(input: {
   lastName?: string | null | undefined;
   username?: string | null | undefined;
   channelId?: string | null | undefined;
+  webappSync?: Awaited<ReturnType<typeof mirrorPatientUserMessageToWebapp>>;
 }): Promise<OutgoingIntent[]> {
   const { action, ctx, deps, source, externalId, conversationId, integratorMessageId } = input;
   const platformUserId = await resolvePlatformUserIdForChannel(deps, source, externalId);
-  const platformConversationKey = platformUserId
-    ? webappPlatformConversationId(platformUserId)
-    : null;
+  const messageText = input.messageText.trim();
+  const webappSync =
+    input.webappSync ??
+    (platformUserId && messageText
+      ? await mirrorPatientUserMessageToWebapp(deps, {
+          platformUserId,
+          integratorMessageId,
+          text: messageText,
+          source,
+          createdAt: ctx.nowIso,
+        })
+      : { mirrored: false });
+  const platformConversationKey =
+    webappSync.canonicalWrite?.conversationId ??
+    (platformUserId ? webappPlatformConversationId(platformUserId) : null);
   if (
     platformUserId &&
     platformConversationKey &&
@@ -115,18 +128,7 @@ export async function buildDoctorPatientMessageNotificationIntents(input: {
     ]);
   }
 
-  const messageText = input.messageText.trim();
-  const mirrored =
-    platformUserId && messageText
-      ? await mirrorPatientUserMessageToWebapp(deps, {
-          platformUserId,
-          integratorMessageId,
-          text: messageText,
-          source,
-          createdAt: ctx.nowIso,
-        })
-      : false;
-  if (mirrored) {
+  if (webappSync.mirrored) {
     // The webapp notification path owns sender-name resolution, the safety gate,
     // the doctor-conversation deep link, and the Reply affordance.
     return [];
@@ -291,45 +293,80 @@ export async function handleConversationUserMessage(
         : [];
     return { actionId: action.id, status: 'success', intents: refusalIntents };
   }
+  const integratorMessageId = randomUUID();
+  const platformUserId = await resolvePlatformUserIdForChannel(deps, source, externalId);
+  const externalChatId = asString(action.params.externalChatId) ?? readIncomingChatId(ctx);
+  const externalMessageId =
+    asString(action.params.externalMessageId) ?? readIncomingMessageId(ctx);
+  const webappSync =
+    platformUserId && text
+      ? await mirrorPatientUserMessageToWebapp(deps, {
+          platformUserId,
+          integratorMessageId,
+          text,
+          source,
+          createdAt: ctx.nowIso,
+          externalChatId,
+          externalMessageId,
+        })
+      : { mirrored: false };
+  const effectiveConversationId =
+    webappSync.canonicalWrite?.conversationId ?? conversationId;
+  if (effectiveConversationId !== conversationId && deps.writePort) {
+    await persistWrites(deps.writePort, [
+      {
+        type: 'conversation.mergeLegacyToPlatform',
+        params: {
+          platformConversationId: effectiveConversationId,
+          legacyConversationId: conversationId,
+          resource: source,
+          externalId,
+        },
+      },
+    ]);
+  }
+  const canonicalWriteHandled = Boolean(webappSync.canonicalWrite);
   const writes: DbWriteMutation[] = [
     {
       type: 'conversation.message.add',
       params: {
-        id: randomUUID(),
-        conversationId,
+        id: integratorMessageId,
+        conversationId: effectiveConversationId,
         senderRole: 'user',
         text: text ?? (effectiveRelayType !== 'text' ? `[${effectiveRelayType}]` : ''),
         source,
-        externalChatId: asString(action.params.externalChatId) ?? readIncomingChatId(ctx),
-        externalMessageId: asString(action.params.externalMessageId) ?? readIncomingMessageId(ctx),
+        externalChatId,
+        externalMessageId,
         createdAt: ctx.nowIso,
+        canonicalWriteHandled,
       },
     },
     {
       type: 'conversation.state.set',
       params: {
-        id: conversationId,
+        id: effectiveConversationId,
         status: 'waiting_admin',
         lastMessageAt: ctx.nowIso,
+        canonicalWriteHandled,
       },
     },
   ];
   await persistWrites(deps.writePort, writes);
 
-  const integratorMessageId = asString(asRecord(writes[0]?.params).id) ?? randomUUID();
   const intents = await buildDoctorPatientMessageNotificationIntents({
     action,
     ctx,
     deps,
     source,
     externalId,
-    conversationId,
+    conversationId: effectiveConversationId,
     integratorMessageId,
     messageText: text ?? '',
     firstName: asString(conversation?.first_name),
     lastName: asString(conversation?.last_name),
     username: asString(conversation?.username),
     channelId: asString(conversation?.user_channel_id),
+    webappSync,
   });
   return {
     actionId: action.id,
@@ -338,7 +375,7 @@ export async function handleConversationUserMessage(
     intents,
     values: {
       hasOpenConversation: true,
-      activeConversationId: conversationId,
+      activeConversationId: effectiveConversationId,
       activeConversationStatus: 'waiting_admin',
     },
   };

@@ -45,7 +45,12 @@ export function createWebappEventsPort(deps: {
     path: string;
     body: string;
     idempotencyKey: string;
-  }): Promise<{ ok: boolean; status: number; error?: string }> {
+  }): Promise<{
+    ok: boolean;
+    status: number;
+    error?: string;
+    canonicalWrite?: { conversationId: string; organizationId: string };
+  }> {
     const baseUrl = await deps.getAppBaseUrl();
     if (!baseUrl || !secret) {
       return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
@@ -63,7 +68,11 @@ export function createWebappEventsPort(deps: {
     try {
       const res = await fetch(url, { method: 'POST', headers, body: input.body });
       const text = await res.text().catch(() => '');
-      let parsed: { ok?: boolean; error?: string } = {};
+      let parsed: {
+        ok?: boolean;
+        error?: string;
+        canonicalWrite?: { conversationId?: unknown; organizationId?: unknown };
+      } = {};
       if (text) {
         try {
           parsed = JSON.parse(text) as { ok?: boolean; error?: string };
@@ -72,9 +81,21 @@ export function createWebappEventsPort(deps: {
         }
       }
       const ok = (res.status === 200 || res.status === 202) && parsed.ok === true;
+      const canonicalWrite =
+        ok &&
+        typeof parsed.canonicalWrite?.conversationId === 'string' &&
+        parsed.canonicalWrite.conversationId.trim() &&
+        typeof parsed.canonicalWrite.organizationId === 'string' &&
+        parsed.canonicalWrite.organizationId.trim()
+          ? {
+              conversationId: parsed.canonicalWrite.conversationId.trim(),
+              organizationId: parsed.canonicalWrite.organizationId.trim(),
+            }
+          : undefined;
       return {
         ok,
         status: res.status,
+        ...(canonicalWrite ? { canonicalWrite } : {}),
         ...(ok
           ? {}
           : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
@@ -170,9 +191,30 @@ export function createWebappEventsPort(deps: {
     async syncSupportUserMessage(input: {
       body: string;
       idempotencyKey: string;
-    }): Promise<{ ok: boolean; status: number; error?: string }> {
+    }): Promise<{
+      ok: boolean;
+      status: number;
+      error?: string;
+      canonicalWrite?: { conversationId: string; organizationId: string };
+    }> {
       return postSignedJson({
         path: '/api/integrator/support/sync-user-message',
+        body: input.body,
+        idempotencyKey: input.idempotencyKey,
+      });
+    },
+
+    async setSupportStatus(input: {
+      body: string;
+      idempotencyKey: string;
+    }): Promise<{
+      ok: boolean;
+      status: number;
+      error?: string;
+      canonicalWrite?: { conversationId: string; organizationId: string };
+    }> {
+      return postSignedJson({
+        path: '/api/integrator/support/status',
         body: input.body,
         idempotencyKey: input.idempotencyKey,
       });

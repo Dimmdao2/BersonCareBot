@@ -7,17 +7,14 @@ import {
   isKeyValid,
   setCachedResponse,
 } from '@/app-layer/idempotency/idempotencyStore';
-import { integratorSupportSyncUserMessageSchema } from '@/modules/messaging/integratorSupportHttp';
+import { integratorSupportStatusSchema } from '@/modules/messaging/integratorSupportHttp';
 
-/**
- * POST /api/integrator/support/sync-user-message — M2M: сообщение пациента из бота → единый webapp-thread.
- */
+/** POST /api/integrator/support/status — M2M delivery of a status decision owned by webapp. */
 export async function POST(request: Request) {
   const timestamp = request.headers.get('x-bersoncare-timestamp');
   const signature = request.headers.get('x-bersoncare-signature');
   const idempotencyKey = request.headers.get('x-bersoncare-idempotency-key');
   const rawBody = await request.text();
-
   if (!timestamp || !signature || !idempotencyKey) {
     return NextResponse.json({ ok: false, error: 'missing webhook headers' }, { status: 400 });
   }
@@ -46,26 +43,17 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400 });
   }
-
-  const parsed = integratorSupportSyncUserMessageSchema.safeParse(parsedJson);
+  const parsed = integratorSupportStatusSchema.safeParse(parsedJson);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid body' }, { status: 400 });
   }
 
-  const deps = buildAppDeps();
-  if (!deps.supportCommunication || !deps.integratorSupportBridge) {
+  const bridge = buildAppDeps().integratorSupportBridge;
+  if (!bridge) {
     return NextResponse.json({ ok: false, error: 'support not configured' }, { status: 503 });
   }
-
-  const syncResult = await deps.integratorSupportBridge.syncUserMessage(parsed.data);
-  if (!syncResult.ok) {
-    const status = syncResult.error === 'empty' ? 400 : 404;
-    const body = { ok: false, error: syncResult.error };
-    await setCachedResponse(idempotencyKey, requestHash, status, body);
-    return NextResponse.json(body, { status });
-  }
-
-  const okBody = syncResult;
-  await setCachedResponse(idempotencyKey, requestHash, 200, okBody);
-  return NextResponse.json(okBody);
+  const result = await bridge.setStatus(parsed.data);
+  const status = result.ok ? 200 : 400;
+  await setCachedResponse(idempotencyKey, requestHash, status, result);
+  return NextResponse.json(result, { status });
 }
