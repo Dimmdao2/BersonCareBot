@@ -17,6 +17,18 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+// D20 level-3 F5: a `main()` that returns early (a bug, or someone "temporarily" commenting out a
+// piece) must not exit 0 with an empty log — this is the same self-check gate already used for the
+// constants gate. `passedPieces` lives outside `main()` on purpose: the completion check below runs
+// unconditionally after `main()` settles, so it still fires even if `main()` itself never reaches it.
+const EXPECTED_PIECES = ['piece 1', 'piece 2', 'piece 3'] as const;
+const passedPieces = new Set<string>();
+
+function reportPiecePass(id: (typeof EXPECTED_PIECES)[number], message: string): void {
+  passedPieces.add(id);
+  console.log(`[${id}] PASS: ${message}`);
+}
+
 const IDEMPOTENCY_KEYS_DDL = `
 CREATE SCHEMA IF NOT EXISTS integrator;
 CREATE TABLE integrator.idempotency_keys (
@@ -56,14 +68,42 @@ async function main(): Promise<void> {
     ]);
     const wins = [first, second].filter(Boolean).length;
     assert(wins === 1, `expected exactly one concurrent tryAcquire to win, got ${wins} (first=${first}, second=${second})`);
-    console.log('[piece 1] PASS: two concurrent tryAcquire on the same key, exactly one won');
+    reportPiecePass('piece 1', 'two concurrent tryAcquire on the same key, exactly one won');
 
     // --- A third acquire while the key is still live must also lose (not a fluke of the pair) --
     const third = await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
       port.tryAcquire(key, 60),
     );
     assert(third === false, 'a third acquire on the still-live key must also fail');
-    console.log('[piece 2] PASS: a further acquire on the still-live key also failed');
+    reportPiecePass('piece 2', 'a further acquire on the still-live key also failed');
+
+    // --- Piece 3 (F1): release() must only free the ONE key it names, not the whole table -------
+    const keyA = `d30-idem-release-a-${randomUUID()}`;
+    const keyB = `d30-idem-release-b-${randomUUID()}`;
+    const acquiredA = await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
+      port.tryAcquire(keyA, 60),
+    );
+    const acquiredB = await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
+      port.tryAcquire(keyB, 60),
+    );
+    assert(acquiredA, 'setup: acquiring fresh key A must succeed');
+    assert(acquiredB, 'setup: acquiring fresh key B must succeed');
+
+    await runWithInfraPrincipal({ source: 'delivery-handler' }, () => port.release(keyA));
+
+    const keyBStillLive = await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
+      port.tryAcquire(keyB, 60),
+    );
+    assert(
+      keyBStillLive === false,
+      'releasing key A must not free key B — a re-acquire of the still-live key B must fail',
+    );
+
+    const keyAReleased = await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
+      port.tryAcquire(keyA, 60),
+    );
+    assert(keyAReleased === true, 'the released key A must be acquirable again');
+    reportPiecePass('piece 3', "release() frees only its own key — the still-live sibling key stayed dead, and only the released key was reacquirable");
 
     await closeDb();
     console.log('check-d30-idempotency-key-concurrency: PASS');
@@ -72,9 +112,17 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(
-    `check-d30-idempotency-key-concurrency: FAIL: ${err instanceof Error ? err.message : String(err)}`,
-  );
-  process.exit(1);
-});
+main()
+  .then(() => {
+    const missing = EXPECTED_PIECES.filter((id) => !passedPieces.has(id));
+    assert(
+      missing.length === 0,
+      `expected all of [${EXPECTED_PIECES.join(', ')}] to report PASS, missing: ${missing.join(', ')} (a piece was skipped, or main() returned before reaching it)`,
+    );
+  })
+  .catch((err) => {
+    console.error(
+      `check-d30-idempotency-key-concurrency: FAIL: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    process.exit(1);
+  });

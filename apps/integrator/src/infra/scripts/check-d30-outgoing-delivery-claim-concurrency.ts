@@ -28,6 +28,16 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+// D20 level-3 F5: a `main()` that returns early must not exit 0 with an empty log. `passedPieces`
+// lives outside `main()` so the completion check below still fires even if `main()` never reaches it.
+const EXPECTED_PIECES = ['piece 4a', 'piece 4b', 'piece 4c'] as const;
+const passedPieces = new Set<string>();
+
+function reportPiecePass(id: (typeof EXPECTED_PIECES)[number], message: string): void {
+  passedPieces.add(id);
+  console.log(`[${id}] PASS: ${message}`);
+}
+
 const OUTGOING_DELIVERY_QUEUE_DDL = `
 CREATE TABLE public.outgoing_delivery_queue (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -93,20 +103,40 @@ async function main(): Promise<void> {
     assert(inserted, 'the first enqueue for a fresh event_id must insert a row');
 
     // --- Piece 4a: two concurrent claims of the one due row ----------------------------------
-    const [claimA, claimB] = await Promise.all([
-      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () =>
-        claimDueOutgoingDeliveries(db, 10),
-      ),
-      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () =>
-        claimDueOutgoingDeliveries(db, 10),
-      ),
+    // F2: without this, connection-establishment latency for each racer's first `pool.connect()`
+    // serializes the two claims well before their SELECTs can ever overlap at the server — one
+    // claim fully commits before the other's CTE even runs, so it sees the row already
+    // 'processing' and correctly skips it. Neither the missing-lock bug nor a non-atomic two-phase
+    // claim gets exercised. Warm both pool connections first so the actual claim queries start
+    // from already-established connections.
+    await Promise.all([
+      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () => db.query('SELECT 1')),
+      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () => db.query('SELECT 1')),
     ]);
+
+    // Barrier: kick off both claims but hold them at an already-pending gate, then release the
+    // gate synchronously — so both resume and issue their query in the same tick, instead of one
+    // racer's whole call chain finishing before the other's has even started.
+    let releaseBarrier: () => void = () => {};
+    const barrier = new Promise<void>((resolve) => {
+      releaseBarrier = resolve;
+    });
+    const gatedClaim = () =>
+      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, async () => {
+        await barrier;
+        return claimDueOutgoingDeliveries(db, 10);
+      });
+    const claimAPromise = gatedClaim();
+    const claimBPromise = gatedClaim();
+    releaseBarrier();
+    const [claimA, claimB] = await Promise.all([claimAPromise, claimBPromise]);
+    console.error(`[diag] claimA.length=${claimA.length} claimB.length=${claimB.length}`);
     const claimedRows = [...claimA, ...claimB].filter((row) => row.eventId === eventId);
     assert(
       claimedRows.length === 1,
       `expected exactly one concurrent claim to win the due row, got ${claimedRows.length}`,
     );
-    console.log('[piece 4a] PASS: two concurrent claims on one due row, exactly one won');
+    reportPiecePass('piece 4a', 'two concurrent claims on one due row, exactly one won');
 
     // --- Piece 4b: repeated enqueue with the same event_id does not duplicate the row --------
     const insertedAgain = await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
@@ -130,10 +160,14 @@ async function main(): Promise<void> {
       countRes.rows[0]?.n === 1,
       `expected exactly one row for event_id after the repeated enqueue, found ${countRes.rows[0]?.n}`,
     );
-    console.log('[piece 4b] PASS: repeated enqueue with the same event_id did not create a second row');
+    reportPiecePass('piece 4b', 'repeated enqueue with the same event_id did not create a second row');
 
     // --- Piece 4c: a stale row at the reclaim cap is dead-lettered, not recycled forever -----
+    // F3 control: an already-`sent` row, stale by the same clock, must be left alone by reclaim —
+    // widening the reclaim filter from `status = 'processing'` to include `'sent'` would re-deliver
+    // an already-delivered message.
     const cappedEventId = `d30-reclaim-cap-${randomUUID()}`;
+    const sentEventId = `d30-reclaim-sent-control-${randomUUID()}`;
     const cappedInsertClient = new pg.Client({ connectionString: disposable.connectionString });
     await cappedInsertClient.connect();
     const cappedInsert = await cappedInsertClient.query<{ id: string }>(
@@ -147,9 +181,22 @@ async function main(): Promise<void> {
        RETURNING id`,
       [cappedEventId],
     );
+    const sentInsert = await cappedInsertClient.query<{ id: string }>(
+      `INSERT INTO public.outgoing_delivery_queue (
+         event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+         next_retry_at, last_attempt_at, sent_at, reclaim_count
+       ) VALUES (
+         $1, 'operator_alert', 'telegram', '{}'::jsonb, 'sent', 1, 6,
+         now(), now() - interval '20 minutes', now() - interval '20 minutes', 0
+       )
+       RETURNING id`,
+      [sentEventId],
+    );
     await cappedInsertClient.end();
     const cappedId = cappedInsert.rows[0]?.id;
+    const sentId = sentInsert.rows[0]?.id;
     assert(cappedId !== undefined, 'could not insert the capped stale row fixture');
+    assert(sentId !== undefined, 'could not insert the sent control row fixture');
 
     const reclaimResult = await runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
       resetStaleOutgoingDeliveryProcessing(db, 10, 5),
@@ -165,13 +212,24 @@ async function main(): Promise<void> {
       'SELECT status, failure_class FROM public.outgoing_delivery_queue WHERE id = $1',
       [cappedId],
     );
+    const sentRow = await cappedCheckClient.query<{ status: string; sent_at: string | null }>(
+      'SELECT status, sent_at FROM public.outgoing_delivery_queue WHERE id = $1',
+      [sentId],
+    );
     await cappedCheckClient.end();
     assert(cappedRow.rows[0]?.status === 'dead', 'the capped stale row must end up dead, not pending again');
     assert(
       cappedRow.rows[0]?.failure_class === OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS,
       `expected failure_class ${OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS}, got ${cappedRow.rows[0]?.failure_class}`,
     );
-    console.log('[piece 4c] PASS: a stale row at the reclaim cap was dead-lettered, not recycled');
+    assert(
+      sentRow.rows[0]?.status === 'sent' && sentRow.rows[0]?.sent_at !== null,
+      `reclaim must not touch an already-sent row, got status=${sentRow.rows[0]?.status} sent_at=${sentRow.rows[0]?.sent_at}`,
+    );
+    reportPiecePass(
+      'piece 4c',
+      'a stale row at the reclaim cap was dead-lettered, not recycled, and a stale-but-already-sent control row was left untouched',
+    );
 
     await closeDb();
     console.log('check-d30-outgoing-delivery-claim-concurrency: PASS');
@@ -180,9 +238,17 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(
-    `check-d30-outgoing-delivery-claim-concurrency: FAIL: ${err instanceof Error ? err.message : String(err)}`,
-  );
-  process.exit(1);
-});
+main()
+  .then(() => {
+    const missing = EXPECTED_PIECES.filter((id) => !passedPieces.has(id));
+    assert(
+      missing.length === 0,
+      `expected all of [${EXPECTED_PIECES.join(', ')}] to report PASS, missing: ${missing.join(', ')} (a piece was skipped, or main() returned before reaching it)`,
+    );
+  })
+  .catch((err) => {
+    console.error(
+      `check-d30-outgoing-delivery-claim-concurrency: FAIL: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    process.exit(1);
+  });

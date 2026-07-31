@@ -67,7 +67,12 @@ function fakePersistentIdempotencyPort(): IdempotencyPort {
   };
 }
 
-describe('D20 item 16: booking-lifecycle event dedup — owner fork #2, current behavior locked as-is', () => {
+// D34 made idempotencyPort a mandatory dependency (bookingLifecycleRoute.ts:43,565) and deleted the
+// in-memory dedup fallback this describe used to cover for "owner fork #2" — calling
+// handleBookingLifecycleEvent without a port is now a type error (see the D34 describe block in
+// bookingLifecycleRoute.d14.test.ts), not a silent in-process-only dedup. Only the still-live
+// persistent-port scenario remains here.
+describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency port', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -88,26 +93,5 @@ describe('D20 item 16: booking-lifecycle event dedup — owner fork #2, current 
     const send2 = fakeDispatchPort();
     await second.handleBookingLifecycleEvent(event(), send2, { idempotencyPort: persistentPort });
     expect(send2.dispatchOutgoing).not.toHaveBeenCalled();
-  });
-
-  it('without an idempotency port (fallback only), the same event is deduped within one process but replays after a simulated restart — the risk the map calls out, unchanged', async () => {
-    const first = await import('./bookingLifecycleRoute.js');
-    const send1 = fakeDispatchPort();
-    await first.handleBookingLifecycleEvent(event(), send1, {});
-    expect(send1.dispatchOutgoing).toHaveBeenCalled();
-
-    // Same process, same module instance: the in-memory Map still holds the key.
-    const sendSameProcess = fakeDispatchPort();
-    await first.handleBookingLifecycleEvent(event(), sendSameProcess, {});
-    expect(sendSameProcess.dispatchOutgoing).not.toHaveBeenCalled();
-
-    // Simulated restart: fresh module instance, fresh in-memory Map — the repeat goes through
-    // again. This is exactly the double-reminder risk in owner fork #2; it must not be "fixed"
-    // here, only documented as the current, deliberate-until-answered behavior.
-    vi.resetModules();
-    const second = await import('./bookingLifecycleRoute.js');
-    const send2 = fakeDispatchPort();
-    await second.handleBookingLifecycleEvent(event(), send2, {});
-    expect(send2.dispatchOutgoing).toHaveBeenCalled();
   });
 });
