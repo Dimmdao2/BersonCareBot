@@ -76,6 +76,7 @@ beforeEach(() => {
             storedTariff = {
               id: tariffId,
               mechanicAccessPolicies: {},
+              downgradePolicies: {},
               createdAt: '2026-07-30T00:00:00.000Z',
               ...values,
             };
@@ -118,6 +119,7 @@ describe('/api/admin/commercial tariff persistence', () => {
               payments: paymentPolicy,
               branding: brandingPolicy,
             },
+            downgradePolicies: {},
             includedSeats: null,
             includedSeatsWarningAtPercent: null,
             isActive: true,

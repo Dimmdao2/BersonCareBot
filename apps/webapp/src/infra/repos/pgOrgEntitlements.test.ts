@@ -50,7 +50,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
               graceDays: 2,
               readOnlyDays: 4,
               warningCount: 1,
-              terminalState: 'full_access',
+              terminalState: 'read_only',
             },
           },
           included_seats: null,
@@ -78,7 +78,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
       graceDays: 2,
       readOnlyDays: 4,
       warningCount: 1,
-      terminalState: 'full_access',
+      terminalState: 'read_only',
     });
   });
 

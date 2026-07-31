@@ -31,6 +31,14 @@ const BookingLifecyclePayloadSchema = z.object({
   patientPushVariant: z.enum(['created', 'cancelled', 'rescheduled']).nullable().optional(),
   /** D14(3): вебапп присылает готовый текст пациентского сообщения; интегратор доставляет его дословно, не сочиняя и не дополняя. Отсутствует → прежний текст интегратора. */
   patientMessageText: z.string().optional(),
+  /** D14(4): вебапп решает, уведомлять ли врача. Явный `false` — не уведомлять вовсе. Отсутствует → прежнее поведение (уведомлять всегда для событий, где это было). */
+  doctorNotify: z.boolean().optional(),
+  /** D14(4): дословный текст врачебного уведомления; интегратор доставляет его без изменений. Отсутствует → прежний текст интегратора. */
+  doctorMessageText: z.string().optional(),
+  /** D14(5): вебапп решает действие внешнего календаря. Отсутствует → прежнее вычисление по типу события. */
+  calendarAction: z.enum(['created', 'updated', 'canceled']).optional(),
+  /** D14(5): вебапп решает пометку в заголовке события календаря. Отсутствует → прежнее вычисление по типу события. */
+  calendarTitleMarker: z.enum(['none', 'cancelled', 'reschedule_pending']).optional(),
 });
 
 export const BookingLifecycleEventSchema = z.object({

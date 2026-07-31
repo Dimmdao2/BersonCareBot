@@ -269,3 +269,189 @@ describe('D14(3): webapp decides the patient message text', () => {
     expect(sent).not.toContain('Запись подтверждена');
   });
 });
+
+describe('D14(4): webapp decides whether/what to notify the doctor', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function doctorTextSentTo(
+    dispatchPort: DispatchPort,
+    eventIdPrefix: string,
+  ): string | undefined {
+    const calls = (dispatchPort.dispatchOutgoing as ReturnType<typeof vi.fn>).mock.calls as [
+      { meta: { eventId: string }; payload: { message: { text: string } } },
+    ][];
+    const call = calls.find(
+      ([intent]) =>
+        intent.meta.eventId.startsWith(`${eventIdPrefix}:`) &&
+        intent.meta.eventId.includes(':doctor:'),
+    );
+    return call?.[0].payload.message.text;
+  }
+
+  it('sends no doctor message when the webapp says do not notify', async () => {
+    const dispatchPort = fakeDispatchPort();
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.created',
+        payload: { ...basePayload(), doctorNotify: false },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(doctorTextSentTo(dispatchPort, 'booking-created')).toBeUndefined();
+  });
+
+  it('sends exactly the doctor text the webapp sent, verbatim, on booking.created', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Вебапп прислал: врачу новая запись.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.created',
+        payload: { ...basePayload(), doctorMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(doctorTextSentTo(dispatchPort, 'booking-created')).toBe(webappText);
+  });
+
+  it('sends exactly the doctor text the webapp sent, verbatim, on booking.cancelled', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Вебапп прислал: врачу отмена записи.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.cancelled',
+        payload: { ...basePayload(), doctorMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(doctorTextSentTo(dispatchPort, 'booking-cancelled')).toBe(webappText);
+  });
+
+  it('sends exactly the doctor text the webapp sent, verbatim, on booking.rescheduled', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Вебапп прислал: врачу перенос записи.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.rescheduled',
+        payload: { ...basePayload(), doctorMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(doctorTextSentTo(dispatchPort, 'booking-rescheduled')).toBe(webappText);
+  });
+
+  it('sends exactly the doctor text the webapp sent, verbatim, on booking.payment_captured', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Вебапп прислал: врачу оплата подтверждена.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.payment_captured',
+        payload: { ...basePayload(), doctorMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(doctorTextSentTo(dispatchPort, 'booking-payment')).toBe(webappText);
+  });
+
+  it('keeps the previous always-notify behavior with the previous integrator text when both fields are absent', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const payload = basePayload();
+    await handleBookingLifecycleEvent(
+      { eventType: 'booking.created', payload },
+      dispatchPort,
+      {},
+    );
+    const dateLabel = formatBookingRuDateTime(payload.slotStart, 'UTC');
+    expect(doctorTextSentTo(dispatchPort, 'booking-created')).toBe(
+      `Новая запись: ${payload.contactName}, ${payload.contactPhone}\nДата: ${dateLabel}`,
+    );
+  });
+
+  it('does not append to or otherwise modify the webapp-sent doctor text', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Ровно этот текст врачу и ничего больше.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.created',
+        payload: { ...basePayload(), doctorMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    const sent = doctorTextSentTo(dispatchPort, 'booking-created');
+    expect(sent).toBe(webappText);
+    expect(sent).not.toContain('Новая запись');
+  });
+});
+
+describe('D14(5): webapp decides the calendar action and title marker', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function lastCalendarSyncCall() {
+    const { syncCanonicalAppointmentToCalendar } = await import('../google-calendar/sync.js');
+    const calls = (syncCanonicalAppointmentToCalendar as ReturnType<typeof vi.fn>).mock.calls as [
+      { action: string; titleMarker?: string },
+    ][];
+    return calls.at(-1)?.[0];
+  }
+
+  it('performs exactly the calendar action the webapp set', async () => {
+    const dispatchPort = fakeDispatchPort();
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.created',
+        payload: {
+          ...basePayload(),
+          canonicalAppointmentId: '33333333-3333-3333-3333-333333333333',
+          calendarAction: 'canceled',
+        },
+      },
+      dispatchPort,
+      {},
+    );
+    expect((await lastCalendarSyncCall())?.action).toBe('canceled');
+  });
+
+  it('applies exactly the title marker the webapp set', async () => {
+    const dispatchPort = fakeDispatchPort();
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.created',
+        payload: {
+          ...basePayload(),
+          canonicalAppointmentId: '33333333-3333-3333-3333-333333333334',
+          calendarTitleMarker: 'reschedule_pending',
+        },
+      },
+      dispatchPort,
+      {},
+    );
+    expect((await lastCalendarSyncCall())?.titleMarker).toBe('reschedule_pending');
+  });
+
+  it('keeps the previous per-event-type computation when the fields are absent', async () => {
+    const dispatchPort = fakeDispatchPort();
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.cancelled',
+        payload: {
+          ...basePayload(),
+          canonicalAppointmentId: '33333333-3333-3333-3333-333333333335',
+        },
+      },
+      dispatchPort,
+      {},
+    );
+    const call = await lastCalendarSyncCall();
+    expect(call?.action).toBe('updated');
+    expect(call?.titleMarker).toBe('cancelled');
+  });
+});

@@ -88,3 +88,42 @@ describe('D14(3): врачебные события шлют patientMessageText'
     expect((captured[0]!.patientMessageText as string).length).toBeGreaterThan(0);
   });
 });
+
+describe('D14, часть 5: врачебные события шлют doctorNotify/doctorMessageText/calendarAction/calendarTitleMarker', () => {
+  let captured: Array<Record<string, unknown>>;
+  let syncPort: BookingSyncPort;
+
+  beforeEach(() => {
+    captured = [];
+    syncPort = {
+      emitBookingEvent: vi.fn(async (evt) => {
+        captured.push((evt as { payload: Record<string, unknown> }).payload);
+      }),
+    } as unknown as BookingSyncPort;
+  });
+
+  it('booking.created: doctorNotify передаётся дословно, календарь получает created/none', async () => {
+    await emitStaffCanonicalBookingEvent({
+      syncPort,
+      eventType: 'booking.created',
+      appointment: fakeAppointment(),
+      doctorNotify: false,
+    });
+
+    expect(captured[0]!.doctorNotify).toBe(false);
+    expect(typeof captured[0]!.doctorMessageText).toBe('string');
+    expect(captured[0]!.calendarAction).toBe('created');
+    expect(captured[0]!.calendarTitleMarker).toBe('none');
+  });
+
+  it('booking.cancelled: календарь получает updated/cancelled', async () => {
+    await emitStaffCanonicalBookingEvent({
+      syncPort,
+      eventType: 'booking.cancelled',
+      appointment: fakeAppointment(),
+    });
+
+    expect(captured[0]!.calendarAction).toBe('updated');
+    expect(captured[0]!.calendarTitleMarker).toBe('cancelled');
+  });
+});
