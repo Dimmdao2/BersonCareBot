@@ -142,3 +142,82 @@ jobs:
       - run: pnpm --dir apps/integrator run check:d30-outgoing-delivery-claim-concurrency
       - run: pnpm --dir apps/integrator run check:d30-idempotency-key-concurrency
       - uses: ./.github/actions/cancel-on-failure
+
+  stryker-diff-scoped:
+    # М3 (#1081): Stryker судит только строки решений, изменённые в этом диффе (apps/webapp/src) —
+    # не процент покрытия всего файла. fetch-depth: 0, потому что скрипту нужна база сравнения
+    # (merge-base с целевой веткой для PR, предыдущий коммит для push), а не только текущий HEAD.
+    name: Stryker diff-scoped mutation gate (webapp)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-pnpm
+      - name: Resolve diff base
+        id: base
+        run: |
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            echo "sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "sha=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=HEAD~1" >> "$GITHUB_OUTPUT"
+          fi
+      - run: node scripts/check-stryker-diff-scoped.mjs --base "${{ steps.base.outputs.sha }}"
+      - uses: ./.github/actions/cancel-on-failure
+
+  stryker-diff-scoped-selftest:
+    # М3 круг 2 (#1081, M3-5 слепого аудита): «плюс самотест гейта («сломай специально — убедись, что
+    # заметил»)» существовал только как текст в markdown-отчёте — по оракулу блока М («правило без
+    # гейта — документация») это не самотест. Образец — gitleaks-selftest ниже в security.yml. Обе
+    # правки — локальные коммиты в собственном checkout этой джобы, никогда не пушатся и откатываются
+    # тем же шагом; правится только apps/webapp/src/lib/strykerGateSelftestFixture.ts, заведённый
+    # специально под это (не продуктовый код).
+    name: Stryker diff-scoped self-test (must catch a planted mutant, must not false-positive on a covered rewrite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-pnpm
+      - name: RED — plant an uncovered decision line, assert the gate catches it
+        run: |
+          set -euo pipefail
+          git config user.email "selftest@local.invalid"
+          git config user.name "stryker-diff-scoped-selftest"
+          BASE=$(git rev-parse HEAD)
+          cat > apps/webapp/src/lib/strykerGateSelftestFixture.ts <<'EOF'
+          export function classifySelftestProbe(value: string): 'empty' | 'other' {
+            if (value === '') return 'empty';
+            if (value.startsWith('__never_covered__')) return 'other';
+            return 'other';
+          }
+          EOF
+          git commit -am "selftest RED: planted uncovered decision line (never pushed)"
+          if node scripts/check-stryker-diff-scoped.mjs --base "$BASE"; then
+            echo "::error::self-test FAILED — the gate did not catch a planted uncovered decision line"
+            exit 1
+          fi
+          echo "RED ok: gate caught the planted uncovered line"
+          git reset --hard "$BASE"
+      - name: GREEN — rewrite a covered decision line into an equivalent covered form, assert no false positive
+        run: |
+          set -euo pipefail
+          BASE=$(git rev-parse HEAD)
+          cat > apps/webapp/src/lib/strykerGateSelftestFixture.ts <<'EOF'
+          export function classifySelftestProbe(value: string): 'empty' | 'other' {
+            if (value.length === 0) return 'empty';
+            return 'other';
+          }
+          EOF
+          git commit -am "selftest GREEN: rewrote a covered decision line (never pushed)"
+          if ! node scripts/check-stryker-diff-scoped.mjs --base "$BASE"; then
+            echo "::error::self-test FAILED — the gate false-positived on a fully covered decision-line rewrite (M3-2 regression)"
+            exit 1
+          fi
+          echo "GREEN ok: gate did not false-positive on a covered rewrite"
+          git reset --hard "$BASE"
+      - uses: ./.github/actions/cancel-on-failure
