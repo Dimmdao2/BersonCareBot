@@ -26,12 +26,12 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-// Both doors were last redefined by 0285 (§5a item 2.6a — the warning payload carries the
-// owner's notification rows instead of an agent-chosen count), so the proof must extract the
-// CURRENT bodies from there, not from the superseded 0283/0284.
+// Both doors were last redefined by 0286 (§5a item 7.0 — the ladder gets its second anchor, the
+// end of the PAID period), so the proof must extract the CURRENT bodies from there, not from the
+// superseded 0283/0284/0285.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0285_tariff_ladder_notifications_local.sql',
+  'apps/webapp/db/drizzle-migrations/0286_tariff_ladder_paid_period_anchor_local.sql',
 );
 const cabinetMigrationPath = mechanicMigrationPath;
 const mechanicRegistryPath = path.join(
@@ -132,6 +132,7 @@ async function withDb(targetDb, fn) {
 const ORG_ID = '20000000-0000-4000-8000-000000000001';
 const TARIFF_ID = '10000000-0000-4000-8000-000000000001';
 const TRIAL_ID = '30000000-0000-4000-8000-000000000001';
+const SUBSCRIPTION_ID = '40000000-0000-4000-8000-000000000001';
 
 function schemaSql(functionSource, cabinetSource) {
   const configuredMechanics = Object.fromEntries(
@@ -183,11 +184,23 @@ function schemaSql(functionSource, cabinetSource) {
       expires_at timestamptz,
       PRIMARY KEY (organization_id, mechanic)
     );
+    -- §5a item 7.0 — the money side of the ladder. Same columns the doors read in production.
+    CREATE TABLE public.saas_billing_subscriptions (
+      id uuid PRIMARY KEY,
+      organization_id uuid NOT NULL,
+      tariff_id uuid NOT NULL,
+      source text NOT NULL,
+      status text NOT NULL,
+      current_period_starts_at timestamptz,
+      current_period_ends_at timestamptz,
+      UNIQUE (organization_id, source)
+    );
     GRANT SELECT ON TABLE
       public.be_organizations,
       public.saas_tariffs,
       public.saas_organization_trials,
-      public.saas_org_entitlement_overrides
+      public.saas_org_entitlement_overrides,
+      public.saas_billing_subscriptions
     TO app_owner;
 
     ${functionSource}
@@ -243,6 +256,34 @@ async function setDegradationAnchor(connection, { endsAtIntervalFromNow, postTri
      VALUES ($1, $2, $3, now() + $4::interval, now() + $4::interval, $5, 'active')`,
     [TRIAL_ID, ORG_ID, TARIFF_ID, endsAtIntervalFromNow, postTrialBehavior ?? 'blocked'],
   );
+}
+
+/**
+ * §5a item 7.0 — the OTHER anchor: an organization with an assigned tariff, no trial at all, and a
+ * paid period that ends `endsAtIntervalFromNow` from now. This is the state the product reaches
+ * when a clinic is given a tariff and then does or does not pay for the next period.
+ */
+async function setPaidPeriod(connection, { endsAtIntervalFromNow, status = 'active' }) {
+  await connection.query('DELETE FROM public.saas_organization_trials WHERE organization_id = $1', [
+    ORG_ID,
+  ]);
+  await connection.query('DELETE FROM public.saas_billing_subscriptions WHERE id = $1', [
+    SUBSCRIPTION_ID,
+  ]);
+  await connection.query(
+    `INSERT INTO public.saas_billing_subscriptions
+       (id, organization_id, tariff_id, source, status,
+        current_period_starts_at, current_period_ends_at)
+     VALUES ($1, $2, $3, 'manual', $5,
+             now() + $4::interval - interval '30 days', now() + $4::interval)`,
+    [SUBSCRIPTION_ID, ORG_ID, TARIFF_ID, endsAtIntervalFromNow, status],
+  );
+}
+
+async function clearPaidPeriod(connection) {
+  await connection.query('DELETE FROM public.saas_billing_subscriptions WHERE id = $1', [
+    SUBSCRIPTION_ID,
+  ]);
 }
 
 async function resolveAs(connection, organizationId, mechanic) {
@@ -503,6 +544,102 @@ async function proveCabinetTransitionsAndDataRestoration(connection) {
 }
 
 /**
+ * Proof 7 / §5a item 7.0: НЕОПЛАТА двигает лестницу. An organization with an ASSIGNED tariff and no
+ * trial at all walks all three rungs from the end of its PAID period, by the numbers in the tariff.
+ *
+ * This is the case that did nothing before 31.07: the only anchor was `trial.ends_at`, and the
+ * assigned-tariff branch returned full access forever no matter how the owner configured the ladder.
+ */
+async function provePaidPeriodDrivesTheLadder(connection) {
+  await setPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: { courses: MECHANIC_POLICY },
+  });
+
+  // Период оплачен и не истёк — полный доступ. It must NOT come from the old "assigned tariff"
+  // branch: the same organization goes on to degrade below without anything else changing.
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '1 day' });
+  const paid = await resolveAs(connection, ORG_ID, 'courses');
+  if (paid.state !== 'full_access') {
+    fail(`inside a paid period expected full_access, got ${paid.state}`);
+  }
+
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '-1 day' });
+  const inGrace = await resolveAs(connection, ORG_ID, 'courses');
+  if (inGrace.state !== 'grace') {
+    fail(`1 day after an unpaid period (5-day grace) expected grace, got ${inGrace.state}`);
+  }
+  if (inGrace.mutation_allowed !== true) fail('grace after non-payment must still allow mutation');
+  // The door must say WHICH period lapsed, or «условие: ошибка оплаты» has nothing real to follow.
+  if (inGrace.warning?.periodSource !== 'paid_period') {
+    fail(`expected periodSource paid_period, got ${JSON.stringify(inGrace.warning)}`);
+  }
+
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '-6 days' });
+  const inReadOnly = await resolveAs(connection, ORG_ID, 'courses');
+  if (inReadOnly.state !== 'read_only') {
+    fail(`6 days unpaid (5-day grace + 3-day read-only) expected read_only, got ${inReadOnly.state}`);
+  }
+  if (inReadOnly.mutation_allowed !== false) fail('read_only after non-payment must refuse mutation');
+
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '-10 days' });
+  const atTerminal = await resolveAs(connection, ORG_ID, 'courses');
+  if (atTerminal.state !== 'read_only') {
+    fail(`10 days unpaid (past 5+3) expected terminalState read_only, got ${atTerminal.state}`);
+  }
+
+  // Конечное состояние — тоже данные, и на денежном якоре тоже.
+  await setPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: { courses: { ...MECHANIC_POLICY, terminalState: 'disabled' } },
+  });
+  const disabledTerminal = await resolveAs(connection, ORG_ID, 'courses');
+  if (disabledTerminal.state !== 'disabled') {
+    fail(`terminalState from the tariff row must apply to the money anchor too, got ${disabledTerminal.state}`);
+  }
+}
+
+/** Proof 8 / §5a item 7.0: the CABINET door sees non-payment as well — both doors, not one. */
+async function provePaidPeriodDrivesTheCabinet(connection) {
+  await setPolicies(connection, {
+    systemAccessPolicy: {
+      graceDays: 5,
+      readOnlyDays: 3,
+      notifications: [OWNER_NOTIFICATION],
+      terminalState: 'disabled',
+    },
+    mechanicAccessPolicies: {},
+  });
+
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '1 day' });
+  const paid = await resolveCabinetAs(connection, ORG_ID);
+  if (paid.state !== 'full_access') fail(`cabinet inside a paid period expected full_access, got ${paid.state}`);
+
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '-1 day' });
+  const grace = await resolveCabinetAs(connection, ORG_ID);
+  if (grace.state !== 'grace' || grace.warning?.periodSource !== 'paid_period') {
+    fail(`cabinet grace after non-payment expected grace/paid_period, got ${JSON.stringify(grace)}`);
+  }
+
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '-6 days' });
+  const readOnly = await resolveCabinetAs(connection, ORG_ID);
+  if (readOnly.state !== 'read_only') fail(`cabinet read-only after non-payment, got ${readOnly.state}`);
+
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '-10 days' });
+  const blocked = await resolveCabinetAs(connection, ORG_ID);
+  if (blocked.state !== 'disabled') fail(`cabinet terminal after non-payment, got ${blocked.state}`);
+
+  // An organization with NO period at all (compatibility clinics from before tariffs, and rows the
+  // backfill could not date) must stay open: killing the eternal-full-access branch must not take
+  // out the only case that legitimately has nothing to measure from.
+  await clearPaidPeriod(connection);
+  const noPeriod = await resolveCabinetAs(connection, ORG_ID);
+  if (noPeriod.state !== 'full_access') {
+    fail(`an organization with no period at all must keep access, got ${noPeriod.state}`);
+  }
+}
+
+/**
  * Self-test gate: each proof above is re-run against a deliberately broken door function and MUST
  * throw. This is the "name the breakage, then break it and watch it go red" arbiter from
  * .cursor/rules/tests-check-behaviour-not-circumstances.mdc, executed mechanically instead of by hand.
@@ -543,6 +680,28 @@ const REGRESSIONS = [
       ),
   },
   {
+    // §5a item 7.0 — the exact defect this work removes: with only the trial anchor, an assigned
+    // tariff never degrades, however the owner configured the ladder.
+    label: 'paid-period anchor removed — non-payment stops moving the ladder',
+    proof: provePaidPeriodDrivesTheLadder,
+    breakSource: (source) =>
+      source.replace(
+        `COALESCE(trial.ends_at, paid_period.period_ends_at) AS degradation_started_at,`,
+        `trial.ends_at AS degradation_started_at,`,
+      ),
+  },
+  {
+    // The other half of the same defect: the branch that handed out full access forever.
+    label: 'eternal full-access branch restored — an assigned tariff never degrades',
+    proof: provePaidPeriodDrivesTheLadder,
+    breakSource: (source) =>
+      source.replace(
+        `WHEN degradation_started_at IS NULL
+          AND NOT (access_source = 'no_trial' OR lifecycle <> 'active') THEN 'full_access'`,
+        `WHEN NOT (access_source = 'no_trial' OR lifecycle <> 'active') THEN 'full_access'`,
+      ),
+  },
+  {
     label: 'an agent-added mechanic exclusion bypasses the ladder',
     proof: proveNoAgentMechanicExclusions,
     breakSource: (source) => {
@@ -559,10 +718,21 @@ const REGRESSIONS = [
 const CABINET_REGRESSIONS = [
   {
     label: 'cabinet terminal block removed',
+    proof: proveCabinetTransitionsAndDataRestoration,
     breakSource: (source) => source.replace(
       `WHEN degradation_started_at IS NOT NULL THEN policy ->> 'terminalState'`,
       `WHEN degradation_started_at IS NOT NULL THEN 'full_access'`,
     ),
+  },
+  {
+    // §5a item 7.0, cabinet half: without the money anchor the cabinet door never notices non-payment.
+    label: 'cabinet paid-period anchor removed — non-payment never closes the cabinet',
+    proof: provePaidPeriodDrivesTheCabinet,
+    breakSource: (source) =>
+      source.replace(
+        `COALESCE(trial.ends_at, paid_period.period_ends_at) AS degradation_started_at,`,
+        `trial.ends_at AS degradation_started_at,`,
+      ),
   },
 ];
 
@@ -596,7 +766,7 @@ async function runRegressionSelfTests() {
     await installInto(regressionDb, doorFunctionSource, brokenSource);
     let thrownMessage = '';
     try {
-      await withDb(regressionDb, (connection) => proveCabinetTransitionsAndDataRestoration(connection));
+      await withDb(regressionDb, (connection) => regression.proof(connection));
     } catch (error) {
       thrownMessage = error instanceof Error ? error.message : String(error);
     }
@@ -643,6 +813,10 @@ try {
     console.log('  proof OK: every tariff mechanic follows the ladder; only owner-defined critical class stays outside it');
     await proveCabinetTransitionsAndDataRestoration(connection);
     console.log('  proof OK: cabinet full/grace/read-only/block stages preserve data and renewal restores access');
+    await provePaidPeriodDrivesTheLadder(connection);
+    console.log('  proof OK: an ASSIGNED tariff with an unpaid period walks all three rungs (§5a 7.0)');
+    await provePaidPeriodDrivesTheCabinet(connection);
+    console.log('  proof OK: the cabinet door sees non-payment too, and no-period organizations stay open');
   });
 
   await runRegressionSelfTests();

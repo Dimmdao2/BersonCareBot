@@ -1,5 +1,6 @@
 import type { CabinetAccessResolution } from '@/modules/org-entitlements/types';
 import {
+  accessNotificationConditionFor,
   dueAccessNotifications,
   renderAccessNotification,
 } from '@/modules/org-entitlements/accessNotifications';
@@ -21,12 +22,14 @@ export function cabinetGraceWarningMessages(
   variables: Readonly<Record<string, string>>,
   now: Date = new Date(),
 ): string[] {
+  // §5a item 7.0 — the condition follows the REAL period that lapsed (money vs trial), not a
+  // constant. The condition still lives in the owner's row; this only picks which outcome happened.
+  const condition = accessNotificationConditionFor(warning.periodSource);
+  if (condition === null) return [];
   return dueAccessNotifications({
     notifications: warning.notifications,
     periodEndsAt: warning.periodEndsAt,
     now,
-    // The ladder only degrades after an unpaid period, so the rows that apply here are the ones
-    // the owner marked with that outcome. The condition lives in his row, not in a branch here.
-    condition: 'payment_failed',
+    condition,
   }).map((rule) => renderAccessNotification(rule.template, variables));
 }

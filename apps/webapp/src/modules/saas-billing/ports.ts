@@ -1,6 +1,7 @@
 import type { PaymentProviderPort } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import type { OrgCommercialLifecycleState } from '@/modules/org-entitlements/types';
+import type { SaasBillingPeriod } from './paidPeriod';
 
 export type SaasBillingSource = 'manual' | 'paid_subscription';
 export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expired' | 'cancelled';
@@ -104,10 +105,16 @@ export type SaasBillingManualAssignmentState = {
 
 export type SaasBillingManualAssignmentTransactionPort = {
   loadManualAssignmentState(organizationId: string): Promise<SaasBillingManualAssignmentState>;
-  requireActiveTariff(tariffId: string): Promise<void>;
+  /**
+   * §5a item 7.0 — returns the owner's billing period, because the assignment is what starts the
+   * organization's PAID PERIOD and the ladder now measures from its end.
+   */
+  requireActiveTariff(tariffId: string): Promise<{ billingPeriod: SaasBillingPeriod }>;
   setManualSaasBillingSubscription(input: {
     organizationId: string;
     tariffId: string | null;
+    /** §5a item 7.0 — the paid period this assignment grants; `null` only when unassigning. */
+    period: { startsAt: string; endsAt: string } | null;
   }): Promise<void>;
   updateCompatibilityProjection(input: {
     organizationId: string;

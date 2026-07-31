@@ -549,6 +549,7 @@ describe('org entitlement mechanic classes', () => {
       warning: {
         until: '2026-08-02T00:00:00.000Z',
         periodEndsAt: '2026-07-29T00:00:00.000Z',
+        periodSource: 'paid_period',
         notifications: [
           { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
         ],
@@ -579,6 +580,7 @@ describe('org entitlement mechanic classes', () => {
         warning: {
           until: '2026-08-02T00:00:00.000Z',
           periodEndsAt: '2026-07-29T00:00:00.000Z',
+          periodSource: 'paid_period',
           notifications: [
             { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
           ],
@@ -592,6 +594,7 @@ describe('org entitlement mechanic classes', () => {
       warning: {
         until: '2026-08-02T00:00:00.000Z',
         periodEndsAt: '2026-07-29T00:00:00.000Z',
+        periodSource: 'paid_period',
         notifications: [
           { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
         ],

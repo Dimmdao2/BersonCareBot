@@ -5,6 +5,7 @@ import type {
   SaasBillingRepositoryPort,
   SaasBillingSettingsReadPort,
 } from './ports';
+import { paidPeriodEndsAt } from './paidPeriod';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
 
@@ -21,7 +22,10 @@ export function createSaasBillingService(dependencies: {
   repository: SaasBillingRepositoryPort;
   settings: SaasBillingSettingsReadPort;
   resolvePaymentProvider: SaasBillingPaymentProviderResolver;
+  /** Injected so the paid period a test asserts is the one it set, not the wall clock. */
+  now?: () => Date;
 }) {
+  const now = dependencies.now ?? (() => new Date());
   async function resolvePaymentProvider(): Promise<ResolvedSaasBillingPaymentProvider> {
     const settings = parseSaasBillingPaymentProviderSettings(
       await dependencies.settings.getSaasBillingPaymentProviderValue(),
@@ -62,12 +66,24 @@ export function createSaasBillingService(dependencies: {
           return;
         }
 
-        if (input.tariffId) {
-          await transaction.requireActiveTariff(input.tariffId);
-        }
+        // §5a item 7.0 — assignment is what STARTS the organization's paid period. Before this the
+        // subscription row carried no period at all, so "период кончился и не оплачен" was a state
+        // the product could not reach and the ladder had nothing but an expired trial to run on.
+        // The length is the owner's `billing_period` on the tariff, never a number chosen here.
+        const startsAt = now().toISOString();
+        const period = input.tariffId
+          ? {
+              startsAt,
+              endsAt: paidPeriodEndsAt(
+                startsAt,
+                (await transaction.requireActiveTariff(input.tariffId)).billingPeriod,
+              ),
+            }
+          : null;
         await transaction.setManualSaasBillingSubscription({
           organizationId: input.organizationId,
           tariffId: input.tariffId,
+          period,
         });
         const organization = await transaction.updateCompatibilityProjection({
           organizationId: input.organizationId,
