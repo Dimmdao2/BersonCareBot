@@ -13,7 +13,7 @@ import type {
   PatientFileRecord,
   PatientFilesPort,
 } from '@/modules/patient-files/ports';
-import { assertPatientFileStorageLimit } from '@/modules/patient-files/service';
+import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { mediaFiles } from '../../../db/schema/schema';
 import { clinicalVisit } from '../../../db/schema/patientClinical';
@@ -94,23 +94,22 @@ export function createPgPatientFilesPort(): PatientFilesPort {
     async createFile(params: CreatePatientFileParams): Promise<PatientFileRecord> {
       const organizationId = currentWriteOrganizationId();
       const inserted = await runDrizzleMutationTransaction(async (tx) => {
-        if (params.storageLimitBytes != null) {
-          // Both the recount and insert are serialized by organization, so two uploads cannot
-          // each consume the same final bytes. The current workspace principal is already set
-          // around this port call; the predicate is explicit as a second tenant boundary.
-          await tx.execute(
-            sql`SELECT pg_advisory_xact_lock(hashtextextended(${`patient_file_storage:${organizationId}`}, 0))`,
-          );
-          const [usage] = await tx
-            .select({ usedBytes: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
-            .from(patientFiles)
-            .where(eq(patientFiles.organizationId, organizationId));
-          assertPatientFileStorageLimit({
-            usedBytes: Number(usage?.usedBytes ?? 0),
-            addedBytes: params.sizeBytes,
-            limitBytes: params.storageLimitBytes,
-          });
-        }
+        // Both the recount and insert are serialized by organization, so two uploads cannot each
+        // consume the same final bytes. `files` usage is a live SUM, not a stored counter, so a
+        // deleted row already shrinks it for the next check — no separate release step needed.
+        await assertStockQuotaAvailable(
+          tx,
+          organizationId,
+          'files',
+          async () => {
+            const [usage] = await tx
+              .select({ usedBytes: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
+              .from(patientFiles)
+              .where(eq(patientFiles.organizationId, organizationId));
+            return Number(usage?.usedBytes ?? 0);
+          },
+          params.sizeBytes,
+        );
         // When a folderId is provided, co-create a media_files entry so the upload
         // appears in the patient's «Пациенты» media library folder (PFI-ST-04).
         let mediaFileId: string | null = null;

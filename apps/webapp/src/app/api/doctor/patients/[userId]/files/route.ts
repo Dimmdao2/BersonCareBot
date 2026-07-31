@@ -15,8 +15,6 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { PATIENT_FILE_STORAGE_LIMIT_EXCEEDED } from '@/modules/patient-files/service';
-import { resolveFileStorageLimit } from '@/modules/org-entitlements/service';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { presignGetUrl, presignPutUrl } from '@/app-layer/media/s3Client';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
@@ -24,6 +22,9 @@ import { PATIENT_FILE_CATEGORIES } from '@/modules/patient-files/ports';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
 
 const FILE_PRESIGN_GET_TTL = 3600; // 1 hour
+
+/** Thrown by the infra atomic quota check (`stockQuotaCheck.ts`); compared by message, not class, to keep this route free of an infra import. */
+const FILES_QUOTA_REACHED_MESSAGE = 'saas_quota_reached:files';
 
 const categorySchema = z.enum(
   PATIENT_FILE_CATEGORIES as [PatientFileCategory, ...PatientFileCategory[]],
@@ -140,17 +141,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
 
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');
   if (!entitlement.ok) return entitlement.response;
-  const storageLimitBytes = await resolveFileStorageLimit(
-    deps.orgEntitlements,
-    gate.ctx.organizationId,
-  );
-  // A concurrent tariff edit cannot turn an omitted configuration into an unlimited upload.
-  if (storageLimitBytes === undefined) {
-    return NextResponse.json(
-      { ok: false, error: 'file_storage_limit_not_configured' },
-      { status: 403 },
-    );
-  }
 
   // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
   const patientFolder = await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -168,13 +158,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
         s3Bucket,
         mimeType,
         sizeBytes,
-        storageLimitBytes,
         uploadedByUserId: gate.ctx.session.user.userId,
         folderId: patientFolder.id,
       }),
     );
   } catch (error) {
-    if (error instanceof Error && error.message === PATIENT_FILE_STORAGE_LIMIT_EXCEEDED) {
+    if (error instanceof Error && error.message === FILES_QUOTA_REACHED_MESSAGE) {
       return NextResponse.json({ ok: false, error: 'file_storage_limit_reached' }, { status: 403 });
     }
     throw error;
