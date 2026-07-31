@@ -236,3 +236,5 @@ portsmoke нет.
 - [ ] Конвейер tariff остановлен: в клоне незакоммиченная работа, нужен салваж. (2026-07-31 13:30)
 - [ ] Конвейер tariff: порт отказал запускать worker-tariff-storage-fix. ОТКАЗ: в клоне tariff есть несведённые коммиты без записи в /home/dev/dev-projects/BersonCareBot/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md: 04338eba0
   Сначала аудит и строка с вердиктом в очереди, потом новая работа. (2026-07-31 13:34)
+- [ ] Конвейер tariff: порт отказал запускать worker-tariff-calendar-diaries. ОТКАЗ: в клоне tariff есть несведённые коммиты без записи в /home/dev/dev-projects/BersonCareBot/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md: c07520710
+  Сначала аудит и строка с вердиктом в очереди, потом новая работа. (2026-07-31 13:57)
