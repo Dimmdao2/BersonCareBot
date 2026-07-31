@@ -28,7 +28,8 @@
     "projection-health": "tsx src/infra/scripts/projection-health.ts",
     "projection-health:host": "node dist/infra/scripts/projection-health.js",
     "check:d30-scheduler-lock-concurrency": "tsx src/infra/scripts/check-d30-scheduler-lock-concurrency.ts",
-    "check:d30-outgoing-delivery-claim-concurrency": "tsx src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts"
+    "check:d30-outgoing-delivery-claim-concurrency": "tsx src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts",
+    "check:d30-idempotency-key-concurrency": "tsx src/infra/scripts/check-d30-idempotency-key-concurrency.ts"
   },
   "engines": {
     "node": ">=22"
