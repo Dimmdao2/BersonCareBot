@@ -312,9 +312,6 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
   if (isTruthyString(inc.phone) || isTruthyString(inc.contactPhone)) return null;
   if (input.context.hasActiveDraft === true) return null;
   if (conv === 'waiting_for_question') return null;
-  if (typeof conv === 'string' && conv.startsWith('waiting_skip_reason:')) {
-    return null;
-  }
   if (isTruthyString(inc.relayMessageType)) return null;
 
   if (!effectiveAction || !MESSAGE_MENU_ACTIONS_NEED_PHONE.has(effectiveAction)) return null;

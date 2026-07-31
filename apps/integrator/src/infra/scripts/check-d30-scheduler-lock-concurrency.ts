@@ -1,0 +1,104 @@
+/**
+ * D30 Ш0 §2a condition 2 — disposable-Postgres proof for the scheduler advisory lock:
+ *
+ * 1. Two concurrent `tryAcquireSchedulerLock` calls on the same key: the second must get `null`
+ *    while the first holds it; after `release()`, the next acquire must succeed.
+ * 2. `DbLockHandle.assertStillHeld()` must throw `SchedulerLockLostError` once the holding
+ *    connection's backend is killed (simulating a dropped connection / DB restart), and the lock
+ *    must become acquirable again from a fresh connection — proving it was genuinely released,
+ *    not just reported lost.
+ *
+ * Runs against its own throwaway PostgreSQL instance (see d30DisposablePostgres.ts); reads no
+ * application env and touches no configured DATABASE_URL.
+ */
+import pg from 'pg';
+import { startDisposablePostgres } from './d30DisposablePostgres.js';
+
+const LOCK_KEY = 42001001;
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}
+
+async function main(): Promise<void> {
+  const disposable = startDisposablePostgres('scheduler_lock');
+  process.env.DATABASE_URL = disposable.connectionString;
+  process.env.APP_BASE_URL = 'http://127.0.0.1:4200';
+  process.env.BOOKING_URL = 'http://127.0.0.1:4200/app/patient/cabinet';
+  process.env.NODE_ENV = 'development';
+
+  try {
+    const { tryAcquireSchedulerLock, SchedulerLockLostError } = await import(
+      '../db/repos/schedulerLocks.js'
+    );
+    const { runWithInfraPrincipal } = await import('../principal/organizationPrincipal.js');
+    const { closeDb } = await import('../db/client.js');
+
+    const acquire = () =>
+      runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }, () =>
+        tryAcquireSchedulerLock(LOCK_KEY),
+      );
+
+    // --- Piece 1: two concurrent instances ---------------------------------------------------
+    const first = await acquire();
+    assert(first !== null, 'first acquire on a free lock must succeed');
+
+    const second = await acquire();
+    assert(second === null, 'a second concurrent acquire must return null while the first holds the lock');
+
+    await first.release();
+    const third = await acquire();
+    assert(third !== null, 'acquire after release() must succeed');
+    console.log('[piece 1] PASS: second concurrent acquire got null, post-release acquire succeeded');
+
+    // --- Piece 2: ownership check detects a killed connection --------------------------------
+    await third.assertStillHeld(); // sanity: alive connection reports held, must not throw
+
+    const sideClient = new pg.Client({ connectionString: disposable.connectionString });
+    await sideClient.connect();
+    const pidRow = await sideClient.query<{ pid: number }>(
+      `SELECT pid FROM pg_locks
+       WHERE locktype = 'advisory' AND objsubid = 1
+         AND (classid::bigint << 32 | objid::bigint) = $1::bigint
+         AND granted`,
+      [LOCK_KEY],
+    );
+    const victimPid = pidRow.rows[0]?.pid;
+    assert(victimPid !== undefined, 'could not find the backend pid holding the lock');
+    await sideClient.query('SELECT pg_terminate_backend($1)', [victimPid]);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    let lostErrorThrown = false;
+    try {
+      await third.assertStillHeld();
+    } catch (err) {
+      lostErrorThrown = err instanceof SchedulerLockLostError;
+      if (!lostErrorThrown) throw err;
+    }
+    assert(
+      lostErrorThrown,
+      'assertStillHeld() must throw SchedulerLockLostError after the holding connection was terminated',
+    );
+    // Mirrors what main.ts does on SchedulerLockLostError: release the dead handle so the pool
+    // destroys the broken client instead of waiting on it forever (it will never come back).
+    await third.release();
+
+    const fourth = await acquire();
+    assert(fourth !== null, 'the lock must be acquirable again once its dead-connection holder is gone');
+    await fourth.release();
+    await sideClient.end();
+    console.log(
+      '[piece 2] PASS: assertStillHeld() threw SchedulerLockLostError after connection loss, lock was re-acquirable',
+    );
+
+    await closeDb();
+    console.log('check-d30-scheduler-lock-concurrency: PASS');
+  } finally {
+    disposable.stop();
+  }
+}
+
+main().catch((err) => {
+  console.error(`check-d30-scheduler-lock-concurrency: FAIL: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+});

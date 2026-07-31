@@ -60,8 +60,6 @@
   "reminders.preset.every_3_hours": "Каждые 3 часа",
   "reminder.dispatch": "<b>{{reminderTitle}}</b>{{#if reminderBody}}\n\n{{reminderBody}}{{/if}}",
   "reminder.snoozeAck": "Ок, напомню позже через {{minutes}} мин.",
-  "reminder.skip.promptTitle": "Почему пропускаете?",
-  "reminder.skip.askOther": "Кратко опишите причину одним сообщением.",
   "reminder.skip.saved": "Все ок, один пропуск — не проблема. Сделаешь, когда сможешь 👌",
   "reminder.done.saved": "Так держать! Не забывай отмечать самочувствие после разминки - это классно мотивирует, а еще на графике самочувствия будут красивые точки",
   "reminder.dayAllDone": "Супер! Сегодня вы выполнили {{done}} из {{total}} запланированных активностей!\n\nПродолжайте делать разминки и упражнения, и ваше здоровье скажет вам спасибо!",

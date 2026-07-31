@@ -3,8 +3,9 @@ import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
 import { logger } from '../../observability/logger.js';
 import { closeDb, createDbPort } from '../../db/client.js';
-import { tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
+import { SchedulerLockLostError, tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
+import { runSchedulerLockedTick } from './schedulerLockedTick.js';
 import {
   assertSchedulerIsolationTelemetryWriterReady,
   reportSchedulerDispatchIsolationFailure,
@@ -51,7 +52,10 @@ async function startScheduler(): Promise<void> {
   if (!lockHandle) {
     logger.warn('Scheduler lock not acquired, another instance is leader. Exiting.');
     await closeDb();
-    // Non-zero exit with Restart=on-failure avoids a tight restart loop if two hosts share one DB.
+    // D30 Ш0: this non-zero exit is the leader-election retry, not something it merely tolerates.
+    // `Restart=on-failure` + `RestartSec=5` (deploy/systemd/bersoncarebot-scheduler-prod.service)
+    // turns every losing instance into a standby that re-races for the lock every 5s, so a dead
+    // leader's replacement is picked up automatically without a human restarting anything.
     process.exit(1);
   }
 
@@ -82,19 +86,35 @@ async function startScheduler(): Promise<void> {
 
   while (true) {
     try {
-      await runSchedulerOrganizationTicks({
-        eventGateway: deps.eventGateway,
-        listOrganizationIds: () => listSchedulerReminderOrganizationIds(schedulerDb),
-        nowIso: () => new Date().toISOString(),
-        newEventId: randomUUID,
-      });
-      await runScheduledOperatorHealthProbeTick({
-        dispatchPort: deps.dispatchPort,
-        loadConfig: getOperatorHealthProbeConfig,
-        loadLastRunAt: getOperatorOutboundProbeLastRunAt,
-        runProbes: runOperatorHealthProbes,
+      await runSchedulerLockedTick({
+        assertLockStillHeld: () => lockHandle.assertStillHeld(),
+        runOrganizationTicks: () =>
+          runSchedulerOrganizationTicks({
+            eventGateway: deps.eventGateway,
+            listOrganizationIds: () => listSchedulerReminderOrganizationIds(schedulerDb),
+            nowIso: () => new Date().toISOString(),
+            newEventId: randomUUID,
+          }),
+        runOperatorHealthProbeTick: () =>
+          runScheduledOperatorHealthProbeTick({
+            dispatchPort: deps.dispatchPort,
+            loadConfig: getOperatorHealthProbeConfig,
+            loadLastRunAt: getOperatorOutboundProbeLastRunAt,
+            runProbes: runOperatorHealthProbes,
+          }),
       });
     } catch (err) {
+      if (err instanceof SchedulerLockLostError) {
+        logger.error(
+          { err },
+          'Scheduler lost its advisory lock mid-loop; exiting so systemd restarts and re-races for leadership',
+        );
+        reportSchedulerLockIsolationFailure(err);
+        await releaseLock().catch((releaseErr) =>
+          logger.error({ err: releaseErr }, 'Failed to release scheduler lock during lock-loss shutdown'),
+        );
+        process.exit(1);
+      }
       captureSchedulerLoopError(err);
       reportSchedulerDispatchIsolationFailure(err);
       logger.error({ err }, 'Runtime scheduler tick failed');
