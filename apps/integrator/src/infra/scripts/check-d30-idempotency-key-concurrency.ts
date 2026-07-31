@@ -10,8 +10,9 @@
  * sibling D30 scripts in this directory — see `.cursor/rules/test-execution-policy.md`.
  */
 import { randomUUID } from 'node:crypto';
-import pg from 'pg';
+import { sql } from 'drizzle-orm';
 import { startDisposablePostgres } from './d30DisposablePostgres.js';
+import { runIntegratorSql } from '../db/runIntegratorSql.js';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -48,16 +49,13 @@ async function main(): Promise<void> {
   process.env.NODE_ENV = 'development';
 
   try {
-    const ddlClient = new pg.Client({ connectionString: disposable.connectionString });
-    await ddlClient.connect();
-    await ddlClient.query(IDEMPOTENCY_KEYS_DDL);
-    await ddlClient.end();
-
     const { createPostgresIdempotencyPort } = await import('../db/repos/idempotencyKeys.js');
     const { createDbPort, closeDb } = await import('../db/client.js');
     const { runWithInfraPrincipal } = await import('../principal/organizationPrincipal.js');
 
     const db = createDbPort();
+    await runIntegratorSql(db, sql.raw(IDEMPOTENCY_KEYS_DDL));
+
     const port = createPostgresIdempotencyPort(db);
     const key = `d30-idem-race-${randomUUID()}`;
 
