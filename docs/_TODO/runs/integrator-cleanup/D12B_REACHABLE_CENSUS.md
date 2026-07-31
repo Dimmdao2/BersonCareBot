@@ -1,10 +1,7 @@
-# D12b — перепись ДОСТИЖИМЫХ сценариев исполнителя (актуализация после D12/D13a/D13b/D14)
+# D12b — перепись ДОСТИЖИМЫХ сценариев исполнителя интегратора
 
-Run: `worker-d12b-census`. Read-only, код не менялся. Заменяет устаревший
-`docs/_TODO/runs/integrator-cleanup/D12B_CENSUS_RESULT.md` (комит `1646a91ad`), который писался ДО того, как
-`bf45f5853` физически вырезал 10 мёртвых веток `switch` + 26 недостижимых сценариев контента, и до того, как
-D13a/D13b/D14 фактически перенесли часть продуктовых решений в вебапп. Старый файл не трогается (история решений),
-этот — текущее состояние.
+Состояние после D12/D13a/D13b/D14. Единственная действующая перепись достижимых сценариев: объём для D3–D8,
+D21–D25 берётся отсюда.
 
 ## КОРОТКО
 
@@ -92,7 +89,7 @@ booking-lifecycle подсистема**. D13a/D13b/D14 её не касалис
 | `draft.replaceFromMessage` → `executeAction.ts:1391` | ПРОДУКТ | Меняет содержимое черновика | webapp support |
 | `draft.cancel` → `executeAction.ts:1431` | ПРОДУКТ | Отменяет черновик обращения | webapp support |
 | `draft.send` → `executeAction.ts:1465` | ПРОДУКТ | Создаёт/дополняет обращение и вопрос, решает состояние | webapp support |
-| `conversation.admin.reply` → `executeAction.ts:1755` → `handlers/supportRelay.ts:347` | ПРОДУКТ, частично уже переехало | webapp-platform ветка `:386-492` уже полностью делегирует применение ответа в вебапп; legacy-ветка `:494-670` ещё сама владеет состоянием | webapp support (webapp-платформенная ветка); legacy — вопрос №3 |
+| `conversation.admin.reply` → `executeAction.ts:1755` → `handlers/supportRelay.ts:347` | ПРОДУКТ, частично уже переехало | webapp-platform ветка `:386-492` уже полностью делегирует применение ответа в вебапп; legacy-ветка `:494-670` ещё сама владеет состоянием | webapp support (webapp-платформенная ветка); legacy — **D23** |
 | `conversation.close` → `executeAction.ts:1759` | ПРОДУКТ | Меняет состояние обращения | webapp support |
 | `conversation.listOpen` → `executeAction.ts:1797` | ПРОДУКТ | Выбирает и представляет открытые обращения | webapp support |
 | `conversation.show` → `executeAction.ts:2011` | ПРОДУКТ | Формирует продуктовый экран обращения и доступные действия | webapp support |
@@ -174,7 +171,7 @@ booking-lifecycle подсистема**. D13a/D13b/D14 её не касалис
 | `telegram.admin.dialogs.view` | ПРОДУКТ | Состояние обращения | webapp support |
 | `telegram.admin.reply.start` | ПРОДУКТ | Начинает reply-mode | webapp support |
 | `telegram.admin.reply.continue` | ПРОДУКТ | Продолжает reply-mode | webapp support |
-| `telegram.admin.reply.message` | ПРОДУКТ/частично уже переехало | см. `conversation.admin.reply` | webapp support / вопрос №3 |
+| `telegram.admin.reply.message` | ПРОДУКТ/частично уже переехало | см. `conversation.admin.reply` | webapp support / **D23** |
 | `telegram.admin.dialog.close` | ПРОДУКТ | Закрывает обращение | webapp support |
 | `telegram.admin.start.link` | СПОРНО | Signed link + identity sync | вопрос №1 |
 | `telegram.admin.programNote.reply.start` | ПРОДУКТ | Ответ на комментарий программы | webapp treatment-program/messaging |
@@ -236,7 +233,7 @@ booking-lifecycle подсистема**. D13a/D13b/D14 её не касалис
 | `max.admin.dialogs.view` | ПРОДУКТ | Состояние обращения | webapp support |
 | `max.admin.reply.start` | ПРОДУКТ | Начинает reply-mode | webapp support |
 | `max.admin.reply.continue` | ПРОДУКТ | Продолжает reply-mode | webapp support |
-| `max.admin.reply.message` | ПРОДУКТ/частично уже переехало | см. `conversation.admin.reply` | webapp support / вопрос №3 |
+| `max.admin.reply.message` | ПРОДУКТ/частично уже переехало | см. `conversation.admin.reply` | webapp support / **D23** |
 | `max.admin.dialog.close` | ПРОДУКТ | Закрывает обращение | webapp support |
 | `max.admin.programNote.reply.start` | ПРОДУКТ | Ответ на комментарий программы | webapp treatment-program/messaging |
 | `max.admin.message.unmatched` | ПРОДУКТ | Fallback product copy | webapp doctor/admin |
@@ -284,37 +281,18 @@ booking-lifecycle подсистема**. D13a/D13b/D14 её не касалис
 реально мёртвый сценарий по статике невозможно (нужно рантайм-доказательство, что непривязанный пользователь
 физически не может получить эти кнопки).
 
-## §4. Спорные — вопросы (не решались самостоятельно)
+## §4. Девять спорных мест — ответы владельца 31.07
 
-1. `webapp.channelLink.complete` (`executeAction.ts:811`) — покрывает ли целевая схема «опознание по внешнему ID +
-   signed entry link» только token-верификацию/техническую channel binding, или также записи
-   `user.phone.link`/`user.state.set` на success-пути `:882-913`?
-2. `webapp.phoneMessengerBind.complete` (`executeAction.ts:454`) — должна ли в интеграторе остаться только доставка
-   login challenge/provider UX, а `accountCreated`, phone trust и identity-sync (`:541-600`) считаться вебапп-
-   продуктом? Вопросы 1-2 вместе определяют СПОРНО-статус 13 сценариев identity/auth во всех разделах выше.
-3. Legacy-ветка `handleConversationAdminReply` (`supportRelay.ts:494-670`) по-прежнему полностью владеет состоянием
-   обращения/вопроса локально (в т.ч. кросс-сущностной логикой «закрывает ли ответ также связанный вопрос»),
-   отдельно от webapp-platform ветки (`:386-492`), которая уже делегирована. Legacy-ветка остаётся намеренно или
-   тоже подлежит переносу/списанию?
-4. `reminders.rules.get`/`.rule.toggle`/`.rule.cyclePreset` (недостижимы, §3) — раз ни один живой сценарий до них не
-   доходит, их можно удалить так же, как `bf45f5853` удалил старую Telegram-панель, или планируется новый UI правил
-   напоминаний, который снова их достигнет?
-5. `reminders.dispatchDue` (`handlers/reminders.ts:469-959`) — гибрид: push/email routing уже делегирован
-   `webappEventsPort.notifyPatientReminderChannels`, но title-resolution, deep-link/open-target
-   (`linkedObjectType`/`reminderIntent`) и выбор messenger-канала ещё считает интегратор. Это целевое состояние или
-   тоже должно уехать?
-6. `reminders.snooze.callback` (`:961`) — при наличии `remindersWebappWritesPort` ответ вебаппа перезаписывает
-   локально вычисленный `plannedUntil`, но локальный расчёт остаётся как fallback при отсутствии порта. Убрать
-   локальный расчёт (порт всегда сконфигурирован) или fallback нужен намеренно (деградация/офлайн)?
-7. `reminders.mute.callback` (`:1469`) — в отличие от snooze сам считает авторитетный `mutedUntilIso` (с учётом
-   таймзоны) и только пушит в вебапп без обратного чтения. Это осознанное отличие от паттерна snooze или
-   несогласованность, которую надо выровнять?
-8. `reminders.skip.applyPreset` — таксономия причин и русский текст `SKIP_PRESET_REASON` (`reminders.ts:209-214`)
-   захардкожены в интеграторе, хотя сам факт пропуска уже постится в вебапп. Переносить текст/таксономию в контент
-   вебаппа?
-9. `notifications.toggle` (`handlers/notifications.ts:34-89`, недостижим, но код остаётся) хардкодит таксономию
-   категорий уведомлений (spb/msk/online/bookings) и семантику «toggle all». Если подсистема когда-либо
-   оживёт — таксономия должна жить в вебаппе?
+Девять вопросов этой переписи владелец закрыл 31.07 (дословно —
+`OWNER_QUOTE_2026-07-31_IDENTITY.md`, раздел «Девять вопросов переноса»). ⛔ Повторно их не задавать.
+
+| # | о чём | ответ владельца | пункт плана |
+|---|---|---|---|
+| 1–2 | `webapp.channelLink.complete` (`executeAction.ts:811`, записи `user.phone.link`/`user.state.set` на success-пути `:882-913`) и `webapp.phoneMessengerBind.complete` (`:454`, `accountCreated`, доверие к телефону, identity-sync `:541-600`) — что из этого канал, а что продукт. Эти два вопроса определяли СПОРНО-статус 13 сценариев identity/auth | «интегратору остаётся только доставка входа, а создание учётки, доверие к телефону и синхронизация личности — вебаппу» | **D25**, по схеме `IDENTITY_AND_MERGE_SCHEME.md`, шагами D15b |
+| 3 | legacy-ветка `handleConversationAdminReply` (`supportRelay.ts:494-670`) владеет состоянием обращения локально, отдельно от уже делегированной webapp-ветки (`:386-492`) | «старое удаляем или переносим в новое. Тех-поддержку делаем так как надо а не чтобы сохранить как было» | **D23** |
+| 4 | `reminders.rules.get` / `.rule.toggle` / `.rule.cyclePreset` — недостижимы (§3), удалять или ждать нового UI правил | «если про настройку в боте — то удаляем» | **D24** |
+| 5–8 | `reminders.dispatchDue` (`handlers/reminders.ts:469-959`: title-resolution, deep-link/open-target, выбор messenger-канала), `reminders.snooze.callback` (`:961`, локальный расчёт `plannedUntil` как fallback), `reminders.mute.callback` (`:1469`, сам считает авторитетный `mutedUntilIso`), `reminders.skip.applyPreset` (таксономия причин и русский текст `SKIP_PRESET_REASON`, `:209-214`) — где проходит граница | «напоминалки про это из бота — убираем как самостоятельную историю и оставляем как часть общей системы, которая настраивается в одном месте — а отправляется туда куда выбрал пользователь» | **D21** |
+| 9 | `notifications.toggle` (`handlers/notifications.ts:34-89`) хардкодит таксономию категорий уведомлений (spb/msk/online/bookings) | «ВРЕД. у нас все настройки локаций и услуг (и даже специалистов) должны быть в настройках клиники в вебапп» | **D22** |
 
 ## §5. Чего не смог установить
 
@@ -342,13 +320,10 @@ booking-lifecycle подсистема**. D13a/D13b/D14 её не касалис
 
 | Группа решений | Где физически | Что мешает переносу | Пункт плана |
 |---|---|---|---|
-| Support/обращения (draft/conversation/question, 10 типов) | `executeAction.ts` `draft.*`/`conversation.*`/`question.*`, `handlers/supportRelay.ts` | Legacy-ветка `handleConversationAdminReply` ещё владеет состоянием локально (вопрос №3); нет решения владельца, переносить ли её | D3–D8 (перенос владения в вебапп) |
-| Идентичность/auth (13 спорных сценариев) | `webapp.channelLink.complete`, `webapp.phoneMessengerBind.complete`, весь `*.phoneauth`/`*.contact.link.*`/`start.link` кластер | Не решены вопросы №1-2 — граница КАНАЛ/ПРОДУКТ внутри самих функций не определена кодом; перенос идентичности отдельно помечен самым рискованным пунктом плана | D15a (исследование) → D15b (перенос), намеренно в конце |
-| Wellness-напоминания (8 типов в `handlers/reminders.ts`) | `reminders.planDue/dispatchDue/snooze/mute/skip.*` | Частичная, несогласованная делегация (snooze принимает webapp-ответ, mute — нет; title/deep-link ещё считает интегратор) — вопросы №5-8; нет единого решения, где проходит граница | не покрыт явным пунктом плана — ближайший по духу D16 (сведение циклов) |
+| Support/обращения (draft/conversation/question, 10 типов) | `executeAction.ts` `draft.*`/`conversation.*`/`question.*`, `handlers/supportRelay.ts` | Legacy-ветка `handleConversationAdminReply` ещё владеет состоянием локально; владелец 31.07 велел её удалить или перенести | **D23**, затем D3–D8 |
+| Идентичность/auth (13 спорных сценариев) | `webapp.channelLink.complete`, `webapp.phoneMessengerBind.complete`, весь `*.phoneauth`/`*.contact.link.*`/`start.link` кластер | Граница задана владельцем 31.07: интегратору остаётся только доставка входа. Перенос идентичности — самый рискованный пункт, поэтому идёт в конце | **D25** по схеме → D15b |
+| Wellness-напоминания (8 типов в `handlers/reminders.ts`) | `reminders.planDue/dispatchDue/snooze/mute/skip.*` | Частичная, несогласованная делегация (snooze принимает webapp-ответ, mute — нет; title/deep-link ещё считает интегратор) . Владелец 31.07 закрыл: своя ветка убирается целиком, остаётся доставка выбранным каналом | **D21** |
 | Onboarding/навигация (`start`, `start.onboarding`, `noticeme`, `nav.webapp.menu.need_phone`) | сценарный контент telegram/max user | Текст и выбор экрана в JSON-контенте интегратора, а не в вебаппе | D3–D8 |
 | Booking-предпоказ (`booking.open/menu/open.callback`, `bookings.show`, `info.prepare/address`) | сценарный контент | UI и данные записи рендерятся интегратором из собственного booking-контента | D3–D8 |
 | Doctor/admin статистика и обращения (admin.stats.*, admin.questions.*, admin.dialogs.*, admin.reply.*) | telegram/max admin контент | Тот же support-кластер, что и выше | D3–D8 |
 | `webapp.programNote.replyBegin` (лечебная программа) | `executeAction.ts:714` | Отдельный модуль (treatment-program), не входит ни в один текущий пункт явно | D3–D8 |
-
-Дерево клона: только новый документ добавлен (`git status` ниже, до старта прогона были только несвязанные
-изменения env-example файлов, не тронуты).
