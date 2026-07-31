@@ -91,10 +91,21 @@ fi
 
 # помечаем строку взятой ДО запуска, чтобы параллельный тик её не повторил
 python3 - "$QUEUE" "$LINE" <<'PY'
-import sys
+import sys, time
 q, line = sys.argv[1], sys.argv[2]
-src = open(q).read()
-open(q, 'w').write(src.replace(line, '# взято ' + __import__('time').strftime('%Y-%m-%d %H:%M') + ' | ' + line, 1))
+stamp = '# взято ' + time.strftime('%Y-%m-%d %H:%M') + ' | '
+# Пометку ставим ТОЛЬКО на строку целиком и только если она ещё не помечена. Прежняя версия делала
+# replace по подстроке и попадала ВНУТРЬ уже помеченной строки: на одной строке накапливалось четыре
+# префикса «взято», а настоящая невзятая строка оставалась нетронутой и запускалась повторно
+# (поймано 31.07 на очереди tariff).
+out, done = [], False
+for raw in open(q).read().split('\n'):
+    if not done and raw == line and not raw.lstrip().startswith('#'):
+        out.append(stamp + raw)
+        done = True
+    else:
+        out.append(raw)
+open(q, 'w').write('\n'.join(out))
 PY
 
 # ORCH_WAIT=1 (наследуется из окружения вызывающего) — скрипт держится до конца работы агента.
