@@ -122,7 +122,13 @@ export type TariffQuotaMap = Partial<{
   branches: StockQuota;
 }>;
 
-export type AccessTerminalState = 'full_access' | 'read_only' | 'disabled';
+/**
+ * §5a stage 4b.2 (owner 30.07): the ladder's final state is one of exactly two values. A third
+ * `full_access` option was a leftover from before the ladder existed and let the constructor
+ * configure a "degradation" that never actually degrades — removed, not renamed, per the owner's
+ * "не надо держать ради истории устаревшее" rule.
+ */
+export type AccessTerminalState = 'read_only' | 'disabled';
 
 export type AccessLifecyclePolicy = {
   graceDays: number;
@@ -132,6 +138,16 @@ export type AccessLifecyclePolicy = {
 };
 
 export type MechanicAccessPolicyMap = Partial<Record<OrgMechanic, AccessLifecyclePolicy>>;
+
+/**
+ * §5a stage 4b.3 (owner 30.07) — "ручка 2": what happens when a clinic moves to a smaller tariff
+ * and it already exceeds (numeric) or loses (capability) a mechanic. Values are fixed by the
+ * mechanic's class, not chosen per entity — see `assertDowngradePolicy` in `service.ts`.
+ */
+export type NumericDowngradePolicy = 'block' | 'freeze_growth';
+export type AbilityDowngradePolicy = 'block' | 'disable_immediately' | 'read_only';
+export type MechanicDowngradePolicy = NumericDowngradePolicy | AbilityDowngradePolicy;
+export type DowngradePolicyMap = Partial<Record<OrgMechanic, MechanicDowngradePolicy>>;
 
 export type MechanicAccessState =
   | 'full_access'
@@ -164,6 +180,8 @@ export type Tariff = {
   quotas: TariffQuotaMap;
   systemAccessPolicy: AccessLifecyclePolicy | null;
   mechanicAccessPolicies: MechanicAccessPolicyMap;
+  /** §5a stage 4b.3 — per-mechanic downgrade policy; absent mechanics fall back to `block` (fail-closed). */
+  downgradePolicies: DowngradePolicyMap;
   /**
    * Included specialist seats for `clinic_team`, as configured on this tariff. `null` is explicit
    * "not configured" and refuses growth; it is never converted into an agent-chosen baseline.

@@ -9,13 +9,16 @@ import {
 import {
   createPlatformEntitlementsService,
   entitlementsFromSnapshot,
+  evaluateTariffDowngrade,
   fileStorageLimitFromSnapshot,
   resolveClinicSeatLimit,
   resolveOrgQuotaProjections,
+  TariffDowngradeBlockedError,
 } from '@/modules/org-entitlements/service';
 import type {
   OrgEntitlementsPort,
   PlatformEntitlementsPort,
+  PlatformOrganizationSummary,
 } from '@/modules/org-entitlements/ports';
 import {
   MECHANICS,
@@ -147,6 +150,7 @@ describe('org entitlement mechanic classes', () => {
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
+      getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input) => {
         storedTariff = {
           ...input,
@@ -186,6 +190,7 @@ describe('org entitlement mechanic classes', () => {
         },
         systemAccessPolicy: null,
         mechanicAccessPolicies: {},
+        downgradePolicies: {},
         includedSeats: 3,
         includedSeatsWarningAtPercent: null,
         isActive: true,
@@ -297,6 +302,7 @@ describe('org entitlement mechanic classes', () => {
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
+      getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input) => {
         storedTariff = {
           ...input,
@@ -343,6 +349,7 @@ describe('org entitlement mechanic classes', () => {
         },
         systemAccessPolicy: null,
         mechanicAccessPolicies: {},
+        downgradePolicies: {},
         includedSeats: null,
         includedSeatsWarningAtPercent: null,
         isActive: true,
@@ -564,5 +571,267 @@ describe('org entitlement mechanic classes', () => {
 
     expect(stock.class).toBe('запас');
     void stockWithPeriod;
+  });
+});
+
+describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () => {
+  function baseTariff(overrides: Partial<Tariff>): Tariff {
+    return {
+      id: 'tariff',
+      name: 'T',
+      description: '',
+      priceMinor: null,
+      currency: null,
+      billingPeriod: 'month',
+      mechanics: {},
+      quotas: {},
+      systemAccessPolicy: null,
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      includedSeats: null,
+      includedSeatsWarningAtPercent: null,
+      isActive: true,
+      createdAt: '2026-07-30T00:00:00.000Z',
+      updatedAt: '2026-07-30T00:00:00.000Z',
+      ...overrides,
+    };
+  }
+
+  // Main proof for 4b.4: ONE function (`evaluateTariffDowngrade`), same numeric-mechanic shape,
+  // two different mechanics (`patient_count`, `branches`) and two different knob values each —
+  // behaviour differs by the VALUE stored on the tariff, never by which mechanic it is.
+  it.each([
+    ['patient_count', 'block', 12, true],
+    ['patient_count', 'freeze_growth', 12, false],
+    ['branches', 'block', 5, true],
+    ['branches', 'freeze_growth', 5, false],
+  ] as const)(
+    'numeric mechanic %s with downgrade policy %s and usage %d over the new limit -> blocked=%s',
+    (mechanic, policy, usage, expectBlocked) => {
+      const targetTariff = baseTariff({
+        quotas: { [mechanic]: { kind: 'numeric', limit: 3, unit: 'items', warningAtPercent: null } },
+        downgradePolicies: { [mechanic]: policy },
+      });
+      const blocks = evaluateTariffDowngrade({
+        usage: { [mechanic]: usage },
+        currentTariff: baseTariff({}),
+        targetTariff,
+      });
+      expect(blocks.length > 0).toBe(expectBlocked);
+      if (expectBlocked) expect(blocks).toEqual([{ mechanic, reason: 'quota_exceeded' }]);
+    },
+  );
+
+  it('a capability mechanic newly excluded is blocked or allowed by the SAME function per its own policy value', () => {
+    const currentTariff = baseTariff({ mechanics: { branding: true } });
+    const blockedTarget = baseTariff({
+      mechanics: { branding: false },
+      downgradePolicies: { branding: 'block' },
+    });
+    const allowedTarget = baseTariff({
+      mechanics: { branding: false },
+      downgradePolicies: { branding: 'disable_immediately' },
+    });
+
+    expect(evaluateTariffDowngrade({ usage: {}, currentTariff, targetTariff: blockedTarget })).toEqual([
+      { mechanic: 'branding', reason: 'mechanic_removed' },
+    ]);
+    expect(
+      evaluateTariffDowngrade({ usage: {}, currentTariff, targetTariff: allowedTarget }),
+    ).toEqual([]);
+  });
+
+  it('defaults an unset downgrade policy to `block` (fail-closed), never to unlimited growth', () => {
+    const targetTariff = baseTariff({
+      quotas: { branches: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: null } },
+      // downgradePolicies deliberately left empty — owner never configured this mechanic's knob.
+    });
+    const blocks = evaluateTariffDowngrade({
+      usage: { branches: 5 },
+      currentTariff: baseTariff({}),
+      targetTariff,
+    });
+    expect(blocks).toEqual([{ mechanic: 'branches', reason: 'quota_exceeded' }]);
+  });
+
+  it('never blocks re-assigning a tariff the org already fits (upgrade, or same tariff again)', () => {
+    const currentTariff = baseTariff({
+      mechanics: { branding: true },
+      quotas: { patient_count: { kind: 'numeric', limit: 10, unit: 'items', warningAtPercent: null } },
+    });
+    const targetTariff = baseTariff({
+      mechanics: { branding: true },
+      quotas: { patient_count: { kind: 'numeric', limit: 100, unit: 'items', warningAtPercent: null } },
+      downgradePolicies: { patient_count: 'block', branding: 'block' },
+    });
+    expect(
+      evaluateTariffDowngrade({ usage: { patient_count: 40 }, currentTariff, targetTariff }),
+    ).toEqual([]);
+  });
+
+  function platformPortWithUsage(input: {
+    organizationId: string;
+    currentTariff: Tariff;
+    targetTariff: Tariff;
+    usage: Partial<Record<string, number>>;
+  }): { port: PlatformEntitlementsPort; assignCalls: Array<[string, string | null]> } {
+    const assignCalls: Array<[string, string | null]> = [];
+    const organization: PlatformOrganizationSummary = {
+      id: input.organizationId,
+      title: 'org',
+      tariffId: input.currentTariff.id,
+      manualTariffId: input.currentTariff.id,
+      isActive: true,
+      commercialAccessState: 'active',
+      effectiveAccess: { lifecycle: 'active', tariffId: input.currentTariff.id, source: 'assignment' },
+      overrides: [],
+      trial: null,
+    };
+    const port: PlatformEntitlementsPort = {
+      listTariffs: async () => [input.currentTariff, input.targetTariff],
+      listOrganizations: async () => [organization],
+      getTrialPolicy: async () => null,
+      getOrganizationMechanicUsage: async () => input.usage,
+      createTariff: async () => {
+        throw new Error('not_used');
+      },
+      updateTariff: async () => {
+        throw new Error('not_used');
+      },
+      archiveTariff: async () => {},
+      assignTariff: async (organizationId, tariffId) => {
+        assignCalls.push([organizationId, tariffId]);
+      },
+      upsertOverride: async () => {},
+      deleteOverride: async () => {},
+      setTrialPolicy: async () => {},
+      startTrial: async () => null,
+      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
+    };
+    return { port, assignCalls };
+  }
+
+  it('refuses the tariff switch itself when a numeric mechanic is over the new limit and policy is `block`', async () => {
+    const currentTariff = baseTariff({ id: 'big' });
+    const targetTariff = baseTariff({
+      id: 'small',
+      quotas: { patient_count: { kind: 'numeric', limit: 3, unit: 'items', warningAtPercent: null } },
+      downgradePolicies: { patient_count: 'block' },
+    });
+    const { port, assignCalls } = platformPortWithUsage({
+      organizationId: 'org',
+      currentTariff,
+      targetTariff,
+      usage: { patient_count: 10 },
+    });
+    const service = createPlatformEntitlementsService(port);
+
+    await expect(service.assignTariff('org', 'small', { actorId: null, reason: '' })).rejects.toThrow(
+      TariffDowngradeBlockedError,
+    );
+    // Invariant (4b.5): a refused switch never touches data — the mutation port is never called.
+    expect(assignCalls).toEqual([]);
+  });
+
+  it('lets the tariff switch through when the policy is `freeze_growth`, even over the new limit', async () => {
+    const currentTariff = baseTariff({ id: 'big' });
+    const targetTariff = baseTariff({
+      id: 'small',
+      quotas: { patient_count: { kind: 'numeric', limit: 3, unit: 'items', warningAtPercent: null } },
+      downgradePolicies: { patient_count: 'freeze_growth' },
+    });
+    const { port, assignCalls } = platformPortWithUsage({
+      organizationId: 'org',
+      currentTariff,
+      targetTariff,
+      usage: { patient_count: 10 },
+    });
+    const service = createPlatformEntitlementsService(port);
+
+    await expect(
+      service.assignTariff('org', 'small', { actorId: null, reason: '' }),
+    ).resolves.toBeUndefined();
+    expect(assignCalls).toEqual([['org', 'small']]);
+  });
+
+  it('names every blocking mechanic on the error — a refused switch is never a silent no-op', async () => {
+    const currentTariff = baseTariff({ id: 'big', mechanics: { branding: true } });
+    const targetTariff = baseTariff({
+      id: 'small',
+      mechanics: { branding: false },
+      quotas: { branches: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null } },
+      downgradePolicies: { branches: 'block', branding: 'block' },
+    });
+    const { port } = platformPortWithUsage({
+      organizationId: 'org',
+      currentTariff,
+      targetTariff,
+      usage: { branches: 4 },
+    });
+    const service = createPlatformEntitlementsService(port);
+
+    try {
+      await service.assignTariff('org', 'small', { actorId: null, reason: '' });
+      expect.unreachable('expected a TariffDowngradeBlockedError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(TariffDowngradeBlockedError);
+      const blocked = (error as TariffDowngradeBlockedError).blocks;
+      expect(blocked).toEqual(
+        expect.arrayContaining([
+          { mechanic: 'branches', reason: 'quota_exceeded' },
+          { mechanic: 'branding', reason: 'mechanic_removed' },
+        ]),
+      );
+    }
+  });
+});
+
+describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)', () => {
+  it('rejects `full_access` as a configured terminal state', async () => {
+    const platformPort: PlatformEntitlementsPort = {
+      listTariffs: async () => [],
+      listOrganizations: async () => [],
+      getTrialPolicy: async () => null,
+      getOrganizationMechanicUsage: async () => ({}),
+      createTariff: async (input) => ({
+        ...input,
+        id: 'x',
+        createdAt: '2026-07-30T00:00:00.000Z',
+        updatedAt: '2026-07-30T00:00:00.000Z',
+      }),
+      updateTariff: async () => {
+        throw new Error('not_used');
+      },
+      archiveTariff: async () => {},
+      assignTariff: async () => {},
+      upsertOverride: async () => {},
+      deleteOverride: async () => {},
+      setTrialPolicy: async () => {},
+      startTrial: async () => null,
+      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
+    };
+    const service = createPlatformEntitlementsService(platformPort);
+
+    expect(() =>
+      service.createTariff(
+        {
+          name: 'Broken',
+          description: '',
+          priceMinor: null,
+          currency: null,
+          billingPeriod: 'month',
+          mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
+          quotas: {},
+          // @ts-expect-error `full_access` was removed from AccessTerminalState — this must be a type error too.
+          systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, warningCount: 0, terminalState: 'full_access' },
+          mechanicAccessPolicies: {},
+          downgradePolicies: {},
+          includedSeats: null,
+          includedSeatsWarningAtPercent: null,
+          isActive: true,
+        },
+        { actorId: null, reason: '' },
+      ),
+    ).toThrow('access_policy_terminal_state_invalid');
   });
 });

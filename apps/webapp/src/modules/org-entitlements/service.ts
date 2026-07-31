@@ -3,6 +3,8 @@ import {
   MECHANICS,
   type AccessLifecyclePolicy,
   type AccessTerminalState,
+  type DowngradePolicyMap,
+  type MechanicDowngradePolicy,
   type OrgEntitlements,
   type OrgQuotaProjection,
   type EffectiveOrgCommercialAccess,
@@ -65,9 +67,29 @@ function assertAccessPolicy(policy: AccessLifecyclePolicy): void {
   for (const value of [policy.graceDays, policy.readOnlyDays, policy.warningCount]) {
     if (!Number.isSafeInteger(value) || value < 0) throw new Error('access_policy_value_invalid');
   }
-  const terminalStates: AccessTerminalState[] = ['full_access', 'read_only', 'disabled'];
+  const terminalStates: AccessTerminalState[] = ['read_only', 'disabled'];
   if (!terminalStates.includes(policy.terminalState)) {
     throw new Error('access_policy_terminal_state_invalid');
+  }
+}
+
+/**
+ * §5a stage 4b.3 — allowed downgrade-policy values are fixed by mechanic CLASS, not chosen per
+ * entity: numeric (`запас`/`объём`) get `block`/`freeze_growth`; capability (`возможность`) get
+ * `block`/`disable_immediately`/`read_only`. Seats (`места`) has no "exceeded seats" state at all
+ * (owner 30.07, #4a.1 — overage is billed, not blocked) and critical (`никогда`) mechanics never
+ * leave the tariff, so neither gets a downgrade policy.
+ */
+const DOWNGRADE_POLICY_VALUES_BY_CLASS: Partial<Record<MechanicClass, readonly MechanicDowngradePolicy[]>> = {
+  запас: ['block', 'freeze_growth'],
+  объём: ['block', 'freeze_growth'],
+  возможность: ['block', 'disable_immediately', 'read_only'],
+};
+
+function assertDowngradePolicy(mechanic: OrgMechanic, value: string): asserts value is MechanicDowngradePolicy {
+  const allowed = DOWNGRADE_POLICY_VALUES_BY_CLASS[MECHANIC_REGISTRY[mechanic].class];
+  if (!allowed || !(allowed as readonly string[]).includes(value)) {
+    throw new Error('tariff_downgrade_policy_invalid');
   }
 }
 
@@ -114,6 +136,13 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
       mechanics[mechanic] = input.mechanics[mechanic] === true;
     }
   }
+  const downgradePolicies: DowngradePolicyMap = {};
+  for (const [mechanic, value] of Object.entries(input.downgradePolicies)) {
+    assertMechanic(mechanic);
+    if (!value) continue;
+    assertDowngradePolicy(mechanic, value);
+    downgradePolicies[mechanic] = value;
+  }
   return {
     ...input,
     name,
@@ -122,6 +151,7 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
     mechanics,
     quotas: normalizeQuotaMap(input.quotas),
     mechanicAccessPolicies,
+    downgradePolicies,
   };
 }
 
@@ -366,6 +396,55 @@ export async function resolveEffectiveCommercialAccess(
   return port.getEffectiveCommercialAccess(organizationId);
 }
 
+export type TariffDowngradeBlock = {
+  mechanic: OrgMechanic;
+  reason: 'quota_exceeded' | 'mechanic_removed';
+};
+
+export class TariffDowngradeBlockedError extends Error {
+  readonly blocks: TariffDowngradeBlock[];
+  constructor(blocks: TariffDowngradeBlock[]) {
+    super(`tariff_downgrade_blocked:${blocks.map((block) => block.mechanic).join(',')}`);
+    this.blocks = blocks;
+  }
+}
+
+/**
+ * §5a stage 4b.3/4b.4 — the "ручка 2" evaluator. ONE generic pass over every mechanic; which
+ * mechanics block a transition is a data lookup (`downgradePolicies`), never a per-mechanic
+ * branch. `freeze_growth` and `disable_immediately` need no code here at all: the existing
+ * quota check (`assertStockQuotaAvailable`) and mechanic resolver already produce that behaviour
+ * the moment the new tariff is assigned — this function only ever decides what to REFUSE.
+ * An unset policy defaults to `block` (fail-closed), matching the rest of this module's rule that
+ * an unconfigured numeric mechanic refuses growth rather than falling back to unlimited.
+ */
+export function evaluateTariffDowngrade(params: {
+  usage: Partial<Record<OrgMechanic, number>>;
+  currentTariff: Pick<Tariff, 'mechanics'>;
+  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies'>;
+}): TariffDowngradeBlock[] {
+  const blocks: TariffDowngradeBlock[] = [];
+  for (const mechanic of MECHANICS) {
+    const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
+    const policy = params.targetTariff.downgradePolicies[mechanic] ?? 'block';
+    if (mechanicClass === 'запас' || mechanicClass === 'объём') {
+      const targetQuota = (params.targetTariff.quotas as Partial<Record<OrgMechanic, TariffQuota>>)[
+        mechanic
+      ];
+      if (!targetQuota || targetQuota.kind === 'unlimited' || targetQuota.limit === null) continue;
+      const used = params.usage[mechanic] ?? 0;
+      if (used <= targetQuota.limit) continue;
+      if (policy === 'block') blocks.push({ mechanic, reason: 'quota_exceeded' });
+    } else if (mechanicClass === 'возможность') {
+      const wasIncluded = params.currentTariff.mechanics[mechanic] === true;
+      const willBeIncluded = params.targetTariff.mechanics[mechanic] === true;
+      if (!wasIncluded || willBeIncluded) continue;
+      if (policy === 'block') blocks.push({ mechanic, reason: 'mechanic_removed' });
+    }
+  }
+  return blocks;
+}
+
 /** Dedicated application boundary for platform commercial operations. Routes must capability-gate before use. */
 export function createPlatformEntitlementsService(port: PlatformEntitlementsPort) {
   return {
@@ -388,11 +467,28 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     archiveTariff: (id: string, audit: PlatformMutationAudit) => {
       return port.archiveTariff(id, audit);
     },
-    assignTariff: (
+    assignTariff: async (
       organizationId: string,
       tariffId: string | null,
       audit: PlatformMutationAudit,
     ) => {
+      if (tariffId) {
+        const [organizations, tariffs, usage] = await Promise.all([
+          port.listOrganizations(),
+          port.listTariffs(),
+          port.getOrganizationMechanicUsage(organizationId),
+        ]);
+        const organization = organizations.find((entry) => entry.id === organizationId);
+        const targetTariff = tariffs.find((entry) => entry.id === tariffId);
+        if (!targetTariff) throw new Error('tariff_not_found');
+        const currentTariff = organization?.tariffId
+          ? tariffs.find((entry) => entry.id === organization.tariffId)
+          : null;
+        if (currentTariff) {
+          const blocks = evaluateTariffDowngrade({ usage, currentTariff, targetTariff });
+          if (blocks.length > 0) throw new TariffDowngradeBlockedError(blocks);
+        }
+      }
       return port.assignTariff(organizationId, tariffId, audit);
     },
     upsertOverride: (

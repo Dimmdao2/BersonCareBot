@@ -89,6 +89,12 @@ export type PlatformEntitlementsPort = {
     audit: PlatformMutationAudit,
   ): Promise<Tariff>;
   archiveTariff(id: string, audit: PlatformMutationAudit): Promise<void>;
+  /**
+   * Real, current usage for the numeric (`запас`/`объём`) mechanics — used ONLY to evaluate
+   * §5a stage 4b.3's downgrade guard before a tariff switch. Same counts as each mechanic's own
+   * write-path check (`assertStockQuotaAvailable` callers), read outside that transaction.
+   */
+  getOrganizationMechanicUsage(organizationId: string): Promise<Partial<Record<OrgMechanic, number>>>;
   assignTariff(
     organizationId: string,
     tariffId: string | null,
