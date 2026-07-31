@@ -1,0 +1,30 @@
+{
+  "_comment": "М4 (#1081): shrink-only ratchet of test files that today's vitest projects do not select for ANY project — 'vitest run <file>' exits with 'No test files found'. Add nothing; remove an entry once its file is fixed to be selected, moved, or deleted. asOf is the date this snapshot was taken.",
+  "asOf": "2026-08-01",
+  "apps": {
+    "webapp": [
+      "src/infra/adminAuditLog.devDb.integration.test.ts",
+      "src/infra/platformUserFullPurge.devDb.integration.test.ts",
+      "src/infra/platformUserMergePreview.devDb.integration.test.ts",
+      "src/infra/repos/orgBrandRevisionGuard.devDb.integration.test.ts",
+      "src/infra/repos/pgAuthRateLimitEvents.devDb.integration.test.ts",
+      "src/infra/repos/pgBookingScheduling.deactivateWorkingHours.devDb.integration.test.ts",
+      "src/infra/repos/pgBookingScheduling.readChokepoint.devDb.integration.test.ts",
+      "src/infra/repos/pgDoctorAnalyticsMetricAccounts.devDb.integration.test.ts",
+      "src/infra/repos/pgDoctorClients.appointmentJoin.devDb.integration.test.ts",
+      "src/infra/repos/pgDoctorClients.devDb.integration.test.ts",
+      "src/infra/repos/pgDoctorPhase13d.devDb.integration.test.ts",
+      "src/infra/repos/pgEmailChallengeAtomicAttempts.devDb.integration.test.ts",
+      "src/infra/repos/pgEmailOtpPublicAtomicConsume.devDb.integration.test.ts",
+      "src/infra/repos/pgOnlineIntake.devDb.integration.test.ts",
+      "src/infra/repos/pgOtpDecayingLockoutAtomicEscalation.devDb.integration.test.ts",
+      "src/infra/repos/pgPatientBookings.devDb.integration.test.ts",
+      "src/infra/repos/pgPhase14DCommsTail.devDb.integration.test.ts",
+      "src/infra/repos/pgPhoneChallengeAtomicAttempts.devDb.integration.test.ts",
+      "src/infra/repos/pgPlatformUserMerge.devDb.integration.test.ts",
+      "src/infra/repos/pgProgramItemDiscussion.doctorComments.devDb.integration.test.ts",
+      "src/infra/repos/pgSupportCommunication.devDb.integration.test.ts",
+      "src/infra/repos/pgUserProjection.devDb.integration.test.ts"
+    ]
+  }
+}
