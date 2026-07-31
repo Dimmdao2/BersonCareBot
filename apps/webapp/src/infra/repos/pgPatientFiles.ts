@@ -43,6 +43,17 @@ function currentPrincipalOrganizationId(): string {
   return principalOrganizationId;
 }
 
+async function countStorageUsedBytes(
+  db: Pick<ReturnType<typeof getDrizzle>, 'select'>,
+  organizationId: string,
+): Promise<number> {
+  const [usage] = await db
+    .select({ usedBytes: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
+    .from(patientFiles)
+    .where(eq(patientFiles.organizationId, organizationId));
+  return Number(usage?.usedBytes ?? 0);
+}
+
 function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
   const principalOrganizationId = currentPrincipalOrganizationId();
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
@@ -101,13 +112,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
           tx,
           organizationId,
           'files',
-          async () => {
-            const [usage] = await tx
-              .select({ usedBytes: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
-              .from(patientFiles)
-              .where(eq(patientFiles.organizationId, organizationId));
-            return Number(usage?.usedBytes ?? 0);
-          },
+          () => countStorageUsedBytes(tx, organizationId),
           params.sizeBytes,
         );
         // When a folderId is provided, co-create a media_files entry so the upload
@@ -207,6 +212,11 @@ export function createPgPatientFilesPort(): PatientFilesPort {
       });
       const row = updated[0];
       return row ? mapRow(row) : null;
+    },
+
+    async getStorageUsedBytes(): Promise<number> {
+      const organizationId = currentPrincipalOrganizationId();
+      return countStorageUsedBytes(getDrizzle(), organizationId);
     },
   };
 }

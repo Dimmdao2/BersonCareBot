@@ -49,4 +49,6 @@ export interface PatientFilesPort {
   createFile(params: CreatePatientFileParams): Promise<PatientFileRecord>;
   linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null>;
   renameFile(id: string, fileName: string): Promise<PatientFileRecord | null>;
+  /** Current total bytes stored for the organization; mirrors the `files` quota's live SUM in `createFile`. */
+  getStorageUsedBytes(): Promise<number>;
 }

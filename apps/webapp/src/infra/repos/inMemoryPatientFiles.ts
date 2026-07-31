@@ -66,4 +66,8 @@ export const inMemoryPatientFilesPort: PatientFilesPort = {
     store.set(id, updated);
     return updated;
   },
+
+  async getStorageUsedBytes(): Promise<number> {
+    return Array.from(store.values()).reduce((sum, f) => sum + f.sizeBytes, 0);
+  },
 };
