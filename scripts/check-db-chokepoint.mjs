@@ -36,6 +36,14 @@ const allowedConnectFiles = new Set([
   'apps/webapp/src/infra/db/configReaderPoolProvider.ts',
   'apps/integrator/src/infra/db/integratorPoolProvider.ts',
   'apps/media-worker/src/poolProvider.ts',
+  // D30/D20-уровень-3 (31.07): одноразовые скрипты-доказательства конкуренции. Поднимают СВОЙ
+  // временный PostgreSQL в /tmp и держат по нескольку параллельных сессий — иначе гонку за замком,
+  // за строкой очереди и за ключом идемпотентности доказать нечем. Тот же класс, что снятый
+  // stage6-бэкфил: ops/one-off, вне рантайма приложения. Гоняются работой `d30-scheduler-concurrency`
+  // в `.github/workflows/ci.yml`.
+  'apps/integrator/src/infra/scripts/check-d30-scheduler-lock-concurrency.ts',
+  'apps/integrator/src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts',
+  'apps/integrator/src/infra/scripts/check-d30-idempotency-key-concurrency.ts',
 ]);
 
 const allowedRoleSwitchFiles = new Set([
