@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import {
   MECHANIC_REGISTRY,
   MECHANICS,
+  quotaMechanicSupportsWarning,
   type AccessLifecyclePolicy,
+  type AccessNotificationCondition,
   type AccessTerminalState,
   type DowngradePolicyMap,
   type MechanicAccessPolicyMap,
@@ -71,7 +73,6 @@ type TariffDraft = {
   priceRub: string;
   billingPeriod: Tariff['billingPeriod'];
   includedSeats: string;
-  includedSeatsWarningAtPercent: string;
   isActive: boolean;
   mechanics: Record<OrgMechanic, boolean>;
   quotas: TariffQuotaMap;
@@ -80,11 +81,22 @@ type TariffDraft = {
   downgradePolicies: DowngradePolicyMap;
 };
 
+type AccessNotificationDraft = {
+  offsetDays: string;
+  condition: AccessNotificationCondition;
+  template: string;
+};
+
 type AccessPolicyDraft = {
   graceDays: string;
   readOnlyDays: string;
-  warningCount: string;
+  notifications: AccessNotificationDraft[];
   terminalState: AccessTerminalState | null;
+};
+
+const NOTIFICATION_CONDITION_LABELS: Record<AccessNotificationCondition, string> = {
+  payment_succeeded: 'Успешная оплата',
+  payment_failed: 'Ошибка оплаты',
 };
 
 const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
@@ -131,8 +143,9 @@ function emptyTariffDraft(): TariffDraft {
     description: '',
     priceRub: '',
     billingPeriod: 'month',
-    includedSeats: '',
-    includedSeatsWarningAtPercent: '',
+    // Owner 31.07: «при создании тарифа по умолчанию пусть ставится одно — это разумный
+    // минимум». A prefilled value the owner sees and changes, not a runtime substitution.
+    includedSeats: '1',
     isActive: true,
     mechanics: emptyMechanics(),
     quotas: {},
@@ -150,10 +163,6 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     priceRub: tariff.priceMinor === null ? '' : String(tariff.priceMinor / 100),
     billingPeriod: tariff.billingPeriod,
     includedSeats: tariff.includedSeats === null ? '' : String(tariff.includedSeats),
-    includedSeatsWarningAtPercent:
-      tariff.includedSeatsWarningAtPercent === null
-        ? ''
-        : String(tariff.includedSeatsWarningAtPercent),
     isActive: tariff.isActive,
     mechanics: Object.fromEntries(
       CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
@@ -176,29 +185,34 @@ function accessPolicyToDraft(policy: AccessLifecyclePolicy): AccessPolicyDraft {
   return {
     graceDays: String(policy.graceDays),
     readOnlyDays: String(policy.readOnlyDays),
-    warningCount: String(policy.warningCount),
+    notifications: (policy.notifications ?? []).map((rule) => ({
+      offsetDays: String(rule.offsetDays),
+      condition: rule.condition,
+      template: rule.template,
+    })),
     terminalState: policy.terminalState,
   };
 }
 
 function emptyAccessPolicyDraft(): AccessPolicyDraft {
-  return { graceDays: '', readOnlyDays: '', warningCount: '', terminalState: null };
+  return { graceDays: '', readOnlyDays: '', notifications: [], terminalState: null };
 }
 
 function accessPolicyFromDraft(draft: AccessPolicyDraft | null): AccessLifecyclePolicy | null {
   if (!draft) return null;
   const graceDays = nullableNonnegativeInteger(draft.graceDays);
   const readOnlyDays = nullableNonnegativeInteger(draft.readOnlyDays);
-  const warningCount = nullableNonnegativeInteger(draft.warningCount);
-  if (
-    graceDays === null ||
-    readOnlyDays === null ||
-    warningCount === null ||
-    draft.terminalState === null
-  ) {
+  if (graceDays === null || readOnlyDays === null || draft.terminalState === null) {
     throw new Error('Заполните все поля лестницы доступа');
   }
-  return { graceDays, readOnlyDays, warningCount, terminalState: draft.terminalState };
+  const notifications = draft.notifications.map((rule) => {
+    const offsetDays = Number(rule.offsetDays);
+    if (!rule.offsetDays.trim() || !Number.isSafeInteger(offsetDays) || !rule.template.trim()) {
+      throw new Error('В каждом уведомлении заполните срок и текст');
+    }
+    return { offsetDays, condition: rule.condition, template: rule.template };
+  });
+  return { graceDays, readOnlyDays, notifications, terminalState: draft.terminalState };
 }
 
 function nullableNonnegativeInteger(value: string): number | null {
@@ -207,14 +221,21 @@ function nullableNonnegativeInteger(value: string): number | null {
   return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
 
+/**
+ * §5a item 2.6a — `warnable` says whether this mechanic has an early-warning threshold at all.
+ * The owner named exactly two (patients and file volume); branches have none, so the field is not
+ * rendered rather than rendered and ignored.
+ */
 function NumericLimitEditor({
   label,
   unit,
+  warnable,
   quota,
   onChange,
 }: {
   label: string;
   unit: TariffQuota['unit'];
+  warnable: boolean;
   quota: TariffQuota | null;
   onChange: (quota: TariffQuota | null) => void;
 }) {
@@ -223,12 +244,12 @@ function NumericLimitEditor({
       onChange(null);
       return;
     }
-    onChange({
-      kind,
-      limit: kind === 'numeric' ? (quota?.limit ?? 0) : null,
-      unit,
-      warningAtPercent: quota?.warningAtPercent ?? null,
-    });
+    const limit = kind === 'numeric' ? (quota?.limit ?? 0) : null;
+    onChange(
+      warnable
+        ? { kind, limit, unit, warningAtPercent: quota?.warningAtPercent ?? null }
+        : ({ kind, limit, unit } as TariffQuota),
+    );
   }
 
   return (
@@ -259,7 +280,7 @@ function NumericLimitEditor({
           }
         />
       ) : null}
-      {quota ? (
+      {quota && warnable ? (
         <Input
           type="number"
           min="0"
@@ -271,7 +292,7 @@ function NumericLimitEditor({
             onChange({
               ...quota,
               warningAtPercent: nullableNonnegativeInteger(event.target.value),
-            })
+            } as TariffQuota)
           }
         />
       ) : null}
@@ -312,17 +333,6 @@ function AccessPolicyEditor({
               aria-label={`${title}: Терпение: дней`}
               value={value.graceDays}
               onChange={(event) => onChange({ ...value, graceDays: event.target.value })}
-            />
-          </Label>
-          <Label className="space-y-1">
-            <span>Предупреждений</span>
-            <Input
-              type="number"
-              min="0"
-              required
-              aria-label={`${title}: Предупреждений`}
-              value={value.warningCount}
-              onChange={(event) => onChange({ ...value, warningCount: event.target.value })}
             />
           </Label>
           <Label className="space-y-1">
@@ -367,8 +377,116 @@ function AccessPolicyEditor({
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2 sm:col-span-2">
+            <AccessNotificationsEditor
+              title={title}
+              rows={value.notifications}
+              onChange={(notifications) => onChange({ ...value, notifications })}
+            />
+          </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * §5a item 2.6a — уведомления лестницы: столько строк, сколько заведёт владелец. Каждая строка —
+ * срок относительно окончания периода, условие и текст с переменными вида `{{тариф}}`.
+ */
+function AccessNotificationsEditor({
+  title,
+  rows,
+  onChange,
+}: {
+  title: string;
+  rows: AccessNotificationDraft[];
+  onChange: (rows: AccessNotificationDraft[]) => void;
+}) {
+  function update(index: number, patch: Partial<AccessNotificationDraft>) {
+    onChange(rows.map((row, position) => (position === index ? { ...row, ...patch } : row)));
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label>Уведомления</Label>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            onChange([
+              ...rows,
+              { offsetDays: '', condition: 'payment_failed', template: '' },
+            ])
+          }
+        >
+          Добавить уведомление
+        </Button>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Уведомлений нет.</p>
+      ) : null}
+      {rows.map((row, index) => (
+        <div key={index} className="grid gap-2 rounded-xl border border-border/70 p-3 sm:grid-cols-2">
+          <Label className="space-y-1">
+            <span>Срок, дней от окончания периода</span>
+            <Input
+              type="number"
+              aria-label={`${title}: уведомление ${index + 1}: срок`}
+              placeholder="−3 до, 5 после"
+              value={row.offsetDays}
+              onChange={(event) => update(index, { offsetDays: event.target.value })}
+            />
+          </Label>
+          <div className="space-y-1">
+            <Label>Условие</Label>
+            <Select
+              value={row.condition}
+              onValueChange={(next) => {
+                if (next === 'payment_succeeded' || next === 'payment_failed') {
+                  update(index, { condition: next });
+                }
+              }}
+            >
+              <SelectTrigger
+                aria-label={`${title}: уведомление ${index + 1}: условие`}
+                displayLabel={NOTIFICATION_CONDITION_LABELS[row.condition]}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(
+                  Object.keys(NOTIFICATION_CONDITION_LABELS) as AccessNotificationCondition[]
+                ).map((condition) => (
+                  <SelectItem key={condition} value={condition}>
+                    {NOTIFICATION_CONDITION_LABELS[condition]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Label className="space-y-1 sm:col-span-2">
+            <span>Текст</span>
+            <Textarea
+              aria-label={`${title}: уведомление ${index + 1}: текст`}
+              value={row.template}
+              onChange={(event) => update(index, { template: event.target.value })}
+            />
+          </Label>
+          <div className="sm:col-span-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onChange(rows.filter((_, position) => position !== index))}
+            >
+              Удалить уведомление {index + 1}
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -561,9 +679,6 @@ export function CommercialConstructorClient() {
       mechanicAccessPolicies,
       downgradePolicies: tariff.downgradePolicies,
       includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
-      includedSeatsWarningAtPercent: nullableNonnegativeInteger(
-        tariff.includedSeatsWarningAtPercent,
-      ),
       isActive: tariff.isActive,
     };
     await mutate(
@@ -701,24 +816,9 @@ export function CommercialConstructorClient() {
                   id="tariff-seats"
                   type="number"
                   min="0"
+                  required
                   value={tariff.includedSeats}
                   onChange={(event) => setTariff({ ...tariff, includedSeats: event.target.value })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="tariff-seats-warning">Предупреждать с, %</Label>
-                <Input
-                  id="tariff-seats-warning"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={tariff.includedSeatsWarningAtPercent}
-                  onChange={(event) =>
-                    setTariff({
-                      ...tariff,
-                      includedSeatsWarningAtPercent: event.target.value,
-                    })
-                  }
                 />
               </div>
             </div>
@@ -754,6 +854,7 @@ export function CommercialConstructorClient() {
                 <NumericLimitEditor
                   label="Файлы пациентов"
                   unit="bytes"
+                  warnable={quotaMechanicSupportsWarning('files')}
                   quota={tariff.quotas.files ?? null}
                   onChange={(nextQuota) => {
                     if (nextQuota && nextQuota.unit !== 'bytes') return;
@@ -773,6 +874,7 @@ export function CommercialConstructorClient() {
                   <NumericLimitEditor
                     label={MECHANIC_REGISTRY[mechanic].label}
                     unit="items"
+                    warnable={quotaMechanicSupportsWarning(mechanic)}
                     quota={tariff.quotas[mechanic] ?? null}
                     onChange={(nextQuota) => {
                       if (nextQuota && nextQuota.unit !== 'items') return;
@@ -1018,6 +1120,7 @@ export function CommercialConstructorClient() {
                 unit={
                   MECHANIC_REGISTRY[overrideMechanic].class === 'объём' ? 'bytes' : 'items'
                 }
+                warnable={quotaMechanicSupportsWarning(overrideMechanic)}
                 quota={overrideQuota}
                 onChange={setOverrideQuota}
               />

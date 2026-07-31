@@ -50,12 +50,15 @@ export const saasTariffs = pgTable(
       .notNull()
       .default(sql`'{}'::jsonb`),
     /**
-     * C4A — included specialist seats for the `clinic_team` mechanic. `null` means not explicitly
-     * configured (resolver falls back to a finite fail-closed baseline, never unlimited); a stored
-     * value must be nonnegative.
+     * C4A — included specialist seats for the `clinic_team` mechanic. §5a item 2.6a (owner 31.07):
+     * the tariff constructor refuses to SAVE without this number, so "empty" is only reachable for
+     * rows written before that rule; such a row refuses growth and is never given a baseline in
+     * code. A stored value must be nonnegative.
+     *
+     * There is no seat warning threshold: overage on seats is billed, not blocked (owner 30.07),
+     * so the column was dropped in `0285_tariff_ladder_notifications_local.sql`.
      */
     includedSeats: integer('included_seats'),
-    includedSeatsWarningAtPercent: integer('included_seats_warning_at_percent'),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -68,10 +71,6 @@ export const saasTariffs = pgTable(
     check(
       'saas_tariffs_included_seats_nonnegative_check',
       sql`${table.includedSeats} IS NULL OR ${table.includedSeats} >= 0`,
-    ),
-    check(
-      'saas_tariffs_included_seats_warning_check',
-      sql`${table.includedSeatsWarningAtPercent} IS NULL OR ${table.includedSeatsWarningAtPercent} BETWEEN 0 AND 100`,
     ),
     check(
       'saas_tariffs_billing_period_check',

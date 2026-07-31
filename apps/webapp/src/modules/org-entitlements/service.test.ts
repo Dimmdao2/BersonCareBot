@@ -29,7 +29,10 @@ import {
   type Tariff,
   type TariffQuota,
   type TariffQuotaMap,
+  type TrialPolicy,
 } from '@/modules/org-entitlements/types';
+
+import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -47,7 +50,6 @@ const activeAccess = {
 const unconfiguredPolicies = {
   systemAccessPolicy: null,
   mechanicAccessPolicies: {},
-  includedSeatsWarningAtPercent: null,
 } as const;
 
 /** Cabinet entry is its own ladder subject (§5a/2.1a); these cases are about mechanics only. */
@@ -64,6 +66,9 @@ function snapshotPort(): OrgEntitlementsPort {
     ...openCabinet,
     async resolveMechanicAccess(_organizationId, mechanic) {
       return { mechanic, state: 'full_access', policySource: 'system', warning: null };
+    },
+    async resolveCabinetAccess() {
+      return { state: 'full_access', policySource: 'system', warning: null };
     },
     async getSnapshot() {
       return {
@@ -232,7 +237,6 @@ describe('org entitlement mechanic classes', () => {
         mechanicAccessPolicies: {},
         downgradePolicies: {},
         includedSeats: 3,
-        includedSeatsWarningAtPercent: null,
         isActive: true,
       },
       { actorId: 'admin', reason: '' },
@@ -245,6 +249,11 @@ describe('org entitlement mechanic classes', () => {
         policySource: 'system',
         warning: null,
       }),
+      resolveCabinetAccess: async () => ({
+        state: 'full_access' as const,
+        policySource: 'system' as const,
+        warning: null,
+      }),
       getSnapshot: async () => ({
         tariff: {
           mechanics: tariff.mechanics,
@@ -252,7 +261,6 @@ describe('org entitlement mechanic classes', () => {
           systemAccessPolicy: tariff.systemAccessPolicy,
           mechanicAccessPolicies: tariff.mechanicAccessPolicies,
           includedSeats: tariff.includedSeats,
-          includedSeatsWarningAtPercent: tariff.includedSeatsWarningAtPercent,
         },
         overrides: [],
         access: activeAccess,
@@ -300,6 +308,11 @@ describe('org entitlement mechanic classes', () => {
         mechanic,
         state: 'disabled',
         policySource: 'unconfigured',
+        warning: null,
+      }),
+      resolveCabinetAccess: async () => ({
+        state: 'full_access' as const,
+        policySource: 'system' as const,
         warning: null,
       }),
       getSnapshot: async () => snapshot,
@@ -388,14 +401,12 @@ describe('org entitlement mechanic classes', () => {
             kind: 'numeric',
             limit: 2,
             unit: 'items',
-            warningAtPercent: 50,
           },
         },
         systemAccessPolicy: null,
         mechanicAccessPolicies: {},
         downgradePolicies: {},
-        includedSeats: null,
-        includedSeatsWarningAtPercent: null,
+        includedSeats: 1,
         isActive: true,
       },
       { actorId: 'admin', reason: '' },
@@ -416,7 +427,7 @@ describe('org entitlement mechanic classes', () => {
         mechanics: {},
         quotas: {
           patient_count: { kind: 'numeric', limit: 25, unit: 'items', warningAtPercent: null },
-          branches: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: 50 },
+          branches: { kind: 'numeric', limit: 2, unit: 'items' },
         } as TariffQuotaMap,
         includedSeats: null,
         ...unconfiguredPolicies,
@@ -432,6 +443,11 @@ describe('org entitlement mechanic classes', () => {
         policySource: 'system',
         warning: null,
       }),
+      resolveCabinetAccess: async () => ({
+        state: 'full_access' as const,
+        policySource: 'system' as const,
+        warning: null,
+      }),
       getSnapshot: async () => snapshot,
       getTariffForOrg: async () => snapshot.tariff,
       listOverrides: async () => [],
@@ -442,7 +458,9 @@ describe('org entitlement mechanic classes', () => {
 
     await expect(resolveOrgQuotaProjections(platformPort, 'org')).resolves.toEqual([
       expect.objectContaining({ mechanic: 'patient_count', usage: 25, threshold: 'reached' }),
-      expect.objectContaining({ mechanic: 'branches', usage: 1, threshold: 'warning' }),
+      // §5a item 2.6a — branches have no early warning at all: below the limit is below_warning
+      // and nothing else, whatever percentage anyone tries to store for them.
+      expect.objectContaining({ mechanic: 'branches', usage: 1, threshold: 'below_warning' }),
     ]);
     await expect(resolveOwnOrgQuotaProjections(platformPort, 'org')).resolves.toEqual([
       expect.objectContaining({ mechanic: 'patient_count', usage: 25, threshold: 'reached' }),
@@ -522,7 +540,7 @@ describe('org entitlement mechanic classes', () => {
     });
   });
 
-  it('carries the grace date, count and next state through the guard and visibility adapter', async () => {
+  it('carries the grace date, owner notification rows and next state through the guard and visibility adapter', async () => {
     const port = snapshotPort();
     port.resolveMechanicAccess = async (_organizationId, mechanic) => ({
       mechanic,
@@ -530,7 +548,10 @@ describe('org entitlement mechanic classes', () => {
       policySource: 'system',
       warning: {
         until: '2026-08-02T00:00:00.000Z',
-        count: 4,
+        periodEndsAt: '2026-07-29T00:00:00.000Z',
+        notifications: [
+          { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
+        ],
         nextState: 'read_only',
       },
     });
@@ -541,7 +562,13 @@ describe('org entitlement mechanic classes', () => {
     const read = await requireEntitlementForRead({ organizationId: 'org' }, 'courses');
     expect(read.ok).toBe(true);
     if (read.ok) {
-      expect(read.warning).toMatchObject({ count: 4, nextState: 'read_only' });
+      expect(read.warning).toMatchObject({
+        nextState: 'read_only',
+        periodEndsAt: '2026-07-29T00:00:00.000Z',
+        notifications: [
+          { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
+        ],
+      });
       expect(read.warning?.until).toBe('2026-08-02T00:00:00.000Z');
     }
     expect(
@@ -551,7 +578,10 @@ describe('org entitlement mechanic classes', () => {
         policySource: 'system',
         warning: {
           until: '2026-08-02T00:00:00.000Z',
-          count: 4,
+          periodEndsAt: '2026-07-29T00:00:00.000Z',
+          notifications: [
+            { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
+          ],
           nextState: 'read_only',
         },
       }),
@@ -561,7 +591,10 @@ describe('org entitlement mechanic classes', () => {
       directUrl: true,
       warning: {
         until: '2026-08-02T00:00:00.000Z',
-        count: 4,
+        periodEndsAt: '2026-07-29T00:00:00.000Z',
+        notifications: [
+          { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
+        ],
         nextState: 'read_only',
       },
     });
@@ -598,7 +631,6 @@ describe('org entitlement mechanic classes', () => {
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       includedSeats: null,
-      includedSeatsWarningAtPercent: null,
     });
 
     await expect(resolveClinicSeatLimit(port, 'org')).resolves.toBeNull();
@@ -672,8 +704,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
-      includedSeats: null,
-      includedSeatsWarningAtPercent: null,
+      includedSeats: 1,
       isActive: true,
       createdAt: '2026-07-30T00:00:00.000Z',
       updatedAt: '2026-07-30T00:00:00.000Z',
@@ -727,7 +758,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
 
   it('defaults an unset downgrade policy to `block` (fail-closed), never to unlimited growth', () => {
     const targetTariff = baseTariff({
-      quotas: { branches: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: null } },
+      quotas: { branches: { kind: 'numeric', limit: 2, unit: 'items' } },
       // downgradePolicies deliberately left empty — owner never configured this mechanic's knob.
     });
     const blocks = evaluateTariffDowngrade({
@@ -843,7 +874,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
     const targetTariff = baseTariff({
       id: 'small',
       mechanics: { branding: false },
-      quotas: { branches: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null } },
+      quotas: { branches: { kind: 'numeric', limit: 1, unit: 'items' } },
       downgradePolicies: { branches: 'block', branding: 'block' },
     });
     const { port } = platformPortWithUsage({
@@ -907,11 +938,10 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
           mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
           quotas: {},
           // @ts-expect-error `full_access` was removed from AccessTerminalState — this must be a type error too.
-          systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, warningCount: 0, terminalState: 'full_access' },
+          systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'full_access' },
           mechanicAccessPolicies: {},
           downgradePolicies: {},
-          includedSeats: null,
-          includedSeatsWarningAtPercent: null,
+          includedSeats: 1,
           isActive: true,
         },
         { actorId: null, reason: '' },
@@ -939,8 +969,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
-      includedSeats: null,
-      includedSeatsWarningAtPercent: null,
+      includedSeats: 1,
       isActive: true,
       ...overrides,
     };
@@ -987,7 +1016,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
               [mechanic]: {
                 graceDays: 1,
                 readOnlyDays: 1,
-                warningCount: 0,
+                notifications: [],
                 terminalState: 'read_only',
               },
             },
@@ -1159,6 +1188,11 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
         policySource: 'system',
         warning: null,
       }),
+      resolveCabinetAccess: async () => ({
+        state: 'full_access' as const,
+        policySource: 'system' as const,
+        warning: null,
+      }),
       getSnapshot: async () => ({
         tariff: candidateTariff,
         overrides: override
@@ -1207,5 +1241,263 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
     // over a (now irrelevant) numeric limit.
     const after = await resolveOrgQuotaProjections(orgPort(12, overrides[0]!), 'org-over-limit');
     expect(after).toEqual([]);
+  });
+});
+
+/**
+ * §5a items 2.6 / 2.6a — снятие агентских констант. Each test here names one owner decision from
+ * 31.07 and the breakage that would put the agent's choice back in place of his value.
+ */
+describe('§5a item 2.6a — the owner sets the value, the code only refuses what he did not set', () => {
+  function tariffInput(
+    overrides: Partial<Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>> = {},
+  ): Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'> {
+    return {
+      name: 'Тест',
+      description: '',
+      priceMinor: null,
+      currency: null,
+      billingPeriod: 'month',
+      mechanics: {},
+      quotas: {},
+      systemAccessPolicy: null,
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      includedSeats: 1,
+      isActive: true,
+      ...overrides,
+    };
+  }
+
+  let written: Array<Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>>;
+
+  function service() {
+    written = [];
+    const port = {
+      listTariffs: async () => [],
+      listOrganizations: async () => [],
+      getTrialPolicy: async () => null,
+      getOrganizationMechanicUsage: async () => ({}),
+      createTariff: async (input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) => {
+        written.push(input);
+        return {
+          ...input,
+          id: 'x',
+          createdAt: '2026-07-31T00:00:00.000Z',
+          updatedAt: '2026-07-31T00:00:00.000Z',
+        };
+      },
+      updateTariff: async () => {
+        throw new Error('not_used');
+      },
+      archiveTariff: async () => {},
+      assignTariff: async () => {},
+      upsertOverride: async () => {},
+      deleteOverride: async () => {},
+      setTrialPolicy: async () => {},
+      startTrial: async () => null,
+      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
+    } as unknown as PlatformEntitlementsPort;
+    return createPlatformEntitlementsService(port);
+  }
+
+  // Owner 31.07: «количество разрешённых специалистов должно быть явно настроено в тарифе, иначе
+  // он не сохранится». Breakage: the refusal is replaced by a runtime substitution, so a tariff
+  // with no seat count is saved and some baseline is invented on read.
+  it('refuses to SAVE a tariff without a specialist seat count', () => {
+    expect(() =>
+      service().createTariff(tariffInput({ includedSeats: null }), { actorId: null, reason: '' }),
+    ).toThrow('tariff_included_seats_required');
+  });
+
+  it('saves the seat count the owner set, including zero', async () => {
+    const created = await service().createTariff(tariffInput({ includedSeats: 0 }), {
+      actorId: null,
+      reason: '',
+    });
+    expect(created.includedSeats).toBe(0);
+  });
+
+  // Owner 31.07: «процент для предупреждения надо считать только от количества доступных клиентов
+  // и объёма файлов». Breakage: a threshold reappears on branches — either accepted and silently
+  // ignored, or accepted and acted upon, both of which are the agent deciding.
+  it('refuses an early-warning threshold on branches and keeps it for patients and files', async () => {
+    expect(() =>
+      service().createTariff(
+        tariffInput({
+          quotas: {
+            branches: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: 80 } as never,
+          },
+        }),
+        { actorId: null, reason: '' },
+      ),
+    ).toThrow('tariff_quota_warning_unsupported');
+
+    const created = await service().createTariff(
+      tariffInput({
+        quotas: {
+          patient_count: { kind: 'numeric', limit: 100, unit: 'items', warningAtPercent: 80 },
+          files: { kind: 'numeric', limit: 1024, unit: 'bytes', warningAtPercent: 90 },
+          branches: { kind: 'numeric', limit: 2, unit: 'items' },
+        },
+      }),
+      { actorId: null, reason: '' },
+    );
+    expect(created.quotas.patient_count?.warningAtPercent).toBe(80);
+    expect(created.quotas.files?.warningAtPercent).toBe(90);
+    expect(created.quotas.branches).toEqual({ kind: 'numeric', limit: 2, unit: 'items' });
+  });
+
+  // Breakage: the notification list stops being pass-through data — a row is dropped, reordered,
+  // its text rewritten, or a maximum count creeps in.
+  it('stores the owner notification rows verbatim, however many he wrote', async () => {
+    const notifications = Array.from({ length: 7 }, (_unused, index) => ({
+      offsetDays: index - 3,
+      condition: index % 2 === 0 ? ('payment_failed' as const) : ('payment_succeeded' as const),
+      template: `Текст ${index} про {{тариф}}`,
+    }));
+    const created = await service().createTariff(
+      tariffInput({
+        systemAccessPolicy: { graceDays: 3, readOnlyDays: 2, notifications, terminalState: 'disabled' },
+      }),
+      { actorId: null, reason: '' },
+    );
+    expect(created.systemAccessPolicy?.notifications).toEqual(notifications);
+  });
+
+  it.each([
+    ['access_notification_offset_invalid', { offsetDays: 1.5, condition: 'payment_failed' as const, template: 'т' }],
+    ['access_notification_template_required', { offsetDays: 1, condition: 'payment_failed' as const, template: '  ' }],
+    ['access_notification_condition_invalid', { offsetDays: 1, condition: 'выдумка', template: 'т' }],
+  ])('refuses a malformed notification row with %s', (error, row) => {
+    expect(() =>
+      service().createTariff(
+        tariffInput({
+          systemAccessPolicy: {
+            graceDays: 1,
+            readOnlyDays: 1,
+            notifications: [row as never],
+            terminalState: 'disabled',
+          },
+        }),
+        { actorId: null, reason: '' },
+      ),
+    ).toThrow(error);
+  });
+});
+
+/**
+ * §5a item 2.6a — жизненный цикл тарифа у клиники (owner 31.07, dictated verbatim into the canon).
+ * These pin the owner's rules against the two states an agent is tempted to "helpfully" soften.
+ */
+describe('§5a item 2.6a — клиники без тарифа не существует', () => {
+  const noTariffSnapshot = (source: 'no_trial' | 'compatibility') => ({
+    tariff: null,
+    overrides: [],
+    access: { lifecycle: 'active' as const, tariffId: null, source },
+  });
+
+  // Owner 31.07: «просто сразу требуется выбор тарифа и оплата… без выбора тарифа и без оплаты —
+  // нет доступа». Breakage: the "no tariff" state starts handing out a default set of mechanics.
+  it('gives no mechanic at all when there is neither an active tariff nor a trial', () => {
+    const entitlements = entitlementsFromSnapshot(noTariffSnapshot('no_trial'));
+    for (const mechanic of MECHANICS) {
+      // Critical mechanics are never a tariff option; everything else must be off.
+      const expected = MECHANIC_REGISTRY[mechanic].class === 'никогда';
+      expect(entitlements[mechanic], mechanic).toBe(expected);
+    }
+    expect(fileStorageLimitFromSnapshot(noTariffSnapshot('no_trial'))).toBeUndefined();
+  });
+
+  // Owner 31.07: the "clinic created before tariffs existed" row is временная совместимость, not a
+  // rule. Breakage: that branch widens to cover any organization without a tariff.
+  it('opens the compatibility path only for the explicit compatibility state', () => {
+    expect(entitlementsFromSnapshot(noTariffSnapshot('compatibility')).courses).toBe(true);
+    expect(entitlementsFromSnapshot(noTariffSnapshot('no_trial')).courses).toBe(false);
+  });
+
+  // Owner 31.07: «нет ни активного тарифа, ни триала уже повторного» — entry to the product is
+  // closed. Breakage: the cabinet gate stops treating an unconfigured ladder as closed.
+  it('closes cabinet entry when the ladder has no tariff to resolve', () => {
+    expect(
+      isCabinetEntryBlocked({ state: 'unconfigured', policySource: 'unconfigured', warning: null }),
+    ).toBe(true);
+    expect(
+      isCabinetEntryBlocked({ state: 'disabled', policySource: 'system', warning: null }),
+    ).toBe(true);
+    expect(
+      isCabinetEntryBlocked({ state: 'full_access', policySource: 'system', warning: null }),
+    ).toBe(false);
+  });
+});
+
+/**
+ * §5a item 2.6a — «стартовый тариф с триалом настраивается в админке» (owner 31.07). The trial
+ * policy is a stored record, so which tariff a new clinic gets, for how long and what happens
+ * afterwards are all operator values. These tests pin that nothing here is chosen in code.
+ */
+describe('§5a item 2.6a — стартовый тариф с триалом настраивается, а не зашит', () => {
+  function trialPort(saved: TrialPolicy[]): PlatformEntitlementsPort {
+    return {
+      listTariffs: async () => [],
+      listOrganizations: async () => [],
+      getTrialPolicy: async () => saved[saved.length - 1] ?? null,
+      getOrganizationMechanicUsage: async () => ({}),
+      createTariff: async () => {
+        throw new Error('not_used');
+      },
+      updateTariff: async () => {
+        throw new Error('not_used');
+      },
+      archiveTariff: async () => {},
+      assignTariff: async () => {},
+      upsertOverride: async () => {},
+      deleteOverride: async () => {},
+      setTrialPolicy: async (policy: TrialPolicy) => {
+        saved.push(policy);
+      },
+      startTrial: async () => null,
+      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
+    } as unknown as PlatformEntitlementsPort;
+  }
+
+  const policy = (overrides: Partial<TrialPolicy> = {}): TrialPolicy => ({
+    tariffId: '95200000-0000-4000-8000-000000000010',
+    durationDays: 21,
+    graceDays: 5,
+    startEvent: 'organization_created',
+    postTrialBehavior: 'read_only',
+    postTrialTariffId: null,
+    isActive: true,
+    ...overrides,
+  });
+
+  // Breakage: the starting tariff, its length or its post-trial behaviour stops round-tripping —
+  // i.e. something in code decides it instead of the admin screen.
+  it('stores the starting tariff, its length and its post-trial behaviour as operator values', async () => {
+    const saved: TrialPolicy[] = [];
+    const service = createPlatformEntitlementsService(trialPort(saved));
+
+    await service.setTrialPolicy(policy(), { actorId: 'admin', reason: '' });
+    expect(await service.getTrialPolicy()).toEqual(policy());
+
+    const other = policy({
+      tariffId: '95200000-0000-4000-8000-000000000099',
+      durationDays: 3,
+      postTrialBehavior: 'tariff',
+      postTrialTariffId: '95200000-0000-4000-8000-000000000077',
+    });
+    await service.setTrialPolicy(other, { actorId: 'admin', reason: '' });
+    expect(await service.getTrialPolicy()).toEqual(other);
+  });
+
+  // Breakage: a missing trial length or start event is filled in by the code instead of refused.
+  it.each([
+    ['trial_duration_invalid', policy({ durationDays: 0 })],
+    ['trial_start_event_required', policy({ startEvent: '  ' })],
+    ['trial_post_tariff_required', policy({ postTrialBehavior: 'tariff', postTrialTariffId: null })],
+  ])('refuses an unset trial value with %s', async (error, invalid) => {
+    const service = createPlatformEntitlementsService(trialPort([]));
+    expect(() => service.setTrialPolicy(invalid, { actorId: 'admin', reason: '' })).toThrow(error);
   });
 });

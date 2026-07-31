@@ -109,17 +109,19 @@ const userId = '22222222-2222-4222-8222-222222222222';
 function entitlementSnapshot(): OrgEntitlementSnapshot {
   return {
     tariff: {
+      name: 'Тариф с лестницей',
       mechanics: { courses: coursesIncluded, promo: true },
       quotas: {},
       systemAccessPolicy: {
         graceDays: 3,
         readOnlyDays: 2,
-        warningCount: 4,
+        notifications: [
+          { offsetDays: -1, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
+        ],
         terminalState: 'disabled',
       },
       mechanicAccessPolicies: {},
       includedSeats: null,
-      includedSeatsWarningAtPercent: null,
     },
     overrides: [],
     access: {
@@ -178,7 +180,27 @@ beforeEach(() => {
             policySource: 'system' as const,
             warning: {
               until: '2026-08-01T00:00:00.000Z',
-              count: 4,
+              // Paid period ended 29.07; "now" in this test is 30.07 12:00.
+              periodEndsAt: '2026-07-29T00:00:00.000Z',
+              notifications: [
+                {
+                  offsetDays: 1,
+                  condition: 'payment_failed' as const,
+                  template: 'Тариф {{тариф}} не оплачен. Клиника {{клиника}}.',
+                },
+                // Not due yet — three days after the period end.
+                {
+                  offsetDays: 3,
+                  condition: 'payment_failed' as const,
+                  template: 'Скоро только чтение.',
+                },
+                // Due by date, but written for the other outcome.
+                {
+                  offsetDays: 1,
+                  condition: 'payment_succeeded' as const,
+                  template: 'Спасибо за оплату.',
+                },
+              ],
               nextState: 'read_only' as const,
             },
           }
@@ -238,12 +260,16 @@ afterEach(() => {
 });
 
 describe('access lifecycle on real clinic and patient surfaces', () => {
-  it('shows the resolver warning with its date, count and next state in the clinic shell', async () => {
+  // §5a item 2.6a — the banner is the OWNER's text, not a sentence written in code. Breakage this
+  // catches: a template variable stops being substituted, a row that has not come due is shown, or
+  // a row written for the other payment outcome leaks into the "not paid" banner.
+  it("renders the owner's due notification texts in the clinic shell, and only those", async () => {
     render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Курсы: полный доступ до 01.08.2026. Затем — только чтение. Предупреждений: 4.',
-    );
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Тариф Тариф с лестницей не оплачен. Клиника Клиника.');
+    expect(alert).not.toHaveTextContent('Скоро только чтение.');
+    expect(alert).not.toHaveTextContent('Спасибо за оплату.');
     expect(screen.getByText('Рабочая область')).toBeInTheDocument();
   });
 

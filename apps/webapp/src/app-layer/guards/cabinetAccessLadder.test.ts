@@ -33,7 +33,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getCurrentSession } from '@/modules/auth/service';
 import { GET as listCourses } from '@/app/api/doctor/courses/route';
 import { GET as readOwnBilling } from '@/app/api/clinic/billing/route';
-import { cabinetGraceWarningMessage } from './cabinetAccessGate';
+import { cabinetGraceWarningMessages } from './cabinetAccessGate';
 import type { CabinetAccessResolution, MechanicAccessState } from '@/modules/org-entitlements/types';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -129,7 +129,14 @@ describe('§5a/2.1a: cabinet entry walks its own three rungs', () => {
   // Арбитр: снять ступень `grace` из `isCabinetEntryBlocked` (сделать её блокирующей) — тест краснеет
   // (403 вместо 200).
   it('терпение — вход в кабинет открыт, работает как при полном доступе', async () => {
-    withCabinet(cabinetAt('grace', { until: '2026-08-14', count: 2, nextState: 'read_only' }));
+    withCabinet(
+      cabinetAt('grace', {
+        until: '2026-08-14',
+        periodEndsAt: '2026-08-01T00:00:00.000Z',
+        notifications: [],
+        nextState: 'read_only',
+      }),
+    );
 
     const response = await listCourses(coursesRequest());
 
@@ -204,19 +211,64 @@ describe('§5a/2.1a: блок кабинета не удаляет данные 
   });
 });
 
-describe('§5a/2.1a: предупреждение ступени «терпение» берётся из резолвера, а не из констант', () => {
-  // Арбитр: захардкодить в `cabinetGraceWarningMessage` любое своё число дней или конечное
-  // состояние — тест краснеет, потому что подставленные значения перестанут совпадать.
-  it('несёт дату, число предупреждений и следующее состояние из политики тарифа', () => {
-    expect(
-      cabinetGraceWarningMessage({ until: '2026-08-14', count: 3, nextState: 'read_only' }),
-    ).toBe('Доступ в кабинет: полный доступ до 14.08.2026. Затем — только чтение. Предупреждений: 3.');
+describe('§5a/2.1a + 2.6a: предупреждение ступени «терпение» — текст ВЛАДЕЛЬЦА, не фраза кода', () => {
+  const warning = {
+    until: '2026-08-14',
+    periodEndsAt: '2026-08-01T00:00:00.000Z',
+    nextState: 'read_only' as const,
+    notifications: [
+      {
+        offsetDays: -3,
+        condition: 'payment_failed' as const,
+        template: 'Клиника {{клиника}}: тариф {{тариф}} не оплачен, доступ сузится.',
+      },
+      {
+        offsetDays: 2,
+        condition: 'payment_failed' as const,
+        template: 'Ещё не наступило: {{клиника}}.',
+      },
+      {
+        offsetDays: -3,
+        condition: 'payment_succeeded' as const,
+        template: 'Чужое условие: оплата прошла.',
+      },
+    ],
+  };
 
+  // Арбитр: вернуть в `cabinetGraceWarningMessages` собственную фразу кода — тест краснеет,
+  // потому что в выводе появится текст, которого владелец не писал.
+  it('рендерит строку владельца с подстановкой переменных', () => {
     expect(
-      cabinetGraceWarningMessage({ until: '2026-09-01', count: 1, nextState: 'disabled' }),
-    ).toBe(
-      'Доступ в кабинет: полный доступ до 01.09.2026. Затем — вход в кабинет закрыт. Предупреждений: 1.',
+      cabinetGraceWarningMessages(
+        warning,
+        { клиника: 'Ромашка', тариф: 'Базовый' },
+        new Date('2026-07-30T00:00:00.000Z'),
+      ),
+    ).toEqual(['Клиника Ромашка: тариф Базовый не оплачен, доступ сузится.']);
+  });
+
+  // Арбитр: снять фильтр срока или фильтр условия в `dueAccessNotifications` — тест краснеет,
+  // потому что покажется ненаступившая строка или строка про успешную оплату.
+  it('не показывает ненаступившее и чужое условие', () => {
+    const shown = cabinetGraceWarningMessages(
+      warning,
+      { клиника: 'Ромашка', тариф: 'Базовый' },
+      new Date('2026-07-30T00:00:00.000Z'),
     );
+
+    expect(shown).not.toContain('Ещё не наступило: Ромашка.');
+    expect(shown).not.toContain('Чужое условие: оплата прошла.');
+  });
+
+  // Тариф без строк уведомлений — это ответ настройки, а не повод подставить текст от себя.
+  it('без строк уведомлений не показывает ничего', () => {
+    expect(
+      cabinetGraceWarningMessages(
+        { ...warning, notifications: [] },
+        { клиника: 'Ромашка', тариф: 'Базовый' },
+        new Date('2026-07-30T00:00:00.000Z'),
+      ),
+    ).toEqual([]);
   });
 });
 

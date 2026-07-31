@@ -13,7 +13,6 @@ RETURNS TABLE (
   tariff_system_access_policy jsonb,
   tariff_mechanic_access_policies jsonb,
   included_seats integer,
-  included_seats_warning_at_percent integer,
   override_mechanic text,
   override_enabled boolean,
   override_quota jsonb,
@@ -87,7 +86,6 @@ BEGIN
     tariff.system_access_policy,
     tariff.mechanic_access_policies,
     tariff.included_seats,
-    tariff.included_seats_warning_at_percent,
     entitlement_override.mechanic,
     entitlement_override.enabled,
     entitlement_override.quota,
@@ -182,5 +180,5 @@ CREATE POLICY saas_org_entitlement_overrides_current_patient_capability_read
 
 SELECT 1 / (
   pg_get_function_result('app.read_current_patient_organization_entitlements()'::regprocedure) =
-    'TABLE(tariff_mechanics jsonb, tariff_quotas jsonb, tariff_system_access_policy jsonb, tariff_mechanic_access_policies jsonb, included_seats integer, included_seats_warning_at_percent integer, override_mechanic text, override_enabled boolean, override_quota jsonb, override_expires_at timestamp with time zone, seat_limit_override integer, lifecycle text, effective_tariff_id uuid, access_source text, degradation_started_at timestamp with time zone)'
+    'TABLE(tariff_mechanics jsonb, tariff_quotas jsonb, tariff_system_access_policy jsonb, tariff_mechanic_access_policies jsonb, included_seats integer, override_mechanic text, override_enabled boolean, override_quota jsonb, override_expires_at timestamp with time zone, seat_limit_override integer, lifecycle text, effective_tariff_id uuid, access_source text, degradation_started_at timestamp with time zone)'
 )::int AS e1_current_patient_entitlements_signature_current;

@@ -106,23 +106,49 @@ export const QUOTA_UNIT_LABELS: Record<TariffQuotaUnit, string> = {
 type NumericQuotaBase = {
   kind: 'numeric' | 'unlimited';
   limit: number | null;
+};
+
+/**
+ * §5a item 2.6a (owner 31.07): «процент для предупреждения надо считать только от количества
+ * доступных клиентов и объёма файлов». Which mechanics have the threshold FIELD is structural —
+ * like the mechanic class — while the percent itself stays an owner value. Branches carry
+ * `warningAtPercent?: never` so attaching a threshold to them is a compile error rather than a
+ * number silently ignored at runtime; specialist seats lost the field entirely (overage there is
+ * billed, not blocked, so there is nothing to warn about).
+ */
+type EarlyWarningThreshold = {
   /** `null` means the owner has not configured an early warning for this number. */
   warningAtPercent: number | null;
 };
 
-export type StorageQuota = NumericQuotaBase & { unit: 'bytes' };
-export type StockQuota = NumericQuotaBase & { unit: 'items' };
-export type TariffQuota = StorageQuota | StockQuota;
+export type StorageQuota = NumericQuotaBase & EarlyWarningThreshold & { unit: 'bytes' };
+export type PatientStockQuota = NumericQuotaBase & EarlyWarningThreshold & { unit: 'items' };
+export type BranchStockQuota = NumericQuotaBase & {
+  unit: 'items';
+  warningAtPercent?: never;
+};
+export type TariffQuota = StorageQuota | PatientStockQuota | BranchStockQuota;
 
 /**
- * The key controls the unit at compile time. Possibility, seats and never-limited mechanics are
- * intentionally absent, so the constructor cannot attach a generic number to them.
+ * The key controls the unit AND the presence of an early-warning threshold at compile time.
+ * Possibility, seats and never-limited mechanics are intentionally absent, so the constructor
+ * cannot attach a generic number to them.
  */
 export type TariffQuotaMap = Partial<{
   files: StorageQuota;
-  patient_count: StockQuota;
-  branches: StockQuota;
+  patient_count: PatientStockQuota;
+  branches: BranchStockQuota;
 }>;
+
+/** Mechanics whose class allows a number AND whose owner-facing card offers a warning threshold. */
+export const WARNABLE_QUOTA_MECHANICS = ['files', 'patient_count'] as const;
+export type WarnableQuotaMechanic = (typeof WARNABLE_QUOTA_MECHANICS)[number];
+
+export function quotaMechanicSupportsWarning(
+  mechanic: OrgMechanic,
+): mechanic is WarnableQuotaMechanic {
+  return (WARNABLE_QUOTA_MECHANICS as readonly string[]).includes(mechanic);
+}
 
 /**
  * §5a stage 4b.2 (owner 30.07): the ladder's final state is one of exactly two values. A third
@@ -132,10 +158,33 @@ export type TariffQuotaMap = Partial<{
  */
 export type AccessTerminalState = 'read_only' | 'disabled';
 
+/**
+ * §5a item 2.6a (owner 31.07): «список уведомлений — там срок (за сколько до/после окончания
+ * периода), условие (успешная оплата / ошибка оплаты) и шаблон текста». The condition is part of
+ * the ROW, not a branch in code: nothing here decides when to send on failure.
+ */
+export type AccessNotificationCondition = 'payment_succeeded' | 'payment_failed';
+
+export type AccessNotificationRule = {
+  /**
+   * Signed days relative to the END of the paid period — negative is before it, positive after.
+   * The anchor is the period end, not the start of the ladder and not the previous notification.
+   */
+  offsetDays: number;
+  condition: AccessNotificationCondition;
+  /** Owner-authored text; `{{variable}}` placeholders are filled from data at render time. */
+  template: string;
+};
+
+/**
+ * §5a item 2.6a: the ladder's notifications are a LIST the owner keeps, not a number the agent
+ * chose. There is no cap on its length, no text in code and no fixed set of template variables —
+ * «тексты, их количество и набор переменных — данные, не код» (owner 31.07).
+ */
 export type AccessLifecyclePolicy = {
   graceDays: number;
   readOnlyDays: number;
-  warningCount: number;
+  notifications: AccessNotificationRule[];
   terminalState: AccessTerminalState;
 };
 
@@ -160,7 +209,10 @@ export type MechanicAccessState =
 
 export type MechanicAccessWarning = {
   until: string;
-  count: number;
+  /** End of the paid period — the anchor every notification offset is measured from. */
+  periodEndsAt: string;
+  /** The owner's notification rows, verbatim; selecting the due ones is the only code step. */
+  notifications: AccessNotificationRule[];
   nextState: AccessTerminalState;
 };
 
@@ -196,11 +248,13 @@ export type Tariff = {
   /** §5a stage 4b.3 — per-mechanic downgrade policy; absent mechanics fall back to `block` (fail-closed). */
   downgradePolicies: DowngradePolicyMap;
   /**
-   * Included specialist seats for `clinic_team`, as configured on this tariff. `null` is explicit
-   * "not configured" and refuses growth; it is never converted into an agent-chosen baseline.
+   * Included specialist seats for `clinic_team`. §5a item 2.6a (owner 31.07): «количество
+   * разрешённых специалистов должно быть явно настроено в тарифе, иначе он не сохранится» — a
+   * tariff with no seat count is refused by `normalizeTariffInput`, so "empty" is not a state a
+   * saved tariff can reach. `null` remains readable for rows written before that rule and refuses
+   * growth; it is never converted into an agent-chosen baseline.
    */
   includedSeats: number | null;
-  includedSeatsWarningAtPercent: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -273,7 +327,6 @@ export type OrgEntitlementSnapshot = {
     systemAccessPolicy: AccessLifecyclePolicy | null;
     mechanicAccessPolicies: MechanicAccessPolicyMap;
     includedSeats: number | null;
-    includedSeatsWarningAtPercent: number | null;
     /** Optional display fields — populated by the staff (non-patient) resolution path only. */
     id?: string;
     name?: string;

@@ -9,17 +9,43 @@ import type {
   TrialPolicy,
 } from '@/modules/org-entitlements/types';
 
-const quotaSchema = z.object({
+const quotaAmountSchema = {
   kind: z.enum(['numeric', 'unlimited']),
   limit: z.number().int().nonnegative().nullable(),
-  unit: z.enum(['bytes', 'items']),
-  warningAtPercent: z.number().int().min(0).max(100).nullable(),
+};
+const warningAtPercentSchema = z.number().int().min(0).max(100).nullable();
+
+// §5a item 2.6a (owner 31.07) — the early-warning threshold exists only for patients and file
+// volume; branches deliberately have no such field, so a percent sent for them is rejected at the
+// boundary instead of being stored and ignored.
+const storageQuotaSchema = z.object({
+  ...quotaAmountSchema,
+  unit: z.literal('bytes'),
+  warningAtPercent: warningAtPercentSchema,
+});
+const patientStockQuotaSchema = z.object({
+  ...quotaAmountSchema,
+  unit: z.literal('items'),
+  warningAtPercent: warningAtPercentSchema,
+});
+const branchStockQuotaSchema = z
+  .object({ ...quotaAmountSchema, unit: z.literal('items') })
+  .strict();
+/** Overrides carry the mechanic separately; `assertQuota` in the service rejects a mismatch. */
+const quotaSchema = z.union([storageQuotaSchema, patientStockQuotaSchema, branchStockQuotaSchema]);
+
+// §5a item 2.6a — уведомления лестницы: список строк «срок · условие · шаблон», без ограничения
+// на длину. Texts and their variables are data, so the template is only checked for being present.
+const accessNotificationSchema = z.object({
+  offsetDays: z.number().int(),
+  condition: z.enum(['payment_succeeded', 'payment_failed']),
+  template: z.string().trim().min(1),
 });
 
 const accessPolicySchema = z.object({
   graceDays: z.number().int().nonnegative(),
   readOnlyDays: z.number().int().nonnegative(),
-  warningCount: z.number().int().nonnegative(),
+  notifications: z.array(accessNotificationSchema),
   terminalState: z.enum(['read_only', 'disabled']),
 });
 
@@ -36,16 +62,16 @@ const tariffInputSchema = z.object({
   mechanics: z.record(z.string(), z.boolean()),
   quotas: z
     .object({
-      files: quotaSchema.optional(),
-      patient_count: quotaSchema.optional(),
-      branches: quotaSchema.optional(),
+      files: storageQuotaSchema.optional(),
+      patient_count: patientStockQuotaSchema.optional(),
+      branches: branchStockQuotaSchema.optional(),
     })
     .strict(),
   systemAccessPolicy: accessPolicySchema.nullable(),
   mechanicAccessPolicies: z.record(z.string(), accessPolicySchema),
   downgradePolicies: z.record(z.string(), downgradePolicySchema),
-  includedSeats: z.number().int().nonnegative().nullable(),
-  includedSeatsWarningAtPercent: z.number().int().min(0).max(100).nullable(),
+  /** §5a item 2.6a — required: a tariff with no seat count is not a saveable tariff. */
+  includedSeats: z.number().int().nonnegative(),
   isActive: z.boolean(),
 });
 

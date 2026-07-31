@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveMechanicAccess } from '@/modules/org-entitlements/service';
+import {
+  dueAccessNotifications,
+  renderAccessNotification,
+} from '@/modules/org-entitlements/accessNotifications';
 import type {
   MechanicAccessWarning,
   MechanicAccessResolution,
@@ -101,22 +105,28 @@ export function resolveMechanicSurfaceVisibility(
   };
 }
 
-const ACCESS_STATE_LABELS: Record<MechanicAccessWarning['nextState'], string> = {
-  read_only: 'только чтение',
-  disabled: 'выключено',
-};
-
-function warningDateLabel(until: string): string {
-  const [year, month, day] = until.slice(0, 10).split('-');
-  return year && month && day ? `${day}.${month}.${year}` : until;
-}
-
-/** Canon §7: name the affected function, what happens next and the resolver-provided date/count. */
-export function entitlementGraceWarningMessage(
-  mechanic: OrgMechanic,
+/**
+ * §5a item 2.6a (owner 31.07) — the warning texts are the owner's, not the agent's: this returns
+ * the notification rows of his ladder that have already come due, rendered from his templates.
+ * There is no sentence, no notification count and no fixed variable set in this file; a tariff
+ * with no notification rows produces no banner, which is a configuration answer, not a default.
+ *
+ * `variables` is whatever the caller can supply for the placeholders the owner used — the set is
+ * open, so adding one never changes this code or any stored template.
+ */
+export function entitlementGraceWarningMessages(
   warning: MechanicAccessWarning,
-): string {
-  return `${MECHANIC_REGISTRY[mechanic].label}: полный доступ до ${warningDateLabel(warning.until)}. Затем — ${ACCESS_STATE_LABELS[warning.nextState]}. Предупреждений: ${warning.count}.`;
+  variables: Readonly<Record<string, string>>,
+  now: Date = new Date(),
+): string[] {
+  return dueAccessNotifications({
+    notifications: warning.notifications,
+    periodEndsAt: warning.periodEndsAt,
+    now,
+    // The ladder only degrades after an unpaid period, so the rows that apply here are the ones
+    // the owner marked with that outcome. The condition lives in his row, not in a branch here.
+    condition: 'payment_failed',
+  }).map((rule) => renderAccessNotification(rule.template, variables));
 }
 
 export async function getMechanicSurfaceVisibility(

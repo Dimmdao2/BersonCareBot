@@ -86,19 +86,18 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
           tariff_system_access_policy: {
             graceDays: 5,
             readOnlyDays: 2,
-            warningCount: 3,
+            notifications: [],
             terminalState: 'disabled',
           },
           tariff_mechanic_access_policies: {
             courses: {
               graceDays: 2,
               readOnlyDays: 4,
-              warningCount: 1,
+              notifications: [],
               terminalState: 'read_only',
             },
           },
           included_seats: null,
-          included_seats_warning_at_percent: null,
           override_mechanic: null,
           override_enabled: null,
           override_quota: null,
@@ -116,12 +115,12 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
 
     expect(snapshot.tariff?.systemAccessPolicy).toMatchObject({
       graceDays: 5,
-      warningCount: 3,
+      notifications: [],
     });
     expect(snapshot.tariff?.mechanicAccessPolicies.courses).toMatchObject({
       graceDays: 2,
       readOnlyDays: 4,
-      warningCount: 1,
+      notifications: [],
       terminalState: 'read_only',
     });
   });

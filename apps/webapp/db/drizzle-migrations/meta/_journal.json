@@ -1996,6 +1996,13 @@
       "when": 1793539200082,
       "tag": "0284_organization_cabinet_access_ladder_local",
       "breakpoints": true
+    },
+    {
+      "idx": 285,
+      "version": "7",
+      "when": 1793539200083,
+      "tag": "0285_tariff_ladder_notifications_local",
+      "breakpoints": true
     }
   ]
 }
