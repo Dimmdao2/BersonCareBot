@@ -104,20 +104,6 @@ CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."courses"
 
 GRANT SELECT ON TABLE public.courses TO app_patient;
 
--- Orthogonal, co-located gap (not part of the patient wall this file otherwise owns): app.
--- enforce_courses_snapshot_quota() -- the AFTER INSERT trigger courses_snapshot_quota_guard on
--- this same table, owned by app_owner since apps/webapp/db/drizzle-migrations/
--- 0225_saas_tariff_quotas_trial.sql (a one-shot migration that never re-runs) -- does
--- `SELECT count(*) FROM public.courses` whenever a tariff/override sets a numeric `courses` quota.
--- That migration REVOKEd ALL on the function FROM PUBLIC but never granted app_owner SELECT on the
--- table itself; dormant today only because no numeric courses quota is armed yet, but course
--- creation would 42501 the instant one is. This overlay is public.courses' one canonical,
--- every-deploy-reapplied grants home, so the fix belongs here. Intentionally NOT revoked in the
--- DOWN branch above: DOWN only unwinds the patient-assignment wall feature this file is named for,
--- and app_owner's read here is unrelated trigger-correctness infrastructure that must survive that
--- rollback.
-GRANT SELECT ON TABLE public.courses TO app_owner;
-
 \echo 'patient-course-assignment-wall UP complete: public.courses patient-assignment RLS + app_patient SELECT grant applied.'
 
 \endif

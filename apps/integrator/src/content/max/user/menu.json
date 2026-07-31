@@ -1,8 +1,10 @@
 {
-  "diary": [
-    [{ "textTemplateKey": "max:diary.symptom", "callbackData": "diary.symptom.open" }],
-    [{ "textTemplateKey": "max:diary.lfk", "callbackData": "diary.lfk.open" }],
-    [{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-  ],
-  "main": [[{ "textTemplateKey": "max:menu.book", "callbackData": "booking.open" }]]
+  "main": [
+    [
+      {
+        "textTemplateKey": "max:menu.book",
+        "callbackData": "booking.open"
+      }
+    ]
+  ]
 }

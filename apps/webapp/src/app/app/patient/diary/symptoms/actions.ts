@@ -3,7 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { routePaths } from '@/app-layer/routes/paths';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import {
   getUtcDayRange,
   hasInstantDuplicateInWindow,
@@ -19,10 +24,28 @@ function parseOptionalId(raw: unknown): string | null {
   return t.length > 0 ? t : null;
 }
 
+async function patientDiariesRefusal(userId: string): Promise<string | null> {
+  const deps = buildAppDeps();
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    userId,
+  );
+  if (!tenant.ok) return 'Не удалось определить клинику для записи дневника';
+  const entitlement = await requireEntitlementForMutation(
+    { organizationId: tenant.organizationId },
+    'patient_diaries',
+  );
+  return entitlement.ok
+    ? null
+    : entitlementMutationRefusalMessage('добавить, изменить или удалить запись дневника');
+}
+
 export async function addSymptomEntry(
   formData: FormData,
-): Promise<{ ok: boolean; reason?: 'duplicate_instant' | 'duplicate_daily' }> {
+): Promise<{ ok: boolean; reason?: 'duplicate_instant' | 'duplicate_daily'; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const deps = buildAppDeps();
   const trackingIdRaw = formData.get('trackingId');
   const valueRaw = formData.get('value');
@@ -117,8 +140,12 @@ export async function createSymptomTracking(
   return { ok: false, reason: 'patient_self_create_disabled' };
 }
 
-export async function renameSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
+export async function renameSymptomTracking(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const trackingId = parseOptionalId(formData.get('trackingId'));
   const newTitleRaw = formData.get('newTitle');
   if (!trackingId || typeof newTitleRaw !== 'string') return { ok: false };
@@ -143,8 +170,12 @@ export async function renameSymptomTracking(formData: FormData): Promise<{ ok: b
   return { ok: true };
 }
 
-export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
+export async function archiveSymptomTracking(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const trackingId = parseOptionalId(formData.get('trackingId'));
   if (!trackingId) return { ok: false };
   const deps = buildAppDeps();
@@ -165,8 +196,12 @@ export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: 
   return { ok: true };
 }
 
-export async function updateSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {
+export async function updateSymptomJournalEntry(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diarySymptomsJournal);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const entryIdRaw = formData.get('entryId');
   const entryId = typeof entryIdRaw === 'string' ? entryIdRaw.trim() : '';
   const recordedAtRawVal = formData.get('recordedAt');
@@ -211,8 +246,12 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
   return { ok: true };
 }
 
-export async function deleteSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {
+export async function deleteSymptomJournalEntry(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
   const session = await requirePatientAccessWithPhone(routePaths.diarySymptomsJournal);
+  const refusal = await patientDiariesRefusal(session.user.userId);
+  if (refusal) return { ok: false, message: refusal };
   const entryIdRaw = formData.get('entryId');
   const entryId = typeof entryIdRaw === 'string' ? entryIdRaw.trim() : '';
   if (!entryId) return { ok: false };

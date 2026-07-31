@@ -6,6 +6,11 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { routePaths } from '@/app-layer/routes/paths';
 import { advanceDailyWarmupPresentationManually } from '@/modules/patient-home/advanceDailyWarmupPresentationManually';
 import { buildDailyWarmupPresentationSyncDeps } from '@/modules/patient-home/buildDailyWarmupPresentationSyncDeps';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 
 const bodySchema = z.object({
   contentPageId: z.string().uuid(),
@@ -30,6 +35,20 @@ export async function POST(req: Request) {
   }
 
   const deps = buildAppDeps();
+  if (parsed.data.source === 'daily_warmup') {
+    const tenant = await resolvePatientEnrollmentOrganizationId(
+      { patientOrganization: deps.patientOrganization },
+      gate.session.user.userId,
+    );
+    if (!tenant.ok) return tenant.response;
+    const entitlement = await requireEntitlementForMutation(
+      { organizationId: tenant.organizationId },
+      'warmups',
+    );
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse('warmups', 'отметить выполнение разминки');
+    }
+  }
   const result = await deps.patientPractice.record({
     userId: gate.session.user.userId,
     contentPageId: parsed.data.contentPageId,

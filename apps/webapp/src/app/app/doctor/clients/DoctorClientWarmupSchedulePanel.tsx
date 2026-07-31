@@ -115,9 +115,9 @@ export function DoctorClientWarmupSchedulePanel({ userId }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const data = (await res.json()) as { ok?: boolean; error?: string; message?: string };
       if (!res.ok || !data.ok) {
-        setError('Не удалось сохранить расписание');
+        setError(data.message ?? 'Не удалось сохранить расписание');
         return;
       }
       setSaved(true);

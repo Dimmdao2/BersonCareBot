@@ -9,6 +9,10 @@ import {
   requireEntitlementForReadAction,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
+import {
+  isWarmupsContentSection,
+  warmupsContentMutationRefusal,
+} from '@/app-layer/content/warmupsContentMutationGuard';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
 
@@ -107,6 +111,14 @@ export async function saveContentPage(
     if (!existingById) {
       return { ok: false, error: 'Страница не найдена' };
     }
+    const existingSectionRow =
+      existingById.section === section
+        ? sectionRow
+        : await deps.contentSections.getBySlug(existingById.section);
+    if (isWarmupsContentSection(sectionRow) || isWarmupsContentSection(existingSectionRow)) {
+      const refusal = await warmupsContentMutationRefusal(workspace);
+      if (refusal) return { ok: false, error: refusal };
+    }
     const dup = allPages.find(
       (p) => p.section === section && p.slug === slug && p.id !== editingId,
     );
@@ -178,6 +190,10 @@ export async function saveContentPage(
     return { ok: true };
   }
 
+  if (isWarmupsContentSection(sectionRow)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
   const existingPage = allPages.find((p) => p.section === section && p.slug === slug);
   const sortOrder = existingPage
     ? existingPage.sortOrder
@@ -213,13 +229,6 @@ export async function saveContentPage(
       }),
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('saas_quota_reached:cms_pages')) {
-      return {
-        ok: false,
-        error: 'Достигнут лимит страниц CMS по тарифу. Расширьте тариф.',
-      };
-    }
     console.error('saveContentPage failed:', err);
     return { ok: false, error: 'Не удалось сохранить страницу. Попробуйте ещё раз.' };
   }

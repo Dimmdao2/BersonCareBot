@@ -1,0 +1,59 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const fakes = vi.hoisted(() => ({
+  buildAppDeps: vi.fn(),
+  requireClinicManagementApiContext: vi.fn(),
+}));
+
+vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
+vi.mock('@/app-layer/guards/requireRole', () => ({
+  requireClinicManagementApiContext: fakes.requireClinicManagementApiContext,
+}));
+
+import { GET } from './route';
+
+const organizationId = '11111111-1111-4111-8111-111111111111';
+
+describe('GET /api/clinic/invites', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.requireClinicManagementApiContext.mockResolvedValue({ ok: true, ctx: { organizationId } });
+  });
+
+  it('refuses invitations when the clinic team is disabled', async () => {
+    const listPending = vi.fn();
+    const getSeatStatus = vi.fn();
+    fakes.buildAppDeps.mockReturnValue({
+      orgEntitlements: { resolveMechanicAccess: async () => ({ state: 'disabled', warning: null }) },
+      organizationInvites: { listPending },
+      clinicSeats: { getSeatStatus },
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    expect(listPending).not.toHaveBeenCalled();
+    expect(getSeatStatus).not.toHaveBeenCalled();
+  });
+
+  it('keeps invitations readable when the clinic team is read-only', async () => {
+    const listPending = vi.fn().mockResolvedValue([{ id: 'invite-1' }]);
+    const getSeatStatus = vi.fn().mockResolvedValue({ used: 1 });
+    fakes.buildAppDeps.mockReturnValue({
+      orgEntitlements: { resolveMechanicAccess: async () => ({ state: 'read_only', warning: null }) },
+      organizationInvites: { listPending },
+      clinicSeats: { getSeatStatus },
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      invites: [{ id: 'invite-1' }],
+      seats: { used: 1 },
+    });
+    expect(listPending).toHaveBeenCalledWith(organizationId);
+    expect(getSeatStatus).toHaveBeenCalledWith(organizationId);
+  });
+});

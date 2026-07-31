@@ -107,8 +107,6 @@ export type {
   ChannelUserPort,
   WebappEventsPort,
   WebappEventBody,
-  WebappSymptomTracking,
-  WebappLfkComplex,
   DeliveryTargetsPort,
   DeliveryTargetsFetchOptions,
   DeliveryTargetsChannelBindings,

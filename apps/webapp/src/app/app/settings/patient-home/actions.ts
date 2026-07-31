@@ -9,6 +9,7 @@ import {
   type DoctorWorkspaceAccessContext,
 } from '@/app-layer/guards/requireRole';
 import {
+  entitlementMutationRefusalMessage,
   requireEntitlementForReadAction,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
@@ -105,6 +106,15 @@ async function requireDoctorForPatientHomeMutation(): Promise<DoctorWorkspaceAcc
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
   if (!entitlement.ok) throw new Error('forbidden');
+  const todayEntitlement = await requireEntitlementForMutationAction(
+    workspace,
+    'patient_home_today',
+  );
+  if (!todayEntitlement.ok) {
+    throw new Error(
+      entitlementMutationRefusalMessage('изменить настройки главной страницы пациента'),
+    );
+  }
   return workspace;
 }
 
@@ -115,6 +125,18 @@ async function requireCoursesForPatientHomeReference(
   if (targetType !== 'course') return null;
   const entitlement = await requireEntitlementForMutationAction(workspace, 'courses');
   return entitlement.ok ? null : fail('entitlement_required');
+}
+
+async function requireWarmupsForPatientHomeBlockMutation(
+  workspace: DoctorWorkspaceAccessContext,
+  blockCode: string,
+  action: string,
+): Promise<void> {
+  if (blockCode !== 'daily_warmup') return;
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'warmups');
+  if (!entitlement.ok) {
+    throw new Error(entitlementMutationRefusalMessage(action));
+  }
 }
 
 function revalidatePatientHomeSettings(): void {
@@ -132,6 +154,11 @@ export async function togglePatientHomeBlockVisibility(
   try {
     const workspace = await requireDoctorForPatientHomeMutation();
     if (!isPatientHomeBlockCode(code)) return fail('invalid_block_code');
+    await requireWarmupsForPatientHomeBlockMutation(
+      workspace,
+      code,
+      visible ? 'показать блок разминок' : 'скрыть блок разминок',
+    );
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal(workspace, 'doctor.patient-home.toggle-block', () =>
       deps.patientHomeBlocks.setBlockVisibility(code, visible),
@@ -170,6 +197,13 @@ export async function setPatientHomeBlockIcon(
 export async function reorderPatientHomeBlocks(orderedCodes: string[]): Promise<ActionState> {
   try {
     const workspace = await requireDoctorForPatientHomeMutation();
+    if (orderedCodes.includes('daily_warmup')) {
+      await requireWarmupsForPatientHomeBlockMutation(
+        workspace,
+        'daily_warmup',
+        'изменить порядок блока разминок',
+      );
+    }
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal(workspace, 'doctor.patient-home.reorder-blocks', () =>
       deps.patientHomeBlocks.reorderBlocks(orderedCodes),
@@ -190,6 +224,11 @@ export async function addPatientHomeItem(input: {
     const workspace = await requireDoctorForPatientHomeMutation();
     const blockCode = input.blockCode;
     if (!isPatientHomeBlockCode(blockCode)) return fail('invalid_block_code');
+    await requireWarmupsForPatientHomeBlockMutation(
+      workspace,
+      blockCode,
+      'добавить материал в разминки',
+    );
     const targetTypeParsed = targetTypeSchema.safeParse(input.targetType);
     if (!targetTypeParsed.success) return fail('invalid_target_type');
     const courseDenied = await requireCoursesForPatientHomeReference(
@@ -222,6 +261,17 @@ export async function updatePatientHomeItemVisibility(
     const idParsed = parsePatientHomeItemId(itemId);
     if (!idParsed.ok) return fail(idParsed.error);
     const deps = buildAppDeps();
+    const item = await withDoctorWorkspacePrincipal(
+      workspace,
+      'doctor.patient-home.read-item',
+      () => deps.patientHomeBlocks.getItemById(idParsed.id),
+    );
+    if (!item) return fail('item_not_found');
+    await requireWarmupsForPatientHomeBlockMutation(
+      workspace,
+      item.blockCode,
+      visible ? 'показать материал разминки' : 'скрыть материал разминки',
+    );
     await withDoctorWorkspacePrincipal(
       workspace,
       'doctor.patient-home.update-item-visibility',
@@ -285,6 +335,17 @@ export async function deletePatientHomeItem(itemId: string): Promise<ActionState
     const idParsed = parsePatientHomeItemId(itemId);
     if (!idParsed.ok) return fail(idParsed.error);
     const deps = buildAppDeps();
+    const item = await withDoctorWorkspacePrincipal(
+      workspace,
+      'doctor.patient-home.read-item',
+      () => deps.patientHomeBlocks.getItemById(idParsed.id),
+    );
+    if (!item) return fail('item_not_found');
+    await requireWarmupsForPatientHomeBlockMutation(
+      workspace,
+      item.blockCode,
+      'удалить материал разминки',
+    );
     await withDoctorWorkspacePrincipal(workspace, 'doctor.patient-home.delete-item', () =>
       deps.patientHomeBlocks.deleteItem(idParsed.id),
     );
@@ -302,6 +363,11 @@ export async function reorderPatientHomeItems(
   try {
     const workspace = await requireDoctorForPatientHomeMutation();
     if (!isPatientHomeBlockCode(blockCode)) return fail('invalid_block_code');
+    await requireWarmupsForPatientHomeBlockMutation(
+      workspace,
+      blockCode,
+      'изменить порядок материалов разминки',
+    );
     const idsParsed = parsePatientHomeItemIdList(orderedItemIds);
     if (!idsParsed.ok) return fail(idsParsed.error);
     const deps = buildAppDeps();
@@ -333,6 +399,17 @@ export async function retargetPatientHomeItem(input: {
     );
     if (courseDenied) return courseDenied;
     const deps = buildAppDeps();
+    const item = await withDoctorWorkspacePrincipal(
+      workspace,
+      'doctor.patient-home.read-item',
+      () => deps.patientHomeBlocks.getItemById(parsed.data.itemId),
+    );
+    if (!item) return fail('item_not_found');
+    await requireWarmupsForPatientHomeBlockMutation(
+      workspace,
+      item.blockCode,
+      'изменить материал разминки',
+    );
     await withDoctorWorkspacePrincipal(workspace, 'doctor.patient-home.retarget-item', () =>
       deps.patientHomeBlocks.updateItem(parsed.data.itemId, {
         targetType: parsed.data.targetType as PatientHomeBlockItemTargetType,
@@ -457,9 +534,7 @@ export async function createContentSectionForPatientHomeBlock(input: {
   }
 }
 
-export async function listPatientHomeCandidates(
-  blockCode: string,
-): Promise<
+export async function listPatientHomeCandidates(blockCode: string): Promise<
   | {
       ok: true;
       items: Array<{

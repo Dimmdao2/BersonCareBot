@@ -2,7 +2,12 @@ import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
@@ -28,6 +33,21 @@ export async function POST(req: Request) {
   }
 
   const deps = buildAppDeps();
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    gate.session.user.userId,
+  );
+  if (!tenant.ok) return tenant.response;
+  const entitlement = await requireEntitlementForMutation(
+    { organizationId: tenant.organizationId },
+    'patient_diaries',
+  );
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse(
+      'patient_diaries',
+      'добавить или изменить запись самочувствия',
+    );
+  }
   const tz = await getAppDisplayTimeZone();
   const result = await deps.patientMood.submitScore(
     gate.session.user.userId,

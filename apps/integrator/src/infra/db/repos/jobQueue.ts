@@ -20,6 +20,8 @@ export async function enqueueMessageRetryJob(
     phoneNormalized: string | null;
     messageText: string | null;
     firstTryDelaySeconds: number;
+    /** Prefer an absolute timestamp when the product event has a fixed due time. */
+    firstTryAt?: string;
     maxAttempts: number;
     kind: string;
     payloadJson: Record<string, unknown>;
@@ -30,7 +32,8 @@ export async function enqueueMessageRetryJob(
   await d.insert(messageRetryJobs).values({
     phoneNormalized: input.phoneNormalized,
     messageText: input.messageText,
-    nextTryAt: sql`now() + (${String(delaySec)}::text || ' seconds')::interval`,
+    nextTryAt:
+      input.firstTryAt ?? sql`now() + (${String(delaySec)}::text || ' seconds')::interval`,
     attemptsDone: 0,
     maxAttempts: Math.max(1, Math.trunc(input.maxAttempts)),
     status: 'pending',

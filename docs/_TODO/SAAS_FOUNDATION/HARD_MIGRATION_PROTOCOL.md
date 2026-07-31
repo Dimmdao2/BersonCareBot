@@ -32,8 +32,9 @@ be updated in the same change.
    `pg_dump -Fc --no-owner --no-acl` path. No production writes, no production migrations, no production
    env edits, no service restarts, and no manual production SQL.
 2. TEST is the rehearsal target. Routine code changes use `deploy/host/deploy-test.sh`, which never restores or
-   recreates TEST. The from-zero wrapper is currently blocked: it still requires retired Rubitime inputs and must
-   not be invoked until that contract is removed in an owner-reviewed change.
+   recreates TEST. A from-zero run is a one-off full migration rehearsal, never a routine deploy/check, and requires
+   a direct owner command for that exact run. The from-zero wrapper is currently blocked: it still requires retired
+   Rubitime inputs and must not be invoked until that contract is removed in an owner-reviewed change.
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
    restore. Do not patch rows by hand to get past a gate.
@@ -571,7 +572,8 @@ Owner decision 2026-07-30 supersedes the former DEV restore/rehydrate procedure:
 Pending shared migrations are applied to the existing DEV database through
 `bash deploy/host/migrate-dev.sh --preflight`, then `bash deploy/host/migrate-dev.sh --execute`. This wrapper
 validates exact local `bcb_webapp_dev`/`bcb_webapp_dev_user` and runs the ordinary repository migration chain; it
-does not copy TEST, restore a dump, change roles/ACL or test RLS walls.
+does not copy TEST, restore a dump or test RLS walls. Only for the migration window it grants the DEV database
+owner membership in `app_owner` and `BYPASSRLS`, then revokes and verifies both on success, failure or signal.
 
 The DEV/disposable rehearsal path is now repo-tracked and separate from TEST services:
 

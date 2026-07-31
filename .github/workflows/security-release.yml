@@ -18,27 +18,23 @@ on:
 permissions:
   contents: read
 
-env:
-  TRIVY_ACTION_REF: '0.28.0'
-
 jobs:
   trivy-full:
     name: Trivy (full-severity pre-release scan)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Trivy filesystem scan (all severities, report-only)
         # Same scan-type/scanners/.trivyignore as the PR-time `trivy-fs` job in security.yml, but
         # no `severity:` filter (scans LOW/MEDIUM/HIGH/CRITICAL) and exit-code 0 so the job does
         # not fail the run — findings are surfaced via the SARIF artifact below for owner triage.
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           scanners: vuln,misconfig,secret
-          ignore-unfixed: true
           exit-code: '0'
           trivyignores: .trivyignore
           format: sarif
@@ -48,20 +44,19 @@ jobs:
         # Second pass, CRITICAL severity only, exit-code 1: this is the actual release gate — a
         # release must not ship with a known, un-triaged CRITICAL finding. Re-uses the same
         # .trivyignore, so anything already triaged there is exempt.
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           scanners: vuln,misconfig,secret
           severity: CRITICAL
-          ignore-unfixed: true
           exit-code: '1'
           trivyignores: .trivyignore
           format: table
 
       - name: Upload full-severity SARIF report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: trivy-full-report
           path: trivy-full-report.sarif

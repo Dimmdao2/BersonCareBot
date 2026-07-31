@@ -38,6 +38,7 @@ import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import type { PatientBookingRecord } from './types';
 import { prepaymentContextFromBooking } from '@/modules/payments/prepaymentContextFromBooking';
 import type { BeAppointment } from '@/modules/booking-engine/types';
+import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return (
@@ -140,6 +141,7 @@ export function createPatientBookingService(input: {
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
+  getAppointmentReminderPlan?: (organizationId: string) => Promise<AppointmentReminderPlan>;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
@@ -172,6 +174,7 @@ export function createPatientBookingService(input: {
           getPlatformUserIdentityContacts: input.getPlatformUserIdentityContacts,
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
+          getAppointmentReminderPlan: input.getAppointmentReminderPlan,
         }
       : null;
 
@@ -506,6 +509,7 @@ export function createPatientBookingService(input: {
       const idempotencyKey = `booking.rescheduled:${row.id}:${rescheduleInput.slotStart}`;
       let integratorStatus: 'sent' | 'failed' = 'failed';
       try {
+        const reminderPlan = await input.getAppointmentReminderPlan?.(orgId);
         await input.syncPort.emitBookingEvent({
           eventType: 'booking.rescheduled',
           idempotencyKey,
@@ -524,6 +528,7 @@ export function createPatientBookingService(input: {
             cityCodeSnapshot: row.cityCodeSnapshot,
             serviceTitleSnapshot: row.serviceTitleSnapshot,
             canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
+            ...(reminderPlan ? { reminderPlan } : {}),
           },
         });
         integratorStatus = 'sent';

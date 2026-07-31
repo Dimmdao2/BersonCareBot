@@ -84,6 +84,11 @@ export type IntegratorEventsDeps = {
       notes: string | null;
     }) => Promise<unknown>;
   };
+  diaryMutationGate: {
+    checkPatientDiariesWrite: (
+      platformUserId: string,
+    ) => Promise<{ ok: true } | { ok: false; message: string }>;
+  };
   users?: {
     upsertFromProjection: (params: {
       integratorUserId: string;
@@ -225,6 +230,14 @@ async function resolveDiaryPlatformUserId(
   return fn(platformUserId);
 }
 
+async function refuseDisabledPatientDiaries(
+  deps: IntegratorEventsDeps,
+  platformUserId: string,
+): Promise<IntegratorHandleResult | null> {
+  const gate = await deps.diaryMutationGate.checkPatientDiariesWrite(platformUserId);
+  return gate.ok ? null : { accepted: false, reason: gate.message, retryable: false };
+}
+
 async function acceptAfterMergeConflict(
   deps: IntegratorEventsDeps,
   err: unknown,
@@ -263,6 +276,8 @@ export async function handleIntegratorEvent(
     }
     try {
       const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
+      const refusal = await refuseDisabledPatientDiaries(deps, canonUserId);
+      if (refusal) return refusal;
       await deps.diaries.createSymptomTracking({
         userId: canonUserId,
         symptomKey: typeof payload.symptomKey === 'string' ? payload.symptomKey : null,
@@ -287,6 +302,8 @@ export async function handleIntegratorEvent(
     }
     try {
       const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
+      const refusal = await refuseDisabledPatientDiaries(deps, canonUserId);
+      if (refusal) return refusal;
       await deps.diaries.createLfkComplex({
         userId: canonUserId,
         title: (title as string).trim(),
@@ -313,6 +330,8 @@ export async function handleIntegratorEvent(
     const completedAtStr = typeof completedAt === 'string' ? completedAt : new Date().toISOString();
     try {
       const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
+      const refusal = await refuseDisabledPatientDiaries(deps, canonUserId);
+      if (refusal) return refusal;
       await deps.diaries.addLfkSession({
         userId: canonUserId,
         complexId,
@@ -352,6 +371,8 @@ export async function handleIntegratorEvent(
     const recordedAtStr = typeof recordedAt === 'string' ? recordedAt : new Date().toISOString();
     try {
       const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
+      const refusal = await refuseDisabledPatientDiaries(deps, canonUserId);
+      if (refusal) return refusal;
       await deps.diaries.addSymptomEntry({
         userId: canonUserId,
         trackingId,

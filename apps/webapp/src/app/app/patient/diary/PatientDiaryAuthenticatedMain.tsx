@@ -16,6 +16,7 @@ import { PatientDiaryPlanWeekStripes } from '@/modules/patient-diary/components/
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { PatientDiaryWeekNavStrip } from './PatientDiaryWeekNavStrip';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import { canMaterializePatientMechanicOnRead } from '@/app-layer/entitlements/readMaterializationGate';
 
 const EMPTY_STATS =
   'За эту неделю пока нет отметок общего самочувствия. Отметки можно добавить на главной «Сегодня».';
@@ -41,6 +42,11 @@ async function renderPatientDiaryAuthenticatedMain({
   week?: string;
 }) {
   const deps = buildAppDeps();
+  const materializeDiaryState = await canMaterializePatientMechanicOnRead(
+    deps,
+    userId,
+    'patient_diaries',
+  );
 
   const wellbeing = await loadPatientDiaryWeekWellbeing(
     {
@@ -50,7 +56,7 @@ async function renderPatientDiaryAuthenticatedMain({
       patientCalendarTimezone: deps.patientCalendarTimezone,
       getAppDisplayTimeZone,
     },
-    { userId, week },
+    { userId, week, materializeMissingTrackings: materializeDiaryState },
   );
 
   const activity = await loadPatientDiaryWeekActivity(
@@ -70,6 +76,7 @@ async function renderPatientDiaryAuthenticatedMain({
       weekStartMs: wellbeing.chart.weekStartMs,
       weekEndMs: wellbeing.chart.weekEndMs,
       iana: wellbeing.iana,
+      materializeMissingSnapshots: materializeDiaryState,
     },
   );
 

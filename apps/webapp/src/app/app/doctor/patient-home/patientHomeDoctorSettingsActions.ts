@@ -6,6 +6,10 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
+import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
 } from '@/modules/patient-home/patientHomeRepeatCooldownSettings';
@@ -31,6 +35,7 @@ async function requireDoctorWorkspaceOrThrow(): Promise<{
   organizationId: string;
 }> {
   const workspace = await requireDoctorWorkspaceContext();
+  await requirePatientHomeTodayEntitlementOrThrow(workspace.organizationId);
   return { userId: workspace.session.user.userId, organizationId: workspace.organizationId };
 }
 
@@ -42,7 +47,27 @@ async function requirePatientHomeOwnerOrThrow(): Promise<{
   if (workspace.membershipRole !== 'owner') {
     throw new Error('forbidden');
   }
+  await requirePatientHomeTodayEntitlementOrThrow(workspace.organizationId);
   return { userId: workspace.session.user.userId, organizationId: workspace.organizationId };
+}
+
+async function requirePatientHomeTodayEntitlementOrThrow(organizationId: string): Promise<void> {
+  const entitlement = await requireEntitlementForMutationAction(
+    { organizationId },
+    'patient_home_today',
+  );
+  if (!entitlement.ok) {
+    throw new Error(
+      entitlementMutationRefusalMessage('изменить настройки главной страницы пациента'),
+    );
+  }
+}
+
+async function requireWarmupsEntitlementOrThrow(organizationId: string): Promise<void> {
+  const entitlement = await requireEntitlementForMutationAction({ organizationId }, 'warmups');
+  if (!entitlement.ok) {
+    throw new Error(entitlementMutationRefusalMessage('изменить настройки разминок'));
+  }
 }
 
 const moodRowSchema = z.object({
@@ -77,8 +102,8 @@ export async function savePatientHomePracticeTargetAction(
     );
     revalidatePatientHomePages();
     return { ok: true };
-  } catch {
-    return { ok: false, error: 'forbidden' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
   }
 }
 
@@ -101,6 +126,7 @@ export async function savePatientHomeRepeatCooldownsAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const { userId, organizationId } = await requireDoctorWorkspaceOrThrow();
+    await requireWarmupsEntitlementOrThrow(organizationId);
     const parsed = patientHomeRepeatCooldownsSaveSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: 'invalid_body' };
@@ -127,8 +153,8 @@ export async function savePatientHomeRepeatCooldownsAction(
     );
     revalidatePatientHomePages();
     return { ok: true };
-  } catch {
-    return { ok: false, error: 'forbidden' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
   }
 }
 
@@ -138,6 +164,7 @@ export async function savePatientHomeWarmupRotationAction(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
+    await requireWarmupsEntitlementOrThrow(organizationId);
     if (
       typeof input.enabled !== 'boolean' ||
       !isValidPatientHomeDailyWarmupRotationTimesPayload(input.times)
@@ -169,8 +196,8 @@ export async function savePatientHomeWarmupRotationAction(input: {
     );
     revalidatePatientHomePages();
     return { ok: true };
-  } catch {
-    return { ok: false, error: 'forbidden' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
   }
 }
 
@@ -202,7 +229,7 @@ export async function savePatientHomeMoodIconsAction(
     );
     revalidatePatientHomePages();
     return { ok: true };
-  } catch {
-    return { ok: false, error: 'forbidden' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'forbidden' };
   }
 }

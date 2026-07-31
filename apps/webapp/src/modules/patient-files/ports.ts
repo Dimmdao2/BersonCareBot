@@ -39,6 +39,11 @@ export type CreatePatientFileParams = {
   mimeType: string;
   sizeBytes: number;
   uploadedByUserId: string;
+  /**
+   * Server-derived file-volume ceiling. `null` is an unlimited/compatibility path; a finite
+   * value is enforced atomically by the write port.
+   */
+  storageLimitBytes?: number | null;
   /** When provided, a media_files row is co-created in this folder and linked via mediaFileId. */
   folderId?: string | null;
 };

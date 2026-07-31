@@ -335,7 +335,10 @@ import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTa
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
-import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
+import {
+  loadAppointmentReminderPlanFromSystemSettings,
+  loadBookingLifecycleNotificationsFromSystemSettings,
+} from '@/modules/booking-notifications/settings';
 import { pgPatientBookingsPort } from '@/infra/repos/pgPatientBookings';
 import { inMemoryPatientBookingsPort } from '@/infra/repos/inMemoryPatientBookings';
 import { createPgPatientMaintenanceHistoryPort } from '@/infra/repos/pgPatientMaintenanceHistory';
@@ -796,6 +799,11 @@ const onAppointmentPaymentConfirmed = bookingEngineService
         loadBookingLifecycleNotificationsFromSystemSettings((key, scope) =>
           systemSettingsService.getSetting(key, scope),
         ),
+      loadReminderPlan: (organizationId) =>
+        loadAppointmentReminderPlanFromSystemSettings(
+          organizationId,
+          (key, scope, options) => systemSettingsService.getSetting(key, scope, options),
+        ),
       bookingSync: bookingSyncPortForPayments,
     })
   : undefined;
@@ -1105,8 +1113,11 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
   testAttempts: treatmentProgramTestAttemptsPort,
   getDefaultPromoTemplateId: ({ organizationId } = {}) =>
     systemSettingsService.getPatientDefaultPromoTreatmentProgramTemplateId({ organizationId }),
-  snapshotDiaryDaysBeforePromoRefresh: (input) =>
-    snapshotPromoDaysBeforeRefresh(
+  snapshotDiaryDaysBeforePromoRefresh: async (input) => {
+    if (!(await isMechanicEnabled(orgEntitlementsPort, input.organizationId, 'patient_diaries'))) {
+      return;
+    }
+    await snapshotPromoDaysBeforeRefresh(
       {
         reminders: remindersService,
         patientPractice: patientPracticeService,
@@ -1122,7 +1133,8 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
         getPatientCalendarTimezoneIana: patientCalendarTimezoneGet,
       },
       input,
-    ),
+    );
+  },
 });
 const coursesService = createCoursesService({
   courses: coursesPort,
@@ -1185,6 +1197,11 @@ patientBookingService = createPatientBookingService({
       await import('@/modules/booking-notifications/settings');
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
+  getAppointmentReminderPlan: (organizationId) =>
+    loadAppointmentReminderPlanFromSystemSettings(
+      organizationId,
+      (key, scope, options) => systemSettingsService.getSetting(key, scope, options),
+    ),
 });
 
 const patientHomeBlocksService = createPatientHomeBlocksService({

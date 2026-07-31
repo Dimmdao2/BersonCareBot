@@ -42,7 +42,7 @@ describe('pgWebPushOnlyReminders (pg SQL)', () => {
     expect(sql).toContain('queued');
   });
 
-  it('claimDueOccurrences resets stale queued then claims with FOR UPDATE SKIP LOCKED', async () => {
+  it('claimDueOccurrences locks only occurrence rows with SKIP LOCKED', async () => {
     runWebappSqlMock
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({
@@ -68,7 +68,7 @@ describe('pgWebPushOnlyReminders (pg SQL)', () => {
     const selectSql = drizzleSqlFragmentToApproximateSql(runWebappSqlMock.mock.calls[1]?.[1]);
     expect(resetSql).toContain("status = 'planned'");
     expect(resetSql).toContain('organization_id');
-    expect(selectSql).toContain('FOR UPDATE SKIP LOCKED');
+    expect(selectSql).toContain('FOR UPDATE OF o SKIP LOCKED');
     expect(selectSql).toContain("status = 'planned'");
     expect(selectSql).toContain('organization_id');
     const updateSql = drizzleSqlFragmentToApproximateSql(runWebappSqlMock.mock.calls[2]?.[1]);

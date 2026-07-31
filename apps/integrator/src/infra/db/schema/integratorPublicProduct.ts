@@ -16,6 +16,7 @@ import {
   text,
   timestamp,
   unique,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 export const bookingCalendarMap = pgTable(
@@ -74,3 +75,10 @@ export const deliveryAttemptLogs = pgTable(
     ),
   ],
 );
+
+/** Existing public enrollment table, mapped narrowly for shared direct-writer actor resolution. */
+export const orgEnrollments = pgTable('org_enrollments', {
+  platformUserId: uuid('platform_user_id').notNull(),
+  organizationId: uuid('organization_id').notNull(),
+  status: text().notNull(),
+});

@@ -663,9 +663,12 @@ U3S (#919)**, а не свежий скоуп — помечать так в к�
 `pnpm --dir apps/webapp exec vitest --run src/infra/repos/platformSupportConversationReadMigration.test.ts
 src/shared/ui/doctor/platformNavLinks.test.ts src/app-layer/principal/pagePrincipalCensus.test.ts
 src/middleware/csrfOrigin.test.ts` — 4 файла / 33 passed / 1 skipped; journal sync и webapp typecheck — OK.
-Пункты 11.1–11.6 остаются открытыми: безопасный helpdesk должен использовать отдельную модель из
-`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md` §4; номер новой миграции назначается при интеграции, не в
-параллельном correction-клоне.
+Пункты 11.1–11.6 остаются открытыми. Текущий единый исполнительный план:
+[`SUPPORT_TICKETS_1070.md`](SUPPORT_TICKETS_1070.md). Support-часть старого
+`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md` §4–§7 помечена superseded: она предлагала один continuous chat,
+interim `/app/doctor/**` и in-app-only уведомление до поздних решений владельца о тикетах, `/app/admin/**`,
+вложениях/экспорте и почте+мессенджере. Номер новой миграции назначается при интеграции, не в параллельном
+плановом клоне.
 
 **Вопрос владельца «неужели нет готовых модулей попроще» закрыт второй разведкой 28.07.** Единственный кандидат
 на нашем стеке — Peppermint (Next.js + Postgres) — **заархивирован 17.07.2026**, репозиторий read-only.

@@ -6,6 +6,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { isWarmupsContentSectionReminderRule } from '@/modules/reminders/warmupsReminderRuleMatch';
 import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
@@ -81,6 +85,10 @@ export async function GET(_req: Request, context: { params: Promise<{ userId: st
 export async function PATCH(req: Request, context: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'warmups');
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse('warmups', 'изменить расписание разминок');
+  }
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {

@@ -76,6 +76,8 @@ export const SYSTEM_SETTING_REGISTRY = {
   error_tracking_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   error_tracking_dsn: runtime('admin', 'global', 'server', 'url', ''),
   platform_user_merge_v2_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
+  /** Platform-wide product switch, deliberately not a per-tariff mechanic. */
+  material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   integrator_linked_phone_source: runtime(
     'admin',
     'global',

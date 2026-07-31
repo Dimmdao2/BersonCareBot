@@ -73,11 +73,6 @@ export type IncomingCallbackUpdate = {
   conversationId?: string;
   /** Parsed from program_reply:{stageItemId} (ответ врача на наблюдение пациента по упражнению). */
   stageItemId?: string;
-  /** Parsed from diary.symptom.select:id, diary.symptom.value:id:n, diary.symptom.entryType:id:n:type, diary.lfk.select:id, diary.lfk.session:id */
-  trackingId?: string;
-  value?: number;
-  entryType?: string;
-  complexId?: string;
   reminderOccurrenceId?: string;
   reminderSnoozeMinutes?: number;
   reminderMuteMinutes?: number;

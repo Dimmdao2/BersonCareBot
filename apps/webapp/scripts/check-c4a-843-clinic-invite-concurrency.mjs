@@ -54,7 +54,13 @@ export function extractAcceptOrgInviteFunctionSql(overlaySource) {
   return overlaySource.slice(start, end);
 }
 
-export function extractCreateReplacingPendingSqlFragments(repoSource) {
+export function extractClinicSeatUsageSql(seatUsageSource) {
+  const match = seatUsageSource.match(/export const CLINIC_SEAT_USAGE_SQL\s*=\s*`([\s\S]*?)`;/);
+  if (!match) fail('could not locate CLINIC_SEAT_USAGE_SQL in seatUsageSql.ts');
+  return match[1];
+}
+
+export function extractCreateReplacingPendingSqlFragments(repoSource, clinicSeatUsageSql) {
   const start = repoSource.indexOf('async createReplacingPending');
   const end = repoSource.indexOf('async listPendingByOrganization');
   if (start < 0 || end < 0)
@@ -66,7 +72,8 @@ export function extractCreateReplacingPendingSqlFragments(repoSource) {
       `expected exactly 5 extracted SQL fragments in createReplacingPending, found ${fragments.length}`,
     );
   }
-  const [lockSql, activeMemberSql, capacitySql, revokeSql, insertSql] = fragments;
+  const [lockSql, activeMemberSql, capacityTemplate, revokeSql, insertSql] = fragments;
+  const capacitySql = capacityTemplate.replace('${CLINIC_SEAT_USAGE_SQL}', clinicSeatUsageSql);
   return { lockSql, activeMemberSql, capacitySql, revokeSql, insertSql };
 }
 
@@ -83,13 +90,6 @@ export function extractCountSeatReservationsSql(repoSource) {
     );
   }
   return fragments[0];
-}
-
-export function extractClinicTeamFailClosedSeatBaseline(typesSource) {
-  const match = typesSource.match(/CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE\s*=\s*(\d+)/);
-  if (!match)
-    fail('could not locate CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE in org-entitlements/types.ts');
-  return Number(match[1]);
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +242,20 @@ async function seedOrgWithClinicTeamEntitlement(organizationId, seatLimit) {
   });
 }
 
+async function seedOrgWithTariffSeats(organizationId, seatLimit) {
+  await withClient(async (client) => {
+    const tariffId = `${organizationId.slice(0, -1)}f`;
+    await client.query(`INSERT INTO public.saas_tariffs (id, included_seats) VALUES ($1, $2)`, [
+      tariffId,
+      seatLimit,
+    ]);
+    await client.query(
+      `INSERT INTO public.be_organizations (id, title, tariff_id) VALUES ($1, 'Clinic', $2)`,
+      [organizationId, tariffId],
+    );
+  });
+}
+
 async function insertPlatformUser(id, emailNormalized) {
   await withClient((client) =>
     client.query(
@@ -258,7 +272,6 @@ async function insertPlatformUser(id, emailNormalized) {
 
 let CREATE_SQL;
 let RESERVATION_SQL;
-let SEAT_BASELINE;
 
 async function createReplacingPendingProof(client, input) {
   await client.query(CREATE_SQL.lockSql, [input.organizationId]);
@@ -272,7 +285,6 @@ async function createReplacingPendingProof(client, input) {
     const capacity = await client.query(CREATE_SQL.capacitySql, [
       input.organizationId,
       input.invitedEmail,
-      SEAT_BASELINE,
     ]);
     const row = capacity.rows[0];
     const limitValue = row?.limit_value ?? 0;
@@ -583,6 +595,39 @@ async function scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationU
   });
 }
 
+async function scenarioTariffSeatsAllowAcceptWithoutOverride() {
+  const org = '20000000-0000-4000-8000-0000000000d1';
+  const platformUser = '30000000-0000-4000-8000-0000000000d1';
+  const email = 'tariff-seat-843@example.com';
+  await seedOrgWithTariffSeats(org, 1);
+  await insertPlatformUser(platformUser, email);
+
+  const created = await withClient((client) =>
+    runInTransaction(client, (transaction) =>
+      createReplacingPendingProof(transaction, {
+        organizationId: org,
+        invitedEmail: email,
+        invitedRole: 'doctor',
+        tokenHash: 'token-tariff-seat-843',
+        expiresAt: FAR_FUTURE_EXPIRY,
+        createdByPlatformUserId: ACTOR,
+      }),
+    ),
+  );
+  if (!created.ok) {
+    fail('a tariff included_seats value without an override must allow invite creation');
+  }
+
+  const accepted = await withClient((client) =>
+    acceptOrgInviteProof(client, 'token-tariff-seat-843', platformUser, email),
+  );
+  if (!accepted.ok) {
+    fail(
+      `a tariff included_seats value without an override must allow invite acceptance, got ${accepted.code}`,
+    );
+  }
+}
+
 try {
   if (!existsSync(path.join(pgBin, 'initdb'))) fail('PostgreSQL 16 binaries are unavailable');
   port = await reservePrivatePort();
@@ -604,23 +649,27 @@ try {
     path.join(root, 'apps/webapp/src/infra/repos/pgOrganizationInvites.ts'),
     'utf8',
   );
-  const typesSource = readFileSync(
-    path.join(root, 'apps/webapp/src/modules/org-entitlements/types.ts'),
+  const seatUsageSource = readFileSync(
+    path.join(root, 'apps/webapp/src/infra/repos/seatUsageSql.ts'),
     'utf8',
   );
-  CREATE_SQL = extractCreateReplacingPendingSqlFragments(repoSource);
+  CREATE_SQL = extractCreateReplacingPendingSqlFragments(
+    repoSource,
+    extractClinicSeatUsageSql(seatUsageSource),
+  );
   RESERVATION_SQL = extractCountSeatReservationsSql(repoSource);
-  SEAT_BASELINE = extractClinicTeamFailClosedSeatBaseline(typesSource);
 
   await installMinimalSyntheticSchema();
   await scenarioTwoConcurrentDifferentEmailCreatesAtFinalSeat();
   await scenarioSameEmailReplacementAtExactLimitUnderContention();
   await scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationUntilBinding();
+  await scenarioTariffSeatsAllowAcceptWithoutOverride();
 
   console.log(
     'C4A #843 clinic invite concurrency proof: OK (aggregate-only) — different-email race, ' +
       'same-email replacement under contention, create-vs-accept for the last seat, and ' +
-      'reservation-until-binding all verified against a real private PostgreSQL 16 server',
+      'reservation-until-binding plus tariff-only included_seats acceptance all verified against ' +
+      'a real private PostgreSQL 16 server',
   );
 } finally {
   if (serverStarted) {
