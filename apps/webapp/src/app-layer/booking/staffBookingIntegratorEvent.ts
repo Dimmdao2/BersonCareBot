@@ -1,6 +1,7 @@
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { BookingSyncPort } from '@/modules/patient-booking/ports';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
 import {
   buildPatientCancelledMessageText,
   buildPatientCreatedMessageText,
@@ -55,6 +56,8 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   patientPushVariant?: 'created' | 'cancelled' | 'rescheduled' | null;
   /** D14(4): вебапп-решение — уведомлять ли врача. */
   doctorNotify?: boolean;
+  /** D13a(добор): план напоминаний для путей персонала — читается вебаппом из настроек клиники. */
+  reminderPlan?: AppointmentReminderPlan;
 }): Promise<'sent' | 'skipped'> {
   // R21: if suppression is active, skip the integrator event entirely (patient notification).
   if (opts.suppressPatientNotification) return 'skipped';
@@ -102,6 +105,7 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
         serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(opts.appointment, bookingRow),
         canonicalAppointmentId: opts.appointment.id,
+        ...(opts.reminderPlan ? { reminderPlan: opts.reminderPlan } : {}),
         ...(opts.suppressPatientNotification ? { suppressPatientNotification: true } : {}),
         ...(opts.cancelPendingReminders !== undefined
           ? { cancelPendingReminders: opts.cancelPendingReminders }
