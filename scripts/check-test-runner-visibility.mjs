@@ -14,6 +14,14 @@
 //   - новый невидимый файл, которого нет в храповике → FAIL (дыра выросла);
 //   - запись храповика, чей файл уже удалён/перенесён → FAIL (запись протухла, список не обновили).
 // Эти 22 файла (блок Б3) НЕ трогаются этим гейтом — гейт их не чинит, только не даёт добавить новые.
+//
+// М4 круг 2 (#1081, M4-4 слепого аудита): «список имеет право только сокращаться» был ТОЛЬКО этим
+// комментарием — ничто не мешало дописать новый невидимый файл в 'apps' рядом с ним самим, и гейт
+// зеленел. Файл теперь несёт второе поле 'frozenBaseline' — зафиксированный на дату среза состав.
+// 'apps' обязан быть подмножеством 'frozenBaseline' для каждого приложения; любой путь в 'apps',
+// которого нет в 'frozenBaseline', — FAIL, независимо от того, действительно ли он невидим раннеру
+// сегодня. Ослабить список может только правка самого 'frozenBaseline' — а это отдельное поле,
+// значит отдельный, видимый в дифф-ревью, hunk, а не строка, спрятанная внутри обычного 'apps'.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -33,7 +41,9 @@ function loadKnownInvisible() {
   const raw = JSON.parse(readFileSync(knownInvisiblePath, 'utf8'));
   const apps = {};
   for (const [app, files] of Object.entries(raw.apps ?? {})) apps[app] = new Set(files);
-  return { asOf: raw.asOf, apps };
+  const frozenBaseline = {};
+  for (const [app, files] of Object.entries(raw.frozenBaseline ?? {})) frozenBaseline[app] = new Set(files);
+  return { asOf: raw.asOf, apps, frozenBaseline };
 }
 
 function listDiskTestFiles(appDirAbs, testRoots) {
@@ -88,11 +98,16 @@ function checkApp(app, known) {
   const runner = listRunnerFiles(appDirAbs);
   const invisible = disk.filter((file) => !runner.has(file));
   const knownFiles = known.apps[app.name] ?? new Set();
+  const baselineFiles = known.frozenBaseline[app.name] ?? new Set();
 
   const newInvisible = invisible.filter((file) => !knownFiles.has(file));
   const staleKnown = [...knownFiles].filter((file) => !diskSet.has(file));
+  // M4 круг 2 (M4-4): рост храповика — путь, дописанный в 'apps', которого нет в зафиксированном
+  // 'frozenBaseline'. Проверяется независимо от newInvisible/staleKnown выше: даже если файл
+  // сегодня реально невидим раннеру, дописать его в исключения без правки frozenBaseline — FAIL.
+  const ratchetGrowth = [...knownFiles].filter((file) => !baselineFiles.has(file));
 
-  return { app: app.name, disk: disk.length, runner: runner.size, invisible, newInvisible, staleKnown };
+  return { app: app.name, disk: disk.length, runner: runner.size, invisible, newInvisible, staleKnown, ratchetGrowth };
 }
 
 function printReport(results, known) {
@@ -111,6 +126,14 @@ function printReport(results, known) {
       console.error(`  ПРОТУХШАЯ запись храповика (файла больше нет на диске):`);
       for (const f of r.staleKnown) console.error(`    - ${r.app}/${f}`);
       console.error(`  Удали запись из ${knownInvisiblePath} — список имеет право только сокращаться.`);
+    }
+    if (r.ratchetGrowth.length > 0) {
+      failed = true;
+      console.error(`  РОСТ ХРАПОВИКА (запись в 'apps' отсутствует в 'frozenBaseline' ${knownInvisiblePath}):`);
+      for (const f of r.ratchetGrowth) console.error(`    - ${r.app}/${f}`);
+      console.error(`  'apps' обязан быть подмножеством 'frozenBaseline'. Если это осознанное новое`);
+      console.error(`  исключение — правку принимает владелец плана блока М, и она обязана явно`);
+      console.error(`  редактировать сам 'frozenBaseline', а не только 'apps'.`);
     }
   }
   return failed;
