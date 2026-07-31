@@ -304,7 +304,7 @@ async function cancelPendingBookingReminders(bookingId: string): Promise<void> {
   await cancelPendingBookingReminderJobsByBookingId(db, bookingId);
 }
 
-async function scheduleBookingReminders(input: {
+export async function scheduleBookingReminders(input: {
   organizationId?: string;
   bookingId: string;
   slotStartIso: string;
@@ -312,7 +312,9 @@ async function scheduleBookingReminders(input: {
   patientName: string | null;
   timeZone: string;
   webappEventsPort?: WebappEventsPort;
+  reminderPlan?: { enabled: boolean; offsetsMinutes: number[] };
 }): Promise<void> {
+  if (input.reminderPlan?.enabled === false) return;
   const deliveryTargets = createDeliveryTargetsPort({
     getAppBaseUrl: async () => env.APP_BASE_URL,
   });
@@ -362,7 +364,7 @@ async function scheduleBookingReminders(input: {
   const db = createDbPort();
   const patientLabel = input.patientName ?? 'Пациент';
   const dateLabel = formatBookingRuDateTime(input.slotStartIso, input.timeZone);
-  const reminders = [
+  const legacyReminders = [
     {
       code: '24h',
       offsetMs: 24 * 60 * 60 * 1000,
@@ -374,11 +376,17 @@ async function scheduleBookingReminders(input: {
       text: `Напоминание: приём ${dateLabel} (через 2 часа).`,
     },
   ];
+  const reminders = input.reminderPlan
+    ? input.reminderPlan.offsetsMinutes.map((offsetMinutes) => ({
+        code: `${offsetMinutes}m`,
+        offsetMs: offsetMinutes * 60 * 1000,
+        text: `Напоминание: приём ${dateLabel} (через ${offsetMinutes} мин.).`,
+      }))
+    : legacyReminders;
 
   for (const reminder of reminders) {
     const runAtMs = startMs - reminder.offsetMs;
-    const delaySec = Math.floor((runAtMs - Date.now()) / 1000);
-    if (delaySec <= 0) continue;
+    if (runAtMs <= Date.now()) continue;
     const channels = targets.map((x) => x.resource);
     const payloadJson = {
       intent: {
@@ -406,7 +414,8 @@ async function scheduleBookingReminders(input: {
     await enqueueMessageRetryJob(db, {
       phoneNormalized: input.phoneNormalized,
       messageText: `${patientLabel}, ${reminder.text}`,
-      firstTryDelaySeconds: delaySec,
+      firstTryDelaySeconds: 0,
+      firstTryAt: new Date(runAtMs).toISOString(),
       maxAttempts: 2,
       kind: 'message.deliver',
       payloadJson,
@@ -568,6 +577,7 @@ async function handleBookingLifecycleEvent(
         patientName,
         timeZone,
         ...(webappEventsPort ? { webappEventsPort } : {}),
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
       });
       await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
       return;
@@ -633,6 +643,7 @@ async function handleBookingLifecycleEvent(
         patientName,
         timeZone,
         ...(webappEventsPort ? { webappEventsPort } : {}),
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
       });
       await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
       return;
@@ -659,6 +670,7 @@ async function handleBookingLifecycleEvent(
         patientName,
         timeZone,
         ...(webappEventsPort ? { webappEventsPort } : {}),
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
       });
       await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
       return;

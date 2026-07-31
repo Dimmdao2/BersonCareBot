@@ -16,6 +16,13 @@ const BookingLifecyclePayloadSchema = z.object({
   cityCodeSnapshot: z.string().nullable().optional(),
   serviceTitleSnapshot: z.string().nullable().optional(),
   canonicalAppointmentId: z.string().uuid().optional(),
+  /** Optional so rollout remains compatible with old webapp senders. */
+  reminderPlan: z
+    .object({
+      enabled: z.boolean(),
+      offsetsMinutes: z.array(z.number().int().positive()),
+    })
+    .optional(),
   /** R21: врач снял «Уведомлять пациента» - не слать пациентские каналы/web-push. */
   suppressPatientNotification: z.boolean().optional(),
 });

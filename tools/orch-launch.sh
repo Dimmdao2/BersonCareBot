@@ -12,6 +12,8 @@
 #   tools/orch-launch.sh auditor <клон> <run-id> <модель> <effort> <файл-брифа> <слой-плана>
 #
 #   <клон> — имя каталога рядом с репозиторием: bcb-wt-<имя> передаётся как <имя>.
+#   Для короткоживущего автоматизированного shell/exec ставьте ORCH_WAIT=1: launcher дождётся
+#   agent-run и вернёт его exit code. Без флага сохраняется обычный фоновый запуск из терминала.
 #
 # Проверки перед запуском (любая непройденная = отказ, exit 1):
 #   1. Потолок одновременных агентов (AGENTS.md §24: ориентир 3).
@@ -154,5 +156,21 @@ fi
 nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
   --role "$ROLE_FOR_PORT" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
   < "$BRIEF" > "$LOG" 2>&1 &
-echo "  pid=$!"
+AGENT_PID=$!
+echo "  pid=$AGENT_PID"
 [ "$ROLE" != auditor-live ] || echo "  ⚠ auditor-live: после прогона проверить, что дерево клона осталось чистым"
+
+# `nohup` защищает от SIGHUP обычного терминала, но не от lifecycle-cleanup короткоживущего
+# automated exec-сеанса: тот удаляет оставшиеся дочерние процессы после выхода shell. Внешний
+# bwrap порта запущен с --die-with-parent, поэтому вслед за agent-run исчезает и Codex, а run-state
+# навсегда остаётся worker_running. Синхронный режим удерживает вызывающий сеанс до терминального
+# состояния и сохраняет реальный код завершения порта.
+if [ "${ORCH_WAIT:-}" = 1 ]; then
+  echo "  ORCH_WAIT=1 — ждём завершения pid=$AGENT_PID"
+  set +e
+  wait "$AGENT_PID"
+  AGENT_RC=$?
+  set -e
+  echo "  завершено: pid=$AGENT_PID rc=$AGENT_RC"
+  exit "$AGENT_RC"
+fi

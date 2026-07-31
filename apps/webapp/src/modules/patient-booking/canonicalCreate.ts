@@ -34,6 +34,7 @@ import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from './bookingLifecycleNotifications';
+import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
 import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
@@ -75,6 +76,7 @@ export type CanonicalBookingDeps = {
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
+  getAppointmentReminderPlan?: (organizationId: string) => Promise<AppointmentReminderPlan>;
 };
 
 function toPendingRowOnline(
@@ -558,6 +560,7 @@ export async function createBookingOnCanonicalEngine(
       (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
     );
     if (createNotify.notifyPatient || createNotify.notifyStaff) {
+      const reminderPlan = await deps.getAppointmentReminderPlan?.(orgId);
       await Promise.all(
         appointments.map((item, index) => {
           const row = confirmedRows[index] ?? pendingRows[index]!;
@@ -580,6 +583,7 @@ export async function createBookingOnCanonicalEngine(
               cityCodeSnapshot: row.cityCodeSnapshot,
               serviceTitleSnapshot: row.serviceTitleSnapshot,
               canonicalAppointmentId: item.id,
+              ...(reminderPlan ? { reminderPlan } : {}),
             },
           });
         }),

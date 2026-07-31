@@ -92,6 +92,11 @@ export type BookingSyncPort = {
       cityCodeSnapshot?: string | null;
       serviceTitleSnapshot?: string | null;
       canonicalAppointmentId?: string;
+      /** Webapp-resolved clinic policy; absent keeps compatibility with older senders. */
+      reminderPlan?: {
+        enabled: boolean;
+        offsetsMinutes: number[];
+      };
       /** R21: врач снял «Уведомлять пациента» — интегратор не шлёт пациентские каналы/web-push (врач/GCal — как обычно). */
       suppressPatientNotification?: boolean;
     };
