@@ -69,6 +69,17 @@ describe('D30 Ш0 — deploy/systemd scheduler unit gate', () => {
     );
   });
 
+  it('catches a second unit of the same environment landing under an unrecognized suffix instead of the duplicate bucket', () => {
+    const secondUnit = { ...CLEAN_PROD_UNIT, name: 'bersoncarebot-scheduler-prod2.service' };
+    const violations = findSchedulerSystemdUnitViolations([CLEAN_PROD_UNIT, secondUnit]);
+    expect(violations).toContainEqual(
+      expect.objectContaining({ file: secondUnit.name, reason: expect.stringContaining('known environments') }),
+    );
+    // Naively bucketing by raw suffix would put "prod" and "prod2" in separate single-member
+    // buckets and never fire the duplicate-count violation — this asserts it isn't silently clean.
+    expect(violations.some((v) => v.reason.includes('expected exactly 1'))).toBe(false);
+  });
+
   it('catches a scheduler unit missing Restart=on-failure', () => {
     const broken = {
       ...CLEAN_PROD_UNIT,
@@ -76,7 +87,39 @@ describe('D30 Ш0 — deploy/systemd scheduler unit gate', () => {
     };
     const violations = findSchedulerSystemdUnitViolations([broken]);
     expect(violations).toContainEqual(
-      expect.objectContaining({ file: broken.name, reason: expect.stringContaining('Restart=on-failure') }),
+      expect.objectContaining({ file: broken.name, reason: expect.stringContaining('on-failure') }),
+    );
+  });
+
+  it('catches Restart=always overriding Restart=on-failure from a later line (systemd keeps the last directive)', () => {
+    const brokenByOverride = {
+      ...CLEAN_PROD_UNIT,
+      content: `${CLEAN_PROD_UNIT.content}Restart=always\n`,
+    };
+    const violations = findSchedulerSystemdUnitViolations([brokenByOverride]);
+    expect(violations).toContainEqual(
+      expect.objectContaining({
+        file: brokenByOverride.name,
+        reason: expect.stringContaining('"always"'),
+      }),
+    );
+  });
+
+  it('catches a dropped RestartSec=5 pin (systemd default of 100ms is a hot-restart loop)', () => {
+    const brokenByDrop = {
+      ...CLEAN_PROD_UNIT,
+      content: CLEAN_PROD_UNIT.content.replace('RestartSec=5\n', ''),
+    };
+    expect(findSchedulerSystemdUnitViolations([brokenByDrop])).toContainEqual(
+      expect.objectContaining({ file: brokenByDrop.name, reason: expect.stringContaining('RestartSec=') }),
+    );
+
+    const brokenByOverride = {
+      ...CLEAN_PROD_UNIT,
+      content: `${CLEAN_PROD_UNIT.content}RestartSec=100\n`,
+    };
+    expect(findSchedulerSystemdUnitViolations([brokenByOverride])).toContainEqual(
+      expect.objectContaining({ file: brokenByOverride.name, reason: expect.stringContaining('"100"') }),
     );
   });
 
