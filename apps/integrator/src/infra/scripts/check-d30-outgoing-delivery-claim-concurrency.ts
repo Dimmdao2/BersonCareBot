@@ -8,6 +8,14 @@
  * 2. A repeated `enqueueOutgoingDeliveryIfAbsent` with the same `event_id` must not create a
  *    second row (`uq_outgoing_delivery_queue_event_id` + `ON CONFLICT DO NOTHING`).
  *
+ * D20 level-3 item 15 addendum: `resetStaleOutgoingDeliveryProcessing`'s reclaim cap
+ * (`outgoingDeliveryQueue.reclaim.integration.test.ts` proves the same behavior but is an opt-in
+ * vitest test that no CI job ever enables — RUN_OUTGOING_DELIVERY_RECLAIM_TEST is not set anywhere
+ * in `.github/workflows/ci.yml`, so it is dead protection per test-execution-policy.md's own "only
+ * a real running CI job counts" rule). Proven here instead, in the script this CI job already runs:
+ * 3. A stale "processing" row at the reclaim cap is dead-lettered, not recycled forever (D10b) —
+ *    a crash-looping worker must not keep re-sending the same message on every reclaim.
+ *
  * DDL below is the real `public.outgoing_delivery_queue` shape, assembled from migrations 0060,
  * 0107 and 0280. Runs against its own throwaway PostgreSQL instance; reads no application env and
  * touches no configured DATABASE_URL.
@@ -62,9 +70,12 @@ async function main(): Promise<void> {
     await ddlClient.query(OUTGOING_DELIVERY_QUEUE_DDL);
     await ddlClient.end();
 
-    const { claimDueOutgoingDeliveries, enqueueOutgoingDeliveryIfAbsent } = await import(
-      '../db/repos/outgoingDeliveryQueue.js'
-    );
+    const {
+      claimDueOutgoingDeliveries,
+      enqueueOutgoingDeliveryIfAbsent,
+      resetStaleOutgoingDeliveryProcessing,
+      OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS,
+    } = await import('../db/repos/outgoingDeliveryQueue.js');
     const { createDbPort, closeDb } = await import('../db/client.js');
     const { runWithInfraPrincipal } = await import('../principal/organizationPrincipal.js');
 
@@ -120,6 +131,47 @@ async function main(): Promise<void> {
       `expected exactly one row for event_id after the repeated enqueue, found ${countRes.rows[0]?.n}`,
     );
     console.log('[piece 4b] PASS: repeated enqueue with the same event_id did not create a second row');
+
+    // --- Piece 4c: a stale row at the reclaim cap is dead-lettered, not recycled forever -----
+    const cappedEventId = `d30-reclaim-cap-${randomUUID()}`;
+    const cappedInsertClient = new pg.Client({ connectionString: disposable.connectionString });
+    await cappedInsertClient.connect();
+    const cappedInsert = await cappedInsertClient.query<{ id: string }>(
+      `INSERT INTO public.outgoing_delivery_queue (
+         event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+         next_retry_at, last_attempt_at, reclaim_count
+       ) VALUES (
+         $1, 'operator_alert', 'telegram', '{}'::jsonb, 'processing', 1, 6,
+         now(), now() - interval '20 minutes', 4
+       )
+       RETURNING id`,
+      [cappedEventId],
+    );
+    await cappedInsertClient.end();
+    const cappedId = cappedInsert.rows[0]?.id;
+    assert(cappedId !== undefined, 'could not insert the capped stale row fixture');
+
+    const reclaimResult = await runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
+      resetStaleOutgoingDeliveryProcessing(db, 10, 5),
+    );
+    assert(
+      reclaimResult.deadLettered >= 1,
+      `expected the capped stale row to be dead-lettered, got deadLettered=${reclaimResult.deadLettered}`,
+    );
+
+    const cappedCheckClient = new pg.Client({ connectionString: disposable.connectionString });
+    await cappedCheckClient.connect();
+    const cappedRow = await cappedCheckClient.query<{ status: string; failure_class: string | null }>(
+      'SELECT status, failure_class FROM public.outgoing_delivery_queue WHERE id = $1',
+      [cappedId],
+    );
+    await cappedCheckClient.end();
+    assert(cappedRow.rows[0]?.status === 'dead', 'the capped stale row must end up dead, not pending again');
+    assert(
+      cappedRow.rows[0]?.failure_class === OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS,
+      `expected failure_class ${OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS}, got ${cappedRow.rows[0]?.failure_class}`,
+    );
+    console.log('[piece 4c] PASS: a stale row at the reclaim cap was dead-lettered, not recycled');
 
     await closeDb();
     console.log('check-d30-outgoing-delivery-claim-concurrency: PASS');
