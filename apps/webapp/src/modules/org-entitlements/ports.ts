@@ -37,7 +37,6 @@ export type OrgEntitlementsPort = {
     systemAccessPolicy: AccessLifecyclePolicy | null;
     mechanicAccessPolicies: MechanicAccessPolicyMap;
     includedSeats: number | null;
-    includedSeatsWarningAtPercent: number | null;
   } | null>;
   /** Per-org, per-mechanic overrides. May be empty. */
   listOverrides(

@@ -30,13 +30,16 @@ const tariffId = '95200000-0000-4000-8000-000000000010';
 const paymentPolicy = {
   graceDays: 2,
   readOnlyDays: 3,
-  warningCount: 4,
+  notifications: [
+    { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
+    { offsetDays: 1, condition: 'payment_succeeded', template: 'Спасибо, {{клиника}}' },
+  ],
   terminalState: 'disabled',
 } as const;
 const brandingPolicy = {
   graceDays: 5,
   readOnlyDays: 6,
-  warningCount: 7,
+  notifications: [],
   terminalState: 'read_only',
 } as const;
 
@@ -120,8 +123,7 @@ describe('/api/admin/commercial tariff persistence', () => {
               branding: brandingPolicy,
             },
             downgradePolicies: {},
-            includedSeats: null,
-            includedSeatsWarningAtPercent: null,
+            includedSeats: 1,
             isActive: true,
           },
         }),

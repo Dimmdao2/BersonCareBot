@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import '../../styles/doctor.css';
 import {
-  entitlementGraceWarningMessage,
+  entitlementGraceWarningMessages,
   getMechanicSurfaceVisibility,
 } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
@@ -77,25 +77,35 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
-  const [coursesVisibility, promoVisibility, cmsVisibility] = await Promise.all([
-    getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
-    getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
-    getMechanicSurfaceVisibility(workspaceAccess, 'cms_pages'),
-  ]);
+  const [coursesVisibility, promoVisibility, cmsVisibility, entitlementSnapshot] =
+    await Promise.all([
+      getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
+      getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
+      getMechanicSurfaceVisibility(workspaceAccess, 'cms_pages'),
+      deps.orgEntitlements.getSnapshot(workspaceAccess.organizationId).catch(() => null),
+    ]);
+  const tariffName = entitlementSnapshot?.tariff?.name ?? null;
   const coursesEnabled = coursesVisibility.specialistNavigation;
   const promoEnabled = promoVisibility.specialistNavigation;
   const cmsEnabled = cmsVisibility.specialistNavigation;
+  // §5a item 2.6a — the banner shows the OWNER's notification texts, rendered from his ladder.
+  // The variable map is open: a placeholder this shell cannot fill stays visible instead of
+  // silently blanking, so an unsupplied variable is a defect the owner can see in his own text.
+  const accessNotificationVariables = {
+    клиника: organization?.title ?? '',
+    тариф: tariffName ?? '',
+  };
+  // One system-level ladder produces the same text for every mechanic it covers, so identical
+  // lines are collapsed — the owner wrote one notification, he sees it once.
   const accessWarnings = [
-    coursesVisibility.warning
-      ? entitlementGraceWarningMessage('courses', coursesVisibility.warning)
-      : null,
-    promoVisibility.warning
-      ? entitlementGraceWarningMessage('promo', promoVisibility.warning)
-      : null,
-    cmsVisibility.warning
-      ? entitlementGraceWarningMessage('cms_pages', cmsVisibility.warning)
-      : null,
-  ].filter((warning): warning is string => warning !== null);
+    ...new Set(
+      [coursesVisibility, promoVisibility, cmsVisibility].flatMap((visibility) =>
+        visibility.warning
+          ? entitlementGraceWarningMessages(visibility.warning, accessNotificationVariables)
+          : [],
+      ),
+    ),
+  ];
   const shellBrand = {
     displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'BersonCare',
     logoUrl: effectiveBranding?.paid.logoUrl ?? null,

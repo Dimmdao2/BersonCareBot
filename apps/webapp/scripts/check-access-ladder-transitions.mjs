@@ -26,14 +26,14 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
+// Both doors were last redefined by 0285 (§5a item 2.6a — the warning payload carries the
+// owner's notification rows instead of an agent-chosen count), so the proof must extract the
+// CURRENT bodies from there, not from the superseded 0283/0284.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0283_patient_diaries_critical_mechanic_local.sql',
+  'apps/webapp/db/drizzle-migrations/0285_tariff_ladder_notifications_local.sql',
 );
-const cabinetMigrationPath = path.join(
-  root,
-  'apps/webapp/db/drizzle-migrations/0284_organization_cabinet_access_ladder_local.sql',
-);
+const cabinetMigrationPath = mechanicMigrationPath;
 const mechanicRegistryPath = path.join(
   root,
   'apps/webapp/src/modules/org-entitlements/types.ts',
@@ -273,10 +273,16 @@ async function resolveCabinetAs(connection, organizationId) {
   }
 }
 
+const OWNER_NOTIFICATION = {
+  offsetDays: -2,
+  condition: 'payment_failed',
+  template: 'Оплатите {{тариф}}',
+};
+
 const MECHANIC_POLICY = {
   graceDays: 5,
   readOnlyDays: 3,
-  warningCount: 2,
+  notifications: [OWNER_NOTIFICATION],
   terminalState: 'read_only',
 };
 
@@ -297,8 +303,23 @@ async function proveTransitionsByDate(connection) {
   const inGrace = await resolveAs(connection, ORG_ID, 'courses');
   if (inGrace.state !== 'grace') fail(`1 day into a 5-day grace expected grace, got ${inGrace.state}`);
   if (inGrace.mutation_allowed !== true) fail('grace state must still allow mutation');
-  if (inGrace.warning?.count !== 2) {
-    fail(`expected warningCount 2 in the warning, got ${JSON.stringify(inGrace.warning)}`);
+  // §5a item 2.6a — the warning carries the owner's notification rows verbatim plus the anchor
+  // they are measured from; there is no agent-chosen notification count any more.
+  if ('count' in (inGrace.warning ?? {})) {
+    fail(`the warning must not carry an agent-chosen count, got ${JSON.stringify(inGrace.warning)}`);
+  }
+  if (typeof inGrace.warning?.periodEndsAt !== 'string') {
+    fail(`expected the paid-period anchor in the warning, got ${JSON.stringify(inGrace.warning)}`);
+  }
+  const [storedRow, ...extraRows] = inGrace.warning?.notifications ?? [];
+  // jsonb does not preserve key order, so compare field by field rather than by serialisation.
+  if (
+    extraRows.length > 0 ||
+    storedRow?.offsetDays !== OWNER_NOTIFICATION.offsetDays ||
+    storedRow?.condition !== OWNER_NOTIFICATION.condition ||
+    storedRow?.template !== OWNER_NOTIFICATION.template
+  ) {
+    fail(`expected the owner notification rows verbatim, got ${JSON.stringify(inGrace.warning)}`);
   }
   if (inGrace.warning?.nextState !== 'read_only') fail('grace warning must name the next state, read_only');
 
@@ -345,7 +366,7 @@ async function provePolicyIsData(connection) {
 /** Proof 3: mechanic-level policy beats system-level; unset mechanics fall back to system. */
 async function proveMechanicOverridesSystem(connection) {
   await setPolicies(connection, {
-    systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, warningCount: 9, terminalState: 'disabled' },
+    systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
   });
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-1.5 days' });
@@ -362,9 +383,9 @@ async function proveMechanicOverridesSystem(connection) {
   }
 
   await setPolicies(connection, {
-    systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, warningCount: 9, terminalState: 'disabled' },
+    systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {
-      branches: { graceDays: 10, readOnlyDays: 10, warningCount: 1, terminalState: 'disabled' },
+      branches: { graceDays: 10, readOnlyDays: 10, notifications: [], terminalState: 'disabled' },
     },
   });
   const branchesOnMechanicPolicy = await resolveAs(connection, ORG_ID, 'branches');
@@ -382,7 +403,7 @@ async function proveMechanicOverridesSystem(connection) {
 /** Proof 4: a critical (никогда-class) mechanic stays full_access under any policy or date. */
 async function proveCriticalMechanicNeverDegrades(connection) {
   await setPolicies(connection, {
-    systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, warningCount: 0, terminalState: 'disabled' },
+    systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
   });
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3650 days' });
@@ -403,7 +424,7 @@ async function proveCriticalMechanicNeverDegrades(connection) {
 /** Proof 5 / §5a 2.1b: every tariff mechanic, without an owner-defined critical class, degrades. */
 async function proveNoAgentMechanicExclusions(connection) {
   await setPolicies(connection, {
-    systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, warningCount: 0, terminalState: 'disabled' },
+    systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
   });
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3650 days' });
@@ -428,7 +449,12 @@ async function proveNoAgentMechanicExclusions(connection) {
 /** Proof 6 / §5a 2.1a: cabinet is a separate subject with all three configured stages. */
 async function proveCabinetTransitionsAndDataRestoration(connection) {
   await setPolicies(connection, {
-    systemAccessPolicy: { graceDays: 5, readOnlyDays: 3, warningCount: 4, terminalState: 'disabled' },
+    systemAccessPolicy: {
+      graceDays: 5,
+      readOnlyDays: 3,
+      notifications: [OWNER_NOTIFICATION],
+      terminalState: 'disabled',
+    },
     mechanicAccessPolicies: {},
   });
 
@@ -438,8 +464,14 @@ async function proveCabinetTransitionsAndDataRestoration(connection) {
 
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-1 day' });
   const grace = await resolveCabinetAs(connection, ORG_ID);
-  if (grace.state !== 'grace' || grace.warning?.count !== 4) {
-    fail(`cabinet grace stage expected grace with four warnings, got ${JSON.stringify(grace)}`);
+  // §5a item 2.6a — the cabinet ladder carries the same owner notification rows as the mechanic
+  // ladder, and no agent-chosen count.
+  if (
+    grace.state !== 'grace' ||
+    'count' in (grace.warning ?? {}) ||
+    grace.warning?.notifications?.[0]?.template !== OWNER_NOTIFICATION.template
+  ) {
+    fail(`cabinet grace stage expected grace with the owner notification, got ${JSON.stringify(grace)}`);
   }
 
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-6 days' });

@@ -26,11 +26,14 @@ describe('commercial constructor access ladder', () => {
     render(<CommercialConstructorClient />);
     await screen.findByRole('button', { name: 'Создать' });
 
-    expect(screen.getByLabelText('Мест специалистов')).toHaveValue(null);
+    // §5a item 2.6a — «при создании тарифа по умолчанию пусть ставится одно» (owner 31.07).
+    expect(screen.getByLabelText('Мест специалистов')).toHaveValue(1);
     fireEvent.click(screen.getAllByRole('button', { name: 'Настроить' })[0]!);
 
     expect(screen.getByText('Терпение: дней')).toBeInTheDocument();
-    expect(screen.getByText('Предупреждений')).toBeInTheDocument();
+    // The agent's single "number of warnings" is gone; уведомления — это список владельца.
+    expect(screen.queryByText('Предупреждений')).not.toBeInTheDocument();
+    expect(screen.getByText('Уведомления')).toBeInTheDocument();
     expect(screen.getByText('Только чтение: дней')).toBeInTheDocument();
     expect(screen.getByText('Затем')).toBeInTheDocument();
     expect(screen.queryByText(/квот/i)).not.toBeInTheDocument();
@@ -77,9 +80,6 @@ describe('commercial constructor access ladder', () => {
     fireEvent.change(screen.getByLabelText('Доступ к системе: Терпение: дней'), {
       target: { value: '6' },
     });
-    fireEvent.change(screen.getByLabelText('Доступ к системе: Предупреждений'), {
-      target: { value: '2' },
-    });
     fireEvent.change(screen.getByLabelText('Доступ к системе: Только чтение: дней'), {
       target: { value: '4' },
     });
@@ -88,9 +88,6 @@ describe('commercial constructor access ladder', () => {
     fireEvent.change(screen.getByLabelText('Онлайн-запись: Терпение: дней'), {
       target: { value: '1' },
     });
-    fireEvent.change(screen.getByLabelText('Онлайн-запись: Предупреждений'), {
-      target: { value: '3' },
-    });
     fireEvent.change(screen.getByLabelText('Онлайн-запись: Только чтение: дней'), {
       target: { value: '5' },
     });
@@ -98,6 +95,14 @@ describe('commercial constructor access ladder', () => {
     const openSelect = document.querySelector<HTMLElement>('[data-slot="select-content"][data-open]');
     expect(openSelect).not.toBeNull();
     await user.click(within(openSelect!).getByRole('option', { name: 'Только чтение' }));
+    // §5a item 2.6a — the owner adds notification rows himself; there is no fixed number.
+    await user.click(screen.getAllByRole('button', { name: 'Добавить уведомление' })[0]!);
+    fireEvent.change(screen.getByLabelText('Доступ к системе: уведомление 1: срок'), {
+      target: { value: '-2' },
+    });
+    fireEvent.change(screen.getByLabelText('Доступ к системе: уведомление 1: текст'), {
+      target: { value: 'Оплатите {{тариф}} до {{дата}}' },
+    });
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitFor(() =>
@@ -106,15 +111,21 @@ describe('commercial constructor access ladder', () => {
         tariff: {
           systemAccessPolicy: {
             graceDays: 6,
-            warningCount: 2,
             readOnlyDays: 4,
+            notifications: [
+              {
+                offsetDays: -2,
+                condition: 'payment_failed',
+                template: 'Оплатите {{тариф}} до {{дата}}',
+              },
+            ],
             terminalState: 'disabled',
           },
           mechanicAccessPolicies: {
             booking: {
               graceDays: 1,
-              warningCount: 3,
               readOnlyDays: 5,
+              notifications: [],
               terminalState: 'read_only',
             },
           },
@@ -125,7 +136,10 @@ describe('commercial constructor access ladder', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Тариф с политикой/ }));
 
     expect(screen.getByLabelText('Доступ к системе: Терпение: дней')).toHaveValue(6);
-    expect(screen.getByLabelText('Доступ к системе: Предупреждений')).toHaveValue(2);
+    expect(screen.getByLabelText('Доступ к системе: уведомление 1: срок')).toHaveValue(-2);
+    expect(screen.getByLabelText('Доступ к системе: уведомление 1: текст')).toHaveValue(
+      'Оплатите {{тариф}} до {{дата}}',
+    );
     expect(screen.getByLabelText('Онлайн-запись: Только чтение: дней')).toHaveValue(5);
     expect(screen.getByLabelText('Онлайн-запись: Затем')).toHaveTextContent('Только чтение');
   });

@@ -35,7 +35,6 @@ type CurrentPatientEntitlementRow = {
   tariff_system_access_policy: AccessLifecyclePolicy | null;
   tariff_mechanic_access_policies: MechanicAccessPolicyMap | null;
   included_seats: number | null;
-  included_seats_warning_at_percent: number | null;
   override_mechanic: string | null;
   override_enabled: boolean | null;
   override_quota: TariffQuota | null;
@@ -70,7 +69,6 @@ function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntit
           systemAccessPolicy: first.tariff_system_access_policy,
           mechanicAccessPolicies: first.tariff_mechanic_access_policies ?? {},
           includedSeats: first.included_seats,
-          includedSeatsWarningAtPercent: first.included_seats_warning_at_percent,
         }
       : null,
     overrides: rows.flatMap((row) =>
@@ -213,7 +211,6 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
             systemAccessPolicy: saasTariffs.systemAccessPolicy,
             mechanicAccessPolicies: saasTariffs.mechanicAccessPolicies,
             includedSeats: saasTariffs.includedSeats,
-            includedSeatsWarningAtPercent: saasTariffs.includedSeatsWarningAtPercent,
           })
           .from(saasTariffs)
           .where(eq(saasTariffs.id, access.tariffId))
@@ -240,7 +237,6 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
             mechanicAccessPolicies:
               tariff.mechanicAccessPolicies as MechanicAccessPolicyMap,
             includedSeats: tariff.includedSeats,
-            includedSeatsWarningAtPercent: tariff.includedSeatsWarningAtPercent,
           }
         : null,
       overrides: overrides.map((override) => ({

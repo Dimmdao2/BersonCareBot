@@ -53,11 +53,10 @@ describe('§5a stage 6.2 — platform report names who is over a numeric limit a
         getSnapshot: async (organizationId: string) => ({
           tariff: {
             mechanics: {},
-            quotas: { branches: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: null } },
+            quotas: { branches: { kind: 'numeric', limit: 2, unit: 'items' } },
             includedSeats: null,
             systemAccessPolicy: null,
             mechanicAccessPolicies: {},
-            includedSeatsWarningAtPercent: null,
           },
           overrides: [],
           access: activeAccess,

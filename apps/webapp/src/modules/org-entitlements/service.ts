@@ -1,7 +1,10 @@
 import {
   MECHANIC_REGISTRY,
   MECHANICS,
+  quotaMechanicSupportsWarning,
   type AccessLifecyclePolicy,
+  type AccessNotificationCondition,
+  type AccessNotificationRule,
   type CabinetAccessResolution,
   type AccessTerminalState,
   type DowngradePolicyMap,
@@ -33,11 +36,16 @@ function assertQuota(mechanic: OrgMechanic, quota: TariffQuota): void {
   ) {
     throw new Error('tariff_quota_unit_invalid');
   }
+  // §5a item 2.6a (owner 31.07): the threshold exists only where he asked for it — patients and
+  // file volume. Branches get no warning at all, so a stored percent there is a refusal, not a
+  // value quietly dropped on read.
+  const warningAtPercent = quota.warningAtPercent ?? null;
+  if (warningAtPercent !== null && !quotaMechanicSupportsWarning(mechanic)) {
+    throw new Error('tariff_quota_warning_unsupported');
+  }
   if (
-    quota.warningAtPercent !== null &&
-    (!Number.isSafeInteger(quota.warningAtPercent) ||
-      quota.warningAtPercent < 0 ||
-      quota.warningAtPercent > 100)
+    warningAtPercent !== null &&
+    (!Number.isSafeInteger(warningAtPercent) || warningAtPercent < 0 || warningAtPercent > 100)
   ) {
     throw new Error('tariff_quota_warning_invalid');
   }
@@ -56,18 +64,42 @@ function normalizeQuotaMap(quotas: TariffQuotaMap): TariffQuotaMap {
     assertMechanic(key);
     if (!value) throw new Error('tariff_quota_mechanic_invalid');
     assertQuota(key, value);
-    if (key === 'files' && value.unit === 'bytes') normalized.files = value;
-    else if (key === 'patient_count' && value.unit === 'items') normalized.patient_count = value;
-    else if (key === 'branches' && value.unit === 'items') normalized.branches = value;
-    else throw new Error('tariff_quota_mechanic_invalid');
+    if (key === 'files' && value.unit === 'bytes') {
+      normalized.files = { ...value, warningAtPercent: value.warningAtPercent ?? null };
+    } else if (key === 'patient_count' && value.unit === 'items') {
+      normalized.patient_count = { ...value, warningAtPercent: value.warningAtPercent ?? null };
+    } else if (key === 'branches' && value.unit === 'items') {
+      // `assertQuota` already refused a threshold here; drop the key rather than persist it.
+      normalized.branches = { kind: value.kind, limit: value.limit, unit: 'items' };
+    } else throw new Error('tariff_quota_mechanic_invalid');
   }
   return normalized;
 }
 
+/**
+ * §5a item 2.6a — a notification row is валиден by its SHAPE only. The number of rows is not
+ * bounded («число строк задаёт владелец, ограничений нет»), the offset may point before or after
+ * the end of the period, and the text is never inspected: it is the owner's, variables included.
+ */
+function assertAccessNotification(rule: AccessNotificationRule): void {
+  if (!Number.isSafeInteger(rule.offsetDays)) {
+    throw new Error('access_notification_offset_invalid');
+  }
+  const conditions: AccessNotificationCondition[] = ['payment_succeeded', 'payment_failed'];
+  if (!conditions.includes(rule.condition)) {
+    throw new Error('access_notification_condition_invalid');
+  }
+  if (!rule.template.trim()) throw new Error('access_notification_template_required');
+}
+
 function assertAccessPolicy(policy: AccessLifecyclePolicy): void {
-  for (const value of [policy.graceDays, policy.readOnlyDays, policy.warningCount]) {
+  for (const value of [policy.graceDays, policy.readOnlyDays]) {
     if (!Number.isSafeInteger(value) || value < 0) throw new Error('access_policy_value_invalid');
   }
+  if (!Array.isArray(policy.notifications)) {
+    throw new Error('access_policy_notifications_invalid');
+  }
+  for (const rule of policy.notifications) assertAccessNotification(rule);
   const terminalStates: AccessTerminalState[] = ['read_only', 'disabled'];
   if (!terminalStates.includes(policy.terminalState)) {
     throw new Error('access_policy_terminal_state_invalid');
@@ -105,19 +137,13 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   }
   if (input.priceMinor !== null && !input.currency?.trim())
     throw new Error('tariff_currency_required');
-  if (
-    input.includedSeats !== null &&
-    (!Number.isSafeInteger(input.includedSeats) || input.includedSeats < 0)
-  ) {
+  // §5a item 2.6a (owner 31.07): «количество разрешённых специалистов должно быть явно настроено
+  // в тарифе, иначе он не сохранится». Fixed by refusing the SAVE, deliberately not by a runtime
+  // substitution: neither "empty → unlimited" nor "empty → count one" may exist, because "empty"
+  // must not exist in the database at all.
+  if (input.includedSeats === null) throw new Error('tariff_included_seats_required');
+  if (!Number.isSafeInteger(input.includedSeats) || input.includedSeats < 0) {
     throw new Error('tariff_seat_limit_invalid');
-  }
-  if (
-    input.includedSeatsWarningAtPercent !== null &&
-    (!Number.isSafeInteger(input.includedSeatsWarningAtPercent) ||
-      input.includedSeatsWarningAtPercent < 0 ||
-      input.includedSeatsWarningAtPercent > 100)
-  ) {
-    throw new Error('tariff_seat_warning_invalid');
   }
   if (input.systemAccessPolicy) assertAccessPolicy(input.systemAccessPolicy);
   const mechanicAccessPolicies = {} as Tariff['mechanicAccessPolicies'];
@@ -218,12 +244,19 @@ function isMechanicIncludedFromSnapshot(
 
 /**
  * `null` is an explicit unlimited file plan (or the unchanged compatibility path); `undefined`
- * means a tariff was assigned but never configured the file limit and must refuse new growth.
+ * means the limit is not configured and growth must be refused.
+ *
+ * §5a item 2.6a (owner 31.07) — «клиники без тарифа быть просто не может… нет доступа и нет
+ * никаких механик вне тарифа». Only the explicit compatibility state (organizations created
+ * before tariffs existed) keeps unlimited files; every other tariff-less organization refuses
+ * growth. Before this it was the reverse: no tariff meant unlimited storage, which is exactly the
+ * "mechanics enabled outside a tariff" the owner abolished.
  */
 export function fileStorageLimitFromSnapshot(
   snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'access'>,
 ): number | null | undefined {
-  if (!snapshot.tariff || snapshot.access.source === 'compatibility') return null;
+  if (snapshot.access.source === 'compatibility') return null;
+  if (!snapshot.tariff) return undefined;
   const quota = numericQuotaFromSnapshot(snapshot, 'files');
   if (!quota) return undefined;
   return quota.kind === 'numeric' ? quota.limit : null;
@@ -269,28 +302,20 @@ function projectQuotas(
     const clinicTeamOverride = activeOverrides.get('clinic_team');
     const clinicSeatLimit =
       clinicTeamOverride?.seatLimitOverride ?? snapshot.tariff?.includedSeats;
-    const quota:
-      | TariffQuota
-      | {
-          kind: 'numeric';
-          limit: number;
-          unit: 'seats';
-          warningAtPercent: number | null;
-        }
-      | undefined =
+    const quota: TariffQuota | { kind: 'numeric'; limit: number; unit: 'seats' } | undefined =
       mechanic === 'clinic_team'
         ? clinicSeatLimit === null || clinicSeatLimit === undefined
           ? undefined
-          : {
-              kind: 'numeric',
-              limit: clinicSeatLimit,
-              unit: 'seats',
-              warningAtPercent: snapshot.tariff?.includedSeatsWarningAtPercent ?? null,
-            }
+          : { kind: 'numeric', limit: clinicSeatLimit, unit: 'seats' }
         : numericQuotaFromSnapshot(snapshot, mechanic);
     const currentUsage = usage[mechanic];
     if (!quota || quota.kind !== 'numeric' || quota.limit === null || currentUsage === undefined)
       return [];
+    // Only the mechanics the owner named carry a threshold at all (§5a item 2.6a); everywhere else
+    // there is no "approaching the limit" step, just below-warning until the limit is reached.
+    const warningAtPercent = quotaMechanicSupportsWarning(mechanic)
+      ? ((quota as TariffQuota).warningAtPercent ?? null)
+      : null;
     return [
       {
         mechanic,
@@ -299,8 +324,7 @@ function projectQuotas(
         threshold:
           currentUsage >= quota.limit
             ? 'reached'
-            : quota.warningAtPercent !== null &&
-                currentUsage * 100 >= quota.limit * quota.warningAtPercent
+            : warningAtPercent !== null && currentUsage * 100 >= quota.limit * warningAtPercent
               ? 'warning'
               : 'below_warning',
         enforcement: MECHANIC_REGISTRY[mechanic].quotaEnforcement,
