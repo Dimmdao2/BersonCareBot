@@ -24,8 +24,10 @@ vi.mock('../google-calendar/sync.js', () => ({
 }));
 
 import { handleBookingLifecycleEvent } from './bookingLifecycleRoute.js';
+import type { BookingLifecycleRouteDeps } from './bookingLifecycleRoute.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
-import type { DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
+import { createInMemoryIdempotencyPort } from '../../infra/db/repos/idempotencyKeys.js';
+import type { DbWritePort, DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
 
 let bookingCounter = 0;
 
@@ -67,7 +69,7 @@ describe('D14(1): webapp decides whether to cancel pending reminders', () => {
         payload: { ...basePayload(), cancelPendingReminders: true },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(cancelPendingBookingReminderJobsByBookingId).toHaveBeenCalledTimes(1);
   });
@@ -80,7 +82,7 @@ describe('D14(1): webapp decides whether to cancel pending reminders', () => {
         payload: { ...basePayload(), cancelPendingReminders: false },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(cancelPendingBookingReminderJobsByBookingId).not.toHaveBeenCalled();
   });
@@ -90,7 +92,7 @@ describe('D14(1): webapp decides whether to cancel pending reminders', () => {
     await handleBookingLifecycleEvent(
       { eventType: 'booking.cancelled', payload: basePayload() },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(cancelPendingBookingReminderJobsByBookingId).toHaveBeenCalledTimes(1);
   });
@@ -114,7 +116,7 @@ describe('D14(2): webapp decides whether/which patient push to send', () => {
         },
       },
       dispatchPort,
-      { webappEventsPort },
+      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
     expect(webappEventsPort.notifyPatientWebPush).toHaveBeenCalledTimes(1);
     const body = JSON.parse(
@@ -136,7 +138,7 @@ describe('D14(2): webapp decides whether/which patient push to send', () => {
         },
       },
       dispatchPort,
-      { webappEventsPort },
+      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
     expect(webappEventsPort.notifyPatientWebPush).not.toHaveBeenCalled();
   });
@@ -153,7 +155,7 @@ describe('D14(2): webapp decides whether/which patient push to send', () => {
         },
       },
       dispatchPort,
-      { webappEventsPort },
+      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
     expect(webappEventsPort.notifyPatientWebPush).toHaveBeenCalledTimes(1);
     const body = JSON.parse(
@@ -192,7 +194,7 @@ describe('D14(3): webapp decides the patient message text', () => {
         payload: { ...basePayload(), patientMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(patientTextSentTo(dispatchPort, 'booking-created')).toBe(webappText);
   });
@@ -206,7 +208,7 @@ describe('D14(3): webapp decides the patient message text', () => {
         payload: { ...basePayload(), patientMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(patientTextSentTo(dispatchPort, 'booking-cancelled')).toBe(webappText);
   });
@@ -220,7 +222,7 @@ describe('D14(3): webapp decides the patient message text', () => {
         payload: { ...basePayload(), patientMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(patientTextSentTo(dispatchPort, 'booking-rescheduled')).toBe(webappText);
   });
@@ -234,7 +236,7 @@ describe('D14(3): webapp decides the patient message text', () => {
         payload: { ...basePayload(), patientMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(patientTextSentTo(dispatchPort, 'booking-payment')).toBe(webappText);
   });
@@ -245,7 +247,7 @@ describe('D14(3): webapp decides the patient message text', () => {
     await handleBookingLifecycleEvent(
       { eventType: 'booking.created', payload },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     const dateLabel = formatBookingRuDateTime(payload.slotStart, 'UTC');
     expect(patientTextSentTo(dispatchPort, 'booking-created')).toBe(
@@ -262,7 +264,7 @@ describe('D14(3): webapp decides the patient message text', () => {
         payload: { ...basePayload(), patientMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     const sent = patientTextSentTo(dispatchPort, 'booking-created');
     expect(sent).toBe(webappText);
@@ -298,7 +300,7 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
         payload: { ...basePayload(), doctorNotify: false },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(doctorTextSentTo(dispatchPort, 'booking-created')).toBeUndefined();
   });
@@ -312,7 +314,7 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
         payload: { ...basePayload(), doctorMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(doctorTextSentTo(dispatchPort, 'booking-created')).toBe(webappText);
   });
@@ -326,7 +328,7 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
         payload: { ...basePayload(), doctorMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(doctorTextSentTo(dispatchPort, 'booking-cancelled')).toBe(webappText);
   });
@@ -340,7 +342,7 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
         payload: { ...basePayload(), doctorMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(doctorTextSentTo(dispatchPort, 'booking-rescheduled')).toBe(webappText);
   });
@@ -354,7 +356,7 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
         payload: { ...basePayload(), doctorMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect(doctorTextSentTo(dispatchPort, 'booking-payment')).toBe(webappText);
   });
@@ -365,7 +367,7 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
     await handleBookingLifecycleEvent(
       { eventType: 'booking.created', payload },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     const dateLabel = formatBookingRuDateTime(payload.slotStart, 'UTC');
     expect(doctorTextSentTo(dispatchPort, 'booking-created')).toBe(
@@ -382,7 +384,7 @@ describe('D14(4): webapp decides whether/what to notify the doctor', () => {
         payload: { ...basePayload(), doctorMessageText: webappText },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     const sent = doctorTextSentTo(dispatchPort, 'booking-created');
     expect(sent).toBe(webappText);
@@ -415,7 +417,7 @@ describe('D14(5): webapp decides the calendar action and title marker', () => {
         },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect((await lastCalendarSyncCall())?.action).toBe('canceled');
   });
@@ -432,7 +434,7 @@ describe('D14(5): webapp decides the calendar action and title marker', () => {
         },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     expect((await lastCalendarSyncCall())?.titleMarker).toBe('reschedule_pending');
   });
@@ -448,10 +450,47 @@ describe('D14(5): webapp decides the calendar action and title marker', () => {
         },
       },
       dispatchPort,
-      {},
+      { idempotencyPort: createInMemoryIdempotencyPort() },
     );
     const call = await lastCalendarSyncCall();
     expect(call?.action).toBe('updated');
     expect(call?.titleMarker).toBe('cancelled');
+  });
+});
+
+describe('D34: idempotencyPort is a mandatory dependency, not an in-memory fallback', () => {
+  it('the route deps type rejects an object missing idempotencyPort', () => {
+    // Поломка-арбитр: верни `idempotencyPort?: IdempotencyPort` в BookingLifecycleRouteDeps — строка ниже
+    // перестанет быть ошибкой типов, `@ts-expect-error` станет неиспользуемой директивой, и `tsc --noEmit`
+    // покраснеет на этом файле.
+    // @ts-expect-error idempotencyPort is required; omitting it must fail to compile, not fall back silently.
+    const deps: BookingLifecycleRouteDeps = {
+      sharedSecret: 'secret',
+      dispatchPort: fakeDispatchPort(),
+      dbWritePort: {} as DbWritePort,
+    };
+    expect(deps).toBeDefined();
+  });
+
+  it('the same event id, delivered twice through the real port, reaches the patient exactly once', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const idempotencyPort = createInMemoryIdempotencyPort();
+    const event = {
+      eventType: 'booking.created' as const,
+      payload: basePayload(),
+    };
+
+    await handleBookingLifecycleEvent(event, dispatchPort, { idempotencyPort });
+    await handleBookingLifecycleEvent(event, dispatchPort, { idempotencyPort });
+
+    const calls = (dispatchPort.dispatchOutgoing as ReturnType<typeof vi.fn>).mock.calls as [
+      { meta: { eventId: string } },
+    ][];
+    const patientSends = calls.filter(
+      ([intent]) =>
+        intent.meta.eventId.startsWith(`booking-created:${event.payload.bookingId}:`) &&
+        !intent.meta.eventId.includes(':doctor:'),
+    );
+    expect(patientSends).toHaveLength(1);
   });
 });
