@@ -6,6 +6,8 @@ import {
 import type { BookingSyncPort, PatientBookingsPort } from '@/modules/patient-booking/ports';
 import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
 import { buildPatientPaymentCapturedMessageText } from '@/modules/patient-booking/patientMessageText';
+import { buildDoctorPaymentCapturedMessageText } from '@/modules/patient-booking/doctorMessageText';
+import { resolveBookingCalendarSyncFields } from '@/modules/patient-booking/bookingCalendarSyncFields';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 type AppointmentPaymentConfirmedInput = {
@@ -68,6 +70,12 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
           { slotStart: row.slotStart },
           timeZone,
         ),
+        doctorNotify: paymentNotify.notifyStaff,
+        doctorMessageText: buildDoctorPaymentCapturedMessageText(
+          { slotStart: row.slotStart, contactName: row.contactName },
+          timeZone,
+        ),
+        ...resolveBookingCalendarSyncFields('booking.payment_captured'),
       },
     });
   };

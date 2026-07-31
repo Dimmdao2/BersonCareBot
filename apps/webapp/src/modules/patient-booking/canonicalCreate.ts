@@ -37,6 +37,8 @@ import {
 import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
 import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
 import { buildPatientCreatedMessageText } from './patientMessageText';
+import { buildDoctorCreatedMessageText } from './doctorMessageText';
+import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
@@ -599,6 +601,12 @@ export async function createBookingOnCanonicalEngine(
                 },
                 timeZone,
               ),
+              doctorNotify: createNotify.notifyStaff,
+              doctorMessageText: buildDoctorCreatedMessageText(
+                { slotStart: row.slotStart, contactName: row.contactName, contactPhone: row.contactPhone },
+                timeZone,
+              ),
+              ...resolveBookingCalendarSyncFields('booking.created'),
             },
           });
         }),

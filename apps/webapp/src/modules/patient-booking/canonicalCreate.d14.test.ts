@@ -125,3 +125,24 @@ describe('D14: booking.created отправляет cancelPendingReminders и pa
     expect((events[0]!.patientMessageText as string).length).toBeGreaterThan(0);
   });
 });
+
+describe('D14, часть 5: booking.created отправляет doctorNotify/doctorMessageText/calendarAction/calendarTitleMarker', () => {
+  it('кладёт врачебный текст и действие/пометку календаря для нового события', async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const deps = buildDeps(
+      async (input) => {
+        events.push((input as { payload: Record<string, unknown> }).payload);
+      },
+      { getAppDisplayTimeZone: async () => 'Europe/Moscow' },
+    );
+
+    await createBookingOnCanonicalEngine(deps, createInput);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.doctorNotify).toBe(true);
+    expect(typeof events[0]!.doctorMessageText).toBe('string');
+    expect((events[0]!.doctorMessageText as string).length).toBeGreaterThan(0);
+    expect(events[0]!.calendarAction).toBe('created');
+    expect(events[0]!.calendarTitleMarker).toBe('none');
+  });
+});

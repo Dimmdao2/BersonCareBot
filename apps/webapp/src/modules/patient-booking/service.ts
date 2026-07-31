@@ -43,6 +43,11 @@ import {
   buildPatientCancelledMessageText,
   buildPatientRescheduledMessageText,
 } from './patientMessageText';
+import {
+  buildDoctorCancelledMessageText,
+  buildDoctorRescheduledMessageText,
+} from './doctorMessageText';
+import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
@@ -516,6 +521,11 @@ export function createPatientBookingService(input: {
 
       const idempotencyKey = `booking.rescheduled:${row.id}:${rescheduleInput.slotStart}`;
       let integratorStatus: 'sent' | 'failed' = 'failed';
+      const rescheduleNotify = resolveBookingNotifyTargets(
+        'booking.rescheduled',
+        result.reschedulePolicy,
+        (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
+      );
       try {
         const reminderPlan = await input.getAppointmentReminderPlan?.(orgId);
         const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
@@ -544,6 +554,16 @@ export function createPatientBookingService(input: {
               { slotStart: rescheduleInput.slotStart, bookingType: row.bookingType },
               timeZone,
             ),
+            doctorNotify: rescheduleNotify.notifyStaff,
+            doctorMessageText: buildDoctorRescheduledMessageText(
+              {
+                slotStart: rescheduleInput.slotStart,
+                contactName: row.contactName,
+                contactPhone: row.contactPhone,
+              },
+              timeZone,
+            ),
+            ...resolveBookingCalendarSyncFields('booking.rescheduled'),
           },
         });
         integratorStatus = 'sent';
@@ -551,11 +571,6 @@ export function createPatientBookingService(input: {
         // Best-effort notifications.
       }
 
-      const rescheduleNotify = resolveBookingNotifyTargets(
-        'booking.rescheduled',
-        result.reschedulePolicy,
-        (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
-      );
       let notificationOutcomeFailed = false;
       try {
         await input.appointmentLifecycle.patchLatestRescheduleNotifications(
@@ -748,6 +763,11 @@ export function createPatientBookingService(input: {
 
         const idempotencyKey = `booking.cancelled:${row.id}`;
         let integratorStatus: 'sent' | 'failed' = 'failed';
+        const cancelNotify = resolveBookingNotifyTargets(
+          'booking.cancelled',
+          lifecycleResult.cancelPolicy,
+          (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
+        );
         try {
           const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
           await input.syncPort.emitBookingEvent({
@@ -775,6 +795,12 @@ export function createPatientBookingService(input: {
                 { slotStart: row.slotStart, reason: cancelInput.reason },
                 timeZone,
               ),
+              doctorNotify: cancelNotify.notifyStaff,
+              doctorMessageText: buildDoctorCancelledMessageText(
+                { slotStart: row.slotStart, contactName: row.contactName },
+                timeZone,
+              ),
+              ...resolveBookingCalendarSyncFields('booking.cancelled'),
             },
           });
           integratorStatus = 'sent';
@@ -782,11 +808,6 @@ export function createPatientBookingService(input: {
           // Best-effort.
         }
 
-        const cancelNotify = resolveBookingNotifyTargets(
-          'booking.cancelled',
-          lifecycleResult.cancelPolicy,
-          (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
-        );
         try {
           await input.appointmentLifecycle.patchLatestCancellationNotifications(
             row.canonicalAppointmentId,
