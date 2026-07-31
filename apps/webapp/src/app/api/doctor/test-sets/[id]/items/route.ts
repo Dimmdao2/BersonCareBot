@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 const putBodySchema = z.object({
@@ -19,6 +23,11 @@ export async function PUT(request: Request, ctx: { params: Promise<{ id: string 
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
   const { ctx: workspace } = auth;
+
+  const entitlement = await requireEntitlementForMutation(workspace, 'clinical_tests');
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse('clinical_tests', 'изменить состав набора тестов');
+  }
 
   const { id } = await ctx.params;
   const raw = (await request.json().catch(() => null)) as unknown;

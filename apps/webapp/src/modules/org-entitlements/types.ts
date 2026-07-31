@@ -75,7 +75,6 @@ export const MECHANIC_REGISTRY = {
   clinical_tests: { class: 'возможность', label: 'Клинические тесты и наборы', quotaEnforcement: 'declared_no_enforcement' },
   online_intake: { class: 'возможность', label: 'Онлайн-анкета', quotaEnforcement: 'declared_no_enforcement' },
   doctor_statistics: { class: 'возможность', label: 'Статистика кабинета', quotaEnforcement: 'declared_no_enforcement' },
-  proactive_insights: { class: 'возможность', label: 'Проактивные подсказки', quotaEnforcement: 'declared_no_enforcement' },
   specialist_tasks: { class: 'возможность', label: 'Задачи специалиста', quotaEnforcement: 'declared_no_enforcement' },
   booking_prepayment: { class: 'возможность', label: 'Предоплата при записи', quotaEnforcement: 'declared_no_enforcement' },
   patient_home_today: { class: 'возможность', label: 'Сегодня', quotaEnforcement: 'declared_no_enforcement' },

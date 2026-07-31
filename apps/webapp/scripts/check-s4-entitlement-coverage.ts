@@ -85,6 +85,35 @@ export function validateProtectedActionMappings(
   return findings;
 }
 
+/**
+ * Catches the inverse of a missing mapping: a mechanic marked `DECLARED_NO_SURFACE` ("no protected
+ * write surface exists") while the mapping list itself registers a real write action for it. A
+ * false no-surface claim is worse than a missing one — `validateProtectedActionMappings` treats it
+ * as closed, so coverage stays green over an open write path (4a.5, 31.07).
+ */
+export function validateDeclaredNoSurfaceClaims(
+  mappings: readonly ProtectedActionMapping[],
+  declaredNoSurface: Readonly<Record<string, string>> = DECLARED_NO_SURFACE,
+): Finding[] {
+  const findings: Finding[] = [];
+  for (const mechanic of Object.keys(declaredNoSurface)) {
+    const registered = mappings.filter((mapping) =>
+      (Array.isArray(mapping.mechanic) ? mapping.mechanic : [mapping.mechanic]).includes(
+        mechanic as OrgMechanic,
+      ),
+    );
+    if (registered.length > 0) {
+      findings.push({
+        id: mechanic,
+        message: `declared DECLARED_NO_SURFACE but has ${registered.length} registered write mapping(s): ${registered
+          .map((mapping) => mapping.id)
+          .join(', ')}`,
+      });
+    }
+  }
+  return findings;
+}
+
 export function validateMechanicBearingExports(
   mappings: readonly ProtectedActionMapping[],
   exemptions: readonly ProtectedActionExemption[],
@@ -187,6 +216,7 @@ export function runS4ProtectedActionCoverageCheck(): Finding[] {
   const sourceFor = (file: string) => readFileSync(resolve(WEBAPP_ROOT, file), 'utf8');
   return [
     ...validateProtectedActionMappings(PROTECTED_ACTION_MAPPINGS, sourceFor),
+    ...validateDeclaredNoSurfaceClaims(PROTECTED_ACTION_MAPPINGS),
     ...validateMechanicBearingExports(
       PROTECTED_ACTION_MAPPINGS,
       PROTECTED_ACTION_EXEMPTIONS,
@@ -218,10 +248,14 @@ export function runSelfTest(): Finding[] {
     () => 'export async function POST() {}\nexport const PUT = async () => {}',
     ['src/app/app/doctor/content/omittedActions.ts'],
   );
+  const falseNoSurface = validateDeclaredNoSurfaceClaims([sample], {
+    [sample.mechanic as string]: 'falsely claimed no write surface exists',
+  });
   return [
     ...validateProtectedActionMappings([sample, duplicate, unknownExport], sourceFor),
     ...missingMechanic,
     ...omittedExport,
+    ...falseNoSurface,
     ...staticBypassFindings([
       {
         file: 'src/app/api/example/route.ts',
@@ -245,6 +279,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       'unregistered mechanic surface',
       'unregistered exported action in mechanic-bearing file',
       'direct entitlement resolver or tariff/override read outside approved boundary',
+      `declared DECLARED_NO_SURFACE but has 1 registered write mapping(s): ${PROTECTED_ACTION_MAPPINGS[0]!.id}`,
     ];
     if (
       !requiredMessages.every((message) => findings.some((finding) => finding.message === message))
