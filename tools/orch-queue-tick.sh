@@ -28,7 +28,9 @@ REPO=/home/dev/dev-projects/BersonCareBot
 CLONE_NAME=${1:?нужен клон}
 QUEUE=${2:?нужен файл очереди}
 LOG="$REPO/runs/orch-queue-$CLONE_NAME.log"
-NOTIFY=/home/dev/brain/host-orch/notify-owner.sh
+# Владельцу конвейер НЕ пишет (решение владельца 31.07): всё уходит в файл пробуждения лида.
+WAKEUP="$REPO/runs/orch-wakeup.md"
+notify_lead() { printf -- "- [ ] %s (%s)\n" "$1" "$(date "+%F %H:%M")" >> "$WAKEUP"; }
 
 mkdir -p "$(dirname "$LOG")"
 say() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M')" "$*" >> "$LOG"; }
@@ -46,7 +48,7 @@ CLONE="/home/dev/dev-projects/bcb-wt-$CLONE_NAME"
 # 2. Дерево клона чистое?
 if [ -n "$(git -C "$CLONE" status --porcelain 2>/dev/null)" ]; then
   say "СТОП: дерево $CLONE грязное — нужен салваж лидом, автозапуск запрещён"
-  bash "$NOTIFY" "Конвейер $CLONE_NAME остановлен: в клоне незакоммиченная работа, нужен салваж." >/dev/null 2>&1 || true
+  notify_lead "Конвейер $CLONE_NAME остановлен: в клоне незакоммиченная работа, нужен салваж."
   exit 0
 fi
 
@@ -64,12 +66,18 @@ IFS='|' read -r ROLE MODEL EFFORT BRIEF SLICE RUN_ID <<< "$LINE"
 git -C "$CLONE" fetch -q "$REPO" feat/doctor-ui-rebuild 2>>"$LOG" || true
 git -C "$CLONE" merge -q --no-edit FETCH_HEAD 2>>"$LOG" || {
   say "СТОП: слияние свежего feat в $CLONE не прошло — конфликт, нужен лид"
-  bash "$NOTIFY" "Конвейер $CLONE_NAME остановлен: конфликт при вливании свежего feat в клон." >/dev/null 2>&1 || true
+  notify_lead "Конвейер $CLONE_NAME остановлен: конфликт при вливании свежего feat в клон."
   exit 0
 }
 
 # 5. Запуск через порт. Его отказ — это нормальный исход, а не авария: значит гейт не пройден.
-say "запуск $RUN_ID ($ROLE, $MODEL/$EFFORT) по брифу $BRIEF"
+# Провайдер выводится из имени модели: claude-* идёт через провайдера claude, остальное — codex.
+# Без этого строка очереди с claude-sonnet-5 уходила в codex и падала как blocked_system (31.07).
+case "$MODEL" in
+  claude-*) export ORCH_PROVIDER=claude ;;
+  *) unset ORCH_PROVIDER ;;
+esac
+say "запуск $RUN_ID ($ROLE, ${ORCH_PROVIDER:-codex}/$MODEL/$EFFORT) по брифу $BRIEF"
 if OUT=$(tools/orch-launch.sh "$ROLE" "$CLONE_NAME" "$RUN_ID" "$MODEL" "$EFFORT" "$BRIEF" "$SLICE" 2>&1); then
   say "ok: $OUT"
   # помечаем строку взятой, чтобы следующий тик её не повторил
@@ -81,5 +89,5 @@ open(q, 'w').write(src.replace(line, '# взято ' + __import__('time').strfti
 PY
 else
   say "ОТКАЗ порта: $OUT"
-  bash "$NOTIFY" "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID. $OUT" >/dev/null 2>&1 || true
+  notify_lead "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID. $OUT"
 fi

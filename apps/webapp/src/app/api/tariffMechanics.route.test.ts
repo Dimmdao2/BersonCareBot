@@ -29,6 +29,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: vi.fn(),
   requireDoctorWorkspaceApiContext: vi.fn(),
   requireDoctorWorkspaceContext: vi.fn(),
+  requireOrganizationManagementContext: vi.fn(),
   requirePatientAccessWithPhone: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
 }));
@@ -63,6 +64,7 @@ import {
   requireClinicManagementApiContext,
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
+  requireOrganizationManagementContext,
   requirePatientAccessWithPhone,
   requirePatientApiBusinessAccess,
 } from '@/app-layer/guards/requireRole';
@@ -106,6 +108,14 @@ import {
   PATCH as updatePatientReminder,
 } from '@/app/api/patient/reminders/[id]/route';
 import { updateReminderRule } from '@/app/app/patient/reminders/actions';
+import { saveOrgBranding } from '@/app/app/settings/brandingActions';
+import { createOrgBrandingService } from '@/modules/org-branding/service';
+import {
+  archiveDoctorExerciseCore,
+  bulkCreateExercisesFromMediaCore,
+  saveDoctorExerciseCore,
+  unarchiveDoctorExerciseCore,
+} from '@/app/app/doctor/exercises/actionsShared';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -139,6 +149,7 @@ beforeEach(() => {
   vi.mocked(requirePatientAccessWithPhone).mockResolvedValue(workspace.session as never);
   vi.mocked(getCurrentSession).mockResolvedValue(null);
   vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
+  vi.mocked(requireOrganizationManagementContext).mockResolvedValue(workspace as never);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
     ok: true,
@@ -685,5 +696,68 @@ describe('tariff and platform mutation gates', () => {
     });
 
     await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
+  });
+
+  it('refuses saving a clinic brand when branding is disabled, without touching the port', async () => {
+    const brandingPort = {
+      getCoreContext: vi.fn(),
+      getPublishedRevision: vi.fn(),
+      getDraftRevision: vi.fn(),
+      saveDraft: vi.fn(),
+      publishDraft: vi.fn(),
+      unpublish: vi.fn(),
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgBranding: createOrgBrandingService({
+        port: brandingPort,
+        isBrandingMechanicEnabled: async () => false,
+      }),
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    await expect(
+      saveOrgBranding({ displayName: 'Клиника', logoMediaId: null }),
+    ).resolves.toEqual({ ok: false, error: 'entitlement_disabled' });
+    expect(brandingPort.saveDraft).not.toHaveBeenCalled();
+    expect(brandingPort.publishDraft).not.toHaveBeenCalled();
+  });
+
+  it('refuses every exercise-catalog write while it is not included in the tariff', async () => {
+    const lfkExercises = {
+      createExercise: vi.fn(),
+      updateExercise: vi.fn(),
+      archiveExercise: vi.fn(),
+      unarchiveExercise: vi.fn(),
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      lfkExercises,
+    } as unknown as ReturnType<typeof buildAppDeps>);
+    vi.mocked(requireEntitlementForMutationAction).mockResolvedValue({
+      ok: false,
+      reason: 'entitlement_required',
+      mechanic: 'exercise_catalog',
+    } as never);
+
+    const exerciseForm = new FormData();
+    exerciseForm.set('title', 'Наклоны');
+    const archiveForm = new FormData();
+    archiveForm.set('id', TARGET_ID);
+
+    const [saveResult, archiveResult, unarchiveResult, bulkResult] = await Promise.all([
+      saveDoctorExerciseCore(exerciseForm),
+      archiveDoctorExerciseCore(archiveForm),
+      unarchiveDoctorExerciseCore(archiveForm),
+      bulkCreateExercisesFromMediaCore([
+        { title: 'Присед', mediaUrl: '/api/media/photo.jpg', mediaType: 'image' },
+      ]),
+    ]);
+
+    expect(saveResult).toMatchObject({ ok: false, error: 'entitlement_required' });
+    expect(archiveResult).toMatchObject({ kind: 'invalid', error: 'entitlement_required' });
+    expect(unarchiveResult).toMatchObject({ kind: 'invalid', error: 'entitlement_required' });
+    expect(bulkResult).toMatchObject({ ok: false, error: 'entitlement_required' });
+    expect(lfkExercises.createExercise).not.toHaveBeenCalled();
+    expect(lfkExercises.updateExercise).not.toHaveBeenCalled();
+    expect(lfkExercises.archiveExercise).not.toHaveBeenCalled();
+    expect(lfkExercises.unarchiveExercise).not.toHaveBeenCalled();
   });
 });

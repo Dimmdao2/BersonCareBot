@@ -979,6 +979,56 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary:
       'deps.organizationMembership.listOrganizationMembers/deps.clinicSeats.getSeatStatus',
   },
+  {
+    id: 'branding.save',
+    mechanic: 'branding',
+    file: 'src/app/app/settings/brandingActions.ts',
+    exportName: 'saveOrgBranding',
+    method: 'action',
+    authContext: 'requireOrgBrandingManagementContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.orgBranding.saveDraft/publishDraft (isBrandingMechanicEnabled)',
+  },
+  {
+    id: 'exercise-catalog.save',
+    mechanic: 'exercise_catalog',
+    file: 'src/app/app/doctor/exercises/actionsShared.ts',
+    exportName: 'saveDoctorExerciseCore',
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.lfkExercises.createExercise/updateExercise',
+  },
+  {
+    id: 'exercise-catalog.archive',
+    mechanic: 'exercise_catalog',
+    file: 'src/app/app/doctor/exercises/actionsShared.ts',
+    exportName: 'archiveDoctorExerciseCore',
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.lfkExercises.archiveExercise',
+  },
+  {
+    id: 'exercise-catalog.unarchive',
+    mechanic: 'exercise_catalog',
+    file: 'src/app/app/doctor/exercises/actionsShared.ts',
+    exportName: 'unarchiveDoctorExerciseCore',
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.lfkExercises.unarchiveExercise',
+  },
+  {
+    id: 'exercise-catalog.bulk-create',
+    mechanic: 'exercise_catalog',
+    file: 'src/app/app/doctor/exercises/actionsShared.ts',
+    exportName: 'bulkCreateExercisesFromMediaCore',
+    method: 'action',
+    authContext: 'requireDoctorWorkspaceContext',
+    guard: 'requireEntitlementForMutationAction',
+    serviceBoundary: 'deps.lfkExercises.createExercise',
+  },
 ] as const satisfies readonly ProtectedActionMapping[];
 
 /**
@@ -1212,13 +1262,10 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
 ] as const satisfies readonly ProtectedActionExemption[];
 
 export const DECLARED_NO_SURFACE = {
-  exercise_catalog: 'S4-3/C5D deferred; no protected write surface in this stage',
   exercise_packages: 'S4-3/C5D deferred; no protected write surface in this stage',
   patient_app: 'code-search: no patient_app_enabled/toggle action',
   patient_app_paid_subscription: 'code-search: no subscription-toggle action',
-  branding: 'code-search: no branding write action',
   custom_domain: 'code-search: no custom-domain write action',
   patient_count: 'creation/reactivation path is not yet identified; stage 4.4 owns its inventory',
   doctor_statistics: 'statistics and booking-attribution surfaces are read-only',
-  proactive_insights: 'proactive-insights surfaces are read-only',
 } as const satisfies Partial<Record<OrgMechanic, string>>;

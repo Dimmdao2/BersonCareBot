@@ -1,0 +1,5 @@
+# Очередь конвейера для клона bcb-wt-tariff. Формат: роль|модель|effort|бриф|слой|run-id
+# Заполняет ЛИД, пока живой. Крон берёт следующую невзятую строку. Владельцу отсюда никто не пишет.
+# взято 2026-07-31 10:34 | worker|claude-sonnet-5|medium|/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/runs/tariff/S2_LADDER_ENGINE_BRIEF.md|tariff-5a|worker-tariff-ladder
+# взято 2026-07-31 10:47 | worker|claude-sonnet-5|medium|/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/runs/tariff/S5_NUMBERS_BRIEF.md|tariff-5a|worker-tariff-numbers
+worker|claude-sonnet-5|medium|/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/runs/tariff/S31B_VISIBILITY_BRIEF.md|tariff-5a|worker-tariff-visibility-2
