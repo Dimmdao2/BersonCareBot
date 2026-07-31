@@ -139,3 +139,5 @@ read-write bind'ов не входит — значит это не времен
 дублирую.
 - [ ] Конвейер tariff: порт отказал запускать worker-tariff-ladder. ОТКАЗ: в клоне tariff есть несведённые коммиты без записи в /home/dev/dev-projects/BersonCareBot/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md: 3f1633003
   Сначала аудит и строка с вердиктом в очереди, потом новая работа. (2026-07-31 10:32)
+- [ ] Конвейер portsmoke: порт отказал запускать worker-d14. ОТКАЗ: в клоне portsmoke есть несведённые коммиты без записи в /home/dev/dev-projects/BersonCareBot/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md: d2a809b5e
+  Сначала аудит и строка с вердиктом в очереди, потом новая работа. (2026-07-31 10:33)
