@@ -35,9 +35,11 @@
 
 ## Меню из одного источника
 
-Главное инлайн-меню задаётся в **одном месте** на канал: `src/content/telegram/user/menu.json` и `src/content/max/user/menu.json` (ключ `main`). В сценариях в шагах указывается `"menu": "main"` вместо дублирования `inlineKeyboard`. При сборке плана `buildPlan` подставляет `inlineKeyboard` из `bundle.menus.main`. Так и открытие меню (кнопка «Меню»), и возврат по «Назад» показывают один и тот же набор пунктов. Для MAX и Telegram набор `main` **согласован** (запись + WebApp «Приложение» на `links.webappHomeUrl`).
+Главное инлайн-меню задаётся в **одном месте** на канал: `src/content/telegram/user/menu.json` и `src/content/max/user/menu.json` (ключ `main`). В сценариях в шагах указывается `"menu": "main"` вместо дублирования `inlineKeyboard`. При сборке плана `buildPlan` подставляет `inlineKeyboard` из `bundle.menus.main`. Так и открытие меню (кнопка «Меню»), и возврат по «Назад» показывают один и тот же набор пунктов.
 
-**Reply-клавиатура Telegram:** отдельный файл `src/content/telegram/user/replyMenu.json` попадает в бандл как `mainReplyKeyboard` (`loadContentRegistry` в `src/kernel/contentRegistry/index.ts`). Содержимое **согласовано** с `menus.main` (две кнопки: запись + WebApp «Приложение» на `links.webappHomeUrl`); см. `contentConfig.test.ts` и [`.cursor/plans/archive/telegram_menu_reply_admin.plan.md`](../../.cursor/plans/archive/telegram_menu_reply_admin.plan.md).
+После удаления дублирующих Telegram/MAX mini-app entry points по `#993` оба главных инлайн-меню сохраняют только bot-действие записи `booking.open`; кнопки запуска WebApp в них нет.
+
+**Reply-клавиатура Telegram:** отдельный файл `src/content/telegram/user/replyMenu.json` попадает в бандл как `mainReplyKeyboard` (`loadContentRegistry` в `src/kernel/contentRegistry/index.ts`). Она также сохраняет только bot-действие записи; mini-app launch удалён.
 
 ## Админ Telegram: меню slash-команд
 
