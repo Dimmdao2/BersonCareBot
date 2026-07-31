@@ -10,11 +10,10 @@
  * worker:job-queue-drain source and its SELECT/UPDATE-only operational role.
  */
 import { randomUUID } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { getIntegratorDrizzleSession } from '../drizzle.js';
 import { createRealPostgresIntegrationTestHarness } from '../realPostgresIntegrationTestHarness.js';
-import { messageRetryJobs } from '../schema/integratorQueues.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import { claimDueMessageRetryJobs, enqueueMessageRetryJob } from './jobQueue.js';
 
 const enabled =
@@ -38,17 +37,21 @@ describe.skipIf(!enabled)(
     async function readRowByPhone(
       phoneNormalized: string,
     ): Promise<{ id: number; nextTryAt: string; status: string }> {
-      const rows = await harness.withRuntime((db) =>
-        getIntegratorDrizzleSession(db)
-          .select({
-            id: messageRetryJobs.id,
-            nextTryAt: messageRetryJobs.nextTryAt,
-            status: messageRetryJobs.status,
-          })
-          .from(messageRetryJobs)
-          .where(eq(messageRetryJobs.phoneNormalized, phoneNormalized)),
+      // Через runIntegratorSql, а НЕ через drizzle-сессию: вне транзакции `getIntegratorDrizzleSession`
+      // берёт общий пул и не переносит принципал контекста — в locked-режиме это мгновенный отказ
+      // «DB principal context is required» (поймано живым прогоном 31.07).
+      const result = await harness.withRuntime((db) =>
+        runIntegratorSql<{ id: number; next_try_at: string; status: string }>(
+          db,
+          sql`SELECT id, next_try_at, status
+              FROM integrator.message_retry_jobs
+              WHERE phone_normalized = ${phoneNormalized}`,
+        ),
       );
-      const row = rows[0];
+      const raw = result.rows[0];
+      const row = raw
+        ? { id: raw.id, nextTryAt: raw.next_try_at, status: raw.status }
+        : undefined;
       if (!row) throw new Error(`readRowByPhone: ${phoneNormalized} not found`);
       return row;
     }
@@ -60,18 +63,25 @@ describe.skipIf(!enabled)(
     afterAll(async () => {
       await harness.assertTestDatabases();
       if (writtenPhones.length > 0) {
-        await harness.withFixtures((db) =>
-          getIntegratorDrizzleSession(db)
-            .delete(messageRetryJobs)
-            .where(inArray(messageRetryJobs.phoneNormalized, writtenPhones)),
-        );
-        const remaining = await harness.withRuntime((db) =>
-          getIntegratorDrizzleSession(db)
-            .select({ id: messageRetryJobs.id })
-            .from(messageRetryJobs)
-            .where(inArray(messageRetryJobs.phoneNormalized, writtenPhones)),
-        );
-        expect(remaining).toEqual([]);
+        await harness.withFixtures(async (db) => {
+          for (const phone of writtenPhones) {
+            await runIntegratorSql(
+              db,
+              sql`DELETE FROM integrator.message_retry_jobs WHERE phone_normalized = ${phone}`,
+            );
+          }
+        });
+        for (const phone of writtenPhones) {
+          const remaining = await harness.withRuntime((db) =>
+            runIntegratorSql<{ row_count: number }>(
+              db,
+              sql`SELECT count(*)::integer AS row_count
+                  FROM integrator.message_retry_jobs
+                  WHERE phone_normalized = ${phone}`,
+            ),
+          );
+          expect(remaining.rows[0]?.row_count).toBe(0);
+        }
       }
     });
 

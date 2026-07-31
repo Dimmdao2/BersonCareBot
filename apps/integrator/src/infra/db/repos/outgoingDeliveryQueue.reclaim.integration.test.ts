@@ -85,10 +85,11 @@ describe.skipIf(!enabled)(
       return result.rows[0];
     }
 
-    async function readAttemptJournalSnapshot(
-      db: DbPort,
-      ids?: string[],
-    ): Promise<AttemptJournalSnapshot> {
+    // Снимок ВСЕГО журнала: сравнение до/после доказывает, что уборка очереди его не трогает,
+    // и делает это строже подставной строки — следим за всеми записями, а не за одной своей.
+    // Списка идентификаторов здесь нет намеренно: параметризованный пустой массив приводил к
+    // `cannot cast type record to text[]` на настоящей базе (поймано живым прогоном 31.07).
+    async function readAttemptJournalSnapshot(db: DbPort): Promise<AttemptJournalSnapshot> {
       const result = await runIntegratorSql<{
         row_count: number;
         ids: string[];
@@ -105,9 +106,7 @@ describe.skipIf(!enabled)(
                 string_agg(to_jsonb(attempt)::text, '' ORDER BY attempt.id),
                 ''
               )) AS content_fingerprint
-            FROM public.notification_delivery_attempts AS attempt
-            WHERE ${ids === undefined}
-               OR attempt.id = ANY(${ids ?? []}::uuid[])`,
+            FROM public.notification_delivery_attempts AS attempt`,
       );
       const row = result.rows[0];
       if (!row) throw new Error('readAttemptJournalSnapshot: aggregate row missing');
@@ -126,23 +125,26 @@ describe.skipIf(!enabled)(
       await harness.assertTestDatabases();
       await harness.withFixtures(async (db) => {
         if (writtenQueueEventIds.length > 0) {
-          await runIntegratorSql(
-            db,
-            sql`DELETE FROM public.outgoing_delivery_queue
-                WHERE event_id = ANY(${writtenQueueEventIds}::text[])`,
-          );
+          for (const eventId of writtenQueueEventIds) {
+            await runIntegratorSql(
+              db,
+              sql`DELETE FROM public.outgoing_delivery_queue WHERE event_id = ${eventId}`,
+            );
+          }
         }
       });
       if (writtenQueueEventIds.length > 0) {
-        const remaining = await harness.withRuntime((db) =>
-          runIntegratorSql<{ row_count: number }>(
-            db,
-            sql`SELECT count(*)::integer AS row_count
-                FROM public.outgoing_delivery_queue
-                WHERE event_id = ANY(${writtenQueueEventIds}::text[])`,
-          ),
-        );
-        expect(remaining.rows[0]?.row_count).toBe(0);
+        for (const eventId of writtenQueueEventIds) {
+          const remaining = await harness.withRuntime((db) =>
+            runIntegratorSql<{ row_count: number }>(
+              db,
+              sql`SELECT count(*)::integer AS row_count
+                  FROM public.outgoing_delivery_queue
+                  WHERE event_id = ${eventId}`,
+            ),
+          );
+          expect(remaining.rows[0]?.row_count).toBe(0);
+        }
       }
     });
 
@@ -216,7 +218,7 @@ describe.skipIf(!enabled)(
       expect(await readQueueRow(expired.id)).toBeUndefined();
       expect(await readQueueRow(recent.id)).toMatchObject({ status: 'sent' });
       const journalAfter = await harness.withFixtures((db) =>
-        readAttemptJournalSnapshot(db, journalBefore.ids),
+        readAttemptJournalSnapshot(db),
       );
       expect(journalAfter.rowCount).toBe(journalBefore.rowCount);
       expect(journalAfter.contentFingerprint).toBe(journalBefore.contentFingerprint);
