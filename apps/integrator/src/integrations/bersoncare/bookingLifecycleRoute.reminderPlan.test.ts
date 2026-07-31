@@ -75,4 +75,16 @@ describe('scheduleBookingReminders reminder plan', () => {
 
     expect(enqueueMessageRetryJob).not.toHaveBeenCalled();
   });
+
+  it('D13b: puts no delivery job when no plan is given — there is no 24h/2h fallback left', async () => {
+    await scheduleBookingReminders({
+      bookingId: 'booking-no-plan',
+      slotStartIso,
+      phoneNormalized: '+79990000000',
+      patientName: 'Пациент',
+      timeZone: 'UTC',
+    });
+
+    expect(enqueueMessageRetryJob).not.toHaveBeenCalled();
+  });
 });

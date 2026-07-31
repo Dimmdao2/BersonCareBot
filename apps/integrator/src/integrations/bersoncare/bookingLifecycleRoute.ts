@@ -367,6 +367,7 @@ export async function scheduleBookingReminders(input: {
   patientName: string | null;
   timeZone: string;
   webappEventsPort?: WebappEventsPort;
+  /** Вебапп решает, включены ли напоминания и с какими смещениями; отсутствие плана — не ставить ни одного напоминания. */
   reminderPlan?: { enabled: boolean; offsetsMinutes: number[] };
 }): Promise<void> {
   if (input.reminderPlan?.enabled === false) return;
@@ -419,25 +420,11 @@ export async function scheduleBookingReminders(input: {
   const db = createDbPort();
   const patientLabel = input.patientName ?? 'Пациент';
   const dateLabel = formatBookingRuDateTime(input.slotStartIso, input.timeZone);
-  const legacyReminders = [
-    {
-      code: '24h',
-      offsetMs: 24 * 60 * 60 * 1000,
-      text: `Напоминание: приём ${dateLabel} (через 24 часа).`,
-    },
-    {
-      code: '2h',
-      offsetMs: 2 * 60 * 60 * 1000,
-      text: `Напоминание: приём ${dateLabel} (через 2 часа).`,
-    },
-  ];
-  const reminders = input.reminderPlan
-    ? input.reminderPlan.offsetsMinutes.map((offsetMinutes) => ({
-        code: `${offsetMinutes}m`,
-        offsetMs: offsetMinutes * 60 * 1000,
-        text: `Напоминание: приём ${dateLabel} (через ${offsetMinutes} мин.).`,
-      }))
-    : legacyReminders;
+  const reminders = (input.reminderPlan?.offsetsMinutes ?? []).map((offsetMinutes) => ({
+    code: `${offsetMinutes}m`,
+    offsetMs: offsetMinutes * 60 * 1000,
+    text: `Напоминание: приём ${dateLabel} (через ${offsetMinutes} мин.).`,
+  }));
 
   for (const reminder of reminders) {
     const runAtMs = startMs - reminder.offsetMs;
