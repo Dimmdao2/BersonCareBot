@@ -23,7 +23,7 @@
 // сегодня. Ослабить список может только правка самого 'frozenBaseline' — а это отдельное поле,
 // значит отдельный, видимый в дифф-ревью, hunk, а не строка, спрятанная внутри обычного 'apps'.
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
