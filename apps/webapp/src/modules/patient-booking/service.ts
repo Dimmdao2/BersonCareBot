@@ -39,6 +39,11 @@ import type { PatientBookingRecord } from './types';
 import { prepaymentContextFromBooking } from '@/modules/payments/prepaymentContextFromBooking';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
+import {
+  buildPatientCancelledMessageText,
+  buildPatientRescheduledMessageText,
+} from './patientMessageText';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return (
@@ -142,6 +147,8 @@ export function createPatientBookingService(input: {
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   getAppointmentReminderPlan?: (organizationId: string) => Promise<AppointmentReminderPlan>;
+  /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
+  getAppDisplayTimeZone?: () => Promise<string>;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
@@ -175,6 +182,7 @@ export function createPatientBookingService(input: {
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
           getAppointmentReminderPlan: input.getAppointmentReminderPlan,
+          getAppDisplayTimeZone: input.getAppDisplayTimeZone,
         }
       : null;
 
@@ -510,6 +518,7 @@ export function createPatientBookingService(input: {
       let integratorStatus: 'sent' | 'failed' = 'failed';
       try {
         const reminderPlan = await input.getAppointmentReminderPlan?.(orgId);
+        const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
         await input.syncPort.emitBookingEvent({
           eventType: 'booking.rescheduled',
           idempotencyKey,
@@ -531,6 +540,10 @@ export function createPatientBookingService(input: {
             ...(reminderPlan ? { reminderPlan } : {}),
             cancelPendingReminders: true,
             patientPushVariant: 'rescheduled',
+            patientMessageText: buildPatientRescheduledMessageText(
+              { slotStart: rescheduleInput.slotStart, bookingType: row.bookingType },
+              timeZone,
+            ),
           },
         });
         integratorStatus = 'sent';
@@ -736,6 +749,7 @@ export function createPatientBookingService(input: {
         const idempotencyKey = `booking.cancelled:${row.id}`;
         let integratorStatus: 'sent' | 'failed' = 'failed';
         try {
+          const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
           await input.syncPort.emitBookingEvent({
             eventType: 'booking.cancelled',
             idempotencyKey,
@@ -755,6 +769,12 @@ export function createPatientBookingService(input: {
               cityCodeSnapshot: row.cityCodeSnapshot,
               serviceTitleSnapshot: row.serviceTitleSnapshot,
               canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
+              cancelPendingReminders: true,
+              patientPushVariant: 'cancelled',
+              patientMessageText: buildPatientCancelledMessageText(
+                { slotStart: row.slotStart, reason: cancelInput.reason },
+                timeZone,
+              ),
             },
           });
           integratorStatus = 'sent';

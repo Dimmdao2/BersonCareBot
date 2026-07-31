@@ -103,6 +103,8 @@ export type BookingSyncPort = {
       cancelPendingReminders?: boolean;
       /** D14(2): слать ли пуш пациенту и каким вариантом; null = не слать. Отсутствие поля = прежнее поведение интегратора. */
       patientPushVariant?: 'created' | 'cancelled' | 'rescheduled' | null;
+      /** D14(3): дословный текст пациентского сообщения. Отсутствие поля = прежний текст интегратора. */
+      patientMessageText?: string;
     };
   }): Promise<void>;
 };

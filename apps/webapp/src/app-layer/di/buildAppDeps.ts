@@ -1202,6 +1202,7 @@ patientBookingService = createPatientBookingService({
       organizationId,
       (key, scope, options) => systemSettingsService.getSetting(key, scope, options),
     ),
+  getAppDisplayTimeZone,
 });
 
 const patientHomeBlocksService = createPatientHomeBlocksService({

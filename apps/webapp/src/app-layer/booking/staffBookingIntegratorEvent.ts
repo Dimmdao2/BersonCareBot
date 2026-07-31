@@ -1,6 +1,12 @@
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { BookingSyncPort } from '@/modules/patient-booking/ports';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import {
+  buildPatientCancelledMessageText,
+  buildPatientCreatedMessageText,
+  buildPatientRescheduledMessageText,
+} from '@/modules/patient-booking/patientMessageText';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 type StaffBookingEventType = 'booking.created' | 'booking.cancelled' | 'booking.rescheduled';
 
@@ -52,6 +58,17 @@ export async function emitStaffCanonicalBookingEvent(opts: {
     bookingRow?.contactName ?? staffBookingContactNameFromAppointment(opts.appointment);
   const contactPhone =
     bookingRow?.contactPhone ?? opts.appointment.phoneNormalized ?? '+70000000000';
+  const bookingType = bookingRow?.bookingType ?? 'in_person';
+  const city = bookingRow?.city ?? null;
+  const cityCodeSnapshot = bookingRow?.cityCodeSnapshot ?? null;
+  const slotStart = opts.appointment.startAt;
+  const timeZone = await getAppDisplayTimeZone();
+  const patientMessageText =
+    opts.eventType === 'booking.created'
+      ? buildPatientCreatedMessageText({ slotStart, bookingType, city, cityCodeSnapshot }, timeZone)
+      : opts.eventType === 'booking.cancelled'
+        ? buildPatientCancelledMessageText({ slotStart }, timeZone)
+        : buildPatientRescheduledMessageText({ slotStart, bookingType }, timeZone);
   try {
     await opts.syncPort.emitBookingEvent({
       eventType: opts.eventType,
@@ -78,6 +95,7 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         ...(opts.patientPushVariant !== undefined
           ? { patientPushVariant: opts.patientPushVariant }
           : {}),
+        patientMessageText,
       },
     });
     return 'sent';

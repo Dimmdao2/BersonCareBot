@@ -5,6 +5,8 @@ import {
 } from '@/modules/booking-notifications/settings';
 import type { BookingSyncPort, PatientBookingsPort } from '@/modules/patient-booking/ports';
 import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
+import { buildPatientPaymentCapturedMessageText } from '@/modules/patient-booking/patientMessageText';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 type AppointmentPaymentConfirmedInput = {
   appointmentId: string;
@@ -41,6 +43,7 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
     );
     if (!paymentNotify.notifyPatient && !paymentNotify.notifyStaff) return;
     const reminderPlan = await deps.loadReminderPlan(appointment.organizationId);
+    const timeZone = await getAppDisplayTimeZone();
 
     await deps.bookingSync.emitBookingEvent({
       eventType: 'booking.payment_captured',
@@ -61,6 +64,10 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
         serviceTitleSnapshot: row.serviceTitleSnapshot,
         canonicalAppointmentId: input.appointmentId,
         reminderPlan,
+        patientMessageText: buildPatientPaymentCapturedMessageText(
+          { slotStart: row.slotStart },
+          timeZone,
+        ),
       },
     });
   };

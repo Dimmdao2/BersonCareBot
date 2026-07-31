@@ -36,6 +36,8 @@ import {
 } from './bookingLifecycleNotifications';
 import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
 import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
+import { buildPatientCreatedMessageText } from './patientMessageText';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return (
@@ -77,6 +79,8 @@ export type CanonicalBookingDeps = {
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   getAppointmentReminderPlan?: (organizationId: string) => Promise<AppointmentReminderPlan>;
+  /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
+  getAppDisplayTimeZone?: () => Promise<string>;
 };
 
 function toPendingRowOnline(
@@ -561,6 +565,7 @@ export async function createBookingOnCanonicalEngine(
     );
     if (createNotify.notifyPatient || createNotify.notifyStaff) {
       const reminderPlan = await deps.getAppointmentReminderPlan?.(orgId);
+      const timeZone = (await deps.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
       await Promise.all(
         appointments.map((item, index) => {
           const row = confirmedRows[index] ?? pendingRows[index]!;
@@ -585,6 +590,15 @@ export async function createBookingOnCanonicalEngine(
               canonicalAppointmentId: item.id,
               ...(reminderPlan ? { reminderPlan } : {}),
               cancelPendingReminders: true,
+              patientMessageText: buildPatientCreatedMessageText(
+                {
+                  slotStart: row.slotStart,
+                  bookingType: row.bookingType,
+                  city: row.city,
+                  cityCodeSnapshot: row.cityCodeSnapshot,
+                },
+                timeZone,
+              ),
             },
           });
         }),
