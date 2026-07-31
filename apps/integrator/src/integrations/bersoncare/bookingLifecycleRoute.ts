@@ -420,6 +420,21 @@ export async function scheduleBookingReminders(input: {
   const db = createDbPort();
   const patientLabel = input.patientName ?? 'Пациент';
   const dateLabel = formatBookingRuDateTime(input.slotStartIso, input.timeZone);
+  // D13b: константы 24ч/2ч вырезаны — офсеты решает вебапп. Но отсутствие плана обязано быть ВИДИМЫМ:
+  // без этого предупреждения событие без плана тихо не поставит ни одного напоминания, ошибок в логах не
+  // будет, деплой останется зелёным — и это обнаружится по неявкам (дословное предупреждение плана D13b).
+  if (!input.reminderPlan) {
+    logger.warn(
+      {
+        scope: 'notification_delivery',
+        event: 'notification_audience_empty',
+        topic: 'booking_reminder_scheduling',
+        severity: 'user_facing',
+        reason: 'no_reminder_plan',
+      },
+      'appointment reminders not scheduled: webapp sent no reminder plan',
+    );
+  }
   const reminders = (input.reminderPlan?.offsetsMinutes ?? []).map((offsetMinutes) => ({
     code: `${offsetMinutes}m`,
     offsetMs: offsetMinutes * 60 * 1000,
