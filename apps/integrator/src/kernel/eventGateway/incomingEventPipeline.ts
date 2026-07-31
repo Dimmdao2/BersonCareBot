@@ -2,6 +2,7 @@ import type {
   ActorResolutionPort,
   ContentCatalogPort,
   ContentPort,
+  DbPort,
   DbReadPort,
   DeliveryDefaultsPort,
   DeliveryTargetsPort,
@@ -22,6 +23,8 @@ import { MESSENGER_START_SPECIAL_ACTIONS } from '../orchestrator/messengerStartC
 export type IncomingEventPipelineDeps = {
   readPort: DbReadPort;
   writePort: DbWritePort;
+  /** D35: постановка провалившегося ответа на входящее в `outgoing_delivery_queue`. */
+  db?: DbPort;
   queuePort: QueuePort;
   dispatchPort: DispatchPort;
   orchestrator: Orchestrator;
@@ -136,6 +139,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
       }
       await processAcceptedIncomingEvent(event, {
         readPort: deps.readPort,
+        ...(deps.db ? { db: deps.db } : {}),
         orchestrator: deps.orchestrator,
         async executeAction(action, context) {
           const executorDeps = {
