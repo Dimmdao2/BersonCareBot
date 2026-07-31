@@ -296,8 +296,7 @@ export async function handleConversationUserMessage(
   const integratorMessageId = randomUUID();
   const platformUserId = await resolvePlatformUserIdForChannel(deps, source, externalId);
   const externalChatId = asString(action.params.externalChatId) ?? readIncomingChatId(ctx);
-  const externalMessageId =
-    asString(action.params.externalMessageId) ?? readIncomingMessageId(ctx);
+  const externalMessageId = asString(action.params.externalMessageId) ?? readIncomingMessageId(ctx);
   const webappSync =
     platformUserId && text
       ? await mirrorPatientUserMessageToWebapp(deps, {
@@ -310,8 +309,7 @@ export async function handleConversationUserMessage(
           externalMessageId,
         })
       : { mirrored: false };
-  const effectiveConversationId =
-    webappSync.canonicalWrite?.conversationId ?? conversationId;
+  const effectiveConversationId = webappSync.canonicalWrite?.conversationId ?? conversationId;
   if (effectiveConversationId !== conversationId && deps.writePort) {
     await persistWrites(deps.writePort, [
       {
@@ -602,6 +600,7 @@ export async function handleConversationAdminReply(
         params: {
           id: randomUUID(),
           questionId: question.id,
+          conversationId,
           senderType: 'admin',
           messageText: messageTextForDb,
           createdAt: ctx.nowIso,
@@ -609,7 +608,7 @@ export async function handleConversationAdminReply(
       },
       {
         type: 'question.markAnswered',
-        params: { questionId: question.id, answeredAt: ctx.nowIso },
+        params: { questionId: question.id, conversationId, answeredAt: ctx.nowIso },
       },
     ];
     await persistWrites(deps.writePort, questionReplyWrites);

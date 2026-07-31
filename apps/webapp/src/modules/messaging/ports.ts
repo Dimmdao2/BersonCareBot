@@ -30,3 +30,38 @@ export type IntegratorSupportOwnershipPort = PatientInboundChatPort & {
     closeReason?: string | null;
   }): Promise<void>;
 };
+
+/** Узкий порт webapp-владельца для канонических вопросов поддержки и журнала доставки. */
+export type IntegratorSupportQuestionOwnershipPort = {
+  createQuestion(params: {
+    integratorQuestionId: string;
+    conversationId: string;
+    organizationId: string;
+    status: string;
+    createdAt: string;
+  }): Promise<{ id: string }>;
+  appendQuestionMessage(params: {
+    integratorQuestionMessageId: string;
+    integratorQuestionId: string;
+    organizationId: string;
+    senderRole: 'user' | 'admin';
+    text: string;
+    createdAt: string;
+  }): Promise<{ id: string; created: boolean }>;
+  markQuestionAnswered(params: {
+    integratorQuestionId: string;
+    organizationId: string;
+    answeredAt: string;
+  }): Promise<void>;
+  recordDeliveryAttempt(params: {
+    organizationId: string;
+    integratorIntentEventId: string | null;
+    correlationId: string | null;
+    channelCode: string;
+    status: string;
+    attempt: number;
+    reason: string | null;
+    payloadJson: Record<string, unknown>;
+    occurredAt: string;
+  }): Promise<{ id: string; created: boolean }>;
+};

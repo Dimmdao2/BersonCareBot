@@ -99,6 +99,7 @@ import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirec
 import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
+import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
@@ -897,56 +898,78 @@ export function createDbWritePort(
             status: 'open',
             createdAt,
           };
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              createSupportQuestionDirect(db, {
-                integratorQuestionId: id,
-                integratorConversationId: conversationId,
-                status: 'open',
-                createdAt,
-              }),
-            );
-          } catch (err) {
-            if (
-              err instanceof SupportQuestionsDirectWriteError &&
-              err.code === 'conversation_id_required'
-            ) {
-              logger.warn(
-                { err, mutationType: mutation.type, id },
-                'question.create: direct public write fail-closed (no conversation id) — no write, no fallback',
-              );
-            } else {
-              await enqueueProjectionEvent(db, {
-                eventType: 'support.question.created',
-                idempotencyKey: projectionIdempotencyKey(
-                  'support.question.created',
-                  id,
-                  hashPayloadExcludingKeys(questionCreateFallbackPayload, ['integratorUserId']),
-                ),
-                occurredAt: createdAt,
-                payload: questionCreateFallbackPayload,
-              });
-              const reason =
-                err instanceof SupportQuestionsDirectWriteError
-                  ? err.code
-                  : 'direct_write_unexpected_error';
-              logger.warn(
-                { err, mutationType: mutation.type, id, reason },
-                'question.create: direct public write failed, fell back to durable outbox',
-              );
-              await recordOperatorFailureIncident({
-                direction: 'db_write',
-                integration: 'support_questions',
-                errorClass: 'question_create_direct_write_fallback',
-                errorDetail: reason,
-              }).catch((incidentErr: unknown) => {
-                logger.error(
-                  { err: incidentErr, mutationType: mutation.type, id },
-                  'question.create: failed to record operator incident for direct-write fallback',
+          await executeCanonicalWriteOrLegacy({
+            sync:
+              conversationId && webappEventsPort?.syncSupportQuestionWrite
+                ? () =>
+                    webappEventsPort.syncSupportQuestionWrite!({
+                      body: JSON.stringify({
+                        operation: 'create',
+                        integratorConversationId: conversationId,
+                        integratorQuestionId: id,
+                        ...(asNullableString(mutation.params.organizationId)
+                          ? { organizationId: asNullableString(mutation.params.organizationId) }
+                          : {}),
+                        status: 'open',
+                        createdAt,
+                      }),
+                      idempotencyKey: `support-question-create:${id}`,
+                    })
+                : undefined,
+            accepts: (canonicalWrite) => canonicalWrite.questionId === id,
+            legacyWrite: async () => {
+              try {
+                await runDirectPublicWriteWithOrgPrincipal(() =>
+                  createSupportQuestionDirect(db, {
+                    integratorQuestionId: id,
+                    integratorConversationId: conversationId,
+                    status: 'open',
+                    createdAt,
+                  }),
                 );
-              });
-            }
-          }
+              } catch (err) {
+                if (
+                  err instanceof SupportQuestionsDirectWriteError &&
+                  err.code === 'conversation_id_required'
+                ) {
+                  logger.warn(
+                    { err, mutationType: mutation.type, id },
+                    'question.create: direct public write fail-closed (no conversation id) — no write, no fallback',
+                  );
+                } else {
+                  await enqueueProjectionEvent(db, {
+                    eventType: 'support.question.created',
+                    idempotencyKey: projectionIdempotencyKey(
+                      'support.question.created',
+                      id,
+                      hashPayloadExcludingKeys(questionCreateFallbackPayload, ['integratorUserId']),
+                    ),
+                    occurredAt: createdAt,
+                    payload: questionCreateFallbackPayload,
+                  });
+                  const reason =
+                    err instanceof SupportQuestionsDirectWriteError
+                      ? err.code
+                      : 'direct_write_unexpected_error';
+                  logger.warn(
+                    { err, mutationType: mutation.type, id, reason },
+                    'question.create: direct public write failed, fell back to durable outbox',
+                  );
+                  await recordOperatorFailureIncident({
+                    direction: 'db_write',
+                    integration: 'support_questions',
+                    errorClass: 'question_create_direct_write_fallback',
+                    errorDetail: reason,
+                  }).catch((incidentErr: unknown) => {
+                    logger.error(
+                      { err: incidentErr, mutationType: mutation.type, id },
+                      'question.create: failed to record operator incident for direct-write fallback',
+                    );
+                  });
+                }
+              }
+            },
+          });
           return;
         }
         case 'question.message.add': {
@@ -977,54 +1000,80 @@ export function createDbWritePort(
           // header ("DURABILITY"). `question_not_found` (parent row not yet visible) is NOT a
           // legitimately-fail-closed condition here: the message text itself must not be lost, so it —
           // like any other unexpected error — falls back to the durable outbox.
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              appendSupportQuestionMessageDirect(db, {
-                integratorQuestionMessageId: id,
-                integratorQuestionId: questionId,
-                senderRole: senderType,
-                text: messageText,
-                createdAt,
-              }),
-            );
-          } catch (err) {
-            const fallbackPayload: Record<string, unknown> = {
-              integratorQuestionMessageId: id,
-              integratorQuestionId: questionId,
-              senderRole: senderType,
-              text: messageText,
-              createdAt,
-            };
-            await enqueueProjectionEvent(db, {
-              eventType: 'support.question.message.appended',
-              idempotencyKey: projectionIdempotencyKey(
-                'support.question.message.appended',
-                id,
-                hashPayload(fallbackPayload),
-              ),
-              occurredAt: createdAt,
-              payload: fallbackPayload,
-            });
-            const reason =
-              err instanceof SupportQuestionsDirectWriteError
-                ? err.code
-                : 'direct_write_unexpected_error';
-            logger.warn(
-              { err, mutationType: mutation.type, id, questionId, reason },
-              'question.message.add: direct public write failed, fell back to durable outbox',
-            );
-            await recordOperatorFailureIncident({
-              direction: 'db_write',
-              integration: 'support_questions',
-              errorClass: 'question_message_add_direct_write_fallback',
-              errorDetail: reason,
-            }).catch((incidentErr: unknown) => {
-              logger.error(
-                { err: incidentErr, mutationType: mutation.type, id, questionId },
-                'question.message.add: failed to record operator incident for direct-write fallback',
-              );
-            });
-          }
+          const questionConversationId = asNullableString(mutation.params.conversationId);
+          await executeCanonicalWriteOrLegacy({
+            sync:
+              questionConversationId && webappEventsPort?.syncSupportQuestionWrite
+                ? () =>
+                    webappEventsPort.syncSupportQuestionWrite!({
+                      body: JSON.stringify({
+                        operation: 'message',
+                        integratorConversationId: questionConversationId,
+                        integratorQuestionId: questionId,
+                        integratorQuestionMessageId: id,
+                        ...(asNullableString(mutation.params.organizationId)
+                          ? { organizationId: asNullableString(mutation.params.organizationId) }
+                          : {}),
+                        senderRole: senderType,
+                        text: messageText,
+                        createdAt,
+                      }),
+                      idempotencyKey: `support-question-message:${id}`,
+                    })
+                : undefined,
+            accepts: (canonicalWrite) =>
+              canonicalWrite.questionId === questionId && canonicalWrite.questionMessageId === id,
+            legacyWrite: async () => {
+              try {
+                await runDirectPublicWriteWithOrgPrincipal(() =>
+                  appendSupportQuestionMessageDirect(db, {
+                    integratorQuestionMessageId: id,
+                    integratorQuestionId: questionId,
+                    senderRole: senderType,
+                    text: messageText,
+                    createdAt,
+                  }),
+                );
+              } catch (err) {
+                const fallbackPayload: Record<string, unknown> = {
+                  integratorQuestionMessageId: id,
+                  integratorQuestionId: questionId,
+                  senderRole: senderType,
+                  text: messageText,
+                  createdAt,
+                };
+                await enqueueProjectionEvent(db, {
+                  eventType: 'support.question.message.appended',
+                  idempotencyKey: projectionIdempotencyKey(
+                    'support.question.message.appended',
+                    id,
+                    hashPayload(fallbackPayload),
+                  ),
+                  occurredAt: createdAt,
+                  payload: fallbackPayload,
+                });
+                const reason =
+                  err instanceof SupportQuestionsDirectWriteError
+                    ? err.code
+                    : 'direct_write_unexpected_error';
+                logger.warn(
+                  { err, mutationType: mutation.type, id, questionId, reason },
+                  'question.message.add: direct public write failed, fell back to durable outbox',
+                );
+                await recordOperatorFailureIncident({
+                  direction: 'db_write',
+                  integration: 'support_questions',
+                  errorClass: 'question_message_add_direct_write_fallback',
+                  errorDetail: reason,
+                }).catch((incidentErr: unknown) => {
+                  logger.error(
+                    { err: incidentErr, mutationType: mutation.type, id, questionId },
+                    'question.message.add: failed to record operator incident for direct-write fallback',
+                  );
+                });
+              }
+            },
+          });
           return;
         }
         case 'question.markAnswered': {
@@ -1038,48 +1087,70 @@ export function createDbWritePort(
           // the integrator-local write above; see writeSupportQuestionsDirect.ts header ("DURABILITY").
           // `question_not_found` and any other unexpected error both fall back to the durable outbox —
           // an admin's answer must not be silently and permanently lost.
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              markSupportQuestionAnsweredDirect(db, {
-                integratorQuestionId: questionId,
-                answeredAt,
-              }),
-            );
-          } catch (err) {
-            const fallbackPayload: Record<string, unknown> = {
-              integratorQuestionId: questionId,
-              answeredAt,
-            };
-            await enqueueProjectionEvent(db, {
-              eventType: 'support.question.answered',
-              idempotencyKey: projectionIdempotencyKey(
-                'support.question.answered',
-                questionId,
-                hashPayload(fallbackPayload),
-              ),
-              occurredAt: answeredAt,
-              payload: fallbackPayload,
-            });
-            const reason =
-              err instanceof SupportQuestionsDirectWriteError
-                ? err.code
-                : 'direct_write_unexpected_error';
-            logger.warn(
-              { err, mutationType: mutation.type, questionId, reason },
-              'question.markAnswered: direct public write failed, fell back to durable outbox',
-            );
-            await recordOperatorFailureIncident({
-              direction: 'db_write',
-              integration: 'support_questions',
-              errorClass: 'question_mark_answered_direct_write_fallback',
-              errorDetail: reason,
-            }).catch((incidentErr: unknown) => {
-              logger.error(
-                { err: incidentErr, mutationType: mutation.type, questionId },
-                'question.markAnswered: failed to record operator incident for direct-write fallback',
-              );
-            });
-          }
+          const answeredConversationId = asNullableString(mutation.params.conversationId);
+          await executeCanonicalWriteOrLegacy({
+            sync:
+              answeredConversationId && webappEventsPort?.syncSupportQuestionWrite
+                ? () =>
+                    webappEventsPort.syncSupportQuestionWrite!({
+                      body: JSON.stringify({
+                        operation: 'answered',
+                        integratorConversationId: answeredConversationId,
+                        integratorQuestionId: questionId,
+                        ...(asNullableString(mutation.params.organizationId)
+                          ? { organizationId: asNullableString(mutation.params.organizationId) }
+                          : {}),
+                        answeredAt,
+                      }),
+                      idempotencyKey: `support-question-answered:${questionId}:${answeredAt}`,
+                    })
+                : undefined,
+            accepts: (canonicalWrite) => canonicalWrite.questionId === questionId,
+            legacyWrite: async () => {
+              try {
+                await runDirectPublicWriteWithOrgPrincipal(() =>
+                  markSupportQuestionAnsweredDirect(db, {
+                    integratorQuestionId: questionId,
+                    answeredAt,
+                  }),
+                );
+              } catch (err) {
+                const fallbackPayload: Record<string, unknown> = {
+                  integratorQuestionId: questionId,
+                  answeredAt,
+                };
+                await enqueueProjectionEvent(db, {
+                  eventType: 'support.question.answered',
+                  idempotencyKey: projectionIdempotencyKey(
+                    'support.question.answered',
+                    questionId,
+                    hashPayload(fallbackPayload),
+                  ),
+                  occurredAt: answeredAt,
+                  payload: fallbackPayload,
+                });
+                const reason =
+                  err instanceof SupportQuestionsDirectWriteError
+                    ? err.code
+                    : 'direct_write_unexpected_error';
+                logger.warn(
+                  { err, mutationType: mutation.type, questionId, reason },
+                  'question.markAnswered: direct public write failed, fell back to durable outbox',
+                );
+                await recordOperatorFailureIncident({
+                  direction: 'db_write',
+                  integration: 'support_questions',
+                  errorClass: 'question_mark_answered_direct_write_fallback',
+                  errorDetail: reason,
+                }).catch((incidentErr: unknown) => {
+                  logger.error(
+                    { err: incidentErr, mutationType: mutation.type, questionId },
+                    'question.markAnswered: failed to record operator incident for direct-write fallback',
+                  );
+                });
+              }
+            },
+          });
           return;
         }
         case 'notifications.update': {
@@ -1605,53 +1676,77 @@ export function createDbWritePort(
             );
             return;
           }
-          try {
-            // organizationId is already a known, validated value here (guarded above) — wrap with it
-            // directly rather than relying on the ambient principal (this mutation can also be reached
-            // from delivery/retry paths without an ambient organization principal at all).
-            await runWithOrganizationPrincipal(organizationId, () =>
-              appendSupportDeliveryEventDirect(db, {
-                organizationId,
-                conversationMessageId: null,
-                integratorIntentEventId: intentEventId,
-                correlationId,
-                channelCode: channel ?? 'unknown',
-                status: status ?? 'failed',
-                attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
-                reason,
-                payloadJson,
-                occurredAt,
-              }),
-            );
-          } catch (err) {
-            const key =
-              intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
-            await enqueueProjectionEvent(db, {
-              eventType: 'support.delivery.attempt.logged',
-              idempotencyKey: projectionIdempotencyKey(
-                'support.delivery.attempt.logged',
-                String(key),
-                hashPayload(deliveryFallbackPayload),
-              ),
-              occurredAt,
-              payload: deliveryFallbackPayload,
-            });
-            logger.warn(
-              { err, mutationType: mutation.type, intentEventId, correlationId, channel },
-              'delivery.attempt.log: direct public write failed, fell back to durable outbox',
-            );
-            await recordOperatorFailureIncident({
-              direction: 'db_write',
-              integration: 'support_delivery_events',
-              errorClass: 'delivery_attempt_log_direct_write_fallback',
-              errorDetail: 'direct_write_unexpected_error',
-            }).catch((incidentErr: unknown) => {
-              logger.error(
-                { err: incidentErr, mutationType: mutation.type, intentEventId, correlationId },
-                'delivery.attempt.log: failed to record operator incident for direct-write fallback',
-              );
-            });
-          }
+          const deliveryAttemptId =
+            intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
+          await executeCanonicalWriteOrLegacy({
+            sync: webappEventsPort?.syncSupportDeliveryAttempt
+              ? () =>
+                  webappEventsPort.syncSupportDeliveryAttempt!({
+                    body: JSON.stringify({
+                      organizationId,
+                      integratorIntentEventId: intentEventId,
+                      correlationId,
+                      channelCode: channel ?? 'unknown',
+                      status: status ?? 'failed',
+                      attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
+                      reason,
+                      payloadJson,
+                      occurredAt,
+                    }),
+                    idempotencyKey: `support-delivery-attempt:${deliveryAttemptId}`,
+                  })
+              : undefined,
+            accepts: (canonicalWrite) =>
+              canonicalWrite.deliveryAttemptId === deliveryAttemptId &&
+              canonicalWrite.organizationId === organizationId,
+            legacyWrite: async () => {
+              try {
+                // organizationId is already a known, validated value here (guarded above) — wrap with it
+                // directly rather than relying on the ambient principal (this mutation can also be reached
+                // from delivery/retry paths without an ambient organization principal at all).
+                await runWithOrganizationPrincipal(organizationId, () =>
+                  appendSupportDeliveryEventDirect(db, {
+                    organizationId,
+                    conversationMessageId: null,
+                    integratorIntentEventId: intentEventId,
+                    correlationId,
+                    channelCode: channel ?? 'unknown',
+                    status: status ?? 'failed',
+                    attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
+                    reason,
+                    payloadJson,
+                    occurredAt,
+                  }),
+                );
+              } catch (err) {
+                await enqueueProjectionEvent(db, {
+                  eventType: 'support.delivery.attempt.logged',
+                  idempotencyKey: projectionIdempotencyKey(
+                    'support.delivery.attempt.logged',
+                    String(deliveryAttemptId),
+                    hashPayload(deliveryFallbackPayload),
+                  ),
+                  occurredAt,
+                  payload: deliveryFallbackPayload,
+                });
+                logger.warn(
+                  { err, mutationType: mutation.type, intentEventId, correlationId, channel },
+                  'delivery.attempt.log: direct public write failed, fell back to durable outbox',
+                );
+                await recordOperatorFailureIncident({
+                  direction: 'db_write',
+                  integration: 'support_delivery_events',
+                  errorClass: 'delivery_attempt_log_direct_write_fallback',
+                  errorDetail: 'direct_write_unexpected_error',
+                }).catch((incidentErr: unknown) => {
+                  logger.error(
+                    { err: incidentErr, mutationType: mutation.type, intentEventId, correlationId },
+                    'delivery.attempt.log: failed to record operator incident for direct-write fallback',
+                  );
+                });
+              }
+            },
+          });
           return;
         }
         case 'message.retry.enqueue': {

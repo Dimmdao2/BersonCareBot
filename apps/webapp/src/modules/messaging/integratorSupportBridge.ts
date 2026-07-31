@@ -1,4 +1,11 @@
-import type { IntegratorSupportOwnershipPort } from '@/modules/messaging/ports';
+import type {
+  IntegratorSupportOwnershipPort,
+  IntegratorSupportQuestionOwnershipPort,
+} from '@/modules/messaging/ports';
+import type {
+  IntegratorSupportDeliveryAttemptWriteBody,
+  IntegratorSupportQuestionWriteBody,
+} from '@/modules/messaging/integratorSupportHttp';
 import {
   parseWebappConversationId,
   webappOrganizationConversationId,
@@ -41,8 +48,20 @@ export type IntegratorSupportCanonicalWrite = {
   organizationId: string;
 };
 
+export type IntegratorSupportQuestionCanonicalWrite = {
+  questionId: string;
+  questionMessageId?: string;
+  organizationId: string;
+};
+
+export type IntegratorSupportDeliveryCanonicalWrite = {
+  deliveryAttemptId: string;
+  organizationId: string;
+};
+
 export function createIntegratorSupportBridge(deps: {
   port: IntegratorSupportOwnershipPort;
+  questionPort: IntegratorSupportQuestionOwnershipPort;
   resolvePatientOrganization: (
     platformUserId: string,
     verifiedOrganizationId?: string,
@@ -65,8 +84,7 @@ export function createIntegratorSupportBridge(deps: {
     async syncUserMessage(
       input: IntegratorSupportSyncMessageInput,
     ): Promise<
-      | { ok: true; canonicalWrite: IntegratorSupportCanonicalWrite }
-      | { ok: false; error: string }
+      { ok: true; canonicalWrite: IntegratorSupportCanonicalWrite } | { ok: false; error: string }
     > {
       const trimmed = input.text.trim();
       if (!trimmed) return { ok: false, error: 'empty' };
@@ -193,8 +211,7 @@ export function createIntegratorSupportBridge(deps: {
     async setStatus(
       input: IntegratorSupportStatusInput,
     ): Promise<
-      | { ok: true; canonicalWrite: IntegratorSupportCanonicalWrite }
-      | { ok: false; error: string }
+      { ok: true; canonicalWrite: IntegratorSupportCanonicalWrite } | { ok: false; error: string }
     > {
       const parsedConversation = parseWebappConversationId(input.integratorConversationId);
       if (!parsedConversation) return { ok: false, error: 'not_webapp_conversation' };
@@ -222,6 +239,100 @@ export function createIntegratorSupportBridge(deps: {
           organizationId: organization.organizationId,
         },
       };
+    },
+
+    async syncQuestionWrite(
+      input: IntegratorSupportQuestionWriteBody,
+    ): Promise<
+      | { ok: true; canonicalWrite: IntegratorSupportQuestionCanonicalWrite }
+      | { ok: false; error: string }
+    > {
+      const parsedConversation = parseWebappConversationId(input.integratorConversationId);
+      if (!parsedConversation) return { ok: false, error: 'not_webapp_conversation' };
+      if (
+        parsedConversation.scope === 'organization' &&
+        input.organizationId &&
+        parsedConversation.organizationId !== input.organizationId
+      ) {
+        return { ok: false, error: 'organization_mismatch' };
+      }
+      const organization = await deps.resolvePatientOrganization(
+        parsedConversation.platformUserId,
+        parsedConversation.scope === 'organization'
+          ? parsedConversation.organizationId
+          : input.organizationId,
+      );
+      if (!organization.ok) return organization;
+      if (input.organizationId && input.organizationId !== organization.organizationId) {
+        return { ok: false, error: 'organization_mismatch' };
+      }
+
+      const result = await deps.withOrganizationPrincipal(organization.organizationId, async () => {
+        const conversation = await deps.port.ensureWebappConversationForUser(
+          parsedConversation.platformUserId,
+        );
+        if (input.operation === 'create') {
+          await deps.questionPort.createQuestion({
+            integratorQuestionId: input.integratorQuestionId,
+            conversationId: conversation.id,
+            organizationId: organization.organizationId,
+            status: input.status,
+            createdAt: input.createdAt,
+          });
+          return { questionMessageId: undefined };
+        }
+        if (input.operation === 'message') {
+          await deps.questionPort.appendQuestionMessage({
+            integratorQuestionMessageId: input.integratorQuestionMessageId,
+            integratorQuestionId: input.integratorQuestionId,
+            organizationId: organization.organizationId,
+            senderRole: input.senderRole,
+            text: input.text,
+            createdAt: input.createdAt,
+          });
+          return { questionMessageId: input.integratorQuestionMessageId };
+        }
+        await deps.questionPort.markQuestionAnswered({
+          integratorQuestionId: input.integratorQuestionId,
+          organizationId: organization.organizationId,
+          answeredAt: input.answeredAt,
+        });
+        return { questionMessageId: undefined };
+      });
+
+      return {
+        ok: true,
+        canonicalWrite: {
+          questionId: input.integratorQuestionId,
+          ...(result.questionMessageId ? { questionMessageId: result.questionMessageId } : {}),
+          organizationId: organization.organizationId,
+        },
+      };
+    },
+
+    async syncDeliveryAttempt(
+      input: IntegratorSupportDeliveryAttemptWriteBody,
+    ): Promise<
+      | { ok: true; canonicalWrite: IntegratorSupportDeliveryCanonicalWrite }
+      | { ok: false; error: string }
+    > {
+      try {
+        const result = await deps.withOrganizationPrincipal(input.organizationId, () =>
+          deps.questionPort.recordDeliveryAttempt(input),
+        );
+        return {
+          ok: true,
+          canonicalWrite: {
+            deliveryAttemptId: input.integratorIntentEventId ?? input.correlationId ?? result.id,
+            organizationId: input.organizationId,
+          },
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : 'delivery_attempt_write_failed',
+        };
+      }
     },
   };
 }

@@ -14,8 +14,7 @@ import type {
   OutgoingIntent,
   PhoneLinkFailureReason,
 } from '../../contracts/index.js';
-import {
-} from '../reminders/policy.js';
+import {} from '../reminders/policy.js';
 import { handleBooking } from './handlers/booking.js';
 import { handleDelivery } from './handlers/delivery.js';
 import { handleNotifications } from './handlers/notifications.js';
@@ -1408,11 +1407,7 @@ export async function executeAction(
       const firstMessageId = randomUUID();
       const firstExternalChatId = asString(draft.external_chat_id);
       const firstExternalMessageId = asString(draft.external_message_id);
-      const platformUserId = await resolvePlatformUserIdForChannel(
-        fullDeps,
-        source,
-        externalId,
-      );
+      const platformUserId = await resolvePlatformUserIdForChannel(fullDeps, source, externalId);
       const webappSync = platformUserId
         ? await mirrorPatientUserMessageToWebapp(fullDeps, {
             platformUserId,
@@ -1473,6 +1468,7 @@ export async function executeAction(
                   id: questionId,
                   userIdentityId,
                   conversationId,
+                  organizationId: webappSync.canonicalWrite?.organizationId,
                   telegramMessageId: asString(draft.external_message_id),
                   text: draftTextCurrent,
                   createdAt: ctx.nowIso,
@@ -1483,6 +1479,8 @@ export async function executeAction(
                 params: {
                   id: firstQuestionMessageId,
                   questionId,
+                  conversationId,
+                  organizationId: webappSync.canonicalWrite?.organizationId,
                   senderType: 'user',
                   messageText: draftTextCurrent,
                   createdAt: ctx.nowIso,
@@ -1786,7 +1784,11 @@ export async function executeAction(
         if (!questionId) continue;
         writes.push({
           type: 'question.markAnswered',
-          params: { questionId, answeredAt: ctx.nowIso },
+          params: {
+            questionId,
+            conversationId: asString(item.conversation_id),
+            answeredAt: ctx.nowIso,
+          },
         });
       }
       if (writes.length > 0) {
