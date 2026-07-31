@@ -27,6 +27,7 @@ const rawSqlQueryManifest = {
     'apps/integrator/src/infra/db/publicRuntimeSettings.ts',
     'apps/integrator/src/infra/db/repos/messageLogs.ts',
     'apps/integrator/src/infra/db/repos/operatorDeliveryAttempts.ts',
+    'apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.reclaim.integration.test.ts',
     'apps/integrator/src/infra/db/repos/outgoingDeliveryScope.ts',
     'apps/integrator/src/infra/db/repos/projectionHealthCore.ts',
     'apps/integrator/src/infra/db/repos/schedulerReminderOrganizations.ts',

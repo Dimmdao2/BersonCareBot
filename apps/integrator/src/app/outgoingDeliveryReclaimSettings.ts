@@ -1,0 +1,56 @@
+import { z } from 'zod';
+import type { DbPort } from '../kernel/contracts/index.js';
+import { logger } from '../infra/observability/logger.js';
+import {
+  fetchPublicSystemSettingValueJson,
+  parseSystemSettingInnerWithSchema,
+} from '../infra/db/publicSystemSettings.js';
+
+/**
+ * D10b (docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md): the queue reclaim/retention/
+ * dead-letter thresholds must be settings, not hardcoded constants — this is the DB-backed source.
+ */
+export const OUTGOING_DELIVERY_RECLAIM_CONFIG_KEY = 'outgoing_delivery_reclaim_config';
+
+export type OutgoingDeliveryReclaimConfig = {
+  /** "processing" older than this and not finished is stuck — reclaimed back to "pending". */
+  processingTimeoutMinutes: number;
+  /** "sent" rows older than this are deleted from the queue (journal entry stays). */
+  doneRetentionDays: number;
+  /** After this many reclaims a row goes to the dead letter instead of being reclaimed again. */
+  maxReclaimCount: number;
+};
+
+export const DEFAULT_OUTGOING_DELIVERY_RECLAIM_CONFIG: OutgoingDeliveryReclaimConfig = {
+  processingTimeoutMinutes: 10,
+  doneRetentionDays: 30,
+  maxReclaimCount: 5,
+};
+
+const configSchema = z.object({
+  processingTimeoutMinutes: z.number().int().min(1).max(1440),
+  doneRetentionDays: z.number().int().min(1).max(365),
+  maxReclaimCount: z.number().int().min(1).max(100),
+});
+
+/** DB-backed config with fail-safe defaults after a reset/delete/parse failure. */
+export async function getOutgoingDeliveryReclaimConfig(
+  db: DbPort,
+): Promise<OutgoingDeliveryReclaimConfig> {
+  try {
+    const valueJson = await fetchPublicSystemSettingValueJson(
+      db,
+      OUTGOING_DELIVERY_RECLAIM_CONFIG_KEY,
+      'admin',
+    );
+    const parsed =
+      valueJson === null ? null : parseSystemSettingInnerWithSchema(valueJson, configSchema);
+    return parsed ?? DEFAULT_OUTGOING_DELIVERY_RECLAIM_CONFIG;
+  } catch (err) {
+    logger.warn(
+      { err, key: OUTGOING_DELIVERY_RECLAIM_CONFIG_KEY },
+      'outgoing_delivery_reclaim_config_defaulted',
+    );
+    return DEFAULT_OUTGOING_DELIVERY_RECLAIM_CONFIG;
+  }
+}
