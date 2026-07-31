@@ -3,9 +3,12 @@ import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 /**
  * `запас`-class mechanics (§5a stage 5): a plain count against a tariff-configured ceiling, no
- * period, freed only by an explicit release (archive/deactivate) elsewhere in the domain.
+ * period, freed only by an explicit release (archive/deactivate) elsewhere in the domain. Also
+ * reused for the `объём` (byte-sum) mechanic `files`: same quota-json shape and lock-then-recount
+ * shape, but usage is a live SUM that a row delete already shrinks, and each call can add more
+ * than one unit at once (see `increment` on `assertStockQuotaAvailable`).
  */
-export type StockMechanic = 'patient_count' | 'branches';
+export type StockMechanic = 'patient_count' | 'branches' | 'files';
 
 export class StockQuotaReachedError extends Error {
   readonly mechanic: StockMechanic;
@@ -35,12 +38,18 @@ export function parseStockQuota(value: unknown): StockQuotaJson | null {
  * No tariff assigned -> compatibility, unlimited (matches `fileStorageLimitFromSnapshot`). A
  * tariff assigned but missing this mechanic's quota key refuses further growth rather than
  * silently falling back to unlimited.
+ *
+ * `increment` is how many units THIS call is about to add on top of `countUsage()` (default 1,
+ * matching every count-based `запас` caller). `объём` callers pass the byte size of the file
+ * being uploaded; `used + increment > limit` reduces to the plain `used >= limit` count check
+ * when `increment` is 1, so existing callers are unaffected.
  */
 export async function assertStockQuotaAvailable(
   tx: WebappSqlExecutor,
   organizationId: string,
   mechanic: StockMechanic,
   countUsage: () => Promise<number>,
+  increment = 1,
 ): Promise<void> {
   await runWebappPgText(
     `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
@@ -71,5 +80,5 @@ export async function assertStockQuotaAvailable(
   if (quota.limit === null) throw new StockQuotaReachedError(mechanic);
 
   const used = await countUsage();
-  if (used >= quota.limit) throw new StockQuotaReachedError(mechanic);
+  if (used + increment > quota.limit) throw new StockQuotaReachedError(mechanic);
 }
