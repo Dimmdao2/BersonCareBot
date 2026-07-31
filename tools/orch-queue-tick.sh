@@ -78,16 +78,35 @@ case "$MODEL" in
   *) unset ORCH_PROVIDER ;;
 esac
 say "запуск $RUN_ID ($ROLE, ${ORCH_PROVIDER:-codex}/$MODEL/$EFFORT) по брифу $BRIEF"
-if OUT=$(tools/orch-launch.sh "$ROLE" "$CLONE_NAME" "$RUN_ID" "$MODEL" "$EFFORT" "$BRIEF" "$SLICE" 2>&1); then
-  say "ok: $OUT"
-  # помечаем строку взятой, чтобы следующий тик её не повторил
-  python3 - "$QUEUE" "$LINE" <<'PY'
+
+# Гейты порта прогоняем ОТДЕЛЬНО и всухую. Зачем: в режиме ожидания (ORCH_WAIT=1) запуск держит
+# скрипт до конца работы агента, и если помечать строку взятой ПОСЛЕ него, она час висит невзятой —
+# следующий тик хватает её второй раз. Поэтому: сухой прогон гейтов → пометка → реальный запуск.
+# Отказ гейта строку не расходует.
+if ! OUT=$(ORCH_DRY=1 tools/orch-launch.sh "$ROLE" "$CLONE_NAME" "$RUN_ID" "$MODEL" "$EFFORT" "$BRIEF" "$SLICE" 2>&1); then
+  say "ОТКАЗ порта (гейты): $OUT"
+  notify_lead "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID. $OUT"
+  exit 0
+fi
+
+# помечаем строку взятой ДО запуска, чтобы параллельный тик её не повторил
+python3 - "$QUEUE" "$LINE" <<'PY'
 import sys
 q, line = sys.argv[1], sys.argv[2]
 src = open(q).read()
 open(q, 'w').write(src.replace(line, '# взято ' + __import__('time').strftime('%Y-%m-%d %H:%M') + ' | ' + line, 1))
 PY
+
+# ORCH_WAIT=1 (наследуется из окружения вызывающего) — скрипт держится до конца работы агента.
+# Так его запускает ЛИД внутренней фоновой командой своей оболочки: харнесс сам поднимет лида в
+# момент завершения, без опроса раз в десять минут (решение владельца 31.07). Крон вызывает тот же
+# скрипт без флага — там ожидание не нужно и вредно.
+if OUT=$(tools/orch-launch.sh "$ROLE" "$CLONE_NAME" "$RUN_ID" "$MODEL" "$EFFORT" "$BRIEF" "$SLICE" 2>&1); then
+  say "ok: $OUT"
+  echo "$OUT"
 else
-  say "ОТКАЗ порта: $OUT"
-  notify_lead "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID. $OUT"
+  RC=$?
+  say "прогон $RUN_ID завершился ненулевым кодом ($RC): $OUT"
+  echo "$OUT"
+  notify_lead "Конвейер $CLONE_NAME: прогон $RUN_ID завершился с кодом $RC — разобрать лог."
 fi

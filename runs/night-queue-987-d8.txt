@@ -1,0 +1,3 @@
+# Очередь конвейера для клона bcb-wt-987-d8. Формат: роль|модель|effort|бриф|слой|run-id
+# Заполняет ЛИД, пока живой. Крон берёт следующую невзятую строку. Владельцу отсюда никто не пишет.
+# взято 2026-07-31 11:05 | auditor|claude-sonnet-5|medium|/home/dev/dev-projects/bcb-wt-987-d8/docs/_TODO/runs/integrator-cleanup/D8_RETIREMENT_AUDIT_BRIEF.md|TrackD|auditor-d8-retirement
