@@ -61,15 +61,6 @@ export async function applyStaffCancelSideEffects(opts: {
       await projectionFromAppointment(opts.appointment, opts.bookingRow),
     );
   }
-  const integratorStatus = await emitStaffCanonicalBookingEvent({
-    syncPort: opts.syncPort,
-    eventType: 'booking.cancelled',
-    appointment: opts.appointment,
-    bookingRow: opts.bookingRow,
-    suppressPatientNotification: opts.suppressPatientNotification === true,
-    cancelPendingReminders: true,
-    patientPushVariant: 'cancelled',
-  });
   const resolvedCancelNotify = resolveBookingNotifyTargets(
     'booking.cancelled',
     opts.cancelPolicy,
@@ -78,6 +69,16 @@ export async function applyStaffCancelSideEffects(opts: {
   const cancelNotify = opts.suppressPatientNotification
     ? { ...resolvedCancelNotify, notifyPatient: false }
     : resolvedCancelNotify;
+  const integratorStatus = await emitStaffCanonicalBookingEvent({
+    syncPort: opts.syncPort,
+    eventType: 'booking.cancelled',
+    appointment: opts.appointment,
+    bookingRow: opts.bookingRow,
+    suppressPatientNotification: opts.suppressPatientNotification === true,
+    cancelPendingReminders: true,
+    patientPushVariant: 'cancelled',
+    doctorNotify: cancelNotify.notifyStaff,
+  });
   await opts.lifecycle.patchLatestCancellationNotifications(
     opts.appointment.id,
     opts.organizationId,
@@ -115,17 +116,6 @@ export async function applyStaffNoShowSideEffects(opts: {
       await projectionFromAppointment(opts.appointment, opts.bookingRow),
     );
   }
-  // Reuse booking.cancelled integrator event (no-show is a variant of appointment end without visit).
-  // suppressPatientNotification travels exactly as in the staff-cancel path (R21).
-  const integratorStatus = await emitStaffCanonicalBookingEvent({
-    syncPort: opts.syncPort,
-    eventType: 'booking.cancelled',
-    appointment: opts.appointment,
-    bookingRow: opts.bookingRow,
-    suppressPatientNotification: opts.suppressPatientNotification === true,
-    cancelPendingReminders: true,
-    patientPushVariant: 'cancelled',
-  });
   // Use booking.cancelled policy for notification targets (no separate no-show policy exists yet).
   const noShowNotifyRaw = resolveBookingNotifyTargets(
     'booking.cancelled',
@@ -136,6 +126,18 @@ export async function applyStaffNoShowSideEffects(opts: {
   const noShowNotify = opts.suppressPatientNotification
     ? { ...noShowNotifyRaw, notifyPatient: false }
     : noShowNotifyRaw;
+  // Reuse booking.cancelled integrator event (no-show is a variant of appointment end without visit).
+  // suppressPatientNotification travels exactly as in the staff-cancel path (R21).
+  const integratorStatus = await emitStaffCanonicalBookingEvent({
+    syncPort: opts.syncPort,
+    eventType: 'booking.cancelled',
+    appointment: opts.appointment,
+    bookingRow: opts.bookingRow,
+    suppressPatientNotification: opts.suppressPatientNotification === true,
+    cancelPendingReminders: true,
+    patientPushVariant: 'cancelled',
+    doctorNotify: noShowNotify.notifyStaff,
+  });
   await opts.lifecycle.patchLatestNoShowNotifications(
     opts.appointment.id,
     opts.organizationId,
@@ -166,6 +168,11 @@ export async function applyStaffRescheduleSideEffects(opts: {
       await projectionFromAppointment(opts.appointment, opts.bookingRow),
     );
   }
+  const rescheduleNotify = resolveBookingNotifyTargets(
+    'booking.rescheduled',
+    opts.reschedulePolicy,
+    opts.lifecycleNotificationSettings ?? null,
+  );
   const integratorStatus = await emitStaffCanonicalBookingEvent({
     syncPort: opts.syncPort,
     eventType: 'booking.rescheduled',
@@ -173,12 +180,8 @@ export async function applyStaffRescheduleSideEffects(opts: {
     bookingRow: opts.bookingRow,
     cancelPendingReminders: true,
     patientPushVariant: 'rescheduled',
+    doctorNotify: rescheduleNotify.notifyStaff,
   });
-  const rescheduleNotify = resolveBookingNotifyTargets(
-    'booking.rescheduled',
-    opts.reschedulePolicy,
-    opts.lifecycleNotificationSettings ?? null,
-  );
   await opts.lifecycle.patchLatestRescheduleNotifications(
     opts.appointment.id,
     opts.organizationId,

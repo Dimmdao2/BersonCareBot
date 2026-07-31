@@ -20,7 +20,10 @@ import { maxUserRecipient } from '../max/maxRecipient.js';
 import { telegramConfig } from '../telegram/config.js';
 import { maxConfig } from '../max/config.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
-import { syncCanonicalAppointmentToCalendar } from '../google-calendar/sync.js';
+import {
+  syncCanonicalAppointmentToCalendar,
+  type GoogleCalendarTitleMarker,
+} from '../google-calendar/sync.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import {
   parseBookingLifecycleEvent,
@@ -327,6 +330,35 @@ function resolvePatientMessageText(
   return asNonEmptyString(payload.patientMessageText) ?? fallbackText;
 }
 
+/** D14(4): webapp's explicit `false` skips notifying the doctor; absent field keeps the old always-notify default. */
+function shouldNotifyDoctor(payload: BookingLifecyclePayloadValidated): boolean {
+  return payload.doctorNotify !== false;
+}
+
+// D14(4): текст врачебного уведомления решает ВЕБАПП, той же дисциплиной, что и D14(3) для
+// пациента — прислал непустой, уходит дословно; поля нет — прежний текст интегратора бит в бит.
+function resolveDoctorMessageText(
+  payload: BookingLifecyclePayloadValidated,
+  fallbackText: string,
+): string {
+  return asNonEmptyString(payload.doctorMessageText) ?? fallbackText;
+}
+
+/** D14(5): webapp's calendar action/marker win when present; absent keeps the old per-event-type computation. */
+function resolveCalendarAction(
+  payload: BookingLifecyclePayloadValidated,
+  computed: 'created' | 'updated' | 'canceled',
+): 'created' | 'updated' | 'canceled' {
+  return payload.calendarAction ?? computed;
+}
+
+function resolveCalendarTitleMarker(
+  payload: BookingLifecyclePayloadValidated,
+  computed: GoogleCalendarTitleMarker,
+): GoogleCalendarTitleMarker {
+  return payload.calendarTitleMarker ?? computed;
+}
+
 export async function scheduleBookingReminders(input: {
   organizationId?: string;
   bookingId: string;
@@ -499,7 +531,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       try {
         await syncCanonicalAppointmentToCalendar(
           {
-            action: 'canceled',
+            action: resolveCalendarAction(payload, 'canceled'),
             appointmentId,
             organizationId: payload.organizationId ?? '',
             startAt: payload.slotStart,
@@ -519,7 +551,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   }
 
   if (!appointmentId) return;
-  const action =
+  const computedAction =
     eventType === 'booking.rescheduled' ||
     eventType === 'booking.payment_captured' ||
     eventType === 'booking.cancelled' ||
@@ -528,7 +560,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
     eventType === 'booking.package_unlinked'
       ? 'updated'
       : 'created';
-  const titleMarker =
+  const computedTitleMarker =
     eventType === 'booking.cancelled'
       ? 'cancelled'
       : eventType === 'booking.reschedule_requested'
@@ -537,7 +569,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   try {
     await syncCanonicalAppointmentToCalendar(
       {
-        action,
+        action: resolveCalendarAction(payload, computedAction),
         appointmentId,
         organizationId: payload.organizationId ?? '',
         startAt: payload.slotStart,
@@ -545,7 +577,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
         clientName: payload.contactName,
         serviceTitle: payload.serviceTitleSnapshot ?? null,
         phoneNormalized: normalizeRuPhoneE164(payload.contactPhone),
-        titleMarker,
+        titleMarker: resolveCalendarTitleMarker(payload, computedTitleMarker),
       },
       { dispatchPort, db: createDbPort() },
     );
@@ -586,11 +618,13 @@ export async function handleBookingLifecycleEvent(
         text: patientText,
         eventId: `booking-created:${bookingId}`,
       });
-      await sendDoctorMessage(
-        dispatchPort,
-        doctorCreatedText(payload, timeZone),
-        `booking-created:${bookingId}`,
-      );
+      if (shouldNotifyDoctor(payload)) {
+        await sendDoctorMessage(
+          dispatchPort,
+          resolveDoctorMessageText(payload, doctorCreatedText(payload, timeZone)),
+          `booking-created:${bookingId}`,
+        );
+      }
       if (shouldCancelPendingReminders(payload)) {
         await cancelPendingBookingReminders(bookingId);
       }
@@ -633,11 +667,13 @@ export async function handleBookingLifecycleEvent(
           });
         }
       }
-      await sendDoctorMessage(
-        dispatchPort,
-        doctorCancelledText(payload, timeZone),
-        `booking-cancelled:${bookingId}`,
-      );
+      if (shouldNotifyDoctor(payload)) {
+        await sendDoctorMessage(
+          dispatchPort,
+          resolveDoctorMessageText(payload, doctorCancelledText(payload, timeZone)),
+          `booking-cancelled:${bookingId}`,
+        );
+      }
       await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
       return;
     }
@@ -653,11 +689,13 @@ export async function handleBookingLifecycleEvent(
         text: patientText,
         eventId: `booking-rescheduled:${bookingId}`,
       });
-      await sendDoctorMessage(
-        dispatchPort,
-        doctorRescheduledText(payload, timeZone),
-        `booking-rescheduled:${bookingId}`,
-      );
+      if (shouldNotifyDoctor(payload)) {
+        await sendDoctorMessage(
+          dispatchPort,
+          resolveDoctorMessageText(payload, doctorRescheduledText(payload, timeZone)),
+          `booking-rescheduled:${bookingId}`,
+        );
+      }
       const rescheduledPushVariant = resolvePatientPushVariant(payload, 'rescheduled');
       if (rescheduledPushVariant) {
         await sendBookingWebPush({
@@ -695,11 +733,16 @@ export async function handleBookingLifecycleEvent(
         text: patientText,
         eventId: `booking-payment:${bookingId}`,
       });
-      await sendDoctorMessage(
-        dispatchPort,
-        `Оплата записи: ${patientName ?? 'пациент'}, ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
-        `booking-payment:${bookingId}`,
-      );
+      if (shouldNotifyDoctor(payload)) {
+        await sendDoctorMessage(
+          dispatchPort,
+          resolveDoctorMessageText(
+            payload,
+            `Оплата записи: ${patientName ?? 'пациент'}, ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
+          ),
+          `booking-payment:${bookingId}`,
+        );
+      }
       await scheduleBookingReminders({
         ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
         bookingId,

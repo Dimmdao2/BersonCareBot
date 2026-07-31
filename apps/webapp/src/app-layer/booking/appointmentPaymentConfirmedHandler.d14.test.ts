@@ -75,3 +75,33 @@ describe('D14(3): booking.payment_captured шлёт patientMessageText', () => {
     );
   });
 });
+
+describe('D14, часть 5: booking.payment_captured шлёт doctorNotify/doctorMessageText/calendarAction/calendarTitleMarker', () => {
+  it('строит врачебный текст и действие/пометку календаря', async () => {
+    const captured: Array<Record<string, unknown>> = [];
+    const record = fakeRecord();
+    const handler = createAppointmentPaymentConfirmedHandler({
+      patientBookings: {
+        markConfirmedByCanonicalAppointment: vi.fn(async () => record),
+        getByCanonicalAppointmentId: vi.fn(async () => record),
+      },
+      bookingEngine: {
+        getAppointment: vi.fn(async () => ({ organizationId: 'org-1' }) as never),
+      },
+      loadNotificationSettings: vi.fn(async () => null as never),
+      loadReminderPlan: vi.fn(async () => ({ enabled: true, offsetsMinutes: [] })),
+      bookingSync: {
+        emitBookingEvent: vi.fn(async (evt) => {
+          captured.push((evt as { payload: Record<string, unknown> }).payload);
+        }),
+      },
+    });
+
+    await handler({ appointmentId: 'appt-1', paymentId: 'pay-1', platformUserId: 'user-1' });
+
+    expect(captured[0]!.doctorNotify).toBe(true);
+    expect(captured[0]!.doctorMessageText).toBe('Оплата записи: Пациент, 10 мар. 2027 г., 12:00');
+    expect(captured[0]!.calendarAction).toBe('updated');
+    expect(captured[0]!.calendarTitleMarker).toBe('none');
+  });
+});

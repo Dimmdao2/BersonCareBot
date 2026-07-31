@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import type { DbPort } from '../kernel/contracts/index.js';
-import { logger } from '../infra/observability/logger.js';
+import type { DbPort } from '../../../kernel/contracts/index.js';
+import { logger } from '../../observability/logger.js';
 import {
   fetchPublicSystemSettingValueJson,
   parseSystemSettingInnerWithSchema,
-} from '../infra/db/publicSystemSettings.js';
+} from '../publicSystemSettings.js';
 
 /**
  * D10b (docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md): the queue reclaim/retention/
