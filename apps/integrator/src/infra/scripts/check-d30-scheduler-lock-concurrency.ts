@@ -20,6 +20,16 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+// D20 level-3 F5: a `main()` that returns early must not exit 0 with an empty log. `passedPieces`
+// lives outside `main()` so the completion check below still fires even if `main()` never reaches it.
+const EXPECTED_PIECES = ['piece 1', 'piece 2'] as const;
+const passedPieces = new Set<string>();
+
+function reportPiecePass(id: (typeof EXPECTED_PIECES)[number], message: string): void {
+  passedPieces.add(id);
+  console.log(`[${id}] PASS: ${message}`);
+}
+
 async function main(): Promise<void> {
   const disposable = startDisposablePostgres('scheduler_lock');
   process.env.DATABASE_URL = disposable.connectionString;
@@ -49,7 +59,7 @@ async function main(): Promise<void> {
     await first.release();
     const third = await acquire();
     assert(third !== null, 'acquire after release() must succeed');
-    console.log('[piece 1] PASS: second concurrent acquire got null, post-release acquire succeeded');
+    reportPiecePass('piece 1', 'second concurrent acquire got null, post-release acquire succeeded');
 
     // --- Piece 2: ownership check detects a killed connection --------------------------------
     await third.assertStillHeld(); // sanity: alive connection reports held, must not throw
@@ -87,8 +97,9 @@ async function main(): Promise<void> {
     assert(fourth !== null, 'the lock must be acquirable again once its dead-connection holder is gone');
     await fourth.release();
     await sideClient.end();
-    console.log(
-      '[piece 2] PASS: assertStillHeld() threw SchedulerLockLostError after connection loss, lock was re-acquirable',
+    reportPiecePass(
+      'piece 2',
+      'assertStillHeld() threw SchedulerLockLostError after connection loss, lock was re-acquirable',
     );
 
     await closeDb();
@@ -98,7 +109,15 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(`check-d30-scheduler-lock-concurrency: FAIL: ${err instanceof Error ? err.message : String(err)}`);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    const missing = EXPECTED_PIECES.filter((id) => !passedPieces.has(id));
+    assert(
+      missing.length === 0,
+      `expected all of [${EXPECTED_PIECES.join(', ')}] to report PASS, missing: ${missing.join(', ')} (a piece was skipped, or main() returned before reaching it)`,
+    );
+  })
+  .catch((err) => {
+    console.error(`check-d30-scheduler-lock-concurrency: FAIL: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  });
