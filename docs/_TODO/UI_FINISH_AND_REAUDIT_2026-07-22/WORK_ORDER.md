@@ -151,7 +151,7 @@ lfk_sessions` via `directPublic/writeDiaryLfkDirect.ts` (reuses D1 candidate res
       `scratchpad/d2-diary-lfk-report.md`. Follow-up: same ID-space bug in GET reads `listSymptomTrackings`/
       `listLfkComplexes` (not among the 4 event types) left for a separate fix; multi-org patient diary attribution
       fails-closed (product edge — owner Q if multi-clinic diary needed).
-- [ ] **D3 — support conversations and messages.** <br>⛔ **SUPERSEDED 30.07 в части «прямая запись из интегратора».** Новая целевая граница
+- [x] **D3 — support conversations and messages.** ✅ **ЗАКРЫТО 31.07** (`c124a2d78`) — как ПЕРЕНОС ВЛАДЕНИЯ, а не как ещё один прямой писатель (см. SUPERSEDED ниже): открытие беседы, сообщение пациента и смена статуса решает и пишет вебапп, интегратор исполняет присланное и хранит только техническую локальную строку; отсутствие поля сохраняет прежнее поведение бит в бит. Идемпотентность доказана повтором. Проверено лидом двумя поломками. ⛔ Старая ветка `handleConversationAdminReply` НЕ тронута — по ней вопрос владельцу без ответа (перепись D12b). <br>⛔ **SUPERSEDED 30.07 в части «прямая запись из интегратора».** Новая целевая граница
       (`apps/webapp/ARCHITECTURE.md`, раздел «Целевая схема»): владелец канона — вебапп, у интегратора доступа к
       продуктовому канону не остаётся. Достижимый сценарий, который поймал аудит: пункт выполняется как написан →
       интегратор продолжает писать канон → D10 убирает страховку → D17 отзывает права → первое же сообщение пациента
