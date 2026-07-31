@@ -24,6 +24,7 @@ vi.mock('../google-calendar/sync.js', () => ({
 }));
 
 import { handleBookingLifecycleEvent } from './bookingLifecycleRoute.js';
+import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import type { DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
 
 let bookingCounter = 0;
@@ -159,5 +160,112 @@ describe('D14(2): webapp decides whether/which patient push to send', () => {
       (webappEventsPort.notifyPatientWebPush.mock.calls[0] as [{ body: string }])[0].body,
     );
     expect(body.variant).toBe('rescheduled');
+  });
+});
+
+describe('D14(3): webapp decides the patient message text', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function patientTextSentTo(
+    dispatchPort: DispatchPort,
+    eventIdPrefix: string,
+  ): string | undefined {
+    const calls = (dispatchPort.dispatchOutgoing as ReturnType<typeof vi.fn>).mock.calls as [
+      { meta: { eventId: string }; payload: { message: { text: string } } },
+    ][];
+    const call = calls.find(
+      ([intent]) =>
+        intent.meta.eventId.startsWith(`${eventIdPrefix}:`) &&
+        !intent.meta.eventId.includes(':doctor:'),
+    );
+    return call?.[0].payload.message.text;
+  }
+
+  it('sends exactly the text the webapp sent, verbatim, on booking.created', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Вебапп прислал: приём назначен на завтра.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.created',
+        payload: { ...basePayload(), patientMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(patientTextSentTo(dispatchPort, 'booking-created')).toBe(webappText);
+  });
+
+  it('sends exactly the text the webapp sent, verbatim, on booking.cancelled', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Вебапп прислал: запись отменена по вашей просьбе.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.cancelled',
+        payload: { ...basePayload(), patientMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(patientTextSentTo(dispatchPort, 'booking-cancelled')).toBe(webappText);
+  });
+
+  it('sends exactly the text the webapp sent, verbatim, on booking.rescheduled', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Вебапп прислал: приём перенесён на новую дату.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.rescheduled',
+        payload: { ...basePayload(), patientMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(patientTextSentTo(dispatchPort, 'booking-rescheduled')).toBe(webappText);
+  });
+
+  it('sends exactly the text the webapp sent, verbatim, on booking.payment_captured', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Вебапп прислал: оплата прошла успешно.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.payment_captured',
+        payload: { ...basePayload(), patientMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    expect(patientTextSentTo(dispatchPort, 'booking-payment')).toBe(webappText);
+  });
+
+  it('keeps the previous integrator-authored text verbatim when the field is absent', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const payload = basePayload();
+    await handleBookingLifecycleEvent(
+      { eventType: 'booking.created', payload },
+      dispatchPort,
+      {},
+    );
+    const dateLabel = formatBookingRuDateTime(payload.slotStart, 'UTC');
+    expect(patientTextSentTo(dispatchPort, 'booking-created')).toBe(
+      `Запись подтверждена: ${dateLabel}\nОчный приём`,
+    );
+  });
+
+  it('does not append to or otherwise modify the webapp-sent text', async () => {
+    const dispatchPort = fakeDispatchPort();
+    const webappText = 'Ровно этот текст и ничего больше.';
+    await handleBookingLifecycleEvent(
+      {
+        eventType: 'booking.created',
+        payload: { ...basePayload(), patientMessageText: webappText },
+      },
+      dispatchPort,
+      {},
+    );
+    const sent = patientTextSentTo(dispatchPort, 'booking-created');
+    expect(sent).toBe(webappText);
+    expect(sent).not.toContain('Запись подтверждена');
   });
 });
