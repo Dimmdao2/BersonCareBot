@@ -57,8 +57,9 @@ export const MECHANIC_REGISTRY = {
   exercise_packages: { class: 'возможность', label: 'Пакеты упражнений', quotaEnforcement: 'declared_no_enforcement' },
   courses: { class: 'возможность', label: 'Курсы', quotaEnforcement: 'declared_no_enforcement' },
   cms_pages: { class: 'возможность', label: 'Страницы CMS', quotaEnforcement: 'declared_no_enforcement' },
-  // Checked in pgPatientFiles.createFile under an org advisory lock, not by a database trigger.
-  files: { class: 'объём', label: 'Файлы пациентов', quotaEnforcement: 'declared_no_enforcement', quotaUnit: 'bytes' },
+  // Checked via assertStockQuotaAvailable in pgPatientFiles.createFile under an org advisory
+  // lock, not by a database trigger — see check-storage-quota-race.mjs for the race proof.
+  files: { class: 'объём', label: 'Файлы пациентов', quotaEnforcement: 'application_transaction_snapshot', quotaUnit: 'bytes' },
   patient_card: { class: 'никогда', label: 'Карточка пациента', quotaEnforcement: 'declared_no_enforcement' },
   subscriptions: { class: 'возможность', label: 'Абонементы пациентов', quotaEnforcement: 'declared_no_enforcement' },
   payments: { class: 'возможность', label: 'Оплата записи', quotaEnforcement: 'declared_no_enforcement' },

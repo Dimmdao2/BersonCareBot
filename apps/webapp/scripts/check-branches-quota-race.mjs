@@ -31,7 +31,7 @@ const REQUIRED_DECISION_LINES = [
   'if (!quota) throw new StockQuotaReachedError(mechanic);',
   "if (quota.kind === 'unlimited') return;",
   'if (quota.limit === null) throw new StockQuotaReachedError(mechanic);',
-  'if (used >= quota.limit) throw new StockQuotaReachedError(mechanic);',
+  'if (used + increment > quota.limit) throw new StockQuotaReachedError(mechanic);',
 ];
 
 export function extractStockQuotaSqlFragments(stockQuotaSource) {
