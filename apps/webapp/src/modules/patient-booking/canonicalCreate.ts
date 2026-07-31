@@ -584,6 +584,7 @@ export async function createBookingOnCanonicalEngine(
               serviceTitleSnapshot: row.serviceTitleSnapshot,
               canonicalAppointmentId: item.id,
               ...(reminderPlan ? { reminderPlan } : {}),
+              cancelPendingReminders: true,
             },
           });
         }),

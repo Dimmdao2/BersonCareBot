@@ -529,6 +529,8 @@ export function createPatientBookingService(input: {
             serviceTitleSnapshot: row.serviceTitleSnapshot,
             canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
             ...(reminderPlan ? { reminderPlan } : {}),
+            cancelPendingReminders: true,
+            patientPushVariant: 'rescheduled',
           },
         });
         integratorStatus = 'sent';

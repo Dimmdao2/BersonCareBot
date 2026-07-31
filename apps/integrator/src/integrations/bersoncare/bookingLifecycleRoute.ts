@@ -304,6 +304,19 @@ async function cancelPendingBookingReminders(bookingId: string): Promise<void> {
   await cancelPendingBookingReminderJobsByBookingId(db, bookingId);
 }
 
+/** D14(1): webapp's explicit `false` skips the cancel; absent field keeps the old always-cancel default. */
+function shouldCancelPendingReminders(payload: BookingLifecyclePayloadValidated): boolean {
+  return payload.cancelPendingReminders !== false;
+}
+
+/** D14(2): webapp's field (including explicit `null`) wins; absent field keeps the old per-event default. */
+function resolvePatientPushVariant(
+  payload: BookingLifecyclePayloadValidated,
+  defaultVariant: 'created' | 'cancelled' | 'rescheduled',
+): 'created' | 'cancelled' | 'rescheduled' | null {
+  return payload.patientPushVariant !== undefined ? payload.patientPushVariant : defaultVariant;
+}
+
 export async function scheduleBookingReminders(input: {
   organizationId?: string;
   bookingId: string;
@@ -531,7 +544,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   }
 }
 
-async function handleBookingLifecycleEvent(
+export async function handleBookingLifecycleEvent(
   body: BookingLifecycleEventValidated,
   dispatchPort: DispatchPort,
   options: {
@@ -568,7 +581,9 @@ async function handleBookingLifecycleEvent(
         doctorCreatedText(payload, timeZone),
         `booking-created:${bookingId}`,
       );
-      await cancelPendingBookingReminders(bookingId);
+      if (shouldCancelPendingReminders(payload)) {
+        await cancelPendingBookingReminders(bookingId);
+      }
       await scheduleBookingReminders({
         ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
         bookingId,
@@ -584,7 +599,9 @@ async function handleBookingLifecycleEvent(
     }
 
     if (eventType === 'booking.cancelled') {
-      await cancelPendingBookingReminders(bookingId);
+      if (shouldCancelPendingReminders(payload)) {
+        await cancelPendingBookingReminders(bookingId);
+      }
       if (payload.suppressPatientNotification !== true) {
         const patientText = patientCancelledText(payload, timeZone);
         await sendLinkedChannelMessage({
@@ -593,15 +610,18 @@ async function handleBookingLifecycleEvent(
           text: patientText,
           eventId: `booking-cancelled:${bookingId}`,
         });
-        await sendBookingWebPush({
-          ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
-          ...(webappEventsPort ? { webappEventsPort } : {}),
-          phoneNormalized: contactPhone,
-          intentType: 'appointment_lifecycle',
-          variant: 'cancelled',
-          slotStartIso: payload.slotStart,
-          stableKey: `booking-cancelled:${bookingId}`,
-        });
+        const cancelledPushVariant = resolvePatientPushVariant(payload, 'cancelled');
+        if (cancelledPushVariant) {
+          await sendBookingWebPush({
+            ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+            ...(webappEventsPort ? { webappEventsPort } : {}),
+            phoneNormalized: contactPhone,
+            intentType: 'appointment_lifecycle',
+            variant: cancelledPushVariant,
+            slotStartIso: payload.slotStart,
+            stableKey: `booking-cancelled:${bookingId}`,
+          });
+        }
       }
       await sendDoctorMessage(
         dispatchPort,
@@ -613,7 +633,9 @@ async function handleBookingLifecycleEvent(
     }
 
     if (eventType === 'booking.rescheduled') {
-      await cancelPendingBookingReminders(bookingId);
+      if (shouldCancelPendingReminders(payload)) {
+        await cancelPendingBookingReminders(bookingId);
+      }
       const patientText = patientRescheduledText(payload, timeZone);
       await sendLinkedChannelMessage({
         dispatchPort,
@@ -626,15 +648,18 @@ async function handleBookingLifecycleEvent(
         doctorRescheduledText(payload, timeZone),
         `booking-rescheduled:${bookingId}`,
       );
-      await sendBookingWebPush({
-        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
-        ...(webappEventsPort ? { webappEventsPort } : {}),
-        phoneNormalized: contactPhone,
-        intentType: 'appointment_lifecycle',
-        variant: 'rescheduled',
-        slotStartIso: payload.slotStart,
-        stableKey: `booking-rescheduled:${bookingId}`,
-      });
+      const rescheduledPushVariant = resolvePatientPushVariant(payload, 'rescheduled');
+      if (rescheduledPushVariant) {
+        await sendBookingWebPush({
+          ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+          ...(webappEventsPort ? { webappEventsPort } : {}),
+          phoneNormalized: contactPhone,
+          intentType: 'appointment_lifecycle',
+          variant: rescheduledPushVariant,
+          slotStartIso: payload.slotStart,
+          stableKey: `booking-rescheduled:${bookingId}`,
+        });
+      }
       await scheduleBookingReminders({
         ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
         bookingId,
