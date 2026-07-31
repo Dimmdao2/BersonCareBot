@@ -63,6 +63,7 @@ export type DbWriteMutationType =
   | 'reminders.occurrence.markQueued'
   | 'reminders.occurrence.markSent'
   | 'reminders.occurrence.markFailed'
+  | 'reminders.occurrence.expireOrphanedPending'
   | 'reminders.occurrence.reschedulePlanned'
   | 'reminders.occurrence.markSkippedLocal'
   | 'reminders.delivery.log'

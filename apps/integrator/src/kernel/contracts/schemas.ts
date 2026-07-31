@@ -240,6 +240,7 @@ export const dbWriteMutationSchema = z.object({
     'reminders.occurrence.markQueued',
     'reminders.occurrence.markSent',
     'reminders.occurrence.markFailed',
+    'reminders.occurrence.expireOrphanedPending',
     'reminders.occurrence.reschedulePlanned',
     'reminders.occurrence.markSkippedLocal',
     'reminders.delivery.log',

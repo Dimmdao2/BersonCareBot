@@ -419,10 +419,21 @@ export async function cancelPendingReminderOccurrencesForRule(
 }
 
 /** Pending rows left from legacy same-day backfill; grace matches webapp web-push tick. */
+export type FinalizedReminderOccurrenceProjectionContext = {
+  occurrenceId: string;
+  ruleId: string;
+  userId: string;
+  category: string;
+  status: string;
+  occurredAt: string;
+  deliveryChannel: string | null;
+  errorCode: string | null;
+};
+
 export async function expireOrphanedPendingReminderOccurrences(
   db: DbPort,
   nowIso: string,
-): Promise<void> {
+): Promise<FinalizedReminderOccurrenceProjectionContext[]> {
   const orgs = await runIntegratorSql<{ organization_id: string }>(
     db,
     sql`
@@ -435,11 +446,12 @@ export async function expireOrphanedPendingReminderOccurrences(
       ORDER BY organization_id
     `,
   );
+  const finalized: FinalizedReminderOccurrenceProjectionContext[] = [];
   for (const row of orgs.rows) {
     if (!row.organization_id) continue;
-    await runWithOrganizationPrincipal(row.organization_id, () =>
-      db.tx((txDb) =>
-        runIntegratorSql(
+    const organizationFinalized = await runWithOrganizationPrincipal(row.organization_id, () =>
+      db.tx(async (txDb) => {
+        const updated = await runIntegratorSql<{ id: string }>(
           txDb,
           sql`
             UPDATE user_reminder_occurrences AS o
@@ -452,11 +464,22 @@ export async function expireOrphanedPendingReminderOccurrences(
               AND o.status IN ('planned', 'queued')
               AND o.planned_at < ${nowIso}::timestamptz - interval '3 minutes'
               AND COALESCE(o.organization_id, r.organization_id) = ${row.organization_id}::uuid
+            RETURNING o.id
           `,
-        ),
-      ),
+        );
+        const contexts: FinalizedReminderOccurrenceProjectionContext[] = [];
+        for (const updatedRow of updated.rows) {
+          const context = await getReminderOccurrenceContextForProjection(txDb, updatedRow.id);
+          if (context?.status === 'failed') {
+            contexts.push({ occurrenceId: updatedRow.id, ...context });
+          }
+        }
+        return contexts;
+      }),
     );
+    finalized.push(...organizationFinalized);
   }
+  return finalized;
 }
 
 export async function resolveReminderRuleOrganizationId(

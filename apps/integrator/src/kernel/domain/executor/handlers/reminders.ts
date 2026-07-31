@@ -25,7 +25,6 @@ import {
 import { randomUUID } from 'node:crypto';
 import { DateTime } from 'luxon';
 import { createDbPort } from '../../../../infra/db/client.js';
-import { expireOrphanedPendingReminderOccurrences } from '../../../../infra/db/repos/reminders.js';
 import { enqueueOutgoingDeliveryIfAbsent } from '../../../../infra/db/repos/outgoingDeliveryQueue.js';
 import {
   recordMessengerChannelSkipsBestEffort,
@@ -433,7 +432,12 @@ export async function handleReminders(
       return { actionId: action.id, status: 'skipped', error: 'reminders.planDue: missing port' };
     }
     const nowPlanIso = asString(action.params.nowIso) ?? nowIso(ctx);
-    await expireOrphanedPendingReminderOccurrences(createDbPort(), nowPlanIso);
+    await persistWrites(deps.writePort, [
+      {
+        type: 'reminders.occurrence.expireOrphanedPending',
+        params: { nowIso: nowPlanIso },
+      },
+    ]);
     const enabledRules = await deps.readPort.readDb<ReminderRuleRecord[]>({
       type: 'reminders.rules.enabled',
       params: {},
