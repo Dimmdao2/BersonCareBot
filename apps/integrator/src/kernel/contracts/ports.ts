@@ -392,6 +392,17 @@ export type WebappEventBody = {
   payload?: Record<string, unknown>;
 };
 
+export type SupportQuestionCanonicalWrite = {
+  organizationId: string;
+  questionId: string;
+  questionMessageId?: string;
+};
+
+export type SupportDeliveryCanonicalWrite = {
+  organizationId: string;
+  deliveryAttemptId: string;
+};
+
 /** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
   emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
@@ -444,10 +455,7 @@ export type WebappEventsPort = {
     skipped?: string;
   }>;
   /** Единый webapp-thread: сообщение пациента из бота (POST /api/integrator/support/sync-user-message). */
-  syncSupportUserMessage?(input: {
-    body: string;
-    idempotencyKey: string;
-  }): Promise<{
+  syncSupportUserMessage?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;
     status: number;
     error?: string;
@@ -459,14 +467,25 @@ export type WebappEventsPort = {
     idempotencyKey: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Смена статуса webapp-owned обращения (POST /api/integrator/support/status). */
-  setSupportStatus?(input: {
-    body: string;
-    idempotencyKey: string;
-  }): Promise<{
+  setSupportStatus?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;
     status: number;
     error?: string;
     canonicalWrite?: { conversationId: string; organizationId: string };
+  }>;
+  /** Каноническая запись вопроса поддержки принадлежит webapp. */
+  syncSupportQuestionWrite?(input: { body: string; idempotencyKey: string }): Promise<{
+    ok: boolean;
+    status: number;
+    error?: string;
+    canonicalWrite?: SupportQuestionCanonicalWrite;
+  }>;
+  /** Канонический журнал доставки поддержки принадлежит webapp. */
+  syncSupportDeliveryAttempt?(input: { body: string; idempotencyKey: string }): Promise<{
+    ok: boolean;
+    status: number;
+    error?: string;
+    canonicalWrite?: SupportDeliveryCanonicalWrite;
   }>;
   /** Начало ответа на наблюдение пациента по упражнению (POST /api/integrator/program-note/reply-begin). */
   beginProgramNoteReply?(input: { stageItemId: string; idempotencyKey: string }): Promise<{

@@ -7,6 +7,14 @@ import type { WebappEventBody, WebappEventsPort } from '../../kernel/contracts/i
 import { logger } from '../observability/logger.js';
 import { buildIntegratorEventsHttpBody } from './jsonStableStringify.js';
 
+type ParsedCanonicalWrite = {
+  organizationId: string;
+  conversationId?: string;
+  questionId?: string;
+  questionMessageId?: string;
+  deliveryAttemptId?: string;
+};
+
 function sign(timestamp: string, body: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('base64url');
 }
@@ -49,7 +57,7 @@ export function createWebappEventsPort(deps: {
     ok: boolean;
     status: number;
     error?: string;
-    canonicalWrite?: { conversationId: string; organizationId: string };
+    canonicalWrite?: ParsedCanonicalWrite;
   }> {
     const baseUrl = await deps.getAppBaseUrl();
     if (!baseUrl || !secret) {
@@ -71,7 +79,13 @@ export function createWebappEventsPort(deps: {
       let parsed: {
         ok?: boolean;
         error?: string;
-        canonicalWrite?: { conversationId?: unknown; organizationId?: unknown };
+        canonicalWrite?: {
+          conversationId?: unknown;
+          organizationId?: unknown;
+          questionId?: unknown;
+          questionMessageId?: unknown;
+          deliveryAttemptId?: unknown;
+        };
       } = {};
       if (text) {
         try {
@@ -81,15 +95,24 @@ export function createWebappEventsPort(deps: {
         }
       }
       const ok = (res.status === 200 || res.status === 202) && parsed.ok === true;
+      const organizationId =
+        typeof parsed.canonicalWrite?.organizationId === 'string'
+          ? parsed.canonicalWrite.organizationId.trim()
+          : '';
+      const readCanonicalString = (value: unknown): string | undefined =>
+        typeof value === 'string' && value.trim() ? value.trim() : undefined;
+      const conversationId = readCanonicalString(parsed.canonicalWrite?.conversationId);
+      const questionId = readCanonicalString(parsed.canonicalWrite?.questionId);
+      const questionMessageId = readCanonicalString(parsed.canonicalWrite?.questionMessageId);
+      const deliveryAttemptId = readCanonicalString(parsed.canonicalWrite?.deliveryAttemptId);
       const canonicalWrite =
-        ok &&
-        typeof parsed.canonicalWrite?.conversationId === 'string' &&
-        parsed.canonicalWrite.conversationId.trim() &&
-        typeof parsed.canonicalWrite.organizationId === 'string' &&
-        parsed.canonicalWrite.organizationId.trim()
+        ok && organizationId && (conversationId || questionId || deliveryAttemptId)
           ? {
-              conversationId: parsed.canonicalWrite.conversationId.trim(),
-              organizationId: parsed.canonicalWrite.organizationId.trim(),
+              organizationId,
+              ...(conversationId ? { conversationId } : {}),
+              ...(questionId ? { questionId } : {}),
+              ...(questionMessageId ? { questionMessageId } : {}),
+              ...(deliveryAttemptId ? { deliveryAttemptId } : {}),
             }
           : undefined;
       return {
@@ -188,36 +211,101 @@ export function createWebappEventsPort(deps: {
       }
     },
 
-    async syncSupportUserMessage(input: {
-      body: string;
-      idempotencyKey: string;
-    }): Promise<{
+    async syncSupportUserMessage(input: { body: string; idempotencyKey: string }): Promise<{
       ok: boolean;
       status: number;
       error?: string;
       canonicalWrite?: { conversationId: string; organizationId: string };
     }> {
-      return postSignedJson({
+      const result = await postSignedJson({
         path: '/api/integrator/support/sync-user-message',
         body: input.body,
         idempotencyKey: input.idempotencyKey,
       });
+      const canonicalWrite =
+        result.canonicalWrite?.conversationId && result.canonicalWrite.organizationId
+          ? {
+              conversationId: result.canonicalWrite.conversationId,
+              organizationId: result.canonicalWrite.organizationId,
+            }
+          : undefined;
+      const baseResult = {
+        ok: result.ok,
+        status: result.status,
+        ...(result.error ? { error: result.error } : {}),
+      };
+      return { ...baseResult, ...(canonicalWrite ? { canonicalWrite } : {}) };
     },
 
-    async setSupportStatus(input: {
-      body: string;
-      idempotencyKey: string;
-    }): Promise<{
+    async setSupportStatus(input: { body: string; idempotencyKey: string }): Promise<{
       ok: boolean;
       status: number;
       error?: string;
       canonicalWrite?: { conversationId: string; organizationId: string };
     }> {
-      return postSignedJson({
+      const result = await postSignedJson({
         path: '/api/integrator/support/status',
         body: input.body,
         idempotencyKey: input.idempotencyKey,
       });
+      const canonicalWrite =
+        result.canonicalWrite?.conversationId && result.canonicalWrite.organizationId
+          ? {
+              conversationId: result.canonicalWrite.conversationId,
+              organizationId: result.canonicalWrite.organizationId,
+            }
+          : undefined;
+      const baseResult = {
+        ok: result.ok,
+        status: result.status,
+        ...(result.error ? { error: result.error } : {}),
+      };
+      return { ...baseResult, ...(canonicalWrite ? { canonicalWrite } : {}) };
+    },
+
+    async syncSupportQuestionWrite(input: { body: string; idempotencyKey: string }) {
+      const result = await postSignedJson({
+        path: '/api/integrator/support/question',
+        body: input.body,
+        idempotencyKey: input.idempotencyKey,
+      });
+      const canonicalWrite =
+        result.canonicalWrite?.questionId && result.canonicalWrite.organizationId
+          ? {
+              questionId: result.canonicalWrite.questionId,
+              ...(result.canonicalWrite.questionMessageId
+                ? { questionMessageId: result.canonicalWrite.questionMessageId }
+                : {}),
+              organizationId: result.canonicalWrite.organizationId,
+            }
+          : undefined;
+      const baseResult = {
+        ok: result.ok,
+        status: result.status,
+        ...(result.error ? { error: result.error } : {}),
+      };
+      return { ...baseResult, ...(canonicalWrite ? { canonicalWrite } : {}) };
+    },
+
+    async syncSupportDeliveryAttempt(input: { body: string; idempotencyKey: string }) {
+      const result = await postSignedJson({
+        path: '/api/integrator/support/delivery-attempt',
+        body: input.body,
+        idempotencyKey: input.idempotencyKey,
+      });
+      const canonicalWrite =
+        result.canonicalWrite?.deliveryAttemptId && result.canonicalWrite.organizationId
+          ? {
+              deliveryAttemptId: result.canonicalWrite.deliveryAttemptId,
+              organizationId: result.canonicalWrite.organizationId,
+            }
+          : undefined;
+      const baseResult = {
+        ok: result.ok,
+        status: result.status,
+        ...(result.error ? { error: result.error } : {}),
+      };
+      return { ...baseResult, ...(canonicalWrite ? { canonicalWrite } : {}) };
     },
 
     async applySupportAdminReply(input: {
