@@ -68,7 +68,20 @@ const fakeDeps = {
     getByIdForOwner: getTaskByIdForOwner,
     update: updateTask,
   },
-} as unknown as Pick<AppDeps, 'organizationMembership' | 'specialistTasks'>;
+  // §5a/2.1a: cabinet entry is its own ladder rung and the guard fails closed when it cannot be
+  // resolved. This suite is about the CLINIC boundary, so entry stays open here — otherwise every
+  // case below would stop at the cabinet door and prove nothing about the wall it targets.
+  orgEntitlements: {
+    resolveCabinetAccess: async () => ({
+      state: 'full_access',
+      policySource: 'system',
+      warning: null,
+    }),
+  },
+} as unknown as Pick<
+  AppDeps,
+  'organizationMembership' | 'specialistTasks' | 'orgEntitlements'
+>;
 
 const getCurrentSessionMock = vi.mocked(getCurrentSession);
 const getServerRuntimeBoolMock = vi.mocked(getServerRuntimeBool);
