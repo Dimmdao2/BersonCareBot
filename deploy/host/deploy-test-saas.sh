@@ -1335,8 +1335,24 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # SECURITY DEFINER function, app.resolve_organization_mechanic_access(uuid,text). It reads
   # be_organizations plus the three SaaS entitlement tables already pinned above and exposes only
   # the computed state/warning/mutation decision to app_staff and app_patient.
-  # Слияние 31.07: обе ветки считали от 115 — #1005 добавил девять функций, #1069 одну, итого 125.
-  local expected_secdef_count=125
+  # 125 -> 123 (2026-07-31, #1069 item 2.1a): the merge constant 125 was ARITHMETIC ACROSS TWO
+  # BRANCHES, never a measurement — it counted the additions of each branch onto 115 and missed
+  # both the removals and the newest function, so it never matched any database. Measured and
+  # reconciled against bersoncarebot_test, every term backed by a migration in this branch:
+  #   115 (last green run, 2026-07-30)
+  #   -3  migration 0277 drops app.cms_pages_snapshot_usage, app.enforce_cms_pages_snapshot_quota
+  #       and app.enforce_courses_snapshot_quota — courses and CMS pages became toggle-only
+  #   +9  migration 0276 (#1005) passkey accessors, grants pinned above
+  #   +1  migration 0279 app.resolve_organization_mechanic_access(uuid,text)
+  #   +1  migration 0284 app.resolve_organization_cabinet_access(uuid) — REVIEWED HERE: it reads
+  #       public.be_organizations, public.saas_tariffs and public.saas_organization_trials, all
+  #       three already in the required app_owner SELECT set above, and exposes only the computed
+  #       cabinet state/warning to app_staff and app_patient (EXECUTE only, no table ACL).
+  #   = 123, which is what the database actually holds.
+  # Migration 0285 drops and recreates app.read_current_patient_organization_entitlements() (its
+  # return columns changed), and C5A does the same for app.read_org_enforced_quota_usage(uuid) —
+  # both are net zero here.
+  local expected_secdef_count=123
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
