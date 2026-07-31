@@ -89,6 +89,7 @@ import {
 } from '@/app/app/patient/diary/symptoms/actions';
 import { saveContentSection } from '@/app/app/doctor/content/sections/actions';
 import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/PatientTabFiles';
+import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
 import { PATCH as updateDoctorLfkDiaryComment } from '@/app/api/doctor/clients/[userId]/lfk-complex-exercises/[exerciseRowId]/route';
 import { POST as purgePatientDiary } from '@/app/api/patient/diary/purge/route';
 import { POST as recordWarmupCompletion } from '@/app/api/patient/practice/completion/route';
@@ -666,6 +667,48 @@ describe('tariff and platform mutation gates', () => {
       error: 'file_storage_limit_not_configured',
     });
     expect(createFile).not.toHaveBeenCalled();
+  });
+
+  it('refuses file metadata creation visibly when the file storage quota is exhausted, without creating the patient folder', async () => {
+    const createFile = vi.fn();
+    const getStorageUsedBytes = vi.fn().mockResolvedValue(1_000);
+    vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: { createFile, getStorageUsedBytes },
+      orgEntitlements: {
+        getSnapshot: vi.fn().mockResolvedValue({
+          tariff: {
+            mechanics: {},
+            quotas: {
+              files: { kind: 'numeric', limit: 1_000, unit: 'bytes', warningAtPercent: null },
+            },
+            includedSeats: null,
+          },
+          overrides: [],
+          access: { lifecycle: 'active', tariffId: 'tariff', source: 'assignment' },
+        }),
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await createPatientFile(
+      request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files', {
+        category: 'анализ',
+        fileName: 'result.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1,
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'file_storage_limit_reached',
+    });
+    expect(createFile).not.toHaveBeenCalled();
+    expect(pgEnsureClientPatientFolder).not.toHaveBeenCalled();
   });
 
   it.each([

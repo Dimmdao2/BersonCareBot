@@ -15,6 +15,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolveFileStorageLimit } from '@/modules/org-entitlements/service';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { presignGetUrl, presignPutUrl } from '@/app-layer/media/s3Client';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
@@ -141,6 +142,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
 
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');
   if (!entitlement.ok) return entitlement.response;
+
+  const storageLimitBytes = await resolveFileStorageLimit(
+    deps.orgEntitlements,
+    gate.ctx.organizationId,
+  );
+  // A concurrent tariff edit cannot turn an omitted configuration into an unlimited upload.
+  if (storageLimitBytes === undefined) {
+    return NextResponse.json(
+      { ok: false, error: 'file_storage_limit_not_configured' },
+      { status: 403 },
+    );
+  }
+  // Best-effort pre-check so an exhausted quota refuses before the folder side effect below;
+  // the transaction inside `createFile` (`assertStockQuotaAvailable`) is what actually stays
+  // race-safe under concurrent uploads.
+  if (storageLimitBytes !== null) {
+    const usedBytes = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.patientFiles.getStorageUsedBytes(),
+    );
+    if (usedBytes + sizeBytes > storageLimitBytes) {
+      return NextResponse.json({ ok: false, error: 'file_storage_limit_reached' }, { status: 403 });
+    }
+  }
 
   // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
   const patientFolder = await withDoctorWorkspacePrincipal(gate.ctx, () =>

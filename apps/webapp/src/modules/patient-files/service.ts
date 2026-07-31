@@ -38,6 +38,10 @@ export function createPatientFilesService({ patientFilesPort }: PatientFilesServ
     async renameFile(id: string, fileName: string): Promise<PatientFileRecord | null> {
       return patientFilesPort.renameFile(id, fileName);
     },
+
+    async getStorageUsedBytes(): Promise<number> {
+      return patientFilesPort.getStorageUsedBytes();
+    },
   };
 }
 
