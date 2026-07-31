@@ -7,6 +7,13 @@
 Signed M2M `admin-reply` пока не устанавливает доверенный organization principal, поэтому принимает только legacy
 `webapp:platform:*` и отклоняет org-scoped ключ с `organization_context_required`, не определяя tenant по пациенту.
 
+Вопросы поддержки и `support_delivery_events` также принадлежат webapp. Integrator передаёт нормализованную
+команду через signed `/api/integrator/support/question` или `/api/integrator/support/delivery-attempt`; webapp
+разрешает/проверяет организацию, входит под explicit organization principal и пишет через Drizzle-порт
+`pgIntegratorSupportQuestionOwnership`. Ответ содержит необязательный `canonicalWrite`: новый integrator после него
+не пишет `public` сам, а старый webapp без поля сохраняет прежний совместимый путь. `integrator.message_drafts`
+остаётся локальным техническим состоянием integrator.
+
 Patient POST записывает сообщение и обновляет `last_message_at` в одной транзакции. Под locked `app_patient`
 обновление выполняет только `app.touch_current_patient_support_conversation_activity(messageId)`: capability
 берёт организацию, пациента и время из защищённого DB-контекста, принимает лишь собственное `user/webapp`

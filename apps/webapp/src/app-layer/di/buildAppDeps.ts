@@ -197,6 +197,8 @@ import {
 } from '@/infra/repos/pgContentSections';
 import { createPgSupportCommunicationPort } from '@/infra/repos/pgSupportCommunication';
 import { inMemorySupportCommunicationPort } from '@/infra/repos/inMemorySupportCommunication';
+import { pgIntegratorSupportQuestionOwnershipPort } from '@/infra/repos/pgIntegratorSupportQuestionOwnership';
+import { inMemoryIntegratorSupportQuestionOwnershipPort } from '@/infra/repos/inMemoryIntegratorSupportQuestionOwnership';
 import { createPatientMessagingService } from '@/modules/messaging/patientMessagingService';
 import { createPatientNotificationInboxService } from '@/modules/messaging/patientNotificationInboxService';
 import { createDoctorSupportMessagingService } from '@/modules/messaging/doctorSupportMessagingService';
@@ -544,6 +546,9 @@ const emailSetupFlowService = createEmailSetupFlowService({
 const supportCommunicationPort = !inMemoryRepos
   ? createPgSupportCommunicationPort()
   : inMemorySupportCommunicationPort;
+const integratorSupportQuestionOwnershipPort = !inMemoryRepos
+  ? pgIntegratorSupportQuestionOwnershipPort
+  : inMemoryIntegratorSupportQuestionOwnershipPort;
 const reminderProjectionPort = !inMemoryRepos
   ? createPgReminderProjectionPort()
   : inMemoryReminderProjectionPort;
@@ -800,9 +805,8 @@ const onAppointmentPaymentConfirmed = bookingEngineService
           systemSettingsService.getSetting(key, scope),
         ),
       loadReminderPlan: (organizationId) =>
-        loadAppointmentReminderPlanFromSystemSettings(
-          organizationId,
-          (key, scope, options) => systemSettingsService.getSetting(key, scope, options),
+        loadAppointmentReminderPlanFromSystemSettings(organizationId, (key, scope, options) =>
+          systemSettingsService.getSetting(key, scope, options),
         ),
       bookingSync: bookingSyncPortForPayments,
     })
@@ -1196,9 +1200,8 @@ patientBookingService = createPatientBookingService({
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
   getAppointmentReminderPlan: (organizationId) =>
-    loadAppointmentReminderPlanFromSystemSettings(
-      organizationId,
-      (key, scope, options) => systemSettingsService.getSetting(key, scope, options),
+    loadAppointmentReminderPlanFromSystemSettings(organizationId, (key, scope, options) =>
+      systemSettingsService.getSetting(key, scope, options),
     ),
   getAppDisplayTimeZone,
 });
@@ -1261,6 +1264,7 @@ const notifyDoctorOfPatientMessageImpl = async (input: {
 
 const integratorSupportBridge = createIntegratorSupportBridge({
   port: supportCommunicationPort,
+  questionPort: integratorSupportQuestionOwnershipPort,
   resolvePatientOrganization: async (platformUserId, verifiedOrganizationId) => {
     if (!patientOrganizationService) return { ok: false, error: 'organization_not_resolved' };
     const result = await patientOrganizationService.resolveActiveOrganizationForPatient(
