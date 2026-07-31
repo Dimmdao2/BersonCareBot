@@ -117,6 +117,12 @@ BEGIN
     RETURN;
   END IF;
 
+  -- #1069 stage 2.6: the accessor's RETURNS TABLE list changed when the seat warning threshold was
+  -- removed, and PostgreSQL refuses `CREATE OR REPLACE` across a changed return type ("cannot
+  -- change return type of existing function"). The overlay is re-runnable, so it drops the old
+  -- signature first; every grant this function needs is re-issued below, right after creation.
+  DROP FUNCTION IF EXISTS app.read_org_enforced_quota_usage(uuid);
+
   EXECUTE $quota_usage_function$
     CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(
       p_organization_id uuid
