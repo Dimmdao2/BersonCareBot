@@ -130,3 +130,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install --yes postgresql-16
       - run: pnpm run smoke:u6b-organization-slug-invariants
       - uses: ./.github/actions/cancel-on-failure
+
+  d30-scheduler-concurrency:
+    name: D30 scheduler/outgoing-delivery concurrency proofs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-pnpm
+      - run: sudo apt-get update && sudo apt-get install --yes postgresql-16
+      - run: pnpm --dir apps/integrator run check:d30-scheduler-lock-concurrency
+      - run: pnpm --dir apps/integrator run check:d30-outgoing-delivery-claim-concurrency
+      - uses: ./.github/actions/cancel-on-failure
