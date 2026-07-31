@@ -194,17 +194,34 @@ try {
     label: 'git_rev_parse',
   }).trim();
   const postgresBinaries = resolveTrustedPostgresBinaries(['psql', 'pg_dump']);
-  const databaseUrl = assertExactLocalDevDatabaseUrl(
-    parseDatabaseUrlFromDotenv(readCanonicalEnv(envPath)),
-  );
-  const parsedUrl = new URL(databaseUrl);
-  const sourceRole = decodeURIComponent(parsedUrl.username);
+  assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(readCanonicalEnv(envPath)));
   const sourceDb = runPostgres(
     postgresBinaries.psql,
     ['-X', '-d', 'bcb_webapp_dev', '-v', 'ON_ERROR_STOP=1', '-Atqc', 'SELECT current_database()'],
     'source_database_probe',
   ).trim();
   if (sourceDb !== 'bcb_webapp_dev') throw new Error('source_database_mismatch');
+
+  // The reference_catalog_seed_owner policies are created by
+  // deploy/postgres/reference-catalog-rls.sql against `provisioning_owner`, which is the actual
+  // *owner* of these SECURITY DEFINER helper functions — not whichever role authenticates
+  // DATABASE_URL. The connection role and the policy role only used to coincide by accident.
+  const sourceRole = runPostgres(
+    postgresBinaries.psql,
+    [
+      '-X',
+      '-d',
+      'bcb_webapp_dev',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-Atqc',
+      "SELECT COALESCE(" +
+        "(SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = to_regprocedure('app.provision_specialist_owner(uuid)')), " +
+        "(SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.seed_reference_catalog_snapshot(uuid)'::regprocedure))",
+    ],
+    'reference_catalog_seed_owner_probe',
+  ).trim();
+  if (!sourceRole) throw new Error('reference_catalog_seed_owner_role_not_found');
 
   const ledgerProof = assertSourceLedgersCurrent(sourceCommit, postgresBinaries);
   const rawDump = runPostgres(

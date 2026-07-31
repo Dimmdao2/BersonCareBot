@@ -65,7 +65,11 @@ pnpm run verify:saas-a0-greenfield-baseline
 Generator делает только две детерминированные нормализации:
 
 1. случайный `pg_dump` `\restrict` token заменяется на фиксированный repo token;
-2. exact DEV migration-owner в двух reference-catalog policies заменяется на disposable `bcb_a0_owner`.
+2. роль, реально владеющая `reference_catalog_seed_owner` policies (`provisioning_owner` из
+   `deploy/postgres/reference-catalog-rls.sql` — owner `app.provision_specialist_owner`/
+   `app.seed_reference_catalog_snapshot`, запрошенный напрямую у DEV через `pg_get_userbyid(proowner)`),
+   заменяется на disposable `bcb_a0_owner`. Роль подключения `DATABASE_URL` для этого не используется —
+   она может отличаться от роли-владельца policies.
 
 Перед чтением БД refresh fail-closed проверяет, что migration directories, Drizzle journal и A0 generator files
 чисты относительно `HEAD`. Manifest строится из exact committed tree записанного `sourceCommit`, а checker повторно
