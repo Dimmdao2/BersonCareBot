@@ -67,6 +67,32 @@ CREATE INDEX idx_outgoing_delivery_queue_due
   ON public.outgoing_delivery_queue (status, next_retry_at);
 `;
 
+/**
+ * D20 level-3 F2 — makes the piece 4a race deterministic instead of timing-luck. A plain
+ * `Promise.all` of two claims is not enough: each `claimDueOutgoingDeliveries` call is one
+ * implicit-transaction UPDATE that, locally, completes in well under a millisecond, so the second
+ * racer's UPDATE typically doesn't even reach the row lock until after the first has already
+ * committed — no overlap, no bug exercised, regardless of which locking code path is under test.
+ * This trigger holds the row lock for 400ms once a claim UPDATE has taken it (`BEFORE UPDATE`,
+ * after Postgres has already locked the target row for the update), which is what actually forces
+ * the second racer's UPDATE to block on the first — the scenario the missing-lock and two-phase-
+ * claim bugs both need to be caught. It only fires on the pending→processing transition, so it
+ * does not slow down piece 4c's reclaim (pending→dead) or 4b's plain insert.
+ */
+const CLAIM_RACE_DELAY_DDL = `
+CREATE OR REPLACE FUNCTION delay_outgoing_delivery_claim() RETURNS trigger AS $$
+BEGIN
+  IF NEW.status = 'processing' AND OLD.status IS DISTINCT FROM 'processing' THEN
+    PERFORM pg_sleep(0.4);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_delay_outgoing_delivery_claim
+  BEFORE UPDATE ON public.outgoing_delivery_queue
+  FOR EACH ROW EXECUTE FUNCTION delay_outgoing_delivery_claim();
+`;
+
 async function main(): Promise<void> {
   const disposable = startDisposablePostgres('outgoing_delivery');
   process.env.DATABASE_URL = disposable.connectionString;
@@ -78,6 +104,7 @@ async function main(): Promise<void> {
     const ddlClient = new pg.Client({ connectionString: disposable.connectionString });
     await ddlClient.connect();
     await ddlClient.query(OUTGOING_DELIVERY_QUEUE_DDL);
+    await ddlClient.query(CLAIM_RACE_DELAY_DDL);
     await ddlClient.end();
 
     const {
@@ -103,34 +130,15 @@ async function main(): Promise<void> {
     assert(inserted, 'the first enqueue for a fresh event_id must insert a row');
 
     // --- Piece 4a: two concurrent claims of the one due row ----------------------------------
-    // F2: without this, connection-establishment latency for each racer's first `pool.connect()`
-    // serializes the two claims well before their SELECTs can ever overlap at the server — one
-    // claim fully commits before the other's CTE even runs, so it sees the row already
-    // 'processing' and correctly skips it. Neither the missing-lock bug nor a non-atomic two-phase
-    // claim gets exercised. Warm both pool connections first so the actual claim queries start
-    // from already-established connections.
-    await Promise.all([
-      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () => db.query('SELECT 1')),
-      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () => db.query('SELECT 1')),
+    // CLAIM_RACE_DELAY_DDL's trigger forces the two claims to genuinely overlap (see its comment).
+    const [claimA, claimB] = await Promise.all([
+      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () =>
+        claimDueOutgoingDeliveries(db, 10),
+      ),
+      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () =>
+        claimDueOutgoingDeliveries(db, 10),
+      ),
     ]);
-
-    // Barrier: kick off both claims but hold them at an already-pending gate, then release the
-    // gate synchronously — so both resume and issue their query in the same tick, instead of one
-    // racer's whole call chain finishing before the other's has even started.
-    let releaseBarrier: () => void = () => {};
-    const barrier = new Promise<void>((resolve) => {
-      releaseBarrier = resolve;
-    });
-    const gatedClaim = () =>
-      runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, async () => {
-        await barrier;
-        return claimDueOutgoingDeliveries(db, 10);
-      });
-    const claimAPromise = gatedClaim();
-    const claimBPromise = gatedClaim();
-    releaseBarrier();
-    const [claimA, claimB] = await Promise.all([claimAPromise, claimBPromise]);
-    console.error(`[diag] claimA.length=${claimA.length} claimB.length=${claimB.length}`);
     const claimedRows = [...claimA, ...claimB].filter((row) => row.eventId === eventId);
     assert(
       claimedRows.length === 1,

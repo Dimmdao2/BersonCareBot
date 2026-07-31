@@ -199,6 +199,7 @@ export async function claimDueOutgoingDeliveries(
          AND next_retry_at <= now()
        ORDER BY next_retry_at ASC
        LIMIT ${lim}
+       FOR UPDATE SKIP LOCKED
      )
      UPDATE public.outgoing_delivery_queue q
      SET status = 'processing',

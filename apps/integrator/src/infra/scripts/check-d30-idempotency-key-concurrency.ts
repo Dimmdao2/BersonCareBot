@@ -88,8 +88,9 @@ async function main(): Promise<void> {
     );
     assert(acquiredA, 'setup: acquiring fresh key A must succeed');
     assert(acquiredB, 'setup: acquiring fresh key B must succeed');
+    assert(port.release, 'createPostgresIdempotencyPort must implement release for this piece');
 
-    await runWithInfraPrincipal({ source: 'delivery-handler' }, () => port.release(keyA));
+    await runWithInfraPrincipal({ source: 'delivery-handler' }, () => port.release!(keyA));
 
     const keyBStillLive = await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
       port.tryAcquire(keyB, 60),
