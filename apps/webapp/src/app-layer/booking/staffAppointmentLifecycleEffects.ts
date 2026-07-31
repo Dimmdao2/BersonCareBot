@@ -8,6 +8,7 @@ import {
 } from '@/modules/patient-booking/bookingLifecycleNotifications';
 import type { AppointmentProjectionPort, BookingSyncPort } from '@/modules/patient-booking/ports';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
+import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
 import { emitStaffCanonicalBookingEvent } from '@/app-layer/booking/staffBookingIntegratorEvent';
 import {
   projectCanonicalAppointmentCancelled,
@@ -160,6 +161,8 @@ export async function applyStaffRescheduleSideEffects(opts: {
   syncPort?: BookingSyncPort | null;
   bookingRow?: PatientBookingRecord | null;
   lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
+  /** D13a(добор): план напоминаний клиники, вычисленный вызывающим маршрутом. */
+  reminderPlan?: AppointmentReminderPlan;
 }): Promise<void> {
   if (opts.projection) {
     await projectCanonicalAppointmentRescheduled(
@@ -181,6 +184,7 @@ export async function applyStaffRescheduleSideEffects(opts: {
     cancelPendingReminders: true,
     patientPushVariant: 'rescheduled',
     doctorNotify: rescheduleNotify.notifyStaff,
+    reminderPlan: opts.reminderPlan,
   });
   await opts.lifecycle.patchLatestRescheduleNotifications(
     opts.appointment.id,

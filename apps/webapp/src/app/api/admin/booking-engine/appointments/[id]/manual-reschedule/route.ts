@@ -81,10 +81,16 @@ export async function POST(request: Request, context: RouteContext) {
     const status = result.error === 'not_found' ? 404 : 400;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
-  const { loadBookingLifecycleNotificationsFromSystemSettings } =
-    await import('@/modules/booking-notifications/settings');
+  const {
+    loadBookingLifecycleNotificationsFromSystemSettings,
+    loadAppointmentReminderPlanFromSystemSettings,
+  } = await import('@/modules/booking-notifications/settings');
   const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
     (key, scope) => deps.systemSettings.getSetting(key, scope),
+  );
+  const reminderPlan = await loadAppointmentReminderPlanFromSystemSettings(
+    gate.ctx.organizationId,
+    (key, scope, options) => deps.systemSettings.getSetting(key, scope, options),
   );
   await applyStaffRescheduleSideEffects({
     projection: deps.appointmentProjection,
@@ -95,6 +101,7 @@ export async function POST(request: Request, context: RouteContext) {
     syncPort,
     bookingRow,
     lifecycleNotificationSettings,
+    reminderPlan,
   });
   if (deps.payments) {
     await deps.payments.recordReschedulePaymentCarryOver({

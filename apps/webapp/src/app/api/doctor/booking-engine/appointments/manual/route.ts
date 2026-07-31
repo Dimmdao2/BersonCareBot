@@ -7,6 +7,7 @@ import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
+import { loadAppointmentReminderPlanFromSystemSettings } from '@/modules/booking-notifications/settings';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
 import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
@@ -31,17 +32,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const { ctx } = gate;
-  const specialistResolution = await resolveDoctorCreateSpecialist(
-    ctx,
-    parsed.data.specialistId,
-  );
+  const specialistResolution = await resolveDoctorCreateSpecialist(ctx, parsed.data.specialistId);
   if (!specialistResolution.ok) {
-    const status =
-      specialistResolution.error === 'schedule_specialist_not_available' ? 404 : 403;
-    return NextResponse.json(
-      { ok: false, error: specialistResolution.error },
-      { status },
-    );
+    const status = specialistResolution.error === 'schedule_specialist_not_available' ? 404 : 403;
+    return NextResponse.json({ ok: false, error: specialistResolution.error }, { status });
   }
   const deps = buildAppDeps();
   const syncPort = createBookingSyncPort();
@@ -124,6 +118,10 @@ export async function POST(request: Request) {
           // Optional compatibility projection read; the canonical appointment remains authoritative.
         }
         try {
+          const reminderPlan = await loadAppointmentReminderPlanFromSystemSettings(
+            created.organizationId,
+            (key, scope, options) => deps.systemSettings.getSetting(key, scope, options),
+          );
           await syncPort.emitBookingEvent({
             eventType: 'booking.created',
             idempotencyKey: `staff.booking.created:${created.id}:${created.startAt}`,
@@ -143,6 +141,7 @@ export async function POST(request: Request) {
               cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
               serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(created, bookingRow),
               canonicalAppointmentId: created.id,
+              reminderPlan,
             },
           });
         } catch {
