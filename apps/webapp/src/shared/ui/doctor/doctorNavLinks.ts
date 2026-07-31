@@ -37,6 +37,7 @@ export type DoctorMenuLinkItem = {
   /** Optional product mechanic layered on top of the clinical workspace capability. */
   requiresCoursesEntitlement?: boolean;
   requiresPromoEntitlement?: boolean;
+  requiresCmsEntitlement?: boolean;
 };
 
 export type DoctorMenuAccessTier = 'doctor' | 'staff' | 'clinic_admin' | 'global_admin';
@@ -45,6 +46,7 @@ export type DoctorMenuAccess = {
   capabilities: readonly LaunchCapability[];
   coursesEnabled?: boolean;
   promoEnabled?: boolean;
+  cmsEnabled?: boolean;
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
@@ -64,6 +66,7 @@ export function isDoctorMenuLinkVisible(
 ): boolean {
   if (item.requiresCoursesEntitlement && !access.coursesEnabled) return false;
   if (item.requiresPromoEntitlement && !access.promoEnabled) return false;
+  if (item.requiresCmsEntitlement && !access.cmsEnabled) return false;
   const tier = item.accessTier ?? 'doctor';
   if (tier === 'doctor') return hasLaunchCapability(access.capabilities, 'clinical.workspace');
   if (tier === 'staff') {
@@ -116,8 +119,18 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
       { id: 'references', label: 'Справочники', href: '/app/doctor/references' },
     ],
   },
-  { id: 'content', label: 'Контент', href: '/app/doctor/content' },
-  { id: 'files-and-media', label: 'Файлы и медиа', href: '/app/doctor/content/library' },
+  {
+    id: 'content',
+    label: 'Контент',
+    href: '/app/doctor/content',
+    requiresCmsEntitlement: true,
+  },
+  {
+    id: 'files-and-media',
+    label: 'Файлы и медиа',
+    href: '/app/doctor/content/library',
+    requiresCmsEntitlement: true,
+  },
   {
     id: 'courses',
     label: 'Курсы',
