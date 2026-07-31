@@ -10,6 +10,7 @@ import {
   entitlementGraceWarningMessage,
   getMechanicSurfaceVisibility,
 } from '@/app-layer/guards/requireEntitlement';
+import { cabinetGraceWarningMessage } from '@/app-layer/guards/cabinetAccessGate';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import {
@@ -77,15 +78,19 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
-  const [coursesVisibility, promoVisibility, cmsVisibility] = await Promise.all([
+  const [coursesVisibility, promoVisibility, cmsVisibility, cabinetAccess] = await Promise.all([
     getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
     getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
     getMechanicSurfaceVisibility(workspaceAccess, 'cms_pages'),
+    // The cabinet is its own ladder subject (§5a/2.1a). Reaching this layout already means entry is
+    // open, so the only thing left to show is the `терпение` countdown for the cabinet itself.
+    deps.orgEntitlements.resolveCabinetAccess(workspaceAccess.organizationId).catch(() => null),
   ]);
   const coursesEnabled = coursesVisibility.specialistNavigation;
   const promoEnabled = promoVisibility.specialistNavigation;
   const cmsEnabled = cmsVisibility.specialistNavigation;
   const accessWarnings = [
+    cabinetAccess?.warning ? cabinetGraceWarningMessage(cabinetAccess.warning) : null,
     coursesVisibility.warning
       ? entitlementGraceWarningMessage('courses', coursesVisibility.warning)
       : null,
