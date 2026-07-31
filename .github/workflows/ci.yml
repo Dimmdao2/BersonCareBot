@@ -141,3 +141,28 @@ jobs:
       - run: pnpm --dir apps/integrator run check:d30-scheduler-lock-concurrency
       - run: pnpm --dir apps/integrator run check:d30-outgoing-delivery-claim-concurrency
       - uses: ./.github/actions/cancel-on-failure
+
+  stryker-diff-scoped:
+    # М3 (#1081): Stryker судит только строки решений, изменённые в этом диффе (apps/webapp/src) —
+    # не процент покрытия всего файла. fetch-depth: 0, потому что скрипту нужна база сравнения
+    # (merge-base с целевой веткой для PR, предыдущий коммит для push), а не только текущий HEAD.
+    name: Stryker diff-scoped mutation gate (webapp)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-pnpm
+      - name: Resolve diff base
+        id: base
+        run: |
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            echo "sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "sha=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=HEAD~1" >> "$GITHUB_OUTPUT"
+          fi
+      - run: node scripts/check-stryker-diff-scoped.mjs --base "${{ steps.base.outputs.sha }}"
+      - uses: ./.github/actions/cancel-on-failure
