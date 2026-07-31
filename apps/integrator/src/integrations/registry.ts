@@ -1,6 +1,5 @@
 import type { IntegrationDescriptor } from './types.js';
 import { emailIntegration } from './email/index.js';
-import { instagramIntegration } from './instagram/index.js';
 import { maxIntegration } from './max/index.js';
 import { smscIntegration } from './smsc/index.js';
 import { telegramIntegration } from './telegram/index.js';
@@ -15,6 +14,5 @@ export const integrationRegistry: IntegrationDescriptor[] = [
   smscIntegration,
   vkIntegration,
   maxIntegration,
-  instagramIntegration,
   emailIntegration,
 ];
