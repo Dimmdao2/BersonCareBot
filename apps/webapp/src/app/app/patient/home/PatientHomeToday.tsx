@@ -184,13 +184,13 @@ async function renderPatientHomeToday({
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
   const serverRenderInstant = new Date();
-  const [materializeDiaryState, materializeWarmupPresentation] =
-    session && personalTierOk
-      ? await Promise.all([
-          canMaterializeMechanicOnRead(organizationId!, 'patient_diaries'),
-          canMaterializeMechanicOnRead(organizationId!, 'warmups'),
-        ])
-      : [false, false];
+  const sessionActive = Boolean(session && personalTierOk);
+  // patient_diaries is a critical mechanic (#1069, owner 31.07) — always materializes when a
+  // patient session is active; only `warmups` still depends on the org's tariff state.
+  const materializeDiaryState = sessionActive;
+  const materializeWarmupPresentation = sessionActive
+    ? await canMaterializeMechanicOnRead(organizationId!, 'warmups')
+    : false;
 
   let appTz = await getAppDisplayTimeZone();
 

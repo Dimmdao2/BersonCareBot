@@ -35,6 +35,7 @@ import {
 } from '@/app-layer/guards/requireRole';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { POST as createClinicInvite } from '@/app/api/clinic/invites/route';
+import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { togglePatientHomeBlockVisibility } from '@/app/app/settings/patient-home/actions';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type { MechanicAccessState, OrgMechanic } from '@/modules/org-entitlements/types';
@@ -117,6 +118,22 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
     expect(createInvitePort).not.toHaveBeenCalled();
+  });
+
+  it('refuses connecting an external calendar and never reaches the OAuth config', async () => {
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: readOnlyOrgEntitlementsPort('read_only'),
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await startExternalCalendar();
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'entitlement_required',
+      mechanic: 'external_calendar',
+      message:
+        'Невозможно подключить внешний календарь: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
+    });
   });
 
   it('refuses toggling a patient-home block and never calls the write port', async () => {

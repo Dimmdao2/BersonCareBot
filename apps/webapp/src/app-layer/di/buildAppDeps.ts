@@ -1113,10 +1113,8 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
   testAttempts: treatmentProgramTestAttemptsPort,
   getDefaultPromoTemplateId: ({ organizationId } = {}) =>
     systemSettingsService.getPatientDefaultPromoTreatmentProgramTemplateId({ organizationId }),
+  // patient_diaries is a critical mechanic (#1069, owner 31.07) — always runs.
   snapshotDiaryDaysBeforePromoRefresh: async (input) => {
-    if (!(await isMechanicEnabled(orgEntitlementsPort, input.organizationId, 'patient_diaries'))) {
-      return;
-    }
     await snapshotPromoDaysBeforeRefresh(
       {
         reminders: remindersService,

@@ -16,7 +16,6 @@ import { PatientDiaryPlanWeekStripes } from '@/modules/patient-diary/components/
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { PatientDiaryWeekNavStrip } from './PatientDiaryWeekNavStrip';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
-import { canMaterializePatientMechanicOnRead } from '@/app-layer/entitlements/readMaterializationGate';
 
 const EMPTY_STATS =
   'За эту неделю пока нет отметок общего самочувствия. Отметки можно добавить на главной «Сегодня».';
@@ -42,11 +41,8 @@ async function renderPatientDiaryAuthenticatedMain({
   week?: string;
 }) {
   const deps = buildAppDeps();
-  const materializeDiaryState = await canMaterializePatientMechanicOnRead(
-    deps,
-    userId,
-    'patient_diaries',
-  );
+  // patient_diaries is a critical mechanic (#1069, owner 31.07) — always materializes.
+  const materializeDiaryState = true;
 
   const wellbeing = await loadPatientDiaryWeekWellbeing(
     {

@@ -72,26 +72,18 @@ import { getCurrentSession } from '@/modules/auth/service';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
-import { POST as submitMood } from '@/app/api/patient/mood/route';
 import { PATCH as updateWarmupSchedule } from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
 import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-templates/route';
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
 import { PATCH as updatePromoProgram } from '@/app/api/doctor/treatment-program-promo/route';
-import { POST as createDoctorSymptomTracking } from '@/app/api/doctor/clients/[userId]/symptom-trackings/route';
 import { PATCH as updateAdminSetting } from '@/app/api/admin/settings/route';
 import { POST as updatePatientPromo } from '@/app/api/patient/treatment-program-promo/action/route';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
-import {
-  archiveSymptomTracking,
-  renameSymptomTracking,
-} from '@/app/app/patient/diary/symptoms/actions';
 import { saveContentSection } from '@/app/app/doctor/content/sections/actions';
 import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/PatientTabFiles';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
-import { PATCH as updateDoctorLfkDiaryComment } from '@/app/api/doctor/clients/[userId]/lfk-complex-exercises/[exerciseRowId]/route';
-import { POST as purgePatientDiary } from '@/app/api/patient/diary/purge/route';
 import { POST as recordWarmupCompletion } from '@/app/api/patient/practice/completion/route';
 import { POST as recordWarmupVideoView } from '@/app/api/patient/daily-warmup/video-viewed/route';
 import {
@@ -161,18 +153,6 @@ beforeEach(() => {
     notifTemplates: { saveManagedTemplate: vi.fn(), saveManagedPresentation: vi.fn() },
     systemSettings: { getSetting: vi.fn().mockResolvedValue({ valueJson: { value: false } }) },
     contentSections: { getBySlug: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
-    diaries: {
-      listSymptomTrackings: vi.fn().mockResolvedValue([
-        {
-          id: TARGET_ID,
-          symptomKey: 'pain',
-          symptomTitle: 'Боль',
-          deletedAt: null,
-        },
-      ]),
-      renameSymptomTracking: vi.fn(),
-      archiveSymptomTracking: vi.fn(),
-    },
     doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
     patientFiles: { createFile: vi.fn() },
     orgEntitlements: {},
@@ -238,13 +218,8 @@ describe('tariff and platform mutation gates', () => {
     });
   });
 
-  it('refuses diary and warmup/promo writes visibly when their mechanics are disabled', async () => {
-    const [moodResponse, warmupResponse, promoResponse] = await Promise.all([
-      submitMood(
-        request('https://app.example.test/api/patient/mood', {
-          score: 4,
-        }),
-      ),
+  it('refuses warmup/promo writes visibly when their mechanics are disabled', async () => {
+    const [warmupResponse, promoResponse] = await Promise.all([
       updateWarmupSchedule(
         request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/warmup-schedule', {
           timesLocal: ['09:00'],
@@ -259,7 +234,6 @@ describe('tariff and platform mutation gates', () => {
     ]);
 
     for (const [response, mechanic, action] of [
-      [moodResponse, 'patient_diaries', 'добавить или изменить запись самочувствия'],
       [warmupResponse, 'warmups', 'изменить расписание разминок'],
       [promoResponse, 'promo', 'изменить промо-программу'],
     ] as const) {
@@ -288,81 +262,6 @@ describe('tariff and platform mutation gates', () => {
       error:
         'Невозможно изменить настройки главной страницы пациента: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
     });
-  });
-
-  it('refuses the doctor tracking route and patient rename/archive actions when diaries are off', async () => {
-    const createResponse = await createDoctorSymptomTracking(
-      request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/symptom-trackings', {
-        symptomTitle: 'Боль',
-      }),
-      { params: Promise.resolve({ userId: TARGET_ID }) },
-    );
-    const form = new FormData();
-    form.set('trackingId', TARGET_ID);
-    form.set('newTitle', 'Новая боль');
-    const [renameResult, archiveResult] = await Promise.all([
-      renameSymptomTracking(form),
-      archiveSymptomTracking(form),
-    ]);
-
-    expect(createResponse.status).toBe(403);
-    await expect(createResponse.json()).resolves.toMatchObject({
-      mechanic: 'patient_diaries',
-      message:
-        'Невозможно создать отслеживание в дневнике пациента: этот раздел не входит в ваш тариф.',
-    });
-    for (const result of [renameResult, archiveResult]) {
-      expect(result).toMatchObject({
-        ok: false,
-        message:
-          'Невозможно добавить, изменить или удалить запись дневника: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
-      });
-    }
-  });
-
-  it('refuses doctor LFK diary edits and mass diary purge while patient diaries are off', async () => {
-    vi.mocked(buildAppDeps).mockReturnValue({
-      doctorClientsPort: {
-        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
-      },
-      patientOrganization: {},
-      auth: { confirmPhoneAuth: vi.fn() },
-      diaries: {
-        updateLfkComplexExerciseLocalCommentForUser: vi.fn(),
-        purgeAllDiaryDataForUser: vi.fn(),
-      },
-    } as unknown as ReturnType<typeof buildAppDeps>);
-
-    const [doctorResponse, purgeResponse] = await Promise.all([
-      updateDoctorLfkDiaryComment(
-        request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/lfk', {
-          localComment: 'Новый комментарий',
-        }),
-        {
-          params: Promise.resolve({
-            userId: TARGET_ID,
-            exerciseRowId: '44444444-4444-4444-8444-444444444444',
-          }),
-        },
-      ),
-      purgePatientDiary(
-        request('https://app.example.test/api/patient/diary/purge', {
-          challengeId: 'challenge',
-          code: '1234',
-        }),
-      ),
-    ]);
-
-    for (const [response, action] of [
-      [doctorResponse, 'изменить комментарий в дневнике ЛФК пациента'],
-      [purgeResponse, 'полностью удалить данные дневника'],
-    ] as const) {
-      expect(response.status).toBe(403);
-      await expect(response.json()).resolves.toMatchObject({
-        mechanic: 'patient_diaries',
-        message: `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
-      });
-    }
   });
 
   it('refuses patient completion and video-view writes while warmups are off', async () => {

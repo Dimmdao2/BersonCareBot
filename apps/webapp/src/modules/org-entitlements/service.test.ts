@@ -144,6 +144,29 @@ describe('org entitlement mechanic classes', () => {
     expect(result).toEqual({ ok: true, warning: null });
   });
 
+  it('keeps patient_diaries included under the worst commercial state (#1069, owner 31.07: "дневники у пациентов не отбираем")', () => {
+    const worstCaseSnapshot = {
+      tariff: {
+        mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
+        quotas: {},
+        includedSeats: null,
+        ...unconfiguredPolicies,
+      },
+      overrides: [
+        {
+          mechanic: 'patient_diaries',
+          enabled: false,
+          quota: null,
+          expiresAt: null,
+          seatLimitOverride: null,
+        },
+      ],
+      access: { lifecycle: 'blocked' as const, tariffId: null, source: 'no_trial' as const },
+    };
+
+    expect(entitlementsFromSnapshot(worstCaseSnapshot).patient_diaries).toBe(true);
+  });
+
   it('keeps numeric mechanics enabled and resolves their configured limits from a new tariff', async () => {
     let storedTariff: Tariff | null = null;
     const platformPort: PlatformEntitlementsPort = {
