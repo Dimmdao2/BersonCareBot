@@ -43,31 +43,36 @@
 
 ### А. Резидентные процессы интегратора (systemd units, вечные `while(true)`)
 
-| # | цикл / точка планирования | где в коде | что обрабатывает | остаётся или уходит | причина |
-|---|---|---|---|---|---|
-| A1 | `jobQueueLoop` | `apps/integrator/src/infra/runtime/worker/main.ts:64-120` → `createPostgresJobQueue` (`jobQueuePort.ts`) → таблица `message_retry_jobs` | Два независимых источника пишут сюда: (а) `bookingLifecycleRoute.ts:469` — отложенная постановка напоминаний о приёме (24ч/2ч, константы D13a/D13b); (б) `writePort.ts:1634`, мутация `message.retry.enqueue` — общий ретрай ЛЮБОГО исходящего сообщения после сбоя доставки, вызывается из исполнителя сценариев. | **Не решено — блокировано.** Источник (а) уйдёт вместе с D13b (после того как D13a достроит потребителя настроек в вебаппе — сейчас `[ ]`, не закрыт). Источник (б) — общий механизм ретраев, НЕ дублирует напрямую A3 (там ретраи по своей очереди `outgoing_delivery_queue`), но по сути тот же класс работы («доставить с повторами»); слияние двух очередей ретраев в одну — это и есть работа D16 «после», а не эта перепись. | 
-| A2 | `projectionOutboxLoop` | `main.ts:121-132` → `runProjectionWorkerTick` (`projectionWorker.ts`) | Транспорт проекции canon → webapp (fanout/outbox), который целиком должен снести D10 («после переноса планировщика и сноса транспорта у воркера один цикл»). | **Уходит вместе с D10.** D10 явно требует «точный нулевой-производитель census» перед сносом — census ещё не сделан, транспорт жив. Указан в плане как последний шаг перед D16 закрытием. |
-| A3 | `outgoingDeliveryLoop` | `main.ts:133-154` → `runOutgoingDeliveryWorkerTick` (`outgoingDeliveryWorker.ts`) → таблица `public.outgoing_delivery_queue` (`db/repos/outgoingDeliveryQueue.ts`) | Единственная **живая** очередь исходящей доставки: попытки, отступы, «мёртвая полка» (закрыто D10b), постановка с абсолютным временем (закрыто D10c). Это и есть целевой единственный цикл по плану. | **Остаётся.** Это именно тот цикл, к которому план сводит всё: «очередь исходящей доставки с попытками, отступами и мёртвой полкой», «остаётся в интеграторе — повторы и лимиты у каждого канала свои». |
-| A4 | `scheduler` главный `while(true)` | `apps/integrator/src/infra/runtime/scheduler/main.ts:83-104` (отдельный systemd unit `bersoncarebot-scheduler-prod.service`, отдельный процесс, НЕ `worker/main.ts`) | Один тик двумя подзадачами: | | |
-| A4a | ↳ `runSchedulerOrganizationTicks` | `scheduler/organizationTicks.ts` → событие `schedule.tick` per-org → `scripts.json` `scheduler.tick.reminders` → действия `reminders.planDue` + `reminders.dispatchDue` | Планирование и диспетчеризация напоминаний **по правилам с `integrator_user_id` (бот-каналы Telegram/MAX)** — отдельный от A3 механизм постановки. | **Не решено — блокировано D5–D7/D6.** План (раздел D5, SUPERSEDED 30.07) переносит владение записью в вебапп, но «scheduler reads» (`getEnabledReminderRules`, `reminders.planDue` чтение) явно отложены на D6 (FK-миграция occurrence lifecycle ещё не сделана). Пока это чтение живёт здесь — отдельная точка планирования, не сводимая к A3 без D6. |
-| A4b | ↳ `runScheduledOperatorHealthProbeTick` | `scheduler/operatorHealthProbeTick.ts` | Синтетические health-пробы (due-gated по `intervalMs`/`lastRunAt` на пробу) — не имеет отношения к доставке пациентам. | **Остаётся, но вне предмета «один цикл доставки».** Это инфраструктурный health-мониторинг, не пациентская доставка; план про D16 адресует именно доставку/напоминания. Технически это второй процесс (`scheduler`, отдельный systemd unit) с двумя подзадачами внутри одного тика — сам факт существования процесса-«планировщика» помимо `worker` — то, что план прямо запрещает плодить дальше («отдельного модуля-планировщика не заводим»), но который уже существует и должен быть учтён в арифметике. |
+Вердикт по каждому циклу — `D30_SCHEDULER_REVERSAL_PLAN.md`, раздел «Что при этом происходит с резидентными
+циклами». Здесь только факты переписи.
+
+| # | цикл / точка планирования | где в коде | что обрабатывает |
+|---|---|---|---|
+| A1 | `jobQueueLoop` | `apps/integrator/src/infra/runtime/worker/main.ts:64-120` → `createPostgresJobQueue` (`jobQueuePort.ts`) → таблица `message_retry_jobs` | Два независимых источника: (а) `bookingLifecycleRoute.ts:469` — отложенная постановка напоминаний о приёме; (б) `writePort.ts:1634`, мутация `message.retry.enqueue` — общий ретрай ЛЮБОГО исходящего сообщения после сбоя доставки |
+| A2 | `projectionOutboxLoop` | `main.ts:121-132` → `runProjectionWorkerTick` (`projectionWorker.ts`) | Транспорт проекции canon → webapp (fanout/outbox) |
+| A3 | `outgoingDeliveryLoop` | `main.ts:133-154` → `runOutgoingDeliveryWorkerTick` (`outgoingDeliveryWorker.ts`) → `public.outgoing_delivery_queue` (`db/repos/outgoingDeliveryQueue.ts`) | Единственная живая очередь исходящей доставки: попытки, отступы, «мёртвая полка» (D10b), постановка с абсолютным временем (D10c) |
+| A4 | `scheduler` главный `while(true)` | `apps/integrator/src/infra/runtime/scheduler/main.ts:83-104` (отдельный unit `bersoncarebot-scheduler-prod.service`, НЕ `worker/main.ts`) | Один тик двумя подзадачами (A4a, A4b) |
+| A4a | ↳ `runSchedulerOrganizationTicks` | `scheduler/organizationTicks.ts` → `schedule.tick` per-org → `scheduler.tick.reminders` → `reminders.planDue` + `reminders.dispatchDue` | Планирование и диспетчеризация напоминаний по правилам с `integrator_user_id` (бот-каналы Telegram/MAX) — отдельный от A3 механизм постановки |
+| A4b | ↳ `runScheduledOperatorHealthProbeTick` | `scheduler/operatorHealthProbeTick.ts` | Синтетические health-пробы, due-gated по `intervalMs`/`lastRunAt` на пробу |
 
 **Важное следствие для арифметики "ровно один":** только в `worker/main.ts` три цикла (A1–A3), плюс ещё один
 резидентный процесс с собственным вечным циклом — `scheduler/main.ts` (A4, с двумя внутренними точками
 планирования A4a/A4b). Итого **минимум 4 отдельных `while(true)` в двух процессах интегратора**, не считая
 внешних cron-точек ниже.
 
-### Б. Внешние cron-триггеры (не резидентный процесс — периодический вызов HTTP-эндпоинта; тоже «точка
-планирования» по формулировке плана)
+### Б. Внешние cron-триггеры (периодический вызов HTTP-эндпоинта — тоже точка планирования)
 
-| # | точка планирования | где в коде / деплое | что обрабатывает | остаётся или уходит | причина |
-|---|---|---|---|---|---|
-| B1 | `POST /api/internal/reminders/web-push-only/tick` | `apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts` → `planDueReminderOccurrences.ts` + `webPushOnlyScheduler.ts`; cron каждую минуту через `deploy/host/web-push-only-reminder-cron.sh` (cronport) | Планирование и доставка **web-push-only** напоминаний — правила `reminder_rules` с `integrator_user_id IS NULL` (пациенты без бот-канала). Единственный тик, который сегодня реально видит `reminder_rules` для web-push (см. находку D13a: «единственный тик напоминаний в вебаппе... записи на приём он не видит»). | **Остаётся, вне интегратора.** Это ровно тот планировщик, в который D5–D7 переносят владение записью и который D13a должен научить читать настройки клиники и события жизненного цикла приёма — план прямо говорит «планировщик уезжает в вебапп, третьей сущности делать нечего»: это ОН и есть, уже в вебаппе, не в интеграторе. Не считается за «цикл воркера интегратора». |
-| B2 | `POST /api/internal/specialist-task-reminders/tick` | `apps/webapp/src/app/api/internal/specialist-task-reminders/tick/route.ts` → `dispatchDueSpecialistTaskReminders` (`modules/specialist-tasks/dispatchDueReminders.ts`); cron каждые 10 мин | Напоминания врачу по `specialist_tasks` (`remind_at`, `reminder_sent_at`) — не пациентские напоминания о приёме, отдельный домен. | **Остаётся, вне интегратора и вне предмета D16.** Другой продуктовый домен (задачи специалиста), уже полностью в вебаппе, никогда не был в интеграторе. |
-| B3 | `pnpm run integrator-push-outbox-tick` | `apps/webapp/scripts/integrator-push-outbox-tick.ts` → `runIntegratorPushWorkerTick` (`infra/integrator-push/`); по README — cron/systemd timer (интервал не зафиксирован жёстко, «отдельный systemd unit») | Дренаж `public.integrator_push_outbox` — ретраи подписанных POST **вебапп → интегратор** для `reminder_rule_upsert` (когда прямой push от вебаппа к интегратору не прошёл). | **Уходит вместе с D5–D7/D10a.** Существует только пока вебапп сигнализирует интегратору о правилах напоминаний через M2M push; когда владение записью полностью переедет в вебапп и интегратор перестанет быть получателем этих апдейтов (после D5–D7), эта точка теряет смысл. Также прямо упомянута в D10a («три журнала доставки») по соседству с `outgoing_delivery_queue`, хотя сама по себе не журнал, а очередь ретраев push. |
-| B4 | `POST /internal/operator-health-probe` + `deploy/host/operator-health-probe.sh` | `apps/integrator/src/integrations/bersoncare/operatorHealthProbeRoute.ts`; cron на хосте (README: «раз в час», без due-gating внутри — каждый вызов прогоняет ВСЕ включённые пробы) | Тот же набор синтетических health-проб, что и A4b, но триггер снаружи (cron → HTTP → интегратор) и БЕЗ due-check (`isOperatorHealthProbeDue`) — то есть дублирует A4b по назначению, но не по механике. | **Дублирует A4b — не решено, не в скоупе D16.** Оставлено как есть в этой переписи: это два независимых триггера одной и той же работы (внутренний тик планировщика с due-gating + внешний cron без gating). Сведение к одному триггеру — отдельный вопрос health-мониторинга, план D16 адресует пациентскую доставку, а не операторские пробы. |
-| B5 | `POST /api/internal/operator-health-critical/tick`, `.../operator-health-digest/tick`, `.../system-health-guard/tick` | `deploy/host/cron.d/*.template`; каждые 5 мин / hourly / каждые 15 мин | Операторские алерты (критичные сигналы, дневная сводка, guard по `integrator_push_outbox`). | **Остаётся, вне предмета D16.** Инфраструктурный мониторинг для админа, не пациентская доставка. |
-| B6 | media-housekeeping cron'ы: `media-pending-delete/purge`, `media-multipart/cleanup`, `media-preview:tick`/`media-preview/process`, `media-playback-stats/retention`, `media-hls-proxy-errors/retention`, `product-analytics/retention`, `media-transcode/reconcile` | `deploy/HOST_DEPLOY_README.md` (секции S3/медиа/аналитика) | Уборка медиатеки, ретеншн статистики, transcode-реконсиляция. | **Вне предмета D16 — другой домен.** Не про доставку сообщений/напоминаний, не про интегратор. Перечислены для полноты переписи («исчерпывающе»), классификация не требует дальнейшего анализа. |
+Вердикт по каждой точке (переезжает в планировщик / остаётся cron / исчезает) — `D30_SCHEDULER_REVERSAL_PLAN.md`
+раздел 1. Здесь только факты переписи.
+
+| # | точка планирования | где в коде / деплое | что обрабатывает |
+|---|---|---|---|
+| B1 | `POST /api/internal/reminders/web-push-only/tick` | `apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts` → `planDueReminderOccurrences.ts` + `webPushOnlyScheduler.ts`; cron каждую минуту через `deploy/host/web-push-only-reminder-cron.sh` | Планирование и доставка web-push-only напоминаний — правила `reminder_rules` с `integrator_user_id IS NULL` (пациенты без бот-канала) |
+| B2 | `POST /api/internal/specialist-task-reminders/tick` | `apps/webapp/src/app/api/internal/specialist-task-reminders/tick/route.ts` → `dispatchDueSpecialistTaskReminders`; cron каждые 10 мин | Напоминания врачу по `specialist_tasks` (`remind_at`, `reminder_sent_at`) — отдельный домен, никогда не был в интеграторе |
+| B3 | `pnpm run integrator-push-outbox-tick` | `apps/webapp/scripts/integrator-push-outbox-tick.ts` → `runIntegratorPushWorkerTick`; по README cron/systemd timer, интервал в репозитории не зафиксирован | Дренаж `public.integrator_push_outbox` — ретраи подписанных POST вебапп → интегратор для `reminder_rule_upsert` |
+| B4 | `POST /internal/operator-health-probe` + `deploy/host/operator-health-probe.sh` | `apps/integrator/src/integrations/bersoncare/operatorHealthProbeRoute.ts`; cron раз в час | Тот же набор health-проб, что A4b, но БЕЗ due-check (`isOperatorHealthProbeDue`): каждый вызов гоняет все включённые пробы мимо настроек |
+| B5 | `POST /api/internal/operator-health-critical/tick` (5 мин), `.../operator-health-digest/tick` (hourly), `.../system-health-guard/tick` (15 мин) | `deploy/host/cron.d/*.template` | Операторские алерты: критичные сигналы, дневная сводка (`operator_health_alert_config.digestTime`), guard по `integrator_push_outbox` |
+| B6 | media-housekeeping: `media-pending-delete/purge`, `media-multipart/cleanup`, `media-preview:tick`, `media-playback-stats/retention`, `media-hls-proxy-errors/retention`, `product-analytics/retention`, `media-transcode/reconcile` | `deploy/HOST_DEPLOY_README.md` (секции S3/медиа/аналитика) | Уборка медиатеки, ретеншн статистики, transcode-реконсиляция |
 
 ### В. Отдельное приложение (не интегратор, но вечный цикл — для полноты)
 
@@ -84,61 +89,30 @@
 | `apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts:398,638` | Пагинация чанками по 500 строк с курсором до конца выборки — обычный цикл постраничного чтения БД, не расписание. |
 | `apps/webapp/src/modules/**/hooks/*.ts` (9 файлов, `setInterval(run, 20000)` и один `useMessagePolling`) | Браузерный polling в React-хуках (клиентский код в вкладке пользователя), не серверный процесс и не «цикл воркера». |
 
-## Что мешает свести к одному прямо сейчас
+## Что блокирует сведение
 
-1. **A2 (`projectionOutboxLoop`) не может уйти без D10.** D10 требует «точного нулевого-производителя census» перед
-   сносом transport'а проекции — census не сделан, снос не начат. Блокирует: **D10**.
-2. **A1 (`jobQueueLoop`/`message_retry_jobs`) не может уйти целиком.** Источник напоминаний (24ч/2ч через
-   `bookingLifecycleRoute.ts`) уходит только после того, как вебапп реально станет единственным потребителем и
-   постановщиком напоминаний — это **D13a** (не закрыт: чтение настроек клиники в вебаппе, событие `reminder` в
-   шаблонах, постановка occurrences — ничего из этого ещё не построено) и следующий за ним **D13b** (резать
-   константы можно только после D13a). Отдельно источник общего ретрая (`message.retry.enqueue` из
-   `writePort.ts`) — это не про напоминания вообще, а общий механизм «доставить с повторами после сбоя»; слияние
-   его с очередью A3 в одну очередь ретраев — это и есть содержание работы «свести к одному», а не текущая
-   перепись. Блокирует: **D13a → D13b**, затем отдельная работа слияния очередей ретраев (не имеет номера в
-   плане — это буквально шаг «сведение», который наступит после того, как в этом документе не останется
-   заблокированных строк).
-3. **A4a (scheduler `reminders.planDue`/`dispatchDue` для бот-каналов) не может уйти без D6.** План прямо помечает
-   «scheduler reads» (`getEnabledReminderRules`) как «NOT done (deferred to D6)» — миграция FK occurrence-lifecycle
-   ещё не выполнена. Блокирует: **D5 → D6 → D7** (D5/D7 уже SUPERSEDED 30.07 в части прямой записи, но само чтение
-   scheduler'а остаётся до D6).
-4. **A4 как отдельный процесс/unit вообще (не только его содержимое) не адресован планом на снос** — D16 говорит
-   «отдельного модуля-планировщика не заводим» (запрет заводить НОВЫЙ), но не говорит снести существующий
-   `scheduler/main.ts`. Если целевое состояние — действительно ОДИН цикл на процесс `worker`, то `scheduler` как
-   отдельный systemd unit с собственным вечным циклом (A4) либо: (а) исчезает целиком, когда A4a уйдёт по D6 и
-   A4b либо тоже уйдёт (переедет во внешний cron уровня B4/B5), либо (б) план имеет в виду «один цикл ДОСТАВКИ»,
-   и health-пробы (A4b) — отдельная, не пациентская, категория, которая не в счёте «трёх». Это разночтение не
-   решено в плане — **явный открытый вопрос для владельца**, не для этой переписи.
-5. **D10a (три журнала доставки) блокирован открытым вопросом владельцу.** Пометка в плане: описание
-   `outgoing_delivery_queue` было неверным (это НЕ вторая очередь, а единственная живая), вопрос записан и
-   найден в `runs/owner-questions.md` (репо-корень, не `docs/_TODO/runs/`): «что именно вы имели в виду 30.07 под
-   "outgoing_delivery_queue убирать"?», три варианта прочтения, ответ не получен на момент переписи. До ответа
-   снос любых таблиц delivery-логов делать нельзя. Блокирует: снос `integrator.delivery_attempt_logs` и
-   синхронизацию наблюдателей на `public.outgoing_delivery_queue`, что план явно связывает с D16 («снос очереди
-   делать вместе с D16 — там же считаются циклы»).
-6. **B4 (внешний cron health-probe) дублирует A4b без due-gating.** Не блокировано конкретным пунктом плана — это
-   находка, не открытый вопрос: одна и та же работа (health-пробы) имеет два независимых триггера с разной
-   механикой. Требует отдельного решения (не пациентская доставка, вне предмета «один цикл» из D16).
+1. **A2 (`projectionOutboxLoop`)** — уходит только с D10, а D10 требует точной переписи «нулевой производитель»
+   перед сносом транспорта.
+2. **A1 (`jobQueueLoop`/`message_retry_jobs`)** — источник напоминаний о приёме снят D13a+D13b (закрыты 31.07);
+   остаётся источник общего ретрая `message.retry.enqueue`. Слияние его с очередью A3 расписано в
+   `D30_SCHEDULER_REVERSAL_PLAN.md` §3 и шаг Ш7.
+3. **A4a (`reminders.planDue`/`dispatchDue` для бот-каналов)** — не уходит без **D6**: чтение
+   `getEnabledReminderRules` держится за FK `user_reminder_occurrences.rule_id ON DELETE CASCADE`, миграция FK
+   не сделана.
+4. **Судьба процесса `scheduler` целиком** (один резидентный планировщик вместо `worker` + `scheduler`) —
+   развилка №1 в `D30_SCHEDULER_REVERSAL_PLAN.md`, вынесена владельцу; план построен так, что до ответа не
+   блокируется.
+5. **B4 дублирует A4b** — два независимых триггера одной работы, причём внешний cron идёт мимо due-gating и
+   quiet-часов. Вердикт — D30 §1 (B4 исчезает, остаётся тик планировщика).
 
 ## Итог арифметики
 
-Формулировка плана «должен остаться один вечный цикл» относится к **процессу `worker`** интегратора. На эту
-перепись сегодня в нём — **три** цикла (A1 `jobQueueLoop`, A2 `projectionOutboxLoop`, A3 `outgoingDeliveryLoop`),
-как и предполагал первоначальный текст плана до аудита 30.07. Аудит был прав, что «ровно один» не сходится —
-но не потому, что в `worker/main.ts` их больше трёх, а потому что:
+В процессе `worker` сегодня **три** вечных цикла (A1, A2, A3), рядом — **второй резидентный процесс**
+`scheduler` (A4) со своим вечным циклом и двумя точками планирования внутри, плюс **внешние cron-точки** B1–B6.
+Итого минимум 4 `while(true)` в двух процессах интегратора, не считая cron.
 
-- рядом существует **второй резидентный процесс** — `scheduler/main.ts` (A4) — с собственным вечным циклом и
-  двумя внутренними точками планирования (A4a, A4b), который не входит в исходный счёт «трёх», но физически
-  тоже «вечный цикл интегратора»;
-- снаружи существуют **множественные cron-точки планирования** (B1–B6), часть из которых (B1 — вебапп-планировщик
-  напоминаний, B3 — дренаж push-очереди в интегратор) прямо касаются той же предметной области (напоминания,
-  доставка), что и цели D16, и должны быть учтены в общей картине «что шлёт напоминания и доставляет сообщения»,
-  даже если формально не «цикл воркера».
-
-Единственный цикл, который план называет целевым и однозначно остаётся без всяких условий — **A3
-`outgoingDeliveryLoop`** (`outgoing_delivery_queue`, с попытками/отступами/мёртвой полкой, доказано на D10b/D10c).
-Всё остальное либо уходит вслед за конкретными пунктами плана (D10, D13a→D13b, D5→D6→D7), либо не входит в предмет
-«один цикл доставки» (health-пробы, media-worker, специалист-задачи), либо остаётся открытым вопросом владельца,
-не решаемым в рамках этой переписи (D10a, разночтение по судьбе процесса `scheduler` целиком — пункт 4 выше).
-
-Код не менялся; дерево репозитория чистое, кроме этого документа.
+Целевое состояние (D16 + D30): **один цикл ДОСТАВКИ** — A3 `outgoingDeliveryLoop` над `outgoing_delivery_queue`
+с попытками, отступами и «мёртвой полкой». A1 вливается в него, A2 уходит с D10, A4 остаётся исполнителем по
+расписанию и решений не принимает.
+⛔ «Один цикл» не означает «один процесс на весь интегратор»: ни одна зрелая система не сводит планировщик и
+исполнителя в один процесс (`D16_LOOP_ARCHITECTURE_RESEARCH.md`).
