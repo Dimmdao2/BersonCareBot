@@ -6,6 +6,7 @@ import type {
   SaasBillingRepositoryPort,
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
+import type { SaasBillingPeriod } from '@/modules/saas-billing/paidPeriod';
 import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
 import { beOrganizations } from '../../../db/schema/bookingEngine';
 import {
@@ -134,13 +135,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           },
           async requireActiveTariff(tariffId) {
             const [tariff] = await tx
-              .select({ id: saasTariffs.id })
+              .select({ id: saasTariffs.id, billingPeriod: saasTariffs.billingPeriod })
               .from(saasTariffs)
               .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
               .limit(1);
             if (!tariff) throw new Error('active_tariff_not_found');
+            return { billingPeriod: tariff.billingPeriod as SaasBillingPeriod };
           },
-          async setManualSaasBillingSubscription({ organizationId, tariffId }) {
+          async setManualSaasBillingSubscription({ organizationId, tariffId, period }) {
             if (tariffId === null) {
               await tx
                 .update(saasBillingSubscriptions)
@@ -148,6 +150,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                   status: 'cancelled',
                   cancelledAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
+                  // Unassigning ends the paid period; leaving it behind would keep feeding the
+                  // ladder an anchor for a tariff the organization no longer has.
+                  currentPeriodStartsAt: null,
+                  currentPeriodEndsAt: null,
                 })
                 .where(
                   and(
@@ -167,6 +173,8 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 source: 'manual',
                 status: 'active',
                 lifecycleState: 'active',
+                currentPeriodStartsAt: period?.startsAt ?? null,
+                currentPeriodEndsAt: period?.endsAt ?? null,
               })
               .onConflictDoUpdate({
                 target: [saasBillingSubscriptions.organizationId, saasBillingSubscriptions.source],
@@ -176,6 +184,8 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                   lifecycleState: 'active',
                   cancelledAt: null,
                   updatedAt: new Date().toISOString(),
+                  currentPeriodStartsAt: period?.startsAt ?? null,
+                  currentPeriodEndsAt: period?.endsAt ?? null,
                 },
               })
               .returning({ id: saasBillingSubscriptions.id });

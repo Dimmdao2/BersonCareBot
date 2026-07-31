@@ -53,11 +53,20 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
               : null,
           };
         },
-        async requireActiveTariff() {},
-        async setManualSaasBillingSubscription({ organizationId, tariffId }) {
+        async requireActiveTariff() {
+          return { billingPeriod: 'month' as const };
+        },
+        async setManualSaasBillingSubscription({ organizationId, tariffId, period }) {
           if (tariffId === null) {
             const current = rows.get(organizationId);
-            if (current) rows.set(organizationId, { ...current, status: 'cancelled' });
+            if (current) {
+              rows.set(organizationId, {
+                ...current,
+                status: 'cancelled',
+                currentPeriodStartsAt: null,
+                currentPeriodEndsAt: null,
+              });
+            }
             return;
           }
           const current = rows.get(organizationId);
@@ -71,8 +80,8 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             lifecycleState: 'active',
             providerId: null,
             savedPaymentMethodId: null,
-            currentPeriodStartsAt: null,
-            currentPeriodEndsAt: null,
+            currentPeriodStartsAt: period?.startsAt ?? null,
+            currentPeriodEndsAt: period?.endsAt ?? null,
             graceEndsAt: null,
             readOnlyEndsAt: null,
           });

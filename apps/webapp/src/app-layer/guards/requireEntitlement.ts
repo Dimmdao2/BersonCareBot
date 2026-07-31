@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveMechanicAccess } from '@/modules/org-entitlements/service';
 import {
+  accessNotificationConditionFor,
   dueAccessNotifications,
   renderAccessNotification,
 } from '@/modules/org-entitlements/accessNotifications';
@@ -119,13 +120,16 @@ export function entitlementGraceWarningMessages(
   variables: Readonly<Record<string, string>>,
   now: Date = new Date(),
 ): string[] {
+  // §5a item 7.0 — same rule as the cabinet door: which payment outcome happened is read from the
+  // period that actually lapsed, so «ошибка оплаты» reaches a clinic that did not pay and not one
+  // whose trial simply ran out.
+  const condition = accessNotificationConditionFor(warning.periodSource);
+  if (condition === null) return [];
   return dueAccessNotifications({
     notifications: warning.notifications,
     periodEndsAt: warning.periodEndsAt,
     now,
-    // The ladder only degrades after an unpaid period, so the rows that apply here are the ones
-    // the owner marked with that outcome. The condition lives in his row, not in a branch here.
-    condition: 'payment_failed',
+    condition,
   }).map((rule) => renderAccessNotification(rule.template, variables));
 }
 

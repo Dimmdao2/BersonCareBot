@@ -133,6 +133,7 @@ describe('§5a/2.1a: cabinet entry walks its own three rungs', () => {
       cabinetAt('grace', {
         until: '2026-08-14',
         periodEndsAt: '2026-08-01T00:00:00.000Z',
+        periodSource: 'paid_period',
         notifications: [],
         nextState: 'read_only',
       }),
@@ -215,6 +216,8 @@ describe('§5a/2.1a + 2.6a: предупреждение ступени «тер
   const warning = {
     until: '2026-08-14',
     periodEndsAt: '2026-08-01T00:00:00.000Z',
+    // Строки владельца здесь про НЕОПЛАТУ, поэтому и период — оплаченный (§5a item 7.0).
+    periodSource: 'paid_period' as const,
     nextState: 'read_only' as const,
     notifications: [
       {
@@ -268,6 +271,24 @@ describe('§5a/2.1a + 2.6a: предупреждение ступени «тер
         { клиника: 'Ромашка', тариф: 'Базовый' },
         new Date('2026-07-30T00:00:00.000Z'),
       ),
+    ).toEqual([]);
+  });
+
+  // §5a item 7.0. Поломка, которую ловит: условие «ошибка оплаты» выставлено не по настоящему
+  // признаку неоплаты, а по факту деградации — и клиника, у которой просто кончился ПРОБНЫЙ
+  // период и которой мы ни разу не выставляли счёт, получает текст владельца «тариф не оплачен».
+  // До 31.07 обе двери подставляли `condition: 'payment_failed'` константой, и это было именно так.
+  // Арбитр: заставить `accessNotificationConditionFor` возвращать `'payment_failed'` всегда —
+  // второй `expect` краснеет, потому что триальной клинике покажется текст про неоплату.
+  it('«ошибка оплаты» — по неоплаченному периоду, а не по истёкшему триалу', () => {
+    const variables = { клиника: 'Ромашка', тариф: 'Базовый' };
+    const now = new Date('2026-07-30T00:00:00.000Z');
+
+    expect(cabinetGraceWarningMessages({ ...warning, periodSource: 'paid_period' }, variables, now))
+      .toEqual(['Клиника Ромашка: тариф Базовый не оплачен, доступ сузится.']);
+
+    expect(
+      cabinetGraceWarningMessages({ ...warning, periodSource: 'trial' }, variables, now),
     ).toEqual([]);
   });
 });
