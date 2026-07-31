@@ -114,12 +114,44 @@ function buildMutateTargets(baseRef, files) {
   return { targets, perFile };
 }
 
+// М3 круг 2 (#1081, M3-2 слепого аудита): на обычном `if (value === '')` (не тернарник, не составное
+// выражение) гейт детерминированно писал Survived на мутанте, который тесты реально убивают (проверено
+// вручную: мутант, применённый руками, красит тест). Корень найден трассировкой прогона: 6 мутантов
+// одной строки, ПЕРВЫЙ убит верно, все следующие — Survived, хотя «Tests ran» называет верный тестовый
+// файл. apps/webapp/vitest.config.ts держит `experimental.fsModuleCache: true` (персистентный на диск
+// кэш трансформации модулей, node_modules/.experimental-vitest-cache) — он рассчитан на дев-цикл, где
+// исходник между прогонами не меняется. Stryker переписывает файл в песочнице на каждый следующий
+// мутант той же строки; кэш это не инвалидирует, и vitest читает уже неактуальную версию — мутация
+// тестами физически не запускается, отсюда ложный Survived. Изолированно подтверждено: с
+// `fsModuleCache: false` тот же прогон даёт 7/7 killed вместо 1/7. Гейт с ложным red учит игнорировать
+// красный — это ровно «врал красным» из tests-check-behaviour-not-circumstances.mdc.
+// Фикс — свой vitest-конфиг для гейта (generateStrykerVitestConfig), а не правка apps/webapp/vitest.config.ts:
+// кэш даёт реальную пользу локальной разработке, ломает только повторные прогоны Stryker внутри одного
+// файла — трогать его глобально ради одного гейта не нужно.
+function generateStrykerVitestConfig(workDir) {
+  const overridePath = join(workDir, 'vitest.stryker-nocache.generated.ts');
+  const baseConfigPath = join(appDir, 'vitest.config.ts');
+  writeFileSync(
+    overridePath,
+    [
+      "import { defineConfig, mergeConfig } from 'vitest/config';",
+      `import base from ${JSON.stringify(baseConfigPath)};`,
+      '',
+      'export default mergeConfig(base, defineConfig({',
+      '  test: { experimental: { fsModuleCache: false } },',
+      '}));',
+      '',
+    ].join('\n'),
+  );
+  return overridePath;
+}
+
 function runStryker(targets, reportPath, tempDir, workDir) {
   const config = {
     packageManager: 'pnpm',
     testRunner: 'vitest',
     plugins: ['@stryker-mutator/vitest-runner'],
-    vitest: { configFile: 'vitest.config.ts' },
+    vitest: { configFile: generateStrykerVitestConfig(workDir) },
     mutate: targets,
     // Не копировать в песочницу то, что не нужно для прогона тестов — там же живут маскированные
     // .env.example (не секрет продукта, просто ускоряет copy).
