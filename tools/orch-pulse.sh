@@ -50,9 +50,12 @@ for log in /home/dev/dev-projects/bcb-wt-*/docs/_TODO/runs/*/*.log; do
   cpu=$(python3 "$ROOT/tools/pulse-cpu.py" "$pid" 2>/dev/null || echo 0)
   snap="$ROOT/runs/pulse-cpu/$run.snap"
   mkdir -p "$(dirname "$snap")"
-  read -r old_cpu old_at < <(cat "$snap" 2>/dev/null || echo "-1 $now")
-  if [ "${old_cpu:--1}" = -1 ] || [ "$cpu" -gt "${old_cpu:-0}" ]; then
-    echo "$cpu $now" > "$snap"
+  # В снимке хранится и pid: имя прогона переиспользуется при перезапуске строки очереди, и снимок от
+  # ПРОШЛОГО прогона давал ложное «ЗАВИС 19 мин» на агенте, работающем одну минуту (поймано 31.07).
+  # Ложная тревога опаснее пропуска: по регламенту она приводит к снятию ЖИВОЙ работы.
+  read -r old_cpu old_at old_pid < <(cat "$snap" 2>/dev/null || echo "-1 $now 0")
+  if [ "${old_pid:-0}" != "$pid" ] || [ "${old_cpu:--1}" = -1 ] || [ "$cpu" -gt "${old_cpu:-0}" ]; then
+    echo "$cpu $now $pid" > "$snap"
     stall=0
   else
     stall=$(( now - ${old_at:-$now} ))

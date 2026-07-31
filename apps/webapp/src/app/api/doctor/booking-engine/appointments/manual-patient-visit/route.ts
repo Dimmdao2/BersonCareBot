@@ -10,6 +10,7 @@ import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
+import { loadAppointmentReminderPlanFromSystemSettings } from '@/modules/booking-notifications/settings';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
 import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
@@ -63,17 +64,10 @@ export async function POST(request: Request) {
   }
 
   const { ctx } = gate;
-  const specialistResolution = await resolveDoctorCreateSpecialist(
-    ctx,
-    parsed.data.specialistId,
-  );
+  const specialistResolution = await resolveDoctorCreateSpecialist(ctx, parsed.data.specialistId);
   if (!specialistResolution.ok) {
-    const status =
-      specialistResolution.error === 'schedule_specialist_not_available' ? 404 : 403;
-    return NextResponse.json(
-      { ok: false, error: specialistResolution.error },
-      { status },
-    );
+    const status = specialistResolution.error === 'schedule_specialist_not_available' ? 404 : 403;
+    return NextResponse.json({ ok: false, error: specialistResolution.error }, { status });
   }
   const specialistId = specialistResolution.specialistId;
   const deps = buildAppDeps();
@@ -151,6 +145,10 @@ export async function POST(request: Request) {
         const contactPhone = bookingRow?.contactPhone ?? created.patient.phoneNormalized;
         if (!created.replayed && contactPhone) {
           try {
+            const reminderPlan = await loadAppointmentReminderPlanFromSystemSettings(
+              created.appointment.organizationId,
+              (key, scope, options) => deps.systemSettings.getSetting(key, scope, options),
+            );
             await createBookingSyncPort().emitBookingEvent({
               eventType: 'booking.created',
               idempotencyKey: `staff.booking.created:${created.appointment.id}:${created.appointment.startAt}`,
@@ -174,6 +172,7 @@ export async function POST(request: Request) {
                   bookingRow,
                 ),
                 canonicalAppointmentId: created.appointment.id,
+                reminderPlan,
               },
             });
           } catch {

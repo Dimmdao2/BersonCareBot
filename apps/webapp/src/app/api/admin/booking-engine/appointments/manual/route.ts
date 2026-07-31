@@ -6,6 +6,7 @@ import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
+import { loadAppointmentReminderPlanFromSystemSettings } from '@/modules/booking-notifications/settings';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireAdminBookingEngine } from '../../_requireAdminBookingEngine';
 
@@ -93,6 +94,10 @@ export async function POST(request: Request) {
       ? await deps.patientBooking.getBookingByCanonicalAppointment(appointment.id)
       : null;
     try {
+      const reminderPlan = await loadAppointmentReminderPlanFromSystemSettings(
+        appointment.organizationId,
+        (key, scope, options) => deps.systemSettings.getSetting(key, scope, options),
+      );
       await syncPort.emitBookingEvent({
         eventType: 'booking.created',
         idempotencyKey: `staff.booking.created:${appointment.id}:${appointment.startAt}`,
@@ -112,6 +117,7 @@ export async function POST(request: Request) {
           cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
           serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(appointment, bookingRow),
           canonicalAppointmentId: appointment.id,
+          reminderPlan,
         },
       });
     } catch {

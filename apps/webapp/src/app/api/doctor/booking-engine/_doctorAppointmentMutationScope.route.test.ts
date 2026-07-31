@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   emitBookingEvent: vi.fn(),
   getAppointment: vi.fn(),
   loadLifecycleSettings: vi.fn(),
+  loadReminderPlan: vi.fn(),
   requireDoctorBookingEngine: vi.fn(),
   runPackageDetach: vi.fn(),
   runStaffManualCancelAfterCanonical: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock('@/modules/integrator/bookingM2mApi', () => ({
 }));
 vi.mock('@/modules/booking-notifications/settings', () => ({
   loadBookingLifecycleNotificationsFromSystemSettings: mocks.loadLifecycleSettings,
+  loadAppointmentReminderPlanFromSystemSettings: mocks.loadReminderPlan,
 }));
 vi.mock('@/app/api/doctor/booking-engine/_requireDoctorBookingEngine', () => ({
   requireDoctorBookingEngine: mocks.requireDoctorBookingEngine,
