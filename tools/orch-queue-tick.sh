@@ -71,7 +71,13 @@ git -C "$CLONE" merge -q --no-edit FETCH_HEAD 2>>"$LOG" || {
 }
 
 # 5. Запуск через порт. Его отказ — это нормальный исход, а не авария: значит гейт не пройден.
-say "запуск $RUN_ID ($ROLE, $MODEL/$EFFORT) по брифу $BRIEF"
+# Провайдер выводится из имени модели: claude-* идёт через провайдера claude, остальное — codex.
+# Без этого строка очереди с claude-sonnet-5 уходила в codex и падала как blocked_system (31.07).
+case "$MODEL" in
+  claude-*) export ORCH_PROVIDER=claude ;;
+  *) unset ORCH_PROVIDER ;;
+esac
+say "запуск $RUN_ID ($ROLE, ${ORCH_PROVIDER:-codex}/$MODEL/$EFFORT) по брифу $BRIEF"
 if OUT=$(tools/orch-launch.sh "$ROLE" "$CLONE_NAME" "$RUN_ID" "$MODEL" "$EFFORT" "$BRIEF" "$SLICE" 2>&1); then
   say "ok: $OUT"
   # помечаем строку взятой, чтобы следующий тик её не повторил
