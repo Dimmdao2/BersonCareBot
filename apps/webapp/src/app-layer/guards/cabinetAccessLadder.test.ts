@@ -1,0 +1,251 @@
+// §5a/2.1a — ДОСТУП В КАБИНЕТ как отдельный предмет лестницы. Owner 30.07: «и сам доступ к кабинету
+// и доступ к механикам внутри тарифа. Как долго период терпения с полным доступом, как долго период
+// только на чтение, когда блок».
+//
+// Здесь доказывается ПОВЕДЕНИЕ двери кабинета на каждой ступени, через настоящий страж
+// (`requireRole`) и настоящий роут — подменены только слои под стражем. Сама лестница (три величины
+// тарифа → три ступени, и восстановление данных в БД) доказывается на живом PostgreSQL скриптом
+// `scripts/check-access-ladder-transitions.mjs`, proof 6; здесь — что вебапп этим состоянием реально
+// распоряжается.
+//
+// Арбитр (обязателен per `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`) — по одному на
+// проверку, каждый назван у своего `it`.
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
+vi.mock('@/modules/auth/service', () => ({
+  getCurrentSession: vi.fn(),
+  getCurrentSessionForIdentitySelf: vi.fn(),
+}));
+vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ensureDbPrincipalContext: vi.fn(),
+  enterWithDbStaffPrincipal: vi.fn(),
+  getCurrentDbPrincipal: vi.fn(() => null),
+  runWithDbClinicBillingPrincipal: <T>(_principal: unknown, callback: () => T): T => callback(),
+}));
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
+  withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, _source: string, fn: () => T): T => fn()),
+}));
+
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getCurrentSession } from '@/modules/auth/service';
+import { GET as listCourses } from '@/app/api/doctor/courses/route';
+import { GET as readOwnBilling } from '@/app/api/clinic/billing/route';
+import { cabinetGraceWarningMessage } from './cabinetAccessGate';
+import type { CabinetAccessResolution, MechanicAccessState } from '@/modules/org-entitlements/types';
+
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const USER_ID = '22222222-2222-4222-8222-222222222222';
+const SPECIALIST_ID = '33333333-3333-4333-8333-333333333333';
+
+const EXISTING_COURSES = [
+  { id: 'course-1', title: 'Курс 1' },
+  { id: 'course-2', title: 'Курс 2' },
+];
+
+const BILLING_OVERVIEW = {
+  organizationId: ORG_ID,
+  subscriptions: [{ id: 'subscription-1', status: 'active' }],
+  invoices: [{ id: 'invoice-1', status: 'pending' }],
+  providerEvents: [],
+};
+
+/** The clinic owner: full workspace capabilities, 2FA already satisfied. */
+const session = {
+  user: {
+    userId: USER_ID,
+    role: 'doctor',
+    displayName: 'Врач',
+    securityFactorRequired: false,
+    bindings: {},
+  },
+  adminMode: false,
+  staffSecurity: { assurance: 'factor_verified' },
+};
+
+const listCoursesForDoctor = vi.fn();
+const getOrganizationBillingOverview = vi.fn();
+
+/**
+ * Wires the whole stack under the guard. `cabinet` is the ONLY thing that varies between the rungs:
+ * membership, session, mechanic access and the stores stay identical, so any behaviour difference
+ * observed below is attributable to the cabinet ladder and nothing else.
+ */
+function withCabinet(cabinet: CabinetAccessResolution | Error): void {
+  vi.mocked(buildAppDeps).mockReturnValue({
+    organizationMembership: {
+      resolveOrganizationForUser: async () => ({
+        ok: true,
+        context: {
+          organizationId: ORG_ID,
+          membershipId: 'membership-1',
+          role: 'owner',
+          specialistId: SPECIALIST_ID,
+          canManageOrganization: true,
+          canManageAllSpecialists: true,
+          canAccessClinicalWorkspace: true,
+        },
+      }),
+    },
+    orgEntitlements: {
+      resolveCabinetAccess: async () => {
+        if (cabinet instanceof Error) throw cabinet;
+        return cabinet;
+      },
+      // The mechanic itself is wide open on every rung below — only the cabinet moves.
+      resolveMechanicAccess: async (_organizationId: string, mechanic: string) => ({
+        mechanic,
+        state: 'full_access' as MechanicAccessState,
+        policySource: 'system',
+        warning: null,
+      }),
+    },
+    courses: { listCoursesForDoctor },
+    saasBilling: { getOrganizationBillingOverview },
+  } as unknown as ReturnType<typeof buildAppDeps>);
+}
+
+function cabinetAt(
+  state: MechanicAccessState,
+  warning: CabinetAccessResolution['warning'] = null,
+): CabinetAccessResolution {
+  return { state, policySource: state === 'unconfigured' ? 'unconfigured' : 'system', warning };
+}
+
+function coursesRequest(): Request {
+  return new Request('https://app.example.test/api/doctor/courses', { method: 'GET' });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(getCurrentSession).mockResolvedValue(session as never);
+  listCoursesForDoctor.mockResolvedValue(EXISTING_COURSES);
+  getOrganizationBillingOverview.mockResolvedValue(BILLING_OVERVIEW);
+});
+
+describe('§5a/2.1a: cabinet entry walks its own three rungs', () => {
+  // Арбитр: снять ступень `grace` из `isCabinetEntryBlocked` (сделать её блокирующей) — тест краснеет
+  // (403 вместо 200).
+  it('терпение — вход в кабинет открыт, работает как при полном доступе', async () => {
+    withCabinet(cabinetAt('grace', { until: '2026-08-14', count: 2, nextState: 'read_only' }));
+
+    const response = await listCourses(coursesRequest());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, items: EXISTING_COURSES });
+  });
+
+  // Арбитр: добавить `read_only` в `isCabinetEntryBlocked` — тест краснеет (403 вместо 200).
+  // Ступень «только чтение» закрывает ЗАПИСЬ (через лестницу механик, наследующую системную
+  // политику), но НЕ вход: иначе клиника не смогла бы ни увидеть созданное, ни выгрузить его —
+  // канон §4a: «клиника видит созданное и может выгрузить».
+  it('только чтение — вход в кабинет открыт и созданное по-прежнему видно', async () => {
+    withCabinet(cabinetAt('read_only'));
+
+    const response = await listCourses(coursesRequest());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, items: EXISTING_COURSES });
+  });
+
+  // Арбитр: убрать проверку `cabinetEntryIsBlocked` из `requireDoctorWorkspaceApiContext` — тест
+  // краснеет (200 вместо 403).
+  it('блок — вход в продукт закрыт целиком, а не отдельный раздел', async () => {
+    withCabinet(cabinetAt('disabled'));
+
+    const response = await listCourses(coursesRequest());
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'cabinet_blocked' });
+    // Дверь отказывает ДО обращения к хранилищу.
+    expect(listCoursesForDoctor).not.toHaveBeenCalled();
+  });
+
+  // Арбитр: вернуть `unconfigured` в разряд открытых состояний — тест краснеет.
+  it('ненастроенная политика — дверь закрыта, а не открыта по умолчанию', async () => {
+    withCabinet(cabinetAt('unconfigured'));
+
+    const response = await listCourses(coursesRequest());
+
+    expect(response.status).toBe(403);
+    expect(listCoursesForDoctor).not.toHaveBeenCalled();
+  });
+
+  // Арбитр: заменить `catch { return true }` в `cabinetEntryIsBlocked` на `return false` — тест
+  // краснеет. Недоступный резолвер не имеет права открывать коммерческую границу.
+  it('недоступный резолвер закрывает дверь, а не открывает её', async () => {
+    withCabinet(new Error('resolver_unavailable'));
+
+    const response = await listCourses(coursesRequest());
+
+    expect(response.status).toBe(403);
+    expect(listCoursesForDoctor).not.toHaveBeenCalled();
+  });
+});
+
+describe('§5a/2.1a: блок кабинета не удаляет данные и возвращает их при возобновлении', () => {
+  // Арбитр: заставить дверь при `disabled` звать хранилище на удаление — тест краснеет на
+  // `not.toHaveBeenCalled`. Либо «залипить» решение (всегда `disabled`) — краснеет второй запрос.
+  it('те же самые записи возвращаются после снятия блока, без отдельного шага восстановления', async () => {
+    withCabinet(cabinetAt('disabled'));
+
+    const blocked = await listCourses(coursesRequest());
+    expect(blocked.status).toBe(403);
+    expect(listCoursesForDoctor).not.toHaveBeenCalled();
+
+    // Меняется ТОЛЬКО состояние лестницы — ничего не перепровизионивается руками.
+    withCabinet(cabinetAt('full_access'));
+
+    const restored = await listCourses(coursesRequest());
+    expect(restored.status).toBe(200);
+    await expect(restored.json()).resolves.toMatchObject({ ok: true, items: EXISTING_COURSES });
+  });
+});
+
+describe('§5a/2.1a: предупреждение ступени «терпение» берётся из резолвера, а не из констант', () => {
+  // Арбитр: захардкодить в `cabinetGraceWarningMessage` любое своё число дней или конечное
+  // состояние — тест краснеет, потому что подставленные значения перестанут совпадать.
+  it('несёт дату, число предупреждений и следующее состояние из политики тарифа', () => {
+    expect(
+      cabinetGraceWarningMessage({ until: '2026-08-14', count: 3, nextState: 'read_only' }),
+    ).toBe('Доступ в кабинет: полный доступ до 14.08.2026. Затем — только чтение. Предупреждений: 3.');
+
+    expect(
+      cabinetGraceWarningMessage({ until: '2026-09-01', count: 1, nextState: 'disabled' }),
+    ).toBe(
+      'Доступ в кабинет: полный доступ до 01.09.2026. Затем — вход в кабинет закрыт. Предупреждений: 1.',
+    );
+  });
+});
+
+describe('§5a/2.1c: организация в блоке открывает СВОЙ тариф', () => {
+  // Арбитр: убрать `{ allowCabinetRecovery: true }` из `app/api/clinic/billing/route.ts` — тест
+  // краснеет (403 `cabinet_blocked` вместо 200). Причина инварианта: иначе блок нельзя снять
+  // оплатой, и он становится невыходимым.
+  it('счета и подписки своего тарифа читаются даже в конечном состоянии «блок»', async () => {
+    withCabinet(cabinetAt('disabled'));
+
+    const response = await readOwnBilling();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      billing: {
+        organizationId: ORG_ID,
+        subscriptions: BILLING_OVERVIEW.subscriptions,
+        invoices: BILLING_OVERVIEW.invoices,
+      },
+    });
+  });
+
+  it('и при этом обычный раздел кабинета той же организации остаётся закрытым', async () => {
+    withCabinet(cabinetAt('disabled'));
+
+    // Один и тот же принципал, одно и то же состояние лестницы: разница только в том, что оплата
+    // своего тарифа — путь восстановления, а не тарифная механика.
+    expect((await readOwnBilling()).status).toBe(200);
+    expect((await listCourses(coursesRequest())).status).toBe(403);
+  });
+});

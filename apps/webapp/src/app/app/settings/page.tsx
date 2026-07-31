@@ -6,6 +6,7 @@ import {
   isMechanicIncluded,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
+import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
@@ -82,10 +83,7 @@ export default async function SettingsPage({
   const cabinetAccess = await buildAppDeps().orgEntitlements.resolveCabinetAccess(
     workspace.organizationId,
   );
-  if (
-    (cabinetAccess.state === 'disabled' || cabinetAccess.state === 'unconfigured') &&
-    tab !== 'billing'
-  ) {
+  if (isCabinetEntryBlocked(cabinetAccess) && tab !== 'billing') {
     redirect(`${routePaths.settings}?tab=billing`);
   }
   const isGlobalAdmin =
