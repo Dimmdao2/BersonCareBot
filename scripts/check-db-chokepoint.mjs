@@ -17,7 +17,6 @@ const allowedPoolProviderFiles = new Set([
   'apps/integrator/src/infra/db/integratorPoolProvider.ts',
   'apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts',
   'apps/integrator/src/infra/scripts/projectionHealthPoolProvider.ts',
-  'apps/integrator/src/infra/scripts/stage6HistoricalBackfillPoolProvider.ts',
   'apps/media-worker/src/poolProvider.ts',
   // D1 (C-1, 2026-07-26): boot-time schema probe called from instrumentation.ts `register()`,
   // before the DI container / app deps exist — there is no wired pool provider to hand it a
