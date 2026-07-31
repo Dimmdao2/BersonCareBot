@@ -69,7 +69,34 @@ if [ $((now - last)) -lt "$REVIVE_COOLDOWN" ]; then
 fi
 echo "$now" > "$STAMP"
 
+# ── Проверка результативности подъёмов ───────────────────────────────────────────────────────────
+# Ночь 31.07: сторож поднял лида 17 раз, все 17 не сделали НИЧЕГО (роль worker → джейл → клоны
+# только на чтение), и об этом никто не узнал до утра. Поэтому: если подъём не дал ни одного нового
+# коммита в ветке, считаем его пустым; два пустых подряд — эскалация владельцу, дальше молчать нельзя.
+HEADFILE="$ROOT/runs/lead-revive.head"
+FAILFILE="$ROOT/runs/lead-revive.empty"
+head_now=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo none)
+head_prev=$(cat "$HEADFILE" 2>/dev/null || echo none)
+if [ "$head_prev" != none ] && [ "$head_now" = "$head_prev" ]; then
+  empty=$(( $(cat "$FAILFILE" 2>/dev/null || echo 0) + 1 ))
+  echo "$empty" > "$FAILFILE"
+  if [ "$empty" -ge 2 ]; then
+    # Владельцу отсюда НЕ пишем (его слова 31.07: «сторож должен пинать ТЕБЯ, а не писать мне»).
+    # Пишем в файл пробуждения — его лид читает первым делом на каждом ходу и при подъёме.
+    echo "- [ ] ⚠️ $empty подъёма подряд без единого нового коммита — конвейер не двигается, разобраться ПЕРВЫМ делом ($(date '+%F %H:%M')). Лог: runs/lead-revive.log" >> "$WAKEUP"
+    echo 0 > "$FAILFILE"
+  fi
+else
+  echo 0 > "$FAILFILE"
+fi
+echo "$head_now" > "$HEADFILE"
+
 echo "$(date '+%F %T') живых нет — поднимаю лида" >> "$ROOT/runs/heartbeat.log"
+# Роль ОБЯЗАТЕЛЬНО dev-lead, а не worker. Ночь 31.07: с ролью worker поднятый лид попадал в bwrap-джейл,
+# где единственный writable-корень — сам репозиторий, и любая попытка тронуть клоны падала на
+# «Read-only file system». Сторож честно поднял лида семнадцать раз, и все семнадцать не сделали ничего.
+# Роль dev-lead входит в TRUSTED_FULL_ROLES порта (host-agent-run.mjs:939) и идёт без джейла — оркестратор
+# обязан писать и в репозиторий, и в клоны рядом с ним.
 nohup node "$PORT" --provider claude --model claude-sonnet-5 --effort medium \
-  --role worker --sandbox workspace-write --cwd "$ROOT" --run-id "lead-revive-$(date +%H%M)" \
+  --role dev-lead --sandbox workspace-write --cwd "$ROOT" --run-id "lead-revive-$(date +%H%M)" \
   < "$LEAD_MISSION" > "$LEAD_LOG" 2>&1 &
