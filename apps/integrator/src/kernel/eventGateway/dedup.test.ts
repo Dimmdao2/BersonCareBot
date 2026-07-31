@@ -49,6 +49,28 @@ describe('buildDedupKey — ключ дедупликации входящего
     expect(buildDedupKey(a)).not.toBe(buildDedupKey(b));
   });
 
+  it('дано: тот же fingerprint, но РАЗНЫЙ meta.source → когда ключи → тогда ключи РАЗНЫЕ', () => {
+    // N1 (D20_LEVEL2_REAUDIT.md): все действовавшие тесты ходили внутри одного source+type, поэтому
+    // выброс `source` из канонического ключа проходил незамеченным — telegram и max с одинаковым
+    // fingerprint схлопывались в один dedup-ключ, и событие второго канала молча терялось как дубль.
+    // АРБИТР: в buildCanonicalFingerprint() убрать `${event.meta.source}:` из собираемой строки —
+    // тест покраснеет: ключи совпадут.
+    const telegram = event({ meta: { eventId: 'e1', occurredAt: 'x', source: 'telegram', dedupFingerprint: { chatId: 42, messageId: 7 } } });
+    const max = event({ meta: { eventId: 'e2', occurredAt: 'y', source: 'max', dedupFingerprint: { chatId: 42, messageId: 7 } } });
+
+    expect(buildDedupKey(telegram)).not.toBe(buildDedupKey(max));
+  });
+
+  it('дано: тот же fingerprint и source, но РАЗНЫЙ type → когда ключи → тогда ключи РАЗНЫЕ', () => {
+    // N1: та же дыра со второй координатой ключа — все действовавшие тесты держали `type` фиксированным.
+    // АРБИТР: в buildCanonicalFingerprint() убрать `${event.type}:` из собираемой строки — тест
+    // покраснеет: ключи совпадут.
+    const received = event({ type: 'message.received', meta: { eventId: 'e1', occurredAt: 'x', source: 'telegram', dedupFingerprint: { chatId: 42, messageId: 7 } } });
+    const callback = event({ type: 'callback.received', meta: { eventId: 'e2', occurredAt: 'y', source: 'telegram', dedupFingerprint: { chatId: 42, messageId: 7 } } });
+
+    expect(buildDedupKey(received)).not.toBe(buildDedupKey(callback));
+  });
+
   it('дано: значения содержат «:»/«=» → когда ключ → тогда кодирование не даёт склейки двух РАЗНЫХ событий в один ключ', () => {
     // Без encodeURIComponent пара {a:'1', b:'2'} сериализуется в "a=1:b=2", и ОДНОКЛЮЧЕВОЙ
     // fingerprint {a:'1:b=2'} даёт БУКВАЛЬНО ТУ ЖЕ строку "a=1:b=2" — два разных события

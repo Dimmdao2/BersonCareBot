@@ -206,6 +206,22 @@ describe('channelBindingsToTargets / unwrapDeliveryTargets — извлечен�
     expect(targets).toEqual([{ channel: 'max', externalId: '222' }]);
   });
 
+  it('дано: привязка с пробелами ПО КРАЯМ (не только вся строка — пробел) → когда извлечение → тогда externalId БЕЗ пробелов по краям', () => {
+    // N6 (D20_LEVEL2_REAUDIT.md): F7 закрыл только половину случая — тест выше ловит строку из ОДНИХ
+    // пробелов, но не ловит пробелы ПО КРАЯМ непустого значения. Если из формирования externalId
+    // убрать `.trim()` (оставив его в условии `id.trim().length > 0`), ' 111 ' пройдёт проверку
+    // непустоты и станет целью с ПРОБЕЛЬНЫМ externalId ' 111 ' — провайдер получит идентификатор с
+    // мусором по краям, и отправка провалится.
+    // АРБИТР: в channelBindingsToTargets() заменить `externalId: id.trim()` на `externalId: id` —
+    // тест покраснеет: externalId останется ' 111 ' вместо '111'.
+    const targets = channelBindingsToTargets({ telegramId: ' 111 ', maxId: '222' });
+
+    expect(targets).toEqual([
+      { channel: 'telegram', externalId: '111' },
+      { channel: 'max', externalId: '222' },
+    ]);
+  });
+
   it('дано: привязок нет вовсе → когда извлечение → тогда пустой список, а не исключение', () => {
     expect(channelBindingsToTargets(undefined)).toEqual([]);
   });

@@ -18,9 +18,16 @@
  *
  * У каждого `it` — свой арбитр, прогнан руками; вывод — в отчёте D20_TESTS_LEVEL2_REPORT.md.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { IdempotencyPort, IncomingEvent } from '../contracts/index.js';
 import { createEventGateway } from './index.js';
+import { buildDedupKey } from './dedup.js';
+import { checkGatewayRateLimit } from './rateLimit.js';
+
+vi.mock('./rateLimit.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return { ...actual, checkGatewayRateLimit: vi.fn(actual.checkGatewayRateLimit as never) };
+});
 
 function event(overrides: Partial<IncomingEvent['meta']> = {}, payload: Record<string, unknown> = {}): IncomingEvent {
   return {
@@ -52,7 +59,7 @@ function inMemoryIdempotencyPort(): IdempotencyPort & { acquired: Set<string> } 
 }
 
 describe('createEventGateway — validate → rateLimit → dedup → pipeline', () => {
-  it('дано: два вебхука с ОДНИМ fingerprint (повтор доставки провайдером) → когда оба через шлюз → тогда pipeline выполнен ровно один раз, второй dropped/DUPLICATE', async () => {
+  it('дано: два вебхука с ОДНИМ fingerprint (повтор доставки провайдером) → когда оба через шлюз → тогда pipeline выполнен ровно один раз, второй dropped/DUPLICATE, а наружу уходит ИМЕННО тот dedupKey, что занимался в порту', async () => {
     // АРБИТР: убрать блок `if (idempotencyPort) { ... }` целиком — pipeline будет вызван дважды,
     // runCount станет 2, тест покраснеет.
     const idempotencyPort = inMemoryIdempotencyPort();
@@ -62,13 +69,26 @@ describe('createEventGateway — validate → rateLimit → dedup → pipeline',
       pipeline: { run: async () => { runCount++; } },
     });
     const fp = { chatId: 42, messageId: 7 };
+    const firstEvent = event({ eventId: 'evt-a', dedupFingerprint: fp });
+    const secondEvent = event({ eventId: 'evt-b', dedupFingerprint: fp });
 
-    const first = await gateway.handleIncomingEvent(event({ eventId: 'evt-a', dedupFingerprint: fp }));
-    const second = await gateway.handleIncomingEvent(event({ eventId: 'evt-b', dedupFingerprint: fp }));
+    const first = await gateway.handleIncomingEvent(firstEvent);
+    const second = await gateway.handleIncomingEvent(secondEvent);
 
     expect(first.status).toBe('accepted');
     expect(second).toMatchObject({ status: 'dropped', reason: 'DUPLICATE' });
     expect(runCount).toBe(1);
+
+    // N8 (D20_LEVEL2_REAUDIT.md): наружу может уйти НЕ ТОТ dedupKey, что реально занимался в
+    // idempotencyPort — этот ключ попадает в логи вебхуков обоих мессенджеров (telegram/webhook.ts,
+    // max/webhook.ts), и подмена ломает сцепку «лог ↔ занятый ключ» при разборе инцидента.
+    // АРБИТР: в handleIncomingEvent() вернуть из `accepted`/`dropped` константу вместо реального
+    // dedupKey — тест покраснеет: возвращённое значение перестанет совпадать с ключом, реально
+    // переданным в idempotencyPort.tryAcquire (единственный ключ в acquired) и с buildDedupKey(event).
+    const realKeyAcquiredInPort = [...idempotencyPort.acquired][0];
+    expect(first.dedupKey).toBe(realKeyAcquiredInPort);
+    expect(second.dedupKey).toBe(realKeyAcquiredInPort);
+    expect(first.dedupKey).toBe(buildDedupKey(firstEvent));
   });
 
   it('дано: pipeline упал на середине → когда обработка → тогда dedup-ключ ОСВОБОЖДЁН и повторная доставка провайдером обработается', async () => {
@@ -175,8 +195,10 @@ describe('createEventGateway — validate → rateLimit → dedup → pipeline',
   });
 
   it('дано: вызывающий передаёт options.runPipeline (как единственный продовый вызов — организационный принципал арендатора, см. organizationTicks.ts) → когда обработка → тогда обёртка ОБЯЗАНА быть вызвана и реально обернуть исполнение pipeline, а не быть проигнорирована', async () => {
-    // Все шесть тестов выше зовут handleIncomingEvent БЕЗ options. Единственный продовый вызов
-    // (scheduler:handle-tick-event) всегда передаёт `options.runPipeline`, оборачивая исполнение в
+    // Все шесть тестов выше зовут handleIncomingEvent БЕЗ options. Продовых вызовов handleIncomingEvent
+    // три: telegram/webhook.ts:382 и max/webhook.ts:329 зовут его БЕЗ options (принципал ставится
+    // снаружи, вокруг всего вызова); scheduler:handle-tick-event (organizationTicks.ts:30,43-45) —
+    // единственный, что передаёт `options.runPipeline`, оборачивая исполнение в
     // runWithOrganizationPrincipal — без этого пропуск в проде побежит без принципала арендатора.
     // Предмет проверки — не просто «функция вызвана», а что pipeline.run реально выполнился
     // ВНУТРИ переданной обёртки (флаг ставится обёрткой ДО запуска pipeline).
@@ -204,5 +226,32 @@ describe('createEventGateway — validate → rateLimit → dedup → pipeline',
     expect(result.status).toBe('accepted');
     expect(wrapperInvoked).toBe(true);
     expect(ranInsideWrapper).toBe(true);
+  });
+
+  it('дано: rate-limit шлюза отверг событие → когда обработка → тогда rejected с причиной лимита, dedup-ключ НЕ занят и pipeline НЕ запущен', async () => {
+    // N7 (D20_LEVEL2_REAUDIT.md): договор модуля («Gateway не содержит бизнес-логики: только
+    // validate/rate-limit/dedup», index.ts:14) на треть не был закреплён ни одним тестом — ветку
+    // `if (!rate.allowed)` можно было отключить целиком без единого красного теста в наборе.
+    // Предмет проверки — не сама реализация rate-limit (сегодня заглушка, всегда allowed), а то,
+    // КАК шлюз реагирует на её отказ: это законная проверка обращения к границе (правило п.7),
+    // т.к. решение "пускать/не пускать" здесь принимается именно этой границей, а не gateway.
+    // АРБИТР: в createEventGateway() убрать блок `if (!rate.allowed) { return {...} }` целиком —
+    // событие пройдёт до dedup/pipeline, runCount станет 1, тест покраснеет.
+    vi.mocked(checkGatewayRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      reason: 'RATE_LIMITED_TEST',
+    });
+    const idempotencyPort = inMemoryIdempotencyPort();
+    let runCount = 0;
+    const gateway = createEventGateway({
+      idempotencyPort,
+      pipeline: { run: async () => { runCount++; } },
+    });
+
+    const result = await gateway.handleIncomingEvent(event({ eventId: 'evt-a' }));
+
+    expect(result).toMatchObject({ status: 'rejected', reason: 'RATE_LIMITED_TEST' });
+    expect(idempotencyPort.acquired.size).toBe(0);
+    expect(runCount).toBe(0);
   });
 });

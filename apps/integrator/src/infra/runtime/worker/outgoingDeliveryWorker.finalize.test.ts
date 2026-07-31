@@ -33,7 +33,10 @@ vi.mock('../../observability/logger.js', async (importOriginal) => {
 });
 
 import type { DbPort, DbQueryResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
-import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
+import {
+  claimDueOutgoingDeliveries,
+  type OutgoingDeliveryQueueRow,
+} from '../../db/repos/outgoingDeliveryQueue.js';
 import { runOutgoingDeliveryWorkerTick } from './outgoingDeliveryWorker.js';
 
 function operatorAlertIntent(eventId: string): OutgoingIntent {
@@ -97,6 +100,13 @@ type ScopeRow = { queue_kind: string; organization_id: string; resolution: strin
  * DbPort, отвечающий по фрагментам SQL (тот же приём, что в outgoingDeliveryWorker.scope.test.ts):
  * заглушка — сама СУБД, предмет проверки — как воркер интерпретирует её ответы/отказы.
  */
+/** Достаёт значение параметра из текста запроса по имени колонки (не хардкод позиции). */
+function paramAtColumn(sqlText: string, params: unknown[] | undefined, columnName: string): unknown {
+  const match = sqlText.match(new RegExp(`${columnName}\\s*=\\s*\\$(\\d+)`));
+  if (!match) throw new Error(`placeholder for "${columnName}" not found in SQL text`);
+  return params?.[Number(match[1]) - 1];
+}
+
 function harness(input: {
   claimed: ReturnType<typeof claimedRow>[];
   scopeByRowId: Record<string, ScopeRow>;
@@ -109,12 +119,16 @@ function harness(input: {
   deadAttempts: string[];
   sentOk: string[];
   rescheduledOk: string[];
+  deadLastErrorByRowId: Record<string, unknown>;
+  rescheduledLastErrorByRowId: Record<string, unknown>;
 } {
   const dispatched: string[] = [];
   const deadOk: string[] = [];
   const deadAttempts: string[] = [];
   const sentOk: string[] = [];
   const rescheduledOk: string[] = [];
+  const deadLastErrorByRowId: Record<string, unknown> = {};
+  const rescheduledLastErrorByRowId: Record<string, unknown> = {};
 
   function rowIdFromDeadOrRescheduleParams(params: unknown[] | undefined): string | undefined {
     // markOutgoingDeliveryDead/rescheduleOutgoingDeliveryRetry bind `id` as the LAST parameter
@@ -148,7 +162,10 @@ function harness(input: {
         if (rowId && input.writeFailsForRowIds.has(rowId)) {
           throw new Error(`simulated DB outage while finalizing row ${rowId}`);
         }
-        if (rowId) deadOk.push(rowId);
+        if (rowId) {
+          deadOk.push(rowId);
+          deadLastErrorByRowId[rowId] = paramAtColumn(sql, params, 'last_error');
+        }
         return { rows: [] as T[] };
       }
       if (sql.includes("status = 'sent'")) {
@@ -164,7 +181,10 @@ function harness(input: {
         if (rowId && input.writeFailsForRowIds.has(rowId)) {
           throw new Error(`simulated DB outage while finalizing row ${rowId}`);
         }
-        if (rowId) rescheduledOk.push(rowId);
+        if (rowId) {
+          rescheduledOk.push(rowId);
+          rescheduledLastErrorByRowId[rowId] = paramAtColumn(sql, params, 'last_error');
+        }
         return { rows: [] as T[] };
       }
       return { rows: [] as T[] };
@@ -181,6 +201,8 @@ function harness(input: {
     deadAttempts,
     sentOk,
     rescheduledOk,
+    deadLastErrorByRowId,
+    rescheduledLastErrorByRowId,
   };
 }
 
@@ -280,6 +302,11 @@ describe('outgoingDeliveryWorker: двойной отказ (обработка 
 
     expect(result).toEqual({ claimed: 1, processed: 0, errors: 1 });
     expect(h.deadOk).toEqual([ROW_ID]);
+    // N5 (D20_LEVEL2_REAUDIT.md): затереть safeError пустой строкой в finalizeClaimedRowFailure() —
+    // строка всё равно корректно уйдёт в dead (проверка выше это не поймает), но оператор увидит
+    // пустое поле вместо причины смерти строки. АРБИТР: в finalizeClaimedRowFailure() заменить
+    // `safeError` на `''` при вызове queueMarkDead — тест покраснеет на непустоте last_error.
+    expect(h.deadLastErrorByRowId[ROW_ID]).toBe('advisory function unavailable');
   });
 
   it('дано: обработка падает, финализация жива, попыток ещё не исчерпано (attemptCount < maxAttempts) → когда тик → тогда строка уходит в повтор (failed_retryable), а НЕ в dead', async () => {
@@ -319,5 +346,55 @@ describe('outgoingDeliveryWorker: двойной отказ (обработка 
     expect(result).toEqual({ claimed: 1, processed: 0, errors: 1 });
     expect(h.rescheduledOk).toEqual([ROW_ID]);
     expect(h.deadOk).not.toContain(ROW_ID);
+    // N5: тот же класс потери, что закрыла F3 (потерять причину, оставив факт) — но на ветке
+    // reschedule, а не dead. АРБИТР: тот же — заменить safeError на '' при вызове queueReschedule.
+    expect(h.rescheduledLastErrorByRowId[ROW_ID]).toBe('advisory function unavailable');
+  });
+});
+
+describe('claimDueOutgoingDeliveries — сам claim-запрос обязан увеличивать attempt_count', () => {
+  it('дано: claim берёт строку → когда UPDATE выполняется → тогда SET-выражение реально инкрементирует attempt_count (а не просто перечитывает его)', async () => {
+    // N4 (D20_LEVEL2_REAUDIT.md): finalizeClaimedRowFailure() решает dead/reschedule по attemptCount
+    // из claimed-строки, но ни один тест (включая тесты выше в этом файле) не проверял, что сам claim
+    // ДЕЙСТВИТЕЛЬНО увеличивает счётчик, а не только его читает — все они подставляют claimed-строку
+    // с уже готовым attemptCount вручную, минуя реальный claim SQL. Без инкремента строка, которая
+    // падает всегда, никогда не достигнет maxAttempts — finalizeClaimedRowFailure никогда не уйдёт в
+    // queueMarkDead, и упавшая строка будет повторяться ВЕЧНО вместо ухода в dead letter.
+    // АРБИТР: в claimDueOutgoingDeliveries() заменить `attempt_count = q.attempt_count + 1` на
+    // `attempt_count = q.attempt_count` (убрать инкремент) — тест покраснеет: в тексте выполняемого
+    // UPDATE инкремента не будет.
+    let capturedSql = '';
+    const db: DbPort = {
+      async query<T>(sqlText: string): Promise<DbQueryResult<T>> {
+        capturedSql = sqlText;
+        return {
+          rows: [
+            {
+              id: 'row-1',
+              event_id: 'evt-1',
+              kind: 'operator_alert',
+              channel: 'telegram',
+              payload_json: {},
+              status: 'processing',
+              attempt_count: 6,
+              max_attempts: 6,
+              next_retry_at: '2026-07-31T10:00:00.000Z',
+              last_attempt_at: '2026-07-31T09:59:00.000Z',
+              sent_at: null,
+              dead_at: null,
+              last_error: null,
+            },
+          ] as unknown as T[],
+        };
+      },
+      async tx<T>(fn: (txDb: DbPort) => Promise<T>): Promise<T> {
+        return fn(db);
+      },
+    };
+
+    const rows = await claimDueOutgoingDeliveries(db, 10);
+
+    expect(capturedSql).toMatch(/attempt_count\s*=\s*q\.attempt_count\s*\+\s*1/);
+    expect(rows[0]?.attemptCount).toBe(6);
   });
 });

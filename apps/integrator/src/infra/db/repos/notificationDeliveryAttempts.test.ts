@@ -12,6 +12,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
+import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 import {
   recordMessengerChannelSkipsBestEffort,
   recordMessengerNotEnqueuedSkipsBestEffort,
@@ -34,6 +35,16 @@ const COL = {
   recipientRef: 11,
   errorMessage: 12,
 } as const;
+
+/** Достаёт индекс колонки из РЕАЛЬНОГО списка колонок в тексте выполняемого INSERT (не хардкод). */
+function columnIndexFromInsertSql(sqlText: string, columnName: string): number {
+  const match = sqlText.match(/INSERT INTO public\.notification_delivery_attempts\s*\(([^)]*)\)/i);
+  if (!match) throw new Error('unexpected INSERT shape: column list not found in SQL text');
+  const columns = match[1]!.split(',').map((c) => c.trim());
+  const idx = columns.indexOf(columnName);
+  if (idx === -1) throw new Error(`column "${columnName}" not found in INSERT column list`);
+  return idx;
+}
 
 function harness(): { db: DbPort; inserts: unknown[][] } {
   const inserts: unknown[][] = [];
@@ -181,5 +192,76 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
     });
 
     expect(inserts[0]![COL.occurrenceId]).toBe(uuid);
+  });
+
+  it('дано: пропуск подан с непустым organizationId → когда запись → тогда он доезжает в колонку organization_id И сам INSERT выполняется под принципалом ИМЕННО этой организации', async () => {
+    // N2 (D20_LEVEL2_REAUDIT.md): раньше все три теста скипов подавали organizationId: null, поэтому
+    // ветка `organizationId && db.integratorDrizzle === undefined` (принципал арендатора) не
+    // исполнялась НИ РАЗУ. Таблица под FORCE RLS с политикой
+    // `WITH CHECK (app.is_staff() AND app.current_org_id() = organization_id ...)`
+    // (deploy/postgres/phase4-locked-helper-rls-policies.sql:913-917) — без верного принципала
+    // такой INSERT в проде отвергается RLS и попадает в тот же best-effort catch, то есть пропуск
+    // исчезает целиком.
+    // АРБИТР: заменить обёртку принципала на голый `fn(db)` (или подставить чужой org, или всегда
+    // писать organization_id = NULL) — тест покраснеет либо на значении колонки, либо на принципале,
+    // видимом внутри самого INSERT.
+    const ORG = '22222222-2222-4222-8222-222222222222';
+    const inserts: unknown[][] = [];
+    const seenOrgAtInsert: Array<string | undefined> = [];
+    const db: DbPort = {
+      async query<T>(_text: string, params?: unknown[]): Promise<DbQueryResult<T>> {
+        seenOrgAtInsert.push(getCurrentOrganizationPrincipalId());
+        inserts.push(params ?? []);
+        return { rows: [] as T[] };
+      },
+      async tx<T>(fn: (txDb: DbPort) => Promise<T>): Promise<T> {
+        return fn(db);
+      },
+    };
+
+    await recordNotificationDeliveryAttemptBestEffort(db, {
+      channel: 'telegram',
+      status: 'skipped',
+      reason: 'muted',
+      eventId: 'evt-org',
+      organizationId: ORG,
+    });
+
+    expect(inserts[0]![COL.organizationId]).toBe(ORG);
+    expect(seenOrgAtInsert).toEqual([ORG]);
+  });
+
+  it('дано: реальный текст выполняемого INSERT → когда запись → тогда значения status/reason попадают ИМЕННО в те колонки, что названы в СПИСКЕ КОЛОНОК запроса, а не в захардкоженную позицию', async () => {
+    // N3 (D20_LEVEL2_REAUDIT.md): переставить `status` и `reason` МЕСТАМИ В СПИСКЕ КОЛОНОК, не
+    // трогая VALUES, раньше проходило незамеченным — весь набор сверял только ПОЗИЦИЮ параметра
+    // (COL.status/COL.reason — хардкод), а не то, в какую колонку эта позиция реально попадёт. В
+    // проде такая перестановка молча пишет status='muted' (текст причины), reason='skipped'
+    // (статус) — операторский журнал начинает врать.
+    // АРБИТР: в INSERT поменять местами `status` и `reason` в СПИСКЕ КОЛОНОК (VALUES не трогать) —
+    // тест покраснеет: колонка 'status' в тексте запроса окажется на позиции, где VALUES несёт
+    // значение reason, и наоборот.
+    const inserts: Array<{ text: string; params: unknown[] }> = [];
+    const db: DbPort = {
+      async query<T>(text: string, params?: unknown[]): Promise<DbQueryResult<T>> {
+        inserts.push({ text, params: params ?? [] });
+        return { rows: [] as T[] };
+      },
+      async tx<T>(fn: (db: DbPort) => Promise<T>): Promise<T> {
+        return fn(db);
+      },
+    };
+
+    await recordNotificationDeliveryAttemptBestEffort(db, {
+      channel: 'telegram',
+      status: 'skipped',
+      reason: 'muted',
+      eventId: 'evt-col',
+    });
+
+    const { text, params } = inserts[0]!;
+    const statusIdx = columnIndexFromInsertSql(text, 'status');
+    const reasonIdx = columnIndexFromInsertSql(text, 'reason');
+    expect(params[statusIdx]).toBe('skipped');
+    expect(params[reasonIdx]).toBe('muted');
   });
 });
