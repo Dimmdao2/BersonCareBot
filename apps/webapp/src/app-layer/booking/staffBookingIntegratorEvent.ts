@@ -37,6 +37,10 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   bookingRow?: PatientBookingRecord | null;
   /** R21: пробросить подавление пациентского уведомления в интегратор (cancel/no-show-путь). */
   suppressPatientNotification?: boolean;
+  /** D14(1): вебапп-решение — отменять ли ожидающие напоминания на этом событии. */
+  cancelPendingReminders?: boolean;
+  /** D14(2): вебапп-решение — слать ли пуш пациенту и каким вариантом (null — не слать). */
+  patientPushVariant?: 'created' | 'cancelled' | 'rescheduled' | null;
 }): Promise<'sent' | 'skipped'> {
   // R21: if suppression is active, skip the integrator event entirely (patient notification).
   if (opts.suppressPatientNotification) return 'skipped';
@@ -68,6 +72,12 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(opts.appointment, bookingRow),
         canonicalAppointmentId: opts.appointment.id,
         ...(opts.suppressPatientNotification ? { suppressPatientNotification: true } : {}),
+        ...(opts.cancelPendingReminders !== undefined
+          ? { cancelPendingReminders: opts.cancelPendingReminders }
+          : {}),
+        ...(opts.patientPushVariant !== undefined
+          ? { patientPushVariant: opts.patientPushVariant }
+          : {}),
       },
     });
     return 'sent';

@@ -99,6 +99,10 @@ export type BookingSyncPort = {
       };
       /** R21: врач снял «Уведомлять пациента» — интегратор не шлёт пациентские каналы/web-push (врач/GCal — как обычно). */
       suppressPatientNotification?: boolean;
+      /** D14(1): отменять ли ожидающие напоминания на этом событии. Отсутствие поля = прежнее поведение интегратора (отменять всегда). */
+      cancelPendingReminders?: boolean;
+      /** D14(2): слать ли пуш пациенту и каким вариантом; null = не слать. Отсутствие поля = прежнее поведение интегратора. */
+      patientPushVariant?: 'created' | 'cancelled' | 'rescheduled' | null;
     };
   }): Promise<void>;
 };
