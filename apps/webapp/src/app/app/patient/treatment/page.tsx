@@ -14,6 +14,7 @@ import { resolvePatientTreatmentProgramEntry } from '@/modules/treatment-program
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { PatientTreatmentProgramsListClient } from './PatientTreatmentProgramsListClient';
+import { canMaterializePromoForPatient } from '@/app-layer/treatment-program/promoMaterializationGate';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +48,12 @@ export default async function PatientTreatmentProgramsPage() {
   }
 
   const deps = buildAppDeps();
-  const entry = await resolvePatientTreatmentProgramEntry(deps, session.user.userId);
+  const entry = await resolvePatientTreatmentProgramEntry(deps, session.user.userId, () =>
+    canMaterializePromoForPatient(
+      { patientOrganization: deps.patientOrganization },
+      session.user.userId,
+    ),
+  );
 
   if (entry.kind === 'redirect') {
     redirect(routePaths.patientTreatmentProgram(entry.instanceId));

@@ -149,8 +149,6 @@ describe('main menu mini-app retirement', () => {
     };
     const webappEventsPort: WebappEventsPort = {
       emit: async () => ({ ok: true, status: 200 }),
-      listSymptomTrackings: async () => ({ ok: true, trackings: [] }),
-      listLfkComplexes: async () => ({ ok: true, complexes: [] }),
       completePhoneMessengerBind: async () => ({
         ok: true,
         purpose: 'profile_bind' as const,

@@ -4,8 +4,8 @@ name: Security
 # core build/test pipeline stays stable. Jobs: Gitleaks (secrets), Semgrep (SAST),
 # Trivy (fs vuln/misconfig/secret), and a real pnpm CVE audit.
 #
-# All action versions are pinned (no floating @main). External tool versions are pinned via the
-# *_VERSION env vars below and may need a live-CI bump on first run.
+# External actions are pinned to immutable commit SHAs. Downloaded binaries are version- and
+# checksum-pinned; the Semgrep container is digest-pinned.
 
 on:
   push:
@@ -21,9 +21,8 @@ permissions:
   contents: read
 
 env:
-  GITLEAKS_VERSION: '8.18.4'
-  SEMGREP_IMAGE: 'semgrep/semgrep:1.85.0'
-  TRIVY_ACTION_REF: '0.28.0'
+  GITLEAKS_VERSION: '8.30.1'
+  GITLEAKS_LINUX_X64_SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
 
 jobs:
   # --- Secret scanning ----------------------------------------------------------------------
@@ -32,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           # Full history so the scan covers past commits, not just the PR diff — the prior
           # incident was `.env` content committed in history (allowlisted in .gitleaks.toml).
@@ -43,16 +42,17 @@ jobs:
           curl -sSfL \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             -o gitleaks.tar.gz
+          echo "${GITLEAKS_LINUX_X64_SHA256}  gitleaks.tar.gz" | sha256sum --check --strict
           tar -xzf gitleaks.tar.gz gitleaks
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           gitleaks version
       - name: Scan git history for secrets
         # Exit non-zero on any new (non-allowlisted) finding => red build. --redact hides values
         # from logs. Uses ./.gitleaks.toml (default-detected in the working dir).
-        run: gitleaks git . --no-banner --redact --config .gitleaks.toml --report-format sarif --report-path gitleaks.sarif
+        run: gitleaks git . --no-banner --redact --config .gitleaks.toml --gitleaks-ignore-path .gitleaksignore --report-format sarif --report-path gitleaks.sarif
       - name: Upload gitleaks report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: gitleaks-report
           path: gitleaks.sarif
@@ -68,25 +68,25 @@ jobs:
         # working tree. The planted secret lives entirely under $RUNNER_TEMP (below), never
         # inside this checkout, so it can never land in git history or be picked up by the
         # real `gitleaks` job's full-history scan above.
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install gitleaks (pinned)
         run: |
           set -euo pipefail
           curl -sSfL \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             -o gitleaks.tar.gz
+          echo "${GITLEAKS_LINUX_X64_SHA256}  gitleaks.tar.gz" | sha256sum --check --strict
           tar -xzf gitleaks.tar.gz gitleaks
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           gitleaks version
       - name: Plant fake secret and assert gitleaks detects it
-        # The planted string is a well-known AWS-access-key-*shaped* dummy (never a real key —
-        # it's the canonical placeholder used in gitleaks' own test suite / docs) that trips
-        # gitleaks' default `aws-access-token` rule. It is written to a throwaway directory
+        # A GitHub-token-shaped value is generated locally from random bytes at runtime. It was
+        # never issued by GitHub and cannot be a real credential, but it trips the default
+        # `github-pat` rule. It is written to a throwaway directory
         # under $RUNNER_TEMP (outside the repo checkout, never `git add`-ed, never committed),
         # so it cannot trip the real `gitleaks` job's `gitleaks git .` history scan above — that
         # job only ever sees actual commits in this repo, not this job's ephemeral scratch dir.
-        # `gitleaks detect` (not `gitleaks git`) is used since this is a plain directory, not a
-        # git repo. `--no-git` scans the filesystem directly. We invert the exit code: gitleaks
+        # `gitleaks dir` is used since this is a plain directory, not a git repo. We invert the exit code: gitleaks
         # is expected to FAIL (exit non-zero = secret found) — if it instead exits 0 (no finding),
         # the guard is dead and this step (and the workflow) must fail.
         run: |
@@ -95,14 +95,11 @@ jobs:
           mkdir -p "${selftest_dir}"
           trap 'rm -rf "${selftest_dir}"' EXIT
 
-          cat > "${selftest_dir}/planted-secret.txt" <<'EOF'
-          # THIS IS A FAKE, NEVER-VALID CREDENTIAL — used only to prove gitleaks detection works.
-          aws_access_key_id = AKIAIOSFODNN7EXAMPLE
-          aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-          EOF
+          printf 'token = ghp_%s\n' "$(openssl rand -hex 18)" \
+            > "${selftest_dir}/planted-secret.txt"
 
           set +e
-          gitleaks detect --no-git --no-banner --source "${selftest_dir}" --redact
+          gitleaks dir "${selftest_dir}" --no-banner --redact --config .gitleaks.toml
           gitleaks_exit=$?
           set -e
 
@@ -119,13 +116,16 @@ jobs:
     name: Semgrep (SAST)
     runs-on: ubuntu-latest
     container:
-      image: semgrep/semgrep:1.85.0
+      image: semgrep/semgrep:1.164.0@sha256:207983631beecdbe7fa29196c7f4a7a5f29033933cdb76c687ce4a672e07618d
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Semgrep scan (fail on ERROR)
         # Committed .semgrep.yml (offline core) + managed registry packs. --error makes any
         # ERROR-severity finding fail the build; WARNING findings are reported, not blocking.
+        # Gitleaks owns literal credential/credential-URL detection. The managed URI rule is
+        # excluded here because it duplicates that gate and flags the synthetic DEV URL parser
+        # fixture; all other managed secret rules remain enabled.
         run: |
           semgrep scan \
             --config .semgrep.yml \
@@ -134,13 +134,14 @@ jobs:
             --config p/react \
             --config p/nodejs \
             --config p/secrets \
+            --exclude-rule generic.secrets.security.detected-username-and-password-in-uri.detected-username-and-password-in-uri \
             --severity ERROR \
             --error \
             --sarif --output semgrep.sarif \
             --metrics off
       - name: Upload semgrep report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: semgrep-report
           path: semgrep.sarif
@@ -152,9 +153,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -171,6 +172,6 @@ jobs:
     name: Dependency CVE audit (pnpm)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm run audit:cve

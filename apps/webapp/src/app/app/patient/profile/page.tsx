@@ -16,15 +16,18 @@ import { PatientCalendarTimezoneSection } from './PatientCalendarTimezoneSection
 import { PatientProfileHero } from './PatientProfileHero';
 import { formatPatientGreetingName, type StructuredFio } from '@/shared/lib/fio';
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
+import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
+import { PasskeySection } from './PasskeySection';
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
-  const [supportContactHref, emailFields, authChannelPolicy] = await Promise.all([
+  const [supportContactHref, emailFields, authChannelPolicy, passkeyEnabled] = await Promise.all([
     getSupportContactUrl(),
     deps.userProjection.getProfileEmailFields(session.user.userId),
     getAuthChannelPolicy(),
+    isIndependentAuthMethodEnabled('passkey'),
   ]);
   const emailVerified = Boolean(emailFields.emailVerifiedAt);
   const channelCards = await deps.channelPreferences.getChannelCards(
@@ -112,6 +115,13 @@ export default async function PatientProfilePage() {
         <section className={patientSectionSurfaceClass}>
           <PatientCalendarTimezoneSection />
         </section>
+
+        {passkeyEnabled ? (
+          <section className={patientSectionSurfaceClass}>
+            <h2 className={patientSectionTitleClass}>Ключи доступа</h2>
+            <PasskeySection />
+          </section>
+        ) : null}
 
         <LogoutSection />
       </div>

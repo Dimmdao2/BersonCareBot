@@ -53,9 +53,6 @@ import {
   REMINDER_OCCURRENCE_FINALIZED,
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
-  MAILING_TOPIC_UPSERTED,
-  USER_SUBSCRIPTION_UPSERTED,
-  MAILING_LOG_SENT,
 } from '../../kernel/contracts/index.js';
 import type { ProjectionFanoutInput } from './repos/projectionFanout.js';
 import { tryEmitWebappProjectionThenEnqueue } from './repos/projectionFanout.js';
@@ -69,7 +66,6 @@ import {
   resolveCanonicalUserIdFromIdentityId,
 } from './repos/canonicalUserId.js';
 import { logger } from '../observability/logger.js';
-import { insertMailingLog } from './repos/mailingLogs.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
   writeIdentityAndPreferencesDirect,
@@ -83,13 +79,7 @@ import {
   mergeCandidateIdsViaPlatformMerge,
   isIdentityMergeAmbiguityError,
 } from './directPublic/mergeCandidatesDirect.js';
-import {
-  addLfkSessionDirect,
-  addSymptomEntryDirect,
-  createLfkComplexDirect,
-  createSymptomTrackingDirect,
-  isDiaryLfkFailClosedError,
-} from './directPublic/writeDiaryLfkDirect.js';
+import { isDirectPublicActorResolutionFailClosedError } from './directPublic/resolveDirectPublicActor.js';
 import {
   appendSupportConversationMessageDirect,
   openSupportConversationDirect,
@@ -110,7 +100,7 @@ import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
- * (`runWithIntegratorPrincipal`, telegram/webhook.ts): every D2-D5 direct-public write below targets a
+ * (`runWithIntegratorPrincipal`, telegram/webhook.ts): every D3-D5 direct-public write below targets a
  * `public.*` table whose FORCE RLS policy is `(is_staff() AND organization_id = current_org_id()) OR
  * (current_patient_user_id() IS NOT NULL AND platform_user_id = current_patient_user_id())`
  * (`saas_org_dormant_p0_8_3`). The "integrator" principal locks the `app_patient` runtime role with
@@ -120,8 +110,7 @@ import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal
  * message from an already-known user — the common case, since `runWithIntegratorPrincipal` wraps the
  * WHOLE event pipeline whenever webhook pre-routing already resolved both `organizationId` and
  * `integratorUserId`. This silently degraded every one of these writes to "always falls back to the
- * durable outbox + fires an operator incident" (D3/D4/D5) or, for D2 (which has no fallback branch —
- * see writeDiaryLfkDirect.ts), an uncaught throw.
+ * durable outbox + fires an operator incident" (D3/D4/D5).
  *
  * Fix (mirrors `persistWritesByOrganization` in handlers/reminders.ts, the ALREADY-correct pattern used
  * by `reminders.planDue`/`.dispatchDue`): re-install an EXPLICIT organization principal — `SET ROLE
@@ -684,7 +673,10 @@ export function createDbWritePort(
                 ),
               );
             } catch (err) {
-              if (isDiaryLfkFailClosedError(err) || isIdentityMergeAmbiguityError(err)) {
+              if (
+                isDirectPublicActorResolutionFailClosedError(err) ||
+                isIdentityMergeAmbiguityError(err)
+              ) {
                 logger.warn(
                   { err, mutationType: mutation.type, id, resource, externalId },
                   'conversation.open: direct public write fail-closed (org/platform-user unresolved or ambiguous) — no write, no fallback',
@@ -1133,158 +1125,6 @@ export function createDbWritePort(
               logger.warn(
                 { err, mutationType: mutation.type, resource, channelUserId },
                 'notifications.update: ambiguous identity merge deferred (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
-          return;
-        }
-        case 'diary.symptom.tracking.create': {
-          // D2: replaces the `diary.symptom.tracking.created` HTTP projection fanout. See
-          // writeDiaryLfkDirect.ts header for the platform-user ID-space fix + exact-org-resolution
-          // (no default-org fallback) this direct write applies over the retired HTTP consumer.
-          const resource = readResource(mutation.params);
-          const externalId = asNonEmptyString(mutation.params.externalId);
-          const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
-          const symptomTitle = asNonEmptyString(mutation.params.symptomTitle);
-          if (!resource || !externalId || !integratorUserId || !symptomTitle) return;
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              createSymptomTrackingDirect(
-                db,
-                {
-                  integratorUserId,
-                  channelCode: resource,
-                  externalId,
-                  symptomKey: asNullableString(mutation.params.symptomKey),
-                  symptomTitle,
-                },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ),
-            );
-          } catch (err) {
-            if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId },
-                'diary.symptom.tracking.create: fail-closed (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
-          return;
-        }
-        case 'diary.symptom.entry.create': {
-          // D2: replaces the `diary.symptom.entry.created` HTTP projection fanout.
-          const resource = readResource(mutation.params);
-          const externalId = asNonEmptyString(mutation.params.externalId);
-          const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
-          const trackingId = asNonEmptyString(mutation.params.trackingId);
-          const entryTypeRaw = asNonEmptyString(mutation.params.entryType);
-          const entryType =
-            entryTypeRaw === 'daily' ? 'daily' : entryTypeRaw === 'instant' ? 'instant' : null;
-          const value0_10 = asFiniteNumber(mutation.params.value0_10);
-          const recordedAt = asNonEmptyString(mutation.params.recordedAt);
-          if (
-            !resource ||
-            !externalId ||
-            !integratorUserId ||
-            !trackingId ||
-            !entryType ||
-            value0_10 === null ||
-            value0_10 < 0 ||
-            value0_10 > 10 ||
-            !recordedAt
-          ) {
-            return;
-          }
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              addSymptomEntryDirect(
-                db,
-                {
-                  integratorUserId,
-                  channelCode: resource,
-                  externalId,
-                  trackingId,
-                  value0_10,
-                  entryType,
-                  recordedAt,
-                  notes: asNullableString(mutation.params.notes),
-                },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ),
-            );
-          } catch (err) {
-            if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId, trackingId },
-                'diary.symptom.entry.create: fail-closed (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
-          return;
-        }
-        case 'diary.lfk.complex.create': {
-          // D2: replaces the `diary.lfk.complex.created` HTTP projection fanout.
-          const resource = readResource(mutation.params);
-          const externalId = asNonEmptyString(mutation.params.externalId);
-          const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
-          const title = asNonEmptyString(mutation.params.title);
-          if (!resource || !externalId || !integratorUserId || !title) return;
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              createLfkComplexDirect(
-                db,
-                {
-                  integratorUserId,
-                  channelCode: resource,
-                  externalId,
-                  title,
-                  origin:
-                    mutation.params.origin === 'assigned_by_specialist'
-                      ? 'assigned_by_specialist'
-                      : 'manual',
-                },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ),
-            );
-          } catch (err) {
-            if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId },
-                'diary.lfk.complex.create: fail-closed (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
-          return;
-        }
-        case 'diary.lfk.session.create': {
-          // D2: replaces the `diary.lfk.session.created` HTTP projection fanout.
-          const resource = readResource(mutation.params);
-          const externalId = asNonEmptyString(mutation.params.externalId);
-          const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
-          const complexId = asNonEmptyString(mutation.params.complexId);
-          const completedAt = asNonEmptyString(mutation.params.completedAt);
-          if (!resource || !externalId || !integratorUserId || !complexId || !completedAt) return;
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              addLfkSessionDirect(
-                db,
-                { integratorUserId, channelCode: resource, externalId, complexId, completedAt },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ),
-            );
-          } catch (err) {
-            if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId, complexId },
-                'diary.lfk.session.create: fail-closed (no direct write)',
               );
               return;
             }
@@ -1768,130 +1608,6 @@ export function createDbWritePort(
               );
             });
           }
-          return;
-        }
-        case 'mailing.topic.upsert': {
-          const topicId =
-            asFiniteNumber(mutation.params.integratorTopicId) ?? asFiniteNumber(mutation.params.id);
-          const code = asNonEmptyString(mutation.params.code);
-          const title = asNonEmptyString(mutation.params.title);
-          const key = asNonEmptyString(mutation.params.key);
-          const isActive =
-            typeof mutation.params.isActive === 'boolean' ? mutation.params.isActive : true;
-          if (topicId === null || !code || !title || !key) {
-            logger.warn(
-              { mutationType: mutation.type },
-              'skip mailing.topic.upsert: missing required fields',
-            );
-            return;
-          }
-          const updatedAt = new Date().toISOString();
-          const payload: Record<string, unknown> = {
-            integratorTopicId: String(topicId),
-            code,
-            title,
-            key,
-            isActive,
-            updatedAt,
-          };
-          await fanoutProjectionsAfterTx([
-            {
-              eventType: MAILING_TOPIC_UPSERTED,
-              idempotencyKey: projectionIdempotencyKey(
-                MAILING_TOPIC_UPSERTED,
-                String(topicId),
-                hashPayload(payload),
-              ),
-              occurredAt: updatedAt,
-              payload,
-            },
-          ]);
-          return;
-        }
-        case 'user.subscription.upsert': {
-          const userId = asFiniteNumber(mutation.params.integratorUserId);
-          const topicId = asFiniteNumber(mutation.params.integratorTopicId);
-          const isActive =
-            typeof mutation.params.isActive === 'boolean' ? mutation.params.isActive : true;
-          if (userId === null || topicId === null) {
-            logger.warn(
-              { mutationType: mutation.type },
-              'skip user.subscription.upsert: missing userId or topicId',
-            );
-            return;
-          }
-          const updatedAt = new Date().toISOString();
-          const canonicalUserId = await resolveCanonicalIntegratorUserId(db, String(userId));
-          const payload: Record<string, unknown> = {
-            integratorUserId: canonicalUserId,
-            integratorTopicId: String(topicId),
-            isActive,
-            updatedAt,
-          };
-          await fanoutProjectionsAfterTx([
-            {
-              eventType: USER_SUBSCRIPTION_UPSERTED,
-              idempotencyKey: projectionIdempotencyKey(
-                USER_SUBSCRIPTION_UPSERTED,
-                `${canonicalUserId}:${topicId}`,
-                hashPayload(payload),
-              ),
-              occurredAt: updatedAt,
-              payload,
-            },
-          ]);
-          return;
-        }
-        case 'mailing.log.append': {
-          const userId = asFiniteNumber(mutation.params.integratorUserId);
-          const mailingId = asFiniteNumber(mutation.params.integratorMailingId);
-          const status = asNonEmptyString(mutation.params.status);
-          const sentAt = asNonEmptyString(mutation.params.sentAt) ?? new Date().toISOString();
-          const error = asNullableString(mutation.params.errorText ?? mutation.params.error);
-          if (userId === null || mailingId === null || !status) {
-            logger.warn(
-              { mutationType: mutation.type },
-              'skip mailing.log.append: missing required fields',
-            );
-            return;
-          }
-          const pendingMailLog: ProjectionFanoutInput[] = [];
-          await db.tx(async (txDb) => {
-            const canonicalUserIdStr = await resolveCanonicalIntegratorUserId(txDb, String(userId));
-            const canonicalUserIdNum = Number(canonicalUserIdStr);
-            if (!Number.isFinite(canonicalUserIdNum)) {
-              logger.warn(
-                { mutationType: mutation.type, canonicalUserIdStr },
-                'skip mailing.log.append: canonical integrator user id is not numeric',
-              );
-              return;
-            }
-            await insertMailingLog(txDb, {
-              userId: canonicalUserIdNum,
-              mailingId,
-              status,
-              sentAt,
-              error,
-            });
-            const payload: Record<string, unknown> = {
-              integratorUserId: canonicalUserIdStr,
-              integratorMailingId: String(mailingId),
-              status,
-              sentAt,
-              errorText: error,
-            };
-            pendingMailLog.push({
-              eventType: MAILING_LOG_SENT,
-              idempotencyKey: projectionIdempotencyKey(
-                MAILING_LOG_SENT,
-                `${canonicalUserIdStr}:${mailingId}`,
-                hashPayload(payload),
-              ),
-              occurredAt: sentAt,
-              payload,
-            });
-          });
-          await fanoutProjectionsAfterTx(pendingMailLog);
           return;
         }
         case 'message.retry.enqueue': {

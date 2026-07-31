@@ -5,7 +5,6 @@
  */
 import type { ReminderProjectionPort } from '@/infra/repos/pgReminderProjection';
 import type { SupportCommunicationPort } from '@/infra/repos/pgSupportCommunication';
-import type { SubscriptionMailingProjectionPort } from '@/infra/repos/pgSubscriptionMailingProjection';
 import {
   MergeConflictError,
   MergeDependentConflictError,
@@ -16,9 +15,6 @@ const REMINDER_RULE_UPSERTED = 'reminder.rule.upserted';
 const REMINDER_OCCURRENCE_FINALIZED = 'reminder.occurrence.finalized';
 const REMINDER_DELIVERY_LOGGED = 'reminder.delivery.logged';
 const CONTENT_ACCESS_GRANTED = 'content.access.granted';
-const MAILING_TOPIC_UPSERTED = 'mailing.topic.upserted';
-const USER_SUBSCRIPTION_UPSERTED = 'user.subscription.upserted';
-const MAILING_LOG_SENT = 'mailing.log.sent';
 
 export type IntegratorEventBody = {
   eventType: string;
@@ -88,6 +84,11 @@ export type IntegratorEventsDeps = {
       notes: string | null;
     }) => Promise<unknown>;
   };
+  diaryMutationGate: {
+    checkPatientDiariesWrite: (
+      platformUserId: string,
+    ) => Promise<{ ok: true } | { ok: false; message: string }>;
+  };
   users?: {
     upsertFromProjection: (params: {
       integratorUserId: string;
@@ -122,7 +123,6 @@ export type IntegratorEventsDeps = {
   };
   supportCommunication?: SupportCommunicationPort;
   reminderProjection?: ReminderProjectionPort;
-  subscriptionMailingProjection?: SubscriptionMailingProjectionPort;
 };
 
 function isNonEmptyString(x: unknown): x is string {
@@ -230,6 +230,14 @@ async function resolveDiaryPlatformUserId(
   return fn(platformUserId);
 }
 
+async function refuseDisabledPatientDiaries(
+  deps: IntegratorEventsDeps,
+  platformUserId: string,
+): Promise<IntegratorHandleResult | null> {
+  const gate = await deps.diaryMutationGate.checkPatientDiariesWrite(platformUserId);
+  return gate.ok ? null : { accepted: false, reason: gate.message, retryable: false };
+}
+
 async function acceptAfterMergeConflict(
   deps: IntegratorEventsDeps,
   err: unknown,
@@ -268,6 +276,8 @@ export async function handleIntegratorEvent(
     }
     try {
       const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
+      const refusal = await refuseDisabledPatientDiaries(deps, canonUserId);
+      if (refusal) return refusal;
       await deps.diaries.createSymptomTracking({
         userId: canonUserId,
         symptomKey: typeof payload.symptomKey === 'string' ? payload.symptomKey : null,
@@ -292,6 +302,8 @@ export async function handleIntegratorEvent(
     }
     try {
       const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
+      const refusal = await refuseDisabledPatientDiaries(deps, canonUserId);
+      if (refusal) return refusal;
       await deps.diaries.createLfkComplex({
         userId: canonUserId,
         title: (title as string).trim(),
@@ -318,6 +330,8 @@ export async function handleIntegratorEvent(
     const completedAtStr = typeof completedAt === 'string' ? completedAt : new Date().toISOString();
     try {
       const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
+      const refusal = await refuseDisabledPatientDiaries(deps, canonUserId);
+      if (refusal) return refusal;
       await deps.diaries.addLfkSession({
         userId: canonUserId,
         complexId,
@@ -357,6 +371,8 @@ export async function handleIntegratorEvent(
     const recordedAtStr = typeof recordedAt === 'string' ? recordedAt : new Date().toISOString();
     try {
       const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
+      const refusal = await refuseDisabledPatientDiaries(deps, canonUserId);
+      if (refusal) return refusal;
       await deps.diaries.addSymptomEntry({
         userId: canonUserId,
         trackingId,
@@ -857,93 +873,6 @@ export async function handleIntegratorEvent(
     } catch (err) {
       const reason = err instanceof Error ? err.message : 'unknown error';
       return { accepted: false, reason: `content.access.granted: ${reason}` };
-    }
-  }
-
-  // --- Stage 11: subscription/mailing projection ingest ---
-  const smp = deps.subscriptionMailingProjection;
-
-  if (smp && event.eventType === MAILING_TOPIC_UPSERTED) {
-    const p = event.payload ?? {};
-    const integratorTopicId = coerceToFiniteInt(p.integratorTopicId);
-    const code = typeof p.code === 'string' ? p.code : '';
-    const title = typeof p.title === 'string' ? p.title : '';
-    const key = typeof p.key === 'string' ? p.key : '';
-    const isActive = typeof p.isActive === 'boolean' ? p.isActive : true;
-    const updatedAt = typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString();
-    if (integratorTopicId === null || !code || !title || !key) {
-      return {
-        accepted: false,
-        reason: 'mailing.topic.upserted: integratorTopicId, code, title, key required',
-      };
-    }
-    try {
-      await smp.upsertTopicFromProjection({
-        integratorTopicId,
-        code,
-        title,
-        key,
-        isActive,
-        updatedAt,
-      });
-      return { accepted: true };
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : 'unknown error';
-      return { accepted: false, reason: `mailing.topic.upserted: ${reason}` };
-    }
-  }
-
-  if (smp && event.eventType === USER_SUBSCRIPTION_UPSERTED) {
-    const p = event.payload ?? {};
-    const integratorUserId = coerceToFiniteInt(p.integratorUserId);
-    const integratorTopicId = coerceToFiniteInt(p.integratorTopicId);
-    const isActive = typeof p.isActive === 'boolean' ? p.isActive : true;
-    const updatedAt = typeof p.updatedAt === 'string' ? p.updatedAt : new Date().toISOString();
-    if (integratorUserId === null || integratorTopicId === null) {
-      return {
-        accepted: false,
-        reason: 'user.subscription.upserted: integratorUserId, integratorTopicId required',
-      };
-    }
-    try {
-      await smp.upsertUserSubscriptionFromProjection({
-        integratorUserId,
-        integratorTopicId,
-        isActive,
-        updatedAt,
-      });
-      return { accepted: true };
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : 'unknown error';
-      return { accepted: false, reason: `user.subscription.upserted: ${reason}` };
-    }
-  }
-
-  if (smp && event.eventType === MAILING_LOG_SENT) {
-    const p = event.payload ?? {};
-    const integratorUserId = coerceToFiniteInt(p.integratorUserId);
-    const integratorMailingId = coerceToFiniteInt(p.integratorMailingId);
-    const status = typeof p.status === 'string' ? p.status : '';
-    const sentAt = typeof p.sentAt === 'string' ? p.sentAt : new Date().toISOString();
-    const errorText = typeof p.errorText === 'string' ? p.errorText : null;
-    if (integratorUserId === null || integratorMailingId === null || !status) {
-      return {
-        accepted: false,
-        reason: 'mailing.log.sent: integratorUserId, integratorMailingId, status required',
-      };
-    }
-    try {
-      await smp.appendMailingLogFromProjection({
-        integratorUserId,
-        integratorMailingId,
-        status,
-        sentAt,
-        errorText,
-      });
-      return { accepted: true };
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : 'unknown error';
-      return { accepted: false, reason: `mailing.log.sent: ${reason}` };
     }
   }
 

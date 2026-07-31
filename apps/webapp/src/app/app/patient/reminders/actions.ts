@@ -7,6 +7,7 @@ import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import type { ReminderCategory } from '@/modules/reminders/types';
 import type { UpdateRuleData } from '@/modules/reminders/service';
+import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
 
 const DAYS_MASK_RE = /^[01]{7}$/;
 
@@ -64,6 +65,21 @@ export async function updateReminderRule(
   }
 
   const deps = buildAppDeps();
+  const warmupEntitlement = await requirePatientWarmupReminderMutation(
+    deps,
+    session.user.userId,
+    { ruleId: parsed.data.ruleId },
+    'изменить расписание напоминания о разминке',
+  );
+  if (!warmupEntitlement.ok) {
+    return {
+      ok: false,
+      error:
+        'message' in warmupEntitlement
+          ? warmupEntitlement.message
+          : 'Не удалось определить клинику пациента',
+    };
+  }
   const result = await deps.reminders.updateRule(session.user.userId, parsed.data.ruleId, {
     intervalMinutes: parsed.data.intervalMinutes,
     windowStartMinute: parsed.data.windowStartMinute,
@@ -87,6 +103,21 @@ export async function patchPatientReminderScheduleBundle(input: {
   }
 
   const deps = buildAppDeps();
+  const warmupEntitlement = await requirePatientWarmupReminderMutation(
+    deps,
+    session.user.userId,
+    { ruleId: input.ruleId },
+    'изменить расписание напоминания о разминке',
+  );
+  if (!warmupEntitlement.ok) {
+    return {
+      ok: false,
+      error:
+        'message' in warmupEntitlement
+          ? warmupEntitlement.message
+          : 'Не удалось определить клинику пациента',
+    };
+  }
   const result = await deps.reminders.updateRule(session.user.userId, input.ruleId, {
     schedule: input.schedule,
   });

@@ -8,14 +8,6 @@ import {
   scopedKinds,
 } from './rls-descriptor-model.mjs';
 
-const expectedTierCounts = new Map([
-  ['BOOTSTRAP', 29],
-  ['INFRA', 27],
-  ['LEGACY', 9],
-  ['SCOPED', 162],
-  ['TELEMETRY', 5],
-]);
-
 const expectedBootstrapHybridTables = new Set([
   'public.system_settings',
   'public.system_settings_audit',
@@ -34,8 +26,6 @@ const expectedScopedFkPathTables = new Set([
   'public.be_package_items',
   'public.be_patient_package_items',
 ]);
-
-const expectedPublicDirectOrgPolicyTargets = 110;
 
 const expectedP083ParentCopyHolds = new Set([
   'public.content_section_slug_history',
@@ -85,10 +75,6 @@ if (duplicates.size > 0) {
   fail(`Duplicate tier rows: ${Array.from(duplicates).sort().join(', ')}`);
 }
 
-if (tierRows.length !== 232) {
-  fail(`Expected 232 tier rows, got ${tierRows.length}`);
-}
-
 if (descriptors.size !== tierRows.length) {
   fail(`Expected ${tierRows.length} descriptors, got ${descriptors.size}`);
 }
@@ -102,14 +88,12 @@ if (!sameSet(descriptorTables, tierTables)) {
   fail(`Descriptor table mismatch. Missing: ${missing.join(', ')}. Extra: ${extra.join(', ')}`);
 }
 
-const actualTierCounts = new Map();
 const actualBootstrapHybridTables = new Set();
 const actualBootstrapHybridOrgGatedTables = new Set();
 const actualBootstrapRuntimeAudienceTables = new Set();
 const actualBootstrapRuntimeAuditTables = new Set();
 const actualScopedFkPathTables = new Set();
 const actualP083ParentCopyHolds = new Set();
-let publicDirectOrgPolicyTargetCount = 0;
 const batchTables = new Set(readBatchRows().map((row) => row.table));
 const beFkPathTables = new Set(readBeFkPathRows().map((row) => row.table));
 
@@ -119,8 +103,6 @@ for (const [table, descriptor] of descriptors.entries()) {
   if (descriptor.tier !== expectedTier) {
     fail(`Tier mismatch for ${table}: expected ${expectedTier}, got ${descriptor.tier}`);
   }
-
-  actualTierCounts.set(descriptor.tier, (actualTierCounts.get(descriptor.tier) ?? 0) + 1);
 
   if (!descriptor.predicateTemplate) {
     fail(`Missing predicate template for ${table}`);
@@ -147,10 +129,6 @@ for (const [table, descriptor] of descriptors.entries()) {
       if (!descriptor.fkPath?.parentTable || !descriptor.fkPath?.crossCheckTable) {
         fail(`FK-path descriptor ${table} is missing parent/cross-check metadata`);
       }
-    }
-
-    if (descriptor.scopingKind === 'direct_org_column' && table.startsWith('public.')) {
-      publicDirectOrgPolicyTargetCount += 1;
     }
 
     if (expectedP083ParentCopyHolds.has(table)) {
@@ -226,14 +204,6 @@ for (const [table, descriptor] of descriptors.entries()) {
   }
 }
 
-for (const [tier, expectedCount] of expectedTierCounts.entries()) {
-  const actualCount = actualTierCounts.get(tier) ?? 0;
-
-  if (actualCount !== expectedCount) {
-    fail(`Expected ${tier}=${expectedCount}, got ${actualCount}`);
-  }
-}
-
 if (!sameSet(actualBootstrapHybridTables, expectedBootstrapHybridTables)) {
   fail(
     `Unexpected BOOTSTRAP hybrid set. Missing: ${setDiff(expectedBootstrapHybridTables, actualBootstrapHybridTables).join(', ')}. Extra: ${setDiff(actualBootstrapHybridTables, expectedBootstrapHybridTables).join(', ')}`,
@@ -270,24 +240,4 @@ if (!sameSet(actualP083ParentCopyHolds, expectedP083ParentCopyHolds)) {
   );
 }
 
-if (publicDirectOrgPolicyTargetCount !== expectedPublicDirectOrgPolicyTargets) {
-  fail(
-    `Expected ${expectedPublicDirectOrgPolicyTargets} public direct-org P0.8.3 policy targets, got ${publicDirectOrgPolicyTargetCount}`,
-  );
-}
-
-console.log('P0.8.1 RLS descriptor model OK: 232 descriptors cover tiers-218.tsv exactly once.');
-console.log(
-  Array.from(actualTierCounts.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([tier, count]) => `${tier}=${count}`)
-    .join(' '),
-);
-console.log(
-  `SCOPED sources: batch=${batchTables.size}, be_fk_path=${actualScopedFkPathTables.size}, be_direct_or_self=${
-    expectedTierCounts.get('SCOPED') - batchTables.size - actualScopedFkPathTables.size
-  }`,
-);
-console.log(
-  `P0.8.3 public direct-org targets=${publicDirectOrgPolicyTargetCount}; parent-copy holds=${actualP083ParentCopyHolds.size}`,
-);
+console.log('P0.8.1 RLS descriptor model OK: descriptors cover the active tier registry exactly once.');

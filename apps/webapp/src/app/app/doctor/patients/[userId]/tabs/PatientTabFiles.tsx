@@ -206,6 +206,16 @@ type UploadState =
   | { phase: 'pending'; fileName: string; progress: number }
   | { phase: 'error'; message: string };
 
+function uploadErrorMessage(error: string | undefined): string {
+  if (error === 'file_storage_limit_not_configured') {
+    return 'Невозможно загрузить файл: в тарифе клиники не настроен объём файлов. Настройте объём файлов в тарифе клиники, чтобы разрешить загрузку.';
+  }
+  if (error === 'file_storage_limit_reached') {
+    return 'Невозможно загрузить файл: хранилище клиники заполнено. Увеличьте объём файлов в тарифе клиники, чтобы загружать новые файлы.';
+  }
+  return error ?? 'Ошибка создания метаданных';
+}
+
 function UploadPanel({
   userId,
   onUploaded,
@@ -221,7 +231,7 @@ function UploadPanel({
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>({ phase: 'idle' });
 
-  async function uploadSingleFile(file: File): Promise<void> {
+  async function uploadSingleFile(file: File): Promise<boolean> {
     const fileName = displayName.trim() || file.name;
 
     setUploadState({ phase: 'pending', fileName, progress: 0 });
@@ -247,14 +257,14 @@ function UploadPanel({
       } | null;
 
       if (!res.ok || !data?.ok) {
-        setUploadState({ phase: 'error', message: data?.error ?? 'Ошибка создания метаданных' });
-        return;
+        setUploadState({ phase: 'error', message: uploadErrorMessage(data?.error) });
+        return false;
       }
 
       uploadUrl = data.uploadUrl ?? null;
     } catch {
       setUploadState({ phase: 'error', message: 'Сетевая ошибка при создании записи' });
-      return;
+      return false;
     }
 
     // Step 2: PUT the file to the presigned S3 URL (no auth headers — it's a presigned url).
@@ -270,23 +280,25 @@ function UploadPanel({
         });
         if (!s3Res.ok) {
           setUploadState({ phase: 'error', message: `S3 ошибка: ${s3Res.status}` });
-          return;
+          return false;
         }
         setUploadState({ phase: 'pending', fileName, progress: 100 });
       } catch {
         setUploadState({ phase: 'error', message: 'Ошибка загрузки в S3' });
-        return;
+        return false;
       }
     } else {
       // S3 not configured — metadata saved, no binary upload possible.
       // Treat as success (graceful: the record exists, file body not stored).
       setUploadState({ phase: 'pending', fileName, progress: 100 });
     }
+    return true;
   }
 
   async function handleDroppedFiles(fileList: FileList) {
     for (const file of Array.from(fileList)) {
-      await uploadSingleFile(file);
+      const uploaded = await uploadSingleFile(file);
+      if (!uploaded) return;
     }
     onUploaded();
     onClose();
@@ -298,7 +310,8 @@ function UploadPanel({
 
     if (!displayName.trim()) setDisplayName(file.name);
 
-    await uploadSingleFile(file);
+    const uploaded = await uploadSingleFile(file);
+    if (!uploaded) return;
 
     // Refresh list and close panel.
     onUploaded();

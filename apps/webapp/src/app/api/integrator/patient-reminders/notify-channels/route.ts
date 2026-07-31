@@ -13,6 +13,7 @@ import {
 } from '@/modules/patient-reminders/integratorNotifyChannels';
 import { createLoadWarmupPushContext } from '@/modules/web-push/createLoadWarmupPushContext';
 import { enterVerifiedIntegratorOrganizationPrincipal } from '@/app-layer/principal/integratorOrganizationPrincipal';
+import { canMaterializeMechanicOnRead } from '@/app-layer/entitlements/readMaterializationGate';
 
 /**
  * POST /api/integrator/patient-reminders/notify-channels — M2M fan-out напоминания в Web Push и email (webapp).
@@ -91,7 +92,10 @@ export async function POST(request: Request) {
     return NextResponse.json(cached.body, { status: cached.status });
   }
 
-  const loadWarmupPushContext = createLoadWarmupPushContext(deps);
+  const loadWarmupPushContext = createLoadWarmupPushContext(deps, {
+    canMaterializePresentation: () =>
+      canMaterializeMechanicOnRead(parsed.data.organizationId, 'warmups'),
+  });
   try {
     const result = await runPatientReminderIntegratorNotify(parsed.data, {
       findPlatformUserByIntegratorId: async (integratorUserId) => {

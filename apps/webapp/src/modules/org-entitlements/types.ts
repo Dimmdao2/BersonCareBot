@@ -4,137 +4,153 @@
  * See docs/_TODO/SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md.
  */
 /**
- * The only canonical mechanic registry.  It deliberately contains no pending
- * product candidates: S4-0 protects the fourteen keys that already exist in
- * the compatibility resolver.
+ * The only canonical mechanic registry. New tariff mechanics are declared
+ * here before their domain write paths are guarded in their own stage.
+ */
+export type MechanicClass = 'возможность' | 'места' | 'запас' | 'объём' | 'никогда';
+type QuotaEnforcement =
+  | 'declared_no_enforcement'
+  | 'atomic_snapshot'
+  | 'application_transaction_snapshot';
+
+type AbilityMechanic = Readonly<{
+  class: 'возможность';
+  label: string;
+  quotaEnforcement: QuotaEnforcement;
+}>;
+type SeatsMechanic = Readonly<{
+  class: 'места';
+  label: string;
+  quotaEnforcement: 'application_transaction_snapshot';
+}>;
+type StockMechanic = Readonly<{
+  class: 'запас';
+  label: string;
+  quotaEnforcement: 'application_transaction_snapshot';
+}>;
+type StorageMechanic = Readonly<{
+  class: 'объём';
+  label: string;
+  quotaEnforcement: QuotaEnforcement;
+  quotaUnit: 'bytes';
+}>;
+type NeverMechanic = Readonly<{
+  class: 'никогда';
+  label: string;
+  quotaEnforcement: 'declared_no_enforcement';
+}>;
+export type MechanicDefinition =
+  | AbilityMechanic
+  | SeatsMechanic
+  | StockMechanic
+  | StorageMechanic
+  | NeverMechanic;
+
+/**
+ * The mechanic class is the primary contract. A possibility or an always-available surface has
+ * no quota fields at all, so attaching a numeric limit is a TypeScript error rather than a value
+ * silently ignored at runtime.
  */
 export const MECHANIC_REGISTRY = {
-  booking: {
-    label: 'Онлайн-запись',
-    quotaUnits: ['appointments'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  exercise_catalog: {
-    label: 'Каталог упражнений',
-    quotaUnits: ['items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  exercise_packages: {
-    label: 'Пакеты упражнений',
-    quotaUnits: ['items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  courses: { label: 'Курсы', quotaUnits: ['items'], quotaEnforcement: 'atomic_snapshot' },
-  cms_pages: { label: 'Страницы CMS', quotaUnits: ['items'], quotaEnforcement: 'atomic_snapshot' },
-  files: {
-    label: 'Файлы пациентов',
-    quotaUnits: ['bytes', 'items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  patient_card: {
-    label: 'Карточка пациента',
-    quotaUnits: ['clients'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  subscriptions: {
-    label: 'Абонементы пациентов',
-    quotaUnits: ['items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  payments: {
-    label: 'Оплата записи',
-    quotaUnits: ['transactions'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  mailings: {
-    label: 'Рассылки',
-    quotaUnits: ['messages'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  patient_app: {
-    label: 'Приложение пациента',
-    quotaUnits: ['clients'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  patient_app_paid_subscription: {
-    label: 'Платная подписка пациента',
-    quotaUnits: ['clients'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  branding: { label: 'Брендирование', quotaUnits: [], quotaEnforcement: 'declared_no_enforcement' },
-  custom_domain: {
-    label: 'Собственный домен',
-    quotaUnits: [],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
+  booking: { class: 'возможность', label: 'Онлайн-запись', quotaEnforcement: 'declared_no_enforcement' },
+  exercise_catalog: { class: 'возможность', label: 'Каталог упражнений', quotaEnforcement: 'declared_no_enforcement' },
+  exercise_packages: { class: 'возможность', label: 'Пакеты упражнений', quotaEnforcement: 'declared_no_enforcement' },
+  courses: { class: 'возможность', label: 'Курсы', quotaEnforcement: 'declared_no_enforcement' },
+  cms_pages: { class: 'возможность', label: 'Страницы CMS', quotaEnforcement: 'declared_no_enforcement' },
+  files: { class: 'объём', label: 'Файлы пациентов', quotaEnforcement: 'declared_no_enforcement', quotaUnit: 'bytes' },
+  patient_card: { class: 'никогда', label: 'Карточка пациента', quotaEnforcement: 'declared_no_enforcement' },
+  subscriptions: { class: 'возможность', label: 'Абонементы пациентов', quotaEnforcement: 'declared_no_enforcement' },
+  payments: { class: 'возможность', label: 'Оплата записи', quotaEnforcement: 'declared_no_enforcement' },
+  mailings: { class: 'возможность', label: 'Рассылки', quotaEnforcement: 'declared_no_enforcement' },
+  patient_app: { class: 'никогда', label: 'Приложение пациента', quotaEnforcement: 'declared_no_enforcement' },
+  patient_app_paid_subscription: { class: 'возможность', label: 'Платная подписка пациента', quotaEnforcement: 'declared_no_enforcement' },
+  branding: { class: 'возможность', label: 'Брендирование', quotaEnforcement: 'declared_no_enforcement' },
+  custom_domain: { class: 'возможность', label: 'Собственный домен', quotaEnforcement: 'declared_no_enforcement' },
   // Checked in pgOrganizationInvites under an org advisory lock, not by a database trigger.
-  clinic_team: {
-    label: 'Режим клиники',
-    quotaUnits: ['seats'],
-    quotaEnforcement: 'application_transaction_snapshot',
-  },
-} as const;
+  clinic_team: { class: 'места', label: 'Режим клиники', quotaEnforcement: 'application_transaction_snapshot' },
+  patient_count: { class: 'запас', label: 'Пациенты', quotaEnforcement: 'application_transaction_snapshot' },
+  branches: { class: 'запас', label: 'Филиалы', quotaEnforcement: 'application_transaction_snapshot' },
+  external_calendar: { class: 'возможность', label: 'Внешний календарь', quotaEnforcement: 'declared_no_enforcement' },
+  patient_diaries: { class: 'возможность', label: 'Дневники пациента', quotaEnforcement: 'declared_no_enforcement' },
+  clinical_tests: { class: 'возможность', label: 'Клинические тесты и наборы', quotaEnforcement: 'declared_no_enforcement' },
+  online_intake: { class: 'возможность', label: 'Онлайн-анкета', quotaEnforcement: 'declared_no_enforcement' },
+  doctor_statistics: { class: 'возможность', label: 'Статистика кабинета', quotaEnforcement: 'declared_no_enforcement' },
+  proactive_insights: { class: 'возможность', label: 'Проактивные подсказки', quotaEnforcement: 'declared_no_enforcement' },
+  specialist_tasks: { class: 'возможность', label: 'Задачи специалиста', quotaEnforcement: 'declared_no_enforcement' },
+  booking_prepayment: { class: 'возможность', label: 'Предоплата при записи', quotaEnforcement: 'declared_no_enforcement' },
+  patient_home_today: { class: 'возможность', label: 'Сегодня', quotaEnforcement: 'declared_no_enforcement' },
+  warmups: { class: 'возможность', label: 'Разминки', quotaEnforcement: 'declared_no_enforcement' },
+  promo: { class: 'возможность', label: 'Промо', quotaEnforcement: 'declared_no_enforcement' },
+} as const satisfies Record<string, MechanicDefinition>;
 
 export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
 
 /** Compatibility iterator for resolver and data contracts; keys come only from the registry above. */
 export const MECHANICS = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[];
 
-export type TariffQuotaUnit = (typeof MECHANIC_REGISTRY)[OrgMechanic]['quotaUnits'][number];
+export type TariffQuotaUnit = 'bytes' | 'items';
 
 /**
  * Owner 2026-07-26 (#1003): the tariff constructor's quota-unit picker showed the raw
- * `quotaUnits` machine key ("appointments", "bytes", …) as both the option text and the selected
- * value. Single canonical Russian label per unit key, same pattern as `MECHANIC_REGISTRY.label` —
- * every unit that appears in the registry above MUST have an entry here (`Record` makes a missing
- * key a type error, not a silent raw-key fallback at render time).
+ * storage-unit key as both the option text and the selected value. The remaining generic storage
+ * unit has one canonical Russian label rather than a raw-key fallback at render time.
  */
 export const QUOTA_UNIT_LABELS: Record<TariffQuotaUnit, string> = {
-  appointments: 'Записи',
-  items: 'Штуки',
   bytes: 'Байты',
-  clients: 'Клиенты',
-  transactions: 'Операции',
-  messages: 'Сообщения',
-  seats: 'Места',
+  items: 'Штуки',
 };
 
-export const QUOTA_PERIODS = ['snapshot', 'day', 'month', 'year'] as const;
-export type QuotaPeriod = (typeof QUOTA_PERIODS)[number];
-export const QUOTA_USAGE_POLICIES = ['snapshot', 'consumption'] as const;
-export type QuotaUsagePolicy = (typeof QUOTA_USAGE_POLICIES)[number];
-
-export type TariffQuota = {
+type NumericQuotaBase = {
   kind: 'numeric' | 'unlimited';
   limit: number | null;
-  unit: string;
-  period: QuotaPeriod;
-  usagePolicy: QuotaUsagePolicy;
+  /** `null` means the owner has not configured an early warning for this number. */
+  warningAtPercent: number | null;
 };
 
-export type TariffQuotaMap = Partial<Record<OrgMechanic, TariffQuota>>;
+export type StorageQuota = NumericQuotaBase & { unit: 'bytes' };
+export type StockQuota = NumericQuotaBase & { unit: 'items' };
+export type TariffQuota = StorageQuota | StockQuota;
 
 /**
- * C4A/C4C/C4D — scoped fail-closed exceptions to the compatibility default-true resolver (see
- * `resolveOrgEntitlements` in `service.ts`). `clinic_team`, `courses`, and the platform part of
- * `exercise_catalog` require an explicit tariff or organization override. OFF exercise catalog
- * still leaves the organization's own exercises and templates available; it only excludes the
- * platform base library.
+ * The key controls the unit at compile time. Possibility, seats and never-limited mechanics are
+ * intentionally absent, so the constructor cannot attach a generic number to them.
  */
-export const MECHANIC_DEFAULT_ENABLED: Record<OrgMechanic, boolean> = Object.fromEntries(
-  MECHANICS.map((mechanic) => [
-    mechanic,
-    mechanic !== 'clinic_team' && mechanic !== 'courses' && mechanic !== 'exercise_catalog',
-  ]),
-) as Record<OrgMechanic, boolean>;
+export type TariffQuotaMap = Partial<{
+  files: StorageQuota;
+  patient_count: StockQuota;
+  branches: StockQuota;
+}>;
 
-/**
- * C4A — fail-closed effective seat count used only when `clinic_team` is enabled (by tariff or
- * override) but no explicit seat count was configured (no `includedSeats`, no
- * `seatLimitOverride`). Owner decision (C4C5-05): "solo includes one seat" — this is the same
- * finite baseline, not a real tariff row. Never treated as unlimited; see `resolveClinicSeatLimit`.
- */
-export const CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE = 1;
+export type AccessTerminalState = 'full_access' | 'read_only' | 'disabled';
+
+export type AccessLifecyclePolicy = {
+  graceDays: number;
+  readOnlyDays: number;
+  warningCount: number;
+  terminalState: AccessTerminalState;
+};
+
+export type MechanicAccessPolicyMap = Partial<Record<OrgMechanic, AccessLifecyclePolicy>>;
+
+export type MechanicAccessState =
+  | 'full_access'
+  | 'grace'
+  | 'read_only'
+  | 'disabled'
+  | 'unconfigured';
+
+export type MechanicAccessWarning = {
+  until: string;
+  count: number;
+  nextState: AccessTerminalState;
+};
+
+export type MechanicAccessResolution = {
+  mechanic: OrgMechanic;
+  state: MechanicAccessState;
+  policySource: 'critical' | 'mechanic' | 'system' | 'unconfigured';
+  warning: MechanicAccessWarning | null;
+};
 
 export type Tariff = {
   id: string;
@@ -145,12 +161,14 @@ export type Tariff = {
   billingPeriod: 'day' | 'month' | 'year';
   mechanics: Record<string, boolean>;
   quotas: TariffQuotaMap;
+  systemAccessPolicy: AccessLifecyclePolicy | null;
+  mechanicAccessPolicies: MechanicAccessPolicyMap;
   /**
-   * Included specialist seats for `clinic_team`, as configured on this tariff. `null` means this
-   * tariff does not explicitly configure a count (falls back to `CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE`
-   * via `resolveClinicSeatLimit`) — it is never treated as unlimited.
+   * Included specialist seats for `clinic_team`, as configured on this tariff. `null` is explicit
+   * "not configured" and refuses growth; it is never converted into an agent-chosen baseline.
    */
   includedSeats: number | null;
+  includedSeatsWarningAtPercent: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -164,9 +182,8 @@ export type OrgEntitlementOverride = {
   quota: TariffQuota | null;
   expiresAt: string | null;
   /**
-   * Per-org override of the `clinic_team` included-seats count; unused for other mechanics. `null`
-   * means no explicit override (falls back to the tariff, then the fail-closed baseline) — never
-   * unlimited.
+   * Per-org override of the `clinic_team` included-seats count; unused for other mechanics.
+   * `null` means no explicit override and falls back only to the tariff.
    */
   seatLimitOverride: number | null;
   createdAt: string;
@@ -178,14 +195,15 @@ export type OrgEntitlements = Record<OrgMechanic, boolean>;
 /** A product-consumable view of an actually enforced quota. */
 export type OrgQuotaProjection = {
   mechanic: OrgMechanic;
-  quota: TariffQuota;
+  quota: { limit: number; unit: 'seats' | TariffQuotaUnit };
   usage: number;
   threshold: 'below_warning' | 'warning' | 'reached';
   enforcement: (typeof MECHANIC_REGISTRY)[OrgMechanic]['quotaEnforcement'];
 };
 
 export type TrialPostBehavior = 'read_only' | 'blocked' | 'tariff';
-export type TrialStartEvent = 'organization_provisioned';
+/** Operator-authored event key. Empty means invalid; the runtime never substitutes an event. */
+export type TrialStartEvent = string;
 
 export type TrialPolicy = {
   tariffId: string;
@@ -212,13 +230,18 @@ export type EffectiveOrgCommercialAccess = {
    */
   trialEndsAt?: string;
   trialGraceEndsAt?: string;
+  /** Server-derived instant when commercial access stopped being active. */
+  degradationStartedAt?: string;
 };
 
 export type OrgEntitlementSnapshot = {
   tariff: {
     mechanics: Record<string, boolean>;
     quotas: TariffQuotaMap;
+    systemAccessPolicy: AccessLifecyclePolicy | null;
+    mechanicAccessPolicies: MechanicAccessPolicyMap;
     includedSeats: number | null;
+    includedSeatsWarningAtPercent: number | null;
     /** Optional display fields — populated by the staff (non-patient) resolution path only. */
     id?: string;
     name?: string;

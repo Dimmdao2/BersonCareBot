@@ -23,15 +23,12 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '⚙️ Меню': 'menu.more',
   Меню: 'menu.more',
   Помощник: 'menu.more',
-  '📓 Дневник': 'diary.open',
-  Дневник: 'diary.open',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
   '/dialogs': 'admin.dialogs.open',
   '/unanswered': 'admin.questions.unanswered',
   '/show_my_id': 'debug.show_my_id',
   '/book': 'booking.open',
-  '/diary': 'nav.webapp.diary',
   '/menu': 'nav.webapp.menu',
   Отмена: 'phone.request.cancel',
   'Вернуться в меню': 'phone.request.cancel',
@@ -254,10 +251,6 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       ...(typeof body.callback.user?.last_name === 'string'
         ? { channelLastName: body.callback.user.last_name }
         : {}),
-      ...(typeof normalized.trackingId === 'string' ? { trackingId: normalized.trackingId } : {}),
-      ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
-      ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
-      ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
       ...(typeof normalized.reminderOccurrenceId === 'string'
         ? { reminderOccurrenceId: normalized.reminderOccurrenceId }
         : {}),

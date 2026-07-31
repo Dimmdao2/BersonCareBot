@@ -39,8 +39,13 @@ export function DefaultPromoProgramClient(props: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId }),
       });
-      if (!res.ok) {
-        toast.error('Не удалось сохранить');
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+      } | null;
+      if (!res.ok || !data?.ok) {
+        toast.error(data?.message ?? data?.error ?? 'Не удалось сохранить');
         return;
       }
       toast.success('Сохранено');
@@ -58,9 +63,10 @@ export function DefaultPromoProgramClient(props: {
         ok?: boolean;
         refreshedCount?: number;
         error?: string;
+        message?: string;
       };
       if (!res.ok || !data.ok) {
-        toast.error(data?.error ?? 'Не удалось обновить');
+        toast.error(data?.message ?? data?.error ?? 'Не удалось обновить');
         return;
       }
       const count = data.refreshedCount ?? 0;

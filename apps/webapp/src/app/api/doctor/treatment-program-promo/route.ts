@@ -7,6 +7,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/systemSettingsOrgContextResponse';
 import { invalidateConfigKey } from '@/modules/system-settings/configAdapter';
 import {
@@ -48,6 +52,10 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'promo');
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse('promo', 'изменить промо-программу');
+  }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);

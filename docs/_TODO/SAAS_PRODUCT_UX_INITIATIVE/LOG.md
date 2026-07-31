@@ -5228,3 +5228,11 @@ owner-facing decision sheet before future decision-gated stages. Corrections app
 
 Remote/local branch deletion beyond these proven cases remains subject to exact commit comparison; no branch was
 discarded merely because it was old.
+## 2026-07-30 — Patient Today principal defect closed; U5A lifecycle gate remains (`#796`)
+
+Commit `2f7b0b41a` preserved the canonical patient organization principal across the affected RSC path. In the
+owner's TEST walkthrough the patient home and organization list loaded, training/video worked, and the corrected
+completion/feeling flows passed. The former `organization_principal_required` Patient Today symptom is therefore
+closed. This evidence does not claim the separate two-organization switch or revoked remembered-organization
+recovery seals: `#796` remains owner-blocked on the already documented reversible discharge/reactivate product flow
+or sanctioned TEST-only lifecycle harness.

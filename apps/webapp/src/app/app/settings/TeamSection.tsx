@@ -25,6 +25,7 @@ import {
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import type { ClinicSeatStatus } from '@/modules/clinic-seats/service';
 import type { OrganizationInviteRole } from '@/modules/organization-invites/ports';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -56,11 +57,7 @@ export type TeamInviteRow = {
   expiresAt: string;
 };
 
-export type TeamSeatStatus = {
-  limit: number;
-  used: number;
-  available: number;
-};
+export type TeamSeatStatus = ClinicSeatStatus;
 
 type Props = {
   members: TeamMemberRow[];
@@ -69,6 +66,9 @@ type Props = {
 };
 
 function formatSeatStatus(seats: TeamSeatStatus): string {
+  if (!seats.configured) {
+    return 'Места специалистов не настроены. Укажите их в тарифе или в исключении организации.';
+  }
   return `Занято мест: ${seats.used} из ${seats.limit}`;
 }
 
@@ -80,7 +80,7 @@ export function TeamSection({ members, invites, seats }: Props) {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  const seatsExhaustedForDoctor = seats.available === 0;
+  const seatsExhaustedForDoctor = !seats.configured || seats.available === 0;
 
   async function submitInvite() {
     setInviteError(null);
@@ -169,13 +169,23 @@ export function TeamSection({ members, invites, seats }: Props) {
               <SelectItem value="admin">Администратор</SelectItem>
             </SelectContent>
           </Select>
-          {role === 'doctor' && seatsExhaustedForDoctor ? (
+          {role === 'doctor' && !seats.configured ? (
+            <p className="text-destructive text-sm" role="alert">
+              Нельзя пригласить специалиста: укажите число мест специалистов в тарифе или в
+              исключении организации.
+            </p>
+          ) : role === 'doctor' && seatsExhaustedForDoctor ? (
             <p className="text-muted-foreground text-xs">
               Все места специалистов по тарифу заняты. Приглашение врача сейчас будет отклонено.
             </p>
           ) : null}
           {inviteError ? <p className="text-destructive text-sm">{inviteError}</p> : null}
-          <Button type="button" size="sm" disabled={submitting} onClick={() => void submitInvite()}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={submitting || (role === 'doctor' && !seats.configured)}
+            onClick={() => void submitInvite()}
+          >
             {submitting ? 'Отправка…' : 'Пригласить'}
           </Button>
         </div>

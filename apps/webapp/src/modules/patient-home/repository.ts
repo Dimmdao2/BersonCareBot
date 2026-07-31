@@ -1,6 +1,6 @@
 /**
- * Типы для legacy UI секций главной пациента (баннер рассылок, логи).
+ * Типы для legacy UI секций главной пациента.
  * Данные — через `buildAppDeps().patientHomeLegacy` (`PatientHomeLegacyContentPort`).
  */
 
-export type { PatientHomeBanner, PatientHomeMailingRow } from './patientHomeLegacyContentPort';
+export type { HomeQuote } from './patientHomeLegacyContentPort';

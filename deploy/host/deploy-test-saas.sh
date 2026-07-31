@@ -986,7 +986,7 @@ assert_app_owner_secdef_table_grants_complete(){
   # disposable PostgreSQL cluster and runs a burst of CPU/IO-heavy script activity) -- consistent with a
   # genuine settle/visibility gap wider than 5x2s=10s at that specific closure position, not a code bug.
   # Widened the retry budget rather than the grant: same idiom, longer window.
-  local missing="" operator_incidents_ok="" cms_pages_serialization_token_ok="" _secdef_grants_attempt
+  local missing="" operator_incidents_ok="" cms_pages_serialization_token_ok="" access_door_acl_ok="" _secdef_grants_attempt
   for _secdef_grants_attempt in 1 2 3 4 5 6 7 8 9 10; do
     missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 WITH required(tbl, priv) AS (
@@ -1013,7 +1013,11 @@ WITH required(tbl, priv) AS (
     ('public.reference_items', 'SELECT'),
     ('public.reference_catalog_snapshot_receipts', 'INSERT'),
     ('public.reference_catalog_snapshot_receipts', 'SELECT'),
-    ('public.courses', 'SELECT'),
+    -- 0276 shared lifecycle door: app_owner reads the live tariff policy, exact-org exception and
+    -- commercial state; runtime roles receive only EXECUTE on the exact-org function.
+    ('public.saas_tariffs', 'SELECT'),
+    ('public.saas_org_entitlement_overrides', 'SELECT'),
+    ('public.saas_organization_trials', 'SELECT'),
     -- C5A count-only quota storefront accessor: app_owner reads reservations, while the platform
     -- role receives only EXECUTE and no course/invite row ACL.
     ('public.organization_member_invites', 'SELECT'),
@@ -1096,7 +1100,19 @@ WITH required(tbl, priv) AS (
     ('public.user_oauth_bindings', 'INSERT'),
     ('public.login_tokens', 'SELECT'),
     ('public.login_tokens', 'INSERT'),
-    ('public.login_tokens', 'UPDATE')
+    ('public.login_tokens', 'UPDATE'),
+    -- 0276 patient passkeys: app_owner-owned accessors keep opaque account handles, public
+    -- credentials and bounded one-time challenges behind EXECUTE-only runtime functions.
+    ('public.user_passkey_accounts', 'SELECT'),
+    ('public.user_passkey_accounts', 'INSERT'),
+    ('public.user_passkey_credentials', 'SELECT'),
+    ('public.user_passkey_credentials', 'INSERT'),
+    ('public.user_passkey_credentials', 'UPDATE'),
+    ('public.user_passkey_credentials', 'DELETE'),
+    ('public.user_passkey_challenges', 'SELECT'),
+    ('public.user_passkey_challenges', 'INSERT'),
+    ('public.user_passkey_challenges', 'UPDATE'),
+    ('public.user_passkey_challenges', 'DELETE')
 )
 SELECT coalesce(string_agg(tbl || ' ' || priv, ', ' ORDER BY tbl, priv), '')
 FROM required
@@ -1312,7 +1328,15 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # 110 -> 115 (2026-07-30, #1065): migration 0274 adds the atomic password-login admission and
   # ALTCHA accessors and moves the password self-service writers behind app_owner. Their exact
   # protection-table DML grants are pinned above; app_patient/app_staff retain no direct table ACL.
-  local expected_secdef_count=115
+  # 115 -> 124 (#1005): migration 0276 adds nine reviewed passkey accessors. Their exact
+  # account/credential/challenge table grants are pinned above; runtime roles retain no direct
+  # table ACL and receive only the intended EXECUTE capabilities.
+  # 124 -> 125 (2026-07-30, #1069 item 3.1c): migration 0279 adds exactly one reviewed app_owner
+  # SECURITY DEFINER function, app.resolve_organization_mechanic_access(uuid,text). It reads
+  # be_organizations plus the three SaaS entitlement tables already pinned above and exposes only
+  # the computed state/warning/mutation decision to app_staff and app_patient.
+  # Слияние 31.07: обе ветки считали от 115 — #1005 добавил девять функций, #1069 одну, итого 125.
+  local expected_secdef_count=125
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1325,7 +1349,48 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (73 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  access_door_acl_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH target_function AS (
+  SELECT procedure.oid, procedure.proowner, procedure.proacl, procedure.prosecdef
+  FROM pg_proc AS procedure
+  WHERE procedure.oid = 'app.resolve_organization_mechanic_access(uuid,text)'::regprocedure
+), expected_acl(grantee, privilege_type, is_grantable) AS (
+  VALUES
+    ('app_owner'::text, 'EXECUTE'::text, false),
+    ('app_staff'::text, 'EXECUTE'::text, false),
+    ('app_patient'::text, 'EXECUTE'::text, false)
+), actual_acl AS (
+  SELECT
+    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee,
+    privilege.privilege_type,
+    privilege.is_grantable
+  FROM target_function
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(target_function.proacl, acldefault('f', target_function.proowner))
+  ) AS privilege
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+)
+SELECT (
+  (SELECT count(*) FROM target_function) = 1
+  AND (
+    SELECT bool_and(prosecdef AND pg_get_userbyid(proowner) = 'app_owner')
+    FROM target_function
+  )
+  AND NOT EXISTS (
+    (SELECT * FROM actual_acl EXCEPT SELECT * FROM expected_acl)
+    UNION ALL
+    (SELECT * FROM expected_acl EXCEPT SELECT * FROM actual_acl)
+  )
+)::text;
+")"
+  [ "$access_door_acl_ok" = "true" ] || {
+    echo "FATAL: organization mechanic lifecycle door exact ACL did not take effect." >&2
+    echo "       Expected app_owner ownership with SECURITY DEFINER and plain EXECUTE only for" >&2
+    echo "       app_owner, app_staff and app_patient." >&2
+    exit 1
+  }
+
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (83 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){
@@ -1441,7 +1506,7 @@ assert_c5a_enforced_quota_usage_closure(){
   local ok
   ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 WITH expected(relation_name) AS (
-  VALUES ('courses'), ('organization_member_invites')
+  VALUES ('organization_member_invites')
 ), relations AS (
   SELECT
     expected.relation_name,
@@ -1475,19 +1540,12 @@ WITH expected(relation_name) AS (
   WHERE 'app_platform_settings'::regrole = ANY(policy.polroles)
 )
 SELECT (
-  (SELECT count(*) FROM relations) = 2
+  (SELECT count(*) FROM relations) = 1
   AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
   AND NOT EXISTS (SELECT 1 FROM actual_acl)
   AND NOT EXISTS (SELECT 1 FROM actual_policy)
-  AND has_table_privilege('app_owner', 'public.courses', 'SELECT')
   AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
   AND has_table_privilege('app_owner', 'public.organization_member_invites', 'SELECT')
-  AND has_table_privilege('app_owner', 'public.content_pages', 'SELECT')
-  AND has_function_privilege(
-    'app_platform_settings',
-    'app.cms_pages_snapshot_usage(uuid)',
-    'EXECUTE'
-  )
   AND has_function_privilege(
     'app_platform_settings',
     'app.read_org_enforced_quota_usage(uuid)',
@@ -1497,8 +1555,9 @@ SELECT (
 ")"
   [ "$ok" = "true" ] || {
     echo "FATAL: enforced quota usage exact ACL/policy closure did not take effect." >&2
-    echo "       Expected count-only EXECUTE, no platform course/invite row ACL or policy," >&2
-    echo "       and reviewed app_owner base-table grants." >&2
+    echo "       Expected count-only EXECUTE, no platform invite row ACL or policy," >&2
+    echo "       and reviewed app_owner base-table grants. Courses/CMS pages are toggle-only" >&2
+    echo "       mechanics (#1069) -- no course-row count or cms_pages_snapshot_usage accessor exists." >&2
     exit 1
   }
   echo "   enforced quota usage exact ACL/policy closure: OK"

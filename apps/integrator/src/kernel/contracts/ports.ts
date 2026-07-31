@@ -40,8 +40,6 @@ export type DbReadQueryType =
   | 'reminders.occurrence.ownerUserId'
   | 'reminders.delivery.staleMessengerMessage'
   | 'delivery.pending'
-  | 'mailing.topics.list'
-  | 'subscriptions.byUser'
   | 'identities.allByUserId';
 
 /** Категории write-мутаций к хранилищу. */
@@ -71,14 +69,7 @@ export type DbWriteMutationType =
   | 'content.access.grant.create'
   | 'message.retry.enqueue'
   | 'delivery.attempt.log'
-  | 'event.log'
-  | 'mailing.topic.upsert'
-  | 'user.subscription.upsert'
-  | 'mailing.log.append'
-  | 'diary.symptom.tracking.create'
-  | 'diary.symptom.entry.create'
-  | 'diary.lfk.complex.create'
-  | 'diary.lfk.session.create';
+  | 'event.log';
 
 /** Универсальный read-запрос к БД. */
 export type DbReadQuery = {
@@ -134,7 +125,7 @@ export type PhoneLinkFailureReason =
 
 /** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */
 export type DbWriteDbResult = {
-  userPhoneLinkApplied: boolean;
+  userPhoneLinkApplied?: boolean;
   /** Ошибка БД / нет identity: не показывать копию «номер у другого аккаунта». */
   phoneLinkIndeterminate?: boolean;
   /** Уточнение при `userPhoneLinkApplied: false` (binding-first TX-путь). */
@@ -400,37 +391,9 @@ export type WebappEventBody = {
   payload?: Record<string, unknown>;
 };
 
-/** One symptom tracking from webapp GET /api/integrator/diary/symptom-trackings. */
-export type WebappSymptomTracking = {
-  id: string;
-  userId: string;
-  symptomKey: string | null;
-  symptomTitle: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-/** One LFK complex from webapp GET /api/integrator/diary/lfk-complexes. */
-export type WebappLfkComplex = {
-  id: string;
-  userId: string;
-  title: string;
-  origin: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-/** Port for emitting signed events to webapp and reading diary lists (no local cache). */
+/** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
   emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
-  listSymptomTrackings(
-    userId: string,
-  ): Promise<{ ok: boolean; trackings?: WebappSymptomTracking[]; error?: string }>;
-  listLfkComplexes(
-    userId: string,
-  ): Promise<{ ok: boolean; complexes?: WebappLfkComplex[]; error?: string }>;
   /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
   completeChannelLink?(params: {
     linkToken: string;
@@ -684,28 +647,6 @@ export type ActiveBookingRecord = {
 export type AppointmentsReadsPort = {
   getRecordByExternalId(externalRecordId: string): Promise<BookingRecordForLinking | null>;
   getActiveRecordsByPhone(phoneNormalized: string): Promise<ActiveBookingRecord[]>;
-};
-
-/** Row shape for mailing topic (bigint-safe: id as string). */
-export type MailingTopicReadRow = {
-  integratorTopicId: string;
-  code: string;
-  title: string;
-  key: string;
-  isActive: boolean;
-};
-
-/** Row shape for user subscription (bigint-safe). */
-export type UserSubscriptionReadRow = {
-  integratorTopicId: string;
-  topicCode: string;
-  isActive: boolean;
-};
-
-/** Port to read subscription/mailing product data from webapp (projection). Used with fallback to local DB. */
-export type SubscriptionMailingReadsPort = {
-  listTopics(): Promise<MailingTopicReadRow[]>;
-  getSubscriptionsByUserId(integratorUserId: string): Promise<UserSubscriptionReadRow[]>;
 };
 
 // --- PLAN S13: web_push subscription + VAPID access (Model β) ---

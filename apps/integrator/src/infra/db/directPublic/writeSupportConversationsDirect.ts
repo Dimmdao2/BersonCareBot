@@ -1,6 +1,5 @@
 /**
- * Track D — D3: support conversations + messages direct-public writes (identity/preferences precedent:
- * D1's `writeIdentityAndPreferencesDirect.ts`; diary/LFK precedent: D2's `writeDiaryLfkDirect.ts`).
+ * Track D — D3: support conversations + messages direct-public writes.
  *
  * Replaces the HTTP projection fanout (`support.conversation.opened` / `.message.appended` /
  * `.status.changed` → `webappEventsPort.emit()` → webapp `handleIntegratorEvent` →
@@ -17,8 +16,8 @@
  * bot-originated (telegram/max) conversation would silently land with `organization_id IS NULL`,
  * invisible to any org-scoped admin read (`saas_org_dormant_p0_8_3` RLS policy requires
  * `organization_id = app.current_org_id()`, which excludes NULL). D3 resolves the ACTUAL canonical
- * `public.platform_users.id` (D1/D2's `resolvePlatformUserIdForActor`, reused unchanged) and the exact
- * single active `org_enrollments` row (D2's `resolveExactActiveOrganizationId`, reused unchanged — NO
+ * `public.platform_users.id` (`resolvePlatformUserIdForActor`) and the exact single active
+ * `org_enrollments` row (`resolveExactActiveOrganizationId` — NO
  * default-org fallback) and writes both, instead of perpetuating the gap. When resolution is
  * ambiguous/absent the write fails closed (no row), matching the previous fire-and-forget path's
  * observable effect (no visible admin row) without inventing a default-org guess.
@@ -35,10 +34,11 @@
  *
  * DURABILITY (adversarial-audit fix, post-merge): a direct write here is the PRIMARY path, but it is
  * NOT the only path — `writePort.ts` treats exactly two error buckets differently:
- *   1. LEGITIMATELY FAIL-CLOSED (`isDiaryLfkFailClosedError` / `isIdentityMergeAmbiguityError` — D1/D2
+ *   1. LEGITIMATELY FAIL-CLOSED (`isDirectPublicActorResolutionFailClosedError` /
+ *      `isIdentityMergeAmbiguityError`
  *      machinery reused unchanged: platform-user candidate unresolved/ambiguous, org enrollment
  *      unresolved/ambiguous). This is a genuine "we do not know whose conversation this is" outcome —
- *      no row is written, ever, by design, matching D1/D2's no-default-org philosophy. No retry, no
+ *      no row is written, ever, by design, matching the shared no-default-org philosophy. No retry, no
  *      alert: retrying would not change an ambiguous/absent identity.
  *   2. EVERYTHING ELSE, including `SupportConversationsDirectWriteError('conversation_not_found')`
  *      (thrown by `appendSupportConversationMessageDirect` / `setSupportConversationStatusDirect` when
@@ -69,11 +69,14 @@
  * allowed here (src/infra/db repo).
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import type { DiaryLfkActorInput, DiaryLfkResolveDeps } from './writeDiaryLfkDirect.js';
+import type {
+  DirectPublicActorInput,
+  DirectPublicActorResolveDeps,
+} from './resolveDirectPublicActor.js';
 import {
   resolveExactActiveOrganizationId,
   resolvePlatformUserIdForActor,
-} from './writeDiaryLfkDirect.js';
+} from './resolveDirectPublicActor.js';
 
 function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
@@ -84,7 +87,7 @@ function trimmedOrNull(value: string | null | undefined): string | null {
 export type SupportConversationsWriteFailureCode = 'conversation_not_found';
 
 /**
- * NOT a "fail-closed, swallow silently" signal (unlike D1/D2's error classes) — `conversation_not_found`
+ * NOT a "fail-closed, swallow silently" signal — `conversation_not_found`
  * means the parent conversation row is not yet visible, which is exactly the condition `writePort.ts`
  * routes to the durable outbox fallback (see module header "DURABILITY"). Callers must NOT swallow this.
  */
@@ -101,7 +104,7 @@ export class SupportConversationsDirectWriteError extends Error {
   }
 }
 
-export type OpenSupportConversationDirectInput = DiaryLfkActorInput & {
+export type OpenSupportConversationDirectInput = DirectPublicActorInput & {
   integratorConversationId: string;
   source: string;
   adminScope: string;
@@ -120,7 +123,7 @@ export type OpenSupportConversationDirectResult = {
 export async function openSupportConversationDirect(
   db: DbPort,
   input: OpenSupportConversationDirectInput,
-  deps: DiaryLfkResolveDeps = {},
+  deps: DirectPublicActorResolveDeps = {},
 ): Promise<OpenSupportConversationDirectResult> {
   return db.tx(async (txDb) => {
     const platformUserId = await resolvePlatformUserIdForActor(txDb, input, deps);

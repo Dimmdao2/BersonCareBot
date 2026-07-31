@@ -862,17 +862,19 @@ push and installed launches cannot leak or silently substitute another organizat
 - **Validation:** zero/one/two org, revoked remembered org, verified foreign/denied object, direct/list/cache isolation,
   concurrent switch, back/forward/deep link, DB-role negatives, typecheck/lint/build; desktop/mobile/PWA screenshots.
 - **Implementation evidence (`#1074`):** invited/non-active enrollment is rejected as `no_active_enrollment`; `apps/webapp/src/modules/patient-organization/service.ts` + `apps/webapp/src/modules/patient-organization/service.unit.test.ts`; deleting the status guard makes the inactive-enrollment assertion fail; DB/RLS and live seals remain open.
+- **Today principal defect (`#796`) closed:** canonical RSC principal propagation is preserved by `2f7b0b41a`;
+  during the owner TEST walkthrough on 2026-07-30 the patient home, organization list, training/video and completion
+  flows loaded successfully after the related runtime corrections. This closes the former
+  `organization_principal_required` symptom only; it does not substitute the two lifecycle seals below.
 - **Rollback/degradation:** resolver failure shows neutral chooser/recovery and clears stale care data; never falls
   through to previous or arbitrary organization.
-- **Dependency gate (`#796`):** the A↔B switch seal is executable only on an owner-authorized TEST
-  walkthrough with the canonical shared-patient fixture; current DEV/dev-bypass has no sanctioned second enrollment
-  and the TEST seeder intentionally refuses the DEV database. The revoked-remembered-organization recovery seal is
-  additionally blocked because no product/API port can reversibly move one active organization enrollment to
-  discharged/archived and restore it: the doctor archive route returns `patient_archive_not_available`, while invite
-  revoke affects only a pending invite. Unit/component/API coverage proves stale-preference and neutral-recovery
-  behavior but does not replace these live seals. Task `#796` waits for one bounded owner choice: product
-  per-enrollment discharge/reactivate flow or a reversible TEST-only lifecycle harness, plus separate authorization
-  for the TEST walkthrough. Ad hoc SQL, a privileged DEV writer or a reset is forbidden evidence.
+- **Owner defer (`#796`, 2026-07-31):** principal defect is closed; the remaining A↔B switch and
+  revoked-remembered-organization lifecycle seals are deferred until the patient/client screens are elaborated.
+  Do not build a temporary TEST-only lifecycle harness or invent discharge/reactivate API/UI now. The later
+  client-screen stage must define the real per-enrollment discharge/reactivate behavior first and then perform the
+  canonical owner-authorized TEST walkthrough for both seals. Unit/component/API coverage proves stale-preference
+  and neutral-recovery behavior in the meantime but does not replace those live seals. Ad hoc SQL, a privileged DEV
+  writer or a reset remains forbidden evidence.
 - **Merge dependency:** U0/U1; later integration validation cannot become a reverse prerequisite.
 
 ### U3S — specialist self-signup, owner provisioning and secure first run

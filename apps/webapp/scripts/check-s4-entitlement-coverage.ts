@@ -72,7 +72,11 @@ export function validateProtectedActionMappings(
   }
   for (const mechanic of mechanics) {
     if (
-      !mappings.some((mapping) => mapping.mechanic === mechanic) &&
+      !mappings.some((mapping) =>
+        (Array.isArray(mapping.mechanic) ? mapping.mechanic : [mapping.mechanic]).includes(
+          mechanic,
+        ),
+      ) &&
       !(mechanic in declaredNoSurface)
     ) {
       findings.push({ id: mechanic, message: 'unregistered mechanic surface' });

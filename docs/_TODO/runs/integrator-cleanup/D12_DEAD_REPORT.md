@@ -1,8 +1,8 @@
 Готово. Изменены только 3 целевых файла:
 
 - Удалены 10 веток `switch` из `executeAction.ts`.
-- Удалены 27 сценариев из Telegram/MAX content.
-- Шаблоны, используемые другими сценариями, сохранены; отдельные неиспользуемые определения в разрешённых файлах не обнаружены.
+- Удалены 26 сценариев из Telegram/MAX content: 21 Telegram и 5 MAX.
+- Удалены 9 осиротевших определений шаблонов; `confirmPhoneForBooking` сохранён, поскольку используется сценариями и resolver.
 - Перехватчики подтверждены:
   - `booking.event.insert` — `executeAction.ts:79`, `handlers/booking.ts:10`
   - `notifications.get/toggle` — `executeAction.ts:80`, `handlers/notifications.ts:15,34`

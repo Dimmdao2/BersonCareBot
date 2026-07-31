@@ -1926,6 +1926,41 @@
       "when": 1793539200072,
       "tag": "0274_password_login_atomic_admission_altcha",
       "breakpoints": true
+    },
+    {
+      "idx": 275,
+      "version": "7",
+      "when": 1793539200073,
+      "tag": "0275_retire_dead_mailing_domain",
+      "breakpoints": true
+    },
+    {
+      "idx": 276,
+      "version": "7",
+      "when": 1793539200074,
+      "tag": "0276_patient_passkeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 277,
+      "version": "7",
+      "when": 1793539200075,
+      "tag": "0277_tariff_mechanics_stage12_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 278,
+      "version": "7",
+      "when": 1793539200076,
+      "tag": "0278_access_lifecycle_ladder_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 279,
+      "version": "7",
+      "when": 1793539200077,
+      "tag": "0279_organization_mechanic_access_door_local",
+      "breakpoints": true
     }
   ]
 }

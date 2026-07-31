@@ -12,6 +12,12 @@ import {
   getAppDisplayTimeZone,
 } from '@/modules/system-settings/appDisplayTimezone';
 import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from '@/modules/reminders/rehabProgramLinkedObject';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
+import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
 
 const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
   'lfk_complex',
@@ -148,6 +154,21 @@ export async function POST(req: Request) {
     if (firstActive) {
       linkedObjectId = firstActive.id;
     } else {
+      const tenant = await resolvePatientEnrollmentOrganizationId(
+        { patientOrganization: deps.patientOrganization },
+        userId,
+      );
+      if (!tenant.ok) return tenant.response;
+      const entitlement = await requireEntitlementForMutation(
+        { organizationId: tenant.organizationId },
+        'promo',
+      );
+      if (!entitlement.ok) {
+        return entitlementMutationRefusalResponse(
+          'promo',
+          'создать напоминание для промо-программы',
+        );
+      }
       try {
         const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
           patientUserId: userId,
@@ -159,6 +180,17 @@ export async function POST(req: Request) {
       }
     }
   }
+
+  const warmupEntitlement = await requirePatientWarmupReminderMutation(
+    deps,
+    userId,
+    {
+      linkedObjectType,
+      linkedObjectId,
+    },
+    'создать напоминание для разминки',
+  );
+  if (!warmupEntitlement.ok) return warmupEntitlement.response;
 
   const res = await deps.reminders.createObjectReminder(userId, {
     linkedObjectType: linkedObjectType as Exclude<ReminderLinkedObjectType, 'custom'>,

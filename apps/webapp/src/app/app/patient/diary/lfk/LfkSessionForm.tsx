@@ -94,8 +94,12 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       id="patient-lfk-mark-session-form"
       className="flex flex-col gap-3"
       action={async (fd) => {
-        await markLfkSession(fd);
-        toast.success('Запись добавлена');
+        const result = await markLfkSession(fd);
+        if (result.ok) {
+          toast.success('Запись добавлена');
+        } else {
+          toast.error(result.message ?? 'Не удалось добавить запись');
+        }
       }}
     >
       {single ? (

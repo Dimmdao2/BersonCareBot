@@ -20,7 +20,10 @@ import {
 import { getCurrentSession } from '@/modules/auth/service';
 import { canAccessPatient } from '@/modules/roles/service';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
+import {
+  getClientVisibleAuthChannelPolicy,
+  isAuthChannelEnabled,
+} from '@/modules/auth/authChannelPolicy';
 
 const PUBLIC_LOGIN_START_MIN_RESPONSE_MS = 500;
 const PUBLIC_LOGIN_DECOY_USER_ID = '00000000-0000-4000-8000-000000000000';
@@ -122,15 +125,18 @@ export async function POST(request: Request) {
 
   let delivery: PhoneOtpDelivery | undefined;
   if (automaticPublicLogin) {
-    if (isRuMobile(normalized) && (await isAuthChannelEnabled('sms'))) {
+    const effectivePolicy = await getClientVisibleAuthChannelPolicy();
+    if (isRuMobile(normalized) && effectivePolicy.sms) {
       deliveryChannel = 'sms';
       delivery = { channel: 'sms' };
-    } else if (await isAuthChannelEnabled('email')) {
+    } else if (effectivePolicy.email) {
       deliveryChannel = 'email';
-      const email = await deps.userByPhone.getVerifiedEmailForUser(
-        user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID,
-      );
-      if (user && email) {
+      const lookupUserId = user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID;
+      const [email, phoneTrusted] = await Promise.all([
+        deps.userByPhone.getVerifiedEmailForUser(lookupUserId),
+        deps.userByPhone.isPhoneTrustedForUser(lookupUserId),
+      ]);
+      if (user && email && phoneTrusted) {
         deliveryChannel = 'email';
         delivery = { channel: 'email', email };
       }

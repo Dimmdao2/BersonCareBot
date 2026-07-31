@@ -1,10 +1,8 @@
 import {
   CONTENT_ACCESS_GRANTED,
-  MAILING_LOG_SENT,
   REMINDER_DELIVERY_LOGGED,
   REMINDER_OCCURRENCE_FINALIZED,
   REMINDER_RULE_UPSERTED,
-  USER_SUBSCRIPTION_UPSERTED,
 } from '../../../kernel/contracts/index.js';
 import {
   hashPayload,
@@ -218,20 +216,6 @@ export function recomputeProjectionIdempotencyKeyAfterMerge(
       const correlationId = asNonEmptyString(payload.correlationId);
       const stable = intentEventId ?? correlationId ?? `del-${hashPayload(payload)}`;
       return projectionIdempotencyKey(eventType, String(stable), hashPayload(payload));
-    }
-    case USER_SUBSCRIPTION_UPSERTED: {
-      const uid = asNonEmptyString(payload.integratorUserId);
-      const topicId = asNonEmptyString(payload.integratorTopicId);
-      if (!uid || !topicId)
-        return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));
-      return projectionIdempotencyKey(eventType, `${uid}:${topicId}`, hashPayload(payload));
-    }
-    case MAILING_LOG_SENT: {
-      const uid = asNonEmptyString(payload.integratorUserId);
-      const mid = asNonEmptyString(payload.integratorMailingId);
-      if (!uid || !mid)
-        return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));
-      return projectionIdempotencyKey(eventType, `${uid}:${mid}`, hashPayload(payload));
     }
     default:
       return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));

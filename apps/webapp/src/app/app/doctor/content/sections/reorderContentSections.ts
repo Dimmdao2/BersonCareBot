@@ -5,6 +5,10 @@ import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  isWarmupsContentSection,
+  warmupsContentMutationRefusal,
+} from '@/app-layer/content/warmupsContentMutationGuard';
 
 export type ReorderContentSectionsState = { ok: boolean; error?: string };
 
@@ -21,6 +25,13 @@ export async function reorderContentSections(
   if (slugs.length !== orderedSlugs.length) return { ok: false, error: 'Некорректные slug' };
 
   const deps = buildAppDeps();
+  const sections = await deps.contentSections.listAll();
+  if (
+    sections.some((section) => slugs.includes(section.slug) && isWarmupsContentSection(section))
+  ) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
   try {
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.sections.reorder', () =>
       deps.contentSections.reorderSlugs(slugs),

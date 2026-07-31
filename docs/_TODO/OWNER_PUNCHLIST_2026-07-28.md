@@ -663,9 +663,12 @@ U3S (#919)**, а не свежий скоуп — помечать так в к�
 `pnpm --dir apps/webapp exec vitest --run src/infra/repos/platformSupportConversationReadMigration.test.ts
 src/shared/ui/doctor/platformNavLinks.test.ts src/app-layer/principal/pagePrincipalCensus.test.ts
 src/middleware/csrfOrigin.test.ts` — 4 файла / 33 passed / 1 skipped; journal sync и webapp typecheck — OK.
-Пункты 11.1–11.6 остаются открытыми: безопасный helpdesk должен использовать отдельную модель из
-`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md` §4; номер новой миграции назначается при интеграции, не в
-параллельном correction-клоне.
+Пункты 11.1–11.6 остаются открытыми. Текущий единый исполнительный план:
+[`SUPPORT_TICKETS_1070.md`](SUPPORT_TICKETS_1070.md). Support-часть старого
+`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md` §4–§7 помечена superseded: она предлагала один continuous chat,
+interim `/app/doctor/**` и in-app-only уведомление до поздних решений владельца о тикетах, `/app/admin/**`,
+вложениях/экспорте и почте+мессенджере. Номер новой миграции назначается при интеграции, не в параллельном
+плановом клоне.
 
 **Вопрос владельца «неужели нет готовых модулей попроще» закрыт второй разведкой 28.07.** Единственный кандидат
 на нашем стеке — Peppermint (Next.js + Postgres) — **заархивирован 17.07.2026**, репозиторий read-only.
@@ -696,6 +699,13 @@ community-лицензия).
 
 **Карточка:** #1071 (заведена 28.07). Правило: `§30`.
 
+**Уточнение владельца 30.07 — каналы доставки и тарифы:** полный канон записан в
+`docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §30.1. Essential delivery имеет платформенный fallback: коды входа,
+напоминания, уведомления о новом сообщении и записи на приём доставляются даже без credentials клиники;
+системные сообщения всегда идут от платформы. Рассылки и двусторонняя поддержка в боте требуют собственного
+канала клиники. Общий Telegram/MAX-бот клинике не выдаётся. Доступ к собственному боту, SMS и следующим каналам
+должен управляться отдельными опциями тарифа, независимо от брендирования и самой механики рассылок.
+
 - [x] **12.1** Убрать настройку гугл-календаря с платформенной страницы интеграций — `a1d74e46c`;
       сама интеграция, синхронизация и проба живы.
       Коррекция после независимого аудита: probe выбирает реальную org-scoped связь
@@ -725,6 +735,13 @@ community-лицензия).
 - [x] **12.5** Яндекс-календарь как объявленная, но не реализованная запись.
       Доказательство: `apps/webapp/src/modules/system-settings/platformIntegrationAvailability.ts:84` (`declared`);
       `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/platformIntegrationAvailability.test.ts` — PASS.
+- [ ] **12.6** Добавить собственные каналы клиники по §30.1: SMTP, SMS и dedicated Telegram/MAX bots; массовые
+      рассылки и bot-support обязаны fail closed без собственного канала, essential delivery использует
+      клиниковый канал с платформенным fallback. Свести с S6.5 и тарифным планом до реализации, не создавать
+      вторую конкурирующую модель channel binding.
+- [ ] **12.7** Защитить credentials клиники настоящим authenticated encryption, а не текущим
+      `valueContract='secret_envelope'`, который классифицирует и редактирует JSON, но не шифрует его.
+      До реализации утвердить key custody/rotation/recovery и threat model из `CRYPTO-01` C0/C1/C4.
 
 ## 13. Раздвоенный аккаунт: слить админскую и врачебную половины
 

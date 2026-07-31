@@ -25,8 +25,6 @@ const LEGACY_CALLBACK_TO_ACTION: Record<string, string> = {
 const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '📅 Запись на приём': 'booking.open',
   'Запись на приём': 'booking.open',
-  '📓 Дневник': 'diary.open',
-  Дневник: 'diary.open',
   '⚙️ Меню': 'menu.more',
   Меню: 'menu.more',
   Помощник: 'menu.more',
@@ -108,10 +106,6 @@ export function incomingCallbackPayloadFromNormalized(
   const out: IncomingCallbackPayloadFromNormalize = {};
   if (typeof normalized.conversationId === 'string') out.conversationId = normalized.conversationId;
   if (typeof normalized.stageItemId === 'string') out.stageItemId = normalized.stageItemId;
-  if (typeof normalized.trackingId === 'string') out.trackingId = normalized.trackingId;
-  if (typeof normalized.value === 'number') out.value = normalized.value;
-  if (typeof normalized.entryType === 'string') out.entryType = normalized.entryType;
-  if (typeof normalized.complexId === 'string') out.complexId = normalized.complexId;
   if (typeof normalized.reminderOccurrenceId === 'string')
     out.reminderOccurrenceId = normalized.reminderOccurrenceId;
   if (typeof normalized.reminderSnoozeMinutes === 'number')
@@ -153,41 +147,6 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
         conversationId,
       };
     }
-  }
-  if (trimmed.startsWith('diary.symptom.select:')) {
-    const id = trimmed.slice('diary.symptom.select:'.length).trim();
-    return { action: 'diary.symptom.select', ...(id ? { trackingId: id } : {}) };
-  }
-  if (trimmed.startsWith('diary.symptom.value:')) {
-    const rest = trimmed.slice('diary.symptom.value:'.length);
-    const [id, valueStr] = rest.split(':', 2);
-    const value =
-      valueStr !== undefined ? Math.min(10, Math.max(0, Math.round(Number(valueStr)))) : undefined;
-    const out: DynamicActionResult = { action: 'diary.symptom.value' };
-    if (id?.trim()) out.trackingId = id.trim();
-    if (typeof value === 'number' && Number.isFinite(value)) out.value = value;
-    return out;
-  }
-  if (trimmed.startsWith('diary.symptom.entryType:')) {
-    const rest = trimmed.slice('diary.symptom.entryType:'.length);
-    const parts = rest.split(':');
-    const trackingId = parts[0]?.trim();
-    const valueStr = parts[1];
-    const entryType = parts[2] === 'daily' ? 'daily' : 'instant';
-    const value =
-      valueStr !== undefined ? Math.min(10, Math.max(0, Math.round(Number(valueStr)))) : undefined;
-    const out: DynamicActionResult = { action: 'diary.symptom.entryType', entryType };
-    if (trackingId) out.trackingId = trackingId;
-    if (typeof value === 'number' && Number.isFinite(value)) out.value = value;
-    return out;
-  }
-  if (trimmed.startsWith('diary.lfk.select:')) {
-    const id = trimmed.slice('diary.lfk.select:'.length).trim();
-    return { action: 'diary.lfk.select', ...(id ? { complexId: id } : {}) };
-  }
-  if (trimmed.startsWith('diary.lfk.session:')) {
-    const id = trimmed.slice('diary.lfk.session:'.length).trim();
-    return { action: 'diary.lfk.session', ...(id ? { complexId: id } : {}) };
   }
   if (trimmed.startsWith('rem_snooze:')) {
     const rest = trimmed.slice('rem_snooze:'.length);

@@ -65,7 +65,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
         planItemRepeatMinutes: p,
       });
       if (!result.ok) {
-        setError(result.error === 'forbidden' ? 'Нет доступа.' : 'Не удалось сохранить.');
+        setError(result.error);
         return;
       }
       setMessage('Сохранено');

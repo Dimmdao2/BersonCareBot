@@ -3,11 +3,14 @@ import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
-import { CMS_PAGES_USAGE_SQL } from '@/infra/repos/cmsPagesUsageSql';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type {
+  AccessLifecyclePolicy,
   EffectiveOrgCommercialAccess,
+  MechanicAccessResolution,
+  MechanicAccessPolicyMap,
   OrgEntitlementSnapshot,
+  OrgMechanic,
   TariffQuota,
   TariffQuotaMap,
 } from '@/modules/org-entitlements/types';
@@ -21,7 +24,10 @@ import {
 type CurrentPatientEntitlementRow = {
   tariff_mechanics: Record<string, boolean> | null;
   tariff_quotas: TariffQuotaMap | null;
+  tariff_system_access_policy: AccessLifecyclePolicy | null;
+  tariff_mechanic_access_policies: MechanicAccessPolicyMap | null;
   included_seats: number | null;
+  included_seats_warning_at_percent: number | null;
   override_mechanic: string | null;
   override_enabled: boolean | null;
   override_quota: TariffQuota | null;
@@ -30,6 +36,13 @@ type CurrentPatientEntitlementRow = {
   lifecycle: EffectiveOrgCommercialAccess['lifecycle'];
   effective_tariff_id: string | null;
   access_source: EffectiveOrgCommercialAccess['source'];
+  degradation_started_at: string | null;
+};
+
+type MechanicAccessRow = {
+  state: MechanicAccessResolution['state'];
+  policy_source: MechanicAccessResolution['policySource'];
+  warning: MechanicAccessResolution['warning'];
 };
 
 function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntitlementSnapshot {
@@ -40,7 +53,10 @@ function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntit
       ? {
           mechanics: first.tariff_mechanics,
           quotas: first.tariff_quotas ?? {},
+          systemAccessPolicy: first.tariff_system_access_policy,
+          mechanicAccessPolicies: first.tariff_mechanic_access_policies ?? {},
           includedSeats: first.included_seats,
+          includedSeatsWarningAtPercent: first.included_seats_warning_at_percent,
         }
       : null,
     overrides: rows.flatMap((row) =>
@@ -60,6 +76,9 @@ function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntit
       lifecycle: first.lifecycle,
       tariffId: first.effective_tariff_id,
       source: first.access_source,
+      ...(first.degradation_started_at
+        ? { degradationStartedAt: first.degradation_started_at }
+        : {}),
     },
   };
 }
@@ -105,7 +124,11 @@ function resolveAccess(input: {
             : 'assignment',
     };
   }
-  const trialDates = { trialEndsAt: trial.endsAt, trialGraceEndsAt: trial.graceEndsAt };
+  const trialDates = {
+    trialEndsAt: trial.endsAt,
+    trialGraceEndsAt: trial.graceEndsAt,
+    degradationStartedAt: trial.endsAt,
+  };
   if (input.now <= new Date(trial.endsAt).getTime()) {
     return { lifecycle: 'active', tariffId: trial.tariffId, source: 'trial', ...trialDates };
   }
@@ -173,7 +196,10 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
             name: saasTariffs.name,
             mechanics: saasTariffs.mechanics,
             quotas: saasTariffs.quotas,
+            systemAccessPolicy: saasTariffs.systemAccessPolicy,
+            mechanicAccessPolicies: saasTariffs.mechanicAccessPolicies,
             includedSeats: saasTariffs.includedSeats,
+            includedSeatsWarningAtPercent: saasTariffs.includedSeatsWarningAtPercent,
           })
           .from(saasTariffs)
           .where(eq(saasTariffs.id, access.tariffId))
@@ -196,7 +222,11 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
             name: tariff.name,
             mechanics: tariff.mechanics,
             quotas: tariff.quotas as TariffQuotaMap,
+            systemAccessPolicy: tariff.systemAccessPolicy as AccessLifecyclePolicy | null,
+            mechanicAccessPolicies:
+              tariff.mechanicAccessPolicies as MechanicAccessPolicyMap,
             includedSeats: tariff.includedSeats,
+            includedSeatsWarningAtPercent: tariff.includedSeatsWarningAtPercent,
           }
         : null,
       overrides: overrides.map((override) => ({
@@ -215,6 +245,21 @@ async function readSnapshot(organizationId: string): Promise<OrgEntitlementSnaps
 /** Exact-org effective access. Patient reads use only the signed SECURITY DEFINER capability. */
 export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
   return {
+    async resolveMechanicAccess(organizationId: string, mechanic: OrgMechanic) {
+      const result = await runWebappPgText<MechanicAccessRow>(
+        `SELECT state, policy_source, warning
+         FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)`,
+        [organizationId, mechanic],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('organization_mechanic_access_denied');
+      return {
+        mechanic,
+        state: row.state,
+        policySource: row.policy_source,
+        warning: row.warning,
+      };
+    },
     getSnapshot: readSnapshot,
     async getTariffForOrg(organizationId) {
       return (await readSnapshot(organizationId)).tariff;
@@ -226,20 +271,13 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       return (await readSnapshot(organizationId)).access;
     },
     async getEnforcedQuotaUsage(organizationId) {
-      const [enforcedUsage, cmsPagesUsage] = await Promise.all([
-        runWebappPgText<{ courses_used: number; clinic_team_used: number }>(
-          `SELECT courses_used, clinic_team_used
-           FROM app.read_org_enforced_quota_usage($1::uuid)`,
-          [organizationId],
-        ),
-        runWebappPgText<{ used_value: number }>(`SELECT ${CMS_PAGES_USAGE_SQL} AS used_value`, [
-          organizationId,
-        ]),
-      ]);
+      const enforcedUsage = await runWebappPgText<{ clinic_team_used: number }>(
+        `SELECT clinic_team_used
+         FROM app.read_org_enforced_quota_usage($1::uuid)`,
+        [organizationId],
+      );
       const usage = enforcedUsage.rows[0];
       return {
-        courses: usage?.courses_used ?? 0,
-        cms_pages: cmsPagesUsage.rows[0]?.used_value ?? 0,
         clinic_team: usage?.clinic_team_used ?? 0,
       };
     },

@@ -76,6 +76,7 @@ import { loadPatientHomeProgressMetrics } from '@/modules/patient-home/loadPatie
 import type { PatientHomeProgressDisplay } from '@/modules/patient-home/patientHomeProgressMetrics';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { canMaterializeMechanicOnRead } from '@/app-layer/entitlements/readMaterializationGate';
 
 type SharedProps = {
   personalTierOk: boolean;
@@ -164,6 +165,7 @@ export async function PatientHomeToday(props: Props) {
 
 async function renderPatientHomeToday({
   session,
+  organizationId,
   personalTierOk,
   canViewAuthOnlyContent,
   coursesOrganizationId = null,
@@ -171,6 +173,13 @@ async function renderPatientHomeToday({
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
   const serverRenderInstant = new Date();
+  const [materializeDiaryState, materializeWarmupPresentation] =
+    session && personalTierOk
+      ? await Promise.all([
+          canMaterializeMechanicOnRead(organizationId!, 'patient_diaries'),
+          canMaterializeMechanicOnRead(organizationId!, 'warmups'),
+        ])
+      : [false, false];
 
   let appTz = await getAppDisplayTimeZone();
 
@@ -198,7 +207,9 @@ async function renderPatientHomeToday({
     systemSettings: deps.systemSettings,
   };
   const presentationSyncDeps =
-    session && personalTierOk ? buildDailyWarmupPresentationSyncDeps(deps) : undefined;
+    session && personalTierOk && materializeWarmupPresentation
+      ? buildDailyWarmupPresentationSyncDeps(deps)
+      : undefined;
 
   const todayCfg = await getPatientHomeTodayConfig(
     homeConfigDeps,
@@ -283,7 +294,9 @@ async function renderPatientHomeToday({
       await Promise.all([
         deps.reminders.listRulesByUser(session.user.userId),
         deps.treatmentProgramInstance.listForPatient(session.user.userId),
-        deps.patientMood.getCheckinState(session.user.userId, appTz),
+        deps.patientMood.getCheckinState(session.user.userId, appTz, {
+          materializeMissingTracking: materializeDiaryState,
+        }),
         deps.reminders.getReminderMutedUntil(session.user.userId),
         deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
         warmupPageId
@@ -317,6 +330,7 @@ async function renderPatientHomeToday({
     const weekSparkline = await deps.patientMood.getRecentDaysSparkline(
       session.user.userId,
       moodWeekTz,
+      { materializeMissingTracking: materializeDiaryState },
       HOME_WELLBEING_STRIP_DAY_COUNT,
     );
     const scheduleInstant = reminderScheduleEvaluationInstant(
