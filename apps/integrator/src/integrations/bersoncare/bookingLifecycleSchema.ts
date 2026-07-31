@@ -16,7 +16,7 @@ const BookingLifecyclePayloadSchema = z.object({
   cityCodeSnapshot: z.string().nullable().optional(),
   serviceTitleSnapshot: z.string().nullable().optional(),
   canonicalAppointmentId: z.string().uuid().optional(),
-  /** Optional so rollout remains compatible with old webapp senders. */
+  /** Только для booking.created/rescheduled/payment_captured — вебапп решает офсеты и включённость; событиям отмены/неявки план не нужен. */
   reminderPlan: z
     .object({
       enabled: z.boolean(),
