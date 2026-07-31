@@ -1180,6 +1180,13 @@ patientBookingService = createPatientBookingService({
   appointmentProjection: appointmentProjectionPort,
   appointmentLifecycle: bookingAppointmentLifecycleService,
   payments: paymentsService,
+  canAcceptBookingPrepayment: async (organizationId) => {
+    const access = await orgEntitlementsPort.resolveMechanicAccess(
+      organizationId,
+      'booking_prepayment',
+    );
+    return access.state === 'full_access' || access.state === 'grace';
+  },
   memberships: membershipsServiceResolved,
   products: productsServiceResolved,
   clientHistory: clientHistoryService,

@@ -27,6 +27,7 @@ import {
   resolveLaunchCapabilities,
   type LaunchCapability,
 } from './workspaceCapabilities';
+import { isCabinetEntryBlocked } from './cabinetAccessGate';
 
 export async function requireSession(returnPath?: string): Promise<AppSession> {
   const session = await getCurrentSession();
@@ -423,7 +424,23 @@ function contextHasCapability(
 }
 
 /** Resolves an organization membership for both clinical and management surfaces. */
-export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
+type CabinetGateOptions = { allowCabinetRecovery?: boolean };
+
+async function cabinetEntryIsBlocked(organizationId: string): Promise<boolean> {
+  try {
+    return isCabinetEntryBlocked(
+      await buildAppDeps().orgEntitlements.resolveCabinetAccess(organizationId),
+    );
+  } catch {
+    // The cabinet door is a security/commercial boundary. An unavailable resolver cannot open it.
+    return true;
+  }
+}
+
+/** Resolves an organization membership and enforces the separate cabinet-entry ladder. */
+export async function requireOrganizationWorkspaceContext(
+  options: CabinetGateOptions = {},
+): Promise<DoctorWorkspaceAccessContext> {
   ensureDbPrincipalContext({ source: 'requireOrganizationWorkspaceContext:pending' });
   const session = await requireSession();
   if (!canAccessDoctor(session.user.role)) {
@@ -448,6 +465,12 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
     redirect(routePaths.account);
   }
   stampStaffPrincipal(resolved.ctx, 'requireOrganizationWorkspaceContext');
+  if (
+    !options.allowCabinetRecovery &&
+    (await cabinetEntryIsBlocked(resolved.ctx.organizationId))
+  ) {
+    redirect(`${routePaths.settings}?tab=billing`);
+  }
   return resolved.ctx;
 }
 
@@ -677,7 +700,9 @@ export async function requireStaffSecurityApiSession(): Promise<
 }
 
 /** Для Route Handlers под `/api/doctor/*`: doctor или admin + resolved organization membership. */
-export async function requireDoctorWorkspaceApiContext(): Promise<
+export async function requireDoctorWorkspaceApiContext(
+  options: CabinetGateOptions = {},
+): Promise<
   { ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }
 > {
   ensureDbPrincipalContext({ source: 'requireDoctorWorkspaceApiContext:pending' });
@@ -696,6 +721,12 @@ export async function requireDoctorWorkspaceApiContext(): Promise<
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse('forbidden') };
   }
   stampStaffPrincipal(resolved.ctx, 'requireDoctorWorkspaceApiContext');
+  if (
+    !options.allowCabinetRecovery &&
+    (await cabinetEntryIsBlocked(resolved.ctx.organizationId))
+  ) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse('cabinet_blocked') };
+  }
   return resolved;
 }
 
@@ -704,7 +735,9 @@ export async function requireDoctorWorkspaceApiContext(): Promise<
  * not a platform grant: explicit global-admin mode is denied, and the caller
  * must hold organization.management for the one resolved membership.
  */
-export async function requireAdminWorkspaceApiContext(): Promise<
+export async function requireAdminWorkspaceApiContext(
+  options: CabinetGateOptions = {},
+): Promise<
   { ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }
 > {
   ensureDbPrincipalContext({ source: 'requireAdminWorkspaceApiContext:pending' });
@@ -729,6 +762,12 @@ export async function requireAdminWorkspaceApiContext(): Promise<
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse('forbidden') };
   }
   stampStaffPrincipal(resolved.ctx, 'requireAdminWorkspaceApiContext');
+  if (
+    !options.allowCabinetRecovery &&
+    (await cabinetEntryIsBlocked(resolved.ctx.organizationId))
+  ) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse('cabinet_blocked') };
+  }
   return resolved;
 }
 
@@ -737,7 +776,9 @@ export async function requireAdminWorkspaceApiContext(): Promise<
  * resolved organization. Platform admin is a separate capability and cannot inherit an
  * organization workspace through adminMode.
  */
-export async function requireClinicManagementApiContext(): Promise<
+export async function requireClinicManagementApiContext(
+  options: CabinetGateOptions = {},
+): Promise<
   { ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }
 > {
   ensureDbPrincipalContext({ source: 'requireClinicManagementApiContext:pending' });
@@ -765,6 +806,12 @@ export async function requireClinicManagementApiContext(): Promise<
     };
   }
   stampStaffPrincipal(resolved.ctx, 'requireClinicManagementApiContext');
+  if (
+    !options.allowCabinetRecovery &&
+    (await cabinetEntryIsBlocked(resolved.ctx.organizationId))
+  ) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse('cabinet_blocked') };
+  }
   return resolved;
 }
 

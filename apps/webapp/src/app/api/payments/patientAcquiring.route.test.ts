@@ -201,6 +201,22 @@ beforeEach(() => {
 });
 
 describe('patient acquiring charge HTTP boundary', () => {
+  it('does not accept patient money when the payments mechanic is disabled', async () => {
+    fakes.requireEntitlement.mockResolvedValue({
+      ok: false,
+      response: Response.json(
+        { ok: false, error: 'entitlement_required', mechanic: 'payments' },
+        { status: 403 },
+      ),
+    } as never);
+
+    const response = await invokeCharge(chargeRequest('charge-1074-disabled'));
+
+    expect(response.status).toBe(403);
+    expect(fakes.createCharge).not.toHaveBeenCalled();
+    expect(fakes.recordAcquiringCharge).not.toHaveBeenCalled();
+  });
+
   it('returns not found without charging a patient outside the doctor workspace', async () => {
     fakes.getClientIdentity.mockResolvedValue(null);
 

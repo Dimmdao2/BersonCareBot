@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * #1069 этап 2 — executable proof for the access lifecycle ladder
- * (`app.resolve_organization_mechanic_access`, `db/drizzle-migrations/0279_organization_mechanic_access_door_local.sql`).
+ * (`app.resolve_organization_mechanic_access` and the separate cabinet-access resolver).
  *
  * Behaviour proved against a real, private PostgreSQL 16 cluster (never a configured/shared DB):
  *   1. Transitions by DATE, not by "now": full_access -> grace -> read_only -> terminal state, driven
@@ -26,9 +26,17 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-const migrationPath = path.join(
+const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0279_organization_mechanic_access_door_local.sql',
+  'apps/webapp/db/drizzle-migrations/0283_patient_diaries_critical_mechanic_local.sql',
+);
+const cabinetMigrationPath = path.join(
+  root,
+  'apps/webapp/db/drizzle-migrations/0284_organization_cabinet_access_ladder_local.sql',
+);
+const mechanicRegistryPath = path.join(
+  root,
+  'apps/webapp/src/modules/org-entitlements/types.ts',
 );
 
 function fail(message) {
@@ -48,8 +56,36 @@ function extractDoorFunction(migration) {
   return migration.slice(start, end);
 }
 
-const migrationSource = readFileSync(migrationPath, 'utf8');
-const doorFunctionSource = extractDoorFunction(migrationSource);
+function extractCabinetFunction(migration) {
+  const marker = 'CREATE OR REPLACE FUNCTION app.resolve_organization_cabinet_access(';
+  const start = migration.indexOf(marker);
+  const end = migration.indexOf(
+    'ALTER FUNCTION app.resolve_organization_cabinet_access(uuid) OWNER TO app_owner;',
+    start,
+  );
+  if (start < 0 || end < 0) {
+    fail('could not extract app.resolve_organization_cabinet_access from the ladder migration');
+  }
+  return migration.slice(start, end);
+}
+
+function readMechanicRegistry(source) {
+  const start = source.indexOf('export const MECHANIC_REGISTRY = {');
+  const end = source.indexOf('} as const satisfies Record<string, MechanicDefinition>;', start);
+  if (start < 0 || end < 0) fail('could not read the canonical MECHANIC_REGISTRY');
+  const entries = [...source.slice(start, end).matchAll(/^\s{2}([a-z0-9_]+):\s*\{\s*class:\s*'([^']+)'/gm)]
+    .map((match) => ({ mechanic: match[1], mechanicClass: match[2] }));
+  if (entries.length === 0) fail('canonical MECHANIC_REGISTRY unexpectedly has no entries');
+  return entries;
+}
+
+const mechanicMigrationSource = readFileSync(mechanicMigrationPath, 'utf8');
+const cabinetMigrationSource = readFileSync(cabinetMigrationPath, 'utf8');
+const doorFunctionSource = extractDoorFunction(mechanicMigrationSource);
+const cabinetFunctionSource = extractCabinetFunction(cabinetMigrationSource);
+const mechanicRegistry = readMechanicRegistry(readFileSync(mechanicRegistryPath, 'utf8'));
+const configurableMechanics = mechanicRegistry.filter(({ mechanicClass }) => mechanicClass !== 'никогда');
+const criticalMechanics = mechanicRegistry.filter(({ mechanicClass }) => mechanicClass === 'никогда');
 
 const stamp = `${process.pid}_${Date.now()}`;
 const dir = mkdtempSync(`/tmp/bcb_access_ladder_${stamp}_`);
@@ -97,7 +133,10 @@ const ORG_ID = '20000000-0000-4000-8000-000000000001';
 const TARIFF_ID = '10000000-0000-4000-8000-000000000001';
 const TRIAL_ID = '30000000-0000-4000-8000-000000000001';
 
-function schemaSql(functionSource) {
+function schemaSql(functionSource, cabinetSource) {
+  const configuredMechanics = Object.fromEntries(
+    mechanicRegistry.map(({ mechanic, mechanicClass }) => [mechanic, mechanicClass !== 'никогда']),
+  );
   return `
     CREATE EXTENSION pgcrypto;
     CREATE SCHEMA app;
@@ -156,18 +195,31 @@ function schemaSql(functionSource) {
     REVOKE ALL ON FUNCTION app.resolve_organization_mechanic_access(uuid, text) FROM PUBLIC, app_staff, app_patient;
     GRANT EXECUTE ON FUNCTION app.resolve_organization_mechanic_access(uuid, text) TO app_staff, app_patient;
 
+    ${cabinetSource}
+    ALTER FUNCTION app.resolve_organization_cabinet_access(uuid) OWNER TO app_owner;
+    REVOKE ALL ON FUNCTION app.resolve_organization_cabinet_access(uuid) FROM PUBLIC, app_staff, app_patient;
+    GRANT EXECUTE ON FUNCTION app.resolve_organization_cabinet_access(uuid) TO app_staff, app_patient;
+
+    CREATE TABLE public.cabinet_payload (
+      organization_id uuid NOT NULL,
+      payload text NOT NULL
+    );
+
     INSERT INTO public.be_organizations (id, tariff_id) VALUES ('${ORG_ID}', '${TARIFF_ID}');
     INSERT INTO public.saas_tariffs (id, mechanics, quotas) VALUES (
       '${TARIFF_ID}',
-      '{"courses": true, "branches": true, "patient_card": false}'::jsonb,
-      '{"branches": {"kind": "numeric", "limit": 5, "unit": "items"}}'::jsonb
+      '${JSON.stringify(configuredMechanics)}'::jsonb,
+      '{"branches": {"kind": "numeric", "limit": 5, "unit": "items"}, "patient_count": {"kind": "numeric", "limit": 50, "unit": "items"}, "files": {"kind": "numeric", "limit": 1048576, "unit": "bytes"}}'::jsonb
     );
+    UPDATE public.saas_tariffs SET included_seats = 5 WHERE id = '${TARIFF_ID}';
+    INSERT INTO public.cabinet_payload (organization_id, payload)
+      VALUES ('${ORG_ID}', 'same-data-before-and-after-renewal');
   `;
 }
 
-async function installInto(targetDb, functionSource) {
+async function installInto(targetDb, functionSource, cabinetSource = cabinetFunctionSource) {
   run(path.join(pgBin, 'createdb'), ['-h', socket, '-p', String(port), targetDb], `create db ${targetDb}`);
-  await withDb(targetDb, (connection) => connection.query(schemaSql(functionSource)));
+  await withDb(targetDb, (connection) => connection.query(schemaSql(functionSource, cabinetSource)));
 }
 
 async function setPolicies(connection, { systemAccessPolicy, mechanicAccessPolicies }) {
@@ -200,6 +252,20 @@ async function resolveAs(connection, organizationId, mechanic) {
     const result = await connection.query(
       'SELECT * FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)',
       [organizationId, mechanic],
+    );
+    return result.rows[0];
+  } finally {
+    await connection.query('RESET ROLE');
+  }
+}
+
+async function resolveCabinetAs(connection, organizationId) {
+  await connection.query("SELECT set_config('app.org', $1, false)", [organizationId]);
+  await connection.query('SET ROLE app_staff');
+  try {
+    const result = await connection.query(
+      'SELECT * FROM app.resolve_organization_cabinet_access($1::uuid)',
+      [organizationId],
     );
     return result.rows[0];
   } finally {
@@ -334,6 +400,76 @@ async function proveCriticalMechanicNeverDegrades(connection) {
   if (criticalAccess.mutation_allowed !== true) fail('critical mechanic must allow mutation');
 }
 
+/** Proof 5 / §5a 2.1b: every tariff mechanic, without an owner-defined critical class, degrades. */
+async function proveNoAgentMechanicExclusions(connection) {
+  await setPolicies(connection, {
+    systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, warningCount: 0, terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
+  });
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3650 days' });
+
+  for (const { mechanic } of configurableMechanics) {
+    const access = await resolveAs(connection, ORG_ID, mechanic);
+    if (access.state !== 'disabled') {
+      fail(
+        `tariff mechanic ${mechanic} was excluded from the ladder without the owner-defined ` +
+          `никогда class: expected disabled, got ${access.state}`,
+      );
+    }
+  }
+  for (const { mechanic } of criticalMechanics) {
+    const access = await resolveAs(connection, ORG_ID, mechanic);
+    if (access.state !== 'full_access' || access.policy_source !== 'critical') {
+      fail(`owner-defined critical mechanic ${mechanic} must stay outside tariff degradation`);
+    }
+  }
+}
+
+/** Proof 6 / §5a 2.1a: cabinet is a separate subject with all three configured stages. */
+async function proveCabinetTransitionsAndDataRestoration(connection) {
+  await setPolicies(connection, {
+    systemAccessPolicy: { graceDays: 5, readOnlyDays: 3, warningCount: 4, terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
+  });
+
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '1 day' });
+  const full = await resolveCabinetAs(connection, ORG_ID);
+  if (full.state !== 'full_access') fail(`cabinet before degradation expected full_access, got ${full.state}`);
+
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-1 day' });
+  const grace = await resolveCabinetAs(connection, ORG_ID);
+  if (grace.state !== 'grace' || grace.warning?.count !== 4) {
+    fail(`cabinet grace stage expected grace with four warnings, got ${JSON.stringify(grace)}`);
+  }
+
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-6 days' });
+  const readOnly = await resolveCabinetAs(connection, ORG_ID);
+  if (readOnly.state !== 'read_only') fail(`cabinet read-only stage expected read_only, got ${readOnly.state}`);
+
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-10 days' });
+  const blocked = await resolveCabinetAs(connection, ORG_ID);
+  if (blocked.state !== 'disabled') fail(`cabinet terminal stage expected disabled, got ${blocked.state}`);
+  const beforeRenewal = await connection.query(
+    'SELECT payload FROM public.cabinet_payload WHERE organization_id = $1',
+    [ORG_ID],
+  );
+
+  await connection.query('DELETE FROM public.saas_organization_trials WHERE organization_id = $1', [ORG_ID]);
+  await connection.query(
+    "UPDATE public.be_organizations SET commercial_access_state = 'active' WHERE id = $1",
+    [ORG_ID],
+  );
+  const restored = await resolveCabinetAs(connection, ORG_ID);
+  const afterRenewal = await connection.query(
+    'SELECT payload FROM public.cabinet_payload WHERE organization_id = $1',
+    [ORG_ID],
+  );
+  if (restored.state !== 'full_access') fail(`renewal must restore cabinet full_access, got ${restored.state}`);
+  if (beforeRenewal.rows[0]?.payload !== afterRenewal.rows[0]?.payload) {
+    fail('cabinet block or renewal changed stored organization data');
+  }
+}
+
 /**
  * Self-test gate: each proof above is re-run against a deliberately broken door function and MUST
  * throw. This is the "name the breakage, then break it and watch it go red" arbiter from
@@ -356,7 +492,10 @@ const REGRESSIONS = [
     label: 'critical mechanic hardcode removed — patient_card would degrade like any other mechanic',
     proof: proveCriticalMechanicNeverDegrades,
     breakSource: (source) =>
-      source.replaceAll(`p_mechanic = ANY (ARRAY['patient_card', 'patient_app'])`, `false`),
+      source.replaceAll(
+        `p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries'])`,
+        `false`,
+      ),
   },
   {
     label: 'grace window arithmetic removed — degraded orgs jump straight to terminal state',
@@ -370,6 +509,28 @@ const REGRESSIONS = [
           THEN 'grace'`,
         `WHEN false THEN 'grace'`,
       ),
+  },
+  {
+    label: 'an agent-added mechanic exclusion bypasses the ladder',
+    proof: proveNoAgentMechanicExclusions,
+    breakSource: (source) => {
+      const target = configurableMechanics[0]?.mechanic;
+      if (!target) return source;
+      return source.replace(
+        `WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN 'full_access'`,
+        `WHEN p_mechanic = '${target}' THEN 'full_access'\n        WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN 'full_access'`,
+      );
+    },
+  },
+];
+
+const CABINET_REGRESSIONS = [
+  {
+    label: 'cabinet terminal block removed',
+    breakSource: (source) => source.replace(
+      `WHEN degradation_started_at IS NOT NULL THEN policy ->> 'terminalState'`,
+      `WHEN degradation_started_at IS NOT NULL THEN 'full_access'`,
+    ),
   },
 ];
 
@@ -390,6 +551,24 @@ async function runRegressionSelfTests() {
       thrownMessage = error instanceof Error ? error.message : String(error);
     }
     if (!threw) {
+      fail(`self-test "${regression.label}" stayed GREEN against a broken function — proof is dead`);
+    }
+    console.log(`  self-test OK (went red as expected): ${regression.label}\n    -> ${thrownMessage}`);
+  }
+  for (const [index, regression] of CABINET_REGRESSIONS.entries()) {
+    const brokenSource = regression.breakSource(cabinetFunctionSource);
+    if (brokenSource === cabinetFunctionSource) {
+      fail(`self-test "${regression.label}" did not find its target text to break — proof text stale`);
+    }
+    const regressionDb = `bcb_access_ladder_${stamp}_c${index}`;
+    await installInto(regressionDb, doorFunctionSource, brokenSource);
+    let thrownMessage = '';
+    try {
+      await withDb(regressionDb, (connection) => proveCabinetTransitionsAndDataRestoration(connection));
+    } catch (error) {
+      thrownMessage = error instanceof Error ? error.message : String(error);
+    }
+    if (!thrownMessage) {
       fail(`self-test "${regression.label}" stayed GREEN against a broken function — proof is dead`);
     }
     console.log(`  self-test OK (went red as expected): ${regression.label}\n    -> ${thrownMessage}`);
@@ -428,13 +607,17 @@ try {
     console.log('  proof OK: mechanic-level policy overrides system-level policy');
     await proveCriticalMechanicNeverDegrades(connection);
     console.log('  proof OK: critical (никогда-class) mechanic never degrades');
+    await proveNoAgentMechanicExclusions(connection);
+    console.log('  proof OK: every tariff mechanic follows the ladder; only owner-defined critical class stays outside it');
+    await proveCabinetTransitionsAndDataRestoration(connection);
+    console.log('  proof OK: cabinet full/grace/read-only/block stages preserve data and renewal restores access');
   });
 
   await runRegressionSelfTests();
 
   console.log(
     'Access ladder transitions proof: OK — dates, data-driven policy, mechanic-over-system ' +
-      'precedence, critical-mechanic immunity, and all three regression self-tests went red as designed.',
+      'precedence, cabinet restoration, no agent mechanic exclusions, and all regression self-tests went red as designed.',
   );
 } finally {
   if (serverStarted) {

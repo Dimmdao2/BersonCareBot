@@ -78,7 +78,16 @@ export default async function SettingsPage({
   if (tab === 'specialist') redirect(routePaths.account);
   if (tab === 'install') redirect(`${routePaths.account}?tab=install`);
 
-  const workspace = await requireOrganizationWorkspaceContext();
+  const workspace = await requireOrganizationWorkspaceContext({ allowCabinetRecovery: true });
+  const cabinetAccess = await buildAppDeps().orgEntitlements.resolveCabinetAccess(
+    workspace.organizationId,
+  );
+  if (
+    (cabinetAccess.state === 'disabled' || cabinetAccess.state === 'unconfigured') &&
+    tab !== 'billing'
+  ) {
+    redirect(`${routePaths.settings}?tab=billing`);
+  }
   const isGlobalAdmin =
     workspace.session.user.role === 'admin' && workspace.session.adminMode === true;
   const canManageOrganization = workspace.canManageOrganization || isGlobalAdmin;

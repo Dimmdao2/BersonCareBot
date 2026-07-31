@@ -74,6 +74,7 @@ export type CanonicalBookingDeps = {
   bookingForm: BookingFormService | null;
   appointmentProjection: AppointmentProjectionPort | null;
   payments: PaymentsService | null;
+  canAcceptBookingPrepayment: (organizationId: string) => Promise<boolean>;
   memberships: MembershipsService | null;
   products: ProductsService | null;
   clientHistory: ClientHistoryService | null;
@@ -337,7 +338,9 @@ export async function createBookingOnCanonicalEngine(
     productCoversVisit = true;
   }
 
-  const prepayQuote = deps.payments
+  const prepaymentMechanicAllowsMoney =
+    deps.payments !== null && (await deps.canAcceptBookingPrepayment(orgId));
+  const prepayQuote = prepaymentMechanicAllowsMoney && deps.payments
     ? await deps.payments.resolvePrepayment({
         organizationId: orgId,
         serviceId: canonicalServiceId,

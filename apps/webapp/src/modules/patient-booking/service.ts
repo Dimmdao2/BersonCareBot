@@ -145,6 +145,7 @@ export function createPatientBookingService(input: {
   appointmentProjection?: AppointmentProjectionPort | null;
   appointmentLifecycle?: BookingAppointmentLifecycleService | null;
   payments?: PaymentsService | null;
+  canAcceptBookingPrepayment?: (organizationId: string) => Promise<boolean>;
   memberships?: MembershipsService | null;
   products?: ProductsService | null;
   clientHistory?: ClientHistoryService | null;
@@ -179,6 +180,11 @@ export function createPatientBookingService(input: {
           bookingForm: input.bookingForm ?? null,
           appointmentProjection: input.appointmentProjection ?? null,
           payments: input.payments ?? null,
+          // No entitlement resolver means no patient-money acceptance. Production always injects
+          // the canonical org-entitlement door; this fallback keeps isolated non-payment fixtures
+          // fail-closed instead of inventing a compatibility entitlement.
+          canAcceptBookingPrepayment:
+            input.canAcceptBookingPrepayment ?? (async () => false),
           memberships: input.memberships ?? null,
           products: input.products ?? null,
           clientHistory: input.clientHistory ?? null,

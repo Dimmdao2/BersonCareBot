@@ -31,6 +31,7 @@ import {
 } from '@/app-layer/patient-organization/requestContext';
 import { PatientOrganizationRecoveryScreen } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
+import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
 
 function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
   return [
@@ -111,6 +112,17 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       source: 'app.patient.layout',
     });
     const patientOrganizationId = patientContext.organizationId;
+    if (!patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {
+      let cabinetBlocked = true;
+      try {
+        cabinetBlocked = isCabinetEntryBlocked(
+          await deps.orgEntitlements.resolveCabinetAccess(patientOrganizationId),
+        );
+      } catch {
+        // The organization product boundary fails closed while global account/switching stays open.
+      }
+      if (cabinetBlocked) redirect(routePaths.patientOrganizations);
+    }
     const maintenance = await getPatientMaintenanceConfig(patientOrganizationId);
     const skipMaintenance = patientMaintenanceSkipsPath({
       pathname,

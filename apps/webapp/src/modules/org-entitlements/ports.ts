@@ -4,6 +4,7 @@
  */
 import type {
   AccessLifecyclePolicy,
+  CabinetAccessResolution,
   EffectiveOrgCommercialAccess,
   MechanicAccessResolution,
   MechanicAccessPolicyMap,
@@ -18,6 +19,8 @@ import type {
 } from './types';
 
 export type OrgEntitlementsPort = {
+  /** Separate system-level ladder for entry to the organization's cabinet (§5a/2.1a). */
+  resolveCabinetAccess(organizationId: string): Promise<CabinetAccessResolution>;
   /** Canonical database-computed lifecycle state shared with the integrator. */
   resolveMechanicAccess(
     organizationId: string,

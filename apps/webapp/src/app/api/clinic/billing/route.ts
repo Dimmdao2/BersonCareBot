@@ -4,7 +4,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 
 export async function GET() {
-  const gate = await requireClinicManagementApiContext();
+  const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
   if (!gate.ok) return gate.response;
   if (gate.ctx.membershipRole !== 'owner' && gate.ctx.membershipRole !== 'admin') {
     return NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 });

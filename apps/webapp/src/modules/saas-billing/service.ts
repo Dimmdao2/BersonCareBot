@@ -7,6 +7,22 @@ import type {
 } from './ports';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
+import type { MechanicAccessState } from '@/modules/org-entitlements/types';
+
+/**
+ * §5a/2.1c: paying the platform is the recovery path, not a tariff mechanic. Every cabinet state,
+ * including the terminal block, is intentionally accepted here.
+ */
+export function assertOwnTariffPaymentAvailable(state: MechanicAccessState): void {
+  switch (state) {
+    case 'full_access':
+    case 'grace':
+    case 'read_only':
+    case 'disabled':
+    case 'unconfigured':
+      return;
+  }
+}
 
 export function createSaasBillingService(dependencies: {
   repository: SaasBillingRepositoryPort;
@@ -92,10 +108,16 @@ export function createSaasBillingService(dependencies: {
       servicePeriodStartsAt: string;
       servicePeriodEndsAt: string;
       providerIdempotencyKey: string;
+      cabinetAccessState: MechanicAccessState;
     }) {
+      assertOwnTariffPaymentAvailable(input.cabinetAccessState);
       const provider = await resolvePaymentProvider();
       const invoice = await dependencies.repository.createSaasBillingInvoice({
-        ...input,
+        organizationId: input.organizationId,
+        saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+        servicePeriodStartsAt: input.servicePeriodStartsAt,
+        servicePeriodEndsAt: input.servicePeriodEndsAt,
+        providerIdempotencyKey: input.providerIdempotencyKey,
         providerId: provider.providerId,
       });
       const intent = await provider.adapter.createIntent({

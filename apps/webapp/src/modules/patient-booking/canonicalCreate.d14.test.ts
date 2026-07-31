@@ -75,6 +75,7 @@ function buildDeps(
     bookingForm: null,
     appointmentProjection: null,
     payments: null,
+    canAcceptBookingPrepayment: async () => false,
     memberships: null,
     products: null,
     clientHistory: null,
@@ -144,5 +145,30 @@ describe('D14, часть 5: booking.created отправляет doctorNotify/d
     expect((events[0]!.doctorMessageText as string).length).toBeGreaterThan(0);
     expect(events[0]!.calendarAction).toBe('created');
     expect(events[0]!.calendarTitleMarker).toBe('none');
+  });
+});
+
+describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff payment', () => {
+  it('confirms the booking without requesting or accepting prepayment when the mechanic is disabled', async () => {
+    const resolvePrepayment = vi.fn(async () => ({
+      required: true,
+      amountMinor: 5_000,
+      currency: 'RUB',
+    }));
+    const createAppointmentPaymentIntent = vi.fn();
+    const deps = buildDeps(async () => undefined, {
+      payments: {
+        resolvePrepayment,
+        createAppointmentPaymentIntent,
+      } as unknown as CanonicalBookingDeps['payments'],
+      canAcceptBookingPrepayment: async () => false,
+    });
+
+    const result = await createBookingOnCanonicalEngine(deps, createInput);
+
+    expect(result.status).toBe('confirmed');
+    expect(resolvePrepayment).not.toHaveBeenCalled();
+    expect(createAppointmentPaymentIntent).not.toHaveBeenCalled();
+    expect(deps.bookingsPort.markConfirmed).toHaveBeenCalledTimes(1);
   });
 });

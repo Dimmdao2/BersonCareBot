@@ -1989,6 +1989,13 @@
       "when": 1793539200081,
       "tag": "0283_patient_diaries_critical_mechanic_local",
       "breakpoints": true
+    },
+    {
+      "idx": 284,
+      "version": "7",
+      "when": 1793539200082,
+      "tag": "0284_organization_cabinet_access_ladder_local",
+      "breakpoints": true
     }
   ]
 }

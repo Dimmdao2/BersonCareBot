@@ -25,7 +25,7 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 }
 
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
-  const workspace = await requireOrganizationWorkspaceContext();
+  const workspace = await requireOrganizationWorkspaceContext({ allowCabinetRecovery: true });
   const session = workspace.session;
 
   const deps = buildAppDeps();

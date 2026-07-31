@@ -2,6 +2,7 @@ import {
   MECHANIC_REGISTRY,
   MECHANICS,
   type AccessLifecyclePolicy,
+  type CabinetAccessResolution,
   type AccessTerminalState,
   type DowngradePolicyMap,
   type MechanicDowngradePolicy,
@@ -353,6 +354,13 @@ export async function resolveMechanicAccess(
   mechanic: OrgMechanic,
 ): Promise<MechanicAccessResolution> {
   return port.resolveMechanicAccess(organizationId, mechanic);
+}
+
+export async function resolveCabinetAccess(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+): Promise<CabinetAccessResolution> {
+  return port.resolveCabinetAccess(organizationId);
 }
 
 /** A numeric file ceiling for the repository write transaction; see `fileStorageLimitFromSnapshot`. */

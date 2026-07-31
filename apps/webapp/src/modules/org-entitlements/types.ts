@@ -171,6 +171,17 @@ export type MechanicAccessResolution = {
   warning: MechanicAccessWarning | null;
 };
 
+/**
+ * §5a/2.1a: entry to the organization workspace is its own ladder subject. It deliberately has
+ * no mechanic key: the cabinet policy is the tariff's system policy and closes the product as a
+ * whole only at its terminal `disabled` state.
+ */
+export type CabinetAccessResolution = {
+  state: MechanicAccessState;
+  policySource: 'system' | 'unconfigured';
+  warning: MechanicAccessWarning | null;
+};
+
 export type Tariff = {
   id: string;
   name: string;

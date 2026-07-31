@@ -6,6 +6,7 @@ import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type {
   AccessLifecyclePolicy,
+  CabinetAccessResolution,
   EffectiveOrgCommercialAccess,
   MechanicAccessResolution,
   MechanicAccessPolicyMap,
@@ -50,6 +51,12 @@ type MechanicAccessRow = {
   state: MechanicAccessResolution['state'];
   policy_source: MechanicAccessResolution['policySource'];
   warning: MechanicAccessResolution['warning'];
+};
+
+type CabinetAccessRow = {
+  state: CabinetAccessResolution['state'];
+  policy_source: CabinetAccessResolution['policySource'];
+  warning: CabinetAccessResolution['warning'];
 };
 
 function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntitlementSnapshot {
@@ -252,6 +259,20 @@ async function readSnapshot(organizationId: string): Promise<OrgEntitlementSnaps
 /** Exact-org effective access. Patient reads use only the signed SECURITY DEFINER capability. */
 export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
   return {
+    async resolveCabinetAccess(organizationId: string) {
+      const result = await runWebappPgText<CabinetAccessRow>(
+        `SELECT state, policy_source, warning
+         FROM app.resolve_organization_cabinet_access($1::uuid)`,
+        [organizationId],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('organization_cabinet_access_denied');
+      return {
+        state: row.state,
+        policySource: row.policy_source,
+        warning: row.warning,
+      };
+    },
     async resolveMechanicAccess(organizationId: string, mechanic: OrgMechanic) {
       const result = await runWebappPgText<MechanicAccessRow>(
         `SELECT state, policy_source, warning

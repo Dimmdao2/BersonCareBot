@@ -2,6 +2,9 @@ import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 
 export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
   return {
+    async resolveCabinetAccess() {
+      return { state: 'full_access', policySource: 'system', warning: null };
+    },
     async resolveMechanicAccess(_organizationId, mechanic) {
       return { mechanic, state: 'full_access', policySource: 'system', warning: null };
     },
