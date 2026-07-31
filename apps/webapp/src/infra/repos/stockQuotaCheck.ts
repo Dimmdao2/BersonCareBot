@@ -1,0 +1,75 @@
+import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+
+/**
+ * `запас`-class mechanics (§5a stage 5): a plain count against a tariff-configured ceiling, no
+ * period, freed only by an explicit release (archive/deactivate) elsewhere in the domain.
+ */
+export type StockMechanic = 'patient_count' | 'branches';
+
+export class StockQuotaReachedError extends Error {
+  readonly mechanic: StockMechanic;
+  constructor(mechanic: StockMechanic) {
+    super(`saas_quota_reached:${mechanic}`);
+    this.mechanic = mechanic;
+  }
+}
+
+type StockQuotaJson = { kind: 'numeric' | 'unlimited'; limit: number | null };
+
+export function parseStockQuota(value: unknown): StockQuotaJson | null {
+  if (!value || typeof value !== 'object') return null;
+  const quota = value as Record<string, unknown>;
+  if (quota.kind !== 'numeric' && quota.kind !== 'unlimited') return null;
+  return { kind: quota.kind, limit: typeof quota.limit === 'number' ? quota.limit : null };
+}
+
+/**
+ * Atomic, race-safe `запас` capacity check. Advisory-locks the organization+mechanic pair, then
+ * resolves the effective quota (override > tariff) with a single-transaction SQL recount — mirrors
+ * `pgOrganizationInvites.createReplacingPending`'s seat-capacity check verbatim (same
+ * `runWebappPgText`/`$1..$n` transport, this repository's canonical atomic-quota example: an
+ * application-transaction snapshot, not a DB trigger). The caller's own `countUsage` runs AFTER
+ * the lock, so its count reflects the serialized view.
+ *
+ * No tariff assigned -> compatibility, unlimited (matches `fileStorageLimitFromSnapshot`). A
+ * tariff assigned but missing this mechanic's quota key refuses further growth rather than
+ * silently falling back to unlimited.
+ */
+export async function assertStockQuotaAvailable(
+  tx: WebappSqlExecutor,
+  organizationId: string,
+  mechanic: StockMechanic,
+  countUsage: () => Promise<number>,
+): Promise<void> {
+  await runWebappPgText(
+    `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [`saas_quota:${mechanic}:${organizationId}`],
+    tx,
+  );
+
+  const capacity = await runWebappPgText<{ tariff_id: string | null; quota_json: unknown }>(
+    `SELECT
+       o.tariff_id AS tariff_id,
+       COALESCE(
+         (SELECT eo.quota FROM saas_org_entitlement_overrides eo
+          WHERE eo.organization_id = $1 AND eo.mechanic = $2
+            AND (eo.expires_at IS NULL OR eo.expires_at > now())),
+         (SELECT t.quotas -> $2 FROM saas_tariffs t WHERE t.id = o.tariff_id)
+       ) AS quota_json
+     FROM be_organizations o
+     WHERE o.id = $1`,
+    [organizationId, mechanic],
+    tx,
+  );
+  const row = capacity.rows[0];
+  if (!row?.tariff_id) return;
+
+  const quota = parseStockQuota(row.quota_json);
+  if (!quota) throw new StockQuotaReachedError(mechanic);
+  if (quota.kind === 'unlimited') return;
+  if (quota.limit === null) throw new StockQuotaReachedError(mechanic);
+
+  const used = await countUsage();
+  if (used >= quota.limit) throw new StockQuotaReachedError(mechanic);
+}

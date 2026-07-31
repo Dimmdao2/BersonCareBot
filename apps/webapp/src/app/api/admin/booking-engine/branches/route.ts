@@ -5,6 +5,9 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 import { isReservedOnlineLocationIdentity } from '@/modules/booking-engine/onlineLocation';
 
+/** Thrown by the infra atomic quota check (`stockQuotaCheck.ts`); compared by message, not class, to keep this route free of an infra import. */
+const BRANCHES_QUOTA_REACHED_MESSAGE = 'saas_quota_reached:branches';
+
 const PostSchema = z.object({
   title: z.string().min(1).max(200),
   /** Short display name (e.g. «СПб», «Мск»). Trimmed, ≤12 chars. */
@@ -35,20 +38,27 @@ export async function POST(request: Request) {
   if (isReservedOnlineLocationIdentity(parsed.data)) {
     return NextResponse.json({ ok: false, error: 'online_location_reserved' }, { status: 409 });
   }
-  const branch = await withDoctorWorkspacePrincipal(
-    gate.ctx,
-    'admin.booking-engine.branches.upsert',
-    () =>
-      gate.ctx.service.catalog.createPhysicalBranch({
-        organizationId: gate.ctx.organizationId,
-        title: parsed.data.title.trim(),
-        shortTitle: parsed.data.shortTitle ?? null,
-        cityCode: parsed.data.cityCode.trim().toLowerCase(),
-        address: parsed.data.address ?? null,
-        timezone: parsed.data.timezone,
-        isActive: parsed.data.isActive,
-        sortOrder: parsed.data.sortOrder,
-      }),
-  );
-  return NextResponse.json({ ok: true, branch });
+  try {
+    const branch = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      'admin.booking-engine.branches.upsert',
+      () =>
+        gate.ctx.service.catalog.createPhysicalBranch({
+          organizationId: gate.ctx.organizationId,
+          title: parsed.data.title.trim(),
+          shortTitle: parsed.data.shortTitle ?? null,
+          cityCode: parsed.data.cityCode.trim().toLowerCase(),
+          address: parsed.data.address ?? null,
+          timezone: parsed.data.timezone,
+          isActive: parsed.data.isActive,
+          sortOrder: parsed.data.sortOrder,
+        }),
+    );
+    return NextResponse.json({ ok: true, branch });
+  } catch (error) {
+    if (error instanceof Error && error.message === BRANCHES_QUOTA_REACHED_MESSAGE) {
+      return NextResponse.json({ ok: false, error: 'branch_limit_reached' }, { status: 403 });
+    }
+    throw error;
+  }
 }

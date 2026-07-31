@@ -41,6 +41,7 @@ export type CreateDoctorClientResult =
         | 'invalid_request_id'
         | 'email_conflict'
         | 'idempotency_conflict'
+        | 'patient_count_limit_reached'
         | 'create_failed';
     };
 
@@ -90,7 +91,11 @@ export async function createDoctorClient(
     emailNormalized,
   });
   if (!registered.ok) {
-    if (registered.error === 'email_conflict' || registered.error === 'idempotency_conflict') {
+    if (
+      registered.error === 'email_conflict' ||
+      registered.error === 'idempotency_conflict' ||
+      registered.error === 'patient_count_limit_reached'
+    ) {
       return { ok: false, error: registered.error };
     }
     return { ok: false, error: 'create_failed' };

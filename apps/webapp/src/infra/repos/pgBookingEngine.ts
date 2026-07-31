@@ -2,10 +2,11 @@ import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutationTx';
-import { runWebappTransaction } from '@/infra/db/runWebappSql';
+import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
 import { readAdminSystemSettingString } from '@/infra/repos/pgSystemSettings';
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
+import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
 import {
   assertManualPatientCommandReplay,
   findManualPatientCommand,
@@ -589,6 +590,19 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
 
     async createPhysicalBranchWithDefaultColor(input) {
       return runWebappTransaction(async (tx) => {
+        // §5a stage 5.3: atomic branches quota, checked before the palette lock/count below —
+        // deactivating a branch (isActive=false) frees its slot, so only active branches count.
+        await assertStockQuotaAvailable(tx, input.organizationId, 'branches', async () => {
+          const usage = await runWebappPgText<{ used_value: number }>(
+            `SELECT count(*)::int AS used_value
+             FROM be_branches
+             WHERE organization_id = $1
+               AND is_active = true`,
+            [input.organizationId],
+            tx,
+          );
+          return usage.rows[0]?.used_value ?? 0;
+        });
         await tx.execute(
           sql`SELECT pg_advisory_xact_lock(hashtextextended(${`booking-location-palette:${input.organizationId}`}, 0))`,
         );

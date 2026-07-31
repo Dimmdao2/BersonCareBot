@@ -17,6 +17,7 @@ import {
   ensureInvitedOrganizationClientRelationship,
   OrganizationClientRelationshipDeniedError,
 } from '@/infra/repos/pgPatientOrganizationEnrollment';
+import { StockQuotaReachedError } from '@/infra/repos/stockQuotaCheck';
 import {
   assertManualPatientCommandReplay,
   findManualPatientCommand,
@@ -231,6 +232,9 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
         }
         if (error instanceof OrganizationClientRelationshipDeniedError) {
           return { ok: false, error: 'inactive_enrollment' };
+        }
+        if (error instanceof StockQuotaReachedError && error.mechanic === 'patient_count') {
+          return { ok: false, error: 'patient_count_limit_reached' };
         }
         if (
           (error instanceof Error && error.message === 'idempotency_conflict') ||
