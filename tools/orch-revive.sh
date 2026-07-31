@@ -54,7 +54,9 @@ if [ $((now - alive_stamp)) -lt "${LEAD_ALIVE_MAX:-900}" ]; then
   exit 0
 fi
 
-if [ "$live" -gt 0 ]; then
+# TEST_FORCE=1 — проверочный режим: не смотреть на живых агентов, чтобы можно было доказать
+# работу канала пробуждения, не убивая настоящую работу. В кроне никогда не выставляется.
+if [ "${TEST_FORCE:-0}" != 1 ] && [ "$live" -gt 0 ]; then
   echo "$(date '+%F %T') живых=$live — лида не поднимаю" >> "$ROOT/runs/heartbeat.log"
   exit 0
 fi
@@ -94,12 +96,21 @@ else
 fi
 echo "$head_now" > "$HEADFILE"
 
-echo "$(date '+%F %T') живых нет — поднимаю лида" >> "$ROOT/runs/heartbeat.log"
-# Роль ОБЯЗАТЕЛЬНО dev-lead, а не worker. Ночь 31.07: с ролью worker поднятый лид попадал в bwrap-джейл,
-# где единственный writable-корень — сам репозиторий, и любая попытка тронуть клоны падала на
-# «Read-only file system». Сторож честно поднял лида семнадцать раз, и все семнадцать не сделали ничего.
-# Роль dev-lead входит в TRUSTED_FULL_ROLES порта (host-agent-run.mjs:939) и идёт без джейла — оркестратор
-# обязан писать и в репозиторий, и в клоны рядом с ним.
-nohup node "$PORT" --provider claude --model claude-sonnet-5 --effort medium \
-  --role dev-lead --sandbox workspace-write --cwd "$ROOT" --run-id "lead-revive-$(date +%H%M)" \
-  < "$LEAD_MISSION" > "$LEAD_LOG" 2>&1 &
+echo "$(date '+%F %T') живых нет — бужу сессию лида" >> "$ROOT/runs/heartbeat.log"
+
+# Будим ИМЕННО ту сессию, в которой лид разговаривает с владельцем, а не новую (владелец 31.07:
+# «крон не может оживить этот чат — нет, все остальные агенты почему-то делали»). Приём взят из
+# /home/dev/brain/host-orch/devlead-poke.sh: порт умеет `--session <id>`, то есть продолжает
+# существующий разговор со всей его памятью. Идентификатор лежит в runs/lead-session.id и
+# обновляется самим лидом на каждом ходу.
+SID=$(cat "$ROOT/runs/lead-session.id" 2>/dev/null | tr -d '[:space:]')
+if [ -n "$SID" ]; then
+  nohup node "$PORT" --provider claude --model claude-sonnet-5 --effort medium \
+    --role dev-lead --sandbox workspace-write --cwd "$ROOT" --session "$SID" \
+    --run-id "lead-wake-$(date +%H%M)" < "$ROOT/runs/ALARM.md" > "$LEAD_LOG" 2>&1 &
+else
+  # Запасной путь: идентификатора нет — поднимаем свежую сессию с полной миссией.
+  nohup node "$PORT" --provider claude --model claude-sonnet-5 --effort medium \
+    --role dev-lead --sandbox workspace-write --cwd "$ROOT" --run-id "lead-revive-$(date +%H%M)" \
+    < "$LEAD_MISSION" > "$LEAD_LOG" 2>&1 &
+fi
