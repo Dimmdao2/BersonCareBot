@@ -59,4 +59,33 @@ describe('doctor navigation schedule access', () => {
     expect(disabledIds).not.toContain('courses');
     expect(readOnlyIds).toContain('courses');
   });
+
+  it('hides content and files-and-media when the CMS mechanic is off, keeps them when read-only', () => {
+    const capabilities = ['account.self', 'clinical.workspace'] as const;
+    const disabledVisibility = resolveMechanicSurfaceVisibility({
+      mechanic: 'cms_pages',
+      state: 'disabled',
+      policySource: 'system',
+      warning: null,
+    });
+    const readOnlyVisibility = resolveMechanicSurfaceVisibility({
+      mechanic: 'cms_pages',
+      state: 'read_only',
+      policySource: 'system',
+      warning: null,
+    });
+    const disabledIds = getDoctorMenuItems({
+      capabilities,
+      cmsEnabled: disabledVisibility.specialistNavigation,
+    }).map((item) => item.id);
+    const readOnlyIds = getDoctorMenuItems({
+      capabilities,
+      cmsEnabled: readOnlyVisibility.specialistNavigation,
+    }).map((item) => item.id);
+
+    expect(disabledIds).not.toContain('content');
+    expect(disabledIds).not.toContain('files-and-media');
+    expect(readOnlyIds).toContain('content');
+    expect(readOnlyIds).toContain('files-and-media');
+  });
 });

@@ -83,6 +83,8 @@ type SharedProps = {
   canViewAuthOnlyContent: boolean;
   /** Trusted enrollment org only when its courses entitlement is on; otherwise course cards stay neutral. */
   coursesOrganizationId?: string | null;
+  /** Trusted enrollment org only when its warmups entitlement is on; otherwise the daily-warmup block is hidden. */
+  warmupsOrganizationId?: string | null;
 };
 
 type Props = SharedProps &
@@ -132,6 +134,14 @@ function mapCourseCardsForGuest(
   return cards.map((c) => ({ ...c, href: hrefForPatientHomeDrilldown(c.href, true) }));
 }
 
+/** Hidden entirely (not just cardless) once a logged-in patient's clinic disables the warmups mechanic. */
+export function shouldRenderDailyWarmupBlock(
+  session: AppSession | null,
+  warmupsOrganizationId: string | null,
+): boolean {
+  return !session || Boolean(warmupsOrganizationId);
+}
+
 function mapUsefulPostForGuest(
   post: ResolvedUsefulPostCard | null,
   anonymousGuest: boolean,
@@ -169,6 +179,7 @@ async function renderPatientHomeToday({
   personalTierOk,
   canViewAuthOnlyContent,
   coursesOrganizationId = null,
+  warmupsOrganizationId = null,
 }: Props) {
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
@@ -432,6 +443,7 @@ async function renderPatientHomeToday({
   const renderBlock = (code: PatientHomeBlockCode): ReactNode => {
     switch (code) {
       case 'daily_warmup':
+        if (!shouldRenderDailyWarmupBlock(session, warmupsOrganizationId)) return null;
         return (
           <PatientHomeDailyWarmupCard
             warmup={todayCfg.dailyWarmupItem}

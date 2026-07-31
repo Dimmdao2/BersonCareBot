@@ -77,18 +77,23 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
-  const [coursesVisibility, promoVisibility] = await Promise.all([
+  const [coursesVisibility, promoVisibility, cmsVisibility] = await Promise.all([
     getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
     getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
+    getMechanicSurfaceVisibility(workspaceAccess, 'cms_pages'),
   ]);
   const coursesEnabled = coursesVisibility.specialistNavigation;
   const promoEnabled = promoVisibility.specialistNavigation;
+  const cmsEnabled = cmsVisibility.specialistNavigation;
   const accessWarnings = [
     coursesVisibility.warning
       ? entitlementGraceWarningMessage('courses', coursesVisibility.warning)
       : null,
     promoVisibility.warning
       ? entitlementGraceWarningMessage('promo', promoVisibility.warning)
+      : null,
+    cmsVisibility.warning
+      ? entitlementGraceWarningMessage('cms_pages', cmsVisibility.warning)
       : null,
   ].filter((warning): warning is string => warning !== null);
   const shellBrand = {
@@ -122,6 +127,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       workspaceContext={workspaceContext}
       coursesEnabled={coursesEnabled}
       promoEnabled={promoEnabled}
+      cmsEnabled={cmsEnabled}
       brand={shellBrand}
     >
       {accessWarnings.length > 0 ? (

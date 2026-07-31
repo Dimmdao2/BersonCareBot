@@ -1,9 +1,10 @@
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   getOptionalPatientSession,
   patientRscPersonalDataGate,
 } from '@/app-layer/guards/requireRole';
+import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
 import { routePaths } from '@/app-layer/routes/paths';
 import {
   resolveDailyWarmupStartPathForPatient,
@@ -83,6 +84,11 @@ export default async function PatientGoReminderTargetPage({
     );
   }
   if (kind === 'daily-warmup') {
+    const warmupsVisibility = await getMechanicSurfaceVisibility(
+      { organizationId: patientContext.organizationId },
+      'warmups',
+    );
+    if (!warmupsVisibility.directUrl) notFound();
     const personalTierOk =
       (await patientRscPersonalDataGate(session, routePaths.patient)) === 'allow';
     const target = await withPatientOrganizationPrincipal(

@@ -31,6 +31,7 @@ import {
   resolvePatientOrganizationRequestContext,
   stampPatientOrganizationRequestContext,
 } from '@/app-layer/patient-organization/requestContext';
+import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -92,6 +93,15 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
       sectionSlug: dbRow.section,
       orderedDailyWarmupPages,
     });
+
+  if (dbRow.organizationId) {
+    const mechanic = isDailyWarmupMember ? 'warmups' : 'cms_pages';
+    const visibility = await getMechanicSurfaceVisibility(
+      { organizationId: dbRow.organizationId },
+      mechanic,
+    );
+    if (!visibility.directUrl) notFound();
+  }
 
   const videoPlayableUrl =
     item.videoSource?.type === 'url' && item.videoSource.url.trim()

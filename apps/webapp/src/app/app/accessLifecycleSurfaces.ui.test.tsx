@@ -53,12 +53,15 @@ vi.mock('@/shared/ui/doctor/shell/DoctorWorkspaceShell', () => ({
   DoctorWorkspaceShell: ({
     children,
     coursesEnabled,
+    cmsEnabled,
   }: {
     children: ReactNode;
     coursesEnabled?: boolean;
+    cmsEnabled?: boolean;
   }) => (
     <main>
       {coursesEnabled ? <span role="link">Курсы</span> : null}
+      {cmsEnabled ? <span role="link">Контент</span> : null}
       {children}
     </main>
   ),
@@ -74,9 +77,20 @@ vi.mock('./patient/home/PatientHomeGreeting', () => ({
   PatientHomeGreetingMobileHeader: () => null,
 }));
 vi.mock('./patient/home/PatientHomeToday', () => ({
-  PatientHomeToday: ({ coursesOrganizationId }: { coursesOrganizationId: string | null }) => (
-    <div data-testid="patient-home-courses-organization">
-      {coursesOrganizationId ?? 'hidden'}
+  PatientHomeToday: ({
+    coursesOrganizationId,
+    warmupsOrganizationId,
+  }: {
+    coursesOrganizationId: string | null;
+    warmupsOrganizationId: string | null;
+  }) => (
+    <div>
+      <div data-testid="patient-home-courses-organization">
+        {coursesOrganizationId ?? 'hidden'}
+      </div>
+      <div data-testid="patient-home-warmups-organization">
+        {warmupsOrganizationId ?? 'hidden'}
+      </div>
     </div>
   ),
 }));
@@ -84,7 +98,10 @@ vi.mock('./patient/home/PatientHomeToday', () => ({
 let DoctorSectionLayout: typeof import('./doctor/layout').default;
 let PatientHomePage: typeof import('./patient/page').default;
 let DoctorCoursesPage: typeof import('./doctor/courses/page').default;
+let DoctorContentPage: typeof import('./doctor/content/page').default;
 let coursesIncluded = true;
+let cmsIncluded = true;
+let warmupsIncluded = true;
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const userId = '22222222-2222-4222-8222-222222222222';
@@ -115,12 +132,17 @@ function entitlementSnapshot(): OrgEntitlementSnapshot {
 }
 
 beforeAll(async () => {
-  [{ default: DoctorSectionLayout }, { default: PatientHomePage }, { default: DoctorCoursesPage }] =
-    await Promise.all([
-      import('./doctor/layout'),
-      import('./patient/page'),
-      import('./doctor/courses/page'),
-    ]);
+  [
+    { default: DoctorSectionLayout },
+    { default: PatientHomePage },
+    { default: DoctorCoursesPage },
+    { default: DoctorContentPage },
+  ] = await Promise.all([
+    import('./doctor/layout'),
+    import('./patient/page'),
+    import('./doctor/courses/page'),
+    import('./doctor/content/page'),
+  ]);
 });
 
 beforeEach(() => {
@@ -128,13 +150,21 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-07-30T12:00:00.000Z'));
   coursesIncluded = true;
+  cmsIncluded = true;
+  warmupsIncluded = true;
   const session = {
     adminMode: false,
     user: { userId, role: 'doctor', displayName: 'Врач' },
   };
   const orgEntitlements = {
-    resolveMechanicAccess: async (_organizationId: string, mechanic: OrgMechanic) =>
-      coursesIncluded
+    resolveMechanicAccess: async (_organizationId: string, mechanic: OrgMechanic) => {
+      const included =
+        mechanic === 'cms_pages'
+          ? cmsIncluded
+          : mechanic === 'warmups'
+            ? warmupsIncluded
+            : coursesIncluded;
+      return included
         ? {
             mechanic,
             state: 'grace' as const,
@@ -150,7 +180,8 @@ beforeEach(() => {
             state: 'disabled' as const,
             policySource: 'unconfigured' as const,
             warning: null,
-          },
+          };
+    },
     getSnapshot: async () => entitlementSnapshot(),
     getTariffForOrg: async () => null,
     listOverrides: async () => [],
@@ -230,5 +261,27 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
 
     await expect(DoctorCoursesPage({})).rejects.toThrow('NEXT_NOT_FOUND');
     expect(fakes.buildAppDeps().courses.listCoursesForDoctor).not.toHaveBeenCalled();
+  });
+
+  it('hides the specialist content navigation through the shared visibility adapter', async () => {
+    cmsIncluded = false;
+
+    render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
+
+    expect(screen.queryByRole('link', { name: 'Контент' })).not.toBeInTheDocument();
+  });
+
+  it('hides the patient daily-warmup home entry through the shared visibility adapter', async () => {
+    warmupsIncluded = false;
+
+    render(await PatientHomePage());
+
+    expect(screen.getByTestId('patient-home-warmups-organization')).toHaveTextContent('hidden');
+  });
+
+  it('does not render a direct specialist content URL through the shared visibility adapter', async () => {
+    cmsIncluded = false;
+
+    await expect(DoctorContentPage()).rejects.toThrow('NEXT_NOT_FOUND');
   });
 });

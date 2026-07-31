@@ -52,6 +52,14 @@ export default async function PatientHomePage() {
   ).patientNavigation
     ? patientContext.organizationId
     : null;
+  const warmupsOrganizationId = (
+    await getMechanicSurfaceVisibility(
+      { organizationId: patientContext.organizationId },
+      'warmups',
+    )
+  ).patientNavigation
+    ? patientContext.organizationId
+    : null;
   const appTz = await getAppDisplayTimeZone();
   const personalizedName = personalTierOk ? patientGreetingPersonalizedName(session.user) : null;
   const timeOfDayPrefix = greetingPrefixFromHour(DateTime.now().setZone(appTz).hour);
@@ -75,6 +83,7 @@ export default async function PatientHomePage() {
           canViewAuthOnlyContent={canViewAuthOnlyContent}
           organizationId={patientContext.organizationId}
           coursesOrganizationId={coursesOrganizationId}
+          warmupsOrganizationId={warmupsOrganizationId}
         />
       </Suspense>
       <LegalFooterLinks className="mt-3 pb-2" />

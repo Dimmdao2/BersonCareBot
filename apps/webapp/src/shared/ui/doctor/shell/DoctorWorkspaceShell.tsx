@@ -26,6 +26,7 @@ type DoctorWorkspaceShellProps = {
   /** Server-resolved organization entitlement; the client shell never infers it from role. */
   coursesEnabled?: boolean;
   promoEnabled?: boolean;
+  cmsEnabled?: boolean;
   /** Disable tenant-only background badge requests on global operator surfaces. */
   enableTenantRuntime?: boolean;
   /**
@@ -61,6 +62,7 @@ export function DoctorWorkspaceShell({
   workspaceContext,
   coursesEnabled = false,
   promoEnabled = false,
+  cmsEnabled = false,
   enableTenantRuntime = true,
   brand,
   menuKind = 'doctor',
@@ -85,6 +87,7 @@ export function DoctorWorkspaceShell({
     capabilities,
     coursesEnabled,
     promoEnabled,
+    cmsEnabled,
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');
