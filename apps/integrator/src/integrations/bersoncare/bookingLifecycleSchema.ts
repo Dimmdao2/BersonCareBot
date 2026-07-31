@@ -29,6 +29,8 @@ const BookingLifecyclePayloadSchema = z.object({
   cancelPendingReminders: z.boolean().optional(),
   /** D14(2): вебапп решает, слать ли пуш пациенту и каким вариантом. null — не слать; строка — слать этот вариант; отсутствует → прежнее поведение. */
   patientPushVariant: z.enum(['created', 'cancelled', 'rescheduled']).nullable().optional(),
+  /** D14(3): вебапп присылает готовый текст пациентского сообщения; интегратор доставляет его дословно, не сочиняя и не дополняя. Отсутствует → прежний текст интегратора. */
+  patientMessageText: z.string().optional(),
 });
 
 export const BookingLifecycleEventSchema = z.object({

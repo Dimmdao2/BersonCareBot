@@ -317,6 +317,16 @@ function resolvePatientPushVariant(
   return payload.patientPushVariant !== undefined ? payload.patientPushVariant : defaultVariant;
 }
 
+// D14(3): текст пациентского сообщения решает ВЕБАПП. Прислал непустой — уходит он дословно,
+// без склейки и дополнений. Поля нет — прежний текст интегратора бит в бит (условие безопасности
+// переноса; рез старого пути — отдельным пунктом D13b).
+function resolvePatientMessageText(
+  payload: BookingLifecyclePayloadValidated,
+  fallbackText: string,
+): string {
+  return asNonEmptyString(payload.patientMessageText) ?? fallbackText;
+}
+
 export async function scheduleBookingReminders(input: {
   organizationId?: string;
   bookingId: string;
@@ -569,7 +579,7 @@ export async function handleBookingLifecycleEvent(
     const timeZone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
 
     if (eventType === 'booking.created') {
-      const patientText = patientCreatedText(payload, timeZone);
+      const patientText = resolvePatientMessageText(payload, patientCreatedText(payload, timeZone));
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
@@ -603,7 +613,7 @@ export async function handleBookingLifecycleEvent(
         await cancelPendingBookingReminders(bookingId);
       }
       if (payload.suppressPatientNotification !== true) {
-        const patientText = patientCancelledText(payload, timeZone);
+        const patientText = resolvePatientMessageText(payload, patientCancelledText(payload, timeZone));
         await sendLinkedChannelMessage({
           dispatchPort,
           phoneNormalized: contactPhone,
@@ -636,7 +646,7 @@ export async function handleBookingLifecycleEvent(
       if (shouldCancelPendingReminders(payload)) {
         await cancelPendingBookingReminders(bookingId);
       }
-      const patientText = patientRescheduledText(payload, timeZone);
+      const patientText = resolvePatientMessageText(payload, patientRescheduledText(payload, timeZone));
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
@@ -675,7 +685,10 @@ export async function handleBookingLifecycleEvent(
     }
 
     if (eventType === 'booking.payment_captured') {
-      const patientText = `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, timeZone)}`;
+      const patientText = resolvePatientMessageText(
+        payload,
+        `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
+      );
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
