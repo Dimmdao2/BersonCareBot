@@ -357,7 +357,14 @@ writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), fu
 - [ ] **D10a — три журнала доставки свести к одному (РЕШЕНИЕ ВЛАДЕЛЬЦА 30.07).** Сегодня их три:
       `public.notification_delivery_attempts` (12 403 строки, канон: пациент, тема, организация, канал, статус, ошибка),
       `integrator.delivery_attempt_logs` (6 247 строк, местный дубль без привязки к пациенту) и
-      `public.outgoing_delivery_queue` (2 658 строк — не журнал, вторая очередь доставки на стороне вебаппа; на неё
+      `public.outgoing_delivery_queue` (2 658 строк — ⛔ **ОПИСАНИЕ НЕВЕРНО, проверено 31.07, ждёт ответа владельца:**
+      это НЕ «вторая очередь на стороне вебаппа», а ЕДИНСТВЕННАЯ живая очередь доставки. Таблицу определяет вебапп
+      (drizzle/миграции), но обрабатывает её воркер ИНТЕГРАТОРА — `infra/runtime/worker/outgoingDeliveryWorker.ts`
+      через `infra/db/repos/outgoingDeliveryQueue.ts` (`claimDueOutgoingDeliveries`, `markOutgoingDeliverySent`,
+      `markOutgoingDeliveryDead`); рядом у интегратора только `message_retry_jobs` — отложенные и повторы, другой
+      цикл. Снести её сейчас = снести доставку. Вопрос владельцу записан в `runs/owner-questions.md`, до ответа
+      часть 1 D10a (перевод наблюдателей) работой НЕ является: наблюдение уже смотрит на ту очередь, которую
+      воркер реально обрабатывает. Прежний текст: «не журнал, вторая очередь доставки на стороне вебаппа»; на неё
       завязаны метрики и сердцебиение). Решения владельца дословно: «integrator.delivery_attempt_logs — хранить как
       историю не надо, сносить», «public.outgoing_delivery_queue убирать». Остаётся ОДИН журнал —
       `notification_delivery_attempts`; переименование отклонено владельцем как лишняя миграция.
