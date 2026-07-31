@@ -12,6 +12,11 @@ export type BookingLifecycleNotificationsSettings = {
   events: Record<BookingLifecycleNotificationEventKey, BookingLifecycleNotificationEventSettings>;
 };
 
+export type AppointmentReminderPlan = {
+  enabled: boolean;
+  offsetsMinutes: number[];
+};
+
 const EVENT_KEYS: BookingLifecycleNotificationEventKey[] = [
   'booking.created',
   'booking.cancelled',
@@ -67,6 +72,31 @@ export async function loadBookingLifecycleNotificationsFromSystemSettings(
 ): Promise<BookingLifecycleNotificationsSettings> {
   const row = await getSetting('booking_lifecycle_notifications', 'admin');
   return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
+}
+
+/**
+ * Resolve the organization-scoped appointment reminder policy at lifecycle-event birth.
+ * The integrator receives the resulting plan and only delivers it.
+ */
+export async function loadAppointmentReminderPlanFromSystemSettings(
+  organizationId: string,
+  getSetting: (
+    key: 'doctor_appointment_reminder_enabled' | 'doctor_appointment_reminder_offsets_minutes',
+    scope: 'doctor',
+    options: { organizationId: string },
+  ) => Promise<{ valueJson: unknown } | null>,
+): Promise<AppointmentReminderPlan> {
+  const [enabledRow, offsetsRow] = await Promise.all([
+    getSetting('doctor_appointment_reminder_enabled', 'doctor', { organizationId }),
+    getSetting('doctor_appointment_reminder_offsets_minutes', 'doctor', { organizationId }),
+  ]);
+  const rawOffsets = offsetsRow?.valueJson;
+  return {
+    enabled: enabledRow?.valueJson === true,
+    offsetsMinutes: Array.isArray(rawOffsets)
+      ? rawOffsets.filter((value): value is number => Number.isInteger(value) && value > 0)
+      : [],
+  };
 }
 
 export function resolveBookingNotifyTargets(
