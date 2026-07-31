@@ -102,11 +102,19 @@ function harness(input: {
   scopeByRowId: Record<string, ScopeRow>;
   /** id строк, для которых КАЖДАЯ терминальная запись (dead/sent/failed_retryable) обязана упасть. */
   writeFailsForRowIds: Set<string>;
-}): { db: DbPort; dispatched: string[]; deadOk: string[]; deadAttempts: string[]; sentOk: string[] } {
+}): {
+  db: DbPort;
+  dispatched: string[];
+  deadOk: string[];
+  deadAttempts: string[];
+  sentOk: string[];
+  rescheduledOk: string[];
+} {
   const dispatched: string[] = [];
   const deadOk: string[] = [];
   const deadAttempts: string[] = [];
   const sentOk: string[] = [];
+  const rescheduledOk: string[] = [];
 
   function rowIdFromDeadOrRescheduleParams(params: unknown[] | undefined): string | undefined {
     // markOutgoingDeliveryDead/rescheduleOutgoingDeliveryRetry bind `id` as the LAST parameter
@@ -156,6 +164,7 @@ function harness(input: {
         if (rowId && input.writeFailsForRowIds.has(rowId)) {
           throw new Error(`simulated DB outage while finalizing row ${rowId}`);
         }
+        if (rowId) rescheduledOk.push(rowId);
         return { rows: [] as T[] };
       }
       return { rows: [] as T[] };
@@ -171,6 +180,7 @@ function harness(input: {
     deadOk,
     deadAttempts,
     sentOk,
+    rescheduledOk,
   };
 }
 
@@ -270,5 +280,44 @@ describe('outgoingDeliveryWorker: двойной отказ (обработка 
 
     expect(result).toEqual({ claimed: 1, processed: 0, errors: 1 });
     expect(h.deadOk).toEqual([ROW_ID]);
+  });
+
+  it('дано: обработка падает, финализация жива, попыток ещё не исчерпано (attemptCount < maxAttempts) → когда тик → тогда строка уходит в повтор (failed_retryable), а НЕ в dead', async () => {
+    // ЧАСТЫЙ случай карты: первая попытка из шести. Если finalizeClaimedRowFailure() всегда звал
+    // бы queueMarkDead вместо queueReschedule, строка на первой попытке умерла бы навсегда вместо
+    // повтора — это и есть отсутствие покрытия ветки reschedule, названное в аудите.
+    // АРБИТР: в finalizeClaimedRowFailure() убрать ветку `if (attemptCount >= maxAttempts)` и
+    // всегда вызывать queueMarkDead — ROW_ID получит `dead` вместо `failed_retryable`, тест
+    // покраснеет на `h.rescheduledOk`/`h.deadOk`.
+    const ROW_ID = 'e0000000-0000-4000-8000-00000000000e';
+    const ORG = 'd0000000-0000-4000-8000-00000000000d';
+
+    const h = harness({
+      claimed: [claimedRow({ id: ROW_ID, incidentId: 'inc-e', attemptCount: 1, maxAttempts: 6 })],
+      scopeByRowId: { [ROW_ID]: { queue_kind: 'operator_alert', organization_id: ORG, resolution: 'tenant' } },
+      writeFailsForRowIds: new Set(), // финализация проходит успешно
+    });
+
+    // Обработка всё равно падает мимо processClaimedOutgoingDeliveryRowInner, как во втором тесте.
+    const dbWithScopeThrow: DbPort = {
+      ...h.db,
+      async query<T>(sql: string, params?: unknown[]) {
+        if (sql.includes('app.operator_incident_alert_already_sent')) {
+          throw new Error('advisory function unavailable');
+        }
+        return h.db.query<T>(sql, params);
+      },
+    };
+
+    const result = await runOutgoingDeliveryWorkerTick({
+      db: dbWithScopeThrow,
+      writePort: { writeDb: async () => undefined } as never,
+      dispatchOutgoing: dispatchOutgoing(h.dispatched, new Set()),
+      batchSize: 10,
+    });
+
+    expect(result).toEqual({ claimed: 1, processed: 0, errors: 1 });
+    expect(h.rescheduledOk).toEqual([ROW_ID]);
+    expect(h.deadOk).not.toContain(ROW_ID);
   });
 });

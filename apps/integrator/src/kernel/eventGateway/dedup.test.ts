@@ -90,4 +90,30 @@ describe('buildDedupKey — ключ дедупликации входящего
 
     expect(buildDedupKey(withEmptyFingerprint)).toBe(buildDedupKey(withoutFingerprint));
   });
+
+  it('дано: одно и то же поле fingerprint — `null` в одном событии и отсутствует в другом → когда ключи → тогда ключи РАЗНЫЕ', () => {
+    // Самый тихий и злой отказ, названный в шапке файла (строка 6): если фильтр отбросит и
+    // `null` тоже (не только `undefined`), {chatId,messageId,replyTo:null} и {chatId,messageId}
+    // схлопнутся в один ключ, и второе сообщение молча уйдёт в dropped/DUPLICATE.
+    // АРБИТР: в buildCanonicalFingerprint() заменить фильтр `value !== undefined` на
+    // `value !== undefined && value !== null` — тест покраснеет: ключи совпадут.
+    const withNullField = event({
+      meta: {
+        eventId: 'e1',
+        occurredAt: 'x',
+        source: 'telegram',
+        dedupFingerprint: { chatId: 42, messageId: 7, replyTo: null },
+      },
+    });
+    const withoutField = event({
+      meta: {
+        eventId: 'e2',
+        occurredAt: 'y',
+        source: 'telegram',
+        dedupFingerprint: { chatId: 42, messageId: 7 },
+      },
+    });
+
+    expect(buildDedupKey(withNullField)).not.toBe(buildDedupKey(withoutField));
+  });
 });

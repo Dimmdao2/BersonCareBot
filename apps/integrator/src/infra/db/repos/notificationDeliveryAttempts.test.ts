@@ -67,10 +67,14 @@ describe('recordMessengerChannelSkipsBestEffort — пропуск канала 
       organizationId: null,
     });
 
-    const recorded = inserts.map((p) => ({ channel: p[COL.channel], reason: p[COL.reason] }));
+    const recorded = inserts.map((p) => ({
+      channel: p[COL.channel],
+      status: p[COL.status],
+      reason: p[COL.reason],
+    }));
     expect(recorded).toEqual([
-      { channel: 'telegram', reason: 'muted' },
-      { channel: 'max', reason: 'disabled_by_user_topic_channel' },
+      { channel: 'telegram', status: 'skipped', reason: 'muted' },
+      { channel: 'max', status: 'skipped', reason: 'disabled_by_user_topic_channel' },
     ]);
   });
 });
@@ -91,8 +95,12 @@ describe('recordMessengerNotEnqueuedSkipsBestEffort — канал не пост
       organizationId: null,
     });
 
-    const recorded = inserts.map((p) => ({ channel: p[COL.channel], reason: p[COL.reason] }));
-    expect(recorded).toEqual([{ channel: 'max', reason: 'missing_binding' }]);
+    const recorded = inserts.map((p) => ({
+      channel: p[COL.channel],
+      status: p[COL.status],
+      reason: p[COL.reason],
+    }));
+    expect(recorded).toEqual([{ channel: 'max', status: 'skipped', reason: 'missing_binding' }]);
   });
 
   it('дано: max реально уходит в этот тик (есть в sendChannels) → когда запись → тогда канал, который ДЕЙСТВИТЕЛЬНО отправляется, не помечается как пропущенный', async () => {

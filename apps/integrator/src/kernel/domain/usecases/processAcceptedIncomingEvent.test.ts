@@ -116,6 +116,7 @@ describe('processAcceptedIncomingEvent — доставка intents best-effort 
     expect(dispatched).toEqual([failingIntent]);
     expect(loggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({
+        err: expect.objectContaining({ message: 'provider unreachable' }),
         intentIndex: 0,
         intentType: 'message.send',
         eventId: 'evt-1',
@@ -176,5 +177,27 @@ describe('processAcceptedIncomingEvent — доставка intents best-effort 
     });
 
     expect(loggerWarn).not.toHaveBeenCalled();
+  });
+
+  it('дано: исполнение действия (executeAction, а не dispatchIntent) бросает исключение → когда обработка → тогда processAcceptedIncomingEvent реджектится (сегодняшнее фактическое поведение — best-effort покрывает только dispatchIntent, не сам executeAction)', async () => {
+    // Все три предыдущих теста роняют только dispatchIntent (отправку УЖЕ построенного intent).
+    // Бросок из handleIncomingEvent (через executeAction) идёт другим путём: он не оборачивается
+    // в try/catch нигде между handleIncomingEvent и processAcceptedIncomingEvent, поэтому
+    // событие сегодня реджектится целиком, а не глушится best-effort циклом.
+    // АРБИТР: обернуть `await handleIncomingEvent(...)` в processAcceptedIncomingEvent в try/catch,
+    // который на ошибке возвращает пустой результат (`{ intents: [] }`) вместо проброса — промис
+    // начнёт резолвиться вместо реджекта, тест покраснеет на `.rejects`.
+    const executeAction = async (): Promise<ActionResult> => {
+      throw new Error('executor blew up');
+    };
+
+    await expect(
+      processAcceptedIncomingEvent(event('evt-4'), {
+        readPort,
+        executeAction,
+        dispatchIntent: async () => {},
+        orchestrator: orchestratorFor([step('s1')]),
+      }),
+    ).rejects.toThrow('executor blew up');
   });
 });

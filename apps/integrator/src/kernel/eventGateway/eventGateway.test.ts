@@ -173,4 +173,36 @@ describe('createEventGateway — validate → rateLimit → dedup → pipeline',
 
     expect(seenTtl).toEqual([42]);
   });
+
+  it('дано: вызывающий передаёт options.runPipeline (как единственный продовый вызов — организационный принципал арендатора, см. organizationTicks.ts) → когда обработка → тогда обёртка ОБЯЗАНА быть вызвана и реально обернуть исполнение pipeline, а не быть проигнорирована', async () => {
+    // Все шесть тестов выше зовут handleIncomingEvent БЕЗ options. Единственный продовый вызов
+    // (scheduler:handle-tick-event) всегда передаёт `options.runPipeline`, оборачивая исполнение в
+    // runWithOrganizationPrincipal — без этого пропуск в проде побежит без принципала арендатора.
+    // Предмет проверки — не просто «функция вызвана», а что pipeline.run реально выполнился
+    // ВНУТРИ переданной обёртки (флаг ставится обёрткой ДО запуска pipeline).
+    // АРБИТР: заменить `options?.runPipeline ? options.runPipeline(runPipeline) : runPipeline()`
+    // на голый `runPipeline()` (игнорировать options) — обёртка не будет вызвана вовсе,
+    // `wrapperInvoked`/`ranInsideWrapper` останутся false, тест покраснеет.
+    let wrapperInvoked = false;
+    let ranInsideWrapper = false;
+    const gateway = createEventGateway({
+      idempotencyPort: inMemoryIdempotencyPort(),
+      pipeline: {
+        run: async () => {
+          ranInsideWrapper = wrapperInvoked;
+        },
+      },
+    });
+
+    const result = await gateway.handleIncomingEvent(event({ eventId: 'evt-a' }), {
+      runPipeline: async (run) => {
+        wrapperInvoked = true;
+        await run();
+      },
+    });
+
+    expect(result.status).toBe('accepted');
+    expect(wrapperInvoked).toBe(true);
+    expect(ranInsideWrapper).toBe(true);
+  });
 });

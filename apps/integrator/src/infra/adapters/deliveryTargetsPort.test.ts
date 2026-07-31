@@ -197,6 +197,15 @@ describe('channelBindingsToTargets / unwrapDeliveryTargets — извлечен�
     expect(targets).toEqual([{ channel: 'max', externalId: '222' }]);
   });
 
+  it('дано: одна привязка — строка из одних пробелов → когда извлечение → тогда она НЕ становится целью с мусорным externalId', () => {
+    // Убрать `.trim()` из условия (оставить только `id.length > 0`) — '   ' пройдёт проверку
+    // непустоты, станет целью с пробельным externalId, downstream-отправка уйдёт получателю с
+    // мусорным идентификатором вместо пропуска канала — тест покраснеет.
+    const targets = channelBindingsToTargets({ telegramId: '   ', maxId: '222' });
+
+    expect(targets).toEqual([{ channel: 'max', externalId: '222' }]);
+  });
+
   it('дано: привязок нет вовсе → когда извлечение → тогда пустой список, а не исключение', () => {
     expect(channelBindingsToTargets(undefined)).toEqual([]);
   });
