@@ -29,8 +29,8 @@ export type PlatformIntegrationCatalogEntry = Readonly<{
 /**
  * The catalog is code-owned shape, not switch state. It lists only operational
  * adapters that are wired in this repository, plus Yandex Calendar requested as
- * a declared future adapter. Placeholder-only VK/Instagram messenger descriptors
- * are intentionally absent.
+ * a declared future adapter. The placeholder-only VK messenger descriptor is
+ * intentionally absent (Instagram's placeholder was removed as dead code, #987 D33).
  */
 export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEntry[] = [
   {

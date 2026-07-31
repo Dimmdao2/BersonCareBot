@@ -33,7 +33,6 @@ import {
 
 const WINDOW_SECONDS = 300;
 const BOOKING_EVENT_DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
-const bookingEventDedup = new Map<string, number>();
 
 type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 
@@ -41,7 +40,7 @@ export type BookingLifecycleRouteDeps = {
   sharedSecret: string;
   dispatchPort: DispatchPort;
   dbWritePort: DbWritePort;
-  idempotencyPort?: IdempotencyPort;
+  idempotencyPort: IdempotencyPort;
   webappEventsPort?: WebappEventsPort;
 };
 
@@ -89,20 +88,6 @@ export function createSignedRequestGuard(
   };
 }
 
-function isBookingEventDuplicate(key: string): boolean {
-  const exp = bookingEventDedup.get(key);
-  if (exp === undefined) return false;
-  if (Date.now() > exp) {
-    bookingEventDedup.delete(key);
-    return false;
-  }
-  return true;
-}
-
-function rememberBookingEventKey(key: string): void {
-  bookingEventDedup.set(key, Date.now() + BOOKING_EVENT_DEDUP_TTL_MS);
-}
-
 function lifecycleDedupStorageKey(input: {
   eventType: BookingLifecycleEventValidated['eventType'];
   eventId: string;
@@ -122,33 +107,21 @@ async function acquireBookingLifecycleKey(
     eventId: string;
     payload: BookingLifecyclePayloadValidated;
   },
-  idempotencyPort?: IdempotencyPort,
-): Promise<{ acquired: boolean; storageKey: string; persistent: boolean }> {
+  idempotencyPort: IdempotencyPort,
+): Promise<{ acquired: boolean; storageKey: string }> {
   const storageKey = lifecycleDedupStorageKey(input);
-  if (idempotencyPort) {
-    return {
-      acquired: await idempotencyPort.tryAcquire(storageKey, BOOKING_EVENT_DEDUP_TTL_MS / 1000),
-      storageKey,
-      persistent: true,
-    };
-  }
-  if (isBookingEventDuplicate(storageKey)) {
-    return { acquired: false, storageKey, persistent: false };
-  }
-  rememberBookingEventKey(storageKey);
-  return { acquired: true, storageKey, persistent: false };
+  return {
+    acquired: await idempotencyPort.tryAcquire(storageKey, BOOKING_EVENT_DEDUP_TTL_MS / 1000),
+    storageKey,
+  };
 }
 
 async function releaseBookingLifecycleKey(
-  acquired: { acquired: boolean; storageKey: string; persistent: boolean },
-  idempotencyPort?: IdempotencyPort,
+  acquired: { acquired: boolean; storageKey: string },
+  idempotencyPort: IdempotencyPort,
 ): Promise<void> {
   if (!acquired.acquired) return;
-  if (acquired.persistent) {
-    await idempotencyPort?.release?.(acquired.storageKey);
-    return;
-  }
-  bookingEventDedup.delete(acquired.storageKey);
+  await idempotencyPort.release?.(acquired.storageKey);
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -592,9 +565,9 @@ export async function handleBookingLifecycleEvent(
   body: BookingLifecycleEventValidated,
   dispatchPort: DispatchPort,
   options: {
-    idempotencyPort?: IdempotencyPort;
+    idempotencyPort: IdempotencyPort;
     webappEventsPort?: WebappEventsPort;
-  } = {},
+  },
 ): Promise<void> {
   const { payload, eventType } = body;
   const bookingId = payload.bookingId;
@@ -800,7 +773,7 @@ export async function handleBookingEventRequest(
   }
   try {
     await handleBookingLifecycleEvent(parsed.data, dispatchPort, {
-      ...(deps.idempotencyPort ? { idempotencyPort: deps.idempotencyPort } : {}),
+      idempotencyPort: deps.idempotencyPort,
       ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
     });
     return reply.code(200).send({ ok: true });
