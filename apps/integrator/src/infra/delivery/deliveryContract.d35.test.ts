@@ -6,10 +6,19 @@
  * `inbound_reply` и НИЧЕГО не меняет для остальных видов очереди (граница брифа: «не менять
  * поведение доставки напоминаний и рассылок»).
  *
+ * Второй блок ниже (находка Н1 слепого аудита D35, #987) закрывает п.1 брифа НА КОНТРАКТНОМ
+ * СЛОЕ: воркер-тесты (outgoingDeliveryWorker.inboundReply.d35.test.ts) доказывают классификацию
+ * только для telegram/max, потому что там её перехватывает более ранняя ветка
+ * `handleDispatchFailure` (строки 536-552 outgoingDeliveryWorker.ts). Жёсткий отскок почты и
+ * протухшая push-подписка идут мимо этой ранней ветки и судятся именно
+ * `isOutgoingDeliveryDispatchErrorRetryable` — без прямого теста здесь удаление классификации
+ * не красит НИ ОДИН тест из полного набора.
+ *
  * У каждого `it` — свой арбитр, прогнан руками; вывод — в отчёте D35_REPORT.md.
  */
 import { describe, expect, it } from 'vitest';
-import { retryDelaySecondsAfterFailure } from './deliveryContract.js';
+import { isOutgoingDeliveryDispatchErrorRetryable, retryDelaySecondsAfterFailure } from './deliveryContract.js';
+import { RecipientBlockedBotError } from './recipientBotBlocked.js';
 
 describe('retryDelaySecondsAfterFailure — короткая лестница только для inbound_reply', () => {
   it('дано: kind=inbound_reply → когда считаем задержку по попыткам 1..4 → тогда лестница [15, 60, 180, 180] секунд (минуты, не часы)', () => {
@@ -38,5 +47,18 @@ describe('retryDelaySecondsAfterFailure — короткая лестница т
       expect(retryDelaySecondsAfterFailure(3, kind)).toBe(900);
       expect(retryDelaySecondsAfterFailure(4, kind)).toBe(3600);
     }
+  });
+});
+
+describe('isOutgoingDeliveryDispatchErrorRetryable — постоянный отказ (бот заблокирован) не ретраится на КОНТРАКТНОМ слое', () => {
+  it('дано: сообщение об ошибке классифицировано как RecipientBlockedBotError (постоянная блокировка) → когда контракт решает retryable → тогда false — на ЛЮБОМ канале, а не только telegram/max', () => {
+    // АРБИТР: убрать `if (isRecipientBlockedBotDispatchError(m)) return false;` из
+    // isOutgoingDeliveryDispatchErrorRetryable() (deliveryContract.ts:88) — сообщение дойдёт до
+    // `return true` в конце функции, тест покраснеет. Это единственный тест, который вызывает
+    // isOutgoingDeliveryDispatchErrorRetryable() напрямую: воркер-тесты для telegram/max никогда
+    // не доходят до этой строки (их перехватывает более ранняя ветка handleDispatchFailure), а
+    // для email/push такой ранней ветки нет вовсе.
+    const blockedError = new RecipientBlockedBotError('telegram', 'bot was blocked by the user');
+    expect(isOutgoingDeliveryDispatchErrorRetryable(blockedError.message)).toBe(false);
   });
 });

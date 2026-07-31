@@ -58,11 +58,13 @@ type Harness = {
   db: DbPort;
   deadCalls: { lastError: unknown; failureClass: unknown }[];
   rescheduleCalls: { delaySeconds: unknown }[];
+  blockedMarkerCalls: { channel: unknown; externalId: unknown }[];
 };
 
 function harness(): Harness {
   const deadCalls: Harness['deadCalls'] = [];
   const rescheduleCalls: Harness['rescheduleCalls'] = [];
+  const blockedMarkerCalls: Harness['blockedMarkerCalls'] = [];
 
   const db: DbPort = {
     async query<T>(sqlText: string, params?: unknown[]): Promise<DbQueryResult<T>> {
@@ -72,6 +74,12 @@ function harness(): Harness {
             { queue_kind: 'inbound_reply', organization_id: null, resolution: 'operator_global' },
           ] as T[],
         };
+      }
+      if (sqlText.includes('user_channel_bindings') && sqlText.includes('bot_blocked_at = now()')) {
+        // markUserChannelBotBlocked, no platformUserId in this fixture (externalId-only branch)
+        // binds (bot_blocked_reason, channel_code, external_id) in that order.
+        blockedMarkerCalls.push({ channel: params?.[1], externalId: params?.[2] });
+        return { rows: [] as T[] };
       }
       if (sqlText.includes("status = 'dead'")) {
         // markOutgoingDeliveryDead binds (last_error, failure_class, id) in that order.
@@ -90,7 +98,7 @@ function harness(): Harness {
     },
   };
 
-  return { db, deadCalls, rescheduleCalls };
+  return { db, deadCalls, rescheduleCalls, blockedMarkerCalls };
 }
 
 function dispatchThatAlwaysFails(message: string): (intent: OutgoingIntent) => Promise<never> {
@@ -99,12 +107,16 @@ function dispatchThatAlwaysFails(message: string): (intent: OutgoingIntent) => P
   };
 }
 
-describe('inbound_reply: постоянный отказ (бот заблокирован) — без ретрая и без инцидента', () => {
-  it('дано: провайдер вернул "bot was blocked by the user" → когда обработка → тогда строка dead БЕЗ инцидента и без reschedule', async () => {
-    // АРБИТР: в handleDispatchFailure() убрать ветку classifyRecipientBlockedBotError для
+describe('inbound_reply: постоянный отказ (бот заблокирован) — без ретрая и без инцидента, канал помечается', () => {
+  it('дано: провайдер вернул "bot was blocked by the user" → когда обработка → тогда строка dead БЕЗ инцидента и без reschedule, И канал реально помечается заблокированным', async () => {
+    // АРБИТР 1: в handleDispatchFailure() убрать ветку classifyRecipientBlockedBotError для
     // row.kind !== 'operator_alert' (например, добавить `row.kind === INBOUND_REPLY_QUEUE_KIND` в
     // исключения рядом с 'operator_alert') — строка попадёт в обычный retryable-путь, incidentRecorder
     // окажется вызван (нарушая п.1 «не порождает инцидента»), тест покраснеет.
+    // АРБИТР 2 (находка Н2 слепого аудита D35, #987): удалить вызов `markUserChannelBotBlocked(...)`
+    // в finalizeRecipientBlockedBotDelivery() (outgoingDeliveryWorker.ts:450) — третье обещание п.1
+    // брифа («канал помечается») перестанет исполняться, но deadCalls/incidentRecorder не заметят
+    // этого вовсе; blockedMarkerCalls останется пустым, тест покраснеет именно на нём.
     incidentRecorder.mockClear();
     const h = harness();
 
@@ -118,13 +130,20 @@ describe('inbound_reply: постоянный отказ (бот заблоки�
     expect(h.deadCalls[0]!.failureClass).toBe('recipient_blocked_bot');
     expect(h.rescheduleCalls).toHaveLength(0);
     expect(incidentRecorder).not.toHaveBeenCalled();
+    expect(h.blockedMarkerCalls).toHaveLength(1);
+    expect(h.blockedMarkerCalls[0]).toEqual({ channel: 'telegram', externalId: '111222333' });
   });
 });
 
 describe('inbound_reply: временный отказ, исчерпавший короткую лестницу, — инцидент оператора', () => {
-  it('дано: сетевой сбой и attemptCount уже равен maxAttempts → когда обработка → тогда строка dead И recordOperatorFailureIncident вызван с direction=inbound_reply', async () => {
-    // АРБИТР: закомментировать вызов recordInboundReplyDeliveryDeadIncident() внутри
+  it('дано: сетевой сбой и attemptCount уже равен maxAttempts → когда обработка → тогда строка dead И recordOperatorFailureIncident вызван с direction=inbound_reply и errorClass, классифицированным ИЗ ТЕКСТА ОШИБКИ (не из статуса строки)', async () => {
+    // АРБИТР 1: закомментировать вызов recordInboundReplyDeliveryDeadIncident() внутри
     // finalizeOutgoingDeliveryDead() — incidentRecorder перестанет вызываться, тест покраснеет.
+    // АРБИТР 2 (находка Н3 слепого аудита D35, #987, дословный повтор поломки уровня 2 — «статус
+    // вместо причины в журнал»): заменить `errorClass: classifyOutboundProviderErrorClass(safeError)`
+    // на `errorClass: row.status` в recordInboundReplyDeliveryDeadIncident() — оператор получит
+    // инцидент с errorClass='processing' (статус строки очереди) вместо причины отказа
+    // 'provider_send_failed'; проверка ниже на конкретное значение errorClass покраснеет.
     incidentRecorder.mockClear();
     const h = harness();
 
@@ -137,7 +156,11 @@ describe('inbound_reply: временный отказ, исчерпавший �
     expect(h.deadCalls).toHaveLength(1);
     expect(incidentRecorder).toHaveBeenCalledTimes(1);
     expect(incidentRecorder).toHaveBeenCalledWith(
-      expect.objectContaining({ direction: 'inbound_reply', integration: 'telegram' }),
+      expect.objectContaining({
+        direction: 'inbound_reply',
+        integration: 'telegram',
+        errorClass: 'provider_send_failed',
+      }),
     );
   });
 

@@ -64,11 +64,15 @@ function step(id: string): Step {
   return { id, kind: 'noop', mode: 'sync', payload: {} };
 }
 
-function intent(type: OutgoingIntent['type'], eventId: string): OutgoingIntent {
+function intent(
+  type: OutgoingIntent['type'],
+  eventId: string,
+  source: 'telegram' | 'max' = 'telegram',
+): OutgoingIntent {
   return {
     type,
-    meta: { eventId, occurredAt: '2026-07-31T10:00:00.000Z', source: 'telegram' },
-    payload: {},
+    meta: { eventId, occurredAt: '2026-07-31T10:00:00.000Z', source },
+    payload: { text: `reply for ${eventId}` },
   };
 }
 
@@ -85,12 +89,20 @@ const alwaysFailingDispatch = async () => {
 };
 
 describe('processAcceptedIncomingEvent — D35: провал ответа ставится в очередь, провал ack — нет', () => {
-  it('дано: провалился message.send (служебный ответ человеку) и db передан → когда обработка → тогда enqueueOutgoingDeliveryIfAbsent вызван с kind=inbound_reply и коротким maxAttempts', async () => {
-    // АРБИТР: обернуть вызов enqueueFailedReplyForRetry() условием `intent.type === '__never__'`
+  it('дано: провалился message.send (служебный ответ человеку) на канале max и db передан → когда обработка → тогда enqueueOutgoingDeliveryIfAbsent вызван с kind=inbound_reply, коротким maxAttempts, РЕАЛЬНЫМ каналомintent (не хардкод) и ТЕМ ЖЕ intent в payloadJson', async () => {
+    // АРБИТР 1: обернуть вызов enqueueFailedReplyForRetry() условием `intent.type === '__never__'`
     // (эффективно отключить постановку в очередь для message.send) — enqueueMock перестанет
     // вызываться, тест покраснеет.
+    // АРБИТР 2 (находка Н4 слепого аудита D35, #987): в enqueueFailedReplyForRetry() заменить
+    // `channel: intent.meta.source` на константу `channel: 'telegram'` — на этом канале (`max`)
+    // проверка channel покраснеет, хотя раньше (при source всегда 'telegram' в фикстуре) такая
+    // подмена прошла бы незамеченной.
+    // АРБИТР 3 (та же находка Н4): заменить `payloadJson: { intent }` на `payloadJson: {}` (пустая
+    // нагрузка) или на `payloadJson: { intent: someOtherIntent }` (чужой intent) — обе подмены
+    // проходили бы зелёными без проверки payloadJson ниже; воркер получил бы пустую/неверную
+    // нагрузку и повторно отправил бы человеку не тот текст. Проверка `payloadJson` ниже красит обе.
     enqueueMock.mockClear();
-    const failing = intent('message.send', 'evt-d35-1');
+    const failing = intent('message.send', 'evt-d35-1', 'max');
 
     await processAcceptedIncomingEvent(event('evt-d35-1'), {
       readPort,
@@ -106,8 +118,9 @@ describe('processAcceptedIncomingEvent — D35: провал ответа ста
       expect.objectContaining({
         eventId: 'evt-d35-1:queued:0',
         kind: 'inbound_reply',
-        channel: 'telegram',
+        channel: 'max',
         maxAttempts: 4,
+        payloadJson: { intent: failing },
       }),
     );
   });
