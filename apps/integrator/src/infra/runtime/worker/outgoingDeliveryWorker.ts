@@ -11,6 +11,7 @@ import {
   truncateDeliveryErrorMessage,
   isOutgoingDeliveryDispatchErrorRetryable,
   DOCTOR_BROADCAST_INTENT_QUEUE_KIND,
+  INBOUND_REPLY_QUEUE_KIND,
 } from '../../delivery/deliveryContract.js';
 import {
   classifyRecipientBlockedBotError,
@@ -18,6 +19,8 @@ import {
   RECIPIENT_BLOCKED_BOT_FAILURE_CLASS,
 } from '../../delivery/recipientBotBlocked.js';
 import { logger } from '../../observability/logger.js';
+import { recordOperatorFailureIncident } from '../../operatorIncident/reportOperatorFailure.js';
+import { classifyOutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
 import {
   markOperatorIncidentAlertSent,
   operatorIncidentAlertAlreadySent,
@@ -117,7 +120,12 @@ async function finalizeClaimedRowFailure(
     await queueMarkDead(db, row.id, safeError);
     return;
   }
-  await queueReschedule(db, row.id, retryDelaySecondsAfterFailure(row.attemptCount), safeError);
+  await queueReschedule(
+    db,
+    row.id,
+    retryDelaySecondsAfterFailure(row.attemptCount, row.kind),
+    safeError,
+  );
 }
 
 function asChatIdFromRecipient(recipient: unknown): number | null {
@@ -286,6 +294,33 @@ async function runWithBroadcastAuditOrganization<T>(
   return await runWithOptionalOrganizationPrincipal(organizationId, () => fn(db));
 }
 
+/**
+ * D35 п.2: временный отказ живого канала, исчерпавший попытки короткой лестницы `inbound_reply`,
+ * обязан породить видимый инцидент — это единственный путь, где человек ждёт ответа прямо сейчас.
+ * Постоянный отказ (бот заблокирован) сюда не попадает: он финализируется раньше, в
+ * `finalizeRecipientBlockedBotDelivery`, и инцидента намеренно не создаёт (п.1 — нормальное
+ * состояние, не деградация).
+ */
+async function recordInboundReplyDeliveryDeadIncident(
+  row: OutgoingDeliveryQueueRow,
+  safeError: string,
+): Promise<void> {
+  if (row.kind !== INBOUND_REPLY_QUEUE_KIND) return;
+  try {
+    await recordOperatorFailureIncident({
+      direction: 'inbound_reply',
+      integration: row.channel,
+      errorClass: classifyOutboundProviderErrorClass(safeError),
+      errorDetail: null,
+    });
+  } catch (err) {
+    logger.warn(
+      { err, rowId: row.id, eventId: row.eventId },
+      'inbound_reply_delivery_dead_incident_record_failed',
+    );
+  }
+}
+
 async function finalizeOutgoingDeliveryDead(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
@@ -293,6 +328,7 @@ async function finalizeOutgoingDeliveryDead(
   writePort: DbWritePort,
 ): Promise<void> {
   await queueMarkDead(db, row.id, safeError);
+  await recordInboundReplyDeliveryDeadIncident(row, safeError);
   await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
     const auditId =
@@ -533,7 +569,7 @@ async function handleDispatchFailure(
     await finalizeOutgoingDeliveryDead(db, row, safe, writePort);
     return;
   }
-  const delay = retryDelaySecondsAfterFailure(attempts);
+  const delay = retryDelaySecondsAfterFailure(attempts, row.kind);
   await queueReschedule(db, row.id, delay, safe);
 }
 
@@ -585,6 +621,22 @@ export async function processOutgoingDeliveryRow(
           'operator_alert_mark_sent_failed_after_delivery',
         );
       }
+    } catch (err) {
+      if (isOutboundMessagePolicyDenied(err)) {
+        await finalizeOutboundPolicyDenied(db, row);
+        return;
+      }
+      await handleDispatchFailure(db, row, err, writePort, intent);
+    }
+    return;
+  }
+
+  if (row.kind === INBOUND_REPLY_QUEUE_KIND) {
+    try {
+      await dispatchOutgoing(intent);
+      await recordMessengerQueueDeliveryAttempt(db, row, intent, { status: 'success' });
+      await maybeClearMessengerBotBlockedMarker(db, row, intent);
+      await queueMarkSent(db, row.id);
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);

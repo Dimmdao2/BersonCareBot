@@ -516,6 +516,11 @@ BEGIN
     RETURN;
   END IF;
 
+  IF queue_kind = 'inbound_reply' THEN
+    RETURN QUERY SELECT queue_kind, NULL::uuid, 'operator_global'::text;
+    RETURN;
+  END IF;
+
   IF queue_kind = 'reminder_dispatch' THEN
     IF COALESCE(queue_payload ->> 'occurrenceId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
       RETURN QUERY SELECT queue_kind, NULL::uuid, 'invalid_occurrence_id'::text;
