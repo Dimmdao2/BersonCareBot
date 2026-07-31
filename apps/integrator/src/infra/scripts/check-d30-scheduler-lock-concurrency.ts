@@ -11,8 +11,9 @@
  * Runs against its own throwaway PostgreSQL instance (see d30DisposablePostgres.ts); reads no
  * application env and touches no configured DATABASE_URL.
  */
-import pg from 'pg';
+import { sql } from 'drizzle-orm';
 import { startDisposablePostgres } from './d30DisposablePostgres.js';
+import { runIntegratorSql } from '../db/runIntegratorSql.js';
 
 const LOCK_KEY = 42001001;
 
@@ -42,8 +43,9 @@ async function main(): Promise<void> {
       '../db/repos/schedulerLocks.js'
     );
     const { runWithInfraPrincipal } = await import('../principal/organizationPrincipal.js');
-    const { closeDb } = await import('../db/client.js');
+    const { createDbPort, closeDb } = await import('../db/client.js');
 
+    const db = createDbPort();
     const acquire = () =>
       runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }, () =>
         tryAcquireSchedulerLock(LOCK_KEY),
@@ -64,18 +66,16 @@ async function main(): Promise<void> {
     // --- Piece 2: ownership check detects a killed connection --------------------------------
     await third.assertStillHeld(); // sanity: alive connection reports held, must not throw
 
-    const sideClient = new pg.Client({ connectionString: disposable.connectionString });
-    await sideClient.connect();
-    const pidRow = await sideClient.query<{ pid: number }>(
-      `SELECT pid FROM pg_locks
-       WHERE locktype = 'advisory' AND objsubid = 1
-         AND (classid::bigint << 32 | objid::bigint) = $1::bigint
-         AND granted`,
-      [LOCK_KEY],
+    const pidRow = await runIntegratorSql<{ pid: number }>(
+      db,
+      sql`SELECT pid FROM pg_locks
+          WHERE locktype = 'advisory' AND objsubid = 1
+            AND (classid::bigint << 32 | objid::bigint) = ${LOCK_KEY}::bigint
+            AND granted`,
     );
     const victimPid = pidRow.rows[0]?.pid;
     assert(victimPid !== undefined, 'could not find the backend pid holding the lock');
-    await sideClient.query('SELECT pg_terminate_backend($1)', [victimPid]);
+    await runIntegratorSql(db, sql`SELECT pg_terminate_backend(${victimPid})`);
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     let lostErrorThrown = false;
@@ -96,7 +96,6 @@ async function main(): Promise<void> {
     const fourth = await acquire();
     assert(fourth !== null, 'the lock must be acquirable again once its dead-connection holder is gone');
     await fourth.release();
-    await sideClient.end();
     reportPiecePass(
       'piece 2',
       'assertStillHeld() threw SchedulerLockLostError after connection loss, lock was re-acquirable',

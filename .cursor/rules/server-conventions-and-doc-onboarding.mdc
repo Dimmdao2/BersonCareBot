@@ -3,34 +3,4 @@ description: Always use confirmed server conventions and read core docs first
 alwaysApply: true
 ---
 
-# Server Conventions And Doc Onboarding
-
-- **Единая точка входа правил агентов — `AGENTS.md` (корень репо): ЖЁСТКО читать при старте.** Он — мастер-оглавление и индексирует эти `.cursor/rules/*.mdc` (канон scoped-правил). Правила НЕ дублировать в других файлах (CLAUDE.md и т.п.) — только ссылаться сюда, чтобы не было рассинхрона у агентов разных моделей.
-- **STOP-GATE: сначала существующие документы и scripts, потом действия.** Для ЛЮБОЙ существенной задачи агент НЕ имеет права изобретать последовательность, писать новый SQL/script, менять код или запускать команды, пока не:
-  1. прочитал `AGENTS.md`, `README.md`, `docs/README.md` и релевантные docs/rules/runbooks по теме;
-  2. нашёл существующие scripts/docs через code-search и точечное чтение;
-  3. явно зафиксировал, какие существующие источники являются каноном для текущего действия.
-  Для server/deploy/prod/test/env/DB/backup/migration/backfill/reconcile/cutover/Rubitime/clean dump это правило абсолютное и блокирующее.
-  Если найденный документ противоречит плану агента — документ побеждает, агент перестраивает план.
-- At the start of every new chat, first familiarize yourself with core project docs before giving substantial guidance:
-  - `README.md`
-  - `docs/README.md`
-  - `docs/ARCHITECTURE/SERVER CONVENTIONS.md`
-  - `deploy/HOST_DEPLOY_README.md`
-- For any server, deploy, prod, systemd, nginx, env, path, port, DB, backup, migration, backfill, reconcile, or cutover question:
-  - Treat `docs/ARCHITECTURE/SERVER CONVENTIONS.md` as the primary source of truth for confirmed runtime facts.
-  - Use exact names and paths from that file. Never invent or guess paths, service names, env file names, DB names, ports, URLs, or users.
-- **Host identity is a blocking gate:** current workspace host `151.241.228.122` is DEV/RELAY/TEST only.
-  PROD is only `135.106.162.170`. Never infer PROD from `/opt/projects/bersoncarebot`, `*.prod` files,
-  `bersoncarebot-*-prod.service`, public domains, or the word «сервер»: those are stale local remnants/references
-  on `151.x`. Before any PROD command, prove target-host = `135.106.162.170` and obtain explicit owner permission.
-- **PostgreSQL on host:** Never instruct a bare `psql "$DATABASE_URL"`. Load the env for the explicitly named
-  target: DEV local `.env`, TEST `*.test` on `151.x`, or PROD `*.prod` only in an explicitly authorized session
-  on `135.x`. See `.cursor/rules/host-psql-database-url.mdc`. Commands must be copy-paste complete.
-- If a required runtime fact is missing or not explicitly confirmed in docs:
-  - Say clearly that the value is missing/unconfirmed.
-  - Give exact commands to discover it on the host.
-  - Then update the documentation with the newly confirmed non-secret fact so the next chat does not repeat the discovery.
-- When adding discovered server facts to docs:
-  - Store only non-secret operational facts in docs (paths, unit names, port numbers, DB names, env key names, URLs, users, ownership).
-  - Never write secrets, passwords, tokens, or full credential-bearing connection strings into repo docs.
+Правило живёт в `AGENTS.md` §1 «Онбординг и server conventions». Текст здесь не дублируется.

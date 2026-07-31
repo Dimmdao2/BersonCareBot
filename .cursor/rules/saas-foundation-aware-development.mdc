@@ -3,17 +3,4 @@ description: New code and schema changes must preserve the SaaS Foundation path:
 alwaysApply: true
 ---
 
-# SaaS Foundation-aware development
-
-Canonical rule: `docs/RULES/SAAS_FOUNDATION_AWARE_DEVELOPMENT.md`.
-
-Before adding or changing tables, columns, migrations, repositories, APIs, write paths, or background jobs, account for the current `SAAS_FOUNDATION` direction:
-
-- Product is moving toward shared-DB SaaS with tenant = `Organization` and future data isolation.
-- New clinical, patient-facing, doctor-facing, booking, messaging, notification, media, catalog, product, payment, entitlement, integration, settings, or staff/admin data must not be global by default.
-- Explicitly choose the ownership path before implementation: direct `organization_id`, scoped parent, `specialist_id`, patient/enrollment, appointment, program instance, or true global catalog.
-- If ownership is unclear, stop that subtask, mark it `needs_decision`, and leave a design note for dev-lead/owner.
-- Do not add ad hoc RLS/policy enforcement before the canonical `DB_ACCESS_CHOKEPOINT` + `SAAS_FOUNDATION` stages.
-- Do not move tenant/org integration settings into env; follow DB-backed `system_settings` and mirror rules.
-- Do not strengthen single-clinic/single-doctor assumptions. Reuse existing `organizationId` / `specialistId` / scoped parent paths where present.
-
+Правило живёт в `AGENTS.md` §4a «SaaS Foundation-aware development». Текст здесь не дублируется.

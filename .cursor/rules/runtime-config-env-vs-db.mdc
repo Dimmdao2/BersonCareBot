@@ -3,28 +3,4 @@ description: Runtime config policy: integration keys and webhook URIs in DB (adm
 alwaysApply: true
 ---
 
-# Runtime config: env vs database
-
-When adding or moving configuration:
-
-## Use environment variables only for
-
-- Infrastructure connection strings (e.g. `DATABASE_URL`).
-- Process-level deploy defaults that must not be tenant-specific: `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`.
-
-## Use webapp `system_settings` (scope `admin`) for
-
-- Integration API keys/tokens and integration webhook URLs/URIs.
-- Operational values editable without redeploy: public URLs, feature flags, **IANA timezones for business-facing text**, whitelists, etc.
-- Keys must be added to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` and exposed in admin Settings UI when user-facing.
-- Current Settings UI writes global defaults (`organization_id IS NULL`) unless a flow explicitly passes
-  organization context. Org-specific overrides use the same key/scope plus non-null `organization_id`
-  and must preserve global NULL fallback.
-
-## Integrator
-
-- Интегратор читает настройки **напрямую** из `public.system_settings` (`apps/integrator/src/infra/db/publicSystemSettings.ts`). Зеркала `integrator.system_settings` и проталкивания из webapp **больше нет** — таблица удалена 29.07.2026 (задача #1076). Прод и тест — **одна** PostgreSQL со схемами `integrator` и `public`, см. `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
-- Do not add new env vars for values that belong in `system_settings`.
-- При добавлении и изменении ключей — `.cursor/rules/system-settings-single-source.mdc`: хранилище одно, второго заводить нельзя.
-
-See `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
+Правило живёт в `AGENTS.md` §3 «Runtime config: env vs database». Текст здесь не дублируется.
