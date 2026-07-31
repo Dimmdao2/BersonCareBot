@@ -65,6 +65,13 @@ describe.skipIf(!enabled)(
             .delete(messageRetryJobs)
             .where(inArray(messageRetryJobs.phoneNormalized, writtenPhones)),
         );
+        const remaining = await harness.withRuntime((db) =>
+          getIntegratorDrizzleSession(db)
+            .select({ id: messageRetryJobs.id })
+            .from(messageRetryJobs)
+            .where(inArray(messageRetryJobs.phoneNormalized, writtenPhones)),
+        );
+        expect(remaining).toEqual([]);
       }
     });
 

@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { DbPort } from '../../../kernel/contracts/index.js';
 import { createRealPostgresIntegrationTestHarness } from '../realPostgresIntegrationTestHarness.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
@@ -30,7 +31,12 @@ describe.skipIf(!enabled)(
   () => {
     const harness = createRealPostgresIntegrationTestHarness('worker:outgoing-delivery-tick');
     const writtenQueueEventIds: string[] = [];
-    const writtenAttemptEventIds: string[] = [];
+
+    type AttemptJournalSnapshot = {
+      rowCount: number;
+      ids: string[];
+      contentFingerprint: string;
+    };
 
     async function insertQueueRow(input: {
       status: 'processing' | 'sent';
@@ -79,18 +85,37 @@ describe.skipIf(!enabled)(
       return result.rows[0];
     }
 
-    async function insertAttemptJournalMarker(): Promise<string> {
-      const eventId = `d10b-attempt-${randomUUID()}`;
-      writtenAttemptEventIds.push(eventId);
-      await harness.withFixtures((db) =>
-        runIntegratorSql(
-          db,
-          sql`INSERT INTO public.notification_delivery_attempts (
-            channel, status, event_id, metadata
-          ) VALUES ('telegram', 'success', ${eventId}, '{"test":"d10b"}'::jsonb)`,
-        ),
+    async function readAttemptJournalSnapshot(
+      db: DbPort,
+      ids?: string[],
+    ): Promise<AttemptJournalSnapshot> {
+      const result = await runIntegratorSql<{
+        row_count: number;
+        ids: string[];
+        content_fingerprint: string;
+      }>(
+        db,
+        sql`SELECT
+              count(*)::integer AS row_count,
+              COALESCE(
+                array_agg(attempt.id::text ORDER BY attempt.id),
+                ARRAY[]::text[]
+              ) AS ids,
+              md5(COALESCE(
+                string_agg(to_jsonb(attempt)::text, '' ORDER BY attempt.id),
+                ''
+              )) AS content_fingerprint
+            FROM public.notification_delivery_attempts AS attempt
+            WHERE ${ids === undefined}
+               OR attempt.id = ANY(${ids ?? []}::uuid[])`,
       );
-      return eventId;
+      const row = result.rows[0];
+      if (!row) throw new Error('readAttemptJournalSnapshot: aggregate row missing');
+      return {
+        rowCount: row.row_count,
+        ids: row.ids,
+        contentFingerprint: row.content_fingerprint,
+      };
     }
 
     beforeAll(async () => {
@@ -107,14 +132,18 @@ describe.skipIf(!enabled)(
                 WHERE event_id = ANY(${writtenQueueEventIds}::text[])`,
           );
         }
-        if (writtenAttemptEventIds.length > 0) {
-          await runIntegratorSql(
-            db,
-            sql`DELETE FROM public.notification_delivery_attempts
-                WHERE event_id = ANY(${writtenAttemptEventIds}::text[])`,
-          );
-        }
       });
+      if (writtenQueueEventIds.length > 0) {
+        const remaining = await harness.withRuntime((db) =>
+          runIntegratorSql<{ row_count: number }>(
+            db,
+            sql`SELECT count(*)::integer AS row_count
+                FROM public.outgoing_delivery_queue
+                WHERE event_id = ANY(${writtenQueueEventIds}::text[])`,
+          ),
+        );
+        expect(remaining.rows[0]?.row_count).toBe(0);
+      }
     });
 
     it('returns a stale processing row to pending but leaves a fresh processing row alone', async () => {
@@ -157,7 +186,7 @@ describe.skipIf(!enabled)(
       });
     });
 
-    it('producer cleanup removes an expired sent queue row and preserves both a recent row and its attempt journal', async () => {
+    it('producer cleanup removes an expired sent queue row, preserves a recent row, and leaves the entire attempt journal unchanged', async () => {
       const expired = await insertQueueRow({
         status: 'sent',
         sentAt: new Date(Date.now() - 40 * 24 * 60 * 60_000).toISOString(),
@@ -166,9 +195,14 @@ describe.skipIf(!enabled)(
         status: 'sent',
         sentAt: new Date().toISOString(),
       });
-      const journalEventId = await insertAttemptJournalMarker();
       const enqueueEventId = `d10b-enqueue-${randomUUID()}`;
       writtenQueueEventIds.push(enqueueEventId);
+
+      const journalBefore = await harness.withFixtures(readAttemptJournalSnapshot);
+      expect(
+        journalBefore.rowCount,
+        'notification_delivery_attempts is empty under app_staff; 0 = 0 cannot prove journal preservation',
+      ).toBeGreaterThan(0);
 
       await harness.withFixtures((db) =>
         enqueueOutgoingDeliveryIfAbsent(db, {
@@ -181,15 +215,11 @@ describe.skipIf(!enabled)(
 
       expect(await readQueueRow(expired.id)).toBeUndefined();
       expect(await readQueueRow(recent.id)).toMatchObject({ status: 'sent' });
-      const journal = await harness.withFixtures((db) =>
-        runIntegratorSql<{ event_id: string }>(
-          db,
-          sql`SELECT event_id
-              FROM public.notification_delivery_attempts
-              WHERE event_id = ${journalEventId}`,
-        ),
+      const journalAfter = await harness.withFixtures((db) =>
+        readAttemptJournalSnapshot(db, journalBefore.ids),
       );
-      expect(journal.rows).toEqual([{ event_id: journalEventId }]);
+      expect(journalAfter.rowCount).toBe(journalBefore.rowCount);
+      expect(journalAfter.contentFingerprint).toBe(journalBefore.contentFingerprint);
     });
   },
 );
