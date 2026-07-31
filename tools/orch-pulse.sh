@@ -12,7 +12,8 @@
 # Использование: tools/orch-pulse.sh [порог_молчания_сек]   (по умолчанию 600)
 set -uo pipefail
 ROOT=/home/dev/dev-projects/BersonCareBot
-SILENT_MAX=${1:-600}
+SILENT_MAX=${1:-600}          # сколько секунд лог может не расти (это смерть порта)
+IDLE_OUT_MAX=${IDLE_OUT_MAX:-900}  # сколько секунд модель может не выдавать вывод (это зависание провайдера)
 now=$(date +%s)
 
 echo "── ПУЛЬС $(date '+%F %H:%M') ─────────────────────────────"
@@ -34,12 +35,21 @@ for log in /home/dev/dev-projects/bcb-wt-*/docs/_TODO/runs/*/*.log; do
     fi
     continue
   fi
+  # Порт сам пишет сердцебиение каждые 30с, поэтому возраст файла ловит только смерть самого порта.
+  # Настоящее молчание модели видно в его же строке: idle_s — сколько секунд агент не выдавал НИЧЕГО.
+  # Это важно для Claude, который часто печатает результат одним куском в конце (вопрос владельца 31.07).
+  idle=$(grep -o 'idle_s=[0-9]*' "$log" 2>/dev/null | tail -1 | cut -d= -f2)
+  elapsed=$(grep -o 'elapsed_s=[0-9]*' "$log" 2>/dev/null | tail -1 | cut -d= -f2)
   if [ "$age" -gt "$SILENT_MAX" ]; then
     silent=$((silent + 1))
     printf 'МОЛЧИТ  %-34s pid=%-8s %s мин без записи в лог → СНЯТЬ И ПЕРЕЗАПУСТИТЬ\n' "$run" "$pid" "$((age / 60))"
+  elif [ -n "${idle:-}" ] && [ "$idle" -gt "$IDLE_OUT_MAX" ]; then
+    silent=$((silent + 1))
+    printf 'ЗАВИС   %-34s pid=%-8s порт жив, но модель молчит %s мин (в работе %s мин) → СНЯТЬ И ПЕРЕЗАПУСТИТЬ\n' \
+      "$run" "$pid" "$((idle / 60))" "$(( ${elapsed:-0} / 60 ))"
   else
     alive=$((alive + 1))
-    printf 'ok      %-34s pid=%-8s лог %sс назад\n' "$run" "$pid" "$age"
+    printf 'ok      %-34s pid=%-8s лог %sс назад, модель молчит %sс\n' "$run" "$pid" "$age" "${idle:-0}"
   fi
 done
 [ "$((alive + silent + dead))" -gt 0 ] || echo "агентов нет ни одного"
