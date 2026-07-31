@@ -1,6 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
+import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
 
 export type SchedulableClientEnrollmentStatus = 'invited' | 'active';
 
@@ -38,6 +40,22 @@ export async function ensureInvitedOrganizationClientRelationship(
     if (existing.status === 'invited' || existing.status === 'active') return existing.status;
     throw new OrganizationClientRelationshipDeniedError();
   }
+
+  // §5a stage 5.2: the atomic patient_count check runs only for a genuinely new relationship —
+  // an existing (invited/active) card above never re-enters here, so editing a patient's card is
+  // never blocked by this quota. Archiving/discharging a patient removes its row from this count
+  // (see `SchedulableClientEnrollmentStatus`), freeing the slot for a new one.
+  await assertStockQuotaAvailable(tx, organizationId, 'patient_count', async () => {
+    const usage = await runWebappPgText<{ used_value: number }>(
+      `SELECT count(*)::int AS used_value
+       FROM org_enrollments
+       WHERE organization_id = $1
+         AND status IN ('invited', 'active')`,
+      [organizationId],
+      tx,
+    );
+    return usage.rows[0]?.used_value ?? 0;
+  });
 
   await tx
     .insert(orgEnrollments)
