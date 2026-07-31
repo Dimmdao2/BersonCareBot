@@ -21,8 +21,9 @@
  * touches no configured DATABASE_URL.
  */
 import { randomUUID } from 'node:crypto';
-import pg from 'pg';
+import { sql } from 'drizzle-orm';
 import { startDisposablePostgres } from './d30DisposablePostgres.js';
+import { runIntegratorSql } from '../db/runIntegratorSql.js';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -101,12 +102,6 @@ async function main(): Promise<void> {
   process.env.NODE_ENV = 'development';
 
   try {
-    const ddlClient = new pg.Client({ connectionString: disposable.connectionString });
-    await ddlClient.connect();
-    await ddlClient.query(OUTGOING_DELIVERY_QUEUE_DDL);
-    await ddlClient.query(CLAIM_RACE_DELAY_DDL);
-    await ddlClient.end();
-
     const {
       claimDueOutgoingDeliveries,
       enqueueOutgoingDeliveryIfAbsent,
@@ -117,6 +112,9 @@ async function main(): Promise<void> {
     const { runWithInfraPrincipal } = await import('../principal/organizationPrincipal.js');
 
     const db = createDbPort();
+    await runIntegratorSql(db, sql.raw(OUTGOING_DELIVERY_QUEUE_DDL));
+    await runIntegratorSql(db, sql.raw(CLAIM_RACE_DELAY_DDL));
+
     const eventId = `d30-claim-race-${randomUUID()}`;
 
     const inserted = await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
@@ -157,13 +155,10 @@ async function main(): Promise<void> {
     );
     assert(insertedAgain === false, 'repeated enqueue with the same event_id must not insert a second row');
 
-    const countClient = new pg.Client({ connectionString: disposable.connectionString });
-    await countClient.connect();
-    const countRes = await countClient.query<{ n: number }>(
-      'SELECT count(*)::int AS n FROM public.outgoing_delivery_queue WHERE event_id = $1',
-      [eventId],
+    const countRes = await runIntegratorSql<{ n: number }>(
+      db,
+      sql`SELECT count(*)::int AS n FROM public.outgoing_delivery_queue WHERE event_id = ${eventId}`,
     );
-    await countClient.end();
     assert(
       countRes.rows[0]?.n === 1,
       `expected exactly one row for event_id after the repeated enqueue, found ${countRes.rows[0]?.n}`,
@@ -176,31 +171,28 @@ async function main(): Promise<void> {
     // an already-delivered message.
     const cappedEventId = `d30-reclaim-cap-${randomUUID()}`;
     const sentEventId = `d30-reclaim-sent-control-${randomUUID()}`;
-    const cappedInsertClient = new pg.Client({ connectionString: disposable.connectionString });
-    await cappedInsertClient.connect();
-    const cappedInsert = await cappedInsertClient.query<{ id: string }>(
-      `INSERT INTO public.outgoing_delivery_queue (
-         event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
-         next_retry_at, last_attempt_at, reclaim_count
-       ) VALUES (
-         $1, 'operator_alert', 'telegram', '{}'::jsonb, 'processing', 1, 6,
-         now(), now() - interval '20 minutes', 4
-       )
-       RETURNING id`,
-      [cappedEventId],
+    const cappedInsert = await runIntegratorSql<{ id: string }>(
+      db,
+      sql`INSERT INTO public.outgoing_delivery_queue (
+            event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+            next_retry_at, last_attempt_at, reclaim_count
+          ) VALUES (
+            ${cappedEventId}, 'operator_alert', 'telegram', '{}'::jsonb, 'processing', 1, 6,
+            now(), now() - interval '20 minutes', 4
+          )
+          RETURNING id`,
     );
-    const sentInsert = await cappedInsertClient.query<{ id: string }>(
-      `INSERT INTO public.outgoing_delivery_queue (
-         event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
-         next_retry_at, last_attempt_at, sent_at, reclaim_count
-       ) VALUES (
-         $1, 'operator_alert', 'telegram', '{}'::jsonb, 'sent', 1, 6,
-         now(), now() - interval '20 minutes', now() - interval '20 minutes', 0
-       )
-       RETURNING id`,
-      [sentEventId],
+    const sentInsert = await runIntegratorSql<{ id: string }>(
+      db,
+      sql`INSERT INTO public.outgoing_delivery_queue (
+            event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+            next_retry_at, last_attempt_at, sent_at, reclaim_count
+          ) VALUES (
+            ${sentEventId}, 'operator_alert', 'telegram', '{}'::jsonb, 'sent', 1, 6,
+            now(), now() - interval '20 minutes', now() - interval '20 minutes', 0
+          )
+          RETURNING id`,
     );
-    await cappedInsertClient.end();
     const cappedId = cappedInsert.rows[0]?.id;
     const sentId = sentInsert.rows[0]?.id;
     assert(cappedId !== undefined, 'could not insert the capped stale row fixture');
@@ -214,17 +206,14 @@ async function main(): Promise<void> {
       `expected the capped stale row to be dead-lettered, got deadLettered=${reclaimResult.deadLettered}`,
     );
 
-    const cappedCheckClient = new pg.Client({ connectionString: disposable.connectionString });
-    await cappedCheckClient.connect();
-    const cappedRow = await cappedCheckClient.query<{ status: string; failure_class: string | null }>(
-      'SELECT status, failure_class FROM public.outgoing_delivery_queue WHERE id = $1',
-      [cappedId],
+    const cappedRow = await runIntegratorSql<{ status: string; failure_class: string | null }>(
+      db,
+      sql`SELECT status, failure_class FROM public.outgoing_delivery_queue WHERE id = ${cappedId}`,
     );
-    const sentRow = await cappedCheckClient.query<{ status: string; sent_at: string | null }>(
-      'SELECT status, sent_at FROM public.outgoing_delivery_queue WHERE id = $1',
-      [sentId],
+    const sentRow = await runIntegratorSql<{ status: string; sent_at: string | null }>(
+      db,
+      sql`SELECT status, sent_at FROM public.outgoing_delivery_queue WHERE id = ${sentId}`,
     );
-    await cappedCheckClient.end();
     assert(cappedRow.rows[0]?.status === 'dead', 'the capped stale row must end up dead, not pending again');
     assert(
       cappedRow.rows[0]?.failure_class === OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS,

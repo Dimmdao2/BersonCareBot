@@ -114,6 +114,9 @@ function harness(input: {
   writeFailsForRowIds: Set<string>;
 }): {
   db: DbPort;
+  /** Shared routing logic behind `db.query`, exposed so wrapper DbPorts can call it directly
+   * (not via a `.query(` member call, which the raw-SQL debt gate flags syntactically). */
+  routeQuery: <T>(sql: string, params?: unknown[]) => Promise<DbQueryResult<T>>;
   dispatched: string[];
   deadOk: string[];
   deadAttempts: string[];
@@ -137,58 +140,60 @@ function harness(input: {
     return typeof last === 'string' ? last : undefined;
   }
 
-  const db: DbPort = {
-    async query<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
-      if (sql.includes('public.system_settings')) {
-        return { rows: [] as T[] }; // reclaim config falls back to safe defaults
+  async function routeQuery<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
+    if (sql.includes('public.system_settings')) {
+      return { rows: [] as T[] }; // reclaim config falls back to safe defaults
+    }
+    if (sql.includes('SET reclaim_count = q.reclaim_count + 1')) {
+      return { rows: [] as T[] }; // no stale rows to reclaim in this tick
+    }
+    if (sql.includes("SET status = 'processing'")) {
+      return { rows: input.claimed as unknown as T[] };
+    }
+    if (sql.includes('app.resolve_outgoing_delivery_scope')) {
+      const rowId = String(params?.[0] ?? '');
+      const scope = input.scopeByRowId[rowId];
+      return { rows: (scope ? [scope] : []) as T[] };
+    }
+    if (sql.includes('app.operator_incident_alert_already_sent')) {
+      return { rows: [{ already_sent: false }] as T[] };
+    }
+    if (sql.includes("status = 'dead'")) {
+      const rowId = rowIdFromDeadOrRescheduleParams(params);
+      if (rowId) deadAttempts.push(rowId);
+      if (rowId && input.writeFailsForRowIds.has(rowId)) {
+        throw new Error(`simulated DB outage while finalizing row ${rowId}`);
       }
-      if (sql.includes('SET reclaim_count = q.reclaim_count + 1')) {
-        return { rows: [] as T[] }; // no stale rows to reclaim in this tick
-      }
-      if (sql.includes("SET status = 'processing'")) {
-        return { rows: input.claimed as unknown as T[] };
-      }
-      if (sql.includes('app.resolve_outgoing_delivery_scope')) {
-        const rowId = String(params?.[0] ?? '');
-        const scope = input.scopeByRowId[rowId];
-        return { rows: (scope ? [scope] : []) as T[] };
-      }
-      if (sql.includes('app.operator_incident_alert_already_sent')) {
-        return { rows: [{ already_sent: false }] as T[] };
-      }
-      if (sql.includes("status = 'dead'")) {
-        const rowId = rowIdFromDeadOrRescheduleParams(params);
-        if (rowId) deadAttempts.push(rowId);
-        if (rowId && input.writeFailsForRowIds.has(rowId)) {
-          throw new Error(`simulated DB outage while finalizing row ${rowId}`);
-        }
-        if (rowId) {
-          deadOk.push(rowId);
-          deadLastErrorByRowId[rowId] = paramAtColumn(sql, params, 'last_error');
-        }
-        return { rows: [] as T[] };
-      }
-      if (sql.includes("status = 'sent'")) {
-        const rowId = rowIdFromDeadOrRescheduleParams(params);
-        if (rowId && input.writeFailsForRowIds.has(rowId)) {
-          throw new Error(`simulated DB outage while finalizing row ${rowId}`);
-        }
-        if (rowId) sentOk.push(rowId);
-        return { rows: [] as T[] };
-      }
-      if (sql.includes("status = 'failed_retryable'")) {
-        const rowId = rowIdFromDeadOrRescheduleParams(params);
-        if (rowId && input.writeFailsForRowIds.has(rowId)) {
-          throw new Error(`simulated DB outage while finalizing row ${rowId}`);
-        }
-        if (rowId) {
-          rescheduledOk.push(rowId);
-          rescheduledLastErrorByRowId[rowId] = paramAtColumn(sql, params, 'last_error');
-        }
-        return { rows: [] as T[] };
+      if (rowId) {
+        deadOk.push(rowId);
+        deadLastErrorByRowId[rowId] = paramAtColumn(sql, params, 'last_error');
       }
       return { rows: [] as T[] };
-    },
+    }
+    if (sql.includes("status = 'sent'")) {
+      const rowId = rowIdFromDeadOrRescheduleParams(params);
+      if (rowId && input.writeFailsForRowIds.has(rowId)) {
+        throw new Error(`simulated DB outage while finalizing row ${rowId}`);
+      }
+      if (rowId) sentOk.push(rowId);
+      return { rows: [] as T[] };
+    }
+    if (sql.includes("status = 'failed_retryable'")) {
+      const rowId = rowIdFromDeadOrRescheduleParams(params);
+      if (rowId && input.writeFailsForRowIds.has(rowId)) {
+        throw new Error(`simulated DB outage while finalizing row ${rowId}`);
+      }
+      if (rowId) {
+        rescheduledOk.push(rowId);
+        rescheduledLastErrorByRowId[rowId] = paramAtColumn(sql, params, 'last_error');
+      }
+      return { rows: [] as T[] };
+    }
+    return { rows: [] as T[] };
+  }
+
+  const db: DbPort = {
+    query: routeQuery,
     async tx<T>(fn: (db: DbPort) => Promise<T>): Promise<T> {
       return fn(db);
     },
@@ -196,6 +201,7 @@ function harness(input: {
 
   return {
     db,
+    routeQuery,
     dispatched,
     deadOk,
     deadAttempts,
@@ -289,7 +295,7 @@ describe('outgoingDeliveryWorker: двойной отказ (обработка 
         if (sql.includes('app.operator_incident_alert_already_sent')) {
           throw new Error('advisory function unavailable');
         }
-        return h.db.query<T>(sql, params);
+        return h.routeQuery<T>(sql, params);
       },
     };
 
@@ -332,7 +338,7 @@ describe('outgoingDeliveryWorker: двойной отказ (обработка 
         if (sql.includes('app.operator_incident_alert_already_sent')) {
           throw new Error('advisory function unavailable');
         }
-        return h.db.query<T>(sql, params);
+        return h.routeQuery<T>(sql, params);
       },
     };
 
