@@ -17,14 +17,23 @@ now=$(date +%s)
 
 echo "── ПУЛЬС $(date '+%F %H:%M') ─────────────────────────────"
 
-alive=0; silent=0
+alive=0; silent=0; dead=0
 for log in /home/dev/dev-projects/bcb-wt-*/docs/_TODO/runs/*/*.log; do
   [ -f "$log" ] || continue
   pid=$(grep -o 'spawned pid=[0-9]*' "$log" 2>/dev/null | tail -1 | cut -d= -f2)
   [ -n "${pid:-}" ] || continue
-  ps -p "$pid" >/dev/null 2>&1 || continue
   age=$(( now - $(stat -c %Y "$log") ))
   run=$(basename "$log" .log)
+  # Процесса нет. Если в логе нет отметки штатного завершения — агент УПАЛ, и это надо видеть,
+  # а не пропускать молча (владелец 31.07: «твои скрипты… не ловили мертвых»).
+  if ! ps -p "$pid" >/dev/null 2>&1; then
+    if ! grep -q '\[agent-run\] done' "$log" 2>/dev/null; then
+      [ "$age" -lt 86400 ] || continue   # старьё старше суток не тревожит
+      dead=$((dead + 1))
+      printf 'УПАЛ    %-34s pid=%-8s процесса нет, штатного завершения в логе НЕТ → разобрать и перезапустить\n' "$run" "$pid"
+    fi
+    continue
+  fi
   if [ "$age" -gt "$SILENT_MAX" ]; then
     silent=$((silent + 1))
     printf 'МОЛЧИТ  %-34s pid=%-8s %s мин без записи в лог → СНЯТЬ И ПЕРЕЗАПУСТИТЬ\n' "$run" "$pid" "$((age / 60))"
@@ -33,7 +42,7 @@ for log in /home/dev/dev-projects/bcb-wt-*/docs/_TODO/runs/*/*.log; do
     printf 'ok      %-34s pid=%-8s лог %sс назад\n' "$run" "$pid" "$age"
   fi
 done
-[ "$((alive + silent))" -gt 0 ] || echo "агентов нет ни одного"
+[ "$((alive + silent + dead))" -gt 0 ] || echo "агентов нет ни одного"
 
 echo "── очереди ────────────────────────────────────────────"
 for q in "$ROOT"/runs/night-queue-*.txt; do
@@ -57,8 +66,9 @@ behind=$(git -C "$ROOT" rev-list --count origin/feat/doctor-ui-rebuild..feat/doc
 echo "неопубликованных коммитов: $behind"
 
 echo "── вердикт ────────────────────────────────────────────"
-if [ "$silent" -gt 0 ]; then
-  echo "ЕСТЬ МОЛЧУНЫ ($silent) — снять и перезапустить, это отказ, а не работа"
+if [ "$silent" -gt 0 ] || [ "$dead" -gt 0 ]; then
+  [ "$silent" = 0 ] || echo "ЕСТЬ МОЛЧУНЫ ($silent) — снять и перезапустить, это отказ, а не работа"
+  [ "$dead" = 0 ] || echo "ЕСТЬ УПАВШИЕ ($dead) — разобрать лог и перезапустить строку очереди"
 elif [ "$alive" -gt 0 ]; then
   echo "работа идёт: $alive агент(ов)"
 else
