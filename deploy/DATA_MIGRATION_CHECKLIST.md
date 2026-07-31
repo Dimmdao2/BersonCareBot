@@ -77,3 +77,13 @@ Mailing/subscription source and projection tables were retired migration-forward
 - **История записей на приём:** historical backfill переносил provider records в `appointment_records` по `integrator_record_id`; внешний источник выведен 2026-07-27.
 
 Оставшиеся активные backfill-скрипты используют upsert/ON CONFLICT; повторный запуск с `--commit` безопасен и не дублирует записи при корректных ключах.
+
+### D6: точечный досбор failed occurrence history
+
+Миграция `0282_failed_reminder_occurrence_history` добирает только отсутствующие `failed` occurrence из схемы
+`integrator` в `public.reminder_occurrence_history`. Она выполняется штатным `pnpm migrate` внутри уже существующего
+migration-owner window; locked runtime-login не получает новых cross-schema прав. Вставка использует
+`ON CONFLICT (integrator_occurrence_id) DO NOTHING`, поэтому повторное выполнение не создаёт дубль и не обновляет
+существующую строку. Миграция fail-closed отказывается продолжать, если у отсутствующей строки нельзя доказать
+`failed_at` или `organization_id`. Она не снимает `reminder_delivery_events`, `content_access_grants_webapp` или
+другие проекции; их судьба определяется последующими пунктами Track D.
