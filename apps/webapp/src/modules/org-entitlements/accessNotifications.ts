@@ -7,9 +7,31 @@
  * variables in this file: the templates come from the tariff, the variables come from the caller's
  * data map, and adding a new variable never touches this code.
  */
-import type { AccessNotificationCondition, AccessNotificationRule } from './types';
+import type {
+  AccessNotificationCondition,
+  AccessNotificationRule,
+  AccessPeriodSource,
+} from './types';
 
 const DAY_MS = 86_400_000;
+
+/**
+ * §5a item 7.0 — the owner's notification conditions are «успешная оплата» and «ошибка оплаты», and
+ * both are statements about MONEY. So the condition follows the real period the ladder is running
+ * on, not the fact of degradation:
+ *
+ * - a lapsed PAID period IS the non-payment the owner means → `payment_failed` rows apply;
+ * - an expired TRIAL is not a payment outcome at all → no payment-condition row applies to it.
+ *
+ * Until this function existed both doors passed `'payment_failed'` unconditionally with the comment
+ * «the ladder only degrades after an unpaid period» — which was simply untrue: the only anchor was
+ * the trial, so the owner's «ошибка оплаты» text was shown to clinics that had never been billed.
+ */
+export function accessNotificationConditionFor(
+  periodSource: AccessPeriodSource,
+): AccessNotificationCondition | null {
+  return periodSource === 'paid_period' ? 'payment_failed' : null;
+}
 
 /**
  * `{{name}}` — the only thing this module knows about a template. The name is any word in any

@@ -182,6 +182,9 @@ beforeEach(() => {
               until: '2026-08-01T00:00:00.000Z',
               // Paid period ended 29.07; "now" in this test is 30.07 12:00.
               periodEndsAt: '2026-07-29T00:00:00.000Z',
+              // §5a item 7.0 — это неоплата, поэтому строки владельца с условием «ошибка оплаты»
+              // и должны сюда дойти; на истёкшем триале их бы не было.
+              periodSource: 'paid_period' as const,
               notifications: [
                 {
                   offsetDays: 1,

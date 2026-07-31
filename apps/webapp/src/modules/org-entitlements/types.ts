@@ -207,10 +207,20 @@ export type MechanicAccessState =
   | 'disabled'
   | 'unconfigured';
 
+/**
+ * §5a item 7.0 — WHICH clock the ladder is running on for this organization. Until 31.07 there was
+ * only one (`trial`), which is why «клиника не заплатила за период» could not move anyone: the door
+ * had no way to represent a lapsed PAID period, and no way to tell one from an expired trial.
+ * The distinction is not cosmetic — it decides which of the owner's notification conditions applies.
+ */
+export type AccessPeriodSource = 'trial' | 'paid_period';
+
 export type MechanicAccessWarning = {
   until: string;
-  /** End of the paid period — the anchor every notification offset is measured from. */
+  /** End of the period (paid or trial) — the anchor every notification offset is measured from. */
   periodEndsAt: string;
+  /** What the period was: money or a trial. */
+  periodSource: AccessPeriodSource;
   /** The owner's notification rows, verbatim; selecting the due ones is the only code step. */
   notifications: AccessNotificationRule[];
   nextState: AccessTerminalState;

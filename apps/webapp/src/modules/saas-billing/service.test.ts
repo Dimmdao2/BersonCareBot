@@ -101,3 +101,93 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
     expect(result.providerCheckoutUrl).toBe('https://billing.example.test/checkout-1');
   });
 });
+
+// §5a item 7.0 — источник события для лестницы. Поломка, которую ловит: назначение тарифа
+// сохраняет подписку БЕЗ оплаченного периода (ровно так и было до 31.07: `current_period_ends_at`
+// не писал ни один продуктовый путь), у резолвера нет денежного якоря, и клиника остаётся в полном
+// доступе навсегда, какую бы лестницу владелец ни настроил.
+// Oracle — решение владельца 31.07: «клиника выбирает нужный тариф и оплачивает; при неоплате
+// первично выданный тариф работает как настроено» + длительность периода берётся из поля тарифа
+// `billing_period`, а не из числа в коде (§5a item 2.6).
+describe('§5a/7.0: назначение тарифа открывает ОПЛАЧЕННЫЙ ПЕРИОД с концом', () => {
+  function assignmentTransaction(
+    billingPeriod: 'day' | 'month' | 'year',
+    /** What the organization already has — an unassign has to start from an assigned tariff. */
+    current: { id: string; tariffId: string; status: 'active' } | null = null,
+  ) {
+    const setManualSaasBillingSubscription = vi.fn(async () => {});
+    const transaction = {
+      loadManualAssignmentState: async () => ({
+        organization: {
+          tariffId: current?.tariffId ?? null,
+          commercialAccessState: current ? 'active' : 'no_trial',
+        },
+        activeTrial: null,
+        manualSaasBillingSubscription: current,
+      }),
+      requireActiveTariff: async () => ({ billingPeriod }),
+      setManualSaasBillingSubscription,
+      updateCompatibilityProjection: async () => ({
+        tariffId: 'tariff-1',
+        commercialAccessState: 'active',
+      }),
+      endActiveTrial: async () => null,
+      appendManualAssignmentAudit: async () => {},
+    };
+    const service = createSaasBillingService({
+      repository: {
+        runManualAssignmentTransaction: (work: (t: typeof transaction) => Promise<unknown>) =>
+          work(transaction),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({}) as never,
+      now: () => new Date('2026-07-31T09:00:00.000Z'),
+    });
+    return { service, setManualSaasBillingSubscription };
+  }
+
+  // Арбитр: вернуть в `setManualSaasBillingSubscription` вызов без `period` (как было до 7.0) —
+  // тест краснеет: период равен `null`, и лестнице не от чего отсчитывать неоплату.
+  it('период кончается через один расчётный период ТАРИФА, а не через число из кода', async () => {
+    for (const [billingPeriod, endsAt] of [
+      ['month', '2026-08-31T09:00:00.000Z'],
+      ['year', '2027-07-31T09:00:00.000Z'],
+      ['day', '2026-08-01T09:00:00.000Z'],
+    ] as const) {
+      const { service, setManualSaasBillingSubscription } = assignmentTransaction(billingPeriod);
+
+      await service.assignManualTariff({
+        organizationId: 'org-1',
+        tariffId: 'tariff-1',
+        audit: { actorId: 'operator-1', reason: 'проверка' },
+      });
+
+      expect(setManualSaasBillingSubscription, `billingPeriod=${billingPeriod}`).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        tariffId: 'tariff-1',
+        period: { startsAt: '2026-07-31T09:00:00.000Z', endsAt },
+      });
+    }
+  });
+
+  // Снятие тарифа не должно оставлять якорь от тарифа, которого у организации больше нет.
+  it('снятие тарифа закрывает период, а не оставляет его висеть', async () => {
+    const { service, setManualSaasBillingSubscription } = assignmentTransaction('month', {
+      id: 'subscription-1',
+      tariffId: 'tariff-1',
+      status: 'active',
+    });
+
+    await service.assignManualTariff({
+      organizationId: 'org-1',
+      tariffId: null,
+      audit: { actorId: 'operator-1', reason: 'проверка' },
+    });
+
+    expect(setManualSaasBillingSubscription).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      tariffId: null,
+      period: null,
+    });
+  });
+});

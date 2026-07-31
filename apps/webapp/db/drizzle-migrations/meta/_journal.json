@@ -2003,6 +2003,13 @@
       "when": 1793539200083,
       "tag": "0285_tariff_ladder_notifications_local",
       "breakpoints": true
+    },
+    {
+      "idx": 286,
+      "version": "7",
+      "when": 1793539200084,
+      "tag": "0286_tariff_ladder_paid_period_anchor_local",
+      "breakpoints": true
     }
   ]
 }
