@@ -125,6 +125,37 @@ describe('processAcceptedIncomingEvent — D35: провал ответа ста
     );
   });
 
+  it('дано: два intents на одном событии, ПЕРВЫЙ (message.edit, telegram) дошёл, а ВТОРОЙ (message.send, max) провалился → когда обработка → тогда в очередь кладётся ИМЕННО провалившийся ВТОРОЙ intent, а не сосед по массиву', async () => {
+    // АРБИТР (P19 слепого аудита D35, #987): в enqueueFailedReplyForRetry() подменить аргумент
+    // `intent` на соседний элемент массива, например `domainResult.intents[0]` вместо
+    // `domainResult.intents[i]` — очередь получит контент ДОШЕДШЕГО intent (telegram/message.edit)
+    // вместо провалившегося (max/message.send). При единственном intent в массиве (как в тесте
+    // выше) такая подмена не красит ничего — нужен минимум два разных intent, чтобы отличить.
+    enqueueMock.mockClear();
+    const delivered = intent('message.edit', 'evt-d35-4', 'telegram');
+    const failing = intent('message.send', 'evt-d35-4', 'max');
+
+    await processAcceptedIncomingEvent(event('evt-d35-4'), {
+      readPort,
+      db: fakeDb,
+      executeAction: executeActionReturning({ s1: delivered, s2: failing }),
+      dispatchIntent: async (dispatched) => {
+        if (dispatched.type === 'message.send') throw new Error('provider unreachable');
+      },
+      orchestrator: orchestratorFor([step('s1'), step('s2')]),
+    });
+
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledWith(
+      fakeDb,
+      expect.objectContaining({
+        eventId: 'evt-d35-4:queued:1',
+        channel: 'max',
+        payloadJson: { intent: failing },
+      }),
+    );
+  });
+
   it('дано: провалился callback.answer (подтверждение нажатия) → когда обработка → тогда enqueueOutgoingDeliveryIfAbsent НЕ вызывается вовсе', async () => {
     // Ровно бриф п.4: дедлайн истёк в момент отказа, ставить в очередь нечего.
     // АРБИТР: убрать `!ACK_INTENT_TYPES.has(intent.type)` из условия постановки в очередь —

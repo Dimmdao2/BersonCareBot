@@ -28,7 +28,7 @@
 | P16 | отказ отправки снова **только строка в логе** | `processAcceptedIncomingEvent.ts:105` | ✅ `processAcceptedIncomingEvent.d35` |
 | P17 | провал ответа кладётся **чужим видом** (`reminder_dispatch`) | `processAcceptedIncomingEvent.ts:59` | ✅ тот же тест |
 | P18 | строка `inbound_reply` **не разрешается** воркером (scope откат) | `outgoingDeliveryScope.ts:26` | ✅ 4 теста (в т.ч. `…scope.test.ts`) |
-| P19 | в очередь кладётся **чужой intent** → человеку уйдёт не тот текст | `processAcceptedIncomingEvent.ts:105` | 🔴 **НЕ ПОЙМАНО** |
+| P19 | в очередь кладётся **чужой intent** → человеку уйдёт не тот текст | `processAcceptedIncomingEvent.ts:105` | ✅ `processAcceptedIncomingEvent.d35` — новый тест «два intents, первый дошёл второй провалился» (wt/d35-p19) |
 | *P19b* | *зонд:* полезная нагрузка пустая — текст ответа потерян | `processAcceptedIncomingEvent.ts:61` | 🔴 **НЕ ПОЙМАНО** |
 | *P20* | *зонд:* ключ идемпотентности не по `eventId` | `processAcceptedIncomingEvent.ts:58` | ✅ пойман |
 | *P21* | *зонд:* канал ответа подменён на константу | `processAcceptedIncomingEvent.ts:60` | 🔴 **НЕ ПОЙМАНО** |
