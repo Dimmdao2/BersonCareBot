@@ -94,4 +94,69 @@ describe('§5a item 2.6 — no agent-chosen ladder constants in code', () => {
       ),
     ).toEqual([]);
   });
+
+  // §5a item 2.6 gate hole, reproduced from the owner's break: giving a literal a name made the
+  // gate go silent, because it only looked at the property's own initializer. These four self-tests
+  // pin the identifier-resolution branches that closed it — each is worded to catch exactly the
+  // form the owner demonstrated, and each must go red if its own resolution branch is removed.
+
+  it('catches a duration given a name instead of a literal', () => {
+    const violations = findLadderConstantViolations(
+      'fixture.ts',
+      `const GRACE_DAYS = 14;
+       const agentPolicy = { graceDays: GRACE_DAYS };`,
+    );
+    expect(violations).toEqual([expect.objectContaining({ field: 'graceDays', kind: 'literal' })]);
+    expect(violations[0].text).toContain('GRACE_DAYS');
+  });
+
+  it('catches a terminal state given a name instead of a literal', () => {
+    const violations = findLadderConstantViolations(
+      'fixture.ts',
+      `const TERMINAL = 'disabled';
+       const agentPolicy = { terminalState: TERMINAL };`,
+    );
+    expect(violations).toEqual([
+      expect.objectContaining({ field: 'terminalState', kind: 'literal' }),
+    ]);
+    expect(violations[0].text).toContain('TERMINAL');
+  });
+
+  it('catches a fallback substituting a named constant instead of a literal', () => {
+    const violations = findLadderConstantViolations(
+      'fixture.ts',
+      `const GRACE_DAYS = 14;
+       const days = policy.graceDays ?? GRACE_DAYS;`,
+    );
+    expect(violations).toEqual([expect.objectContaining({ field: 'graceDays', kind: 'fallback' })]);
+    expect(violations[0].text).toContain('GRACE_DAYS');
+  });
+
+  it('catches a two-link const chain ending in a literal', () => {
+    const violations = findLadderConstantViolations(
+      'fixture.ts',
+      `const BASE = 14;
+       const GRACE_DAYS = BASE;
+       const agentPolicy = { graceDays: GRACE_DAYS };`,
+    );
+    expect(violations).toEqual([expect.objectContaining({ field: 'graceDays', kind: 'literal' })]);
+    expect(violations[0].text).toContain('GRACE_DAYS');
+    expect(violations[0].text).toContain('BASE');
+  });
+
+  // Item 2.6's other half: a `const` that is never assigned to an owner's field picks nothing for
+  // him — flagging the declaration itself would make the gate fire on ordinary numbers in the file
+  // and get it disabled rather than obeyed.
+  it('does not fire on a named constant that is never assigned to an owner field', () => {
+    expect(
+      findLadderConstantViolations(
+        'fixture.ts',
+        `const GRACE_DAYS = 14;
+         const TERMINAL = 'disabled';
+         function describe(): string {
+           return \`grace \${GRACE_DAYS}, terminal \${TERMINAL}\`;
+         }`,
+      ),
+    ).toEqual([]);
+  });
 });

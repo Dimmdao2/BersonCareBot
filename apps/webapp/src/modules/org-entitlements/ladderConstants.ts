@@ -15,6 +15,14 @@
  * 2. **A fallback for a ladder value.** `policy.graceDays ?? 14`, `tariff.includedSeats || 1` — a
  *    substitution for a value the owner did not configure. The rule is refusal, not substitution.
  *
+ * A literal does not stop being the agent's decision when it is given a name first: `const
+ * GRACE_DAYS = 14; ... graceDays: GRACE_DAYS` is shape 1 wearing an identifier. The analyzer
+ * resolves an identifier through same-file `const X = <expr>` bindings — including a chain of
+ * aliases — to the literal it ultimately is, and reports the violation at the property/fallback
+ * site (not at the harmless `const` declaration, which by itself picks nothing for the owner).
+ * Known boundary: resolution does not cross a file's `import` — a constant pulled in from another
+ * module is not resolved, and is not claimed to be covered.
+ *
  * Test fixtures legitimately construct policies, so `.test.` files are not scanned; the analyzer
  * takes source text so the test can also run it over inline fixtures for its own self-test.
  */
@@ -75,16 +83,71 @@ function isPolicyValueLiteral(node: ts.Expression): boolean {
   );
 }
 
-/** Name of the property a `??`/`||` fallback is defaulting, if it is one of the owner's. */
-function fallbackFieldName(node: ts.BinaryExpression): string | null {
+/** Same-file `const NAME = <expr>` bindings, flat over the whole source (no block scoping —
+ *  the directories this gate scans are settings glue, not general application code, so a
+ *  same-named `const` shadowed in another scope is not a realistic case here). */
+function collectConstBindings(source: ts.SourceFile): Map<string, ts.Expression> {
+  const bindings = new Map<string, ts.Expression>();
+  function visit(node: ts.Node): void {
+    if (ts.isVariableStatement(node) && (node.declarationList.flags & ts.NodeFlags.Const) !== 0) {
+      for (const decl of node.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name) && decl.initializer) {
+          bindings.set(decl.name.text, decl.initializer);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return bindings;
+}
+
+type LiteralResolution = {
+  /** The literal the expression ultimately is. */
+  literal: ts.Expression;
+  /** Names of the `const` aliases walked to reach it, in walk order; empty if `node` was already
+   *  the literal (no naming involved). */
+  chain: string[];
+};
+
+/** Is `node` a policy-value literal, or an identifier that resolves to one through a chain of
+ *  same-file `const` aliases? Cycle-guarded; an unresolvable or cross-file identifier is not a
+ *  violation (see file header — import boundary). */
+function resolvePolicyLiteral(
+  node: ts.Expression,
+  bindings: Map<string, ts.Expression>,
+): LiteralResolution | null {
+  const chain: string[] = [];
+  const seen = new Set<string>();
+  let current: ts.Expression = node;
+  while (ts.isIdentifier(current)) {
+    if (seen.has(current.text)) return null;
+    seen.add(current.text);
+    chain.push(current.text);
+    const next = bindings.get(current.text);
+    if (!next) return null;
+    current = next;
+  }
+  if (isPolicyValueLiteral(current)) return { literal: current, chain };
+  return null;
+}
+
+/** Name of the property a `??`/`||` fallback is defaulting, if it is one of the owner's, plus how
+ *  the substituted value resolves to a literal. */
+function fallbackResolution(
+  node: ts.BinaryExpression,
+  bindings: Map<string, ts.Expression>,
+): { field: string; resolved: LiteralResolution } | null {
   const isFallback =
     node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
     node.operatorToken.kind === ts.SyntaxKind.BarBarToken;
-  if (!isFallback || !isPolicyValueLiteral(node.right)) return null;
+  if (!isFallback) return null;
+  const resolved = resolvePolicyLiteral(node.right, bindings);
+  if (!resolved) return null;
   let left: ts.Expression = node.left;
   while (ts.isParenthesizedExpression(left)) left = left.expression;
   if (ts.isPropertyAccessExpression(left) && isOwnerLadderField(left.name.text)) {
-    return left.name.text;
+    return { field: left.name.text, resolved };
   }
   if (
     ts.isElementAccessExpression(left) &&
@@ -92,7 +155,7 @@ function fallbackFieldName(node: ts.BinaryExpression): string | null {
     ts.isStringLiteral(left.argumentExpression) &&
     isOwnerLadderField(left.argumentExpression.text)
   ) {
-    return left.argumentExpression.text;
+    return { field: left.argumentExpression.text, resolved };
   }
   return null;
 }
@@ -102,23 +165,34 @@ export function findLadderConstantViolations(
   sourceText: string,
 ): LadderConstantViolation[] {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true);
+  const bindings = collectConstBindings(source);
   const violations: LadderConstantViolation[] = [];
 
-  function record(node: ts.Node, field: string, kind: LadderConstantViolation['kind']): void {
+  function record(
+    node: ts.Node,
+    field: string,
+    kind: LadderConstantViolation['kind'],
+    resolved: LiteralResolution,
+  ): void {
     const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
-    violations.push({ field, kind, line: line + 1, text: node.getText(source) });
+    const text =
+      resolved.chain.length === 0
+        ? node.getText(source)
+        : `${node.getText(source)} (${resolved.chain.join(' -> ')} = ${resolved.literal.getText(source)})`;
+    violations.push({ field, kind, line: line + 1, text });
   }
 
   function visit(node: ts.Node): void {
     if (ts.isPropertyAssignment(node)) {
       const name = propertyName(node);
-      if (name && isOwnerLadderField(name) && isPolicyValueLiteral(node.initializer)) {
-        record(node, name, 'literal');
+      if (name && isOwnerLadderField(name)) {
+        const resolved = resolvePolicyLiteral(node.initializer, bindings);
+        if (resolved) record(node, name, 'literal', resolved);
       }
     }
     if (ts.isBinaryExpression(node)) {
-      const field = fallbackFieldName(node);
-      if (field) record(node, field, 'fallback');
+      const result = fallbackResolution(node, bindings);
+      if (result) record(node, result.field, 'fallback', result.resolved);
     }
     ts.forEachChild(node, visit);
   }
