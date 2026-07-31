@@ -3,8 +3,4 @@ description: Codex agents answer the owner in Russian; internal and inter-agent 
 alwaysApply: true
 ---
 
-# Codex language policy
-
-- Отвечать владельцу по-русски, если он явно не попросил другой язык.
-- Internal reasoning summaries, execution plans, inter-agent prompts/reports, and working notes should be in English to reduce token overhead.
-- Preserve the language of existing project documents and quoted source text; do not translate Russian-facing docs or UI copy just to follow the internal-work rule.
+Правило живёт в `AGENTS.md` §14a «Языковая политика Codex». Текст здесь не дублируется.
