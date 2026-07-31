@@ -105,6 +105,14 @@ export type BookingSyncPort = {
       patientPushVariant?: 'created' | 'cancelled' | 'rescheduled' | null;
       /** D14(3): дословный текст пациентского сообщения. Отсутствие поля = прежний текст интегратора. */
       patientMessageText?: string;
+      /** D14(4): уведомлять ли врача. `false` — не уведомлять вовсе. Отсутствие поля = прежнее поведение интегратора (уведомлять всегда). */
+      doctorNotify?: boolean;
+      /** D14(4): дословный текст врачебного уведомления. Отсутствие поля = прежний текст интегратора. */
+      doctorMessageText?: string;
+      /** D14(5): действие внешнего календаря. Отсутствие поля = прежнее вычисление интегратора по типу события. */
+      calendarAction?: 'created' | 'updated' | 'canceled';
+      /** D14(5): пометка в заголовке события календаря. Отсутствие поля = прежнее вычисление интегратора по типу события. */
+      calendarTitleMarker?: 'none' | 'cancelled' | 'reschedule_pending';
     };
   }): Promise<void>;
 };

@@ -6,6 +6,12 @@ import {
   buildPatientCreatedMessageText,
   buildPatientRescheduledMessageText,
 } from '@/modules/patient-booking/patientMessageText';
+import {
+  buildDoctorCancelledMessageText,
+  buildDoctorCreatedMessageText,
+  buildDoctorRescheduledMessageText,
+} from '@/modules/patient-booking/doctorMessageText';
+import { resolveBookingCalendarSyncFields } from '@/modules/patient-booking/bookingCalendarSyncFields';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 type StaffBookingEventType = 'booking.created' | 'booking.cancelled' | 'booking.rescheduled';
@@ -47,6 +53,8 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   cancelPendingReminders?: boolean;
   /** D14(2): вебапп-решение — слать ли пуш пациенту и каким вариантом (null — не слать). */
   patientPushVariant?: 'created' | 'cancelled' | 'rescheduled' | null;
+  /** D14(4): вебапп-решение — уведомлять ли врача. */
+  doctorNotify?: boolean;
 }): Promise<'sent' | 'skipped'> {
   // R21: if suppression is active, skip the integrator event entirely (patient notification).
   if (opts.suppressPatientNotification) return 'skipped';
@@ -69,6 +77,12 @@ export async function emitStaffCanonicalBookingEvent(opts: {
       : opts.eventType === 'booking.cancelled'
         ? buildPatientCancelledMessageText({ slotStart }, timeZone)
         : buildPatientRescheduledMessageText({ slotStart, bookingType }, timeZone);
+  const doctorMessageText =
+    opts.eventType === 'booking.created'
+      ? buildDoctorCreatedMessageText({ slotStart, contactName, contactPhone }, timeZone)
+      : opts.eventType === 'booking.cancelled'
+        ? buildDoctorCancelledMessageText({ slotStart, contactName }, timeZone)
+        : buildDoctorRescheduledMessageText({ slotStart, contactName, contactPhone }, timeZone);
   try {
     await opts.syncPort.emitBookingEvent({
       eventType: opts.eventType,
@@ -96,6 +110,9 @@ export async function emitStaffCanonicalBookingEvent(opts: {
           ? { patientPushVariant: opts.patientPushVariant }
           : {}),
         patientMessageText,
+        ...(opts.doctorNotify !== undefined ? { doctorNotify: opts.doctorNotify } : {}),
+        doctorMessageText,
+        ...resolveBookingCalendarSyncFields(opts.eventType),
       },
     });
     return 'sent';

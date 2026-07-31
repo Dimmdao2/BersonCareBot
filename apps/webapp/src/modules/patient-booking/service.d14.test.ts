@@ -175,3 +175,34 @@ describe('D14: пациентский перенос шлёт cancelPendingRemin
     );
   });
 });
+
+describe('D14, часть 5: пациентская отмена/перенос шлёт doctorNotify/doctorMessageText/calendarAction/calendarTitleMarker', () => {
+  it('cancelBooking кладёт врачебный текст и действие/пометку календаря', async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const service = buildService({ events, getAppDisplayTimeZone: async () => 'Europe/Moscow' });
+
+    await service.cancelBooking({ userId: 'user-1', bookingId: 'booking-1' });
+
+    expect(events[0]!.doctorNotify).toBe(true);
+    expect(typeof events[0]!.doctorMessageText).toBe('string');
+    expect(events[0]!.calendarAction).toBe('updated');
+    expect(events[0]!.calendarTitleMarker).toBe('cancelled');
+  });
+
+  it('rescheduleBooking кладёт врачебный текст и действие/пометку календаря', async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const service = buildService({ events, getAppDisplayTimeZone: async () => 'Europe/Moscow' });
+
+    await service.rescheduleBooking({
+      userId: 'user-1',
+      bookingId: 'booking-1',
+      slotStart: '2027-03-11T09:00:00.000Z',
+      slotEnd: '2027-03-11T09:30:00.000Z',
+    });
+
+    expect(events[0]!.doctorNotify).toBe(true);
+    expect(typeof events[0]!.doctorMessageText).toBe('string');
+    expect(events[0]!.calendarAction).toBe('updated');
+    expect(events[0]!.calendarTitleMarker).toBe('none');
+  });
+});
