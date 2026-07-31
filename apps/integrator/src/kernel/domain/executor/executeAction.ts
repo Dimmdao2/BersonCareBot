@@ -8,7 +8,6 @@ import { randomUUID } from 'node:crypto';
 import type {
   Action,
   ActionResult,
-  ContentCatalogPort,
   DbWriteDbResult,
   DbWriteMutation,
   DomainContext,
@@ -17,9 +16,7 @@ import type {
 } from '../../contracts/index.js';
 import {
 } from '../reminders/policy.js';
-import { handleBooking } from './handlers/booking.js';
 import { handleDelivery } from './handlers/delivery.js';
-import { handleNotifications } from './handlers/notifications.js';
 import { handleReminders } from './handlers/reminders.js';
 import {
   buildDoctorPatientMessageNotificationIntents,
@@ -32,7 +29,6 @@ import {
   asString,
   asMessageId,
   asNumber,
-  asNumericString,
   readIncoming,
   readIncomingText,
   readIncomingChatId,
@@ -47,7 +43,6 @@ import {
   renderText,
   buildReplyMarkup,
   persistWrites,
-  contentAudience,
   expandContentMenuParam,
   sendAdminMessage,
 } from './helpers.js';
@@ -65,8 +60,6 @@ import {
   phoneLinkSaveFailedUserMessage,
 } from '../../../shared/phoneLinkUserMessages.js';
 
-const BOOKING_TYPES = new Set<string>(['booking.event.insert']);
-const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
 const REMINDER_TYPES = new Set<string>([
   'reminders.rules.get',
   'reminders.rule.toggle',
@@ -76,22 +69,14 @@ const REMINDER_TYPES = new Set<string>([
   'reminders.snooze.callback',
   'reminders.done.callback',
   'reminders.mute.callback',
-  'reminders.skip.reasonPrompt',
   'reminders.skip.applyPreset',
   'reminders.skip.applyFreeText',
-  'reminders.messengerTopic.disable.callback',
   'reminders.snoozeMenu.callback',
   'reminders.notifSettings.open.callback',
   'reminders.notifSettings.toggle.callback',
 ]);
 
-const DELIVERY_TYPES = new Set<string>([
-  'callback.answer',
-  'message.deliver',
-  'message.retry.enqueue',
-  'intent.enqueueDelivery',
-  'message.send',
-]);
+const DELIVERY_TYPES = new Set<string>(['callback.answer', 'message.send']);
 
 function channelLinkCompleteFailureTemplateKey(source: string, errRaw: string | undefined): string {
   const e = (errRaw ?? '').trim().toLowerCase();
@@ -373,84 +358,10 @@ export async function executeAction(
   deps: ExecutorDeps = {},
 ): Promise<ActionResult> {
   const fullDeps: ExecutorDeps = { ...deps, executeAction };
-  if (BOOKING_TYPES.has(action.type)) return handleBooking(action, ctx, fullDeps);
-  if (NOTIFICATION_TYPES.has(action.type)) return handleNotifications(action, ctx, fullDeps);
   if (REMINDER_TYPES.has(action.type)) return handleReminders(action, ctx, fullDeps);
   if (DELIVERY_TYPES.has(action.type)) return handleDelivery(action, ctx, fullDeps);
 
   switch (action.type) {
-    case 'event.log': {
-      const writes: DbWriteMutation[] = [{ type: 'event.log', params: action.params }];
-      await persistWrites(deps.writePort, writes);
-      return { actionId: action.id, status: 'success', writes };
-    }
-
-    case 'webapp.event.emit': {
-      const port = deps.webappEventsPort;
-      if (!port) {
-        return {
-          actionId: action.id,
-          status: 'success',
-          values: { webappEmit: { ok: false, reason: 'webappEventsPort not configured' } },
-        };
-      }
-      const eventType = asString(action.params.eventType);
-      if (!eventType) {
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: 'webapp.event.emit: eventType required',
-        };
-      }
-      const payload = asRecord(action.params.payload ?? {});
-
-      let userId = asString(payload.userId);
-      if (!userId && deps.readPort) {
-        const source = asString(ctx.event.meta.source) ?? 'telegram';
-        const channelUserId =
-          asNumericString(readExternalActorId(ctx)) ??
-          asNumericString(
-            (ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming
-              ?.channelUserId,
-          );
-        if (channelUserId) {
-          const link = await deps.readPort.readDb<{ userId?: string } | null>({
-            type: 'user.byIdentity',
-            params: { resource: source, externalId: channelUserId },
-          });
-          userId =
-            link && typeof link === 'object' && typeof link.userId === 'string'
-              ? link.userId
-              : null;
-        }
-      }
-      const mergedPayload = userId ? { ...payload, userId } : payload;
-      const eventId = asString(action.params.eventId);
-      const occurredAt = asString(action.params.occurredAt) ?? ctx.nowIso;
-      const idempotencyKey = asString(action.params.idempotencyKey);
-      const payloadForEvent = Object.keys(mergedPayload).length > 0 ? mergedPayload : undefined;
-      const eventBody = {
-        eventType,
-        ...(eventId ? { eventId } : {}),
-        occurredAt,
-        ...(idempotencyKey ? { idempotencyKey } : {}),
-        ...(payloadForEvent ? { payload: payloadForEvent } : {}),
-      };
-      const result = await port.emit(eventBody);
-      if (!result.ok) {
-        return {
-          actionId: action.id,
-          status: 'success',
-          values: { webappEmit: { ok: false, status: result.status, error: result.error } },
-        };
-      }
-      return {
-        actionId: action.id,
-        status: 'success',
-        values: { webappEmit: { ok: true, status: result.status } },
-      };
-    }
-
     case 'webapp.phoneMessengerBind.complete': {
       const port = deps.webappEventsPort;
       const setupToken = asString(action.params.setupToken) ?? parsePhoneAuthSetupToken(ctx);
@@ -1085,71 +996,8 @@ export async function executeAction(
       };
     }
 
-    case 'message.compose': {
-      const source =
-        typeof action.params.source === 'string' ? action.params.source : ctx.event.meta.source;
-      const templateId =
-        typeof action.params.templateId === 'string' ? action.params.templateId : '';
-      const vars =
-        typeof action.params.vars === 'object' && action.params.vars !== null
-          ? (action.params.vars as Record<string, unknown>)
-          : {};
-      const recipient =
-        typeof action.params.recipient === 'object' && action.params.recipient !== null
-          ? (action.params.recipient as Record<string, unknown>)
-          : {};
-      const delivery =
-        typeof action.params.delivery === 'object' && action.params.delivery !== null
-          ? (action.params.delivery as Record<string, unknown>)
-          : { maxAttempts: 1 };
-
-      const composedText =
-        deps.templatePort && templateId
-          ? (
-              await deps.templatePort.renderTemplate({
-                source,
-                templateId,
-                vars,
-                audience: contentAudience(ctx),
-              })
-            ).text
-          : typeof action.params.text === 'string'
-            ? action.params.text
-            : '';
-
-      const intents: OutgoingIntent[] = [
-        {
-          type: 'message.send',
-          meta: {
-            eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,
-            occurredAt: nowIso(ctx),
-            source: ctx.event.meta.source,
-            ...(ctx.event.meta.correlationId
-              ? { correlationId: ctx.event.meta.correlationId }
-              : {}),
-            ...(ctx.event.meta.userId ? { userId: ctx.event.meta.userId } : {}),
-          },
-          payload: {
-            recipient,
-            message: { text: composedText },
-            delivery,
-          },
-        },
-      ];
-      return { actionId: action.id, status: 'success', intents };
-    }
-
     case 'message.replyKeyboard.show':
-    case 'message.inlineKeyboard.show':
-    case 'admin.forward': {
-      if (action.type === 'admin.forward') {
-        const userMessage =
-          asString((action.params.vars as Record<string, unknown>)?.messageText) ??
-          readIncomingText(ctx);
-        if (userMessage && /^\/start\s+set/i.test(userMessage.trim())) {
-          return { actionId: action.id, status: 'success' };
-        }
-      }
+    case 'message.inlineKeyboard.show': {
       const rawVars = (action.params.vars ?? {}) as Record<string, unknown>;
       const username = typeof rawVars.username === 'string' ? rawVars.username.trim() : '';
       const vars = {
@@ -1231,38 +1079,6 @@ export async function executeAction(
         },
       ];
       return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'message.replyMarkup.edit': {
-      const chatId = asNumber(action.params.chatId);
-      const messageId = asMessageId(action.params.messageId);
-      const replyMarkup = await buildReplyMarkup({
-        params: action.params,
-        vars: action.params.vars,
-        ctx,
-        templatePort: deps.templatePort,
-      });
-      const intents: OutgoingIntent[] = [
-        {
-          type: 'message.replyMarkup.edit',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient: chatId === null ? {} : { chatId },
-            ...(messageId === null ? {} : { messageId }),
-            ...(replyMarkup ? { replyMarkup } : {}),
-          },
-        },
-      ];
-      return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'user.findByPhone': {
-      const phone =
-        typeof action.params.phoneNormalized === 'string' ? action.params.phoneNormalized : null;
-      if (deps.readPort && phone) {
-        await deps.readPort.readDb({ type: 'user.byPhone', params: { phoneNormalized: phone } });
-      }
-      return { actionId: action.id, status: 'success' };
     }
 
     case 'user.state.set': {
@@ -1644,114 +1460,6 @@ export async function executeAction(
       };
     }
 
-    case 'conversation.openWithMessage': {
-      if (!deps.writePort || !deps.readPort) {
-        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
-      }
-      const skipReasonWait =
-        typeof ctx.base.conversationState === 'string' &&
-        ctx.base.conversationState.startsWith('waiting_skip_reason:');
-      if (skipReasonWait) {
-        return {
-          actionId: action.id,
-          status: 'skipped',
-          error: 'CONVERSATION_OPEN_BLOCKED_SKIP_REASON',
-        };
-      }
-      const externalId = readExternalActorId(ctx);
-      const source = asString(action.params.source) ?? ctx.event.meta.source;
-      const adminChatId = asNumber(asRecord(ctx.base.facts).adminChatId);
-      const text = readIncomingText(ctx);
-      if (!externalId || !source) {
-        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_OPEN_INPUT_MISSING' };
-      }
-      if (adminChatId === null) {
-        return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_REQUIRED' };
-      }
-      const messageText = typeof text === 'string' && text.trim().length > 0 ? text.trim() : null;
-      if (!messageText) {
-        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_OPEN_TEXT_REQUIRED' };
-      }
-      await persistWrites(deps.writePort, [
-        {
-          type: 'identity.ensure',
-          params: { resource: source, externalId },
-        },
-      ]);
-      const conversationId = randomUUID();
-      const firstMessageId = randomUUID();
-      const nowIsoVal = ctx.nowIso;
-      const chatIdStr = readIncomingChatId(ctx);
-      const messageIdStr = readIncomingMessageId(ctx);
-      const writes: DbWriteMutation[] = [
-        {
-          type: 'conversation.open',
-          params: {
-            id: conversationId,
-            resource: ctx.event.meta.source,
-            externalId,
-            source,
-            adminScope: 'default',
-            status: 'waiting_admin',
-            openedAt: nowIsoVal,
-            lastMessageAt: nowIsoVal,
-          },
-        },
-        {
-          type: 'conversation.message.add',
-          params: {
-            id: firstMessageId,
-            conversationId,
-            senderRole: 'user',
-            text: messageText,
-            source,
-            externalChatId: chatIdStr ?? undefined,
-            externalMessageId: messageIdStr ?? undefined,
-            createdAt: nowIsoVal,
-          },
-        },
-        {
-          type: 'conversation.state.set',
-          params: {
-            id: conversationId,
-            status: 'waiting_admin',
-            lastMessageAt: nowIsoVal,
-          },
-        },
-      ];
-      await persistWrites(deps.writePort, writes);
-      const incoming = readIncoming(ctx);
-      const intents = await buildDoctorPatientMessageNotificationIntents({
-        action,
-        ctx,
-        deps: fullDeps,
-        source,
-        externalId,
-        conversationId,
-        integratorMessageId: firstMessageId,
-        messageText,
-        firstName: asString(incoming.channelFirstName),
-        lastName: asString(incoming.channelLastName),
-        username: asString(incoming.channelUsername),
-        channelId: asString(incoming.channelId),
-      });
-      return {
-        actionId: action.id,
-        status: 'success',
-        writes,
-        intents,
-        values: {
-          hasOpenConversation: true,
-          activeConversationId: conversationId,
-          activeConversationStatus: 'waiting_admin',
-        },
-      };
-    }
-
-    case 'conversation.user.message': {
-      return handleConversationUserMessage(action, ctx, fullDeps);
-    }
-
     case 'conversation.admin.reply': {
       return handleConversationAdminReply(action, ctx, fullDeps);
     }
@@ -2074,68 +1782,6 @@ export async function executeAction(
         },
       ];
       return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'content.section.open': {
-      if (!deps.contentCatalogPort)
-        return {
-          actionId: action.id,
-          status: 'skipped',
-          error: 'content.section.open: no contentCatalogPort',
-        };
-      const section = asString(action.params.section);
-      const userId = asString(action.params.userId);
-      const chatId = asNumber(action.params.chatId);
-      if (!section)
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: 'content.section.open: missing section',
-        };
-      const url = await deps.contentCatalogPort.getSectionLink({
-        section: section as Parameters<ContentCatalogPort['getSectionLink']>[0]['section'],
-        ...(userId ? { userId } : {}),
-      });
-      const sectionPlaceholder: Record<string, string> = {
-        useful_lessons: 'Здесь скоро будет много полезного, я вам обязательно сообщу!',
-        emergency_help:
-          'Здесь скоро будут советы и упражнения для снятия острой боли, как только сделаю - я вам обязательно сообщу!',
-      };
-      const text = url
-        ? `Открыть раздел: ${url}`
-        : (sectionPlaceholder[section] ?? 'Раздел пока недоступен.');
-      const intents: OutgoingIntent[] =
-        chatId != null && Number.isFinite(chatId)
-          ? [
-              {
-                type: 'message.send',
-                meta: buildIntentMeta(action, ctx),
-                payload: {
-                  recipient: { chatId },
-                  message: { text },
-                  delivery: { channels: ['telegram'], maxAttempts: 1 },
-                },
-              },
-            ]
-          : [];
-      return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'log.audit': {
-      const writes: DbWriteMutation[] = [
-        {
-          type: 'event.log',
-          params: {
-            source: 'domain',
-            eventType: 'audit',
-            eventId: `${ctx.event.meta.eventId}:audit:${action.id}`,
-            occurredAt: nowIso(ctx),
-            body: action.params,
-          },
-        },
-      ];
-      await persistWrites(deps.writePort, writes);
-      return { actionId: action.id, status: 'success', writes };
     }
 
     default:

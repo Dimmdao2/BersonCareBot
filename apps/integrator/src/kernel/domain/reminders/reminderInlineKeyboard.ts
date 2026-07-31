@@ -31,14 +31,6 @@ function openButton(label: string, spec: ReminderOpenLinkSpec): InlineKeyboardBu
   return { text: label, url: spec.url };
 }
 
-/** Exported for handlers that build follow-up keyboards (e.g. bot reminder ack rows). */
-export function reminderLinkKeyboardButton(
-  label: string,
-  spec: ReminderOpenLinkSpec,
-): InlineKeyboardButton {
-  return openButton(label, spec);
-}
-
 export function buildReminderDispatchInlineKeyboard(params: {
   primaryLabel: string;
   primary: ReminderOpenLinkSpec;
@@ -67,29 +59,6 @@ export function buildReminderDispatchInlineKeyboard(params: {
   }
   rows.push(row3);
 
-  return { inline_keyboard: rows };
-}
-
-export function buildReminderSkipReasonInlineKeyboard(occurrenceId: string): {
-  inline_keyboard: InlineKeyboardButton[][];
-} {
-  const rows: InlineKeyboardButton[][] = [
-    [
-      { text: 'Боль/дискомфорт', callback_data: `rem_skip_r:${occurrenceId}:pain` },
-      { text: 'Нет времени', callback_data: `rem_skip_r:${occurrenceId}:time` },
-    ],
-    [
-      { text: 'Плохо себя чувствую', callback_data: `rem_skip_r:${occurrenceId}:fatigue` },
-      { text: 'Другая причина', callback_data: `rem_skip_r:${occurrenceId}:other` },
-    ],
-    [{ text: 'Без комментария', callback_data: `rem_skip_r:${occurrenceId}:none` }],
-  ];
-  const flat = rows.flat();
-  if (
-    !flat.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))
-  ) {
-    return { inline_keyboard: [] };
-  }
   return { inline_keyboard: rows };
 }
 
