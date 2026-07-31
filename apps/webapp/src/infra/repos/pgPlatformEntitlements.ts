@@ -8,6 +8,7 @@ import type {
 } from '@/modules/org-entitlements/ports';
 import type {
   AccessLifecyclePolicy,
+  DowngradePolicyMap,
   EffectiveOrgCommercialAccess,
   MechanicAccessPolicyMap,
   OrgCommercialAccessState,
@@ -17,7 +18,8 @@ import type {
   TariffQuotaMap,
   TrialPolicy,
 } from '@/modules/org-entitlements/types';
-import { beOrganizations } from '../../../db/schema/bookingEngine';
+import { beBranches, beOrganizations, orgEnrollments } from '../../../db/schema/bookingEngine';
+import { patientFiles } from '../../../db/schema/patientFiles';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import {
   saasOrganizationTrials,
@@ -38,6 +40,7 @@ function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
     quotas: row.quotas as TariffQuotaMap,
     systemAccessPolicy: row.systemAccessPolicy as AccessLifecyclePolicy | null,
     mechanicAccessPolicies: row.mechanicAccessPolicies as MechanicAccessPolicyMap,
+    downgradePolicies: row.downgradePolicies as DowngradePolicyMap,
   };
 }
 
@@ -111,6 +114,7 @@ function tariffValues(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
     quotas: input.quotas,
     systemAccessPolicy: input.systemAccessPolicy,
     mechanicAccessPolicies: input.mechanicAccessPolicies,
+    downgradePolicies: input.downgradePolicies,
     includedSeats: input.includedSeats,
     includedSeatsWarningAtPercent: input.includedSeatsWarningAtPercent,
     isActive: input.isActive,
@@ -322,6 +326,34 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           };
         });
       });
+    },
+
+    async getOrganizationMechanicUsage(organizationId) {
+      assertPlatformOperationsPrincipal();
+      const [[patientCountRow], [branchesRow], [filesRow]] = await Promise.all([
+        getDrizzle()
+          .select({ used: sql<number>`count(*)::int` })
+          .from(orgEnrollments)
+          .where(
+            and(
+              eq(orgEnrollments.organizationId, organizationId),
+              or(eq(orgEnrollments.status, 'invited'), eq(orgEnrollments.status, 'active')),
+            ),
+          ),
+        getDrizzle()
+          .select({ used: sql<number>`count(*)::int` })
+          .from(beBranches)
+          .where(and(eq(beBranches.organizationId, organizationId), eq(beBranches.isActive, true))),
+        getDrizzle()
+          .select({ used: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
+          .from(patientFiles)
+          .where(eq(patientFiles.organizationId, organizationId)),
+      ]);
+      return {
+        patient_count: patientCountRow?.used ?? 0,
+        branches: branchesRow?.used ?? 0,
+        files: Number(filesRow?.used ?? 0),
+      };
     },
 
     async getTrialPolicy() {

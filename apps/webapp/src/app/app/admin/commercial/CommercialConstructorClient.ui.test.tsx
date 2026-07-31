@@ -97,7 +97,7 @@ describe('commercial constructor access ladder', () => {
     await user.click(screen.getByLabelText('Онлайн-запись: Затем'));
     const openSelect = document.querySelector<HTMLElement>('[data-slot="select-content"][data-open]');
     expect(openSelect).not.toBeNull();
-    await user.click(within(openSelect!).getByRole('option', { name: 'Полный доступ' }));
+    await user.click(within(openSelect!).getByRole('option', { name: 'Только чтение' }));
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitFor(() =>
@@ -115,7 +115,7 @@ describe('commercial constructor access ladder', () => {
               graceDays: 1,
               warningCount: 3,
               readOnlyDays: 5,
-              terminalState: 'full_access',
+              terminalState: 'read_only',
             },
           },
         },
@@ -127,6 +127,27 @@ describe('commercial constructor access ladder', () => {
     expect(screen.getByLabelText('Доступ к системе: Терпение: дней')).toHaveValue(6);
     expect(screen.getByLabelText('Доступ к системе: Предупреждений')).toHaveValue(2);
     expect(screen.getByLabelText('Онлайн-запись: Только чтение: дней')).toHaveValue(5);
-    expect(screen.getByLabelText('Онлайн-запись: Затем')).toHaveTextContent('Полный доступ');
+    expect(screen.getByLabelText('Онлайн-запись: Затем')).toHaveTextContent('Только чтение');
+  });
+
+  it('never offers "full access" as a ladder terminal state (§5a stage 4b.2 — exactly two values)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ ok: true, tariffs: [], organizations: [], trialPolicy: null }),
+      })),
+    );
+
+    render(<CommercialConstructorClient />);
+    await screen.findByRole('button', { name: 'Создать' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Настроить' })[0]!);
+    fireEvent.click(screen.getByLabelText('Доступ к системе: Затем'));
+
+    const openSelect = document.querySelector<HTMLElement>('[data-slot="select-content"][data-open]');
+    expect(openSelect).not.toBeNull();
+    expect(within(openSelect!).queryByRole('option', { name: 'Полный доступ' })).not.toBeInTheDocument();
+    expect(within(openSelect!).getByRole('option', { name: 'Только чтение' })).toBeInTheDocument();
+    expect(within(openSelect!).getByRole('option', { name: 'Выключено' })).toBeInTheDocument();
   });
 });

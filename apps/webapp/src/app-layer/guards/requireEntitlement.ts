@@ -102,7 +102,6 @@ export function resolveMechanicSurfaceVisibility(
 }
 
 const ACCESS_STATE_LABELS: Record<MechanicAccessWarning['nextState'], string> = {
-  full_access: 'полный доступ',
   read_only: 'только чтение',
   disabled: 'выключено',
 };
