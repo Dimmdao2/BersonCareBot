@@ -50,8 +50,18 @@ const unconfiguredPolicies = {
   includedSeatsWarningAtPercent: null,
 } as const;
 
+/** Cabinet entry is its own ladder subject (§5a/2.1a); these cases are about mechanics only. */
+const openCabinet: Pick<OrgEntitlementsPort, 'resolveCabinetAccess'> = {
+  resolveCabinetAccess: async () => ({
+    state: 'full_access',
+    policySource: 'system',
+    warning: null,
+  }),
+};
+
 function snapshotPort(): OrgEntitlementsPort {
   return {
+    ...openCabinet,
     async resolveMechanicAccess(_organizationId, mechanic) {
       return { mechanic, state: 'full_access', policySource: 'system', warning: null };
     },
@@ -228,6 +238,7 @@ describe('org entitlement mechanic classes', () => {
       { actorId: 'admin', reason: '' },
     );
     const assignedPort: OrgEntitlementsPort = {
+      ...openCabinet,
       resolveMechanicAccess: async (_organizationId, mechanic) => ({
         mechanic,
         state: 'full_access',
@@ -284,6 +295,7 @@ describe('org entitlement mechanic classes', () => {
       access: activeAccess,
     };
     const port: OrgEntitlementsPort = {
+      ...openCabinet,
       resolveMechanicAccess: async (_organizationId, mechanic) => ({
         mechanic,
         state: 'disabled',
@@ -413,6 +425,7 @@ describe('org entitlement mechanic classes', () => {
       access: activeAccess,
     };
     const platformPort: OrgEntitlementsPort = {
+      ...openCabinet,
       resolveMechanicAccess: async (_organizationId, mechanic) => ({
         mechanic,
         state: 'full_access',
@@ -1015,6 +1028,88 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       expect(entitlementsFromSnapshot(worstCaseSnapshot)[mechanic]).toBe(true);
     }
   });
+
+  // §5a/2.1b, вторая половина: «Критичные механики … не являются тарифными опциями и в тариф не
+  // попадают вовсе». Не «попадают выключенными», а отсутствуют как ключ — иначе владелец увидит у
+  // них рубильник в конструкторе.
+  // Арбитр: снять фильтр `class === 'возможность'` в `normalizeTariffInput` (пустить в `mechanics`
+  // все ключи) — тест краснеет.
+  it('drops every critical mechanic from the tariff itself — not even as a switched-off key', async () => {
+    const service = createPlatformEntitlementsService(servicePort());
+    const enableEverything = Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, true]));
+
+    const tariff = await service.createTariff(baseTariffInput({ mechanics: enableEverything }), {
+      actorId: null,
+      reason: '',
+    });
+
+    const leaked = criticalMechanics().filter((mechanic) => mechanic in tariff.mechanics);
+    expect(leaked, `критичные механики попали в тариф: ${leaked.join(', ')}`).toEqual([]);
+    // И проверка не пустая: обычные механики в тарифе есть.
+    expect(Object.keys(tariff.mechanics).length).toBeGreaterThan(0);
+  });
+});
+
+// §5a/2.1b, первая половина: «Исключений НЕТ ни у одной механики, включённой в тариф: агент не
+// выбирает, какая подчиняется лестнице. Механическая проверка: в коде нет ни одного списка механик,
+// исключённых из лестницы по решению агента».
+//
+// Список нельзя ловить по тексту исходника (правило `tests-check-behaviour-not-circumstances`),
+// поэтому он ловится ПОВЕДЕНИЕМ: единая дверь прогоняется по ВСЕМУ реестру, и ни одна тарифная
+// механика не имеет права проскочить. Любой список-исключение, добавленный агентом, обязательно
+// откроет хотя бы одну из них — и тест назовёт её поимённо.
+describe('§5a/2.1b: у лестницы нет ни одной механики-исключения', () => {
+  function configurableMechanics(): OrgMechanic[] {
+    return MECHANICS.filter((mechanic) => MECHANIC_REGISTRY[mechanic].class !== 'никогда');
+  }
+
+  function portResolvingEveryMechanic(state: 'disabled' | 'read_only'): OrgEntitlementsPort {
+    return {
+      ...openCabinet,
+      resolveMechanicAccess: async (_organizationId: string, mechanic: OrgMechanic) => ({
+        mechanic,
+        state,
+        policySource: 'system' as const,
+        warning: null,
+      }),
+    } as unknown as OrgEntitlementsPort;
+  }
+
+  // Арбитр: добавить в `checkEntitlement` строку вида
+  // `if (['promo','warmups'].includes(mechanic)) return { ok: true }` — тест краснеет и печатает
+  // именно эти механики.
+  it('ни одна тарифная механика не проходит дверь на ступени «выключено»', async () => {
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: portResolvingEveryMechanic('disabled'),
+    } as ReturnType<typeof buildAppDeps>);
+
+    const escaped: OrgMechanic[] = [];
+    for (const mechanic of configurableMechanics()) {
+      const read = await requireEntitlementForRead({ organizationId: 'org' }, mechanic);
+      const mutation = await requireEntitlementForMutation({ organizationId: 'org' }, mechanic);
+      if (read.ok || mutation.ok) escaped.push(mechanic);
+    }
+
+    expect(escaped, `механики в обход лестницы: ${escaped.join(', ')}`).toEqual([]);
+  });
+
+  // Арбитр: тот же список-исключение, но на ступени «только чтение» — тест краснеет.
+  it('ни одна тарифная механика не пишет на ступени «только чтение»', async () => {
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: portResolvingEveryMechanic('read_only'),
+    } as ReturnType<typeof buildAppDeps>);
+
+    const escaped: OrgMechanic[] = [];
+    for (const mechanic of configurableMechanics()) {
+      const mutation = await requireEntitlementForMutation({ organizationId: 'org' }, mechanic);
+      if (mutation.ok) escaped.push(mechanic);
+      // Чтение на этой ступени обязано остаться открытым — канон §4a.
+      const read = await requireEntitlementForRead({ organizationId: 'org' }, mechanic);
+      expect(read.ok, `чтение закрыто у ${mechanic}`).toBe(true);
+    }
+
+    expect(escaped, `запись в обход лестницы: ${escaped.join(', ')}`).toEqual([]);
+  });
 });
 
 describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence, not a new engine', () => {
@@ -1057,6 +1152,7 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
       ...unconfiguredPolicies,
     };
     const orgPort = (usage: number, override: (typeof overrides)[number] | null): OrgEntitlementsPort => ({
+      ...openCabinet,
       resolveMechanicAccess: async (_organizationId, mechanic) => ({
         mechanic,
         state: 'full_access',

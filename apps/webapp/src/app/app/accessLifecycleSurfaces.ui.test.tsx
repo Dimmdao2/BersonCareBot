@@ -157,6 +157,13 @@ beforeEach(() => {
     user: { userId, role: 'doctor', displayName: 'Врач' },
   };
   const orgEntitlements = {
+    // Cabinet entry is its own ladder subject (§5a/2.1a); these cases are about mechanics, so the
+    // cabinet stays fully open and contributes no warning of its own to the shell banner.
+    resolveCabinetAccess: async () => ({
+      state: 'full_access' as const,
+      policySource: 'system' as const,
+      warning: null,
+    }),
     resolveMechanicAccess: async (_organizationId: string, mechanic: OrgMechanic) => {
       const included =
         mechanic === 'cms_pages'

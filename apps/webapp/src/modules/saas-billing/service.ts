@@ -7,22 +7,15 @@ import type {
 } from './ports';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
-import type { MechanicAccessState } from '@/modules/org-entitlements/types';
 
 /**
- * §5a/2.1c: paying the platform is the recovery path, not a tariff mechanic. Every cabinet state,
- * including the terminal block, is intentionally accepted here.
+ * §5a/2.1c — INVARIANT OF THE TWO MONEY FLOWS. The path by which a clinic pays US for its tariff is
+ * untouched by the access ladder in every state, including the terminal cabinet block: otherwise the
+ * block could not be lifted by paying and would be inescapable. Concretely, this module must never
+ * gain a dependency on `org-entitlements` / `requireEntitlement`. That is enforced by
+ * `service.test.ts` (§5a/2.1c suite), not by a runtime check here — a runtime check would be the
+ * very coupling the invariant forbids.
  */
-export function assertOwnTariffPaymentAvailable(state: MechanicAccessState): void {
-  switch (state) {
-    case 'full_access':
-    case 'grace':
-    case 'read_only':
-    case 'disabled':
-    case 'unconfigured':
-      return;
-  }
-}
 
 export function createSaasBillingService(dependencies: {
   repository: SaasBillingRepositoryPort;
@@ -108,16 +101,10 @@ export function createSaasBillingService(dependencies: {
       servicePeriodStartsAt: string;
       servicePeriodEndsAt: string;
       providerIdempotencyKey: string;
-      cabinetAccessState: MechanicAccessState;
     }) {
-      assertOwnTariffPaymentAvailable(input.cabinetAccessState);
       const provider = await resolvePaymentProvider();
       const invoice = await dependencies.repository.createSaasBillingInvoice({
-        organizationId: input.organizationId,
-        saasBillingSubscriptionId: input.saasBillingSubscriptionId,
-        servicePeriodStartsAt: input.servicePeriodStartsAt,
-        servicePeriodEndsAt: input.servicePeriodEndsAt,
-        providerIdempotencyKey: input.providerIdempotencyKey,
+        ...input,
         providerId: provider.providerId,
       });
       const intent = await provider.adapter.createIntent({
