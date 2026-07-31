@@ -3,6 +3,7 @@ import { getCurrentCorrelationId } from '@bersoncare/db-principal';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { OutgoingDeliveryKind } from '../../delivery/deliveryContract.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
+import { getOutgoingDeliveryReclaimConfig } from './outgoingDeliveryReclaimSettings.js';
 
 export type OutgoingDeliveryQueueRow = {
   id: string;
@@ -76,6 +77,11 @@ export async function enqueueOutgoingDeliveryIfAbsent(
      ON CONFLICT (event_id) DO NOTHING
      RETURNING true AS inserted`,
   );
+  // Retention belongs to the producer boundary deliberately: every successful queue producer
+  // already needs app_staff INSERT, and that same existing role owns DELETE. The delivery worker
+  // has only SELECT/UPDATE, so invoking retention from its tick would fail in locked runtime.
+  const retention = await getOutgoingDeliveryReclaimConfig(db);
+  await deleteExpiredSentOutgoingDeliveries(db, retention.doneRetentionDays);
   return Boolean(res.rows[0]?.inserted);
 }
 

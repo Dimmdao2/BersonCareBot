@@ -25,14 +25,13 @@ import {
 } from '../../db/repos/outgoingDeliveryScope.js';
 import {
   claimDueOutgoingDeliveries,
-  deleteExpiredSentOutgoingDeliveries,
   markOutgoingDeliveryDead,
   markOutgoingDeliverySent,
   rescheduleOutgoingDeliveryRetry,
   resetStaleOutgoingDeliveryProcessing,
   type OutgoingDeliveryQueueRow,
 } from '../../db/repos/outgoingDeliveryQueue.js';
-import { getOutgoingDeliveryReclaimConfig } from '../../../app/outgoingDeliveryReclaimSettings.js';
+import { getOutgoingDeliveryReclaimConfig } from '../../db/repos/outgoingDeliveryReclaimSettings.js';
 import {
   enrichDoctorBroadcastIntentIfNeeded,
   type DoctorBroadcastMenuWorkerDeps,
@@ -860,7 +859,6 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
     reclaimConfig.processingTimeoutMinutes,
     reclaimConfig.maxReclaimCount,
   );
-  await deleteExpiredSentOutgoingDeliveries(input.db, reclaimConfig.doneRetentionDays);
   const rows = await claimDueOutgoingDeliveries(input.db, input.batchSize);
   let processed = 0;
   let errors = 0;

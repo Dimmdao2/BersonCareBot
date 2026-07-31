@@ -10,7 +10,12 @@
 
 ## Статусы и ретраи
 
-Статусы: `pending`, `processing`, `sent`, `failed_retryable`, `dead`. Backoff после неудачи: 60s → 300s → 900s → 3600s (см. `apps/integrator/src/infra/delivery/deliveryContract.ts`). Зависшие `processing` сбрасываются в `failed_retryable` через ~10 минут.
+Статусы: `pending`, `processing`, `sent`, `failed_retryable`, `dead`. Backoff после неудачи: 60s → 300s → 900s → 3600s (см. `apps/integrator/src/infra/delivery/deliveryContract.ts`). Зависшие `processing` возвращаются в `pending` по DB-backed таймауту; после настроенного числа возвратов строка уходит в `dead`.
+
+Выполненные `sent` старше DB-backed срока удаляются из рабочей очереди после следующей успешной постановки:
+producer уже работает под `app_staff`, у которого есть `INSERT` и `DELETE`. Delivery worker выполняет только
+`SELECT/UPDATE` (claim/reclaim/finalize) и не получает `DELETE`. Durable-история остаётся в
+`public.notification_delivery_attempts`; retention очереди её не изменяет.
 
 **Блокировка бота (TG/MAX):** при `RECIPIENT_BLOCKED_BOT` строка финализируется как `dead` с `failure_class = recipient_blocked_bot`, attempt в `notification_delivery_attempts` — `skipped` / `recipient_blocked_bot`. Такие строки **не** входят в operator `deadTotal` («Очередь доставки») и **не** увеличивают `broadcast_audit.error_count` (отдельный счётчик `blocked_recipient_count`). Маркер `user_channel_bindings.bot_blocked_at` снимается при успешной доставке по тому же каналу. См. `docs/ARCHITECTURE/DOCTOR_BROADCASTS.md` и post-deploy backfill SQL.
 

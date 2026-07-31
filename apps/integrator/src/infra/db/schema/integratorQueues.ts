@@ -11,11 +11,14 @@ import {
   index,
   integer,
   jsonb,
+  pgSchema,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+
+const integratorSchema = pgSchema('integrator');
 
 export const projectionOutbox = pgTable(
   'projection_outbox',
@@ -56,7 +59,7 @@ export const projectionOutbox = pgTable(
   ],
 );
 
-export const messageRetryJobs = pgTable(
+export const messageRetryJobs = integratorSchema.table(
   'message_retry_jobs',
   {
     id: bigserial({ mode: 'number' }).primaryKey().notNull(),
