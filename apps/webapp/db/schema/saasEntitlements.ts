@@ -44,6 +44,11 @@ export const saasTariffs = pgTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'::jsonb`),
+    /** §5a stage 4b.3 — per-mechanic "переход на тариф меньше" policy; see `DowngradePolicyMap`. */
+    downgradePolicies: jsonb('downgrade_policies')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     /**
      * C4A — included specialist seats for the `clinic_team` mechanic. `null` means not explicitly
      * configured (resolver falls back to a finite fail-closed baseline, never unlimited); a stored

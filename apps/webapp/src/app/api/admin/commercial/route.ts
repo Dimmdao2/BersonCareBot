@@ -20,8 +20,12 @@ const accessPolicySchema = z.object({
   graceDays: z.number().int().nonnegative(),
   readOnlyDays: z.number().int().nonnegative(),
   warningCount: z.number().int().nonnegative(),
-  terminalState: z.enum(['full_access', 'read_only', 'disabled']),
+  terminalState: z.enum(['read_only', 'disabled']),
 });
+
+// §5a stage 4b.3 — the union covers both mechanic classes; `assertDowngradePolicy` (service.ts)
+// rejects a value that doesn't match the mechanic's own class, so this schema only bounds the set.
+const downgradePolicySchema = z.enum(['block', 'freeze_growth', 'disable_immediately', 'read_only']);
 
 const tariffInputSchema = z.object({
   name: z.string().trim().min(1),
@@ -39,6 +43,7 @@ const tariffInputSchema = z.object({
     .strict(),
   systemAccessPolicy: accessPolicySchema.nullable(),
   mechanicAccessPolicies: z.record(z.string(), accessPolicySchema),
+  downgradePolicies: z.record(z.string(), downgradePolicySchema),
   includedSeats: z.number().int().nonnegative().nullable(),
   includedSeatsWarningAtPercent: z.number().int().min(0).max(100).nullable(),
   isActive: z.boolean(),

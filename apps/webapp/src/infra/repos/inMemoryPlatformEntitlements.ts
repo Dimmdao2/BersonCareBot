@@ -51,6 +51,9 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     async getTrialPolicy() {
       return policy;
     },
+    async getOrganizationMechanicUsage() {
+      return {};
+    },
     async createTariff(input) {
       const now = new Date().toISOString();
       const tariff: Tariff = { ...input, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
