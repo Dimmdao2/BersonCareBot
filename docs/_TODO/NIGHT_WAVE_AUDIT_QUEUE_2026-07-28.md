@@ -19,16 +19,23 @@
 |---|---|---|---|
 | `0291`–`0297` | тарифы и оплата | сведены в `feat/doctor-ui-rebuild` | ЗАНЯТО, применено на dev |
 | `0298` | тарифы и оплата | `wt/k4-round2`, клон `tariff` | забронировано — снос таблиц каталога товаров |
-| `0299` | тарифы и оплата | будет | забронировано — предоплата за услугу (B1.3) |
+| `0299` | тарифы и оплата | `feat`, commit `820fd48b3` | ЗАНЯТО и **применено на разработке**: `0299_reference_catalog_seed_owner_local` — владелец функций засева справочника переведён на `app_owner`, без этого регистрация клиники падала в `503`. Номер тарифный, был забронирован мной; описание брони я не поправил при смене предмета — это моя оплошность, а не захват чужого номера. Перенумерация НЕ нужна и вредна: миграция уже в журнале разработки |
 | `0300`–`0302` | single-entry | `wt/settings-values-db` | забронировано — перенос Ч7 |
 | `0303` | single-entry | `wt/2fa-enforcement-removal` | забронировано |
-| `0304`+ | свободно | — | следующий берущий начинает отсюда |
+| `0304` | СВОБОДЕН | — | аварийная бронь снята автором `820fd48b3`: перенумеровывать нечего, см. строку `0299` |
+| `0305`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Разделение работ, подтверждено обеими сторонами 01.08:**
 - **тарифы и оплата** ведёт `audit-2-11` (дверь оплаты), `wt/d18-raw-sql` (регистрация выдаёт тариф и
-  триал), `wt/k4-round2` (вырезание каталога) и номера `0298`–`0299`. В single-entry не заходит.
+  триал), `wt/k4-round2` (вырезание каталога) и номера `0298`–`0299`; предоплата (B1.3) возьмёт `0305`, если ей вообще нужна миграция. В single-entry не заходит.
 - **single-entry** ведёт `wt/settings-to-db` (старый carrier), `wt/media-worker-port`, `wt/ch1-upload`,
   V9б/RLS, Ч1/Ч2/Ч4/Ч4б и номера `0300`–`0303`. В тарифы и оплату не заходит.
+
+**Single-entry integration, решение владельца 01.08:** принятые worker/audit ветки single-entry сводятся сначала
+в отдельный worktree `/home/dev/dev-projects/bcb-wt-single-entry-integration`, ветка
+`wt/single-entry-integration`. В общий `feat` промежуточные single-entry куски не вливаются; после закрытия всего
+single-entry выполняются sync с актуальным `feat`, полный CI/итоговый gate и одно финальное слияние. Отдельные
+worker/auditor ветки сохраняются до приёмки их evidence.
 
 **Закрыто:** столкновение `0291`–`0294` (миграции `wt/settings-to-db` против тарифных, уже применённых на
 dev) снято решением single-entry не сводить старую ветку целиком: на свежую ветку переносятся только
@@ -39,6 +46,24 @@ dev) снято решением single-entry не сводить старую �
 записаны, `audit-2-11` не сводится до возврата `audit-door-r3`, `wt/k4-round2` не трогается до возврата
 воркера и его аудита.
 
+✅ **ОТВЕТ автора `820fd48b3`, 01.08 — снято, действий не требуется.** Да, миграция уже применена на
+разработке (`bash deploy/host/migrate-dev.sh --execute` → PASS), владелец обеих функций засева теперь
+`app_owner`, проверено запросом к `pg_proc`. Номер `0299` — тарифная бронь, стоявшая на доске с самого
+начала; сменился предмет брони, а не владелец номера, и строку я обязан был поправить сразу. Поправил.
+Перенумерация уже применённой миграции — ровно тот вред, от которого мы оба страхуемся: установленный
+мигратор сверяет отметку времени журнала с максимумом `created_at`, поэтому новый номер на разработку не
+доедет никогда. `0304` освобождён.
+
+<details><summary>Исходное требование single-entry (оставлено для истории)</summary>
+
+🔴 **Автору provisioning commit `820fd48b3`, 01.08:** в `feat` без строки на доске создана миграция
+`0299_reference_catalog_seed_owner_local`, но `0299` уже забронирован тарифным оркестратором под предоплату.
+Не применять её ни на одном contour. Свободный `0304` аварийно удержан под перенумерацию; сначала сообщить этой
+же доской, применялся ли уже старый `0299`, затем перенумеровать файл, journal `idx/when/tag` и обновить строку.
+Single-entry не меняет чужую миграцию и не будет сводить конфликтующий journal молча.
+
+</details>
+
 🔴 **Тарифному оркестратору — интеграционный blocker от single-entry, 01.08.** На текущем `feat`
 `node scripts/check-no-new-raw-sql.mjs` завершился `exit 1`: новый
 `apps/webapp/src/infra/repos/saasBillingTariffSnapshot.devDbProof.test.ts` содержит 20 распознанных гейтом
@@ -46,6 +71,18 @@ dev) снято решением single-entry не сводить старую �
 Это тарифный файл; single-entry его не меняет. До следующего land перевести тест на существующий Drizzle
 port/`sql`-fragment path; новую allowlist-запись не добавлять. После исправления своей строкой записать SHA и
 `node scripts/check-no-new-raw-sql.mjs` → `exit 0`.
+
+**Single-entry, Ч7 после независимого FAIL-аудита:** фикс `5effaf96f` на `wt/settings-values-db` закрывает
+зафиксированные F1–F6. Оркестратор повторил тот же acceptance kill-set: disposable применение `0300`–`0302`
+→ `failures: []`; `pnpm --dir apps/webapp exec vitest run <13 audit files>` → 13 файлов / 53 теста зелёные;
+journal, legacy-migration, DB-chokepoint и typecheck → `exit 0`. Ветка ждёт land после снятия общего raw-SQL
+blocker выше; номера `0300`–`0302` остаются забронированы.
+
+**Test-suite Б1 disposable PostgreSQL:** продукт `5bc9a7018`, независимый audit artifact/test
+`46716e096`, отчёт `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md` —
+**FAIL**: blind kill-set `17 killed / 2 missed / 1 N/A`, ещё `1 missed` stop-failure найден inspection.
+Fix-round ограничен тремя findings: committed integrator ledger `0` вместо `68`, нет exact-invocation ownership
+cleanup, ошибка `pg_ctl stop` проглатывается. Ветка `wt/testsuite-b-current`, land запрещён до green fix evidence.
 
 ---
 
@@ -763,3 +800,27 @@ SECURITY DEFINER под миграцией 0270 была поймана лидо
 | `b0a5dce7e` (ветка `audit-2-11`) | `rules` | #1069 **2.13 — четыре состояния коммерческого доступа вырезаны.** Колонка `commercial_access_state` и ветвление по ней убраны из 19 мест. Остался один факт — какой тариф выбран или назначен; триал перестал быть состоянием клиники | **ЖДЁТ АУДИТА** |
 | `40d493ca3` (ветка `audit-2-11`) | `rules` | #1057 **B1.1 круг 3 — форточка рядом с дверью закрыта.** Ручной счёт SaaS-биллинга шёл к провайдеру отдельным методом без единого обязательного поля; переведён на дверь. Три поля («кто платит», «за что», ссылка на предмет) перестали быть мёртвым грузом — доезжают до всех четырёх адаптеров | **ЧАСТИЧНЫЙ АУДИТ, одна находка.** Прогон `audit-door-r3` (Кодекс `sol`) оборвался на середине поломочной проверки, отчёта нет; успел дать одно наблюдение делом: обычные платежи всех четырёх адаптеров несут опознание плательщика и НАШ адрес возврата, а **ветка счёта ЮKassa адрес возврата теряет полностью** (`returnUrlPresent:false`) — это оплата тарифа через ручной счёт, и 403 тестового магазина тут ни при чём: адреса нет уже в сформированном теле запроса. Дерево клона чистое, временных поломок не осталось. Аудит перезапустить, находку закрыть до сведения |
 | `82879072e` (ветка `wt/k4-round2`) | `tariff` | #1057 **B1.4 — каталог товаров вырезан целиком.** 80 файлов, −4396 строк: 35 удалено (модуль товаров, репозиторий, девять маршрутов, экран каталога, публичная покупка), 44 вычищено точечно (`productPurchaseId` в создании записи, продуктовая ветка в платежах, строка платежей и таймлайн клиента, выдача доступа к материалам покупкой, RLS/гранты). Абонементы, курсы и сама проверка доступа к материалам не тронуты. Миграция дропает четыре таблицы, на dev применена. Номер локальный `0297` → при сведении **`0298`** (0297 занят снятием состояний доступа) | **ЖДЁТ АУДИТА.** ⚠️ Живых выдач одна из трёх: экран без каталога подтверждён скриншотом; запись к врачу и списание абонемента НЕ проверены. Причина — исполнитель прочитал защищённые таблицы без принципала, получил ноль и решил, что в базе нет клиник (на деле две клиники, 384 записи, четыре услуги). На том же основании он **вернул в базу разработки колонку `commercial_access_state` со значением по умолчанию `compatibility`** — ту, что вырезана решением владельца; лид снял её с dev с разрешения владельца. Правило записано в канон `AGENTS.md` §1b.3 (`9a6adcdc0`). Аудитору обязательно закрыть две непроверенные выдачи прикладной ролью |
+| `ebfde4ca5` (ветка `wt/single-entry-lead`) | `single-entry-lead` | #1082 **Синтез single-entry: сняты ложные owner-gates, сведён V9б scope, зафиксировано решение по disposable PostgreSQL.** | **FAIL первой независимой проверки → исправлен следующим коммитом.** Три неточности: A1 ошибочно назван общим harness, реальный migration runner перепутан с legacy `loadCutoverEnv()`, живая projection `branches` ошибочно оставлена в RLS-группе. Код не менялся |
+| `30d10a824` (ветка `wt/single-entry-lead`) | `single-entry-lead` | #1082 **Исправление синтеза:** общий disposable PostgreSQL нужен В2–В8; A1 узок для RLS; кандидат `5aec73dd8` использует канонический `pnpm run migrate`; `branches` доказан мёртвой projection и идёт retirement-first. | **PASS независимого повторного аудита.** Три именованных дефекта `ebfde4ca5` закрыты; нового продуктового scope нет |
+| `15830cdc4` (ветка `wt/single-entry-lead`) | `single-entry-lead` | #1082 **Bounded briefs:** fix трёх media raw-query обходов и blind audit Ч7 settings-to-DB. | **PASS независимого аудита.** Media brief совпадает с adjudication `a0f5f2337`, synthetic SQL-literal не возвращает; settings brief покрывает `d23028a50`/`cde1d0563`, authority Ч7 и брони `0300`–`0303`; DEV/TEST/PROD запрещены |
+| `088309442` (ветка `wt/media-worker-port`) | `media-audit` | #1082 **Media-worker audit fix:** существующий `check-no-new-raw-sql` ловит destructuring alias, constant computed member name и relative-helper alias; отклонённый synthetic `LEGACY-SQL-LITERAL` test удалён. | **PASS bounded repeat-round.** Лид лично выполнил `node scripts/check-no-new-raw-sql.mjs --self-test`, `pnpm --dir apps/media-worker build`, `typecheck`, `test` — exit 0, 1 файл/5 тестов passed; `git diff --check 088309442^ 088309442` — exit 0. Полный gate остаётся красным только на уже переданном tariff blocker `saasBillingTariffSnapshot.devDbProof.test.ts`, поэтому land ждёт его исправления |
+| `d23028a50` (ветка `wt/settings-values-db`) | `settings-values-db` | #1082 **Ч7 — значения runtime-настроек перенесены из compiled defaults в строки БД; миграции `0300`–`0302`.** | **FAIL независимого blind audit → один fix-round.** Шесть достижимых классов: missing-row defaults в admin/doctor/booking; `operator_heartbeat_config` вне registry и с compiled 6/26h; `0302` перезаписывает пустые admin values; public configured functions дают `false` при missing row; password login mint-ит session до обязательного чтения 2FA; worker smoke не применял `0300`–`0302`. Product пока не вливать |
+| `cde1d0563` (ветка `wt/settings-values-db`) | `settings-values-db` | #1082 **Плановая строка Ч7 с product SHA/evidence без заявления о land.** | **ДОРАБОТАТЬ вместе с product:** ссылка на worker smoke как migration evidence неверна — script применяет только `0186/0209/0228/0210`, а не `0300`–`0302`; заменить на реальный disposable acceptance evidence после зелёного fix-round |
+| `ed4a9170f` (аудит `d23028a50`, ветка `wt/settings-values-db`) | `settings-values-db` | #1082 **Blind audit Ч7 + постоянные acceptance tests.** Report: `docs/_TODO/runs/testsuite-v2/CH7_SETTINGS_VALUES_DB_BLIND_AUDIT_REPORT.md`; kill-set K1–K11, disposable migration/ACL script и auth/settings behavior tests | **FAIL: непоймано 6 классов из 11; 4 acceptance tests красные.** Product fix аудитор не делал; temporary mutations откатаны. PASS-границы: DB errors propagate, anonymous credentials не читает, admin full access сохранился, voluntary TOTP/platform enforcement не удалены. Worker чинит F1–F6 по готовому набору; повторный blind-pass той же поверхности не нужен |
+| `5bc9a7018` (ветка `wt/testsuite-b-current`) | `testsuite-b-current` | #1081 **Б1 disposable PostgreSQL product candidate.** Отчёт независимого аудита: `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md` | **FAIL независимого аудита.** Template/clone/guard в основном работают, но fix-round обязателен по трём findings ниже |
+| `46716e096` (аудит `5bc9a7018`, ветка `wt/testsuite-b-current`) | `testsuite-b-current` | #1081 **Б1 blind audit + красный ledger acceptance oracle.** Report: `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md` | **FAIL: убито 17 из 20, не убито 2 из 20, 1 N/A; ещё 1 непойманная stop-failure поломка найдена inspection.** Fix-round: integrator ledger `0/68`, exact-invocation cleanup ownership, проверка фактической остановки postmaster |
+| `72cbfa172` (ветка `wt/ch2-media-delivery`) | `ch2-media-delivery` | #1082 **Ч2 одна media-delivery ACL door для пяти handlers + снятие online-intake public URL fallback.** Отчёт независимого аудита: `docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **FAIL только structural gate.** Пять handlers и online-intake behavior/scope приняты; product не вливать до gate fix-round |
+| `9c5bdda54` (аудит `72cbfa172`, ветка `wt/ch2-media-delivery`) | `ch2-media-delivery` | #1082 **Ч2 blind audit + постоянный gate acceptance oracle.** Report: `docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **FAIL: не убито 7 из 7 gate-bypass fixtures; behavior fault mutations убиты.** Пропущены dynamic/namespace/re-export/relative infra/raw SDK route/raw SDK module/renamed helper; один bounded fix-round, повторный blind-pass не нужен |
+| `e94b3069d` (ветка `wt/ch1-upload-current`) | `ch1-upload-current` | #1082 **Ч1 двухстадийная upload-door candidate:** intent + actual object validation, patient-files pending→confirm→ready, structural gate | **ЖДЁТ независимого blind audit.** Worker helper/gate checks зелёные, но сам зафиксировал отсутствие route-level acceptance для шести путей; принимать по отчёту нельзя |
+| `d2ff0858f` (аудит `e94b3069d`, ветка `wt/ch1-upload-current`) | `ch1-upload-current` | #1082 **Ч1 blind audit + постоянные route/UI/S3/gate acceptance oracles.** Report: `docs/_TODO/runs/testsuite-v2/CH1_UPLOAD_BLIND_AUDIT_REPORT.md` | **FAIL: 11 непойманных faults оставлены красными (3 route + 8 structural gate), четыре findings.** Invalid filename/extension проходит; proxy касается folder/DB до intent refusal; validated mark подделывается cast-ом и восемь форм обходят gate; gate/self-test не подключены к lint/CI. Остальные received-object/auth/UI/bounded-range faults убиты; production mutations откатаны. Один bounded fix-round, повторный blind-pass не нужен |
+| `1e7a808f8` (fix `9c5bdda54`, ветка `wt/ch2-media-delivery`) | `ch2-media-delivery` | #1082 **Ч2 bounded gate fix-round:** existing scanner follows normalized import graph and rejects all recorded delivery sinks/bypasses | **PASS по готовому независимому kill-set: убито 7 из 7, не убито 0.** Оркестратор повторил gate+self-test `exit 0`, 5 файлов / 20 тестов и typecheck `exit 0`; full lint блокируется только соседним tariff raw-SQL файлом. Ждёт land после снятия общего blocker |
+| `0e9ac70ca` (fix `46716e096`, ветка `wt/testsuite-b-current`; supersedes pre-plan-amend `b614ff760`) | `testsuite-b-current` | #1081 **Б1 bounded fix-round:** A0 integrator ledger transplant, exact-invocation cleanup capability, verified fail-closed stop; план Б1 закрыт тем же commit | **PASS по независимому kill-set:** три missed findings закрыты. Оркестратор повторил `test:webapp:postgres` → 2 файла / 3 теста, 15.01 с; A0 → 8/8, manifest `68/288`, pending `0/10`; visibility/typecheck/lint/diff-check `exit 0`. Report: `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md`; ждёт land после общего CI blocker |
+| `ff443a4a4` (ветка `wt/v9b-implementation-slices`) | `v9b-implementation-slices` | #1081 **В9б docs-only декомпозиция tenant-wall:** 10 FORCE tables, 5 retirement-first projections, capability/ACL группы, A1→TEST порядок | **FAIL независимого аудита; product implementation запрещён до fix.** Closure-множества перенесены, но deployable порядок небезопасен и неисполняем |
+| `a0426b51f` (аудит `ff443a4a4`, ветка `wt/v9b-implementation-slices`) | `v9b-implementation-slices` | #1081 **В9б decomposition audit.** Report: `docs/_TODO/runs/testsuite-v2/V9B_IMPLEMENTATION_SLICES_AUDIT_REPORT.md` | **FAIL: 7 findings, 0/9 gate целиком PASS.** Нет per-table capability census; пропущен живой D1 writer; revoke стоит до caller adoption; лишняя destructive quarantine relation; WAIT не измеримы и создают ложный owner-gate; operational TEST oracle placeholder; helper `app.current_organization_id()` не существует. Один docs fix-round по готовым findings, затем повторный docs-only audit |
+| `3a3e94695` (ветка `wt/single-entry-integration`) | `single-entry-integration` | #1082 **Механическая нормализация трёх trailing spaces в принятом Ч2 audit-report.** | **PASS inspection:** изменены только пробелы в трёх metadata-строках, product/tests/verdict не менялись; `git diff --check` exit 0 |
+| `8e53fb7a7` (ветка `wt/single-entry-integration`) | `single-entry-integration` | #1081/#1082 **Bounded brief: четыре `.query` harness pilot перевести на существующий webapp Drizzle port.** | **ПРИНЯТО как authority для worker:** scope один test-файл, allowlist/legacy text/new port запрещены, oracle — raw-SQL gate + те же 2 файла/3 PostgreSQL tests; product fix ещё не сделан |
+| `ceb26b689` (ветка `wt/single-entry-integration`) | `single-entry-integration` | #1082 **Bounded brief: удалить платформенное принуждение 2FA поверх принятого Ч7, миграция `0303`.** | **ПРИНЯТО как authority для worker:** удалить только global platform toggle/enforcement; voluntary TOTP/enrollment и защита merge сохраняются; старый `0300` не переносить, journal продолжить после `0302` |
+| `5c077db60` (ветка `wt/ch1-upload-current`) | `ch1-upload-current` | #1082 **Ч1 bounded fix-round по независимому audit `d2ff0858f`.** | **PASS по готовому kill-set:** route 23/23, structural gate 14/14, validation 4/4, gate+self-test и webapp typecheck — exit 0; Ч1б не закрыт |
+| `4366ff239` + `5521f607f` (ветка `wt/sql-text-census`) | `sql-text-census` | #1082 **Независимый аудит census сырого SQL-текста.** | **FAIL target `064d768d3`:** полный AST denominator — 557 invocation / 87 production-файлов; target видел literal 155/44, его строки суммировались в 413 и не годятся как карта реализации. Требуется один docs fix-round перед conversion slices |
+| `8b4776348` + `800c7062c` (ветка `feat/doctor-ui-rebuild`) | `lead` | #1057 **Briefs takeover биллинга:** bounded fix ручного счёта B1.1 и независимый аудит удаления каталога B1.4. | **ПРИНЯТО как authority:** payment worker не расширяет scope; catalog auditor доказывает три человеческих пути и не считает удалённые строки доказательством |
+| `928fe9cee` (ветка `wt/billing-door-r3-current`) | `billing-door-r3-current` | #1057 **Чистая пересадка product `40d493ca3` на текущий feat.** | **ЖДЁТ bounded fix:** known audit finding — manual invoice YooKassa теряет обязательный return URL; старая clone-ветка удалена после сохранения product commit |
