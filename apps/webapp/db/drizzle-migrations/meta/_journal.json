@@ -2101,6 +2101,13 @@
       "when": 1793539230000,
       "tag": "0299_reference_catalog_seed_owner_local",
       "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1793539230001,
+      "tag": "0305_tariff_snapshot_access_doors_local",
+      "breakpoints": true
     }
   ]
 }
