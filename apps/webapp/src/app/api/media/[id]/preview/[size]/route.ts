@@ -1,14 +1,10 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { logger } from '@/app-layer/logging/logger';
-import {
-  getMediaAccessRow,
-  getMediaPreviewS3KeyForRedirect,
-} from '@/app-layer/media/s3MediaStorage';
+import { getMediaPreviewS3KeyForRedirect } from '@/app-layer/media/s3MediaStorage';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
 import { presignGetUrl, s3GetObjectBody, s3HeadObjectDetails } from '@/app-layer/media/s3Client';
 import { getCurrentSession } from '@/modules/auth/service';
-import { assertMediaPlaybackAccess } from '@/modules/media/assertMediaPlaybackAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   requireDoctorWorkspaceApiContext,
@@ -16,7 +12,7 @@ import {
 } from '@/app-layer/guards/requireRole';
 import { canAccessDoctor } from '@/modules/roles/service';
 import type { AppSession } from '@/shared/types/session';
-import { resolvePlatformLfkMediaAccess } from '@/app-layer/media/resolvePlatformLfkMediaAccess';
+import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -71,23 +67,17 @@ export async function GET(
   }
 
   const serve = async (session: AppSession): Promise<Response> => {
-    let allowPlatformBase = false;
-    let accessRow = await getMediaAccessRow(id);
-    if (!accessRow) {
-      allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
-      if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+    const access = await authorizeMediaDelivery(id, session);
+    if (!access.ok && access.reason === 'not_found') {
+      return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
-    if (!accessRow) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    if (
-      !assertMediaPlaybackAccess(session, {
-        usagePurpose: accessRow.usage_purpose,
-        uploadedBy: accessRow.uploaded_by,
-      })
-    ) {
+    if (!access.ok) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 
-    const s3Key = await getMediaPreviewS3KeyForRedirect(id, size, { allowPlatformBase });
+    const s3Key = await getMediaPreviewS3KeyForRedirect(id, size, {
+      allowPlatformBase: access.allowPlatformBase,
+    });
     if (!s3Key) {
       logger.warn({ mediaId: id, size }, '[preview GET] not found');
       logger.warn({ mediaId: id, size }, '[preview GET] fallback original redirect used');

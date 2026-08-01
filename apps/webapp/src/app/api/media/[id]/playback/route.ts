@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentSession } from '@/modules/auth/service';
-import { assertMediaPlaybackAccess } from '@/modules/media/assertMediaPlaybackAccess';
 import type { PlaybackDeliveryStrategy } from '@/modules/media/playbackResolveDelivery';
 import { resolveMediaPlaybackPayload } from '@/app-layer/media/resolveMediaPlaybackPayload';
-import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   requireDoctorWorkspaceApiContext,
@@ -11,7 +9,7 @@ import {
 } from '@/app-layer/guards/requireRole';
 import { canAccessDoctor } from '@/modules/roles/service';
 import type { AppSession } from '@/shared/types/session';
-import { resolvePlatformLfkMediaAccess } from '@/app-layer/media/resolvePlatformLfkMediaAccess';
+import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery';
 
 function parsePreferParam(raw: string | null): PlaybackDeliveryStrategy | null {
   if (!raw) return null;
@@ -33,19 +31,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const initialSession = await getCurrentSession();
   if (!initialSession) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const serve = async (session: AppSession): Promise<Response> => {
-    let allowPlatformBase = false;
-    let accessRow = await getMediaAccessRow(id);
-    if (!accessRow) {
-      allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
-      if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+    const access = await authorizeMediaDelivery(id, session);
+    if (!access.ok && access.reason === 'not_found') {
+      return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
-    if (!accessRow) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    if (
-      !assertMediaPlaybackAccess(session, {
-        usagePurpose: accessRow.usage_purpose,
-        uploadedBy: accessRow.uploaded_by,
-      })
-    ) {
+    if (!access.ok) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
     const prefer = parsePreferParam(new URL(request.url).searchParams.get('prefer'));
@@ -53,7 +43,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       id,
       session,
       adminPrefer: session.user.role === 'admin' ? prefer : null,
-      allowPlatformBase,
+      allowPlatformBase: access.allowPlatformBase,
     });
     return result.ok
       ? NextResponse.json(result.data)

@@ -1,6 +1,5 @@
 import { env, isS3MediaEnabled } from '@/config/env';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
-import { s3PublicUrl } from '@/infra/s3/client';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
 import { presignGetUrl } from '@/app-layer/media/s3Client';
 import { NUTRITION_ANSWER_LABELS } from '@/modules/online-intake/types';
@@ -43,14 +42,11 @@ export type DoctorOnlineIntakeDetailJson = {
   }>;
 };
 
-/** Presigned or public URL; `null` if S3 is misconfigured (no private and no public bucket for legacy URL). */
+/** Presigned private URL; `null` when private S3 is not configured. */
 async function urlForIntakeS3Key(s3Key: string): Promise<string | null> {
   if (isS3MediaEnabled(env)) {
     const ttlSec = await getVideoPresignTtlSeconds();
     return presignGetUrl(s3Key, ttlSec);
-  }
-  if (env.S3_ENDPOINT && env.S3_PUBLIC_BUCKET) {
-    return s3PublicUrl(s3Key);
   }
   logServerRuntimeError('online_intake_s3_url', new Error('intake_s3_url_misconfigured'), {
     keyKind: s3Key.startsWith('media/') ? 'media' : 'other',

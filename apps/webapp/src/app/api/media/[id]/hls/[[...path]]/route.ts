@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { logger } from '@/app-layer/logging/logger';
 import { handleHlsDeliveryProxyRequest } from '@/app-layer/media/hlsDeliveryProxy';
-import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';
 import { getCurrentSession } from '@/modules/auth/service';
-import { assertMediaPlaybackAccess } from '@/modules/media/assertMediaPlaybackAccess';
 import { getPatientRuntimeBool } from '@/modules/system-settings/configAdapter';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
@@ -12,7 +10,7 @@ import {
 } from '@/app-layer/guards/requireRole';
 import { canAccessDoctor } from '@/modules/roles/service';
 import type { AppSession } from '@/shared/types/session';
-import { resolvePlatformLfkMediaAccess } from '@/app-layer/media/resolvePlatformLfkMediaAccess';
+import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -31,19 +29,11 @@ export async function GET(
   const initialSession = await getCurrentSession();
   if (!initialSession) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const serve = async (session: AppSession): Promise<Response> => {
-    let allowPlatformBase = false;
-    let accessRow = await getMediaAccessRow(id);
-    if (!accessRow) {
-      allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
-      if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+    const access = await authorizeMediaDelivery(id, session);
+    if (!access.ok && access.reason === 'not_found') {
+      return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
-    if (!accessRow) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    if (
-      !assertMediaPlaybackAccess(session, {
-        usagePurpose: accessRow.usage_purpose,
-        uploadedBy: accessRow.uploaded_by,
-      })
-    ) {
+    if (!access.ok) {
       logger.warn(
         { mediaId: id, reasonCode: 'session_unauthorized', httpStatus: 401 },
         'hls_proxy_error',
@@ -59,7 +49,7 @@ export async function GET(
       rangeHeader: request.headers.get('Range'),
       userId: session.user.userId,
       clientAbortSignal: request.signal,
-      allowPlatformBase,
+      allowPlatformBase: access.allowPlatformBase,
     });
   };
   if (canAccessDoctor(initialSession.user.role)) {
