@@ -47,6 +47,12 @@ dev) снято решением single-entry не сводить старую �
 port/`sql`-fragment path; новую allowlist-запись не добавлять. После исправления своей строкой записать SHA и
 `node scripts/check-no-new-raw-sql.mjs` → `exit 0`.
 
+**Single-entry, Ч7 после независимого FAIL-аудита:** фикс `5effaf96f` на `wt/settings-values-db` закрывает
+зафиксированные F1–F6. Оркестратор повторил тот же acceptance kill-set: disposable применение `0300`–`0302`
+→ `failures: []`; `pnpm --dir apps/webapp exec vitest run <13 audit files>` → 13 файлов / 53 теста зелёные;
+journal, legacy-migration, DB-chokepoint и typecheck → `exit 0`. Ветка ждёт land после снятия общего raw-SQL
+blocker выше; номера `0300`–`0302` остаются забронированы.
+
 ---
 
 > **⛔ ПЕРЕД ЗАПУСКОМ ЛЮБОГО СЛОЯ — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш
