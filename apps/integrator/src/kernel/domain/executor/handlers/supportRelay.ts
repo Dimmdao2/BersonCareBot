@@ -288,8 +288,11 @@ export async function handleConversationUserMessage(
  * `error` code so each cause gets its own honest sentence instead of a shared generic one.
  */
 const ADMIN_REPLY_NOT_DELIVERED_TEXT: Record<string, string> = {
+  // Эта ветка срабатывает только для человека БЕЗ привязанной учётки — карточки в кабинете у него
+  // нет, поэтому отсылать туда администратора нельзя: маршрута не существует. Говорим ровно то,
+  // что верно, — ответ не ушёл. Куда отвечать таким людям, решает владелец (открытый вопрос).
   CONVERSATION_ADMIN_REPLY_LEGACY_REMOVED:
-    'Ответ не отправлен: старая консоль поддержки в боте закрыта, этот диалог через неё больше не обслуживается. Ответьте пациенту в кабинете врача.',
+    'Ответ не отправлен: этот диалог больше не обслуживается — человек писал без учётной записи.',
   CONVERSATION_ADMIN_REPLY_WEBAPP_TEXT_ONLY:
     'Вложение не отправлено: в этот диалог пересылается только текст. Напишите ответ текстом.',
 };
@@ -297,7 +300,7 @@ const ADMIN_REPLY_NOT_DELIVERED_TEXT: Record<string, string> = {
 function adminReplyNotDeliveredText(error: string | undefined): string {
   return (
     (error && ADMIN_REPLY_NOT_DELIVERED_TEXT[error]) ||
-    'Ответ не отправлен. Попробуйте ещё раз или ответьте пациенту в кабинете врача.'
+    'Ответ не отправлен.'
   );
 }
 
