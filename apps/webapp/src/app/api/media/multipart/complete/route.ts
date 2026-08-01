@@ -10,16 +10,15 @@ import {
   getCompletingSessionTx,
   markCompletingSessionFailedTx,
 } from '@/app-layer/media/mediaUploadSessionsRepo';
-import { deletePendingMediaFileById } from '@/app-layer/media/s3MediaStorage';
 import { maybeAutoEnqueueVideoTranscodeAfterUpload } from '@/app-layer/media/mediaTranscodeAutoEnqueue';
 import {
   abortPreparedMultipartUpload,
+  abortPendingMediaUpload,
   completePreparedMultipartUpload,
   finalizeReceivedMultipart,
   inspectReceivedMediaObject,
   validateReceivedMediaObject,
 } from '@/app-layer/media/mediaUploadAdapter';
-import { s3DeleteObject } from '@/app-layer/media/s3Client';
 import { multipartMaxPartNumber } from '@/modules/media/multipartConstants';
 import { uploadValidationResponse, validateUploadIntent } from '@/modules/media/uploadValidation';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
@@ -113,11 +112,11 @@ export async function POST(request: Request) {
     await abortPreparedMultipartUpload(row.s3_key, row.upload_id).catch(() => {
       /* ignore */
     });
-    await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deletePendingMediaFileById(row.media_id),
-    ).catch(() => {
-      /* ignore */
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(row.media_id)).catch(
+      () => {
+        /* ignore */
+      },
+    );
     return NextResponse.json({ ok: false, error: 'invalid_parts', maxPart }, { status: 400 });
   }
 
@@ -138,7 +137,7 @@ export async function POST(request: Request) {
         /* ignore */
       });
       await withDoctorWorkspacePrincipal(gate.ctx, () =>
-        deletePendingMediaFileById(row.media_id),
+        abortPendingMediaUpload(row.media_id),
       ).catch(() => {
         /* ignore */
       });
@@ -171,14 +170,11 @@ export async function POST(request: Request) {
         'integrity_mismatch',
       );
     });
-    await s3DeleteObject(row.s3_key).catch(() => {
-      /* ignore */
-    });
-    await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deletePendingMediaFileById(row.media_id),
-    ).catch(() => {
-      /* ignore */
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(row.media_id)).catch(
+      () => {
+        /* ignore */
+      },
+    );
     return NextResponse.json({ ok: false, error: 'integrity_mismatch' }, { status: 409 });
   }
 
@@ -189,11 +185,13 @@ export async function POST(request: Request) {
     policyId: 'cms',
   });
   if (!intent.ok) {
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(row.media_id));
     const rejection = uploadValidationResponse(intent);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
   const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
   if (!received.ok) {
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(row.media_id));
     const rejection = uploadValidationResponse(received);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }

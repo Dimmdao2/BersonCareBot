@@ -2,6 +2,7 @@ export {
   confirmMediaFileReady,
   confirmProgramSubmissionMediaFileReady,
   deletePendingMediaFileById,
+  stagePendingMediaAbort,
   getMediaAccessRow,
   getMediaRowForPlayback,
   getMediaPreviewS3KeyForRedirect,

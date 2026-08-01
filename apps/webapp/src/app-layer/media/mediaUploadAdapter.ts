@@ -14,7 +14,11 @@ import {
   s3HeadObjectDetails,
   s3ObjectKey,
 } from './s3Client';
-import { confirmMediaFileReady, confirmProgramSubmissionMediaFileReady } from './s3MediaStorage';
+import {
+  confirmMediaFileReady,
+  confirmProgramSubmissionMediaFileReady,
+  stagePendingMediaAbort,
+} from './s3MediaStorage';
 import { tryFinalizeMultipartIdempotentTx } from './mediaUploadSessionsRepo';
 import type { PoolClient } from 'pg';
 import {
@@ -145,6 +149,11 @@ export function acceptReceivedProgramSubmission(
 ): Promise<boolean> {
   assertReceivedUpload(received);
   return confirmProgramSubmissionMediaFileReady(mediaId, received);
+}
+
+/** The only route-facing abort transition for terminal single-PUT receive failures. */
+export function abortPendingMediaUpload(mediaId: string): Promise<boolean> {
+  return stagePendingMediaAbort(mediaId);
 }
 
 export function finalizeReceivedMultipart(
