@@ -191,6 +191,7 @@ export function createPostgresJobQueue(input: {
         phoneNormalized,
         messageText,
         firstTryDelaySeconds,
+        ...(task.runAt ? { firstTryAt: task.runAt } : {}),
         maxAttempts,
         kind: task.kind,
         payloadJson: payload,

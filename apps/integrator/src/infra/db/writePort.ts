@@ -5,9 +5,12 @@ import type {
   DbWriteMutation,
   DbWriteMutationType,
   DbWritePort,
+  QueuePort,
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
 import { sql } from 'drizzle-orm';
+import { appSettings } from '../../config/appSettings.js';
+import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
@@ -29,7 +32,6 @@ import {
   insertQuestionMessage,
   setQuestionAnswered,
 } from './repos/messageThreads.js';
-import { enqueueMessageRetryJob } from './repos/jobQueue.js';
 import {
   createContentAccessGrant,
   getReminderOccurrenceContextForProjection,
@@ -235,6 +237,9 @@ export function createDbWritePort(
       db: DbPort,
       nowIso: string,
     ) => Promise<FinalizedReminderOccurrenceProjectionContext[]>;
+    /** Injectable for tests; production defaults to a queue bound to this call's own `db`
+     * (must match `db`, incl. when this runs inside `createTxBoundWritePort`'s tx — see below). */
+    queuePort?: QueuePort;
   } = {},
 ): DbWritePort {
   const db = input.db ?? createDbPort();
@@ -245,6 +250,9 @@ export function createDbWritePort(
     ((channel: 'telegram' | 'max') => readAuthChannelPolicy(db, channel));
   const expireOrphanedReminderOccurrences =
     input.expireOrphanedReminderOccurrences ?? expireOrphanedPendingReminderOccurrences;
+  const queuePort: QueuePort =
+    input.queuePort ??
+    createPostgresJobQueue({ db, retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds });
   const plainMutationsRequiringPrincipalTx: ReadonlySet<DbWriteMutationType> = new Set([
     'event.log',
     'user.state.set',
@@ -1692,24 +1700,24 @@ export function createDbWritePort(
             );
             return;
           }
+          // Forwarded as-is (no local default here — QueuePort applies the one shared retry
+          // policy when the caller doesn't override maxAttempts/firstTryDelaySeconds).
           const firstTryDelaySecondsRaw = mutation.params.firstTryDelaySeconds;
           const maxAttemptsRaw = mutation.params.maxAttempts;
-          const firstTryDelaySeconds =
-            typeof firstTryDelaySecondsRaw === 'number' && Number.isFinite(firstTryDelaySecondsRaw)
-              ? Math.max(0, Math.trunc(firstTryDelaySecondsRaw))
-              : 60;
-          const maxAttempts =
-            typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
-              ? Math.max(1, Math.trunc(maxAttemptsRaw))
-              : 2;
+          const retry: { maxAttempts?: number; backoffSeconds?: number[] } = {};
+          if (typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)) {
+            retry.maxAttempts = maxAttemptsRaw;
+          }
+          if (
+            typeof firstTryDelaySecondsRaw === 'number' &&
+            Number.isFinite(firstTryDelaySecondsRaw)
+          ) {
+            retry.backoffSeconds = [firstTryDelaySecondsRaw];
+          }
 
-          await enqueueMessageRetryJob(db, {
-            phoneNormalized,
-            messageText,
-            firstTryDelaySeconds,
-            maxAttempts,
+          await queuePort.enqueue({
             kind: 'message.deliver',
-            payloadJson: {
+            payload: {
               intent: {
                 type: 'message.send',
                 meta: {
@@ -1732,10 +1740,7 @@ export function createDbWritePort(
                   address: { phoneNormalized },
                 },
               ],
-              retry: {
-                maxAttempts,
-                backoffSeconds: [firstTryDelaySeconds],
-              },
+              ...(Object.keys(retry).length > 0 ? { retry } : {}),
             },
           });
           return;
