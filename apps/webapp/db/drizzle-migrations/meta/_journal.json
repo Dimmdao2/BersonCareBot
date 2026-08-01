@@ -2087,6 +2087,13 @@
       "when": 1793539210000,
       "tag": "0297_commercial_access_state_removal_local",
       "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1793539230000,
+      "tag": "0299_reference_catalog_seed_owner_local",
+      "breakpoints": true
     }
   ]
 }
