@@ -168,7 +168,7 @@ logins above. `app_worker` is not an evidence actor or fallback capability.
 
 | Slice | Status / measurable prerequisite | Deliverable |
 | --- | --- | --- |
-| S01 | **READY NOW.** Immediately before start reread board; inspect active integration SHA/diff only for `buildAppDeps.ts` `branches` import/factory/property. If same hunk is occupied, record branch+SHA+path and wait for that SHA land/rebase; otherwise reserve a free number and start. | Delete only `booking_branch_services`, `booking_branches`, `booking_services`, `booking_specialists`, `branches`, their FK/backrefs, `pgBranches` and three DI lines; regenerate grant SQL. |
+| S01 | **IMPLEMENTED — awaiting independent audit and integration land.** On `wt/v9b-s01-retire-legacy-booking-projections` from `wt/single-entry-integration` `3407786a6`: `node scripts/check-no-new-raw-sql.mjs`, `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`, `pnpm --dir apps/webapp typecheck`, and `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs` passed. | Removed only `booking_branch_services`, `booking_branches`, `booking_services`, `booking_specialists`, `branches`, their FK/backrefs, `pgBranches` and three DI lines; regenerated grant SQL. |
 | S02 | Ready after S01 source shape lock. No D1/D10 owner release condition. | Expand seams/EXECUTE and operational ACLs in the 29+9 matrix; no final revoke. |
 | S03 | S01 land plus one current board number. | Deterministic booking ownership backfill. |
 | S04 | S02 seams exist; every named adoption test, including D1 writer test, green. | Caller adoption then one contract migration with final revokes. |
