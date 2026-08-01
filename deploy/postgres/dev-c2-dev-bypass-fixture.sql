@@ -25,18 +25,25 @@ BEGIN
     RAISE EXCEPTION 'этот скрипт только для dev-базы, текущая: %', current_database();
   END IF;
 
-  -- 1. Учётка дев-врача. Телефон обязан совпасть с телефоном пресета в коде дев-входа
-  --    (`devBypassPresetPhoneMatches`), иначе вход молча откажет.
-  INSERT INTO platform_users (id, display_name, phone_normalized, role)
-  VALUES (v_user_id, 'Demo Doctor', '+79990000002', 'doctor')
+  -- 1. Учётки всех четырёх пресетов дев-входа. Телефон обязан совпасть с телефоном пресета в коде
+  --    (`devBypassPresetPhoneMatches`), иначе вход молча откажет — без ошибки, просто редирект.
+  --    Значения взяты из `apps/webapp/src/modules/auth/service.ts`, блок `presets`.
+  INSERT INTO platform_users (id, display_name, phone_normalized, role) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'Demo Client',      '+79990000001', 'client'),
+    ('00000000-0000-0000-0000-000000000002', 'Demo Doctor',      '+79990000002', 'doctor'),
+    ('00000000-0000-0000-0000-000000000003', 'Demo Admin',       '+79990000003', 'admin'),
+    ('00000000-0000-0000-0000-000000000004', 'Demo Clinic Owner','+79990000004', 'doctor')
   ON CONFLICT (id) DO UPDATE
     SET display_name = EXCLUDED.display_name,
         phone_normalized = EXCLUDED.phone_normalized,
         role = EXCLUDED.role;
 
-  -- 2. Привязка канала: обмен дев-токена идёт через поиск учётки по привязке, а не по телефону.
-  INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-  VALUES (v_user_id, 'telegram', '222222222')
+  -- 2. Привязки каналов: обмен дев-токена идёт через поиск учётки по привязке, а не по телефону.
+  INSERT INTO user_channel_bindings (user_id, channel_code, external_id) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'telegram', '111111111'),
+    ('00000000-0000-0000-0000-000000000002', 'telegram', '222222222'),
+    ('00000000-0000-0000-0000-000000000003', 'telegram', '333333333'),
+    ('00000000-0000-0000-0000-000000000004', 'telegram', '999999999999004')
   ON CONFLICT DO NOTHING;
 
   -- 3. Членство в организации со специалистом. Берём первую активную организацию, у которой есть
@@ -62,6 +69,25 @@ BEGIN
         specialist_id = EXCLUDED.specialist_id,
         status = EXCLUDED.status,
         updated_at = now();
+
+  -- 4. Владелец клиники (пресет `dev:clinic-admin`) — членство с ролью `owner` в той же организации.
+  --    Без него настройки организации (в том числе эквайринг) править некому: у роли `doctor` прав на
+  --    них нет, а глобальный администратор организации не имеет вовсе. Автосоздание рабочего места
+  --    (`ensureDevBypassStaffWorkspace`) в запертом режиме дев-входа не срабатывает.
+  INSERT INTO be_organization_members (organization_id, platform_user_id, role, specialist_id, status)
+  VALUES (v_org_id, '00000000-0000-0000-0000-000000000004', 'owner', NULL, 'active')
+  ON CONFLICT (organization_id, platform_user_id) DO UPDATE
+    SET role = EXCLUDED.role,
+        status = EXCLUDED.status,
+        updated_at = now();
+
+  -- 5. Пациент (пресет `dev:client`) должен быть записан в ту же организацию: пациентские пути
+  --    (каталог, покупка, оплата) начинаются с поиска активной записи в клинику и без неё отвечают
+  --    `no_active_enrollment`.
+  INSERT INTO org_enrollments (organization_id, platform_user_id, status)
+  VALUES (v_org_id, '00000000-0000-0000-0000-000000000001', 'active')
+  ON CONFLICT (organization_id, platform_user_id) DO UPDATE
+    SET status = EXCLUDED.status;
 
   RAISE NOTICE 'дев-врач % привязан к организации % специалистом %', v_user_id, v_org_id, v_spec_id;
 END

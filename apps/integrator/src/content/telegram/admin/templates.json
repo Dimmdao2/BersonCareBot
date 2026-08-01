@@ -5,20 +5,10 @@
   "admin.stats.bookings": "📅 Активных записей: {{activeBookings}}",
   "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном",
   "admin.reply.prompt": "Напишите ответ пользователю следующим сообщением.",
-  "admin.reply.hintUnmatched": "Чтобы ответить пациенту, нажмите «Ответить» под его сообщением. Команды: /dialogs, /admin_bookings, /admin_users, /unanswered, /show_my_id",
+  "admin.reply.hintUnmatched": "Чтобы ответить пациенту, нажмите «Ответить» под его сообщением. Команды: /admin_bookings, /admin_users, /show_my_id",
   "admin.reply.sent": "Сообщение отправлено.",
-  "admin.reply.button": "Ответить",
   "admin.reply.continueButton": "Дополнить ответ",
   "admin.dialog.closed": "Диалог завершён.",
   "admin.dialog.closeButton": "",
-  "admin.dialogs.empty": "Открытых диалогов нет.",
-  "admin.dialogs.list": "Открытые диалоги:\n\n{{listBody}}",
-  "admin.questions.empty": "Неотвеченных вопросов нет.",
-  "admin.questions.list": "Неотвеченные вопросы ({{count}}):\n\n{{listBody}}",
-  "admin.questions.replyButton": "Ответить: {{label}}",
-  "admin.questions.markAllButton": "Пометить все как отвеченные",
-  "admin.questions.markAllDone": "Отмечено ответов: {{markedCount}}.",
-  "admin.conversation.newMessage": "новое сообщение от {{userLabel}}",
-  "admin.conversation.show": "Диалог\nПользователь: {{label}}\nСтатус: {{status}}",
-  "admin.relay.unsupportedType": "Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ."
+  "admin.conversation.newMessage": "новое сообщение от {{userLabel}}"
 }

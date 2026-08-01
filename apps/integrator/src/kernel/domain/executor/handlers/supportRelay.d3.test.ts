@@ -135,7 +135,6 @@ function stubTemplatePort(): TemplatePort {
 function policy(overrides: Partial<SupportRelayPolicy>): SupportRelayPolicy {
   return {
     isAllowedUserToAdmin: () => true,
-    isAllowedAdminToUser: () => true,
     ...overrides,
   };
 }
@@ -203,14 +202,14 @@ describe('D32 unsupported message type gets a reply, not silence', () => {
     }
   });
 
-  it('admin->user: unsupported type replies to the admin and is not forwarded', async () => {
+  it('admin->user: replying to a legacy (non-webapp) conversation gets an honest skip, not silence', async () => {
+    // D23: the bot-side admin console that used to service `conv-tg-1`-shaped legacy
+    // conversations was cut. The admin must be told the reply did not go through instead of
+    // hearing nothing, regardless of what type of message they sent.
     const mutations: DbWriteMutation[] = [];
     const readPort: DbReadPort = {
-      readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
-        if (query.type === 'conversation.byId') {
-          return { id: 'conv-tg-1', source: 'telegram', user_chat_id: '5001' } as T;
-        }
-        throw new Error(`unexpected read: ${query.type}`);
+      readDb: async (): Promise<never> => {
+        throw new Error('legacy admin-reply must not touch the DB anymore');
       },
     };
     const writePort: DbWritePort = {
@@ -218,7 +217,6 @@ describe('D32 unsupported message type gets a reply, not silence', () => {
         mutations.push(mutation);
       },
     };
-    const templatePort = stubTemplatePort();
     const ctx: DomainContext = {
       event: {
         type: 'message.received',
@@ -243,93 +241,15 @@ describe('D32 unsupported message type gets a reply, not silence', () => {
       params: { conversationId: 'conv-tg-1' },
     };
 
-    const result = await handleConversationAdminReply(adminReplyAction, ctx, {
-      readPort,
-      writePort,
-      templatePort,
-      supportRelayPolicy: policy({ isAllowedAdminToUser: () => false }),
-    });
+    const result = await handleConversationAdminReply(adminReplyAction, ctx, { readPort, writePort });
 
-    expect(result.status).toBe('success');
+    expect(result.status).toBe('skipped');
+    expect(result.error).toBe('CONVERSATION_ADMIN_REPLY_LEGACY_REMOVED');
     expect(result.intents).toEqual([
       expect.objectContaining({
-        payload: expect.objectContaining({
-          recipient: { chatId: 9001 },
-          message: { text: 'text:admin.relay.unsupportedType' },
-        }),
+        payload: expect.objectContaining({ recipient: { chatId: 9001 } }),
       }),
     ]);
     expect(mutations).toEqual([]);
-  });
-
-  it('admin->user: supported type is forwarded and gets no unsupported-type reply', async () => {
-    const mutations: DbWriteMutation[] = [];
-    const readPort: DbReadPort = {
-      readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
-        if (query.type === 'conversation.byId') {
-          return { id: 'conv-tg-1', source: 'telegram', user_chat_id: '5001' } as T;
-        }
-        if (query.type === 'question.byConversationId') {
-          return null as T;
-        }
-        throw new Error(`unexpected read: ${query.type}`);
-      },
-    };
-    const writePort: DbWritePort = {
-      writeDb: async (mutation) => {
-        mutations.push(mutation);
-      },
-    };
-    const templatePort = stubTemplatePort();
-    const ctx: DomainContext = {
-      event: {
-        type: 'message.received',
-        meta: {
-          eventId: 'event-d32-admin-2',
-          occurredAt: '2026-07-31T09:00:00.000Z',
-          source: 'telegram',
-          userId: '9001',
-        },
-        payload: {
-          incoming: { chatId: 9001, messageId: 556, kind: 'message', relayMessageType: 'photo' },
-        },
-      },
-      nowIso: '2026-07-31T09:00:00.000Z',
-      values: {},
-      base: { actor: { isAdmin: true }, identityLinks: [], facts: {} },
-    };
-    const adminReplyAction: Action = {
-      id: 'admin-reply-d32-2',
-      type: 'conversation.admin.reply',
-      mode: 'sync',
-      params: { conversationId: 'conv-tg-1' },
-    };
-
-    const result = await handleConversationAdminReply(adminReplyAction, ctx, {
-      readPort,
-      writePort,
-      templatePort,
-      supportRelayPolicy: policy({}),
-    });
-
-    expect(result.status).toBe('success');
-    expect(mutations.map((mutation) => mutation.type)).toContain('conversation.message.add');
-    expect(result.intents).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: 'message.copy',
-          payload: expect.objectContaining({
-            recipient: { chatId: 5001 },
-            from_chat_id: 9001,
-            message_id: 556,
-          }),
-        }),
-      ]),
-    );
-    for (const intent of result.intents ?? []) {
-      expect(intent.payload).not.toMatchObject({
-        message: { text: 'text:admin.relay.unsupportedType' },
-      });
-    }
   });
 });

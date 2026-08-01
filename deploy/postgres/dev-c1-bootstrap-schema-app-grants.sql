@@ -62,6 +62,38 @@ $guard$;
 GRANT USAGE ON SCHEMA app TO bcb_dev_runtime_nonstaff_login;
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO bcb_dev_runtime_nonstaff_login;
 
+-- Персонал ходит своим пулом и упирается в ту же дверь — см. пояснение в блоке проверок ниже.
+GRANT USAGE ON SCHEMA app TO bcb_dev_runtime_staff_login;
+GRANT EXECUTE ON FUNCTION app.release_principal_context() TO bcb_dev_runtime_staff_login;
+
+-- Установка принципала. Без неё пациентский пул подключается «никем»: `app.current_patient_user_id()`
+-- возвращает NULL, и каждая definer-функция, которая на него опирается, честно отдаёт пустоту.
+-- Наружу это выглядит как «нет активной записи в клинику» — то есть отказ, который врёт о причине.
+DO $install_ctx_grant$
+DECLARE
+  v_sig text := 'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)';
+BEGIN
+  IF to_regprocedure(v_sig) IS NOT NULL THEN
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO bcb_dev_runtime_nonstaff_login', v_sig);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO bcb_dev_runtime_staff_login', v_sig);
+  END IF;
+END
+$install_ctx_grant$;
+
+-- Пациентский путь падал `permission denied for function is_staff` на вызове
+-- `app.read_current_patient_active_organizations()`. Эта функция — SECURITY DEFINER, и на dev она
+-- принадлежит легаси-роли `bcb_webapp_dev_user`; тело зовёт `app.is_staff()`, которым владеет
+-- `app_owner`. Права проверяются у ВЛАДЕЛЬЦА definer-функции, а у него этого права не было.
+-- Выдаём ровно его, а не «всё на всё»: без этого ни одна покупка пациентом не создаётся.
+DO $is_staff_grant$
+BEGIN
+  IF to_regprocedure('app.is_staff()') IS NOT NULL
+     AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'bcb_webapp_dev_user') THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION app.is_staff() TO bcb_webapp_dev_user';
+  END IF;
+END
+$is_staff_grant$;
+
 DO $assertions$
 BEGIN
   IF NOT has_schema_privilege('bcb_dev_runtime_nonstaff_login', 'app', 'USAGE')
@@ -71,10 +103,14 @@ BEGIN
     RAISE EXCEPTION 'DEV C1 bootstrap schema-app grant did not take effect';
   END IF;
 
-  -- Least-privilege guard: the staff login must stay exactly as walled off from schema `app`
-  -- directly as it was before this file — its bootstrap-principal traffic never uses this pool.
-  IF has_schema_privilege('bcb_dev_runtime_staff_login', 'app', 'USAGE') THEN
-    RAISE EXCEPTION 'DEV C1 bootstrap schema-app grant leaked USAGE to the staff login; refusing';
+  -- ⚠️ ИСПРАВЛЕНО 01.08 ПО ЖИВОЙ ПРОВЕРКЕ. Здесь стояло обратное утверждение — «staff-логин обязан
+  -- остаться без доступа к схеме `app`, его bootstrap-трафик этот пул не использует». Наблюдение это
+  -- опровергло: после выдачи прав ТОЛЬКО nonstaff-логину вход врача продолжал падать тем же
+  -- `permission denied for schema app`, и заработал лишь после выдачи прав staff-логину. То есть
+  -- staff-пул этот путь всё-таки использует. Прежнее утверждение было выведено из чтения кода, а не
+  -- из прогона, и роняло бы этот скрипт на живой dev-базе. Оставлено как проверка, но с верным знаком.
+  IF NOT has_schema_privilege('bcb_dev_runtime_staff_login', 'app', 'USAGE') THEN
+    RAISE EXCEPTION 'DEV C1: staff-логину не выдан USAGE на схему app — вход персонала работать не будет';
   END IF;
 END
 $assertions$;
