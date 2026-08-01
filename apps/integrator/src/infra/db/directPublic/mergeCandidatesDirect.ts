@@ -11,6 +11,7 @@
  * how to handle the ambiguity, matching how the webapp's `events.ts` lets the same errors bubble up to
  * `acceptAfterMergeConflict` (log + swallow, no write) instead of silently picking a candidate.
  */
+import { sql } from 'drizzle-orm';
 import {
   enrichPickMergeCandidatesWithBookingCounts,
   mergePlatformUsersInTransaction,
@@ -21,22 +22,23 @@ import {
   type PlatformMergeDbClient,
 } from '@bersoncare/platform-merge';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import { DirectPublicWriteError } from './writeIdentityAndPreferencesDirect.js';
 
 async function loadCandidateForMerge(
   txDb: DbPort,
   id: string,
 ): Promise<PickMergeTargetCandidate | null> {
-  const r = await txDb.query<{
+  const r = await runIntegratorSql<{
     id: string;
     phone_normalized: string | null;
     integrator_user_id: string | null;
     created_at: Date | string;
   }>(
-    `SELECT id::text AS id, phone_normalized, integrator_user_id::text AS integrator_user_id, created_at
+    txDb,
+    sql`SELECT id::text AS id, phone_normalized, integrator_user_id::text AS integrator_user_id, created_at
      FROM public.platform_users
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [id],
+     WHERE id = ${id}::uuid AND merged_into_id IS NULL`,
   );
   const row = r.rows[0];
   if (!row) return null;

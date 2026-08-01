@@ -45,7 +45,9 @@
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
  * allowed here (src/infra/db repo).
  */
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import { resolveCanonicalIntegratorUserId } from '../repos/canonicalUserId.js';
 import { collectPlatformUserCandidates } from './writeIdentityAndPreferencesDirect.js';
 import { resolveExactActiveOrganizationId } from './resolveDirectPublicActor.js';
@@ -143,9 +145,14 @@ export async function upsertReminderRuleDirect(
     // (see file header: this module has no no-write-ever branch of its own).
     const organizationId = await resolveExactActiveOrganizationId(txDb, platformUserId);
     const notificationTopicCodeProvided = input.notificationTopicCode !== undefined;
+    const notificationTopicCodeValue = notificationTopicCodeProvided
+      ? input.notificationTopicCode
+      : null;
+    const scheduleDataValue = scheduleDataJson(input.scheduleData);
 
-    const res = await txDb.query<{ updated_at: string }>(
-      `INSERT INTO public.reminder_rules (
+    const res = await runIntegratorSql<{ updated_at: string }>(
+      txDb,
+      sql`INSERT INTO public.reminder_rules (
          integrator_rule_id, platform_user_id, organization_id, integrator_user_id, category, is_enabled,
          schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
          days_mask, content_mode,
@@ -154,12 +161,12 @@ export async function upsertReminderRuleDirect(
          notification_topic_code, updated_at
        )
        VALUES (
-         $1, $2::uuid, $3::uuid, $4::bigint, $5, $6,
-         $7, $8, $9, $10, $11,
-         $12, $13,
-         $14, $15, $16, $17,
-         $18::jsonb, $19, $20, $21,
-         $22, now()
+         ${input.integratorRuleId}, ${platformUserId}::uuid, ${organizationId}::uuid, ${canonicalIntegratorUserId}::bigint, ${input.category}, ${input.isEnabled},
+         ${input.scheduleType}, ${input.timezone}, ${input.intervalMinutes}, ${input.windowStartMinute}, ${input.windowEndMinute},
+         ${input.daysMask}, ${input.contentMode},
+         ${input.linkedObjectType}, ${input.linkedObjectId}, ${input.customTitle}, ${input.customText},
+         ${scheduleDataValue}::jsonb, ${input.reminderIntent}, ${input.quietHoursStartMinute}, ${input.quietHoursEndMinute},
+         ${notificationTopicCodeValue}, now()
        )
        ON CONFLICT (integrator_rule_id) DO UPDATE SET
          platform_user_id = COALESCE(EXCLUDED.platform_user_id, reminder_rules.platform_user_id),
@@ -182,34 +189,9 @@ export async function upsertReminderRuleDirect(
          reminder_intent = EXCLUDED.reminder_intent,
          quiet_hours_start_minute = EXCLUDED.quiet_hours_start_minute,
          quiet_hours_end_minute = EXCLUDED.quiet_hours_end_minute,
-         notification_topic_code = CASE WHEN $23 THEN EXCLUDED.notification_topic_code ELSE reminder_rules.notification_topic_code END,
+         notification_topic_code = CASE WHEN ${notificationTopicCodeProvided} THEN EXCLUDED.notification_topic_code ELSE reminder_rules.notification_topic_code END,
          updated_at = EXCLUDED.updated_at
        RETURNING updated_at::text AS updated_at`,
-      [
-        input.integratorRuleId,
-        platformUserId,
-        organizationId,
-        canonicalIntegratorUserId,
-        input.category,
-        input.isEnabled,
-        input.scheduleType,
-        input.timezone,
-        input.intervalMinutes,
-        input.windowStartMinute,
-        input.windowEndMinute,
-        input.daysMask,
-        input.contentMode,
-        input.linkedObjectType,
-        input.linkedObjectId,
-        input.customTitle,
-        input.customText,
-        scheduleDataJson(input.scheduleData),
-        input.reminderIntent,
-        input.quietHoursStartMinute,
-        input.quietHoursEndMinute,
-        notificationTopicCodeProvided ? input.notificationTopicCode : null,
-        notificationTopicCodeProvided,
-      ],
     );
     const updatedAt = res.rows[0]?.updated_at;
     if (!updatedAt) throw new Error('reminder_rules upsert returned no row');

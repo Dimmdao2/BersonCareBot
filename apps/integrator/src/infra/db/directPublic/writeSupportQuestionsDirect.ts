@@ -66,7 +66,9 @@
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
  * allowed here (src/infra/db repo).
  */
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
@@ -126,11 +128,11 @@ export async function createSupportQuestionDirect(
   }
 
   return db.tx(async (txDb) => {
-    const convRes = await txDb.query<{ id: string; organization_id: string | null }>(
-      `SELECT id::text AS id, organization_id::text AS organization_id
+    const convRes = await runIntegratorSql<{ id: string; organization_id: string | null }>(
+      txDb,
+      sql`SELECT id::text AS id, organization_id::text AS organization_id
        FROM public.support_conversations
-       WHERE integrator_conversation_id = $1`,
-      [integratorConversationId],
+       WHERE integrator_conversation_id = ${integratorConversationId}`,
     );
     const conv = convRes.rows[0];
     if (!conv || !conv.organization_id) {
@@ -140,10 +142,11 @@ export async function createSupportQuestionDirect(
       });
     }
 
-    const res = await txDb.query<{ id: string }>(
-      `INSERT INTO public.support_questions (
+    const res = await runIntegratorSql<{ id: string }>(
+      txDb,
+      sql`INSERT INTO public.support_questions (
          integrator_question_id, conversation_id, organization_id, status, created_at, answered_at
-       ) VALUES ($1, $2::uuid, $3::uuid, $4, $5::timestamptz, $6::timestamptz)
+       ) VALUES (${input.integratorQuestionId}, ${conv.id}::uuid, ${conv.organization_id}::uuid, ${input.status}, ${input.createdAt}::timestamptz, ${input.answeredAt ?? null}::timestamptz)
        ON CONFLICT (integrator_question_id) DO UPDATE SET
          conversation_id = COALESCE(support_questions.conversation_id, EXCLUDED.conversation_id),
          organization_id = COALESCE(support_questions.organization_id, EXCLUDED.organization_id),
@@ -151,14 +154,6 @@ export async function createSupportQuestionDirect(
          answered_at = COALESCE(EXCLUDED.answered_at, support_questions.answered_at),
          updated_at = now()
        RETURNING id::text AS id`,
-      [
-        input.integratorQuestionId,
-        conv.id,
-        conv.organization_id,
-        input.status,
-        input.createdAt,
-        input.answeredAt ?? null,
-      ],
     );
     const id = res.rows[0]?.id;
     if (!id) throw new Error('support_questions insert returned no id');
@@ -186,11 +181,11 @@ export async function appendSupportQuestionMessageDirect(
   input: AppendSupportQuestionMessageDirectInput,
 ): Promise<AppendSupportQuestionMessageDirectResult> {
   return db.tx(async (txDb) => {
-    const qRes = await txDb.query<{ id: string; organization_id: string | null }>(
-      `SELECT id::text AS id, organization_id::text AS organization_id
+    const qRes = await runIntegratorSql<{ id: string; organization_id: string | null }>(
+      txDb,
+      sql`SELECT id::text AS id, organization_id::text AS organization_id
        FROM public.support_questions
-       WHERE integrator_question_id = $1`,
-      [input.integratorQuestionId],
+       WHERE integrator_question_id = ${input.integratorQuestionId}`,
     );
     const question = qRes.rows[0];
     if (!question || !question.organization_id) {
@@ -200,20 +195,13 @@ export async function appendSupportQuestionMessageDirect(
       });
     }
 
-    const res = await txDb.query<{ id: string }>(
-      `INSERT INTO public.support_question_messages (
+    const res = await runIntegratorSql<{ id: string }>(
+      txDb,
+      sql`INSERT INTO public.support_question_messages (
          integrator_question_message_id, question_id, organization_id, sender_role, text, created_at
-       ) VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6::timestamptz)
+       ) VALUES (${input.integratorQuestionMessageId}, ${question.id}::uuid, ${question.organization_id}::uuid, ${input.senderRole}, ${input.text}, ${input.createdAt}::timestamptz)
        ON CONFLICT (integrator_question_message_id) DO NOTHING
        RETURNING id::text AS id`,
-      [
-        input.integratorQuestionMessageId,
-        question.id,
-        question.organization_id,
-        input.senderRole,
-        input.text,
-        input.createdAt,
-      ],
     );
     return {
       id: res.rows[0]?.id ?? '',
@@ -245,13 +233,13 @@ export async function markSupportQuestionAnsweredDirect(
   input: MarkSupportQuestionAnsweredDirectInput,
 ): Promise<MarkSupportQuestionAnsweredDirectResult> {
   return db.tx(async (txDb) => {
-    const res = await txDb.query(
-      `UPDATE public.support_questions SET
+    const res = await runIntegratorSql(
+      txDb,
+      sql`UPDATE public.support_questions SET
          status = 'answered',
-         answered_at = $2::timestamptz,
+         answered_at = ${input.answeredAt}::timestamptz,
          updated_at = now()
-       WHERE integrator_question_id = $1`,
-      [input.integratorQuestionId, input.answeredAt],
+       WHERE integrator_question_id = ${input.integratorQuestionId}`,
     );
     const updated = (res.rowCount ?? res.rows.length ?? 0) > 0;
     if (!updated) {
@@ -294,26 +282,16 @@ export async function appendSupportDeliveryEventDirect(
   input: AppendSupportDeliveryEventDirectInput,
 ): Promise<AppendSupportDeliveryEventDirectResult> {
   return db.tx(async (txDb) => {
-    const res = await txDb.query<{ id: string }>(
-      `INSERT INTO public.support_delivery_events (
+    const payloadJson = JSON.stringify(input.payloadJson ?? {});
+    const res = await runIntegratorSql<{ id: string }>(
+      txDb,
+      sql`INSERT INTO public.support_delivery_events (
          organization_id, conversation_message_id, integrator_intent_event_id, correlation_id,
          channel_code, status, attempt, reason, payload_json, occurred_at
-       ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::timestamptz)
+       ) VALUES (${input.organizationId}::uuid, ${input.conversationMessageId}, ${input.integratorIntentEventId}, ${input.correlationId}, ${input.channelCode}, ${input.status}, ${input.attempt}, ${input.reason}, ${payloadJson}::jsonb, ${input.occurredAt}::timestamptz)
        ON CONFLICT (integrator_intent_event_id) WHERE integrator_intent_event_id IS NOT NULL
        DO NOTHING
        RETURNING id::text AS id`,
-      [
-        input.organizationId,
-        input.conversationMessageId,
-        input.integratorIntentEventId,
-        input.correlationId,
-        input.channelCode,
-        input.status,
-        input.attempt,
-        input.reason,
-        JSON.stringify(input.payloadJson ?? {}),
-        input.occurredAt,
-      ],
     );
     return { id: res.rows[0]?.id ?? '' };
   });
