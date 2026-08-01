@@ -3,8 +3,7 @@
 /**
  * Adds the owner-mandated stage reminder to unfinished docs plans/checklists.
  *
- * The text below is copied verbatim from
- * docs/_TODO/OWNER_PUNCHLIST_2026-07-28.md (2026-07-28).
+ * The reminder routes agents to the single current canon instead of copying rules into plans.
  * Default mode is read-only; pass --apply to write changes.
  */
 import { readFile, readdir, writeFile } from 'node:fs/promises';
@@ -21,9 +20,9 @@ if (args.some((arg) => !['--apply', '--dry-run'].includes(arg))) {
 }
 
 const reminder = [
-  '> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),',
-  '> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,',
-  '> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.',
+  '> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** маршрут `AGENTS.md`, секции по scope и роли;',
+  '> для оркестрации — §24, для commit/CI/push — §7–§10. Выбор запуска — §24.1; интерфейс порта:',
+  '> `tools/orch-launch.sh --help`. Другие документы не являются отдельной редакцией правил.',
   '> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое',
   '> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать',
   '> только если готового нет — и написать в коммите, почему готовое не подошло.',

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Порт stateful repo-work агентов. Advisory/read-only spawn без acceptance запускается напрямую;
-# действующие правила и граница режимов находятся только в AGENTS.md §24.
+# Предпочтительный порт repo-work агентов с гейтами. Простой bounded spawn допустим напрямую;
+# действующие правила выбора режима находятся только в AGENTS.md §24.
 set -euo pipefail
 
 MAIN=/home/dev/dev-projects/BersonCareBot
@@ -18,7 +18,7 @@ tools/orch-launch.sh worker       <clone> <run-id> <model> <effort> <brief> <sco
 tools/orch-launch.sh auditor-live <clone> <run-id> <model> <effort> <brief> <scope>
 tools/orch-launch.sh land         <clone> <branch>
 
-Stateful repo-work uses this port. Advisory/read-only work without acceptance may use direct spawn.
+This port is preferred for gated/stateful repo-work. Simple bounded work may use direct spawn.
 Environment: ORCH_WAIT=1, ORCH_OPS="reason", ORCH_NO_TESTS="reason", ORCH_ISOLATE=1, ORCH_DRY=1.
 Canon: AGENTS.md §24. Operational paths: docs/ORCHESTRATION_BINDINGS.md.
 USAGE
@@ -28,8 +28,8 @@ USAGE
 
 [ $# -ge 1 ] || die "нужна команда: worker, auditor-live или land. Смотри шапку файла."
 
-# Команда land: слить принятую ветку в feat из главного дерева, отдельно от worker/auditor-live —
-# у неё свои аргументы и свои проверки (гейт из плана §3c-bis п.4: непроверенная ветка не приземляется).
+# Команда land сливает принятую ветку в feat отдельно от worker/auditor-live;
+# непроверенная ветка не приземляется.
 if [ "$1" = land ]; then
   [ $# -eq 3 ] || die "land: нужно 2 аргумента <клон> <ветка>, дано $(( $# - 1 )). Смотри шапку файла."
   CLONE_NAME=$2
@@ -70,19 +70,16 @@ if [ "$1" = land ]; then
 fi
 
 [ $# -eq 7 ] || die "нужно 7 аргументов, дано $#. Смотри шапку файла."
-ROLE=$1 CLONE_NAME=$2 RUN_ID=$3 MODEL=$4 EFFORT=$5 BRIEF=$6 PLAN_SLICE=$7
+ROLE=$1 CLONE_NAME=$2 RUN_ID=$3 MODEL=$4 EFFORT=$5 BRIEF=$6 SCOPE=$7
 CLONE="/home/dev/dev-projects/bcb-wt-$CLONE_NAME"
 
 # auditor-live имеет shell/write для временной fault injection и обязан вернуть чистое дерево.
 case "$ROLE" in
   worker)       SANDBOX=workspace-write ;;
   auditor-live) SANDBOX=workspace-write ;;
-  auditor) die "роль auditor убрана из порта: read-only песочница (governor/host-sandbox.mjs:13) лишает
-  shell и git и способна лишь предсказывать по чтению кода — аудит по канону есть внесение поломки
-  и прогон, роль физически не может сделать то, ради чего существует (М2/М4, #1081).
-  Используй auditor-live: она уходит в порт без bwrap (доступ к живой базе и .env.dev), бриф
-  обязан запрещать ей менять файлы кроме внесения/откатывания поломки, а дерево клона обязано
-  остаться чистым после прогона." ;;
+  auditor) die "роль auditor убрана из порта: её песочница лишает shell/git, поэтому она не может надёжно
+  выполнить ни inspection-команды, ни fault injection. Используй auditor-live и начни brief с классификации
+  «тест или взгляд»; изменения допустимы только для временной поломки, дерево после аудита должно быть чистым." ;;
   *) die "роль должна быть worker или auditor-live, дано '$ROLE'" ;;
 esac
 
@@ -120,20 +117,16 @@ if ! git -C "$CLONE" merge-base --is-ancestor "$HEAD_MAIN" "$HEAD_CLONE" 2>/dev/
 fi
 AHEAD=$(git -C "$CLONE" rev-list --count "$HEAD_MAIN".."$HEAD_CLONE")
 
-# 3. Бриф: есть, непустой. Authority: для продуктовой работы — ссылка на план в docs/_TODO/; для
-#    операционной (слить ветки, спасти коммит, прогнать CI) плана нет и не должно быть — тогда
-#    authority = сам бриф, а ORCH_OPS="<причина>" делает выбор осознанным и логируемым.
-#    Владелец 29.07: «orch-launch механически требует docs/_TODO/ — некорректное решение хорошей идеи»;
-#    хорошая идея (без authority нечего сдавать/проверять) сохранена, но перестала плодить фейковые планы
-#    на «подмести пол».
+# 3. Бриф: есть, непустой. Для tracked workstream authority — существующий plan/checklist. Для любой bounded
+#    работы без plan-файла authority = сам brief, а ORCH_OPS="<почему brief достаточен>" фиксирует выбор.
 [ -s "$BRIEF" ] || die "бриф $BRIEF не найден или пуст"
 grep -q "AGENTS.md" "$BRIEF" || die "в брифе нет AGENTS.md — агент не получил единственный канон правил"
 if [ -n "${ORCH_OPS:-}" ]; then
-  echo "  ops-режим: authority = сам бриф; причина: $ORCH_OPS (план docs/_TODO/ не требуется)"
+  echo "  bounded-режим: authority = сам бриф; причина: $ORCH_OPS (plan-файл не требуется)"
 else
   grep -q "docs/_TODO/" "$BRIEF" || die "в брифе нет ссылки на authority/checklist в docs/_TODO/ — исполнителю нечего сдавать, аудитору нечего проверять (AGENTS.md §24.2).
-  Продуктовая работа обязана ссылаться на план. Операционная (слить ветки/спасти коммит/CI) — запускай с
-  ORCH_OPS=\"<причина>\", тогда authority = сам бриф."
+  Для tracked workstream добавь существующий plan. Для bounded-задачи без плана запускай с
+  ORCH_OPS=\"<почему brief достаточен>\", тогда authority = сам brief."
 fi
 
 if [ "$ROLE" = auditor-live ]; then
@@ -144,31 +137,15 @@ fi
 # auditor, М4 #1081. Условие проверяло ровно то, что теперь отсекается раньше самим `case` выше:
 # роль `auditor` умирает при запуске, до этой строки просто не доходит.)
 
-# 3b. Бриф воркера обязан отсылать к правилам репозитория про тесты. Владелец 30.07: «как писать тесты — не забывай
-#     давать агентам читать правила репо». Механика вместо памяти: без ссылки на правило исполнитель пишет тесты по
-#     своему вкусу — так в этой же ветке появились фиктивные тесты на моках, которые оставались зелёными при удалении
-#     колонок и полей. Обход — ORCH_NO_TESTS="<причина>" (например: чистое удаление, тесты не пишутся), он логируется.
+# 3b. AGENTS.md уже обязателен для любого брифа. Если воркер пишет тесты, бриф дополнительно называет
+#     authority ожидаемого поведения. Для задачи без тестов причина фиксируется через ORCH_NO_TESTS.
 if [ "$ROLE" = worker ] && [ -z "${ORCH_NO_TESTS:-}" ]; then
-  grep -q "tests-check-behaviour-not-circumstances" "$BRIEF" || die "в брифе воркера нет ссылки на правила репозитория про тесты
-  (.cursor/rules/tests-check-behaviour-not-circumstances.mdc, и обычно .cursor/rules/webapp-tests-lean-no-bloat.mdc).
-  Без них исполнитель пишет тесты по своему вкусу: в этой ветке так появились тесты на моках, зелёные при удалении
-  колонок. Если задача действительно без тестов — запускай с ORCH_NO_TESTS=\"<причина>\"."
-  # 3b (продолжение, М2 #1081). Ссылки на правила недостаточно — воркер обязан знать, ОТКУДА взят
-  # oracle ожидаемого поведения, а не только КАК не надо писать тесты. Проверяем явную пометку;
-  # обход тот же ORCH_NO_TESTS.
   grep -qE "Источник оракула|Строка плана, дающая оракул" "$BRIEF" || die "в брифе воркера нет строки «Источник оракула:» —
-  бриф ссылается на правила тестов, но не называет, из какого требования authority взято ожидаемое поведение.
-  Добавь «Источник оракула: <ссылка> — «<дословная цитата>»». Если задача
-  действительно без тестов — запускай с ORCH_NO_TESTS=\"<причина>\"."
-  # 3b (продолжение 2, М2 круг 2 #1081, M2-5 слепого аудита): метка есть по форме, но раньше после
-  # неё годился любой текст, включая «см. .cursor/rules/...» — план явно запрещает оракул как голую
-  # ссылку на правила («а не только ссылку на правила»). Все реальные оракулы в этом репозитории
-  # цитируют план в кавычках «…» (см. docs/_TODO/runs/testsuite-v2/*_BRIEF.md), и цитата часто
-  # переносится markdown-абзацем на несколько строк (В9_ROLE_GUARDS_BRIEF.md:8-10) — поэтому берём
-  # весь абзац от метки до первой пустой строки, а не только строку с самой меткой.
+  Назови требование authority: «Источник оракула: <ссылка> — «<дословная цитата>»».
+  Если задача действительно без тестов — запускай с ORCH_NO_TESTS=\"<причина>\"."
   ORACLE_BLOCK=$(awk '/Источник оракула|Строка плана, дающая оракул/{f=1} f{print; if ($0 ~ /^[[:space:]]*$/) exit}' "$BRIEF" | tr '\n' ' ')
   printf '%s' "$ORACLE_BLOCK" | grep -qE '«.+»' || die "в абзаце «Источник оракула» нет дословной цитаты authority в кавычках «…».
-  Голая ссылка на правила не задаёт ожидаемое поведение. Если задача без тестов — используй ORCH_NO_TESTS."
+  Если задача без тестов — используй ORCH_NO_TESTS."
 fi
 if [ -n "${ORCH_NO_TESTS:-}" ]; then
   echo "  без-тестов-режим: $ORCH_NO_TESTS"
@@ -225,7 +202,7 @@ esac
 
 # 5. Запуск. Лог рядом с брифом, run-id — в имени.
 LOG="$(dirname "$BRIEF")/$RUN_ID.log"
-echo "запуск: роль=$ROLE клон=$CLONE_NAME провайдер=$PROVIDER модель=$MODEL effort=$EFFORT слой=$PLAN_SLICE"
+echo "запуск: роль=$ROLE клон=$CLONE_NAME провайдер=$PROVIDER модель=$MODEL effort=$EFFORT scope=$SCOPE"
 echo "  клон содержит feat ${HEAD_MAIN:0:9}, своих коммитов сверху: $AHEAD; агентов было $LIVE из $CAP; лог $LOG"
 [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, агент НЕ запущен"; exit 0; }
 # ORCH_JOB="worker|worker-hard|reviewer|reviewer-critical|explorer|mechanic" — канонический выбор модели и effort
