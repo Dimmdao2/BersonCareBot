@@ -56,6 +56,7 @@ async function checkEntitlement(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
   access: EntitlementAccess,
+  markMutationClearance = true,
 ): Promise<EntitlementSuccess | { ok: false; reason: EntitlementDenialReason }> {
   const resolution = await resolveMechanicAccess(
     buildAppDeps().orgEntitlements,
@@ -74,10 +75,22 @@ async function checkEntitlement(
   // 3.2 construction: a passing MUTATION decision marks this mechanic cleared for the rest of
   // this request's continuation, so `assertMechanicWriteClearance` at the actual write function
   // (wired from `buildAppDeps.ts`) can refuse to run without it — see mechanicWriteClearance.ts.
-  if (access === 'mutation') {
+  if (access === 'mutation' && markMutationClearance) {
     enterWithMechanicWriteClearance(mechanic);
   }
   return { ok: true, warning: resolution.warning };
+}
+
+/**
+ * Read-only availability for a mutation control. It shares the mutation lifecycle decision
+ * without marking a request as cleared to write.
+ */
+export async function getMechanicMutationAvailability(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<{ available: true } | { available: false; reason: EntitlementDenialReason }> {
+  const decision = await checkEntitlement(ctx, mechanic, 'mutation', false);
+  return decision.ok ? { available: true } : { available: false, reason: decision.reason };
 }
 
 /**
@@ -88,9 +101,7 @@ export async function assertMechanicEnabled(
   organizationId: string,
   mechanic: OrgMechanic,
 ): Promise<boolean> {
-  return (
-    await getMechanicSurfaceVisibility({ organizationId }, mechanic)
-  ).directUrl;
+  return (await getMechanicSurfaceVisibility({ organizationId }, mechanic)).directUrl;
 }
 
 /** One visibility adapter shared by specialist navigation, patient navigation and direct pages. */
