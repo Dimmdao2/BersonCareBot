@@ -78,16 +78,6 @@ function readTokenPayload(token: string): EntryTokenPayload {
   return JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as EntryTokenPayload;
 }
 
-/** Пересобирает токен с подменённым payload, подписывая его же секретом (подделка «изнутри»). */
-function forgeWithPayload(secret: string, payload: EntryTokenPayload): string {
-  const b64 = Buffer.from(JSON.stringify(payload), 'utf8')
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
-  return `${b64}.${createHmac('sha256', secret).update(b64).digest('base64url')}`;
-}
-
 function tokenFor(source: 'telegram' | 'max'): string {
   const token =
     source === 'telegram'
@@ -133,34 +123,34 @@ describe('ссылка входа в вебапп: кого она пускае�
     expect(payload.exp - Math.floor(ISSUED_AT.getTime() / 1000)).toBe(300);
   });
 
-  it('дано: у токена подменили sub на чужой аккаунт, подпись оставили → тогда вебапп НЕ пускает', () => {
-    // арбитр: подписывать не payload, а константу (`sign('static', secret)`) — подпись перестаёт
-    // зависеть от содержимого, и подмена sub проходит
-    const token = tokenFor('telegram');
-    const [payloadB64, signature] = token.split('.');
-    const stolen = readTokenPayload(token);
-    stolen.sub = 'tg:999000111';
-    const forgedPayload = Buffer.from(JSON.stringify(stolen), 'utf8')
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/g, '');
+  /**
+   * ГРАНИЦА: сам ОТКАЗ подделанному токену выносит вебапп, и повлиять на этот отказ интегратор не
+   * может ничем — при любой поломке подписи здесь приёмник отвергает и подделку, и подлинный токен.
+   * Тест «подделка отклонена» из интегратора поэтому не имеет арбитра (см. отчёт).
+   * Что интегратор ОБЯЗАН обеспечить и что здесь проверяется: подпись покрывает весь payload и
+   * зависит от общего секрета — без этих двух свойств проверка на стороне вебаппа бессмысленна.
+   */
+  it('дано: два токена различаются только владельцем аккаунта → тогда подписи РАЗНЫЕ (подпись покрывает payload)', () => {
+    // арбитр: в sign() подписывать константу вместо value — подпись перестаёт зависеть от
+    // содержимого, и подменённый sub проходит проверку вебаппа как подлинный
+    const mine = tokenFor('telegram');
+    const stranger = buildWebappEntryTokenFromSource(
+      { source: 'telegram', chatId: 999000111 },
+      APP_BASE,
+    )!;
 
-    expect(forgedPayload).not.toBe(payloadB64);
-    expect(webappAcceptsEntryToken(`${forgedPayload}.${signature}`, secretState.value)).toBeNull();
+    expect(mine.split('.')[1]).not.toBe(stranger.split('.')[1]);
   });
 
-  it('дано: токен собран и подписан ЧУЖИМ секретом → тогда вебапп НЕ пускает', () => {
-    // арбитр: в sign() заменить секрет на константу — подпись перестаёт быть общим секретом
-    const forged = forgeWithPayload('secret-of-the-attacker-000000000000', {
-      sub: 'tg:364943522',
-      role: 'admin',
-      purpose: 'webapp-entry',
-      exp: Math.floor(ISSUED_AT.getTime() / 1000) + 300,
-      bindings: { telegramId: '364943522' },
-    });
+  it('дано: тот же человек и тот же момент, но развёрнут другой секрет → тогда подпись другая (подпись — на общем секрете)', () => {
+    // арбитр: в sign() заменить secret на константу в коде — подпись перестаёт быть тайной,
+    // и её сможет вычислить кто угодно, у кого есть исходники
+    const withDeployedSecret = tokenFor('telegram');
+    secretState.value = 'entry-secret-of-another-install-98765';
+    const withOtherSecret = tokenFor('telegram');
 
-    expect(webappAcceptsEntryToken(forged, secretState.value)).toBeNull();
+    expect(withOtherSecret.split('.')[0]).toBe(withDeployedSecret.split('.')[0]);
+    expect(withOtherSecret.split('.')[1]).not.toBe(withDeployedSecret.split('.')[1]);
   });
 
   it('дано: секрет подписи не задан → когда строим ссылку → тогда ссылки НЕТ (а не неподписанная ссылка)', () => {
@@ -172,8 +162,10 @@ describe('ссылка входа в вебапп: кого она пускае�
     expect(buildWebappEntryUrlForMax({ maxId: '1' }, APP_BASE)).toBeNull();
   });
 
-  it('дано: базовый URL приложения не настроен → когда строим ссылку → тогда ссылки НЕТ', () => {
+  it('дано: базовый URL приложения не настроен → когда строим вход → тогда нет ни токена, ни ссылки', () => {
     // арбитр: убрать `!effectiveAppBaseUrl(appBaseUrlOverride)` из условия раннего возврата
+    // в buildWebappEntryTokenFromSource (подписанный токен выпускается «в никуда»)
+    expect(buildWebappEntryTokenFromSource({ source: 'telegram', chatId: 1 }, null)).toBeNull();
     expect(buildWebappEntryUrl({ chatId: 1 }, null)).toBeNull();
     expect(buildWebappEntryUrl({ chatId: 1 }, '   ')).toBeNull();
   });
