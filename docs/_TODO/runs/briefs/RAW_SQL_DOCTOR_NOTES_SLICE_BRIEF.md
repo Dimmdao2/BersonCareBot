@@ -3,6 +3,9 @@
 Прочитать `AGENTS.md` §5/§10a/§24. Authority:
 `docs/_TODO/runs/testsuite-v2/RAW_SQL_TEXT_CENSUS.md` и принятый census audit `300772f3d`.
 
+Источник оракула: `AGENTS.md` §5 «Доступ к базе — оба приложения, без исключений» — «К базе — только через
+порт своего приложения на drizzle»; census `RAW_SQL_TEXT_CENSUS.md` фиксирует этот вызов в live-tier.
+
 ## Последствие
 
 Врач открывает карточку пациента и список клинических заметок. `pgDoctorNotes.listForUser` всё ещё отправляет
