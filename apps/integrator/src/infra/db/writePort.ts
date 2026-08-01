@@ -7,8 +7,10 @@ import type {
   DbWritePort,
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
+import { sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
+import { runIntegratorSql } from './runIntegratorSql.js';
 import {
   setUserPhone,
   setUserState,
@@ -196,9 +198,9 @@ function buildChannelAnchorWriter(
       integratorUserId = row?.id ?? null;
     } else {
       await ensureIdentityForMessenger(txDb, { resource: 'max', externalId });
-      const identityRes = await txDb.query<{ user_id: string }>(
-        'SELECT user_id::text AS user_id FROM identities WHERE resource = $1 AND external_id = $2 LIMIT 1',
-        [resource, externalId],
+      const identityRes = await runIntegratorSql<{ user_id: string }>(
+        txDb,
+        sql`SELECT user_id::text AS user_id FROM identities WHERE resource = ${resource} AND external_id = ${externalId} LIMIT 1`,
       );
       integratorUserId = identityRes.rows[0]?.user_id ?? null;
     }
@@ -400,12 +402,12 @@ export function createDbWritePort(
                   externalId: channelUserId,
                 });
               }
-              const idPeek = await txDb.query<{ user_id: string }>(
-                `SELECT i.user_id::text AS user_id
+              const idPeek = await runIntegratorSql<{ user_id: string }>(
+                txDb,
+                sql`SELECT i.user_id::text AS user_id
                  FROM identities i
-                 WHERE i.resource = $2 AND i.external_id = $1
+                 WHERE i.resource = ${resource} AND i.external_id = ${channelUserId}
                  LIMIT 1`,
-                [channelUserId, resource],
               );
               const rawUid = idPeek.rows[0]?.user_id ?? null;
               if (!rawUid) {
@@ -601,9 +603,9 @@ export function createDbWritePort(
               openedAt,
               lastMessageAt,
             });
-            const convRow = await txDb.query<{ user_identity_id: string }>(
-              'SELECT user_identity_id::text AS user_identity_id FROM conversations WHERE id = $1',
-              [id],
+            const convRow = await runIntegratorSql<{ user_identity_id: string }>(
+              txDb,
+              sql`SELECT user_identity_id::text AS user_identity_id FROM conversations WHERE id = ${id}`,
             );
             const rawIdentityId = convRow.rows[0]?.user_identity_id ?? null;
             resolvedIntegratorUserId =
@@ -1191,9 +1193,9 @@ export function createDbWritePort(
           // replaces the `preferences.updated` HTTP projection fanout. Parity with the webapp consumer
           // (`preferences.updated` → `upsertFromProjection({ integratorUserId })`): no channel binding is
           // written here, only topics against the integrator_user_id-resolved platform user.
-          const identityRes = await db.query<{ user_id: string }>(
-            'SELECT user_id::text AS user_id FROM identities WHERE resource = $1 AND external_id = $2 LIMIT 1',
-            [resource, String(channelUserId)],
+          const identityRes = await runIntegratorSql<{ user_id: string }>(
+            db,
+            sql`SELECT user_id::text AS user_id FROM identities WHERE resource = ${resource} AND external_id = ${String(channelUserId)} LIMIT 1`,
           );
           const rawUid = identityRes.rows[0]?.user_id ?? null;
           if (!rawUid) return;

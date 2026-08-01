@@ -1,15 +1,18 @@
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { db } from './client.js';
 import { withIntegratorPoolClient } from './withClient.js';
 
 async function probeReadOnly(source: string, statements: readonly string[]): Promise<void> {
   await runWithDbInfraPrincipal({ source }, () =>
     withIntegratorPoolClient(db, async (client) => {
-      await client.query('BEGIN READ ONLY');
+      const probeDb = drizzle(client);
+      await probeDb.execute(sql.raw('BEGIN READ ONLY'));
       try {
-        for (const statement of statements) await client.query(statement);
+        for (const statement of statements) await probeDb.execute(sql.raw(statement));
       } finally {
-        await client.query('ROLLBACK');
+        await probeDb.execute(sql.raw('ROLLBACK'));
       }
     }),
   );
