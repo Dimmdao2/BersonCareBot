@@ -1,5 +1,9 @@
 import type { DbPort } from '../../kernel/contracts/index.js';
 import {
+  getCurrentDatabasePrincipal,
+  runWithInfraPrincipal,
+} from '../principal/organizationPrincipal.js';
+import {
   extractSystemSettingInnerValue,
   fetchPublicSystemSettingValueJson,
 } from './publicSystemSettings.js';
@@ -19,19 +23,6 @@ export type PlatformIntegrationId = (typeof PLATFORM_INTEGRATION_IDS)[number];
 type PlatformIntegrationAvailability = {
   version: 1;
   integrations: Record<PlatformIntegrationId, boolean>;
-};
-
-const DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY: PlatformIntegrationAvailability = {
-  version: 1,
-  integrations: {
-    telegram: true,
-    max: true,
-    email: true,
-    smsc: true,
-    web_push: true,
-    google_calendar: true,
-    yandex_calendar: false,
-  },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,22 +54,32 @@ export function parsePlatformIntegrationAvailability(
   return { version: 1, integrations };
 }
 
+/**
+ * Background/M2M delivery (queue worker, signed webhook auth-code sends) runs with no
+ * request-scoped principal. The registry is a global admin setting (`organization_id IS
+ * NULL`), so resolve that legitimate no-principal case through the same allowlisted infra
+ * source `logDeliveryAttempt` already uses, instead of letting it fall through to the
+ * locked-mode "principal required" error below.
+ */
+function readAvailabilityValueJson(db: DbPort): Promise<unknown> {
+  const fetch = () =>
+    fetchPublicSystemSettingValueJson(db, 'platform_integration_availability', 'admin');
+  if (getCurrentDatabasePrincipal()) return fetch();
+  return runWithInfraPrincipal({ source: 'delivery-handler' }, fetch);
+}
+
 async function readPlatformIntegrationAvailability(
   db: DbPort,
 ): Promise<PlatformIntegrationAvailability> {
-  let value = DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY;
-  try {
-    const valueJson = await fetchPublicSystemSettingValueJson(
-      db,
-      'platform_integration_availability',
-      'admin',
-    );
-    value = parsePlatformIntegrationAvailability(valueJson) ?? value;
-  } catch {
-    // Compatibility is fail-open for already wired adapters. A missing/unreadable additive
-    // registry must not silently stop delivery; explicit persisted false values still gate it.
+  const valueJson = await readAvailabilityValueJson(db);
+  const parsed = parsePlatformIntegrationAvailability(valueJson);
+  if (!parsed) {
+    // A missing or unreadable registry row is a real failure (the migration seeds it
+    // unconditionally), not "not configured yet" — it must refuse delivery, not fall back to
+    // a compiled-in default that could contradict a persisted `false`.
+    throw new Error('PLATFORM_INTEGRATION_AVAILABILITY_UNREADABLE');
   }
-  return value;
+  return parsed;
 }
 
 export async function isPlatformIntegrationAvailable(

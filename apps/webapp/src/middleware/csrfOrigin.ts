@@ -39,6 +39,7 @@ export const INTERNAL_BEARER_CSRF_EXEMPT_PATHS = [
   '/api/internal/operator-health-digest/tick',
   '/api/internal/product-analytics/retention',
   '/api/internal/reminders/web-push-only/tick',
+  '/api/internal/saas-billing/renewal/tick',
   '/api/internal/specialist-task-reminders/tick',
   '/api/internal/system-health-guard/tick',
 ] as const;

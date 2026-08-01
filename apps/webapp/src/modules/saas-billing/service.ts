@@ -269,6 +269,96 @@ export function createSaasBillingService(dependencies: {
     createRenewalSaasBillingInvoice,
 
     /**
+     * К5 — the background renewal tick. Called only from the internal cron route
+     * (`/api/internal/saas-billing/renewal/tick`), never from a user request or a screen open.
+     *
+     * Two clearly separate steps, per §5a-К5's wall: the repository call below is the ONLY place
+     * that enumerates "which organizations are due" (filtering happens there, under the platform DB
+     * principal the caller entered before calling this); every subscription it returns is then
+     * handed, one at a time, to a per-subscription invoice call that acts strictly on the row it was
+     * given — it never re-queries "all subscriptions" itself. Repeat ticks for a subscription whose
+     * period was already invoiced fall through to `created: false` for that row
+     * (`saas_billing_invoices_period_uidx`) instead of raising a second invoice or charging the
+     * provider twice.
+     */
+    async runDueSaasBillingRenewals(
+      input: { limit?: number } = {},
+    ): Promise<{
+      dueCount: number;
+      created: number;
+      alreadyInvoiced: number;
+      failed: number;
+      errors: Array<{ organizationId: string; saasBillingSubscriptionId: string; error: string }>;
+    }> {
+      const asOf = now().toISOString();
+      const due = await dependencies.repository.listSaasBillingSubscriptionsDueForRenewal({
+        asOf,
+        limit: input.limit ?? 50,
+      });
+
+      let created = 0;
+      let alreadyInvoiced = 0;
+      let failed = 0;
+      const errors: Array<{
+        organizationId: string;
+        saasBillingSubscriptionId: string;
+        error: string;
+      }> = [];
+
+      for (const subscription of due) {
+        // §5a item 7.0 arithmetic: the new period starts exactly where the paid one ended, never
+        // "now" — a late tick must not hand the clinic extra free days.
+        const servicePeriodStartsAt = subscription.currentPeriodEndsAt;
+        const servicePeriodEndsAt = paidPeriodEndsAt(
+          servicePeriodStartsAt,
+          subscription.billingPeriod,
+        );
+        try {
+          const provider = await resolvePaymentProvider();
+          const { invoice, created: wasCreated } =
+            await dependencies.repository.createSaasBillingRenewalInvoiceIfAbsent({
+              organizationId: subscription.organizationId,
+              saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
+              providerId: provider.providerId,
+              providerIdempotencyKey: `saas_tariff_auto_renewal:${subscription.saasBillingSubscriptionId}:${servicePeriodStartsAt}`,
+              servicePeriodStartsAt,
+              servicePeriodEndsAt,
+            });
+          if (!wasCreated) {
+            alreadyInvoiced += 1;
+            continue;
+          }
+          const intent = await provider.adapter.createIntent({
+            amountMinor: invoice.amountMinor,
+            currency: invoice.currency,
+            idempotencyKey: invoice.providerIdempotencyKey,
+            metadata: {
+              organizationId: invoice.organizationId,
+              saasBillingInvoiceId: invoice.id,
+              saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
+            },
+            providerConfig: provider.providerConfig,
+          });
+          await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+            saasBillingInvoiceId: invoice.id,
+            providerInvoiceRef: intent.providerIntentRef,
+            providerCheckoutUrl: intent.checkoutUrl ?? null,
+          });
+          created += 1;
+        } catch (error) {
+          failed += 1;
+          errors.push({
+            organizationId: subscription.organizationId,
+            saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      return { dueCount: due.length, created, alreadyInvoiced, failed, errors };
+    },
+
+    /**
      * K0 — the clinic-facing "pay for our tariff" entry point. Amount, tariff and organization are
      * ALL server-derived: the tariff is whatever the platform admin already assigned
      * (`requireOwnTariffBillingSubscription`), the amount comes from that tariff's own price row

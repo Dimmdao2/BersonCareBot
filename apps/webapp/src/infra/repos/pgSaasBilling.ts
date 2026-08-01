@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   SaasBillingInvoice,
@@ -573,6 +573,108 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           tariffId: tariff.id,
           billingPeriod: tariff.billingPeriod as SaasBillingPeriod,
         };
+      });
+    },
+
+    async listSaasBillingSubscriptionsDueForRenewal({ asOf, limit }) {
+      const rows = await getDrizzle()
+        .select({
+          saasBillingSubscriptionId: saasBillingSubscriptions.id,
+          organizationId: saasBillingSubscriptions.organizationId,
+          tariffId: saasTariffs.id,
+          billingPeriod: saasTariffs.billingPeriod,
+          currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
+        })
+        .from(saasBillingSubscriptions)
+        .innerJoin(saasTariffs, eq(saasTariffs.id, saasBillingSubscriptions.tariffId))
+        .where(
+          and(
+            eq(saasBillingSubscriptions.source, 'paid_subscription'),
+            eq(saasBillingSubscriptions.status, 'active'),
+            isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
+            lte(saasBillingSubscriptions.currentPeriodEndsAt, asOf),
+          ),
+        )
+        .orderBy(saasBillingSubscriptions.currentPeriodEndsAt)
+        .limit(limit);
+      return rows.map((row) => ({
+        ...row,
+        billingPeriod: row.billingPeriod as SaasBillingPeriod,
+        // `IS NOT NULL` filtered above; the column type stays nullable at the schema level.
+        currentPeriodEndsAt: row.currentPeriodEndsAt as string,
+      }));
+    },
+
+    async createSaasBillingRenewalInvoiceIfAbsent(input) {
+      return getDrizzle().transaction(async (tx) => {
+        const [authority] = await tx
+          .select({
+            organizationId: saasBillingSubscriptions.organizationId,
+            saasBillingAccountId: saasBillingSubscriptions.saasBillingAccountId,
+            tariffId: saasTariffs.id,
+            tariffName: saasTariffs.name,
+            amountMinor: saasTariffs.priceMinor,
+            currency: saasTariffs.currency,
+            tariffBillingPeriod: saasTariffs.billingPeriod,
+          })
+          .from(saasBillingSubscriptions)
+          .innerJoin(saasTariffs, eq(saasTariffs.id, saasBillingSubscriptions.tariffId))
+          .where(
+            and(
+              eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+              eq(saasBillingSubscriptions.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
+        if (!authority) throw new Error('saas_billing_subscription_not_found');
+        if (authority.amountMinor === null || authority.currency === null) {
+          throw new Error('saas_billing_tariff_not_billable');
+        }
+
+        const [inserted] = await tx
+          .insert(saasBillingInvoices)
+          .values({
+            organizationId: authority.organizationId,
+            saasBillingAccountId: authority.saasBillingAccountId,
+            saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+            tariffId: authority.tariffId,
+            tariffName: authority.tariffName,
+            amountMinor: authority.amountMinor,
+            currency: authority.currency,
+            tariffBillingPeriod: authority.tariffBillingPeriod,
+            servicePeriodStartsAt: input.servicePeriodStartsAt,
+            servicePeriodEndsAt: input.servicePeriodEndsAt,
+            status: 'draft',
+            providerId: input.providerId,
+            providerIdempotencyKey: input.providerIdempotencyKey,
+          })
+          .onConflictDoNothing({
+            target: [
+              saasBillingInvoices.saasBillingSubscriptionId,
+              saasBillingInvoices.servicePeriodStartsAt,
+              saasBillingInvoices.servicePeriodEndsAt,
+            ],
+          })
+          .returning();
+        if (inserted) {
+          return { invoice: toSaasBillingInvoice(inserted), created: true };
+        }
+
+        // Conflict: a previous tick (or this one, retried) already raised the invoice for this
+        // exact subscription+period — the DB constraint is the source of truth, not a pre-check.
+        const [existing] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.saasBillingSubscriptionId, input.saasBillingSubscriptionId),
+              eq(saasBillingInvoices.servicePeriodStartsAt, input.servicePeriodStartsAt),
+              eq(saasBillingInvoices.servicePeriodEndsAt, input.servicePeriodEndsAt),
+            ),
+          )
+          .limit(1);
+        if (!existing) throw new Error('saas_billing_renewal_invoice_conflict_not_found');
+        return { invoice: toSaasBillingInvoice(existing), created: false };
       });
     },
 

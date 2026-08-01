@@ -196,3 +196,62 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
     });
   });
 });
+
+// К5 — the arbiter this test names: a background tick that runs twice over the same due
+// subscription must not raise a second invoice or charge the payment provider a second time for
+// the same period. Held by construction in production by `saas_billing_invoices_period_uidx`; this
+// fake repository reproduces exactly that constraint's observable effect (a second attempt at the
+// same subscription+period returns `created: false` instead of a new row) so the service-level loop
+// is what's under test, not the DB. Break it by having the fake always return `created: true` (i.e.
+// simulate the unique index being dropped) and this test goes red.
+describe('К5: повторный тик по тому же периоду не выставляет второй счёт', () => {
+  it('второй прогон находит ту же due-подписку, но не создаёт второй счёт и не зовёт провайдера снова', async () => {
+    const dueSubscription = {
+      saasBillingSubscriptionId: 'subscription-1',
+      organizationId: 'org-1',
+      tariffId: 'tariff-1',
+      billingPeriod: 'month' as const,
+      currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+    };
+    const raisedForPeriod = new Set<string>();
+    const createSaasBillingRenewalInvoiceIfAbsent = vi.fn(async (input) => {
+      const key = `${input.saasBillingSubscriptionId}:${input.servicePeriodStartsAt}:${input.servicePeriodEndsAt}`;
+      if (raisedForPeriod.has(key)) {
+        return {
+          invoice: { ...invoice, id: 'invoice-existing', providerIdempotencyKey: input.providerIdempotencyKey },
+          created: false,
+        };
+      }
+      raisedForPeriod.add(key);
+      return {
+        invoice: { ...invoice, id: 'invoice-new', providerIdempotencyKey: input.providerIdempotencyKey },
+        created: true,
+      };
+    });
+    const listSaasBillingSubscriptionsDueForRenewal = vi.fn(async () => [dueSubscription]);
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({ ...invoice, ...input }));
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'provider-intent-renewal-1',
+      checkoutUrl: null,
+    }));
+
+    const service = createSaasBillingService({
+      repository: {
+        listSaasBillingSubscriptionsDueForRenewal,
+        createSaasBillingRenewalInvoiceIfAbsent,
+        attachSaasBillingInvoiceProviderIntent,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+
+    const first = await service.runDueSaasBillingRenewals();
+    const second = await service.runDueSaasBillingRenewals();
+
+    expect(first).toMatchObject({ dueCount: 1, created: 1, alreadyInvoiced: 0, failed: 0 });
+    expect(second).toMatchObject({ dueCount: 1, created: 0, alreadyInvoiced: 1, failed: 0 });
+    expect(createIntent).toHaveBeenCalledTimes(1);
+    expect(attachSaasBillingInvoiceProviderIntent).toHaveBeenCalledTimes(1);
+  });
+});
