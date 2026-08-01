@@ -11,9 +11,11 @@
  * Blind-audit acceptance: omitting the committed A0 integrator ledger makes a clone structurally
  * inconsistent with its baseline even though no integrator migrations are allowed to run here.
  */
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { sql } from 'drizzle-orm';
 import pg from 'pg';
+import { getWebappSqlFromPgClient, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
 
 type A0MigrationManifest = {
   ledgers: { integrator: { entries: { version: string }[] } };
@@ -31,39 +33,47 @@ const a0Manifest = JSON.parse(
 
 describe('disposable PostgreSQL harness pilot', () => {
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  let client: pg.PoolClient;
+  let db: WebappSqlExecutor;
+
+  beforeAll(async () => {
+    client = await pool.connect();
+    db = getWebappSqlFromPgClient(client);
+  });
 
   afterAll(async () => {
+    client.release();
     await pool.end();
   });
 
   it('runs against a freshly cloned database whose schema came from the real migration chain', async () => {
-    const databaseName = await pool.query<{ current_database: string }>(
-      'SELECT current_database()',
-    );
-    expect(databaseName.rows[0]?.current_database).toMatch(/^pbt_/);
+    const databaseName = await db.execute(sql`SELECT current_database()`);
+    expect(
+      (databaseName.rows as { current_database: string }[])[0]?.current_database,
+    ).toMatch(/^pbt_/);
 
-    const platformUsersTable = await pool.query<{ exists: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1 FROM information_schema.tables
-         WHERE table_schema = 'public' AND table_name = 'platform_users'
-       ) AS exists`,
+    const platformUsersTable = await db.execute(
+      sql`SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'platform_users'
+          ) AS exists`,
     );
-    expect(platformUsersTable.rows[0]?.exists).toBe(true);
+    expect((platformUsersTable.rows as { exists: boolean }[])[0]?.exists).toBe(true);
 
-    const migrationCount = await pool.query<{ count: string }>(
-      'SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations',
+    const migrationCount = await db.execute(
+      sql`SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations`,
     );
-    expect(Number(migrationCount.rows[0]?.count ?? 0)).toBeGreaterThan(0);
+    expect(Number((migrationCount.rows as { count: string }[])[0]?.count ?? 0)).toBeGreaterThan(0);
   });
 
   it('transplants the committed A0 integrator ledger without running integrator migrations', async () => {
     const expectedVersions = a0Manifest.ledgers.integrator.entries
       .map((entry) => entry.version)
       .sort();
-    const actual = await pool.query<{ version: string }>(
-      'SELECT version FROM integrator.schema_migrations',
-    );
-    const actualVersions = actual.rows.map((row) => row.version).sort();
+    const actual = await db.execute(sql`SELECT version FROM integrator.schema_migrations`);
+    const actualVersions = (actual.rows as { version: string }[])
+      .map((row) => row.version)
+      .sort();
 
     expect(actualVersions).toHaveLength(expectedVersions.length);
     expect(actualVersions).toEqual(expectedVersions);
