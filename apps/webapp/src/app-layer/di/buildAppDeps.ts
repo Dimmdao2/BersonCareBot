@@ -129,7 +129,7 @@ import { createLfkDiaryService } from '@/modules/diaries/lfk-service';
 import { createChannelPreferencesService } from '@/modules/channel-preferences/service';
 import { createContentCatalogResolver } from '@/modules/content-catalog/service';
 import { mockMediaStoragePort } from '@/infra/repos/mockMediaStorage';
-import { createS3MediaStoragePort } from '@/infra/repos/s3MediaStorage';
+import { createS3MediaStoragePort, listMediaDeleteErrors } from '@/infra/repos/s3MediaStorage';
 import { inMemorySymptomDiaryPort } from '@/infra/repos/symptomDiary';
 import { inMemoryLfkDiaryPort } from '@/infra/repos/lfkDiary';
 import { pgSymptomDiaryPort } from '@/infra/repos/pgSymptomDiary';
@@ -260,7 +260,8 @@ import { inMemoryAppRuntimeSettingsPort } from '@/infra/repos/inMemoryAppRuntime
 import { createRuntimeConfigProvider } from '@/modules/system-settings/runtimeConfig';
 import { createNotifTemplatesService } from '@/modules/notif-templates/notifTemplatesService';
 import { createLfkExercisesService } from '@/modules/lfk-exercises/service';
-import { pgLfkExercisesPort } from '@/infra/repos/pgLfkExercises';
+import { pgLfkExercisesPort, pgListExerciseUsageForMediaIds } from '@/infra/repos/pgLfkExercises';
+import { pgDoctorCalendarTimezonePort } from '@/infra/repos/pgDoctorCalendarTimezone';
 import { inMemoryLfkExercisesPort } from '@/infra/repos/inMemoryLfkExercises';
 import { createClinicalTestsService, createTestSetsService } from '@/modules/tests/service';
 import { createClinicalTestMeasureKindsService } from '@/modules/tests/measureKindsService';
@@ -1735,6 +1736,10 @@ function _buildAppDeps() {
     healthFailureArchive,
     notificationDelivery,
     media: mediaService,
+    mediaDeleteErrors: {
+      list: listMediaDeleteErrors,
+    },
+    doctorCalendarTimezone: pgDoctorCalendarTimezonePort,
     channelPreferences: channelPreferencesService,
     channelPreferencesPort,
     webPushSubscriptions: webPushSubscriptionsPort,
@@ -1814,6 +1819,9 @@ function _buildAppDeps() {
     runtimeConfig,
     notifTemplates: notifTemplatesService,
     lfkExercises: lfkExercisesService,
+    lfkExerciseMediaUsage: {
+      listForMediaIds: pgListExerciseUsageForMediaIds,
+    },
     clinicalTests: clinicalTestsService,
     measureKinds: clinicalTestMeasureKindsService,
     testSets: testSetsService,
