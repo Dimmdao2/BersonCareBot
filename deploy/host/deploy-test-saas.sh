@@ -70,6 +70,7 @@ TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
 TEST_PATIENT_IDENTITY_CAPABILITY_GATE=deploy/postgres/test-patient-identity-capability-gate.sql
 OWNER_READY_LOCKED_MATRIX=deploy/postgres/test-owner-ready-locked-matrix.sql
 SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
+SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES=deploy/postgres/test-saas-isolation-telemetry-fixtures.sql
 SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sql
 INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql
 INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS=deploy/postgres/integrator-login-public-identity-grants.sql
@@ -705,6 +706,25 @@ install_saas_isolation_telemetry_overlay(){
     -v telemetry_operator_runtime_role="$operator_runtime_role" \
     -f "$DEPLOY_REPO/$SAAS_ISOLATION_TELEMETRY"
   echo "   SaaS isolation telemetry closed API: OK"
+}
+
+# TEST-only scenario fixtures, split out of the closed telemetry API above so the production
+# overlay (deploy-prod.sh, zero references) can never carry these objects. Must run after
+# install_saas_isolation_telemetry_overlay: it depends on the roles/tables that overlay owns.
+install_saas_isolation_telemetry_test_fixtures_overlay(){
+  local webapp_runtime_role api_runtime_role operator_runtime_role
+  webapp_runtime_role="$(discover_webapp_bootstrap_base_role)"
+  api_runtime_role="$(discover_api_runtime_role)"
+  operator_runtime_role="$(discover_saas_isolation_operator_role)"
+  validate_pg_identifier "webapp.test telemetry runtime role" "$webapp_runtime_role"
+  validate_pg_identifier "api.test telemetry runtime role" "$api_runtime_role"
+  validate_pg_identifier "webapp.test telemetry operator role" "$operator_runtime_role"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v telemetry_webapp_runtime_role="$webapp_runtime_role" \
+    -v telemetry_api_runtime_role="$api_runtime_role" \
+    -v telemetry_operator_runtime_role="$operator_runtime_role" \
+    -f "$DEPLOY_REPO/$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES"
+  echo "   SaaS isolation TEST scenario fixture API: OK"
 }
 
 install_saas_system_health_diagnostics_overlay(){
@@ -2139,6 +2159,7 @@ run_strict_post_migration_closure(){
   log "strict closure: SaaS isolation telemetry privilege overlay"
   provision_saas_isolation_operator_login
   install_saas_isolation_telemetry_overlay
+  install_saas_isolation_telemetry_test_fixtures_overlay
   install_saas_system_health_diagnostics_overlay
   install_integrator_server_runtime_config_overlay
   log "strict closure: integrator login public identity grants"
@@ -2264,7 +2285,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$RUNTIME_OVERLAY_APP_OWNER_HANDOFF" "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" \
     "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
-    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
+    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
     "$C4_OPERATIONAL_RUNTIME" "$C4_WEB_PUSH_REMINDER_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
     "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
@@ -2436,6 +2457,7 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 [ -r "$SRC_REPO/$TEST_STRICT_RLS_FINALIZER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_STRICT_RLS_FINALIZER"; exit 1; }
 [ -r "$SRC_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
+[ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS"; exit 1; }
