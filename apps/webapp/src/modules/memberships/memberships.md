@@ -54,7 +54,6 @@ One booking appointment can have reserve/release/refund rows, but must not be ch
 | GET    | `/api/booking/memberships/catalog`                                     |
 | POST   | `/api/booking/memberships/purchase`                                    |
 | GET    | `/api/booking/memberships/payment-status`                              |
-| POST   | `/api/booking/memberships/payments/mock-complete`                      |
 
 UI: `PatientMembershipsSection`, `/app/patient/memberships/pay`, `/app/patient/memberships/[id]`, package picker in `ConfirmStepClient`.
 
