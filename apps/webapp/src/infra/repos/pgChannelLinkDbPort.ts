@@ -24,7 +24,7 @@ import type { ChannelLinkDbPort } from '@/modules/auth/channelLinkPort';
 
 export const pgChannelLinkDbPort: ChannelLinkDbPort = {
   replaceChannelLinkSecret,
-  loadPlatformPhoneBindingInfo: (userId) => loadPlatformPhoneBindingInfo(getPool(), userId),
+  loadPlatformPhoneBindingInfo: (userId) => loadPlatformPhoneBindingInfo(userId),
   loadChannelLinkSecretByTokenHash,
   loadChannelBindingUserId,
   classifyChannelBindingOwnerForLink: (boundUserId) =>
@@ -34,9 +34,9 @@ export const pgChannelLinkDbPort: ChannelLinkDbPort = {
   markChannelLinkSecretUsedIfUnused,
   insertChannelBinding,
   upsertBroadcastDefaultsAfterChannelBind: (userId, channelCode) =>
-    upsertBroadcastDefaultsAfterChannelBind(getPool(), userId, channelCode),
+    upsertBroadcastDefaultsAfterChannelBind(getWebappSqlDb(), userId, channelCode),
   markChannelLinkSecretUsed,
-  resolveCanonicalUserId: (userId) => resolveCanonicalUserId(getPool(), userId),
+  resolveCanonicalUserId: (userId) => resolveCanonicalUserId(getWebappSqlDb(), userId),
   async recordOwnershipConflict(ctx, options) {
     const sorted = [ctx.tokenUserId, ctx.existingUserId]
       .map((x) => x.trim())

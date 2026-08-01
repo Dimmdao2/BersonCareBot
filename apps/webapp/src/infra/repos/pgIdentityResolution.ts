@@ -30,6 +30,7 @@ import {
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { withPoolTransaction } from '@/infra/db/withClient';
+import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
 
 async function collectMessengerResolutionCandidates(
   client: PoolClient,
@@ -40,17 +41,17 @@ async function collectMessengerResolutionCandidates(
   const ids: string[] = [];
   const sub = parsedHints.platformUserSub?.trim();
   if (sub && isPlatformUserUuid(sub)) {
-    const canon = await resolveCanonicalUserId(client, sub);
+    const canon = await resolveCanonicalUserId(getWebappSqlFromPgClient(client), sub);
     if (canon) ids.push(canon);
   }
   const intId = parsedHints.integratorUserId?.trim();
   if (intId) {
-    const byInt = await findCanonicalUserIdByIntegratorId(client, intId);
+    const byInt = await findCanonicalUserIdByIntegratorId(getWebappSqlFromPgClient(client), intId);
     if (byInt) ids.push(byInt);
   }
   const phone = parsedHints.phoneNormalized?.trim();
   if (phone) {
-    const byTrustedPhone = await findTrustedCanonicalUserIdByPhone(client, phone);
+    const byTrustedPhone = await findTrustedCanonicalUserIdByPhone(getWebappSqlFromPgClient(client), phone);
     if (byTrustedPhone) ids.push(byTrustedPhone);
   }
   return [...new Set(ids)];
@@ -60,8 +61,7 @@ async function loadSessionUserForId(
   userId: string,
   externalIdForDisplay: string,
 ): Promise<SessionUser> {
-  const pool = getPool();
-  const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+  const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
     'SELECT display_name, role, phone_normalized FROM platform_users WHERE id = $1',
     [canonicalId],
@@ -156,7 +156,7 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
           [userId, parsed.channelCode, parsed.externalId],
         );
         if (insBinding.rows.length > 0) {
-          await upsertBroadcastDefaultsAfterChannelBind(client, userId, parsed.channelCode);
+          await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, parsed.channelCode);
           if (insertedNewPlatformUser) {
             accountOutcome = 'created';
           }

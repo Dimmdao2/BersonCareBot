@@ -32,8 +32,9 @@ export async function register(): Promise<void> {
   // UNREACHABLE database is explicitly not fatal.
   const databaseUrl = (process.env.DATABASE_URL ?? '').trim();
   if (databaseUrl && process.env.NEXT_RUNTIME === 'nodejs') {
-    const { assertSessionRevocationSchema, probeSessionRevocationColumn } =
+    const { assertSessionRevocationSchema } =
       await import('@/modules/auth/sessionRevocationSchema');
+    const { probeSessionRevocationColumn } = await import('@/app-layer/db/bootProbe');
     await assertSessionRevocationSchema(() => probeSessionRevocationColumn(databaseUrl));
   }
   // Next.js compiles this file for both the Node.js and Edge runtimes. This exact

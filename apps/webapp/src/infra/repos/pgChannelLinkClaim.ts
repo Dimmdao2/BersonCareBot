@@ -253,7 +253,7 @@ export async function claimMessengerChannelBindingInTransaction(
     db,
   );
 
-  await upsertBroadcastDefaultsAfterChannelBind(client, tokenUserId, channelCode);
+  await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), tokenUserId, channelCode);
 
   await runWebappPgText(
     `UPDATE platform_users

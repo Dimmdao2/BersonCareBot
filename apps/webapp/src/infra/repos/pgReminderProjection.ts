@@ -132,12 +132,9 @@ export type ReminderProjectionPort = {
   markAllSeen(platformUserId: string): Promise<void>;
 };
 
-function resolvePlatformUserId(
-  pool: Awaited<ReturnType<typeof getPool>>,
-  integratorUserId: string,
-): Promise<string | null> {
+function resolvePlatformUserId(integratorUserId: string): Promise<string | null> {
   if (integratorUserId === '') return Promise.resolve(null);
-  return findCanonicalUserIdByIntegratorId(pool, integratorUserId);
+  return findCanonicalUserIdByIntegratorId(getWebappSqlDb(), integratorUserId);
 }
 
 function mapScheduleDataColumn(raw: unknown): Record<string, unknown> | null {
@@ -150,7 +147,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
   return {
     async upsertRuleFromProjection(params) {
       const pool = getPool();
-      const platformUserId = await resolvePlatformUserId(pool, params.integratorUserId);
+      const platformUserId = await resolvePlatformUserId(params.integratorUserId);
       await runWebappSql(
         getWebappSqlDb(),
         sql`
@@ -214,7 +211,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
 
     async upsertContentAccessGrantFromProjection(params) {
       const pool = getPool();
-      const platformUserId = await resolvePlatformUserId(pool, params.integratorUserId);
+      const platformUserId = await resolvePlatformUserId(params.integratorUserId);
       await runWebappSql(
         getWebappSqlDb(),
         sql`
