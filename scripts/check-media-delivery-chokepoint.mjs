@@ -106,6 +106,14 @@ function isMediaModule(rel) {
   return rel.startsWith(mediaModuleRoot);
 }
 
+function isHttpRoute(rel) {
+  return rel.startsWith(`${routeRoot}/`) && rel.endsWith('/route.ts');
+}
+
+function isModuleSource(rel) {
+  return rel.startsWith(`${moduleRoot}/`);
+}
+
 function authorizerIsCalled(source, entries) {
   const localName = entries
     .flatMap((entry) => {
@@ -172,7 +180,10 @@ function inspectSources(sourceFiles) {
     if (isDeliveryRoute(rel) && !authorizerIsCalled(source, entries)) {
       violations.add(`${rel}: media delivery route does not call authorizeMediaDelivery`);
     }
-    if (isDeliveryRoute(rel) || isMediaModule(rel)) inspectGraph(rel, sources, violations);
+    // Every HTTP route and module is a graph root so a newly named helper cannot hide a
+    // media-delivery bypass behind a different API prefix or module boundary. Only the
+    // established media delivery routes must themselves call the authorization door.
+    if (isHttpRoute(rel) || isModuleSource(rel)) inspectGraph(rel, sources, violations);
   }
   return [...violations].sort();
 }
@@ -276,10 +287,10 @@ function runSelfTest() {
         {
           rel: `${appSourceRoot}/app-layer/media/newDelivery.ts`,
           source:
-            "import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';\nexport const deliverWithoutSubmissionAcl = getMediaAccessRow;\n",
+            "import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';\nimport { presignGetUrl } from '@/app-layer/media/s3Client';\nexport async function deliverWithoutSubmissionAcl(id) { const row = await getMediaAccessRow(id); return row ? presignGetUrl(row.s3_key, 60) : null; }\n",
         },
         {
-          rel: route,
+          rel: `${routeRoot}/files/[id]/route.ts`,
           source:
             "import { deliverWithoutSubmissionAcl } from '@/app-layer/media/newDelivery';\nexport async function GET() { return deliverWithoutSubmissionAcl('id'); }\n",
         },

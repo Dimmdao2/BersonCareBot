@@ -212,3 +212,29 @@ remain outside the delivery traversal.
 **Fix-round structural count:** killed **7** formerly missed bypass forms; missed **0**. The two previously caught
 direct named-import forms remain covered by the saved oracle. This worker evidence does not replace the
 orchestrator's final acceptance or change the initial independent-audit verdict.
+
+## Bounded fix — all API-route and module graph roots `#1082`
+
+The prior graph traversal was correct only after it had started, but it started solely from
+`/api/media/[id]/**` and `modules/media/**`. The gate now starts traversal from every
+`apps/webapp/src/app/api/**/route.ts` and every `apps/webapp/src/modules/**` source file. It still requires
+`authorizeMediaDelivery` only from the five established media delivery handlers; unrelated routes are roots for
+reachable bypass discovery, not new mandatory consumers of the door.
+
+The saved renamed-helper fixture now models the reachable fault directly:
+`/api/files/[id]/route.ts` → renamed app-layer helper → `getMediaAccessRow` + `presignGetUrl`, without
+`authorizeMediaDelivery`. The gate exits nonzero for that fixture. Upload/multipart and background-delete controls
+remain green.
+
+| Command | Result |
+| --- | --- |
+| `node scripts/check-media-delivery-chokepoint.mjs --self-test` | **PASS:** green route accepted; all 7 saved formerly-missed bypass fixtures exit nonzero; upload/background-delete controls accepted. |
+| `node scripts/check-media-delivery-chokepoint.mjs` | **PASS** on the current tree. |
+| `pnpm --dir apps/webapp exec vitest run src/app-layer/media/authorizeMediaDelivery.unit.test.ts src/app-layer/media/resolveMediaPlaybackPayload.unit.test.ts 'src/app/api/media/[id]/mediaDeliveryChokepoint.route.test.ts' src/modules/online-intake/doctorIntakeDetailResponse.unit.test.ts --reporter=verbose` | **PASS: 4 files, 18 tests.** |
+| `pnpm --dir apps/webapp exec vitest run src/app-layer/media/mediaDeliveryChokepointGate.unit.test.ts --reporter=verbose` | **PASS: 1 file, 2 tests.** |
+| `pnpm --dir apps/webapp typecheck` | **PASS.** |
+| `pnpm exec eslint scripts/check-media-delivery-chokepoint.mjs && pnpm --dir apps/webapp exec eslint --no-ignore src/app-layer/media/mediaDeliveryChokepointGate.unit.test.ts` | **PASS.** |
+| `git diff --check -- scripts/check-media-delivery-chokepoint.mjs apps/webapp/src/app-layer/media/mediaDeliveryChokepointGate.unit.test.ts docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **PASS.** |
+
+**Bounded-fix structural count:** killed **7** saved bypass forms; missed **0**. The five product handlers and
+their behavior remain unchanged. This evidence does not close the Ch2 checkbox; closure remains with the lead.

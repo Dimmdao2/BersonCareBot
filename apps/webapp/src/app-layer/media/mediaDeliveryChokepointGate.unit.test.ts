@@ -32,6 +32,7 @@ function runGate(files: FixtureFile[]): { status: number | null; output: string 
 }
 
 const routePath = 'apps/webapp/src/app/api/media/[id]/download/route.ts';
+const alternatePrefixRoutePath = 'apps/webapp/src/app/api/files/[id]/route.ts';
 
 describe('media delivery chokepoint structural gate', () => {
   it('rejects syntax-equivalent and renamed HTTP delivery bypasses', () => {
@@ -127,10 +128,10 @@ describe('media delivery chokepoint structural gate', () => {
           {
             path: 'apps/webapp/src/app-layer/media/newDelivery.ts',
             source:
-              "import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';\nexport const deliverWithoutSubmissionAcl = getMediaAccessRow;\n",
+              "import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';\nimport { presignGetUrl } from '@/app-layer/media/s3Client';\nexport async function deliverWithoutSubmissionAcl(id) { const row = await getMediaAccessRow(id); return row ? presignGetUrl(row.s3_key, 60) : null; }\n",
           },
           {
-            path: routePath,
+            path: alternatePrefixRoutePath,
             source:
               "import { deliverWithoutSubmissionAcl } from '@/app-layer/media/newDelivery';\nexport async function GET() { return Response.json(await deliverWithoutSubmissionAcl('00000000-0000-4000-8000-000000000099')); }\n",
           },
