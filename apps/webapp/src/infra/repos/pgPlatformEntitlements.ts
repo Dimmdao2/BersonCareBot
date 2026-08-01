@@ -124,6 +124,7 @@ function tariffValues(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
     mechanicAccessPolicies: input.mechanicAccessPolicies,
     downgradePolicies: input.downgradePolicies,
     includedSeats: input.includedSeats,
+    additionalSeatPriceMinor: input.additionalSeatPriceMinor,
     isActive: input.isActive,
     updatedAt: new Date().toISOString(),
   };
