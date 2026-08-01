@@ -10,6 +10,10 @@
 `MUST FIX` из отчёта. Не расширять Б1 до Б3, A1/RLS, integrator test-contour, сигналов, DEV/TEST/PROD,
 deploy или полного CI. Push запрещён.
 
+Источник оракула: `docs/_TODO/TEST_SUITE_AUDIT_2026-07-29.md`, Б1 — «Общий harness строит один template из
+`a0-greenfield` + pending webapp Drizzle migrations и даёт отдельный clone тесту; A0/A1 остаются отдельными
+repo-level gates»; «cleanup переживает setup/test failure».
+
 ## Зафиксированные разрывы
 
 1. Template переносит Drizzle ledger, но оставляет `integrator.schema_migrations` пустым: runtime `0` против
