@@ -113,6 +113,94 @@ export type SaasBillingPlatformInvoiceFilter = {
   payerSearch?: string;
 };
 
+/**
+ * К3 — period+payer only, deliberately NOT status: the summary's whole point is to break the period
+ * down BY status (`принято`/`возвращено`/`в обработке`/`не оплачено`), so it always covers the full
+ * period the list filters show, regardless of which status the list itself is narrowed to. Grouped by
+ * currency because `saas_billing_invoices.currency` is not constrained to one value; in practice
+ * today there is exactly one group (RUB).
+ */
+export type SaasBillingPlatformSummaryFilter = {
+  periodFrom?: string;
+  periodTo?: string;
+  payerSearch?: string;
+};
+
+export type SaasBillingPlatformSummaryBucket = { count: number; amountMinor: number };
+
+export type SaasBillingPlatformCurrencySummary = {
+  currency: string;
+  /** `status = 'paid'`. */
+  received: SaasBillingPlatformSummaryBucket;
+  /** `succeeded` refunds against invoices in this period. */
+  refunded: SaasBillingPlatformSummaryBucket;
+  /** `status` in (`draft`, `pending`) — raised or sent to the provider, not yet resolved. */
+  inProcess: SaasBillingPlatformSummaryBucket;
+  /** `status` in (`failed`, `void`) — did not end in money received. */
+  unpaid: SaasBillingPlatformSummaryBucket;
+};
+
+export type SaasBillingPlatformSummary = {
+  byCurrency: SaasBillingPlatformCurrencySummary[];
+};
+
+/**
+ * К3 item 2 — "вид покупки" for the platform surface is the tariff and its billing period (clinics
+ * have no other kind of purchase). Built only from `paid` invoices: a purchase is something that
+ * actually happened, not something pending or failed.
+ */
+export type SaasBillingPlatformBreakdownRow = {
+  tariffId: string;
+  tariffName: string;
+  tariffBillingPeriod: 'day' | 'month' | 'year';
+  currency: string;
+  count: number;
+  amountMinor: number;
+};
+
+export type SaasBillingReconciliationDiscrepancy =
+  | {
+      kind: 'missing_in_provider';
+      saasBillingInvoiceId: string;
+      organizationTitle: string;
+      providerInvoiceRef: string;
+      amountMinor: number;
+      currency: string;
+    }
+  | {
+      kind: 'missing_in_journal';
+      providerPaymentRef: string;
+      providerStatus: string;
+      amountMinor: number;
+      currency: string;
+    }
+  | {
+      kind: 'amount_mismatch';
+      saasBillingInvoiceId: string;
+      organizationTitle: string;
+      providerInvoiceRef: string;
+      journalAmountMinor: number;
+      journalCurrency: string;
+      providerAmountMinor: number;
+      providerCurrency: string;
+    };
+
+export type SaasBillingReconciliationResult =
+  | { outcome: 'provider_unavailable'; providerId: string }
+  | { outcome: 'provider_error'; providerId: string }
+  | {
+      outcome: 'ok';
+      providerId: string;
+      periodFrom: string;
+      periodTo: string;
+      checkedAt: string;
+      journalCount: number;
+      providerCount: number;
+      /** The provider's own list was cut off by the page cap — discrepancies below may be incomplete. */
+      truncated: boolean;
+      discrepancies: SaasBillingReconciliationDiscrepancy[];
+    };
+
 export type SaasBillingProviderEventEnvelope = {
   providerId: string;
   providerEventId: string;
@@ -179,6 +267,14 @@ export type SaasBillingRepositoryPort = {
   listPlatformInvoices(
     filter: SaasBillingPlatformInvoiceFilter,
   ): Promise<SaasBillingPlatformInvoiceRow[]>;
+  /** К3 — period summary broken down by status; see {@link SaasBillingPlatformSummaryFilter}. */
+  getPlatformPaymentsSummary(
+    filter: SaasBillingPlatformSummaryFilter,
+  ): Promise<SaasBillingPlatformSummary>;
+  /** К3 — "разрез по видам покупок" (tariff × billing period), paid invoices only. */
+  getPlatformPaymentsBreakdown(
+    filter: SaasBillingPlatformSummaryFilter,
+  ): Promise<SaasBillingPlatformBreakdownRow[]>;
   runManualAssignmentTransaction<T>(
     work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<T>,
   ): Promise<T>;

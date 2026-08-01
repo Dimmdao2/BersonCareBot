@@ -3,7 +3,10 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
+  SaasBillingPlatformBreakdownRow,
   SaasBillingPlatformInvoiceRow,
+  SaasBillingPlatformSummary,
+  SaasBillingPlatformSummaryFilter,
   SaasBillingRefund,
   SaasBillingRepositoryPort,
   SaasBillingSubscriptionReadRow,
@@ -37,6 +40,16 @@ function toSaasBillingRefund(row: typeof saasBillingRefunds.$inferSelect): SaasB
 
 /** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
 const OPEN_REFUND_STATUSES = ['pending', 'succeeded'] as const;
+
+/** Shared by К3 summary/breakdown queries — period + payer, no status (see `SaasBillingPlatformSummaryFilter`). */
+function platformSummaryFilterConds(filter: SaasBillingPlatformSummaryFilter) {
+  const conds = [];
+  if (filter.periodFrom) conds.push(gte(saasBillingInvoices.createdAt, filter.periodFrom));
+  if (filter.periodTo) conds.push(lte(saasBillingInvoices.createdAt, filter.periodTo));
+  const payerSearch = filter.payerSearch?.trim();
+  if (payerSearch) conds.push(ilike(beOrganizations.title, `%${payerSearch}%`));
+  return conds;
+}
 
 async function upsertSaasBillingAccount(
   tx: Transaction,
@@ -141,7 +154,8 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       for (const sum of refundSums) {
         const totalMinor = Number(sum.totalMinor);
         if (sum.status === 'succeeded') refundedByInvoice.set(sum.saasBillingInvoiceId, totalMinor);
-        else if (sum.status === 'pending') pendingByInvoice.set(sum.saasBillingInvoiceId, totalMinor);
+        else if (sum.status === 'pending')
+          pendingByInvoice.set(sum.saasBillingInvoiceId, totalMinor);
       }
 
       return rows.map(
@@ -156,6 +170,107 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           pendingRefundMinor: pendingByInvoice.get(invoice.id) ?? 0,
         }),
       );
+    },
+
+    async getPlatformPaymentsSummary(filter): Promise<SaasBillingPlatformSummary> {
+      const db = getDrizzle();
+      const conds = platformSummaryFilterConds(filter);
+
+      const statusRows = await db
+        .select({
+          currency: saasBillingInvoices.currency,
+          status: saasBillingInvoices.status,
+          count: sql<string>`count(*)`,
+          totalMinor: sql<string>`coalesce(sum(${saasBillingInvoices.amountMinor}), 0)`,
+        })
+        .from(saasBillingInvoices)
+        .innerJoin(beOrganizations, eq(beOrganizations.id, saasBillingInvoices.organizationId))
+        .where(conds.length ? and(...conds) : undefined)
+        .groupBy(saasBillingInvoices.currency, saasBillingInvoices.status);
+
+      const refundRows = await db
+        .select({
+          currency: saasBillingRefunds.currency,
+          count: sql<string>`count(*)`,
+          totalMinor: sql<string>`coalesce(sum(${saasBillingRefunds.amountMinor}), 0)`,
+        })
+        .from(saasBillingRefunds)
+        .innerJoin(
+          saasBillingInvoices,
+          eq(saasBillingInvoices.id, saasBillingRefunds.saasBillingInvoiceId),
+        )
+        .innerJoin(beOrganizations, eq(beOrganizations.id, saasBillingInvoices.organizationId))
+        .where(and(eq(saasBillingRefunds.status, 'succeeded'), ...conds))
+        .groupBy(saasBillingRefunds.currency);
+
+      const currencies = new Set<string>();
+      for (const row of statusRows) currencies.add(row.currency);
+      for (const row of refundRows) currencies.add(row.currency);
+
+      const zeroBucket = () => ({ count: 0, amountMinor: 0 });
+
+      return {
+        byCurrency: [...currencies].map((currency) => {
+          const received = zeroBucket();
+          const inProcess = zeroBucket();
+          const unpaid = zeroBucket();
+          for (const row of statusRows) {
+            if (row.currency !== currency) continue;
+            const count = Number(row.count);
+            const amountMinor = Number(row.totalMinor);
+            if (row.status === 'paid') {
+              received.count += count;
+              received.amountMinor += amountMinor;
+            } else if (row.status === 'draft' || row.status === 'pending') {
+              inProcess.count += count;
+              inProcess.amountMinor += amountMinor;
+            } else if (row.status === 'failed' || row.status === 'void') {
+              unpaid.count += count;
+              unpaid.amountMinor += amountMinor;
+            }
+          }
+          const refundRow = refundRows.find((row) => row.currency === currency);
+          const refunded = refundRow
+            ? { count: Number(refundRow.count), amountMinor: Number(refundRow.totalMinor) }
+            : zeroBucket();
+          return { currency, received, refunded, inProcess, unpaid };
+        }),
+      };
+    },
+
+    async getPlatformPaymentsBreakdown(filter): Promise<SaasBillingPlatformBreakdownRow[]> {
+      const db = getDrizzle();
+      const conds = platformSummaryFilterConds(filter);
+
+      const rows = await db
+        .select({
+          tariffId: saasBillingInvoices.tariffId,
+          tariffName: saasBillingInvoices.tariffName,
+          tariffBillingPeriod: saasBillingInvoices.tariffBillingPeriod,
+          currency: saasBillingInvoices.currency,
+          count: sql<string>`count(*)`,
+          totalMinor: sql<string>`coalesce(sum(${saasBillingInvoices.amountMinor}), 0)`,
+        })
+        .from(saasBillingInvoices)
+        .innerJoin(beOrganizations, eq(beOrganizations.id, saasBillingInvoices.organizationId))
+        .where(and(eq(saasBillingInvoices.status, 'paid'), ...conds))
+        .groupBy(
+          saasBillingInvoices.tariffId,
+          saasBillingInvoices.tariffName,
+          saasBillingInvoices.tariffBillingPeriod,
+          saasBillingInvoices.currency,
+        )
+        .orderBy(desc(sql`sum(${saasBillingInvoices.amountMinor})`));
+
+      return rows.map((row) => ({
+        tariffId: row.tariffId,
+        tariffName: row.tariffName,
+        tariffBillingPeriod:
+          row.tariffBillingPeriod as SaasBillingPlatformBreakdownRow['tariffBillingPeriod'],
+        currency: row.currency,
+        count: Number(row.count),
+        amountMinor: Number(row.totalMinor),
+      }));
     },
 
     async runManualAssignmentTransaction(work) {

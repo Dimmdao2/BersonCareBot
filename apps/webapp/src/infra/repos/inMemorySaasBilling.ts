@@ -1,5 +1,6 @@
 import type {
   SaasBillingInvoice,
+  SaasBillingPlatformCurrencySummary,
   SaasBillingProviderEventReadRow,
   SaasBillingRefund,
   SaasBillingRepositoryPort,
@@ -10,7 +11,10 @@ const OPEN_REFUND_STATUSES: SaasBillingRefund['status'][] = ['pending', 'succeed
 
 /** Key = `${organizationId}::${source}` — mirrors the real `(organization_id, source)` unique index,
  *  so `manual` and `paid_subscription` rows for the same org never collide in this fake. */
-function subscriptionKey(organizationId: string, source: SaasBillingSubscription['source']): string {
+function subscriptionKey(
+  organizationId: string,
+  source: SaasBillingSubscription['source'],
+): string {
   return `${organizationId}::${source}`;
 }
 
@@ -68,6 +72,80 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             .filter((r) => r.saasBillingInvoiceId === row.id && r.status === 'pending')
             .reduce((sum, r) => sum + r.amountMinor, 0),
         }));
+    },
+
+    async getPlatformPaymentsSummary(filter) {
+      const zeroBucket = () => ({ count: 0, amountMinor: 0 });
+      const byCurrency = new Map<string, SaasBillingPlatformCurrencySummary>();
+      const inPeriod = (createdAt: string) =>
+        (!filter.periodFrom || createdAt >= filter.periodFrom) &&
+        (!filter.periodTo || createdAt <= filter.periodTo);
+      for (const row of invoices.values()) {
+        const now = new Date().toISOString();
+        if (!inPeriod(now)) continue;
+        const entry: SaasBillingPlatformCurrencySummary = byCurrency.get(row.currency) ?? {
+          currency: row.currency,
+          received: zeroBucket(),
+          refunded: zeroBucket(),
+          inProcess: zeroBucket(),
+          unpaid: zeroBucket(),
+        };
+        if (row.status === 'paid') {
+          entry.received.count += 1;
+          entry.received.amountMinor += row.amountMinor;
+        } else if (row.status === 'draft' || row.status === 'pending') {
+          entry.inProcess.count += 1;
+          entry.inProcess.amountMinor += row.amountMinor;
+        } else {
+          entry.unpaid.count += 1;
+          entry.unpaid.amountMinor += row.amountMinor;
+        }
+        byCurrency.set(row.currency, entry);
+      }
+      for (const refund of refunds.values()) {
+        if (refund.status !== 'succeeded') continue;
+        const invoice = invoices.get(refund.saasBillingInvoiceId);
+        if (!invoice) continue;
+        const entry = byCurrency.get(invoice.currency);
+        if (!entry) continue;
+        entry.refunded.count += 1;
+        entry.refunded.amountMinor += refund.amountMinor;
+      }
+      return { byCurrency: [...byCurrency.values()] };
+    },
+
+    async getPlatformPaymentsBreakdown(filter) {
+      const inPeriod = (createdAt: string) =>
+        (!filter.periodFrom || createdAt >= filter.periodFrom) &&
+        (!filter.periodTo || createdAt <= filter.periodTo);
+      const groups = new Map<
+        string,
+        {
+          tariffId: string;
+          tariffName: string;
+          tariffBillingPeriod: 'day' | 'month' | 'year';
+          currency: string;
+          count: number;
+          amountMinor: number;
+        }
+      >();
+      for (const row of invoices.values()) {
+        const now = new Date().toISOString();
+        if (row.status !== 'paid' || !inPeriod(now)) continue;
+        const key = `${row.tariffId}::${row.tariffBillingPeriod}::${row.currency}`;
+        const entry = groups.get(key) ?? {
+          tariffId: row.tariffId,
+          tariffName: row.tariffName,
+          tariffBillingPeriod: row.tariffBillingPeriod,
+          currency: row.currency,
+          count: 0,
+          amountMinor: 0,
+        };
+        entry.count += 1;
+        entry.amountMinor += row.amountMinor;
+        groups.set(key, entry);
+      }
+      return [...groups.values()];
     },
 
     async runManualAssignmentTransaction(work) {
@@ -271,7 +349,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         return { outcome: 'amount_exceeds_remaining' as const, remainingMinor };
       }
       const existing = [...refunds.values()].find(
-        (r) => r.providerId === invoice.providerId && r.providerIdempotencyKey === providerIdempotencyKey,
+        (r) =>
+          r.providerId === invoice.providerId &&
+          r.providerIdempotencyKey === providerIdempotencyKey,
       );
       if (existing) return { outcome: 'duplicate' as const, refund: existing };
 
