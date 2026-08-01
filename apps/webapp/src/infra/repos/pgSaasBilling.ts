@@ -349,5 +349,69 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       if (!row) throw new Error('saas_billing_invoice_not_found');
       return toSaasBillingInvoice(row);
     },
+
+    async requireOwnTariffBillingSubscription(organizationId) {
+      return getDrizzle().transaction(async (tx) => {
+        const [organization] = await tx
+          .select({ tariffId: beOrganizations.tariffId })
+          .from(beOrganizations)
+          .where(eq(beOrganizations.id, organizationId))
+          .limit(1);
+        if (!organization) throw new Error('organization_not_found');
+        if (!organization.tariffId) throw new Error('saas_billing_no_tariff_assigned');
+
+        const [tariff] = await tx
+          .select({ id: saasTariffs.id, billingPeriod: saasTariffs.billingPeriod })
+          .from(saasTariffs)
+          .where(and(eq(saasTariffs.id, organization.tariffId), eq(saasTariffs.isActive, true)))
+          .limit(1);
+        if (!tariff) throw new Error('saas_billing_tariff_not_billable');
+
+        const account = await upsertSaasBillingAccount(tx, organizationId);
+        const [row] = await tx
+          .insert(saasBillingSubscriptions)
+          .values({
+            organizationId,
+            saasBillingAccountId: account.id,
+            tariffId: tariff.id,
+            source: 'paid_subscription',
+            status: 'pending_payment',
+            lifecycleState: 'active',
+          })
+          .onConflictDoUpdate({
+            target: [saasBillingSubscriptions.organizationId, saasBillingSubscriptions.source],
+            set: { tariffId: tariff.id, updatedAt: new Date().toISOString() },
+          })
+          .returning({ id: saasBillingSubscriptions.id });
+        if (!row) throw new Error('saas_billing_subscription_upsert_failed');
+
+        return {
+          saasBillingSubscriptionId: row.id,
+          tariffId: tariff.id,
+          billingPeriod: tariff.billingPeriod as SaasBillingPeriod,
+        };
+      });
+    },
+
+    async activateSaasBillingSubscriptionPeriod(input) {
+      const [row] = await getDrizzle()
+        .update(saasBillingSubscriptions)
+        .set({
+          status: 'active',
+          lifecycleState: 'active',
+          cancelledAt: null,
+          currentPeriodStartsAt: input.periodStartsAt,
+          currentPeriodEndsAt: input.periodEndsAt,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+            eq(saasBillingSubscriptions.organizationId, input.organizationId),
+          ),
+        )
+        .returning({ id: saasBillingSubscriptions.id });
+      if (!row) throw new Error('saas_billing_subscription_not_found');
+    },
   };
 }
