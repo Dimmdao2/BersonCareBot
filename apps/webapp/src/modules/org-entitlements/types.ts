@@ -311,6 +311,15 @@ export type TrialPolicy = {
   isActive: boolean;
 };
 
+/**
+ * §5a item 2.6a -- the tariff granted at registration, independent of {@link TrialPolicy}. `null`
+ * is a legal value: no code default, the person picks a tariff themselves. Only takes effect when
+ * no trial policy fires for the registration event.
+ */
+export type RegistrationTariffPolicy = {
+  tariffId: string | null;
+};
+
 export type OrgCommercialLifecycleState = 'active' | 'grace' | 'read_only' | 'blocked';
 
 export type OrgCommercialAccessState = 'compatibility' | 'no_trial' | 'trial_pending' | 'active';

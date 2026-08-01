@@ -12,6 +12,7 @@ import {
   type MechanicAccessPolicyMap,
   type MechanicDowngradePolicy,
   type OrgMechanic,
+  type RegistrationTariffPolicy,
   type Tariff,
   type TariffQuota,
   type TariffQuotaMap,
@@ -41,6 +42,7 @@ type CommercialState = {
   tariffs: Tariff[];
   organizations: PlatformOrganizationSummary[];
   trialPolicy: TrialPolicy | null;
+  registrationTariffPolicy: RegistrationTariffPolicy;
 };
 
 type CommercialMutationResult = { created?: boolean; endsAt?: string } | null;
@@ -532,6 +534,7 @@ export function CommercialConstructorClient() {
     tariffs: [],
     organizations: [],
     trialPolicy: null,
+    registrationTariffPolicy: { tariffId: null },
   });
   const [tariff, setTariff] = useState<TariffDraft>(emptyTariffDraft);
   const [reason, setReason] = useState('');
@@ -549,6 +552,7 @@ export function CommercialConstructorClient() {
     useState<TrialPolicy['postTrialBehavior'] | null>(null);
   const [postTrialTariffId, setPostTrialTariffId] = useState('none');
   const [trialActive, setTrialActive] = useState(false);
+  const [registrationTariffId, setRegistrationTariffId] = useState('none');
   const [extensionDays, setExtensionDays] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -592,6 +596,10 @@ export function CommercialConstructorClient() {
     setPostTrialTariffId(policy.postTrialTariffId ?? 'none');
     setTrialActive(policy.isActive);
   }, [state.trialPolicy]);
+
+  useEffect(() => {
+    setRegistrationTariffId(state.registrationTariffPolicy.tariffId ?? 'none');
+  }, [state.registrationTariffPolicy]);
 
   const selectedOrganization = useMemo(
     () => state.organizations.find((organization) => organization.id === organizationId) ?? null,
@@ -1231,6 +1239,68 @@ export function CommercialConstructorClient() {
       </TabsContent>
 
       <TabsContent value="trial">
+        <DoctorSection>
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void mutate(
+                {
+                  action: 'set_registration_tariff_policy',
+                  policy: {
+                    tariffId: registrationTariffId === 'none' ? null : registrationTariffId,
+                  },
+                  reason,
+                },
+                'Стартовый тариф сохранён',
+              );
+            }}
+          >
+            <DoctorSectionHeader className="md:col-span-2">
+              <DoctorSectionTitle>Стартовый тариф при регистрации</DoctorSectionTitle>
+            </DoctorSectionHeader>
+            <div className="space-y-1 md:col-span-2">
+              <Label>Тариф, выдаваемый новой клинике сразу (без триала)</Label>
+              <Select
+                value={registrationTariffId}
+                onValueChange={(value) => {
+                  if (value) setRegistrationTariffId(value);
+                }}
+              >
+                <SelectTrigger
+                  displayLabel={
+                    registrationTariffId === 'none'
+                      ? 'Не выдавать — человек выбирает тариф сам'
+                      : (state.tariffs.find((item) => item.id === registrationTariffId)?.name ??
+                        '')
+                  }
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Не выдавать — человек выбирает тариф сам</SelectItem>
+                  {state.tariffs
+                    .filter((item) => item.isActive)
+                    .map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Применяется только когда для регистрации не сработало правило триала ниже — оно
+                остаётся в приоритете, пока активно.
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <Button type="submit" disabled={busy}>
+                Сохранить стартовый тариф
+              </Button>
+            </div>
+          </form>
+        </DoctorSection>
+
         <DoctorSection>
           <form
             className="grid gap-4 md:grid-cols-2"

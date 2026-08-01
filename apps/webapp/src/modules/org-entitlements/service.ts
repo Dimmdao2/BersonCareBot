@@ -16,6 +16,7 @@ import {
   type MechanicClass,
   type OrgEntitlementSnapshot,
   type OrgMechanic,
+  type RegistrationTariffPolicy,
   type Tariff,
   type TariffQuota,
   type TariffQuotaMap,
@@ -509,6 +510,7 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     listTariffs: () => port.listTariffs(),
     listOrganizations: () => port.listOrganizations(),
     getTrialPolicy: () => port.getTrialPolicy(),
+    getRegistrationTariffPolicy: () => port.getRegistrationTariffPolicy(),
     createTariff: (
       input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
       audit: PlatformMutationAudit,
@@ -577,6 +579,12 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     setTrialPolicy: (policy: TrialPolicy, audit: PlatformMutationAudit) => {
       assertTrialPolicy(policy);
       return port.setTrialPolicy(policy, audit);
+    },
+    setRegistrationTariffPolicy: (
+      policy: RegistrationTariffPolicy,
+      audit: PlatformMutationAudit,
+    ) => {
+      return port.setRegistrationTariffPolicy(policy, audit);
     },
     startTrial: (organizationId: string, audit: PlatformMutationAudit) => {
       return port.startTrial(organizationId, audit);

@@ -172,6 +172,36 @@ export const saasTrialPolicy = pgTable(
   ],
 );
 
+/**
+ * Singleton, platform-global registration policy — §5a item 2.6a (owner 31.07): "какой тариф
+ * выдаётся при регистрации" is its OWN setting, independent of {@link saasTrialPolicy}. `tariffId`
+ * legally NULL: an empty setting means the person picks a tariff themselves, not a code default.
+ * Only takes effect when no trial policy fires for the registration event — a firing trial policy
+ * still owns the org's tariff for its own duration, unchanged.
+ */
+export const saasRegistrationTariffPolicy = pgTable(
+  'saas_registration_tariff_policy',
+  {
+    key: text().primaryKey().default('global').notNull(),
+    tariffId: uuid('tariff_id'),
+    updatedBy: uuid('updated_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tariffId],
+      foreignColumns: [saasTariffs.id],
+      name: 'saas_registration_tariff_policy_tariff_id_fkey',
+    }).onDelete('restrict'),
+    check('saas_registration_tariff_policy_key_check', sql`${table.key} = 'global'`),
+  ],
+);
+
 /** One immutable trial identity per organization; dates may only move through audited platform operations. */
 export const saasOrganizationTrials = pgTable(
   'saas_organization_trials',
