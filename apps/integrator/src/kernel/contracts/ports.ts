@@ -166,7 +166,9 @@ export type DeliveryAdapter = {
 
 /** Порт постановки асинхронной задачи в очередь. */
 export type QueuePort = {
-  enqueue(task: { kind: string; payload: Record<string, unknown> }): Promise<void>;
+  /** `runAt`: предпочтительное абсолютное время первой попытки (когда оно продуктово фиксировано,
+   * например офсет напоминания до приёма), иначе — относительная задержка из `payload.retry`. */
+  enqueue(task: { kind: string; payload: Record<string, unknown>; runAt?: string }): Promise<void>;
 };
 
 /** Порт очереди job-ов для runtime worker. */
