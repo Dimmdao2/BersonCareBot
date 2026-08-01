@@ -703,13 +703,17 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             target: [saasBillingSubscriptions.organizationId, saasBillingSubscriptions.source],
             set: { tariffId: tariff.id, updatedAt: new Date().toISOString() },
           })
-          .returning({ id: saasBillingSubscriptions.id });
+          .returning({
+            id: saasBillingSubscriptions.id,
+            savedPaymentMethodId: saasBillingSubscriptions.savedPaymentMethodId,
+          });
         if (!row) throw new Error('saas_billing_subscription_upsert_failed');
 
         return {
           saasBillingSubscriptionId: row.id,
           tariffId: tariff.id,
           billingPeriod: tariff.billingPeriod as SaasBillingPeriod,
+          savedPaymentMethodId: row.savedPaymentMethodId,
         };
       });
     },
@@ -722,6 +726,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           tariffId: saasTariffs.id,
           billingPeriod: saasTariffs.billingPeriod,
           currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
+          savedPaymentMethodId: saasBillingSubscriptions.savedPaymentMethodId,
+          autopayConsentedAt: saasBillingSubscriptions.autopayConsentedAt,
+          autopayRevokedAt: saasBillingSubscriptions.autopayRevokedAt,
         })
         .from(saasBillingSubscriptions)
         .innerJoin(saasTariffs, eq(saasTariffs.id, saasBillingSubscriptions.tariffId))
@@ -985,6 +992,74 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .returning();
       if (!row) throw new Error('saas_billing_refund_not_found');
       return toSaasBillingRefund(row);
+    },
+
+    async grantSaasBillingAutopayConsent({ organizationId, consentText, consentedAt }) {
+      const [row] = await getDrizzle()
+        .update(saasBillingSubscriptions)
+        .set({
+          autopayConsentedAt: consentedAt,
+          autopayConsentText: consentText,
+          autopayRevokedAt: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(saasBillingSubscriptions.organizationId, organizationId),
+            eq(saasBillingSubscriptions.source, 'paid_subscription'),
+          ),
+        )
+        .returning({ id: saasBillingSubscriptions.id });
+      return row ? ({ outcome: 'granted' as const }) : ({ outcome: 'no_subscription' as const });
+    },
+
+    async revokeSaasBillingAutopayConsent({ organizationId, revokedAt }) {
+      const [row] = await getDrizzle()
+        .update(saasBillingSubscriptions)
+        .set({ autopayRevokedAt: revokedAt, updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingSubscriptions.organizationId, organizationId),
+            eq(saasBillingSubscriptions.source, 'paid_subscription'),
+          ),
+        )
+        .returning({ id: saasBillingSubscriptions.id });
+      return row ? ({ outcome: 'revoked' as const }) : ({ outcome: 'no_subscription' as const });
+    },
+
+    async saveSaasBillingSubscriptionPaymentMethod(input) {
+      const [row] = await getDrizzle()
+        .update(saasBillingSubscriptions)
+        .set({
+          savedPaymentMethodId: input.savedPaymentMethodId,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+            eq(saasBillingSubscriptions.organizationId, input.organizationId),
+          ),
+        )
+        .returning({ id: saasBillingSubscriptions.id });
+      if (!row) throw new Error('saas_billing_subscription_not_found');
+    },
+
+    async markSaasBillingInvoiceFailed({ saasBillingInvoiceId, organizationId }) {
+      // Same CAS shape as `markSaasBillingInvoicePaid`: only a `draft`/`pending` invoice can move
+      // to `failed` — an already-`paid` row (a late failure notification for a charge that in fact
+      // went through) or a `void` one must never be overwritten.
+      const [row] = await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({ status: 'failed', updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.organizationId, organizationId),
+            inArray(saasBillingInvoices.status, ['draft', 'pending']),
+          ),
+        )
+        .returning();
+      return row ? toSaasBillingInvoice(row) : null;
     },
   };
 }

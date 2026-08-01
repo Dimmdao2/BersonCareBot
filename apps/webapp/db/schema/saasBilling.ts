@@ -94,6 +94,17 @@ export const saasBillingSubscriptions = pgTable(
     lifecycleState: text('lifecycle_state').$type<SaasBillingLifecycleState>().notNull(),
     providerId: text('provider_id'),
     savedPaymentMethodId: text('saved_payment_method_id'),
+    /**
+     * К6 — explicit consent to off-session autopay, stored with the date and the EXACT text the
+     * payer saw (`autopayConsentText`), not a boolean: `AUTOPAY_CONSENT_TEXT` is what both the
+     * screen renders and this column stores, so a later copy change never rewrites history of what
+     * someone actually agreed to. Active iff `autopayConsentedAt IS NOT NULL AND autopayRevokedAt IS
+     * NULL` — granting again after a revoke clears `autopayRevokedAt` back to null (see
+     * `grantSaasBillingAutopayConsent`).
+     */
+    autopayConsentedAt: timestamp('autopay_consented_at', { withTimezone: true, mode: 'string' }),
+    autopayConsentText: text('autopay_consent_text'),
+    autopayRevokedAt: timestamp('autopay_revoked_at', { withTimezone: true, mode: 'string' }),
     currentPeriodStartsAt: timestamp('current_period_starts_at', {
       withTimezone: true,
       mode: 'string',
@@ -164,6 +175,12 @@ export const saasBillingSubscriptions = pgTable(
     check(
       'saas_billing_subscriptions_lifecycle_dates_check',
       sql`(${table.graceEndsAt} IS NULL OR ${table.currentPeriodEndsAt} IS NULL OR ${table.graceEndsAt} >= ${table.currentPeriodEndsAt}) AND (${table.readOnlyEndsAt} IS NULL OR ${table.graceEndsAt} IS NULL OR ${table.readOnlyEndsAt} >= ${table.graceEndsAt})`,
+    ),
+    // К6 — a consent date with no text (or vice versa) is not a fact anyone can point to; keep the
+    // two born and cleared together instead of letting them drift independently.
+    check(
+      'saas_billing_subscriptions_autopay_consent_check',
+      sql`(${table.autopayConsentedAt} IS NULL) = (${table.autopayConsentText} IS NULL)`,
     ),
   ],
 );
