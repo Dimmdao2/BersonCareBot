@@ -27,6 +27,9 @@ export type PaymentProviderListPaymentsResult = {
 };
 
 export type PaymentProviderPort = {
+  /** Only adapters that can issue a shareable invoice set this; it is a capability, not a second payment entry. */
+  supportsInvoice?: true;
+
   /**
    * B1.1 — the one door every payment intent is opened through. `payerRef`, `purpose`, `subjectRef`
    * and `returnUrl` are required IN THE TYPE, not carried in `metadata`: forgetting one fails the
@@ -45,6 +48,11 @@ export type PaymentProviderPort = {
     subjectRef: string;
     /** Куда вернуть — адрес нашего экрана; провайдер получает его отсюда, не из мешка. */
     returnUrl: string;
+    /**
+     * A shareable invoice/payment link instead of an immediate checkout. It is still opened
+     * through this one payment door; adapters without invoice support fail closed.
+     */
+    invoice?: { description: string; expiresAt: string };
     metadata: Record<string, unknown>;
     providerConfig?: PaymentProviderConfig;
     /** К6 — ask the provider to keep this payment's method for a later off-session charge. Ignored together with `confirmation`/redirect once `paymentMethodId` is set. */
@@ -60,22 +68,6 @@ export type PaymentProviderPort = {
     idempotencyKey: string;
     providerConfig?: PaymentProviderConfig;
   }): Promise<{ providerRefundRef: string }>;
-
-  /**
-   * К4 — a shareable invoice/payment-link object, distinct from `createIntent`'s direct payment:
-   * only YooKassa's `/v3/invoices` is wired today (`yookassaPaymentProvider.ts`); adapters without
-   * an equivalent simply omit this method, and callers must check for its presence.
-   */
-  createInvoice?(params: {
-    amountMinor: number;
-    currency: string;
-    description: string;
-    /** ISO timestamp — the deadline until which the invoice can be paid. */
-    expiresAt: string;
-    idempotencyKey: string;
-    metadata: Record<string, unknown>;
-    providerConfig?: PaymentProviderConfig;
-  }): Promise<{ providerInvoiceRef: string; checkoutUrl: string }>;
 
   /**
    * Parse only enough normalized identity to locate the server-owned intent/event authority.

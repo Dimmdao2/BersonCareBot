@@ -149,13 +149,8 @@ export function ConfirmStepClient({
     }>
   >([]);
   const [patientPackageId, setPatientPackageId] = useState('');
-  const [productOptions, setProductOptions] = useState<
-    Array<{ id: string; title: string; visitsRemaining: number }>
-  >([]);
-  const [productPurchaseId, setProductPurchaseId] = useState('');
   const [, startFieldsLoad] = useTransition();
   const [, startPackagesLoad] = useTransition();
-  const [, startProductsLoad] = useTransition();
   const createState = useCreateBookingHook();
   const rescheduleState = useRescheduleBookingHook();
   const isReschedule = Boolean(rescheduleBookingId);
@@ -220,28 +215,6 @@ export function ConfirmStepClient({
       cancelled = true;
     };
   }, [type, branchId, serviceId, isReschedule, startPackagesLoad]);
-
-  useEffect(() => {
-    if (type !== 'in_person' || !branchId || !serviceId || isReschedule) return;
-    let cancelled = false;
-    startProductsLoad(() => {
-      void (async () => {
-        const q = new URLSearchParams({ branchId, serviceId });
-        const res = await fetch(`/api/booking/products/available?${q.toString()}`);
-        const json = (await res.json()) as {
-          ok?: boolean;
-          purchases?: Array<{ id: string; title: string; visitsRemaining: number }>;
-        };
-        if (!cancelled && json.ok && json.purchases) {
-          setProductOptions(json.purchases);
-          if (json.purchases.length === 1) setProductPurchaseId(json.purchases[0]!.id);
-        }
-      })();
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [type, branchId, serviceId, isReschedule, startProductsLoad]);
 
   const selection: BookingSelection | null = useMemo(() => {
     if (type === 'in_person' && cityCode && cityTitle && serviceTitle && branchId && serviceId) {
@@ -431,7 +404,6 @@ export function ConfirmStepClient({
               contactEmail: email.trim() || undefined,
               formAnswers: formAnswers.length > 0 ? formAnswers : undefined,
               patientPackageId: patientPackageId.trim() || undefined,
-              productPurchaseId: productPurchaseId.trim() || undefined,
             })
             .then((booking) => {
               // `false` also covers "the server asked for a code first" (A-3): the hook has set
@@ -470,9 +442,7 @@ export function ConfirmStepClient({
             <Select
               value={patientPackageId}
               onValueChange={(v) => {
-                const val = v ?? '';
-                setPatientPackageId(val);
-                if (val) setProductPurchaseId('');
+                setPatientPackageId(v ?? '');
               }}
             >
               <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
@@ -487,32 +457,6 @@ export function ConfirmStepClient({
                       .map((it) => `${it.remaining}/${it.quantityInitial}`)
                       .join(', ')}
                     )
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-        ) : null}
-
-        {type === 'in_person' && !isReschedule && productOptions.length > 0 ? (
-          <label className="flex flex-col gap-1">
-            <span className={cn(patientMutedTextClass, 'text-xs')}>Покупка</span>
-            <Select
-              value={productPurchaseId}
-              onValueChange={(v) => {
-                const val = v ?? '';
-                setProductPurchaseId(val);
-                if (val) setPatientPackageId('');
-              }}
-            >
-              <SelectTrigger className="w-full rounded-md border bg-background px-2 py-2 text-sm">
-                <SelectValue placeholder="Без покупки" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Без покупки</SelectItem>
-                {productOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.title} ({p.visitsRemaining})
                   </SelectItem>
                 ))}
               </SelectContent>

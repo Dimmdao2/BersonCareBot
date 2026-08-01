@@ -78,7 +78,19 @@ function inspectCloudpaymentsWebhook(headers: Headers, bodyText: string) {
 
 export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({ amountMinor, currency, idempotencyKey, metadata, returnUrl, providerConfig }) {
+    async createIntent({
+      amountMinor,
+      currency,
+      idempotencyKey,
+      payerRef,
+      purpose,
+      subjectRef,
+      metadata,
+      returnUrl,
+      invoice,
+      providerConfig,
+    }) {
+      if (invoice) throw new Error('payment_provider_invoices_unsupported:cloudpayments');
       const { publicId, apiSecret } = requireCloudpaymentsCredentials(providerConfig);
       const amount = amountMinor / 100; // CloudPayments uses rubles (float string)
 
@@ -92,9 +104,9 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
         RequireConfirmation: false,
         SendEmail: false,
         InvoiceId: idempotencyKey,
-        AccountId: typeof metadata.patientUserId === 'string' ? metadata.patientUserId : undefined,
+        AccountId: payerRef,
         SuccessRedirectUrl: returnUrl,
-        JsonData: { idempotencyKey, ...metadata },
+        JsonData: { ...metadata, idempotencyKey, payerRef, purpose, subjectRef },
       };
 
       const res = await fetch(`${CLOUDPAYMENTS_API_BASE}/orders/create`, {
