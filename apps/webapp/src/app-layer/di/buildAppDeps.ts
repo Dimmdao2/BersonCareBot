@@ -353,11 +353,7 @@ import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganization
 import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
-import {
-  assertMechanicWriteClearance,
-  ensureMechanicWriteClearanceContext,
-  enterWithMechanicWriteClearance,
-} from '@/app-layer/entitlements/mechanicWriteClearance';
+import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
 import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
@@ -411,9 +407,6 @@ import { createPgPaymentCaptureUnitOfWork } from '@/infra/repos/pgPaymentCapture
 import { createPaymentsService, createPaymentsConfigReader } from '@/modules/payments/service';
 import { createPgMembershipsPort } from '@/infra/repos/pgMemberships';
 import { createMembershipsService } from '@/modules/memberships/service';
-import { createPgProductsPort } from '@/infra/repos/pgProducts';
-import { createProductsService } from '@/modules/products/service';
-import type { ProductsService } from '@/modules/products/service';
 import { createPgEntitlementsPort } from '@/infra/repos/pgEntitlements';
 import { createEntitlementsService } from '@/modules/entitlements/service';
 import { wrapBookingEngineMembershipHooks } from '@/app-layer/booking/wrapBookingEngineMembershipHooks';
@@ -777,12 +770,10 @@ const doctorAnalyticsMetricAccountsPort =
       )
     : inMemoryDoctorAnalyticsMetricAccountsPort;
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
-const productsPort = !inMemoryRepos ? createPgProductsPort() : null;
 const entitlementsPort = !inMemoryRepos ? createPgEntitlementsPort() : null;
 const entitlementsService = entitlementsPort
   ? createEntitlementsService({ port: entitlementsPort })
   : null;
-let productsServiceResolved: ProductsService | null = null;
 const resolveMembershipServiceTitle = bookingEngineService
   ? async (serviceId: string) => {
       const svc = await bookingEngineService.services.getService(serviceId);
@@ -839,22 +830,6 @@ const paymentsService =
               );
             }
           : undefined,
-        onProductPaymentCaptured: async ({ productPurchaseId, paymentId, organizationId }) => {
-          if (productsServiceResolved) {
-            await withExplicitOrganizationPrincipal(
-              {
-                organizationId,
-                source: 'payments.product-capture.fulfillment',
-              },
-              () =>
-                productsServiceResolved!.activatePurchase(
-                  productPurchaseId,
-                  organizationId,
-                  paymentId,
-                ),
-            );
-          }
-        },
         onAppointmentPaymentConfirmed,
         syncServicePrepaymentApplicable: async (serviceId, applicable) => {
           const svc = await bookingEngineService.services.getService(serviceId);
@@ -1152,41 +1127,6 @@ const coursesService = createCoursesService({
     treatmentProgramInstanceService.assignTemplateToPatient(input),
 });
 
-productsServiceResolved =
-  productsPort && paymentsService
-    ? createProductsService({
-        port: productsPort,
-        payments: paymentsService,
-        entitlements: entitlementsService,
-        memberships: membershipsServiceResolved,
-        courses: coursesService,
-        resolvePlatformUserByPhone: (phone, name) =>
-          import('@/app-layer/platform-user/resolveOrCreateUserByPhone').then((m) =>
-            // Products flow: behaviour unchanged by A-3, same class flagged for the owner.
-            m.resolveOrCreateUserByPhone(phone, name, true),
-          ),
-        findPlatformUserByPhone: async (phone) => {
-          const user = await userByPhonePort.findByPhone(phone);
-          return user ? { userId: user.userId } : null;
-        },
-        isCourseMechanicEnabled: (organizationId) =>
-          isMechanicEnabled(orgEntitlementsPort, organizationId, 'courses'),
-        // 3.2 круг 2: `activatePurchase` is the funnel both the payment webhook and the free-course
-        // `startPurchase` reach `courses.enrollPatient` through without a `requireEntitlementForMutation`
-        // call anywhere upstream — see the JSDoc on `WriteClearanceAccess` in products/service.ts.
-        ensureWriteClearanceContext: ensureMechanicWriteClearanceContext,
-        grantWriteClearance: enterWithMechanicWriteClearance,
-        hasActivePatientEnrollment: (platformUserId, organizationId) =>
-          patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
-          Promise.resolve(false),
-        courseBelongsToOrganization: (courseId, organizationId) =>
-          withExplicitOrganizationPrincipal(
-            { organizationId, source: 'products.course-scope' },
-            async () => (await coursesService.getCourseForDoctor(courseId)) !== null,
-          ),
-      })
-    : null;
-
 patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
@@ -1204,7 +1144,6 @@ patientBookingService = createPatientBookingService({
     return access.state === 'full_access' || access.state === 'grace';
   },
   memberships: membershipsServiceResolved,
-  products: productsServiceResolved,
   clientHistory: clientHistoryService,
   platformUserContacts: platformUserContactsService,
   getPlatformUserIdentityContacts: async (userId) => {
@@ -1892,7 +1831,6 @@ function _buildAppDeps() {
     bookingAppointmentLifecycle: bookingAppointmentLifecycleService,
     payments: paymentsService,
     memberships: membershipsServiceResolved,
-    products: productsServiceResolved,
     entitlements: entitlementsService,
     patientMergeCandidate: patientMergeCandidateService,
     platformUserContacts: platformUserContactsService,

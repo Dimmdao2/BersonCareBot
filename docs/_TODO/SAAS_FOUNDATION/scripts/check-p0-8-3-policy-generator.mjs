@@ -136,7 +136,6 @@ assert.deepEqual(
     'public.be_booking_form_submissions',
     'public.be_package_history_events',
     'public.be_package_usages',
-    'public.be_product_history_events',
     'public.be_refunds',
     'public.reminder_journal',
     'public.support_questions',

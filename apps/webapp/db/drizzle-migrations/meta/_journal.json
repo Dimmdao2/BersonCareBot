@@ -2089,6 +2089,13 @@
       "breakpoints": true
     },
     {
+      "idx": 298,
+      "version": "7",
+      "when": 1793539220000,
+      "tag": "0298_drop_booking_product_catalog_local",
+      "breakpoints": true
+    },
+    {
       "idx": 299,
       "version": "7",
       "when": 1793539230000,

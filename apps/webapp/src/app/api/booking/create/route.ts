@@ -77,15 +77,8 @@ const BOOKING_CREATE_ERROR_RULES = {
   package_not_active: { status: 409, code: 'package_not_active' },
   package_not_found: { status: 409, code: 'package_not_found' },
   package_reserve_failed: { status: 409, code: 'package_reserve_failed' },
-  payment_option_conflict: { status: 400, code: 'payment_option_conflict' },
   payment_provider_unavailable: { status: 422, code: 'payment_provider_unavailable' },
   payments_disabled: { status: 422, code: 'payments_disabled' },
-  product_consume_failed: { status: 409, code: 'product_consume_failed' },
-  product_expired: { status: 409, code: 'product_expired' },
-  product_no_visits: { status: 409, code: 'product_no_visits' },
-  product_not_active: { status: 409, code: 'product_not_active' },
-  product_purchase_not_found: { status: 409, code: 'product_purchase_not_found' },
-  product_service_mismatch: { status: 409, code: 'product_service_mismatch' },
   required_field_missing: { status: 400, code: 'required_field_missing' },
   slot_already_taken: { status: 409, code: 'slot_already_taken' },
   slot_overlap: { status: 409, code: 'slot_overlap' },
@@ -133,7 +126,6 @@ export async function POST(request: Request) {
           contactEmail: body.contactEmail,
           formAnswers: body.formAnswers,
           patientPackageId: body.patientPackageId,
-          productPurchaseId: body.productPurchaseId,
         });
       },
     );

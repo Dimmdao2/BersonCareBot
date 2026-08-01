@@ -160,7 +160,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 | `test_attempts`                                                 | UPDATE                                       | guard: open attempt conflict                                                            |
 | `treatment_program_instances`                                   | UPDATE                                       | две реальные active-программы — blocker; promo закрывается как superseded перед repoint |
 | `be_appointments`, `be_patient_timeline_events`, …              | UPDATE                                       | booking-engine domain                                                                   |
-| `be_payment_*`, `be_patient_packages`, `be_product_purchases`   | UPDATE                                       | payments / memberships                                                                  |
+| `be_payment_*`, `be_patient_packages`                           | UPDATE                                       | payments / memberships                                                                  |
 | `product_push_notifications`, `product_analytics_events_recent` | UPDATE                                       | analytics                                                                               |
 | `platform_user_contacts`                                        | repoint duplicate → target + merge fallback  | см. ниже                                                                                |
 

@@ -39,58 +39,36 @@ export function isRefundEventType(eventType: string): boolean {
 
 export function parsePaymentPayloadRefs(payload: Record<string, unknown> | null | undefined): {
   patientPackageId: string | null;
-  productPurchaseId: string | null;
 } {
   const p = payload ?? {};
-  const fromPayload =
-    typeof p.patientPackageId === 'string'
-      ? p.patientPackageId
-      : typeof p.productPurchaseId === 'string'
-        ? null
-        : null;
-  const productFromPayload = typeof p.productPurchaseId === 'string' ? p.productPurchaseId : null;
+  let patientPackageId = typeof p.patientPackageId === 'string' ? p.patientPackageId : null;
   const productRef = typeof p.productRef === 'string' ? p.productRef : null;
-  let patientPackageId = fromPayload;
-  let productPurchaseId = productFromPayload;
   if (productRef?.startsWith('patient_package:')) {
     patientPackageId = productRef.slice('patient_package:'.length);
   }
-  if (productRef?.startsWith('product_purchase:')) {
-    productPurchaseId = productRef.slice('product_purchase:'.length);
-  }
-  return { patientPackageId, productPurchaseId };
+  return { patientPackageId };
 }
 
 export function resolvePaymentTitles(input: {
   purpose: string | null;
   payload: Record<string, unknown> | null | undefined;
   packageTitles: Map<string, string>;
-  productTitles: Map<string, string>;
-}): { packageTitle: string | null; productTitle: string | null } {
+}): { packageTitle: string | null } {
   const refs = parsePaymentPayloadRefs(input.payload);
   let packageTitle = refs.patientPackageId
     ? (input.packageTitles.get(refs.patientPackageId) ?? null)
-    : null;
-  let productTitle = refs.productPurchaseId
-    ? (input.productTitles.get(refs.productPurchaseId) ?? null)
     : null;
   if (!packageTitle && input.purpose === 'package_purchase') {
     packageTitle = refs.patientPackageId
       ? (input.packageTitles.get(refs.patientPackageId) ?? null)
       : null;
   }
-  if (!productTitle && input.purpose === 'product_purchase') {
-    productTitle = refs.productPurchaseId
-      ? (input.productTitles.get(refs.productPurchaseId) ?? null)
-      : null;
-  }
-  return { packageTitle, productTitle };
+  return { packageTitle };
 }
 
 export function dedupeTimelineItems(items: ClientTimelineItem[]): ClientTimelineItem[] {
   const detailedRescheduleAppts = new Set<string>();
   const detailedCancelAppts = new Set<string>();
-  const productPurchaseIdsWithHistory = new Set<string>();
   const canonicalPaymentHistoryIds = new Set<string>();
 
   for (const item of items) {
@@ -99,10 +77,6 @@ export function dedupeTimelineItems(items: ClientTimelineItem[]): ClientTimeline
     }
     if (item.category === 'cancellation' && item.appointmentId) {
       detailedCancelAppts.add(item.appointmentId);
-    }
-    if (item.category === 'product' && item.linkedObjectType === 'product_history_event') {
-      const purchaseId = item.payload.productPurchaseId;
-      if (typeof purchaseId === 'string') productPurchaseIdsWithHistory.add(purchaseId);
     }
     if (
       item.category === 'payment' &&
@@ -130,15 +104,6 @@ export function dedupeTimelineItems(items: ClientTimelineItem[]): ClientTimeline
       detailedCancelAppts.has(item.appointmentId)
     ) {
       continue;
-    }
-    if (item.eventType === 'product_purchased') {
-      const purchaseId =
-        typeof item.payload.productPurchaseId === 'string'
-          ? item.payload.productPurchaseId
-          : item.linkedObjectType === 'product_purchase'
-            ? item.linkedObjectId
-            : null;
-      if (purchaseId && productPurchaseIdsWithHistory.has(purchaseId)) continue;
     }
     if (
       item.category === 'payment' &&
@@ -226,15 +191,13 @@ export function enrichPaymentHistoryRow(
   ctx: {
     serviceByAppt: Map<string, string>;
     packageTitles: Map<string, string>;
-    productTitles: Map<string, string>;
     paymentMethodLabel: (providerId: string | null) => string | null;
   },
 ): ClientPaymentHistoryRow {
-  const { packageTitle, productTitle } = resolvePaymentTitles({
+  const { packageTitle } = resolvePaymentTitles({
     purpose: row.purpose,
     payload: row.payloadJson,
     packageTitles: ctx.packageTitles,
-    productTitles: ctx.productTitles,
   });
   return {
     id: row.id,
@@ -252,6 +215,5 @@ export function enrichPaymentHistoryRow(
     comment: row.comment,
     serviceTitle: row.appointmentId ? (ctx.serviceByAppt.get(row.appointmentId) ?? null) : null,
     packageTitle,
-    productTitle,
   };
 }

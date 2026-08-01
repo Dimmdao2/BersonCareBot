@@ -23,7 +23,6 @@ type CreateBookingInput = {
   contactEmail?: string;
   formAnswers?: FormAnswer[];
   patientPackageId?: string;
-  productPurchaseId?: string;
 };
 
 export function useCreateBooking() {
@@ -64,7 +63,6 @@ export function useCreateBooking() {
                 contactEmail: input.contactEmail,
                 formAnswers: input.formAnswers,
                 ...(input.patientPackageId ? { patientPackageId: input.patientPackageId } : {}),
-                ...(input.productPurchaseId ? { productPurchaseId: input.productPurchaseId } : {}),
               };
             })();
 

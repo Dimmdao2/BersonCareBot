@@ -33,7 +33,6 @@ export * from './clinicDirectory';
 export * from './bookingPolicies';
 export * from './bookingPayments';
 export * from './bookingMemberships';
-export * from './bookingProducts';
 export * from './bookingScheduling';
 export * from './bookingClientProfile';
 export * from './patientMergeCandidate';

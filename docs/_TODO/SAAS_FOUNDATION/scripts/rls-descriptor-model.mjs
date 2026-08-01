@@ -278,7 +278,6 @@ const patientOwnedColumns = new Map([
   ['public.be_payment_history_events', { column: 'platform_user_id' }],
   ['public.be_payment_intents', { column: 'platform_user_id' }],
   ['public.be_payments', { column: 'platform_user_id' }],
-  ['public.be_product_purchases', { column: 'platform_user_id' }],
   ['public.clinical_anamnesis_illness', { column: 'patient_user_id' }],
   ['public.clinical_anamnesis_lifestyle', { column: 'patient_user_id' }],
   ['public.clinical_anamnesis_trauma', { column: 'patient_user_id' }],
@@ -990,25 +989,6 @@ const patientChainOwnedTables = new Map([
     {
       hops: [
         { table: 'public.reminder_rules', alias: 'b4f_rule', parentPk: 'id', localFk: 'rule_id' },
-      ],
-      terminalColumn: 'platform_user_id',
-      castType: 'uuid',
-    },
-  ],
-
-  // be_product_history_events (P0.8.3): product_purchase_id NOT NULL ->
-  // be_product_purchases.platform_user_id (already walled directly, nullable — e.g. gift/phone-only
-  // purchases). apps/webapp/db/drizzle-migrations/0095_booking_stage7_products.sql.
-  [
-    'public.be_product_history_events',
-    {
-      hops: [
-        {
-          table: 'public.be_product_purchases',
-          alias: 'b4f_purchase',
-          parentPk: 'id',
-          localFk: 'product_purchase_id',
-        },
       ],
       terminalColumn: 'platform_user_id',
       castType: 'uuid',

@@ -1,52 +1,10 @@
-import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutationTx';
-import { contentAccessGrantsWebapp, platformUsers } from '../../../db/schema/schema';
+import { contentAccessGrantsWebapp } from '../../../db/schema/schema';
 import type { EntitlementsPort } from '@/modules/entitlements/ports';
-
-/** Synthetic integrator user id when platform user has no bot binding (webapp-native grants). */
-export const WEBAPP_NATIVE_GRANT_INTEGRATOR_USER_ID = 0;
 
 export function createPgEntitlementsPort(): EntitlementsPort {
   return {
-    async getPlatformUserIntegratorId(platformUserId) {
-      const db = getDrizzle();
-      const [row] = await db
-        .select({ integratorUserId: platformUsers.integratorUserId })
-        .from(platformUsers)
-        .where(eq(platformUsers.id, platformUserId))
-        .limit(1);
-      if (row?.integratorUserId != null) return Number(row.integratorUserId);
-      return WEBAPP_NATIVE_GRANT_INTEGRATOR_USER_ID;
-    },
-
-    async upsertWebappGrant(input) {
-      const db = getDrizzle();
-      await db
-        .insert(contentAccessGrantsWebapp)
-        .values({
-          integratorGrantId: input.integratorGrantId,
-          platformUserId: input.platformUserId,
-          integratorUserId: input.integratorUserId,
-          contentId: input.contentId,
-          purpose: input.purpose,
-          expiresAt: input.expiresAt,
-          metaJson: input.metaJson ?? {},
-          createdAt: new Date().toISOString(),
-        })
-        .onConflictDoUpdate({
-          target: contentAccessGrantsWebapp.integratorGrantId,
-          set: {
-            platformUserId: input.platformUserId,
-            integratorUserId: input.integratorUserId,
-            contentId: input.contentId,
-            purpose: input.purpose,
-            expiresAt: input.expiresAt,
-            revokedAt: null,
-            metaJson: input.metaJson ?? {},
-          },
-        });
-    },
-
     async listActiveGrantsForUser(platformUserId) {
       const db = getDrizzle();
       const now = new Date().toISOString();

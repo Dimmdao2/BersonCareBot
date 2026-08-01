@@ -131,10 +131,10 @@ export function createSaasBillingService(dependencies: {
   }
 
   /**
-   * К4 — platform-admin-issued invoice for the organization's OWN currently assigned tariff, via
-   * YooKassa's `/v3/invoices` (a shareable link) rather than `createIntent`'s direct payment. Amount/
-   * description/expiry are admin-chosen; the tariff, subscription and resulting service period are
-   * server-resolved from the organization's existing assignment, same authority K0 uses.
+   * К4 — platform-admin-issued invoice for the organization's OWN currently assigned tariff. The
+   * invoice format is an adapter detail behind `createIntent`, never a second payment entrance.
+   * Amount/description/expiry are admin-chosen; the tariff, subscription and resulting service
+   * period are server-resolved from the organization's existing assignment, same authority K0 uses.
    */
   async function createManualSaasBillingInvoice(input: {
     organizationId: string;
@@ -161,7 +161,7 @@ export function createSaasBillingService(dependencies: {
     const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
 
     const provider = await resolvePaymentProvider();
-    if (!provider.adapter.createInvoice) {
+    if (!provider.adapter.supportsInvoice) {
       throw new Error(`saas_billing_provider_invoices_unsupported:${provider.providerId}`);
     }
 
@@ -194,12 +194,15 @@ export function createSaasBillingService(dependencies: {
     // attached its checkout link below — hand back that SAME invoice/link, not a second one.
     if (!wasCreated) return invoice;
 
-    const created = await provider.adapter.createInvoice({
+    const intent = await provider.adapter.createIntent({
       amountMinor: invoice.amountMinor,
       currency: invoice.currency,
-      description,
-      expiresAt: input.expiresAt,
       idempotencyKey: invoice.providerIdempotencyKey,
+      payerRef: `organization:${invoice.organizationId}`,
+      purpose: 'saas_billing_tariff_renewal',
+      subjectRef: invoice.id,
+      returnUrl: SAAS_BILLING_RETURN_URL,
+      invoice: { description, expiresAt: input.expiresAt },
       metadata: {
         organizationId: invoice.organizationId,
         saasBillingInvoiceId: invoice.id,
@@ -210,8 +213,8 @@ export function createSaasBillingService(dependencies: {
 
     return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
       saasBillingInvoiceId: invoice.id,
-      providerInvoiceRef: created.providerInvoiceRef,
-      providerCheckoutUrl: created.checkoutUrl,
+      providerInvoiceRef: intent.providerIntentRef,
+      providerCheckoutUrl: intent.checkoutUrl ?? null,
     });
   }
 
