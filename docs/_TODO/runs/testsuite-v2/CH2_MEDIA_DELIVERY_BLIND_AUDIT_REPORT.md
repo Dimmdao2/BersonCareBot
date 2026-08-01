@@ -238,3 +238,24 @@ remain green.
 
 **Bounded-fix structural count:** killed **7** saved bypass forms; missed **0**. The five product handlers and
 their behavior remain unchanged. This evidence does not close the Ch2 checkbox; closure remains with the lead.
+
+## Bounded correction — module-root S3 bypass `#1082`
+
+The all-root traversal reached `modules/online-intake`, but its direct infra S3/raw AWS SDK rule was still scoped
+to `modules/media`. The scanner now applies that delivery-sink rule to every reachable `modules/**` graph node.
+The saved oracle adds the permanent `modules/online-intake/newDelivery.ts` direct infra S3 fixture: it exits
+nonzero; removing it returns green. The alternate-prefix renamed-helper fault and all seven previously missed
+fixtures remain nonzero. An unrelated route/module, upload/multipart, preview/background-delete controls remain
+green.
+
+| Command | Result |
+| --- | --- |
+| `node scripts/check-media-delivery-chokepoint.mjs --self-test` | **PASS:** green route accepted; alternate-prefix helper, all 7 saved bypasses, and the new module-root S3 fixture exit nonzero; unrelated module plus upload/background-delete controls accepted. |
+| `node scripts/check-media-delivery-chokepoint.mjs` | **PASS** on the current tree. |
+| `pnpm --dir apps/webapp exec vitest run src/app-layer/media/authorizeMediaDelivery.unit.test.ts src/app-layer/media/resolveMediaPlaybackPayload.unit.test.ts 'src/app/api/media/[id]/mediaDeliveryChokepoint.route.test.ts' src/modules/online-intake/doctorIntakeDetailResponse.unit.test.ts src/app-layer/media/mediaDeliveryChokepointGate.unit.test.ts --reporter=verbose` | **PASS: 5 files, 20 tests.** |
+| `pnpm --dir apps/webapp typecheck` | **PASS.** |
+| `pnpm exec eslint scripts/check-media-delivery-chokepoint.mjs && pnpm --dir apps/webapp exec eslint --no-ignore src/app-layer/media/mediaDeliveryChokepointGate.unit.test.ts` | **PASS.** |
+| `git diff --check -- scripts/check-media-delivery-chokepoint.mjs apps/webapp/src/app-layer/media/mediaDeliveryChokepointGate.unit.test.ts docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **PASS.** |
+
+**Extended closure:** killed **2/2** newly proved route-root/module-root faults; missed **0**. This correction
+does not rewrite the original blind FAIL or close the Ch2 checkbox; the lead repeats both saved faults.

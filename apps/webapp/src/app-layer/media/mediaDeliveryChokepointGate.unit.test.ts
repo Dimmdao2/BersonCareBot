@@ -123,6 +123,16 @@ describe('media delivery chokepoint structural gate', () => {
         ],
       },
       {
+        name: 'direct infra S3 import from an unrelated module',
+        files: [
+          {
+            path: 'apps/webapp/src/modules/online-intake/newDelivery.ts',
+            source:
+              "import { s3PublicUrl } from '@/infra/s3/client';\nexport function deliver() { return s3PublicUrl('media/foreign.mp4'); }\n",
+          },
+        ],
+      },
+      {
         name: 'renamed app-layer helper',
         files: [
           {
@@ -147,7 +157,7 @@ describe('media delivery chokepoint structural gate', () => {
     expect(missed, `gate accepted reachable bypasses: ${missed.join(', ')}`).toEqual([]);
   });
 
-  it('does not reject upload and background storage maintenance paths', () => {
+  it('does not reject unrelated route/module, upload, or background storage maintenance paths', () => {
     const result = runGate([
       {
         path: 'apps/webapp/src/app/api/media/multipart/complete/route.ts',
@@ -157,6 +167,14 @@ describe('media delivery chokepoint structural gate', () => {
       {
         path: 'apps/webapp/src/app-layer/media/backgroundDelete.ts',
         source: "import { s3DeleteObject } from '@/infra/s3/client';\nvoid s3DeleteObject;\n",
+      },
+      {
+        path: 'apps/webapp/src/app/api/health/route.ts',
+        source: 'export function GET() { return Response.json({ ok: true }); }\n',
+      },
+      {
+        path: 'apps/webapp/src/modules/online-intake/readModel.ts',
+        source: 'export const intakeReadModel = true;\n',
       },
     ]);
 

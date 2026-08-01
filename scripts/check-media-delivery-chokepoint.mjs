@@ -137,13 +137,13 @@ function inspectNode(rel, source, sources, violations) {
     if (
       isInfraS3Client(resolved) &&
       rel !== storagePort &&
-      (isDeliveryRoute(rel) || isMediaModule(rel) || rel.startsWith(`${appSourceRoot}/app-layer/`))
+      (isDeliveryRoute(rel) || isModuleSource(rel) || rel.startsWith(`${appSourceRoot}/app-layer/`))
     ) {
       violations.add(`${rel}: imports infra S3 client outside the media storage port`);
     }
     if (
       rawS3Packages.has(entry.module) &&
-      (isDeliveryRoute(rel) || isMediaModule(rel) || rel.startsWith(`${appSourceRoot}/app-layer/`))
+      (isDeliveryRoute(rel) || isModuleSource(rel) || rel.startsWith(`${appSourceRoot}/app-layer/`))
     ) {
       violations.add(`${rel}: imports raw AWS S3 SDK delivery primitives`);
     }
@@ -282,6 +282,16 @@ function runSelfTest() {
       ],
     ],
     [
+      'direct infra S3 import from an unrelated module',
+      [
+        {
+          rel: `${moduleRoot}/online-intake/newDelivery.ts`,
+          source:
+            "import { s3PublicUrl } from '@/infra/s3/client';\nexport function deliver() { return s3PublicUrl('media/foreign.mp4'); }\n",
+        },
+      ],
+    ],
+    [
       'renamed app-layer helper',
       [
         {
@@ -306,6 +316,10 @@ function runSelfTest() {
     {
       rel: `${appSourceRoot}/app-layer/media/backgroundDelete.ts`,
       source: "import { s3DeleteObject } from '@/infra/s3/client';\nvoid s3DeleteObject;\n",
+    },
+    {
+      rel: `${moduleRoot}/online-intake/readModel.ts`,
+      source: 'export const intakeReadModel = true;\n',
     },
   ]);
 
