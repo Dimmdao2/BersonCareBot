@@ -13,7 +13,6 @@ import type {
   DeliveryTargetsPort,
   DispatchPort,
   DomainContext,
-  NotificationSettings,
   DbWriteMutation,
   DbWritePort,
   OutgoingIntent,
@@ -76,10 +75,6 @@ export function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
     : [];
-}
-
-export function asBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null;
 }
 
 export function asNumber(value: unknown): number | null {
@@ -220,61 +215,6 @@ export function buildIntentMeta(action: Action, ctx: DomainContext): OutgoingInt
   };
 }
 
-export function defaultNotificationSettings(): NotificationSettings {
-  return {
-    notify_spb: true,
-    notify_msk: true,
-    notify_online: true,
-    notify_bookings: true,
-  };
-}
-
-export function readNotificationSettings(ctx: DomainContext): NotificationSettings | null {
-  const raw = asRecord(ctx.values.notifications);
-  const notify_spb = asBoolean(raw.notify_spb);
-  const notify_msk = asBoolean(raw.notify_msk);
-  const notify_online = asBoolean(raw.notify_online);
-  const notify_bookings = asBoolean(raw.notify_bookings);
-  if (
-    notify_spb === null ||
-    notify_msk === null ||
-    notify_online === null ||
-    notify_bookings === null
-  )
-    return null;
-  return { notify_spb, notify_msk, notify_online, notify_bookings };
-}
-
-export function readNotificationToggleState(
-  callbackData: string,
-  settings: NotificationSettings,
-): boolean {
-  switch (callbackData) {
-    case 'notify_toggle_spb':
-    case 'notifications.toggle.spb':
-      return settings.notify_spb;
-    case 'notify_toggle_msk':
-    case 'notifications.toggle.msk':
-      return settings.notify_msk;
-    case 'notify_toggle_online':
-    case 'notifications.toggle.online':
-      return settings.notify_online;
-    case 'notify_toggle_bookings':
-    case 'notifications.toggle.bookings':
-      return settings.notify_bookings;
-    case 'notify_toggle_all':
-    case 'notifications.toggle.all':
-      return (
-        settings.notify_spb &&
-        settings.notify_msk &&
-        settings.notify_online &&
-        settings.notify_bookings
-      );
-    default:
-      return false;
-  }
-}
-
 export function splitTemplateKey(
   templateKey: string,
   source: string,
@@ -369,7 +309,7 @@ export async function renderButtonText(input: {
   const templateKey = asString(input.button.textTemplateKey);
   if (!templateKey || !input.templatePort) return '';
   const { source, templateId } = splitTemplateKey(templateKey, input.ctx.event.meta.source);
-  const rendered = (
+  return (
     await input.templatePort.renderTemplate({
       source,
       templateId,
@@ -377,19 +317,6 @@ export async function renderButtonText(input: {
       audience: contentAudience(input.ctx),
     })
   ).text;
-  const prefixKey = asString(input.button.prefixTemplateKey);
-  if (!prefixKey) return rendered;
-  const prefix = await renderText({
-    templateKey: prefixKey,
-    vars: input.vars,
-    ctx: input.ctx,
-    templatePort: input.templatePort,
-  });
-  const [enabledPrefix = '✅', disabledPrefix = '❌'] = prefix.split('/');
-  const callbackData = asString(input.button.callbackData) ?? '';
-  const settings = readNotificationSettings(input.ctx) ?? defaultNotificationSettings();
-  const enabled = readNotificationToggleState(callbackData, settings);
-  return `${enabled ? enabledPrefix : disabledPrefix} ${rendered}`.trim();
 }
 
 export function isPhoneRequestButton(button: Record<string, unknown>): boolean {

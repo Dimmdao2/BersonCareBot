@@ -1,5 +1,3 @@
-import type { NotificationSettings } from './ports/notifications.js';
-
 /**
  * Minimal content shape for webhook handlers. Adapter passes this from integration layer
  * so domain does not depend on presentation layer.
@@ -23,6 +21,4 @@ export type WebhookContent = {
     bookingOpenPrompt: string;
     bookingOpenButton: string;
   };
-  notificationSettings: { title: string; subtitle: string };
-  buildNotificationKeyboard: (settings: NotificationSettings) => unknown;
 };
