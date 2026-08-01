@@ -25,6 +25,17 @@ type PolicyRow = {
   amountMinor: number | null;
   percentBps: number | null;
 };
+type PrepaymentAvailability = {
+  available: boolean;
+  reason:
+    | 'entitlement_required'
+    | 'commercial_read_only'
+    | 'commercial_blocked'
+    | 'access_lifecycle_unconfigured'
+    | 'payments_disabled'
+    | 'payment_provider_unavailable'
+    | null;
+};
 
 const MODE_LABELS: Record<PolicyRow['mode'], string> = {
   disabled: 'Отключена',
@@ -39,10 +50,20 @@ const ONLINE_CATEGORIES = [
   { value: 'general', label: 'Общее' },
 ] as const;
 
+const AVAILABILITY_MESSAGES: Record<Exclude<PrepaymentAvailability['reason'], null>, string> = {
+  entitlement_required: 'Предоплата не входит в тариф клиники.',
+  commercial_read_only: 'Предоплата сейчас доступна только для просмотра по тарифу клиники.',
+  commercial_blocked: 'Предоплата недоступна по тарифу клиники.',
+  access_lifecycle_unconfigured: 'Для предоплаты не настроены условия доступа в тарифе клиники.',
+  payments_disabled: 'Платежи отключены в настройках клиники.',
+  payment_provider_unavailable: 'Настройте активного платёжного провайдера в кабинете клиники.',
+};
+
 export function BookingPrepaymentSection() {
   const [scope, setScope] = useState<'service' | 'online'>('service');
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [policies, setPolicies] = useState<PolicyRow[]>([]);
+  const [availability, setAvailability] = useState<PrepaymentAvailability | null>(null);
   const [serviceId, setServiceId] = useState('');
   const [onlineCategory, setOnlineCategory] =
     useState<(typeof ONLINE_CATEGORIES)[number]['value']>('general');
@@ -56,9 +77,12 @@ export function BookingPrepaymentSection() {
     try {
       const [svcJson, polJson] = await Promise.all([
         apiJson<{ ok?: boolean; services?: ServiceRow[] }>(SERVICES_API),
-        apiJson<{ ok?: boolean; policies?: PolicyRow[] }>(POLICY_API),
+        apiJson<{ ok?: boolean; policies?: PolicyRow[]; availability?: PrepaymentAvailability }>(
+          POLICY_API,
+        ),
       ]);
       if (svcJson.services) setServices(svcJson.services);
+      if (polJson.availability) setAvailability(polJson.availability);
       if (polJson.policies) {
         setPolicies(
           polJson.policies.map((p) => ({
@@ -148,6 +172,12 @@ export function BookingPrepaymentSection() {
     });
   }
 
+  const canEnable = availability?.available ?? false;
+  const availabilityMessage =
+    availability && !availability.available && availability.reason
+      ? AVAILABILITY_MESSAGES[availability.reason]
+      : null;
+
   return (
     <Card>
       <CardHeader>
@@ -219,15 +249,23 @@ export function BookingPrepaymentSection() {
             </Select>
           </div>
         )}
+        {availabilityMessage ? (
+          <p className="text-sm text-destructive">{availabilityMessage}</p>
+        ) : null}
         <div className="space-y-2">
           <Label>Режим</Label>
-          <Select value={mode} onValueChange={(v) => setMode(v as PolicyRow['mode'])}>
+          <Select
+            value={mode}
+            onValueChange={(v) => {
+              if (canEnable || v === 'disabled') setMode(v as PolicyRow['mode']);
+            }}
+          >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {(Object.keys(MODE_LABELS) as PolicyRow['mode'][]).map((m) => (
-                <SelectItem key={m} value={m}>
+                <SelectItem key={m} value={m} disabled={!canEnable && m !== 'disabled'}>
                   {MODE_LABELS[m]}
                 </SelectItem>
               ))}
@@ -241,6 +279,7 @@ export function BookingPrepaymentSection() {
               value={amountMinor}
               onChange={(e) => setAmountMinor(e.target.value)}
               inputMode="numeric"
+              disabled={!canEnable}
             />
           </div>
         ) : null}
@@ -251,13 +290,16 @@ export function BookingPrepaymentSection() {
               value={percentBps}
               onChange={(e) => setPercentBps(e.target.value)}
               inputMode="decimal"
+              disabled={!canEnable}
             />
           </div>
         ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <Button
           type="button"
-          disabled={pending || (scope === 'service' && !serviceId)}
+          disabled={
+            pending || (scope === 'service' && !serviceId) || (mode !== 'disabled' && !canEnable)
+          }
           onClick={save}
         >
           Сохранить

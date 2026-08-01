@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 
@@ -32,8 +36,17 @@ export async function GET() {
   if (!deps.payments) {
     return NextResponse.json({ ok: false, error: 'payments_unavailable' }, { status: 503 });
   }
-  const policies = await deps.payments.listPrepaymentPolicies(gate.ctx.organizationId);
-  return NextResponse.json({ ok: true, policies });
+  const [policies, entitlementAvailability] = await Promise.all([
+    deps.payments.listPrepaymentPolicies(gate.ctx.organizationId),
+    getMechanicMutationAvailability(
+      { organizationId: gate.ctx.organizationId },
+      'booking_prepayment',
+    ),
+  ]);
+  const availability = entitlementAvailability.available
+    ? await deps.payments.getPrepaymentAvailability(gate.ctx.organizationId)
+    : { available: false as const, reason: entitlementAvailability.reason };
+  return NextResponse.json({ ok: true, policies, availability });
 }
 
 export async function PUT(request: Request) {
@@ -49,6 +62,21 @@ export async function PUT(request: Request) {
   }
   const payments = deps.payments;
   const body = parsed.data;
+  if (body.mode !== 'disabled') {
+    const entitlement = await requireEntitlementForMutation(
+      { organizationId: gate.ctx.organizationId },
+      'booking_prepayment',
+    );
+    if (!entitlement.ok) return entitlement.response;
+
+    const availability = await payments.getPrepaymentAvailability(gate.ctx.organizationId);
+    if (!availability.available) {
+      return NextResponse.json(
+        { ok: false, error: availability.reason, availability },
+        { status: 409 },
+      );
+    }
+  }
   if (body.scope === 'service') {
     const service = await gate.ctx.service.services.getService(body.serviceId);
     if (!service || service.organizationId !== gate.ctx.organizationId) {

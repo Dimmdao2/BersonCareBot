@@ -193,7 +193,7 @@
       typecheck и exact orphan census — exit 0. Отчёт:
       `docs/_TODO/SAAS_FOUNDATION/BILLING_CATALOG_REMOVAL_AUDIT_REPORT.md`._
 
-- [ ] 🔴 **B1.3 ПРЕДОПЛАТА ЗА УСЛУГУ — БЕЗ ТОВАРОВ.** Решение владельца 01.08, дословно: «пока мы не
+- [x] 🔴 **B1.3 ПРЕДОПЛАТА ЗА УСЛУГУ — БЕЗ ТОВАРОВ.** Решение владельца 01.08, дословно: «пока мы не
       усложняем и не делаем никакие товары - у нас есть стоимость услуги, можно добавить поле «сумма
       предоплаты» (будет либо ноль, либо полная, либо своя стоимость) и для оплаты при записи брать ее
       если включена галочка - брать предоплату. Нужна галочка брать предоплату. И нужна проверка что
@@ -215,6 +215,11 @@
       предоплату без доступного провайдера, не узнать об этом и упереться на пациенте. Работа сводится к
       закрытию настройки с видимой причиной; отказ на записи остаётся последним рубежом, потому что тариф
       и настройки меняются после включения. Нового экрана и новой таблицы не заводить.
+      _Доказательство 02.08: `pnpm --dir apps/webapp exec vitest run --project fast src/modules/payments/service.test.ts`
+      — 6 tests; `pnpm --dir apps/webapp exec vitest run --project route src/app/api/admin/booking-engine/prepayment-policies/route.route.test.ts`
+      — 4 tests; `pnpm --dir apps/webapp exec vitest run --project ui src/app/app/settings/BookingPrepaymentSection.ui.test.tsx`
+      — 2 tests; `pnpm --dir apps/webapp typecheck`; scoped `pnpm --dir apps/webapp exec eslint src/app-layer/guards/requireEntitlement.ts src/modules/payments/service.ts src/modules/payments/service.test.ts src/app/api/admin/booking-engine/prepayment-policies/route.ts src/app/api/admin/booking-engine/prepayment-policies/route.route.test.ts src/app/app/settings/BookingPrepaymentSection.tsx src/app/app/settings/BookingPrepaymentSection.ui.test.tsx`; `git diff --check`.
+      Fault injection: инверсия provider gate в PUT делает route test provider-unavailable красным (200 вместо 409), затем gate восстановлен._
 
 ---
 
