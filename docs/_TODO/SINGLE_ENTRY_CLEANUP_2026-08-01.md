@@ -32,10 +32,10 @@
 
 ## Источник списка
 
-Первичный `runs/testsuite-v2/CHOKEPOINT_SWEEP_REPORT.md` в git отсутствует:
-`git log --all --oneline -- docs/_TODO/runs/testsuite-v2/CHOKEPOINT_SWEEP_REPORT.md` даёт пустой вывод.
-Поэтому его числа не считаются доказательством и каждый пункт перемеряется по актуальному коду до брифа. Для Ч1
-команда `rg -l --glob 'route.ts' 'presignPutUrl|s3CreateMultipartUpload|request\.formData\(\)' apps/webapp/src/app/api | sort`
+Первичный `runs/testsuite-v2/CHOKEPOINT_SWEEP_REPORT.md` сохранён коммитом `b6e9a7c58` и приземлён в `feat`
+02.08 как исторический вход. Его числа относятся к базе `bb0cce618`, поэтому каждый пункт всё равно перемеряется
+по актуальному коду до брифа. Для Ч1 команда
+`rg -l --glob 'route.ts' 'presignPutUrl|s3CreateMultipartUpload|request\.formData\(\)' apps/webapp/src/app/api | sort`
 дала шесть intake-маршрутов. Для Ч2 точные актуальные команды и исправленная классификация записаны в брифе
 `runs/briefs/CH2_MEDIA_DELIVERY_CHOKEPOINT_BRIEF.md`.
 
