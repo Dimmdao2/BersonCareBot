@@ -32,11 +32,15 @@ export type SaasBillingInvoice = {
   saasBillingSubscriptionId: string;
   tariffId: string;
   tariffName: string;
+  /** К4 — admin-entered "за что" for a manual invoice; `null` for auto/renewal invoices. */
+  description: string | null;
   amountMinor: number;
   currency: string;
   tariffBillingPeriod: 'day' | 'month' | 'year';
   servicePeriodStartsAt: string;
   servicePeriodEndsAt: string;
+  /** К4 — the invoice's own payment deadline; `null` for auto/renewal invoices, which never expire. */
+  expiresAt: string | null;
   status: SaasBillingInvoiceStatus;
   providerId: string;
   providerInvoiceRef: string | null;
@@ -315,11 +319,49 @@ export type SaasBillingRepositoryPort = {
     providerId: string;
     providerInvoiceRef: string;
   }): Promise<SaasBillingInvoice | null>;
+  /**
+   * `null` when the row no longer matches a payable status (already `paid`, or `void` from a К4
+   * cancellation) — the CAS is what makes "отменённый счёт нельзя оплатить" hold even against a
+   * webhook that arrives after the cancel, instead of silently resurrecting a cancelled invoice.
+   */
   markSaasBillingInvoicePaid(input: {
     saasBillingInvoiceId: string;
     organizationId: string;
     paidAt: string;
+  }): Promise<SaasBillingInvoice | null>;
+  /**
+   * К4 — a platform-admin-issued invoice for the organization's OWN currently assigned tariff
+   * (same subscription row `requireOwnTariffBillingSubscription` resolves), with an admin-chosen
+   * amount/description/expiry instead of the tariff's list price. `tariffName`/`tariffBillingPeriod`
+   * are still derived from the live tariff row, same as `createSaasBillingInvoice`.
+   */
+  createManualSaasBillingInvoice(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    amountMinor: number;
+    currency: string;
+    description: string;
+    servicePeriodStartsAt: string;
+    servicePeriodEndsAt: string;
+    expiresAt: string;
+    providerId: string;
+    providerIdempotencyKey: string;
   }): Promise<SaasBillingInvoice>;
+  /**
+   * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by
+   * invoice id alone, not organization-scoped (see `reserveSaasBillingRefund`). Only `draft`/
+   * `pending` invoices can be cancelled — an already-`paid` invoice cannot, and a `void` one is
+   * already cancelled, not re-cancellable.
+   */
+  cancelSaasBillingInvoice(input: {
+    saasBillingInvoiceId: string;
+    actorId: string | null;
+    reason: string;
+  }): Promise<
+    | { outcome: 'invoice_not_found' }
+    | { outcome: 'invoice_not_cancellable'; status: SaasBillingInvoiceStatus }
+    | { outcome: 'cancelled'; invoice: SaasBillingInvoice }
+  >;
   /**
    * K0 — resolves the organization's OWN assigned tariff (the admin's choice, not a client input)
    * and ensures the `paid_subscription`-sourced subscription row for it exists, without touching the

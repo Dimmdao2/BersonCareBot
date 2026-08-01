@@ -53,6 +53,18 @@ function statusBadgeVariant(
   return 'outline';
 }
 
+/**
+ * К4 — "просрочен" is never a stored status: derived here from `expiresAt` vs now, only for a row
+ * still awaiting payment. See PAYMENTS_CABINET_PLAN.md К4 item 3.
+ */
+function isInvoiceOverdue(row: SaasBillingPlatformInvoiceRow): boolean {
+  return (
+    (row.status === 'draft' || row.status === 'pending') &&
+    row.expiresAt !== null &&
+    new Date(row.expiresAt).getTime() < Date.now()
+  );
+}
+
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
@@ -83,6 +95,37 @@ const REFUND_ERROR_LABELS: Record<string, string> = {
 
 function refundErrorLabel(code: string): string {
   return REFUND_ERROR_LABELS[code] ?? `Возврат не выполнен (${code}).`;
+}
+
+// К4 — manual invoice: issued from the cabinet via YooKassa's /v3/invoices, distinct from the
+// self-serve renewal checkout (createIntent). See PAYMENTS_CABINET_PLAN.md К4.
+const MANUAL_INVOICE_ERROR_LABELS: Record<string, string> = {
+  saas_billing_no_tariff_assigned: 'У клиники нет назначенного тарифа — сначала назначьте его.',
+  saas_billing_manual_invoice_amount_must_be_positive_integer: 'Сумма должна быть больше нуля.',
+  saas_billing_manual_invoice_description_required: 'Укажите, за что счёт.',
+  saas_billing_manual_invoice_expiry_invalid: 'Срок действия должен быть в будущем.',
+  saas_billing_payment_provider_unavailable: 'У провайдера нет рабочих ключей для платформенного магазина.',
+  saas_billing_provider_invoices_unsupported: 'Выбранный провайдер не поддерживает выставление счетов.',
+  saas_billing_provider_rejected_invoice: 'Провайдер отклонил выставление счёта.',
+  saas_billing_checkout_unavailable: 'Провайдер не вернул ссылку на оплату.',
+  invalid_manual_invoice_request: 'Проверьте заполнение формы.',
+  forbidden: 'Нет прав на выставление счёта.',
+  unauthorized: 'Сессия истекла — войдите заново.',
+};
+
+function manualInvoiceErrorLabel(code: string): string {
+  return MANUAL_INVOICE_ERROR_LABELS[code] ?? `Счёт не выставлен (${code}).`;
+}
+
+const CANCEL_ERROR_LABELS: Record<string, string> = {
+  invoice_not_found: 'Счёт не найден.',
+  invoice_not_cancellable: 'Счёт уже оплачен или уже отменён — отменить нельзя.',
+  forbidden: 'Нет прав на отмену.',
+  unauthorized: 'Сессия истекла — войдите заново.',
+};
+
+function cancelErrorLabel(code: string): string {
+  return CANCEL_ERROR_LABELS[code] ?? `Счёт не отменён (${code}).`;
 }
 
 function formatAmount(amountMinor: number, currency: string): string {
@@ -583,6 +626,321 @@ function RefundDialog({
   );
 }
 
+type OrganizationOption = { id: string; title: string; tariffId: string | null };
+type TariffOption = {
+  id: string;
+  name: string;
+  priceMinor: number | null;
+  currency: string | null;
+  billingPeriod: 'day' | 'month' | 'year';
+};
+
+const BILLING_PERIOD_LABELS: Record<TariffOption['billingPeriod'], string> = {
+  day: 'день',
+  month: 'месяц',
+  year: 'год',
+};
+
+/** `datetime-local` input value, three days out — a visible, editable default, not a hidden one. */
+function defaultExpiresAtLocal(): string {
+  const d = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+type ManualInvoiceApiResponse =
+  | { ok: true; invoice: SaasBillingPlatformInvoiceRow }
+  | { ok: false; error?: string };
+
+/**
+ * К4 — form: клиника, сумма, за что, срок действия. Selecting a clinic prefills amount/currency/
+ * description from ITS OWN assigned tariff (visible, editable) — the defaults are shown, not hidden,
+ * per plan К4 item 1. On success the returned checkout link is shown so the admin can copy it to the
+ * clinic; the list only reloads once the dialog is dismissed, so the link stays visible meanwhile.
+ */
+function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [organizations, setOrganizations] = useState<OrganizationOption[] | null>(null);
+  const [tariffs, setTariffs] = useState<TariffOption[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [organizationId, setOrganizationId] = useState('');
+  const [amountRub, setAmountRub] = useState('');
+  const [currency, setCurrency] = useState('RUB');
+  const [description, setDescription] = useState('');
+  const [expiresAtLocal, setExpiresAtLocal] = useState(defaultExpiresAtLocal);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const json = await apiJson<
+          | { ok: true; organizations: OrganizationOption[]; tariffs: TariffOption[] }
+          | { ok: false; error?: string }
+        >('/api/admin/organizations', { credentials: 'include' });
+        if (json.ok) {
+          setOrganizations(json.organizations);
+          setTariffs(json.tariffs);
+        }
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : 'network');
+      }
+    })();
+  }, []);
+
+  const selectedTariff = useMemo(() => {
+    const org = organizations?.find((o) => o.id === organizationId);
+    return org?.tariffId ? (tariffs?.find((t) => t.id === org.tariffId) ?? null) : null;
+  }, [organizationId, organizations, tariffs]);
+
+  useEffect(() => {
+    if (!selectedTariff) return;
+    setAmountRub((prev) =>
+      prev
+        ? prev
+        : selectedTariff.priceMinor != null
+          ? (selectedTariff.priceMinor / 100).toFixed(2)
+          : prev,
+    );
+    setCurrency((prev) => selectedTariff.currency ?? prev);
+    setDescription((prev) =>
+      prev ? prev : `${selectedTariff.name}, ${BILLING_PERIOD_LABELS[selectedTariff.billingPeriod]}`,
+    );
+  }, [selectedTariff]);
+
+  const submit = useCallback(async () => {
+    if (!organizationId) {
+      setError('Выберите клинику.');
+      return;
+    }
+    const amountMinor = Math.round(Number.parseFloat(amountRub.replace(',', '.')) * 100);
+    if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+      setError('Введите сумму больше нуля.');
+      return;
+    }
+    if (!description.trim()) {
+      setError('Укажите, за что счёт.');
+      return;
+    }
+    const expiresAtDate = new Date(expiresAtLocal);
+    if (Number.isNaN(expiresAtDate.getTime()) || expiresAtDate.getTime() <= Date.now()) {
+      setError('Срок действия должен быть в будущем.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const json = await apiJson<ManualInvoiceApiResponse>('/api/admin/saas-billing/payments/manual', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationId,
+          amountMinor,
+          currency,
+          description: description.trim(),
+          expiresAt: expiresAtDate.toISOString(),
+        }),
+      });
+      if (json.ok) {
+        setCheckoutUrl(json.invoice.providerCheckoutUrl ?? '');
+        onCreated();
+      }
+    } catch (e) {
+      setError(manualInvoiceErrorLabel(e instanceof Error ? e.message : 'network'));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [amountRub, currency, description, expiresAtLocal, organizationId, onCreated]);
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Выставить счёт</DialogTitle>
+          <DialogDescription>
+            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике.
+          </DialogDescription>
+        </DialogHeader>
+
+        {checkoutUrl !== null ? (
+          <div className="space-y-3">
+            {checkoutUrl ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="manual-invoice-link">Ссылка на оплату</Label>
+                <Input id="manual-invoice-link" readOnly value={checkoutUrl} onFocus={(e) => e.currentTarget.select()} />
+              </div>
+            ) : (
+              <p className="text-sm text-destructive" role="alert">
+                Провайдер не вернул ссылку на оплату.
+              </p>
+            )}
+            <DialogFooter>
+              <Button type="button" onClick={onClose}>
+                Готово
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {loadError && (
+              <p className="text-sm text-destructive" role="alert">
+                Список клиник не загрузился ({loadError}).
+              </p>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="manual-invoice-org">Кому (клиника)</Label>
+              <Select value={organizationId} onValueChange={(v) => setOrganizationId(v ?? '')}>
+                <SelectTrigger id="manual-invoice-org" className="w-full">
+                  <SelectValue placeholder="Выберите клинику" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(organizations ?? []).map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="manual-invoice-amount">Сумма</Label>
+                <Input
+                  id="manual-invoice-amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={amountRub}
+                  onChange={(e) => setAmountRub(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="manual-invoice-currency">Валюта</Label>
+                <Input
+                  id="manual-invoice-currency"
+                  value={currency}
+                  maxLength={3}
+                  onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="manual-invoice-description">За что</Label>
+              <Input
+                id="manual-invoice-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={500}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="manual-invoice-expires">Срок действия (до)</Label>
+              <Input
+                id="manual-invoice-expires"
+                type="datetime-local"
+                value={expiresAtLocal}
+                onChange={(e) => setExpiresAtLocal(e.target.value)}
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
+                Отмена
+              </Button>
+              <Button type="button" onClick={submit} disabled={submitting}>
+                {submitting ? 'Выставляем…' : 'Выставить счёт'}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type CancelApiResponse =
+  | { ok: true; invoice: SaasBillingPlatformInvoiceRow }
+  | { ok: false; error?: string };
+
+/** К4 — cancel: only offered for `draft`/`pending` rows (see `CancelCell` below). */
+function CancelInvoiceDialog({
+  row,
+  onClose,
+  onSuccess,
+}: {
+  row: SaasBillingPlatformInvoiceRow;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = useCallback(async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const json = await apiJson<CancelApiResponse>(
+        `/api/admin/saas-billing/payments/${row.id}/cancel`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason }),
+        },
+      );
+      if (json.ok) onSuccess();
+    } catch (e) {
+      setError(cancelErrorLabel(e instanceof Error ? e.message : 'network'));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [reason, row.id, onSuccess]);
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Отменить счёт — {row.organizationTitle}</DialogTitle>
+          <DialogDescription>
+            {row.tariffName}, {formatAmount(row.amountMinor, row.currency)}. Отменённый счёт нельзя
+            будет оплатить.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="cancel-invoice-reason">Причина (необязательно)</Label>
+            <Input
+              id="cancel-invoice-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+            />
+          </div>
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
+            Назад
+          </Button>
+          <Button type="button" variant="destructive" onClick={submit} disabled={submitting}>
+            {submitting ? 'Отменяем…' : 'Отменить счёт'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PlatformPaymentsSection() {
   const [applied, setApplied] = useState<FilterState>(emptyFilters);
   const [draft, setDraft] = useState<FilterState>(emptyFilters);
@@ -590,6 +948,8 @@ export function PlatformPaymentsSection() {
   const [error, setError] = useState<string | null>(null);
   const [payments, setPayments] = useState<SaasBillingPlatformInvoiceRow[] | null>(null);
   const [refundRow, setRefundRow] = useState<SaasBillingPlatformInvoiceRow | null>(null);
+  const [cancelRow, setCancelRow] = useState<SaasBillingPlatformInvoiceRow | null>(null);
+  const [manualInvoiceOpen, setManualInvoiceOpen] = useState(false);
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
@@ -650,11 +1010,16 @@ export function PlatformPaymentsSection() {
       </Card>
 
       <Card id="platform-payments">
-        <CardHeader>
-          <CardTitle className="text-base">Платежи</CardTitle>
-          <CardDescription>
-            Счета клиник за тариф из нашего журнала (`saas_billing_invoices`).
-          </CardDescription>
+        <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="text-base">Платежи</CardTitle>
+            <CardDescription>
+              Счета клиник за тариф из нашего журнала (`saas_billing_invoices`).
+            </CardDescription>
+          </div>
+          <Button type="button" onClick={() => setManualInvoiceOpen(true)}>
+            Выставить счёт
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -747,12 +1112,13 @@ export function PlatformPaymentsSection() {
                     <th className="px-3 py-2 font-medium">Статус</th>
                     <th className="px-3 py-2 font-medium">Провайдер</th>
                     <th className="px-3 py-2 font-medium">Возврат</th>
+                    <th className="px-3 py-2 font-medium">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(payments ?? []).length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
                         Платежей пока нет.
                       </td>
                     </tr>
@@ -764,10 +1130,16 @@ export function PlatformPaymentsSection() {
                         </td>
                         <td className="px-3 py-2 align-top font-medium">{row.organizationTitle}</td>
                         <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                          {row.tariffName}
+                          {row.description ?? row.tariffName}
                           <br />
                           {formatDate(row.servicePeriodStartsAt)} —{' '}
                           {formatDate(row.servicePeriodEndsAt)}
+                          {row.expiresAt && (
+                            <>
+                              <br />
+                              Срок действия: {formatDateTime(row.expiresAt)}
+                            </>
+                          )}
                         </td>
                         <td className="px-3 py-2 align-top font-medium">
                           {formatAmount(row.amountMinor, row.currency)}
@@ -776,12 +1148,29 @@ export function PlatformPaymentsSection() {
                           <Badge variant={statusBadgeVariant(row.status)}>
                             {INVOICE_STATUS_LABELS[row.status]}
                           </Badge>
+                          {isInvoiceOverdue(row) && (
+                            <Badge variant="destructive" className="ml-1">
+                              Просрочен
+                            </Badge>
+                          )}
                         </td>
                         <td className="px-3 py-2 align-top text-xs text-muted-foreground">
                           {row.providerId}
                         </td>
                         <td className="px-3 py-2 align-top">
                           <RefundCell row={row} onOpenRefund={() => setRefundRow(row)} />
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          {(row.status === 'draft' || row.status === 'pending') && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCancelRow(row)}
+                            >
+                              Отменить
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -799,6 +1188,25 @@ export function PlatformPaymentsSection() {
               setRefundRow(null);
               void load();
             }}
+          />
+        )}
+        {cancelRow && (
+          <CancelInvoiceDialog
+            row={cancelRow}
+            onClose={() => setCancelRow(null)}
+            onSuccess={() => {
+              setCancelRow(null);
+              void load();
+            }}
+          />
+        )}
+        {manualInvoiceOpen && (
+          <ManualInvoiceDialog
+            onClose={() => {
+              setManualInvoiceOpen(false);
+              void load();
+            }}
+            onCreated={() => void load()}
           />
         )}
       </Card>

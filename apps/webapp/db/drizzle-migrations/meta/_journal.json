@@ -2038,6 +2038,13 @@
       "when": 1793539200088,
       "tag": "0290_saas_billing_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1793539200089,
+      "tag": "0291_saas_billing_manual_invoices",
+      "breakpoints": true
     }
   ]
 }

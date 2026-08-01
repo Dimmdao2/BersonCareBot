@@ -226,11 +226,13 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         saasBillingSubscriptionId: authority.id,
         tariffId: authority.tariffId,
         tariffName: 'In-memory tariff',
+        description: null,
         amountMinor: 0,
         currency: 'RUB',
         tariffBillingPeriod: 'month',
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
+        expiresAt: null,
         status: 'draft',
         providerId: input.providerId,
         providerInvoiceRef: null,
@@ -279,12 +281,57 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
 
     async markSaasBillingInvoicePaid({ saasBillingInvoiceId, organizationId }) {
       const current = invoices.get(saasBillingInvoiceId);
-      if (!current || current.organizationId !== organizationId) {
-        throw new Error('saas_billing_invoice_not_found');
+      if (
+        !current ||
+        current.organizationId !== organizationId ||
+        (current.status !== 'draft' && current.status !== 'pending')
+      ) {
+        return null;
       }
       const row: SaasBillingInvoice = { ...current, status: 'paid' };
       invoices.set(row.id, row);
       return row;
+    },
+
+    async createManualSaasBillingInvoice(input) {
+      const authority = [...rows.values()].find(
+        (row) =>
+          row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
+      );
+      if (!authority) throw new Error('saas_billing_subscription_not_found');
+      const row: SaasBillingInvoice = {
+        id: crypto.randomUUID(),
+        organizationId: authority.organizationId,
+        saasBillingAccountId: authority.saasBillingAccountId,
+        saasBillingSubscriptionId: authority.id,
+        tariffId: authority.tariffId,
+        tariffName: 'In-memory tariff',
+        description: input.description,
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        tariffBillingPeriod: 'month',
+        servicePeriodStartsAt: input.servicePeriodStartsAt,
+        servicePeriodEndsAt: input.servicePeriodEndsAt,
+        expiresAt: input.expiresAt,
+        status: 'draft',
+        providerId: input.providerId,
+        providerInvoiceRef: null,
+        providerCheckoutUrl: null,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+      };
+      invoices.set(row.id, row);
+      return row;
+    },
+
+    async cancelSaasBillingInvoice({ saasBillingInvoiceId }) {
+      const current = invoices.get(saasBillingInvoiceId);
+      if (!current) return { outcome: 'invoice_not_found' as const };
+      if (current.status !== 'draft' && current.status !== 'pending') {
+        return { outcome: 'invoice_not_cancellable' as const, status: current.status };
+      }
+      const row: SaasBillingInvoice = { ...current, status: 'void' };
+      invoices.set(row.id, row);
+      return { outcome: 'cancelled' as const, invoice: row };
     },
 
     async requireOwnTariffBillingSubscription(organizationId) {

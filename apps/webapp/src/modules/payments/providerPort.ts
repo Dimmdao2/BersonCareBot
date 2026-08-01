@@ -40,6 +40,22 @@ export type PaymentProviderPort = {
   }): Promise<{ providerRefundRef: string }>;
 
   /**
+   * К4 — a shareable invoice/payment-link object, distinct from `createIntent`'s direct payment:
+   * only YooKassa's `/v3/invoices` is wired today (`yookassaPaymentProvider.ts`); adapters without
+   * an equivalent simply omit this method, and callers must check for its presence.
+   */
+  createInvoice?(params: {
+    amountMinor: number;
+    currency: string;
+    description: string;
+    /** ISO timestamp — the deadline until which the invoice can be paid. */
+    expiresAt: string;
+    idempotencyKey: string;
+    metadata: Record<string, unknown>;
+    providerConfig?: PaymentProviderConfig;
+  }): Promise<{ providerInvoiceRef: string; checkoutUrl: string }>;
+
+  /**
    * Parse only enough normalized identity to locate the server-owned intent/event authority.
    * The result is untrusted until verifyWebhook succeeds with that organization's config.
    */

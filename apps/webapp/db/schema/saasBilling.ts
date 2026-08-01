@@ -168,6 +168,9 @@ export const saasBillingInvoices = pgTable(
     saasBillingSubscriptionId: uuid('saas_billing_subscription_id').notNull(),
     tariffId: uuid('tariff_id').notNull(),
     tariffName: text('tariff_name').notNull(),
+    /** К4 — admin-entered "за что" for a manual invoice; `null` for auto/renewal invoices, which
+     *  are fully described by `tariffName` + the service period. See PAYMENTS_CABINET_PLAN.md К4. */
+    description: text(),
     amountMinor: integer('amount_minor').notNull(),
     currency: text().notNull(),
     tariffBillingPeriod: text('tariff_billing_period').notNull(),
@@ -179,6 +182,11 @@ export const saasBillingInvoices = pgTable(
       withTimezone: true,
       mode: 'string',
     }).notNull(),
+    /** К4 — the invoice's OWN payment deadline ("срок действия"), distinct from the service period
+     *  above. `null` for auto/renewal invoices, which never expire on their own. Overdue is derived
+     *  by comparing this to now at read time, never a stored status (plan К4: "просрочка считается
+     *  от срока действия, а не выставляется вручную"). */
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }),
     status: text().$type<SaasBillingInvoiceStatus>().default('draft').notNull(),
     providerId: text('provider_id').notNull(),
     providerInvoiceRef: text('provider_invoice_ref'),
