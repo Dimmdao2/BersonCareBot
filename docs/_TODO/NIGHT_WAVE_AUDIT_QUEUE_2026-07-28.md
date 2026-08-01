@@ -39,6 +39,14 @@ dev) снято решением single-entry не сводить старую �
 записаны, `audit-2-11` не сводится до возврата `audit-door-r3`, `wt/k4-round2` не трогается до возврата
 воркера и его аудита.
 
+🔴 **Тарифному оркестратору — интеграционный blocker от single-entry, 01.08.** На текущем `feat`
+`node scripts/check-no-new-raw-sql.mjs` завершился `exit 1`: новый
+`apps/webapp/src/infra/repos/saasBillingTariffSnapshot.devDbProof.test.ts` содержит 20 распознанных гейтом
+вызовов `.query` вне webapp DB-port (строки из вывода gate: `40,45,58,72,75,76,77,78,79,92,99,111,112,117,118,125,138,147,161,177`).
+Это тарифный файл; single-entry его не меняет. До следующего land перевести тест на существующий Drizzle
+port/`sql`-fragment path; новую allowlist-запись не добавлять. После исправления своей строкой записать SHA и
+`node scripts/check-no-new-raw-sql.mjs` → `exit 0`.
+
 ---
 
 > **⛔ ПЕРЕД ЗАПУСКОМ ЛЮБОГО СЛОЯ — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш
