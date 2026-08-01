@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 
-import { validatePackage } from './a0-greenfield-baseline-lib.mjs';
+import { assertCleanRefreshSource, validatePackage } from './a0-greenfield-baseline-lib.mjs';
 
 try {
+  // Сверка идёт через `git show HEAD:<файл>`, то есть против КОММИТА. Правка миграции, лежащая в
+  // рабочем дереве, ей поэтому не видна: гейт зелёный, а на диске уже другая схема. Отказываем, пока
+  // источник грязный, — «не могу проверить» обязано быть красным, а не зелёным.
+  assertCleanRefreshSource();
   const result = validatePackage();
   console.log(
     JSON.stringify(
