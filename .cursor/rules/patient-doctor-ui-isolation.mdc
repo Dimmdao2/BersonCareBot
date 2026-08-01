@@ -1,3 +1,0 @@
-Правило живёт в `AGENTS.md` §17 «Patient / Doctor UI Isolation». Текст здесь не дублируется.
-
-(Этот файл не имеет YAML frontmatter — `alwaysApply`/`globs` не заданы, правило не scoped в IDE; см. `AGENTS.md` §23.)

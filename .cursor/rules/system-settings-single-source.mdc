@@ -1,6 +1,0 @@
----
-description: system_settings живут ТОЛЬКО в public; зеркала в схеме integrator больше нет и заводить его нельзя
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §4 «system_settings: одна таблица public, зеркала нет». Текст здесь не дублируется.

@@ -1,6 +1,0 @@
----
-description: Always use confirmed server conventions and read core docs first
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §1 «Онбординг и server conventions». Текст здесь не дублируется.

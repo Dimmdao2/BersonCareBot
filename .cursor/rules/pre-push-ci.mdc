@@ -1,6 +1,0 @@
----
-description: Full CI только перед deploy, merge/integration checkpoints и repo-level изменениями; между коммитами — см. test-execution-policy
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §9 «Full CI gate». Текст здесь не дублируется.

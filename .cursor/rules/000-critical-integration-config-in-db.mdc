@@ -1,6 +1,0 @@
----
-description: CRITICAL: integration keys and webhook URIs must be stored in DB system_settings (admin), never introduced as new env vars.
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §2 «CRITICAL: конфигурация интеграций только в БД». Текст здесь не дублируется.

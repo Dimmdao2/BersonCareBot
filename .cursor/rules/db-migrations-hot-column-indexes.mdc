@@ -1,8 +1,0 @@
----
-description: Каждая миграция, добавляющая горячую колонку-фильтр, обязана в том же PR добавить индекс
-globs: apps/webapp/migrations/**/*.sql,apps/webapp/db/drizzle-migrations/**/*.sql,apps/integrator/src/infra/db/migrations/**/*.sql,apps/integrator/src/integrations/*/db/migrations/**/*.sql,apps/**/db/schema/**/*.ts
-alwaysApply: false
----
-
-Правило живёт в `AGENTS.md` §1 «Онбординг и server conventions», подраздел «Миграции: индекс на горячую
-колонку — в том же PR». Текст здесь не дублируется.
