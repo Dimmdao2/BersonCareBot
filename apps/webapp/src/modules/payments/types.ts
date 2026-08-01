@@ -59,6 +59,7 @@ export type PaymentIntentRecord = {
   status: string;
   purpose: string;
   providerIntentRef: string | null;
+  checkoutUrl: string | null;
 };
 
 export type PaymentRecord = {

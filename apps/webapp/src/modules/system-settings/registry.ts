@@ -314,7 +314,7 @@ export const SYSTEM_SETTING_REGISTRY = {
     'admin',
     'global',
     'secret_envelope',
-    'mock',
+    'yookassa',
     'redacted',
   ),
   booking_lifecycle_notifications: runtime('admin', 'per_org', 'server', 'boolean', 'false'),

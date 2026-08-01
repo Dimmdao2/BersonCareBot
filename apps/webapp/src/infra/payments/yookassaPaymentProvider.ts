@@ -1,7 +1,7 @@
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import type { PaymentProviderPort } from '@/modules/payments/providerPort';
 import { fetchWithTimeout, PAYMENT_PROVIDER_FETCH_TIMEOUT_MS } from '@/shared/lib/externalFetch';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { BlockList } from 'node:net';
 
 function requireYookassaCredentials(config?: PaymentProviderConfig): {
   shopId: string;
@@ -17,10 +17,71 @@ function basicAuth(shopId: string, secretKey: string): string {
   return `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}`;
 }
 
-function safeEqualText(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
+/**
+ * ЮKassa "Уведомления" doc, authenticity section: notifications come only from these published
+ * IP ranges. This is a coarse first gate; the real barrier is the payment-object refetch below.
+ */
+const YOOKASSA_IPV4_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
+  ['185.71.76.0', 27],
+  ['185.71.77.0', 27],
+  ['77.75.153.0', 25],
+  ['77.75.156.11', 32],
+  ['77.75.156.35', 32],
+  ['77.75.154.128', 25],
+];
+const YOOKASSA_IPV6_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [['2a02:5180::', 32]];
+
+function buildYookassaIpAllowlist(): BlockList {
+  const list = new BlockList();
+  for (const [address, prefix] of YOOKASSA_IPV4_ALLOWLIST) list.addSubnet(address, prefix, 'ipv4');
+  for (const [address, prefix] of YOOKASSA_IPV6_ALLOWLIST) list.addSubnet(address, prefix, 'ipv6');
+  return list;
+}
+
+const yookassaIpAllowlist = buildYookassaIpAllowlist();
+
+/** Trusted `X-Real-Ip` only (nginx-set `$remote_addr`) — see `modules/auth/realIpRateLimitClientKey.ts`. */
+function isYookassaSenderIpAllowed(headers: Headers): boolean {
+  const ip = headers.get('x-real-ip')?.trim();
+  if (!ip) return false;
+  const family = ip.includes(':') ? 'ipv6' : 'ipv4';
+  try {
+    return yookassaIpAllowlist.check(ip, family);
+  } catch {
+    return false;
+  }
+}
+
+async function fetchYookassaPaymentObject(
+  paymentId: string,
+  shopId: string,
+  secretKey: string,
+): Promise<{
+  id?: string;
+  status?: string;
+  amount?: { value?: string; currency?: string };
+  metadata?: Record<string, unknown>;
+}> {
+  return fetchWithTimeout(
+    `https://api.yookassa.ru/v3/payments/${encodeURIComponent(paymentId)}`,
+    {
+      method: 'GET',
+      headers: { Authorization: basicAuth(shopId, secretKey) },
+    },
+    { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+    async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`yookassa_payment_fetch_failed:${res.status}:${text.slice(0, 200)}`);
+      }
+      return (await res.json()) as {
+        id?: string;
+        status?: string;
+        amount?: { value?: string; currency?: string };
+        metadata?: Record<string, unknown>;
+      };
+    },
+  );
 }
 
 function inspectYookassaWebhook(bodyText: string) {
@@ -139,25 +200,37 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       return inspectYookassaWebhook(bodyText);
     },
 
-    verifyWebhook({ headers, bodyText, webhookSecret, providerConfig }) {
-      const webhookSecretTrimmed = webhookSecret.trim();
-      const authHeader = headers.get('authorization')?.trim() ?? '';
-      const signatureHeader = headers.get('x-yookassa-signature')?.trim() ?? '';
+    async verifyWebhook({ headers, bodyText, providerConfig }) {
+      if (!isYookassaSenderIpAllowed(headers)) throw new Error('invalid_webhook_signature');
 
-      let verified = false;
-      if (providerConfig?.shopId?.trim() && providerConfig?.apiKey?.trim() && authHeader) {
-        const expectedAuth = basicAuth(providerConfig.shopId.trim(), providerConfig.apiKey.trim());
-        verified = safeEqualText(authHeader, expectedAuth);
-      }
-      if (!verified && signatureHeader && webhookSecretTrimmed) {
-        const expectedSignature = createHmac('sha256', webhookSecretTrimmed)
-          .update(bodyText)
-          .digest('hex');
-        verified = safeEqualText(signatureHeader, expectedSignature);
-      }
-      if (!verified) throw new Error('invalid_webhook_signature');
+      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      const untrusted = inspectYookassaWebhook(bodyText);
+      const paymentId = untrusted.intentRef;
+      if (!paymentId) throw new Error('invalid_webhook_payload');
 
-      return inspectYookassaWebhook(bodyText);
+      // Barrier: status/amount/currency come from the API response, never from the notification
+      // body — the body is only used above to learn which payment to look up.
+      const remote = await fetchYookassaPaymentObject(paymentId, shopId, secretKey);
+      if (!remote.id) throw new Error('invalid_webhook_signature');
+
+      const idempotencyKey =
+        typeof remote.metadata?.idempotencyKey === 'string'
+          ? remote.metadata.idempotencyKey
+          : remote.id;
+      const eventType =
+        remote.status === 'succeeded' ? 'payment.succeeded' : `payment.${remote.status ?? 'unknown'}`;
+      const amountMinor =
+        remote.amount?.value != null
+          ? Math.round(Number.parseFloat(String(remote.amount.value)) * 100)
+          : undefined;
+
+      return {
+        idempotencyKey,
+        eventType,
+        payload: { event: eventType, object: remote, currency: remote.amount?.currency },
+        intentRef: remote.id,
+        amountMinor,
+      };
     },
   };
 }

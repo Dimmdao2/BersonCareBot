@@ -180,7 +180,7 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
       return inspectCloudpaymentsWebhook(headers, bodyText);
     },
 
-    verifyWebhook({ headers, bodyText, webhookSecret }) {
+    async verifyWebhook({ headers, bodyText, webhookSecret }) {
       // webhookSecret = CloudPayments API Secret
       const signatureHeader = headers.get('content-hmac')?.trim() ?? '';
       if (!signatureHeader) throw new Error('cloudpayments_webhook_missing_hmac');

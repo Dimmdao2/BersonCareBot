@@ -53,6 +53,8 @@ const CONFIRM_CREATE_ERROR_RULES = {
   invalid_email: { status: 400, code: 'invalid_email' },
   invalid_phone: { status: 400, code: 'invalid_phone' },
   invalid_slot_count: { status: 400, code: 'invalid_slot_count' },
+  payment_provider_unavailable: { status: 422, code: 'payment_provider_unavailable' },
+  payments_disabled: { status: 422, code: 'payments_disabled' },
   required_field_missing: { status: 400, code: 'required_field_missing' },
   slot_overlap: { status: 409, code: 'slot_overlap' },
 } as const satisfies ApiErrorLiteralRules;
@@ -112,7 +114,15 @@ export async function POST(request: Request) {
           consumed.verified.phoneProven,
         ),
     );
-    return jsonOk({ booking: redactPublicBookingRecord(booking) }, { status: 200 });
+    let checkoutUrl: string | null = null;
+    if (booking.status === 'awaiting_payment') {
+      const paymentStatus = await deps.patientBooking.getBookingPaymentStatusForContact(
+        booking.id,
+        consumed.verified.intent.contactPhone,
+      );
+      checkoutUrl = paymentStatus.ok ? (paymentStatus.summary?.intent?.checkoutUrl ?? null) : null;
+    }
+    return jsonOk({ booking: redactPublicBookingRecord(booking), checkoutUrl }, { status: 200 });
   } catch (error) {
     const mapped = mapApiError(
       error,

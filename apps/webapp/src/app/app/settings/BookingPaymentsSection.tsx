@@ -115,22 +115,6 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
               }
             />
 
-            {/* mock */}
-            {p.id === 'mock' ? (
-              <div className="space-y-1">
-                <Label>Webhook Secret</Label>
-                <Input
-                  type="password"
-                  autoComplete="off"
-                  placeholder="Webhook secret"
-                  value={webhookSecrets[p.id] ?? ''}
-                  onChange={(e) =>
-                    setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                  }
-                />
-              </div>
-            ) : null}
-
             {/* yookassa */}
             {p.id === 'yookassa' ? (
               <>

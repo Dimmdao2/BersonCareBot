@@ -1,6 +1,6 @@
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 
-export const DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = 'mock';
+export const DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = 'yookassa';
 
 export type SaasBillingLifecyclePolicy = {
   graceDays: number;
@@ -112,7 +112,7 @@ export function parseSaasBillingPaymentProviderSettings(
         : [
             {
               id: DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID,
-              label: 'Mock',
+              label: 'ЮKassa',
               enabled: true,
             },
           ],

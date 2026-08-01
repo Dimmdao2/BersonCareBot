@@ -36,5 +36,5 @@ export type PaymentProviderPort = {
     bodyText: string;
     webhookSecret: string;
     providerConfig?: PaymentProviderConfig;
-  }): PaymentProviderVerifyResult;
+  }): Promise<PaymentProviderVerifyResult>;
 };

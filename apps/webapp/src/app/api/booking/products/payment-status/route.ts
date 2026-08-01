@@ -1,15 +1,14 @@
-import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
+import { routePaths } from '@/app-layer/routes/paths';
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal('api/booking/public/products/payment-status:GET', request);
-  const params = new URL(request.url).searchParams;
-  const purchaseId = params.get('purchaseId')?.trim();
-  const contactPhone = params.get('phone')?.trim();
-  if (!purchaseId || !contactPhone) {
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.purchases });
+  if (!gate.ok) return gate.response;
+  const purchaseId = new URL(request.url).searchParams.get('purchaseId')?.trim();
+  if (!purchaseId) {
     return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
   const deps = buildAppDeps();
@@ -20,23 +19,11 @@ export async function GET(request: Request) {
   if (!organizationId) {
     return NextResponse.json({ ok: false, error: 'purchase_not_found' }, { status: 404 });
   }
-  const phoneNorm = normalizeRuPhoneE164(contactPhone);
-  if (!phoneNorm) {
-    return NextResponse.json({ ok: false, error: 'invalid_phone' }, { status: 400 });
-  }
   const detail = await withExplicitOrganizationPrincipal(
-    { organizationId, source: 'api/booking/public/products/payment-status:GET' },
-    () => deps.products!.getPurchaseDetail(purchaseId, organizationId),
+    { organizationId, source: 'api/booking/products/payment-status:GET' },
+    () => deps.products!.getPurchaseDetail(purchaseId, organizationId, gate.session.user.userId),
   );
   if (!detail) {
-    return NextResponse.json({ ok: false, error: 'purchase_not_found' }, { status: 404 });
-  }
-  const buyerPhone = detail.purchase.buyerPhoneNormalized;
-  if (buyerPhone) {
-    if (buyerPhone !== phoneNorm) {
-      return NextResponse.json({ ok: false, error: 'phone_mismatch' }, { status: 403 });
-    }
-  } else if (!detail.purchase.paymentIntentId) {
     return NextResponse.json({ ok: false, error: 'purchase_not_found' }, { status: 404 });
   }
   const intent = detail.purchase.paymentIntentId
@@ -44,11 +31,13 @@ export async function GET(request: Request) {
     : null;
   return NextResponse.json({
     ok: true,
+    purchaseId,
+    status: detail.purchase.status,
     intentId: detail.purchase.paymentIntentId,
     intentStatus: intent?.status ?? null,
     checkoutUrl: intent?.checkoutUrl ?? null,
     amountMinor: detail.purchase.priceMinor,
+    currency: detail.purchase.currency,
     title: detail.purchase.title,
-    status: detail.purchase.status,
   });
 }

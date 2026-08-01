@@ -1,5 +1,4 @@
 import type { PaymentProviderPort } from '@/modules/payments/providerPort';
-import { createMockPaymentProvider } from './mockPaymentProvider';
 import { createYookassaPaymentProvider } from './yookassaPaymentProvider';
 import { createTinkoffPaymentProvider } from './tinkoffPaymentProvider';
 import { createCloudpaymentsPaymentProvider } from './cloudpaymentsPaymentProvider';
@@ -11,7 +10,6 @@ const adapters = new Map<string, PaymentProviderPort>();
  * Resolve a PaymentProviderPort adapter by provider ID.
  *
  * Supported provider IDs:
- *   - "mock"           — in-memory test adapter
  *   - "yookassa"       — ЮKassa (YooKassa)
  *   - "tinkoff"        — Тинькофф Касса
  *   - "cloudpayments"  — CloudPayments
@@ -22,9 +20,6 @@ export function getPaymentProviderAdapter(providerId: string): PaymentProviderPo
   let adapter = adapters.get(id);
   if (!adapter) {
     switch (id) {
-      case 'mock':
-        adapter = createMockPaymentProvider();
-        break;
       case 'yookassa':
         adapter = createYookassaPaymentProvider();
         break;
