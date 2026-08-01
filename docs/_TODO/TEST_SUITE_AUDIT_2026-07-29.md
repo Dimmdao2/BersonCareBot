@@ -184,30 +184,29 @@ cd apps/webapp && pnpm exec vitest run src/infra/repos/pgDoctorClients.devDb.int
       **Закрыто 01.08 после независимого FAIL-аудита и bounded fix-round.** Отчёт
       `runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md`: исходный kill-set убил 17/20,
       нашёл три настоящих разрыва — A0 integrator ledger `0/68`, cleanup без exact-invocation ownership и
-      проглоченный `pg_ctl stop`. Все три закрыты; сохранённые acceptance tests зелёные. Лично повторено
-      оркестратором: `pnpm run test:webapp:postgres` → 2 файла / 3 теста, `exit 0`, 15.01 с;
-      `pnpm run check:saas-a0-greenfield-baseline` → 8/8, manifest `68/288`, pending `0/10`; runner visibility,
-      typecheck, targeted lint и `git diff --check` → `exit 0`. Упрощённая owner-role модель остаётся только для
-      В2–В8; В1/В9б идут через A1 под настоящими `app_*_login`. Integrator migrations не запускаются: committed
-      ledger rows трансплантируются как baseline data, у Track D свой test contour.
-      **Доказательства к приёмке:** две сборки дают одинаковую схему; битая migration → red; `\l` до/после не
-      содержит утечек; два параллельных clone-теста зелёные; пилотный DB-тест зелёный и виден runner; время названо
-      командой. Отдельно запустить `pnpm run check:saas-a1-rls-conformance` для RLS-пути.
+      проглоченный `pg_ctl stop`. Все три закрыты; сохранённые acceptance tests зелёные. Harness-project и его
+      visibility готовы отдельно от CI execution: сам факт, что `vitest list` видит файл, не означает запуска в
+      GitHub Actions. Упрощённая owner-role модель остаётся только для В2–В8; В1/В9б — A1/TEST contract под
+      настоящими `app_*_login`, не A0-harness/RLS proof. Integrator migrations не запускаются: committed ledger
+      rows трансплантируются как baseline data, у Track D свой test contour.
+      **Product pilot 02.08:** один перенос Б3 (`pgEmailOtpPublicAtomicConsume`) добавляет oracle «из двух
+      конкурентных consume ровно один успех»; job `Test (webapp disposable PostgreSQL)` с PostgreSQL 16 выполняет
+      `pnpm run test:webapp:postgres` отдельно от fast Vitest shards. Exact commands, current migration tail,
+      counts and red fault evidence — `runs/testsuite-v2/DISPOSABLE_POSTGRES_PRODUCT_PILOT_REPORT.md`.
 
-- [ ] **Б2. Ворота G0/0175 + генератор эталона — узкий поток (владелец согласовал 01.08).** Обновление эталона
-      отказывает fail-closed по шести причинам: четыре неизвестных генератору роли (`app_platform_settings`,
-      `app_operational_web_push_reminder`, `app_web_push_reminder_discovery_definer`, `app_clinic_billing` —
-      все созданы более поздними миграциями), плюс `environment_identifier_forbidden` и
-      `phone_literal_forbidden`. Следствие: харнесс не собирает шаблон, блок В стартовать не на чем.
-      **Блок В до завершения этой работы не начинать** — решение владельца 01.08: «без честной базы матрица
-      стен превратится в те же фейковые тесты». Знание генератора расширяется, строгость — нет.
-      Бриф: `runs/testsuite-v2/B2B_ETALON_GENERATOR_BRIEF.md`. Привилегированный шаг — за лидом.
-      база соответствуют тому, что на TEST. Уже описаны ниже в этом файле, остаются в силе.
+- [ ] **Б2. Ворота G0/0175 + генератор эталона — узкий поток (владелец согласовал 01.08).** Прежняя активная
+      запись «харнесс не собирает шаблон, блок В стартовать не на чем» ложна: current A0 package проходит
+      `pnpm run check:saas-a0-greenfield-baseline`, а harness применяет актуальный pending Drizzle tail в private
+      clone. Работа Б2 остаётся отдельной: генератор/эталон должен сохранять fail-closed strictness для своего
+      authority, но не блокирует этот один product pilot. Бриф:
+      `runs/testsuite-v2/B2B_ETALON_GENERATOR_BRIEF.md`. Привилегированный шаг — за лидом.
 - [ ] **Б3. Ревизия 22 неисполняемых файлов живой БД** — не отдельной уборкой, а как посевной материал матрицы:
       каждый webapp-файл либо переносится на общий clone-harness Б1, либо удаляется с названной причиной; RLS-only
       проверки переводятся в A1. Заранее известно, что часть
       подключается к общей `bcb_webapp_dev`, что канон запрещает, — им перенос нужен в любом случае.
-      _Доказательство: построчная таблица «файл → перенесён/удалён → причина»._
+      **Пилот 02.08 — 1 из 22:** перенесён только `pgEmailOtpPublicAtomicConsume` (отдельный PostgreSQL project
+      и CI execution); массовый перенос не выполнялся, `wt/testsuite-b` v1 не переносится. Пункт остаётся
+      открытым. _Доказательство: построчная таблица «файл → перенесён/удалён → причина»._
 - [ ] **Б4. Калибровка стоимости** (G-калибровка): замер времени одной матрицы до массовой стройки.
 
 ### Блок В — вебапп, порядок по цене молчаливой ошибки

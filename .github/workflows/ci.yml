@@ -143,6 +143,17 @@ jobs:
       - run: pnpm --dir apps/integrator run check:d30-idempotency-key-concurrency
       - uses: ./.github/actions/cancel-on-failure
 
+  test-webapp-postgres:
+    name: Test (webapp disposable PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-pnpm
+      - run: sudo apt-get update && sudo apt-get install --yes postgresql-16
+      - run: pnpm run test:webapp:postgres
+      - uses: ./.github/actions/cancel-on-failure
+
   stryker-diff-scoped:
     # М3 (#1081): Stryker судит только строки решений, изменённые в этом диффе (apps/webapp/src) —
     # не процент покрытия всего файла. fetch-depth: 0, потому что скрипту нужна база сравнения
