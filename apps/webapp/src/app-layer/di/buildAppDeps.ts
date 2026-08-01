@@ -248,7 +248,6 @@ import { createPgSaasBillingRepository } from '@/infra/repos/pgSaasBilling';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
 import { createSaasBillingService } from '@/modules/saas-billing/service';
 import { inMemoryDoctorNotesPort } from '@/infra/repos/inMemoryDoctorNotes';
-import { createPgBranchesProjectionPort } from '@/infra/repos/pgBranches';
 import {
   createPgSystemSettingsPort,
   createPgSystemSettingsWriteUnitOfWork,
@@ -693,7 +692,6 @@ const bookingAppointmentLifecycleService =
         policies: bookingPoliciesService,
       })
     : null;
-const branchesProjectionPort = !inMemoryRepos ? createPgBranchesProjectionPort() : null;
 const contentPagesPort = !inMemoryRepos ? createPgContentPagesPort() : inMemoryContentPagesPort;
 const contentSectionsPort = !inMemoryRepos
   ? createPgContentSectionsPort()
@@ -1738,7 +1736,6 @@ function _buildAppDeps() {
     reminderJournal: reminderJournalPort,
     reminderProjection: reminderProjectionPort,
     appointmentProjection: appointmentProjectionPort,
-    branches: branchesProjectionPort ?? undefined,
     contentPages: contentPagesPort,
     contentSections: contentSectionsPort,
     userByPhone: userByPhonePort,
