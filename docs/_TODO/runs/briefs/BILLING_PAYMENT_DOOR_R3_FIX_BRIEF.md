@@ -30,4 +30,3 @@
 - Без return URL manual invoice test красный; с исправлением request всех четырёх providers содержит identity/subject/reference, а YooKassa invoice содержит наш return URL.
 - Targeted provider/service tests, webapp typecheck, scoped lint и `git diff --check` зелёные.
 - Worker коммитит только разрешённые paths и пишет `BILLING_PAYMENT_DOOR_R3_FIX_REPORT.md`.
-

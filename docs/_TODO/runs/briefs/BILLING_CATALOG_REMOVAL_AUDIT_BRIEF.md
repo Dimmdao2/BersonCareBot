@@ -31,4 +31,3 @@
 ## Verdict
 
 PASS только если все три исхода удержаны и migration/journal не конфликтуют. Иначе FAIL с достижимым сценарием, impact и точным bounded fix-round.
-
