@@ -16,7 +16,7 @@ import {
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { MarkdownContent } from '@/shared/ui/doctor/markdown/MarkdownContent';
 import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
-import type { ContentSectionRow } from '@/infra/repos/pgContentSections';
+import type { ContentSectionRow } from '@/modules/content-sections/ports';
 import {
   HELP_CANONICAL_ARTICLE_IA,
   HELP_CANONICAL_ARTICLE_SLUGS,

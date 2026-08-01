@@ -19,6 +19,11 @@ export type SaasBillingSubscription = {
   lifecycleState: OrgCommercialLifecycleState;
   providerId: string | null;
   savedPaymentMethodId: string | null;
+  /** К6 — date + exact text the payer saw; `null` unless consent was ever granted. See `SaasBillingSubscriptions` schema doc. */
+  autopayConsentedAt: string | null;
+  autopayConsentText: string | null;
+  /** К6 — set on revoke; cleared back to `null` on a fresh grant. Active consent = consentedAt set AND this null. */
+  autopayRevokedAt: string | null;
   currentPeriodStartsAt: string | null;
   currentPeriodEndsAt: string | null;
   graceEndsAt: string | null;
@@ -201,6 +206,10 @@ export type SaasBillingSubscriptionDueForRenewal = {
   billingPeriod: SaasBillingPeriod;
   /** The end of the period just paid — the new period's `servicePeriodStartsAt`, never `now()`. */
   currentPeriodEndsAt: string;
+  /** К6 — off-session charge target; `null` until a `payment.succeeded` webhook reports one. */
+  savedPaymentMethodId: string | null;
+  autopayConsentedAt: string | null;
+  autopayRevokedAt: string | null;
 };
 
 export type SaasBillingReconciliationResult =
@@ -382,6 +391,8 @@ export type SaasBillingRepositoryPort = {
     saasBillingSubscriptionId: string;
     tariffId: string;
     billingPeriod: SaasBillingPeriod;
+    /** К6 — lets the caller decide whether THIS payment still needs `save_payment_method: true`. */
+    savedPaymentMethodId: string | null;
   }>;
   /**
    * §5a item К0 — a captured payment extends the ONE subscription row the paid invoice was raised
@@ -458,6 +469,44 @@ export type SaasBillingRepositoryPort = {
     status: 'succeeded' | 'canceled';
     confirmedAt: string;
   }): Promise<SaasBillingRefund>;
+
+  /**
+   * К6 — grants (or re-grants after a revoke) explicit autopay consent on the organization's OWN
+   * `paid_subscription` row. `consentText` is the exact copy the payer saw
+   * (`AUTOPAY_CONSENT_TEXT`); a fresh grant clears `autopayRevokedAt` back to `null`, which is what
+   * makes "active" a plain two-column read downstream. Requires the row to already exist — call
+   * `requireOwnTariffBillingSubscription` first, same as everywhere else this row is touched.
+   */
+  grantSaasBillingAutopayConsent(input: {
+    organizationId: string;
+    consentText: string;
+    consentedAt: string;
+  }): Promise<{ outcome: 'no_subscription' } | { outcome: 'granted' }>;
+  /** К6 — stops future off-session charges; does not touch `savedPaymentMethodId` (a manual payment can still reuse it via a fresh checkout). */
+  revokeSaasBillingAutopayConsent(input: {
+    organizationId: string;
+    revokedAt: string;
+  }): Promise<{ outcome: 'no_subscription' } | { outcome: 'revoked' }>;
+  /**
+   * К6 — called only from the webhook capture path, once `payment.succeeded` reports a
+   * `payment_method` the provider actually saved. Addresses the subscription by id, same authority
+   * discipline as `activateSaasBillingSubscriptionPeriod`.
+   */
+  saveSaasBillingSubscriptionPaymentMethod(input: {
+    saasBillingSubscriptionId: string;
+    organizationId: string;
+    savedPaymentMethodId: string;
+  }): Promise<void>;
+  /**
+   * К6 — CAS from `draft`/`pending` to `failed`, mirroring `markSaasBillingInvoicePaid`'s shape:
+   * an off-session charge attempt that the provider rejected (synchronously, or already resolved by
+   * the time this runs) must show up as a failure the clinic can see and act on, not stay `draft`
+   * forever.
+   */
+  markSaasBillingInvoiceFailed(input: {
+    saasBillingInvoiceId: string;
+    organizationId: string;
+  }): Promise<SaasBillingInvoice | null>;
 };
 
 export type SaasBillingSettingsReadPort = {

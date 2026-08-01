@@ -265,6 +265,12 @@ export type Tariff = {
    * growth; it is never converted into an agent-chosen baseline.
    */
   includedSeats: number | null;
+  /**
+   * §5a item 5.1 — price (in `currency`) of one specialist seat beyond `includedSeats`. `null`
+   * keeps the §5.2 hard block at the seat ceiling; a nonnegative value allows confirmed, paid
+   * overage. See `apps/webapp/db/schema/saasEntitlements.ts` for the storage-level contract.
+   */
+  additionalSeatPriceMinor: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

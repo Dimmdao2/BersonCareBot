@@ -8,7 +8,7 @@ import type { SupportCommunicationPort } from '@/infra/repos/pgSupportCommunicat
 import {
   MergeConflictError,
   MergeDependentConflictError,
-} from '@/infra/repos/platformUserMergeErrors';
+} from '@bersoncare/platform-merge';
 import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 
 const REMINDER_RULE_UPSERTED = 'reminder.rule.upserted';

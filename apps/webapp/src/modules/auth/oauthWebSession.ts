@@ -3,7 +3,7 @@ import { env } from '@/config/env';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
-import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
+import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
@@ -18,6 +18,7 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   userId: string;
   displayNameHint: string;
   authMethod?: string;
+  userByPhone: UserByPhonePort;
 }): Promise<{ ok: true; redirectUrl: string } | { ok: false; reason: string }> {
   const appBase = env.APP_BASE_URL;
   let sessionUser;
@@ -25,7 +26,7 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
     if (isPlatformUserUuid(opts.userId)) {
       enterStaffSecuritySelfPrincipal(opts.userId, 'auth/oauth-web:provider-verified-self');
     }
-    sessionUser = await pgUserByPhonePort.findByUserId(opts.userId);
+    sessionUser = await opts.userByPhone.findByUserId(opts.userId);
   } catch {
     return { ok: false, reason: 'db_error' };
   }

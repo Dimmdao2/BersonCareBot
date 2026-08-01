@@ -42,6 +42,18 @@ const INVITE_ERROR_MESSAGES: Record<string, string> = {
   invalid_email: 'Некорректный email',
 };
 
+function formatSeatOveragePrice(priceMinor: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+    }).format(priceMinor / 100);
+  } catch {
+    return `${new Intl.NumberFormat('ru-RU').format(priceMinor / 100)} ${currency}`;
+  }
+}
+
 export type TeamMemberRow = {
   id: string;
   displayName: string | null;
@@ -79,10 +91,18 @@ export function TeamSection({ members, invites, seats }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  // §5a item 5.1 — set only by a `seat_overage_confirmation_required` response; the clinic sees
+  // the price and must resubmit with it echoed back before the seat is created and billed.
+  const [seatOverageConfirm, setSeatOverageConfirm] = useState<{
+    priceMinor: number;
+    currency: string;
+  } | null>(null);
 
   const seatsExhaustedForDoctor = !seats.configured || seats.available === 0;
 
-  async function submitInvite() {
+  // Bypasses the shared `apiJson` helper (which only surfaces the error string) because this call
+  // needs the full error body — `priceMinor`/`currency` — to show the overage confirmation dialog.
+  async function submitInvite(confirmedSeatOveragePriceMinor?: number) {
     setInviteError(null);
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
@@ -91,16 +111,40 @@ export function TeamSection({ members, invites, seats }: Props) {
     }
     setSubmitting(true);
     try {
-      await apiJson('/api/clinic/invites', {
+      const res = await fetch('/api/clinic/invites', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail, role }),
+        body: JSON.stringify({
+          email: trimmedEmail,
+          role,
+          ...(confirmedSeatOveragePriceMinor !== undefined
+            ? { confirmedSeatOveragePriceMinor }
+            : {}),
+        }),
       });
+      const body = (await res.json().catch(() => null)) as
+        | { ok: true }
+        | { ok: false; error: string; priceMinor?: number; currency?: string }
+        | null;
+      if (!res.ok || body?.ok === false) {
+        if (
+          body?.ok === false &&
+          body.error === 'seat_overage_confirmation_required' &&
+          typeof body.priceMinor === 'number' &&
+          typeof body.currency === 'string'
+        ) {
+          setSeatOverageConfirm({ priceMinor: body.priceMinor, currency: body.currency });
+          return;
+        }
+        const code = body?.ok === false ? body.error : 'error';
+        setInviteError(INVITE_ERROR_MESSAGES[code] ?? 'Не удалось отправить приглашение');
+        return;
+      }
+      setSeatOverageConfirm(null);
       setEmail('');
       router.refresh();
-    } catch (e) {
-      const code = e instanceof Error ? e.message : 'error';
-      setInviteError(INVITE_ERROR_MESSAGES[code] ?? 'Не удалось отправить приглашение');
+    } catch {
+      setInviteError('Не удалось отправить приглашение');
     } finally {
       setSubmitting(false);
     }
@@ -157,10 +201,19 @@ export function TeamSection({ members, invites, seats }: Props) {
             autoComplete="email"
             placeholder="email@example.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setSeatOverageConfirm(null);
+            }}
             disabled={submitting}
           />
-          <Select value={role} onValueChange={(value) => setRole(value as OrganizationInviteRole)}>
+          <Select
+            value={role}
+            onValueChange={(value) => {
+              setRole(value as OrganizationInviteRole);
+              setSeatOverageConfirm(null);
+            }}
+          >
             <SelectTrigger disabled={submitting}>
               <SelectValue />
             </SelectTrigger>
@@ -174,20 +227,53 @@ export function TeamSection({ members, invites, seats }: Props) {
               Нельзя пригласить специалиста: укажите число мест специалистов в тарифе или в
               исключении организации.
             </p>
-          ) : role === 'doctor' && seatsExhaustedForDoctor ? (
+          ) : role === 'doctor' && seatsExhaustedForDoctor && !seatOverageConfirm ? (
             <p className="text-muted-foreground text-xs">
-              Все места специалистов по тарифу заняты. Приглашение врача сейчас будет отклонено.
+              Все места специалистов по тарифу заняты. Если тариф допускает место сверх базы,
+              будет предложено подтвердить его стоимость; иначе приглашение будет отклонено.
             </p>
           ) : null}
+          {seatOverageConfirm ? (
+            <div className="border-amber-500 bg-amber-50 space-y-2 rounded-md border p-3 text-sm">
+              <p>
+                Все места по тарифу заняты. Дополнительное место специалиста стоит{' '}
+                <strong>
+                  {formatSeatOveragePrice(seatOverageConfirm.priceMinor, seatOverageConfirm.currency)}
+                </strong>
+                . Подтвердите — место будет создано и клинике выставлен счёт.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={submitting}
+                  onClick={() => void submitInvite(seatOverageConfirm.priceMinor)}
+                >
+                  {submitting ? 'Отправка…' : 'Подтвердить и пригласить'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={submitting}
+                  onClick={() => setSeatOverageConfirm(null)}
+                >
+                  Отмена
+                </Button>
+              </div>
+            </div>
+          ) : null}
           {inviteError ? <p className="text-destructive text-sm">{inviteError}</p> : null}
-          <Button
-            type="button"
-            size="sm"
-            disabled={submitting || (role === 'doctor' && !seats.configured)}
-            onClick={() => void submitInvite()}
-          >
-            {submitting ? 'Отправка…' : 'Пригласить'}
-          </Button>
+          {seatOverageConfirm ? null : (
+            <Button
+              type="button"
+              size="sm"
+              disabled={submitting || (role === 'doctor' && !seats.configured)}
+              onClick={() => void submitInvite()}
+            >
+              {submitting ? 'Отправка…' : 'Пригласить'}
+            </Button>
+          )}
         </div>
       </DoctorSection>
 
