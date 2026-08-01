@@ -15,6 +15,9 @@ export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
   '/api/integrator/reminders/occurrences/skip',
   '/api/integrator/reminders/occurrences/snooze',
   '/api/integrator/support/admin-reply',
+  '/api/integrator/support/delivery-attempt',
+  '/api/integrator/support/question',
+  '/api/integrator/support/status',
   '/api/integrator/support/sync-user-message',
   '/api/integrator/web-push/subscriptions/delete',
 ] as const;
@@ -43,6 +46,7 @@ export const INTERNAL_BEARER_CSRF_EXEMPT_PATHS = [
 export const PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS = [
   /^\/api\/payments\/webhook\/[^/]+$/,
   /^\/api\/payments\/patient-acquiring-webhook\/[^/]+$/,
+  /^\/api\/payments\/saas-webhook\/[^/]+$/,
 ] as const;
 
 export const APPLE_FORM_POST_CSRF_EXEMPT_PATH = '/api/auth/oauth/callback/apple';
