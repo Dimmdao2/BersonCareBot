@@ -6,10 +6,14 @@ import type { StaffSecurityService } from '@/modules/staff-security/service';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import type { AppSession, SessionUser } from '@/shared/types/session';
 
-type CheckRateLimit = typeof import('@/modules/auth/authConfirmRateLimit').checkAuthConfirmRateLimit;
+type CheckRateLimit =
+  typeof import('@/modules/auth/authConfirmRateLimit').checkAuthConfirmRateLimit;
 type ConsumeChallenge = typeof import('@/modules/auth/emailAuth').consumeEmailChallengeCode;
-type ConsumeLatest = typeof import('@/modules/auth/emailAuth').consumeLatestEmailChallengeCodeForUser;
+type ConsumeLatest =
+  typeof import('@/modules/auth/emailAuth').consumeLatestEmailChallengeCodeForUser;
 type HashPin = typeof import('@/modules/auth/pinHash').hashPin;
+type IssueStaffLoginContinuation =
+  typeof import('@/modules/auth/staffLoginContinuation').issueStaffLoginContinuation;
 type RequireStaffSession =
   typeof import('@/app-layer/guards/requireRole').requireStaffSecurityApiSession;
 type SetSession = typeof import('@/modules/auth/service').setSessionFromUser;
@@ -24,11 +28,16 @@ const fakes = vi.hoisted(() => ({
   getVerifiedEmail: vi.fn<UserByPhonePort['getVerifiedEmailForUser']>(),
   invalidateSessions: vi.fn<UserByPhonePort['invalidateSessionsForSelf']>(),
   getSecurityStatus: vi.fn<StaffSecurityService['getStatus']>(),
+  beginStaffLogin: vi.fn<StaffSecurityService['beginLogin']>(),
+  startTotpEnrollment: vi.fn<StaffSecurityService['startTotpEnrollment']>(),
+  verifyTotpEnrollment: vi.fn<StaffSecurityService['verifyTotpEnrollment']>(),
+  confirmRecoveryCodes: vi.fn<StaffSecurityService['confirmRecoveryCodes']>(),
   revokeStaffSessions: vi.fn<StaffSecurityService['revokeSessions']>(),
   changePassword: vi.fn<PasswordChangeService['changePassword']>(),
   consumeChallenge: vi.fn<ConsumeChallenge>(),
   consumeLatest: vi.fn<ConsumeLatest>(),
   hashPassword: vi.fn<HashPin>(),
+  issueStaffLoginContinuation: vi.fn<IssueStaffLoginContinuation>(),
   requireStaffSession: vi.fn<RequireStaffSession>(),
   setSession: vi.fn<SetSession>(),
 }));
@@ -56,6 +65,9 @@ vi.mock('@/modules/auth/emailAuth', () => ({
   normalizeEmail: (value: string) => value.trim().toLowerCase(),
 }));
 vi.mock('@/modules/auth/pinHash', () => ({ hashPin: fakes.hashPassword }));
+vi.mock('@/modules/auth/staffLoginContinuation', () => ({
+  issueStaffLoginContinuation: fakes.issueStaffLoginContinuation,
+}));
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: fakes.setSession }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
@@ -72,6 +84,10 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
     },
     staffSecurity: {
       getStatus: fakes.getSecurityStatus,
+      beginLogin: fakes.beginStaffLogin,
+      startTotpEnrollment: fakes.startTotpEnrollment,
+      verifyTotpEnrollment: fakes.verifyTotpEnrollment,
+      confirmRecoveryCodes: fakes.confirmRecoveryCodes,
       revokeSessions: fakes.revokeStaffSessions,
     },
     passwordChange: { changePassword: fakes.changePassword },
@@ -81,6 +97,10 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 import { POST as login } from '@/app/api/auth/email-password/login/route';
 import { POST as resetPassword } from '@/app/api/auth/email-password/reset/route';
 import { POST as changePassword } from '@/app/api/account/security/password/change/route';
+import { GET as getSecurityStatus } from '@/app/api/account/security/status/route';
+import { POST as startTotp } from '@/app/api/account/security/totp/start/route';
+import { POST as verifyTotp } from '@/app/api/account/security/totp/verify/route';
+import { POST as confirmRecovery } from '@/app/api/account/security/recovery/confirm/route';
 
 const userId = '00000000-0000-4000-8000-000000000107';
 const user: SessionUser = {
@@ -111,6 +131,12 @@ beforeEach(() => {
   fakes.verifyAltcha.mockResolvedValue(undefined);
   fakes.hashPassword.mockResolvedValue('hashed-for-route-test');
   fakes.getSecurityStatus.mockResolvedValue(null);
+  fakes.beginStaffLogin.mockResolvedValue({
+    required: true,
+    token: 'factor-challenge-token',
+    expiresAt: '2026-08-01T21:00:00.000Z',
+    replacementRequired: false,
+  });
   fakes.invalidateSessions.mockResolvedValue(undefined);
   fakes.updatePassword.mockResolvedValue(undefined);
   fakes.requireStaffSession.mockResolvedValue({ ok: true, session });
@@ -186,6 +212,71 @@ describe('email/password login HTTP boundary', () => {
       redirectTo: '/app/doctor',
     });
     expect(fakes.setSession).toHaveBeenCalledOnce();
+  });
+
+  it('requires the already-enrolled staff factor before issuing a session', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue({ ...user, securityFactorRequired: true });
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: true,
+      recoveryConfirmed: true,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+
+    await expect((await login(request())).json()).resolves.toEqual({
+      ok: true,
+      factorRequired: true,
+    });
+    expect(fakes.setSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('voluntary staff TOTP and recovery HTTP boundaries', () => {
+  it('keeps status, enrollment, verification and recovery confirmation reachable', async () => {
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+    fakes.startTotpEnrollment.mockResolvedValue({
+      ok: true,
+      secret: 'test-secret',
+      uri: 'otpauth://totp/BersonCare:test',
+    });
+    fakes.verifyTotpEnrollment.mockResolvedValue({
+      ok: true,
+      recoveryCodes: ['recovery-code'],
+      sessionVersion: 2,
+    });
+    fakes.confirmRecoveryCodes.mockResolvedValue(true);
+    fakes.findUser.mockResolvedValue(user);
+
+    await expect((await getSecurityStatus()).json()).resolves.toMatchObject({
+      ok: true,
+      status: { enrolled: false },
+    });
+    await expect((await startTotp()).json()).resolves.toMatchObject({ ok: true });
+    await expect(
+      (
+        await verifyTotp(jsonRequest('/api/account/security/totp/verify', { code: '123456' }))
+      ).json(),
+    ).resolves.toEqual({ ok: true, recoveryCodes: ['recovery-code'] });
+
+    fakes.requireStaffSession.mockResolvedValue({
+      ok: true,
+      session: {
+        ...session,
+        staffSecurity: { assurance: 'recovery_confirmation', verifiedAt: 1_790_000_000 },
+      },
+    });
+    await expect((await confirmRecovery()).json()).resolves.toEqual({ ok: true });
+    expect(fakes.setSession).toHaveBeenLastCalledWith(user, {
+      staffSecurity: expect.objectContaining({ assurance: 'factor_verified' }),
+    });
   });
 });
 
