@@ -1,9 +1,12 @@
 # В9б S01 — независимый аудит удаления пяти legacy projections (#1081)
 
+**Тест или взгляд:** пункты 1–5 — качество разового удаления; проверять взглядом по итоговому diff,
+структурным поиском и одноразовыми lint/typecheck/smoke-командами. Новый test или DB harness не создавать.
+
 Прочитать `AGENTS.md` §5/§10/§24. Authority:
 `docs/_TODO/runs/testsuite-v2/V9B_IMPLEMENTATION_SLICES.md` S01 и candidate `86344858e`.
 
-Это one-off schema retirement: проверять diff/AST/SQL/journal, новый test или DB harness не создавать. PASS только если:
+Это one-off schema retirement: проверять diff/AST/SQL/journal. PASS только если:
 
 1. Удалены ровно пять legacy tables и их schema declarations/backrefs/FK: `bookings`, `services`, `specialists`,
    `branches`, `clinic_rooms`; migration `0304` содержит TEMPORARY LOCAL marker и drop ordering не ломает FK.
