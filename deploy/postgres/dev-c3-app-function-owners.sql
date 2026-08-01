@@ -233,6 +233,7 @@ GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_isolation_events TO saas_telem
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings; -- start_provisioned_organization_trial
 GRANT INSERT ON TABLE public.saas_organization_trials TO app_platform_settings; -- start_provisioned_organization_trial
 GRANT SELECT ON TABLE public.saas_trial_policy TO app_platform_settings; -- start_provisioned_organization_trial
+GRANT SELECT ON TABLE public.saas_registration_tariff_policy TO app_platform_settings; -- start_provisioned_organization_trial
 
 -- app_web_push_reminder_discovery_definer (web-push reminder discovery accessor):
 GRANT SELECT ON TABLE public.reminder_rules TO app_web_push_reminder_discovery_definer; -- list_web_push_reminder_organization_ids

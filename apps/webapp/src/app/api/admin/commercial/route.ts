@@ -85,6 +85,12 @@ const trialPolicySchema = z.object({
   isActive: z.boolean(),
 });
 
+// §5a item 2.6a (owner 31.07) — the tariff granted at registration, independent of the trial
+// policy above. `null` is legal: no code default, the person picks a tariff themselves.
+const registrationTariffPolicySchema = z.object({
+  tariffId: z.string().uuid().nullable(),
+});
+
 // Owner 2026-07-26 (#1003): a reason is recorded on every audit-log row (actor, action, before/after)
 // regardless of content — it is no longer REQUIRED to save an edit. Still capped so a pasted essay
 // can't bloat the audit row.
@@ -126,6 +132,11 @@ const operationSchema = z.discriminatedUnion('action', [
     policy: trialPolicySchema,
     reason: reasonSchema,
   }),
+  z.object({
+    action: z.literal('set_registration_tariff_policy'),
+    policy: registrationTariffPolicySchema,
+    reason: reasonSchema,
+  }),
   z.object({ action: z.literal('start_trial'), organizationId: uuidSchema, reason: reasonSchema }),
   z.object({
     action: z.literal('extend_trial'),
@@ -142,12 +153,19 @@ export async function GET() {
   if (!gate.ok) return gate.response;
 
   const service = buildAppDeps().platformEntitlements;
-  const [tariffs, organizations, trialPolicy] = await Promise.all([
+  const [tariffs, organizations, trialPolicy, registrationTariffPolicy] = await Promise.all([
     service.listTariffs(),
     service.listOrganizations(),
     service.getTrialPolicy(),
+    service.getRegistrationTariffPolicy(),
   ]);
-  return NextResponse.json({ ok: true, tariffs, organizations, trialPolicy });
+  return NextResponse.json({
+    ok: true,
+    tariffs,
+    organizations,
+    trialPolicy,
+    registrationTariffPolicy,
+  });
 }
 
 export async function POST(request: Request) {
@@ -202,6 +220,9 @@ export async function POST(request: Request) {
         break;
       case 'set_trial_policy':
         await service.setTrialPolicy(operation.policy as TrialPolicy, audit);
+        break;
+      case 'set_registration_tariff_policy':
+        await service.setRegistrationTariffPolicy(operation.policy, audit);
         break;
       case 'start_trial':
         result = await service.startTrial(operation.organizationId, audit);
