@@ -352,6 +352,7 @@ import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganization
 import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
+import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
 import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
@@ -1141,6 +1142,7 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
 const coursesService = createCoursesService({
   courses: coursesPort,
   introPages: contentPagesPort,
+  assertWriteClearance: assertMechanicWriteClearance,
   assignTemplateToPatient: (input) =>
     treatmentProgramInstanceService.assignTemplateToPatient(input),
 });
