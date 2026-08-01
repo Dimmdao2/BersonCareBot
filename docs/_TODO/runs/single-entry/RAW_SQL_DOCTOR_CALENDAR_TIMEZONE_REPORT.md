@@ -36,14 +36,16 @@ worktree supplied for this slice.
 
 The exact AST walk (production `.ts/.tsx`, excluding `test`, `spec`, and
 `stories`; `CallExpression` whose callee identifier is `runWebappPgText`) gives
-**84 files / 553 calls** after this conversion. The merge-base with
-`wt/single-entry-integration`, `d8a66d73e5c44c8e930bc4094f271b57c610c9dd`, gives
-**85 / 554** before it. Thus the conversion itself is exactly **1 file / 1 call**,
-but this worktree is one file and two calls above the stated authority baseline.
+**83 files / 551 calls** after this conversion. On the corrected
+`wt/single-entry-integration` parent of merge `986516695`,
+`986516695^2` (`4e336d856a7541d81732c032b977f4c84f8464a6`), the same command gives
+**84 / 552**. Thus the conversion is exactly **1 file / 1 call** and matches the
+stated authority baseline.
 
 The broad production `$n` caller census is a separate denominator. The authority
 states **99 files**, including **21 outside** the direct bridge denominator; the
-same production-file walk on this worktree returns **104 files**. Neither the
-direct AST count nor the broad `$n` count closes the larger raw-SQL-text item.
+same production-file walk on this worktree returns **103 files** (with **25**
+outside the direct bridge candidate set). Neither the direct AST count nor the
+broad `$n` count closes the larger raw-SQL-text item.
 
 No plan checkbox was closed.
