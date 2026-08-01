@@ -320,5 +320,34 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .returning({ id: saasBillingProviderEvents.id });
       return { created: Boolean(row) };
     },
+
+    async findSaasBillingInvoiceByProviderRef({ providerId, providerInvoiceRef }) {
+      const [row] = await getDrizzle()
+        .select()
+        .from(saasBillingInvoices)
+        .where(
+          and(
+            eq(saasBillingInvoices.providerId, providerId),
+            eq(saasBillingInvoices.providerInvoiceRef, providerInvoiceRef),
+          ),
+        )
+        .limit(1);
+      return row ? toSaasBillingInvoice(row) : null;
+    },
+
+    async markSaasBillingInvoicePaid({ saasBillingInvoiceId, organizationId, paidAt }) {
+      const [row] = await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({ status: 'paid', paidAt, updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.organizationId, organizationId),
+          ),
+        )
+        .returning();
+      if (!row) throw new Error('saas_billing_invoice_not_found');
+      return toSaasBillingInvoice(row);
+    },
   };
 }

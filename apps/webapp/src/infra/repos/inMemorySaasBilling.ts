@@ -156,5 +156,22 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       });
       return { created: true };
     },
+
+    async findSaasBillingInvoiceByProviderRef({ providerId, providerInvoiceRef }) {
+      const found = [...invoices.values()].find(
+        (row) => row.providerId === providerId && row.providerInvoiceRef === providerInvoiceRef,
+      );
+      return found ?? null;
+    },
+
+    async markSaasBillingInvoicePaid({ saasBillingInvoiceId, organizationId }) {
+      const current = invoices.get(saasBillingInvoiceId);
+      if (!current || current.organizationId !== organizationId) {
+        throw new Error('saas_billing_invoice_not_found');
+      }
+      const row: SaasBillingInvoice = { ...current, status: 'paid' };
+      invoices.set(row.id, row);
+      return row;
+    },
   };
 }
