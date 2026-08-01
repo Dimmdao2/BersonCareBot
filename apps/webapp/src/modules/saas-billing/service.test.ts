@@ -309,10 +309,12 @@ describe('К4 round 2: повторное «Выставить счёт» не �
     expect(createIntent).toHaveBeenCalledTimes(1);
     expect(createIntent).toHaveBeenCalledWith(
       expect.objectContaining({
+        amountMinor: 5_000,
+        currency: 'RUB',
         payerRef: 'organization:org-k4r2',
         purpose: 'saas_billing_tariff_renewal',
         subjectRef: first.id,
-        returnUrl: expect.stringMatching(/^https?:\/\//),
+        returnUrl: expect.stringMatching(/^https?:\/\/[^/]+\/app\/settings\?tab=billing$/),
         invoice: { description: 'Счёт за тариф', expiresAt: request.expiresAt },
       }),
     );
