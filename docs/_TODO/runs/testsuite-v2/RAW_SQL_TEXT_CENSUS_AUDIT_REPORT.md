@@ -1,8 +1,8 @@
 # Независимый аудит `RAW_SQL_TEXT_CENSUS.md`
 
-**Роль:** `auditor-live`, разовая inspection/механическая сверка, без постоянных source-text tests.  
-**Target:** `064d768d3dfa421b77bcd9a9b8833aa052180f5f` (`docs: census webapp SQL text (#1082)`).  
-**Target artifact:** `docs/_TODO/runs/testsuite-v2/RAW_SQL_TEXT_CENSUS.md`.  
+**Роль:** `auditor-live`, разовая inspection/механическая сверка, без постоянных source-text tests.
+**Target:** `064d768d3dfa421b77bcd9a9b8833aa052180f5f` (`docs: census webapp SQL text (#1082)`).
+**Target artifact:** `docs/_TODO/runs/testsuite-v2/RAW_SQL_TEXT_CENSUS.md`.
 **Вердикт:** **FAIL**.
 
 Target нельзя использовать как denominator, карту реализации или основание для первого translation-slice. Он
