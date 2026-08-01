@@ -1,8 +1,8 @@
 /**
  * Opt-in REAL-Postgres RLS proof for the D5 direct write, added after an independent audit found (and
  * this fix addresses) a live defect: `upsertReminderRuleDirect` was RLS-DENIED under the real
- * "integrator" principal (`runWithIntegratorPrincipal`) — the exact shape the telegram/max bot
- * `reminders.rule.toggle` / `.cyclePreset` path runs under for an already-known user (organization_id
+ * "integrator" principal (`runWithIntegratorPrincipal`) — the exact shape the webapp's
+ * `reminder.rule.upserted` write path runs under for an already-known user (organization_id
  * SET, patient_user_id NULL, `SET ROLE app_patient`). Mock-based unit tests cannot catch this: the mock
  * DbPort never applies a real PostgreSQL role/RLS check, so a wrong-principal write silently "succeeds"
  * against the mock regardless. This test talks to a REAL Postgres (the TEST database on this box) via

@@ -261,9 +261,6 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
         ? { reminderMuteMinutes: normalized.reminderMuteMinutes }
         : {}),
       ...(normalized.reminderMutePreset === 'tomorrow' ? { reminderMutePreset: 'tomorrow' } : {}),
-      ...(typeof normalized.skipReasonCode === 'string'
-        ? { skipReasonCode: normalized.skipReasonCode }
-        : {}),
       ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
         ? { questionConfirm: normalized.questionConfirm }
         : {}),

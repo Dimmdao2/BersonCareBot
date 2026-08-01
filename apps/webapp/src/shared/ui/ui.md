@@ -28,4 +28,4 @@ Product-specific UI lives in isolated trees — **не** в корне `shared/u
 - **`components/ui/`** — источник для копирования в primitives; **не** импортировать из product routes.
 - Инфра в корне `shared/ui/`: `PlatformProvider`, `BuildVersionWatcher`, `TelegramMiniAppScript` (root layout).
 
-См. `.cursor/rules/patient-doctor-ui-isolation.mdc`.
+См. `AGENTS.md` §17 «Patient / Doctor UI Isolation».

@@ -259,6 +259,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const pipeline = createIncomingEventPipeline({
     readPort: dbReadPort,
     writePort: dbWritePort,
+    db: dbPort,
     queuePort,
     dispatchPort,
     orchestrator,

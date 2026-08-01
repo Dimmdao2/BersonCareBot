@@ -261,4 +261,24 @@ describe('воркер доставки: строка без разрешимо�
     expect(h.dispatched).toHaveLength(1);
     expect(h.dispatched[0]!.organizationId).toBeUndefined();
   });
+
+  it('D35: дано: строка вида inbound_reply резолвится как operator_global → когда обработка → тогда арендатора нет и в карантин строка не уходит', async () => {
+    // Тот же законный случай «без организации», что и у operator_alert выше, но для нового вида
+    // очереди `inbound_reply` (D35: ответ на входящее). Ответ адресован конкретному получателю по
+    // chatId/userId, а не клинике — резолвер не обязан искать организацию.
+    // АРБИТР: в resolveOutgoingDeliveryScope() убрать `row.queue_kind === 'inbound_reply'` из
+    // условия operator_global — строка провалится в tenant-ветку и уйдёт в карантин
+    // (TENANT_SCOPE_...), `dispatched` останется пустым, тест покраснеет.
+    const h = harness({
+      queue_kind: 'inbound_reply',
+      organization_id: null,
+      resolution: 'operator_global',
+    });
+
+    await processUnderWorkerTick(h, queueRow('inbound_reply'));
+
+    expect(h.quarantined).toEqual([]);
+    expect(h.dispatched).toHaveLength(1);
+    expect(h.dispatched[0]!.organizationId).toBeUndefined();
+  });
 });

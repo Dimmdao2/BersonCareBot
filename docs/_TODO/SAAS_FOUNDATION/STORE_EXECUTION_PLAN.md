@@ -1,9 +1,15 @@
 # УСТАРЕЛ / SUPERSEDED — Store / Tariff / Entitlements execution plan
 
 > **Не исполнять как текущий план.** P0 facts могут использоваться как historical implementation evidence.
+> **Форвард-ссылка (2026-08-01, tariff-plan-triage):** актуальный текущий план тарифов/entitlements/квот —
+> [`TARIFFS_PAYMENTS_ADMIN_PLAN.md`](./TARIFFS_PAYMENTS_ADMIN_PLAN.md) §5a; биллинг/оплата — отдельно
+> [`SAAS_BILLING_PLAN.md`](./SAAS_BILLING_PLAN.md) (owner-решение 30.07 «не смешивать»). Старая ссылка на
+> `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` невалидна: тот файл сам архивирован
+> (`docs/archive/2026-07-plans/`) и сам указывает на `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a как на победителя при
+> расхождении. Единственный оставшийся здесь открытый пункт (P5, `branding`/`custom_domain` как платные
+> capability) сохранён дословно в `TARIFFS_PAYMENTS_ADMIN_PLAN.md` пункте **4.7**, не потерян.
 > Актуальные требования: [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
-> §P4; актуальная декомпозиция: [`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](./SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md)
-> и `IMPLEMENTATION_ROADMAP.md` stage C4/C5. Manual-tariff/no-billing first cut и конечный boolean mechanic list
+> §P4. Manual-tariff/no-billing first cut и конечный boolean mechanic list
 > больше не являются product contract; store — future capability, own/base library должны работать независимо.
 
 > **2026-07-27 checkbox pass, corrected 2026-07-29.** The shipped P1.b/P2 requirements are `[x]` with

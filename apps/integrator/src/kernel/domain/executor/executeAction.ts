@@ -69,17 +69,12 @@ import {
 const BOOKING_TYPES = new Set<string>(['booking.event.insert']);
 const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
 const REMINDER_TYPES = new Set<string>([
-  'reminders.rules.get',
-  'reminders.rule.toggle',
-  'reminders.rule.cyclePreset',
   'reminders.planDue',
   'reminders.dispatchDue',
   'reminders.snooze.callback',
   'reminders.done.callback',
   'reminders.mute.callback',
-  'reminders.skip.reasonPrompt',
   'reminders.skip.applyPreset',
-  'reminders.skip.applyFreeText',
   'reminders.messengerTopic.disable.callback',
   'reminders.snoozeMenu.callback',
   'reminders.notifSettings.open.callback',

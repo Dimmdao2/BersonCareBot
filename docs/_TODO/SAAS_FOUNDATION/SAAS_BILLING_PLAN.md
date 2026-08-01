@@ -69,12 +69,23 @@
 Урезанная версия S4-4: **только** оплата клиникой тарифа (SaaS-подписка, `saas_billing_subscription` — НЕ mechanic
 `subscriptions`, см. риск §8.7), БЕЗ store package orders (S4-3 вне scope).
 
+> **Ретриаж 2026-08-01 (`wt/tariff-plan-triage`):** четыре пункта ниже помечены «НЕ СДЕЛАНО» текстом, который
+> писался ДО коммитов `53dd848c2`/`f773c5d8c`/`9bfa4303c` (2026-07-27/28, «SaaS billing foundation» +
+> «read-only subscriptions/invoices») — этот файл не обновлялся после их слияния (последняя правка файла
+> `05216970b`, 27.07 17:14, коснулась только денежного инварианта, не этих строк). Реальность на 2026-08-01
+> ниже под меткой **✅ УТОЧНЕНО 08-01**; исходный текст «НЕ СДЕЛАНО» оставлен рядом как след прежнего замера,
+> не переписан.
+
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine».
 - Новый домен `modules/saas-billing` (ports/service), DI через `buildAppDeps`, переиспользует существующий
       `PaymentProviderPort`/`paymentProviderRegistry` — не форкает и не переписывает адаптеры (владелец §1).
       — НЕ СДЕЛАНО: подтверждено дважды независимо (`find apps/webapp/src/modules -iname "*saas-billing*"` — пусто;
       `ls apps/webapp/src/modules | grep -i bill` — пусто). Тот же открытый пункт, что S4-4 в
       `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 (строки 313-370, всё ещё `[ ]`, без commit-ссылок).
+      — ✅ **УТОЧНЕНО 08-01: СДЕЛАНО.** `apps/webapp/src/modules/saas-billing/{ports.ts,service.ts,settings.ts,
+      paidPeriod.ts,providerEventEnvelope.ts,service.test.ts}` существуют; DI — `buildAppDeps.ts:247-249,745-760,1834`
+      (`createSaasBillingService`, `deps.saasBilling`); переиспользует `PaymentProviderPort`/`resolvePaymentProvider`,
+      не форкает адаптеры (`service.ts:1-6,29-44`).
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Добавить минимальные org-owned records: billing account, source-aware tariff subscription, invoice/order и normalized provider event.»
 - Минимальные org-owned таблицы: billing account, **`saas_billing_subscriptions`**
       (`pending_payment → active → expired/cancelled`), invoice (снимок tariff/amount/currency/period), provider event
@@ -87,10 +98,21 @@
       и коде. Найден только dormant-плейсхолдер `DormantSaasMerchantIdentity` в
       `apps/webapp/src/modules/payments/merchantIdentityContracts.ts:8-20` с явным комментарием «S4-0 declares this
       only; S4-4 owns its DB setting and activation» — заготовка есть, реализации нет.
+      — ✅ **УТОЧНЕНО 08-01: СДЕЛАНО, дизъюнктное именование соблюдено.** `apps/webapp/db/schema/saasBilling.ts`:
+      `saasBillingAccounts`/`saasBillingSubscriptions`/`saasBillingInvoices`/`saasBillingProviderEvents`
+      (`pgTable`, строки 41/77/154/237); статусы подписки — `SAAS_BILLING_SUBSCRIPTION_STATUS_VALUES` включает
+      `pending_payment`; миграция `0259_saas_billing_foundation.sql`. Ни одного голого `subscription`-идентификатора
+      не найдено (`grep -in "^export.*\bsubscription\b" db/schema/saasBilling.ts` — 0 совпадений вне префикса).
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Перенести существующие manual `tariff_id` assignments в subscription/access rows с source=`manual`».
 - Перенести существующие manual `tariff_id` assignments (из Phase 3) в `saas_billing_subscriptions` rows с
       `source="manual"`; compatibility-projection `be_organizations.tariff_id` остаётся согласованной, не второй истиной.
       — НЕ СДЕЛАНО: зависит от предыдущего пункта (таблицы `saas_billing_subscriptions` не существует).
+      — ✅ **УТОЧНЕНО 08-01: СДЕЛАНО.** `service.ts:51-112` `assignManualTariff()` — атомарная транзакция:
+      `setManualSaasBillingSubscription({..., tariffId})` создаёт/обновляет subscription с `source` (значения
+      `SAAS_BILLING_SOURCE_VALUES = ['manual','paid_subscription']`), затем `updateCompatibilityProjection()`
+      держит `be_organizations.tariff_id` согласованным той же транзакцией — не вторая истина. Вызывается из
+      `POST /api/admin/commercial` action `assign_tariff` (Phase 3), значит manual-путь Phase 3 уже проходит
+      через эту таблицу, а не только через compatibility-projection напрямую.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Добавить global DB setting `saas_billing_payment_provider` в `ALLOWED_KEYS`».
 - Новый global setting-ключ `saas_billing_payment_provider` в `ALLOWED_KEYS`
       ([`system-settings/types.ts`](../../../apps/webapp/src/modules/system-settings/types.ts)) — **отдельная** identity
@@ -113,10 +135,19 @@
       — НЕ СДЕЛАНО: `apps/webapp/src/modules/system-settings/registry.ts` не содержит ключа
       `saas_billing_payment_provider` (только `booking_payment_providers`). Только dormant-заготовка из предыдущего
       пункта (`merchantIdentityContracts.ts`, `activation: "dormant_until_s4_4"`), сам ключ не зарегистрирован.
-- [ ] Дефолтный provider id = `"mock"` (уже существующий адаптер, [`paymentProviderRegistry.ts:25-26`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts))
+      — ✅ **УТОЧНЕНО 08-01: СДЕЛАНО.** `system-settings/registry.ts:313-318` — `saas_billing_payment_provider:
+      restricted('admin','global','secret_envelope','mock','redacted')`; `redactSaasBillingPaymentProviderValue`/
+      `mergeSaasBillingPaymentProviderSecretsRetain` в `saas-billing/settings.ts:124-162` делают redaction тем же
+      паттерном, что `booking_payment_providers`.
+- [x] Дефолтный provider id = `"mock"` (уже существующий адаптер, [`paymentProviderRegistry.ts:25-26`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts))
       до тех пор, пока владелец не передаст реальные ключи. Схема/сервис/UI/webhook реализуются и проверяются
       **полностью** на mock-адаптере — отсутствие реальных ключей не блокирует ни один из этих пунктов.
-      — НЕ СДЕЛАНО: нечему быть дефолтным — модуля/сервиса, который бы читал этот provider id, не существует.
+      — ✅ **ЗАКРЫТО, УТОЧНЕНО 08-01** (первичный текст «НЕ СДЕЛАНО, нечему быть дефолтным» был верен на момент
+      написания 27.07, устарел после коммитов того же дня): `saas-billing/settings.ts:3`
+      `DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = 'mock'`; читается и потребляется —
+      `service.ts:29-44` `resolvePaymentProvider()` выбирает провайдера по этому id из настройки. UI/webhook для
+      **приёма** оплаты по нему по-прежнему не существуют (см. пункты «Checkout UI» и SaaS webhook ниже — те
+      остаются открытыми отдельно).
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Добавить SaaS webhook route под bootstrap principal: load global provider config → verify signature/status».
 - `POST /api/payments/saas-webhook/[provider]` (новый, отдельный от booking-webhook) под bootstrap principal:
       load global config → verify signature/status через существующий `verifyWebhook` → resolve invoice /
@@ -125,6 +156,10 @@
       — НЕ СДЕЛАНО: `find apps/webapp/src -iname "*saas-webhook*"` — пусто. Существующие роуты —
       `api/payments/webhook/[provider]` (booking) и `api/payments/patient-acquiring-webhook/[provider]` — оба
       pre-existing, разные поверхности, не тронуты и не дублированы (это ок — не в scope).
+      — **УТОЧНЕНО 08-01: маршрут по-прежнему отсутствует** (`find` пуст, подтверждено повторно), но сервисная
+      функция, которую он должен вызывать, уже написана и ждёт вызывающего: `saas-billing/service.ts:144-153`
+      `recordSaasBillingProviderEvent()` (санитизирует и пишет provider event идемпотентно). Ни одного
+      продуктового вызывающего у неё нет — то же самое отмечено в `TARIFFS_PAYMENTS_ADMIN_PLAN.md` пункте 7.0.
 - [ ] Checkout UI — **другая зона от Phase 3.** Clinic-facing план/usage/инвойсы/оплата = **`MGMT-08` Plan, usage
       and billing** («Current plan, limits, invoices, recovery | Owner; delegated view/pay if explicitly allowed», см.
       §0a) — внутри обычного tenant-дерева `/app/doctor/**` (не в `(global-admin)` route group из Phase 3). Новая
@@ -142,6 +177,12 @@
 - Успешный capture продлевает `source="paid_subscription"`; expiry/cancel/refund завершает только этот source;
       manual global-admin assignment не перетирается истёкшей подпиской молча.
       — НЕ СДЕЛАНО: зависит от несуществующего billing-модуля.
+      — **УТОЧНЕНО 08-01: модуль уже существует, вызывающего пути capture по-прежнему нет.**
+      `saas-billing/service.ts:114-142` `createRenewalSaasBillingInvoice()` создаёт invoice и провайдерский intent,
+      но ни один route/action её не вызывает (`grep -rn "createRenewalSaasBillingInvoice" apps/webapp/src` — только
+      определение в `service.ts`). `source="paid_subscription"` в схеме объявлен
+      (`SAAS_BILLING_SOURCE_VALUES`), но ни одна строка в продуктовом коде его не устанавливает — только `"manual"`
+      через `assignManualTariff()`. Пункт остаётся открытым по существу.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «До кода зафиксировать subscription state machine минимум для».
 - Деградация при `expired`/`past_due` — сверить с каноном 4-состояний entitlement denial (`upgrade/grace/
 read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md),
