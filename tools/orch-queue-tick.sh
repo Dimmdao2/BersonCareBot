@@ -44,6 +44,20 @@ if ps -eo args | grep -q "[a]gent-run\.mjs.*bcb-wt-$CLONE_NAME"; then
   exit 0
 fi
 
+# 1b. Полоса оркестратора: один агент на всю полосу, а не на клон. Владелец 01.08: «новых не запускай
+# больше чем одного». Потолок в порту общий на машину и соседний сеанс — он про ресурс; здесь про то,
+# сколько ручьёв ведёт ОДИН оркестратор. Полоса задаётся списком её клонов в ORCH_LANE (через пробел);
+# без переменной ограничение не действует, и чужие конвейеры работают как раньше.
+if [ -n "${ORCH_LANE:-}" ]; then
+  for lane_clone in $ORCH_LANE; do
+    BUSY=$(ps -eo args | grep "[a]gent-run\.mjs.*bcb-wt-$lane_clone " | sed 's/.*--run-id //' | head -1)
+    if [ -n "$BUSY" ]; then
+      say "пропуск: в полосе занят клон $lane_clone ($BUSY) — полоса ведёт по одному агенту"
+      exit 0
+    fi
+  done
+fi
+
 CLONE="/home/dev/dev-projects/bcb-wt-$CLONE_NAME"
 # 2. Дерево клона чистое?
 if [ -n "$(git -C "$CLONE" status --porcelain 2>/dev/null)" ]; then
@@ -85,7 +99,35 @@ say "запуск $RUN_ID ($ROLE, ${ORCH_PROVIDER:-codex}/$MODEL/$EFFORT) по �
 # Отказ гейта строку не расходует.
 if ! OUT=$(ORCH_DRY=1 tools/orch-launch.sh "$ROLE" "$CLONE_NAME" "$RUN_ID" "$MODEL" "$EFFORT" "$BRIEF" "$SLICE" 2>&1); then
   say "ОТКАЗ порта (гейты): $OUT"
-  notify_lead "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID. $OUT"
+  # Отказ, который повторяется, ожиданием не лечится. Раньше такая строка висела первой в очереди и
+  # каждые десять минут писала лиду одну и ту же жалобу: конвейер стоял, а выглядело как живая работа, и
+  # настоящие сообщения тонули в повторах. Третий одинаковый отказ подряд откладывает строку —
+  # очередь едет дальше, лид получает ОДНО сообщение и сам решает, чинить бриф или снять работу.
+  STATE="$REPO/runs/.queue-refusals-$CLONE_NAME"
+  PREV_ID=$(cut -d' ' -f1 "$STATE" 2>/dev/null || true)
+  PREV_N=$(cut -d' ' -f2 "$STATE" 2>/dev/null || true)
+  if [ "$PREV_ID" = "$RUN_ID" ] && [ -n "$PREV_N" ]; then N=$((PREV_N + 1)); else N=1; fi
+  printf '%s %s\n' "$RUN_ID" "$N" > "$STATE"
+  if [ "$N" -ge 3 ]; then
+    REASON=$(printf '%s' "$OUT" | head -1)
+    python3 - "$QUEUE" "$LINE" "$REASON" <<'PY'
+import sys, time
+q, line, reason = sys.argv[1], sys.argv[2], sys.argv[3]
+stamp = '# отложено ' + time.strftime('%Y-%m-%d %H:%M') + ' (гейт отказал 3 раза: ' + reason + ') | '
+out, done = [], False
+for raw in open(q).read().split('\n'):
+    if not done and raw == line and not raw.lstrip().startswith('#'):
+        out.append(stamp + raw); done = True
+    else:
+        out.append(raw)
+open(q, 'w').write('\n'.join(out))
+PY
+    rm -f "$STATE"
+    say "ОТЛОЖЕНО $RUN_ID: третий одинаковый отказ подряд, строка снята с очереди"
+    notify_lead "Конвейер $CLONE_NAME: $RUN_ID отложен — гейт отказал три раза подряд, ожидание не помогает. $REASON"
+  else
+    notify_lead "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID (отказ $N из 3). $OUT"
+  fi
   exit 0
 fi
 
@@ -117,7 +159,28 @@ if OUT=$(tools/orch-launch.sh "$ROLE" "$CLONE_NAME" "$RUN_ID" "$MODEL" "$EFFORT"
   echo "$OUT"
 else
   RC=$?
-  say "прогон $RUN_ID завершился ненулевым кодом ($RC): $OUT"
   echo "$OUT"
-  notify_lead "Конвейер $CLONE_NAME: прогон $RUN_ID завершился с кодом $RC — разобрать лог."
+  # Отказ гейта на РЕАЛЬНОМ запуске (агент не стартовал) — строку надо вернуть в очередь, иначе работа
+  # теряется молча. Так и вышло 01.08: сухая проверка потолка прошла, а между ней и запуском слот занял
+  # тик соседнего клона — строка осталась помеченной «взято», агент не стартовал, аудит пропал.
+  if printf '%s' "$OUT" | grep -q 'ОТКАЗ:'; then
+    python3 - "$QUEUE" "$LINE" <<'PY'
+import sys
+q, line = sys.argv[1], sys.argv[2]
+src = open(q).read().split('\n')
+out, done = [], False
+for raw in src:
+    if not done and raw.lstrip().startswith('# взято ') and raw.endswith(line):
+        out.append(line)
+        done = True
+    else:
+        out.append(raw)
+open(q, 'w').write('\n'.join(out))
+PY
+    say "ОТКАЗ порта при запуске $RUN_ID — строка возвращена в очередь: $OUT"
+    notify_lead "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID, строка возвращена в очередь. $OUT"
+  else
+    say "прогон $RUN_ID завершился ненулевым кодом ($RC): $OUT"
+    notify_lead "Конвейер $CLONE_NAME: прогон $RUN_ID завершился с кодом $RC — разобрать лог."
+  fi
 fi
