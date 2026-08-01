@@ -7,6 +7,9 @@
 Product base — свежий descendant `wt/single-entry-integration`, где уже принята migration `0305` с frozen
 paid-period snapshot. Migration `0307` забронирована на общей доске; `0306` принадлежит V9б S02.
 
+Источник оракула: `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5.6 — «повышение сразу; понижение с начала следующего
+расчётного периода», и owner D-9 — «в этом цикле тариф уже оплачен».
+
 ## Последствие
 
 Сейчас достижимая platform-admin смена немедленно переписывает действующий тариф, snapshot и даты периода.
