@@ -73,9 +73,9 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
   async function cleanup(): Promise<void> {
     await db.execute(sql`DELETE FROM public.saas_billing_subscriptions WHERE id = ${SUBSCRIPTION}::uuid`);
     await db.execute(sql`DELETE FROM public.saas_billing_accounts WHERE id = ${ACCOUNT}::uuid`);
-    await db.execute(sql`ALTER TABLE public.be_organizations DISABLE TRIGGER ALL`);
+    await db.execute(sql`ALTER TABLE public.be_organizations DISABLE TRIGGER USER`);
     await db.execute(sql`DELETE FROM public.be_organizations WHERE id = ${ORG}::uuid`);
-    await db.execute(sql`ALTER TABLE public.be_organizations ENABLE TRIGGER ALL`);
+    await db.execute(sql`ALTER TABLE public.be_organizations ENABLE TRIGGER USER`);
     await db.execute(sql`DELETE FROM public.saas_tariffs WHERE id = ${TARIFF}::uuid`);
   }
 
@@ -107,12 +107,12 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
     // a BYPASSRLS session (it runs as the trigger function's non-BYPASSRLS owner) — same obstacle
     // `orgBrandRevisionGuard.devDb.integration.test.ts` does not have to work around because it
     // never inserts an organization row itself.
-    await db.execute(sql`ALTER TABLE public.be_organizations DISABLE TRIGGER ALL`);
+    await db.execute(sql`ALTER TABLE public.be_organizations DISABLE TRIGGER USER`);
     await db.execute(
       sql`INSERT INTO public.be_organizations (id, title, tariff_id, is_active)
           VALUES (${ORG}::uuid, 'Ч2.12 proof clinic', ${TARIFF}::uuid, true)`,
     );
-    await db.execute(sql`ALTER TABLE public.be_organizations ENABLE TRIGGER ALL`);
+    await db.execute(sql`ALTER TABLE public.be_organizations ENABLE TRIGGER USER`);
     await db.execute(
       sql`INSERT INTO public.saas_billing_accounts (id, organization_id)
           VALUES (${ACCOUNT}::uuid, ${ORG}::uuid)`,
