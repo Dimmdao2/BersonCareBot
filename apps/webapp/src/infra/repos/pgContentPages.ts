@@ -2,74 +2,23 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import type {
+  ContentPageLifecyclePatch,
+  ContentPageRow,
+  ContentPagesPort,
+  ContentPageUpsertInput,
+  ListContentPagesBySectionOpts,
+} from '@/modules/content-catalog/ports';
 import { contentPages, contentSections } from '../../../db/schema/schema';
 import { courses as coursesTable } from '../../../db/schema/courses';
 
-export type ContentPageRow = {
-  id: string;
-  organizationId?: string | null;
-  section: string;
-  slug: string;
-  title: string;
-  summary: string;
-  /** Primary stored content (Markdown). */
-  bodyMd: string;
-  /** Legacy HTML; used when `bodyMd` is empty. */
-  bodyHtml: string;
-  sortOrder: number;
-  isPublished: boolean;
-  /** Если true — только tier patient. */
-  requiresAuth: boolean;
-  videoUrl: string | null;
-  videoType: string | null;
-  imageUrl: string | null;
-  archivedAt: string | null;
-  deletedAt: string | null;
-  /** Промо-материал: FK на courses(id), null если не связано. */
-  linkedCourseId: string | null;
-};
-
-export type ListContentPagesBySectionOpts = {
-  /** Если false — только страницы без `requires_auth` (каталог для гостя). @default true */
-  viewAuthOnlyPages?: boolean;
-};
-
-export type ContentPageLifecyclePatch = {
-  isPublished?: boolean;
-  archivedAt?: string | null;
-  deletedAt?: string | null;
-  requiresAuth?: boolean;
-};
-
-export type ContentPageUpsertInput = Omit<
+export type {
+  ContentPageLifecyclePatch,
   ContentPageRow,
-  'id' | 'archivedAt' | 'deletedAt' | 'linkedCourseId'
-> & {
-  id?: string;
-  linkedCourseId?: string | null;
-};
-
-export type ContentPagesPort = {
-  listBySection: (
-    section: string,
-    opts?: ListContentPagesBySectionOpts,
-  ) => Promise<ContentPageRow[]>;
-  getBySlug: (
-    slug: string,
-    options?: { organizationId?: string },
-  ) => Promise<ContentPageRow | null>;
-  getById: (id: string, options?: { organizationId?: string }) => Promise<ContentPageRow | null>;
-  listAll: () => Promise<ContentPageRow[]>;
-  upsert: (page: ContentPageUpsertInput) => Promise<string>;
-  /** Полное обновление строки по `id` (в т.ч. смена `section`); без вставки новой строки. */
-  updateFull: (id: string, page: ContentPageUpsertInput) => Promise<void>;
-  updateLifecycle: (id: string, patch: ContentPageLifecyclePatch) => Promise<void>;
-  /** Устанавливает sort_order по порядку id (0..n-1) только для строк с данным section. */
-  reorderInSection: (section: string, orderedIds: string[]) => Promise<void>;
-  countPagesWithSectionSlug: (sectionSlug: string) => Promise<number>;
-  /** Метаданные по списку id (для сводок и т.п.); дубликаты id игнорируются. */
-  listMetaByIds: (ids: string[]) => Promise<Array<{ id: string; title: string; slug: string }>>;
-};
+  ContentPagesPort,
+  ContentPageUpsertInput,
+  ListContentPagesBySectionOpts,
+} from '@/modules/content-catalog/ports';
 
 const patientVisible = and(
   eq(contentPages.isPublished, true),

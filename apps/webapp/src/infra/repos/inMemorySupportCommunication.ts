@@ -4,7 +4,7 @@ import type {
   SupportConversationMessageRow,
   SupportQuestionRow,
   SupportDeliveryEventRow,
-} from './pgSupportCommunication';
+} from '@/modules/messaging/ports';
 import { isSupportNotificationMessage } from '@/shared/lib/supportMessageKinds';
 
 const questionMessageTexts = new Map<string, string>();

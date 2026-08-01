@@ -121,6 +121,7 @@ export async function GET(request: Request) {
     userId: resolved.userId,
     displayNameHint: profile.name?.trim() || profile.email || profile.sub,
     authMethod: 'google_oauth',
+    userByPhone: deps.userByPhone,
   });
 
   if (!done.ok) {
