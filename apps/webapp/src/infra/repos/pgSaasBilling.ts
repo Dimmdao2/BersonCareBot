@@ -85,6 +85,25 @@ function platformSummaryFilterConds(filter: SaasBillingPlatformSummaryFilter) {
   return conds;
 }
 
+/**
+ * §2.12 — the content a paid period freezes: a COPY of the WHOLE live `saas_tariffs` row
+ * (`to_jsonb`), taken at the moment the period starts (first payment, renewal payment, or manual
+ * assignment — every write site below). Never a chosen list of fields: `to_jsonb` serializes
+ * whatever columns the row has right now, so a tariff column added later is captured automatically,
+ * with no field list to keep in sync here.
+ */
+async function readTariffSnapshotForPeriod(
+  tx: Transaction,
+  tariffId: string,
+): Promise<Record<string, unknown>> {
+  const result = await tx.execute(
+    sql`SELECT to_jsonb(tariff) AS snapshot FROM public.saas_tariffs AS tariff WHERE tariff.id = ${tariffId}::uuid`,
+  );
+  const row = result.rows[0] as { snapshot: Record<string, unknown> } | undefined;
+  if (!row) throw new Error('saas_billing_tariff_not_found');
+  return row.snapshot;
+}
+
 async function upsertSaasBillingAccount(
   tx: Transaction,
   organizationId: string,
@@ -368,9 +387,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                   cancelledAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                   // Unassigning ends the paid period; leaving it behind would keep feeding the
-                  // ladder an anchor for a tariff the organization no longer has.
+                  // ladder an anchor for a tariff the organization no longer has. The frozen
+                  // content goes with it — there is no period left for it to describe.
                   currentPeriodStartsAt: null,
                   currentPeriodEndsAt: null,
+                  tariffSnapshot: null,
                 })
                 .where(
                   and(
@@ -381,6 +402,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               return;
             }
             const account = await upsertSaasBillingAccount(tx, organizationId);
+            // §2.12 — a manual platform-admin assignment always opens a paid period exactly like a
+            // real payment (§5a item 7.0 already treats the two identically for the ladder anchor),
+            // so it freezes the tariff's content the same way: taken now, kept until this period ends.
+            const tariffSnapshot = period ? await readTariffSnapshotForPeriod(tx, tariffId) : null;
             const [row] = await tx
               .insert(saasBillingSubscriptions)
               .values({
@@ -392,6 +417,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 lifecycleState: 'active',
                 currentPeriodStartsAt: period?.startsAt ?? null,
                 currentPeriodEndsAt: period?.endsAt ?? null,
+                tariffSnapshot,
               })
               .onConflictDoUpdate({
                 target: [saasBillingSubscriptions.organizationId, saasBillingSubscriptions.source],
@@ -403,6 +429,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                   updatedAt: new Date().toISOString(),
                   currentPeriodStartsAt: period?.startsAt ?? null,
                   currentPeriodEndsAt: period?.endsAt ?? null,
+                  tariffSnapshot,
                 },
               })
               .returning({ id: saasBillingSubscriptions.id });
@@ -797,24 +824,43 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     },
 
     async activateSaasBillingSubscriptionPeriod(input) {
-      const [row] = await getDrizzle()
-        .update(saasBillingSubscriptions)
-        .set({
-          status: 'active',
-          lifecycleState: 'active',
-          cancelledAt: null,
-          currentPeriodStartsAt: input.periodStartsAt,
-          currentPeriodEndsAt: input.periodEndsAt,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(
-          and(
-            eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
-            eq(saasBillingSubscriptions.organizationId, input.organizationId),
-          ),
-        )
-        .returning({ id: saasBillingSubscriptions.id });
-      if (!row) throw new Error('saas_billing_subscription_not_found');
+      await getDrizzle().transaction(async (tx) => {
+        const [subscription] = await tx
+          .select({ tariffId: saasBillingSubscriptions.tariffId })
+          .from(saasBillingSubscriptions)
+          .where(
+            and(
+              eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+              eq(saasBillingSubscriptions.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
+        if (!subscription) throw new Error('saas_billing_subscription_not_found');
+        // §2.12 — captured fresh on EVERY activation (first payment and every renewal alike): a
+        // renewal starts a NEW paid period, which freezes whatever the tariff looks like now, not
+        // the content the previous period froze.
+        const tariffSnapshot = await readTariffSnapshotForPeriod(tx, subscription.tariffId);
+
+        const [row] = await tx
+          .update(saasBillingSubscriptions)
+          .set({
+            status: 'active',
+            lifecycleState: 'active',
+            cancelledAt: null,
+            currentPeriodStartsAt: input.periodStartsAt,
+            currentPeriodEndsAt: input.periodEndsAt,
+            tariffSnapshot,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+              eq(saasBillingSubscriptions.organizationId, input.organizationId),
+            ),
+          )
+          .returning({ id: saasBillingSubscriptions.id });
+        if (!row) throw new Error('saas_billing_subscription_not_found');
+      });
     },
 
     async reserveSaasBillingRefund(input) {

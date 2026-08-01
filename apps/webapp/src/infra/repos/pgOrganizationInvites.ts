@@ -148,33 +148,32 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           // (never the per-org seat-limit override, which only ever moves the FREE included count):
           // a NULL price keeps §5.2's hard block; a configured price allows this call through once
           // `input.confirmedSeatOveragePriceMinor` matches it exactly.
+          // §2.12 — `effective_tariff` reads through `app.saas_billing_effective_tariff`, the same
+          // frozen/live switch every other reader of tariff content goes through: a live paid period
+          // holds included_seats/overage price to what was configured at payment time.
           const capacity = await runWebappPgText<{
             limit_value: number | null;
             used_value: number;
             overage_price_minor: number | null;
             overage_currency: string | null;
           }>(
-            `WITH seat_limit AS (
+            `WITH effective_tariff AS (
+               SELECT t.included_seats, t.additional_seat_price_minor, t.currency
+               FROM be_organizations o
+               LEFT JOIN LATERAL app.saas_billing_effective_tariff(o.id, o.tariff_id) AS t ON true
+               WHERE o.id = $1
+             ), seat_limit AS (
                SELECT COALESCE(
                    (SELECT eo.seat_limit_override FROM saas_org_entitlement_overrides eo
                     WHERE eo.organization_id = $1 AND eo.mechanic = 'clinic_team'),
-                   (SELECT t.included_seats
-                    FROM be_organizations o
-                    JOIN saas_tariffs t ON t.id = o.tariff_id
-                   WHERE o.id = $1)
+                   (SELECT included_seats FROM effective_tariff)
                  ) AS value
              )
              SELECT
                (SELECT value FROM seat_limit)::int AS limit_value,
                ${CLINIC_SEAT_USAGE_SQL} AS used_value,
-               (SELECT t.additional_seat_price_minor
-                FROM be_organizations o
-                JOIN saas_tariffs t ON t.id = o.tariff_id
-                WHERE o.id = $1) AS overage_price_minor,
-               (SELECT t.currency
-                FROM be_organizations o
-                JOIN saas_tariffs t ON t.id = o.tariff_id
-                WHERE o.id = $1) AS overage_currency`,
+               (SELECT additional_seat_price_minor FROM effective_tariff) AS overage_price_minor,
+               (SELECT currency FROM effective_tariff) AS overage_currency`,
             [input.organizationId, input.invitedEmail],
             tx,
           );
