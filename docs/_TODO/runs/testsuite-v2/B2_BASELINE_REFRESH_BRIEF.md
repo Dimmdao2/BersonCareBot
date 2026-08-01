@@ -63,5 +63,6 @@ pnpm run check:saas-a0-greenfield-baseline
 - в отчёте назван `sourceCommit` нового эталона и перечислено, что именно изменилось в манифесте;
 - отчёт `docs/_TODO/runs/testsuite-v2/B2_BASELINE_REFRESH_REPORT.md`, раздел «НЕ СДЕЛАНО» обязателен.
 
-**Правила:** `.cursor/rules/host-psql-database-url.mdc`, `.cursor/rules/dev-prod-isolation-no-real-creds.mdc`,
+**Правила:** [`AGENTS.md` §6](../../../../AGENTS.md#6-host-postgresql-и-database_url),
+[§1b](../../../../AGENTS.md#1b-безопасность-dev-среды-изоляция-от-прод-и-реальных-каналов),
 `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`, `.cursor/rules/test-execution-policy.md`.

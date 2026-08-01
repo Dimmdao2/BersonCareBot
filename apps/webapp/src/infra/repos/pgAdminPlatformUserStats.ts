@@ -1,4 +1,4 @@
-import { getPool } from '@/infra/db/client';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import { appendSqlExcludeUserIds } from '@/modules/analytics/analyticsAudience';
 import type { AdminPlatformUserStatsPort } from '@/modules/admin-platform-stats/ports';
 import type { QueryResultRow } from 'pg';
@@ -11,13 +11,8 @@ function withPuExclusion(
   return appendSqlExcludeUserIds(sql, 'pu.id', excludedUserIds, params);
 }
 
-/** `pool.query` напрямую: uuid[] в `<> ALL($n::uuid[])` ломается через drizzle `sqlToQuery`. */
-async function queryRows<T extends QueryResultRow>(
-  pool: ReturnType<typeof getPool>,
-  sql: string,
-  params: unknown[],
-): Promise<T[]> {
-  const result = await pool.query<T>(sql, params);
+async function queryRows<T extends QueryResultRow>(sql: string, params: unknown[]): Promise<T[]> {
+  const result = await runWebappPgText<T>(sql, params);
   return result.rows ?? [];
 }
 
@@ -37,8 +32,6 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
       dayKeys: _dayKeys,
       excludedUserIds = [],
     }) {
-      const pool = getPool();
-
       const totRegQ = withPuExclusion(
         `SELECT count(*)::text AS c
            FROM platform_users pu
@@ -88,10 +81,10 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
       const byMergeQ = { sql: `${byMergeWhere.sql} GROUP BY 1`, params: byMergeWhere.params };
 
       const [totRegistrations, totMerge, byRegistrations, byMerge] = await Promise.all([
-        queryRows<{ c: string }>(pool, totRegQ.sql, totRegQ.params),
-        queryRows<{ c: string }>(pool, totMergeQ.sql, totMergeQ.params),
-        queryRows<{ d: string; c: number }>(pool, byRegQ.sql, byRegQ.params),
-        queryRows<{ d: string; c: number }>(pool, byMergeQ.sql, byMergeQ.params),
+        queryRows<{ c: string }>(totRegQ.sql, totRegQ.params),
+        queryRows<{ c: string }>(totMergeQ.sql, totMergeQ.params),
+        queryRows<{ d: string; c: number }>(byRegQ.sql, byRegQ.params),
+        queryRows<{ d: string; c: number }>(byMergeQ.sql, byMergeQ.params),
       ]);
 
       const registrationsTotal = Number.parseInt(totRegistrations[0]?.c ?? '0', 10) || 0;
@@ -115,8 +108,6 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
       endExclusiveUtcIso,
       excludedUserIds = [],
     }) {
-      const pool = getPool();
-
       const subscriberFrom = `FROM platform_users pu
              INNER JOIN user_channel_bindings ucb ON ucb.user_id = pu.id
                AND ucb.channel_code IN ('telegram', 'max')
@@ -156,8 +147,8 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
            GROUP BY 1`;
 
       const [beforeRow, byDayRows] = await Promise.all([
-        queryRows<{ c: string }>(pool, beforeSql, beforeParams),
-        queryRows<{ d: string; c: number }>(pool, byDaySql, byDayParams),
+        queryRows<{ c: string }>(beforeSql, beforeParams),
+        queryRows<{ d: string; c: number }>(byDaySql, byDayParams),
       ]);
 
       const countBeforeStart = Number.parseInt(beforeRow[0]?.c ?? '0', 10) || 0;

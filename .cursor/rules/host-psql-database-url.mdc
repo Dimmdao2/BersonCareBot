@@ -1,6 +1,0 @@
----
-description: Host psql/DATABASE_URL — только полностью рабочие команды с source env (никогда голый psql)
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §6 «Host: PostgreSQL и DATABASE_URL». Текст здесь не дублируется.

@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 type OperatorAttemptParams = {
   intentEventId?: unknown;
@@ -22,11 +24,8 @@ export async function recordOperatorDeliveryAttempt(
   const attempt =
     typeof params.attempt === 'number' && Number.isInteger(params.attempt) ? params.attempt : 0;
   const reason = typeof params.reason === 'string' ? params.reason : null;
-  await db.query('SELECT app.record_operator_delivery_attempt($1, $2, $3, $4, $5)', [
-    eventId,
-    channel,
-    status,
-    attempt,
-    reason,
-  ]);
+  await runIntegratorSql(
+    db,
+    sql`SELECT app.record_operator_delivery_attempt(${eventId}, ${channel}, ${status}, ${attempt}, ${reason})`,
+  );
 }

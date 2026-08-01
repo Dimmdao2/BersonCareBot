@@ -1,6 +1,0 @@
----
-description: Runtime config policy: integration keys and webhook URIs in DB (admin system_settings), not env.
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §3 «Runtime config: env vs database». Текст здесь не дублируется.

@@ -1,6 +1,0 @@
----
-description: Doctor UI — reuse style guide, doctorVisual and shared primitives before custom chrome
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §16 «Doctor UI Shared Primitives». Текст здесь не дублируется.

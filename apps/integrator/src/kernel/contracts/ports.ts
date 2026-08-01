@@ -24,7 +24,6 @@ export type DbReadQueryType =
   | 'conversation.openByIdentity'
   | 'identity.idByResourceAndExternalId'
   | 'platformUser.idByChannelBinding'
-  | 'notifications.settings'
   | 'booking.byExternalId'
   | 'booking.activeByUser'
   | 'stats.adminDashboard'
@@ -53,7 +52,6 @@ export type DbWriteMutationType =
   | 'question.create'
   | 'question.message.add'
   | 'question.markAnswered'
-  | 'notifications.update'
   | 'reminders.rule.upsert'
   | 'reminders.occurrence.upsertPlanned'
   | 'reminders.occurrence.markQueued'
@@ -263,29 +261,6 @@ export type ChannelUserPort = {
   getUserState(channelUserId: string): Promise<string | null>;
   tryAdvanceLastUpdateId(channelUserId: number, updateId: number): Promise<boolean>;
   tryConsumeStart(channelUserId: number): Promise<boolean>;
-};
-
-/** Настройки уведомлений пользователя. */
-export type NotificationSettings = {
-  notify_spb: boolean;
-  notify_msk: boolean;
-  notify_online: boolean;
-  notify_bookings: boolean;
-};
-
-export type NotificationSettingsPatch = {
-  notify_spb?: boolean;
-  notify_msk?: boolean;
-  notify_online?: boolean;
-  notify_bookings?: boolean;
-};
-
-export type NotificationsPort = {
-  getNotificationSettings(channelUserId: number): Promise<NotificationSettings | null>;
-  updateNotificationSettings(
-    channelUserId: number,
-    settings: NotificationSettingsPatch,
-  ): Promise<void>;
 };
 
 export type ContentCatalogPort = {

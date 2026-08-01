@@ -17,7 +17,6 @@ import type {
 import {} from '../reminders/policy.js';
 import { handleBooking } from './handlers/booking.js';
 import { handleDelivery } from './handlers/delivery.js';
-import { handleNotifications } from './handlers/notifications.js';
 import { handleReminders } from './handlers/reminders.js';
 import {
   buildDoctorPatientMessageNotificationIntents,
@@ -66,7 +65,6 @@ import {
 } from '../../../shared/phoneLinkUserMessages.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.event.insert']);
-const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
 const REMINDER_TYPES = new Set<string>([
   'reminders.planDue',
   'reminders.dispatchDue',
@@ -369,7 +367,6 @@ export async function executeAction(
 ): Promise<ActionResult> {
   const fullDeps: ExecutorDeps = { ...deps, executeAction };
   if (BOOKING_TYPES.has(action.type)) return handleBooking(action, ctx, fullDeps);
-  if (NOTIFICATION_TYPES.has(action.type)) return handleNotifications(action, ctx, fullDeps);
   if (REMINDER_TYPES.has(action.type)) return handleReminders(action, ctx, fullDeps);
   if (DELIVERY_TYPES.has(action.type)) return handleDelivery(action, ctx, fullDeps);
 

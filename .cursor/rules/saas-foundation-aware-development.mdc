@@ -1,6 +1,0 @@
----
-description: New code and schema changes must preserve the SaaS Foundation path: explicit organization/specialist ownership, no unscoped data by default.
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §4a «SaaS Foundation-aware development». Текст здесь не дублируется.
