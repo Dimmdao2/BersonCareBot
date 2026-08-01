@@ -14,6 +14,7 @@ export type SaasBillingSubscription = {
   organizationId: string;
   saasBillingAccountId: string;
   tariffId: string;
+  pendingTariffId: string | null;
   source: SaasBillingSource;
   status: SaasBillingSubscriptionStatus;
   lifecycleState: OrgCommercialLifecycleState;
@@ -42,6 +43,7 @@ export type SaasBillingInvoice = {
   amountMinor: number;
   currency: string;
   tariffBillingPeriod: 'day' | 'month' | 'year';
+  tariffSnapshot: Record<string, unknown> | null;
   servicePeriodStartsAt: string;
   servicePeriodEndsAt: string;
   /** К4 — the invoice's own payment deadline; `null` for auto/renewal invoices, which never expire. */
@@ -203,6 +205,7 @@ export type SaasBillingSubscriptionDueForRenewal = {
   saasBillingSubscriptionId: string;
   organizationId: string;
   tariffId: string;
+  pendingTariffId: string | null;
   billingPeriod: SaasBillingPeriod;
   /** The end of the period just paid — the new period's `servicePeriodStartsAt`, never `now()`. */
   currentPeriodEndsAt: string;
@@ -255,6 +258,9 @@ export type SaasBillingManualAssignmentState = {
     id: string;
     tariffId: string;
     status: SaasBillingSubscriptionStatus;
+    currentPeriodStartsAt: string | null;
+    currentPeriodEndsAt: string | null;
+    pendingTariffId: string | null;
   } | null;
 };
 
@@ -270,6 +276,7 @@ export type SaasBillingManualAssignmentTransactionPort = {
     tariffId: string | null;
     /** §5a item 7.0 — the paid period this assignment grants; `null` only when unassigning. */
     period: { startsAt: string; endsAt: string } | null;
+    pendingTariffId?: string | null;
   }): Promise<void>;
   updateOrganizationTariffAssignment(input: {
     organizationId: string;
@@ -390,6 +397,8 @@ export type SaasBillingRepositoryPort = {
     saasBillingSubscriptionId: string;
     tariffId: string;
     billingPeriod: SaasBillingPeriod;
+    /** Existing paid period is the renewal anchor; `null` only before the first payment. */
+    currentPeriodEndsAt: string | null;
     /** К6 — lets the caller decide whether THIS payment still needs `save_payment_method: true`. */
     savedPaymentMethodId: string | null;
   }>;
@@ -403,6 +412,9 @@ export type SaasBillingRepositoryPort = {
     saasBillingSubscriptionId: string;
     periodStartsAt: string;
     periodEndsAt: string;
+    /** The paid invoice, not the mutable live tariff table, authorizes the new period. */
+    tariffId: string;
+    tariffSnapshot: Record<string, unknown> | null;
   }): Promise<void>;
 
   /**

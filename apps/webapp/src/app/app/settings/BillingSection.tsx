@@ -80,6 +80,13 @@ export function BillingSection({
           </span>
         </div>
         <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
+        {billing.subscriptions
+          .filter((subscription) => subscription.pendingTariffId && subscription.currentPeriodEndsAt)
+          .map((subscription) => (
+            <p key={subscription.id} className="text-sm text-muted-foreground">
+              Новый тариф вступит {new Date(subscription.currentPeriodEndsAt as string).toLocaleDateString('ru-RU')}
+            </p>
+          ))}
         {tariffName !== null && <PayTariffButton />}
         {tariffName !== null && (
           <AutopayToggleButton

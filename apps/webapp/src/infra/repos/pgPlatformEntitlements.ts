@@ -248,6 +248,7 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
   assignManualTariff(input: {
     organizationId: string;
     tariffId: string | null;
+    applyAtNextPeriod?: boolean;
     audit: PlatformMutationAudit;
   }): Promise<void>;
 }): PlatformEntitlementsPort {
@@ -277,6 +278,8 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
             .select({
               organizationId: saasBillingSubscriptions.organizationId,
               tariffId: saasBillingSubscriptions.tariffId,
+              pendingTariffId: saasBillingSubscriptions.pendingTariffId,
+              currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
             })
             .from(saasBillingSubscriptions)
             .where(
@@ -297,6 +300,14 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         const manualTariffByOrg = new Map(
           manualSaasBillingRows.map((row) => [row.organizationId, row.tariffId]),
         );
+        const scheduledTariffByOrg = new Map(
+          manualSaasBillingRows
+            .filter((row) => row.pendingTariffId !== null && row.currentPeriodEndsAt !== null)
+            .map((row) => [
+              row.organizationId,
+              { tariffId: row.pendingTariffId as string, effectiveAt: row.currentPeriodEndsAt as string },
+            ]),
+        );
         return organizations.map((organization) => {
           const trial = trialByOrg.get(organization.id) ?? null;
           const effectiveAccess = effectiveAccessForPlatform({
@@ -307,6 +318,7 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           return {
             ...organization,
             manualTariffId: manualTariffByOrg.get(organization.id) ?? null,
+            scheduledTariff: scheduledTariffByOrg.get(organization.id) ?? null,
             effectiveAccess,
             overrides: overridesByOrg.get(organization.id) ?? [],
             trial: trial
@@ -436,12 +448,13 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
       });
     },
 
-    async assignTariff(organizationId, tariffId, audit) {
+    async assignTariff(organizationId, tariffId, audit, options) {
       assertPlatformOperationsPrincipal();
       if (!dependencies) throw new Error('saas_billing_service_required');
       await dependencies.assignManualTariff({
         organizationId,
         tariffId,
+        applyAtNextPeriod: options?.applyAtNextPeriod,
         audit,
       });
     },

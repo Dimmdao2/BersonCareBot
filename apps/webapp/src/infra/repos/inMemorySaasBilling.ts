@@ -174,14 +174,21 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             },
             activeTrial: null,
             manualSaasBillingSubscription: manual
-              ? { id: manual.id, tariffId: manual.tariffId, status: manual.status }
+              ? {
+                  id: manual.id,
+                  tariffId: manual.tariffId,
+                  status: manual.status,
+                  currentPeriodStartsAt: manual.currentPeriodStartsAt,
+                  currentPeriodEndsAt: manual.currentPeriodEndsAt,
+                  pendingTariffId: manual.pendingTariffId,
+                }
               : null,
           };
         },
         async requireActiveTariff() {
           return { billingPeriod: 'month' as const };
         },
-        async setManualSaasBillingSubscription({ organizationId, tariffId, period }) {
+        async setManualSaasBillingSubscription({ organizationId, tariffId, period, pendingTariffId = null }) {
           const key = subscriptionKey(organizationId, 'manual');
           if (tariffId === null) {
             const current = rows.get(key);
@@ -201,6 +208,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             organizationId,
             saasBillingAccountId: current?.saasBillingAccountId ?? crypto.randomUUID(),
             tariffId,
+            pendingTariffId,
             source: 'manual',
             status: 'active',
             lifecycleState: 'active',
@@ -243,6 +251,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         amountMinor: 0,
         currency: 'RUB',
         tariffBillingPeriod: 'month',
+        tariffSnapshot: null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
         expiresAt: null,
@@ -302,6 +311,19 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       }
       const row: SaasBillingInvoice = { ...current, status: 'paid' };
       invoices.set(row.id, row);
+      const entry = [...rows.entries()].find(([, subscription]) => subscription.id === row.saasBillingSubscriptionId);
+      if (entry) {
+        const [key, subscription] = entry;
+        rows.set(key, {
+          ...subscription,
+          tariffId: row.tariffId,
+          pendingTariffId: null,
+          status: 'active',
+          currentPeriodStartsAt: row.servicePeriodStartsAt,
+          currentPeriodEndsAt: row.servicePeriodEndsAt,
+        });
+        organizationTariffs.set(row.organizationId, row.tariffId);
+      }
       return row;
     },
 
@@ -322,6 +344,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         amountMinor: input.amountMinor,
         currency: input.currency,
         tariffBillingPeriod: 'month',
+        tariffSnapshot: null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
         expiresAt: input.expiresAt,
@@ -355,6 +378,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         organizationId,
         saasBillingAccountId: current?.saasBillingAccountId ?? crypto.randomUUID(),
         tariffId,
+        pendingTariffId: current?.pendingTariffId ?? null,
         source: 'paid_subscription',
         status: current?.status ?? 'pending_payment',
         lifecycleState: current?.lifecycleState ?? 'active',
@@ -372,8 +396,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       return {
         saasBillingSubscriptionId: row.id,
         tariffId,
-        billingPeriod: 'month' as const,
-        savedPaymentMethodId: row.savedPaymentMethodId,
+          billingPeriod: 'month' as const,
+          savedPaymentMethodId: row.savedPaymentMethodId,
+          currentPeriodEndsAt: row.currentPeriodEndsAt,
       };
     },
 
@@ -391,6 +416,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           saasBillingSubscriptionId: row.id,
           organizationId: row.organizationId,
           tariffId: row.tariffId,
+          pendingTariffId: row.pendingTariffId,
           // No tariff-detail store in this fake (see `createSaasBillingInvoice` above) — the real
           // (pg) repository is what the renewal tick actually runs against.
           billingPeriod: 'month' as const,
@@ -420,12 +446,13 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         organizationId: authority.organizationId,
         saasBillingAccountId: authority.saasBillingAccountId,
         saasBillingSubscriptionId: authority.id,
-        tariffId: authority.tariffId,
+        tariffId: authority.pendingTariffId ?? authority.tariffId,
         tariffName: 'In-memory tariff',
         description: null,
         amountMinor: 0,
         currency: 'RUB',
         tariffBillingPeriod: 'month',
+        tariffSnapshot: null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
         expiresAt: null,
@@ -444,6 +471,8 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       saasBillingSubscriptionId,
       periodStartsAt,
       periodEndsAt,
+      tariffId,
+      tariffSnapshot: _tariffSnapshot,
     }) {
       const entry = [...rows.entries()].find(
         ([, row]) => row.id === saasBillingSubscriptionId && row.organizationId === organizationId,
@@ -452,6 +481,8 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       const [key, current] = entry;
       rows.set(key, {
         ...current,
+        tariffId,
+        pendingTariffId: null,
         status: 'active',
         lifecycleState: 'active',
         currentPeriodStartsAt: periodStartsAt,

@@ -2150,6 +2150,13 @@
       "when": 1793539230007,
       "tag": "0306_v9b_capability_seams_local",
       "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1793539230008,
+      "tag": "0307_tariff_change_paid_period_local",
+      "breakpoints": true
     }
   ]
 }

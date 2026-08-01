@@ -18,6 +18,7 @@ const invoice: SaasBillingInvoice = {
   amountMinor: 10_000,
   currency: 'RUB',
   tariffBillingPeriod: 'month',
+  tariffSnapshot: null,
   servicePeriodStartsAt: '2026-08-01T00:00:00.000Z',
   servicePeriodEndsAt: '2026-09-01T00:00:00.000Z',
   expiresAt: null,
@@ -121,7 +122,14 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
   function assignmentTransaction(
     billingPeriod: 'day' | 'month' | 'year',
     /** What the organization already has — an unassign has to start from an assigned tariff. */
-    current: { id: string; tariffId: string; status: 'active' } | null = null,
+    current: {
+      id: string;
+      tariffId: string;
+      status: 'active';
+      currentPeriodStartsAt?: string | null;
+      currentPeriodEndsAt?: string | null;
+      pendingTariffId?: string | null;
+    } | null = null,
   ) {
     const setManualSaasBillingSubscription = vi.fn(async () => {});
     const transaction = {
@@ -130,7 +138,14 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
           tariffId: current?.tariffId ?? null,
         },
         activeTrial: null,
-        manualSaasBillingSubscription: current,
+        manualSaasBillingSubscription: current
+          ? {
+              ...current,
+              currentPeriodStartsAt: current.currentPeriodStartsAt ?? null,
+              currentPeriodEndsAt: current.currentPeriodEndsAt ?? null,
+              pendingTariffId: current.pendingTariffId ?? null,
+            }
+          : null,
       }),
       requireActiveTariff: async () => ({ billingPeriod }),
       setManualSaasBillingSubscription,
@@ -172,6 +187,7 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
         organizationId: 'org-1',
         tariffId: 'tariff-1',
         period: { startsAt: '2026-07-31T09:00:00.000Z', endsAt },
+        pendingTariffId: null,
       });
     }
   });
@@ -194,6 +210,34 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
       organizationId: 'org-1',
       tariffId: null,
       period: null,
+      pendingTariffId: null,
+    });
+  });
+
+  it('scheduled downgrade preserves the paid tariff and both period dates', async () => {
+    const { service, setManualSaasBillingSubscription } = assignmentTransaction('month', {
+      id: 'subscription-1',
+      tariffId: 'tariff-big',
+      status: 'active',
+      currentPeriodStartsAt: '2026-07-01T09:00:00.000Z',
+      currentPeriodEndsAt: '2026-08-01T09:00:00.000Z',
+    });
+
+    await service.assignManualTariff({
+      organizationId: 'org-1',
+      tariffId: 'tariff-small',
+      applyAtNextPeriod: true,
+      audit: { actorId: 'operator-1', reason: 'downgrade' },
+    });
+
+    expect(setManualSaasBillingSubscription).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      tariffId: 'tariff-big',
+      period: {
+        startsAt: '2026-07-01T09:00:00.000Z',
+        endsAt: '2026-08-01T09:00:00.000Z',
+      },
+      pendingTariffId: 'tariff-small',
     });
   });
 });

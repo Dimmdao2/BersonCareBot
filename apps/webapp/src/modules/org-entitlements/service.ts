@@ -514,6 +514,26 @@ export function evaluateTariffDowngrade(params: {
   return blocks;
 }
 
+/** A target that removes an ability, lowers a finite stock quota, or lowers included seats is delayed. */
+export function tariffChangeAppliesNextPeriod(current: Tariff, target: Tariff): boolean {
+  if ((target.includedSeats ?? Number.POSITIVE_INFINITY) < (current.includedSeats ?? Number.POSITIVE_INFINITY)) {
+    return true;
+  }
+  for (const mechanic of MECHANICS) {
+    if (current.mechanics[mechanic] && !target.mechanics[mechanic]) return true;
+    const currentQuota = (current.quotas as Partial<Record<OrgMechanic, TariffQuota>>)[mechanic];
+    const targetQuota = (target.quotas as Partial<Record<OrgMechanic, TariffQuota>>)[mechanic];
+    if (
+      currentQuota?.kind === 'numeric' &&
+      targetQuota?.kind === 'numeric' &&
+      (targetQuota.limit ?? 0) < (currentQuota.limit ?? 0)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Dedicated application boundary for platform commercial operations. Routes must capability-gate before use. */
 export function createPlatformEntitlementsService(port: PlatformEntitlementsPort) {
   return {
@@ -542,6 +562,8 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
       tariffId: string | null,
       audit: PlatformMutationAudit,
     ) => {
+      let currentTariff: Tariff | null = null;
+      let targetTariff: Tariff | null = null;
       if (tariffId) {
         const [organizations, tariffs, usage] = await Promise.all([
           port.listOrganizations(),
@@ -549,17 +571,22 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
           port.getOrganizationMechanicUsage(organizationId),
         ]);
         const organization = organizations.find((entry) => entry.id === organizationId);
-        const targetTariff = tariffs.find((entry) => entry.id === tariffId);
+        targetTariff = tariffs.find((entry) => entry.id === tariffId) ?? null;
         if (!targetTariff) throw new Error('tariff_not_found');
-        const currentTariff = organization?.tariffId
-          ? tariffs.find((entry) => entry.id === organization.tariffId)
+        currentTariff = organization?.tariffId
+          ? tariffs.find((entry) => entry.id === organization.tariffId) ?? null
           : null;
         if (currentTariff) {
           const blocks = evaluateTariffDowngrade({ usage, currentTariff, targetTariff });
           if (blocks.length > 0) throw new TariffDowngradeBlockedError(blocks);
         }
       }
-      return port.assignTariff(organizationId, tariffId, audit);
+      return port.assignTariff(organizationId, tariffId, audit, {
+        applyAtNextPeriod:
+          currentTariff !== null && targetTariff !== null
+            ? tariffChangeAppliesNextPeriod(currentTariff, targetTariff)
+            : false,
+      });
     },
     upsertOverride: (
       input: {

@@ -71,6 +71,8 @@ export type PlatformOrganizationSummary = {
   tariffId: string | null;
   /** Explicit operator assignment; excludes the tariff persisted for a live trial. */
   manualTariffId: string | null;
+  /** A restrictive tariff chosen for the next paid cycle, if one is scheduled. */
+  scheduledTariff: { tariffId: string; effectiveAt: string } | null;
   isActive: boolean;
   effectiveAccess: EffectiveOrgCommercialAccess;
   overrides: OrgEntitlementOverride[];
@@ -109,6 +111,7 @@ export type PlatformEntitlementsPort = {
     organizationId: string,
     tariffId: string | null,
     audit: PlatformMutationAudit,
+    options?: { applyAtNextPeriod: boolean },
   ): Promise<void>;
   upsertOverride(
     input: {

@@ -766,6 +766,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       title: 'org',
       tariffId: input.currentTariff.id,
       manualTariffId: input.currentTariff.id,
+      scheduledTariff: null,
       isActive: true,
       effectiveAccess: { lifecycle: 'active', tariffId: input.currentTariff.id, source: 'assignment' },
       overrides: [],

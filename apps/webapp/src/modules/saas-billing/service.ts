@@ -342,6 +342,8 @@ export function createSaasBillingService(dependencies: {
     assignManualTariff(input: {
       organizationId: string;
       tariffId: string | null;
+      /** A restrictive switch preserves the already paid access until `currentPeriodEndsAt`. */
+      applyAtNextPeriod?: boolean;
       audit: { actorId: string | null; reason: string };
     }) {
       return dependencies.repository.runManualAssignmentTransaction(async (transaction) => {
@@ -350,10 +352,47 @@ export function createSaasBillingService(dependencies: {
           state.manualSaasBillingSubscription?.status === 'active'
             ? state.manualSaasBillingSubscription.tariffId
             : null;
-        if (
-          input.tariffId === currentManualTariffId &&
-          (!state.activeTrial || input.tariffId === null)
-        ) {
+        const activePaidPeriod =
+          state.manualSaasBillingSubscription?.status === 'active' &&
+          state.manualSaasBillingSubscription.currentPeriodEndsAt !== null &&
+          new Date(state.manualSaasBillingSubscription.currentPeriodEndsAt).getTime() > now().getTime();
+        if (input.tariffId === currentManualTariffId && !state.activeTrial) {
+          if (state.manualSaasBillingSubscription?.pendingTariffId) {
+            await transaction.setManualSaasBillingSubscription({
+              organizationId: input.organizationId,
+              tariffId: currentManualTariffId,
+              period: activePaidPeriod
+                ? {
+                    startsAt: state.manualSaasBillingSubscription.currentPeriodStartsAt as string,
+                    endsAt: state.manualSaasBillingSubscription.currentPeriodEndsAt as string,
+                  }
+                : null,
+              pendingTariffId: null,
+            });
+          }
+          return;
+        }
+
+        if (input.tariffId && input.applyAtNextPeriod && activePaidPeriod && currentManualTariffId) {
+          const currentSubscription = state.manualSaasBillingSubscription;
+          if (!currentSubscription) throw new Error('saas_billing_subscription_not_found');
+          await transaction.setManualSaasBillingSubscription({
+            organizationId: input.organizationId,
+            tariffId: currentManualTariffId,
+            period: {
+              startsAt: currentSubscription.currentPeriodStartsAt as string,
+              endsAt: currentSubscription.currentPeriodEndsAt as string,
+            },
+            pendingTariffId: input.tariffId,
+          });
+          await transaction.appendManualAssignmentAudit({
+            ...input.audit,
+            action: 'saas_tariff_downgrade_scheduled',
+            targetId: input.organizationId,
+            organizationId: input.organizationId,
+            before: { organization: state.organization, saasBillingSubscription: state.manualSaasBillingSubscription },
+            after: { pendingTariffId: input.tariffId },
+          });
           return;
         }
 
@@ -375,6 +414,7 @@ export function createSaasBillingService(dependencies: {
           organizationId: input.organizationId,
           tariffId: input.tariffId,
           period,
+          pendingTariffId: null,
         });
         const organization = await transaction.updateOrganizationTariffAssignment({
           organizationId: input.organizationId,
@@ -541,9 +581,11 @@ export function createSaasBillingService(dependencies: {
      * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
      */
     async createOwnTariffRenewalInvoice(organizationId: string) {
-      const { saasBillingSubscriptionId, billingPeriod, savedPaymentMethodId } =
+      const { saasBillingSubscriptionId, billingPeriod, savedPaymentMethodId, currentPeriodEndsAt } =
         await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
-      const servicePeriodStartsAt = now().toISOString();
+      // A clinic can pay before expiry. The purchased next period begins at the paid boundary,
+      // never at the click time, otherwise an early renewal silently cuts off paid days.
+      const servicePeriodStartsAt = currentPeriodEndsAt ?? now().toISOString();
       const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
       // Deterministic, not `randomUUID()`: bucketed so a genuine repeat click (well under the
       // bucket width apart) hashes to the same key as the first call, while a real later renewal
@@ -692,15 +734,9 @@ export function createSaasBillingService(dependencies: {
       // because a platform admin cancelled it. Either way this is a safe no-op, never a silent
       // "cancelled invoice just got paid" — the event is acknowledged, no subscription period moves.
       if (!paidInvoice) return { captured: false, duplicate: false };
-      // §5a К0 — extends exactly the subscription row the invoice was raised against, by id; a
-      // `manual` admin assignment lives under a different row (different `source`) and this update
-      // never addresses it, so it cannot be silently overwritten by this capture.
-      await dependencies.repository.activateSaasBillingSubscriptionPeriod({
-        organizationId: input.organizationId,
-        saasBillingSubscriptionId: paidInvoice.saasBillingSubscriptionId,
-        periodStartsAt: paidInvoice.servicePeriodStartsAt,
-        periodEndsAt: paidInvoice.servicePeriodEndsAt,
-      });
+      // `markSaasBillingInvoicePaid` is a repository transaction: invoice CAS, period promotion,
+      // organization projection and snapshot move together. Do not split these writes here — a
+      // process failure between them would leave "paid" without the access it bought.
       // К6 — the ONLY place a payment method gets saved: `payment.succeeded` is the first point the
       // provider is trusted to say `payment_method.saved === true`, never the synchronous
       // `createIntent` response (a redirect payment isn't actually paid yet at that point).
