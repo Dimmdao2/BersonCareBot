@@ -2143,6 +2143,13 @@
       "when": 1793539230006,
       "tag": "0305_tariff_snapshot_access_doors_local",
       "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1793539230007,
+      "tag": "0306_v9b_capability_seams_local",
+      "breakpoints": true
     }
   ]
 }

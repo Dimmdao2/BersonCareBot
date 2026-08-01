@@ -178,6 +178,13 @@ logins above. `app_worker` is not an evidence actor or fallback capability.
 | S06 | all S05 A1 additions ready. | Existing A1 harness only, full table/actor/verb matrix. |
 | S07 | S06 green and explicit authorized TEST action. | Existing TEST deploy contour records the exact same matrix. |
 
+### S02 execution status — 2026-08-02
+
+The bounded S02 worker artifact is `0306_v9b_capability_seams_local.sql` with its journal entry
+and `V9B_S02_CAPABILITY_SEAMS_REPORT.md`. It is expand-only and awaits the required independent
+audit; no owner checkbox, DEV/TEST/PROD action, caller adoption, direct-table revoke, RLS, or D1
+writer change is recorded here.
+
 S03 backfill is transactional and deterministic. It stamps only proven canonical matches; before
 `NOT NULL` it computes reason counts (`zero_match`, `multiple_match`, `deleted_parent`,
 `user_mismatch`, `provider_mismatch`) and **raises an exception that aborts the whole migration** if
