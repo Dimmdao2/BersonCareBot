@@ -47,6 +47,18 @@ dev) снято решением single-entry не сводить старую �
 port/`sql`-fragment path; новую allowlist-запись не добавлять. После исправления своей строкой записать SHA и
 `node scripts/check-no-new-raw-sql.mjs` → `exit 0`.
 
+**Single-entry, Ч7 после независимого FAIL-аудита:** фикс `5effaf96f` на `wt/settings-values-db` закрывает
+зафиксированные F1–F6. Оркестратор повторил тот же acceptance kill-set: disposable применение `0300`–`0302`
+→ `failures: []`; `pnpm --dir apps/webapp exec vitest run <13 audit files>` → 13 файлов / 53 теста зелёные;
+journal, legacy-migration, DB-chokepoint и typecheck → `exit 0`. Ветка ждёт land после снятия общего raw-SQL
+blocker выше; номера `0300`–`0302` остаются забронированы.
+
+**Test-suite Б1 disposable PostgreSQL:** продукт `5bc9a7018`, независимый audit artifact/test
+`46716e096`, отчёт `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md` —
+**FAIL**: blind kill-set `17 killed / 2 missed / 1 N/A`, ещё `1 missed` stop-failure найден inspection.
+Fix-round ограничен тремя findings: committed integrator ledger `0` вместо `68`, нет exact-invocation ownership
+cleanup, ошибка `pg_ctl stop` проглатывается. Ветка `wt/testsuite-b-current`, land запрещён до green fix evidence.
+
 ---
 
 > **⛔ ПЕРЕД ЗАПУСКОМ ЛЮБОГО СЛОЯ — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш
@@ -770,3 +782,8 @@ SECURITY DEFINER под миграцией 0270 была поймана лидо
 | `d23028a50` (ветка `wt/settings-values-db`) | `settings-values-db` | #1082 **Ч7 — значения runtime-настроек перенесены из compiled defaults в строки БД; миграции `0300`–`0302`.** | **FAIL независимого blind audit → один fix-round.** Шесть достижимых классов: missing-row defaults в admin/doctor/booking; `operator_heartbeat_config` вне registry и с compiled 6/26h; `0302` перезаписывает пустые admin values; public configured functions дают `false` при missing row; password login mint-ит session до обязательного чтения 2FA; worker smoke не применял `0300`–`0302`. Product пока не вливать |
 | `cde1d0563` (ветка `wt/settings-values-db`) | `settings-values-db` | #1082 **Плановая строка Ч7 с product SHA/evidence без заявления о land.** | **ДОРАБОТАТЬ вместе с product:** ссылка на worker smoke как migration evidence неверна — script применяет только `0186/0209/0228/0210`, а не `0300`–`0302`; заменить на реальный disposable acceptance evidence после зелёного fix-round |
 | `ed4a9170f` (аудит `d23028a50`, ветка `wt/settings-values-db`) | `settings-values-db` | #1082 **Blind audit Ч7 + постоянные acceptance tests.** Report: `docs/_TODO/runs/testsuite-v2/CH7_SETTINGS_VALUES_DB_BLIND_AUDIT_REPORT.md`; kill-set K1–K11, disposable migration/ACL script и auth/settings behavior tests | **FAIL: непоймано 6 классов из 11; 4 acceptance tests красные.** Product fix аудитор не делал; temporary mutations откатаны. PASS-границы: DB errors propagate, anonymous credentials не читает, admin full access сохранился, voluntary TOTP/platform enforcement не удалены. Worker чинит F1–F6 по готовому набору; повторный blind-pass той же поверхности не нужен |
+| `5bc9a7018` (ветка `wt/testsuite-b-current`) | `testsuite-b-current` | #1081 **Б1 disposable PostgreSQL product candidate.** Отчёт независимого аудита: `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md` | **FAIL независимого аудита.** Template/clone/guard в основном работают, но fix-round обязателен по трём findings ниже |
+| `46716e096` (аудит `5bc9a7018`, ветка `wt/testsuite-b-current`) | `testsuite-b-current` | #1081 **Б1 blind audit + красный ledger acceptance oracle.** Report: `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md` | **FAIL: убито 17 из 20, не убито 2 из 20, 1 N/A; ещё 1 непойманная stop-failure поломка найдена inspection.** Fix-round: integrator ledger `0/68`, exact-invocation cleanup ownership, проверка фактической остановки postmaster |
+| `72cbfa172` (ветка `wt/ch2-media-delivery`) | `ch2-media-delivery` | #1082 **Ч2 одна media-delivery ACL door для пяти handlers + снятие online-intake public URL fallback.** Отчёт независимого аудита: `docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **FAIL только structural gate.** Пять handlers и online-intake behavior/scope приняты; product не вливать до gate fix-round |
+| `9c5bdda54` (аудит `72cbfa172`, ветка `wt/ch2-media-delivery`) | `ch2-media-delivery` | #1082 **Ч2 blind audit + постоянный gate acceptance oracle.** Report: `docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **FAIL: не убито 7 из 7 gate-bypass fixtures; behavior fault mutations убиты.** Пропущены dynamic/namespace/re-export/relative infra/raw SDK route/raw SDK module/renamed helper; один bounded fix-round, повторный blind-pass не нужен |
+| `e94b3069d` (ветка `wt/ch1-upload-current`) | `ch1-upload-current` | #1082 **Ч1 двухстадийная upload-door candidate:** intent + actual object validation, patient-files pending→confirm→ready, structural gate | **ЖДЁТ независимого blind audit.** Worker helper/gate checks зелёные, но сам зафиксировал отсутствие route-level acceptance для шести путей; принимать по отчёту нельзя |
