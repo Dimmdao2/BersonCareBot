@@ -64,28 +64,24 @@ export default [
     },
   },
 
-  // ─── Allowlisted legacy files in modules/* (tracked in LEGACY_CLEANUP_BACKLOG.md) ───
+  // ─── Файлы, которым исключение из границ слоёв ещё нужно (долг, LEGACY_CLEANUP_BACKLOG.md) ───
+  // Список только сокращается, новых записей не заводим: правило — делать сразу как надо, то есть
+  // переводить вызов на порт в том же заходе, а не вписывать файл сюда. Из прежних двадцати записей
+  // восемь оказались мёртвыми: пять файлов не импортировали из infra ничего, один файл давно удалён,
+  // три тянули логгер и очередь к интегратору, а не базу — правило их и не запрещало.
   {
     files: [
-      'src/modules/auth/channelLink.ts',
       'src/modules/auth/oauthWebSession.ts',
       'src/modules/auth/yandexOAuthCallbackHandler.ts',
       'src/modules/auth/service.ts',
       'src/modules/content-catalog/service.ts',
-      'src/modules/doctor-clients/clientArchiveChange.ts',
       'src/modules/emergency/service.ts',
       'src/modules/integrator/events.ts',
       'src/modules/lessons/service.ts',
       'src/modules/menu/service.ts',
       'src/modules/messaging/doctorSupportMessagingService.ts',
-      'src/modules/messaging/integratorSupportBridge.ts',
-      'src/modules/messaging/integratorSupportBridge.test.ts',
       'src/modules/messaging/patientMessagingService.ts',
       'src/modules/messaging/serializeSupportMessage.ts',
-      'src/modules/platform-access/patientClientBusinessGate.ts',
-      'src/modules/platform-access/resolvePatientCanViewAuthOnlyContent.ts',
-      'src/modules/platform-access/resolvePlatformAccessContext.ts',
-      'src/modules/reminders/notifyIntegrator.ts',
       'src/modules/system-settings/configAdapter.ts',
     ],
     rules: {
