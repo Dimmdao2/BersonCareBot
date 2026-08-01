@@ -63,7 +63,6 @@ function propertyName(node: ts.PropertyAssignment): string | null {
  * "unset" select sentinel, and those are absence of a value, not a value chosen by the agent.
  */
 const LADDER_ENUM_VALUES = [
-  'full_access',
   'read_only',
   'disabled',
   'payment_succeeded',

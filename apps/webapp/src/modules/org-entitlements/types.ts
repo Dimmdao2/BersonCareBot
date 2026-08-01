@@ -151,17 +151,12 @@ export function quotaMechanicSupportsWarning(
 }
 
 /**
- * §5a item 2.8 (owner 30.07, `QUOTAS_RESEARCH_2026-07-28.md` Часть III): a Stripe-shaped choice of
- * exactly three terminal behaviours — «оставить доступ» (`full_access`) · «только чтение»
- * (`read_only`) · «скрыть раздел» (`disabled`) — selected per mechanic or system-wide.
- *
- * This reverses stage 4b.2 (30.07), which had removed `full_access` because it was a pre-ladder
- * leftover that never actually degraded anything. It is not a re-introduction of that dead option:
- * the door (`app.resolve_organization_mechanic_access`) already passes `terminalState` straight
- * through as `resolved_state`, so `full_access` here genuinely keeps the mechanic mutable at the end
- * of the ladder — it is not a no-op.
+ * §5a stage 4b.2 (owner 30.07): the ladder's final state is one of exactly two values. A third
+ * `full_access` option was a leftover from before the ladder existed and let the constructor
+ * configure a "degradation" that never actually degrades — removed, not renamed, per the owner's
+ * "не надо держать ради истории устаревшее" rule.
  */
-export type AccessTerminalState = 'full_access' | 'read_only' | 'disabled';
+export type AccessTerminalState = 'read_only' | 'disabled';
 
 /**
  * §5a item 2.6a (owner 31.07): «список уведомлений — там срок (за сколько до/после окончания
