@@ -1,7 +1,7 @@
 import type { SQL } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import type { Pool, QueryResultRow } from 'pg';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
@@ -59,6 +59,21 @@ export async function runMediaWorkerSql<T extends QueryResultRow = QueryResultRo
   }
 }
 
+/**
+ * Class B executor на УЖЕ ОТКРЫТОЙ транзакции. Нужен там, где вызывающий сам держит замок
+ * (`FOR UPDATE SKIP LOCKED` в claim-цикле, стартовый гейт): порт на пуле открыл бы вторую
+ * транзакцию и потерял бы замок. Транзакцией и принципалом распоряжается вызывающий через
+ * `startMediaWorkerTransaction`.
+ */
+export async function runMediaWorkerClientSql<T extends QueryResultRow = QueryResultRow>(
+  client: Pick<PoolClient, 'query'>,
+  fragment: SQL,
+): Promise<MediaWorkerQueryResult<T>> {
+  const { sql: text, params } = pgDialect.sqlToQuery(fragment);
+  const r = await client.query<T>(text, params);
+  return toMediaWorkerQueryResult(r);
+}
+
 export function runWithMediaWorkerInfraPrincipal<T>(source: string, fn: () => T): T {
   const principal = getCurrentDbPrincipal();
   if (principal?.kind === 'infra') {
@@ -105,4 +120,12 @@ export async function runMediaWorkerPgText<T extends QueryResultRow = QueryResul
   values: readonly unknown[] = [],
 ): Promise<MediaWorkerQueryResult<T>> {
   return runMediaWorkerSql<T>(pool, mediaWorkerSqlFromPgText(queryText, values));
+}
+
+export async function runMediaWorkerClientPgText<T extends QueryResultRow = QueryResultRow>(
+  client: Pick<PoolClient, 'query'>,
+  queryText: string,
+  values: readonly unknown[] = [],
+): Promise<MediaWorkerQueryResult<T>> {
+  return runMediaWorkerClientSql<T>(client, mediaWorkerSqlFromPgText(queryText, values));
 }
