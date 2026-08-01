@@ -82,7 +82,7 @@ independence). Блок М построен верно, но с нуля.
 | **Ч2** выдача медиа | «implement once and reuse»; fitness function, роняющая сборку | **совпадает** | [OWASP Top 10:2025 A01](https://owasp.org/Top10/2025/A01_2025-Broken_Access_Control/), [OWASP Authorization CS](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html) |
 | **Ч3** одна точка постановки работ | «один интерфейс — много бэкендов» (Active Job); транзакционная постановка | **совпадает** | [Rails Active Job](https://guides.rubyonrails.org/active_job_basics.html), [River](https://riverqueue.com/docs/transactional-enqueueing) |
 | **Ч4** настройки и квоты | PDP/PEP: одна точка принятия решения | вариант | [NIST glossary: PDP](https://csrc.nist.gov/glossary/term/policy_decision_point), [OPA](https://www.openpolicyagent.org/docs) |
-| **Ч5** импорты мимо DI | fitness function + храповик; Node `"exports"` / Go `internal/` как конструкция | вариант | [Node packages](https://nodejs.org/api/packages.html), [ArchUnit FreezingArchRule](https://www.archunit.org/userguide/html/000_Index.html) |
+| **Ч5** импорты мимо DI | fitness function + список исключений; Node `"exports"` / Go `internal/` как конструкция | вариант | [Node packages](https://nodejs.org/api/packages.html), [ArchUnit FreezingArchRule](https://www.archunit.org/userguide/html/000_Index.html) |
 | **Ч6** настройки не декорация | flag debt: code references + рантайм-телеметрия; inversion of decision | вариант | [LaunchDarkly code references](https://launchdarkly.com/docs/home/flags/code-references), [Fowler/Hodgson](https://martinfowler.com/articles/feature-toggles.html) |
 
 ### Что из этого — готовое, и строить не надо
@@ -92,7 +92,7 @@ independence). Блок М построен верно, но с нуля.
 
 | Наша задумка | Что уже есть |
 |---|---|
-| храповик замороженных обходов (Ч5) | **ESLint bulk suppressions** (v9.24.0, апр. 2025) с `--prune-suppressions`; **dependency-cruiser** `depcruise-baseline --ignore-known`; семантика «только уменьшаться» — у **ArchUnit `FreezingArchRule`** |
+| заморозка обходов (Ч5) | **ESLint bulk suppressions** (v9.24.0, апр. 2025) с `--prune-suppressions`; **dependency-cruiser** `depcruise-baseline --ignore-known`; семантика «только уменьшаться» — у **ArchUnit `FreezingArchRule`** |
 | гейт «обход не компилируется» (Ч2, Ч5, В9б) | **Node `"exports"`** → `ERR_PACKAGE_PATH_NOT_EXPORTED` (прямой TS-аналог Go `internal/`) |
 | «две сборки дают одинаковую схему» (Б1) | **`prisma migrate diff --exit-code`**, **Atlas drift detection**, **migra** |
 | «настройка без потребителя» (Ч6) | **`ld-find-code-refs`** (скан ключей) + счётчик обращений через единую точку чтения; **knip** для мёртвых экспортов |
@@ -1072,16 +1072,16 @@ RFC 9110 (HTTP Semantics, IETF, 2022), §15.5.4 — дословно: «*An orig
 
 Сторона «линт достаточен»: Nx, dependency-cruiser и eslint-plugin-boundaries — все три сознательно выбрали проверку на этапе линта, аргумент — ловим до мержа и не ломаем сборочный граф (см. ссылки выше). Google в «Software Engineering at Google» (2020, гл. 22, Large-Scale Changes) описывает промежуточный вариант: после миграции важно иметь систему, **предотвращающую повторное появление** удалённой конструкции, и делает это через Tricorder — флаг на использование deprecated-объектов **на code review**, а не в компиляторе. — https://abseil.io/resources/swe-book/html/ch22.html
 
-**Кто из них ближе к нам.** Nx и Node `exports` — наш контекст буквально (TS, pnpm, монорепо). ArchUnit/Bazel/Go — референс семантики, но не переносимы напрямую. Формулировка владельца «конструкция, при которой обход не может существовать» — это Go `internal/` + Node `exports` + Bazel visibility, а не ESLint. Формулировка «храповик замороженных обходов» — это ArchUnit `FreezingArchRule` и ESLint bulk suppressions (см. ниже). В зрелых системах используются **обе** одновременно: конструкция для нового кода, храповик для старого.
+**Кто из них ближе к нам.** Nx и Node `exports` — наш контекст буквально (TS, pnpm, монорепо). ArchUnit/Bazel/Go — референс семантики, но не переносимы напрямую. Формулировка владельца «конструкция, при которой обход не может существовать» — это Go `internal/` + Node `exports` + Bazel visibility, а не ESLint. Формулировка «заморозка обходов» — это ArchUnit `FreezingArchRule` и ESLint bulk suppressions (см. ниже). В зрелых системах используются **обе** одновременно: конструкция для нового кода, список исключений для старого.
 
-### Храповик: признанная практика и готовые инструменты
+### Список исключений: признанная практика и готовые инструменты
 
 Да, это канон, а не импровизация. У практики есть имя (baseline / freeze / bulk suppression / clean as you code) и **как минимум четыре готовых реализации** — третий механизм строить не надо.
 
-1. **ArchUnit `FreezingArchRule`** (Java) — эталонная семантика ровно нашего храповика. Официальный user guide: при первом прогоне «all violations of that rule will be stored as the current state. On consecutive runs only new violations will be reported». И критично: «If violations are fixed, `FreezingArchRule` will automatically reduce the known stored violations to prevent any regression» — список **может только уменьшаться**. По умолчанию номера строк игнорируются, сдвиг кода не считается новым нарушением.
+1. **ArchUnit `FreezingArchRule`** (Java) — эталонная семантика ровно нашего списка исключений. Официальный user guide: при первом прогоне «all violations of that rule will be stored as the current state. On consecutive runs only new violations will be reported». И критично: «If violations are fixed, `FreezingArchRule` will automatically reduce the known stored violations to prevent any regression» — список **может только уменьшаться**. По умолчанию номера строк игнорируются, сдвиг кода не считается новым нарушением.
    - https://www.archunit.org/userguide/html/000_Index.html
 
-2. **ESLint bulk suppressions** — официальная фича, ESLint v9.24.0 (апрель 2025), анонс в блоге ESLint. Позволяет включить правило как `"error"`, не чиня всё сразу: «While the rule will be enforced for new code, the existing violations will not be reported». Файл `eslint-suppressions.json` в корне, флаги `--suppress-all`, `--suppress-rule`, `--prune-suppressions`, `--pass-on-unpruned-suppressions`. Храповик встроен буквально: если нарушений стало **меньше**, чем записано, ESLint «exits with a non-zero exit code and an error is reported about unused suppressions» — то есть заставляет обрезать список. Официальная рекомендация — коммитить файл в репозиторий.
+2. **ESLint bulk suppressions** — официальная фича, ESLint v9.24.0 (апрель 2025), анонс в блоге ESLint. Позволяет включить правило как `"error"`, не чиня всё сразу: «While the rule will be enforced for new code, the existing violations will not be reported». Файл `eslint-suppressions.json` в корне, флаги `--suppress-all`, `--suppress-rule`, `--prune-suppressions`, `--pass-on-unpruned-suppressions`. Список исключений встроен буквально: если нарушений стало **меньше**, чем записано, ESLint «exits with a non-zero exit code and an error is reported about unused suppressions» — то есть заставляет обрезать список. Официальная рекомендация — коммитить файл в репозиторий.
    - https://eslint.org/blog/2025/04/introducing-bulk-suppressions/
    - https://eslint.org/blog/2025/04/eslint-v9.24.0-released/
    - https://eslint.org/docs/latest/use/suppressions
@@ -1095,10 +1095,10 @@ RFC 9110 (HTTP Semantics, IETF, 2022), §15.5.4 — дословно: «*An orig
 5. **Sonar «Clean as You Code»** — тот же принцип на уровне процесса: quality gate ставит условия **только на новый код** («No issues are introduced»), «focuses on keeping new code clean, rather than spending a lot of effort remediating old code».
    - https://docs.sonarsource.com/sonarqube-server/10.4/user-guide/clean-as-you-code
 
-6. **Google** (SWE at Google, 2020): у разных LSC разные определения «готово», и обязателен механизм, не дающий вернуть удалённую конструкцию — Tricorder флагует новые использования deprecated на ревью. Это тот же храповик, реализованный в процессе ревью.
+6. **Google** (SWE at Google, 2020): у разных LSC разные определения «готово», и обязателен механизм, не дающий вернуть удалённую конструкцию — Tricorder флагует новые использования deprecated на ревью. Это тот же список исключений, реализованный в процессе ревью.
    - https://abseil.io/resources/swe-book/html/ch22.html
 
-Итог по храповику: **канон**, реализован минимум четырьмя инструментами, из которых два (ESLint bulk suppressions, dependency-cruiser known violations) работают в нашем стеке из коробки.
+Итог по списку исключений: **канон**, реализован минимум четырьмя инструментами, из которых два (ESLint bulk suppressions, dependency-cruiser known violations) работают в нашем стеке из коробки.
 
 ### Аргумент про тестируемость (для Ч5)
 
@@ -1131,7 +1131,7 @@ RFC 9110 (HTTP Semantics, IETF, 2022), §15.5.4 — дословно: «*An orig
 
 ### Вердикт по Ч5: **вариант**
 
-Цель («слой получает зависимости, а не берёт их сам») и храповик — канон дословно (Hevery 2008, Feathers 2004, Seemann 2019; ArchUnit FreezingArchRule, ESLint bulk suppressions). Расхождение — в механизме: заявлен принцип «конструкция, при которой обход не может существовать», а описанная реализация (аллоулист + правило) — это fitness function уровня линта, то есть проверка, а не конструкция. Канон в наиболее зрелой форме (Go `internal/`, Bazel visibility, Node `"exports"`) делает обход **нерезолвимым/некомпилируемым**, и в TS pnpm-монорепо это доступно.
+Цель («слой получает зависимости, а не берёт их сам») и список исключений — канон дословно (Hevery 2008, Feathers 2004, Seemann 2019; ArchUnit FreezingArchRule, ESLint bulk suppressions). Расхождение — в механизме: заявлен принцип «конструкция, при которой обход не может существовать», а описанная реализация (аллоулист + правило) — это fitness function уровня линта, то есть проверка, а не конструкция. Канон в наиболее зрелой форме (Go `internal/`, Bazel visibility, Node `"exports"`) делает обход **нерезолвимым/некомпилируемым**, и в TS pnpm-монорепо это доступно.
 
 ### Что практика предлагает вместо
 
@@ -1147,7 +1147,7 @@ RFC 9110 (HTTP Semantics, IETF, 2022), §15.5.4 — дословно: «*An orig
 
 1. **Сделать обход нерезолвимым, а не «залинтованным»**: репозитории в пакете, чей `package.json` `"exports"` не публикует внутренние подпути. Node возвращает `ERR_PACKAGE_PATH_NOT_EXPORTED` — импорт просто не разрешается (https://nodejs.org/api/packages.html). Это точный TS-аналог Go `internal/` (https://go.dev/doc/go1.4) и Bazel visibility, где нарушение **валит сборку**, а не пишет warning (https://bazel.build/concepts/visibility). Дешевле, потому что не требует поддерживать список исключений для нового кода вообще: нового обхода физически не возникает.
 2. **Линт оставить вторым контуром для того, что `exports` не ловит** (импорты внутри одного пакета): `@nx/enforce-module-boundaries` в монорепо (https://nx.dev/features/enforce-module-boundaries) или dependency-cruiser `forbidden` с severity `error` — ненулевой код возврата валит CI (https://github.com/sverweij/dependency-cruiser/blob/main/doc/rules-reference.md).
-3. **Храповик — взять готовый, не писать третий.** Два кандидата под наш стек: ESLint `--suppress-all` + `eslint-suppressions.json` с обязательным `--prune-suppressions` (список физически не может вырасти незамеченно и падает, если стал избыточен — https://eslint.org/docs/latest/use/suppressions), либо `depcruise-baseline` + `--ignore-known` (https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md). Оба коммитятся в репозиторий, оба — официальная фича своего инструмента. Семантику «может только уменьшаться» стоит копировать у ArchUnit `FreezingArchRule`, включая деталь про игнорирование номеров строк (https://www.archunit.org/userguide/html/000_Index.html).
+3. **Список исключений — взять готовый, не писать третий.** Два кандидата под наш стек: ESLint `--suppress-all` + `eslint-suppressions.json` с обязательным `--prune-suppressions` (список физически не может вырасти незамеченно и падает, если стал избыточен — https://eslint.org/docs/latest/use/suppressions), либо `depcruise-baseline` + `--ignore-known` (https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md). Оба коммитятся в репозиторий, оба — официальная фича своего инструмента. Семантику «может только уменьшаться» стоит копировать у ArchUnit `FreezingArchRule`, включая деталь про игнорирование номеров строк (https://www.archunit.org/userguide/html/000_Index.html).
 4. **Всю сборку графа свести к Composition Root** (Seemann): один файл на процесс (webapp, интегратор, media worker), знающий про контейнер; остальной код про контейнер не знает (https://blog.ploeh.dk/2019/06/17/composition-root-location/). Тогда «22 обхода» перестают быть списком точек и становятся списком отсутствующих швов.
 
 Почему сдержаннее: `exports`-инкапсуляция и готовый baseline — это конфигурация, а не новый механизм; ни один из них не требует сопровождения кода, который сам может сломаться.
@@ -1156,7 +1156,7 @@ RFC 9110 (HTTP Semantics, IETF, 2022), §15.5.4 — дословно: «*An orig
 
 - **Uber — единая платформа исходящих уведомлений.** Найдены только публикации про Consumer Communication Gateway и оптимизацию тайминга push через ML, и про real-time push platform. Это про ранжирование/доставку push, а не про «единая точка отправки для всех каналов». Вместо Uber процитированы LinkedIn ATC, Netflix и Slack.
 - **Airbnb — централизованная нотификационная платформа.** Публичного writeup именно про это не найдено. Не цитируется.
-- **Meta/Facebook — writeup про migration baselines.** Официальный источник не найден; утверждение не делается. Роль «крупная компания про храповик» закрыта Google (SWE at Google, гл. 22).
+- **Meta/Facebook — writeup про migration baselines.** Официальный источник не найден; утверждение не делается. Роль «крупная компания про список исключений» закрыта Google (SWE at Google, гл. 22).
 - **Sonar «Clean as You Code» — текущий URL** отдал 404; процитирована версионированная страница 10.4, более свежая редакция (2025–2026) не проверена.
 - **ts-arch** — официальную документацию не открывали, утверждений о нём не делается.
 - **`import/no-restricted-paths`** (eslint-plugin-import) — существование не верифицировано фетчем; цитируется ядровое `no-restricted-imports`.
