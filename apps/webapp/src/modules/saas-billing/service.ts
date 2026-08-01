@@ -82,10 +82,16 @@ export function createSaasBillingService(dependencies: {
     servicePeriodStartsAt: string;
     servicePeriodEndsAt: string;
     providerIdempotencyKey: string;
+    /** К6 — request the provider save this payment's method; only meaningful while none is saved yet. */
+    savePaymentMethod?: boolean;
   }) {
     const provider = await resolvePaymentProvider();
     const { invoice, created } = await dependencies.repository.createSaasBillingInvoice({
-      ...input,
+      organizationId: input.organizationId,
+      saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+      servicePeriodStartsAt: input.servicePeriodStartsAt,
+      servicePeriodEndsAt: input.servicePeriodEndsAt,
+      providerIdempotencyKey: input.providerIdempotencyKey,
       providerId: provider.providerId,
     });
     // Repeat of an already-inserted request (same idempotency key): the first call already ran the
@@ -102,6 +108,7 @@ export function createSaasBillingService(dependencies: {
         saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
       },
       providerConfig: provider.providerConfig,
+      savePaymentMethod: input.savePaymentMethod,
     });
     return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
       saasBillingInvoiceId: invoice.id,
@@ -437,6 +444,15 @@ export function createSaasBillingService(dependencies: {
           servicePeriodStartsAt,
           subscription.billingPeriod,
         );
+        // К6 — the money-safety gate: BOTH an active, unrevoked consent AND a saved method must
+        // hold. A revoked consent must win even if `savedPaymentMethodId` is still on the row (we
+        // deliberately never clear it on revoke) — this is exactly what keeps a revoke effective
+        // immediately, tested in service.test.ts.
+        const autopayActive =
+          subscription.autopayConsentedAt !== null &&
+          subscription.autopayRevokedAt === null &&
+          subscription.savedPaymentMethodId !== null;
+        let invoiceIdForFailureReport: string | undefined;
         try {
           const provider = await resolvePaymentProvider();
           const { invoice, created: wasCreated } =
@@ -452,6 +468,7 @@ export function createSaasBillingService(dependencies: {
             alreadyInvoiced += 1;
             continue;
           }
+          invoiceIdForFailureReport = invoice.id;
           const intent = await provider.adapter.createIntent({
             amountMinor: invoice.amountMinor,
             currency: invoice.currency,
@@ -462,6 +479,7 @@ export function createSaasBillingService(dependencies: {
               saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
             },
             providerConfig: provider.providerConfig,
+            paymentMethodId: autopayActive ? (subscription.savedPaymentMethodId ?? undefined) : undefined,
           });
           await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
             saasBillingInvoiceId: invoice.id,
@@ -471,11 +489,24 @@ export function createSaasBillingService(dependencies: {
           created += 1;
         } catch (error) {
           failed += 1;
+          const message = error instanceof Error ? error.message : String(error);
           errors.push({
             organizationId: subscription.organizationId,
             saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
-            error: error instanceof Error ? error.message : String(error),
+            error: message,
           });
+          // К6 — an off-session charge attempt that the provider rejected must not sit in `draft`
+          // forever: flip it to `failed`, visible in the clinic's billing screen as "Ошибка
+          // оплаты" (`SaasBillingOverview.tsx`) with the existing "Оплатить тариф" button as the
+          // next step — never let this fail the whole tick over one organization.
+          if (autopayActive && invoiceIdForFailureReport) {
+            await dependencies.repository
+              .markSaasBillingInvoiceFailed({
+                saasBillingInvoiceId: invoiceIdForFailureReport,
+                organizationId: subscription.organizationId,
+              })
+              .catch(() => null);
+          }
         }
       }
 
@@ -490,7 +521,7 @@ export function createSaasBillingService(dependencies: {
      * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
      */
     async createOwnTariffRenewalInvoice(organizationId: string) {
-      const { saasBillingSubscriptionId, billingPeriod } =
+      const { saasBillingSubscriptionId, billingPeriod, savedPaymentMethodId } =
         await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
       const servicePeriodStartsAt = now().toISOString();
       const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
@@ -505,11 +536,42 @@ export function createSaasBillingService(dependencies: {
         saasBillingSubscriptionId,
         servicePeriodStartsAt,
         servicePeriodEndsAt,
+        // К6 — asked once, automatically, until the organization has a saved method; asking again
+        // once one exists would be pointless (the provider already has one to reuse for autopay).
+        savePaymentMethod: !savedPaymentMethodId,
         providerIdempotencyKey: `saas_tariff_renewal:${deriveSaasBillingIdempotencyKey([
           organizationId,
           saasBillingSubscriptionId,
           idempotencyBucket,
         ])}`,
+      });
+    },
+
+    /**
+     * К6 — explicit opt-in to off-session autopay for the organization's OWN tariff subscription.
+     * `consentText` must be `AUTOPAY_CONSENT_TEXT` (the route enforces this — the server, never the
+     * client, decides what "the text the payer saw" is). Requires the `paid_subscription` row to
+     * already exist (created lazily by `requireOwnTariffBillingSubscription`, same as every other
+     * write against it) — thrown as `saas_billing_no_tariff_assigned` for consistency with the
+     * pay-flow's own error when there is truly nothing to consent to yet.
+     */
+    async grantAutopayConsent(input: { organizationId: string; consentText: string }) {
+      await dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId);
+      const result = await dependencies.repository.grantSaasBillingAutopayConsent({
+        organizationId: input.organizationId,
+        consentText: input.consentText,
+        consentedAt: now().toISOString(),
+      });
+      if (result.outcome === 'no_subscription') {
+        throw new Error('saas_billing_no_tariff_assigned');
+      }
+    },
+
+    /** К6 — takes effect immediately: the very next renewal tick reads `autopayRevokedAt` fresh, not a cached flag. */
+    async revokeAutopayConsent(input: { organizationId: string }) {
+      await dependencies.repository.revokeSaasBillingAutopayConsent({
+        organizationId: input.organizationId,
+        revokedAt: now().toISOString(),
       });
     },
 
@@ -576,7 +638,7 @@ export function createSaasBillingService(dependencies: {
       providerId: string;
       verified: Pick<
         PaymentProviderVerifyResult,
-        'idempotencyKey' | 'eventType' | 'amountMinor' | 'payload'
+        'idempotencyKey' | 'eventType' | 'amountMinor' | 'payload' | 'savedPaymentMethodId'
       >;
     }): Promise<{ captured: boolean; duplicate: boolean }> {
       const payloadCurrency =
@@ -619,6 +681,16 @@ export function createSaasBillingService(dependencies: {
         periodStartsAt: paidInvoice.servicePeriodStartsAt,
         periodEndsAt: paidInvoice.servicePeriodEndsAt,
       });
+      // К6 — the ONLY place a payment method gets saved: `payment.succeeded` is the first point the
+      // provider is trusted to say `payment_method.saved === true`, never the synchronous
+      // `createIntent` response (a redirect payment isn't actually paid yet at that point).
+      if (input.verified.savedPaymentMethodId) {
+        await dependencies.repository.saveSaasBillingSubscriptionPaymentMethod({
+          saasBillingSubscriptionId: paidInvoice.saasBillingSubscriptionId,
+          organizationId: input.organizationId,
+          savedPaymentMethodId: input.verified.savedPaymentMethodId,
+        });
+      }
       return { captured: true, duplicate: false };
     },
 
