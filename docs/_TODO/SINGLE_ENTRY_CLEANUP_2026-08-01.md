@@ -54,8 +54,9 @@
       `mediaUploadDoorGate.unit.test.ts` (14) и canonical gate/self-test — PASS.
 - [ ] **Ч1б. Storage commit/cleanup после разрыва upload.** Отдельный этап, найденный проходом по тем же живым
       путям, не маскируется под валидацию: proxy пишет S3 до DB и при DB-сбое оставляет orphan; single-PUT после
-      PUT/до confirm оставляет pending row + object без cleanup; patient confirm при невалидном HEAD удаляет DB
-      row, но не object. Готово = единый commit/abort lifecycle на существующих `media_files`/storage ports и
+      PUT/до confirm оставляет pending row + object без cleanup; patient confirm при невалидном HEAD теперь
+      отвечает ошибкой, но оставляет связанные `patient_files` + `media_files.pending` + object. Готово = единый
+      commit/abort lifecycle на существующих `media_files`/storage ports и
       доказанный cleanup каждого из трёх достижимых сбоев; новой таблицы или второго upload-service нет.
 - [ ] **Ч2. Выдача медиа из хранилища.** Актуальный замер: семь GET-поверхностей; пять
       `/api/media/[id]/**` handler'ов копируют одну ACL-последовательность; текущего пути выдачи `media_files`
