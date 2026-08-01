@@ -807,11 +807,6 @@ export const appointmentRecords = pgTable(
       .using('btree', table.platformUserId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(platform_user_id IS NOT NULL)`),
     foreignKey({
-      columns: [table.branchId],
-      foreignColumns: [branches.id],
-      name: 'appointment_records_branch_id_fkey',
-    }).onDelete('set null'),
-    foreignKey({
       columns: [table.platformUserId],
       foreignColumns: [platformUsers.id],
       name: 'appointment_records_platform_user_id_fkey',
@@ -821,31 +816,6 @@ export const appointmentRecords = pgTable(
       'appointment_records_status_check',
       sql`status = ANY (ARRAY['created'::text, 'updated'::text, 'canceled'::text])`,
     ),
-  ],
-);
-
-export const branches = pgTable(
-  'branches',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorBranchId: bigint('integrator_branch_id', { mode: 'number' }).notNull(),
-    name: text(),
-    metaJson: jsonb('meta_json').default({}).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    timezone: text().default('Europe/Moscow').notNull(),
-  },
-  (table) => [
-    uniqueIndex('idx_branches_integrator_branch_id').using(
-      'btree',
-      table.integratorBranchId.asc().nullsLast().op('int8_ops'),
-    ),
-    unique('branches_integrator_branch_id_key').on(table.integratorBranchId),
   ],
 );
 
@@ -2409,40 +2379,6 @@ export const mediaHlsProxyErrorEvents = pgTable(
   ],
 );
 
-export const bookingBranches = pgTable(
-  'booking_branches',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    cityId: uuid('city_id').notNull(),
-    title: text().notNull(),
-    address: text(),
-    isActive: boolean('is_active').default(true).notNull(),
-    sortOrder: integer('sort_order').default(0).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    timezone: text().default('Europe/Moscow').notNull(),
-  },
-  (table) => [
-    index('idx_booking_branches_city_id').using(
-      'btree',
-      table.cityId.asc().nullsLast().op('uuid_ops'),
-    ),
-    index('idx_booking_branches_is_active').using(
-      'btree',
-      table.isActive.asc().nullsLast().op('bool_ops'),
-    ),
-    foreignKey({
-      columns: [table.cityId],
-      foreignColumns: [bookingCities.id],
-      name: 'booking_branches_city_id_fkey',
-    }),
-  ],
-);
-
 export const bookingCities = pgTable(
   'booking_cities',
   {
@@ -2616,118 +2552,6 @@ export const patientHomeBlockItems = pgTable(
   ],
 );
 
-export const bookingSpecialists = pgTable(
-  'booking_specialists',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    branchId: uuid('branch_id').notNull(),
-    fullName: text('full_name').notNull(),
-    description: text(),
-    isActive: boolean('is_active').default(true).notNull(),
-    sortOrder: integer('sort_order').default(0).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_booking_specialists_branch_id').using(
-      'btree',
-      table.branchId.asc().nullsLast().op('uuid_ops'),
-    ),
-    index('idx_booking_specialists_is_active').using(
-      'btree',
-      table.isActive.asc().nullsLast().op('bool_ops'),
-    ),
-    foreignKey({
-      columns: [table.branchId],
-      foreignColumns: [bookingBranches.id],
-      name: 'booking_specialists_branch_id_fkey',
-    }),
-  ],
-);
-
-export const bookingBranchServices = pgTable(
-  'booking_branch_services',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    branchId: uuid('branch_id').notNull(),
-    serviceId: uuid('service_id').notNull(),
-    specialistId: uuid('specialist_id').notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-    sortOrder: integer('sort_order').default(0).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_booking_branch_services_branch_id').using(
-      'btree',
-      table.branchId.asc().nullsLast().op('uuid_ops'),
-    ),
-    index('idx_booking_branch_services_is_active').using(
-      'btree',
-      table.isActive.asc().nullsLast().op('bool_ops'),
-    ),
-    index('idx_booking_branch_services_service_id').using(
-      'btree',
-      table.serviceId.asc().nullsLast().op('uuid_ops'),
-    ),
-    foreignKey({
-      columns: [table.branchId],
-      foreignColumns: [bookingBranches.id],
-      name: 'booking_branch_services_branch_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.serviceId],
-      foreignColumns: [bookingServices.id],
-      name: 'booking_branch_services_service_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.specialistId],
-      foreignColumns: [bookingSpecialists.id],
-      name: 'booking_branch_services_specialist_id_fkey',
-    }),
-    unique('uq_booking_branch_services').on(table.branchId, table.serviceId),
-  ],
-);
-
-export const bookingServices = pgTable(
-  'booking_services',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    title: text().notNull(),
-    description: text(),
-    durationMinutes: integer('duration_minutes').notNull(),
-    breakAfterMinutes: integer('break_after_minutes').default(0).notNull(),
-    priceMinor: integer('price_minor').notNull(),
-    isActive: boolean('is_active').default(true).notNull(),
-    sortOrder: integer('sort_order').default(0).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_booking_services_is_active').using(
-      'btree',
-      table.isActive.asc().nullsLast().op('bool_ops'),
-    ),
-    unique('uq_booking_services_title_duration').on(table.title, table.durationMinutes),
-    check(
-      'booking_services_break_after_check',
-      sql`break_after_minutes >= 0 AND break_after_minutes % 5 = 0`,
-    ),
-  ],
-);
-
 export const onlineIntakeRequests = pgTable(
   'online_intake_requests',
   {
@@ -2844,25 +2668,10 @@ export const patientBookings = pgTable(
       table.platformUserId.asc().nullsLast().op('uuid_ops'),
     ),
     foreignKey({
-      columns: [table.branchId],
-      foreignColumns: [bookingBranches.id],
-      name: 'patient_bookings_branch_id_fkey',
-    }),
-    foreignKey({
-      columns: [table.branchServiceId],
-      foreignColumns: [bookingBranchServices.id],
-      name: 'patient_bookings_branch_service_id_fkey',
-    }),
-    foreignKey({
       columns: [table.platformUserId],
       foreignColumns: [platformUsers.id],
       name: 'patient_bookings_platform_user_id_fkey',
     }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.serviceId],
-      foreignColumns: [bookingServices.id],
-      name: 'patient_bookings_service_id_fkey',
-    }),
     check(
       'patient_bookings_booking_type_check',
       sql`booking_type = ANY (ARRAY['in_person'::text, 'online'::text])`,

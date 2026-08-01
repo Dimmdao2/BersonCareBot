@@ -121,6 +121,16 @@ const r7DroppedRawRubitimeTables = new Set([
   'integrator.rubitime_cooperators',
 ]);
 
+// V9b S01: canonical be_* booking tables replace these five legacy projections. Keep the tier
+// registry historical, but never emit grants for relations removed by webapp migration 0304.
+const s01RetiredLegacyBookingProjectionTables = new Set([
+  'public.booking_branch_services',
+  'public.booking_branches',
+  'public.booking_services',
+  'public.booking_specialists',
+  'public.branches',
+]);
+
 const appStaffGrantTiers = new Set(['SCOPED', 'BOOTSTRAP', 'INFRA', 'LEGACY', 'TELEMETRY']);
 
 function splitQualifiedName(qualifiedName) {
@@ -140,7 +150,8 @@ export function getAppStaffGrantTables() {
         appStaffGrantTiers.has(row.tier) &&
         !migrationOnlyTables.has(row.table) &&
         !overlayManagedAppStaffTables.has(row.table) &&
-        !r7DroppedRawRubitimeTables.has(row.table),
+        !r7DroppedRawRubitimeTables.has(row.table) &&
+        !s01RetiredLegacyBookingProjectionTables.has(row.table),
     )
     .map((row) => ({ ...splitQualifiedName(row.table), qualifiedName: row.table, tier: row.tier }))
     .sort((left, right) => left.qualifiedName.localeCompare(right.qualifiedName));
