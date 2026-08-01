@@ -96,6 +96,7 @@ beforeEach(() => {
     ...pgPort,
     listOrganizations: async () => [],
     getTrialPolicy: async () => null,
+    getRegistrationTariffPolicy: async () => ({ tariffId: null }),
   });
   fakes.buildAppDeps.mockReturnValue({ platformEntitlements: service });
 });

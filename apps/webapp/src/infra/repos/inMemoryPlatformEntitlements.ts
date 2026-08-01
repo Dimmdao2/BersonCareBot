@@ -1,5 +1,9 @@
 import type { PlatformEntitlementsPort } from '@/modules/org-entitlements/ports';
-import type { Tariff, TrialPolicy } from '@/modules/org-entitlements/types';
+import type {
+  RegistrationTariffPolicy,
+  Tariff,
+  TrialPolicy,
+} from '@/modules/org-entitlements/types';
 
 export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPort {
   const tariffs = new Map<string, Tariff>();
@@ -9,6 +13,7 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     { tariffId: string; endsAt: string; status: 'active' | 'ended' }
   >();
   let policy: TrialPolicy | null = null;
+  let registrationTariffPolicy: RegistrationTariffPolicy = { tariffId: null };
 
   return {
     async listTariffs() {
@@ -51,6 +56,9 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     async getTrialPolicy() {
       return policy;
     },
+    async getRegistrationTariffPolicy() {
+      return registrationTariffPolicy;
+    },
     async getOrganizationMechanicUsage() {
       return {};
     },
@@ -84,6 +92,9 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     async deleteOverride() {},
     async setTrialPolicy(next) {
       policy = next;
+    },
+    async setRegistrationTariffPolicy(next) {
+      registrationTariffPolicy = next;
     },
     async startTrial(organizationId) {
       if (!policy?.isActive) return null;

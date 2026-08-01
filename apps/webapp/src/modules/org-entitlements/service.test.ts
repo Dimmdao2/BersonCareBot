@@ -195,6 +195,7 @@ describe('org entitlement mechanic classes', () => {
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
+      getRegistrationTariffPolicy: async () => ({ tariffId: null }),
       getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input) => {
         storedTariff = {
@@ -213,6 +214,7 @@ describe('org entitlement mechanic classes', () => {
       upsertOverride: async () => {},
       deleteOverride: async () => {},
       setTrialPolicy: async () => {},
+      setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
       extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
@@ -359,6 +361,7 @@ describe('org entitlement mechanic classes', () => {
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
+      getRegistrationTariffPolicy: async () => ({ tariffId: null }),
       getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input) => {
         storedTariff = {
@@ -377,6 +380,7 @@ describe('org entitlement mechanic classes', () => {
       upsertOverride: async () => {},
       deleteOverride: async () => {},
       setTrialPolicy: async () => {},
+      setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
       extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
@@ -809,6 +813,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       listTariffs: async () => [input.currentTariff, input.targetTariff],
       listOrganizations: async () => [organization],
       getTrialPolicy: async () => null,
+      getRegistrationTariffPolicy: async () => ({ tariffId: null }),
       getOrganizationMechanicUsage: async () => input.usage,
       createTariff: async () => {
         throw new Error('not_used');
@@ -823,6 +828,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       upsertOverride: async () => {},
       deleteOverride: async () => {},
       setTrialPolicy: async () => {},
+      setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
       extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
@@ -910,6 +916,7 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
+      getRegistrationTariffPolicy: async () => ({ tariffId: null }),
       getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input) => ({
         ...input,
@@ -925,6 +932,7 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
       upsertOverride: async () => {},
       deleteOverride: async () => {},
       setTrialPolicy: async () => {},
+      setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
       extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
@@ -983,6 +991,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
+      getRegistrationTariffPolicy: async () => ({ tariffId: null }),
       getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input) => ({
         ...input,
@@ -998,6 +1007,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       upsertOverride: async () => {},
       deleteOverride: async () => {},
       setTrialPolicy: async () => {},
+      setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
       extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
@@ -1157,6 +1167,7 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
+      getRegistrationTariffPolicy: async () => ({ tariffId: null }),
       getOrganizationMechanicUsage: async () => ({}),
       createTariff: async () => {
         throw new Error('not_used');
@@ -1171,6 +1182,7 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
       },
       deleteOverride: async () => {},
       setTrialPolicy: async () => {},
+      setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
       extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
@@ -1280,6 +1292,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
+      getRegistrationTariffPolicy: async () => ({ tariffId: null }),
       getOrganizationMechanicUsage: async () => ({}),
       createTariff: async (input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) => {
         written.push(input);
@@ -1298,6 +1311,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       upsertOverride: async () => {},
       deleteOverride: async () => {},
       setTrialPolicy: async () => {},
+      setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
       extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     } as unknown as PlatformEntitlementsPort;
