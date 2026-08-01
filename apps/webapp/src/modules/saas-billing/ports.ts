@@ -6,6 +6,8 @@ import type { SaasBillingPeriod } from './paidPeriod';
 export type SaasBillingSource = 'manual' | 'paid_subscription';
 export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expired' | 'cancelled';
 export type SaasBillingInvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'void';
+/** К2 — `pending` until the provider webhook confirms it; `failed` frees the amount for a retry. */
+export type SaasBillingRefundStatus = 'pending' | 'succeeded' | 'failed' | 'canceled';
 
 export type SaasBillingSubscription = {
   id: string;
@@ -54,6 +56,22 @@ export type SaasBillingInvoiceReadRow = SaasBillingInvoice & {
   updatedAt: string;
 };
 
+/** К2 — one refund attempt against a paid invoice. */
+export type SaasBillingRefund = {
+  id: string;
+  organizationId: string;
+  saasBillingInvoiceId: string;
+  amountMinor: number;
+  currency: string;
+  status: SaasBillingRefundStatus;
+  providerId: string;
+  providerRefundRef: string | null;
+  providerIdempotencyKey: string;
+  confirmedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SaasBillingProviderEventReadRow = {
   id: string;
   organizationId: string;
@@ -79,6 +97,10 @@ export type SaasBillingOverview = {
 export type SaasBillingPlatformInvoiceRow = SaasBillingInvoiceReadRow & {
   organizationId: string;
   organizationTitle: string;
+  /** К2 — sum of `succeeded` refunds; confirmed money actually back with the clinic. */
+  refundedMinor: number;
+  /** К2 — sum of `pending` refunds; submitted to the provider but not yet confirmed. */
+  pendingRefundMinor: number;
 };
 
 export type SaasBillingPlatformInvoiceFilter = {
@@ -210,6 +232,44 @@ export type SaasBillingRepositoryPort = {
     periodStartsAt: string;
     periodEndsAt: string;
   }): Promise<void>;
+
+  /**
+   * К2 — locks the invoice row, validates it, and either returns the refund already reserved
+   * under this exact idempotency key (a repeated click) or inserts a new `pending` row plus its
+   * audit entry, all inside one transaction. This is what makes "нажми возврат дважды" a no-op:
+   * the second call finds the first call's row instead of racing it.
+   */
+  reserveSaasBillingRefund(input: {
+    saasBillingInvoiceId: string;
+    amountMinor: number;
+    providerIdempotencyKey: string;
+    audit: { actorId: string | null; reason: string };
+  }): Promise<
+    | { outcome: 'invoice_not_found' }
+    | { outcome: 'invoice_not_refundable'; status: SaasBillingInvoiceStatus }
+    | { outcome: 'amount_exceeds_remaining'; remainingMinor: number }
+    | { outcome: 'duplicate'; refund: SaasBillingRefund }
+    | { outcome: 'reserved'; refund: SaasBillingRefund; invoice: SaasBillingInvoice }
+  >;
+  /** Provider call answered synchronously — attach its ref; status stays `pending` until the webhook confirms it. */
+  attachSaasBillingRefundProviderRef(input: {
+    saasBillingRefundId: string;
+    providerRefundRef: string;
+  }): Promise<SaasBillingRefund>;
+  /** The provider call itself failed (network/API error) — frees the amount for a fresh attempt. */
+  markSaasBillingRefundFailed(input: { saasBillingRefundId: string }): Promise<SaasBillingRefund>;
+  /** Unscoped lookup — the webhook does not know the organization until this resolves it. */
+  findSaasBillingRefundByProviderRef(input: {
+    providerId: string;
+    providerRefundRef: string;
+  }): Promise<SaasBillingRefund | null>;
+  /** Org-scoped: call only after `findSaasBillingRefundByProviderRef` resolves the refund. */
+  confirmSaasBillingRefund(input: {
+    saasBillingRefundId: string;
+    organizationId: string;
+    status: 'succeeded' | 'canceled';
+    confirmedAt: string;
+  }): Promise<SaasBillingRefund>;
 };
 
 export type SaasBillingSettingsReadPort = {

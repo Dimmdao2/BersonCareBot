@@ -1,9 +1,12 @@
 import type {
   SaasBillingInvoice,
   SaasBillingProviderEventReadRow,
+  SaasBillingRefund,
   SaasBillingRepositoryPort,
   SaasBillingSubscription,
 } from '@/modules/saas-billing/ports';
+
+const OPEN_REFUND_STATUSES: SaasBillingRefund['status'][] = ['pending', 'succeeded'];
 
 /** Key = `${organizationId}::${source}` — mirrors the real `(organization_id, source)` unique index,
  *  so `manual` and `paid_subscription` rows for the same org never collide in this fake. */
@@ -16,6 +19,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
   const organizationTariffs = new Map<string, string | null>();
   const invoices = new Map<string, SaasBillingInvoice>();
   const events = new Map<string, SaasBillingProviderEventReadRow>();
+  const refunds = new Map<string, SaasBillingRefund>();
 
   return {
     async getOrganizationBillingOverview(organizationId) {
@@ -57,6 +61,12 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           // No organization title source in this fake — the platform payments screen reads the
           // real (pg) repository; only the type shape needs satisfying here.
           organizationTitle: row.organizationId,
+          refundedMinor: [...refunds.values()]
+            .filter((r) => r.saasBillingInvoiceId === row.id && r.status === 'succeeded')
+            .reduce((sum, r) => sum + r.amountMinor, 0),
+          pendingRefundMinor: [...refunds.values()]
+            .filter((r) => r.saasBillingInvoiceId === row.id && r.status === 'pending')
+            .reduce((sum, r) => sum + r.amountMinor, 0),
         }));
     },
 
@@ -241,6 +251,80 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         currentPeriodStartsAt: periodStartsAt,
         currentPeriodEndsAt: periodEndsAt,
       });
+    },
+
+    async reserveSaasBillingRefund({ saasBillingInvoiceId, amountMinor, providerIdempotencyKey }) {
+      const invoice = invoices.get(saasBillingInvoiceId);
+      if (!invoice) return { outcome: 'invoice_not_found' as const };
+      if (invoice.status !== 'paid') {
+        return { outcome: 'invoice_not_refundable' as const, status: invoice.status };
+      }
+      const refundedMinor = [...refunds.values()]
+        .filter(
+          (r) =>
+            r.saasBillingInvoiceId === saasBillingInvoiceId &&
+            OPEN_REFUND_STATUSES.includes(r.status),
+        )
+        .reduce((sum, r) => sum + r.amountMinor, 0);
+      const remainingMinor = invoice.amountMinor - refundedMinor;
+      if (amountMinor > remainingMinor) {
+        return { outcome: 'amount_exceeds_remaining' as const, remainingMinor };
+      }
+      const existing = [...refunds.values()].find(
+        (r) => r.providerId === invoice.providerId && r.providerIdempotencyKey === providerIdempotencyKey,
+      );
+      if (existing) return { outcome: 'duplicate' as const, refund: existing };
+
+      const now = new Date().toISOString();
+      const refund: SaasBillingRefund = {
+        id: crypto.randomUUID(),
+        organizationId: invoice.organizationId,
+        saasBillingInvoiceId,
+        amountMinor,
+        currency: invoice.currency,
+        status: 'pending',
+        providerId: invoice.providerId,
+        providerRefundRef: null,
+        providerIdempotencyKey,
+        confirmedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      refunds.set(refund.id, refund);
+      return { outcome: 'reserved' as const, refund, invoice };
+    },
+
+    async attachSaasBillingRefundProviderRef({ saasBillingRefundId, providerRefundRef }) {
+      const current = refunds.get(saasBillingRefundId);
+      if (!current) throw new Error('saas_billing_refund_not_found');
+      const refund: SaasBillingRefund = { ...current, providerRefundRef };
+      refunds.set(refund.id, refund);
+      return refund;
+    },
+
+    async markSaasBillingRefundFailed({ saasBillingRefundId }) {
+      const current = refunds.get(saasBillingRefundId);
+      if (!current) throw new Error('saas_billing_refund_not_found');
+      const refund: SaasBillingRefund = { ...current, status: 'failed' };
+      refunds.set(refund.id, refund);
+      return refund;
+    },
+
+    async findSaasBillingRefundByProviderRef({ providerId, providerRefundRef }) {
+      const found = [...refunds.values()].find(
+        (r) => r.providerId === providerId && r.providerRefundRef === providerRefundRef,
+      );
+      return found ?? null;
+    },
+
+    async confirmSaasBillingRefund({ saasBillingRefundId, organizationId, status, confirmedAt }) {
+      const current = refunds.get(saasBillingRefundId);
+      if (!current || current.organizationId !== organizationId) {
+        throw new Error('saas_billing_refund_not_found');
+      }
+      const refund: SaasBillingRefund = { ...current, status, confirmedAt };
+      refunds.set(refund.id, refund);
+      return refund;
     },
   };
 }
