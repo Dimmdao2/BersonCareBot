@@ -104,4 +104,24 @@ describe('B1.3 — prepayment provider availability', () => {
 
     expect(availability).toEqual({ available: true });
   });
+
+  it('keeps payment_provider_unavailable as the booking-time guard', async () => {
+    const payments = buildService({
+      enabled: true,
+      defaultProviderId: 'yookassa',
+      providers: [{ id: 'yookassa', label: 'YooKassa', enabled: true, shopId: 'shop-1' }],
+    });
+
+    await expect(
+      payments.createAppointmentPaymentIntent({
+        organizationId: 'org-1',
+        appointmentId: 'appointment-1',
+        platformUserId: 'user-1',
+        amountMinor: 1_000,
+        currency: 'RUB',
+        idempotencyKey: 'prepayment-1',
+        returnUrl: 'https://example.test/pay',
+      }),
+    ).rejects.toThrow('payment_provider_unavailable');
+  });
 });

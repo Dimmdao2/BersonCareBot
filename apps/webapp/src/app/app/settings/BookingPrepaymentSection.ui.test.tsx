@@ -69,6 +69,26 @@ describe('B1.3 prepayment settings', () => {
     await screen.findByText('Настройте активного платёжного провайдера в кабинете клиники.');
     await chooseService();
 
+    const user = userEvent.setup();
+    const modeSelect = screen.getAllByRole('combobox')[2];
+    await user.click(modeSelect);
+    await user.click(await screen.findByRole('option', { name: 'Фикс (коп.)' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
+    });
+  });
+
+  it('lets the clinic disable a previously active policy while the provider is unavailable', async () => {
+    render(<BookingPrepaymentSection />);
+    await screen.findByText('Настройте активного платёжного провайдера в кабинете клиники.');
+    await chooseService();
+
+    const user = userEvent.setup();
+    const modeSelect = screen.getAllByRole('combobox')[2];
+    await user.click(modeSelect);
+    await user.click(await screen.findByRole('option', { name: 'Отключена' }));
+
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
     });

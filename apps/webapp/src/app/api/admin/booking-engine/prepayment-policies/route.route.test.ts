@@ -117,6 +117,32 @@ describe('B1.3 prepayment policy API', () => {
     expect(fakes.upsertPrepaymentPolicy).not.toHaveBeenCalled();
   });
 
+  it('persists an active policy only for a service owned by the clinic', async () => {
+    const response = await PUT(policyRequest());
+
+    expect(response.status).toBe(200);
+    expect(fakes.upsertPrepaymentPolicy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORGANIZATION_ID,
+        serviceId: SERVICE_ID,
+        mode: 'fixed_minor',
+      }),
+    );
+  });
+
+  it('does not persist an active policy for a service owned by another clinic', async () => {
+    fakes.getService.mockResolvedValue({
+      id: SERVICE_ID,
+      organizationId: '00000000-0000-4000-8000-000000001132',
+    });
+
+    const response = await PUT(policyRequest());
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ ok: false, error: 'service_not_found' });
+    expect(fakes.upsertPrepaymentPolicy).not.toHaveBeenCalled();
+  });
+
   it('still saves disabled mode when the tariff and provider are unavailable', async () => {
     fakes.requireEntitlementForMutation.mockResolvedValue({
       ok: false,
