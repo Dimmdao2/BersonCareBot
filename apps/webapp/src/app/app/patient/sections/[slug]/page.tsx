@@ -10,7 +10,7 @@ import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import { resolvePatientContentSectionSlug } from '@/infra/repos/resolvePatientContentSectionSlug';
+import { resolvePatientContentSectionSlug } from '@/modules/content-sections/resolvePatientContentSectionSlug';
 import { getSubscriptionCarouselSectionPresentation } from '@/modules/patient-home/patientHomeResolvers';
 import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
 import {

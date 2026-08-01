@@ -10,7 +10,7 @@ import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTi
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
 import { ReminderRulesClient, type PersonalReminderRowVM } from './ReminderRulesClient';
-import { resolvePatientContentSectionSlug } from '@/infra/repos/resolvePatientContentSectionSlug';
+import { resolvePatientContentSectionSlug } from '@/modules/content-sections/resolvePatientContentSectionSlug';
 import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
 import { isWarmupsContentSectionReminderRule } from '@/modules/reminders/warmupsReminderRuleMatch';
 import { resolvePatientCanViewAuthOnlyContent } from '@/app-layer/platform-access';

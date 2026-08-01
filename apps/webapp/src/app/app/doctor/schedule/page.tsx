@@ -1,7 +1,6 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
-import { pgDoctorCalendarTimezonePort } from '@/infra/repos/pgDoctorCalendarTimezone';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import { resolveActiveOwnSpecialistId } from '@/modules/doctor-schedule/scope';
 import {
@@ -18,6 +17,7 @@ type Props = {
 export default async function DoctorSchedulePage({ searchParams }: Props) {
   const workspace = await requireOrganizationWorkspaceContext();
   const params = await searchParams;
+  const deps = buildAppDeps();
 
   const initialTab = scheduleTabFromQuery(params.tab ?? null);
   const appDisplayTimeZone = await getAppDisplayTimeZone().catch(
@@ -25,7 +25,7 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
   );
   const initialTimeZone = await getDoctorEffectiveCalendarIana(
     workspace.session.user.userId,
-    pgDoctorCalendarTimezonePort,
+    deps.doctorCalendarTimezone,
   ).catch(() => appDisplayTimeZone);
   const directoryContext: DoctorWorkspaceContext = {
     organizationId: workspace.organizationId,
@@ -38,7 +38,7 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
     selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
   };
-  const directory = await buildAppDeps().doctorWorkspace.listDirectory(directoryContext);
+  const directory = await deps.doctorWorkspace.listDirectory(directoryContext);
   const scheduleScopeBootstrap = {
     ownSpecialistId: resolveActiveOwnSpecialistId(
       workspace.specialistId,
