@@ -53,6 +53,12 @@ port/`sql`-fragment path; новую allowlist-запись не добавля�
 journal, legacy-migration, DB-chokepoint и typecheck → `exit 0`. Ветка ждёт land после снятия общего raw-SQL
 blocker выше; номера `0300`–`0302` остаются забронированы.
 
+**Test-suite Б1 disposable PostgreSQL:** продукт `5bc9a7018`, независимый audit artifact/test
+`46716e096`, отчёт `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md` —
+**FAIL**: blind kill-set `17 killed / 2 missed / 1 N/A`, ещё `1 missed` stop-failure найден inspection.
+Fix-round ограничен тремя findings: committed integrator ledger `0` вместо `68`, нет exact-invocation ownership
+cleanup, ошибка `pg_ctl stop` проглатывается. Ветка `wt/testsuite-b-current`, land запрещён до green fix evidence.
+
 ---
 
 > **⛔ ПЕРЕД ЗАПУСКОМ ЛЮБОГО СЛОЯ — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш
