@@ -128,16 +128,14 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
       loadManualAssignmentState: async () => ({
         organization: {
           tariffId: current?.tariffId ?? null,
-          commercialAccessState: current ? 'active' : 'no_trial',
         },
         activeTrial: null,
         manualSaasBillingSubscription: current,
       }),
       requireActiveTariff: async () => ({ billingPeriod }),
       setManualSaasBillingSubscription,
-      updateCompatibilityProjection: async () => ({
+      updateOrganizationTariffAssignment: async () => ({
         tariffId: 'tariff-1',
-        commercialAccessState: 'active',
       }),
       endActiveTrial: async () => null,
       appendManualAssignmentAudit: async () => {},

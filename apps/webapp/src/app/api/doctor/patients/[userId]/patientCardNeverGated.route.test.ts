@@ -4,10 +4,10 @@
  * медицинские записи визитов... тоже не трогай"). It was found gated via
  * `requireEntitlementForMutation(gate.ctx, 'patient_card')` on nine patient-card write routes,
  * and `patient_card` had a real, toggleable key in `MECHANIC_REGISTRY` — an admin could disable
- * it, and an org with `access.source === 'no_trial'` got it disabled by default.
+ * it, and an org with no tariff got it disabled by default.
  *
- * This test proves the fix holds under the worst commercial state (blocked lifecycle, no tariff,
- * `no_trial` source — every mechanic in `MECHANIC_REGISTRY` resolves to `false`): every
+ * This test proves the fix holds under the worst commercial state (blocked lifecycle, no tariff —
+ * every mechanic in `MECHANIC_REGISTRY` resolves to `false`): every
  * patient-card write must still succeed. It exercises the real `requireEntitlementForMutation` /
  * `resolveOrgEntitlementSnapshot` code path (not mocked) against a fake `orgEntitlements` port, so
  * reintroducing the gate call (and the `patient_card` registry key it requires to compile) turns
@@ -98,14 +98,14 @@ const clientIdentity: ClientIdentity = {
 };
 
 /**
- * Worst commercial state: no tariff, `no_trial` source (every `MECHANIC_REGISTRY` key resolves
- * to `false` per `entitlementsFromSnapshot`), lifecycle `blocked`. If any patient-card route ever
- * asks the resolver about a mechanic again, this snapshot denies it.
+ * Worst commercial state: no tariff, lifecycle `blocked` (every `MECHANIC_REGISTRY` key resolves
+ * to `false` per `entitlementsFromSnapshot`). If any patient-card route ever asks the resolver
+ * about a mechanic again, this snapshot denies it.
  */
 const blockedNoTariffSnapshot: OrgEntitlementSnapshot = {
   tariff: null,
   overrides: [],
-  access: { lifecycle: 'blocked', tariffId: null, source: 'no_trial' },
+  access: { lifecycle: 'blocked', tariffId: null, source: 'assignment' },
 };
 
 const fakeDeps = {

@@ -62,16 +62,6 @@ const LIFECYCLE_LABELS: Record<
   blocked: 'Заблокирована',
 };
 
-const COMMERCIAL_STATE_LABELS: Record<
-  PlatformOrganizationSummary['commercialAccessState'],
-  string
-> = {
-  compatibility: 'Совместимость',
-  no_trial: 'Без триала',
-  trial_pending: 'Триал ожидается',
-  active: 'Коммерческий доступ',
-};
-
 const TRIAL_STATUS_LABELS: Record<
   NonNullable<PlatformOrganizationSummary['trial']>['status'],
   string
@@ -426,7 +416,7 @@ function ClinicDetail({
             Все клиники
           </Link>
         </div>
-        <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid gap-2 sm:grid-cols-3">
           <div className={doctorSectionItemClass}>
             <dt className="text-xs text-muted-foreground">Тариф</dt>
             <dd className="mt-1 font-medium">{tariffName(organization, tariffsById)}</dd>
@@ -437,12 +427,6 @@ function ClinicDetail({
               <Badge variant={lifecycleBadgeVariant(organization.effectiveAccess.lifecycle)}>
                 {LIFECYCLE_LABELS[organization.effectiveAccess.lifecycle]}
               </Badge>
-            </dd>
-          </div>
-          <div className={doctorSectionItemClass}>
-            <dt className="text-xs text-muted-foreground">Коммерческий режим</dt>
-            <dd className="mt-1 font-medium">
-              {COMMERCIAL_STATE_LABELS[organization.commercialAccessState]}
             </dd>
           </div>
           <div className={doctorSectionItemClass}>

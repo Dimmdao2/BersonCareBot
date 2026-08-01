@@ -360,7 +360,7 @@ export function createSaasBillingService(dependencies: {
           tariffId: input.tariffId,
           period,
         });
-        const organization = await transaction.updateCompatibilityProjection({
+        const organization = await transaction.updateOrganizationTariffAssignment({
           organizationId: input.organizationId,
           tariffId: input.tariffId,
         });

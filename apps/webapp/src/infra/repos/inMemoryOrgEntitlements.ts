@@ -12,7 +12,7 @@ export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
       return {
         tariff: null,
         overrides: [],
-        access: { lifecycle: 'active', tariffId: null, source: 'compatibility' },
+        access: { lifecycle: 'active', tariffId: null, source: 'assignment' },
       };
     },
     async getTariffForOrg() {
@@ -22,7 +22,7 @@ export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
       return [];
     },
     async getEffectiveCommercialAccess() {
-      return { lifecycle: 'active', tariffId: null, source: 'compatibility' };
+      return { lifecycle: 'active', tariffId: null, source: 'assignment' };
     },
     async getEnforcedQuotaUsage() {
       return {};
