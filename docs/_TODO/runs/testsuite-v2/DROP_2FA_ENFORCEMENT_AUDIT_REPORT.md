@@ -127,3 +127,22 @@ enrolled staff, recovery restriction/completion, добровольные TOTP r
 Но альтернативный реальный вход global admin обходит проверку уже заведённого фактора и получает platform
 settings. Product candidate нельзя принимать до bounded fix по F1 и зелёного прогона сохранённого oracle; новый
 blind pass той же поверхности не нужен.
+
+## F1 bounded fix — 2026-08-02
+
+`isRestrictedStaffSecuritySession()` теперь использует общий
+`requiresEstablishedStaffFactorVerification()`: staff session с
+`securityFactorRequired=true` остаётся закрытой для doctor/platform workspace, пока assurance не станет
+`factor_verified`. Existing recovery restriction и identity-self security API не менялись; global toggle,
+enrollment и migration не возвращались.
+
+| Команда | Результат |
+| --- | --- |
+| `pnpm --dir apps/webapp exec vitest --run src/modules/auth/passwordAuth.route.test.ts src/app/api/doctor/requestAccess.route.test.ts` | **PASS:** 2 файла, 19 passed |
+| `pnpm --dir apps/webapp exec eslint src/app-layer/guards/requireRole.ts src/modules/auth/passwordAuth.route.test.ts src/app/api/doctor/requestAccess.route.test.ts` | **PASS** |
+| `pnpm --dir apps/webapp typecheck` | **PASS** |
+| `rg -n 'auth_2fa_enabled|platformRequiresStaffTwoFactor' apps/webapp/src apps/integrator/src packages` | **PASS:** 0 active matches (exit 1) |
+| `git diff --check` | **PASS** |
+
+Повторный blind audit/fault injection не запускался: это тот же принятый kill-set, а постоянный F1 oracle стал
+зелёным. DEV/TEST/PROD, DDL и migration application не выполнялись.

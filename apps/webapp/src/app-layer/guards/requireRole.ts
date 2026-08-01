@@ -163,9 +163,7 @@ function requiresEstablishedStaffFactorVerification(session: AppSession): boolea
 
 /** A user who has already proved factor possession must finish its own recovery flow. */
 export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
-  if (session.staffSecurity?.assurance === 'factor_verified') return false;
-  if (isMidRecoveryStaffSecuritySession(session)) return true;
-  return false;
+  return requiresEstablishedStaffFactorVerification(session);
 }
 
 /**
