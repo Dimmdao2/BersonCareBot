@@ -23,3 +23,15 @@
 `bcb_webapp_dev`, `pbt_dev_x`, `pbt_test_x`, `pbt_production_x`. Коммитить только test + plan note при необходимости,
 не пушить.
 
+## Runtime correction after `7f7847fe2`
+
+Лид запустил proof на clone `pbt_tariff_snapshot_7f7847fe2`: все 3 сценария дошли до настоящих функций, но упали
+на `permission denied` для `saas_tariffs`/`saas_billing_subscriptions`. Отдельный Drizzle probe доказал причину:
+`app_owner` владеет обеими SECURITY DEFINER-функциями, но `has_table_privilege(..., 'SELECT')=false`; A0 baseline
+по своему канону создан через `pg_dump --no-privileges` и не является A1 ACL proof.
+
+Минимальная коррекция в том же test-файле: после privileged-disposable guard восстановить только канонические
+SELECT grants, которые production migrations уже выдают `app_owner`: `be_organizations`, `saas_tariffs`,
+`saas_organization_trials`, `saas_org_entitlement_overrides`, `saas_billing_subscriptions`. Это fixture bootstrap
+для A0 clone, не новый ACL claim и не изменение product/migration/harness. Assertions не менять. Лид повторит
+ровно тот же 3-scenario runtime proof; отдельный аудит не нужен, потому что красный oracle уже зафиксирован.
