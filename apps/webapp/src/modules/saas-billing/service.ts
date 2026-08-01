@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
 import type {
   ResolvedSaasBillingPaymentProvider,
+  SaasBillingInvoiceStatus,
   SaasBillingPaymentProviderResolver,
   SaasBillingProviderEventEnvelope,
   SaasBillingRepositoryPort,
@@ -80,6 +81,16 @@ export function createSaasBillingService(dependencies: {
   return {
     getOrganizationBillingOverview(organizationId: string) {
       return dependencies.repository.getOrganizationBillingOverview(organizationId);
+    },
+
+    /** К1 — platform-wide payments journal, filtered by period/status/payer. Never org-scoped. */
+    listPlatformPayments(filter: {
+      periodFrom?: string;
+      periodTo?: string;
+      status?: SaasBillingInvoiceStatus;
+      payerSearch?: string;
+    }) {
+      return dependencies.repository.listPlatformInvoices(filter);
     },
 
     assignManualTariff(input: {

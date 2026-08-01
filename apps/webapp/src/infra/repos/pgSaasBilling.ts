@@ -1,8 +1,9 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
+  SaasBillingPlatformInvoiceRow,
   SaasBillingRepositoryPort,
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
@@ -88,6 +89,37 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         ),
         providerEvents,
       };
+    },
+
+    async listPlatformInvoices(filter): Promise<SaasBillingPlatformInvoiceRow[]> {
+      const db = getDrizzle();
+      const conds = [];
+      if (filter.periodFrom) conds.push(gte(saasBillingInvoices.createdAt, filter.periodFrom));
+      if (filter.periodTo) conds.push(lte(saasBillingInvoices.createdAt, filter.periodTo));
+      if (filter.status) conds.push(eq(saasBillingInvoices.status, filter.status));
+      const payerSearch = filter.payerSearch?.trim();
+      if (payerSearch) conds.push(ilike(beOrganizations.title, `%${payerSearch}%`));
+
+      const rows = await db
+        .select({
+          invoice: saasBillingInvoices,
+          organizationTitle: beOrganizations.title,
+        })
+        .from(saasBillingInvoices)
+        .innerJoin(beOrganizations, eq(beOrganizations.id, saasBillingInvoices.organizationId))
+        .where(conds.length ? and(...conds) : undefined)
+        .orderBy(desc(saasBillingInvoices.createdAt));
+
+      return rows.map(
+        ({ invoice, organizationTitle }): SaasBillingPlatformInvoiceRow => ({
+          ...toSaasBillingInvoice(invoice),
+          paidAt: invoice.paidAt,
+          createdAt: invoice.createdAt,
+          updatedAt: invoice.updatedAt,
+          organizationId: invoice.organizationId,
+          organizationTitle,
+        }),
+      );
     },
 
     async runManualAssignmentTransaction(work) {

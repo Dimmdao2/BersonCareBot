@@ -72,6 +72,25 @@ export type SaasBillingOverview = {
   providerEvents: SaasBillingProviderEventReadRow[];
 };
 
+/**
+ * К1 — one row of the platform's payments journal: how a clinic paid US for its tariff. Source is
+ * our own `saas_billing_invoices` journal, never the provider — see `PAYMENTS_CABINET_PLAN.md` К1.
+ */
+export type SaasBillingPlatformInvoiceRow = SaasBillingInvoiceReadRow & {
+  organizationId: string;
+  organizationTitle: string;
+};
+
+export type SaasBillingPlatformInvoiceFilter = {
+  /** Inclusive lower bound on `createdAt` (the invoice/payment record's own date). */
+  periodFrom?: string;
+  /** Inclusive upper bound on `createdAt`. */
+  periodTo?: string;
+  status?: SaasBillingInvoiceStatus;
+  /** Matched against the payer's (clinic's) organization title, case-insensitive substring. */
+  payerSearch?: string;
+};
+
 export type SaasBillingProviderEventEnvelope = {
   providerId: string;
   providerEventId: string;
@@ -134,6 +153,10 @@ export type SaasBillingManualAssignmentTransactionPort = {
 
 export type SaasBillingRepositoryPort = {
   getOrganizationBillingOverview(organizationId: string): Promise<SaasBillingOverview>;
+  /** К1 — cross-org payments list for the platform cabinet. Never organization-scoped by design. */
+  listPlatformInvoices(
+    filter: SaasBillingPlatformInvoiceFilter,
+  ): Promise<SaasBillingPlatformInvoiceRow[]>;
   runManualAssignmentTransaction<T>(
     work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<T>,
   ): Promise<T>;

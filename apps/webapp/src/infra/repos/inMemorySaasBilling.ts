@@ -42,6 +42,24 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       };
     },
 
+    async listPlatformInvoices(filter) {
+      const now = new Date().toISOString();
+      return [...invoices.values()]
+        .filter((row) => !filter.status || row.status === filter.status)
+        .filter((row) => !filter.periodFrom || now >= filter.periodFrom)
+        .filter((row) => !filter.periodTo || now <= filter.periodTo)
+        .map((row) => ({
+          ...row,
+          paidAt: row.status === 'paid' ? now : null,
+          createdAt: now,
+          updatedAt: now,
+          organizationId: row.organizationId,
+          // No organization title source in this fake — the platform payments screen reads the
+          // real (pg) repository; only the type shape needs satisfying here.
+          organizationTitle: row.organizationId,
+        }));
+    },
+
     async runManualAssignmentTransaction(work) {
       return work({
         async loadManualAssignmentState(organizationId) {
