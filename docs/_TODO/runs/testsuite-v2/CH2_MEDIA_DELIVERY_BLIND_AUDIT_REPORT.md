@@ -1,8 +1,8 @@
 # Ч2 — media delivery chokepoint: independent blind audit
 
-**Role:** `auditor-live`  
-**Authority:** `docs/_TODO/SINGLE_ENTRY_CLEANUP_2026-08-01.md`, Ч2  
-**Target product commit:** `72cbfa172`  
+**Role:** `auditor-live`
+**Authority:** `docs/_TODO/SINGLE_ENTRY_CLEANUP_2026-08-01.md`, Ч2
+**Target product commit:** `72cbfa172`
 **Audit status:** FAIL
 
 ## Blind phase lock
