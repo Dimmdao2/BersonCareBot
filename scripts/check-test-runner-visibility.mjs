@@ -7,12 +7,12 @@
 // («zero-file или висячий include не считается зелёным», .cursor/rules/test-execution-policy.md,
 // чек-лист аудитора п.4), проверки не было ни одной. Этот скрипт сравнивает список тест-файлов на
 // диске со списком, который реально отдаёт `vitest list`, по каждому приложению, и падает на
-// расхождении, не покрытом храповиком.
+// расхождении, не покрытом списком исключений.
 //
-// Храповик — scripts/test-runner-visibility-known-invisible.json: ровно те пути, что были невидимы
+// Список исключений — scripts/test-runner-visibility-known-invisible.json: ровно те пути, что были невидимы
 // раннеру на дату снятия снимка. Список имеет право только СОКРАЩАТЬСЯ:
-//   - новый невидимый файл, которого нет в храповике → FAIL (дыра выросла);
-//   - запись храповика, чей файл уже удалён/перенесён → FAIL (запись протухла, список не обновили).
+//   - новый невидимый файл, которого нет в списке исключений → FAIL (дыра выросла);
+//   - запись списка исключений, чей файл уже удалён/перенесён → FAIL (запись протухла, список не обновили).
 // Эти 22 файла (блок Б3) НЕ трогаются этим гейтом — гейт их не чинит, только не даёт добавить новые.
 //
 // М4 круг 2 (#1081, M4-4 слепого аудита): «список имеет право только сокращаться» был ТОЛЬКО этим
@@ -102,12 +102,12 @@ function checkApp(app, known) {
 
   const newInvisible = invisible.filter((file) => !knownFiles.has(file));
   const staleKnown = [...knownFiles].filter((file) => !diskSet.has(file));
-  // M4 круг 2 (M4-4): рост храповика — путь, дописанный в 'apps', которого нет в зафиксированном
+  // M4 круг 2 (M4-4): рост списка исключений — путь, дописанный в 'apps', которого нет в зафиксированном
   // 'frozenBaseline'. Проверяется независимо от newInvisible/staleKnown выше: даже если файл
   // сегодня реально невидим раннеру, дописать его в исключения без правки frozenBaseline — FAIL.
-  const ratchetGrowth = [...knownFiles].filter((file) => !baselineFiles.has(file));
+  const baselineGrowth = [...knownFiles].filter((file) => !baselineFiles.has(file));
 
-  return { app: app.name, disk: disk.length, runner: runner.size, invisible, newInvisible, staleKnown, ratchetGrowth };
+  return { app: app.name, disk: disk.length, runner: runner.size, invisible, newInvisible, staleKnown, baselineGrowth };
 }
 
 function printReport(results, known) {
@@ -116,21 +116,21 @@ function printReport(results, known) {
     console.log(`check-test-runner-visibility: ${r.app}: диск=${r.disk} раннер=${r.runner} невидимых=${r.invisible.length}`);
     if (r.newInvisible.length > 0) {
       failed = true;
-      console.error(`  НОВЫЙ невидимый файл (не в храповике ${knownInvisiblePath}, asOf=${known.asOf}):`);
+      console.error(`  НОВЫЙ невидимый файл (не в списке исключений ${knownInvisiblePath}, asOf=${known.asOf}):`);
       for (const f of r.newInvisible) console.error(`    - ${r.app}/${f}`);
       console.error('  Файл не выбирается ни одним vitest-проектом. Либо чини include/exclude, либо это');
       console.error('  осознанное исключение — тогда решение по нему принимает владелец плана блока Б3, не этот гейт.');
     }
     if (r.staleKnown.length > 0) {
       failed = true;
-      console.error(`  ПРОТУХШАЯ запись храповика (файла больше нет на диске):`);
+      console.error(`  ПРОТУХШАЯ запись списка исключений (файла больше нет на диске):`);
       for (const f of r.staleKnown) console.error(`    - ${r.app}/${f}`);
       console.error(`  Удали запись из ${knownInvisiblePath} — список имеет право только сокращаться.`);
     }
-    if (r.ratchetGrowth.length > 0) {
+    if (r.baselineGrowth.length > 0) {
       failed = true;
-      console.error(`  РОСТ ХРАПОВИКА (запись в 'apps' отсутствует в 'frozenBaseline' ${knownInvisiblePath}):`);
-      for (const f of r.ratchetGrowth) console.error(`    - ${r.app}/${f}`);
+      console.error(`  РОСТ СПИСКА ИСКЛЮЧЕНИЙ (запись в 'apps' отсутствует в 'frozenBaseline' ${knownInvisiblePath}):`);
+      for (const f of r.baselineGrowth) console.error(`    - ${r.app}/${f}`);
       console.error(`  'apps' обязан быть подмножеством 'frozenBaseline'. Если это осознанное новое`);
       console.error(`  исключение — правку принимает владелец плана блока М, и она обязана явно`);
       console.error(`  редактировать сам 'frozenBaseline', а не только 'apps'.`);
