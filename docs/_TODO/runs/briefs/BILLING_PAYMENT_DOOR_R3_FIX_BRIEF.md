@@ -15,7 +15,7 @@
 
 ## Задача
 
-1. Пересадить product commit `40d493ca3` на свежую ветку от текущего `feat/doctor-ui-rebuild` без старых merge-коммитов.
+1. Текущая ветка уже содержит чистую пересадку product `40d493ca3` как `928fe9cee`; работать в ней, новую ветку не создавать и `git switch` не выполнять.
 2. Исправить ровно ветку manual invoice YooKassa: обязательный `returnUrl` должен доходить до сформированного provider request так же, как у обычного payment intent.
 3. Сохранить прохождение обязательных payer/subject/reference полей через все четыре адаптера и один port. Не возвращать отдельный `createInvoice` bypass и не добавлять fallback на чужой сайт.
 4. Использовать существующие тесты `paymentProviderIdentity.unit.test.ts` / `saas-billing/service.test.ts`; добавить один поведенческий кейс только если текущий kill-set не удерживает manual-invoice return URL.
