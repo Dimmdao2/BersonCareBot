@@ -496,8 +496,8 @@ GRANT INSERT ("organization_id", "conversation_message_id", "integrator_intent_e
 --   public.reminder_rules SELECT ("platform_user_id", "organization_id", "notification_topic_code") --
 --                          upsertReminderRuleDirect's ON CONFLICT DO UPDATE SET reads its own
 --                          platform_user_id/organization_id (COALESCE-preserve-if-null-on-conflict) and
---                          notification_topic_code (CASE-preserve-when-caller's mutation omitted the key,
---                          e.g. reminders.rule.toggle/.cyclePreset never send it) by qualified name.
+--                          notification_topic_code (CASE-preserve-when-caller's mutation omitted the key)
+--                          by qualified name.
 --                          + INSERT (full column set the direct write carries — parity with the
 --                          integrator-local upsertReminderRule's own column list, fixing the pre-D5 gap
 --                          where the retired projection's narrow payload never carried linked_object_*/

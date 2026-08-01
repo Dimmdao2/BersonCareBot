@@ -4,11 +4,7 @@ import type {
   DbWriteMutation,
   DomainContext,
 } from '../../../contracts/index.js';
-import type {
-  DueReminderOccurrence,
-  ReminderCategory,
-  ReminderRuleRecord,
-} from '../../../contracts/reminders.js';
+import type { DueReminderOccurrence, ReminderRuleRecord } from '../../../contracts/reminders.js';
 import type { ExecutorDeps } from '../helpers.js';
 import {
   asNumber,
@@ -32,13 +28,7 @@ import {
 import { DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS } from '../../../../infra/delivery/deliveryContract.js';
 import { logger } from '../../../../infra/observability/logger.js';
 import { getAppDisplayTimezone } from '../../../../config/appTimezone.js';
-import {
-  buildDefaultReminderRule,
-  cycleReminderPreset,
-  detectReminderPreset,
-  planDueReminderOccurrences,
-  reminderPresetConfig,
-} from '../../reminders/policy.js';
+import { planDueReminderOccurrences } from '../../reminders/policy.js';
 import {
   buildPatientReminderDeepLink,
   reminderDispatchUsesIntentOpenTarget,
@@ -232,192 +222,6 @@ export async function handleReminders(
   ctx: DomainContext,
   deps: ExecutorDeps,
 ): Promise<ActionResult> {
-  if (action.type === 'reminders.rules.get') {
-    if (!deps.readPort)
-      return { actionId: action.id, status: 'skipped', error: 'reminders.rules.get: no readPort' };
-    const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
-    const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-    if (!channelUserId)
-      return {
-        actionId: action.id,
-        status: 'failed',
-        error: 'reminders.rules.get: missing channelUserId',
-      };
-    const link = await deps.readPort.readDb<{ userId?: string } | null>({
-      type: 'user.byIdentity',
-      params: { resource, externalId: channelUserId },
-    });
-    const userId =
-      link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
-    if (!userId) return { actionId: action.id, status: 'success', values: { reminderRules: [] } };
-    const rules = await deps.readPort.readDb<ReminderRuleRecord[]>({
-      type: 'reminders.rules.forUser',
-      params: { userId },
-    });
-    const list = Array.isArray(rules) ? rules : [];
-    return {
-      actionId: action.id,
-      status: 'success',
-      values: { reminderRules: list, reminderUserId: userId },
-    };
-  }
-
-  if (action.type === 'reminders.rule.toggle') {
-    if (!deps.readPort || !deps.writePort)
-      return {
-        actionId: action.id,
-        status: 'skipped',
-        error: 'reminders.rule.toggle: missing port',
-      };
-    let userId = asString(action.params.userId);
-    if (!userId) {
-      const channelUserId =
-        asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
-      const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-      if (!channelUserId)
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: 'reminders.rule.toggle: missing userId or channelUserId',
-        };
-      const link = await deps.readPort.readDb<{ userId?: string } | null>({
-        type: 'user.byIdentity',
-        params: { resource, externalId: channelUserId },
-      });
-      userId =
-        link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
-    }
-    const category = asString(action.params.category) as ReminderCategory | null;
-    if (!userId || !category)
-      return {
-        actionId: action.id,
-        status: 'failed',
-        error: 'reminders.rule.toggle: missing userId or category',
-      };
-    const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
-      type: 'reminders.rule.forUserAndCategory',
-      params: { userId, category },
-    });
-    const ruleId = existing?.id ?? `reminder:${userId}:${category}`;
-    const nextEnabled = existing ? !existing.isEnabled : true;
-    let record: ReminderRuleRecord;
-    if (existing) {
-      record = existing;
-    } else {
-      const dbPort = createDbPort();
-      const tz = await getAppDisplayTimezone(
-        deps.dispatchPort ? { db: dbPort, dispatchPort: deps.dispatchPort } : { db: dbPort },
-      );
-      record = buildDefaultReminderRule({ id: ruleId, userId, category, timezone: tz });
-    }
-    const writes = [
-      {
-        type: 'reminders.rule.upsert' as const,
-        params: {
-          id: ruleId,
-          userId,
-          category,
-          isEnabled: nextEnabled,
-          scheduleType: record.scheduleType,
-          timezone: record.timezone,
-          intervalMinutes: record.intervalMinutes,
-          windowStartMinute: record.windowStartMinute,
-          windowEndMinute: record.windowEndMinute,
-          daysMask: record.daysMask,
-          contentMode: record.contentMode,
-          quietHoursStartMinute: record.quietHoursStartMinute ?? null,
-          quietHoursEndMinute: record.quietHoursEndMinute ?? null,
-        },
-      },
-    ];
-    await persistWrites(deps.writePort, writes);
-    return {
-      actionId: action.id,
-      status: 'success',
-      writes,
-      values: { reminderRule: { ...record, isEnabled: nextEnabled } },
-    };
-  }
-
-  if (action.type === 'reminders.rule.cyclePreset') {
-    if (!deps.readPort || !deps.writePort)
-      return {
-        actionId: action.id,
-        status: 'skipped',
-        error: 'reminders.rule.cyclePreset: missing port',
-      };
-    let userId = asString(action.params.userId);
-    if (!userId) {
-      const channelUserId =
-        asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
-      const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-      if (!channelUserId)
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: 'reminders.rule.cyclePreset: missing userId or channelUserId',
-        };
-      const link = await deps.readPort.readDb<{ userId?: string } | null>({
-        type: 'user.byIdentity',
-        params: { resource, externalId: channelUserId },
-      });
-      userId =
-        link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
-    }
-    const category = asString(action.params.category) as ReminderCategory | null;
-    if (!userId || !category)
-      return {
-        actionId: action.id,
-        status: 'failed',
-        error: 'reminders.rule.cyclePreset: missing userId or category',
-      };
-    const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
-      type: 'reminders.rule.forUserAndCategory',
-      params: { userId, category },
-    });
-    const currentPreset = existing ? detectReminderPreset(existing) : null;
-    const nextPreset = cycleReminderPreset(currentPreset);
-    const config = reminderPresetConfig(nextPreset);
-    const ruleId = existing?.id ?? `reminder:${userId}:${category}`;
-    let record: ReminderRuleRecord;
-    if (existing) {
-      record = existing;
-    } else {
-      const dbPort = createDbPort();
-      const tz = await getAppDisplayTimezone(
-        deps.dispatchPort ? { db: dbPort, dispatchPort: deps.dispatchPort } : { db: dbPort },
-      );
-      record = buildDefaultReminderRule({ id: ruleId, userId, category, timezone: tz });
-    }
-    const writes = [
-      {
-        type: 'reminders.rule.upsert' as const,
-        params: {
-          id: ruleId,
-          userId,
-          category,
-          isEnabled: record.isEnabled,
-          scheduleType: record.scheduleType,
-          timezone: record.timezone,
-          intervalMinutes: config.intervalMinutes,
-          windowStartMinute: config.windowStartMinute,
-          windowEndMinute: config.windowEndMinute,
-          daysMask: record.daysMask,
-          contentMode: record.contentMode,
-          quietHoursStartMinute: record.quietHoursStartMinute ?? null,
-          quietHoursEndMinute: record.quietHoursEndMinute ?? null,
-        },
-      },
-    ];
-    await persistWrites(deps.writePort, writes);
-    return {
-      actionId: action.id,
-      status: 'success',
-      writes,
-      values: { reminderPreset: nextPreset },
-    };
-  }
-
   if (action.type === 'reminders.planDue') {
     if (!deps.readPort || !deps.writePort) {
       return { actionId: action.id, status: 'skipped', error: 'reminders.planDue: missing port' };
