@@ -15,7 +15,7 @@ import {
   resolvePlatformAccessContext,
 } from '@/app-layer/platform-access';
 import { canAccessDoctor, canAccessPatient } from '@/modules/roles/service';
-import { getServerRuntimeBool } from '@/modules/system-settings/configAdapter';
+import { platformRequiresStaffTwoFactor } from '@/modules/staff-security/platformPolicy';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
@@ -176,24 +176,18 @@ export async function isRestrictedStaffSecuritySession(session: AppSession): Pro
   if (session.staffSecurity?.assurance === 'factor_verified') return false;
   if (isMidRecoveryStaffSecuritySession(session)) return true;
   if (!canAccessDoctor(session.user.role)) return false;
-  try {
-    // "pending_enrollment" (session set at login / signup-confirm whenever a
-    // staff_security_profiles row exists but no factor has ever been verified — see
-    // verifiedStaffPrimaryLogin.ts and specialist-signup/confirm/route.ts) used to restrict here
-    // unconditionally. That row is created merely by STARTING enrollment (totp/start route calls
-    // ensureProfile()), with no cancel action anywhere in the UI. An owner/staff account that
-    // already had full workspace access, then started and abandoned 2FA setup from
-    // Account → Security, got permanently walled off from every doctor-workspace page on every
-    // future login — even with `auth_2fa_enabled` OFF platform-wide — with no escape but a direct
-    // DB delete (incident reproduced 2026-07-25). A never-verified profile row must not reduce
-    // access the user already had unless the platform actually requires 2FA: fold
-    // "pending_enrollment" into the same flag-gated check as an unenrolled session with no row at
-    // all. getServerRuntimeBool already treats a DB read failure as "flag off" internally; the
-    // catch below only guards the (rare) case the call itself cannot be made. Same safe default.
-    return await getServerRuntimeBool('auth_2fa_enabled');
-  } catch {
-    return false;
-  }
+  // "pending_enrollment" (session set at login / signup-confirm whenever a
+  // staff_security_profiles row exists but no factor has ever been verified — see
+  // verifiedStaffPrimaryLogin.ts and specialist-signup/confirm/route.ts) used to restrict here
+  // unconditionally. That row is created merely by STARTING enrollment (totp/start route calls
+  // ensureProfile()), with no cancel action anywhere in the UI. An owner/staff account that
+  // already had full workspace access, then started and abandoned 2FA setup from
+  // Account → Security, got permanently walled off from every doctor-workspace page on every
+  // future login — even with `auth_2fa_enabled` OFF platform-wide — with no escape but a direct
+  // DB delete (incident reproduced 2026-07-25). A never-verified profile row must not reduce
+  // access the user already had unless the platform actually requires 2FA: fold
+  // "pending_enrollment" into the same flag-gated check as an unenrolled session with no row at all.
+  return await platformRequiresStaffTwoFactor();
 }
 
 /**
