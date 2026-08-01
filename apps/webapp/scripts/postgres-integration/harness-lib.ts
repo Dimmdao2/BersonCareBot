@@ -32,7 +32,7 @@
  * `pbt_`-prefixed, dev/test/prod-rejecting name guard, so a bug here can never target a shared
  * database by construction, not by discipline.
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -58,7 +58,10 @@ type A0GreenfieldBaselineLib = {
   resolveTrustedPostgresBinaries: (names: string[]) => Record<string, string>;
   validatePackage: () => {
     manifest: {
-      ledgers: { drizzle: { entries: { tag: string; when: number; sha256: string }[] } };
+      ledgers: {
+        drizzle: { entries: { tag: string; when: number; sha256: string }[] };
+        integrator: { entries: { version: string }[] };
+      };
     };
     pending: { drizzle: { tag: string }[]; integrator: { version: string }[] };
   };
@@ -82,6 +85,7 @@ export type SharedCluster = Readonly<{
   port: string;
   operatorRole: string;
   ownerRole: string;
+  ownershipToken: string;
 }>;
 
 export type BuiltTemplate = SharedCluster & Readonly<{ templateName: string }>;
@@ -102,6 +106,7 @@ export function clusterFromEnv(): SharedCluster {
     port: requireEnv('POSTGRES_INTEGRATION_PORT'),
     operatorRole: requireEnv('POSTGRES_INTEGRATION_OPERATOR_ROLE'),
     ownerRole: requireEnv('POSTGRES_INTEGRATION_OWNER_ROLE'),
+    ownershipToken: requireEnv('POSTGRES_INTEGRATION_OWNERSHIP_TOKEN'),
   };
 }
 
@@ -148,20 +153,90 @@ function sanitizedChildEnv(extra: Record<string, string> = {}): NodeJS.ProcessEn
 }
 
 const PRIVATE_SCRATCH_PREFIX = 'pbt_cluster_';
+const OWNERSHIP_MARKER_FILE = '.postgres-integration-ownership.json';
+
+type OwnershipMarker = Readonly<{
+  formatVersion: 1;
+  scratchRoot: string;
+  dataDir: string;
+  socketDir: string;
+  port: string;
+  operatorRole: string;
+  ownerRole: string;
+  ownershipToken: string;
+}>;
+
+function sameSecret(actual: string, expected: string): boolean {
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  return (
+    actualBytes.length === expectedBytes.length &&
+    timingSafeEqual(actualBytes, expectedBytes)
+  );
+}
 
 /** Refuses cleanup unless this is exactly our own 0700 temp directory and data subdirectory. */
-function assertPrivateScratchRoot(cluster: Pick<SharedCluster, 'scratchRoot' | 'dataDir'>): void {
+function assertPrivateScratchRoot(
+  cluster: Pick<SharedCluster, 'scratchRoot' | 'dataDir'>,
+): { scratchRoot: string; dataDir: string } {
   const canonicalTmp = fs.realpathSync(os.tmpdir());
   const canonicalScratch = fs.realpathSync(cluster.scratchRoot);
+  const canonicalData = fs.realpathSync(cluster.dataDir);
   const expectedPrefix = path.join(canonicalTmp, PRIVATE_SCRATCH_PREFIX);
   const mode = fs.statSync(canonicalScratch).mode & 0o777;
   if (
+    path.resolve(cluster.scratchRoot) !== canonicalScratch ||
+    path.resolve(cluster.dataDir) !== canonicalData ||
     !canonicalScratch.startsWith(expectedPrefix) ||
-    path.resolve(cluster.dataDir) !== path.join(canonicalScratch, 'data') ||
+    canonicalData !== path.join(canonicalScratch, 'data') ||
     mode !== 0o700
   ) {
     throw new Error('unsafe_private_scratch_cleanup_target');
   }
+  return { scratchRoot: canonicalScratch, dataDir: canonicalData };
+}
+
+function writeOwnershipMarker(cluster: SharedCluster): void {
+  const marker: OwnershipMarker = {
+    formatVersion: 1,
+    scratchRoot: cluster.scratchRoot,
+    dataDir: cluster.dataDir,
+    socketDir: cluster.socketDir,
+    port: cluster.port,
+    operatorRole: cluster.operatorRole,
+    ownerRole: cluster.ownerRole,
+    ownershipToken: cluster.ownershipToken,
+  };
+  const markerPath = path.join(cluster.scratchRoot, OWNERSHIP_MARKER_FILE);
+  fs.writeFileSync(markerPath, JSON.stringify(marker), { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+}
+
+/**
+ * Coordinates inherited by worker processes are a capability only when they match the private
+ * marker written by this exact start invocation. A prefix/mode-shaped directory is not enough.
+ */
+function assertClusterOwnership(cluster: SharedCluster): { scratchRoot: string; dataDir: string } {
+  const canonical = assertPrivateScratchRoot(cluster);
+  const markerPath = path.join(canonical.scratchRoot, OWNERSHIP_MARKER_FILE);
+  let marker: OwnershipMarker;
+  try {
+    marker = JSON.parse(fs.readFileSync(markerPath, 'utf8')) as OwnershipMarker;
+  } catch {
+    throw new Error('unowned_postgres_integration_cluster');
+  }
+  if (
+    marker.formatVersion !== 1 ||
+    marker.scratchRoot !== canonical.scratchRoot ||
+    marker.dataDir !== canonical.dataDir ||
+    marker.socketDir !== cluster.socketDir ||
+    marker.port !== cluster.port ||
+    marker.operatorRole !== cluster.operatorRole ||
+    marker.ownerRole !== cluster.ownerRole ||
+    !sameSecret(marker.ownershipToken, cluster.ownershipToken)
+  ) {
+    throw new Error('unowned_postgres_integration_cluster');
+  }
+  return canonical;
 }
 
 function run(
@@ -298,10 +373,22 @@ async function startEphemeralCluster(): Promise<
     fs.chmodSync(scratchRoot, 0o700);
     const dataDir = path.join(scratchRoot, 'data');
     const socketDir = path.join(scratchRoot, 'socket');
+    fs.mkdirSync(dataDir, { mode: 0o700 });
     fs.mkdirSync(socketDir, { mode: 0o700 });
     const port = String(40000 + (randomBytes(2).readUInt16BE(0) % 20000));
     const operatorRole = newRoleName('operator');
+    const ownerRole = a0Lib.BASELINE_OWNER_ROLE;
+    const sharedCluster: SharedCluster = {
+      scratchRoot,
+      dataDir,
+      socketDir,
+      port,
+      operatorRole,
+      ownerRole,
+      ownershipToken: randomBytes(32).toString('hex'),
+    };
     try {
+      writeOwnershipMarker(sharedCluster);
       run(initdb, ['-D', dataDir, `--username=${operatorRole}`, '--auth=trust', '--no-locale'], {
         label: 'initdb',
       });
@@ -324,7 +411,6 @@ async function startEphemeralCluster(): Promise<
       // RLS policies hardcode `TO bcb_a0_owner` / `CURRENT_USER = 'bcb_a0_owner'` (normalized at
       // baseline-refresh time -- see normalizeA0Dump in a0-greenfield-baseline-lib.mjs), so restoring
       // schema.sql fails with "role does not exist" against any other owner role name.
-      const ownerRole = a0Lib.BASELINE_OWNER_ROLE;
       psqlAs(
         psqlBin,
         { socketDir, port },
@@ -334,19 +420,20 @@ async function startEphemeralCluster(): Promise<
         'create shared disposable owner role',
       );
 
-      return { scratchRoot, dataDir, socketDir, port, operatorRole, ownerRole, pgCtlBin, psqlBin };
+      return { ...sharedCluster, pgCtlBin, psqlBin };
     } catch (error) {
       lastError = error;
       try {
-        spawnSync(pgCtlBin, ['-D', dataDir, '-m', 'immediate', 'stop'], {
-          env: sanitizedChildEnv(),
-          stdio: 'ignore',
-        });
+        stopCluster(sharedCluster, pgCtlBin);
       } catch {
-        // best-effort: the cluster may never have started
+        // The original start/init error is more useful here. If it never started, the owned root
+        // is still safe to remove once status proves no postmaster is attached to this data dir.
+        try {
+          removeStoppedCluster(sharedCluster, pgCtlBin);
+        } catch {
+          // Leave an uncertain root in place rather than deleting a path after failed ownership/status checks.
+        }
       }
-      assertPrivateScratchRoot({ scratchRoot, dataDir });
-      fs.rmSync(scratchRoot, { recursive: true, force: true });
     }
   }
   throw new Error(
@@ -354,16 +441,60 @@ async function startEphemeralCluster(): Promise<
   );
 }
 
-export function stopCluster(
-  cluster: Pick<SharedCluster, 'dataDir' | 'scratchRoot'>,
+export type PgCtlCommandResult = Readonly<{
+  error?: Error;
+  status: number | null;
+  signal: NodeJS.Signals | null;
+}>;
+
+/** Narrow command adapter: normal lifecycle and deterministic fault tests use the same stop path. */
+export type PgCtlCommandRunner = (command: string, args: string[]) => PgCtlCommandResult;
+
+function defaultPgCtlCommandRunner(command: string, args: string[]): PgCtlCommandResult {
+  const result = spawnSync(command, args, { env: sanitizedChildEnv(), stdio: 'ignore' });
+  return { error: result.error, status: result.status, signal: result.signal };
+}
+
+function requirePgCtlResult(result: PgCtlCommandResult, expectedStatus: number, label: string): void {
+  if (result.error) throw new Error(`${label} failed to start: ${result.error.message}`);
+  if (result.signal || result.status !== expectedStatus) {
+    throw new Error(
+      `${label} failed with status ${result.status ?? 'unknown'}${result.signal ? ` signal ${result.signal}` : ''}`,
+    );
+  }
+}
+
+function removeStoppedCluster(
+  cluster: SharedCluster,
   pgCtlBin: string,
+  runPgCtl: PgCtlCommandRunner = defaultPgCtlCommandRunner,
 ): void {
-  assertPrivateScratchRoot(cluster);
-  spawnSync(pgCtlBin, ['-D', cluster.dataDir, '-m', 'fast', '-w', 'stop'], {
-    env: sanitizedChildEnv(),
-    stdio: 'ignore',
-  });
-  fs.rmSync(cluster.scratchRoot, { recursive: true, force: true });
+  const canonical = assertClusterOwnership(cluster);
+  const status = runPgCtl(pgCtlBin, ['-D', canonical.dataDir, 'status']);
+  // pg_ctl returns 3 only after it has proved this exact data directory has no running server.
+  requirePgCtlResult(status, 3, 'pg_ctl status after stop');
+  assertClusterOwnership(cluster);
+  fs.rmSync(canonical.scratchRoot, { recursive: true, force: true });
+}
+
+export function stopCluster(
+  cluster: SharedCluster,
+  pgCtlBin: string,
+  { runPgCtl = defaultPgCtlCommandRunner }: { runPgCtl?: PgCtlCommandRunner } = {},
+): void {
+  const canonical = assertClusterOwnership(cluster);
+  const beforeStop = runPgCtl(pgCtlBin, ['-D', canonical.dataDir, 'status']);
+  if (beforeStop.error) throw new Error(`pg_ctl status before stop failed to start: ${beforeStop.error.message}`);
+  if (beforeStop.signal || (beforeStop.status !== 0 && beforeStop.status !== 3)) {
+    throw new Error(
+      `pg_ctl status before stop failed with status ${beforeStop.status ?? 'unknown'}${beforeStop.signal ? ` signal ${beforeStop.signal}` : ''}`,
+    );
+  }
+  if (beforeStop.status === 0) {
+    const stopped = runPgCtl(pgCtlBin, ['-D', canonical.dataDir, '-m', 'fast', '-w', 'stop']);
+    requirePgCtlResult(stopped, 0, 'pg_ctl stop');
+  }
+  removeStoppedCluster(cluster, pgCtlBin, runPgCtl);
 }
 
 /**
@@ -396,6 +527,12 @@ function buildDrizzleLedgerSql(entries: { sha256: string; when: number }[]): str
     .map((entry) => `(${quoteLiteral(entry.sha256)}, ${Number(entry.when)})`)
     .join(',\n');
   return `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES\n${values};\n`;
+}
+
+function buildIntegratorLedgerSql(entries: { version: string }[]): string {
+  if (entries.length === 0) return '';
+  const values = entries.map((entry) => `(${quoteLiteral(entry.version)})`).join(',\n');
+  return `INSERT INTO integrator.schema_migrations (version) VALUES\n${values};\n`;
 }
 
 /**
@@ -494,6 +631,17 @@ export async function buildTemplateDatabase(): Promise<BuiltTemplate> {
           'seed drizzle migration ledger from baseline',
         );
       }
+      const integratorLedgerSql = buildIntegratorLedgerSql(manifest.ledgers.integrator.entries);
+      if (integratorLedgerSql) {
+        psqlAs(
+          psqlBin,
+          sharedCluster,
+          sharedCluster.ownerRole,
+          templateName,
+          integratorLedgerSql,
+          'transplant integrator migration ledger from baseline',
+        );
+      }
       psqlFileAs(
         psqlBin,
         sharedCluster,
@@ -565,6 +713,7 @@ export function dropDisposableDatabase(
   psqlBin: string,
   name: string,
 ): void {
+  assertClusterOwnership(cluster);
   assertDisposableName(name);
   psqlAs(
     psqlBin,
@@ -591,10 +740,11 @@ export function dropDisposableDatabase(
  * running cluster process. Stopping the cluster can never fail this way.
  */
 export function teardownCluster(
-  cluster: Pick<SharedCluster, 'dataDir' | 'scratchRoot'>,
+  cluster: SharedCluster,
   pgCtlBin: string,
+  options: { runPgCtl?: PgCtlCommandRunner } = {},
 ): void {
-  stopCluster(cluster, pgCtlBin);
+  stopCluster(cluster, pgCtlBin, options);
 }
 
 export async function resolvePsqlBin(): Promise<string> {
@@ -647,6 +797,7 @@ export async function selfTest(): Promise<void> {
     'POSTGRES_INTEGRATION_PORT',
     'POSTGRES_INTEGRATION_OPERATOR_ROLE',
     'POSTGRES_INTEGRATION_OWNER_ROLE',
+    'POSTGRES_INTEGRATION_OWNERSHIP_TOKEN',
   ];
   const saved = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
   try {

@@ -58,6 +58,7 @@ async function main(): Promise<void> {
         port: built.port,
         operatorRole: built.operatorRole,
         ownerRole: built.ownerRole,
+        ownershipToken: built.ownershipToken,
       }),
     );
     return;

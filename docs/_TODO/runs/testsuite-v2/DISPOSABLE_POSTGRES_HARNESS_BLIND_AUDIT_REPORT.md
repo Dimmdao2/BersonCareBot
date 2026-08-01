@@ -180,3 +180,43 @@ ledger `0` вместо committed `68`. Финальный exact private-cluster
   переименован в signal guarantee.
 - DEV/TEST/PROD, host PostgreSQL `:5432`, repository env-файлы, deploy и push не открывались и не изменялись.
 - Full CI не запускался: brief требует targeted gate и прямо говорит, что full CI не нужен.
+
+## Fix-round evidence (bounded worker, 2026-08-01; not a replacement audit)
+
+The three recorded `MUST FIX` items were addressed without expanding scope. This section records worker evidence;
+the FAIL verdict above remains the independent audit record and only a new audit may change it.
+
+```bash
+pnpm run test:webapp:postgres
+```
+
+Result: `Test Files 2 passed (2)`, `Tests 3 passed (3)`, `Duration 14.88s`. The preserved ledger oracle is green:
+it loads expected versions from committed A0 manifest and observed the exact `68` versions in
+`integrator.schema_migrations`; no integrator migration command ran.
+
+The added lifecycle regression creates a foreign `0700` `/tmp/pbt_cluster_*` decoy with a sentinel and passes its
+coordinates to teardown: teardown throws `unowned_postgres_integration_cluster`; the sentinel remains. It then
+returns status `1` only for the normal `PgCtlCommandRunner` stop call, observes that its own root still exists and
+`pg_ctl -D <own-data> status` is `0`, then invokes normal teardown and observes root removal. This is no env-only
+fault hook and does not kill a PID.
+
+```bash
+pnpm --dir apps/webapp exec tsx scripts/postgres-integration/cli.ts build-template; fault_exit=$?; find /tmp -mindepth 1 -maxdepth 1 -name 'pbt_cluster_*' -printf '%f\n' | sort; test "$fault_exit" -ne 0
+```
+
+With temporary reverted invalid SQL in pending migration `0297`, output was `sqlstate=42P01` and harness exit `1`;
+the exact scratch-root census was empty. A clean rerun passed.
+
+```bash
+VITEST_MAX_WORKERS=2 pnpm --dir apps/webapp exec vitest run --config vitest.postgres.config.ts
+pnpm run check:saas-a0-greenfield-baseline
+POSTGRES_INTEGRATION_LIST_ONLY=1 pnpm --dir apps/webapp exec vitest list --config vitest.postgres.config.ts
+pnpm --dir apps/webapp typecheck
+pnpm --dir apps/webapp exec eslint --no-ignore scripts/postgres-integration/cli.ts scripts/postgres-integration/harness-lib.ts vitest.postgres.globalSetup.ts src/app-layer/testing/pgDisposableHarness.postgres.integration.test.ts src/app-layer/testing/pgDisposableHarnessLifecycle.postgres.integration.test.ts
+git diff --check
+```
+
+Parallel temporary probes (removed) yielded `4` files / `5` tests green under two workers; the static A0 gate was
+`8/8` and reported manifest `integrator=68`, `drizzle=288`, pending `0/10`; runner list, typecheck, targeted lint
+and diff check passed. No A1/RLS, Б3, signal claim, integrator contour, DEV/TEST/PROD, deploy, full CI or push was
+performed.

@@ -28,9 +28,10 @@ export default async function setup(): Promise<() => Promise<void>> {
   process.env.POSTGRES_INTEGRATION_PORT = built.port;
   process.env.POSTGRES_INTEGRATION_OPERATOR_ROLE = built.operatorRole;
   process.env.POSTGRES_INTEGRATION_OWNER_ROLE = built.ownerRole;
+  process.env.POSTGRES_INTEGRATION_OWNERSHIP_TOKEN = built.ownershipToken;
 
   return async () => {
     const pgCtlBin = await resolvePgCtlBin();
-    teardownCluster({ scratchRoot: built.scratchRoot, dataDir: built.dataDir }, pgCtlBin);
+    teardownCluster(built, pgCtlBin);
   };
 }
