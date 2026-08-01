@@ -458,65 +458,6 @@ export async function getConversationById(
   return res.rows[0] ?? null;
 }
 
-export async function listOpenConversations(
-  db: DbPort,
-  input: { source?: string; limit?: number },
-): Promise<ConversationListRow[]> {
-  const limit =
-    typeof input.limit === 'number' && Number.isFinite(input.limit)
-      ? Math.max(1, Math.trunc(input.limit))
-      : 20;
-  const sourceParam = asNonEmptyString(input.source);
-  const res = await runIntegratorSql<ConversationListRow>(
-    db,
-    sql`
-    SELECT
-      c.id,
-      c.source,
-      c.user_identity_id::text,
-      c.admin_scope,
-      c.status,
-      c.opened_at::text,
-      c.last_message_at::text,
-      c.closed_at::text,
-      c.close_reason,
-      i.external_id::text AS user_channel_id,
-      NULL::text AS user_chat_id,
-      ts.username,
-      ts.first_name,
-      ts.last_name,
-      cp.phone AS phone_normalized,
-      lm.text AS last_message_text,
-      lm.sender_role AS last_sender_role
-    FROM conversations c
-    JOIN identities i
-      ON i.id = c.user_identity_id
-    LEFT JOIN telegram_state ts
-      ON ts.identity_id = i.id AND i.resource = 'telegram'
-    LEFT JOIN LATERAL (
-      SELECT c2.value_normalized AS phone
-      FROM contacts c2
-      WHERE c2.user_id = i.user_id AND c2.type = 'phone'
-      ORDER BY c2.is_primary DESC NULLS LAST, c2.id ASC
-      LIMIT 1
-    ) cp ON true
-    LEFT JOIN LATERAL (
-      SELECT cm.text, cm.sender_role
-      FROM conversation_messages cm
-      WHERE cm.conversation_id = c.id
-      ORDER BY cm.created_at DESC, cm.id DESC
-      LIMIT 1
-    ) lm ON true
-    WHERE c.closed_at IS NULL
-      AND c.status <> 'closed'
-      AND (${sourceParam}::text IS NULL OR c.source = ${sourceParam})
-    ORDER BY c.last_message_at DESC
-    LIMIT ${limit}
-  `,
-  );
-  return res.rows;
-}
-
 /** Open conversations with last_message_at strictly before given ISO time (for auto-close). */
 export async function listOpenConversationsOlderThan(
   db: DbPort,
@@ -576,22 +517,7 @@ export async function listOpenConversationsOlderThan(
   return res.rows;
 }
 
-// --- user_questions & question_messages (answered / unanswered list) ---
-
-export type UserQuestionRow = {
-  id: string;
-  user_identity_id: string;
-  conversation_id: string | null;
-  telegram_message_id: string | null;
-  text: string;
-  created_at: string;
-  answered: boolean;
-  answered_at: string | null;
-  user_channel_id: string;
-  username: string | null;
-  first_name: string | null;
-  last_name: string | null;
-};
+// --- user_questions & question_messages ---
 
 export async function insertUserQuestion(
   db: DbPort,
@@ -687,53 +613,3 @@ export async function setQuestionAnswered(
   );
 }
 
-export async function getQuestionByConversationId(
-  db: DbPort,
-  input: { conversationId: string },
-): Promise<{ id: string; answered: boolean } | null> {
-  const res = await runIntegratorSql<{ id: string; answered: boolean }>(
-    db,
-    sql`
-    SELECT id, answered
-    FROM user_questions
-    WHERE conversation_id = ${input.conversationId}
-    LIMIT 1
-  `,
-  );
-  return res.rows[0] ?? null;
-}
-
-export async function listUnansweredQuestions(
-  db: DbPort,
-  input: { limit?: number },
-): Promise<UserQuestionRow[]> {
-  const limit =
-    typeof input.limit === 'number' && Number.isFinite(input.limit)
-      ? Math.max(1, Math.trunc(input.limit))
-      : 50;
-  const res = await runIntegratorSql<UserQuestionRow>(
-    db,
-    sql`
-    SELECT
-      uq.id,
-      uq.user_identity_id::text,
-      uq.conversation_id,
-      uq.telegram_message_id,
-      uq.text,
-      uq.created_at::text,
-      uq.answered,
-      uq.answered_at::text,
-      i.external_id::text AS user_channel_id,
-      ts.username,
-      ts.first_name,
-      ts.last_name
-    FROM user_questions uq
-    JOIN identities i ON i.id = uq.user_identity_id
-    LEFT JOIN telegram_state ts ON ts.identity_id = i.id AND i.resource = 'telegram'
-    WHERE uq.answered = false
-    ORDER BY uq.created_at DESC
-    LIMIT ${limit}
-  `,
-  );
-  return res.rows;
-}

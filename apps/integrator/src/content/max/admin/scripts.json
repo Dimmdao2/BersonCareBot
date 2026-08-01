@@ -108,106 +108,6 @@
     ]
   },
   {
-    "id": "max.admin.questions.unanswered",
-    "source": "max",
-    "event": "message.received",
-    "priority": 10,
-    "match": {
-      "input": { "action": "admin.questions.unanswered" },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "question.listUnanswered",
-        "mode": "sync",
-        "params": {
-          "limit": 20
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.admin.questions.mark_all_answered",
-    "source": "max",
-    "event": "callback.received",
-    "priority": 10,
-    "match": {
-      "input": { "action": "questions.mark_all_answered" },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "question.markAllUnansweredAnswered",
-        "mode": "sync",
-        "params": {
-          "limit": 20
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
-          "templateKey": "telegram:admin.questions.markAllDone",
-          "delivery": { "channels": ["max"], "maxAttempts": 1 }
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.admin.dialogs.open",
-    "source": "max",
-    "event": "message.received",
-    "priority": 10,
-    "match": {
-      "input": { "action": "admin.dialogs.open" },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "conversation.listOpen",
-        "mode": "sync",
-        "params": {
-          "source": "max",
-          "limit": 10
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.admin.dialogs.view",
-    "source": "max",
-    "event": "callback.received",
-    "priority": 10,
-    "match": {
-      "input": { "action": "dialogs.view" },
-      "actor": { "isAdmin": true }
-    },
-    "steps": [
-      {
-        "action": "conversation.show",
-        "mode": "sync",
-        "params": {
-          "conversationId": "{{input.conversationId}}"
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
     "id": "max.admin.reply.start",
     "source": "max",
     "event": "callback.received",
@@ -288,13 +188,7 @@
       "context": { "replyMode": true },
       "input": {
         "relayContentPresent": true,
-        "excludeActions": [
-          "admin.dialogs.open",
-          "admin.stats.bookings",
-          "admin.stats.users",
-          "admin.questions.unanswered",
-          "questions.mark_all_answered"
-        ],
+        "excludeActions": ["admin.stats.bookings", "admin.stats.users"],
         "excludeTexts": ["/start"]
       },
       "actor": { "isAdmin": true }
@@ -387,13 +281,7 @@
       "actor": { "isAdmin": true },
       "input": {
         "relayContentPresent": true,
-        "excludeActions": [
-          "admin.dialogs.open",
-          "admin.stats.bookings",
-          "admin.stats.users",
-          "admin.questions.unanswered",
-          "debug.show_my_id"
-        ]
+        "excludeActions": ["admin.stats.bookings", "admin.stats.users", "debug.show_my_id"]
       }
     },
     "steps": [
