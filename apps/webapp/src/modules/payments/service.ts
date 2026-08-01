@@ -257,6 +257,25 @@ export function createPaymentsService(deps: {
       return loadSettings(organizationId);
     },
 
+    async getPrepaymentAvailability(
+      organizationId: string,
+    ): Promise<
+      | { available: true }
+      | { available: false; reason: 'payments_disabled' | 'payment_provider_unavailable' }
+    > {
+      const settings = await loadSettings(organizationId);
+      if (!settings.enabled) return { available: false, reason: 'payments_disabled' };
+      try {
+        resolveActiveProvider(settings);
+        return { available: true };
+      } catch (error) {
+        if (error instanceof Error && error.message === 'payment_provider_unavailable') {
+          return { available: false, reason: 'payment_provider_unavailable' };
+        }
+        throw error;
+      }
+    },
+
     async resolvePrepayment(params: ResolvePrepaymentParams): Promise<PrepaymentQuote> {
       const settings = await loadSettings(params.organizationId);
       const policy = params.serviceId
