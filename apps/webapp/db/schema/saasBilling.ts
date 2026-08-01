@@ -104,6 +104,15 @@ export const saasBillingSubscriptions = pgTable(
     }),
     graceEndsAt: timestamp('grace_ends_at', { withTimezone: true, mode: 'string' }),
     readOnlyEndsAt: timestamp('read_only_ends_at', { withTimezone: true, mode: 'string' }),
+    /**
+     * §2.12 — owner ruling 01.08: «при оплате тарифа все настройки оплаченного тарифа
+     * фиксируются на оплаченный период». A COPY of the entire `saas_tariffs` row (`to_jsonb`,
+     * written by the same call that sets `currentPeriodStartsAt`/`currentPeriodEndsAt` below),
+     * never a chosen list of fields — a tariff column added later lands here automatically. `null`
+     * for a row with no live period (unassigned, or written before this column existed); the
+     * resolver falls back to the live tariff whenever it is `null`, same as no paid period at all.
+     */
+    tariffSnapshot: jsonb('tariff_snapshot').$type<Record<string, unknown>>(),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
