@@ -2,9 +2,6 @@ import type {
   ChannelUserFrom,
   ChannelUserPort,
   ChannelUserRow,
-  NotificationSettings,
-  NotificationSettingsPatch,
-  NotificationsPort,
   DbPort,
   SetUserPhoneOutcome,
 } from '../../../kernel/contracts/index.js';
@@ -379,123 +376,6 @@ export async function getUserState(
     return res.rows[0]?.state ?? null;
   } catch (err) {
     logger.error({ err }, 'getUserState error');
-    return null;
-  }
-}
-
-/** Partially updates notification settings for a channel user. */
-export async function updateNotificationSettings(
-  db: DbPort,
-  channelUserId: number,
-  settings: NotificationSettingsPatch,
-): Promise<void> {
-  const columns: string[] = [];
-  const values: boolean[] = [];
-
-  if (typeof settings.notify_spb === 'boolean') {
-    columns.push('notify_spb');
-    values.push(settings.notify_spb);
-  }
-
-  if (typeof settings.notify_msk === 'boolean') {
-    columns.push('notify_msk');
-    values.push(settings.notify_msk);
-  }
-
-  if (typeof settings.notify_online === 'boolean') {
-    columns.push('notify_online');
-    values.push(settings.notify_online);
-  }
-
-  if (typeof settings.notify_bookings === 'boolean') {
-    columns.push('notify_bookings');
-    values.push(settings.notify_bookings);
-  }
-
-  if (columns.length === 0) return;
-
-  const insertColList = sql.join(
-    columns.map((c) => sql.raw(c)),
-    sql.raw(', '),
-  );
-  const insertValList = sql.join(
-    values.map((v) => sql`${v}`),
-    sql.raw(', '),
-  );
-  const updateSet = sql.join(
-    columns.map((c) => sql.raw(`${c} = EXCLUDED.${c}`)),
-    sql.raw(', '),
-  );
-
-  try {
-    await runIntegratorSql(
-      db,
-      sql`
-    WITH target_identity AS (
-      SELECT i.id
-      FROM identities i
-      WHERE i.resource = 'telegram'
-        AND i.external_id = ${String(channelUserId)}
-      LIMIT 1
-    ),
-    upsert_state AS (
-      INSERT INTO telegram_state (
-        identity_id,
-        ${insertColList},
-        created_at,
-        updated_at
-      )
-      SELECT ti.id, ${insertValList}, now(), now()
-      FROM target_identity ti
-      ON CONFLICT (identity_id)
-      DO UPDATE SET
-        ${updateSet},
-        updated_at = now()
-      RETURNING *
-    )
-    SELECT 1 FROM upsert_state
-  `,
-    );
-  } catch (err) {
-    logger.error({ err }, 'updateNotificationSettings error');
-  }
-}
-
-/** Reads notification settings for a channel user. */
-export async function getNotificationSettings(
-  db: DbPort,
-  channelUserId: number,
-): Promise<NotificationSettings | null> {
-  try {
-    const res = await runIntegratorSql<{
-      notify_spb: boolean | null;
-      notify_msk: boolean | null;
-      notify_online: boolean | null;
-      notify_bookings: boolean | null;
-    }>(
-      db,
-      sql`
-    SELECT ts.notify_spb, ts.notify_msk, ts.notify_online, ts.notify_bookings
-    FROM identities i
-    LEFT JOIN telegram_state ts
-      ON ts.identity_id = i.id
-    WHERE i.resource = 'telegram'
-      AND i.external_id = ${String(channelUserId)}
-    LIMIT 1
-  `,
-    );
-
-    const row = res.rows[0];
-    if (!row) return null;
-
-    return {
-      notify_spb: Boolean(row.notify_spb),
-      notify_msk: Boolean(row.notify_msk),
-      notify_online: Boolean(row.notify_online),
-      notify_bookings: Boolean(row.notify_bookings),
-    };
-  } catch (err) {
-    logger.error({ err }, 'getNotificationSettings error');
     return null;
   }
 }
@@ -879,7 +759,7 @@ export async function setUserPhone(
 }
 
 /** Ready-to-use ChannelUserPort implementation over SQL repository. */
-export function createChannelUserPort(db: DbPort): ChannelUserPort & NotificationsPort {
+export function createChannelUserPort(db: DbPort): ChannelUserPort {
   return {
     upsertUser: (from) => upsertUser(db, from),
     setUserState: (channelUserId, state) => setUserState(db, channelUserId, state),
@@ -889,8 +769,5 @@ export function createChannelUserPort(db: DbPort): ChannelUserPort & Notificatio
     tryAdvanceLastUpdateId: (channelUserId, updateId) =>
       tryAdvanceLastUpdateId(db, channelUserId, updateId),
     tryConsumeStart: (channelUserId) => tryConsumeStart(db, channelUserId),
-    getNotificationSettings: (channelUserId) => getNotificationSettings(db, channelUserId),
-    updateNotificationSettings: (channelUserId, settings) =>
-      updateNotificationSettings(db, channelUserId, settings),
   };
 }

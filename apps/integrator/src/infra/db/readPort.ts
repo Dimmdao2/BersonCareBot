@@ -12,7 +12,6 @@ import {
   getChannelIdsByUserId,
   getIdentityIdByResourceAndExternalId,
   getLinkDataByIdentity,
-  getNotificationSettings,
 } from './repos/channelUsers.js';
 import {
   getDueReminderOccurrences,
@@ -169,15 +168,6 @@ export function createDbReadPort(
           const externalId = asNonEmptyString(query.params.externalId);
           if (!resource || !externalId) return null as T;
           return (await getIdentityIdByResourceAndExternalId(db, resource, externalId)) as T;
-        }
-        case 'notifications.settings': {
-          const resource = asNonEmptyString(query.params.resource) ?? 'telegram';
-          if (resource !== 'telegram') return null as T;
-          const channelUserId = asFiniteNumber(
-            query.params.channelUserId ?? query.params.channelId,
-          );
-          if (channelUserId === null) return null as T;
-          return (await getNotificationSettings(db, channelUserId)) as T;
         }
         case 'booking.byExternalId': {
           const recordId = asNonEmptyString(query.params.externalRecordId ?? query.params.recordId);
