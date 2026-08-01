@@ -32,10 +32,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_reconcile_request' }, { status: 400 });
   }
 
-  const result = await buildAppDeps().saasBilling.reconcilePlatformPaymentsWithProvider({
-    periodFrom: adminAuditDayStartUtcIso(parsedBody.data.from),
-    periodTo: adminAuditDayEndUtcIso(parsedBody.data.to),
-  });
+  let result;
+  try {
+    result = await buildAppDeps().saasBilling.reconcilePlatformPaymentsWithProvider({
+      periodFrom: adminAuditDayStartUtcIso(parsedBody.data.from),
+      periodTo: adminAuditDayEndUtcIso(parsedBody.data.to),
+    });
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: 'saas_billing_reconcile_unavailable' },
+      { status: 500 },
+    );
+  }
 
   if (result.outcome === 'provider_unavailable') {
     return NextResponse.json(
