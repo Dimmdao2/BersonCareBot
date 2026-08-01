@@ -9,17 +9,19 @@ import {
   classifyMultipartCompleteRejection,
   getCompletingSessionTx,
   markCompletingSessionFailedTx,
-  tryFinalizeMultipartIdempotentTx,
 } from '@/app-layer/media/mediaUploadSessionsRepo';
 import { deletePendingMediaFileById } from '@/app-layer/media/s3MediaStorage';
 import { maybeAutoEnqueueVideoTranscodeAfterUpload } from '@/app-layer/media/mediaTranscodeAutoEnqueue';
 import {
-  s3AbortMultipartUpload,
-  s3CompleteMultipartUpload,
-  s3DeleteObject,
-  s3HeadObjectDetails,
-} from '@/app-layer/media/s3Client';
+  abortPreparedMultipartUpload,
+  completePreparedMultipartUpload,
+  finalizeReceivedMultipart,
+  inspectReceivedMediaObject,
+  validateReceivedMediaObject,
+} from '@/app-layer/media/mediaUploadAdapter';
+import { s3DeleteObject } from '@/app-layer/media/s3Client';
 import { multipartMaxPartNumber } from '@/modules/media/multipartConstants';
+import { uploadValidationResponse, validateUploadIntent } from '@/modules/media/uploadValidation';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
         'invalid_parts',
       );
     });
-    await s3AbortMultipartUpload(row.s3_key, row.upload_id).catch(() => {
+    await abortPreparedMultipartUpload(row.s3_key, row.upload_id).catch(() => {
       /* ignore */
     });
     await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -121,7 +123,7 @@ export async function POST(request: Request) {
 
   if (!skipS3Complete) {
     try {
-      await s3CompleteMultipartUpload(row.s3_key, row.upload_id, parsed.data.parts);
+      await completePreparedMultipartUpload(row.s3_key, row.upload_id, parsed.data.parts);
     } catch (e) {
       logger.error({ err: e, sessionId }, '[media/multipart/complete] s3_complete_failed');
       await withMultipartSessionLock(pool, sessionId, async (client) => {
@@ -132,7 +134,7 @@ export async function POST(request: Request) {
           's3_complete_failed',
         );
       });
-      await s3AbortMultipartUpload(row.s3_key, row.upload_id).catch(() => {
+      await abortPreparedMultipartUpload(row.s3_key, row.upload_id).catch(() => {
         /* ignore */
       });
       await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -144,7 +146,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const head = await s3HeadObjectDetails(row.s3_key);
+  const head = await inspectReceivedMediaObject(row.s3_key);
   const metaOk =
     head &&
     head.contentLength === expectedSize &&
@@ -180,15 +182,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'integrity_mismatch' }, { status: 409 });
   }
 
+  const intent = validateUploadIntent({
+    filename: row.original_name,
+    mimeType: row.mime_type,
+    sizeBytes: expectedSize,
+    policyId: 'cms',
+  });
+  if (!intent.ok) {
+    const rejection = uploadValidationResponse(intent);
+    return NextResponse.json(rejection.body, { status: rejection.status });
+  }
+  const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
+  if (!received.ok) {
+    const rejection = uploadValidationResponse(received);
+    return NextResponse.json(rejection.body, { status: rejection.status });
+  }
+
   try {
     const fin = await withMultipartSessionLock(pool, sessionId, async (client) =>
-      tryFinalizeMultipartIdempotentTx(
-        client,
+      finalizeReceivedMultipart(client, {
         sessionId,
-        row.media_id,
-        ownerId,
-        gate.ctx.organizationId,
-      ),
+        mediaId: row.media_id,
+        ownerUserId: ownerId,
+        organizationId: gate.ctx.organizationId,
+        received: received.value,
+      }),
     );
 
     if (fin.kind === 'finalized' || fin.kind === 'already_done') {

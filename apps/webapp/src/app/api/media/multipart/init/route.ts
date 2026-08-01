@@ -12,17 +12,17 @@ import {
   deletePendingMediaFileById,
 } from '@/app-layer/media/s3MediaStorage';
 import {
-  s3AbortMultipartUpload,
-  s3CreateMultipartUpload,
-  s3ObjectKey,
-} from '@/app-layer/media/s3Client';
+  abortPreparedMultipartUpload,
+  beginPreparedMultipartUpload,
+  prepareMediaUpload,
+} from '@/app-layer/media/mediaUploadAdapter';
 import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
 import {
   chooseMultipartPartSize,
   MULTIPART_SESSION_TTL_MS,
   multipartMaxPartNumber,
 } from '@/modules/media/multipartConstants';
-import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
+import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
@@ -54,16 +54,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
-  const mime = parsed.data.mimeType.toLowerCase();
-  if (!ALLOWED_MEDIA_MIME.has(mime)) {
-    return NextResponse.json({ ok: false, error: 'mime_not_allowed', mime }, { status: 415 });
+  const prepared = prepareMediaUpload({
+    filename: parsed.data.filename,
+    mimeType: parsed.data.mimeType,
+    sizeBytes: parsed.data.size,
+    policyId: 'cms',
+  });
+  if (!prepared.ok) {
+    const rejection = uploadValidationResponse(prepared);
+    return NextResponse.json(rejection.body, { status: rejection.status });
   }
-  if (parsed.data.size > MAX_MEDIA_BYTES) {
-    return NextResponse.json(
-      { ok: false, error: 'file_too_large', maxBytes: MAX_MEDIA_BYTES },
-      { status: 413 },
-    );
-  }
+  const upload = prepared.value;
 
   let folderId: string | null = null;
   if (parsed.data.folderId !== undefined && parsed.data.folderId !== null) {
@@ -81,27 +82,23 @@ export async function POST(request: Request) {
     folderId = null;
   }
 
-  const mediaId = randomUUID();
+  const mediaId = upload.id;
   const sessionId = randomUUID();
-  const key = s3ObjectKey(mediaId, parsed.data.filename);
+  const key = upload.key;
   const readUrl = `/api/media/${mediaId}`;
-  const partSizeBytes = chooseMultipartPartSize(parsed.data.size);
-  const maxParts = multipartMaxPartNumber(parsed.data.size, partSizeBytes);
+  const partSizeBytes = chooseMultipartPartSize(upload.intent.sizeBytes);
+  const maxParts = multipartMaxPartNumber(upload.intent.sizeBytes, partSizeBytes);
   const expiresAt = new Date(Date.now() + MULTIPART_SESSION_TTL_MS);
 
   const metadata = {
     'media-id': mediaId,
     'owner-user-id': session.user.userId,
-    'expected-size': String(parsed.data.size),
+    'expected-size': String(upload.intent.sizeBytes),
   };
 
   let uploadId: string | null = null;
   try {
-    const created = await s3CreateMultipartUpload({
-      key,
-      contentType: mime,
-      metadata,
-    });
+    const created = await beginPreparedMultipartUpload(upload, metadata);
     uploadId = created.uploadId;
 
     await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -110,8 +107,8 @@ export async function POST(request: Request) {
           id: mediaId,
           filename: parsed.data.filename,
           key,
-          mimeType: mime,
-          sizeBytes: parsed.data.size,
+          mimeType: upload.intent.mimeType,
+          sizeBytes: upload.intent.sizeBytes,
           userId: session.user.userId,
           folderId,
         });
@@ -121,8 +118,8 @@ export async function POST(request: Request) {
           s3Key: key,
           uploadId: created.uploadId,
           ownerUserId: session.user.userId,
-          expectedSizeBytes: parsed.data.size,
-          mimeType: mime,
+          expectedSizeBytes: upload.intent.sizeBytes,
+          mimeType: upload.intent.mimeType,
           partSizeBytes,
           expiresAt,
         });
@@ -141,7 +138,7 @@ export async function POST(request: Request) {
     });
   } catch (e) {
     if (uploadId) {
-      await s3AbortMultipartUpload(key, uploadId).catch(() => {
+      await abortPreparedMultipartUpload(key, uploadId).catch(() => {
         /* best-effort */
       });
     }

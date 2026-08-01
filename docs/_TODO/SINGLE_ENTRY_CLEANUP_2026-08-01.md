@@ -41,7 +41,7 @@
 
 ## Чек-лист
 
-- [ ] **Ч1. Валидация загрузки файлов.** Шесть intake-маршрутов и три контекстные политики. Реальные разрывы:
+- [x] **Ч1. Валидация загрузки файлов.** Шесть intake-маршрутов и три контекстные политики. Реальные разрывы:
       `doctor/patients/[userId]/files` принимает любой MIME/положительный заявленный размер и создаёт
       `media_files.status=ready` ДО PUT; generic/individual confirm проверяет наличие объекта, но не совпадение
       фактического размера и типа; direct-to-S3 пути доверяют header MIME без проверки сигнатуры. Следствие:
@@ -49,7 +49,9 @@
       сбой presign/PUT оставляет врачу «готовый» файл без байтов и съедает квоту. Готово = одна двухстадийная
       дверь в существующем `modules/media` (intent + фактически полученный object), контекстные лимиты сохранены,
       `ready` недостижим без validated received-object result, все шесть путей на двери, structural gate с
-      self-test запрещает седьмой обход.
+      self-test запрещает седьмой обход. **Fix-round #1082 (audit `d2ff0858f`):** F1–F4 закрыты в
+      `CH1_UPLOAD_FIX_REPORT.md`; `uploadDoorAcceptance.route.test.ts` (23),
+      `mediaUploadDoorGate.unit.test.ts` (14) и canonical gate/self-test — PASS.
 - [ ] **Ч1б. Storage commit/cleanup после разрыва upload.** Отдельный этап, найденный проходом по тем же живым
       путям, не маскируется под валидацию: proxy пишет S3 до DB и при DB-сбое оставляет orphan; single-PUT после
       PUT/до confirm оставляет pending row + object без cleanup; patient confirm при невалидном HEAD удаляет DB

@@ -4,6 +4,7 @@
  * Replace with disk/S3 implementation for production.
  */
 import type { MediaStoragePort } from '@/modules/media/ports';
+import { assertReceivedUpload } from '@/modules/media/uploadValidation';
 import type { MediaFolderRecord, MediaRecord, MediaUsageRef } from '@/modules/media/types';
 
 type StoredMedia = {
@@ -28,6 +29,7 @@ function kindFromMime(mimeType: string): MediaRecord['kind'] {
 
 export const mockMediaStoragePort: MediaStoragePort = {
   async upload(params) {
+    assertReceivedUpload(params.received);
     const body =
       params.body instanceof ArrayBuffer
         ? params.body

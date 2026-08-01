@@ -27,6 +27,7 @@ import {
   s3PutObjectBody,
 } from '@/infra/s3/client';
 import type { MediaStoragePort } from '@/modules/media/ports';
+import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 import type {
   MediaListParams,
@@ -111,6 +112,7 @@ function mapVideoHlsColumns(row: {
 export function createS3MediaStoragePort(): MediaStoragePort {
   return {
     async upload(params) {
+      assertReceivedUpload(params.received);
       const body =
         params.body instanceof ArrayBuffer ? params.body : new Uint8Array(params.body).buffer;
       if (body.byteLength > MAX_MEDIA_BYTES) {
@@ -644,6 +646,7 @@ export async function getMediaRowForConfirm(
   s3_key: string | null;
   status: string;
   mime_type: string;
+  original_name: string;
   usage_purpose: string | null;
   size_bytes: number | null;
 } | null> {
@@ -652,11 +655,12 @@ export async function getMediaRowForConfirm(
     s3_key: string | null;
     status: string;
     mime_type: string;
+    original_name: string;
     usage_purpose: string | null;
     size_bytes: string | null;
   }>(
     getWebappSqlDb(),
-    sql`SELECT s3_key, status, mime_type, usage_purpose, size_bytes::text
+    sql`SELECT s3_key, status, mime_type, original_name, usage_purpose, size_bytes::text
      FROM media_files
      WHERE id = ${mediaId}::uuid
        AND organization_id = ${organizationId}::uuid
@@ -669,12 +673,18 @@ export async function getMediaRowForConfirm(
     s3_key: row.s3_key,
     status: row.status,
     mime_type: row.mime_type,
+    original_name: row.original_name,
     usage_purpose: row.usage_purpose,
     size_bytes: sizeRaw != null && Number.isFinite(sizeRaw) ? sizeRaw : null,
   };
 }
 
-export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
+/** Only the received-object door may transition a pending row to ready. */
+export async function confirmMediaFileReady(
+  mediaId: string,
+  received: ReceivedUpload,
+): Promise<boolean> {
+  assertReceivedUpload(received);
   const organizationId = currentPrincipalOrganizationId();
   const rows = await getWebappSqlDb()
     .update(mediaFiles)
@@ -691,7 +701,11 @@ export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
 }
 
 /** Confirm patient program submission upload (must have usage_purpose set at presign). */
-export async function confirmProgramSubmissionMediaFileReady(mediaId: string): Promise<boolean> {
+export async function confirmProgramSubmissionMediaFileReady(
+  mediaId: string,
+  received: ReceivedUpload,
+): Promise<boolean> {
+  assertReceivedUpload(received);
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql(
     getWebappSqlDb(),

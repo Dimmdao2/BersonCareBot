@@ -1,20 +1,17 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env, isS3MediaEnabled } from '@/config/env';
-import {
-  confirmProgramSubmissionMediaFileReady,
-  deletePendingMediaFileById,
-  getMediaRowForConfirm,
-} from '@/app-layer/media/s3MediaStorage';
+import { getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
 import { enqueueProgramSubmissionTranscodeAfterConfirm } from '@/app-layer/media/programSubmissionTranscodeEnqueue';
-import { s3HeadObjectDetails } from '@/app-layer/media/s3Client';
+import {
+  acceptReceivedProgramSubmission,
+  validateReceivedMediaObject,
+} from '@/app-layer/media/mediaUploadAdapter';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  isProgramSubmissionVideoMime,
-  validateProgramSubmissionS3Head,
-} from '@/modules/media/programSubmissionUploadLimits';
+import { isProgramSubmissionVideoMime } from '@/modules/media/programSubmissionUploadLimits';
+import { uploadValidationResponse, validateUploadIntent } from '@/modules/media/uploadValidation';
 import { assertPatientProgramMediaAllowed } from '@/modules/doctor-clients/assertPatientProgramInteraction';
 import { isPatientProgramDiscussionMediaFlowEnabled } from '@/modules/program-item-discussion/discussionFeatureGates';
 
@@ -89,27 +86,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_status' }, { status: 409 });
   }
 
-  const head = await s3HeadObjectDetails(row.s3_key);
-  if (!head) {
-    return NextResponse.json({ ok: false, error: 'file_not_found_in_s3' }, { status: 404 });
-  }
-
-  const declaredSize = row.size_bytes ?? head.contentLength;
-  const s3Check = validateProgramSubmissionS3Head({
-    declaredMime: row.mime_type,
-    declaredSizeBytes: declaredSize,
-    contentLength: head.contentLength,
-    contentType: head.contentType,
+  const intent = validateUploadIntent({
+    filename: row.original_name,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes ?? 0,
+    policyId: 'patient-program-submission',
   });
-  if (!s3Check.ok) {
-    await deletePendingMediaFileById(parsed.data.mediaId).catch(() => {
-      /* best-effort */
-    });
-    const status = s3Check.error === 'file_too_large' ? 413 : 415;
-    return NextResponse.json({ ok: false, error: s3Check.error }, { status });
+  if (!intent.ok) {
+    const rejection = uploadValidationResponse(intent);
+    return NextResponse.json(rejection.body, { status: rejection.status });
+  }
+  const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
+  if (!received.ok) {
+    const rejection = uploadValidationResponse(received);
+    return NextResponse.json(rejection.body, { status: rejection.status });
   }
 
-  const updated = await confirmProgramSubmissionMediaFileReady(parsed.data.mediaId);
+  const updated = await acceptReceivedProgramSubmission(parsed.data.mediaId, received.value);
   if (!updated) {
     const again = await getMediaRowForConfirm(parsed.data.mediaId, gate.session.user.userId);
     if (again?.status === 'ready' && again.s3_key) {

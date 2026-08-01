@@ -5,7 +5,7 @@ import {
   bumpSessionToUploading,
   gateUploadSessionForPartUrl,
 } from '@/app-layer/media/mediaUploadSessionsRepo';
-import { presignUploadPartUrl } from '@/app-layer/media/s3Client';
+import { presignPreparedUploadPart } from '@/app-layer/media/mediaUploadAdapter';
 import { multipartMaxPartNumber } from '@/modules/media/multipartConstants';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
@@ -53,7 +53,11 @@ export async function POST(request: Request) {
 
   await bumpSessionToUploading(parsed.data.sessionId);
 
-  const uploadUrl = await presignUploadPartUrl(row.s3_key, row.upload_id, parsed.data.partNumber);
+  const uploadUrl = await presignPreparedUploadPart({
+    key: row.s3_key,
+    uploadId: row.upload_id,
+    partNumber: parsed.data.partNumber,
+  });
   return NextResponse.json({
     ok: true as const,
     uploadUrl,
