@@ -22,14 +22,18 @@ export const DEFAULT_PROJECTION_HEALTH_RETRY_THRESHOLD = 3;
 /**
  * Single runtime source of projection_outbox health metrics.
  *
- * Kept as parameterized SQL (D18, real exception — see `check-no-new-raw-sql.mjs` manifest).
- * `infra/scripts/projection-health.ts` (deploy-gate CLI) calls this on a bare
- * `pg.Pool` it builds itself from a gate-resolved connection string, deliberately
- * without booting the app's `DbPort`/Drizzle bridge or its `config/env.ts` (which
- * requires `APP_BASE_URL` and other app-only env the gate never sets). Requiring a
- * Drizzle session here would force the CLI through that bridge and break the gate
- * contract; `ProjectionHealthQueryable` (`db.query(text, params)`) is the shared shape
- * both the HTTP path (`DbPort`) and the bare pool already satisfy.
+ * Kept as parameterized SQL — НЕ ПОТОМУ, ЧТО ПЕРЕВОД НЕВОЗМОЖЕН. Прежняя редакция этого
+ * комментария утверждала, что перевод втянет `config/env.ts` и потребует `APP_BASE_URL`,
+ * которых у деплой-гейта нет. Слепой аудит D18 (01.08) это опроверг прогоном: тот же мост
+ * `integratorSqlFromPgText`, которым в этом же коммите закрыли `saasIsolationTelemetry.ts`,
+ * выполняет запрос к `integrator.projection_outbox` на голом пуле, ни разу не импортировав
+ * `config/env.ts`.
+ *
+ * Настоящая цена перевода — сменить форму `ProjectionHealthQueryable` и
+ * `createProjectionHealthPoolProvider` с `query(text, params)` на `execute(fragment)`.
+ * Для HTTP-пути это даром (`getIntegratorDrizzleSession` уже есть), для CLI-скрипта
+ * `infra/scripts/projection-health.ts` — реальная правка его контракта. Файл остаётся в
+ * манифесте `check-no-new-raw-sql.mjs` как ОТЛОЖЕННАЯ работа, а не как невозможная.
  */
 export async function readProjectionHealthSnapshot(
   db: ProjectionHealthQueryable,
