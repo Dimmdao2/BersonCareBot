@@ -52,4 +52,4 @@
   (2) ответ на три вопроса с дословными выводами команд, (3) что прошло незамеченным у воркера,
   (4) вердикт PASS/ДОРАБОТАТЬ построчно.
 - Правила: `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`,
-  `.cursor/rules/test-execution-policy.md`, `.cursor/rules/host-psql-database-url.mdc`.
+  `.cursor/rules/test-execution-policy.md`, [`AGENTS.md` §6](../../../../AGENTS.md#6-host-postgresql-и-database_url).
