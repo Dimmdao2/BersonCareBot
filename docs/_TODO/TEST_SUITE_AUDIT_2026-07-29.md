@@ -296,6 +296,22 @@ D20 у интегратора) не переживёт написания и н�
       (FORCE RLS + принципал: запрос без принципала возвращает пусто), делается отдельным проходом и после Ч5
       (пока слой берёт зависимости сам, инъекцию null-принципала в тест не поставить).
 
+      **Замер стены (лид 01.08):** 219 таблиц — 166 под FORCE RLS, **53 без RLS** (`relrowsecurity=false`),
+      среди них чувствительные арендаторские/PII: `patient_bookings`, `appointment_records`, `platform_users`,
+      `be_organization_members`, `branches`, `booking_*`, `staff_security_profiles`, `user_*`. То есть «нет
+      принципала → нет данных ни по одному пути» как есть НЕ выполняется для 53 таблиц — стена там не на RLS.
+
+      **Два независимых разбора «как должна стоять стена» (владелец 01.08, decision-hygiene):**
+      - Sol (`gpt-5.6-sol`, замер под настоящей login-ролью `app_staff`, НЕ owner-exempt): [`runs/testsuite-v2/V9B_WALL_RESEARCH_sol.md`](runs/testsuite-v2/V9B_WALL_RESEARCH_sol.md).
+        Грунтованное enforcement-число: `app_staff` без принципала видит 263 брони / 410 appointment_records /
+        284 platform_users. Корень — P0.5b выдал `app_staff` единый широкий DML на весь класс.
+      - Opus (`opus`, правило-дизайн; замер под dev-владельцем → owner-exempt-оговорка): [`runs/testsuite-v2/V9B_WALL_RESEARCH_opus.md`](runs/testsuite-v2/V9B_WALL_RESEARCH_opus.md).
+        Правило «три вопроса»: глобальное → открыто; до-принципально/по-ключу → `SECURITY DEFINER`-шов; данные
+        с дискриминатором (`organization_id`/`platform_user_id`) → RLS в базе.
+      **Сходятся:** `patient_bookings` → FORCE RLS (patient-own + staff-org). Синтез лида + по-табличный лист
+      группы D + разведение «как должно быть» vs «что закрыто сейчас» (enforcement мерить на TEST под
+      `app_*_login`, не на dev-владельце) — в работе; решение по группе D за владельцем.
+
 - [ ] **В9в. Два предиката идентификатора свести в один (находка слепого аудита В9, П3).**
       `isPlatformUserUuid` и `isDbPrincipalPlatformUserId` сегодня дают одинаковый ответ, поэтому ветка
       `catch` в `enterWithDbPlatformPrincipal` недостижима и честный тест на неё написать нельзя. Комментарий
