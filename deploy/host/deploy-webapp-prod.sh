@@ -88,13 +88,8 @@ require_file "${BACKUP_SCRIPT}" "Backup script (for pre-migration backup)"
 require_file "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql" "Patient media playback telemetry accessor overlay"
 require_file "${PROJECT_ROOT}/deploy/postgres/patient-visible-catalog-rls.sql" "Patient-visible catalog RLS overlay"
 require_file "${PROJECT_ROOT}/deploy/postgres/patient-invites-rls.sql" "Patient invite strict runtime overlay"
-# B0.2 (#1057): refuse before any build/restart work if the mock payment routes would be
-# reachable on this target — either because a route lost its guard, or because the webapp
-# prod env resolves NODE_ENV/VITEST_WORKER_ID such that isMockPaymentConfirmEnabled would be true.
-MOCK_PAYMENT_NODE_ENV="$(bash -c "set -a && . '${ENV_FILE}' && set +a && printf '%s' \"\${NODE_ENV:-development}\"")"
-MOCK_PAYMENT_VITEST_WORKER_ID="$(bash -c "set -a && . '${ENV_FILE}' && set +a && printf '%s' \"\${VITEST_WORKER_ID:-}\"")"
-bash "${PROJECT_ROOT}/deploy/host/assert-no-mock-payment-deploy.sh" \
-  "${PROJECT_ROOT}" "${MOCK_PAYMENT_NODE_ENV}" "${MOCK_PAYMENT_VITEST_WORKER_ID}"
+# B0.2 (#1057): refuse before any build/restart work if the artifact retains a mock-payment surface.
+bash "${PROJECT_ROOT}/deploy/host/assert-no-mock-payment-deploy.sh" "${PROJECT_ROOT}"
 
 require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
 require_sudo_rule "webapp restart" /bin/systemctl restart "${WEBAPP_SERVICE}"
