@@ -13,6 +13,7 @@ import type {
   MechanicAccessPolicyMap,
   OrgCommercialAccessState,
   OrgEntitlementOverride,
+  RegistrationTariffPolicy,
   Tariff,
   TariffQuota,
   TariffQuotaMap,
@@ -24,6 +25,7 @@ import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
+  saasRegistrationTariffPolicy,
   saasTariffs,
   saasTrialPolicy,
 } from '../../../db/schema/saasEntitlements';
@@ -54,6 +56,12 @@ function toTrialPolicy(row: typeof saasTrialPolicy.$inferSelect): TrialPolicy {
     postTrialTariffId: row.postTrialTariffId,
     isActive: row.isActive,
   };
+}
+
+function toRegistrationTariffPolicy(
+  row: typeof saasRegistrationTariffPolicy.$inferSelect | undefined,
+): RegistrationTariffPolicy {
+  return { tariffId: row?.tariffId ?? null };
 }
 
 async function appendAudit(
@@ -365,6 +373,16 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
       return rows[0] ? toTrialPolicy(rows[0]) : null;
     },
 
+    async getRegistrationTariffPolicy() {
+      assertPlatformOperationsPrincipal();
+      const rows = await getDrizzle()
+        .select()
+        .from(saasRegistrationTariffPolicy)
+        .where(eq(saasRegistrationTariffPolicy.key, 'global'))
+        .limit(1);
+      return toRegistrationTariffPolicy(rows[0]);
+    },
+
     async createTariff(input, audit) {
       assertPlatformOperationsPrincipal();
       return getDrizzle().transaction(async (tx) => {
@@ -529,6 +547,37 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         await appendAudit(tx, {
           audit,
           action: 'saas_trial_policy_update',
+          targetId: 'global',
+          organizationId: null,
+          before: before ?? null,
+          after,
+        });
+      });
+    },
+
+    async setRegistrationTariffPolicy(policy, audit) {
+      assertPlatformOperationsPrincipal();
+      await getDrizzle().transaction(async (tx) => {
+        if (policy.tariffId) await requireActiveTariff(tx, policy.tariffId);
+        const [before] = await tx
+          .select()
+          .from(saasRegistrationTariffPolicy)
+          .where(eq(saasRegistrationTariffPolicy.key, 'global'))
+          .limit(1);
+        const values = {
+          key: 'global' as const,
+          tariffId: policy.tariffId,
+          updatedBy: audit.actorId,
+          updatedAt: new Date().toISOString(),
+        };
+        const [after] = await tx
+          .insert(saasRegistrationTariffPolicy)
+          .values(values)
+          .onConflictDoUpdate({ target: saasRegistrationTariffPolicy.key, set: values })
+          .returning();
+        await appendAudit(tx, {
+          audit,
+          action: 'saas_registration_tariff_policy_update',
           targetId: 'global',
           organizationId: null,
           before: before ?? null,
