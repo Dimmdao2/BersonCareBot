@@ -479,14 +479,84 @@ describe('SetUserPhoneOutcome: applied против noop_conflict', () => {
     await expect(setUserPhone(dbForOutcome(1), '555', PHONE)).resolves.toBe('applied');
   });
 
-  it('дано: интеграторская строка контакта занята другим человеком → СЕГОДНЯ она удаляется, и исход applied', async () => {
-    // ФАКТ, а не одобрение. Шапка `setUserPhone` обещает «Safe against takeover: если телефон уже
-    // привязан другому пользователю, обновление не применяется», но DELETE строкой выше сносит
-    // чужую строку, и до охраняющего `ON CONFLICT … WHERE contacts.user_id = …` конфликт не
-    // доезжает: исход `applied`, а `noop_conflict` остаётся страховкой для legacy-строк.
-    // Защита «не попасть в чужой аккаунт» стоит выше по стеку — в каноне
-    // (`applyMessengerPhonePublicBind`), а не здесь. Расхождение с картой — в отчёте.
-    // арбитр: убрать DELETE — исход станет `noop_conflict`, чужая строка уцелеет
+  it('дано: телефон занят другим человеком, привязка гонки произошла МЕЖДУ удалением чужой legacy-строки и записью своей → тогда чужая привязка НЕ перезаписывается, исход noop_conflict', async () => {
+    // B1 (аудит `runs/briefs/audit-d20-level1.log`, единственная непойманная поломка): защита
+    // ON CONFLICT (type, value_normalized) DO UPDATE … WHERE contacts.user_id = ${userId}::bigint
+    // (repos/channelUsers.ts:871) — единственный барьер, который у setUserPhone вообще есть против
+    // захвата чужого телефона. Он не проверяется обычным путём: предшествующий безусловный DELETE
+    // (:851-856) в НЕ-гоночном случае уже сносит чужую строку раньше, чем INSERT дойдёт до guard'а
+    // (см. переписанный тест ниже и находку в отчёте). Guard реально работает только в окне ГОНКИ
+    // внутри ОДНОЙ транзакции setUserPhone (`db.tx` в writePort.ts): между нашим DELETE и нашим
+    // INSERT конкурентная транзакция другого человека успевает закоммитить владение этим же
+    // телефоном — Postgres read-committed берёт свежий снимок на каждый оператор, поэтому наш INSERT
+    // увидит новую чужую строку и упрётся в guard.
+    // арбитр: убрать `WHERE contacts.user_id = ${userId}::bigint` в ON CONFLICT DO UPDATE —
+    // тогда чужая строка, появившаяся в этом окне, будет захвачена: исход `applied`, номер уезжает
+    // человеку 1000, хотя телефон только что закрепился за человеком 900.
+    const RACING_OWNER = '900';
+    const contacts: ContactRow[] = [];
+    const db: DbPort = {
+      async query<T>(text: string, params: unknown[] = []): Promise<DbQueryResult<T>> {
+        const q = norm(text);
+        const p = params.map((v) => (v === null || v === undefined ? null : String(v)));
+        if (q.startsWith('delete from contacts')) {
+          const before = contacts.length;
+          for (let i = contacts.length - 1; i >= 0; i -= 1) {
+            const c = contacts[i]!;
+            if (c.type === 'phone' && c.value_normalized === p[0] && c.user_id !== p[1]) {
+              contacts.splice(i, 1);
+            }
+          }
+          const deletedCount = before - contacts.length;
+          // Симуляция гонки: ровно в этом окне (между DELETE и INSERT одной транзакции)
+          // конкурентная транзакция другого человека успела закоммитить привязку того же номера.
+          contacts.push({ user_id: RACING_OWNER, type: 'phone', value_normalized: p[0]! });
+          return { rows: [] as T[], rowCount: deletedCount };
+        }
+        if (q.startsWith('insert into contacts')) {
+          const hasOwnerGuard = q.includes('where contacts.user_id');
+          const conflicting = contacts.find(
+            (c) => c.type === 'phone' && c.value_normalized === p[1],
+          );
+          if (conflicting) {
+            if (hasOwnerGuard && conflicting.user_id !== p[0]) {
+              return { rows: [] as T[], rowCount: 0 };
+            }
+            conflicting.user_id = p[0]!;
+            return { rows: [] as T[], rowCount: 1 };
+          }
+          contacts.push({ user_id: p[0]!, type: 'phone', value_normalized: p[1]! });
+          return { rows: [] as T[], rowCount: 1 };
+        }
+        if (q.includes('from identities i')) {
+          return { rows: [{ user_id: '1000' }] as T[], rowCount: 1 };
+        }
+        if (q.includes('merged_into_user_id')) return { rows: [] as T[], rowCount: 0 };
+        throw new Error(`неожиданный запрос: ${q}`);
+      },
+      async tx(fn) {
+        return fn(this);
+      },
+    };
+
+    await expect(setUserPhone(db, '555', PHONE)).resolves.toBe('noop_conflict');
+    expect(contacts).toEqual([{ user_id: RACING_OWNER, type: 'phone', value_normalized: PHONE }]);
+  });
+
+  // ДЕФЕКТ, зарегистрирован против `D20_INTEGRATOR_MAP.md` п.6 («чужая привязка телефона НЕ
+  // перезаписывается» — часть решения Р-D20). Оракул здесь план, а не нынешняя реализация
+  // (`.cursor/rules/test-execution-policy.md`, «проверяемая реализация не может сама придумать
+  // ожидаемый результат»): шапка `setUserPhone` буквально обещает «Safe against takeover: если
+  // телефон уже привязан другому пользователю, обновление не применяется», и этот тест требует
+  // ровно того, что обещано. it.fails — тест ОБЯЗАН падать на нынешнем коде: набор остаётся
+  // зелёным, но дефект виден в отчёте прогона, а не потерян. Починка — отдельная работа (не эта):
+  // либо привести DELETE в соответствие с обещанием (перестать сносить чужую строку без разбора),
+  // либо честно переписать комментарий функции, если продукт решит сохранить нынешнее поведение.
+  it.fails('дано: телефон уже занят строкой контакта другого человека → тогда чужая привязка НЕ перезаписывается, исход noop_conflict (план: D20_INTEGRATOR_MAP.md п.6)', async () => {
+    // ФАКТ на сегодня (не то, что проверяет этот тест): DELETE строкой выше сносит чужую строку
+    // безусловно, и до охраняющего `ON CONFLICT … WHERE contacts.user_id = …` конфликт не
+    // доезжает — реальный исход `applied`, чужая строка исчезает. См. B1-тест выше: тот же guard
+    // реально удерживает захват только в окне гонки между DELETE и INSERT одной транзакции.
     const contacts: ContactRow[] = [
       { user_id: '900', type: 'phone', value_normalized: PHONE },
     ];
@@ -527,8 +597,8 @@ describe('SetUserPhoneOutcome: applied против noop_conflict', () => {
       },
     };
 
-    await expect(setUserPhone(db, '555', PHONE)).resolves.toBe('applied');
-    expect(contacts).toEqual([{ user_id: '1000', type: 'phone', value_normalized: PHONE }]);
+    await expect(setUserPhone(db, '555', PHONE)).resolves.toBe('noop_conflict');
+    expect(contacts).toEqual([{ user_id: '900', type: 'phone', value_normalized: PHONE }]);
   });
 
   it('дано: интегратор не знает этой мессенджер-идентичности → тогда исход failed, а не applied', async () => {
@@ -596,11 +666,18 @@ describe('чужой якорь канала при записи идентич�
     expect(tables.platformUsers).toEqual([]);
   });
 
-  it('дано: канал привязан к чужому аккаунту, а своего у человека ещё нет → СЕГОДНЯ его настройки МОЛЧА уходят в чужой аккаунт', async () => {
-    // ФАКТ, а не одобрение: отказа в коде нет, поэтому тест закрепляет фактический исход.
-    // Карта требует здесь «отказ назван явно, не тихий noop» — расхождение вынесено в отчёт.
-    // арбитр: убрать поиск кандидата по привязке канала в collectPlatformUserCandidates —
-    // тогда человеку заведётся отдельный аккаунт (и это тоже поломка: раздвоение)
+  // ДЕФЕКТ, зарегистрирован против карты (раздел «Порядок написания тестов», Уровень 1, п.6:
+  // «отказ при чужом якоре канала — назван явно, не тихий noop») и решения Р-D20. Оракул — план,
+  // не нынешняя реализация. it.fails — тест ОБЯЗАН падать на нынешнем коде: набор остаётся
+  // зелёным, но дефект виден в отчёте прогона, а не потерян. Минимальная правка (не сделана,
+  // решение владельца, см. `D20_LEVEL1_TESTS_REPORT.md` «Что НЕ покрыто» п.5.2): в
+  // `collectPlatformUserCandidates`/`writeIdentityAndPreferencesDirect` — если единственный
+  // кандидат пришёл ТОЛЬКО из привязки канала и его `integrator_user_id` непуст и не равен
+  // каноническому — отказывать явным кодом (например `channel_anchor_owned_by_other_user`), как
+  // уже делает `applyMessengerPhonePublicBind` для похожего случая.
+  it.fails('дано: канал привязан к чужому аккаунту, а своего у человека ещё нет → тогда ЯВНЫЙ отказ, и настройки НЕ уходят в чужой аккаунт (план: D20_INTEGRATOR_MAP.md, Уровень 1 п.6)', async () => {
+    // ФАКТ на сегодня (не то, что проверяет этот тест): отказа в коде нет — единственным
+    // кандидатом становится чужой аккаунт, и настройки молча пишутся в него.
     const tables = emptyTables({
       platformUsers: [
         { id: 'pu-b', phone_normalized: null, integrator_user_id: '900', merged_into_id: null },
@@ -609,7 +686,7 @@ describe('чужой якорь канала при записи идентич�
     });
     const db = makeDb(tables);
 
-    const result = await writeIdentityAndPreferencesDirect(
+    const failure = await writeIdentityAndPreferencesDirect(
       db,
       {
         channelCode: 'telegram',
@@ -617,14 +694,11 @@ describe('чужой якорь канала при записи идентич�
         topics: [{ topicCode: 'appointment_reminders', isEnabled: false }],
       },
       anchorFor('1000'),
-    );
+    ).catch((err: unknown) => err);
 
-    expect(result.platformUserId).toBe('pu-b');
-    expect(tables.topics).toEqual([
-      { user_id: 'pu-b', topic_code: 'appointment_reminders', is_enabled: false },
-    ]);
-    // Интеграторский id чужого аккаунта при этом НЕ перезаписывается (COALESCE) —
-    // то есть аккаунт остаётся аккаунтом B, а настройки в нём уже чужие.
+    expect(failure).toBeInstanceOf(DirectPublicWriteError);
+    expect(tables.topics).toEqual([]);
+    // Аккаунт B остаётся аккаунтом B — ничьи настройки в него не попали.
     expect(tables.platformUsers[0]!.integrator_user_id).toBe('900');
   });
 });
