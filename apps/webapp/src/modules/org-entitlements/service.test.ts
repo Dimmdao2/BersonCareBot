@@ -183,7 +183,7 @@ describe('org entitlement mechanic classes', () => {
           seatLimitOverride: null,
         },
       ],
-      access: { lifecycle: 'blocked' as const, tariffId: null, source: 'no_trial' as const },
+      access: { lifecycle: 'blocked' as const, tariffId: null, source: 'assignment' as const },
     };
 
     expect(entitlementsFromSnapshot(worstCaseSnapshot).patient_diaries).toBe(true);
@@ -645,46 +645,6 @@ describe('org entitlement mechanic classes', () => {
     await expect(resolveClinicSeatLimit(port, 'org')).resolves.toBeNull();
   });
 
-  it('uses stored organization exceptions instead of a mechanic default list', () => {
-    const base = {
-      tariff: null,
-      access: { lifecycle: 'active' as const, tariffId: null, source: 'compatibility' as const },
-    };
-
-    expect(entitlementsFromSnapshot({ ...base, overrides: [] })).toMatchObject({
-      patient_home_today: true,
-      warmups: true,
-      promo: true,
-    });
-    expect(
-      entitlementsFromSnapshot({
-        ...base,
-        overrides: ['patient_home_today', 'warmups', 'promo'].map((mechanic) => ({
-          mechanic,
-          enabled: false,
-          quota: null,
-          expiresAt: null,
-          seatLimitOverride: null,
-        })),
-      }),
-    ).toMatchObject({
-      patient_home_today: false,
-      warmups: false,
-      promo: false,
-    });
-  });
-
-  it('keeps file growth unchanged on the no-tariff compatibility path', async () => {
-    const snapshot = {
-      tariff: null,
-      overrides: [],
-      access: { lifecycle: 'active' as const, tariffId: null, source: 'compatibility' as const },
-    };
-
-    expect(entitlementsFromSnapshot(snapshot).files).toBe(true);
-    expect(fileStorageLimitFromSnapshot(snapshot)).toBeNull();
-  });
-
   it('permits a stock mechanic declaration but rejects a period at compile time', () => {
     const stock = {
       class: 'запас',
@@ -807,7 +767,6 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       tariffId: input.currentTariff.id,
       manualTariffId: input.currentTariff.id,
       isActive: true,
-      commercialAccessState: 'active',
       effectiveAccess: { lifecycle: 'active', tariffId: input.currentTariff.id, source: 'assignment' },
       overrides: [],
       trial: null,
@@ -1069,7 +1028,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
         overrides: [
           { mechanic, enabled: false, quota: null, expiresAt: null, seatLimitOverride: null },
         ],
-        access: { lifecycle: 'blocked' as const, tariffId: null, source: 'no_trial' as const },
+        access: { lifecycle: 'blocked' as const, tariffId: null, source: 'assignment' as const },
       };
 
       expect(entitlementsFromSnapshot(worstCaseSnapshot)[mechanic]).toBe(true);
@@ -1411,32 +1370,28 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
 
 /**
  * §5a item 2.6a — жизненный цикл тарифа у клиники (owner 31.07, dictated verbatim into the canon).
- * These pin the owner's rules against the two states an agent is tempted to "helpfully" soften.
+ * #1069 §2.13 (owner 01.08) removed the "compatibility" carve-out entirely, so the state left to
+ * pin is the one an agent is still tempted to "helpfully" soften: full access without a tariff.
  */
-describe('§5a item 2.6a — клиники без тарифа не существует', () => {
-  const noTariffSnapshot = (source: 'no_trial' | 'compatibility') => ({
+describe('§5a item 2.6a / #1069 §2.13 — клиники без тарифа не существует', () => {
+  const noTariffSnapshot = () => ({
     tariff: null,
     overrides: [],
-    access: { lifecycle: 'active' as const, tariffId: null, source },
+    access: { lifecycle: 'active' as const, tariffId: null, source: 'assignment' as const },
   });
 
   // Owner 31.07: «просто сразу требуется выбор тарифа и оплата… без выбора тарифа и без оплаты —
-  // нет доступа». Breakage: the "no tariff" state starts handing out a default set of mechanics.
+  // нет доступа». Owner 01.08 (#1069 §2.13): «нет активного тарифа и нет триала → доступа нет» —
+  // no compatibility carve-out survives. Breakage: the "no tariff" state starts handing out a
+  // default set of mechanics.
   it('gives no mechanic at all when there is neither an active tariff nor a trial', () => {
-    const entitlements = entitlementsFromSnapshot(noTariffSnapshot('no_trial'));
+    const entitlements = entitlementsFromSnapshot(noTariffSnapshot());
     for (const mechanic of MECHANICS) {
       // Critical mechanics are never a tariff option; everything else must be off.
       const expected = MECHANIC_REGISTRY[mechanic].class === 'никогда';
       expect(entitlements[mechanic], mechanic).toBe(expected);
     }
-    expect(fileStorageLimitFromSnapshot(noTariffSnapshot('no_trial'))).toBeUndefined();
-  });
-
-  // Owner 31.07: the "clinic created before tariffs existed" row is временная совместимость, not a
-  // rule. Breakage: that branch widens to cover any organization without a tariff.
-  it('opens the compatibility path only for the explicit compatibility state', () => {
-    expect(entitlementsFromSnapshot(noTariffSnapshot('compatibility')).courses).toBe(true);
-    expect(entitlementsFromSnapshot(noTariffSnapshot('no_trial')).courses).toBe(false);
+    expect(fileStorageLimitFromSnapshot(noTariffSnapshot())).toBeUndefined();
   });
 
   // Owner 31.07: «нет ни активного тарифа, ни триала уже повторного» — entry to the product is

@@ -1,8 +1,8 @@
 # РЕЕСТР ИНИЦИАТИВ — что активно / ждёт / архив
 
-> Стратегический индекс для оркестратора. Канон процесса — `docs/AGENT_AUTORUN_SCHEME.md`; оперативная очередь —
-> taskdb (`project=bcb`). `docs/_INBOX/` и статусы 📥/🅣/⏳ из исторического workflow ниже не заменяют taskdb или
-> owner-roadmap.
+> Стратегический индекс. Правила исполнения находятся только в `AGENTS.md`; оперативное состояние tracked
+> workstream — в taskdb (`project=bcb`). `docs/_INBOX/` и статусы 📥/🅣/⏳ из исторического workflow ниже не
+> заменяют taskdb или owner-roadmap.
 
 > **Актуализация 2026-07-22:** execution-status берётся из taskdb (`project=bcb`) через
 > `node /home/dev/brain/tools/taskdb.mjs`, а продуктовый scope — из owner-review и roadmap конкретной инициативы.

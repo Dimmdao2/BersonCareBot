@@ -11,7 +11,6 @@ import type {
   DowngradePolicyMap,
   EffectiveOrgCommercialAccess,
   MechanicAccessPolicyMap,
-  OrgCommercialAccessState,
   OrgEntitlementOverride,
   RegistrationTariffPolicy,
   Tariff,
@@ -139,7 +138,6 @@ function assertPlatformOperationsPrincipal(): void {
 
 function effectiveAccessForPlatform(input: {
   tariffId: string | null;
-  commercialAccessState: OrgCommercialAccessState;
   trial: typeof saasOrganizationTrials.$inferSelect | null;
   now: number;
 }): EffectiveOrgCommercialAccess {
@@ -148,12 +146,7 @@ function effectiveAccessForPlatform(input: {
     return {
       lifecycle: 'active',
       tariffId: input.tariffId,
-      source:
-        input.commercialAccessState === 'compatibility'
-          ? 'compatibility'
-          : input.commercialAccessState === 'no_trial'
-            ? 'no_trial'
-            : 'assignment',
+      source: 'assignment',
     };
   }
   if (input.now <= new Date(trial.endsAt).getTime()) {
@@ -237,7 +230,7 @@ async function startTrialForOrganization(
     }
     await tx
       .update(beOrganizations)
-      .set({ tariffId: policyRow.tariffId, commercialAccessState: 'active' })
+      .set({ tariffId: policyRow.tariffId })
       .where(eq(beOrganizations.id, organizationId));
     await appendAudit(tx, {
       audit,
@@ -275,7 +268,6 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
               title: beOrganizations.title,
               tariffId: beOrganizations.tariffId,
               isActive: beOrganizations.isActive,
-              commercialAccessState: beOrganizations.commercialAccessState,
             })
             .from(beOrganizations)
             .orderBy(beOrganizations.title),
@@ -307,18 +299,14 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         );
         return organizations.map((organization) => {
           const trial = trialByOrg.get(organization.id) ?? null;
-          const commercialAccessState =
-            organization.commercialAccessState as OrgCommercialAccessState;
           const effectiveAccess = effectiveAccessForPlatform({
             tariffId: organization.tariffId,
-            commercialAccessState,
             trial,
             now,
           });
           return {
             ...organization,
             manualTariffId: manualTariffByOrg.get(organization.id) ?? null,
-            commercialAccessState,
             effectiveAccess,
             overrides: overridesByOrg.get(organization.id) ?? [],
             trial: trial

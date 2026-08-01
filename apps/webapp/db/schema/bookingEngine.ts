@@ -78,8 +78,6 @@ export const beOrganizations = pgTable(
     title: text().notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
-    /** Truthful commercial bootstrap state; missing/deferred trial policy never implies an outage. */
-    commercialAccessState: text('commercial_access_state').default('compatibility').notNull(),
     /**
      * Store P0 (dormant): tariff assignment, nullable. FK to saas_tariffs(id) ON DELETE SET NULL is
      * enforced at the DB level (see deploy/postgres/store-p0-entitlements-rls.sql and migration

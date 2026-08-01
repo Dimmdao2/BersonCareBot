@@ -8,7 +8,6 @@ import type {
   EffectiveOrgCommercialAccess,
   MechanicAccessResolution,
   MechanicAccessPolicyMap,
-  OrgCommercialAccessState,
   OrgEntitlementSnapshot,
   OrgMechanic,
   OrgEntitlementOverride,
@@ -73,7 +72,6 @@ export type PlatformOrganizationSummary = {
   /** Explicit operator assignment; excludes the tariff persisted for a live trial. */
   manualTariffId: string | null;
   isActive: boolean;
-  commercialAccessState: OrgCommercialAccessState;
   effectiveAccess: EffectiveOrgCommercialAccess;
   overrides: OrgEntitlementOverride[];
   trial: {

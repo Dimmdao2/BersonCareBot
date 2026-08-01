@@ -115,7 +115,6 @@ async function readCurrentPatientSnapshot(
 
 function resolveAccess(input: {
   organizationTariffId: string | null;
-  commercialAccessState: 'compatibility' | 'no_trial' | 'trial_pending' | 'active';
   trial: {
     tariffId: string;
     endsAt: string;
@@ -130,12 +129,7 @@ function resolveAccess(input: {
     return {
       lifecycle: 'active',
       tariffId: input.organizationTariffId,
-      source:
-        input.commercialAccessState === 'compatibility'
-          ? 'compatibility'
-          : input.commercialAccessState === 'no_trial'
-            ? 'no_trial'
-            : 'assignment',
+      source: 'assignment',
     };
   }
   const trialDates = {
@@ -199,7 +193,6 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
     const [organization] = await tx
       .select({
         tariffId: beOrganizations.tariffId,
-        commercialAccessState: beOrganizations.commercialAccessState,
       })
       .from(beOrganizations)
       .where(eq(beOrganizations.id, organizationId))
@@ -224,11 +217,6 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
       .limit(1);
     const access = resolveAccess({
       organizationTariffId: organization.tariffId,
-      commercialAccessState: organization.commercialAccessState as
-        | 'compatibility'
-        | 'no_trial'
-        | 'trial_pending'
-        | 'active',
       trial: trial ?? null,
       now: Date.now(),
     });

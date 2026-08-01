@@ -333,7 +333,6 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             const [organization] = await tx
               .select({
                 tariffId: beOrganizations.tariffId,
-                commercialAccessState: beOrganizations.commercialAccessState,
               })
               .from(beOrganizations)
               .where(eq(beOrganizations.id, organizationId))
@@ -435,18 +434,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               .returning({ id: saasBillingSubscriptions.id });
             if (!row) throw new Error('saas_billing_manual_assignment_failed');
           },
-          async updateCompatibilityProjection({ organizationId, tariffId }) {
+          async updateOrganizationTariffAssignment({ organizationId, tariffId }) {
             const [organization] = await tx
               .update(beOrganizations)
-              .set({
-                tariffId,
-                commercialAccessState: tariffId ? 'active' : 'no_trial',
-              })
+              .set({ tariffId })
               .where(eq(beOrganizations.id, organizationId))
-              .returning({
-                tariffId: beOrganizations.tariffId,
-                commercialAccessState: beOrganizations.commercialAccessState,
-              });
+              .returning({ tariffId: beOrganizations.tariffId });
             if (!organization) throw new Error('organization_not_found');
             return organization;
           },

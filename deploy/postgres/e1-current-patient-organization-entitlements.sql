@@ -39,7 +39,7 @@ BEGIN
 
   RETURN QUERY
   WITH exact_context AS (
-    SELECT organization.id, organization.tariff_id, organization.commercial_access_state
+    SELECT organization.id, organization.tariff_id
     FROM public.org_enrollments AS enrollment
     INNER JOIN public.be_organizations AS organization
       ON organization.id = enrollment.organization_id
@@ -69,9 +69,9 @@ BEGIN
         WHEN trial.post_trial_behavior = 'tariff' THEN 'active'
         ELSE trial.post_trial_behavior
       END AS lifecycle,
+      -- #1069 §2.13 — no raw state to branch on any more; without a trial the source is always a
+      -- plain assignment.
       CASE
-        WHEN trial.id IS NULL AND context.commercial_access_state = 'compatibility' THEN 'compatibility'
-        WHEN trial.id IS NULL AND context.commercial_access_state = 'no_trial' THEN 'no_trial'
         WHEN trial.id IS NULL THEN 'assignment'
         WHEN v_now > trial.grace_ends_at AND trial.post_trial_behavior = 'tariff' THEN 'post_trial_tariff'
         ELSE 'trial'

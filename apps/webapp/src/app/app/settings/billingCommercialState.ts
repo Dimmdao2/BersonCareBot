@@ -14,16 +14,11 @@ function formatRuDate(iso: string): string {
  * can only be reached via a trial, so they are checked before the plain `source === "trial"` case.
  */
 export function describeCommercialAccessState(access: EffectiveOrgCommercialAccess): string {
-  // §5a item 2.6a (owner 31.07): «клиники без тарифа быть просто не может». This branch is the
-  // temporary compatibility state for organizations created before tariffs existed — not a rule,
-  // and not a set of mechanics that works "outside a tariff".
-  if (access.source === 'compatibility') {
-    return 'Совместимость: коммерческий тариф ещё не подключён администратором платформы, доступ работает в режиме до введения тарифов.';
-  }
-  // Owner 31.07: «просто сразу требуется выбор тарифа и оплата… нет ни активного тарифа, ни
-  // триала уже повторного. Значит без выбора тарифа и без оплаты — нет доступа».
-  if (access.source === 'no_trial') {
-    return 'Нет активного тарифа, и пробный период уже использован — доступа нет. Выберите тариф и оплатите его, чтобы вернуть работу кабинета.';
+  // #1069 §2.13 (owner 01.08): «единственное что надо это какой выбран или назначен тариф… нет
+  // активного тарифа и нет триала → доступа нет». No compatibility/no-trial carve-out — a
+  // tariff-less organization with no active trial is simply unassigned.
+  if (access.tariffId === null) {
+    return 'Тариф не назначен — доступа нет. Выберите тариф в админке, чтобы вернуть работу кабинета.';
   }
   if (access.lifecycle === 'grace') {
     return access.trialGraceEndsAt

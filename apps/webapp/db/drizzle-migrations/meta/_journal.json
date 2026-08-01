@@ -2084,8 +2084,15 @@
     {
       "idx": 297,
       "version": "7",
-      "when": 1793539200095,
-      "tag": "0297_drop_booking_product_catalog_local",
+      "when": 1793539210000,
+      "tag": "0297_commercial_access_state_removal_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1793539220000,
+      "tag": "0298_drop_booking_product_catalog_local",
       "breakpoints": true
     }
   ]
