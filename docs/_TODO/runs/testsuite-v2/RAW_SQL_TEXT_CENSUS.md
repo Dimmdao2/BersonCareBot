@@ -1,230 +1,251 @@
 # Webapp legacy SQL-text census — Single-entry пункт 1
 
-**Scope and authority.** This is a research-only census of production
-`apps/webapp/src/**` on `wt/sql-text-census`.  The current oracle is
-[`SINGLE_ENTRY_CLEANUP_2026-08-01.md`](../../SINGLE_ENTRY_CLEANUP_2026-08-01.md),
-п. 1: `runWebappPgText` is a legacy `$1..$n` text bridge, not a query builder.
-It is therefore not evidence that the raw-SQL-text part of пункт 1 is closed.
-No source, migration, package, test, deploy artefact, or plan checkbox was
-changed for this census.
+## Authority and boundary
 
-`docs/INTEGRATOR_DRIZZLE_MIGRATION/**` was read only as history.  The current
-Track D authority is
-[`WORK_ORDER.md`](../../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md) §2.3 and
-D10/D18: D10 removes the projection transport only after a zero-producer census;
-D18 says not to translate code which will be removed by owner stages.  D10a's
-current decision retains `public.outgoing_delivery_queue`, removes
-`integrator.message_retry_jobs`, and uses `public.notification_delivery_attempts`
-as the delivery-attempt log.  The older `D10A_PART1_OBSERVERS_BRIEF.md` sentence
-saying that `outgoing_delivery_queue` is removed conflicts with this later/current
-decision and is not used as an oracle.
+This is a research-only implementation map for production `apps/webapp/src/**`.
+The oracle is [SINGLE_ENTRY_CLEANUP_2026-08-01.md](../../SINGLE_ENTRY_CLEANUP_2026-08-01.md), пункт 1:
+`runWebappPgText` executes legacy `$1..$n` SQL text; the target is typed Drizzle
+builders/schema (`select`/`insert`/`update`/`delete`, with `sql` only for PostgreSQL
+primitives). This census does not close that item and changes no source, schema,
+migration, DB, DEV/TEST/PROD, deploy artefact, or plan checkbox.
 
-## Baseline and method
+Track D (including D10/D15/D18), Ч4/Ч4б/current tariff, Ч7, and В9б remain the
+owner authorities for their listed paths. A zero runtime producer is not deletion
+authority: a site is `DELETE_BY_OWNER_STAGE` only after both an owner-approved
+deletion stage and its required proof exist.
 
-Measured on this worktree, rather than copied from an earlier report:
+## Baseline: AST semantic invocations
+
+The denominator is a TypeScript AST `CallExpression` whose expression is the
+identifier `runWebappPgText`, including `runWebappPgText<T>(...)`. It is not an
+import, port declaration, literal spelling, SQL statement count, or operation count.
+Run from the repository root at target source SHA `064d768d3`:
 
 ```sh
-rg -l --glob '*.{ts,tsx}' --glob '!**/*.test.*' --glob '!**/*.spec.*' \
-  'runWebappPgText\(' apps/webapp/src | sort | wc -l
-# 44
+node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import ts from '/home/dev/.local/share/pnpm/global/5/.pnpm/typescript@5.9.3/node_modules/typescript/lib/typescript.js';
+import { execFileSync } from 'node:child_process';
 
-rg -n --glob '*.{ts,tsx}' --glob '!**/*.test.*' --glob '!**/*.spec.*' \
-  'runWebappPgText\(' apps/webapp/src | wc -l
-# 155
+const candidates = execFileSync('rg', [
+  '-l', '--glob', '*.{ts,tsx}', '--glob', '!**/*.test.*', '--glob', '!**/*.spec.*',
+  'runWebappPgText', 'apps/webapp/src',
+], { encoding: 'utf8' }).trim().split('\n').sort();
+let invocationFiles = 0;
+let semanticCalls = 0;
+for (const file of candidates) {
+  const source = fs.readFileSync(file, 'utf8');
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true,
+    file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  let fileCalls = 0;
+  function visit(node) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
+        node.expression.text === 'runWebappPgText') {
+      fileCalls += 1;
+      semanticCalls += 1;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sf);
+  if (fileCalls) console.log(`${file}\t${fileCalls}`);
+  if (fileCalls) invocationFiles += 1;
+}
+console.log({ candidateFiles: candidates.length, invocationFiles, semanticCalls });
+NODE
+# { candidateFiles: 88, invocationFiles: 87, semanticCalls: 557 }
 ```
 
-The denominator is an invocation (`runWebappPgText(`), not an import.  Every
-site below is assigned exactly once as a live translation candidate, an
-owner-stage deletion/overlap, or a proven low-level exemption.  There are **no
-proven `LOW_LEVEL_EXEMPT` sites**: callers are application/repository code, not
-the `infra/db` execution port; a stored procedure, advisory lock, `FOR UPDATE`,
-RLS principal, or caller-supplied transaction changes the target to a typed
-`sql` fragment/Drizzle transaction, not to an exemption.
+`apps/webapp/src/infra/db/runWebappSql.ts` is the sole candidate without an
+invocation: it declares the bridge but does not call itself. The old literal-only
+measurement (`runWebappPgText\(`) is deliberately not a denominator: it yields
+44 files / 155 calls and misses generic calls.
 
-Legend:
+Legend: **TL** = `TRANSLATE_LIVE`; **WO** = `WAIT_OVERLAP`; **DO** =
+`DELETE_BY_OWNER_STAGE`; **EX** = `LOW_LEVEL_EXEMPT`. A split is shown as
+`TL n + WO n`; every call is assigned once. No `EX` exists: a function, lock,
+RLS principal, or caller-owned transaction is a typed `sql`/Drizzle translation
+case, not an execution-port exemption.
 
-- **TL** = `TRANSLATE_LIVE`; preserve the listed operation contract and replace
-  text with the existing Drizzle schema/query/`sql`-fragment facility.
-- **WO** = `WAIT_OVERLAP`; a live and an eventual transport deletion coexist.
-  Do not translate its transport-only operation before the named owner stage.
-- **DO** = `DELETE_BY_OWNER_STAGE`; no standalone implementation slice; deletion
-  remains owned by the stated stage.  No site met this bar in the current
-  webapp denominator.
-- **Schema/pattern** records the existing reusable boundary: `schema` means a
-  table/function model in `apps/webapp/db/schema/**`; `sql` means an existing
-  safe Drizzle-fragment pattern in this or a sibling repository; `tx` means the
-  same caller-provided transaction/principal must remain in scope.  Absence of a
-  direct import is not permission to make a parallel schema copy.
+## Census by file and operation/caller authority
 
-### What the current raw-query gate proves (and does not)
+All `calls` values below use the AST semantic invocation measure above. The
+operation/path text is the contract to preserve or the owner stage that prevents
+an independent conversion slice.
 
-Read `scripts/check-no-new-raw-sql.mjs` directly.  Its scan roots include
-`apps/webapp/src`, but the guarded AST predicate is a `.query(...)` call (and
-aliases of that call); `apps/webapp/src/infra/db/` is the only webapp port
-directory.  It does not inspect `runWebappPgText(...)` query text or require
-`sql` fragments.  Exact verification attempted:
+| File | calls | operation/caller reachability and disposition |
+|---|---:|---|
+| `app-layer/media/playbackStatsHourly.ts` | 1 | hourly playback telemetry; TL 1 |
+| `infra/adminAuditLog.ts` | 9 | staff audit write/list/resolve; TL 9 |
+| `infra/idempotency/pgStore.ts` | 2 | integrator-event POST idempotency cache; TL 2 |
+| `infra/platformUserPurgeSql.ts` | 1 | live full-purge client helper; TL 1 |
+| `infra/repos/broadcastChannelCounts.ts` | 5 | doctor broadcast recipient preview; TL 5 |
+| `infra/repos/doctorAppointmentPurgeFilter.ts` | 1 | appointment purge filter; TL 1 |
+| `infra/repos/identityPhoneSql.ts` | 2 | mixed identity bridge under D15; WO 2 |
+| `infra/repos/loadPlatformUserChannelBindings.ts` | 1 | reminder/delivery channel lookup; TL 1 |
+| `infra/repos/mergeLegacySupportConversations.ts` | 1 | support merge transaction; TL 1 |
+| `infra/repos/pgAdminClientProfileConflicts.ts` | 2 | admin email/phone conflict lookup; TL 2 |
+| `infra/repos/pgAdminNotificationTargets.ts` | 1 | operator notification targets; TL 1 |
+| `infra/repos/pgAdminPlatformUserStats.ts` | 1 | admin user statistics; TL 1 |
+| `infra/repos/pgAdminTranscodeHealthMetrics.ts` | 2 | system-health transcode counts; TL 2 |
+| `infra/repos/pgBookingEngine.ts` | 1 | branch quota transaction; Ч4/current tariff; WO 1 |
+| `infra/repos/pgBookingScheduling.ts` | 1 | public booking organization resolver; Ч4 owner file; WO 1 |
+| `infra/repos/pgBranches.ts` | 2 | DI-only projection port, no runtime method consumer found; В9б retirement is not deletion authority; WO 2 |
+| `infra/repos/pgBroadcastAudit.ts` | 2 | broadcast audit append/list; TL 2 |
+| `infra/repos/pgCanonicalPlatformUser.ts` | 6 | canonical identity seam under D15; WO 6 |
+| `infra/repos/pgClinicDirectory.ts` | 3 | public clinic slug resolution; TL 3 |
+| `infra/repos/pgCourses.ts` | 1 | course usage guard; TL 1 |
+| `infra/repos/pgDoctorAnalyticsMetricAccounts.ts` | 25 | doctor analytics metric accounts; TL 25 |
+| `infra/repos/pgDoctorCalendarTimezone.ts` | 1 | doctor schedule timezone; TL 1 |
+| `infra/repos/pgDoctorNotes.ts` | 1 | doctor notes list; TL 1 |
+| `infra/repos/pgDoctorProactiveInsights.ts` | 5 | support/wellbeing/program insight reads; TL 5 |
+| `infra/repos/pgEmailOtpPublic.ts` | 5 | public email identity/challenge lifecycle; TL 5 |
+| `infra/repos/pgEmailPasswordLookup.ts` | 2 | email auth-state lookup; TL 2 |
+| `infra/repos/pgLfkAssignments.ts` | 1 | assignment transaction helper; TL 1 |
+| `infra/repos/pgMaterialRating.ts` | 3 | material-rating analytics; TL 3 |
+| `infra/repos/pgMediaFolderLookup.ts` | 1 | media-folder validation; TL 1 |
+| `infra/repos/pgMessageLog.ts` | 5 | message history append/user/admin lists; TL 5 |
+| `infra/repos/pgOAuthBindings.ts` | 2 | provider bindings read; TL 2 |
+| `infra/repos/pgOnlineIntake.ts` | 14 | doctor/patient intake helpers; TL 14 |
+| `infra/repos/pgOrgEntitlements.ts` | 4 | entitlement/current-patient/quota resolver; current tariff workstream; WO 4 |
+| `infra/repos/pgPasskeyStore.ts` | 9 | passkey credential/challenge lifecycle; TL 9 |
+| `infra/repos/pgPasswordLoginProtection.ts` | 4 | password proof/ALTCHA lifecycle; TL 4 |
+| `infra/repos/pgPatientMaintenanceHistory.ts` | 1 | patient maintenance history; TL 1 |
+| `infra/repos/pgPatientOrganization.ts` | 2 | active enrollment/program organization reads; TL 2 |
+| `infra/repos/pgPatientOrganizationEnrollment.ts` | 1 | invited-client enrollment; D15 ownership; WO 1 |
+| `infra/repos/pgPatientTelegramUsernameMention.ts` | 1 | Telegram mention lookup; TL 1 |
+| `infra/repos/pgPayments.ts` | 1 | provider-webhook organization resolution; TL 1 |
+| `infra/repos/pgPlatformAccess.ts` | 1 | canonical access row; TL 1 |
+| `infra/repos/pgPlatformLfkMediaAccess.ts` | 1 | platform LFK media ACL; TL 1 |
+| `infra/repos/pgPlaybackResolutionEvents.ts` | 1 | chosen HLS/MP4/file delivery event; TL 1; first bounded slice below |
+| `infra/repos/pgPublicBookingOtp.ts` | 2 | public booking OTP issue/consume; TL 2 |
+| `infra/repos/pgTreatmentProgram.ts` | 3 | template previews/usage; TL 3 |
+| `infra/repos/pgTreatmentProgramItemSnapshot.ts` | 1 | catalog media preview snapshot; TL 1 |
+| `pgAppRuntimeSettings.ts` | 7 | runtime-setting source/fallback changes in Ч7; WO 7 |
+| `pgAppointmentProjection.ts` | 15 | reachable booking/doctor/admin/integrator projection transport; D10 zero-producer gate; WO 15 |
+| `pgAuthRateLimitEvents.ts` | 8 | login/OTP lock and rate-limit state; TL 8 |
+| `pgChannelLinkClaim.ts` | 16 | named В9б platform-identity/binding path; WO 16 |
+| `pgChannelLinkStart.ts` | 7 | D15 channel-link decision; WO 7 |
+| `pgChannelPreferences.ts` | 6 | D15 public preference ownership; WO 6 |
+| `pgDevBypassPlatformUserPhone.ts` | 2 | dev-only role-specific phone update; TL 2 |
+| `pgDiaryPurge.ts` | 4 | account diary/LFK purge transaction; TL 4 |
+| `pgDoctorBroadcastDelivery.ts` | 3 | retained queue audit/jobs atomic write; TL 3 |
+| `pgDoctorClients.ts` | 36 | doctor client-card/list contracts; TL 36 |
+| `pgDoctorMotivationQuotesEditor.ts` | 7 | quote CMS ordering/archive; TL 7 |
+| `pgEmailAuth.ts` | 19 | email challenge/ownership/OTP lockout; TL 19 |
+| `pgEmailSetupFlowPort.ts` | 4 | password-email setup transition; TL 4 |
+| `pgEmailSetupTokens.ts` | 5 | setup token consume/expiry; TL 5 |
+| `pgLfkDiary.ts` | 14 | patient LFK CRUD; TL 14 |
+| `pgLfkExercises.ts` | 12 | exercise catalog/usage; TL 12 |
+| `pgLfkTemplates.ts` | 7 | LFK template usage/editor; TL 7 |
+| `pgLoginTokens.ts` | 5 | login-token lifecycle; TL 5 |
+| `pgMessengerPhoneHttpBind.ts` | 7 | D15 signed phone-bind identity door; WO 7 |
+| `pgOAuthUserResolve.ts` | 5 | OAuth verified identity resolve; TL 5 |
+| `pgOrgBranding.ts` | 8 | branding revision lock/publish; TL 8 |
+| `pgOrganizationInvites.ts` | 12 | seat/quota transaction; Ч4/Ч4б/current tariff; WO 12 |
+| `pgOrganizationProvisioning.ts` | 6 | specialist signup provisioning; TL 6 |
+| `pgPatientBookings.ts` | 15 | named В9б booking direct paths; WO 15 |
+| `pgPatientCalendarTimezone.ts` | 5 | patient-principal timezone read/set; TL 5 |
+| `pgPhoneChallengeStore.ts` | 5 | phone challenge merge/consume; TL 5 |
+| `pgPhoneHistory.ts` | 3 | D15 stored phone-proof/source transition; WO 3 |
+| `pgPhoneOtpLimits.ts` | 4 | anonymous OTP lockout; TL 4 |
+| `pgPlatformUserCalendarTimezone.ts` | 2 | В9б capability-boundary cutover; WO 2 |
+| `pgProductAnalytics.ts` | 4 | Ч4 analytics owner file; WO 4 |
+| `pgReferences.ts` | 22 | clinician reference catalog CRUD; TL 22 |
+| `pgStaffSecurity.ts` | 10 | staff security state machine; TL 10 |
+| `pgSupportCommunication.ts` | 52 | `resolvePlatformUserId` 2 + `*FromProjection` 19 are reachable D10 transport: WO 21; patient/doctor/admin chat paths: TL 31 |
+| `pgSymptomDiary.ts` | 18 | symptom tracking/entry CRUD; TL 18 |
+| `pgSystemSettings.ts` | 31 | Ч7 source and failure-policy owner; WO 31 |
+| `pgUserPasswordCredentials.ts` | 7 | password registration/login lifecycle; TL 7 |
+| `pgUserPins.ts` | 4 | PIN state/lockout; TL 4 |
+| `pgUserProjection.ts` | 9 | D15/D10 shared `txPgText`, `updateProfileByPhone`, `upsertNotificationTopics`: WO 3; live account/auth/admin operations: TL 6 |
+| `pgWebPushSubscriptions.ts` | 6 | subscription cap/upsert transaction; TL 6 |
+| `stockQuotaCheck.ts` | 2 | tariff quota decision inside transaction; Ч4/Ч4б; WO 2 |
+| `upsertBroadcastDefaultsAfterChannelBind.ts` | 1 | D15 post-bind defaults; WO 1 |
 
-```sh
-node scripts/check-no-new-raw-sql.mjs
-```
-
-It could not start in this checkout because dependencies are absent:
-`ERR_MODULE_NOT_FOUND: Cannot find package 'typescript' imported from
-.../scripts/check-no-new-raw-sql.mjs`.  This is **not** a green gate and no
-claim about its current pass status is made.  Its source and the current
-single-entry oracle nevertheless establish the limited `.query` coverage above.
-
-## Census by domain contract
-
-The `ops` column names every distinct operation family in the file; a slash
-separates independently executable operations, not merely adjacent calls.
-Counts add to the 155-call baseline.  `Tests` is the existing directly named
-test evidence found by exact `rg --files apps/webapp | rg '<base>.*\.(test|spec)'`;
-`—` means none was found by that exact search, not that the entire application
-has no indirect test.
-
-| File | calls; human/domain path and operation(s) | tables / difficult semantics | schema or reusable pattern; tests | verdict and minimum acceptance |
-|---|---|---|---|---|
-| `app-layer/media/playbackStatsHourly.ts` | 1; patient media playback telemetry: increment delivery/fallback hourly counter | `app.increment_media_playback_resolution_stat`; best-effort (logs, does not fail playback) | function `sql` fragment; tests — | **TL**; verify four ordered args and swallowed DB failure remains non-blocking. |
-| `infra/adminAuditLog.ts` | 9; staff audit trail: write, dedupe open conflict, count/list/filter, resolve conflict | `admin_audit_log`; JSON details, conflict key, array filter, returned row shape | schema exists; `adminAuditLog.devDb.integration.test.ts` | **TL**; write/list/resolve slice must retain actor/org principal, dedupe and resolve transition. |
-| `pgAppRuntimeSettings.ts` | 7; runtime feature/config read, public/server view, snapshot, upsert | `app.read_*_runtime_setting`, `app_runtime_settings`; scope arrays, JSON, UPSERT | `db/schema/appRuntimeSettings.ts`; tests — | **TL**; test scoped read precedence and `ON CONFLICT` return shape. |
-| `pgAppointmentProjection.ts` | 15; legacy appointment projection lookup/tombstone/upsert/reconcile | `appointment_records`, `be_appointments`, `patient_bookings`, phone history; UPSERT, cleanup writes | schema partially present; tests — | **WO (D10/D9b)** for projection/tombstone operations: first prove producers are zero, then delete with D10 rather than translate. |
-| `pgAuthRateLimitEvents.ts` | 8; login/OTP rate-limit prune/count/record/reset | `app.auth_rate_limit_*`; `runWebappTransaction`, transaction advisory locks, prune-before-count | existing `sql` lock pattern in file; `pgAuthRateLimitEvents.devDb.integration.test.ts` | **TL**; preserve same `tx`, lock ordering, and limited/count result. |
-| `pgChannelLinkClaim.ts` | 16; link messenger account, classify/merge owner, claim binding | platform identity, bindings, diary/booking/note/LFK references; multiple `FOR UPDATE` locks and merger transaction | schema models exist; tests — | **TL**; transaction slice must lock both owners/binding and prove retry/merge idempotency. |
-| `pgChannelLinkStart.ts` | 7; start/consume channel-link secret and bind user | link-secret accessors, `platform_users`, `user_channel_bindings`; atomic used marker | schema for users/bindings; tests — | **TL**; one-time token consumption and binding conflict/return shape. |
-| `pgChannelPreferences.ts` | 6; user notification/auth-channel preferences get/upsert/preferred switch | `user_channel_preferences`; tx helper, unique/preferred semantics | schema exists; tests — | **TL**; save two preferences and assert exactly one preferred result. |
-| `pgDevBypassPlatformUserPhone.ts` | 2; dev-only client/staff phone setup | `platform_users`; client trust column differs from staff write | `platformUsers` schema; tests — | **TL**; role-specific update preserves client trust and `$1/$2` order. |
-| `pgDiaryPurge.ts` | 4; account purge of diary/LFK data | `lfk_complexes`, assignments, `symptom_trackings`; supplied transaction, ordered soft/hard deletes | diary/LFK schemas; tests — | **TL**; execute atomically and assert no partial purge after induced failure. D11 removed only the integrator block, not this webapp path. |
-| `pgDoctorBroadcastDelivery.ts` | 2; doctor broadcast commits audit and all delivery jobs | `broadcast_audit`, `outgoing_delivery_queue`, recipients; caller `PoolClient`, `ON CONFLICT DO NOTHING`, all-or-error | queue and audit schemas/patterns; tests — | **TL**. Current D10a retains this queue; accept atomic audit+jobs, duplicate `event_id` error policy, and rollback. |
-| `pgDoctorClients.ts` | 36; doctor client card/list: channel, clinical, support, program, booking, analytics, contact and profile edits | many `platform_users`/booking/support/program tables; CTEs, LATERAL, `ANY(uuid[])`, aggregate JSON, org scoping | direct schemas `bookingEngine`, `bookingMemberships`, `bookingPolicies`; two devDb client tests | **TL**, split by contract: read projection, support/program metrics, booking history, profile/support/physical/contact writes. Acceptance per contract must preserve org predicate and DTO shape. |
-| `pgDoctorMotivationQuotesEditor.ts` | 7; doctor CMS quote list/create/archive/activate/reorder | `motivational_quotes`; position ordering/multi-write | schema and `sql` imports already in file; tests — | **TL**; reorder slice must preserve ordering and inactive/archive visibility. |
-| `pgEmailAuth.ts` | 19; email challenge creation/cooldown, ownership, verify/consume, OTP lockout | `app.email_auth_*`, `platform_users`; transaction lock, challenge/attempt/expiry state | function-fragment route; tests — | **TL**; verify resend/consume race and returned owner-conflict/lockout codes. |
-| `pgEmailSetupFlowPort.ts` | 4; complete password-email setup | credentials + `platform_users`; verification transition and upsert | credential/user schemas; tests — | **TL**; success transaction creates credential and marks exact user verified. |
-| `pgEmailSetupTokens.ts` | 5; read/consume setup tokens | email setup accessor functions; one-time/expiry semantics | function `sql` fragment; tests — | **TL**; expired/replayed token must not complete setup. |
-| `pgLfkDiary.ts` | 14; patient LFK complex/session CRUD and range reads | `lfk_complexes`, sessions/exercises; user predicate, joins, soft delete | LFK schemas; tests — | **TL**; user-isolated create/session/update/delete and list shape. |
-| `pgLfkExercises.ts` | 12; doctor exercise media/regions/catalog/usage/archive | exercise/media/complex/program graph; arrays, JSON aggregation, cross-domain usage scan | schemas exist; tests — | **TL**, separate catalog CRUD from usage-summary read; preserve org principal and usage-ref shape. |
-| `pgLfkTemplates.ts` | 7; complex-template usage and editor reads/writes | templates/exercises/program and assignment graph; JSON usage refs | schemas exist; tests — | **TL**; ensure template in-use summary blocks unsafe mutation with same principal. |
-| `pgLoginTokens.ts` | 5; login-token read/create/consume lifecycle | `app.auth_login_token_*`; date normalization and one-time token state | function `sql` fragment; tests — | **TL**; create → read → consume, then replay returns no valid token. |
-| `pgMessengerPhoneHttpBind.ts` | 7; signed webapp↔integrator phone bind | integrator `users`/`identities`/`contacts`; supplied Pool/PoolClient contract and transaction identity | `getWebappSqlFromPgClient`/`runPgPoolPgText`; caller path `messengerPhoneHttpBindExecute`; tests — | **TL**; retain injected connection, no implicit webapp DB; atomic identity/phone result. |
-| `pgOAuthUserResolve.ts` | 5; OAuth verified-email/phone resolve, create and binding upsert | `platform_users`, OAuth accessor; unique identity outcome | `platformUsers` schema; tests — | **TL**; test verified-email collision and canonical user resolution. |
-| `pgOrgBranding.ts` | 8; organization branding context/revision save/publish | branding revision table; `FOR UPDATE`, revision state/returned rows | existing `sql`/Drizzle pattern; tests — | **TL**; concurrent publish/update must preserve locked revision and return the published revision. |
-| `pgOrganizationInvites.ts` | 12; staff invite issue/list/seat reservation/token accept/revoke/expire | invite/member/org/entitlement tables; CTE/LATERAL quota computation, accessors | `organizationMemberInvites` schema; tests — | **TL**; invitation acceptance slice must hold seat decision + token consumption atomically. |
-| `pgOrganizationProvisioning.ts` | 6; specialist signup intent and owner provisioning | signup intent accessors, booking org/member rows; slug conflict mapping | `bookingEngine`/schema imports already present; tests — | **TL**; retry provision keeps slug-conflict mapping and does not duplicate owner. |
-| `pgPatientBookings.ts` | 15; patient booking state machine/listing | `patient_bookings`; CTE overlap creation, conditional transitions, `RETURNING` | schema exists; `pgPatientBookings.devDb.integration.test.ts` | **TL**; state-machine slice must reject invalid transition and retain exact returned booking. |
-| `pgPatientCalendarTimezone.ts` | 5; patient calendar timezone read/set/first-write | `platform_users`, patient accessor; RLS operation family, conditional first-set | `platformUsers` schema; tests — | **TL**; preserve patient-principal accessor versus staff fallback and conditional no-overwrite. |
-| `pgPhoneChallengeStore.ts` | 5; phone challenge load/merge/consume | phone auth accessors, JSON channel context, TTL/attempt return | function `sql` fragment; `pgPhoneChallengeStore.unit.test.ts` | **TL**; prove channel context merge and no row-shape/date regression. |
-| `pgPhoneHistory.ts` | 3; canonical user phone history transition | `user_phone_history`; current/history ordering | schema exists; tests — | **TL**; transaction preserves previous phone row before new transition. |
-| `pgPhoneOtpLimits.ts` | 4; anonymous phone OTP lock/read/reset | `app.phone_auth_*`; lockout exponent/cap and dates | function `sql` fragment; tests — | **TL**; repeated lockout and reset slice must retain cap and `$1/$2` mapping. |
-| `pgPlatformUserCalendarTimezone.ts` | 2; non-patient platform-user timezone read/set | `platform_users`; simple typed select/update, nullable return | `platformUsers` schema; tests — | **TL; first safe live slice** described below. |
-| `pgPlaybackResolutionEvents.ts` | 1; record chosen HLS/MP4/file delivery | `app.record_media_playback_resolution_event`; four typed args | function `sql` fragment; tests — | **TL**; assert ordered user/media/delivery/fallback arguments. |
-| `pgProductAnalytics.ts` | 4; product analytics hourly/user counters, event batch, push open | analytics tables/functions; `ON CONFLICT`, JSON and retention helpers | `productAnalytics`/schema imports already present; tests — | **TL**; batch/push slice must retain count key and idempotent aggregate update. |
-| `pgReferences.ts` | 15; clinician reference catalog category/item CRUD | reference categories/items; supplied principal transaction, ordered save, JSON/array selection | schemas exist; tests — | **TL**; save/archival slice preserves org write principal and catalog ordering. |
-| `pgStaffSecurity.ts` | 10; staff TOTP/recovery/challenge/failure/session revocation | `app.*staff*_security*`; security state machine, JSON recovery hashes, strict row parsing | function `sql` fragments; tests — | **TL**; acceptance must cover challenge consume/replay, lockout, and session-version return. |
-| `pgSupportCommunication.ts` | 47; projection upserts plus patient/doctor conversation/question/message read/write/unread paths | support conversation/message/question/delivery tables; many UPSERTs, return shapes, unread bulk updates, joins/LATERAL | schemas/relations exist; `pgSupportCommunication.devDb.integration.test.ts` | **WO** only for `*FromProjection`/projection ingestion (D10 producer-zero gate); **TL** for live patient/doctor chat, unread and admin operations. Keep these as separate slices. |
-| `pgSymptomDiary.ts` | 18; patient symptom tracking/entry CRUD and date ranges | `symptom_trackings`, `symptom_entries`; user isolation, idempotent well-being/warmup setup, joins | schemas exist; tests — | **TL**; one tracking+entry CRUD slice verifies ownership, ranges and soft-delete. |
-| `pgSystemSettings.ts` | 31; admin/public/current-patient settings read, CAS/upsert/delete, audit/runtime writes | `system_settings`, audit, runtime settings; scoped fallback, `FOR UPDATE`, CAS, JSON audit | schemas exist; tests — | **TL**, split read resolver from write/CAS/UoW. Acceptance must retain scope precedence, compare-and-swap failure, tx audit and runtime mirror. |
-| `pgUserPasswordCredentials.ts` | 7; password registration/resend/verify/login/update | `app.email_password_*`; candidate selection/verification semantics | function `sql` fragment; tests — | **TL**; register/verify/login slice detects challenge/user parameter swap. |
-| `pgUserPins.ts` | 4; user PIN read/upsert/fail/reset | `app.auth_user_pin_*`; date conversion/lockout row shape | function `sql` fragment; tests — | **TL**; failed-attempt increment and reset must preserve returned `lockedUntil`. |
-| `pgUserProjection.ts` | 9; integrator projection identity upsert/find/profile/topics | `platform_users`, notification topics; tx, conditional merge/update, UPSERT | user schema; `pgUserProjection.devDb.integration.test.ts` | **WO** for the three integrator-event writes (`upsertFromProjection`, `updateProfileByPhone`, `upsertNotificationTopics`) under D15b→D10; **TL** for six live canonical lookup/profile/auth operations, which have webapp callers. |
-| `pgWebPushSubscriptions.ts` | 6; save/cap/delete/list subscriptions | subscription table; same `PoolClient` transaction for upsert+cap deletion | schema exists; tests — | **TL**; transaction test must reject a partial sixth-subscription outcome and retain endpoint return mapping. |
-| `stockQuotaCheck.ts` | 2; organization stock quota decision at write time | entitlement/tariff/org; concurrent reservation correctness, lock/transaction dependent | existing `sql`/entitlement patterns; tests — | **TL**; retain atomic quota check inside caller transaction; JS-only precheck is unacceptable. |
-| `upsertBroadcastDefaultsAfterChannelBind.ts` | 1; default broadcast preferences after channel bind | `user_channel_preferences`; supplied transaction, idempotent UPSERT | preference schema; tests — | **TL**; bind+default write succeeds once and retry does not duplicate/default-overwrite. |
-
-## Execution order
-
-Deletion comes before translation where the owner has actually decided deletion.
-There are no current **DO** sites in this denominator, but the following transport
-operations are deliberately held:
-
-1. D10/D15 overlap proof and removal: `pgAppointmentProjection` (15), the first
-   20 calls of `pgSupportCommunication` (all `*FromProjection` ingestion and its
-   resolver), and the three integrator-event writes of `pgUserProjection`.  The
-   required gate is the owner-defined exact zero-producer census, not a textual
-   rewrite of the consumer.
-2. Live low-risk typed-table reads/writes: calendar timezone, playback event,
-   preferences, runtime settings and simple credential/token slices.
-3. Live state/transaction contracts: OTP/rate limiting, PIN/TOTP, web push,
-   invites, booking and settings CAS.
-4. Larger product projections: diaries/LFK/references, doctor client/card,
-   support-chat live operations and analytics.
-
-This order is by independently verifiable human contract; it is not a request to
-translate ten arbitrary files at a time.
-
-## Exact negative searches
-
-The following exact commands supported the `Tests —` and direct-schema findings
-above.  They must be rerun for any selected slice; their empty output is not
-replaced by an assertion in this document.
-
-```sh
-# direct test filename / symbol search (replace BASE and SYMBOL for the selected operation)
-rg --files apps/webapp | rg '/BASE[^/]*\.(test|spec)\.(ts|tsx)$'
-rg -n --glob '*.{test,spec}.{ts,tsx}' 'SYMBOL|createPg...Port' apps/webapp/src
-
-# direct schema import and table declaration search
-rg -n "from ['\"][^'\"]*(db/schema|schema/)" apps/webapp/src/infra/repos/BASE.ts
-rg -n 'export const (platformUsers|systemSettings|patientBookings|...)' apps/webapp/db/schema
-
-# caller and Track-D back-reference searches
-node /home/dev/brain/tools/code-search.mjs 'SYMBOL caller' --repo bcb -k 30
-rg -n 'D10|D15|D18|projection_outbox|outgoing_delivery_queue' \
-  docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md \
-  docs/_TODO/runs/integrator-cleanup
-```
-
-Applied examples were `pgSupportCommunication`, `pgAppointmentProjection`,
-`createPgChannelLinkClaim`, `createPgMessengerPhoneHttpBind`, and the direct
-`outgoing_delivery_queue` search.  The latter found one writer in
-`pgDoctorBroadcastDelivery.ts`; current WORK_ORDER §2.3 says the queue remains,
-so it is not a deletion candidate.  D18c reports establish that the old raw
-`.query` exemptions for `broadcastChannelCounts.ts` and
-`pgAdminPlatformUserStats.ts` were false and were already converted; they are
-not in this 44-file text-bridge denominator.
-
-## Totals and reconciliation
+## Partition and reconciliation
 
 | Category | calls | reconciliation |
 |---|---:|---|
-| `TRANSLATE_LIVE` | **117** | 155 baseline minus the 38 named `WO` calls; mixed files are split by operation, not classified wholesale |
-| `WAIT_OVERLAP` | **38** | `pgAppointmentProjection` 15 + `pgSupportCommunication` projection ingestion/resolver 20 + `pgUserProjection` integrator-event writes 3 |
-| `DELETE_BY_OWNER_STAGE` | **0** | no current webapp text site has an owner-approved deletion proof independent of D10/D15 |
-| `LOW_LEVEL_EXEMPT` | **0** | no caller is itself the execution port |
-| baseline | **155 in 44 files** | `117 + 38 + 0 + 0 = 155`; the classification counts are derived from the exact per-call baseline and the named operation partition above |
+| `TRANSLATE_LIVE` | **388** | every TL portion in the 87 rows |
+| `WAIT_OVERLAP` | **169** | D10/D15 72 + Ч4/Ч4б/current tariff 24 + Ч7 38 + additional В9б paths 35 |
+| `DELETE_BY_OWNER_STAGE` | **0** | no site has both zero-producer proof and current owner deletion authority |
+| `LOW_LEVEL_EXEMPT` | **0** | `infra/db/runWebappSql.ts` has no invocation; local wrappers are not the execution port |
+| denominator | **557** | `388 + 169 + 0 + 0 = 557` |
 
-### НЕ ПРОВЕРЕНО
+Overlap breakdown: D10/D15 72 = `pgAppointmentProjection` 15 + support projection
+partition 21 + `pgUserProjection` 3 + D15 identity doors/helpers 33. Ч4/Ч4б/current
+tariff 24 = `pgBookingEngine` 1 + `pgBookingScheduling` 1 + `pgProductAnalytics` 4 +
+`pgOrgEntitlements` 4 + `pgOrganizationInvites` 12 + `stockQuotaCheck` 2. Ч7 38 =
+`pgAppRuntimeSettings` 7 + `pgSystemSettings` 31. Additional В9б 35 =
+`pgPatientBookings` 15 + `pgChannelLinkClaim` 16 + `pgPlatformUserCalendarTimezone` 2 +
+`pgBranches` 2. The support split is **21**, not 20.
 
-- The D10/D15 producer-zero conclusion: the 38 named transport calls are held
-  because they remain reachable today; this report does not pretend they are
-  already deletable.
-- A current runnable gate/test result: dependencies are absent, and DB/DEV/TEST
-  were prohibited for this task.
-- Any claim that every table has a complete one-to-one Drizzle model.  Existing
-  schema files and sibling `sql` patterns were located; selected implementation
-  must inspect the exact columns/functions before changing one site.
+Table reconciliation (run after any report edit):
+
+```sh
+node --input-type=module <<'NODE'
+import fs from 'node:fs';
+const report = fs.readFileSync('docs/_TODO/runs/testsuite-v2/RAW_SQL_TEXT_CENSUS.md', 'utf8');
+const section = report.split('## Census by file and operation/caller authority')[1]
+  .split('## Partition and reconciliation')[0];
+let rows = 0, claimedSum = 0;
+for (const line of section.split('\n')) {
+  const match = line.match(/^\| `([^`]+)` \| (\d+) \|/);
+  if (match) { rows += 1; claimedSum += Number(match[2]); }
+}
+console.log({ rows, claimedSum });
+NODE
+# { rows: 87, claimedSum: 557 }
+```
+
+## Reachability and order
+
+The currently live D10/D15 callers, and the reason `pgBranches` remains WAIT rather
+than DELETE, are reproducible without inventing a gate:
+
+```sh
+rg -n "from '@/infra/repos/pgAppointmentProjection'|createPgAppointmentProjectionPort|appointmentProjection" apps/webapp/src --glob '*.{ts,tsx}'
+rg -n 'upsertConversationFromProjection|appendConversationMessageFromProjection|setConversationStatusFromProjection|upsertQuestionFromProjection|appendQuestionMessageFromProjection|appendDeliveryEventFromProjection' apps/webapp/src apps/integrator/src --glob '*.{ts,tsx}'
+rg -n 'userProjection[^\n]*upsertFromProjection|\.upsertFromProjection\(' apps/webapp/src --glob '*.{ts,tsx}'
+rg -n "from '@/infra/repos/pgBranches'|createPgBranchesProjectionPort|branchesProjection|deps\.branches" apps/webapp/src --glob '*.{ts,tsx}'
+```
+
+First execute owner stages / their zero-producer proofs for held transport and
+capability paths; do not translate a held file independently. Then translate live
+contracts in bounded human-path slices. The selected first slice is deliberately
+outside all current overlaps.
 
 ## First bounded live-slice brief
 
-**Target:** only
-`apps/webapp/src/infra/repos/pgPlatformUserCalendarTimezone.ts`:
-`getPlatformUserCalendarTimezone` and `setPlatformUserCalendarTimezone` (2
-calls).  Do not combine it with the patient-principal variant in
-`pgPatientCalendarTimezone.ts`.
+**Target:** only `apps/webapp/src/infra/repos/pgPlaybackResolutionEvents.ts`
+(**1 semantic invocation**). Do not use `pgPlatformUserCalendarTimezone.ts`: its
+direct `platform_users` access is inside the forthcoming В9б capability cutover.
 
-**Human contract:** a non-patient platform-user calendar surface reads its
-nullable IANA timezone and writes precisely that user’s timezone.  The current
-queries are a typed `SELECT` and a typed `UPDATE` against `platform_users`; no
-transaction, lock, RLS accessor, or Track D overlap is involved.
+**Boundary:** retain the existing `runWebappSql<T>(executor, sql\`...\`)` boundary
+and Drizzle `sql` fragment for the PostgreSQL function
+`app.record_media_playback_resolution_event`; use the existing
+`mediaPlaybackResolutionEvents` schema export. No new schema, migration, port, or
+principal shortcut.
 
-**Implementation boundary:** reuse the existing `platformUsers` declaration in
-`apps/webapp/db/schema/schema.ts` and the application's Drizzle executor.  No
-new table/schema, SQL parser, DB port, principal shortcut, or migration.
+**Human behavior oracle:** `resolveMediaPlaybackPayload.ts` →
+`playbackResolutionEvents.ts` → this repo. After media resolution, exactly one
+resolution event is insertable/readable by doctor/admin analytics for the resolved
+user/media/delivery/fallback tuple. A DB failure remains best-effort and does not
+break playback.
 
-**Acceptance:** a focused repository/integration test must seed two users,
-read null then the saved timezone for user A, confirm user B is unchanged, and
-assert the returned `null|string` shape.  It must be shown to fail for (a)
-reversed user/timezone binding, (b) an update missing the user predicate, and
-(c) an accidental non-null empty result.  Run only the targeted test plus the
-webapp typecheck/lint appropriate to the changed file; do not start DEV/TEST or
-deploy in the research worktree.  Commit code and its test together only after
-that isolated execution work is separately authorized.
+**Concrete opt-in DEV-DB oracle for a later authorized implementation:** reuse the
+repository harness pattern in
+`pgEmailOtpPublicAtomicConsume.devDb.integration.test.ts` and
+`pgAuthRateLimitEvents.devDb.integration.test.ts`: it runs only with
+`USE_REAL_DATABASE=1` and its named `RUN_*_DEV_DB` switch and refuses a
+non-disposable database name. Seed the resolved tuple, assert the one inserted
+event/result visible to analytics, and assert a forced DB failure leaves playback
+successful. This is behavior evidence, not a source-text test; this census creates
+no test or script and does not run DEV/DB/TEST.
+
+## Not verified
+
+No DB/DEV/TEST runtime was run. One-to-one Drizzle columns/functions for all 557
+calls were not asserted; each authorized slice must inspect its exact contract.
+`scripts/check-no-new-raw-sql.mjs` is not a proof for this census because its AST
+gate covers `.query(...)`, not `runWebappPgText(...)` text.
