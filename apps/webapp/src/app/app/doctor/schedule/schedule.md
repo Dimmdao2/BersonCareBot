@@ -121,7 +121,7 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 | `payments`           | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection`                                                                                          |
 | `rules`              | `BookingRulesLoader` (→ `BookingRulesPageClient`)                                                                                                    |
 | `notifications`      | `ScheduleNotificationsSection`                                                                                                                       |
-| `packages`           | Шаблоны абонементов + каталог продуктов клиники (`BookingCatalogProductsSection` через `/api/doctor/booking-engine/products`); прямой URL: `/app/doctor/schedule?tab=setup&section=packages` |
+| `packages`           | Шаблоны абонементов (`SectionPackages` через `/api/doctor/booking-engine/packages`); прямой URL: `/app/doctor/schedule?tab=setup&section=packages` |
 
 В секции `locations` строка **«Онлайн»** — встроенная локация организации поверх существующей
 `be_branches`, а не отдельный тип записи. Её нельзя переименовать, удалить или создать повторно.

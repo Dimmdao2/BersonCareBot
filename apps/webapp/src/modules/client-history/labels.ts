@@ -30,10 +30,6 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   expired: 'Абонемент истёк',
   package_usage: 'Списание по абонементу',
   package_expired: 'Абонемент истёк',
-  product_purchased: 'Покупка продукта',
-  purchase_started: 'Покупка начата',
-  visit_consumed: 'Списан визит продукта',
-  visit_released: 'Визит продукта возвращён',
   doctor_note: 'Заметка врача',
   staff_comment: 'Комментарий к записи',
   reschedule: 'Перенос',
@@ -50,7 +46,6 @@ const PROVIDER_LABELS: Record<string, string> = {
 const PURPOSE_LABELS: Record<string, string> = {
   appointment_prepayment: 'Предоплата записи',
   package_purchase: 'Покупка абонемента',
-  product_purchase: 'Покупка продукта',
 };
 
 export function timelineEventTitle(eventType: string): string {

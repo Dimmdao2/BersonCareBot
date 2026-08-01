@@ -42,7 +42,6 @@ type PaymentRow = {
   purpose: string | null;
   serviceTitle: string | null;
   packageTitle: string | null;
-  productTitle: string | null;
   refundId: string | null;
   comment: string | null;
 };
@@ -165,7 +164,6 @@ export function ClientBookingHistoryPanel({ userId, displayTimeZone, embedded = 
     ];
     if (p.serviceTitle) parts.push(p.serviceTitle);
     if (p.packageTitle) parts.push(p.packageTitle);
-    if (p.productTitle) parts.push(p.productTitle);
     const method = p.paymentMethodLabel ?? paymentMethodLabel(p.providerId);
     if (method) parts.push(method);
     const purpose = paymentPurposeLabel(p.purpose);

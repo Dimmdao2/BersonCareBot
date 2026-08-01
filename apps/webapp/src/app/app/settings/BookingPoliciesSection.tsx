@@ -28,7 +28,6 @@ const SCOPE_LEVELS: { value: PolicyScopeLevel; label: string }[] = [
   { value: 'organization', label: 'Клиника' },
   { value: 'specialist', label: 'Специалист' },
   { value: 'service', label: 'Услуга' },
-  { value: 'product', label: 'Продукт' },
 ];
 
 const LATE_CANCEL_OPTIONS: { value: LateCancellationBehavior; label: string }[] = [
@@ -47,7 +46,6 @@ const LIMIT_OPTIONS: { value: RescheduleLimitBehavior; label: string }[] = [
 type PolicyKind = 'cancellation' | 'reschedule';
 
 const OVERVIEW = '/api/admin/booking-engine/overview';
-const PRODUCTS = '/api/admin/booking-engine/products';
 
 type Props = {
   defaultKind?: PolicyKind;
@@ -63,7 +61,6 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
   const [kind, setKind] = useState<PolicyKind>(defaultKind);
   const [specialists, setSpecialists] = useState<Array<{ id: string; fullName: string }>>([]);
   const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
-  const [products, setProducts] = useState<Array<{ id: string; title: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -96,20 +93,13 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
   useEffect(() => {
     void (async () => {
       try {
-        const [ov, prod] = await Promise.all([
-          apiJson<{
-            ok?: boolean;
-            specialists?: Array<{ id: string; fullName: string }>;
-            services?: Array<{ id: string; title: string }>;
-          }>(OVERVIEW),
-          apiJson<{
-            ok?: boolean;
-            products?: Array<{ id: string; title: string }>;
-          }>(PRODUCTS),
-        ]);
+        const ov = await apiJson<{
+          ok?: boolean;
+          specialists?: Array<{ id: string; fullName: string }>;
+          services?: Array<{ id: string; title: string }>;
+        }>(OVERVIEW);
         setSpecialists(ov.specialists ?? []);
         setServices(ov.services ?? []);
-        if (prod.products) setProducts(prod.products);
       } catch {
         // catalog load failure is non-critical; selects simply stay empty
       }
@@ -250,23 +240,6 @@ export function BookingPoliciesSection({ defaultKind = 'cancellation', lockKind 
                   {services.map((s) => (
                     <SelectItem key={s.id} value={s.id} label={s.title}>
                       {s.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
-          {scopeLevel === 'product' ? (
-            <div className="space-y-2">
-              <Label>Продукт</Label>
-              <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
-                <SelectTrigger className="w-full max-w-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={p.id} label={p.title}>
-                      {p.title}
                     </SelectItem>
                   ))}
                 </SelectContent>

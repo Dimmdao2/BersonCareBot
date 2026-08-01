@@ -2,7 +2,6 @@ export type ClientTimelineCategory =
   | 'appointment'
   | 'payment'
   | 'package'
-  | 'product'
   | 'comment'
   | 'reschedule'
   | 'cancellation';
@@ -36,7 +35,6 @@ export type ClientPaymentHistoryRow = {
   comment: string | null;
   serviceTitle: string | null;
   packageTitle: string | null;
-  productTitle: string | null;
 };
 
 export type ClientVisitHistoryRow = {
