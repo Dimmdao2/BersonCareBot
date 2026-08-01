@@ -14,6 +14,16 @@ import type { ResolvePrepaymentParams } from './ports';
 import type { PrepaymentResolveContext } from './prepaymentContextFromBooking';
 import { parsePatientPackageProductRef } from '@/modules/memberships/patientPackageProductRef';
 import { parseProductPurchaseProductRef } from '@/modules/products/productPurchaseProductRef';
+import { env } from '@/config/env';
+import { routePaths } from '@/app-layer/routes/paths';
+
+/**
+ * The caller always computes a screen-specific return address; this is only the safety net for
+ * the case it comes in blank — our own screen, never the provider's site (B0.3a/#1057).
+ */
+function resolveReturnUrl(returnUrl: string | null | undefined): string {
+  return returnUrl?.trim() || `${env.APP_BASE_URL}${routePaths.patient}`;
+}
 
 function persistedProviderIntentRef(event: StoredPaymentProviderEvent): string | null {
   const explicit = event.intentRef?.trim();
@@ -360,6 +370,7 @@ export function createPaymentsService(deps: {
       currency: string;
       idempotencyKey: string;
       providerId?: string;
+      returnUrl: string;
     }) {
       const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error('payments_disabled');
@@ -375,7 +386,10 @@ export function createPaymentsService(deps: {
         amountMinor: input.amountMinor,
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
-        metadata: { appointmentId: input.appointmentId },
+        metadata: {
+          appointmentId: input.appointmentId,
+          returnUrl: resolveReturnUrl(input.returnUrl),
+        },
         providerConfig: provider,
       });
 
@@ -414,6 +428,7 @@ export function createPaymentsService(deps: {
       currency: string;
       idempotencyKey: string;
       providerId?: string;
+      returnUrl: string;
     }) {
       const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error('payments_disabled');
@@ -430,7 +445,10 @@ export function createPaymentsService(deps: {
         amountMinor: input.amountMinor,
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
-        metadata: { patientPackageId: input.patientPackageId },
+        metadata: {
+          patientPackageId: input.patientPackageId,
+          returnUrl: resolveReturnUrl(input.returnUrl),
+        },
         providerConfig: provider,
       });
 
@@ -471,6 +489,7 @@ export function createPaymentsService(deps: {
       currency: string;
       idempotencyKey: string;
       providerId?: string;
+      returnUrl: string;
     }) {
       const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error('payments_disabled');
@@ -487,7 +506,10 @@ export function createPaymentsService(deps: {
         amountMinor: input.amountMinor,
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
-        metadata: { productPurchaseId: input.productPurchaseId },
+        metadata: {
+          productPurchaseId: input.productPurchaseId,
+          returnUrl: resolveReturnUrl(input.returnUrl),
+        },
         providerConfig: provider,
       });
 

@@ -3,6 +3,8 @@ import type { PaymentsService } from '@/modules/payments/service';
 import type { EntitlementsService } from '@/modules/entitlements/service';
 import type { MembershipsService } from '@/modules/memberships/service';
 import type { CoursesService } from '@/modules/courses/service';
+import { env } from '@/config/env';
+import { publicBookPaths } from '@/shared/publicBook/paths';
 import type { ProductsPort } from './ports';
 import type {
   ProductComposition,
@@ -363,6 +365,7 @@ export function createProductsService(
           input.organizationId,
           platformUserId,
           buyerPhoneNormalized,
+          input.payLinkToken ?? null,
         );
       }
       const linked = await ensurePurchasePlatformUser(
@@ -378,6 +381,7 @@ export function createProductsService(
       organizationId: string,
       platformUserId?: string | null,
       buyerPhoneNormalized?: string | null,
+      payLinkToken?: string | null,
     ) {
       const purchase = await deps.port.getPurchase(purchaseId, organizationId);
       if (!purchase) throw new Error('purchase_not_found');
@@ -385,6 +389,11 @@ export function createProductsService(
       if (!platformUserId) throw new Error('platform_user_required_for_payment');
 
       const idempotencyKey = `product:${purchaseId}:offer`;
+      // A pay-link token means the buyer is on the unauthenticated public widget (own token-scoped
+      // screen); no token means the authenticated patient-portal purchase flow.
+      const returnUrl = payLinkToken
+        ? `${env.APP_BASE_URL}${publicBookPaths.productPay(payLinkToken)}?purchaseId=${encodeURIComponent(purchaseId)}&phone=${encodeURIComponent(buyerPhoneNormalized ?? '')}`
+        : `${env.APP_BASE_URL}/app/patient/purchases/pay?purchaseId=${encodeURIComponent(purchaseId)}`;
       const intent = await deps.payments.createProductPaymentIntent({
         organizationId,
         platformUserId,
@@ -392,6 +401,7 @@ export function createProductsService(
         amountMinor: purchase.priceMinor,
         currency: purchase.currency,
         idempotencyKey,
+        returnUrl,
       });
 
       const updated = await deps.port.setPurchaseStatus(

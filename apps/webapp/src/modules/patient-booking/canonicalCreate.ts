@@ -40,6 +40,8 @@ import { buildPatientCreatedMessageText } from './patientMessageText';
 import { buildDoctorCreatedMessageText } from './doctorMessageText';
 import { resolveBookingCalendarSyncFields } from './bookingCalendarSyncFields';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
+import { env } from '@/config/env';
+import { publicBookPaths } from '@/shared/publicBook/paths';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return (
@@ -421,6 +423,10 @@ export async function createBookingOnCanonicalEngine(
   }
 
   if (needsPrepayment && deps.payments && prepayQuote) {
+    const returnUrl =
+      createInput.bookingChannel === 'public_widget'
+        ? `${env.APP_BASE_URL}${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}&phone=${encodeURIComponent(createInput.contactPhone.trim())}`
+        : `${env.APP_BASE_URL}/app/patient/booking/pay?bookingId=${encodeURIComponent(pending.id)}`;
     try {
       await deps.payments.createAppointmentPaymentIntent({
         organizationId: orgId,
@@ -429,6 +435,7 @@ export async function createBookingOnCanonicalEngine(
         amountMinor: prepayQuote.amountMinor * slotCount,
         currency: prepayQuote.currency,
         idempotencyKey: `appointment_prepay:${appointment.id}`,
+        returnUrl,
       });
     } catch (err) {
       await rollbackChain('payment_intent_create_failed');
