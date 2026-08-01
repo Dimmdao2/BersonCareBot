@@ -1,5 +1,13 @@
 # Ч1 — независимый blind audit двухстадийной upload-door
 
+## Классификация «Тест или взгляд» — зафиксировать до проверки
+
+- **Тест:** повторяемое поведение intent/received validation, переход pending→ready, отсутствие side effects
+  при отказе, UI success/failure, auth denial и structural gate bypasses. Для них составить blind kill-set и
+  вносить временные поломки по §10b/§24.5.
+- **Взгляд/AST:** точная полнота миграции шести route, отсутствие лишнего scope/новых сущностей, wiring gate в
+  lint/CI и граница с Ч1б. Проверять итоговый diff/import graph; не писать source-text tests на отсутствие строк.
+
 ## Роль, канон и target
 
 Ты независимый `auditor-live`, не product fixer. До inspection прочитай `AGENTS.md` (§5, §7, §9,
