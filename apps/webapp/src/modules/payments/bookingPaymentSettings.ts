@@ -29,7 +29,6 @@ export function parseBookingPaymentSettingsValue(envelope: unknown): BookingPaym
     enabled: false,
     defaultProviderId: 'mock',
     providers: [
-      { id: 'mock', label: 'Тестовый (mock)', enabled: true },
       { id: 'yookassa', label: 'ЮKassa', enabled: false },
       { id: 'tinkoff', label: 'Тинькофф Касса', enabled: false },
       { id: 'cloudpayments', label: 'CloudPayments', enabled: false },

@@ -547,7 +547,7 @@ export function createPaymentsService(deps: {
       if (!secret) throw new Error('webhook_secret_missing');
 
       const adapter = getPaymentProviderAdapter(input.providerId);
-      const verified = adapter.verifyWebhook({
+      const verified = await adapter.verifyWebhook({
         headers: input.headers,
         bodyText: input.bodyText,
         webhookSecret: secret,

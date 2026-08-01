@@ -56,7 +56,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   let verified;
   try {
-    verified = resolvedProvider.adapter.verifyWebhook({
+    verified = await resolvedProvider.adapter.verifyWebhook({
       headers: request.headers,
       bodyText,
       webhookSecret: secret,
