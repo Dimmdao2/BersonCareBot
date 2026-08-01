@@ -93,6 +93,13 @@ const bypassFixtures: Array<[string, FixtureTree]> = [
     },
   ],
   [
+    'a direct lifecycle delete primitive',
+    {
+      'app/api/seventh/route.ts':
+        "import { deletePendingMediaFileById } from '@/app-layer/media/s3MediaStorage'; void deletePendingMediaFileById('id');",
+    },
+  ],
+  [
     'an aliased direct ready repository primitive',
     {
       'app/api/seventh/route.ts':

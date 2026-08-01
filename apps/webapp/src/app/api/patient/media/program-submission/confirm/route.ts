@@ -5,6 +5,7 @@ import { getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
 import { enqueueProgramSubmissionTranscodeAfterConfirm } from '@/app-layer/media/programSubmissionTranscodeEnqueue';
 import {
   acceptReceivedProgramSubmission,
+  abortPendingMediaUpload,
   validateReceivedMediaObject,
 } from '@/app-layer/media/mediaUploadAdapter';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
@@ -93,11 +94,13 @@ export async function POST(request: Request) {
     policyId: 'patient-program-submission',
   });
   if (!intent.ok) {
+    await abortPendingMediaUpload(parsed.data.mediaId);
     const rejection = uploadValidationResponse(intent);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
   const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
   if (!received.ok) {
+    await abortPendingMediaUpload(parsed.data.mediaId);
     const rejection = uploadValidationResponse(received);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
