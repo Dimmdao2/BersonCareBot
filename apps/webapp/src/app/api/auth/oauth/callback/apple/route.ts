@@ -139,7 +139,8 @@ export async function POST(request: Request) {
   const displayName = userFromForm;
   const emailVerified = Boolean(email);
 
-  const resolved = await resolveUserIdForWebOAuthLogin(buildAppDeps().oauthBindings, {
+  const deps = buildAppDeps();
+  const resolved = await resolveUserIdForWebOAuthLogin(deps.oauthBindings, {
     provider: 'apple',
     providerUserId: claims.sub,
     email,
@@ -160,7 +161,6 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('db_error'), appBase));
   }
 
-  const deps = buildAppDeps();
   await deps.patientCalendarTimezone.trySetInitialIfEmpty(
     resolved.userId,
     verified.browserCalendarIana ?? null,
@@ -170,6 +170,7 @@ export async function POST(request: Request) {
     userId: resolved.userId,
     displayNameHint: displayName?.trim() || email || claims.sub,
     authMethod: 'apple_oauth',
+    userByPhone: deps.userByPhone,
   });
 
   if (!done.ok) {

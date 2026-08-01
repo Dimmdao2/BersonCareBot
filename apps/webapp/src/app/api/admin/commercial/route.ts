@@ -72,6 +72,8 @@ const tariffInputSchema = z.object({
   downgradePolicies: z.record(z.string(), downgradePolicySchema),
   /** §5a item 2.6a — required: a tariff with no seat count is not a saveable tariff. */
   includedSeats: z.number().int().nonnegative(),
+  /** §5a item 5.1 — null means overage past includedSeats stays hard-blocked (§5.2, unchanged). */
+  additionalSeatPriceMinor: z.number().int().nonnegative().nullable(),
   isActive: z.boolean(),
 });
 

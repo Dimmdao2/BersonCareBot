@@ -1,4 +1,5 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { handleYandexOAuthCallbackGet } from '@/modules/auth/yandexOAuthCallbackHandler';
 
 /**
@@ -7,5 +8,5 @@ import { handleYandexOAuthCallbackGet } from '@/modules/auth/yandexOAuthCallback
  */
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/auth/oauth/callback:GET', request);
-  return handleYandexOAuthCallbackGet(request);
+  return handleYandexOAuthCallbackGet(request, buildAppDeps());
 }

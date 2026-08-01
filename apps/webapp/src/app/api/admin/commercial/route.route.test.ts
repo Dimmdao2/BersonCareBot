@@ -125,6 +125,7 @@ describe('/api/admin/commercial tariff persistence', () => {
             },
             downgradePolicies: {},
             includedSeats: 1,
+            additionalSeatPriceMinor: null,
             isActive: true,
           },
         }),

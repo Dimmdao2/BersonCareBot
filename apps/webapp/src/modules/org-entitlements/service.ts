@@ -146,6 +146,17 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   if (!Number.isSafeInteger(input.includedSeats) || input.includedSeats < 0) {
     throw new Error('tariff_seat_limit_invalid');
   }
+  // §5a item 5.1 — null keeps seats hard-blocked at includedSeats (§5.2); a configured price
+  // requires a currency to bill it in, same requirement priceMinor already has above.
+  if (input.additionalSeatPriceMinor !== null) {
+    if (
+      !Number.isSafeInteger(input.additionalSeatPriceMinor) ||
+      input.additionalSeatPriceMinor < 0
+    ) {
+      throw new Error('tariff_additional_seat_price_invalid');
+    }
+    if (!input.currency?.trim()) throw new Error('tariff_currency_required');
+  }
   if (input.systemAccessPolicy) assertAccessPolicy(input.systemAccessPolicy);
   const mechanicAccessPolicies = {} as Tariff['mechanicAccessPolicies'];
   for (const [mechanic, policy] of Object.entries(input.mechanicAccessPolicies)) {
