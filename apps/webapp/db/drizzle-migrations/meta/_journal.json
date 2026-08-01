@@ -2136,6 +2136,13 @@
       "when": 1793539230005,
       "tag": "0304_retire_legacy_booking_projections_local",
       "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1793539230006,
+      "tag": "0305_tariff_snapshot_access_doors_local",
+      "breakpoints": true
     }
   ]
 }
