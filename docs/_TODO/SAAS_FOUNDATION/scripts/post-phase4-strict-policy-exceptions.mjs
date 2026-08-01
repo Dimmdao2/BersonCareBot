@@ -35,6 +35,26 @@ export const postPhase4StrictPolicyExceptions = new Map([
     },
   ]),
   [
+    'public.saas_billing_refunds',
+    {
+      // К2 (01.08). Возвраты — поверхность ПЛАТФОРМЫ: мы возвращаем клинике деньги за тариф.
+      // Поэтому, в отличие от остальной семьи `saas_billing_*`, клиниковой политики чтения здесь
+      // НЕТ и накладка рантайма не участвует: клиника свои возвраты пока нигде не видит. Появится
+      // экран у клиники — сюда добавится `extraPolicyPath` с политикой для `app_clinic_billing`,
+      // ровно как у счетов. Ни одна роль, кроме платформенной, привилегии на таблицу не получает.
+      reason:
+        'К2 platform-cabinet refunds are organization-owned, FORCE RLS, and reachable only through the platform principal: the migration grants table privilege to app_platform_settings alone. No clinic-side read surface exists yet, so unlike its saas_billing_* siblings this table has no app_clinic_billing policy and no runtime overlay.',
+      policyPath: 'apps/webapp/db/drizzle-migrations/0290_saas_billing_refunds.sql',
+      policyTokens: [
+        'ALTER TABLE public.saas_billing_refunds ENABLE ROW LEVEL SECURITY;',
+        'ALTER TABLE public.saas_billing_refunds FORCE ROW LEVEL SECURITY;',
+        'CREATE POLICY saas_billing_refunds_platform_select',
+        'CREATE POLICY saas_billing_refunds_platform_insert',
+        'CREATE POLICY saas_billing_refunds_platform_update',
+      ],
+    },
+  ],
+  [
     'public.organization_slug_claims',
     {
       reason:
