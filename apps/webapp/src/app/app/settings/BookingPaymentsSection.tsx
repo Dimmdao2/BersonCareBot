@@ -43,7 +43,7 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
   const [enabled, setEnabled] = useState(initialEnabled);
   const [providers, setProviders] = useState<ProviderRow[]>(providersJson.providers);
   const [defaultProviderId, setDefaultProviderId] = useState(
-    providersJson.defaultProviderId || 'mock',
+    providersJson.defaultProviderId || 'yookassa',
   );
   const [webhookSecrets, setWebhookSecrets] = useState<Record<string, string>>({});
   const [shopIds, setShopIds] = useState<Record<string, string>>({});
