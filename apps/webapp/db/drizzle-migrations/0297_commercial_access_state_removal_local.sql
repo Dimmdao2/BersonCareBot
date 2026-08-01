@@ -512,4 +512,4 @@ CREATE TRIGGER be_organizations_staff_commercial_columns_guard
 
 -- 5. The column itself. Drops its CHECK constraint and its index
 --    (`idx_be_organizations_commercial_access_state`) with it — both depend solely on this column.
-ALTER TABLE "be_organizations" DROP COLUMN "commercial_access_state";
+ALTER TABLE "be_organizations" DROP COLUMN IF EXISTS "commercial_access_state";
