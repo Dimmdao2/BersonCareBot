@@ -598,7 +598,7 @@ export function CommercialConstructorClient() {
   }, [state.trialPolicy]);
 
   useEffect(() => {
-    setRegistrationTariffId(state.registrationTariffPolicy.tariffId ?? 'none');
+    setRegistrationTariffId(state.registrationTariffPolicy?.tariffId ?? 'none');
   }, [state.registrationTariffPolicy]);
 
   const selectedOrganization = useMemo(
