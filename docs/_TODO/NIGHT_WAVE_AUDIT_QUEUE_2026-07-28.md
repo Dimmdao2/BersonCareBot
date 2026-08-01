@@ -25,7 +25,8 @@
 | `0304` | single-entry В9б | `wt/single-entry-integration`, product `86344858e` + audit `79f3dd0b8` | ЗАНЯТО, принято и применено на DEV 02.08: удалены ровно пять legacy booking projections |
 | `0305` | тарифы | `wt/single-entry-integration`, product `b3df61d01` + audit `d51bab97d` | ЗАНЯТО, принято и применено на DEV 02.08: frozen paid-period tariff восстановлен во всех трёх access doors; oracle 3/3 PASS |
 | `0306` | single-entry В9б | `wt/v9b-s02-capability-expand` / `bcb-wt-v9b-s02-capability-expand` | ЗАБРОНИРОВАНО до создания файла: S02 expand-only capability seams/EXECUTE/operational ACL; без revoke/FORCE, локальный файл помечается `-- TEMPORARY LOCAL MIGRATION NUMBER 0306` |
-| `0307`+ | свободно | — | следующий берущий начинает отсюда |
+| `0307` | тарифы и оплата | `wt/tariff-change-paid-period` / `bcb-wt-tariff-change-paid-period` | ЗАБРОНИРОВАНО до создания файла: смена тарифа без потери оплаченного периода; pending downgrade/renewal promotion, без новой billing-сущности; локальный файл помечается `-- TEMPORARY LOCAL MIGRATION NUMBER 0307` |
+| `0308`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Текущий режим 02.08:** оркестратор один. Stateful workstreams остаются в отдельных worktree, но единый
 migration ledger `0300…0305` собран в `wt/single-entry-integration`; новые номера по-прежнему бронируются здесь
