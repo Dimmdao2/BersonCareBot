@@ -2,8 +2,15 @@
 
 > **Статус:** historical P0 checklist, не текущий product plan. Реализованные schema/resolver facts переиспользуются,
 > но product defaults, конечный mechanic list и `manual tariff / no billing` заменены
-> [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
-> и [`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](./SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md).
+> [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md).
+> **Форвард-ссылка (2026-08-01, tariff-plan-triage):** актуальный текущий план тарифов/entitlements/квот —
+> [`TARIFFS_PAYMENTS_ADMIN_PLAN.md`](./TARIFFS_PAYMENTS_ADMIN_PLAN.md) §5a; биллинг/оплата — отдельно
+> [`SAAS_BILLING_PLAN.md`](./SAAS_BILLING_PLAN.md). Старая ссылка на архивированный
+> `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` снята — тот файл сам архивирован и сам форвардит на
+> `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a. Единственный оставшийся здесь открытый пункт («typecheck + targeted tests
+> green» для P0-кода 2026-07-19) поглощён последующими полными зелёными прогонами CI, задокументированными в
+> `TARIFFS_PAYMENTS_ADMIN_PLAN.md` пункте 7.1 (`pnpm run ci`, код возврата 0, 31.07) — P0-код с тех пор прошёл
+> многократный typecheck/test цикл, не потерян и не завис.
 
 > **2026-07-27 checkbox pass, corrected 2026-07-29.** Thirteen shipped P0 facts are `[x]` with durable commit or
 > symbol/heading evidence below. The verified implementation commits `c1f07c130` and `52d99299b` remain the
