@@ -65,6 +65,7 @@ unexpected_policy_role:app_clinic_billing
 - Ветка `wt/testsuite-b2`, коммиты только в неё. **Push и merge не делать, галочки плана не ставить.**
 - Отчёт: `docs/_TODO/runs/testsuite-v2/B2B_ETALON_GENERATOR_REPORT.md`, раздел «НЕ СДЕЛАНО» обязателен.
 
-**Правила:** `.cursor/rules/host-psql-database-url.mdc`, `.cursor/rules/dev-prod-isolation-no-real-creds.mdc`,
+**Правила:** [`AGENTS.md` §6](../../../../AGENTS.md#6-host-postgresql-и-database_url),
+[§1b](../../../../AGENTS.md#1b-безопасность-dev-среды-изоляция-от-прод-и-реальных-каналов),
 `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`, `.cursor/rules/test-execution-policy.md`
 (часть из них — указатели на разделы `AGENTS.md`, читать по ссылке из указателя).

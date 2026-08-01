@@ -13,7 +13,7 @@
 
 **Правила репозитория, обязательные к прочтению до правки:**
 `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`, `.cursor/rules/test-execution-policy.md`
-(разделы «DB/RLS», «Слепой список поломок составляет АУДИТОР»), `.cursor/rules/host-psql-database-url.mdc`,
+(разделы «DB/RLS», «Слепой список поломок составляет АУДИТОР»), [`AGENTS.md` §6](../../../../AGENTS.md#6-host-postgresql-и-database_url),
 `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`.
 
 ## Скоуп — два пункта

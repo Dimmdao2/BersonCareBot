@@ -1,6 +1,0 @@
----
-description: Команда "пуш" означает validation по scope, commit и push
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §8 «Команда «пуш»». Текст здесь не дублируется.

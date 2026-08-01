@@ -15,7 +15,7 @@
 **Правила, обязательные к прочтению до правки:**
 `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`, `.cursor/rules/test-execution-policy.md`
 (разделы «Канон написания тестов» и «Слепой список поломок составляет АУДИТОР»),
-`.cursor/rules/webapp-tests-lean-no-bloat.mdc`.
+[`AGENTS.md` §11](../../../../AGENTS.md#11-webapp-тесты-компактность).
 
 ## Что проверяем — четыре класса отказа, каждый в терминах последствия
 

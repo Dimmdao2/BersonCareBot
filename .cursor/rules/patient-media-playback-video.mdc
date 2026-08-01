@@ -1,7 +1,0 @@
----
-description: Пациентское файловое видео — только PatientMediaPlaybackVideo и playback API
-globs: apps/webapp/src/app/app/patient/**/*,apps/webapp/src/shared/ui/media/PatientMediaPlaybackVideo.tsx,apps/webapp/src/shared/ui/media/patientHlsQuality.ts,apps/webapp/src/shared/ui/media/MediaPickerQuickPreviewDialog.tsx,apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx
-alwaysApply: false
----
-
-Правило живёт в `AGENTS.md` §19 «Patient media playback (HLS / MP4)». Текст здесь не дублируется.

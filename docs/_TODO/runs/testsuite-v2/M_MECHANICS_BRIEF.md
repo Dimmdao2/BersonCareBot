@@ -12,7 +12,7 @@ Stryker-судье было принято, записано и не испол�
 
 **Правила репозитория, обязательные к прочтению до правки:**
 `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`, `.cursor/rules/test-execution-policy.md`
-(особенно новый раздел «Слепой список поломок составляет АУДИТОР»), `.cursor/rules/pre-push-ci.mdc`.
+(особенно новый раздел «Слепой список поломок составляет АУДИТОР»), [`AGENTS.md` §9](../../../../AGENTS.md#9-full-ci-gate).
 
 ## Скоуп — ровно три пункта, в этом порядке
 
