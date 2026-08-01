@@ -1,3 +1,4 @@
+import type { PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
 import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingPaymentProviderResolver,
@@ -26,15 +27,17 @@ export function createSaasBillingService(dependencies: {
   now?: () => Date;
 }) {
   const now = dependencies.now ?? (() => new Date());
-  async function resolvePaymentProvider(): Promise<ResolvedSaasBillingPaymentProvider> {
+  /** `providerId` picks a specific configured provider (e.g. the one named in a webhook URL); omitted, it's the global default. */
+  async function resolvePaymentProvider(
+    providerId?: string,
+  ): Promise<ResolvedSaasBillingPaymentProvider> {
     const settings = parseSaasBillingPaymentProviderSettings(
       await dependencies.settings.getSaasBillingPaymentProviderValue(),
     );
-    const providerConfig = settings.providers.find(
-      ({ id, enabled }) => id === settings.defaultProviderId && enabled,
-    );
+    const id = providerId ?? settings.defaultProviderId;
+    const providerConfig = settings.providers.find((p) => p.id === id && p.enabled);
     if (!providerConfig) {
-      throw new Error(`saas_billing_payment_provider_unavailable:${settings.defaultProviderId}`);
+      throw new Error(`saas_billing_payment_provider_unavailable:${id}`);
     }
     return {
       providerId: providerConfig.id,
@@ -150,6 +153,85 @@ export function createSaasBillingService(dependencies: {
         ...input,
         event: sanitizeSaasBillingProviderEventEnvelope(input.event),
       });
+    },
+
+    resolveSaasBillingPaymentProvider(providerId?: string) {
+      return resolvePaymentProvider(providerId);
+    },
+
+    /**
+     * Unscoped by design — the webhook does not know the organization until an invoice with this
+     * `providerId`/`intentRef` is found. No write happens here; capture is a separate, org-scoped step.
+     */
+    async resolveSaasBillingInvoiceForWebhook(input: {
+      providerId: string;
+      verified: Pick<PaymentProviderVerifyResult, 'intentRef' | 'amountMinor' | 'payload'>;
+    }): Promise<
+      | { outcome: 'unknown_reference' }
+      | { outcome: 'mismatch'; field: 'amount' | 'currency' }
+      | { outcome: 'resolved'; organizationId: string; saasBillingInvoiceId: string }
+    > {
+      const providerInvoiceRef = input.verified.intentRef?.trim();
+      if (!providerInvoiceRef) return { outcome: 'unknown_reference' };
+      const invoice = await dependencies.repository.findSaasBillingInvoiceByProviderRef({
+        providerId: input.providerId,
+        providerInvoiceRef,
+      });
+      if (!invoice) return { outcome: 'unknown_reference' };
+
+      if (
+        input.verified.amountMinor !== undefined &&
+        input.verified.amountMinor !== invoice.amountMinor
+      ) {
+        return { outcome: 'mismatch', field: 'amount' };
+      }
+      const payloadCurrency =
+        typeof input.verified.payload.currency === 'string'
+          ? input.verified.payload.currency
+          : undefined;
+      if (payloadCurrency !== undefined && payloadCurrency !== invoice.currency) {
+        return { outcome: 'mismatch', field: 'currency' };
+      }
+
+      return {
+        outcome: 'resolved',
+        organizationId: invoice.organizationId,
+        saasBillingInvoiceId: invoice.id,
+      };
+    },
+
+    /** Org-scoped: call only after `resolveSaasBillingInvoiceForWebhook` returned `resolved`. */
+    async captureSaasBillingProviderWebhookEvent(input: {
+      organizationId: string;
+      saasBillingInvoiceId: string;
+      providerId: string;
+      verified: Pick<PaymentProviderVerifyResult, 'idempotencyKey' | 'eventType' | 'amountMinor' | 'payload'>;
+    }): Promise<{ captured: boolean; duplicate: boolean }> {
+      const payloadCurrency =
+        typeof input.verified.payload.currency === 'string' ? input.verified.payload.currency : null;
+      const { created } = await dependencies.repository.recordSaasBillingProviderEvent({
+        organizationId: input.organizationId,
+        saasBillingInvoiceId: input.saasBillingInvoiceId,
+        event: {
+          providerId: input.providerId,
+          providerEventId: input.verified.idempotencyKey,
+          type: input.verified.eventType,
+          amountMinor: input.verified.amountMinor ?? null,
+          currency: payloadCurrency,
+        },
+      });
+      // Replay: the event row already exists — do not capture a second time.
+      if (!created) return { captured: false, duplicate: true };
+
+      if (input.verified.eventType !== 'payment.succeeded') {
+        return { captured: false, duplicate: false };
+      }
+      await dependencies.repository.markSaasBillingInvoicePaid({
+        saasBillingInvoiceId: input.saasBillingInvoiceId,
+        organizationId: input.organizationId,
+        paidAt: now().toISOString(),
+      });
+      return { captured: true, duplicate: false };
     },
   };
 }

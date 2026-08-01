@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getSaasIsolationOperatorPool } from '@/infra/db/saasIsolationTelemetry';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 
 const nonNegativeNumber = z.number().finite().nonnegative();
 const nullableIso = z
@@ -261,10 +262,11 @@ export type CuratedPlaybackHealthSnapshot = z.infer<typeof curatedPlaybackHealth
 
 /** Uses the already-protected diagnostics credential; never the principal-aware app pool. */
 export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHealthSnapshot> {
-  const result = await getSaasIsolationOperatorPool().query<{
+  const result = await runPgPoolPgText<{
     snapshot: unknown;
     outbound_provider_incidents: unknown;
   }>(
+    getSaasIsolationOperatorPool(),
     'SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents',
   );
   const row = result.rows[0];
@@ -278,7 +280,8 @@ export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHe
 
 /** Uses a redacted SECURITY DEFINER aggregate; the operator role has no source-table access. */
 export async function loadCuratedPlaybackHealthSnapshot(): Promise<CuratedPlaybackHealthSnapshot> {
-  const result = await getSaasIsolationOperatorPool().query<{ snapshot: unknown }>(
+  const result = await runPgPoolPgText<{ snapshot: unknown }>(
+    getSaasIsolationOperatorPool(),
     'SELECT app.read_curated_playback_health() AS snapshot',
   );
   const row = result.rows[0];

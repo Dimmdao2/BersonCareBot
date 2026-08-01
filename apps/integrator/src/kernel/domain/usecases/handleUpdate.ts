@@ -1,5 +1,4 @@
 import type { ChannelUserPort } from '../ports/user.js';
-import type { NotificationsPort } from '../ports/notifications.js';
 import type { WebhookContent } from '../webhookContent.js';
 import type { IncomingUpdate, OutgoingAction } from '../types.js';
 import {
@@ -11,12 +10,7 @@ import {
   handleDefaultIdle,
 } from './handleMessage.js';
 import { mainMenuMarkup, requestPhoneLink } from './requestContactFlow.js';
-import {
-  handleNotificationCallback,
-  handleShowNotifications,
-  handleMyBookings,
-  handleBack,
-} from './handleCallback.js';
+import { handleMyBookings, handleBack } from './handleCallback.js';
 import {
   phoneLinkConflictUserMessage,
   phoneLinkSaveFailedUserMessage,
@@ -54,7 +48,6 @@ function asNumericMessageId(value: number | string): number | null {
 export async function handleUpdate(
   incoming: IncomingUpdate,
   userPort: ChannelUserPort,
-  notificationsPort: NotificationsPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
   // ARCH-V3 MOVE
@@ -81,26 +74,7 @@ export async function handleUpdate(
       ];
     }
 
-    if (data.startsWith('notify_')) {
-      const result = await handleNotificationCallback(
-        incoming.channelUserId,
-        incoming.chatId,
-        messageId,
-        data,
-        notificationsPort,
-        content,
-      );
-      if (result) actions.push(...result);
-    } else if (data === 'menu_notifications') {
-      const result = await handleShowNotifications(
-        incoming.chatId,
-        messageId,
-        incoming.channelUserId,
-        notificationsPort,
-        content,
-      );
-      actions.push(...result);
-    } else if (data === 'menu_my_bookings') {
+    if (data === 'menu_my_bookings') {
       const result = await handleMyBookings(incoming.chatId, messageId, content);
       actions.push(...result);
     } else if (data === 'menu_back') {

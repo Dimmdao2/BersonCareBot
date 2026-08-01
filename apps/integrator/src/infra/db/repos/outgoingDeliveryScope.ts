@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type OutgoingDeliveryScope =
   | { kind: 'tenant'; queueKind: string; organizationId: string }
@@ -11,13 +13,13 @@ export async function resolveOutgoingDeliveryScope(
   db: DbPort,
   queueId: string,
 ): Promise<OutgoingDeliveryScope> {
-  const result = await db.query<{
+  const result = await runIntegratorSql<{
     queue_kind: string | null;
     organization_id: string | null;
     resolution: string;
   }>(
-    'SELECT queue_kind, organization_id::text AS organization_id, resolution FROM app.resolve_outgoing_delivery_scope($1::uuid)',
-    [queueId],
+    db,
+    sql`SELECT queue_kind, organization_id::text AS organization_id, resolution FROM app.resolve_outgoing_delivery_scope(${queueId}::uuid)`,
   );
   const row = result.rows[0];
   if (!row) return { kind: 'invalid', queueKind: null, reason: 'queue_not_found' };
@@ -42,13 +44,13 @@ export async function operatorIncidentAlertAlreadySent(
   db: DbPort,
   incidentId: string,
 ): Promise<boolean> {
-  const result = await db.query<{ already_sent: boolean }>(
-    'SELECT app.operator_incident_alert_already_sent($1::uuid) AS already_sent',
-    [incidentId],
+  const result = await runIntegratorSql<{ already_sent: boolean }>(
+    db,
+    sql`SELECT app.operator_incident_alert_already_sent(${incidentId}::uuid) AS already_sent`,
   );
   return result.rows[0]?.already_sent === true;
 }
 
 export async function markOperatorIncidentAlertSent(db: DbPort, incidentId: string): Promise<void> {
-  await db.query('SELECT app.mark_operator_incident_alert_sent($1::uuid)', [incidentId]);
+  await runIntegratorSql(db, sql`SELECT app.mark_operator_incident_alert_sent(${incidentId}::uuid)`);
 }

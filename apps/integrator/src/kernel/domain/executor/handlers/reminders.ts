@@ -18,8 +18,10 @@ import {
   readIncoming,
 } from '../helpers.js';
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { createDbPort } from '../../../../infra/db/client.js';
+import { runIntegratorSql } from '../../../../infra/db/runIntegratorSql.js';
 import { enqueueOutgoingDeliveryIfAbsent } from '../../../../infra/db/repos/outgoingDeliveryQueue.js';
 import {
   recordMessengerChannelSkipsBestEffort,
@@ -300,26 +302,26 @@ export async function handleReminders(
       if (linkedTitleCache.has(cacheKey)) return linkedTitleCache.get(cacheKey) ?? null;
       try {
         if (rule.linkedObjectType === 'content_page') {
-          const res = await catalogDb.query<{ title: string }>(
-            `SELECT title
+          const res = await runIntegratorSql<{ title: string }>(
+            catalogDb,
+            sql`SELECT title
              FROM public.content_pages
-             WHERE slug = $1
+             WHERE slug = ${rule.linkedObjectId}
                AND is_published = true
                AND deleted_at IS NULL
              LIMIT 1`,
-            [rule.linkedObjectId],
           );
           const title = typeof res.rows[0]?.title === 'string' ? res.rows[0]!.title.trim() : '';
           const val = title.length > 0 ? title : null;
           linkedTitleCache.set(cacheKey, val);
           return val;
         }
-        const res = await catalogDb.query<{ title: string }>(
-          `SELECT title
+        const res = await runIntegratorSql<{ title: string }>(
+          catalogDb,
+          sql`SELECT title
            FROM public.content_sections
-           WHERE slug = $1
+           WHERE slug = ${rule.linkedObjectId}
            LIMIT 1`,
-          [rule.linkedObjectId],
         );
         const title = typeof res.rows[0]?.title === 'string' ? res.rows[0]!.title.trim() : '';
         const val = title.length > 0 ? title : null;

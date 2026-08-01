@@ -9,6 +9,7 @@ import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { prepareVerifiedPrimaryLoginWithStatus } from '@/modules/auth/verifiedStaffPrimaryLogin';
+import { platformRequiresStaffTwoFactor } from '@/modules/staff-security/platformPolicy';
 import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
@@ -156,11 +157,16 @@ export async function POST(request: Request) {
   }
 
   await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
+  // Увести на настройку фактора можно только тогда, когда платформа его действительно требует, —
+  // тот же предикат, по которому пускает страж страниц. Иначе переключатель админки выключен, страж
+  // пускает в кабинет, а вход всё равно шлёт на вкладку безопасности: настройка есть, а половина
+  // системы её не знает.
+  const surfaceEnrollment =
+    security !== null && !security.enrolled && (await platformRequiresStaffTwoFactor());
   return NextResponse.json({
     ok: true,
-    redirectTo:
-      security && !security.enrolled
-        ? '/app/account?tab=security'
-        : getRedirectPathForRole(sessionUser.role),
+    redirectTo: surfaceEnrollment
+      ? '/app/account?tab=security'
+      : getRedirectPathForRole(sessionUser.role),
   });
 }

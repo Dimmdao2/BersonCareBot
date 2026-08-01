@@ -2150,6 +2150,19 @@ run_strict_post_migration_closure(){
   assert_test_writers_stopped
   assert_cleanup_elevation
 
+  # B0.2 (#1057): refuse before any restart if the mock payment routes would be reachable on
+  # this target — either because a route lost its guard, or because webapp.test resolves
+  # NODE_ENV/VITEST_WORKER_ID such that isMockPaymentConfirmEnabled would be true. Same gate as
+  # PROD (deploy-prod.sh, deploy-webapp-prod.sh); this single call covers both TEST entry points
+  # (deploy-test.sh's --post-migration-closure and the full-reset flow) since both funnel through
+  # this function before the restart below.
+  log "strict closure: B0.2 mock-payment deploy gate"
+  local mock_payment_node_env mock_payment_vitest_worker_id
+  mock_payment_node_env="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && printf '%s' \"\${NODE_ENV:-development}\"")"
+  mock_payment_vitest_worker_id="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && printf '%s' \"\${VITEST_WORKER_ID:-}\"")"
+  bash "$DEPLOY_REPO/deploy/host/assert-no-mock-payment-deploy.sh" \
+    "$DEPLOY_REPO" "$mock_payment_node_env" "$mock_payment_vitest_worker_id"
+
   log "strict closure: roles + grants"
   install_p0_5b_runtime_wall
   log "strict closure: protected principal helpers"

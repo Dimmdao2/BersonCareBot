@@ -7,14 +7,11 @@ import type {
   DbWritePort,
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
+import { sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
-import {
-  setUserPhone,
-  setUserState,
-  updateNotificationSettings,
-  upsertUser,
-} from './repos/channelUsers.js';
+import { runIntegratorSql } from './runIntegratorSql.js';
+import { setUserPhone, setUserState, upsertUser } from './repos/channelUsers.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
   applyMessengerPhonePublicBind,
@@ -71,7 +68,6 @@ import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
   writeIdentityAndPreferencesDirect,
-  writeNotificationTopicsDirect,
   DirectPublicWriteError,
   type ChannelAnchorResult,
   type DirectPublicChannelCode,
@@ -196,9 +192,9 @@ function buildChannelAnchorWriter(
       integratorUserId = row?.id ?? null;
     } else {
       await ensureIdentityForMessenger(txDb, { resource: 'max', externalId });
-      const identityRes = await txDb.query<{ user_id: string }>(
-        'SELECT user_id::text AS user_id FROM identities WHERE resource = $1 AND external_id = $2 LIMIT 1',
-        [resource, externalId],
+      const identityRes = await runIntegratorSql<{ user_id: string }>(
+        txDb,
+        sql`SELECT user_id::text AS user_id FROM identities WHERE resource = ${resource} AND external_id = ${externalId} LIMIT 1`,
       );
       integratorUserId = identityRes.rows[0]?.user_id ?? null;
     }
@@ -400,12 +396,12 @@ export function createDbWritePort(
                   externalId: channelUserId,
                 });
               }
-              const idPeek = await txDb.query<{ user_id: string }>(
-                `SELECT i.user_id::text AS user_id
+              const idPeek = await runIntegratorSql<{ user_id: string }>(
+                txDb,
+                sql`SELECT i.user_id::text AS user_id
                  FROM identities i
-                 WHERE i.resource = $2 AND i.external_id = $1
+                 WHERE i.resource = ${resource} AND i.external_id = ${channelUserId}
                  LIMIT 1`,
-                [channelUserId, resource],
               );
               const rawUid = idPeek.rows[0]?.user_id ?? null;
               if (!rawUid) {
@@ -601,9 +597,9 @@ export function createDbWritePort(
               openedAt,
               lastMessageAt,
             });
-            const convRow = await txDb.query<{ user_identity_id: string }>(
-              'SELECT user_identity_id::text AS user_identity_id FROM conversations WHERE id = $1',
-              [id],
+            const convRow = await runIntegratorSql<{ user_identity_id: string }>(
+              txDb,
+              sql`SELECT user_identity_id::text AS user_identity_id FROM conversations WHERE id = ${id}`,
             );
             const rawIdentityId = convRow.rows[0]?.user_identity_id ?? null;
             resolvedIntegratorUserId =
@@ -1151,69 +1147,6 @@ export function createDbWritePort(
               }
             },
           });
-          return;
-        }
-        case 'notifications.update': {
-          const resource = readResource(mutation.params);
-          if (resource !== 'telegram') return;
-          const channelUserId = asFiniteNumber(
-            mutation.params.channelUserId ?? mutation.params.channelId,
-          );
-          if (channelUserId === null) return;
-          const settings: Record<string, boolean> = {};
-          if (typeof mutation.params.notify_spb === 'boolean')
-            settings.notify_spb = mutation.params.notify_spb;
-          if (typeof mutation.params.notify_msk === 'boolean')
-            settings.notify_msk = mutation.params.notify_msk;
-          if (typeof mutation.params.notify_online === 'boolean')
-            settings.notify_online = mutation.params.notify_online;
-          if (typeof mutation.params.notify_bookings === 'boolean')
-            settings.notify_bookings = mutation.params.notify_bookings;
-          if (Object.keys(settings).length === 0) return;
-          // Integrator-only telegram_state.notify_* flags (bot menu state) — retained as-is, always
-          // committed regardless of what happens below (matches the old resilience shape: this write
-          // never depended on / rolled back with the projection-fanout step it used to precede).
-          await updateNotificationSettings(db, channelUserId, settings);
-
-          const topicMap: Record<string, string> = {
-            notify_spb: 'booking_spb',
-            notify_msk: 'booking_msk',
-            notify_online: 'booking_online',
-            notify_bookings: 'bookings',
-          };
-          const topics = Object.entries(settings)
-            .filter(([k]) => k in topicMap)
-            .map(([k, v]) => ({ topicCode: topicMap[k]!, isEnabled: v }));
-          if (topics.length === 0) return;
-
-          // D1: resolve the canonical integrator user id the same way the removed readPort lookup did
-          // (identities by resource+externalId), then write public.user_notification_topics directly —
-          // replaces the `preferences.updated` HTTP projection fanout. Parity with the webapp consumer
-          // (`preferences.updated` → `upsertFromProjection({ integratorUserId })`): no channel binding is
-          // written here, only topics against the integrator_user_id-resolved platform user.
-          const identityRes = await db.query<{ user_id: string }>(
-            'SELECT user_id::text AS user_id FROM identities WHERE resource = $1 AND external_id = $2 LIMIT 1',
-            [resource, String(channelUserId)],
-          );
-          const rawUid = identityRes.rows[0]?.user_id ?? null;
-          if (!rawUid) return;
-          const canonicalUid = await resolveCanonicalIntegratorUserId(db, rawUid);
-          try {
-            await writeNotificationTopicsDirect(
-              db,
-              { integratorUserId: canonicalUid, topics },
-              { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            );
-          } catch (err) {
-            if (isIdentityMergeAmbiguityError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, channelUserId },
-                'notifications.update: ambiguous identity merge deferred (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
           return;
         }
         case 'reminders.rule.upsert': {

@@ -1,6 +1,7 @@
 import { getPool } from '@/infra/db/client';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type { PlatformAccessCanonRow, PlatformAccessPort } from '@/modules/platform-access/ports';
 
 function credentialPresenceSql(): string {
@@ -21,7 +22,7 @@ export const pgPlatformAccessPort: PlatformAccessPort = {
   resolveCanonicalUserId: async (userId) => resolveCanonicalUserId(getPool(), userId),
   async loadCanonRow(canonicalUserId) {
     const credentialsSql = credentialPresenceSql();
-    const r = await getPool().query<PlatformAccessCanonRow>(
+    const r = await runWebappPgText<PlatformAccessCanonRow>(
       `SELECT pu.role,
               pu.phone_normalized,
               pu.patient_phone_trust_at,

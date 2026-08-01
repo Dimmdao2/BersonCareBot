@@ -1,7 +1,9 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { logger } from '../../observability/logger.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import { deliveryAttemptLogs } from '../schema/integratorPublicProduct.js';
 import { getOperationalVerboseLogEnabled } from './operationalVerboseLog.js';
 
@@ -74,21 +76,11 @@ export async function insertDeliveryAttemptLog(
     const principal = getCurrentDbPrincipal();
 
     if (principal?.kind === 'infra' && principal.source === 'delivery-handler') {
-      await db.query(
-        `SELECT app.record_global_email_delivery_attempt(
-          $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::timestamptz
+      await runIntegratorSql(
+        db,
+        sql`SELECT app.record_global_email_delivery_attempt(
+          ${intentType}, ${intentEventId}, ${correlationId}, ${channel}, ${status}, ${attempt}, ${reason}, ${payloadJson}::jsonb, ${occurredAt}::timestamptz
         )`,
-        [
-          intentType,
-          intentEventId,
-          correlationId,
-          channel,
-          status,
-          attempt,
-          reason,
-          payloadJson,
-          occurredAt,
-        ],
       );
     } else {
       const d = getIntegratorDrizzleSession(db);
