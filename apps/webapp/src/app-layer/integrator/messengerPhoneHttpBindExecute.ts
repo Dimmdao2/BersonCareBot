@@ -111,7 +111,7 @@ export async function executeMessengerPhoneHttpBind(
   let applied = false;
 
   try {
-    const txDb = tx.txDb;
+    const txDb = tx.db;
 
     try {
       if (resource === 'max') {
@@ -125,7 +125,7 @@ export async function executeMessengerPhoneHttpBind(
         phoneLinkEarly = { ok: false, reason: 'no_integrator_identity' };
       } else {
         const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, integratorIdentityUserId);
-        const { platformUserId } = await applyMessengerPhonePublicBind(txDb, {
+        const { platformUserId } = await applyMessengerPhonePublicBind(tx.mergeDb, {
           channelCode: resource,
           externalId: channelUserId,
           phoneNormalized,
@@ -172,7 +172,7 @@ export async function executeMessengerPhoneHttpBind(
             };
             try {
               enrichedFields = await enrichMessengerBindAuditDetailsFields(
-                poolAsMessengerPhoneBindDb(pool),
+                poolAsMessengerPhoneBindDb(),
                 {
                   reason: err.code,
                   candidateIds: err.candidateIds,

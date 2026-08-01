@@ -216,7 +216,7 @@ async function collectCandidateIds(
   }
   if (params.channelCode && params.externalId) {
     const ch = await findCanonicalUserIdByChannelBinding(
-      client,
+      getWebappSqlFromPgClient(client),
       params.channelCode,
       params.externalId,
     );
@@ -328,7 +328,7 @@ async function upsertFromProjectionTx(
       [userId, params.channelCode, params.externalId],
     );
     if (insBinding.rows.length > 0) {
-      await upsertBroadcastDefaultsAfterChannelBind(client, userId, params.channelCode);
+      await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, params.channelCode);
     }
   }
 

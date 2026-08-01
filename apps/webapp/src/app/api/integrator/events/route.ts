@@ -203,7 +203,7 @@ export async function POST(request: Request) {
         return found ? { platformUserId: found.userId } : null;
       },
       resolveCanonicalPlatformUserId: async (platformUserId: string) => {
-        const resolved = await resolveCanonicalUserId(pool, platformUserId);
+        const resolved = await resolveCanonicalUserId(platformUserId);
         return resolved ?? platformUserId;
       },
     },

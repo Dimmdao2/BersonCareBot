@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   };
 
   const pool = getPool();
-  const platformUserId = await findCanonicalUserIdByIntegratorId(pool, integratorUserId);
+  const platformUserId = await findCanonicalUserIdByIntegratorId(integratorUserId);
   if (!platformUserId) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }

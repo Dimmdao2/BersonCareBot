@@ -21,8 +21,9 @@ const allowedPoolProviderFiles = new Set([
   // D1 (C-1, 2026-07-26): boot-time schema probe called from instrumentation.ts `register()`,
   // before the DI container / app deps exist — there is no wired pool provider to hand it a
   // connection yet. Opens one `max: 1` pool, runs one query, closes it (see finally in
-  // probeSessionRevocationColumn). Not a runtime request-path bypass.
-  'apps/webapp/src/modules/auth/sessionRevocationSchema.ts',
+  // runBootProbePgText). Not a runtime request-path bypass. Живёт в `infra/db`, чтобы сырого
+  // клиента не было нигде за пределами порта (01.08).
+  'apps/webapp/src/infra/db/bootProbe.ts',
 ]);
 
 const allowedConnectFiles = new Set([
@@ -54,10 +55,6 @@ const allowedLayerRawSqlFiles = new Set([
   // S1 residual: SQL fragments intentionally kept until dedicated cleanup/guard allowlist decision.
   'apps/webapp/src/modules/analytics/analyticsAudience.ts',
   'apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts',
-  // D1 (C-1, 2026-07-26): same boot-time-before-DI probe as the new-Pool allowlist entry above.
-  // The `information_schema.columns` SELECT is the entire probe; there is no DI-wired query
-  // chokepoint to route it through this early in the process lifecycle.
-  'apps/webapp/src/modules/auth/sessionRevocationSchema.ts',
   // App-layer Drizzle SQL metric fragments; S5 protects against growth while preserving current behavior.
   'apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts',
   'apps/webapp/src/app-layer/health/adminWebPushHealthMetrics.ts',

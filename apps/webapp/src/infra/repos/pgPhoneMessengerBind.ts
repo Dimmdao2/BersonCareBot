@@ -17,6 +17,7 @@ import {
   type AuditLogStatus,
 } from '@/infra/adminAuditLog';
 import { getPool } from '@/infra/db/client';
+import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
@@ -101,6 +102,8 @@ async function applyMessengerContactPreOtpImpl(
     sessionUserId?: string | null;
   },
 ): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure> {
+  // Тот же порт на том же соединении транзакции — второй двери к базе в этой функции нет.
+  const clientDb = getWebappSqlFromPgClient(client);
   const channelCode = params.channelCode;
   const key = channelToBindingKey(channelCode);
   if (!key) return { ok: false, code: 'unsupported_channel' };
@@ -114,7 +117,7 @@ async function applyMessengerContactPreOtpImpl(
   if (params.purpose === 'profile_bind') {
     const sessionId = params.sessionUserId?.trim();
     if (!sessionId) return { ok: false, code: 'session_required' };
-    let canonicalSession = (await resolveCanonicalUserId(client, sessionId)) ?? sessionId;
+    let canonicalSession = (await resolveCanonicalUserId(clientDb, sessionId)) ?? sessionId;
     if (existingByPhone.rows.length > 0) {
       const phoneOwnerId = parseIdentityRow(
         platformUserIdRowSchema,
@@ -122,7 +125,7 @@ async function applyMessengerContactPreOtpImpl(
         'phone_owner',
       ).id;
       const phoneOwnerCanonical =
-        (await resolveCanonicalUserId(client, phoneOwnerId)) ?? phoneOwnerId;
+        (await resolveCanonicalUserId(clientDb, phoneOwnerId)) ?? phoneOwnerId;
       if (phoneOwnerCanonical !== canonicalSession) {
         const merged = await mergeMessengerBindPair(client, {
           targetId: canonicalSession,
@@ -130,7 +133,7 @@ async function applyMessengerContactPreOtpImpl(
         });
         if (!merged.ok) return merged;
         canonicalSession =
-          (await resolveCanonicalUserId(client, canonicalSession)) ?? canonicalSession;
+          (await resolveCanonicalUserId(clientDb, canonicalSession)) ?? canonicalSession;
       }
     }
     await runIdentityClientPgText(
@@ -157,7 +160,7 @@ async function applyMessengerContactPreOtpImpl(
     if (boundUserId && boundUserId !== canonicalSession) {
       return { ok: false, code: 'channel_owned_by_other_user' };
     }
-    await upsertBroadcastDefaultsAfterChannelBind(client, canonicalSession, channelCode);
+    await upsertBroadcastDefaultsAfterChannelBind(clientDb, canonicalSession, channelCode);
     return { ok: true, accountCreated: false };
   }
 
@@ -183,8 +186,8 @@ async function applyMessengerContactPreOtpImpl(
       existingByPhone.rows[0],
       'phone_owner_login',
     ).id;
-    const ownerCanonical = (await resolveCanonicalUserId(client, bindingOwnerId)) ?? bindingOwnerId;
-    const phoneCanonical = (await resolveCanonicalUserId(client, phoneOwnerId)) ?? phoneOwnerId;
+    const ownerCanonical = (await resolveCanonicalUserId(clientDb, bindingOwnerId)) ?? bindingOwnerId;
+    const phoneCanonical = (await resolveCanonicalUserId(clientDb, phoneOwnerId)) ?? phoneOwnerId;
     if (ownerCanonical !== phoneCanonical) {
       if (bindingOwnerIntegratorId) {
         const mergeClient = asMessengerPhoneBindDb(client);
@@ -196,7 +199,7 @@ async function applyMessengerContactPreOtpImpl(
             canonicalIntegratorUserId: bindingOwnerIntegratorId,
           });
           await upsertBroadcastDefaultsAfterChannelBind(
-            client,
+            clientDb,
             applied.platformUserId,
             channelCode,
           );
@@ -222,7 +225,7 @@ async function applyMessengerContactPreOtpImpl(
         duplicateId: ownerCanonical,
       });
       if (!merged.ok) return merged;
-      await upsertBroadcastDefaultsAfterChannelBind(client, phoneCanonical, channelCode);
+      await upsertBroadcastDefaultsAfterChannelBind(clientDb, phoneCanonical, channelCode);
       return { ok: true, accountCreated: false };
     }
   }
@@ -230,7 +233,7 @@ async function applyMessengerContactPreOtpImpl(
   let userId: string;
   let accountCreated = false;
   if (bindingOwnerId && existingByPhone.rows.length === 0) {
-    userId = (await resolveCanonicalUserId(client, bindingOwnerId)) ?? bindingOwnerId;
+    userId = (await resolveCanonicalUserId(clientDb, bindingOwnerId)) ?? bindingOwnerId;
     await runIdentityClientPgText(
       client,
       `UPDATE platform_users
@@ -274,8 +277,8 @@ async function applyMessengerContactPreOtpImpl(
       'binding_owner_recheck',
     ).user_id;
     if (ownerId !== userId) {
-      const ownerCanonical = (await resolveCanonicalUserId(client, ownerId)) ?? ownerId;
-      const userCanonical = (await resolveCanonicalUserId(client, userId)) ?? userId;
+      const ownerCanonical = (await resolveCanonicalUserId(clientDb, ownerId)) ?? ownerId;
+      const userCanonical = (await resolveCanonicalUserId(clientDb, userId)) ?? userId;
       if (ownerCanonical !== userCanonical) {
         const merged = await mergeMessengerBindPair(client, {
           targetId: userCanonical,
@@ -294,7 +297,7 @@ async function applyMessengerContactPreOtpImpl(
      ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
     [userId, channelCode, params.externalId],
   );
-  await upsertBroadcastDefaultsAfterChannelBind(client, userId, channelCode);
+  await upsertBroadcastDefaultsAfterChannelBind(clientDb, userId, channelCode);
   return { ok: true, accountCreated };
 }
 

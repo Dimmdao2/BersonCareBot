@@ -2,21 +2,19 @@
  * После успешной привязки мессенджера/SMS: явно включаем сообщения и уведомления для этого канала
  * (см. план каналов рассылок врача). Использовать тем же клиентом пула/транзакции, что и INSERT binding.
  */
-import type { PoolClient } from 'pg';
+import { runWebappPgText, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
 
 const LINK_CHANNELS = new Set(['telegram', 'max', 'sms']);
 
-type Queryable = Pick<PoolClient, 'query'>;
-
 export async function upsertBroadcastDefaultsAfterChannelBind(
-  executor: Queryable,
+  executor: WebappSqlExecutor,
   userId: string,
   channelCode: string,
   now = new Date(),
 ): Promise<void> {
   if (!LINK_CHANNELS.has(channelCode)) return;
 
-  await executor.query(
+  await runWebappPgText(
     `INSERT INTO user_channel_preferences (
        user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
      )
@@ -27,5 +25,6 @@ export async function upsertBroadcastDefaultsAfterChannelBind(
        is_enabled_for_notifications = true,
        updated_at = EXCLUDED.updated_at`,
     [userId, channelCode, now],
+    executor,
   );
 }
