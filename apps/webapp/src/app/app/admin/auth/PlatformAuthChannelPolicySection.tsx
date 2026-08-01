@@ -16,13 +16,11 @@ type OAuthProviderKey = 'google' | 'yandex' | 'apple';
 type OAuthSettingKey = `auth_oauth_${OAuthProviderKey}_enabled`;
 type IndependentMethodKey = 'passkey' | 'pin';
 type IndependentSettingKey = `auth_${IndependentMethodKey}_enabled`;
-const TWO_FACTOR_KEY = 'auth_2fa_enabled' as const;
 const UNSUPPORTED_CLIENT_FALLBACK_KEY = 'patient_unsupported_client_fallback_enabled' as const;
 type SavingKey =
   | PolicyKey
   | OAuthProviderKey
   | IndependentMethodKey
-  | typeof TWO_FACTOR_KEY
   | typeof UNSUPPORTED_CLIENT_FALLBACK_KEY;
 
 type ConfigurationStatus = Readonly<{ enabled: boolean; configured: boolean }>;
@@ -120,7 +118,6 @@ export function PlatformAuthChannelPolicySection() {
   const [oauthStatus, setOauthStatus] = useState<OAuthConfigurationStatus>(EMPTY_OAUTH_STATUS);
   const [independentPolicy, setIndependentPolicy] =
     useState<Record<IndependentMethodKey, boolean>>(EMPTY_INDEPENDENT_POLICY);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [unsupportedClientFallbackEnabled, setUnsupportedClientFallbackEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState<SavingKey | null>(null);
@@ -165,9 +162,6 @@ export function PlatformAuthChannelPolicySection() {
         }
         setIndependentPolicy(nextIndependent);
 
-        setTwoFactorEnabled(
-          readBoolean(data.settings.find((item) => item.key === TWO_FACTOR_KEY)?.valueJson),
-        );
         setUnsupportedClientFallbackEnabled(
           readBoolean(
             data.settings.find((item) => item.key === UNSUPPORTED_CLIENT_FALLBACK_KEY)?.valueJson,
@@ -219,26 +213,6 @@ export function PlatformAuthChannelPolicySection() {
       if (!response.ok || !data.ok) throw new Error('save_failed');
     } catch {
       setOauthPolicy((current) => ({ ...current, [provider]: previous }));
-      toast.error('Не удалось сохранить настройку');
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  async function updateTwoFactorEnabled(enabled: boolean): Promise<void> {
-    const previous = twoFactorEnabled;
-    setTwoFactorEnabled(enabled);
-    setSaving(TWO_FACTOR_KEY);
-    try {
-      const response = await fetch('/api/platform/settings', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ key: TWO_FACTOR_KEY, value: enabled }),
-      });
-      const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
-      if (!response.ok || !data.ok) throw new Error('save_failed');
-    } catch {
-      setTwoFactorEnabled(previous);
       toast.error('Не удалось сохранить настройку');
     } finally {
       setSaving(null);
@@ -352,18 +326,6 @@ export function PlatformAuthChannelPolicySection() {
             />
           ))}
         </div>
-      </DoctorSection>
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Двухфакторная аутентификация</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <LabeledSwitch
-          label="Обязательная 2FA (TOTP) для персонала"
-          hint="Требовать подтверждённый TOTP-фактор для глобального администратора и специалистов. Без подтверждённого фактора сотрудник видит только настройку безопасности в своём аккаунте — сессия не обрывается резко."
-          checked={twoFactorEnabled}
-          disabled={!loaded || saving !== null}
-          onCheckedChange={(enabled) => void updateTwoFactorEnabled(enabled)}
-        />
       </DoctorSection>
       <DoctorSection>
         <DoctorSectionHeader>

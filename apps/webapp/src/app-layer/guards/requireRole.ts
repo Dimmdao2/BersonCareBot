@@ -15,7 +15,6 @@ import {
   resolvePlatformAccessContext,
 } from '@/app-layer/platform-access';
 import { canAccessDoctor, canAccessPatient } from '@/modules/roles/service';
-import { platformRequiresStaffTwoFactor } from '@/modules/staff-security/platformPolicy';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
@@ -96,7 +95,7 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     sessionRole: session.user.role,
     adminMode: session.adminMode,
   });
-  const restricted = await isRestrictedStaffSecuritySession(session);
+  const restricted = isRestrictedStaffSecuritySession(session);
   if (hasLaunchCapability(capabilities, 'account.self')) {
     // A doctor always resolves account.self, and so does a global admin (adminMode permanently
     // forced on) — owner ruling 2026-07-26: the platform operator manages its own profile,
@@ -110,10 +109,9 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
   if (hasLaunchCapability(capabilities, 'platform.operations')) {
     // Defense in depth only: today every platform.operations holder also resolves account.self
     // above, so this is unreachable unless a future capability change ever separates them again.
-    // If it ever does, a 2FA-restricted admin (auth_2fa_enabled on, not yet factor_verified) still
-    // has no other reachable surface to enroll TOTP: bouncing to system-health, which itself
-    // bounces restricted sessions back to /app, would be an infinite redirect loop with no way to
-    // ever enroll (owner ruling 2026-07-24 fix, audited 2026-07-25) — so restricted still wins here.
+    // If it ever does, a recovery-restricted admin still has no other reachable surface to finish
+    // its own factor recovery: bouncing to system-health, which itself bounces restricted sessions
+    // back to /app, would be an infinite redirect loop — so recovery still wins here.
     if (restricted) return session;
     redirect('/app/admin/system-health');
   }
@@ -163,31 +161,9 @@ function requiresEstablishedStaffFactorVerification(session: AppSession): boolea
   );
 }
 
-/**
- * Global admin switch (`auth_2fa_enabled`, owner ruling 2026-07-24): when on, staff
- * (global-admin + specialists) who have not completed TOTP verification this session are
- * treated the same as a mid-enrollment session — same gentle redirect to `/app/account`
- * (security tab), never a hard session kill or 500. "Surface enrollment, don't hard-break."
- * Default false keeps today's per-user opt-in behavior until an admin turns this on.
- * The organization-workspace resolver below has one narrow progressive-onboarding exception for
- * a self-provisioned owner; recovery and an already-enrolled but unverified factor still win.
- */
-export async function isRestrictedStaffSecuritySession(session: AppSession): Promise<boolean> {
-  if (session.staffSecurity?.assurance === 'factor_verified') return false;
-  if (isMidRecoveryStaffSecuritySession(session)) return true;
-  if (!canAccessDoctor(session.user.role)) return false;
-  // "pending_enrollment" (session set at login / signup-confirm whenever a
-  // staff_security_profiles row exists but no factor has ever been verified — see
-  // verifiedStaffPrimaryLogin.ts and specialist-signup/confirm/route.ts) used to restrict here
-  // unconditionally. That row is created merely by STARTING enrollment (totp/start route calls
-  // ensureProfile()), with no cancel action anywhere in the UI. An owner/staff account that
-  // already had full workspace access, then started and abandoned 2FA setup from
-  // Account → Security, got permanently walled off from every doctor-workspace page on every
-  // future login — even with `auth_2fa_enabled` OFF platform-wide — with no escape but a direct
-  // DB delete (incident reproduced 2026-07-25). A never-verified profile row must not reduce
-  // access the user already had unless the platform actually requires 2FA: fold
-  // "pending_enrollment" into the same flag-gated check as an unenrolled session with no row at all.
-  return await platformRequiresStaffTwoFactor();
+/** A user who has already proved factor possession must finish its own recovery flow. */
+export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
+  return requiresEstablishedStaffFactorVerification(session);
 }
 
 /**
@@ -217,7 +193,7 @@ export async function requirePlatformOperationsPage(): Promise<AppSession> {
   if (!hasLaunchCapability(capabilities, 'platform.operations')) {
     redirect('/app');
   }
-  if (await isRestrictedStaffSecuritySession(session)) {
+  if (isRestrictedStaffSecuritySession(session)) {
     redirect('/app');
   }
   if (isPlatformUserUuid(session.user.userId)) {
@@ -253,7 +229,7 @@ export async function requirePlatformOperationsApiContext(): Promise<
   });
   if (
     !hasLaunchCapability(capabilities, 'platform.operations') ||
-    (await isRestrictedStaffSecuritySession(session))
+    isRestrictedStaffSecuritySession(session)
   ) {
     return {
       ok: false,
@@ -365,7 +341,6 @@ async function resolveDoctorWorkspaceAccessContext(
   if (requiresEstablishedStaffFactorVerification(session)) {
     return { ok: false, reason: 'forbidden' };
   }
-  const securityRestricted = await isRestrictedStaffSecuritySession(session);
   const resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
     platformUserId: session.user.userId,
   });
@@ -376,15 +351,9 @@ async function resolveDoctorWorkspaceAccessContext(
     return { ok: false, reason: 'forbidden' };
   }
   const { context } = resolution;
-  // Progressive first run applies only to the organization owner created by self-signup.
-  // Existing enrolled-factor and recovery sessions were rejected above and still require 2FA.
-  if (securityRestricted && context.role !== 'owner') {
-    return { ok: false, reason: 'forbidden' };
-  }
   const canAccessClinicalWorkspace =
-    !securityRestricted &&
-    (context.canAccessClinicalWorkspace ??
-      ((context.role === 'owner' || context.role === 'doctor') && context.specialistId !== null));
+    context.canAccessClinicalWorkspace ??
+    ((context.role === 'owner' || context.role === 'doctor') && context.specialistId !== null);
   return {
     ok: true,
     ctx: {
@@ -481,13 +450,10 @@ export async function requireOrganizationManagementContext(): Promise<DoctorWork
 export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
   const ctx = await requireOrganizationWorkspaceContext();
   if (!contextHasCapability(ctx, 'clinical.workspace')) {
-    const securitySetupRequired = await isRestrictedStaffSecuritySession(ctx.session);
     redirect(
-      securitySetupRequired
-        ? `${routePaths.account}?tab=security`
-        : contextHasCapability(ctx, 'organization.management')
-          ? `${routePaths.settings}?tab=organization`
-          : routePaths.account,
+      contextHasCapability(ctx, 'organization.management')
+        ? `${routePaths.settings}?tab=organization`
+        : routePaths.account,
     );
   }
   return ctx;
@@ -521,7 +487,7 @@ export async function requireDoctorApiSession(): Promise<
       response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
     };
   }
-  if (await isRestrictedStaffSecuritySession(session)) {
+  if (isRestrictedStaffSecuritySession(session)) {
     return {
       ok: false,
       response: NextResponse.json({ ok: false, error: 'security_setup_required' }, { status: 403 }),
@@ -642,7 +608,7 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
   if (
     (!hasLaunchCapability(capabilities, 'account.self') &&
       !hasLaunchCapability(capabilities, 'platform.operations')) ||
-    (await isRestrictedStaffSecuritySession(session)) ||
+    isRestrictedStaffSecuritySession(session) ||
     !isPlatformUserUuid(session.user.userId)
   ) {
     return {

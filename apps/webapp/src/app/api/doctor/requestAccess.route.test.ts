@@ -29,24 +29,28 @@ vi.mock('@/modules/auth/service', () => ({
   getCurrentSessionForIdentitySelf: vi.fn(),
 }));
 
-vi.mock('@/modules/system-settings/configAdapter', () => ({
-  getServerRuntimeBool: vi.fn(),
-}));
-
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: vi.fn(),
 }));
 
+vi.mock('@/modules/auth/authChannelPolicy', () => ({
+  getOAuthProviderPolicyDetail: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('@/modules/auth/authChannelPolicyAdmin', () => ({
+  getAuthChannelPolicyDetail: vi.fn().mockResolvedValue({}),
+}));
+
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
-  withDoctorWorkspacePrincipal: vi.fn(
-    <T>(_ctx: unknown, callback: () => T): T => callback(),
-  ),
+  withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, callback: () => T): T => callback()),
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { isDbPrincipalPlatformUserId } from '@bersoncare/db-principal';
 import { getCurrentSession } from '@/modules/auth/service';
-import { getServerRuntimeBool } from '@/modules/system-settings/configAdapter';
 import { PATCH as patchTask } from '@/app/api/doctor/tasks/[taskId]/route';
+import { GET as getStaffSecurityStatus } from '@/app/api/account/security/status/route';
+import { GET as getPlatformSettings } from '@/app/api/platform/settings/route';
 
 type AppDeps = ReturnType<typeof buildAppDeps>;
 
@@ -56,9 +60,10 @@ const TASK_ID = '33333333-3333-4333-8333-333333333333';
 
 const resolveOrganizationForUser =
   vi.fn<AppDeps['organizationMembership']['resolveOrganizationForUser']>();
-const getTaskByIdForOwner =
-  vi.fn<AppDeps['specialistTasks']['getByIdForOwner']>();
+const getTaskByIdForOwner = vi.fn<AppDeps['specialistTasks']['getByIdForOwner']>();
 const updateTask = vi.fn<AppDeps['specialistTasks']['update']>();
+const getSecurityStatus = vi.fn<AppDeps['staffSecurity']['getStatus']>();
+const listSettingsByScope = vi.fn<AppDeps['systemSettings']['listSettingsByScope']>();
 
 const fakeDeps = {
   organizationMembership: {
@@ -67,6 +72,12 @@ const fakeDeps = {
   specialistTasks: {
     getByIdForOwner: getTaskByIdForOwner,
     update: updateTask,
+  },
+  staffSecurity: {
+    getStatus: getSecurityStatus,
+  },
+  systemSettings: {
+    listSettingsByScope,
   },
   // §5a/2.1a: cabinet entry is its own ladder rung and the guard fails closed when it cannot be
   // resolved. This suite is about the CLINIC boundary, so entry stays open here — otherwise every
@@ -80,11 +91,14 @@ const fakeDeps = {
   },
 } as unknown as Pick<
   AppDeps,
-  'organizationMembership' | 'specialistTasks' | 'orgEntitlements'
+  | 'organizationMembership'
+  | 'specialistTasks'
+  | 'orgEntitlements'
+  | 'staffSecurity'
+  | 'systemSettings'
 >;
 
 const getCurrentSessionMock = vi.mocked(getCurrentSession);
-const getServerRuntimeBoolMock = vi.mocked(getServerRuntimeBool);
 const buildAppDepsMock = vi.mocked(buildAppDeps);
 
 function session(
@@ -147,12 +161,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   buildAppDepsMock.mockReturnValue(fakeDeps as AppDeps);
   getCurrentSessionMock.mockResolvedValue(null);
-  getServerRuntimeBoolMock.mockResolvedValue(false);
   resolveOrganizationForUser.mockResolvedValue({
     ok: false,
     reason: 'no_active_membership',
   });
   getTaskByIdForOwner.mockResolvedValue(null);
+  getSecurityStatus.mockResolvedValue(null);
+  listSettingsByScope.mockResolvedValue([]);
 });
 
 describe('doctor request access boundary', () => {
@@ -167,12 +182,51 @@ describe('doctor request access boundary', () => {
   });
 
   it('fails closed before membership lookup when staff factor verification is required', async () => {
-    getCurrentSessionMock.mockResolvedValue(
-      session('doctor', { securityFactorRequired: true }),
-    );
+    getCurrentSessionMock.mockResolvedValue(session('doctor', { securityFactorRequired: true }));
 
     await expectRouteError(403, 'forbidden');
     expect(resolveOrganizationForUser).not.toHaveBeenCalled();
+  });
+
+  it.each(['recovery', 'recovery_confirmation'] as const)(
+    'keeps a %s session out of the doctor workspace until recovery is complete',
+    async (assurance) => {
+      getCurrentSessionMock.mockResolvedValue(
+        session('doctor', { staffSecurity: { assurance, verifiedAt: 1 } }),
+      );
+
+      await expectRouteError(403, 'forbidden');
+      expect(resolveOrganizationForUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps the self-security API reachable during recovery', async () => {
+    getCurrentSessionMock.mockResolvedValue(
+      session('doctor', { staffSecurity: { assurance: 'recovery', verifiedAt: 1 } }),
+    );
+
+    const response = await getStaffSecurityStatus();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, status: null });
+  });
+
+  it('keeps platform operations closed when an enrolled factor is not verified in-session', async () => {
+    vi.mocked(isDbPrincipalPlatformUserId).mockReturnValue(true);
+    const adminSession = session('admin', {
+      adminMode: true,
+      securityFactorRequired: true,
+    });
+    getCurrentSessionMock.mockResolvedValue({
+      ...adminSession,
+      user: { ...adminSession.user, userId: '44444444-4444-4444-8444-444444444444' },
+    });
+
+    const response = await getPlatformSettings();
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'forbidden' });
+    expect(listSettingsByScope).not.toHaveBeenCalled();
   });
 
   it('rejects a doctor without an active organization membership', async () => {
