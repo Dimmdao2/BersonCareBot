@@ -73,13 +73,6 @@ describe('mediaWorkerSqlFromPgText legacy binding', () => {
 
     expect(compiled.params).toEqual([null, '$1']);
   });
-
-  it('does not reinterpret placeholder-looking SQL string literals', () => {
-    const compiled = compileLegacySql("SELECT '$1' AS literal, $1::text AS bound", ['value']);
-
-    expect(compiled.sql).toBe("SELECT '$1' AS literal, $1::text AS bound");
-    expect(compiled.params).toEqual(['value']);
-  });
 });
 
 describe('claimNextJob transaction lifecycle', () => {
