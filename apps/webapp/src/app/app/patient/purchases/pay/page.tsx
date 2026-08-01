@@ -38,12 +38,7 @@ export default async function PatientProductPayPage({
       backHref={routePaths.purchases}
       backLabel="Назад"
     >
-      <PatientProductPayClient
-        purchaseId={detail.purchase.id}
-        intentId={detail.purchase.paymentIntentId}
-        title={detail.purchase.title}
-        amountMinor={detail.purchase.priceMinor}
-      />
+      <PatientProductPayClient purchaseId={detail.purchase.id} />
     </PatientAppShell>
   );
 }

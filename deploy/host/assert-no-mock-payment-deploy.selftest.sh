@@ -11,16 +11,37 @@ GATE="$SCRIPT_DIR/assert-no-mock-payment-deploy.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Build a minimal fixture tree containing only what the gate reads: the mock-complete routes plus
-# the predicate/schema source it cross-checks itself against.
-mkdir -p "$TMP/apps/webapp/src/modules/payments" "$TMP/apps/webapp/src/config"
-cp "$REPO_ROOT/apps/webapp/src/modules/payments/mockPaymentGatePolicy.ts" "$TMP/apps/webapp/src/modules/payments/"
+# B0.3/B0.3a (#1057): the five live mock-complete routes and mockPaymentGatePolicy.ts were removed
+# from the repo once the payment screens moved to the real checkoutUrl flow — the gate script itself
+# stays untouched (still a guard against a mock route reappearing), so this fixture can no longer be
+# built by copying live source. Instead it synthesizes a route + predicate matching the exact shape
+# the gate greps for, so every structural/drift check below still runs against real gate logic.
+mkdir -p "$TMP/apps/webapp/src/modules/payments" "$TMP/apps/webapp/src/config" \
+  "$TMP/apps/webapp/src/app/api/booking/payments/mock-complete"
 cp "$REPO_ROOT/apps/webapp/src/config/env.ts" "$TMP/apps/webapp/src/config/"
-while IFS= read -r route; do
-  rel="${route#"$REPO_ROOT"/}"
-  mkdir -p "$TMP/$(dirname "$rel")"
-  cp "$route" "$TMP/$rel"
-done < <(find "$REPO_ROOT/apps/webapp/src/app/api" -type f -path '*/payments/mock-complete/route.ts')
+
+cat > "$TMP/apps/webapp/src/modules/payments/mockPaymentGatePolicy.ts" <<'EOF'
+export type MockPaymentConfirmConfiguration = {
+  nodeEnv: 'development' | 'test' | 'production';
+  isTestEnv: boolean;
+};
+
+export function isMockPaymentConfirmEnabled(input: MockPaymentConfirmConfiguration): boolean {
+  return input.nodeEnv === 'development' || input.isTestEnv;
+}
+EOF
+
+cat > "$TMP/apps/webapp/src/app/api/booking/payments/mock-complete/route.ts" <<'EOF'
+import { isMockPaymentConfirmEnabled } from '@/modules/payments/mockPaymentGatePolicy';
+
+export async function POST(request: Request) {
+  if (!isMockPaymentConfirmEnabled({ nodeEnv: 'development', isTestEnv: false })) {
+    return new Response('not_found', { status: 404 });
+  }
+  const deps = buildAppDeps();
+  return withExplicitOrganizationPrincipal(deps, request);
+}
+EOF
 
 pass=0
 fail=0

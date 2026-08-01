@@ -4,6 +4,12 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import toast from 'react-hot-toast';
+
+const BUY_ERROR_LABELS: Record<string, string> = {
+  payment_provider_unavailable: 'Платёжный провайдер не настроен.',
+  payments_disabled: 'Оплата отключена.',
+};
 
 type PurchaseRow = {
   id: string;
@@ -62,16 +68,18 @@ export function PatientPurchasesClient() {
       const json = (await res.json()) as {
         ok?: boolean;
         paymentIntentId?: string;
+        checkoutUrl?: string | null;
         error?: string;
       };
-      if (!json.ok) return;
-      if (json.paymentIntentId) {
-        const mock = await fetch('/api/booking/products/payments/mock-complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ intentId: json.paymentIntentId }),
-        });
-        if (!(await mock.json()).ok) return;
+      if (!json.ok) {
+        toast.error(
+          (json.error && BUY_ERROR_LABELS[json.error]) ?? 'Не удалось оформить покупку.',
+        );
+        return;
+      }
+      if (json.checkoutUrl) {
+        window.location.href = json.checkoutUrl;
+        return;
       }
       await load();
     });
