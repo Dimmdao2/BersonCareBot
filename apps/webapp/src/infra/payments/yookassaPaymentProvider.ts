@@ -169,18 +169,67 @@ async function fetchYookassaPaymentsPage(
 
 export function createYookassaPaymentProvider(): PaymentProviderPort {
   return {
+    supportsInvoice: true,
+
     async createIntent({
       amountMinor,
       currency,
       idempotencyKey,
+      payerRef,
+      purpose,
+      subjectRef,
       metadata,
       returnUrl,
+      invoice,
       providerConfig,
       savePaymentMethod,
       paymentMethodId,
     }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
+      const paymentMetadata = { ...metadata, idempotencyKey, payerRef, purpose, subjectRef };
+
+      if (invoice) {
+        const body = await fetchWithTimeout(
+          'https://api.yookassa.ru/v3/invoices',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: basicAuth(shopId, secretKey),
+              'Idempotence-Key': idempotencyKey,
+            },
+            body: JSON.stringify({
+              payment_data: {
+                amount: { value, currency },
+                capture: true,
+                description: invoice.description,
+                metadata: paymentMetadata,
+              },
+              cart: [{ description: invoice.description, price: { value, currency }, quantity: 1 }],
+              delivery_method_data: { type: 'self' },
+              expires_at: invoice.expiresAt,
+              description: invoice.description,
+              metadata: paymentMetadata,
+            }),
+          },
+          { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+          async (res) => {
+            if (!res.ok) {
+              const text = await res.text().catch(() => '');
+              throw new Error(`yookassa_create_invoice_failed:${res.status}:${text.slice(0, 500)}`);
+            }
+            return (await res.json()) as {
+              id?: string;
+              delivery_method?: { url?: string };
+            };
+          },
+        );
+        const providerIntentRef = String(body.id ?? '');
+        const checkoutUrl = body.delivery_method?.url ?? '';
+        if (!providerIntentRef || !checkoutUrl) throw new Error('yookassa_missing_invoice_fields');
+        return { providerIntentRef, checkoutUrl };
+      }
 
       // К6 — off-session autopay charges a saved method directly: no `confirmation` (there is no
       // payer to redirect) and no repeated `save_payment_method` (the method is already saved).
@@ -189,17 +238,14 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             amount: { value, currency },
             capture: true,
             payment_method_id: paymentMethodId,
-            metadata: { idempotencyKey, ...metadata },
+            metadata: paymentMetadata,
           }
         : {
             amount: { value, currency },
             capture: true,
             confirmation: { type: 'redirect', return_url: returnUrl },
             ...(savePaymentMethod ? { save_payment_method: true } : {}),
-            metadata: {
-              idempotencyKey,
-              ...metadata,
-            },
+            metadata: paymentMetadata,
           };
 
       // eslint-disable-next-line no-console
@@ -361,55 +407,5 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       return { items, truncated };
     },
 
-    /**
-     * К4 — `POST /v3/invoices`: a shareable payment link distinct from a direct payment
-     * (`createIntent` → `/v3/payments`). `cart` mirrors `payment_data.amount` as a single line so
-     * the invoice page shows one recognizable item; `delivery_method_data: { type: 'self' }` means
-     * no physical/email/SMS delivery — we hand the link to the recipient ourselves.
-     */
-    async createInvoice({ amountMinor, currency, description, expiresAt, idempotencyKey, metadata, providerConfig }) {
-      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
-      const value = (amountMinor / 100).toFixed(2);
-
-      const body = await fetchWithTimeout(
-        'https://api.yookassa.ru/v3/invoices',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: basicAuth(shopId, secretKey),
-            'Idempotence-Key': idempotencyKey,
-          },
-          body: JSON.stringify({
-            payment_data: {
-              amount: { value, currency },
-              capture: true,
-              description,
-              metadata: { idempotencyKey, ...metadata },
-            },
-            cart: [{ description, price: { value, currency }, quantity: 1 }],
-            delivery_method_data: { type: 'self' },
-            expires_at: expiresAt,
-            description,
-            metadata: { idempotencyKey, ...metadata },
-          }),
-        },
-        { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
-        async (res) => {
-          if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            throw new Error(`yookassa_create_invoice_failed:${res.status}:${text.slice(0, 500)}`);
-          }
-          return (await res.json()) as {
-            id?: string;
-            delivery_method?: { url?: string };
-          };
-        },
-      );
-      const providerInvoiceRef = String(body.id ?? '');
-      const checkoutUrl = body.delivery_method?.url ?? '';
-      if (!providerInvoiceRef || !checkoutUrl) throw new Error('yookassa_missing_invoice_fields');
-      return { providerInvoiceRef, checkoutUrl };
-    },
   };
 }

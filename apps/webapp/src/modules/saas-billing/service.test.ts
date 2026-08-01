@@ -275,9 +275,9 @@ describe('К4 round 2: повторное «Выставить счёт» не �
   }
 
   it('тот же запрос дважды возвращает ОДИН и тот же счёт; другой запрос создаёт новый', async () => {
-    const createInvoice = vi.fn(async () => ({
-      providerInvoiceRef: `provider-invoice-${createInvoice.mock.calls.length}`,
-      checkoutUrl: `https://yookassa.example.test/checkout-${createInvoice.mock.calls.length}`,
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: `provider-invoice-${createIntent.mock.calls.length}`,
+      checkoutUrl: `https://yookassa.example.test/checkout-${createIntent.mock.calls.length}`,
     }));
     const service = createSaasBillingService({
       repository: createInMemorySaasBillingRepository(),
@@ -289,7 +289,7 @@ describe('К4 round 2: повторное «Выставить счёт» не �
           ],
         }),
       },
-      resolvePaymentProvider: () => ({ createInvoice }) as never,
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
     });
     await seedOrgWithTariff(service);
 
@@ -306,7 +306,16 @@ describe('К4 round 2: повторное «Выставить счёт» не �
 
     expect(second.id).toBe(first.id);
     expect(second.providerCheckoutUrl).toBe(first.providerCheckoutUrl);
-    expect(createInvoice).toHaveBeenCalledTimes(1);
+    expect(createIntent).toHaveBeenCalledTimes(1);
+    expect(createIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payerRef: 'organization:org-k4r2',
+        purpose: 'saas_billing_tariff_renewal',
+        subjectRef: first.id,
+        returnUrl: expect.stringMatching(/^https?:\/\//),
+        invoice: { description: 'Счёт за тариф', expiresAt: request.expiresAt },
+      }),
+    );
 
     const different = await service.createManualSaasBillingInvoice({
       ...request,
@@ -314,7 +323,7 @@ describe('К4 round 2: повторное «Выставить счёт» не �
     });
 
     expect(different.id).not.toBe(first.id);
-    expect(createInvoice).toHaveBeenCalledTimes(2);
+    expect(createIntent).toHaveBeenCalledTimes(2);
   });
 });
 

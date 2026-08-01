@@ -71,7 +71,19 @@ function inspectTinkoffWebhook(bodyText: string) {
 
 export function createTinkoffPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({ amountMinor, currency, idempotencyKey, metadata, returnUrl, providerConfig }) {
+    async createIntent({
+      amountMinor,
+      currency,
+      idempotencyKey,
+      payerRef,
+      purpose,
+      subjectRef,
+      metadata,
+      returnUrl,
+      invoice,
+      providerConfig,
+    }) {
+      if (invoice) throw new Error('payment_provider_invoices_unsupported:tinkoff');
       const { terminalKey, password } = requireTinkoffCredentials(providerConfig);
 
       const params: Record<string, unknown> = {
@@ -80,7 +92,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
         OrderId: idempotencyKey,
         Description: typeof metadata.description === 'string' ? metadata.description : undefined,
         SuccessURL: returnUrl,
-        DATA: { idempotencyKey, ...metadata },
+        DATA: { ...metadata, idempotencyKey, payerRef, purpose, subjectRef },
       };
       const token = computeTinkoffToken(params, password);
 
