@@ -203,7 +203,6 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           };
 
       // eslint-disable-next-line no-console
-      console.error('[TEMP-DEBUG yookassa createIntent requestBody]', JSON.stringify(requestBody));
       const body = await fetchWithTimeout(
         'https://api.yookassa.ru/v3/payments',
         {
