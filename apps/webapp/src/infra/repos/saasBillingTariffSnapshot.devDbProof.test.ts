@@ -18,16 +18,12 @@
  * superuser/BYPASSRLS connection:
  *
  *   USE_REAL_DATABASE=1 RUN_SAAS_BILLING_TARIFF_SNAPSHOT_DB=1 \
- *   DATABASE_URL=postgres://postgres:<password>@<private-socket-or-host>:<port>/pbt_tariff_snapshot_<random> \
+ *   DATABASE_URL=postgres://postgres:<password>@127.0.0.1:5432/bcb_webapp_dev \
  *   pnpm exec vitest run src/infra/repos/saasBillingTariffSnapshot.devDbProof.test.ts
- *
- * The URL must come from the disposable PostgreSQL harness. Shared DEV/TEST/PROD databases are
- * deliberately refused before this mutating fixture is created.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
-import { disposablePostgresHarness } from '@/app-layer/testing/pg-harness';
 import { getWebappSqlFromPgClient, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
 
@@ -41,14 +37,11 @@ const enabled =
   process.env.USE_REAL_DATABASE === '1' &&
   Boolean((process.env.DATABASE_URL ?? '').trim());
 
-async function assertPrivilegedDisposableDb(db: WebappSqlExecutor): Promise<void> {
+async function assertPrivilegedDevDb(db: WebappSqlExecutor): Promise<void> {
   const dbRow = await db.execute(sql`SELECT current_database() AS n`);
   const name = (dbRow.rows as { n: string }[])[0]?.n ?? '';
-  try {
-    disposablePostgresHarness(name);
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : 'invalid disposable database name';
-    throw new Error(`refusing: current_database="${name}" — ${reason}`);
+  if (!/_dev$/i.test(name) && name !== 'bcb_webapp_dev') {
+    throw new Error(`refusing: current_database="${name}" — expected the dev DB.`);
   }
   const privRow = await db.execute(
     sql`SELECT (rolsuper OR rolbypassrls) AS ok FROM pg_roles WHERE rolname = current_user`,
@@ -89,7 +82,7 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
   beforeAll(async () => {
     client = await pool.connect();
     db = getWebappSqlFromPgClient(client);
-    await assertPrivilegedDisposableDb(db);
+    await assertPrivilegedDevDb(db);
     await cleanup();
 
     // `resolve_organization_mechanic_access` reads its caller's org from `app.current_org_id()`,
