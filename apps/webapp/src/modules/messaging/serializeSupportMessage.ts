@@ -1,4 +1,4 @@
-import type { SupportConversationMessageRow } from '@/infra/repos/pgSupportCommunication';
+import type { SupportConversationMessageRow } from '@/modules/messaging/ports';
 
 /** JSON-совместимое представление сообщения для API/UI. */
 export function serializeSupportMessage(m: SupportConversationMessageRow) {

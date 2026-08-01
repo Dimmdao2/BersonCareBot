@@ -4,7 +4,7 @@
 import type {
   SupportCommunicationPort,
   SupportConversationMessageRow,
-} from '@/infra/repos/pgSupportCommunication';
+} from '@/modules/messaging/ports';
 import { isSupportChatMessage } from '@/shared/lib/supportMessageKinds';
 import {
   serializeSupportMessage,

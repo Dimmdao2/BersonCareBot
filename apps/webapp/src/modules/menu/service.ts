@@ -4,7 +4,7 @@
  * Используется на странице /app/patient для отображения сетки карточек.
  */
 
-import type { ContentSectionRow } from '@/infra/repos/pgContentSections';
+import type { ContentSectionRow } from '@/modules/content-sections/ports';
 import type { UserRole } from '@/shared/types/session';
 
 export type MenuItem = {

@@ -1,11 +1,11 @@
 /**
  * Просмотр диалогов поддержки врачом (MVP: все открытые диалоги из projection).
  */
-import type { SupportCommunicationPort } from '@/infra/repos/pgSupportCommunication';
 import type {
   AdminConversationListRow,
+  SupportCommunicationPort,
   SupportConversationMessageRow,
-} from '@/infra/repos/pgSupportCommunication';
+} from '@/modules/messaging/ports';
 import { isSupportChatMessage } from '@/shared/lib/supportMessageKinds';
 import { logger, serializeError } from '@/infra/logging/logger';
 import { env } from '@/config/env';
