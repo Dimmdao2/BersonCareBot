@@ -2,7 +2,9 @@
 
 ## Роль и authority
 
-Ты bounded worker. Authority — `docs/_TODO/TEST_SUITE_AUDIT_2026-07-29.md`, Б1, и уже зафиксированный
+Ты bounded worker. До действий прочитай `AGENTS.md` по маршруту (§1/§6 для private PostgreSQL harness,
+§7/§9/§10/§24), `docs/ORCHESTRATION_BINDINGS.md` и соседний harness code/report. Authority —
+`docs/_TODO/TEST_SUITE_AUDIT_2026-07-29.md`, Б1, и уже зафиксированный
 независимый kill-set в
 `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md`. Исправить только три
 `MUST FIX` из отчёта. Не расширять Б1 до Б3, A1/RLS, integrator test-contour, сигналов, DEV/TEST/PROD,
