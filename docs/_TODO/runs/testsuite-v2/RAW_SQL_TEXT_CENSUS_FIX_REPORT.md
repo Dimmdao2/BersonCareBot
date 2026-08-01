@@ -54,3 +54,38 @@ The report itself contains the complete repeatable AST command, table parser,
 reconciliation arithmetic, and caller-reachability searches. The abbreviated
 heredocs above document the commands' purpose and their directly observed output;
 they are not added as repository scripts.
+
+## First bounded live slice — playback telemetry (2026-08-02)
+
+`apps/webapp/src/infra/repos/pgPlaybackResolutionEvents.ts` now calls the existing
+`app.record_media_playback_resolution_event` through `getWebappSqlDb()` and
+`runWebappSql(db, sql\`...\`)`. Its four values are Drizzle-bound interpolations;
+the caller remains best-effort in `playbackResolutionEvents.ts`. No schema,
+migration, helper/port, test, or DB/DEV/TEST/PROD operation was added or run.
+
+```sh
+node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import ts from 'typescript';
+const file = 'apps/webapp/src/infra/repos/pgPlaybackResolutionEvents.ts';
+const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+const counts = { runWebappPgText: 0, runWebappSql: 0 };
+function visit(node) {
+  if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text in counts) counts[node.expression.text] += 1;
+  ts.forEachChild(node, visit);
+}
+visit(source);
+console.log({ file, ...counts });
+if (counts.runWebappPgText !== 0 || counts.runWebappSql !== 1) process.exitCode = 1;
+NODE
+# { file: 'apps/webapp/src/infra/repos/pgPlaybackResolutionEvents.ts', runWebappPgText: 0, runWebappSql: 1 }
+
+pnpm --dir apps/webapp run typecheck
+# exit 0
+
+pnpm --dir apps/webapp exec eslint src/infra/repos/pgPlaybackResolutionEvents.ts
+# exit 0
+
+git diff --check
+# exit 0
+```
