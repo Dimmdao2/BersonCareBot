@@ -14,6 +14,8 @@ import type { OrgMechanic } from '@/modules/org-entitlements/types';
 import type { OrgQuotaProjection } from '@/modules/org-entitlements/types';
 import type { SaasBillingOverview } from '@/modules/saas-billing/ports';
 import { SaasBillingOverview as SaasBillingOverviewSection } from '@/shared/ui/doctor/SaasBillingOverview';
+import { PayTariffButton } from './PayTariffButton';
+import { AutopayToggleButton } from './AutopayToggleButton';
 
 export type BillingMechanicRow = {
   mechanic: OrgMechanic;
@@ -78,6 +80,14 @@ export function BillingSection({
           </span>
         </div>
         <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
+        {tariffName !== null && <PayTariffButton />}
+        {tariffName !== null && (
+          <AutopayToggleButton
+            subscription={
+              billing.subscriptions.find((row) => row.source === 'paid_subscription') ?? null
+            }
+          />
+        )}
 
         {quotaUsage.length > 0 && (
           <div className="space-y-1.5">

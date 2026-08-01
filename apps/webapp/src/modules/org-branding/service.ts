@@ -128,8 +128,8 @@ function platformOnly(
 export function createOrgBrandingService(deps: {
   port: OrgBrandingPort;
   /**
-   * Existing entitlement resolver (`isMechanicEnabled(port, orgId, "branding")` at the composition
-   * root). Only the PAID additions depend on it — core context never does (§3.4).
+   * Existing entitlement resolver (the `branding` mechanic check wired at the composition root).
+   * Only the PAID additions depend on it — core context never does (§3.4).
    */
   isBrandingMechanicEnabled: (organizationId: string) => Promise<boolean>;
 }) {

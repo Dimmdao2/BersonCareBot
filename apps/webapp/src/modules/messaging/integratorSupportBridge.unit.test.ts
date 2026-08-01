@@ -270,4 +270,58 @@ describe('integrator support ownership bridge', () => {
     });
     expect(recordDeliveryAttempt).toHaveBeenCalledWith(input);
   });
+
+  it('applyAdminReply delivers the doctor reply to the patient encoded in integratorConversationId, not another patient', async () => {
+    const targetPlatformUserId = '22222222-2222-4222-8222-222222222222';
+    const otherPlatformUserId = '33333333-3333-4333-8333-333333333333';
+    const organizationId = '11111111-1111-4111-8111-111111111111';
+    const ensureWebappConversationForUser = vi.fn(async (platformUserId: string) => ({
+      id: `conversation-for-${platformUserId}`,
+    }));
+    const appendWebappMessage = vi.fn().mockResolvedValue({ id: 'message-db-id', created: true });
+    const resolvePatientOrganization = vi
+      .fn()
+      .mockResolvedValue({ ok: true, organizationId } as const);
+    const notifyPatientOfDoctorReply = vi.fn().mockResolvedValue(undefined);
+    const bridge = createIntegratorSupportBridge({
+      port: {
+        ensureWebappConversationForUser,
+        appendWebappMessage,
+        setConversationStatusFromProjection: vi.fn(),
+      },
+      questionPort: {
+        createQuestion: vi.fn(),
+        appendQuestionMessage: vi.fn(),
+        markQuestionAnswered: vi.fn(),
+        recordDeliveryAttempt: vi.fn(),
+      },
+      resolvePatientOrganization,
+      withOrganizationPrincipal: async (_organizationId, fn) => fn(),
+      notifyPatientOfDoctorReply,
+    });
+
+    const result = await bridge.applyAdminReply({
+      integratorConversationId: `webapp:platform:${targetPlatformUserId}`,
+      integratorMessageId: 'admin-message-1',
+      text: 'Через час подойдёт, пейте по инструкции.',
+      createdAt: '2026-07-31T09:10:00.000Z',
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(resolvePatientOrganization).toHaveBeenCalledWith(targetPlatformUserId, undefined);
+    expect(ensureWebappConversationForUser).toHaveBeenCalledWith(targetPlatformUserId);
+    expect(appendWebappMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: `conversation-for-${targetPlatformUserId}`,
+        senderRole: 'admin',
+        text: 'Через час подойдёт, пейте по инструкции.',
+      }),
+    );
+    expect(notifyPatientOfDoctorReply).toHaveBeenCalledWith(
+      expect.objectContaining({ platformUserId: targetPlatformUserId }),
+    );
+    expect(notifyPatientOfDoctorReply).not.toHaveBeenCalledWith(
+      expect.objectContaining({ platformUserId: otherPlatformUserId }),
+    );
+  });
 });

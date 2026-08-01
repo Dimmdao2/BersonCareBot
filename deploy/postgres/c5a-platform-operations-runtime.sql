@@ -88,11 +88,12 @@ DROP POLICY IF EXISTS saas_trial_policy_staff_read_write ON public.saas_trial_po
 GRANT USAGE ON SCHEMA public TO app_platform_settings;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_tariffs TO app_platform_settings;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_trial_policy TO app_platform_settings;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_registration_tariff_policy TO app_platform_settings;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_organization_trials TO app_platform_settings;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_platform_settings;
 GRANT SELECT ON TABLE public.be_organizations TO app_platform_settings;
 GRANT SELECT ON TABLE public.be_organization_members TO app_platform_settings;
-GRANT UPDATE (tariff_id, commercial_access_state, updated_at)
+GRANT UPDATE (tariff_id, updated_at)
   ON TABLE public.be_organizations TO app_platform_settings;
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.list_platform_organization_members(uuid)
@@ -314,6 +315,16 @@ DROP POLICY IF EXISTS saas_trial_policy_platform_operations ON public.saas_trial
 CREATE POLICY saas_trial_policy_platform_operations ON public.saas_trial_policy
   FOR ALL TO app_platform_settings USING (true) WITH CHECK (true);
 
+-- §5a item 2.6a — the registration-tariff setting is its own singleton, same shape as
+-- saas_trial_policy above: platform-operations read/write, no other role touches it.
+ALTER TABLE public.saas_registration_tariff_policy ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.saas_registration_tariff_policy FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS saas_registration_tariff_policy_platform_operations
+  ON public.saas_registration_tariff_policy;
+CREATE POLICY saas_registration_tariff_policy_platform_operations
+  ON public.saas_registration_tariff_policy
+  FOR ALL TO app_platform_settings USING (true) WITH CHECK (true);
+
 ALTER TABLE public.saas_organization_trials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_organization_trials FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS saas_organization_trials_platform_operations ON public.saas_organization_trials;
@@ -474,6 +485,7 @@ DECLARE
   v_patient_user_id uuid := app.current_patient_user_id();
   v_organization_id uuid;
   v_policy record;
+  v_registration_tariff_id uuid;
   v_started_at timestamptz;
   v_trial_id uuid;
 BEGIN
@@ -485,6 +497,19 @@ BEGIN
   IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'provisioned_owner_organization_required';
   END IF;
+
+  -- §5a item 2.6a -- the registration-tariff setting, independent of the trial policy below. A
+  -- missing row, a NULL tariff_id, or a since-archived tariff all collapse to the same NULL here:
+  -- "no starting tariff configured" is a legal admin choice, not a lookup failure.
+  SELECT reg.tariff_id
+  INTO v_registration_tariff_id
+  FROM public.saas_registration_tariff_policy AS reg
+  INNER JOIN public.saas_tariffs AS tariff
+    ON tariff.id = reg.tariff_id
+   AND tariff.is_active
+  WHERE reg.key = 'global'
+  LIMIT 1
+  FOR UPDATE OF reg;
 
   SELECT policy.*
   INTO v_policy
@@ -498,18 +523,31 @@ BEGIN
   LIMIT 1
   FOR UPDATE OF policy;
   IF NOT FOUND THEN
-    -- No active trial policy is configured on this platform (owner has not set one), and a
-    -- freshly provisioned organization has no tariff assignment either -- "no_trial" here was
-    -- never a product decision anyone made. Land the organization in "compatibility" instead --
-    -- the same explicit state a migrated legacy clinic gets. This is also
-    -- `be_organizations.commercial_access_state`'s own column default, so this UPDATE only
-    -- reasserts it explicitly instead of overwriting it with an agent-selected mechanic policy.
-    -- If a trial policy IS configured later, the branch above (policy FOUND) wins and this
-    -- fallback never runs.
-    UPDATE public.be_organizations
-    SET commercial_access_state = 'compatibility',
-        updated_at = now()
-    WHERE id = v_organization_id;
+    -- No active trial policy is configured on this platform (owner has not set one). Whether the
+    -- organization instead gets a direct starting tariff is governed by the independent
+    -- registration-tariff setting above -- never a hardcoded value.
+    IF v_registration_tariff_id IS NOT NULL THEN
+      UPDATE public.be_organizations
+      SET tariff_id = v_registration_tariff_id,
+          updated_at = now()
+      WHERE id = v_organization_id;
+
+      INSERT INTO public.admin_audit_log (
+        organization_id, actor_id, action, target_id, details, status
+      ) VALUES (
+        v_organization_id, v_patient_user_id, 'saas_registration_tariff_assign',
+        v_registration_tariff_id::text,
+        jsonb_build_object(
+          'reason', 'automatic organization provisioning -- registration tariff setting',
+          'before', NULL,
+          'after', jsonb_build_object('tariffId', v_registration_tariff_id)
+        ),
+        'ok'
+      );
+    END IF;
+    -- #1069 §2.13 (owner 01.08): «нет активного тарифа и нет триала -- доступа нет». Registration
+    -- tariff also unset: the person picks a tariff themselves, and the organization is left with no
+    -- tariff_id -- there is no separate "compatibility" state left to land it in.
     RETURN false;
   END IF;
 
@@ -531,7 +569,6 @@ BEGIN
 
   UPDATE public.be_organizations
   SET tariff_id = v_policy.tariff_id,
-      commercial_access_state = 'active',
       updated_at = now()
   WHERE id = v_organization_id;
 
@@ -630,7 +667,6 @@ SELECT 1 / (
   )
   AND NOT has_table_privilege('app_platform_settings', 'public.be_organizations', 'UPDATE')
   AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'tariff_id', 'UPDATE')
-  AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'commercial_access_state', 'UPDATE')
   AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'updated_at', 'UPDATE')
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'title', 'UPDATE')
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')

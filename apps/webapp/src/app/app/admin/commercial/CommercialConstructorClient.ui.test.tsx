@@ -19,6 +19,7 @@ describe('commercial constructor access ladder', () => {
           tariffs: [],
           organizations: [],
           trialPolicy: null,
+          registrationTariffPolicy: { tariffId: null },
         }),
       })),
     );
@@ -64,6 +65,7 @@ describe('commercial constructor access ladder', () => {
             tariffs: savedTariff ? [savedTariff] : [],
             organizations: [],
             trialPolicy: null,
+            registrationTariffPolicy: { tariffId: null },
           }),
         };
       }),
@@ -92,7 +94,9 @@ describe('commercial constructor access ladder', () => {
       target: { value: '5' },
     });
     await user.click(screen.getByLabelText('Онлайн-запись: Затем'));
-    const openSelect = document.querySelector<HTMLElement>('[data-slot="select-content"][data-open]');
+    const openSelect = document.querySelector<HTMLElement>(
+      '[data-slot="select-content"][data-open]',
+    );
     expect(openSelect).not.toBeNull();
     await user.click(within(openSelect!).getByRole('option', { name: 'Только чтение' }));
     // §5a item 2.6a — the owner adds notification rows himself; there is no fixed number.
@@ -149,7 +153,13 @@ describe('commercial constructor access ladder', () => {
       'fetch',
       vi.fn(async () => ({
         ok: true,
-        json: async () => ({ ok: true, tariffs: [], organizations: [], trialPolicy: null }),
+        json: async () => ({
+          ok: true,
+          tariffs: [],
+          organizations: [],
+          trialPolicy: null,
+          registrationTariffPolicy: { tariffId: null },
+        }),
       })),
     );
 
@@ -158,9 +168,13 @@ describe('commercial constructor access ladder', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Настроить' })[0]!);
     fireEvent.click(screen.getByLabelText('Доступ к системе: Затем'));
 
-    const openSelect = document.querySelector<HTMLElement>('[data-slot="select-content"][data-open]');
+    const openSelect = document.querySelector<HTMLElement>(
+      '[data-slot="select-content"][data-open]',
+    );
     expect(openSelect).not.toBeNull();
-    expect(within(openSelect!).queryByRole('option', { name: 'Полный доступ' })).not.toBeInTheDocument();
+    expect(
+      within(openSelect!).queryByRole('option', { name: 'Полный доступ' }),
+    ).not.toBeInTheDocument();
     expect(within(openSelect!).getByRole('option', { name: 'Только чтение' })).toBeInTheDocument();
     expect(within(openSelect!).getByRole('option', { name: 'Выключено' })).toBeInTheDocument();
   });

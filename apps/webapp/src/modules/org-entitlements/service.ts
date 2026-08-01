@@ -16,6 +16,7 @@ import {
   type MechanicClass,
   type OrgEntitlementSnapshot,
   type OrgMechanic,
+  type RegistrationTariffPolicy,
   type Tariff,
   type TariffQuota,
   type TariffQuotaMap,
@@ -145,6 +146,17 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   if (!Number.isSafeInteger(input.includedSeats) || input.includedSeats < 0) {
     throw new Error('tariff_seat_limit_invalid');
   }
+  // §5a item 5.1 — null keeps seats hard-blocked at includedSeats (§5.2); a configured price
+  // requires a currency to bill it in, same requirement priceMinor already has above.
+  if (input.additionalSeatPriceMinor !== null) {
+    if (
+      !Number.isSafeInteger(input.additionalSeatPriceMinor) ||
+      input.additionalSeatPriceMinor < 0
+    ) {
+      throw new Error('tariff_additional_seat_price_invalid');
+    }
+    if (!input.currency?.trim()) throw new Error('tariff_currency_required');
+  }
   if (input.systemAccessPolicy) assertAccessPolicy(input.systemAccessPolicy);
   const mechanicAccessPolicies = {} as Tariff['mechanicAccessPolicies'];
   for (const [mechanic, policy] of Object.entries(input.mechanicAccessPolicies)) {
@@ -234,7 +246,9 @@ function isMechanicIncludedFromSnapshot(
     (entry) => entry.mechanic === mechanic && isOverrideActive(entry.expiresAt),
   );
   if (override) return override.enabled;
-  if (!snapshot.tariff) return snapshot.access.source === 'compatibility';
+  // #1069 §2.13 (owner 01.08): «нет активного тарифа и нет триала → доступа нет» — no compatibility
+  // carve-out survives for a tariff-less organization.
+  if (!snapshot.tariff) return false;
   if (mechanicClass === 'места') return snapshot.tariff.includedSeats !== null;
   if (requiresExplicitNumericQuota(mechanicClass)) {
     return numericQuotaFromSnapshot(snapshot, mechanic) !== undefined;
@@ -243,19 +257,16 @@ function isMechanicIncludedFromSnapshot(
 }
 
 /**
- * `null` is an explicit unlimited file plan (or the unchanged compatibility path); `undefined`
- * means the limit is not configured and growth must be refused.
+ * `null` is an explicit unlimited file plan; `undefined` means the limit is not configured and
+ * growth must be refused.
  *
- * §5a item 2.6a (owner 31.07) — «клиники без тарифа быть просто не может… нет доступа и нет
- * никаких механик вне тарифа». Only the explicit compatibility state (organizations created
- * before tariffs existed) keeps unlimited files; every other tariff-less organization refuses
- * growth. Before this it was the reverse: no tariff meant unlimited storage, which is exactly the
- * "mechanics enabled outside a tariff" the owner abolished.
+ * §5a item 2.6a (owner 31.07) / #1069 §2.13 (owner 01.08) — «клиники без тарифа быть просто не
+ * может… нет доступа и нет никаких механик вне тарифа», «нет активного тарифа и нет триала →
+ * доступа нет». A tariff-less organization refuses growth, full stop — no compatibility carve-out.
  */
 export function fileStorageLimitFromSnapshot(
-  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides' | 'access'>,
+  snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides'>,
 ): number | null | undefined {
-  if (snapshot.access.source === 'compatibility') return null;
   if (!snapshot.tariff) return undefined;
   const quota = numericQuotaFromSnapshot(snapshot, 'files');
   if (!quota) return undefined;
@@ -509,6 +520,7 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     listTariffs: () => port.listTariffs(),
     listOrganizations: () => port.listOrganizations(),
     getTrialPolicy: () => port.getTrialPolicy(),
+    getRegistrationTariffPolicy: () => port.getRegistrationTariffPolicy(),
     createTariff: (
       input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
       audit: PlatformMutationAudit,
@@ -577,6 +589,12 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     setTrialPolicy: (policy: TrialPolicy, audit: PlatformMutationAudit) => {
       assertTrialPolicy(policy);
       return port.setTrialPolicy(policy, audit);
+    },
+    setRegistrationTariffPolicy: (
+      policy: RegistrationTariffPolicy,
+      audit: PlatformMutationAudit,
+    ) => {
+      return port.setRegistrationTariffPolicy(policy, audit);
     },
     startTrial: (organizationId: string, audit: PlatformMutationAudit) => {
       return port.startTrial(organizationId, audit);

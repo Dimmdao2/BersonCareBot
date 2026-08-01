@@ -16,15 +16,14 @@ dispatch и имеет стабильный контракт: **403** `{ "ok": f
 Единственные POST-exemptions — точные M2M контракты: 18 `/api/integrator/*` с HMAC, 13 `/api/internal/*`
 с bearer-secret, по одному сегменту провайдера у `/api/payments/webhook/[provider]` и
 `/api/payments/patient-acquiring-webhook/[provider]`, а также Apple `form_post` callback
-`/api/auth/oauth/callback/apple` с signed state/nonce. Prefix-wide bypass нет; похожие пути и пять
-`*/payments/mock-complete` остаются browser-origin protected. Прямые Node/curl callers browser-маршрутов обязаны
+`/api/auth/oauth/callback/apple` с signed state/nonce. Prefix-wide bypass нет; похожие пути остаются
+browser-origin protected. Прямые Node/curl callers browser-маршрутов обязаны
 передавать согласованные `Host`, `Origin`, `Sec-Fetch-Site: same-origin` и, при TLS termination,
 `X-Forwarded-Proto: https`.
 
-Frozen census в `src/middleware/csrfOrigin.test.ts` фиксирует текущую post-C1 поверхность: 523 route files,
-358 files / 397 unsafe handlers, из них 322 browser files / 361 browser handlers, 29 Server Action files и digest
-каждого списка. Добавленный global-admin `platform/error-tracking` PUT остаётся browser-origin protected и не
-расширяет special exemptions. Девять stateful GET остаются
+Frozen census в `src/middleware/csrfOrigin.test.ts` (если присутствует в дереве) фиксирует route/handler
+surface на момент своего последнего обновления — сверяй с ним при сомнении, этот файл цифры не дублирует.
+Девять stateful GET остаются
 вне изменения семантики этого этапа: Google Calendar callback; dev-bypass; dev-public; logout; legacy Yandex,
 Google и Yandex OAuth callbacks; media playback telemetry; patient organization-context open. Они явно
 инвентаризированы тестом и не считаются CSRF-exempt POST.

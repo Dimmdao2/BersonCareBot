@@ -3,6 +3,8 @@ import type { PaymentsService } from '@/modules/payments/service';
 import type { EntitlementsService } from '@/modules/entitlements/service';
 import type { MembershipsService } from '@/modules/memberships/service';
 import type { CoursesService } from '@/modules/courses/service';
+import { env } from '@/config/env';
+import { publicBookPaths } from '@/shared/publicBook/paths';
 import type { ProductsPort } from './ports';
 import type {
   ProductComposition,
@@ -35,6 +37,27 @@ type CourseProductAccess = {
   isCourseMechanicEnabled?: (organizationId: string) => Promise<boolean>;
   courseBelongsToOrganization?: (courseId: string, organizationId: string) => Promise<boolean>;
   hasActivePatientEnrollment?: (platformUserId: string, organizationId: string) => Promise<boolean>;
+};
+
+/**
+ * 3.2 круг 2: `activatePurchase` — единственный funnel, которым обе точки, ведущие к
+ * `courses.enrollPatient` без обычного HTTP-запроса, доходят до записи (платёжный вебхук через
+ * `onProductPaymentCaptured`, и бесплатный курс через `startPurchase`). Ни та ни другая не проходит
+ * через `requireEntitlementForMutation`, поэтому ALS-допуск (`assertWriteClearance('courses')` в
+ * `courses/service.ts`) там неоткуда взять. Тот же приём, что `assertWriteClearance` уже применён к
+ * courses/service.ts — плоские инжектированные функции, без импорта app-layer в модуль
+ * (`ARCHITECTURE.md`: modules depend only on contracts, pure utilities, and injected ports).
+ *
+ * `ensureWriteClearanceContext` синхронно, ДО первого await в `activatePurchase`, гарантирует ALS-ячейку
+ * на весь остаток этого continuation (тот же приём и та же причина, что у `ensureMechanicWriteClearanceContext`
+ * в `requireEntitlement.ts` — см. её JSDoc про потерю контекста при первом `enterWith` вглубь nested await).
+ * `grantWriteClearance` зовётся не отсюда и не из `assertCourseProductAvailable` (который читают и на
+ * чтение — каталог, pay-link), а точечно из `fulfillProduct`, сразу после того как то же самое место
+ * заново спросило резолвера и получило «да» — то есть от настоящего решения, а не от края маршрута.
+ */
+type WriteClearanceAccess = {
+  ensureWriteClearanceContext?: () => void;
+  grantWriteClearance?: (mechanic: 'courses') => void;
 };
 
 function visitsRemainingFromFulfillment(fulfillment: Record<string, unknown>): number {
@@ -94,7 +117,8 @@ export function createProductsService(
     courses: CoursesService | null;
     resolvePlatformUserByPhone?: ResolvePlatformUserByPhone;
     findPlatformUserByPhone?: FindPlatformUserByPhone;
-  } & CourseProductAccess,
+  } & CourseProductAccess &
+    WriteClearanceAccess,
 ) {
   function isCourseLinked(product: ProductRecord): boolean {
     return product.productType === 'course' || product.courseId !== null;
@@ -363,6 +387,7 @@ export function createProductsService(
           input.organizationId,
           platformUserId,
           buyerPhoneNormalized,
+          input.payLinkToken ?? null,
         );
       }
       const linked = await ensurePurchasePlatformUser(
@@ -378,6 +403,7 @@ export function createProductsService(
       organizationId: string,
       platformUserId?: string | null,
       buyerPhoneNormalized?: string | null,
+      payLinkToken?: string | null,
     ) {
       const purchase = await deps.port.getPurchase(purchaseId, organizationId);
       if (!purchase) throw new Error('purchase_not_found');
@@ -385,6 +411,11 @@ export function createProductsService(
       if (!platformUserId) throw new Error('platform_user_required_for_payment');
 
       const idempotencyKey = `product:${purchaseId}:offer`;
+      // A pay-link token means the buyer is on the unauthenticated public widget (own token-scoped
+      // screen); no token means the authenticated patient-portal purchase flow.
+      const returnUrl = payLinkToken
+        ? `${env.APP_BASE_URL}${publicBookPaths.productPay(payLinkToken)}?purchaseId=${encodeURIComponent(purchaseId)}&phone=${encodeURIComponent(buyerPhoneNormalized ?? '')}`
+        : `${env.APP_BASE_URL}/app/patient/purchases/pay?purchaseId=${encodeURIComponent(purchaseId)}`;
       const intent = await deps.payments.createProductPaymentIntent({
         organizationId,
         platformUserId,
@@ -392,6 +423,7 @@ export function createProductsService(
         amountMinor: purchase.priceMinor,
         currency: purchase.currency,
         idempotencyKey,
+        returnUrl,
       });
 
       const updated = await deps.port.setPurchaseStatus(
@@ -428,6 +460,7 @@ export function createProductsService(
     },
 
     async activatePurchase(purchaseId: string, organizationId: string, paymentRef?: string) {
+      deps.ensureWriteClearanceContext?.();
       let purchase = await deps.port.getPurchase(purchaseId, organizationId);
       if (!purchase) return null;
       if (purchase.status === 'active') return purchase;
@@ -482,6 +515,7 @@ export function createProductsService(
 
       if (product.productType === 'course' && product.courseId && deps.courses) {
         await assertCourseProductAvailable(product, purchase.organizationId, platformUserId);
+        deps.grantWriteClearance?.('courses');
         await deps.courses.enrollPatient({
           courseId: product.courseId,
           patientUserId: platformUserId,

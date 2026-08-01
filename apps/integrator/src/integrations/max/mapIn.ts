@@ -25,14 +25,11 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   Помощник: 'menu.more',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
-  '/dialogs': 'admin.dialogs.open',
-  '/unanswered': 'admin.questions.unanswered',
   '/show_my_id': 'debug.show_my_id',
   '/book': 'booking.open',
   '/menu': 'nav.webapp.menu',
   Отмена: 'phone.request.cancel',
   'Вернуться в меню': 'phone.request.cancel',
-  'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 
 function getActionFromText(text: string): string {

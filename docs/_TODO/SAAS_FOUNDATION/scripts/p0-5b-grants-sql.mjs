@@ -75,11 +75,14 @@ const migrationOnlyTables = new Set([
 // - app_runtime_settings uses dedicated audience-aware patient/staff/worker/integrator grants and policies.
 // - password admission and passkey tables are function-only credential state; broad app_staff DML
 //   would bypass their reviewed SECURITY DEFINER boundaries.
+// - saas_registration_tariff_policy (0291) is walled the same way as its sister saas_trial_policy
+//   below: RLS FORCE with no app_staff policy, owned entirely by app_platform_settings.
 const overlayManagedAppStaffTables = new Set([
   'public.organization_member_invites',
   'public.patient_invites',
   'public.saas_org_entitlement_overrides',
   'public.saas_organization_trials',
+  'public.saas_registration_tariff_policy',
   'public.saas_tariffs',
   'public.saas_trial_policy',
   'public.specialist_signup_intents',

@@ -22,10 +22,6 @@ export type DbReadQueryType =
   | 'user.phoneForDeliveryLookup'
   | 'draft.activeByIdentity'
   | 'conversation.openByIdentity'
-  | 'conversation.byId'
-  | 'conversation.listOpen'
-  | 'questions.unanswered'
-  | 'question.byConversationId'
   | 'identity.idByResourceAndExternalId'
   | 'platformUser.idByChannelBinding'
   | 'booking.byExternalId'
@@ -170,7 +166,9 @@ export type DeliveryAdapter = {
 
 /** Порт постановки асинхронной задачи в очередь. */
 export type QueuePort = {
-  enqueue(task: { kind: string; payload: Record<string, unknown> }): Promise<void>;
+  /** `runAt`: предпочтительное абсолютное время первой попытки (когда оно продуктово фиксировано,
+   * например офсет напоминания до приёма), иначе — относительная задержка из `payload.retry`. */
+  enqueue(task: { kind: string; payload: Record<string, unknown>; runAt?: string }): Promise<void>;
 };
 
 /** Порт очереди job-ов для runtime worker. */
@@ -495,60 +493,6 @@ export type DeliveryTargetsPort = {
     integratorUserId?: string;
     organizationId?: string;
   }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
-};
-
-/** Item shape for conversation list (admin); compatible with executeAction formatters. */
-export type CommunicationConversationListItem = {
-  id: string;
-  source: string;
-  user_identity_id: string;
-  admin_scope: string;
-  status: string;
-  opened_at: string;
-  last_message_at: string;
-  closed_at: string | null;
-  close_reason: string | null;
-  user_channel_id: string;
-  user_chat_id: string | null;
-  username: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  phone_normalized: string | null;
-  last_message_text: string | null;
-  last_sender_role: string | null;
-};
-
-export type CommunicationConversationDetail = CommunicationConversationListItem;
-
-/** Item shape for unanswered questions list (admin). */
-export type CommunicationQuestionListItem = {
-  id: string;
-  user_identity_id: string;
-  conversation_id: string | null;
-  telegram_message_id: string | null;
-  text: string;
-  created_at: string;
-  answered: boolean;
-  answered_at: string | null;
-  user_channel_id: string;
-  username: string | null;
-  first_name: string | null;
-  last_name: string | null;
-};
-
-/** Port to read communication data (conversations, questions) from webapp. Used for admin product reads. */
-export type CommunicationReadsPort = {
-  listOpenConversations(params: {
-    source?: string;
-    limit?: number;
-  }): Promise<CommunicationConversationListItem[]>;
-  getConversationById(
-    integratorConversationId: string,
-  ): Promise<CommunicationConversationDetail | null>;
-  listUnansweredQuestions(params: { limit?: number }): Promise<CommunicationQuestionListItem[]>;
-  getQuestionByConversationId(
-    integratorConversationId: string,
-  ): Promise<{ id: string; answered: boolean } | null>;
 };
 
 // --- Stage 7: Reminders product reads (webapp projection) ---

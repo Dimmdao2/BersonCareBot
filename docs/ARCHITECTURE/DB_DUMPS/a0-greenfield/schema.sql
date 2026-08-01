@@ -301,28 +301,662 @@ CREATE FUNCTION app.assert_organization_slug_rename_complete() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
     AS $$
+DECLARE
+  v_next_slug text;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.organization_slug_claims AS alias_claim
-    WHERE alias_claim.slug = OLD.slug
-      AND alias_claim.kind = 'alias'
-      AND alias_claim.organization_id = OLD.organization_id
-  ) OR EXISTS (
-    SELECT 1
-    FROM public.clinic_public_directory_entries AS directory
-    WHERE directory.organization_id = OLD.organization_id
-      AND directory.slug <> NEW.slug
-  ) OR NOT EXISTS (
-    SELECT 1
-    FROM public.organization_slug_rename_events AS rename_event
-    WHERE rename_event.organization_id = OLD.organization_id
-      AND rename_event.previous_slug = OLD.slug
-      AND rename_event.next_slug = NEW.slug
-  ) THEN
+  IF NEW.kind = 'current' THEN
+    v_next_slug := NEW.slug;
+  ELSE
+    SELECT current_claim.slug
+    INTO v_next_slug
+    FROM public.organization_slug_claims AS current_claim
+    WHERE current_claim.organization_id = OLD.organization_id
+      AND current_claim.kind = 'current';
+  END IF;
+
+  IF v_next_slug IS NULL
+    OR v_next_slug = OLD.slug
+    OR NOT EXISTS (
+      SELECT 1
+      FROM public.organization_slug_claims AS alias_claim
+      WHERE alias_claim.slug = OLD.slug
+        AND alias_claim.kind = 'alias'
+        AND alias_claim.organization_id = OLD.organization_id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.clinic_public_directory_entries AS directory
+      WHERE directory.organization_id = OLD.organization_id
+        AND directory.slug <> v_next_slug
+    )
+    OR NOT EXISTS (
+      SELECT 1
+      FROM public.organization_slug_rename_events AS rename_event
+      WHERE rename_event.organization_id = OLD.organization_id
+        AND rename_event.previous_slug = OLD.slug
+        AND rename_event.next_slug = v_next_slug
+    )
+  THEN
     RAISE EXCEPTION 'organization slug rename requires retained alias, synchronized directory and audit event';
   END IF;
   RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: auth_channel_link_lock_unused_secret(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_channel_link_lock_unused_secret(p_secret_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  -- Claim recheck locks only the exact row id obtained from the opaque-token bearer lookup.
+  PERFORM 1
+  FROM public.channel_link_secrets AS secret
+  WHERE p_secret_id IS NOT NULL
+    AND secret.id = p_secret_id
+    AND secret.used_at IS NULL
+  FOR UPDATE;
+
+  RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: auth_channel_link_mark_secret_used(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_channel_link_mark_secret_used(p_secret_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  -- The row id comes only from the opaque-token lookup; update is limited to that exact row.
+  UPDATE public.channel_link_secrets AS secret
+  SET used_at = statement_timestamp()
+  WHERE p_secret_id IS NOT NULL
+    AND secret.id = p_secret_id;
+
+  RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: auth_channel_link_mark_secret_used_if_unused(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_channel_link_mark_secret_used_if_unused(p_secret_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  -- Claim/merge completion is idempotent and can consume only the exact bearer-derived unused row.
+  UPDATE public.channel_link_secrets AS secret
+  SET used_at = statement_timestamp()
+  WHERE p_secret_id IS NOT NULL
+    AND secret.id = p_secret_id
+    AND secret.used_at IS NULL;
+
+  RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: auth_channel_link_read_secret(text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_channel_link_read_secret(p_channel_code text, p_token_hash text) RETURNS TABLE(id uuid, user_id uuid, expires_at timestamp with time zone, used_at timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+  -- The 256-bit peppered token hash is the bearer capability; no phone/user scan is available.
+  SELECT secret.id, secret.user_id, secret.expires_at, secret.used_at
+  FROM public.channel_link_secrets AS secret
+  WHERE p_channel_code IN ('telegram', 'max')
+    AND p_token_hash ~ '^[0-9a-f]{64}$'
+    AND secret.channel_code = p_channel_code
+    AND secret.token_hash = p_token_hash
+  LIMIT 1
+$_$;
+
+
+--
+-- Name: auth_channel_link_replace_secret(uuid, text, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_channel_link_replace_secret(p_user_id uuid, p_channel_code text, p_token_hash text, p_expires_at timestamp with time zone) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  IF p_user_id IS NULL
+     OR p_channel_code NOT IN ('telegram', 'max')
+     OR p_token_hash !~ '^[0-9a-f]{64}$'
+     OR p_expires_at <= statement_timestamp()
+     OR p_expires_at > statement_timestamp() + interval '15 minutes'
+  THEN
+    RAISE EXCEPTION 'invalid_channel_link_secret';
+  END IF;
+
+  -- Authenticated session ownership is narrowed to one user/channel pair and one fresh opaque hash.
+  DELETE FROM public.channel_link_secrets AS secret
+  WHERE secret.user_id = p_user_id
+    AND secret.channel_code = p_channel_code;
+
+  INSERT INTO public.channel_link_secrets (user_id, channel_code, token_hash, expires_at)
+  VALUES (p_user_id, p_channel_code, p_token_hash, p_expires_at);
+END
+$_$;
+
+
+--
+-- Name: auth_email_setup_delete(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_email_setup_delete(p_token_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  -- Rollback can delete only the exact id returned by the immediately preceding issuance action.
+  DELETE FROM public.user_email_setup_tokens AS token
+  WHERE p_token_id IS NOT NULL
+    AND token.id = p_token_id;
+
+  RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: auth_email_setup_insert(uuid, text, text, timestamp with time zone, text, uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_email_setup_insert(p_user_id uuid, p_email_normalized text, p_token_hash text, p_expires_at timestamp with time zone, p_source text, p_created_by_user_id uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_id uuid;
+BEGIN
+  IF p_user_id IS NULL
+     OR p_email_normalized IS NULL
+     OR btrim(p_email_normalized) = ''
+     OR p_token_hash !~ '^[0-9a-f]{64}$'
+     OR p_expires_at <= statement_timestamp()
+     OR p_expires_at > statement_timestamp() + interval '25 hours'
+     OR p_source NOT IN ('rubitime', 'doctor_profile', 'manual_resend', 'registration_claim')
+  THEN
+    RAISE EXCEPTION 'invalid_email_setup_token';
+  END IF;
+
+  -- Inserts one exact user/email token; only the opaque hash is stored and returned id identifies it.
+  INSERT INTO public.user_email_setup_tokens (
+    user_id,
+    email_normalized,
+    token_hash,
+    expires_at,
+    source,
+    created_by_user_id
+  )
+  VALUES (
+    p_user_id,
+    p_email_normalized,
+    p_token_hash,
+    p_expires_at,
+    p_source,
+    p_created_by_user_id
+  )
+  RETURNING user_email_setup_tokens.id INTO v_id;
+
+  RETURN v_id;
+END
+$_$;
+
+
+--
+-- Name: auth_email_setup_mark_used(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_email_setup_mark_used(p_token_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  -- Consume only the exact bearer-derived active token, once, before its database-clock expiry.
+  UPDATE public.user_email_setup_tokens AS token
+  SET used_at = statement_timestamp()
+  WHERE p_token_id IS NOT NULL
+    AND token.id = p_token_id
+    AND token.used_at IS NULL
+    AND token.revoked_at IS NULL
+    AND token.expires_at >= statement_timestamp();
+
+  RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: auth_email_setup_read(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_email_setup_read(p_token_hash text) RETURNS TABLE(id uuid, user_id uuid, email_normalized text, expires_at timestamp with time zone, used_at timestamp with time zone, revoked_at timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+  -- The 256-bit peppered setup-token hash is the bearer capability; no email/user scan is exposed.
+  SELECT token.id, token.user_id, token.email_normalized, token.expires_at, token.used_at, token.revoked_at
+  FROM public.user_email_setup_tokens AS token
+  WHERE p_token_hash ~ '^[0-9a-f]{64}$'
+    AND token.token_hash = p_token_hash
+  LIMIT 1
+$_$;
+
+
+--
+-- Name: auth_email_setup_revoke_active(uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_email_setup_revoke_active(p_user_id uuid, p_email_normalized text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_row_count integer;
+BEGIN
+  IF p_user_id IS NULL OR p_email_normalized IS NULL OR btrim(p_email_normalized) = '' THEN
+    RETURN 0;
+  END IF;
+
+  -- Issuance revokes only the exact user's exact normalized-email active tokens.
+  UPDATE public.user_email_setup_tokens AS token
+  SET revoked_at = statement_timestamp()
+  WHERE token.user_id = p_user_id
+    AND token.email_normalized = p_email_normalized
+    AND token.used_at IS NULL
+    AND token.revoked_at IS NULL;
+
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count;
+END
+$$;
+
+
+--
+-- Name: auth_login_token_confirm(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_login_token_confirm(p_token_hash text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  -- Confirm only the exact opaque token while pending and unexpired by the database clock.
+  UPDATE public.login_tokens AS token
+  SET status = 'confirmed',
+      confirmed_at = statement_timestamp()
+  WHERE p_token_hash ~ '^[0-9a-f]{64}$'
+    AND token.token_hash = p_token_hash
+    AND token.status = 'pending'
+    AND token.expires_at >= statement_timestamp();
+
+  RETURN FOUND;
+END
+$_$;
+
+
+--
+-- Name: auth_login_token_create(text, uuid, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_login_token_create(p_token_hash text, p_user_id uuid, p_method text, p_expires_at timestamp with time zone) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_id uuid;
+BEGIN
+  IF p_token_hash !~ '^[0-9a-f]{64}$'
+     OR p_user_id IS NULL
+     OR p_method NOT IN ('telegram', 'max')
+     OR p_expires_at <= statement_timestamp()
+     OR p_expires_at > statement_timestamp() + interval '15 minutes'
+  THEN
+    RAISE EXCEPTION 'invalid_login_token';
+  END IF;
+
+  -- Creates one pending row for the server-generated opaque token and exact resolved user.
+  INSERT INTO public.login_tokens (token_hash, user_id, method, status, expires_at)
+  VALUES (p_token_hash, p_user_id, p_method, 'pending', p_expires_at)
+  RETURNING login_tokens.id INTO v_id;
+
+  RETURN v_id;
+END
+$_$;
+
+
+--
+-- Name: auth_login_token_expire_past(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_login_token_expire_past() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  -- Database time is authoritative; callers cannot choose a cutoff or learn how many rows expired.
+  UPDATE public.login_tokens AS token
+  SET status = 'expired'
+  WHERE token.status = 'pending'
+    AND token.expires_at < statement_timestamp();
+END
+$$;
+
+
+--
+-- Name: auth_login_token_mark_session_issued(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_login_token_mark_session_issued(p_token_hash text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  -- Mark session issuance once for the exact opaque confirmed token; no caller-supplied timestamp.
+  UPDATE public.login_tokens AS token
+  SET session_issued_at = statement_timestamp()
+  WHERE p_token_hash ~ '^[0-9a-f]{64}$'
+    AND token.token_hash = p_token_hash
+    AND token.status = 'confirmed'
+    AND token.session_issued_at IS NULL;
+
+  RETURN FOUND;
+END
+$_$;
+
+
+--
+-- Name: auth_login_token_read(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_login_token_read(p_token_hash text) RETURNS TABLE(id uuid, user_id uuid, method text, status text, expires_at timestamp with time zone, confirmed_at timestamp with time zone, session_issued_at timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+  -- The unguessable SHA-256 token hash is the bearer capability; no user/status scan is exposed.
+  SELECT
+    token.id,
+    token.user_id,
+    token.method,
+    token.status,
+    token.expires_at,
+    token.confirmed_at,
+    token.session_issued_at
+  FROM public.login_tokens AS token
+  WHERE p_token_hash ~ '^[0-9a-f]{64}$'
+    AND token.token_hash = p_token_hash
+  LIMIT 1
+$_$;
+
+
+--
+-- Name: auth_oauth_find_user(text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_oauth_find_user(p_provider text, p_provider_user_id text) RETURNS TABLE(user_id uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  -- The callback has proved this exact provider identity; no email or prefix lookup is available.
+  SELECT binding.user_id
+  FROM public.user_oauth_bindings AS binding
+  WHERE p_provider IN ('google', 'apple', 'yandex')
+    AND p_provider_user_id IS NOT NULL
+    AND btrim(p_provider_user_id) <> ''
+    AND binding.provider = p_provider
+    AND binding.provider_user_id = p_provider_user_id
+  LIMIT 1
+$$;
+
+
+--
+-- Name: auth_oauth_list_user_providers(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_oauth_list_user_providers(p_user_id uuid) RETURNS TABLE(provider text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  -- Exact server-resolved user id only; returns provider names, never provider ids or other users.
+  SELECT DISTINCT binding.provider
+  FROM public.user_oauth_bindings AS binding
+  WHERE p_user_id IS NOT NULL
+    AND binding.user_id = p_user_id
+    AND binding.provider IN ('google', 'apple', 'yandex')
+$$;
+
+
+--
+-- Name: auth_oauth_upsert_binding(uuid, text, text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_oauth_upsert_binding(p_user_id uuid, p_provider text, p_provider_user_id text, p_email text) RETURNS TABLE(inserted boolean, user_id uuid)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_user_id uuid;
+BEGIN
+  IF p_user_id IS NULL
+     OR p_provider NOT IN ('google', 'apple', 'yandex')
+     OR p_provider_user_id IS NULL
+     OR btrim(p_provider_user_id) = ''
+  THEN
+    RETURN;
+  END IF;
+
+  -- The verified provider tuple may bind once; a collision returns only that same tuple's owner.
+  INSERT INTO public.user_oauth_bindings (user_id, provider, provider_user_id, email)
+  VALUES (p_user_id, p_provider, p_provider_user_id, p_email)
+  ON CONFLICT (provider, provider_user_id) DO NOTHING
+  RETURNING user_oauth_bindings.user_id INTO v_user_id;
+
+  IF v_user_id IS NOT NULL THEN
+    RETURN QUERY SELECT true, v_user_id;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT false, binding.user_id
+  FROM public.user_oauth_bindings AS binding
+  WHERE binding.provider = p_provider
+    AND binding.provider_user_id = p_provider_user_id
+  LIMIT 1;
+END
+$$;
+
+
+--
+-- Name: auth_rate_limit_count(text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_rate_limit_count(p_scope text, p_key text) RETURNS bigint
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT count(*)::bigint
+  FROM public.auth_rate_limit_events AS event
+  WHERE event.scope = p_scope
+    AND event.key = p_key
+$$;
+
+
+--
+-- Name: auth_rate_limit_prune_key(text, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_rate_limit_prune_key(p_scope text, p_key text, p_cutoff timestamp with time zone) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_row_count integer;
+BEGIN
+  DELETE FROM public.auth_rate_limit_events AS event
+  WHERE event.scope = p_scope
+    AND event.key = p_key
+    AND event.occurred_at <= p_cutoff;
+
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count;
+END
+$$;
+
+
+--
+-- Name: auth_rate_limit_prune_scope(text, timestamp with time zone, integer); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_rate_limit_prune_scope(p_scope text, p_cutoff timestamp with time zone, p_batch_size integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_batch_size integer;
+  v_row_count integer;
+BEGIN
+  v_batch_size := LEAST(1000, GREATEST(1, COALESCE(p_batch_size, 1)));
+
+  WITH stale AS (
+    SELECT event.ctid
+    FROM public.auth_rate_limit_events AS event
+    WHERE event.scope = p_scope
+      AND event.occurred_at <= p_cutoff
+    ORDER BY event.occurred_at
+    LIMIT v_batch_size
+    FOR UPDATE SKIP LOCKED
+  )
+  DELETE FROM public.auth_rate_limit_events AS event
+  USING stale
+  WHERE event.ctid = stale.ctid;
+
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count;
+END
+$$;
+
+
+--
+-- Name: auth_rate_limit_record(text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_rate_limit_record(p_scope text, p_key text) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  INSERT INTO public.auth_rate_limit_events (scope, key, occurred_at)
+  VALUES (p_scope, p_key, now())
+$$;
+
+
+--
+-- Name: auth_user_pin_increment_failed(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_user_pin_increment_failed(p_user_id uuid) RETURNS TABLE(attempts_failed integer, locked_until timestamp with time zone)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  -- Fixed policy prevents a caller from choosing an arbitrary counter threshold or lock duration.
+  UPDATE public.user_pins AS pin
+  SET attempts_failed = pin.attempts_failed + 1,
+      updated_at = statement_timestamp(),
+      locked_until = CASE
+        WHEN pin.attempts_failed + 1 >= 5
+          THEN statement_timestamp() + make_interval(mins => 15)
+        ELSE pin.locked_until
+      END
+  WHERE p_user_id IS NOT NULL
+    AND pin.user_id = p_user_id
+  RETURNING pin.attempts_failed::integer, pin.locked_until
+$$;
+
+
+--
+-- Name: auth_user_pin_read(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_user_pin_read(p_user_id uuid) RETURNS TABLE(user_id uuid, pin_hash text, attempts_failed integer, locked_until timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  -- Exact UUID only: never scans or returns another user's PIN row.
+  SELECT pin.user_id, pin.pin_hash, pin.attempts_failed::integer, pin.locked_until
+  FROM public.user_pins AS pin
+  WHERE p_user_id IS NOT NULL
+    AND pin.user_id = p_user_id
+$$;
+
+
+--
+-- Name: auth_user_pin_reset_attempts(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_user_pin_reset_attempts(p_user_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  -- Successful verification or elapsed lockout resets only the exact supplied user row.
+  UPDATE public.user_pins AS pin
+  SET attempts_failed = 0,
+      locked_until = NULL,
+      updated_at = statement_timestamp()
+  WHERE p_user_id IS NOT NULL
+    AND pin.user_id = p_user_id;
+
+  RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: auth_user_pin_upsert(uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.auth_user_pin_upsert(p_user_id uuid, p_pin_hash text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  IF p_user_id IS NULL OR p_pin_hash IS NULL OR btrim(p_pin_hash) = '' THEN
+    RETURN false;
+  END IF;
+
+  -- Session code supplies one exact user id; this action can only replace that row and reset its lock.
+  INSERT INTO public.user_pins AS pin (
+    user_id,
+    pin_hash,
+    attempts_failed,
+    locked_until,
+    updated_at
+  )
+  VALUES (p_user_id, p_pin_hash, 0, NULL, statement_timestamp())
+  ON CONFLICT (user_id) DO UPDATE
+  SET pin_hash = EXCLUDED.pin_hash,
+      attempts_failed = 0,
+      locked_until = NULL,
+      updated_at = statement_timestamp()
+  WHERE pin.user_id = p_user_id;
+
+  RETURN FOUND;
 END
 $$;
 
@@ -342,6 +976,29 @@ BEGIN
 	    updated_at = now()
 	WHERE p.user_id = app.require_staff_security_self_user_id() AND p.factor_verified_at IS NOT NULL;
 	RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: bump_platform_user_session_epoch_self(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.bump_platform_user_session_epoch_self() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+	v_session_epoch integer;
+BEGIN
+	UPDATE public.platform_users
+	SET session_epoch = session_epoch + 1, updated_at = now()
+	WHERE id = app.require_staff_security_self_user_id()
+	RETURNING session_epoch INTO v_session_epoch;
+	IF v_session_epoch IS NULL THEN
+		RAISE EXCEPTION 'platform_user_missing';
+	END IF;
+	RETURN v_session_epoch;
 END
 $$;
 
@@ -728,18 +1385,22 @@ $$;
 
 
 --
--- Name: create_specialist_signup_intent(uuid, text, text, text); Type: FUNCTION; Schema: app; Owner: -
+-- Name: create_specialist_signup_intent(uuid, text, text, text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.create_specialist_signup_intent(p_challenge_id uuid, p_email_normalized text, p_organization_title text, p_specialist_full_name text) RETURNS uuid
-    LANGUAGE sql SECURITY DEFINER
+CREATE FUNCTION app.create_specialist_signup_intent(p_challenge_id uuid, p_email_normalized text, p_organization_title text, p_specialist_full_name text, p_organization_slug text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
+DECLARE
+  v_intent_id uuid;
+BEGIN
   INSERT INTO public.specialist_signup_intents (
     user_id,
     challenge_id,
     email_normalized,
     organization_title,
+    organization_slug,
     specialist_full_name
   )
   VALUES (
@@ -747,9 +1408,13 @@ CREATE FUNCTION app.create_specialist_signup_intent(p_challenge_id uuid, p_email
     p_challenge_id,
     lower(btrim(p_email_normalized)),
     btrim(p_organization_title),
+    lower(p_organization_slug),
     btrim(p_specialist_full_name)
   )
-  RETURNING id
+  RETURNING id INTO v_intent_id;
+
+  RETURN v_intent_id;
+END
 $$;
 
 
@@ -780,6 +1445,29 @@ CREATE FUNCTION app.current_org_id() RETURNS uuid
   FROM app.principal_context
   WHERE backend_pid = pg_backend_pid()
     AND expires_epoch > floor(extract(epoch FROM clock_timestamp()))::bigint
+$$;
+
+
+--
+-- Name: current_patient_has_active_org_enrollment(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.current_patient_has_active_org_enrollment(p_organization_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.org_enrollments AS enrollment
+    INNER JOIN public.be_organizations AS organization
+      ON organization.id = enrollment.organization_id
+     AND organization.is_active = true
+    WHERE p_organization_id IS NOT NULL
+      AND app.current_patient_user_id() IS NOT NULL
+      AND enrollment.organization_id = p_organization_id
+      AND enrollment.platform_user_id = app.current_patient_user_id()
+      AND enrollment.status = 'active'
+  )
 $$;
 
 
@@ -852,6 +1540,27 @@ $$;
 
 
 --
+-- Name: current_provisioned_owner_organization(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.current_provisioned_owner_organization() RETURNS uuid
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT member.organization_id
+  FROM public.be_organization_members AS member
+  INNER JOIN public.be_organizations AS organization
+    ON organization.id = member.organization_id
+   AND organization.is_active
+  WHERE member.platform_user_id = app.current_patient_user_id()
+    AND member.role = 'owner'
+    AND member.status = 'active'
+  ORDER BY member.created_at DESC
+  LIMIT 1
+$$;
+
+
+--
 -- Name: email_auth_delete_email_challenge_by_id(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -879,11 +1588,11 @@ $$;
 -- Name: email_auth_find_email_challenge_for_confirm(uuid, uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.email_auth_find_email_challenge_for_confirm(p_challenge_id uuid, p_user_id uuid) RETURNS TABLE(id uuid, email text, code_hash text, expires_at bigint, attempts integer)
+CREATE FUNCTION app.email_auth_find_email_challenge_for_confirm(p_challenge_id uuid, p_user_id uuid) RETURNS TABLE(id uuid, email text, code_hash text, expires_at bigint, attempts integer, purpose text)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
-  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer
+  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.id = p_challenge_id
     AND c.user_id = p_user_id
@@ -894,14 +1603,26 @@ $$;
 -- Name: email_auth_find_email_challenge_for_consume(uuid, uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.email_auth_find_email_challenge_for_consume(p_challenge_id uuid, p_user_id uuid) RETURNS TABLE(id uuid, code_hash text, expires_at bigint, attempts integer)
+CREATE FUNCTION app.email_auth_find_email_challenge_for_consume(p_challenge_id uuid, p_user_id uuid) RETURNS TABLE(id uuid, code_hash text, expires_at bigint, attempts integer, purpose text)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
-  SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer
+  SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.id = p_challenge_id
     AND c.user_id = p_user_id
+$$;
+
+
+--
+-- Name: email_auth_find_email_otp_lock(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.email_auth_find_email_otp_lock(p_user_id uuid) RETURNS TABLE(locked_until bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT l.locked_until FROM public.email_otp_locks AS l WHERE l.user_id = p_user_id
 $$;
 
 
@@ -943,11 +1664,11 @@ $$;
 -- Name: email_auth_find_latest_email_challenge_for_user(uuid, bigint); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.email_auth_find_latest_email_challenge_for_user(p_user_id uuid, p_now_sec bigint) RETURNS TABLE(id uuid, code_hash text, expires_at bigint, attempts integer)
+CREATE FUNCTION app.email_auth_find_latest_email_challenge_for_user(p_user_id uuid, p_now_sec bigint) RETURNS TABLE(id uuid, code_hash text, expires_at bigint, attempts integer, purpose text)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
-  SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer
+  SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.user_id = p_user_id
     AND c.expires_at > p_now_sec
@@ -960,16 +1681,40 @@ $$;
 -- Name: email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(p_user_id uuid, p_now_sec bigint) RETURNS TABLE(id uuid, email text, code_hash text, expires_at bigint, attempts integer)
+CREATE FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(p_user_id uuid, p_now_sec bigint) RETURNS TABLE(id uuid, email text, code_hash text, expires_at bigint, attempts integer, purpose text)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
-  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer
+  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
   FROM public.email_challenges AS c
   WHERE c.user_id = p_user_id
     AND c.expires_at > p_now_sec
   ORDER BY c.created_at DESC
   LIMIT 1
+$$;
+
+
+--
+-- Name: email_auth_increment_email_challenge_attempts(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.email_auth_increment_email_challenge_attempts(p_challenge_id uuid) RETURNS TABLE(attempts integer)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+#variable_conflict use_column
+BEGIN
+  PERFORM 1 FROM public.email_challenges WHERE id = p_challenge_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  UPDATE public.email_challenges
+  SET attempts = attempts + 1
+  WHERE id = p_challenge_id
+  RETURNING public.email_challenges.attempts::integer;
+END
 $$;
 
 
@@ -988,16 +1733,59 @@ $$;
 
 
 --
--- Name: email_auth_update_email_challenge_attempts(uuid, integer); Type: FUNCTION; Schema: app; Owner: -
+-- Name: email_auth_register_email_otp_lockout(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.email_auth_update_email_challenge_attempts(p_challenge_id uuid, p_attempts integer) RETURNS void
+CREATE FUNCTION app.email_auth_register_email_otp_lockout(p_user_id uuid) RETURNS TABLE(locked_until bigint)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+#variable_conflict use_column
+BEGIN
+  -- Escalating delay that doubles per cycle, capped (NIST SP 800-63B §5.2.2 / OWASP Authentication
+  -- Cheat Sheet, cited in full at the top of this migration and in otpConstants.ts):
+  -- 120 * 2^cycle seconds, where `cycle` is the row's value BEFORE this statement (an UPDATE's SET
+  -- clause in Postgres always reads the pre-update row, and the INSERT branch below starts from the
+  -- equivalent of cycle=0). So a brand-new lockout is 120s (2 min); the next escalation for the SAME
+  -- user is 240s (4 min), then 480, then 960, and the 5th escalation onward is capped at 1800s
+  -- (30 min) -- must stay numerically identical to otpConstants.ts:nextOtpLockoutDurationSeconds.
+  -- The exponent is capped at 10 before exponentiating purely so a long-uncapped cycle counter can
+  -- never approach bigint range; it never changes the resulting (already-capped) duration.
+  -- ON CONFLICT is Postgres's own serialization point for two concurrent escalations against the
+  -- same user_id -- see pgEmailOtpLockAtomicEscalation.devDb.integration.test.ts.
+  RETURN QUERY
+  INSERT INTO public.email_otp_locks (user_id, lockout_cycle, locked_until)
+  VALUES (p_user_id, 1, extract(epoch FROM clock_timestamp())::bigint + 120)
+  ON CONFLICT (user_id) DO UPDATE SET
+    lockout_cycle = email_otp_locks.lockout_cycle + 1,
+    locked_until = extract(epoch FROM clock_timestamp())::bigint
+      + LEAST(1800, (120 * power(2, LEAST(email_otp_locks.lockout_cycle, 10)))::bigint)
+  RETURNING email_otp_locks.locked_until;
+END
+$$;
+
+
+--
+-- Name: email_auth_reset_email_otp_lockout(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.email_auth_reset_email_otp_lockout(p_user_id uuid) RETURNS void
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
-  UPDATE public.email_challenges
-  SET attempts = p_attempts
-  WHERE id = p_challenge_id
+  DELETE FROM public.email_otp_locks WHERE user_id = p_user_id
+$$;
+
+
+--
+-- Name: email_auth_set_email_challenge_purpose(uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.email_auth_set_email_challenge_purpose(p_challenge_id uuid, p_purpose text) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  UPDATE public.email_challenges SET purpose = p_purpose WHERE id = p_challenge_id
 $$;
 
 
@@ -1029,6 +1817,134 @@ CREATE FUNCTION app.email_auth_verify_user_email(p_user_id uuid, p_email text) R
       email_verified_at = now(),
       updated_at = now()
   WHERE id = p_user_id
+$$;
+
+
+--
+-- Name: email_otp_public_consume_latest_challenge(text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.email_otp_public_consume_latest_challenge(p_email_normalized text, p_code_hash text) RETURNS TABLE(ok boolean, code text, user_id uuid, retry_after_seconds integer)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+#variable_conflict use_column
+DECLARE
+  v_email_normalized text := lower(btrim(p_email_normalized));
+  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+  v_challenge public.email_challenges%ROWTYPE;
+  v_latest_challenge_id uuid;
+  v_target_user public.platform_users%ROWTYPE;
+  v_conflict_user_id uuid;
+  v_next_attempts integer;
+  -- C-2 step 4 (0249): the three purposes that legitimately share this one anonymous confirm
+  -- engine. See 0249's header for the residual login-vs-clinic_invite gap this does NOT close.
+  v_allowed_purposes CONSTANT text[] := ARRAY['login', 'public_registration', 'clinic_invite'];
+BEGIN
+  IF v_email_normalized = '' THEN
+    RETURN QUERY SELECT false, 'expired_code'::text, NULL::uuid, NULL::integer;
+    RETURN;
+  END IF;
+  IF p_code_hash IS NULL OR btrim(p_code_hash) = '' THEN
+    RETURN QUERY SELECT false, 'invalid_code'::text, NULL::uuid, NULL::integer;
+    RETURN;
+  END IF;
+
+  PERFORM 1
+  FROM public.platform_users AS candidate
+  WHERE candidate.id IN (
+    SELECT challenge.user_id
+    FROM public.email_challenges AS challenge
+    WHERE challenge.email = v_email_normalized
+  )
+  ORDER BY candidate.id
+  FOR UPDATE;
+
+  LOOP
+    SELECT challenge.*
+    INTO v_challenge
+    FROM public.email_challenges AS challenge
+    WHERE challenge.email = v_email_normalized
+    ORDER BY challenge.created_at DESC, challenge.id DESC
+    LIMIT 1
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT false, 'expired_code'::text, NULL::uuid, NULL::integer;
+      RETURN;
+    END IF;
+
+    SELECT challenge.id
+    INTO v_latest_challenge_id
+    FROM public.email_challenges AS challenge
+    WHERE challenge.email = v_email_normalized
+    ORDER BY challenge.created_at DESC, challenge.id DESC
+    LIMIT 1;
+    EXIT WHEN v_latest_challenge_id = v_challenge.id;
+  END LOOP;
+
+  SELECT platform_user.*
+  INTO v_target_user
+  FROM public.platform_users AS platform_user
+  WHERE platform_user.id = v_challenge.user_id
+  FOR UPDATE;
+
+  IF NOT FOUND OR v_target_user.merged_into_id IS NOT NULL THEN
+    DELETE FROM public.email_challenges WHERE id = v_challenge.id;
+    RETURN QUERY SELECT false, 'email_conflict'::text, NULL::uuid, NULL::integer;
+    RETURN;
+  END IF;
+  IF v_challenge.expires_at <= v_now_sec THEN
+    DELETE FROM public.email_challenges WHERE id = v_challenge.id;
+    RETURN QUERY SELECT false, 'expired_code'::text, NULL::uuid, NULL::integer;
+    RETURN;
+  END IF;
+  IF v_challenge.attempts >= 5 THEN
+    DELETE FROM public.email_challenges WHERE id = v_challenge.id;
+    RETURN QUERY SELECT false, 'too_many_attempts'::text, NULL::uuid, 600;
+    RETURN;
+  END IF;
+  -- C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): a purpose mismatch is folded into the
+  -- EXACT SAME branch as a wrong code hash -- same attempts increment, same result, same shape
+  -- (ASVS 6.3.8 uniform response). NULL purpose (pre-migration rows) is grandfathered in.
+  IF v_challenge.code_hash <> p_code_hash
+     OR NOT (v_challenge.purpose IS NULL OR v_challenge.purpose = ANY(v_allowed_purposes))
+  THEN
+    UPDATE public.email_challenges
+    SET attempts = attempts + 1
+    WHERE id = v_challenge.id
+    RETURNING attempts::integer INTO v_next_attempts;
+    IF v_next_attempts >= 5 THEN
+      DELETE FROM public.email_challenges WHERE id = v_challenge.id;
+      RETURN QUERY SELECT false, 'too_many_attempts'::text, NULL::uuid, 600;
+      RETURN;
+    END IF;
+    RETURN QUERY SELECT false, 'invalid_code'::text, NULL::uuid, NULL::integer;
+    RETURN;
+  END IF;
+
+  SELECT conflict.id
+  INTO v_conflict_user_id
+  FROM public.platform_users AS conflict
+  WHERE conflict.email_normalized = v_email_normalized
+    AND conflict.merged_into_id IS NULL
+    AND conflict.id <> v_target_user.id
+  ORDER BY conflict.id
+  LIMIT 1;
+  IF FOUND THEN
+    DELETE FROM public.email_challenges WHERE user_id = v_target_user.id;
+    RETURN QUERY SELECT false, 'email_conflict'::text, NULL::uuid, NULL::integer;
+    RETURN;
+  END IF;
+
+  UPDATE public.platform_users
+  SET email = v_email_normalized,
+      email_normalized = v_email_normalized,
+      email_verified_at = clock_timestamp()
+  WHERE id = v_target_user.id;
+  DELETE FROM public.email_challenges WHERE user_id = v_target_user.id;
+  RETURN QUERY SELECT true, NULL::text, v_target_user.id, NULL::integer;
+END
 $$;
 
 
@@ -1539,17 +2455,26 @@ $$;
 -- Name: get_latest_specialist_signup_intent_for_user(); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.get_latest_specialist_signup_intent_for_user() RETURNS TABLE(id uuid, user_id uuid, challenge_id uuid, email_normalized text, organization_title text, specialist_full_name text, status text, provisioned_organization_id uuid, provisioned_specialist_id uuid, provisioned_membership_id uuid)
+CREATE FUNCTION app.get_latest_specialist_signup_intent_for_user() RETURNS TABLE(id uuid, user_id uuid, challenge_id uuid, email_normalized text, organization_title text, organization_slug text, specialist_full_name text, status text, provisioned_organization_id uuid, provisioned_specialist_id uuid, provisioned_membership_id uuid)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
-	SELECT i.id, i.user_id, i.challenge_id, i.email_normalized, i.organization_title,
-	       i.specialist_full_name, i.status, i.provisioned_organization_id,
-	       i.provisioned_specialist_id, i.provisioned_membership_id
-	FROM public.specialist_signup_intents i
-	WHERE i.user_id = app.require_staff_security_self_user_id()
-	ORDER BY i.created_at DESC
-	LIMIT 1
+  SELECT
+    intent.id,
+    intent.user_id,
+    intent.challenge_id,
+    intent.email_normalized,
+    intent.organization_title,
+    intent.organization_slug,
+    intent.specialist_full_name,
+    intent.status,
+    intent.provisioned_organization_id,
+    intent.provisioned_specialist_id,
+    intent.provisioned_membership_id
+  FROM public.specialist_signup_intents AS intent
+  WHERE intent.user_id = app.require_staff_security_self_user_id()
+  ORDER BY intent.created_at DESC
+  LIMIT 1
 $$;
 
 
@@ -1557,7 +2482,7 @@ $$;
 -- Name: get_pending_specialist_signup_intent(uuid, uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.get_pending_specialist_signup_intent(p_user_id uuid, p_challenge_id uuid) RETURNS TABLE(id uuid, user_id uuid, challenge_id uuid, email_normalized text, organization_title text, specialist_full_name text, status text, provisioned_organization_id uuid, provisioned_specialist_id uuid, provisioned_membership_id uuid)
+CREATE FUNCTION app.get_pending_specialist_signup_intent(p_user_id uuid, p_challenge_id uuid) RETURNS TABLE(id uuid, user_id uuid, challenge_id uuid, email_normalized text, organization_title text, organization_slug text, specialist_full_name text, status text, provisioned_organization_id uuid, provisioned_specialist_id uuid, provisioned_membership_id uuid)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
@@ -1567,6 +2492,7 @@ CREATE FUNCTION app.get_pending_specialist_signup_intent(p_user_id uuid, p_chall
     i.challenge_id,
     i.email_normalized,
     i.organization_title,
+    i.organization_slug,
     i.specialist_full_name,
     i.status,
     i.provisioned_organization_id,
@@ -1643,7 +2569,7 @@ $$;
 -- Name: get_specialist_signup_intent_by_challenge(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.get_specialist_signup_intent_by_challenge(p_challenge_id uuid) RETURNS TABLE(id uuid, user_id uuid, challenge_id uuid, email_normalized text, organization_title text, specialist_full_name text, status text, provisioned_organization_id uuid, provisioned_specialist_id uuid, provisioned_membership_id uuid)
+CREATE FUNCTION app.get_specialist_signup_intent_by_challenge(p_challenge_id uuid) RETURNS TABLE(id uuid, user_id uuid, challenge_id uuid, email_normalized text, organization_title text, organization_slug text, specialist_full_name text, status text, provisioned_organization_id uuid, provisioned_specialist_id uuid, provisioned_membership_id uuid)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
@@ -1653,6 +2579,7 @@ CREATE FUNCTION app.get_specialist_signup_intent_by_challenge(p_challenge_id uui
     i.challenge_id,
     i.email_normalized,
     i.organization_title,
+    i.organization_slug,
     i.specialist_full_name,
     i.status,
     i.provisioned_organization_id,
@@ -1738,6 +2665,93 @@ $$;
 
 
 --
+-- Name: guard_org_brand_revision(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.guard_org_brand_revision() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status <> 'draft' THEN
+      RAISE EXCEPTION 'org_brand_revision_must_be_created_as_draft';
+    END IF;
+  ELSE
+    -- FK-DRIVEN LOGO DEGRADATION (audit HIGH 2, 2026-07-25). `logo_media_id … ON DELETE SET NULL`
+    -- makes PostgreSQL issue `UPDATE ONLY public.org_brand_revisions SET logo_media_id = NULL` when a
+    -- referenced public.media_files row is deleted, and that UPDATE fires this trigger. Without this
+    -- branch it raised P0001 on every published/archived row, which broke the media purge worker
+    -- (s3MediaStorage.purgePendingMediaDeleteBatch tolerates only SQLSTATE class 23 and had already
+    -- deleted the S3 objects) and made the documented §10 degradation "brand invalid asset ->
+    -- platform fallback + safe org text" unreachable.
+    -- The tolerance is DELIBERATELY the narrowest possible: the ONLY accepted change is
+    -- logo_media_id going non-NULL -> NULL. `to_jsonb(NEW) - 'logo_media_id'` vs
+    -- `to_jsonb(OLD) - 'logo_media_id'` compares EVERY OTHER column (including status, display_name,
+    -- the actor trail, published_at/archived_at and updated_at) whole-row, so it stays correct when a
+    -- column is added later. Consequences kept intact: setting a NEW logo on a published/archived row
+    -- is still rejected (NEW.logo_media_id would not be NULL), clearing the logo together with any
+    -- other edit is still rejected, and updated_at is intentionally NOT re-stamped so exactly one
+    -- column of an immutable row ever changes.
+    -- `pg_trigger_depth() > 1` restricts the tolerance to a CASCADED write: the referential-action
+    -- UPDATE runs inside the RI trigger of the public.media_files DELETE, so it always sees depth >= 2,
+    -- while a statement issued directly by app_staff sees depth = 1. Without it the branch was a direct
+    -- write hole: `UPDATE org_brand_revisions SET logo_media_id = NULL WHERE id = ...` succeeded on
+    -- published and archived rows, changing the live branded surface and rewriting the append-only audit
+    -- row with no trace (updated_at is deliberately not re-stamped) -- contradicting this file's own
+    -- "published -> archived and NOTHING else" / "archived -> immutable forever" contract and
+    -- BRANDING_DOMAIN_CONTRACT invariant 3.8.
+    IF TG_OP = 'UPDATE'
+       AND pg_trigger_depth() > 1
+       AND OLD.status IN ('published', 'archived')
+       AND OLD.logo_media_id IS NOT NULL
+       AND NEW.logo_media_id IS NULL
+       AND to_jsonb(NEW) - 'logo_media_id' = to_jsonb(OLD) - 'logo_media_id' THEN
+      RETURN NEW;
+    END IF;
+
+    IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+      RAISE EXCEPTION 'org_brand_revision_organization_is_immutable';
+    END IF;
+    IF NEW.created_by_platform_user_id IS DISTINCT FROM OLD.created_by_platform_user_id THEN
+      RAISE EXCEPTION 'org_brand_revision_author_is_immutable';
+    END IF;
+    IF OLD.status = 'archived' THEN
+      RAISE EXCEPTION 'org_brand_revision_archived_is_immutable';
+    END IF;
+    IF OLD.status = 'published' THEN
+      IF NEW.status <> 'archived' THEN
+        RAISE EXCEPTION 'org_brand_revision_published_only_archives';
+      END IF;
+      IF NEW.display_name IS DISTINCT FROM OLD.display_name
+         OR NEW.logo_media_id IS DISTINCT FROM OLD.logo_media_id
+         OR NEW.published_at IS DISTINCT FROM OLD.published_at
+         OR NEW.published_by_platform_user_id IS DISTINCT FROM OLD.published_by_platform_user_id THEN
+        RAISE EXCEPTION 'org_brand_revision_published_content_is_immutable';
+      END IF;
+    ELSIF NEW.status NOT IN ('draft', 'published') THEN
+      RAISE EXCEPTION 'org_brand_revision_draft_transition_not_allowed';
+    END IF;
+  END IF;
+
+  IF NEW.logo_media_id IS NOT NULL THEN
+    PERFORM 1
+    FROM public.media_files AS logo
+    WHERE logo.id = NEW.logo_media_id
+      AND logo.owner_kind = 'organization'
+      AND logo.organization_id = NEW.organization_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'org_brand_logo_media_must_be_owned_by_organization';
+    END IF;
+  END IF;
+
+  NEW.updated_at := now();
+  RETURN NEW;
+END
+$$;
+
+
+--
 -- Name: guard_organization_slug_claim_mutation(); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -1749,14 +2763,19 @@ BEGIN
   IF TG_OP = 'DELETE' AND OLD.kind IN ('current', 'alias') THEN
     RAISE EXCEPTION 'durable organization slug claims cannot be deleted';
   END IF;
-  IF TG_OP = 'UPDATE' AND OLD.kind = 'alias' THEN
-    RAISE EXCEPTION 'organization slug aliases are immutable';
-  END IF;
-  IF TG_OP = 'UPDATE' AND OLD.kind = 'current' AND (
+  IF TG_OP = 'UPDATE' AND OLD.kind = 'alias' AND (
     NEW.kind <> 'current'
+    OR NEW.slug IS DISTINCT FROM OLD.slug
     OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
   ) THEN
-    RAISE EXCEPTION 'current organization slug target is immutable';
+    RAISE EXCEPTION 'organization slug aliases are immutable outside same-organization reclaim';
+  END IF;
+  IF TG_OP = 'UPDATE' AND OLD.kind = 'current' AND (
+    NEW.kind NOT IN ('current', 'alias')
+    OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+    OR (NEW.kind = 'alias' AND NEW.slug IS DISTINCT FROM OLD.slug)
+  ) THEN
+    RAISE EXCEPTION 'current organization slug target is immutable outside same-organization reclaim';
   END IF;
   IF TG_OP = 'UPDATE' AND OLD.kind = 'reservation' AND NEW.kind NOT IN ('reservation', 'current') THEN
     RAISE EXCEPTION 'invalid organization slug reservation transition';
@@ -1985,6 +3004,107 @@ $$;
 
 
 --
+-- Name: is_organization_slug_available(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.is_organization_slug_available(p_slug text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT NOT EXISTS (
+    SELECT 1
+    FROM public.organization_slug_claims AS claim
+    WHERE lower(claim.slug) = lower(p_slug)
+  )
+$$;
+
+
+--
+-- Name: is_platform_registration_analytics_user_excluded(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.is_platform_registration_analytics_user_excluded(p_user_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT CASE
+    WHEN p_user_id IS NULL THEN false
+    ELSE EXISTS (
+      SELECT 1
+      FROM public.platform_users AS platform_user
+      WHERE platform_user.id = p_user_id
+        AND (
+          platform_user.role::text IN ('admin', 'doctor')
+          OR platform_user.phone_normalized = '+70000000000'
+          OR EXISTS (
+            SELECT 1
+            FROM public.system_settings AS setting
+            CROSS JOIN LATERAL jsonb_array_elements_text(
+              CASE
+                WHEN jsonb_typeof(setting.value_json->'value'->'phones') = 'array'
+                  THEN setting.value_json->'value'->'phones'
+                ELSE '[]'::jsonb
+              END
+            ) AS configured_phone(value)
+            WHERE setting.key = 'test_account_identifiers'
+              AND setting.scope = 'admin'
+              AND setting.organization_id IS NULL
+              AND configured_phone.value = platform_user.phone_normalized
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM public.user_channel_bindings AS binding
+            JOIN public.system_settings AS setting
+              ON setting.key = 'test_account_identifiers'
+             AND setting.scope = 'admin'
+             AND setting.organization_id IS NULL
+            CROSS JOIN LATERAL jsonb_array_elements_text(
+              CASE
+                WHEN binding.channel_code = 'telegram'
+                  AND jsonb_typeof(setting.value_json->'value'->'telegramIds') = 'array'
+                  THEN setting.value_json->'value'->'telegramIds'
+                WHEN binding.channel_code = 'max'
+                  AND jsonb_typeof(setting.value_json->'value'->'maxIds') = 'array'
+                  THEN setting.value_json->'value'->'maxIds'
+                ELSE '[]'::jsonb
+              END
+            ) AS configured_external_id(value)
+            WHERE binding.user_id = platform_user.id
+              AND configured_external_id.value = binding.external_id
+          )
+        )
+    )
+  END
+$$;
+
+
+--
+-- Name: is_smtp_outbound_configured(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.is_smtp_outbound_configured() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT COALESCE(
+    (
+      SELECT
+        NULLIF(btrim(setting.value_json #>> '{value,host}'), '') IS NOT NULL
+        AND NULLIF(btrim(setting.value_json #>> '{value,user}'), '') IS NOT NULL
+        AND NULLIF(btrim(setting.value_json #>> '{value,password}'), '') IS NOT NULL
+        AND NULLIF(btrim(setting.value_json #>> '{value,from}'), '') IS NOT NULL
+      FROM public.system_settings AS setting
+      WHERE setting.key = 'smtp_outbound'
+        AND setting.scope = 'admin'
+        AND setting.organization_id IS NULL
+      LIMIT 1
+    ),
+    false
+  )
+$$;
+
+
+--
 -- Name: is_staff(); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -1993,6 +3113,109 @@ CREATE FUNCTION app.is_staff() RETURNS boolean
     AS $$
   SELECT current_user = 'app_staff'
     OR pg_has_role(current_user, 'app_staff', 'member')
+$$;
+
+
+--
+-- Name: list_platform_organization_members(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.list_platform_organization_members(p_organization_id uuid) RETURNS TABLE(membership_id uuid, organization_id uuid, platform_user_id uuid, membership_role text, specialist_id uuid, membership_status text, created_at timestamp with time zone, updated_at timestamp with time zone, display_name text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT
+    membership.id,
+    membership.organization_id,
+    membership.platform_user_id,
+    membership.role,
+    membership.specialist_id,
+    membership.status,
+    membership.created_at,
+    membership.updated_at,
+    NULLIF(btrim(platform_user.display_name), '')
+  FROM public.be_organization_members AS membership
+  INNER JOIN public.platform_users AS platform_user
+    ON platform_user.id = membership.platform_user_id
+  WHERE membership.organization_id = p_organization_id
+  ORDER BY membership.created_at, membership.platform_user_id
+$$;
+
+
+--
+-- Name: list_scheduler_reminder_organization_ids(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.list_scheduler_reminder_organization_ids() RETURNS SETOF uuid
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM integrator.user_reminder_occurrences AS occurrence
+    JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    WHERE occurrence.status IN ('planned', 'queued')
+      AND occurrence.organization_id IS NOT NULL
+      AND rule.organization_id IS NOT NULL
+      AND occurrence.organization_id <> rule.organization_id
+  ) THEN
+    RAISE EXCEPTION 'scheduler reminder work contains conflicting organization ownership'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM integrator.user_reminder_rules AS rule
+    WHERE rule.is_enabled = true
+      AND rule.organization_id IS NULL
+  ) OR EXISTS (
+    SELECT 1
+    FROM integrator.user_reminder_occurrences AS occurrence
+    LEFT JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    WHERE occurrence.status IN ('planned', 'queued')
+      AND COALESCE(occurrence.organization_id, rule.organization_id) IS NULL
+  ) THEN
+    RAISE EXCEPTION 'scheduler reminder work contains rows without organization ownership'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN QUERY
+  SELECT candidate.organization_id
+  FROM (
+    SELECT rule.organization_id
+    FROM integrator.user_reminder_rules AS rule
+    WHERE rule.is_enabled = true
+      AND rule.organization_id IS NOT NULL
+    UNION
+    SELECT COALESCE(occurrence.organization_id, rule.organization_id) AS organization_id
+    FROM integrator.user_reminder_occurrences AS occurrence
+    LEFT JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    WHERE occurrence.status IN ('planned', 'queued')
+      AND COALESCE(occurrence.organization_id, rule.organization_id) IS NOT NULL
+  ) AS candidate
+  ORDER BY candidate.organization_id;
+END
+$$;
+
+
+--
+-- Name: list_web_push_reminder_organization_ids(timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.list_web_push_reminder_organization_ids(p_now timestamp with time zone) RETURNS TABLE(organization_id uuid)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  SELECT DISTINCT rr.organization_id
+  FROM public.reminder_rules rr
+  JOIN public.platform_users pu ON pu.id = rr.platform_user_id
+  WHERE rr.integrator_user_id IS NULL
+    AND rr.platform_user_id IS NOT NULL
+    AND rr.organization_id IS NOT NULL
+    AND rr.is_enabled = true
+    AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= p_now)
+  ORDER BY rr.organization_id
 $$;
 
 
@@ -2125,6 +3348,1392 @@ $$;
 
 
 --
+-- Name: mark_operator_incident_alert_sent(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.mark_operator_incident_alert_sent(p_incident_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  UPDATE public.operator_incidents AS incident
+  SET alert_sent_at = COALESCE(incident.alert_sent_at, clock_timestamp())
+  WHERE incident.id = p_incident_id;
+  RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: operator_incident_alert_already_sent(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.operator_incident_alert_already_sent(p_incident_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.operator_incidents AS incident
+    WHERE incident.id = p_incident_id
+      AND incident.alert_sent_at IS NOT NULL
+  )
+$$;
+
+
+--
+-- Name: passkey_complete_authentication(uuid, text, bigint, bigint, text, boolean); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_complete_authentication(p_challenge_id uuid, p_credential_id text, p_previous_counter bigint, p_new_counter bigint, p_device_type text, p_backed_up boolean) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_user_id uuid;
+BEGIN
+  UPDATE public.user_passkey_challenges AS challenge
+  SET consumed_at = statement_timestamp()
+  WHERE challenge.id = p_challenge_id
+    AND challenge.purpose = 'authentication'
+    AND challenge.consumed_at IS NULL
+    AND challenge.expires_at >= statement_timestamp();
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
+  UPDATE public.user_passkey_credentials AS credential
+  SET counter = p_new_counter,
+      device_type = p_device_type,
+      backed_up = p_backed_up,
+      last_used_at = statement_timestamp()
+  WHERE credential.credential_id = p_credential_id
+    AND credential.counter = p_previous_counter
+  RETURNING credential.user_id INTO v_user_id;
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'passkey_credential_state_changed';
+  END IF;
+  RETURN v_user_id;
+END
+$$;
+
+
+--
+-- Name: passkey_complete_registration(uuid, uuid, text, text, bigint, jsonb, text, boolean); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_complete_registration(p_challenge_id uuid, p_user_id uuid, p_credential_id text, p_public_key text, p_counter bigint, p_transports jsonb, p_device_type text, p_backed_up boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_user_id uuid := app.current_patient_user_id();
+BEGIN
+  IF v_user_id IS NULL
+    OR p_user_id IS DISTINCT FROM v_user_id
+    OR p_credential_id !~ '^[A-Za-z0-9_-]{16,1024}$'
+    OR p_public_key !~ '^[A-Za-z0-9_-]{16,8192}$'
+    OR p_counter < 0
+    OR jsonb_typeof(p_transports) <> 'array'
+    OR p_device_type NOT IN ('singleDevice', 'multiDevice')
+  THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.user_passkey_challenges AS challenge
+  SET consumed_at = statement_timestamp()
+  WHERE challenge.id = p_challenge_id
+    AND challenge.purpose = 'registration'
+    AND challenge.user_id = v_user_id
+    AND challenge.consumed_at IS NULL
+    AND challenge.expires_at >= statement_timestamp();
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO public.user_passkey_credentials (
+    credential_id,
+    user_id,
+    public_key,
+    counter,
+    transports,
+    device_type,
+    backed_up
+  )
+  VALUES (
+    p_credential_id,
+    v_user_id,
+    p_public_key,
+    p_counter,
+    p_transports,
+    p_device_type,
+    p_backed_up
+  );
+  RETURN true;
+EXCEPTION
+  WHEN unique_violation THEN
+    RETURN false;
+END
+$_$;
+
+
+--
+-- Name: passkey_delete_current_credential(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_delete_current_credential(p_credential_id text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  DELETE FROM public.user_passkey_credentials AS credential
+  WHERE credential.credential_id = p_credential_id
+    AND credential.user_id = app.current_patient_user_id();
+  RETURN FOUND;
+END
+$$;
+
+
+--
+-- Name: passkey_get_or_create_account(uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_get_or_create_account(p_user_id uuid, p_candidate_handle text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_user_id uuid := app.current_patient_user_id();
+  v_handle text;
+BEGIN
+  IF v_user_id IS NULL
+    OR p_user_id IS DISTINCT FROM v_user_id
+    OR p_candidate_handle !~ '^[A-Za-z0-9_-]{43}$'
+  THEN
+    RAISE EXCEPTION 'passkey_patient_principal_required';
+  END IF;
+
+  INSERT INTO public.user_passkey_accounts (user_id, user_handle)
+  VALUES (v_user_id, p_candidate_handle)
+  ON CONFLICT (user_id) DO NOTHING;
+
+  SELECT account.user_handle
+  INTO v_handle
+  FROM public.user_passkey_accounts AS account
+  WHERE account.user_id = v_user_id;
+  RETURN v_handle;
+END
+$_$;
+
+
+--
+-- Name: passkey_issue_challenge(uuid, text, uuid, text, text, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_issue_challenge(p_id uuid, p_purpose text, p_user_id uuid, p_challenge text, p_expected_origin text, p_rp_id text, p_expires_at timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+  IF p_id IS NULL
+    OR p_purpose NOT IN ('registration', 'authentication')
+    OR p_challenge !~ '^[A-Za-z0-9_-]{32,1024}$'
+    OR p_expected_origin IS NULL
+    OR p_rp_id IS NULL
+    OR p_expires_at <= statement_timestamp()
+    OR p_expires_at > statement_timestamp() + interval '10 minutes'
+    OR (
+      p_purpose = 'registration'
+      AND (
+        p_user_id IS NULL
+        OR p_user_id IS DISTINCT FROM app.current_patient_user_id()
+      )
+    )
+    OR (p_purpose = 'authentication' AND p_user_id IS NOT NULL)
+  THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM public.user_passkey_challenges
+  WHERE expires_at < statement_timestamp() - interval '1 day';
+
+  INSERT INTO public.user_passkey_challenges (
+    id,
+    purpose,
+    user_id,
+    challenge,
+    expected_origin,
+    rp_id,
+    expires_at
+  )
+  VALUES (
+    p_id,
+    p_purpose,
+    p_user_id,
+    p_challenge,
+    p_expected_origin,
+    p_rp_id,
+    p_expires_at
+  );
+  RETURN true;
+END
+$_$;
+
+
+--
+-- Name: passkey_list_current_credentials(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_list_current_credentials() RETURNS TABLE(credential_id text, transports jsonb, device_type text, backed_up boolean, created_at timestamp with time zone, last_used_at timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT
+    credential.credential_id,
+    credential.transports,
+    credential.device_type,
+    credential.backed_up,
+    credential.created_at,
+    credential.last_used_at
+  FROM public.user_passkey_credentials AS credential
+  WHERE credential.user_id = app.current_patient_user_id()
+  ORDER BY credential.created_at DESC
+$$;
+
+
+--
+-- Name: passkey_list_current_exclusions(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_list_current_exclusions() RETURNS TABLE(credential_id text, transports jsonb)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT credential.credential_id, credential.transports
+  FROM public.user_passkey_credentials AS credential
+  WHERE credential.user_id = app.current_patient_user_id()
+$$;
+
+
+--
+-- Name: passkey_read_challenge(uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_read_challenge(p_id uuid, p_purpose text) RETURNS TABLE(user_id uuid, challenge text, expected_origin text, rp_id text, expires_at timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT
+    stored.user_id,
+    stored.challenge,
+    stored.expected_origin,
+    stored.rp_id,
+    stored.expires_at
+  FROM public.user_passkey_challenges AS stored
+  WHERE stored.id = p_id
+    AND stored.purpose = p_purpose
+    AND stored.consumed_at IS NULL
+    AND stored.expires_at >= statement_timestamp()
+$$;
+
+
+--
+-- Name: passkey_read_credential(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.passkey_read_credential(p_credential_id text) RETURNS TABLE(credential_id text, user_id uuid, user_handle text, public_key text, counter bigint, transports jsonb, device_type text, backed_up boolean)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+  SELECT
+    credential.credential_id,
+    credential.user_id,
+    account.user_handle,
+    credential.public_key,
+    credential.counter,
+    credential.transports,
+    credential.device_type,
+    credential.backed_up
+  FROM public.user_passkey_credentials AS credential
+  JOIN public.user_passkey_accounts AS account ON account.user_id = credential.user_id
+  WHERE p_credential_id ~ '^[A-Za-z0-9_-]{16,1024}$'
+    AND credential.credential_id = p_credential_id
+  LIMIT 1
+$_$;
+
+
+--
+-- Name: password_credentials_replace_self(text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.password_credentials_replace_self(p_email_normalized text, p_password_hash text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_user_id uuid := app.require_staff_security_self_user_id();
+  v_identifier_key text;
+BEGIN
+  SELECT 'password-email:v1:' || encode(app_ext.digest(users.email_normalized, 'sha256'), 'hex')
+  INTO v_identifier_key
+  FROM public.platform_users AS users
+  WHERE users.id = v_user_id
+    AND users.email_normalized = p_email_normalized
+    AND users.merged_into_id IS NULL;
+
+  IF v_identifier_key IS NULL THEN
+    RETURN false;
+  END IF;
+
+  -- Keep the same identifier-first order used by acquire/complete.
+  INSERT INTO public.password_login_identifier_protection (identifier_key)
+  VALUES (v_identifier_key)
+  ON CONFLICT (identifier_key) DO NOTHING;
+
+  PERFORM 1
+  FROM public.password_login_identifier_protection AS state
+  WHERE state.identifier_key = v_identifier_key
+  FOR UPDATE;
+
+  UPDATE public.user_password_credentials AS credentials
+  SET password_hash = p_password_hash,
+      failed_attempts = 0,
+      next_allowed_at = NULL,
+      locked_until = NULL,
+      verification_lease_token = NULL,
+      verification_lease_until = NULL,
+      updated_at = statement_timestamp()
+  WHERE credentials.user_id = v_user_id;
+
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.password_login_identifier_protection AS state
+  SET failed_attempts = 0,
+      next_allowed_at = NULL,
+      locked_until = NULL,
+      verification_lease_token = NULL,
+      verification_lease_until = NULL,
+      leased_user_id = NULL,
+      updated_at = statement_timestamp()
+  WHERE state.identifier_key = v_identifier_key;
+  RETURN true;
+END
+$$;
+
+
+--
+-- Name: password_credentials_upsert_self(text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.password_credentials_upsert_self(p_email_normalized text, p_password_hash text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_user_id uuid := app.require_staff_security_self_user_id();
+  v_identifier_key text;
+BEGIN
+  SELECT 'password-email:v1:' || encode(app_ext.digest(users.email_normalized, 'sha256'), 'hex')
+  INTO v_identifier_key
+  FROM public.platform_users AS users
+  WHERE users.id = v_user_id
+    AND users.email_normalized = p_email_normalized
+    AND users.merged_into_id IS NULL;
+
+  IF v_identifier_key IS NULL THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO public.password_login_identifier_protection (identifier_key)
+  VALUES (v_identifier_key)
+  ON CONFLICT (identifier_key) DO NOTHING;
+
+  PERFORM 1
+  FROM public.password_login_identifier_protection AS state
+  WHERE state.identifier_key = v_identifier_key
+  FOR UPDATE;
+
+  INSERT INTO public.user_password_credentials (
+    user_id,
+    password_hash,
+    failed_attempts,
+    next_allowed_at,
+    locked_until,
+    verification_lease_token,
+    verification_lease_until,
+    updated_at
+  )
+  VALUES (
+    v_user_id,
+    p_password_hash,
+    0,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    statement_timestamp()
+  )
+  ON CONFLICT (user_id) DO UPDATE
+  SET password_hash = EXCLUDED.password_hash,
+      failed_attempts = 0,
+      next_allowed_at = NULL,
+      locked_until = NULL,
+      verification_lease_token = NULL,
+      verification_lease_until = NULL,
+      updated_at = statement_timestamp();
+
+  UPDATE public.password_login_identifier_protection AS state
+  SET failed_attempts = 0,
+      next_allowed_at = NULL,
+      locked_until = NULL,
+      verification_lease_token = NULL,
+      verification_lease_until = NULL,
+      leased_user_id = NULL,
+      updated_at = statement_timestamp()
+  WHERE state.identifier_key = v_identifier_key;
+  RETURN true;
+END
+$$;
+
+
+--
+-- Name: password_login_acquire(text, text, uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.password_login_acquire(p_email_normalized text, p_identifier_key text, p_altcha_challenge_id uuid DEFAULT NULL::uuid, p_altcha_challenge_digest text DEFAULT NULL::text) RETURNS TABLE(status text, lease_token uuid, password_hash text, user_id uuid, email_verified boolean, retry_after_seconds integer, captcha_required boolean)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_now timestamptz := statement_timestamp();
+  v_identifier public.password_login_identifier_protection%ROWTYPE;
+  v_credential public.user_password_credentials%ROWTYPE;
+  v_user_id uuid;
+  v_email_verified boolean;
+  v_attempts integer;
+  v_locked_until timestamptz;
+  v_next_allowed_at timestamptz;
+  v_lease_until timestamptz;
+  v_challenge public.password_altcha_challenges%ROWTYPE;
+  v_expected_identifier_key text;
+BEGIN
+  IF p_email_normalized IS NULL
+    OR length(p_email_normalized) NOT BETWEEN 3 AND 320
+    OR lower(btrim(p_email_normalized)) IS DISTINCT FROM p_email_normalized
+    OR p_email_normalized !~ '^[^[:space:]@]+@[^[:space:]@]+$'
+    OR p_identifier_key IS NULL
+    OR length(p_identifier_key) <> 82
+    OR p_identifier_key !~ '^password-email:v1:[0-9a-f]{64}$'
+  THEN
+    RETURN QUERY SELECT 'invalid'::text, NULL::uuid, NULL::text, NULL::uuid, false, 0, false;
+    RETURN;
+  END IF;
+
+  v_expected_identifier_key :=
+    'password-email:v1:' || encode(app_ext.digest(p_email_normalized, 'sha256'), 'hex');
+  IF p_identifier_key IS DISTINCT FROM v_expected_identifier_key THEN
+    RETURN QUERY SELECT 'invalid'::text, NULL::uuid, NULL::text, NULL::uuid, false, 0, false;
+    RETURN;
+  END IF;
+
+  -- Public identifiers are attacker-controlled. One concurrent caller performs two bounded,
+  -- skip-locked retention batches; challenges survive through expiry and active protection state
+  -- is never pruned.
+  IF pg_try_advisory_xact_lock(
+    hashtextextended('password_login_retention_v1', 0)
+  ) THEN
+    WITH expired AS (
+      SELECT challenge.ctid
+      FROM public.password_altcha_challenges AS challenge
+      WHERE challenge.expires_at <= v_now
+      ORDER BY challenge.expires_at
+      LIMIT 100
+      FOR UPDATE SKIP LOCKED
+    )
+    DELETE FROM public.password_altcha_challenges AS challenge
+    USING expired
+    WHERE challenge.ctid = expired.ctid;
+
+    WITH stale AS (
+      SELECT state.ctid
+      FROM public.password_login_identifier_protection AS state
+      WHERE state.updated_at < v_now - interval '30 days'
+        AND (state.next_allowed_at IS NULL OR state.next_allowed_at <= v_now)
+        AND (state.locked_until IS NULL OR state.locked_until <= v_now)
+        AND (state.verification_lease_until IS NULL OR state.verification_lease_until <= v_now)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.password_altcha_challenges AS challenge
+          WHERE challenge.identifier_key = state.identifier_key
+            AND challenge.expires_at > v_now
+        )
+      ORDER BY state.updated_at
+      LIMIT 100
+      FOR UPDATE SKIP LOCKED
+    )
+    DELETE FROM public.password_login_identifier_protection AS state
+    USING stale
+    WHERE state.ctid = stale.ctid;
+  END IF;
+
+  INSERT INTO public.password_login_identifier_protection (identifier_key)
+  VALUES (p_identifier_key)
+  ON CONFLICT (identifier_key) DO NOTHING;
+
+  -- Identifier is always locked first; complete/reset use the same order.
+  SELECT state.*
+  INTO v_identifier
+  FROM public.password_login_identifier_protection AS state
+  WHERE state.identifier_key = p_identifier_key
+  FOR UPDATE;
+
+  SELECT credentials.user_id, users.email_verified_at IS NOT NULL
+  INTO v_user_id, v_email_verified
+  FROM public.platform_users AS users
+  JOIN public.user_password_credentials AS credentials ON credentials.user_id = users.id
+  WHERE users.email_normalized = p_email_normalized
+    AND users.merged_into_id IS NULL
+  LIMIT 1;
+
+  IF v_user_id IS NOT NULL THEN
+    SELECT credentials.*
+    INTO v_credential
+    FROM public.user_password_credentials AS credentials
+    WHERE credentials.user_id = v_user_id
+    FOR UPDATE;
+  END IF;
+
+  IF v_identifier.locked_until IS NOT NULL AND v_identifier.locked_until <= v_now THEN
+    UPDATE public.password_login_identifier_protection AS state
+    SET failed_attempts = 0,
+        next_allowed_at = NULL,
+        locked_until = NULL,
+        verification_lease_token = NULL,
+        verification_lease_until = NULL,
+        leased_user_id = NULL,
+        updated_at = v_now
+    WHERE state.identifier_key = p_identifier_key;
+    v_identifier.failed_attempts := 0;
+    v_identifier.next_allowed_at := NULL;
+    v_identifier.locked_until := NULL;
+    v_identifier.verification_lease_token := NULL;
+    v_identifier.verification_lease_until := NULL;
+  END IF;
+
+  IF v_user_id IS NOT NULL
+    AND v_credential.locked_until IS NOT NULL
+    AND v_credential.locked_until <= v_now
+  THEN
+    UPDATE public.user_password_credentials AS credentials
+    SET failed_attempts = 0,
+        next_allowed_at = NULL,
+        locked_until = NULL,
+        verification_lease_token = NULL,
+        verification_lease_until = NULL
+    WHERE credentials.user_id = v_user_id;
+    v_credential.failed_attempts := 0;
+    v_credential.next_allowed_at := NULL;
+    v_credential.locked_until := NULL;
+    v_credential.verification_lease_token := NULL;
+    v_credential.verification_lease_until := NULL;
+  END IF;
+
+  v_attempts := greatest(
+    v_identifier.failed_attempts,
+    coalesce(v_credential.failed_attempts, 0)
+  );
+  v_locked_until := greatest(v_identifier.locked_until, v_credential.locked_until);
+  v_next_allowed_at := greatest(v_identifier.next_allowed_at, v_credential.next_allowed_at);
+  v_lease_until := greatest(
+    v_identifier.verification_lease_until,
+    v_credential.verification_lease_until
+  );
+
+  IF v_locked_until IS NOT NULL AND v_locked_until > v_now THEN
+    RETURN QUERY SELECT
+      'locked'::text,
+      NULL::uuid,
+      NULL::text,
+      NULL::uuid,
+      false,
+      greatest(1, ceil(extract(epoch FROM v_locked_until - v_now))::integer),
+      true;
+    RETURN;
+  END IF;
+
+  IF v_next_allowed_at IS NOT NULL AND v_next_allowed_at > v_now THEN
+    RETURN QUERY SELECT
+      'cooldown'::text,
+      NULL::uuid,
+      NULL::text,
+      NULL::uuid,
+      false,
+      greatest(1, ceil(extract(epoch FROM v_next_allowed_at - v_now))::integer),
+      v_attempts >= 5;
+    RETURN;
+  END IF;
+
+  IF v_lease_until IS NOT NULL AND v_lease_until > v_now THEN
+    RETURN QUERY SELECT 'busy'::text, NULL::uuid, NULL::text, NULL::uuid, false, 1, v_attempts >= 5;
+    RETURN;
+  END IF;
+
+  IF v_attempts >= 5 THEN
+    IF p_altcha_challenge_id IS NULL OR p_altcha_challenge_digest IS NULL THEN
+      RETURN QUERY SELECT 'challenge_required'::text, NULL::uuid, NULL::text, NULL::uuid, false, 0, true;
+      RETURN;
+    END IF;
+
+    SELECT challenge.*
+    INTO v_challenge
+    FROM public.password_altcha_challenges AS challenge
+    WHERE challenge.challenge_id = p_altcha_challenge_id
+    FOR UPDATE;
+
+    IF NOT FOUND
+      OR v_challenge.identifier_key IS DISTINCT FROM p_identifier_key
+      OR v_challenge.purpose IS DISTINCT FROM 'password_login'
+      OR v_challenge.challenge_digest IS DISTINCT FROM p_altcha_challenge_digest
+      OR v_challenge.expires_at <= v_now
+      OR v_challenge.consumed_at IS NOT NULL
+    THEN
+      RETURN QUERY SELECT 'challenge_required'::text, NULL::uuid, NULL::text, NULL::uuid, false, 0, true;
+      RETURN;
+    END IF;
+
+    UPDATE public.password_altcha_challenges AS challenge
+    SET consumed_at = v_now
+    WHERE challenge.challenge_id = p_altcha_challenge_id;
+  END IF;
+
+  lease_token := gen_random_uuid();
+  v_lease_until := v_now + interval '30 seconds';
+
+  UPDATE public.password_login_identifier_protection AS state
+  SET verification_lease_token = lease_token,
+      verification_lease_until = v_lease_until,
+      leased_user_id = v_user_id,
+      updated_at = v_now
+  WHERE state.identifier_key = p_identifier_key;
+
+  IF v_user_id IS NOT NULL THEN
+    UPDATE public.user_password_credentials AS credentials
+    SET verification_lease_token = lease_token,
+        verification_lease_until = v_lease_until
+    WHERE credentials.user_id = v_user_id;
+  END IF;
+
+  RETURN QUERY SELECT
+    'acquired'::text,
+    lease_token,
+    coalesce(v_credential.password_hash, NULL::text),
+    v_user_id,
+    coalesce(v_email_verified, false),
+    0,
+    v_attempts >= 5;
+END
+$_$;
+
+
+--
+-- Name: password_login_complete(uuid, boolean); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.password_login_complete(p_lease_token uuid, p_password_verified boolean) RETURNS TABLE(accepted boolean, succeeded boolean, user_id uuid, email_verified boolean, attempts integer, retry_after_seconds integer, captcha_required boolean)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_now timestamptz := statement_timestamp();
+  v_identifier public.password_login_identifier_protection%ROWTYPE;
+  v_credential public.user_password_credentials%ROWTYPE;
+  v_email_verified boolean := false;
+  v_attempts integer;
+  v_next_allowed_at timestamptz;
+  v_locked_until timestamptz;
+BEGIN
+  SELECT state.*
+  INTO v_identifier
+  FROM public.password_login_identifier_protection AS state
+  WHERE state.verification_lease_token = p_lease_token
+  FOR UPDATE;
+
+  IF NOT FOUND
+    OR v_identifier.verification_lease_until IS NULL
+    OR v_identifier.verification_lease_until <= v_now
+  THEN
+    RETURN QUERY SELECT false, false, NULL::uuid, false, 0, 0, false;
+    RETURN;
+  END IF;
+
+  IF v_identifier.leased_user_id IS NOT NULL THEN
+    SELECT credentials.*
+    INTO v_credential
+    FROM public.user_password_credentials AS credentials
+    WHERE credentials.user_id = v_identifier.leased_user_id
+    FOR UPDATE;
+
+    IF NOT FOUND
+      OR v_credential.verification_lease_token IS DISTINCT FROM p_lease_token
+      OR v_credential.verification_lease_until IS NULL
+      OR v_credential.verification_lease_until <= v_now
+    THEN
+      RETURN QUERY SELECT false, false, NULL::uuid, false, 0, 0, false;
+      RETURN;
+    END IF;
+
+    SELECT users.email_verified_at IS NOT NULL
+    INTO v_email_verified
+    FROM public.platform_users AS users
+    WHERE users.id = v_identifier.leased_user_id
+      AND users.merged_into_id IS NULL;
+  END IF;
+
+  IF p_password_verified AND v_identifier.leased_user_id IS NOT NULL THEN
+    UPDATE public.password_login_identifier_protection AS state
+    SET failed_attempts = 0,
+        next_allowed_at = NULL,
+        locked_until = NULL,
+        verification_lease_token = NULL,
+        verification_lease_until = NULL,
+        leased_user_id = NULL,
+        updated_at = v_now
+    WHERE state.identifier_key = v_identifier.identifier_key;
+
+    UPDATE public.user_password_credentials AS credentials
+    SET failed_attempts = 0,
+        next_allowed_at = NULL,
+        locked_until = NULL,
+        verification_lease_token = NULL,
+        verification_lease_until = NULL
+    WHERE credentials.user_id = v_identifier.leased_user_id;
+
+    RETURN QUERY SELECT
+      true,
+      true,
+      v_identifier.leased_user_id,
+      coalesce(v_email_verified, false),
+      0,
+      0,
+      false;
+    RETURN;
+  END IF;
+
+  v_attempts := greatest(
+    v_identifier.failed_attempts,
+    coalesce(v_credential.failed_attempts, 0)
+  ) + 1;
+  v_next_allowed_at := CASE
+    WHEN v_attempts BETWEEN 5 AND 9
+      THEN v_now + make_interval(secs => (30 * power(2, v_attempts - 5))::double precision)
+    ELSE NULL
+  END;
+  v_locked_until := CASE
+    WHEN v_attempts >= 10 THEN v_now + interval '15 minutes'
+    ELSE NULL
+  END;
+
+  UPDATE public.password_login_identifier_protection AS state
+  SET failed_attempts = least(v_attempts, 10),
+      next_allowed_at = v_next_allowed_at,
+      locked_until = v_locked_until,
+      verification_lease_token = NULL,
+      verification_lease_until = NULL,
+      leased_user_id = NULL,
+      updated_at = v_now
+  WHERE state.identifier_key = v_identifier.identifier_key;
+
+  IF v_identifier.leased_user_id IS NOT NULL THEN
+    UPDATE public.user_password_credentials AS credentials
+    SET failed_attempts = least(v_attempts, 10),
+        next_allowed_at = v_next_allowed_at,
+        locked_until = v_locked_until,
+        verification_lease_token = NULL,
+        verification_lease_until = NULL
+    WHERE credentials.user_id = v_identifier.leased_user_id;
+  END IF;
+
+  RETURN QUERY SELECT
+    true,
+    false,
+    NULL::uuid,
+    false,
+    least(v_attempts, 10),
+    CASE
+      WHEN v_locked_until IS NOT NULL THEN 900
+      WHEN v_next_allowed_at IS NOT NULL
+        THEN greatest(1, ceil(extract(epoch FROM v_next_allowed_at - v_now))::integer)
+      ELSE 0
+    END,
+    v_attempts >= 5;
+END
+$$;
+
+
+--
+-- Name: password_login_issue_altcha_challenge(text, uuid, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.password_login_issue_altcha_challenge(p_email_normalized text, p_challenge_id uuid, p_challenge_digest text, p_expires_at timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  v_state public.password_login_identifier_protection%ROWTYPE;
+  v_now timestamptz := statement_timestamp();
+  v_live_count integer;
+  v_identifier_key text;
+  v_account_attempts integer := 0;
+  v_account_locked_until timestamptz;
+BEGIN
+  IF p_email_normalized IS NULL
+    OR length(p_email_normalized) NOT BETWEEN 3 AND 320
+    OR lower(btrim(p_email_normalized)) IS DISTINCT FROM p_email_normalized
+    OR p_email_normalized !~ '^[^[:space:]@]+@[^[:space:]@]+$'
+    OR p_challenge_id IS NULL
+    OR p_challenge_digest IS NULL
+    OR p_challenge_digest !~ '^[0-9a-f]{64}$'
+    OR p_expires_at IS NULL
+    OR p_expires_at <= v_now
+    OR p_expires_at > v_now + interval '10 minutes'
+  THEN
+    RETURN false;
+  END IF;
+
+  v_identifier_key :=
+    'password-email:v1:' || encode(app_ext.digest(p_email_normalized, 'sha256'), 'hex');
+
+  INSERT INTO public.password_login_identifier_protection (identifier_key)
+  VALUES (v_identifier_key)
+  ON CONFLICT (identifier_key) DO NOTHING;
+
+  SELECT state.*
+  INTO v_state
+  FROM public.password_login_identifier_protection AS state
+  WHERE state.identifier_key = v_identifier_key
+  FOR UPDATE;
+
+  SELECT credentials.failed_attempts, credentials.locked_until
+  INTO v_account_attempts, v_account_locked_until
+  FROM public.platform_users AS users
+  JOIN public.user_password_credentials AS credentials ON credentials.user_id = users.id
+  WHERE users.email_normalized = p_email_normalized
+    AND users.merged_into_id IS NULL
+  LIMIT 1
+  FOR UPDATE OF credentials;
+
+  IF (v_state.locked_until IS NOT NULL AND v_state.locked_until > v_now)
+    OR (v_account_locked_until IS NOT NULL AND v_account_locked_until > v_now)
+  THEN
+    RETURN false;
+  END IF;
+  IF greatest(v_state.failed_attempts, coalesce(v_account_attempts, 0)) < 5 THEN
+    RETURN false;
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_live_count
+  FROM public.password_altcha_challenges AS challenge
+  WHERE challenge.identifier_key = v_identifier_key
+    AND challenge.consumed_at IS NULL
+    AND challenge.expires_at > v_now;
+
+  IF v_live_count >= 3 THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO public.password_altcha_challenges (
+    challenge_id,
+    identifier_key,
+    purpose,
+    challenge_digest,
+    expires_at
+  )
+  VALUES (
+    p_challenge_id,
+    v_identifier_key,
+    'password_login',
+    p_challenge_digest,
+    p_expires_at
+  );
+
+  RETURN true;
+END
+$_$;
+
+
+--
+-- Name: password_login_read_altcha_secret(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.password_login_read_altcha_secret() RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT NULLIF(settings.value_json ->> 'value', '')
+  FROM public.system_settings AS settings
+  WHERE settings.key = 'auth_altcha_hmac_secret'
+    AND settings.scope = 'admin'
+    AND settings.organization_id IS NULL
+  LIMIT 1
+$$;
+
+
+--
+-- Name: patient_skip_reminder_occurrence(uuid, text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.patient_skip_reminder_occurrence(p_platform_user_id uuid, p_integrator_occurrence_id text, p_reason text) RETURNS TABLE(skipped_at timestamp with time zone)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  UPDATE public.reminder_occurrence_history AS occurrence
+  SET skipped_at = COALESCE(occurrence.skipped_at, statement_timestamp()),
+      skip_reason = CASE
+        WHEN occurrence.skipped_at IS NULL THEN p_reason
+        ELSE occurrence.skip_reason
+      END
+  WHERE occurrence.integrator_occurrence_id = p_integrator_occurrence_id
+    AND app.current_patient_user_id() IS NOT NULL
+    AND p_platform_user_id = app.current_patient_user_id()
+    AND EXISTS (
+      SELECT 1
+      FROM public.platform_users AS patient
+      WHERE patient.integrator_user_id = occurrence.integrator_user_id
+        AND patient.id = app.current_patient_user_id()
+        AND patient.id = p_platform_user_id
+    )
+  RETURNING occurrence.skipped_at
+$$;
+
+
+--
+-- Name: patient_snooze_reminder_occurrence(uuid, text, integer); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.patient_snooze_reminder_occurrence(p_platform_user_id uuid, p_integrator_occurrence_id text, p_minutes integer) RETURNS TABLE(snoozed_until timestamp with time zone)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  UPDATE public.reminder_occurrence_history AS occurrence
+  SET snoozed_at = statement_timestamp(),
+      snoozed_until = statement_timestamp() + make_interval(mins => p_minutes)
+  WHERE occurrence.integrator_occurrence_id = p_integrator_occurrence_id
+    AND occurrence.skipped_at IS NULL
+    AND p_minutes BETWEEN 1 AND 720
+    AND app.current_patient_user_id() IS NOT NULL
+    AND p_platform_user_id = app.current_patient_user_id()
+    AND EXISTS (
+      SELECT 1
+      FROM public.platform_users AS patient
+      WHERE patient.integrator_user_id = occurrence.integrator_user_id
+        AND patient.id = app.current_patient_user_id()
+        AND patient.id = p_platform_user_id
+    )
+  RETURNING occurrence.snoozed_until
+$$;
+
+
+--
+-- Name: phone_auth_find_latest_challenge_created_at(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_auth_find_latest_challenge_created_at(p_phone text) RETURNS TABLE(max_created timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT max(challenge.created_at) AS max_created
+  FROM public.phone_challenges AS challenge
+  WHERE challenge.phone = p_phone
+$$;
+
+
+--
+-- Name: phone_auth_find_otp_lock(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_auth_find_otp_lock(p_phone text) RETURNS TABLE(locked_until bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT lock_row.locked_until
+  FROM public.phone_otp_locks AS lock_row
+  WHERE lock_row.phone_normalized = p_phone
+$$;
+
+
+--
+-- Name: phone_auth_register_otp_lockout(text, bigint); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_auth_register_otp_lockout(p_phone text, p_now_sec bigint) RETURNS TABLE(locked_until bigint)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  INSERT INTO public.phone_otp_locks (phone_normalized, lockout_cycle, locked_until)
+  VALUES (p_phone, 1, p_now_sec + 120)
+  ON CONFLICT (phone_normalized) DO UPDATE SET
+    lockout_cycle = phone_otp_locks.lockout_cycle + 1,
+    locked_until = p_now_sec + LEAST(1800, (120 * power(2, LEAST(phone_otp_locks.lockout_cycle, 10)))::bigint)
+  RETURNING phone_otp_locks.locked_until
+$$;
+
+
+--
+-- Name: phone_auth_reset_otp_lockout(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_auth_reset_otp_lockout(p_phone text) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  DELETE FROM public.phone_otp_locks AS lock_row
+  WHERE lock_row.phone_normalized = p_phone
+$$;
+
+
+--
+-- Name: phone_challenge_store_delete(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_challenge_store_delete(p_challenge_id text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_row_count integer;
+BEGIN
+  IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM public.phone_challenges AS challenge
+  WHERE challenge.challenge_id = p_challenge_id;
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count > 0;
+END
+$$;
+
+
+--
+-- Name: phone_challenge_store_delete_by_phone(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_challenge_store_delete_by_phone(p_phone text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_row_count integer;
+BEGIN
+  IF p_phone IS NULL OR btrim(p_phone) = '' THEN
+    RETURN 0;
+  END IF;
+
+  DELETE FROM public.phone_challenges AS challenge
+  WHERE challenge.phone = p_phone;
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count;
+END
+$$;
+
+
+--
+-- Name: phone_challenge_store_increment_attempts(text, bigint); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_challenge_store_increment_attempts(p_challenge_id text, p_now_sec bigint) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  UPDATE public.phone_challenges AS challenge
+  SET verify_attempts = challenge.verify_attempts + 1
+  WHERE challenge.challenge_id = p_challenge_id
+    AND challenge.expires_at > p_now_sec
+  RETURNING challenge.verify_attempts::integer
+$$;
+
+
+--
+-- Name: phone_challenge_store_read(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_challenge_store_read(p_challenge_id text) RETURNS TABLE(phone text, expires_at bigint, code text, channel_context jsonb, verify_attempts integer)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_challenge public.phone_challenges%ROWTYPE;
+  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+BEGIN
+  IF p_challenge_id IS NULL OR btrim(p_challenge_id) = '' THEN
+    RETURN;
+  END IF;
+
+  SELECT challenge.*
+  INTO v_challenge
+  FROM public.phone_challenges AS challenge
+  WHERE challenge.challenge_id = p_challenge_id;
+
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  IF v_challenge.expires_at <= v_now_sec THEN
+    DELETE FROM public.phone_challenges AS challenge
+    WHERE challenge.challenge_id = p_challenge_id;
+    RETURN;
+  END IF;
+
+  RETURN QUERY SELECT
+    v_challenge.phone,
+    v_challenge.expires_at,
+    v_challenge.code,
+    v_challenge.channel_context,
+    v_challenge.verify_attempts::integer;
+END
+$$;
+
+
+--
+-- Name: phone_challenge_store_upsert(text, text, bigint, text, jsonb, integer); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_challenge_store_upsert(p_challenge_id text, p_phone text, p_expires_at bigint, p_code text, p_channel_context jsonb, p_verify_attempts integer) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_row_count integer;
+BEGIN
+  IF p_challenge_id IS NULL OR btrim(p_challenge_id) = ''
+     OR p_phone IS NULL OR btrim(p_phone) = ''
+     OR p_expires_at IS NULL OR p_expires_at <= 0
+     OR p_verify_attempts IS NULL OR p_verify_attempts < 0
+  THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO public.phone_challenges AS challenge (
+    challenge_id,
+    phone,
+    expires_at,
+    code,
+    channel_context,
+    verify_attempts
+  )
+  VALUES (
+    p_challenge_id,
+    p_phone,
+    p_expires_at,
+    p_code,
+    p_channel_context,
+    p_verify_attempts
+  )
+  ON CONFLICT (challenge_id) DO UPDATE
+  SET phone = EXCLUDED.phone,
+      expires_at = EXCLUDED.expires_at,
+      code = EXCLUDED.code,
+      channel_context = EXCLUDED.channel_context,
+      verify_attempts = EXCLUDED.verify_attempts
+  -- An opaque challenge id is the bootstrap flow's bearer capability. A collision may refresh only
+  -- the same phone's row; it can never take over a challenge belonging to another phone.
+  WHERE challenge.phone = EXCLUDED.phone;
+
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN v_row_count = 1;
+END
+$$;
+
+
+--
+-- Name: phone_otp_public_booking_consume_challenge(text, text, integer, integer); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_otp_public_booking_consume_challenge(p_challenge_id text, p_code text, p_max_attempts integer, p_lock_duration_sec integer) RETURNS TABLE(ok boolean, intent jsonb, delivery_channel text, retry_after_seconds integer)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+#variable_conflict use_column
+DECLARE
+  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+  v_challenge public.phone_challenges%ROWTYPE;
+  v_intent jsonb;
+  v_next_attempts integer;
+BEGIN
+  IF p_challenge_id IS NULL OR btrim(p_challenge_id) = ''
+     OR p_code IS NULL OR btrim(p_code) = ''
+     OR p_max_attempts IS NULL OR p_max_attempts <= 0
+     OR p_lock_duration_sec IS NULL OR p_lock_duration_sec < 0
+  THEN
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer;
+    RETURN;
+  END IF;
+
+  -- Row lock first: verify, attempt-count and consume must not interleave with a second confirm
+  -- carrying the same code. This is what makes the replay rejection a property of the database
+  -- rather than of request ordering.
+  SELECT challenge.*
+  INTO v_challenge
+  FROM public.phone_challenges AS challenge
+  WHERE challenge.challenge_id = p_challenge_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer;
+    RETURN;
+  END IF;
+
+  IF v_challenge.expires_at <= v_now_sec THEN
+    DELETE FROM public.phone_challenges WHERE challenge_id = p_challenge_id;
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer;
+    RETURN;
+  END IF;
+
+  v_intent := v_challenge.channel_context -> 'publicBookingIntent';
+
+  -- Not a booking challenge. Fail WITHOUT touching it: consuming an attempt (or deleting the row)
+  -- for an arbitrary challenge id would let this endpoint burn down a login challenge belonging to
+  -- somebody else. `consumePublicBookingVerification` checks the intent before the code for the
+  -- same reason; the ordering is preserved here.
+  IF v_intent IS NULL OR jsonb_typeof(v_intent) <> 'object' THEN
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer;
+    RETURN;
+  END IF;
+
+  IF v_challenge.code IS NULL OR v_challenge.code <> p_code THEN
+    UPDATE public.phone_challenges
+    SET verify_attempts = verify_attempts + 1
+    WHERE challenge_id = p_challenge_id
+    RETURNING verify_attempts::integer INTO v_next_attempts;
+
+    IF v_next_attempts >= p_max_attempts THEN
+      DELETE FROM public.phone_challenges WHERE challenge_id = p_challenge_id;
+      INSERT INTO public.phone_otp_locks (phone_normalized, locked_until)
+      VALUES (v_challenge.phone, v_now_sec + p_lock_duration_sec)
+      ON CONFLICT (phone_normalized)
+      DO UPDATE SET locked_until = EXCLUDED.locked_until;
+      RETURN QUERY SELECT false, NULL::jsonb, NULL::text, p_lock_duration_sec;
+      RETURN;
+    END IF;
+
+    RETURN QUERY SELECT false, NULL::jsonb, NULL::text, NULL::integer;
+    RETURN;
+  END IF;
+
+  -- Single use: the challenge is spent in the same transaction that accepted the code.
+  DELETE FROM public.phone_challenges WHERE challenge_id = p_challenge_id;
+
+  RETURN QUERY SELECT
+    true,
+    v_intent,
+    v_challenge.channel_context ->> 'otpDelivery',
+    NULL::integer;
+END
+$$;
+
+
+--
+-- Name: phone_otp_public_booking_issue_challenge(text, text, text, integer, integer, text, jsonb); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.phone_otp_public_booking_issue_challenge(p_phone text, p_challenge_id text, p_code text, p_ttl_sec integer, p_resend_cooldown_sec integer, p_delivery_channel text, p_intent jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_now_sec bigint := extract(epoch FROM clock_timestamp())::bigint;
+  v_locked_until bigint;
+  v_last_created timestamptz;
+BEGIN
+  IF p_phone IS NULL OR btrim(p_phone) = ''
+     OR p_challenge_id IS NULL OR btrim(p_challenge_id) = ''
+     OR p_code IS NULL OR btrim(p_code) = ''
+     OR p_ttl_sec IS NULL OR p_ttl_sec <= 0
+     OR p_resend_cooldown_sec IS NULL OR p_resend_cooldown_sec < 0
+     OR p_delivery_channel IS NULL OR btrim(p_delivery_channel) = ''
+     OR p_intent IS NULL OR jsonb_typeof(p_intent) <> 'object'
+  THEN
+    RETURN false;
+  END IF;
+
+  -- Same housekeeping the app used to do with a bare DELETE: expired lockouts stop counting.
+  DELETE FROM public.phone_otp_locks WHERE locked_until <= v_now_sec;
+
+  -- Serialise concurrent issues for the SAME number on this row. Everything below — the cooldown
+  -- read and the insert that starts the next cooldown — is then one atomic decision.
+  SELECT lock_row.locked_until
+  INTO v_locked_until
+  FROM public.phone_otp_locks AS lock_row
+  WHERE lock_row.phone_normalized = p_phone
+  FOR UPDATE;
+
+  IF FOUND AND v_locked_until > v_now_sec THEN
+    RETURN false;
+  END IF;
+
+  SELECT max(challenge.created_at)
+  INTO v_last_created
+  FROM public.phone_challenges AS challenge
+  WHERE challenge.phone = p_phone;
+
+  IF v_last_created IS NOT NULL
+     AND extract(epoch FROM (clock_timestamp() - v_last_created)) < p_resend_cooldown_sec
+  THEN
+    RETURN false;
+  END IF;
+
+  -- One outstanding challenge per number, as `challengeStore.deleteByPhone` already enforced.
+  DELETE FROM public.phone_challenges WHERE phone = p_phone;
+
+  -- DO NOTHING, never DO UPDATE: an id that is somehow already taken must not be overwritten with
+  -- a new code and a new intent — that would be a challenge-hijack primitive if a caller could ever
+  -- influence the id. It cannot (the id is a server-minted 128-bit random in
+  -- `issuePublicBookingVerification`), so this branch is unreachable in practice; it is written as a
+  -- clean `false` rather than left to raise a unique-violation out of a SECURITY DEFINER function.
+  INSERT INTO public.phone_challenges (
+    challenge_id, phone, expires_at, code, channel_context, verify_attempts
+  )
+  VALUES (
+    p_challenge_id,
+    p_phone,
+    v_now_sec + p_ttl_sec,
+    p_code,
+    jsonb_build_object('otpDelivery', p_delivery_channel, 'publicBookingIntent', p_intent),
+    0
+  )
+  ON CONFLICT (challenge_id) DO NOTHING;
+
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  RETURN true;
+END
+$$;
+
+
+--
+-- Name: propagate_staff_session_version_to_session_epoch(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.propagate_staff_session_version_to_session_epoch() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+	UPDATE public.platform_users
+	SET session_epoch = session_epoch + 1, updated_at = now()
+	WHERE id = NEW.user_id;
+	RETURN NULL;
+END
+$$;
+
+
+--
 -- Name: provision_specialist_owner(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -2139,6 +4748,8 @@ DECLARE
   v_platform_user_id uuid;
   v_organization_id uuid;
   v_membership_id uuid;
+  v_specialist_id uuid;
+  v_unique_constraint_name text;
 BEGIN
   v_platform_user_id := app.require_staff_security_self_user_id();
 
@@ -2161,108 +4772,202 @@ BEGIN
     LIMIT 1
     FOR UPDATE;
 
-    IF FOUND
-      AND v_intent.provisioned_organization_id IS NOT NULL
-      AND v_intent.provisioned_membership_id IS NOT NULL THEN
-      RETURN QUERY SELECT
-        true,
-        NULL::text,
-        v_intent.provisioned_organization_id,
-        v_intent.provisioned_specialist_id,
-        v_intent.provisioned_membership_id;
+    IF NOT FOUND
+      OR v_intent.provisioned_organization_id IS NULL
+      OR v_intent.provisioned_membership_id IS NULL THEN
+      RETURN QUERY SELECT false, 'specialist_signup_intent_not_found'::text, NULL::uuid, NULL::uuid, NULL::uuid;
       RETURN;
     END IF;
 
-    RETURN QUERY SELECT false, 'specialist_signup_intent_not_found'::text, NULL::uuid, NULL::uuid, NULL::uuid;
-    RETURN;
+    -- Already provisioned: re-running stays idempotent. A pre-fix intent can still carry a NULL
+    -- provisioned_specialist_id (the exact dead-workspace defect this function now closes) --
+    -- fall through to the shared specialist-backfill block below instead of returning it bare.
+    v_organization_id := v_intent.provisioned_organization_id;
+    v_membership_id := v_intent.provisioned_membership_id;
+    v_specialist_id := v_intent.provisioned_specialist_id;
   END IF;
 
-  SELECT u.id
-  INTO v_user
-  FROM public.platform_users AS u
-  WHERE u.id = v_platform_user_id
-    AND u.merged_into_id IS NULL
-    AND u.email_verified_at IS NOT NULL
-  LIMIT 1
-  FOR UPDATE;
+  IF v_organization_id IS NULL THEN
+    SELECT u.id
+    INTO v_user
+    FROM public.platform_users AS u
+    WHERE u.id = v_platform_user_id
+      AND u.merged_into_id IS NULL
+      AND u.email_verified_at IS NOT NULL
+    LIMIT 1
+    FOR UPDATE;
 
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT false, 'specialist_signup_user_not_verified'::text, NULL::uuid, NULL::uuid, NULL::uuid;
-    RETURN;
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT false, 'specialist_signup_user_not_verified'::text, NULL::uuid, NULL::uuid, NULL::uuid;
+      RETURN;
+    END IF;
+
+    -- Pre-cutover intents can still carry no slug. Keep the established recovery code so confirm
+    -- asks for the address without consuming the still-valid e-mail challenge.
+    IF v_intent.organization_slug IS NULL THEN
+      RETURN QUERY SELECT false, 'specialist_signup_slug_reservation_not_found'::text, NULL::uuid, NULL::uuid, NULL::uuid;
+      RETURN;
+    END IF;
+
+    -- Lock the canonical identity before checking memberships so concurrent self-provision attempts
+    -- cannot both observe an empty membership set and create two owner organizations.
+    PERFORM 1
+    FROM public.be_organization_members AS m
+    WHERE m.platform_user_id = v_user.id
+      AND m.status = 'active'
+    LIMIT 1
+    FOR UPDATE;
+
+    IF FOUND THEN
+      RETURN QUERY SELECT false, 'specialist_signup_active_membership_exists'::text, NULL::uuid, NULL::uuid, NULL::uuid;
+      RETURN;
+    END IF;
+
+    UPDATE public.platform_users AS u
+    SET role = 'doctor',
+        display_name = v_intent.specialist_full_name,
+        updated_at = now()
+    WHERE u.id = v_user.id;
+
+    v_organization_id := gen_random_uuid();
+
+    -- The global UNIQUE(slug) index is the only ownership arbiter. The organization insert and its
+    -- current claim share a subtransaction: if another registration commits this slug first, the
+    -- losing provisional organization is rolled back before returning the stable public error.
+    BEGIN
+      INSERT INTO public.be_organizations (
+        id,
+        title,
+        is_active,
+        sort_order,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        v_organization_id,
+        v_intent.organization_title,
+        true,
+        0,
+        now(),
+        now()
+      );
+
+      INSERT INTO public.organization_slug_claims (
+        slug,
+        kind,
+        organization_id,
+        created_by_platform_user_id,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        lower(v_intent.organization_slug),
+        'current',
+        v_organization_id,
+        v_user.id,
+        now(),
+        now()
+      );
+    EXCEPTION
+      WHEN unique_violation THEN
+        GET STACKED DIAGNOSTICS v_unique_constraint_name = CONSTRAINT_NAME;
+        IF v_unique_constraint_name = 'uq_organization_slug_claims_slug' THEN
+          RETURN QUERY SELECT false, 'slug_unavailable'::text, NULL::uuid, NULL::uuid, NULL::uuid;
+          RETURN;
+        END IF;
+        RAISE;
+    END;
+
+    INSERT INTO public.clinic_public_directory_entries (
+      organization_id,
+      slug,
+      display_name,
+      is_published,
+      published_at,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      v_organization_id,
+      lower(v_intent.organization_slug),
+      v_intent.organization_title,
+      true,
+      now(),
+      now(),
+      now()
+    );
+
+    INSERT INTO public.be_organization_members (
+      organization_id,
+      platform_user_id,
+      role,
+      specialist_id,
+      status,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      v_organization_id,
+      v_user.id,
+      'owner',
+      NULL,
+      'active',
+      now(),
+      now()
+    )
+    RETURNING id INTO v_membership_id;
+
+    -- Narrow platform-owned capability derives this exact organization from the signed principal
+    -- and fresh owner membership. It updates commercial state and creates the trial in this same
+    -- transaction; any failure rolls the complete provisioning command back.
+    PERFORM app.start_provisioned_organization_trial();
+
+    -- Same SECURITY DEFINER transaction: the new organization is not observable without its own
+    -- independent catalog snapshot. The helper only inserts the current repo-managed baseline.
+    PERFORM app.seed_reference_catalog_snapshot(v_organization_id);
   END IF;
 
-  -- Lock the canonical identity before checking memberships so concurrent self-provision attempts
-  -- cannot both observe an empty membership set and create two owner organizations.
-  PERFORM 1
-  FROM public.be_organization_members AS m
-  WHERE m.platform_user_id = v_user.id
-    AND m.status = 'active'
-  LIMIT 1
-  FOR UPDATE;
+  -- Bind the registering person's own bookable specialist in the SAME transaction as the
+  -- organization/membership: a membership left with specialist_id NULL makes
+  -- resolveLaunchCapabilities() withhold clinical.workspace forever (owner-reported dead
+  -- workspace). Column set mirrors ensureOwnBookableSpecialist()'s identical invited-staff
+  -- backfill (pgOrganizationProvisioning.ts). Guarded on v_specialist_id IS NULL so re-running
+  -- provisioning for an already-provisioned intent never creates a second specialist.
+  IF v_specialist_id IS NULL THEN
+    INSERT INTO public.be_specialists (
+      organization_id,
+      full_name,
+      is_active,
+      sort_order,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      v_organization_id,
+      v_intent.specialist_full_name,
+      true,
+      0,
+      now(),
+      now()
+    )
+    RETURNING id INTO v_specialist_id;
 
-  IF FOUND THEN
-    RETURN QUERY SELECT false, 'specialist_signup_active_membership_exists'::text, NULL::uuid, NULL::uuid, NULL::uuid;
-    RETURN;
+    UPDATE public.be_organization_members
+    SET specialist_id = v_specialist_id,
+        updated_at = now()
+    WHERE id = v_membership_id
+      AND specialist_id IS NULL;
   END IF;
-
-  UPDATE public.platform_users AS u
-  SET role = 'doctor',
-      display_name = v_intent.specialist_full_name,
-      updated_at = now()
-  WHERE u.id = v_user.id;
-
-  v_organization_id := gen_random_uuid();
-
-  INSERT INTO public.be_organizations (
-    id,
-    title,
-    is_active,
-    sort_order,
-    created_at,
-    updated_at
-  )
-  VALUES (
-    v_organization_id,
-    v_intent.organization_title,
-    true,
-    0,
-    now(),
-    now()
-  );
-
-  INSERT INTO public.be_organization_members (
-    organization_id,
-    platform_user_id,
-    role,
-    specialist_id,
-    status,
-    created_at,
-    updated_at
-  )
-  VALUES (
-    v_organization_id,
-    v_user.id,
-    'owner',
-    NULL,
-    'active',
-    now(),
-    now()
-  )
-  RETURNING id INTO v_membership_id;
-
-  -- Same SECURITY DEFINER transaction: the new organization is not observable without its own
-  -- independent catalog snapshot. The helper only inserts the current repo-managed baseline.
-  PERFORM app.seed_reference_catalog_snapshot(v_organization_id);
 
   UPDATE public.specialist_signup_intents AS i
   SET status = 'provisioned',
       provisioned_organization_id = v_organization_id,
       provisioned_membership_id = v_membership_id,
-      provisioned_specialist_id = NULL,
+      provisioned_specialist_id = v_specialist_id,
       provisioned_at = now()
   WHERE i.id = v_intent.id;
 
-  RETURN QUERY SELECT true, NULL::text, v_organization_id, NULL::uuid, v_membership_id;
+  RETURN QUERY SELECT true, NULL::text, v_organization_id, v_specialist_id, v_membership_id;
 END
 $$;
 
@@ -2395,9 +5100,82 @@ $$;
 CREATE FUNCTION app.read_curated_system_health() RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
-    AS $_$
-WITH base AS MATERIALIZED (
-  SELECT app.read_curated_system_health_pre_0203() AS value
+    AS $$
+WITH media_preview AS MATERIALIZED (
+  SELECT jsonb_build_object(
+    'stalePendingCount', count(*) FILTER (
+      WHERE mime_type IN ('video/quicktime', 'image/heic', 'image/heif')
+        AND preview_status = 'pending'
+        AND created_at < now() - interval '30 minutes'
+    ),
+    'byMimeAndStatus', jsonb_build_object(
+      'video/quicktime', jsonb_build_object(
+        'pending', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'pending'),
+        'ready', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'ready'),
+        'failed', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'failed'),
+        'skipped', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'skipped')
+      ),
+      'image/heic', jsonb_build_object(
+        'pending', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'pending'),
+        'ready', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'ready'),
+        'failed', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'failed'),
+        'skipped', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'skipped')
+      ),
+      'image/heif', jsonb_build_object(
+        'pending', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'pending'),
+        'ready', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'ready'),
+        'failed', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'failed'),
+        'skipped', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'skipped')
+      )
+    )
+  ) AS value
+  FROM public.media_files
+),
+playback_client AS MATERIALIZED (
+  SELECT jsonb_build_object(
+    'windowHours', 24,
+    'totalErrors', count(*) FILTER (WHERE created_at >= now() - interval '24 hours'),
+    'totalErrorsLast1h', count(*) FILTER (WHERE created_at >= now() - interval '1 hour'),
+    'byEvent', jsonb_build_object(
+      'hls_fatal', count(*) FILTER (WHERE event_class = 'hls_fatal' AND created_at >= now() - interval '24 hours'),
+      'video_error', count(*) FILTER (WHERE event_class = 'video_error' AND created_at >= now() - interval '24 hours'),
+      'hls_import_failed', count(*) FILTER (WHERE event_class = 'hls_import_failed' AND created_at >= now() - interval '24 hours'),
+      'playback_refetch_failed', count(*) FILTER (WHERE event_class = 'playback_refetch_failed' AND created_at >= now() - interval '24 hours'),
+      'playback_refetch_exception', count(*) FILTER (WHERE event_class = 'playback_refetch_exception' AND created_at >= now() - interval '24 hours'),
+      'hls_js_unsupported', count(*) FILTER (WHERE event_class = 'hls_js_unsupported' AND created_at >= now() - interval '24 hours')
+    ),
+    'byEventLast1h', jsonb_build_object(
+      'hls_fatal', count(*) FILTER (WHERE event_class = 'hls_fatal' AND created_at >= now() - interval '1 hour'),
+      'video_error', count(*) FILTER (WHERE event_class = 'video_error' AND created_at >= now() - interval '1 hour'),
+      'hls_import_failed', count(*) FILTER (WHERE event_class = 'hls_import_failed' AND created_at >= now() - interval '1 hour'),
+      'playback_refetch_failed', count(*) FILTER (WHERE event_class = 'playback_refetch_failed' AND created_at >= now() - interval '1 hour'),
+      'playback_refetch_exception', count(*) FILTER (WHERE event_class = 'playback_refetch_exception' AND created_at >= now() - interval '1 hour'),
+      'hls_js_unsupported', count(*) FILTER (WHERE event_class = 'hls_js_unsupported' AND created_at >= now() - interval '1 hour')
+    ),
+    'byDelivery', jsonb_build_object(
+      'hls', count(*) FILTER (WHERE delivery = 'hls' AND created_at >= now() - interval '24 hours'),
+      'mp4', count(*) FILTER (WHERE delivery = 'mp4' AND created_at >= now() - interval '24 hours'),
+      'file', count(*) FILTER (WHERE delivery = 'file' AND created_at >= now() - interval '24 hours')
+    ),
+    'likelyLooping', EXISTS (
+      SELECT 1
+      FROM public.media_playback_client_events looping
+      WHERE looping.event_class = 'hls_fatal'
+        AND looping.created_at >= date_trunc('hour', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+      GROUP BY looping.media_id
+      HAVING count(*) >= 3
+    ),
+    'recent', '[]'::jsonb
+  ) AS value
+  FROM public.media_playback_client_events
+),
+base AS MATERIALIZED (
+  SELECT app.read_curated_system_health_pre_0196()
+    || jsonb_build_object(
+      'mediaPreview', media_preview.value,
+      'videoPlaybackClient', playback_client.value
+    ) AS value
+  FROM media_preview, playback_client
 ),
 channel_diagnostics AS MATERIALIZED (
   SELECT jsonb_object_agg(
@@ -2410,13 +5188,15 @@ channel_diagnostics AS MATERIALIZED (
           ELSE NULL
         END,
         'lastErrorReason', CASE
-          WHEN diagnostic.reason ~ '^provider_[a-z0-9_]{1,64}$'
-            THEN diagnostic.reason
+          WHEN diagnostic.reason = 'provider_error' THEN diagnostic.reason
           ELSE NULL
         END,
         'lastErrorMessage', CASE
-          WHEN diagnostic.error_message ~ '^[A-Za-z][A-Za-z0-9._-]{0,79}$'
-            THEN diagnostic.error_message
+          WHEN diagnostic.error_message IN (
+            'BadJwtToken', 'BadCertificate', 'BadCertificateEnvironment',
+            'ExpiredProviderToken', 'InvalidProviderToken', 'MissingProviderToken',
+            'TopicDisallowed', 'DeviceTokenNotForTopic', 'Unregistered'
+          ) THEN diagnostic.error_message
           ELSE NULL
         END
       )
@@ -2424,10 +5204,7 @@ channel_diagnostics AS MATERIALIZED (
   FROM base
   CROSS JOIN (VALUES ('telegram'), ('max'), ('web_push'), ('email')) AS channels(channel)
   LEFT JOIN LATERAL (
-    SELECT
-      attempt.provider_status_code,
-      attempt.reason,
-      attempt.error_message
+    SELECT attempt.provider_status_code, attempt.reason, attempt.error_message
     FROM public.notification_delivery_attempts AS attempt
     WHERE attempt.channel = channels.channel
       AND attempt.status IN ('failed', 'skipped')
@@ -2444,7 +5221,7 @@ SELECT jsonb_set(
   false
 )
 FROM base, channel_diagnostics
-$_$;
+$$;
 
 
 --
@@ -2567,7 +5344,7 @@ safe_jobs AS MATERIALIZED (
     jsonb_build_object(
       'jobKey', job_key,
       'jobFamily', job_family,
-      'lastStatus', last_status,
+      'lastStatus', CASE WHEN last_status IN ('success', 'failure') THEN last_status ELSE 'unknown' END,
       'lastFinishedAt', last_finished_at,
       'lastSuccessAt', last_success_at,
       'lastFailureAt', last_failure_at,
@@ -2791,91 +5568,6 @@ $_$;
 
 
 --
--- Name: read_curated_system_health_pre_0203(); Type: FUNCTION; Schema: app; Owner: -
---
-
-CREATE FUNCTION app.read_curated_system_health_pre_0203() RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'pg_catalog'
-    AS $$
-WITH media_preview AS MATERIALIZED (
-  SELECT jsonb_build_object(
-    'stalePendingCount', count(*) FILTER (
-      WHERE mime_type IN ('video/quicktime', 'image/heic', 'image/heif')
-        AND preview_status = 'pending'
-        AND created_at < now() - interval '30 minutes'
-    ),
-    'byMimeAndStatus', jsonb_build_object(
-      'video/quicktime', jsonb_build_object(
-        'pending', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'pending'),
-        'ready', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'ready'),
-        'failed', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'failed'),
-        'skipped', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'skipped')
-      ),
-      'image/heic', jsonb_build_object(
-        'pending', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'pending'),
-        'ready', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'ready'),
-        'failed', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'failed'),
-        'skipped', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'skipped')
-      ),
-      'image/heif', jsonb_build_object(
-        'pending', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'pending'),
-        'ready', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'ready'),
-        'failed', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'failed'),
-        'skipped', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'skipped')
-      )
-    )
-  ) AS value
-  FROM public.media_files
-),
-playback_client AS MATERIALIZED (
-  SELECT jsonb_build_object(
-    'windowHours', 24,
-    'totalErrors', count(*) FILTER (WHERE created_at >= now() - interval '24 hours'),
-    'totalErrorsLast1h', count(*) FILTER (WHERE created_at >= now() - interval '1 hour'),
-    'byEvent', jsonb_build_object(
-      'hls_fatal', count(*) FILTER (WHERE event_class = 'hls_fatal' AND created_at >= now() - interval '24 hours'),
-      'video_error', count(*) FILTER (WHERE event_class = 'video_error' AND created_at >= now() - interval '24 hours'),
-      'hls_import_failed', count(*) FILTER (WHERE event_class = 'hls_import_failed' AND created_at >= now() - interval '24 hours'),
-      'playback_refetch_failed', count(*) FILTER (WHERE event_class = 'playback_refetch_failed' AND created_at >= now() - interval '24 hours'),
-      'playback_refetch_exception', count(*) FILTER (WHERE event_class = 'playback_refetch_exception' AND created_at >= now() - interval '24 hours'),
-      'hls_js_unsupported', count(*) FILTER (WHERE event_class = 'hls_js_unsupported' AND created_at >= now() - interval '24 hours')
-    ),
-    'byEventLast1h', jsonb_build_object(
-      'hls_fatal', count(*) FILTER (WHERE event_class = 'hls_fatal' AND created_at >= now() - interval '1 hour'),
-      'video_error', count(*) FILTER (WHERE event_class = 'video_error' AND created_at >= now() - interval '1 hour'),
-      'hls_import_failed', count(*) FILTER (WHERE event_class = 'hls_import_failed' AND created_at >= now() - interval '1 hour'),
-      'playback_refetch_failed', count(*) FILTER (WHERE event_class = 'playback_refetch_failed' AND created_at >= now() - interval '1 hour'),
-      'playback_refetch_exception', count(*) FILTER (WHERE event_class = 'playback_refetch_exception' AND created_at >= now() - interval '1 hour'),
-      'hls_js_unsupported', count(*) FILTER (WHERE event_class = 'hls_js_unsupported' AND created_at >= now() - interval '1 hour')
-    ),
-    'byDelivery', jsonb_build_object(
-      'hls', count(*) FILTER (WHERE delivery = 'hls' AND created_at >= now() - interval '24 hours'),
-      'mp4', count(*) FILTER (WHERE delivery = 'mp4' AND created_at >= now() - interval '24 hours'),
-      'file', count(*) FILTER (WHERE delivery = 'file' AND created_at >= now() - interval '24 hours')
-    ),
-    'likelyLooping', EXISTS (
-      SELECT 1
-      FROM public.media_playback_client_events looping
-      WHERE looping.event_class = 'hls_fatal'
-        AND looping.created_at >= date_trunc('hour', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
-      GROUP BY looping.media_id
-      HAVING count(*) >= 3
-    ),
-    'recent', '[]'::jsonb
-  ) AS value
-  FROM public.media_playback_client_events
-)
-SELECT app.read_curated_system_health_pre_0196()
-  || jsonb_build_object(
-    'mediaPreview', media_preview.value,
-    'videoPlaybackClient', playback_client.value
-  )
-FROM media_preview, playback_client
-$$;
-
-
---
 -- Name: read_current_patient_active_organizations(); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -2965,95 +5657,6 @@ END
 $$;
 
 
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
---
--- Name: patient_bookings; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.patient_bookings (
-    id uuid NOT NULL,
-    platform_user_id uuid,
-    booking_type text NOT NULL,
-    city text,
-    category text NOT NULL,
-    slot_start timestamp with time zone NOT NULL,
-    slot_end timestamp with time zone NOT NULL,
-    status text NOT NULL,
-    cancelled_at timestamp with time zone,
-    cancel_reason text,
-    rubitime_id text,
-    gcal_event_id text,
-    contact_phone text NOT NULL,
-    contact_email text,
-    contact_name text NOT NULL,
-    reminder_24h_sent boolean DEFAULT false NOT NULL,
-    reminder_2h_sent boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    branch_id uuid,
-    service_id uuid,
-    branch_service_id uuid,
-    city_code_snapshot text,
-    branch_title_snapshot text,
-    service_title_snapshot text,
-    duration_minutes_snapshot integer,
-    price_minor_snapshot integer,
-    rubitime_branch_id_snapshot text,
-    rubitime_cooperator_id_snapshot text,
-    rubitime_service_id_snapshot text,
-    source text DEFAULT 'native'::text NOT NULL,
-    compat_quality text,
-    provenance_created_by text,
-    provenance_updated_by text,
-    rubitime_manage_url text,
-    canonical_appointment_id uuid,
-    CONSTRAINT patient_bookings_booking_type_check CHECK ((booking_type = ANY (ARRAY['in_person'::text, 'online'::text]))),
-    CONSTRAINT patient_bookings_category_check CHECK ((category = ANY (ARRAY['rehab_lfk'::text, 'nutrition'::text, 'general'::text]))),
-    CONSTRAINT patient_bookings_check CHECK ((slot_end > slot_start)),
-    CONSTRAINT patient_bookings_compat_quality_check CHECK ((compat_quality = ANY (ARRAY['full'::text, 'partial'::text, 'minimal'::text]))),
-    CONSTRAINT patient_bookings_platform_user_native_required CHECK (((source <> 'native'::text) OR (platform_user_id IS NOT NULL))),
-    CONSTRAINT patient_bookings_source_check CHECK ((source = ANY (ARRAY['native'::text, 'rubitime_projection'::text]))),
-    CONSTRAINT patient_bookings_status_check CHECK ((status = ANY (ARRAY['creating'::text, 'awaiting_payment'::text, 'confirmed'::text, 'cancelling'::text, 'cancel_failed'::text, 'cancelled'::text, 'rescheduled'::text, 'completed'::text, 'no_show'::text, 'failed_sync'::text])))
-);
-
-
---
--- Name: read_current_patient_booking_rows(); Type: FUNCTION; Schema: app; Owner: -
---
-
-CREATE FUNCTION app.read_current_patient_booking_rows() RETURNS SETOF public.patient_bookings
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'pg_catalog'
-    AS $$
-DECLARE
-  v_organization_id uuid := app.current_org_id();
-  v_patient_user_id uuid := app.current_patient_user_id();
-BEGIN
-  IF v_organization_id IS NULL OR v_patient_user_id IS NULL THEN
-    RETURN;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.org_enrollments AS enrollment
-    WHERE enrollment.organization_id = v_organization_id
-      AND enrollment.platform_user_id = v_patient_user_id
-      AND enrollment.status = 'active'
-  ) THEN
-    RETURN;
-  END IF;
-
-  RETURN QUERY
-  SELECT booking.*
-  FROM public.patient_bookings AS booking
-  WHERE booking.platform_user_id = v_patient_user_id;
-END
-$$;
-
-
 --
 -- Name: read_current_patient_booking_rows(text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
 --
@@ -3094,7 +5697,6 @@ BEGIN
       AND row.cancelled_at IS NULL
       AND row.status IN ('creating','awaiting_payment','confirmed','rescheduled','cancelling','cancel_failed')
       AND row.slot_start >= p_now
-      AND NOT (row.status = 'creating' AND row.rubitime_id IS NULL AND row.canonical_appointment_id IS NULL)
       AND NOT (
         row.status = 'creating' AND EXISTS (
           SELECT 1 FROM scoped newer
@@ -3115,26 +5717,71 @@ BEGIN
       CASE WHEN p_kind = 'history' THEN row.slot_start END DESC,
       row.created_at DESC
     LIMIT 100
+  ), enriched AS (
+    SELECT
+      row.*,
+      CASE
+        WHEN row.booking_type = 'in_person'
+          AND appointment.id IS NOT NULL
+          AND branch.id IS NOT NULL
+          AND service.id IS NOT NULL
+          AND branch.is_active = TRUE
+          AND service.is_active = TRUE
+          AND service.public_widget_visible = TRUE
+          AND service.admin_manual_only = FALSE
+          AND EXISTS (
+            SELECT 1
+            FROM public.be_specialist_service_availability availability
+            JOIN public.be_specialists specialist
+              ON specialist.id = availability.specialist_id
+             AND specialist.organization_id = availability.organization_id
+             AND specialist.is_active = TRUE
+            WHERE availability.organization_id = appointment.organization_id
+              AND availability.specialist_id = appointment.specialist_id
+              AND availability.branch_id = appointment.branch_id
+              AND availability.service_id = appointment.service_id
+              AND availability.is_active = TRUE
+          )
+        THEN jsonb_build_object(
+          'branchId', appointment.branch_id,
+          'serviceId', appointment.service_id,
+          'cityCode', branch.city_code,
+          'branchTitle', branch.title,
+          'serviceTitle', service.title,
+          'durationMinutes', appointment.duration_minutes,
+          'priceMinor', service.price_minor
+        )
+        ELSE NULL
+      END AS canonical_in_person_context
+    FROM selected row
+    LEFT JOIN public.be_appointments appointment
+      ON appointment.id = row.canonical_appointment_id
+     AND appointment.organization_id = v_org
+    LEFT JOIN public.be_branches branch
+      ON branch.id = appointment.branch_id
+     AND branch.organization_id = appointment.organization_id
+    LEFT JOIN public.be_clinic_services service
+      ON service.id = appointment.service_id
+     AND service.organization_id = appointment.organization_id
   )
   SELECT jsonb_build_object(
     'id', row.id, 'platform_user_id', row.platform_user_id, 'booking_type', row.booking_type,
     'city', row.city, 'category', row.category, 'slot_start', row.slot_start, 'slot_end', row.slot_end,
     'status', row.status, 'cancelled_at', row.cancelled_at, 'cancel_reason', row.cancel_reason,
-    'rubitime_id', row.rubitime_id, 'gcal_event_id', row.gcal_event_id,
+    'gcal_event_id', row.gcal_event_id,
     'contact_phone', row.contact_phone, 'contact_email', row.contact_email, 'contact_name', row.contact_name,
     'reminder_24h_sent', row.reminder_24h_sent, 'reminder_2h_sent', row.reminder_2h_sent,
     'created_at', row.created_at, 'updated_at', row.updated_at,
     'branch_id', row.branch_id, 'service_id', row.service_id, 'branch_service_id', row.branch_service_id,
     'city_code_snapshot', row.city_code_snapshot, 'branch_title_snapshot', row.branch_title_snapshot,
     'service_title_snapshot', row.service_title_snapshot, 'duration_minutes_snapshot', row.duration_minutes_snapshot,
-    'price_minor_snapshot', row.price_minor_snapshot, 'rubitime_branch_id_snapshot', row.rubitime_branch_id_snapshot,
-    'rubitime_cooperator_id_snapshot', row.rubitime_cooperator_id_snapshot,
-    'rubitime_service_id_snapshot', row.rubitime_service_id_snapshot, 'source', row.source,
+    'price_minor_snapshot', row.price_minor_snapshot, 'source', row.source,
     'compat_quality', row.compat_quality, 'provenance_created_by', row.provenance_created_by,
-    'provenance_updated_by', row.provenance_updated_by, 'rubitime_manage_url', row.rubitime_manage_url,
-    'canonical_appointment_id', row.canonical_appointment_id
+    'provenance_updated_by', row.provenance_updated_by,
+    'canonical_appointment_id', row.canonical_appointment_id,
+    'canonical_in_person_context', row.canonical_in_person_context
   )
-  FROM selected row;
+  FROM enriched row;
 END
 $$;
 
@@ -3143,36 +5790,92 @@ $$;
 -- Name: read_current_patient_organization_entitlements(); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.read_current_patient_organization_entitlements() RETURNS TABLE(tariff_mechanics jsonb, included_seats integer, override_mechanic text, override_enabled boolean, seat_limit_override integer)
+CREATE FUNCTION app.read_current_patient_organization_entitlements() RETURNS TABLE(tariff_mechanics jsonb, tariff_quotas jsonb, tariff_system_access_policy jsonb, tariff_mechanic_access_policies jsonb, included_seats integer, override_mechanic text, override_enabled boolean, override_quota jsonb, override_expires_at timestamp with time zone, seat_limit_override integer, lifecycle text, effective_tariff_id uuid, access_source text, degradation_started_at timestamp with time zone)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
   v_organization_id uuid := app.current_org_id();
   v_patient_user_id uuid := app.current_patient_user_id();
+  v_now timestamptz := statement_timestamp();
 BEGIN
   IF v_organization_id IS NULL OR v_patient_user_id IS NULL THEN
     RETURN;
   END IF;
 
   RETURN QUERY
+  WITH exact_context AS (
+    SELECT organization.id, organization.tariff_id, organization.commercial_access_state
+    FROM public.org_enrollments AS enrollment
+    INNER JOIN public.be_organizations AS organization
+      ON organization.id = enrollment.organization_id
+     AND organization.is_active = true
+    WHERE enrollment.organization_id = v_organization_id
+      AND enrollment.platform_user_id = v_patient_user_id
+      AND enrollment.status = 'active'
+  ), active_trial AS (
+    SELECT trial.*
+    FROM public.saas_organization_trials AS trial
+    INNER JOIN exact_context ON exact_context.id = trial.organization_id
+    WHERE trial.status = 'active'
+    LIMIT 1
+  ), paid_period AS (
+    -- §5a item 7.0. `expired` keeps its period on purpose: once a period lapses, dropping the anchor
+    -- would hand the organization full access back, which is the opposite of what non-payment means.
+    -- `pending_payment` and `cancelled` grant nothing, so they carry no anchor.
+    SELECT max(subscription.current_period_ends_at) AS period_ends_at
+    FROM public.saas_billing_subscriptions AS subscription
+    INNER JOIN exact_context ON exact_context.id = subscription.organization_id
+    WHERE subscription.status = ANY (ARRAY['active', 'expired'])
+      AND subscription.current_period_ends_at IS NOT NULL
+  ), effective AS (
+    SELECT
+      context.id AS organization_id,
+      CASE
+        WHEN trial.id IS NULL THEN context.tariff_id
+        WHEN v_now <= trial.grace_ends_at THEN trial.tariff_id
+        WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id
+        ELSE trial.tariff_id
+      END AS tariff_id,
+      CASE
+        WHEN trial.id IS NULL THEN 'active'
+        WHEN v_now <= trial.ends_at THEN 'active'
+        WHEN v_now <= trial.grace_ends_at THEN 'grace'
+        WHEN trial.post_trial_behavior = 'tariff' THEN 'active'
+        ELSE trial.post_trial_behavior
+      END AS lifecycle,
+      CASE
+        WHEN trial.id IS NULL AND context.commercial_access_state = 'compatibility' THEN 'compatibility'
+        WHEN trial.id IS NULL AND context.commercial_access_state = 'no_trial' THEN 'no_trial'
+        WHEN trial.id IS NULL THEN 'assignment'
+        WHEN v_now > trial.grace_ends_at AND trial.post_trial_behavior = 'tariff' THEN 'post_trial_tariff'
+        ELSE 'trial'
+      END AS access_source,
+      COALESCE(trial.ends_at, paid_period.period_ends_at) AS degradation_started_at
+    FROM exact_context AS context
+    LEFT JOIN active_trial AS trial ON true
+    LEFT JOIN paid_period ON true
+  )
   SELECT
     tariff.mechanics,
+    tariff.quotas,
+    tariff.system_access_policy,
+    tariff.mechanic_access_policies,
     tariff.included_seats,
     entitlement_override.mechanic,
     entitlement_override.enabled,
-    entitlement_override.seat_limit_override
-  FROM public.org_enrollments AS enrollment
-  INNER JOIN public.be_organizations AS organization
-    ON organization.id = enrollment.organization_id
-   AND organization.is_active = true
-  LEFT JOIN public.saas_tariffs AS tariff
-    ON tariff.id = organization.tariff_id
+    entitlement_override.quota,
+    entitlement_override.expires_at,
+    entitlement_override.seat_limit_override,
+    effective.lifecycle,
+    effective.tariff_id,
+    effective.access_source,
+    effective.degradation_started_at
+  FROM effective
+  LEFT JOIN public.saas_tariffs AS tariff ON tariff.id = effective.tariff_id
   LEFT JOIN public.saas_org_entitlement_overrides AS entitlement_override
-    ON entitlement_override.organization_id = organization.id
-  WHERE enrollment.organization_id = v_organization_id
-    AND enrollment.platform_user_id = v_patient_user_id
-    AND enrollment.status = 'active'
+    ON entitlement_override.organization_id = effective.organization_id
+   AND (entitlement_override.expires_at IS NULL OR entitlement_override.expires_at > v_now)
   ORDER BY entitlement_override.mechanic;
 END
 $$;
@@ -3237,11 +5940,332 @@ CREATE FUNCTION app.read_global_server_runtime_setting(p_key text) RETURNS jsonb
     AS $$
   SELECT setting.value_json
   FROM public.app_runtime_settings AS setting
-  WHERE setting.key = p_key
+  WHERE p_key IN ('app_base_url', 'error_tracking_enabled', 'error_tracking_dsn')
+    AND setting.key = p_key
+    AND setting.scope = 'admin'
+    AND setting.audience IN ('server', 'public')
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$$;
+
+
+--
+-- Name: read_integrator_smtp_outbound_setting(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_integrator_smtp_outbound_setting() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'smtp_outbound'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$$;
+
+
+--
+-- Name: read_last_saas_isolation_coverage(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_last_saas_isolation_coverage() RETURNS TABLE(id uuid, status text, started_at timestamp with time zone, finished_at timestamp with time zone, services_checked text[], checks_count integer, unexpected_errors_count integer)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT id, status, started_at, finished_at, services_checked, checks_count, unexpected_errors_count
+  FROM public.saas_isolation_coverage_runs ORDER BY finished_at DESC LIMIT 1
+$$;
+
+
+--
+-- Name: read_media_worker_runtime_setting(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_media_worker_runtime_setting(p_key text) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT setting.value_json
+  FROM public.app_runtime_settings AS setting
+  WHERE p_key IN (
+      'video_hls_pipeline_enabled', 'video_watermark_enabled',
+      'error_tracking_enabled', 'error_tracking_dsn'
+    )
+    AND setting.key = p_key
     AND setting.scope = 'admin'
     AND setting.audience = 'server'
     AND setting.organization_id IS NULL
   LIMIT 1
+$$;
+
+
+--
+-- Name: read_org_brand_core_context(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_org_brand_core_context(p_organization_id uuid) RETURNS TABLE(organization_id uuid, display_name text, is_active boolean)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT organization.id, organization.title, organization.is_active
+  FROM public.be_organizations AS organization
+  WHERE organization.id = p_organization_id
+    AND (
+      (app.current_org_id() IS NOT NULL AND app.current_org_id() = p_organization_id)
+      OR app.current_patient_has_active_org_enrollment(p_organization_id)
+    )
+  LIMIT 1
+$$;
+
+
+--
+-- Name: read_org_enforced_quota_usage(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_org_enforced_quota_usage(p_organization_id uuid) RETURNS TABLE(courses_used integer, clinic_team_used integer)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+      SELECT
+        (
+          SELECT count(*)::int
+          FROM public.courses AS course
+          WHERE course.organization_id = p_organization_id
+        ) AS courses_used,
+        (
+          (SELECT count(*) FROM public.be_organization_members AS membership
+           WHERE membership.organization_id = p_organization_id
+             AND membership.status = 'active'
+             AND membership.specialist_id IS NOT NULL)
+          +
+          (SELECT count(*) FROM public.organization_member_invites AS invite
+           WHERE invite.organization_id = p_organization_id
+             AND invite.status = 'pending'
+             AND invite.expires_at > now()
+             AND invite.invited_role = 'doctor')
+          +
+          (SELECT count(*) FROM public.organization_member_invites AS invite
+           JOIN public.be_organization_members AS membership
+             ON membership.id = invite.accepted_membership_id
+           WHERE invite.organization_id = p_organization_id
+             AND invite.status = 'accepted'
+             AND invite.invited_role = 'doctor'
+             AND membership.status = 'active'
+             AND membership.specialist_id IS NULL)
+        )::int AS clinic_team_used
+      WHERE p_organization_id IS NOT NULL
+    $$;
+
+
+--
+-- Name: read_outbound_provider_incident_health(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_outbound_provider_incident_health() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+  SELECT jsonb_build_object(
+    'openCount', count(*)::int,
+    'acknowledgedCount', count(*) FILTER (WHERE acknowledged_at IS NOT NULL)::int,
+    'unacknowledgedCount', count(*) FILTER (WHERE acknowledged_at IS NULL)::int
+  )
+  FROM public.operator_incidents
+  WHERE resolved_at IS NULL
+    AND direction = 'outbound_delivery_provider';
+$$;
+
+
+--
+-- Name: read_patient_lfk_complex_cover(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_patient_lfk_complex_cover(p_complex_id uuid) RETURNS TABLE(cover_image_url text, cover_media_type text, cover_media_id uuid, preview_sm_key text, preview_md_key text, preview_status text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT
+    media.media_url,
+    media.media_type,
+    file.id,
+    file.preview_sm_key,
+    file.preview_md_key,
+    file.preview_status
+  FROM public.lfk_complexes AS complex
+  JOIN public.lfk_complex_exercises AS complex_exercise
+    ON complex_exercise.complex_id = complex.id
+   AND complex_exercise.organization_id = complex.organization_id
+  JOIN public.lfk_exercise_media AS media
+    ON media.exercise_id = complex_exercise.exercise_id
+   AND (
+     (media.owner_kind = 'platform' AND media.organization_id IS NULL)
+     OR (
+       media.owner_kind = 'organization'
+       AND media.organization_id = complex.organization_id
+     )
+   )
+  LEFT JOIN public.media_files AS file
+    ON file.id = NULLIF(
+      substring(
+        btrim(media.media_url)
+        FROM '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
+      ),
+      ''
+    )::uuid
+   AND (
+     (
+       media.owner_kind = 'platform'
+       AND file.owner_kind = 'platform'
+       AND file.organization_id IS NULL
+     )
+     OR (
+       media.owner_kind = 'organization'
+       AND file.organization_id = complex.organization_id
+     )
+   )
+  WHERE complex.id = p_complex_id
+    AND app.current_org_id() IS NOT NULL
+    AND app.current_patient_user_id() IS NOT NULL
+    AND complex.organization_id = app.current_org_id()
+    AND (
+      complex.platform_user_id = app.current_patient_user_id()
+      OR (
+        complex.platform_user_id IS NULL
+        AND complex.user_id = app.current_patient_user_id()::text
+      )
+    )
+  ORDER BY complex_exercise.sort_order ASC, media.sort_order ASC, media.created_at ASC
+  LIMIT 1
+$$;
+
+
+--
+-- Name: read_patient_lfk_complex_exercise_lines(uuid[]); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_patient_lfk_complex_exercise_lines(p_complex_ids uuid[]) RETURNS TABLE(complex_id uuid, id uuid, sort_order integer, exercise_title text, comment text, local_comment text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT
+    complex_exercise.complex_id,
+    complex_exercise.id,
+    complex_exercise.sort_order,
+    COALESCE(NULLIF(btrim(exercise.title), ''), 'Упражнение'),
+    complex_exercise.comment,
+    complex_exercise.local_comment
+  FROM public.lfk_complex_exercises AS complex_exercise
+  JOIN public.lfk_complexes AS complex
+    ON complex.id = complex_exercise.complex_id
+   AND complex.organization_id = complex_exercise.organization_id
+  JOIN public.lfk_exercises AS exercise
+    ON exercise.id = complex_exercise.exercise_id
+   AND (
+     (exercise.owner_kind = 'platform' AND exercise.organization_id IS NULL)
+     OR (
+       exercise.owner_kind = 'organization'
+       AND exercise.organization_id = complex.organization_id
+     )
+   )
+  WHERE complex.id = ANY(COALESCE(p_complex_ids, ARRAY[]::uuid[]))
+    AND app.current_org_id() IS NOT NULL
+    AND app.current_patient_user_id() IS NOT NULL
+    AND complex.organization_id = app.current_org_id()
+    AND (
+      complex.platform_user_id = app.current_patient_user_id()
+      OR (
+        complex.platform_user_id IS NULL
+        AND complex.user_id = app.current_patient_user_id()::text
+      )
+    )
+  ORDER BY complex_exercise.complex_id, complex_exercise.sort_order ASC, complex_exercise.id ASC
+$$;
+
+
+--
+-- Name: read_platform_lfk_media_entitlement_refs(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_platform_lfk_media_entitlement_refs(p_media_id uuid) RETURNS TABLE(item_type text, item_ref_id uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  WITH media_exercise AS (
+    SELECT DISTINCT exercise.id
+    FROM public.media_files AS file
+    JOIN public.lfk_exercise_media AS media
+      ON media.media_url = '/api/media/' || file.id::text
+     AND media.owner_kind = 'platform'
+     AND media.organization_id IS NULL
+    JOIN public.lfk_exercises AS exercise
+      ON exercise.id = media.exercise_id
+     AND exercise.owner_kind = 'platform'
+     AND exercise.organization_id IS NULL
+    WHERE file.id = p_media_id
+      AND file.owner_kind = 'platform'
+      AND file.organization_id IS NULL
+      AND (file.status IS NULL OR file.status NOT IN ('pending', 'deleting', 'pending_delete'))
+  )
+  SELECT 'exercise'::text, media_exercise.id
+  FROM media_exercise
+  WHERE app.current_org_id() IS NOT NULL
+  UNION
+  SELECT 'lfk_complex'::text, template.id
+  FROM media_exercise
+  JOIN public.lfk_complex_template_exercises AS template_exercise
+    ON template_exercise.exercise_id = media_exercise.id
+  JOIN public.lfk_complex_templates AS template
+    ON template.id = template_exercise.template_id
+  WHERE app.current_org_id() IS NOT NULL
+    AND (
+      (
+        template.owner_kind = 'platform'
+        AND template.organization_id IS NULL
+        AND template_exercise.owner_kind = 'platform'
+        AND template_exercise.organization_id IS NULL
+      )
+      OR (
+        template.owner_kind = 'organization'
+        AND template.organization_id = app.current_org_id()
+        AND template_exercise.owner_kind = 'organization'
+        AND template_exercise.organization_id = app.current_org_id()
+      )
+    )
+$$;
+
+
+--
+-- Name: read_platform_media_row(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_platform_media_row(p_media_id uuid) RETURNS TABLE(id text, mime_type text, s3_key text, stored_path text, status text, usage_purpose text, uploaded_by text, video_processing_status text, hls_master_playlist_s3_key text, poster_s3_key text, video_duration_seconds integer, available_qualities_json jsonb, video_delivery_override text, preview_sm_key text, preview_md_key text, preview_status text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT
+    id::text,
+    mime_type,
+    s3_key,
+    stored_path,
+    status,
+    usage_purpose,
+    uploaded_by::text,
+    video_processing_status,
+    hls_master_playlist_s3_key,
+    poster_s3_key,
+    video_duration_seconds,
+    available_qualities_json,
+    video_delivery_override,
+    preview_sm_key,
+    preview_md_key,
+    preview_status
+  FROM public.media_files
+  WHERE id = p_media_id
+    AND owner_kind = 'platform'
+    AND organization_id IS NULL
+    AND (status IS NULL OR status NOT IN ('pending', 'deleting', 'pending_delete'))
 $$;
 
 
@@ -3264,6 +6288,63 @@ $$;
 
 
 --
+-- Name: read_saas_isolation_events(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_saas_isolation_events() RETURNS TABLE(event_class text, source_service text, source_operation text, explanation_status text, lifecycle_status text, occurrence_count integer, first_seen_at timestamp with time zone, last_seen_at timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT event_class, source_service, source_operation, explanation_status,
+         lifecycle_status, occurrence_count, first_seen_at, last_seen_at
+  FROM public.saas_isolation_events
+  ORDER BY event_class, last_seen_at DESC
+$$;
+
+
+--
+-- Name: read_saas_isolation_trend(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.read_saas_isolation_trend() RETURNS TABLE(as_of timestamp with time zone, current_24_hours bigint, previous_24_hours bigint, daily_7_days jsonb)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+  WITH anchor AS MATERIALIZED (
+    SELECT statement_timestamp() AS as_of
+  ), bounds AS (
+    SELECT as_of,
+           date_trunc('hour', as_of AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS current_hour,
+           date_trunc('day', as_of AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS today
+    FROM anchor
+  ), days AS (
+    SELECT day_start
+    FROM bounds, generate_series(today - interval '6 days', today, interval '1 day') AS series(day_start)
+  ), day_counts AS (
+    SELECT days.day_start, coalesce(sum(hourly.occurrence_count), 0)::bigint AS count
+    FROM days CROSS JOIN bounds
+    LEFT JOIN public.saas_isolation_event_hourly hourly
+      ON hourly.bucket_start >= days.day_start
+      AND hourly.bucket_start < days.day_start + interval '1 day'
+      AND hourly.bucket_start <= bounds.current_hour
+    GROUP BY days.day_start
+  )
+  SELECT
+    (SELECT as_of FROM bounds),
+    coalesce((SELECT sum(hourly.occurrence_count) FROM public.saas_isolation_event_hourly hourly, bounds
+      WHERE hourly.bucket_start >= bounds.current_hour - interval '23 hours'
+        AND hourly.bucket_start <= bounds.current_hour), 0)::bigint,
+    coalesce((SELECT sum(hourly.occurrence_count) FROM public.saas_isolation_event_hourly hourly, bounds
+      WHERE hourly.bucket_start >= bounds.current_hour - interval '47 hours'
+        AND hourly.bucket_start < bounds.current_hour - interval '23 hours'), 0)::bigint,
+    (SELECT jsonb_agg(jsonb_build_object(
+      'date', to_char(day_start AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
+      'count', count
+    ) ORDER BY day_start) FROM day_counts)
+$$;
+
+
+--
 -- Name: read_webapp_server_runtime_setting(text, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -3279,7 +6360,7 @@ CREATE FUNCTION app.read_webapp_server_runtime_setting(p_key text, p_scope text)
     AND setting.audience = 'server'
     AND setting.key IN (
       'debug_forward_to_admin', 'video_presign_ttl_seconds',
-      'admin_telegram_ids', 'admin_max_ids', 'admin_phones',
+      'admin_telegram_ids', 'admin_max_ids', 'admin_phones', 'admin_emails',
       'doctor_telegram_ids', 'doctor_max_ids', 'doctor_phones'
     )
   LIMIT 1
@@ -3476,6 +6557,59 @@ $$;
 
 
 --
+-- Name: record_global_email_delivery_attempt(text, text, text, text, text, integer, text, jsonb, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.record_global_email_delivery_attempt(p_intent_type text, p_intent_event_id text, p_correlation_id text, p_channel text, p_status text, p_attempt integer, p_reason text, p_payload_json jsonb, p_occurred_at timestamp with time zone) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  IF p_intent_type IS DISTINCT FROM 'message.send'
+    OR NULLIF(btrim(p_intent_event_id), '') IS NULL
+    OR p_channel IS DISTINCT FROM 'email'
+    OR p_status IS NULL
+    OR p_status NOT IN ('success', 'failed')
+    OR p_attempt IS NULL
+    OR p_attempt NOT BETWEEN 1 AND 100
+    OR p_payload_json IS NULL
+    OR jsonb_typeof(p_payload_json) <> 'object'
+    OR p_occurred_at IS NULL
+    OR length(p_intent_event_id) > 500
+    OR length(COALESCE(p_correlation_id, '')) > 500
+    OR length(COALESCE(p_reason, '')) > 1000
+    OR pg_column_size(p_payload_json) > 65536
+  THEN
+    RAISE EXCEPTION 'invalid global email delivery attempt audit input'
+      USING ERRCODE = '23514';
+  END IF;
+
+  INSERT INTO integrator.delivery_attempt_logs (
+    intent_type,
+    intent_event_id,
+    correlation_id,
+    channel,
+    status,
+    attempt,
+    reason,
+    payload_json,
+    occurred_at
+  ) VALUES (
+    NULLIF(p_intent_type, ''),
+    NULLIF(p_intent_event_id, ''),
+    NULLIF(p_correlation_id, ''),
+    p_channel,
+    p_status,
+    p_attempt,
+    p_reason,
+    p_payload_json,
+    p_occurred_at
+  );
+END
+$$;
+
+
+--
 -- Name: record_media_playback_resolution_event(uuid, uuid, text, boolean); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -3508,6 +6642,104 @@ BEGIN
     (organization_id, user_id, media_id, delivery, fallback_used)
   VALUES
     (v_organization_id, p_user_id, p_media_id, p_delivery, p_fallback_used);
+END
+$$;
+
+
+--
+-- Name: record_operator_delivery_attempt(text, text, text, integer, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.record_operator_delivery_attempt(p_intent_event_id text, p_channel text, p_status text, p_attempt integer, p_reason text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  IF length(COALESCE(p_intent_event_id, '')) NOT BETWEEN 1 AND 240
+    OR p_intent_event_id NOT LIKE 'op-inc:%'
+    OR p_channel NOT IN ('telegram', 'max')
+    OR p_status NOT IN ('success', 'failed')
+    OR p_attempt NOT BETWEEN 1 AND 100
+    OR length(COALESCE(p_reason, '')) > 500
+    OR (
+      (p_status = 'success' AND (p_reason IS NULL OR p_reason = 'dev_redirect_suppressed'))
+      OR (p_status = 'failed' AND p_reason = 'provider_rejected')
+    ) IS NOT TRUE
+  THEN
+    RAISE EXCEPTION 'invalid operator delivery attempt audit input' USING ERRCODE = '23514';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.outgoing_delivery_queue AS queue
+    WHERE queue.kind = 'operator_alert'
+      AND queue.channel = p_channel
+      AND queue.payload_json #>> '{intent,meta,eventId}' = p_intent_event_id
+  ) THEN
+    RAISE EXCEPTION 'operator delivery attempt has no exact queue source' USING ERRCODE = '23514';
+  END IF;
+  INSERT INTO integrator.delivery_attempt_logs (
+    intent_type, intent_event_id, correlation_id, channel, status,
+    attempt, reason, payload_json, occurred_at
+  ) VALUES (
+    'message.send', p_intent_event_id, NULL, p_channel, p_status,
+    p_attempt, p_reason,
+    jsonb_build_object('kind', 'operator_alert', 'channel', p_channel),
+    clock_timestamp()
+  );
+END
+$$;
+
+
+--
+-- Name: record_saas_isolation_coverage(uuid, text, timestamp with time zone, timestamp with time zone, text[], integer, integer); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.record_saas_isolation_coverage(p_id uuid, p_status text, p_started_at timestamp with time zone, p_finished_at timestamp with time zone, p_services_checked text[], p_checks_count integer, p_unexpected_errors_count integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_inserted integer;
+  v_distinct_services text[];
+  v_required constant text[] := ARRAY['webapp','integrator','worker','scheduler','media_worker','cron'];
+BEGIN
+  SELECT coalesce(array_agg(service ORDER BY service), ARRAY[]::text[])
+    INTO v_distinct_services FROM (SELECT DISTINCT unnest(p_services_checked) AS service) checked;
+  IF p_status NOT IN ('complete','incomplete','failed')
+    OR p_finished_at < p_started_at
+    OR p_checks_count < 0 OR p_unexpected_errors_count < 0
+    OR NOT (v_distinct_services <@ v_required)
+    OR cardinality(v_distinct_services) <> cardinality(p_services_checked)
+  THEN RAISE EXCEPTION 'invalid_saas_isolation_coverage' USING ERRCODE = '22023'; END IF;
+  IF p_status = 'complete' AND (NOT (v_distinct_services @> v_required) OR p_checks_count < 6) THEN
+    RAISE EXCEPTION 'invalid_saas_isolation_complete_coverage' USING ERRCODE = '22023';
+  END IF;
+  INSERT INTO public.saas_isolation_coverage_runs (
+    id, status, started_at, finished_at, services_checked, checks_count, unexpected_errors_count
+  ) VALUES (
+    p_id, p_status, p_started_at, p_finished_at, v_distinct_services, p_checks_count, p_unexpected_errors_count
+  ) ON CONFLICT (id) DO NOTHING;
+  GET DIAGNOSTICS v_inserted = ROW_COUNT;
+  IF v_inserted = 0 AND NOT EXISTS (
+    SELECT 1 FROM public.saas_isolation_coverage_runs existing
+    WHERE existing.id = p_id
+      AND existing.status = p_status
+      AND existing.started_at = p_started_at
+      AND existing.finished_at = p_finished_at
+      AND existing.services_checked = v_distinct_services
+      AND existing.checks_count = p_checks_count
+      AND existing.unexpected_errors_count = p_unexpected_errors_count
+  ) THEN
+    RAISE EXCEPTION 'saas_isolation_coverage_id_conflict' USING ERRCODE = '22023';
+  END IF;
+  IF v_inserted = 1 AND p_status = 'complete' THEN
+    UPDATE public.saas_isolation_events
+      SET lifecycle_status = 'resolved', resolved_at = now()
+      WHERE lifecycle_status = 'active'
+        AND last_seen_at < p_started_at
+        AND source_service = ANY(v_distinct_services);
+  END IF;
+  DELETE FROM public.saas_isolation_coverage_runs WHERE finished_at < now() - interval '90 days';
 END
 $$;
 
@@ -3650,6 +6882,25 @@ $$;
 
 
 --
+-- Name: reject_staff_commercial_organization_update(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.reject_staff_commercial_organization_update() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  IF current_user = 'app_staff'
+     AND (NEW.tariff_id IS DISTINCT FROM OLD.tariff_id
+       OR NEW.commercial_access_state IS DISTINCT FROM OLD.commercial_access_state) THEN
+    RAISE EXCEPTION 'platform_commercial_capability_required';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: release_principal_context(); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -3663,18 +6914,33 @@ $$;
 
 
 --
--- Name: replace_pending_specialist_signup_challenge(uuid); Type: FUNCTION; Schema: app; Owner: -
+-- Name: replace_pending_specialist_signup_challenge(uuid, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.replace_pending_specialist_signup_challenge(p_challenge_id uuid) RETURNS boolean
+CREATE FUNCTION app.replace_pending_specialist_signup_challenge(p_challenge_id uuid, p_organization_slug text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
+DECLARE
+  v_intent_id uuid;
 BEGIN
-	UPDATE public.specialist_signup_intents
-	SET challenge_id = p_challenge_id
-	WHERE user_id = app.require_staff_security_self_user_id() AND status = 'pending';
-	RETURN FOUND;
+  SELECT intent.id
+  INTO v_intent_id
+  FROM public.specialist_signup_intents AS intent
+  WHERE intent.user_id = app.require_staff_security_self_user_id()
+    AND intent.status = 'pending'
+  LIMIT 1
+  FOR UPDATE;
+
+  IF v_intent_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.specialist_signup_intents AS intent
+  SET challenge_id = p_challenge_id,
+      organization_slug = lower(p_organization_slug)
+  WHERE intent.id = v_intent_id;
+  RETURN FOUND;
 END
 $$;
 
@@ -3699,11 +6965,11 @@ BEGIN
   IF (p_source_service, p_source_operation) NOT IN (
     ('webapp','webapp_db_request'), ('webapp','webapp_admin_system_health'),
     ('webapp','public_auth_config'), ('webapp','auth_role_config'),
-    ('webapp','patient_runtime_config'), ('webapp','public_booking_config'),
-    ('webapp','patient_identity_exception_check'), ('webapp','patient_booking_history'),
-    ('webapp','patient_product_analytics'), ('webapp','patient_ui_config'),
-    ('webapp','patient_calendar_timezone'), ('webapp','patient_content_catalog'),
-    ('webapp','patient_diary'),
+    ('webapp','patient_runtime_config'),
+    ('webapp','public_booking_config'), ('webapp','patient_identity_exception_check'),
+    ('webapp','patient_booking_history'), ('webapp','patient_product_analytics'),
+    ('webapp','patient_ui_config'), ('webapp','patient_calendar_timezone'),
+    ('webapp','patient_content_catalog'), ('webapp','patient_diary'),
     ('integrator','integrator_http_request'), ('integrator','integrator_projection'),
     ('worker','worker_queue_drain'), ('worker','worker_projection_delivery'),
     ('worker','worker_outgoing_delivery'), ('scheduler','scheduler_lock'),
@@ -3721,6 +6987,7 @@ BEGIN
     v_fingerprint, p_event_class, p_source_service, p_source_operation, p_explanation_status
   )
   ON CONFLICT (fingerprint) DO UPDATE SET
+    -- Explanation is conservative: a later unexplained occurrence can downgrade, never auto-upgrade.
     explanation_status = CASE
       WHEN public.saas_isolation_events.explanation_status = 'unexplained'
         OR EXCLUDED.explanation_status = 'unexplained' THEN 'unexplained'
@@ -3804,6 +7071,470 @@ BEGIN
 
   RETURN v_organization_id;
 END
+$$;
+
+
+--
+-- Name: resolve_organization_cabinet_access(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.resolve_organization_cabinet_access(p_organization_id uuid) RETURNS TABLE(state text, policy_source text, warning jsonb)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_current_organization_id uuid := app.current_org_id();
+  v_now timestamptz := statement_timestamp();
+BEGIN
+  IF v_current_organization_id IS NULL THEN
+    RAISE EXCEPTION 'organization_cabinet_access_principal_required'
+      USING ERRCODE = '42501';
+  END IF;
+  IF v_current_organization_id <> p_organization_id THEN
+    RAISE EXCEPTION 'organization_cabinet_access_principal_mismatch'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  WITH active_trial AS (
+    SELECT trial.*
+    FROM public.saas_organization_trials AS trial
+    WHERE trial.organization_id = p_organization_id
+      AND trial.status = 'active'
+    LIMIT 1
+  ), paid_period AS (
+    SELECT max(subscription.current_period_ends_at) AS period_ends_at
+    FROM public.saas_billing_subscriptions AS subscription
+    WHERE subscription.organization_id = p_organization_id
+      AND subscription.status = ANY (ARRAY['active', 'expired'])
+      AND subscription.current_period_ends_at IS NOT NULL
+  ), effective AS (
+    SELECT
+      CASE
+        WHEN trial.id IS NULL THEN organization.tariff_id
+        WHEN v_now <= trial.grace_ends_at THEN trial.tariff_id
+        WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id
+        ELSE trial.tariff_id
+      END AS tariff_id,
+      CASE
+        WHEN trial.id IS NULL THEN 'active'
+        WHEN v_now <= trial.ends_at THEN 'active'
+        WHEN v_now <= trial.grace_ends_at THEN 'grace'
+        WHEN trial.post_trial_behavior = 'tariff' THEN 'active'
+        ELSE trial.post_trial_behavior
+      END AS lifecycle,
+      CASE
+        WHEN trial.id IS NULL AND organization.commercial_access_state = 'compatibility'
+          THEN 'compatibility'
+        WHEN trial.id IS NULL AND organization.commercial_access_state = 'no_trial'
+          THEN 'no_trial'
+        WHEN trial.id IS NULL THEN 'assignment'
+        WHEN v_now > trial.grace_ends_at AND trial.post_trial_behavior = 'tariff'
+          THEN 'post_trial_tariff'
+        ELSE 'trial'
+      END AS access_source,
+      COALESCE(trial.ends_at, paid_period.period_ends_at) AS degradation_started_at,
+      CASE
+        WHEN trial.ends_at IS NOT NULL THEN 'trial'
+        WHEN paid_period.period_ends_at IS NOT NULL THEN 'paid_period'
+        ELSE NULL
+      END AS period_source
+    FROM public.be_organizations AS organization
+    LEFT JOIN active_trial AS trial ON true
+    LEFT JOIN paid_period ON true
+    WHERE organization.id = p_organization_id
+      AND organization.is_active = true
+  ), snapshot AS (
+    SELECT
+      effective.*,
+      tariff.id AS resolved_tariff_id,
+      tariff.system_access_policy AS policy
+    FROM effective
+    LEFT JOIN public.saas_tariffs AS tariff ON tariff.id = effective.tariff_id
+  ), resolved AS (
+    SELECT
+      snapshot.*,
+      CASE
+        WHEN degradation_started_at IS NOT NULL AND v_now < degradation_started_at
+          THEN 'full_access'
+        WHEN degradation_started_at IS NULL
+          AND NOT (access_source = 'no_trial' OR lifecycle <> 'active') THEN 'full_access'
+        WHEN policy IS NULL THEN 'unconfigured'
+        WHEN degradation_started_at IS NOT NULL
+          AND (policy ->> 'graceDays')::integer > 0
+          AND v_now < degradation_started_at
+            + make_interval(days => (policy ->> 'graceDays')::integer)
+          THEN 'grace'
+        WHEN degradation_started_at IS NOT NULL
+          AND (policy ->> 'readOnlyDays')::integer > 0
+          AND v_now < degradation_started_at
+            + make_interval(days => (policy ->> 'graceDays')::integer)
+            + make_interval(days => (policy ->> 'readOnlyDays')::integer)
+          THEN 'read_only'
+        WHEN degradation_started_at IS NOT NULL THEN policy ->> 'terminalState'
+        WHEN lifecycle = 'read_only' THEN 'read_only'
+        WHEN lifecycle = 'blocked' OR access_source = 'no_trial'
+          THEN policy ->> 'terminalState'
+        ELSE 'unconfigured'
+      END AS resolved_state,
+      CASE
+        WHEN degradation_started_at IS NULL THEN NULL
+        ELSE degradation_started_at
+          + make_interval(days => (policy ->> 'graceDays')::integer)
+      END AS grace_ends_at
+    FROM snapshot
+  )
+  SELECT
+    resolved_state,
+    CASE WHEN policy IS NULL THEN 'unconfigured' ELSE 'system' END,
+    CASE
+      WHEN resolved_state = 'grace' THEN jsonb_build_object(
+        'until', grace_ends_at,
+        'periodEndsAt', degradation_started_at,
+        'periodSource', period_source,
+        'notifications', COALESCE(policy -> 'notifications', '[]'::jsonb),
+        'nextState', CASE
+          WHEN (policy ->> 'readOnlyDays')::integer > 0 THEN 'read_only'
+          ELSE policy ->> 'terminalState'
+        END
+      )
+      ELSE NULL
+    END
+  FROM resolved;
+END
+$$;
+
+
+--
+-- Name: resolve_organization_mechanic_access(uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.resolve_organization_mechanic_access(p_organization_id uuid, p_mechanic text) RETURNS TABLE(mechanic text, state text, policy_source text, warning jsonb, mutation_allowed boolean)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_current_organization_id uuid := app.current_org_id();
+  v_now timestamptz := statement_timestamp();
+BEGIN
+  IF v_current_organization_id IS NULL THEN
+    RAISE EXCEPTION 'organization_mechanic_access_principal_required'
+      USING ERRCODE = '42501';
+  END IF;
+  IF v_current_organization_id <> p_organization_id THEN
+    RAISE EXCEPTION 'organization_mechanic_access_principal_mismatch'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_mechanic IS NULL OR btrim(p_mechanic) = '' THEN
+    RAISE EXCEPTION 'organization_mechanic_access_mechanic_required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  WITH active_trial AS (
+    SELECT trial.*
+    FROM public.saas_organization_trials AS trial
+    WHERE trial.organization_id = p_organization_id
+      AND trial.status = 'active'
+    LIMIT 1
+  ), paid_period AS (
+    SELECT max(subscription.current_period_ends_at) AS period_ends_at
+    FROM public.saas_billing_subscriptions AS subscription
+    WHERE subscription.organization_id = p_organization_id
+      AND subscription.status = ANY (ARRAY['active', 'expired'])
+      AND subscription.current_period_ends_at IS NOT NULL
+  ), effective AS (
+    SELECT
+      organization.id AS organization_id,
+      CASE
+        WHEN trial.id IS NULL THEN organization.tariff_id
+        WHEN v_now <= trial.grace_ends_at THEN trial.tariff_id
+        WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id
+        ELSE trial.tariff_id
+      END AS tariff_id,
+      CASE
+        WHEN trial.id IS NULL THEN 'active'
+        WHEN v_now <= trial.ends_at THEN 'active'
+        WHEN v_now <= trial.grace_ends_at THEN 'grace'
+        WHEN trial.post_trial_behavior = 'tariff' THEN 'active'
+        ELSE trial.post_trial_behavior
+      END AS lifecycle,
+      CASE
+        WHEN trial.id IS NULL AND organization.commercial_access_state = 'compatibility'
+          THEN 'compatibility'
+        WHEN trial.id IS NULL AND organization.commercial_access_state = 'no_trial'
+          THEN 'no_trial'
+        WHEN trial.id IS NULL THEN 'assignment'
+        WHEN v_now > trial.grace_ends_at AND trial.post_trial_behavior = 'tariff'
+          THEN 'post_trial_tariff'
+        ELSE 'trial'
+      END AS access_source,
+      COALESCE(trial.ends_at, paid_period.period_ends_at) AS degradation_started_at,
+      -- Which clock the ladder is running on. The door cannot tell non-payment from an expired
+      -- trial without this, and «условие: ошибка оплаты» has to follow the real one.
+      CASE
+        WHEN trial.ends_at IS NOT NULL THEN 'trial'
+        WHEN paid_period.period_ends_at IS NOT NULL THEN 'paid_period'
+        ELSE NULL
+      END AS period_source
+    FROM public.be_organizations AS organization
+    LEFT JOIN active_trial AS trial ON true
+    LEFT JOIN paid_period ON true
+    WHERE organization.id = p_organization_id
+      AND organization.is_active = true
+  ), snapshot AS (
+    SELECT
+      effective.*,
+      tariff.id AS resolved_tariff_id,
+      tariff.mechanics,
+      tariff.quotas,
+      tariff.system_access_policy,
+      tariff.mechanic_access_policies,
+      tariff.included_seats,
+      entitlement_override.mechanic AS override_mechanic,
+      entitlement_override.enabled AS override_enabled,
+      COALESCE(
+        tariff.mechanic_access_policies -> p_mechanic,
+        tariff.system_access_policy
+      ) AS policy,
+      CASE
+        WHEN tariff.mechanic_access_policies ? p_mechanic THEN 'mechanic'
+        WHEN tariff.system_access_policy IS NOT NULL THEN 'system'
+        ELSE 'unconfigured'
+      END AS configured_policy_source
+    FROM effective
+    LEFT JOIN public.saas_tariffs AS tariff ON tariff.id = effective.tariff_id
+    LEFT JOIN public.saas_org_entitlement_overrides AS entitlement_override
+      ON entitlement_override.organization_id = effective.organization_id
+     AND entitlement_override.mechanic = p_mechanic
+     AND (
+       entitlement_override.expires_at IS NULL
+       OR entitlement_override.expires_at > v_now
+     )
+  ), included AS (
+    SELECT
+      snapshot.*,
+      CASE
+        WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN true
+        WHEN override_mechanic IS NOT NULL THEN override_enabled
+        WHEN resolved_tariff_id IS NULL THEN access_source = 'compatibility'
+        WHEN p_mechanic = 'clinic_team' THEN included_seats IS NOT NULL
+        WHEN p_mechanic = ANY (ARRAY['files', 'patient_count', 'branches'])
+          THEN quotas ? p_mechanic
+        ELSE COALESCE((mechanics ->> p_mechanic)::boolean, false)
+      END AS mechanic_included
+    FROM snapshot
+  ), resolved AS (
+    SELECT
+      included.*,
+      CASE
+        WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN 'full_access'
+        WHEN access_source = 'no_trial' AND resolved_tariff_id IS NULL THEN 'unconfigured'
+        WHEN NOT mechanic_included THEN 'disabled'
+        -- Period exists and has not run out. This is the ONLY «полный доступ навсегда» left: it
+        -- lasts exactly as long as the paid period (or the trial) does. Checked before the policy
+        -- so a tariff whose ladder is not configured yet still grants access inside a live period.
+        WHEN degradation_started_at IS NOT NULL AND v_now < degradation_started_at
+          THEN 'full_access'
+        -- No period at all: clinics created before tariffs existed (temporary compatibility, canon
+        -- §1.1) and any row the backfill above could not date. An ASSIGNED tariff no longer lands
+        -- here — assignment now writes a period — so «назначен тариф → полный доступ навсегда»
+        -- is gone as a branch.
+        WHEN degradation_started_at IS NULL
+          AND NOT (access_source = 'no_trial' OR lifecycle <> 'active') THEN 'full_access'
+        WHEN policy IS NULL THEN 'unconfigured'
+        WHEN degradation_started_at IS NOT NULL
+          AND (policy ->> 'graceDays')::integer > 0
+          AND v_now < degradation_started_at
+            + make_interval(days => (policy ->> 'graceDays')::integer)
+          THEN 'grace'
+        WHEN degradation_started_at IS NOT NULL
+          AND (policy ->> 'readOnlyDays')::integer > 0
+          AND v_now < degradation_started_at
+            + make_interval(days => (policy ->> 'graceDays')::integer)
+            + make_interval(days => (policy ->> 'readOnlyDays')::integer)
+          THEN 'read_only'
+        WHEN degradation_started_at IS NOT NULL THEN policy ->> 'terminalState'
+        WHEN lifecycle = 'read_only' THEN 'read_only'
+        WHEN lifecycle = 'blocked' OR access_source = 'no_trial'
+          THEN policy ->> 'terminalState'
+        ELSE 'unconfigured'
+      END AS resolved_state,
+      CASE
+        WHEN degradation_started_at IS NULL THEN NULL
+        ELSE degradation_started_at
+          + make_interval(days => (policy ->> 'graceDays')::integer)
+      END AS grace_ends_at
+    FROM included
+  )
+  SELECT
+    p_mechanic,
+    resolved_state,
+    CASE
+      WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN 'critical'
+      WHEN NOT mechanic_included THEN 'unconfigured'
+      -- Mirrors the no-anchor full-access branch above: an organization with no period at all is
+      -- held open by the system, not by a configured mechanic policy.
+      WHEN degradation_started_at IS NULL
+        AND NOT (access_source = 'no_trial' OR lifecycle <> 'active') THEN 'system'
+      ELSE configured_policy_source
+    END,
+    CASE
+      WHEN resolved_state = 'grace' THEN jsonb_build_object(
+        'until', grace_ends_at,
+        'periodEndsAt', degradation_started_at,
+        'periodSource', period_source,
+        'notifications', COALESCE(policy -> 'notifications', '[]'::jsonb),
+        'nextState', CASE
+          WHEN (policy ->> 'readOnlyDays')::integer > 0 THEN 'read_only'
+          ELSE policy ->> 'terminalState'
+        END
+      )
+      ELSE NULL
+    END,
+    resolved_state = ANY (ARRAY['full_access', 'grace'])
+  FROM resolved;
+END
+$$;
+
+
+--
+-- Name: resolve_outgoing_delivery_scope(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.resolve_outgoing_delivery_scope(p_queue_id uuid) RETURNS TABLE(queue_kind text, organization_id uuid, resolution text)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+  queue_payload jsonb;
+  v_occurrence_id text;
+  v_broadcast_audit_id uuid;
+  v_incident_id uuid;
+  occurrence_org uuid;
+  rule_org uuid;
+BEGIN
+  SELECT queue.kind, queue.payload_json
+  INTO queue_kind, queue_payload
+  FROM public.outgoing_delivery_queue AS queue
+  WHERE queue.id = p_queue_id;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT NULL::text, NULL::uuid, 'queue_not_found'::text;
+    RETURN;
+  END IF;
+
+  IF queue_kind = 'operator_alert' THEN
+    IF COALESCE(queue_payload ->> 'incidentId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'invalid_incident_id'::text;
+      RETURN;
+    END IF;
+    v_incident_id := (queue_payload ->> 'incidentId')::uuid;
+    IF NOT EXISTS (SELECT 1 FROM public.operator_incidents AS incident WHERE incident.id = v_incident_id) THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'incident_not_found'::text;
+      RETURN;
+    END IF;
+    RETURN QUERY SELECT queue_kind, NULL::uuid, 'operator_global'::text;
+    RETURN;
+  END IF;
+
+  IF queue_kind = 'inbound_reply' THEN
+    RETURN QUERY SELECT queue_kind, NULL::uuid, 'operator_global'::text;
+    RETURN;
+  END IF;
+
+  IF queue_kind = 'reminder_dispatch' THEN
+    IF COALESCE(queue_payload ->> 'occurrenceId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'invalid_occurrence_id'::text;
+      RETURN;
+    END IF;
+    v_occurrence_id := queue_payload ->> 'occurrenceId';
+    SELECT occurrence.organization_id, rule.organization_id
+    INTO occurrence_org, rule_org
+    FROM integrator.user_reminder_occurrences AS occurrence
+    LEFT JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    WHERE occurrence.id = v_occurrence_id;
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'occurrence_not_found'::text;
+    ELSIF occurrence_org IS NOT NULL AND rule_org IS NOT NULL AND occurrence_org <> rule_org THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'ambiguous_organization'::text;
+    ELSIF COALESCE(occurrence_org, rule_org) IS NULL THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'organization_missing'::text;
+    ELSE
+      RETURN QUERY SELECT queue_kind, COALESCE(occurrence_org, rule_org), 'tenant'::text;
+    END IF;
+    RETURN;
+  END IF;
+
+  IF queue_kind = 'doctor_broadcast_intent' THEN
+    IF COALESCE(queue_payload ->> 'broadcastAuditId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'invalid_broadcast_audit_id'::text;
+      RETURN;
+    END IF;
+    v_broadcast_audit_id := (queue_payload ->> 'broadcastAuditId')::uuid;
+    SELECT audit.organization_id
+    INTO organization_id
+    FROM public.broadcast_audit AS audit
+    WHERE audit.id = v_broadcast_audit_id;
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'broadcast_audit_not_found'::text;
+    ELSIF organization_id IS NULL THEN
+      RETURN QUERY SELECT queue_kind, NULL::uuid, 'organization_missing'::text;
+    ELSE
+      RETURN QUERY SELECT queue_kind, organization_id, 'tenant'::text;
+    END IF;
+    RETURN;
+  END IF;
+
+  RETURN QUERY SELECT queue_kind, NULL::uuid, 'unsupported_queue_kind'::text;
+END
+$_$;
+
+
+--
+-- Name: resolve_payment_webhook_organization(text, text, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.resolve_payment_webhook_organization(p_provider_id text, p_idempotency_key text, p_event_type text) RETURNS uuid
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_organization_ids uuid[];
+BEGIN
+  IF p_provider_id IS NULL
+     OR p_idempotency_key IS NULL
+     OR p_event_type IS NULL
+     OR btrim(p_provider_id) = ''
+     OR btrim(p_idempotency_key) = ''
+     OR btrim(p_event_type) = '' THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT array_agg(DISTINCT event.organization_id)
+  INTO v_organization_ids
+  FROM public.be_payment_provider_events AS event
+  WHERE event.provider_id = p_provider_id
+    AND event.idempotency_key = p_idempotency_key
+    AND event.event_type = p_event_type;
+
+  IF cardinality(v_organization_ids) = 1 THEN
+    RETURN v_organization_ids[1];
+  END IF;
+  IF cardinality(v_organization_ids) > 1 THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT array_agg(DISTINCT intent.organization_id)
+  INTO v_organization_ids
+  FROM public.be_payment_intents AS intent
+  WHERE intent.provider_id = p_provider_id
+    AND intent.idempotency_key = p_idempotency_key;
+
+  IF cardinality(v_organization_ids) = 1 THEN
+    RETURN v_organization_ids[1];
+  END IF;
+  RETURN NULL;
+END;
 $$;
 
 
@@ -4097,6 +7828,34 @@ $$;
 
 
 --
+-- Name: set_staff_security_self_password_hash(text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.set_staff_security_self_password_hash(p_password_hash text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_user_id uuid;
+BEGIN
+  v_user_id := app.require_staff_security_self_user_id();
+
+  UPDATE public.user_password_credentials AS credentials
+  SET password_hash = COALESCE(p_password_hash, credentials.password_hash),
+      failed_attempts = 0,
+      locked_until = NULL,
+      updated_at = CASE
+        WHEN p_password_hash IS NULL THEN credentials.updated_at
+        ELSE statement_timestamp()
+      END
+  WHERE credentials.user_id = v_user_id;
+
+  RETURN FOUND;
+END
+$$;
+
+
+--
 -- Name: staff_user_has_password_credentials(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -4220,6 +7979,105 @@ $_$;
 
 
 --
+-- Name: start_provisioned_organization_trial(); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.start_provisioned_organization_trial() RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_patient_user_id uuid := app.current_patient_user_id();
+  v_organization_id uuid;
+  v_policy record;
+  v_started_at timestamptz;
+  v_trial_id uuid;
+BEGIN
+  IF v_patient_user_id IS NULL THEN
+    RAISE EXCEPTION 'provisioning_patient_principal_required';
+  END IF;
+
+  v_organization_id := app.current_provisioned_owner_organization();
+  IF v_organization_id IS NULL THEN
+    RAISE EXCEPTION 'provisioned_owner_organization_required';
+  END IF;
+
+  SELECT policy.*
+  INTO v_policy
+  FROM public.saas_trial_policy AS policy
+  INNER JOIN public.saas_tariffs AS tariff
+    ON tariff.id = policy.tariff_id
+   AND tariff.is_active
+  WHERE policy.key = 'global'
+    AND policy.is_active
+    AND policy.start_event = 'organization_provisioned'
+  LIMIT 1
+  FOR UPDATE OF policy;
+  IF NOT FOUND THEN
+    -- No active trial policy is configured on this platform (owner has not set one), and a
+    -- freshly provisioned organization has no tariff assignment either -- "no_trial" here was
+    -- never a product decision anyone made, it is the fallback nobody chose, and it forces every
+    -- mechanic to false in entitlementsFromSnapshot() (org-entitlements/service.ts: "source ===
+    -- no_trial ? false : MECHANIC_DEFAULT_ENABLED"). Land the organization in "compatibility"
+    -- instead -- the same state a migrated legacy clinic gets, which resolves through
+    -- MECHANIC_DEFAULT_ENABLED (owner-reported dead workspace: a brand-new clinic had every
+    -- mechanic switched off). This is also `be_organizations.commercial_access_state`'s own
+    -- column default, so this UPDATE now only reasserts it explicitly instead of overwriting it.
+    -- If a trial policy IS configured later, the branch above (policy FOUND) wins and this
+    -- fallback never runs.
+    UPDATE public.be_organizations
+    SET commercial_access_state = 'compatibility',
+        updated_at = now()
+    WHERE id = v_organization_id;
+    RETURN false;
+  END IF;
+
+  v_started_at := clock_timestamp();
+  INSERT INTO public.saas_organization_trials (
+    organization_id, tariff_id, started_at, ends_at, grace_ends_at,
+    post_trial_behavior, post_trial_tariff_id, status, created_by
+  ) VALUES (
+    v_organization_id, v_policy.tariff_id, v_started_at,
+    v_started_at + make_interval(days => v_policy.duration_days),
+    v_started_at + make_interval(days => v_policy.duration_days + v_policy.grace_days),
+    v_policy.post_trial_behavior, v_policy.post_trial_tariff_id, 'active', v_patient_user_id
+  )
+  ON CONFLICT (organization_id) DO NOTHING
+  RETURNING id INTO v_trial_id;
+  IF v_trial_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.be_organizations
+  SET tariff_id = v_policy.tariff_id,
+      commercial_access_state = 'active',
+      updated_at = now()
+  WHERE id = v_organization_id;
+
+  INSERT INTO public.admin_audit_log (
+    organization_id, actor_id, action, target_id, details, status
+  ) VALUES (
+    v_organization_id, v_patient_user_id, 'saas_trial_start', v_trial_id::text,
+    jsonb_build_object(
+      'reason', 'automatic organization provisioning trial',
+      'before', NULL,
+      'after', jsonb_build_object(
+        'tariffId', v_policy.tariff_id,
+        'durationDays', v_policy.duration_days,
+        'graceDays', v_policy.grace_days,
+        'startEvent', v_policy.start_event,
+        'postTrialBehavior', v_policy.post_trial_behavior,
+        'postTrialTariffId', v_policy.post_trial_tariff_id
+      )
+    ),
+    'ok'
+  );
+  RETURN true;
+END
+$$;
+
+
+--
 -- Name: touch_current_patient_plan_last_opened(uuid); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -4252,6 +8110,57 @@ BEGIN
     AND instance.organization_id = v_organization_id
     AND instance.patient_user_id = v_patient_user_id
     AND instance.status = 'active';
+
+  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+  RETURN v_updated_count > 0;
+END
+$$;
+
+
+--
+-- Name: touch_current_patient_support_conversation_activity(uuid); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.touch_current_patient_support_conversation_activity(p_message_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+  v_organization_id uuid := app.current_org_id();
+  v_patient_user_id uuid := app.current_patient_user_id();
+  v_activity_at timestamptz := transaction_timestamp();
+  v_updated_count bigint := 0;
+BEGIN
+  IF v_organization_id IS NULL OR v_patient_user_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.org_enrollments AS enrollment
+    WHERE enrollment.organization_id = v_organization_id
+      AND enrollment.platform_user_id = v_patient_user_id
+      AND enrollment.status = 'active'
+  ) THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.support_conversations AS conversation
+  SET last_message_at = GREATEST(conversation.last_message_at, v_activity_at),
+      updated_at = v_activity_at
+  FROM public.support_conversation_messages AS message
+  WHERE message.id = p_message_id
+    AND message.xmin = pg_current_xact_id()::text::xid
+    AND message.organization_id = v_organization_id
+    AND message.conversation_id = conversation.id
+    AND message.sender_role = 'user'
+    AND message.source = 'webapp'
+    AND conversation.organization_id = v_organization_id
+    AND conversation.platform_user_id = v_patient_user_id
+    AND conversation.source = 'webapp'
+    AND conversation.admin_scope = 'support'
+    AND conversation.status = 'open'
+    AND conversation.closed_at IS NULL;
 
   GET DIAGNOSTICS v_updated_count = ROW_COUNT;
   RETURN v_updated_count > 0;
@@ -4370,38 +8279,6 @@ BEGIN
   RETURN QUERY SELECT true, NULL::text;
 END
 $_$;
-
-
---
--- Name: stage13_prevent_write_mailing_topics(); Type: FUNCTION; Schema: integrator; Owner: -
---
-
-CREATE FUNCTION integrator.stage13_prevent_write_mailing_topics() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  IF current_setting('app.stage13_bypass', true) = 'true' THEN
-    RETURN COALESCE(NEW, OLD);
-  END IF;
-  RAISE EXCEPTION 'mailing_topics is frozen (Stage 13): use webapp projection only';
-END;
-$$;
-
-
---
--- Name: stage13_prevent_write_user_subscriptions(); Type: FUNCTION; Schema: integrator; Owner: -
---
-
-CREATE FUNCTION integrator.stage13_prevent_write_user_subscriptions() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  IF current_setting('app.stage13_bypass', true) = 'true' THEN
-    RETURN COALESCE(NEW, OLD);
-  END IF;
-  RAISE EXCEPTION 'user_subscriptions is frozen (Stage 13): use webapp projection only';
-END;
-$$;
 
 
 --
@@ -4591,6 +8468,29 @@ $$;
 
 
 --
+-- Name: system_settings_test_lock_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.system_settings_test_lock_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
+BEGIN
+  IF OLD.key = ANY(locked_keys) THEN
+    RAISE EXCEPTION 'TEST ENV LOCK: system_settings key "%" is locked for safety. Remove trigger system_settings_test_lock before changing.', OLD.key
+      USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
 -- Name: context_nonce_ledger; Type: TABLE; Schema: app; Owner: -
 --
 
@@ -4662,38 +8562,6 @@ ALTER SEQUENCE drizzle.__drizzle_migrations_id_seq OWNED BY drizzle.__drizzle_mi
 
 
 --
--- Name: booking_calendar_map; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.booking_calendar_map (
-    id bigint NOT NULL,
-    rubitime_record_id text NOT NULL,
-    gcal_event_id text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: booking_calendar_map_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.booking_calendar_map_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: booking_calendar_map_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.booking_calendar_map_id_seq OWNED BY integrator.booking_calendar_map.id;
-
-
---
 -- Name: contacts; Type: TABLE; Schema: integrator; Owner: -
 --
 
@@ -4708,6 +8576,8 @@ CREATE TABLE integrator.contacts (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid NOT NULL
 );
+
+ALTER TABLE ONLY integrator.contacts FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -4746,6 +8616,8 @@ CREATE TABLE integrator.content_access_grants (
     organization_id uuid NOT NULL
 );
 
+ALTER TABLE ONLY integrator.content_access_grants FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: conversation_messages; Type: TABLE; Schema: integrator; Owner: -
@@ -4763,6 +8635,8 @@ CREATE TABLE integrator.conversation_messages (
     organization_id uuid NOT NULL,
     CONSTRAINT conversation_messages_sender_role_check CHECK ((sender_role = ANY (ARRAY['user'::text, 'admin'::text, 'system'::text])))
 );
+
+ALTER TABLE ONLY integrator.conversation_messages FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -4782,6 +8656,8 @@ CREATE TABLE integrator.conversations (
     organization_id uuid NOT NULL,
     CONSTRAINT conversations_status_check CHECK ((status = ANY (ARRAY['open'::text, 'waiting_admin'::text, 'waiting_user'::text, 'closed'::text])))
 );
+
+ALTER TABLE ONLY integrator.conversations FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -4912,70 +8788,6 @@ ALTER SEQUENCE integrator.integration_data_quality_incidents_id_seq OWNED BY int
 
 
 --
--- Name: mailing_logs; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.mailing_logs (
-    user_id bigint NOT NULL,
-    mailing_id bigint NOT NULL,
-    status text NOT NULL,
-    sent_at timestamp with time zone DEFAULT now() NOT NULL,
-    error text,
-    organization_id uuid NOT NULL
-);
-
-
---
--- Name: mailing_topics; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.mailing_topics (
-    id bigint NOT NULL,
-    code text NOT NULL,
-    title text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    key text NOT NULL,
-    is_active boolean DEFAULT true NOT NULL
-);
-
-
---
--- Name: mailings; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.mailings (
-    id bigint NOT NULL,
-    topic_id bigint NOT NULL,
-    title text NOT NULL,
-    status text DEFAULT 'scheduled'::text NOT NULL,
-    scheduled_at timestamp with time zone,
-    started_at timestamp with time zone,
-    completed_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL
-);
-
-
---
--- Name: mailings_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.mailings_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: mailings_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.mailings_id_seq OWNED BY integrator.mailings.id;
-
-
---
 -- Name: message_drafts; Type: TABLE; Schema: integrator; Owner: -
 --
 
@@ -4992,6 +8804,47 @@ CREATE TABLE integrator.message_drafts (
     organization_id uuid NOT NULL,
     CONSTRAINT message_drafts_state_check CHECK ((state = 'pending_confirmation'::text))
 );
+
+ALTER TABLE ONLY integrator.message_drafts FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: message_retry_jobs; Type: TABLE; Schema: integrator; Owner: -
+--
+
+CREATE TABLE integrator.message_retry_jobs (
+    id bigint NOT NULL,
+    phone_normalized text,
+    message_text text,
+    next_try_at timestamp with time zone NOT NULL,
+    attempts_done integer DEFAULT 0 NOT NULL,
+    max_attempts integer DEFAULT 2 NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    kind text DEFAULT 'message.deliver'::text NOT NULL,
+    payload_json jsonb
+);
+
+
+--
+-- Name: message_retry_jobs_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
+--
+
+CREATE SEQUENCE integrator.message_retry_jobs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: message_retry_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
+--
+
+ALTER SEQUENCE integrator.message_retry_jobs_id_seq OWNED BY integrator.message_retry_jobs.id;
 
 
 --
@@ -5046,268 +8899,7 @@ CREATE TABLE integrator.question_messages (
     organization_id uuid NOT NULL
 );
 
-
---
--- Name: rubitime_api_throttle; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.rubitime_api_throttle (
-    id smallint NOT NULL,
-    last_completed_at timestamp with time zone DEFAULT '1970-01-01 01:00:00+01'::timestamp with time zone NOT NULL,
-    CONSTRAINT rubitime_api_throttle_id_check CHECK ((id = 1))
-);
-
-
---
--- Name: rubitime_booking_profiles; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.rubitime_booking_profiles (
-    id bigint NOT NULL,
-    booking_type text NOT NULL,
-    category_code text NOT NULL,
-    city_code text,
-    branch_id bigint NOT NULL,
-    service_id bigint NOT NULL,
-    cooperator_id bigint NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT rubitime_booking_profiles_booking_type_check CHECK ((booking_type = ANY (ARRAY['online'::text, 'in_person'::text])))
-);
-
-
---
--- Name: rubitime_booking_profiles_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.rubitime_booking_profiles_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: rubitime_booking_profiles_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.rubitime_booking_profiles_id_seq OWNED BY integrator.rubitime_booking_profiles.id;
-
-
---
--- Name: rubitime_branches; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.rubitime_branches (
-    id bigint NOT NULL,
-    rubitime_branch_id integer NOT NULL,
-    city_code text NOT NULL,
-    title text NOT NULL,
-    address text DEFAULT ''::text NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    timezone text DEFAULT 'Europe/Moscow'::text NOT NULL
-);
-
-
---
--- Name: rubitime_branches_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.rubitime_branches_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: rubitime_branches_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.rubitime_branches_id_seq OWNED BY integrator.rubitime_branches.id;
-
-
---
--- Name: rubitime_cooperators; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.rubitime_cooperators (
-    id bigint NOT NULL,
-    rubitime_cooperator_id integer NOT NULL,
-    title text NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: rubitime_cooperators_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.rubitime_cooperators_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: rubitime_cooperators_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.rubitime_cooperators_id_seq OWNED BY integrator.rubitime_cooperators.id;
-
-
---
--- Name: rubitime_create_retry_jobs; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.rubitime_create_retry_jobs (
-    id bigint NOT NULL,
-    phone_normalized text,
-    message_text text,
-    next_try_at timestamp with time zone NOT NULL,
-    attempts_done integer DEFAULT 0 NOT NULL,
-    max_attempts integer DEFAULT 2 NOT NULL,
-    status text DEFAULT 'pending'::text NOT NULL,
-    last_error text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    kind text DEFAULT 'message.deliver'::text NOT NULL,
-    payload_json jsonb
-);
-
-
---
--- Name: rubitime_create_retry_jobs_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.rubitime_create_retry_jobs_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: rubitime_create_retry_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.rubitime_create_retry_jobs_id_seq OWNED BY integrator.rubitime_create_retry_jobs.id;
-
-
---
--- Name: rubitime_events; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.rubitime_events (
-    id bigint NOT NULL,
-    rubitime_record_id text,
-    event text NOT NULL,
-    payload_json jsonb NOT NULL,
-    received_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: rubitime_events_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.rubitime_events_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: rubitime_events_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.rubitime_events_id_seq OWNED BY integrator.rubitime_events.id;
-
-
---
--- Name: rubitime_records; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.rubitime_records (
-    id bigint NOT NULL,
-    rubitime_record_id text NOT NULL,
-    phone_normalized text,
-    record_at timestamp with time zone,
-    status text NOT NULL,
-    payload_json jsonb NOT NULL,
-    last_event text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    gcal_event_id text,
-    CONSTRAINT rubitime_records_status_check CHECK ((status = ANY (ARRAY['created'::text, 'updated'::text, 'canceled'::text])))
-);
-
-
---
--- Name: rubitime_records_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.rubitime_records_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: rubitime_records_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.rubitime_records_id_seq OWNED BY integrator.rubitime_records.id;
-
-
---
--- Name: rubitime_services; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.rubitime_services (
-    id bigint NOT NULL,
-    rubitime_service_id integer NOT NULL,
-    title text NOT NULL,
-    category_code text NOT NULL,
-    duration_minutes integer NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT rubitime_services_duration_minutes_check CHECK ((duration_minutes > 0))
-);
-
-
---
--- Name: rubitime_services_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.rubitime_services_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: rubitime_services_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.rubitime_services_id_seq OWNED BY integrator.rubitime_services.id;
+ALTER TABLE ONLY integrator.question_messages FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5317,40 +8909,6 @@ ALTER SEQUENCE integrator.rubitime_services_id_seq OWNED BY integrator.rubitime_
 CREATE TABLE integrator.schema_migrations (
     version text NOT NULL,
     applied_at timestamp with time zone DEFAULT now()
-);
-
-
---
--- Name: subscriptions_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.subscriptions_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: subscriptions_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.subscriptions_id_seq OWNED BY integrator.mailing_topics.id;
-
-
---
--- Name: system_settings; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.system_settings (
-    key text NOT NULL,
-    scope text DEFAULT 'global'::text NOT NULL,
-    value_json jsonb DEFAULT '{}'::jsonb NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by text,
-    organization_id uuid,
-    CONSTRAINT system_settings_scope_check CHECK ((scope = ANY (ARRAY['global'::text, 'doctor'::text, 'admin'::text])))
 );
 
 
@@ -5434,6 +8992,8 @@ CREATE TABLE integrator.user_questions (
     organization_id uuid NOT NULL
 );
 
+ALTER TABLE ONLY integrator.user_questions FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: user_reminder_delivery_logs; Type: TABLE; Schema: integrator; Owner: -
@@ -5449,6 +9009,8 @@ CREATE TABLE integrator.user_reminder_delivery_logs (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid NOT NULL
 );
+
+ALTER TABLE ONLY integrator.user_reminder_delivery_logs FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5471,6 +9033,8 @@ CREATE TABLE integrator.user_reminder_occurrences (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid NOT NULL
 );
+
+ALTER TABLE ONLY integrator.user_reminder_occurrences FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5504,18 +9068,7 @@ CREATE TABLE integrator.user_reminder_rules (
     organization_id uuid NOT NULL
 );
 
-
---
--- Name: user_subscriptions; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.user_subscriptions (
-    user_id bigint NOT NULL,
-    topic_id bigint NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL
-);
+ALTER TABLE ONLY integrator.user_reminder_rules FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5570,6 +9123,8 @@ CREATE TABLE public.admin_audit_log (
     CONSTRAINT admin_audit_log_status_check CHECK ((status = ANY (ARRAY['ok'::text, 'partial_failure'::text, 'error'::text])))
 );
 
+ALTER TABLE ONLY public.admin_audit_log FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: app_runtime_settings; Type: TABLE; Schema: public; Owner: -
@@ -5608,6 +9163,8 @@ CREATE TABLE public.app_runtime_settings_audit (
     CONSTRAINT app_runtime_settings_audit_audience_check CHECK ((audience = ANY (ARRAY['public'::text, 'authenticated_client'::text, 'server'::text]))),
     CONSTRAINT app_runtime_settings_audit_scope_check CHECK ((scope = ANY (ARRAY['global'::text, 'doctor'::text, 'admin'::text])))
 );
+
+ALTER TABLE ONLY public.app_runtime_settings_audit FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5669,6 +9226,8 @@ CREATE TABLE public.be_appointment_cancellations (
     CONSTRAINT be_appt_cancellations_type_check CHECK ((cancellation_type = ANY (ARRAY['free'::text, 'penalized'::text, 'package_charged'::text, 'no_package_charge'::text, 'retain_prepayment'::text, 'refund_prepayment'::text, 'custom'::text])))
 );
 
+ALTER TABLE ONLY public.be_appointment_cancellations FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_appointment_events; Type: TABLE; Schema: public; Owner: -
@@ -5683,6 +9242,8 @@ CREATE TABLE public.be_appointment_events (
     payload jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_appointment_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5699,6 +9260,8 @@ CREATE TABLE public.be_appointment_history_events (
     occurred_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_appointment_history_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5718,6 +9281,8 @@ CREATE TABLE public.be_appointment_no_shows (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT be_appt_no_shows_actor_check CHECK ((actor_type = ANY (ARRAY['specialist'::text, 'admin'::text, 'system'::text])))
 );
+
+ALTER TABLE ONLY public.be_appointment_no_shows FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5747,6 +9312,8 @@ CREATE TABLE public.be_appointment_reschedules (
     CONSTRAINT be_appt_reschedules_actor_check CHECK ((actor_type = ANY (ARRAY['patient'::text, 'specialist'::text, 'admin'::text, 'system'::text])))
 );
 
+ALTER TABLE ONLY public.be_appointment_reschedules FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_appointment_staff_comments; Type: TABLE; Schema: public; Owner: -
@@ -5762,6 +9329,8 @@ CREATE TABLE public.be_appointment_staff_comments (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_appointment_staff_comments FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5792,10 +9361,12 @@ CREATE TABLE public.be_appointments (
     deleted_at timestamp with time zone,
     chain_id uuid,
     chain_position integer,
-    CONSTRAINT be_appointments_source_check CHECK ((source = ANY (ARRAY['native'::text, 'rubitime_projection'::text, 'admin_manual'::text, 'public_widget'::text]))),
+    CONSTRAINT be_appointments_source_check CHECK ((source = ANY (ARRAY['native'::text, 'imported'::text, 'admin_manual'::text, 'public_widget'::text]))),
     CONSTRAINT be_appointments_status_check CHECK ((status = ANY (ARRAY['created'::text, 'awaiting_payment'::text, 'paid'::text, 'confirmed'::text, 'rescheduled'::text, 'cancelled_by_patient'::text, 'cancelled_by_specialist'::text, 'late_cancellation'::text, 'no_show'::text, 'completed'::text, 'visit_confirmed'::text, 'charged_to_package'::text, 'manual_review_required'::text]))),
     CONSTRAINT be_appointments_time_check CHECK ((end_at > start_at))
 );
+
+ALTER TABLE ONLY public.be_appointments FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5814,6 +9385,8 @@ CREATE TABLE public.be_availability_rules (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT be_availability_rules_type_check CHECK ((rule_type = ANY (ARRAY['buffer_minutes'::text, 'max_chain_slots'::text])))
 );
+
+ALTER TABLE ONLY public.be_availability_rules FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5837,6 +9410,8 @@ CREATE TABLE public.be_booking_form_fields (
     CONSTRAINT be_booking_form_fields_type_check CHECK ((field_type = ANY (ARRAY['first_name'::text, 'last_name'::text, 'phone'::text, 'email'::text, 'comment'::text, 'problem_description'::text, 'complaint'::text, 'free_text'::text, 'custom'::text])))
 );
 
+ALTER TABLE ONLY public.be_booking_form_fields FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_booking_form_submissions; Type: TABLE; Schema: public; Owner: -
@@ -5850,6 +9425,8 @@ CREATE TABLE public.be_booking_form_submissions (
     value_text text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_booking_form_submissions FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5871,6 +9448,8 @@ CREATE TABLE public.be_branches (
     color text,
     CONSTRAINT be_branches_color_hex_check CHECK (((color IS NULL) OR (color ~ '^#[0-9A-Fa-f]{6}$'::text)))
 );
+
+ALTER TABLE ONLY public.be_branches FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5899,6 +9478,8 @@ CREATE TABLE public.be_cancellation_policies (
     CONSTRAINT be_cancel_policies_scope_check CHECK ((scope_level = ANY (ARRAY['organization'::text, 'specialist'::text, 'service'::text, 'product'::text])))
 );
 
+ALTER TABLE ONLY public.be_cancellation_policies FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_clinic_services; Type: TABLE; Schema: public; Owner: -
@@ -5926,6 +9507,8 @@ CREATE TABLE public.be_clinic_services (
     CONSTRAINT be_clinic_services_price_check CHECK ((price_minor >= 0))
 );
 
+ALTER TABLE ONLY public.be_clinic_services FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_external_entity_mappings; Type: TABLE; Schema: public; Owner: -
@@ -5944,6 +9527,8 @@ CREATE TABLE public.be_external_entity_mappings (
     CONSTRAINT be_external_entity_type_check CHECK ((entity_type = ANY (ARRAY['branch'::text, 'specialist'::text, 'service'::text, 'appointment'::text, 'availability'::text]))),
     CONSTRAINT be_external_system_check CHECK ((external_system = ANY (ARRAY['rubitime'::text])))
 );
+
+ALTER TABLE ONLY public.be_external_entity_mappings FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5975,8 +9560,12 @@ CREATE TABLE public.be_organizations (
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    tariff_id uuid
+    tariff_id uuid,
+    commercial_access_state text DEFAULT 'compatibility'::text NOT NULL,
+    CONSTRAINT be_organizations_commercial_access_state_check CHECK ((commercial_access_state = ANY (ARRAY['compatibility'::text, 'no_trial'::text, 'trial_pending'::text, 'active'::text])))
 );
+
+ALTER TABLE ONLY public.be_organizations FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -5992,6 +9581,8 @@ CREATE TABLE public.be_package_history_events (
     occurred_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+ALTER TABLE ONLY public.be_package_history_events FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_package_items; Type: TABLE; Schema: public; Owner: -
@@ -6006,6 +9597,8 @@ CREATE TABLE public.be_package_items (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT be_package_items_quantity_check CHECK ((quantity > 0))
 );
+
+ALTER TABLE ONLY public.be_package_items FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6028,6 +9621,8 @@ CREATE TABLE public.be_package_usages (
     CONSTRAINT be_package_usages_quantity_check CHECK ((quantity > 0))
 );
 
+ALTER TABLE ONLY public.be_package_usages FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_patient_booking_profiles; Type: TABLE; Schema: public; Owner: -
@@ -6045,6 +9640,8 @@ CREATE TABLE public.be_patient_booking_profiles (
     no_show_count integer DEFAULT 0 NOT NULL
 );
 
+ALTER TABLE ONLY public.be_patient_booking_profiles FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_patient_package_items; Type: TABLE; Schema: public; Owner: -
@@ -6059,6 +9656,8 @@ CREATE TABLE public.be_patient_package_items (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT be_patient_package_items_quantity_check CHECK ((quantity_initial > 0))
 );
+
+ALTER TABLE ONLY public.be_patient_package_items FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6093,6 +9692,8 @@ CREATE TABLE public.be_patient_packages (
     CONSTRAINT be_patient_packages_price_check CHECK ((price_minor >= 0)),
     CONSTRAINT be_patient_packages_status_check CHECK ((status = ANY (ARRAY['offered'::text, 'awaiting_payment'::text, 'active'::text, 'expired'::text, 'cancelled'::text])))
 );
+
+ALTER TABLE ONLY public.be_patient_packages FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6132,6 +9733,8 @@ CREATE TABLE public.be_patient_timeline_events (
     CONSTRAINT be_patient_timeline_domain_check CHECK ((domain = ANY (ARRAY['appointment'::text, 'payment'::text, 'package'::text])))
 );
 
+ALTER TABLE ONLY public.be_patient_timeline_events FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_payment_history_events; Type: TABLE; Schema: public; Owner: -
@@ -6154,6 +9757,8 @@ CREATE TABLE public.be_payment_history_events (
     payload_json jsonb DEFAULT '{}'::jsonb NOT NULL,
     occurred_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_payment_history_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6179,6 +9784,8 @@ CREATE TABLE public.be_payment_intents (
     CONSTRAINT be_payment_intents_amount_check CHECK ((amount_minor >= 0))
 );
 
+ALTER TABLE ONLY public.be_payment_intents FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_payment_provider_events; Type: TABLE; Schema: public; Owner: -
@@ -6192,8 +9799,11 @@ CREATE TABLE public.be_payment_provider_events (
     event_type text NOT NULL,
     payload_json jsonb DEFAULT '{}'::jsonb NOT NULL,
     processed_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    intent_ref text
 );
+
+ALTER TABLE ONLY public.be_payment_provider_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6214,6 +9824,8 @@ CREATE TABLE public.be_payments (
     captured_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_payments FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6237,6 +9849,8 @@ CREATE TABLE public.be_prepayment_policies (
     CONSTRAINT be_prepayment_policies_scope_check CHECK ((((service_id IS NOT NULL) AND (online_category IS NULL)) OR ((service_id IS NULL) AND (online_category IS NOT NULL))))
 );
 
+ALTER TABLE ONLY public.be_prepayment_policies FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_product_history_events; Type: TABLE; Schema: public; Owner: -
@@ -6250,6 +9864,8 @@ CREATE TABLE public.be_product_history_events (
     payload_json jsonb DEFAULT '{}'::jsonb NOT NULL,
     occurred_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_product_history_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6268,6 +9884,8 @@ CREATE TABLE public.be_product_pay_links (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT be_product_pay_links_use_count_check CHECK ((use_count >= 0))
 );
+
+ALTER TABLE ONLY public.be_product_pay_links FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6300,6 +9918,8 @@ CREATE TABLE public.be_product_purchases (
     CONSTRAINT be_product_purchases_status_check CHECK ((status = ANY (ARRAY['offered'::text, 'awaiting_payment'::text, 'active'::text, 'used'::text, 'expired'::text, 'cancelled'::text])))
 );
 
+ALTER TABLE ONLY public.be_product_purchases FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_products; Type: TABLE; Schema: public; Owner: -
@@ -6328,6 +9948,8 @@ CREATE TABLE public.be_products (
     CONSTRAINT be_products_type_check CHECK ((product_type = ANY (ARRAY['single_visit'::text, 'membership'::text, 'gift_certificate'::text, 'promo'::text, 'course'::text, 'subscription'::text, 'content_access'::text, 'individual_offer'::text])))
 );
 
+ALTER TABLE ONLY public.be_products FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_refunds; Type: TABLE; Schema: public; Owner: -
@@ -6346,6 +9968,8 @@ CREATE TABLE public.be_refunds (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT be_refunds_amount_check CHECK ((amount_minor >= 0))
 );
+
+ALTER TABLE ONLY public.be_refunds FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6376,6 +10000,8 @@ CREATE TABLE public.be_reschedule_policies (
     CONSTRAINT be_reschedule_policies_scope_check CHECK ((scope_level = ANY (ARRAY['organization'::text, 'specialist'::text, 'service'::text, 'product'::text])))
 );
 
+ALTER TABLE ONLY public.be_reschedule_policies FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_rooms; Type: TABLE; Schema: public; Owner: -
@@ -6391,6 +10017,8 @@ CREATE TABLE public.be_rooms (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_rooms FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6413,6 +10041,8 @@ CREATE TABLE public.be_schedule_blocks (
     CONSTRAINT be_schedule_blocks_type_check CHECK ((block_type = ANY (ARRAY['block'::text, 'absence'::text, 'manual_booking'::text])))
 );
 
+ALTER TABLE ONLY public.be_schedule_blocks FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_schedule_templates; Type: TABLE; Schema: public; Owner: -
@@ -6433,6 +10063,8 @@ CREATE TABLE public.be_schedule_templates (
     CONSTRAINT be_schedule_templates_minutes_check CHECK (((start_minute >= 0) AND (end_minute <= 1440) AND (end_minute > start_minute)))
 );
 
+ALTER TABLE ONLY public.be_schedule_templates FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_service_location_availability; Type: TABLE; Schema: public; Owner: -
@@ -6446,6 +10078,8 @@ CREATE TABLE public.be_service_location_availability (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_service_location_availability FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6461,6 +10095,8 @@ CREATE TABLE public.be_specialist_locations (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+ALTER TABLE ONLY public.be_specialist_locations FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_specialist_rooms; Type: TABLE; Schema: public; Owner: -
@@ -6475,6 +10111,8 @@ CREATE TABLE public.be_specialist_rooms (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+ALTER TABLE ONLY public.be_specialist_rooms FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_specialist_service_availability; Type: TABLE; Schema: public; Owner: -
@@ -6488,13 +10126,14 @@ CREATE TABLE public.be_specialist_service_availability (
     branch_id uuid,
     room_id uuid,
     city_code text,
-    duration_minutes_override integer,
     price_minor_override integer,
     is_active boolean DEFAULT true NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_specialist_service_availability FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6511,6 +10150,8 @@ CREATE TABLE public.be_specialists (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.be_specialists FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6533,6 +10174,8 @@ CREATE TABLE public.be_subscription_packages (
     CONSTRAINT be_subscription_packages_price_check CHECK ((price_minor >= 0))
 );
 
+ALTER TABLE ONLY public.be_subscription_packages FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: be_working_days; Type: TABLE; Schema: public; Owner: -
@@ -6553,6 +10196,8 @@ CREATE TABLE public.be_working_days (
     breaks jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT be_working_days_hours_check CHECK ((is_closed OR ((start_minute IS NOT NULL) AND (end_minute IS NOT NULL) AND (start_minute >= 0) AND (end_minute <= 1440) AND (end_minute > start_minute))))
 );
+
+ALTER TABLE ONLY public.be_working_days FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6575,6 +10220,8 @@ CREATE TABLE public.be_working_hours (
     CONSTRAINT be_working_hours_weekday_check CHECK (((weekday >= 0) AND (weekday <= 6)))
 );
 
+ALTER TABLE ONLY public.be_working_hours FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: booking_branch_services; Type: TABLE; Schema: public; Owner: -
@@ -6585,7 +10232,6 @@ CREATE TABLE public.booking_branch_services (
     branch_id uuid NOT NULL,
     service_id uuid NOT NULL,
     specialist_id uuid NOT NULL,
-    rubitime_service_id text NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -6602,13 +10248,44 @@ CREATE TABLE public.booking_branches (
     city_id uuid NOT NULL,
     title text NOT NULL,
     address text,
-    rubitime_branch_id text NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     timezone text DEFAULT 'Europe/Moscow'::text NOT NULL
 );
+
+
+--
+-- Name: booking_calendar_map; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.booking_calendar_map (
+    id bigint NOT NULL,
+    appointment_key text NOT NULL,
+    gcal_event_id text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: booking_calendar_map_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.booking_calendar_map_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: booking_calendar_map_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.booking_calendar_map_id_seq OWNED BY public.booking_calendar_map.id;
 
 
 --
@@ -6654,7 +10331,6 @@ CREATE TABLE public.booking_specialists (
     branch_id uuid NOT NULL,
     full_name text NOT NULL,
     description text,
-    rubitime_cooperator_id text NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -6700,6 +10376,8 @@ CREATE TABLE public.broadcast_audit (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.broadcast_audit FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: broadcast_audit_recipients; Type: TABLE; Schema: public; Owner: -
@@ -6710,6 +10388,8 @@ CREATE TABLE public.broadcast_audit_recipients (
     platform_user_id uuid NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.broadcast_audit_recipients FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6729,6 +10409,8 @@ CREATE TABLE public.broadcast_drafts (
     media_type text,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.broadcast_drafts FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6781,6 +10463,8 @@ CREATE TABLE public.clinical_anamnesis_illness (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.clinical_anamnesis_illness FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: clinical_anamnesis_lifestyle; Type: TABLE; Schema: public; Owner: -
@@ -6795,6 +10479,8 @@ CREATE TABLE public.clinical_anamnesis_lifestyle (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.clinical_anamnesis_lifestyle FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6812,6 +10498,8 @@ CREATE TABLE public.clinical_anamnesis_trauma (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.clinical_anamnesis_trauma FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6832,6 +10520,8 @@ CREATE TABLE public.clinical_complaint (
     CONSTRAINT clinical_complaint_status_check CHECK ((status = ANY (ARRAY['active'::text, 'resolved'::text])))
 );
 
+ALTER TABLE ONLY public.clinical_complaint FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: clinical_complaint_update; Type: TABLE; Schema: public; Owner: -
@@ -6848,6 +10538,8 @@ CREATE TABLE public.clinical_complaint_update (
     organization_id uuid,
     CONSTRAINT clinical_complaint_update_severity_check CHECK (((severity >= 0) AND (severity <= 10)))
 );
+
+ALTER TABLE ONLY public.clinical_complaint_update FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6871,6 +10563,8 @@ CREATE TABLE public.clinical_diagnosis (
     CONSTRAINT clinical_diagnosis_status_check CHECK ((status = ANY (ARRAY['active'::text, 'refined'::text, 'resolved'::text])))
 );
 
+ALTER TABLE ONLY public.clinical_diagnosis FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: clinical_diagnosis_catalog; Type: TABLE; Schema: public; Owner: -
@@ -6884,6 +10578,8 @@ CREATE TABLE public.clinical_diagnosis_catalog (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.clinical_diagnosis_catalog FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6902,6 +10598,8 @@ CREATE TABLE public.clinical_diagnosis_status_history (
     CONSTRAINT clinical_diagnosis_status_history_new_status_check CHECK ((new_status = ANY (ARRAY['предварительный'::text, 'подтверждённый'::text, 'закрытый'::text])))
 );
 
+ALTER TABLE ONLY public.clinical_diagnosis_status_history FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: clinical_diagnosis_update; Type: TABLE; Schema: public; Owner: -
@@ -6917,6 +10615,8 @@ CREATE TABLE public.clinical_diagnosis_update (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.clinical_diagnosis_update FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6941,6 +10641,8 @@ CREATE TABLE public.clinical_test_regions (
     body_region_id uuid NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.clinical_test_regions FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6968,6 +10670,8 @@ CREATE TABLE public.clinical_visit (
     CONSTRAINT clinical_visit_visit_type_check CHECK ((visit_type = ANY (ARRAY['first'::text, 'repeat'::text])))
 );
 
+ALTER TABLE ONLY public.clinical_visit FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: comments; Type: TABLE; Schema: public; Owner: -
@@ -6986,6 +10690,8 @@ CREATE TABLE public.comments (
     CONSTRAINT comments_comment_type_check CHECK ((comment_type = ANY (ARRAY['template'::text, 'individual_override'::text, 'clinical_note'::text]))),
     CONSTRAINT comments_target_type_check CHECK ((target_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'test'::text, 'test_set'::text, 'recommendation'::text, 'lesson'::text, 'stage_item_instance'::text, 'stage_instance'::text, 'program_instance'::text])))
 );
+
+ALTER TABLE ONLY public.comments FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7006,6 +10712,8 @@ CREATE TABLE public.content_access_grants_webapp (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.content_access_grants_webapp FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7034,6 +10742,8 @@ CREATE TABLE public.content_pages (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.content_pages FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: content_section_slug_history; Type: TABLE; Schema: public; Owner: -
@@ -7048,6 +10758,8 @@ CREATE TABLE public.content_section_slug_history (
     organization_id uuid,
     CONSTRAINT content_section_slug_history_slug_diff_chk CHECK ((old_slug <> new_slug))
 );
+
+ALTER TABLE ONLY public.content_section_slug_history FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7074,6 +10786,8 @@ CREATE TABLE public.content_sections (
     CONSTRAINT content_sections_system_parent_code_check CHECK (((system_parent_code IS NULL) OR (system_parent_code = ANY (ARRAY['situations'::text, 'sos'::text, 'warmups'::text, 'lessons'::text]))))
 );
 
+ALTER TABLE ONLY public.content_sections FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: courses; Type: TABLE; Schema: public; Owner: -
@@ -7095,6 +10809,8 @@ CREATE TABLE public.courses (
     CONSTRAINT courses_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))
 );
 
+ALTER TABLE ONLY public.courses FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: doctor_notes; Type: TABLE; Schema: public; Owner: -
@@ -7109,6 +10825,8 @@ CREATE TABLE public.doctor_notes (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.doctor_notes FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7127,6 +10845,8 @@ CREATE TABLE public.doctor_patient_support (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.doctor_patient_support FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: email_challenges; Type: TABLE; Schema: public; Owner: -
@@ -7139,7 +10859,20 @@ CREATE TABLE public.email_challenges (
     code_hash text NOT NULL,
     expires_at bigint NOT NULL,
     attempts smallint DEFAULT 0 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    purpose text,
+    CONSTRAINT email_challenges_purpose_known_check CHECK (((purpose IS NULL) OR (purpose = ANY (ARRAY['login'::text, 'public_registration'::text, 'clinic_invite'::text, 'specialist_signup'::text, 'password_reset'::text, 'password_setup'::text, 'password_register'::text, 'email_verify'::text, 'patient_email_change'::text]))))
+);
+
+
+--
+-- Name: email_otp_locks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_otp_locks (
+    user_id uuid NOT NULL,
+    locked_until bigint DEFAULT 0 NOT NULL,
+    lockout_cycle integer DEFAULT 0 NOT NULL
 );
 
 
@@ -7252,6 +10985,8 @@ CREATE TABLE public.lfk_complex_exercises (
     CONSTRAINT lfk_complex_exercises_side_check CHECK (((side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text, 'damaged'::text, 'healthy'::text]))))
 );
 
+ALTER TABLE ONLY public.lfk_complex_exercises FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: lfk_complex_template_exercises; Type: TABLE; Schema: public; Owner: -
@@ -7274,6 +11009,8 @@ CREATE TABLE public.lfk_complex_template_exercises (
     CONSTRAINT lfk_complex_template_exercises_side_check CHECK (((side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text, 'damaged'::text, 'healthy'::text]))))
 );
 
+ALTER TABLE ONLY public.lfk_complex_template_exercises FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: lfk_complex_templates; Type: TABLE; Schema: public; Owner: -
@@ -7292,6 +11029,8 @@ CREATE TABLE public.lfk_complex_templates (
     CONSTRAINT lfk_complex_templates_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL)))),
     CONSTRAINT lfk_complex_templates_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))
 );
+
+ALTER TABLE ONLY public.lfk_complex_templates FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7317,6 +11056,8 @@ CREATE TABLE public.lfk_complexes (
     CONSTRAINT lfk_complexes_side_check CHECK (((side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text]))))
 );
 
+ALTER TABLE ONLY public.lfk_complexes FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: lfk_exercise_media; Type: TABLE; Schema: public; Owner: -
@@ -7335,6 +11076,8 @@ CREATE TABLE public.lfk_exercise_media (
     CONSTRAINT lfk_exercise_media_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL))))
 );
 
+ALTER TABLE ONLY public.lfk_exercise_media FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: lfk_exercise_regions; Type: TABLE; Schema: public; Owner: -
@@ -7347,6 +11090,8 @@ CREATE TABLE public.lfk_exercise_regions (
     owner_kind text DEFAULT 'organization'::text NOT NULL,
     CONSTRAINT lfk_exercise_regions_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL))))
 );
+
+ALTER TABLE ONLY public.lfk_exercise_regions FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7374,6 +11119,8 @@ CREATE TABLE public.lfk_exercises (
     CONSTRAINT lfk_exercises_owner_check CHECK ((((owner_kind = 'organization'::text) AND (organization_id IS NOT NULL)) OR ((owner_kind = 'platform'::text) AND (organization_id IS NULL))))
 );
 
+ALTER TABLE ONLY public.lfk_exercises FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: lfk_sessions; Type: TABLE; Schema: public; Owner: -
@@ -7397,6 +11144,8 @@ CREATE TABLE public.lfk_sessions (
     CONSTRAINT lfk_sessions_source_check CHECK ((source = ANY (ARRAY['bot'::text, 'webapp'::text])))
 );
 
+ALTER TABLE ONLY public.lfk_sessions FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: login_tokens; Type: TABLE; Schema: public; Owner: -
@@ -7414,38 +11163,6 @@ CREATE TABLE public.login_tokens (
     session_issued_at timestamp with time zone,
     CONSTRAINT login_tokens_method_check CHECK ((method = ANY (ARRAY['telegram'::text, 'max'::text]))),
     CONSTRAINT login_tokens_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'expired'::text])))
-);
-
-
---
--- Name: mailing_logs_webapp; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.mailing_logs_webapp (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    integrator_user_id bigint NOT NULL,
-    integrator_mailing_id bigint NOT NULL,
-    status text NOT NULL,
-    sent_at timestamp with time zone DEFAULT now() NOT NULL,
-    error_text text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid
-);
-
-
---
--- Name: mailing_topics_webapp; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.mailing_topics_webapp (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    integrator_topic_id bigint NOT NULL,
-    code text NOT NULL,
-    title text NOT NULL,
-    key text NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -7482,6 +11199,8 @@ CREATE TABLE public.material_ratings (
     CONSTRAINT material_ratings_stars_check CHECK (((stars >= 1) AND (stars <= 5))),
     CONSTRAINT material_ratings_target_kind_check CHECK ((target_kind = ANY (ARRAY['content_page'::text, 'lfk_exercise'::text, 'lfk_complex'::text])))
 );
+
+ALTER TABLE ONLY public.material_ratings FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7529,6 +11248,8 @@ CREATE TABLE public.media_files (
     CONSTRAINT media_files_video_processing_status_check CHECK (((video_processing_status IS NULL) OR (video_processing_status = ANY (ARRAY['none'::text, 'pending'::text, 'processing'::text, 'ready'::text, 'failed'::text]))))
 );
 
+ALTER TABLE ONLY public.media_files FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: media_folders; Type: TABLE; Schema: public; Owner: -
@@ -7550,6 +11271,8 @@ CREATE TABLE public.media_folders (
     CONSTRAINT media_folders_name_check CHECK (((length(TRIM(BOTH FROM name)) > 0) AND (char_length(name) <= 180)))
 );
 
+ALTER TABLE ONLY public.media_folders FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: media_hls_proxy_error_events; Type: TABLE; Schema: public; Owner: -
@@ -7568,6 +11291,8 @@ CREATE TABLE public.media_hls_proxy_error_events (
     CONSTRAINT media_hls_proxy_error_events_artifact_check CHECK ((artifact_kind = ANY (ARRAY['master'::text, 'variant'::text, 'segment'::text]))),
     CONSTRAINT media_hls_proxy_error_events_reason_check CHECK ((reason_code = ANY (ARRAY['session_unauthorized'::text, 'feature_disabled'::text, 'media_not_readable'::text, 'forbidden_path'::text, 'missing_object'::text, 'upstream_403'::text, 's3_read_failed'::text, 'upstream_timeout'::text, 'range_not_satisfiable'::text, 'playlist_read_failed'::text, 'playlist_rewrite_failed'::text, 'internal_error'::text])))
 );
+
+ALTER TABLE ONLY public.media_hls_proxy_error_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7588,6 +11313,8 @@ CREATE TABLE public.media_playback_client_events (
     CONSTRAINT media_playback_client_events_event_class_check CHECK ((event_class = ANY (ARRAY['hls_fatal'::text, 'video_error'::text, 'hls_import_failed'::text, 'playback_refetch_failed'::text, 'playback_refetch_exception'::text, 'hls_js_unsupported'::text])))
 );
 
+ALTER TABLE ONLY public.media_playback_client_events FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: media_playback_resolution_events; Type: TABLE; Schema: public; Owner: -
@@ -7603,6 +11330,8 @@ CREATE TABLE public.media_playback_resolution_events (
     organization_id uuid,
     CONSTRAINT media_playback_resolution_events_delivery_check CHECK ((delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text])))
 );
+
+ALTER TABLE ONLY public.media_playback_resolution_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7629,6 +11358,8 @@ CREATE TABLE public.media_playback_user_video_first_resolve (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.media_playback_user_video_first_resolve FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: media_transcode_jobs; Type: TABLE; Schema: public; Owner: -
@@ -7650,6 +11381,8 @@ CREATE TABLE public.media_transcode_jobs (
     organization_id uuid,
     CONSTRAINT media_transcode_jobs_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'failed'::text])))
 );
+
+ALTER TABLE ONLY public.media_transcode_jobs FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7678,6 +11411,8 @@ CREATE TABLE public.media_upload_sessions (
     CONSTRAINT media_upload_sessions_status_check CHECK ((status = ANY (ARRAY['initiated'::text, 'uploading'::text, 'completing'::text, 'completed'::text, 'aborted'::text, 'expired'::text, 'failed'::text])))
 );
 
+ALTER TABLE ONLY public.media_upload_sessions FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: message_log; Type: TABLE; Schema: public; Owner: -
@@ -7698,6 +11433,8 @@ CREATE TABLE public.message_log (
     CONSTRAINT message_log_outcome_check CHECK ((outcome = ANY (ARRAY['sent'::text, 'partial'::text, 'failed'::text])))
 );
 
+ALTER TABLE ONLY public.message_log FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: motivational_quotes; Type: TABLE; Schema: public; Owner: -
@@ -7713,6 +11450,8 @@ CREATE TABLE public.motivational_quotes (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.motivational_quotes FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7739,6 +11478,8 @@ CREATE TABLE public.notification_delivery_attempts (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.notification_delivery_attempts FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: online_intake_answers; Type: TABLE; Schema: public; Owner: -
@@ -7753,6 +11494,8 @@ CREATE TABLE public.online_intake_answers (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.online_intake_answers FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7774,6 +11517,8 @@ CREATE TABLE public.online_intake_attachments (
     CONSTRAINT online_intake_attachments_check CHECK ((((attachment_type = 'file'::text) AND (s3_key IS NOT NULL)) OR ((attachment_type = 'url'::text) AND (url IS NOT NULL))))
 );
 
+ALTER TABLE ONLY public.online_intake_attachments FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: online_intake_requests; Type: TABLE; Schema: public; Owner: -
@@ -7792,6 +11537,8 @@ CREATE TABLE public.online_intake_requests (
     CONSTRAINT online_intake_requests_type_check CHECK ((type = ANY (ARRAY['lfk'::text, 'nutrition'::text])))
 );
 
+ALTER TABLE ONLY public.online_intake_requests FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: online_intake_status_history; Type: TABLE; Schema: public; Owner: -
@@ -7807,6 +11554,8 @@ CREATE TABLE public.online_intake_status_history (
     changed_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.online_intake_status_history FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7839,6 +11588,8 @@ CREATE TABLE public.operator_health_failure_archive (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.operator_health_failure_archive FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: operator_incidents; Type: TABLE; Schema: public; Owner: -
@@ -7855,7 +11606,14 @@ CREATE TABLE public.operator_incidents (
     last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
     occurrence_count integer DEFAULT 1 NOT NULL,
     resolved_at timestamp with time zone,
-    alert_sent_at timestamp with time zone
+    alert_sent_at timestamp with time zone,
+    acknowledged_at timestamp with time zone,
+    initial_alert_sent_at timestamp with time zone,
+    one_hour_alert_sent_at timestamp with time zone,
+    alert_claim_phase text,
+    alert_claim_token uuid,
+    alert_claimed_at timestamp with time zone,
+    CONSTRAINT operator_incidents_alert_claim_phase_check CHECK (((alert_claim_phase IS NULL) OR (alert_claim_phase = ANY (ARRAY['initial'::text, 'one_hour_repeat'::text]))))
 );
 
 
@@ -7876,6 +11634,33 @@ CREATE TABLE public.operator_job_status (
     meta_json jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
+ALTER TABLE ONLY public.operator_job_status FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: org_brand_revisions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.org_brand_revisions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    display_name text,
+    logo_media_id uuid,
+    created_by_platform_user_id uuid NOT NULL,
+    published_by_platform_user_id uuid,
+    archived_by_platform_user_id uuid,
+    published_at timestamp with time zone,
+    archived_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT org_brand_revisions_display_name_check CHECK (((display_name IS NULL) OR ((btrim(display_name) <> ''::text) AND (length(display_name) <= 120)))),
+    CONSTRAINT org_brand_revisions_publication_state_check CHECK ((((status = 'draft'::text) AND (published_at IS NULL) AND (archived_at IS NULL) AND (published_by_platform_user_id IS NULL) AND (archived_by_platform_user_id IS NULL)) OR ((status = 'published'::text) AND (published_at IS NOT NULL) AND (archived_at IS NULL) AND (published_by_platform_user_id IS NOT NULL) AND (archived_by_platform_user_id IS NULL)) OR ((status = 'archived'::text) AND (archived_at IS NOT NULL) AND (archived_by_platform_user_id IS NOT NULL)))),
+    CONSTRAINT org_brand_revisions_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))
+);
+
+ALTER TABLE ONLY public.org_brand_revisions FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: org_enrollments; Type: TABLE; Schema: public; Owner: -
@@ -7892,6 +11677,8 @@ CREATE TABLE public.org_enrollments (
     CONSTRAINT org_enrollments_portal_activation_check CHECK ((((portal_activated_at IS NULL) AND (portal_activated_via IS NULL)) OR ((portal_activated_at IS NOT NULL) AND (portal_activated_via = 'patient_invite_email_otp'::text)))),
     CONSTRAINT org_enrollments_status_check CHECK ((status = ANY (ARRAY['active'::text, 'invited'::text, 'discharged'::text, 'archived'::text])))
 );
+
+ALTER TABLE ONLY public.org_enrollments FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7949,7 +11736,8 @@ CREATE TABLE public.organization_slug_rename_events (
     previous_slug text NOT NULL,
     next_slug text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT organization_slug_rename_events_slug_change_check CHECK ((previous_slug <> next_slug))
+    CONSTRAINT organization_slug_rename_events_slug_change_check CHECK ((previous_slug <> next_slug)),
+    CONSTRAINT organization_slug_rename_events_slugs_lower_check CHECK (((previous_slug = lower(previous_slug)) AND (next_slug = lower(next_slug))))
 );
 
 ALTER TABLE ONLY public.organization_slug_rename_events FORCE ROW LEVEL SECURITY;
@@ -7976,7 +11764,91 @@ CREATE TABLE public.outgoing_delivery_queue (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     failure_class text,
+    reclaim_count integer DEFAULT 0 NOT NULL,
     CONSTRAINT outgoing_delivery_queue_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'sent'::text, 'failed_retryable'::text, 'dead'::text])))
+);
+
+
+--
+-- Name: password_altcha_challenges; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.password_altcha_challenges (
+    challenge_id uuid NOT NULL,
+    identifier_key text NOT NULL,
+    purpose text NOT NULL,
+    challenge_digest text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    consumed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT password_altcha_challenge_digest_check CHECK ((challenge_digest ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT password_altcha_challenge_identifier_key_check CHECK ((identifier_key ~ '^password-email:v1:[0-9a-f]{64}$'::text)),
+    CONSTRAINT password_altcha_challenge_purpose_check CHECK ((purpose = 'password_login'::text))
+);
+
+
+--
+-- Name: password_login_identifier_protection; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.password_login_identifier_protection (
+    identifier_key text NOT NULL,
+    failed_attempts integer DEFAULT 0 NOT NULL,
+    next_allowed_at timestamp with time zone,
+    locked_until timestamp with time zone,
+    verification_lease_token uuid,
+    verification_lease_until timestamp with time zone,
+    leased_user_id uuid,
+    updated_at timestamp with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT password_login_identifier_failed_attempts_check CHECK ((failed_attempts >= 0)),
+    CONSTRAINT password_login_identifier_key_check CHECK ((identifier_key ~ '^password-email:v1:[0-9a-f]{64}$'::text)),
+    CONSTRAINT password_login_identifier_lease_shape_check CHECK ((((verification_lease_token IS NULL) AND (verification_lease_until IS NULL) AND (leased_user_id IS NULL)) OR ((verification_lease_token IS NOT NULL) AND (verification_lease_until IS NOT NULL))))
+);
+
+
+--
+-- Name: patient_bookings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.patient_bookings (
+    id uuid NOT NULL,
+    platform_user_id uuid,
+    booking_type text NOT NULL,
+    city text,
+    category text NOT NULL,
+    slot_start timestamp with time zone NOT NULL,
+    slot_end timestamp with time zone NOT NULL,
+    status text NOT NULL,
+    cancelled_at timestamp with time zone,
+    cancel_reason text,
+    gcal_event_id text,
+    contact_phone text NOT NULL,
+    contact_email text,
+    contact_name text NOT NULL,
+    reminder_24h_sent boolean DEFAULT false NOT NULL,
+    reminder_2h_sent boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    branch_id uuid,
+    service_id uuid,
+    branch_service_id uuid,
+    city_code_snapshot text,
+    branch_title_snapshot text,
+    service_title_snapshot text,
+    duration_minutes_snapshot integer,
+    price_minor_snapshot integer,
+    source text DEFAULT 'native'::text NOT NULL,
+    compat_quality text,
+    provenance_created_by text,
+    provenance_updated_by text,
+    canonical_appointment_id uuid,
+    CONSTRAINT patient_bookings_booking_type_check CHECK ((booking_type = ANY (ARRAY['in_person'::text, 'online'::text]))),
+    CONSTRAINT patient_bookings_category_check CHECK ((category = ANY (ARRAY['rehab_lfk'::text, 'nutrition'::text, 'general'::text]))),
+    CONSTRAINT patient_bookings_check CHECK ((slot_end > slot_start)),
+    CONSTRAINT patient_bookings_compat_quality_check CHECK ((compat_quality = ANY (ARRAY['full'::text, 'partial'::text, 'minimal'::text]))),
+    CONSTRAINT patient_bookings_platform_user_native_required CHECK (((source <> 'native'::text) OR (platform_user_id IS NOT NULL))),
+    CONSTRAINT patient_bookings_source_check CHECK ((source = ANY (ARRAY['native'::text, 'imported'::text]))),
+    CONSTRAINT patient_bookings_status_check CHECK ((status = ANY (ARRAY['creating'::text, 'awaiting_payment'::text, 'confirmed'::text, 'cancelling'::text, 'cancel_failed'::text, 'cancelled'::text, 'rescheduled'::text, 'completed'::text, 'no_show'::text, 'failed_sync'::text])))
 );
 
 
@@ -7997,6 +11869,8 @@ CREATE TABLE public.patient_comorbidity (
     CONSTRAINT patient_comorbidity_status_check CHECK ((status = ANY (ARRAY['active'::text, 'removed'::text])))
 );
 
+ALTER TABLE ONLY public.patient_comorbidity FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: patient_content_rating_feedback; Type: TABLE; Schema: public; Owner: -
@@ -8014,6 +11888,8 @@ CREATE TABLE public.patient_content_rating_feedback (
     CONSTRAINT pcrf_rating_value_check CHECK (((rating_value >= 1) AND (rating_value <= 5)))
 );
 
+ALTER TABLE ONLY public.patient_content_rating_feedback FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: patient_daily_warmup_presentations; Type: TABLE; Schema: public; Owner: -
@@ -8028,6 +11904,8 @@ CREATE TABLE public.patient_daily_warmup_presentations (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.patient_daily_warmup_presentations FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: patient_daily_warmup_video_views; Type: TABLE; Schema: public; Owner: -
@@ -8040,6 +11918,8 @@ CREATE TABLE public.patient_daily_warmup_video_views (
     viewed_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.patient_daily_warmup_video_views FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8059,6 +11939,8 @@ CREATE TABLE public.patient_diary_day_snapshots (
     captured_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.patient_diary_day_snapshots FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8081,6 +11963,8 @@ CREATE TABLE public.patient_files (
     organization_id uuid,
     CONSTRAINT patient_files_category_check CHECK ((category = ANY (ARRAY['выписка'::text, 'снимок'::text, 'анализ'::text, 'фото_теста'::text, 'прочее'::text])))
 );
+
+ALTER TABLE ONLY public.patient_files FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8105,6 +11989,8 @@ CREATE TABLE public.patient_home_block_items (
     CONSTRAINT patient_home_block_items_target_type_check CHECK ((target_type = ANY (ARRAY['content_page'::text, 'content_section'::text, 'course'::text, 'static_action'::text])))
 );
 
+ALTER TABLE ONLY public.patient_home_block_items FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: patient_home_blocks; Type: TABLE; Schema: public; Owner: -
@@ -8121,6 +12007,8 @@ CREATE TABLE public.patient_home_blocks (
     icon_image_url text,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.patient_home_blocks FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8181,6 +12069,8 @@ CREATE TABLE public.patient_lfk_assignments (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.patient_lfk_assignments FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: patient_merge_candidates; Type: TABLE; Schema: public; Owner: -
@@ -8201,6 +12091,8 @@ CREATE TABLE public.patient_merge_candidates (
     CONSTRAINT patient_merge_candidates_distinct_users CHECK ((anchor_user_id <> candidate_user_id)),
     CONSTRAINT patient_merge_candidates_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'resolved'::text, 'dismissed'::text])))
 );
+
+ALTER TABLE ONLY public.patient_merge_candidates FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8227,6 +12119,8 @@ CREATE TABLE public.patient_payment (
     CONSTRAINT patient_payment_status_check CHECK ((status = ANY (ARRAY['paid'::text, 'pending'::text, 'refunded'::text, 'failed'::text])))
 );
 
+ALTER TABLE ONLY public.patient_payment FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: patient_practice_completions; Type: TABLE; Schema: public; Owner: -
@@ -8244,6 +12138,8 @@ CREATE TABLE public.patient_practice_completions (
     CONSTRAINT ppc_feeling_check CHECK (((feeling IS NULL) OR ((feeling >= 1) AND (feeling <= 5)))),
     CONSTRAINT ppc_source_check CHECK ((source = ANY (ARRAY['home'::text, 'reminder'::text, 'section_page'::text, 'daily_warmup'::text])))
 );
+
+ALTER TABLE ONLY public.patient_practice_completions FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8290,7 +12186,8 @@ CREATE TABLE public.phone_messenger_bind_secrets (
 
 CREATE TABLE public.phone_otp_locks (
     phone_normalized text NOT NULL,
-    locked_until bigint NOT NULL
+    locked_until bigint NOT NULL,
+    lockout_cycle integer DEFAULT 0 NOT NULL
 );
 
 
@@ -8311,6 +12208,8 @@ CREATE TABLE public.platform_user_contacts (
     CONSTRAINT platform_user_contacts_source_check CHECK ((source = ANY (ARRAY['merge'::text, 'booking'::text, 'doctor'::text, 'admin'::text]))),
     CONSTRAINT platform_user_contacts_type_check CHECK ((contact_type = ANY (ARRAY['phone'::text, 'email'::text, 'whatsapp'::text, 'telegram'::text, 'max'::text, 'vk'::text, 'other'::text])))
 );
+
+ALTER TABLE ONLY public.platform_user_contacts FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8345,8 +12244,10 @@ CREATE TABLE public.platform_users (
     patronymic text,
     height_cm integer,
     weight_kg integer,
+    session_epoch integer DEFAULT 1 NOT NULL,
     CONSTRAINT platform_users_no_self_merge CHECK (((merged_into_id IS NULL) OR (merged_into_id <> id))),
-    CONSTRAINT platform_users_role_check CHECK ((role = ANY (ARRAY['client'::text, 'doctor'::text, 'admin'::text])))
+    CONSTRAINT platform_users_role_check CHECK ((role = ANY (ARRAY['client'::text, 'doctor'::text, 'admin'::text]))),
+    CONSTRAINT platform_users_session_epoch_check CHECK ((session_epoch >= 1))
 );
 
 
@@ -8369,6 +12270,8 @@ CREATE TABLE public.product_analytics_events_recent (
     metadata jsonb DEFAULT '{}'::jsonb,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.product_analytics_events_recent FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8407,6 +12310,8 @@ CREATE TABLE public.product_analytics_user_hourly (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.product_analytics_user_hourly FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: product_push_notifications; Type: TABLE; Schema: public; Owner: -
@@ -8427,6 +12332,8 @@ CREATE TABLE public.product_push_notifications (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.product_push_notifications FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: program_action_log; Type: TABLE; Schema: public; Owner: -
@@ -8445,6 +12352,8 @@ CREATE TABLE public.program_action_log (
     organization_id uuid,
     CONSTRAINT program_action_log_action_type_check CHECK ((action_type = ANY (ARRAY['done'::text, 'viewed'::text, 'note'::text])))
 );
+
+ALTER TABLE ONLY public.program_action_log FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8467,6 +12376,8 @@ CREATE TABLE public.program_item_discussion_messages (
     CONSTRAINT program_item_discussion_messages_sender_role_check CHECK ((sender_role = ANY (ARRAY['patient'::text, 'admin'::text])))
 );
 
+ALTER TABLE ONLY public.program_item_discussion_messages FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: program_item_discussion_reads; Type: TABLE; Schema: public; Owner: -
@@ -8479,6 +12390,8 @@ CREATE TABLE public.program_item_discussion_reads (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.program_item_discussion_reads FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: recommendation_regions; Type: TABLE; Schema: public; Owner: -
@@ -8489,6 +12402,8 @@ CREATE TABLE public.recommendation_regions (
     body_region_id uuid NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.recommendation_regions FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8512,6 +12427,8 @@ CREATE TABLE public.recommendations (
     domain text,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.recommendations FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8552,6 +12469,8 @@ CREATE TABLE public.reference_categories (
     organization_id uuid NOT NULL
 );
 
+ALTER TABLE ONLY public.reference_categories FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: reference_items; Type: TABLE; Schema: public; Owner: -
@@ -8569,6 +12488,8 @@ CREATE TABLE public.reference_items (
     deleted_at timestamp with time zone,
     organization_id uuid NOT NULL
 );
+
+ALTER TABLE ONLY public.reference_items FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8589,6 +12510,8 @@ CREATE TABLE public.reminder_delivery_events (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.reminder_delivery_events FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: reminder_journal; Type: TABLE; Schema: public; Owner: -
@@ -8607,6 +12530,8 @@ CREATE TABLE public.reminder_journal (
     CONSTRAINT reminder_journal_check CHECK ((((action = 'snoozed'::text) AND (snooze_until IS NOT NULL)) OR ((action <> 'snoozed'::text) AND (snooze_until IS NULL)))),
     CONSTRAINT reminder_journal_skip_reason_check CHECK (((skip_reason IS NULL) OR (length(skip_reason) <= 500)))
 );
+
+ALTER TABLE ONLY public.reminder_journal FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8634,6 +12559,8 @@ CREATE TABLE public.reminder_occurrence_history (
     CONSTRAINT chk_reminder_occurrence_snooze_pair CHECK ((((snoozed_at IS NULL) AND (snoozed_until IS NULL)) OR ((snoozed_at IS NOT NULL) AND (snoozed_until IS NOT NULL)))),
     CONSTRAINT reminder_occurrence_history_status_check CHECK ((status = ANY (ARRAY['sent'::text, 'failed'::text])))
 );
+
+ALTER TABLE ONLY public.reminder_occurrence_history FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8675,6 +12602,113 @@ CREATE TABLE public.reminder_rules (
     CONSTRAINT chk_reminder_rules_object_id_required CHECK (((linked_object_type IS NULL) OR (linked_object_type = 'custom'::text) OR ((linked_object_id IS NOT NULL) AND (btrim(linked_object_id) <> ''::text))))
 );
 
+ALTER TABLE ONLY public.reminder_rules FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: saas_billing_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_billing_accounts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    billing_email text,
+    legal_name text,
+    tax_identifier text,
+    registration_reason_code text,
+    billing_address jsonb DEFAULT '{}'::jsonb NOT NULL,
+    billing_requisites jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.saas_billing_accounts FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: saas_billing_invoices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_billing_invoices (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    saas_billing_account_id uuid NOT NULL,
+    saas_billing_subscription_id uuid NOT NULL,
+    tariff_id uuid NOT NULL,
+    tariff_name text NOT NULL,
+    amount_minor integer NOT NULL,
+    currency text NOT NULL,
+    tariff_billing_period text NOT NULL,
+    service_period_starts_at timestamp with time zone NOT NULL,
+    service_period_ends_at timestamp with time zone NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    provider_id text NOT NULL,
+    provider_invoice_ref text,
+    provider_checkout_url text,
+    provider_idempotency_key text NOT NULL,
+    paid_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saas_billing_invoices_amount_check CHECK ((amount_minor >= 0)),
+    CONSTRAINT saas_billing_invoices_currency_check CHECK ((currency ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT saas_billing_invoices_period_check CHECK ((service_period_starts_at < service_period_ends_at)),
+    CONSTRAINT saas_billing_invoices_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'paid'::text, 'failed'::text, 'void'::text]))),
+    CONSTRAINT saas_billing_invoices_tariff_billing_period_check CHECK ((tariff_billing_period = ANY (ARRAY['day'::text, 'month'::text, 'year'::text])))
+);
+
+ALTER TABLE ONLY public.saas_billing_invoices FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: saas_billing_provider_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_billing_provider_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    saas_billing_invoice_id uuid,
+    provider_id text NOT NULL,
+    provider_event_id text NOT NULL,
+    event_type text NOT NULL,
+    raw_payload jsonb NOT NULL,
+    processed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saas_billing_provider_events_payload_check CHECK (((jsonb_typeof(raw_payload) = 'object'::text) AND ((raw_payload - ARRAY['providerId'::text, 'providerEventId'::text, 'type'::text, 'status'::text, 'amountMinor'::text, 'currency'::text, 'invoiceReference'::text, 'subscriptionReference'::text, 'occurredAt'::text]) = '{}'::jsonb)))
+);
+
+ALTER TABLE ONLY public.saas_billing_provider_events FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: saas_billing_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_billing_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    saas_billing_account_id uuid NOT NULL,
+    tariff_id uuid NOT NULL,
+    source text NOT NULL,
+    status text NOT NULL,
+    lifecycle_state text NOT NULL,
+    provider_id text,
+    saved_payment_method_id text,
+    current_period_starts_at timestamp with time zone,
+    current_period_ends_at timestamp with time zone,
+    grace_ends_at timestamp with time zone,
+    read_only_ends_at timestamp with time zone,
+    cancelled_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saas_billing_subscriptions_lifecycle_check CHECK ((lifecycle_state = ANY (ARRAY['active'::text, 'grace'::text, 'read_only'::text, 'blocked'::text]))),
+    CONSTRAINT saas_billing_subscriptions_lifecycle_dates_check CHECK ((((grace_ends_at IS NULL) OR (current_period_ends_at IS NULL) OR (grace_ends_at >= current_period_ends_at)) AND ((read_only_ends_at IS NULL) OR (grace_ends_at IS NULL) OR (read_only_ends_at >= grace_ends_at)))),
+    CONSTRAINT saas_billing_subscriptions_period_check CHECK ((((current_period_starts_at IS NULL) AND (current_period_ends_at IS NULL)) OR ((current_period_starts_at IS NOT NULL) AND (current_period_ends_at IS NOT NULL) AND (current_period_starts_at < current_period_ends_at)))),
+    CONSTRAINT saas_billing_subscriptions_source_check CHECK ((source = ANY (ARRAY['manual'::text, 'paid_subscription'::text]))),
+    CONSTRAINT saas_billing_subscriptions_status_check CHECK ((status = ANY (ARRAY['pending_payment'::text, 'active'::text, 'expired'::text, 'cancelled'::text])))
+);
+
+ALTER TABLE ONLY public.saas_billing_subscriptions FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: saas_isolation_coverage_runs; Type: TABLE; Schema: public; Owner: -
@@ -8690,9 +12724,24 @@ CREATE TABLE public.saas_isolation_coverage_runs (
     unexpected_errors_count integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT saas_isolation_coverage_runs_checks_count_check CHECK ((checks_count >= 0)),
+    CONSTRAINT saas_isolation_coverage_runs_complete_check CHECK (((status <> 'complete'::text) OR ((services_checked @> ARRAY['webapp'::text, 'integrator'::text, 'worker'::text, 'scheduler'::text, 'media_worker'::text, 'cron'::text]) AND (checks_count >= 6)))),
+    CONSTRAINT saas_isolation_coverage_runs_services_check CHECK ((services_checked <@ ARRAY['webapp'::text, 'integrator'::text, 'worker'::text, 'scheduler'::text, 'media_worker'::text, 'cron'::text])),
     CONSTRAINT saas_isolation_coverage_runs_status_check CHECK ((status = ANY (ARRAY['complete'::text, 'incomplete'::text, 'failed'::text]))),
     CONSTRAINT saas_isolation_coverage_runs_time_check CHECK ((finished_at >= started_at)),
     CONSTRAINT saas_isolation_coverage_runs_unexpected_count_check CHECK ((unexpected_errors_count >= 0))
+);
+
+
+--
+-- Name: saas_isolation_event_hourly; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_isolation_event_hourly (
+    event_id uuid NOT NULL,
+    bucket_start timestamp with time zone NOT NULL,
+    occurrence_count integer DEFAULT 1 NOT NULL,
+    CONSTRAINT saas_isolation_event_hourly_bucket_check CHECK ((bucket_start = (date_trunc('hour'::text, (bucket_start AT TIME ZONE 'UTC'::text)) AT TIME ZONE 'UTC'::text))),
+    CONSTRAINT saas_isolation_event_hourly_count_check CHECK ((occurrence_count > 0))
 );
 
 
@@ -8716,7 +12765,8 @@ CREATE TABLE public.saas_isolation_events (
     CONSTRAINT saas_isolation_events_explanation_status_check CHECK ((explanation_status = ANY (ARRAY['explained'::text, 'unexplained'::text]))),
     CONSTRAINT saas_isolation_events_lifecycle_status_check CHECK ((lifecycle_status = ANY (ARRAY['active'::text, 'resolved'::text]))),
     CONSTRAINT saas_isolation_events_occurrence_count_check CHECK ((occurrence_count > 0)),
-    CONSTRAINT saas_isolation_events_source_operation_check CHECK ((((((((((((((((((((((((((((source_service = 'webapp'::text) AND (source_operation = 'webapp_db_request'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'webapp_admin_system_health'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_auth_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'auth_role_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_runtime_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_booking_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_identity_exception_check'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_booking_history'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_product_analytics'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_ui_config'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_calendar_timezone'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_content_catalog'::text))) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_diary'::text))) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_http_request'::text))) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_projection'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_queue_drain'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_projection_delivery'::text))) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_outgoing_delivery'::text))) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_lock'::text))) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_dispatch_tick'::text))) OR ((source_service = 'media_worker'::text) AND (source_operation = 'media_transcode_tick'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_health'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_media'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_analytics'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_reminders'::text))) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_specialist_tasks'::text))))
+    CONSTRAINT saas_isolation_events_source_operation_check CHECK ((((source_service = 'webapp'::text) AND (source_operation = 'webapp_db_request'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'webapp_admin_system_health'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_auth_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'auth_role_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_runtime_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'public_booking_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_identity_exception_check'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_booking_history'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_product_analytics'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_ui_config'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_calendar_timezone'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_content_catalog'::text)) OR ((source_service = 'webapp'::text) AND (source_operation = 'patient_diary'::text)) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_http_request'::text)) OR ((source_service = 'integrator'::text) AND (source_operation = 'integrator_projection'::text)) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_queue_drain'::text)) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_projection_delivery'::text)) OR ((source_service = 'worker'::text) AND (source_operation = 'worker_outgoing_delivery'::text)) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_lock'::text)) OR ((source_service = 'scheduler'::text) AND (source_operation = 'scheduler_dispatch_tick'::text)) OR ((source_service = 'media_worker'::text) AND (source_operation = 'media_transcode_tick'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_health'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_media'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_analytics'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_reminders'::text)) OR ((source_service = 'cron'::text) AND (source_operation = 'cron_specialist_tasks'::text)))),
+    CONSTRAINT saas_isolation_events_source_service_check CHECK ((source_service = ANY (ARRAY['webapp'::text, 'integrator'::text, 'worker'::text, 'scheduler'::text, 'media_worker'::text, 'cron'::text])))
 );
 
 
@@ -8732,10 +12782,40 @@ CREATE TABLE public.saas_org_entitlement_overrides (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     seat_limit_override integer,
+    quota jsonb,
+    expires_at timestamp with time zone,
     CONSTRAINT saas_org_entitlement_overrides_seat_limit_nonnegative_check CHECK (((seat_limit_override IS NULL) OR (seat_limit_override >= 0)))
 );
 
 ALTER TABLE ONLY public.saas_org_entitlement_overrides FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: saas_organization_trials; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_organization_trials (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    tariff_id uuid NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ends_at timestamp with time zone NOT NULL,
+    grace_ends_at timestamp with time zone NOT NULL,
+    post_trial_behavior text NOT NULL,
+    post_trial_tariff_id uuid,
+    status text DEFAULT 'active'::text NOT NULL,
+    extension_count integer DEFAULT 0 NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saas_organization_trials_dates_check CHECK (((started_at < ends_at) AND (ends_at <= grace_ends_at))),
+    CONSTRAINT saas_organization_trials_extension_count_check CHECK ((extension_count >= 0)),
+    CONSTRAINT saas_organization_trials_post_behavior_check CHECK ((post_trial_behavior = ANY (ARRAY['read_only'::text, 'blocked'::text, 'tariff'::text]))),
+    CONSTRAINT saas_organization_trials_post_tariff_check CHECK ((((post_trial_behavior = 'tariff'::text) AND (post_trial_tariff_id IS NOT NULL)) OR ((post_trial_behavior <> 'tariff'::text) AND (post_trial_tariff_id IS NULL)))),
+    CONSTRAINT saas_organization_trials_status_check CHECK ((status = ANY (ARRAY['active'::text, 'ended'::text])))
+);
+
+ALTER TABLE ONLY public.saas_organization_trials FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8753,10 +12833,43 @@ CREATE TABLE public.saas_tariffs (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     included_seats integer,
+    billing_period text DEFAULT 'month'::text NOT NULL,
+    quotas jsonb DEFAULT '{}'::jsonb NOT NULL,
+    system_access_policy jsonb,
+    mechanic_access_policies jsonb DEFAULT '{}'::jsonb NOT NULL,
+    downgrade_policies jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT saas_tariffs_billing_period_check CHECK ((billing_period = ANY (ARRAY['day'::text, 'month'::text, 'year'::text]))),
     CONSTRAINT saas_tariffs_included_seats_nonnegative_check CHECK (((included_seats IS NULL) OR (included_seats >= 0)))
 );
 
 ALTER TABLE ONLY public.saas_tariffs FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: saas_trial_policy; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.saas_trial_policy (
+    key text DEFAULT 'global'::text NOT NULL,
+    tariff_id uuid NOT NULL,
+    duration_days integer NOT NULL,
+    grace_days integer NOT NULL,
+    start_event text NOT NULL,
+    post_trial_behavior text NOT NULL,
+    post_trial_tariff_id uuid,
+    is_active boolean DEFAULT true NOT NULL,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT saas_trial_policy_duration_check CHECK ((duration_days > 0)),
+    CONSTRAINT saas_trial_policy_grace_check CHECK ((grace_days >= 0)),
+    CONSTRAINT saas_trial_policy_key_check CHECK ((key = 'global'::text)),
+    CONSTRAINT saas_trial_policy_post_behavior_check CHECK ((post_trial_behavior = ANY (ARRAY['read_only'::text, 'blocked'::text, 'tariff'::text]))),
+    CONSTRAINT saas_trial_policy_post_tariff_check CHECK ((((post_trial_behavior = 'tariff'::text) AND (post_trial_tariff_id IS NOT NULL)) OR ((post_trial_behavior <> 'tariff'::text) AND (post_trial_tariff_id IS NULL)))),
+    CONSTRAINT saas_trial_policy_start_event_check CHECK ((length(btrim(start_event)) > 0))
+);
+
+ALTER TABLE ONLY public.saas_trial_policy FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8786,6 +12899,8 @@ CREATE TABLE public.specialist_signup_intents (
     provisioned_membership_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     provisioned_at timestamp with time zone,
+    organization_slug text,
+    CONSTRAINT specialist_signup_intents_organization_slug_lower_check CHECK (((organization_slug IS NULL) OR (organization_slug = lower(organization_slug)))),
     CONSTRAINT specialist_signup_intents_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'provisioned'::text])))
 );
 
@@ -8809,6 +12924,8 @@ CREATE TABLE public.specialist_tasks (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.specialist_tasks FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8860,6 +12977,8 @@ CREATE TABLE public.support_conversation_messages (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.support_conversation_messages FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: support_conversations; Type: TABLE; Schema: public; Owner: -
@@ -8884,6 +13003,8 @@ CREATE TABLE public.support_conversations (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.support_conversations FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: support_delivery_events; Type: TABLE; Schema: public; Owner: -
@@ -8903,6 +13024,8 @@ CREATE TABLE public.support_delivery_events (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.support_delivery_events FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: support_question_messages; Type: TABLE; Schema: public; Owner: -
@@ -8917,6 +13040,8 @@ CREATE TABLE public.support_question_messages (
     created_at timestamp with time zone NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.support_question_messages FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8933,6 +13058,8 @@ CREATE TABLE public.support_questions (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.support_questions FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8956,6 +13083,8 @@ CREATE TABLE public.symptom_entries (
     CONSTRAINT symptom_entries_source_check CHECK ((source = ANY (ARRAY['bot'::text, 'webapp'::text, 'import'::text]))),
     CONSTRAINT symptom_entries_value_0_10_check CHECK (((value_0_10 >= 0) AND (value_0_10 <= 10)))
 );
+
+ALTER TABLE ONLY public.symptom_entries FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8982,6 +13111,8 @@ CREATE TABLE public.symptom_trackings (
     CONSTRAINT symptom_trackings_side_check CHECK (((side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text]))))
 );
 
+ALTER TABLE ONLY public.symptom_trackings FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: system_settings; Type: TABLE; Schema: public; Owner: -
@@ -8996,6 +13127,8 @@ CREATE TABLE public.system_settings (
     organization_id uuid,
     CONSTRAINT system_settings_scope_check CHECK ((scope = ANY (ARRAY['global'::text, 'doctor'::text, 'admin'::text])))
 );
+
+ALTER TABLE ONLY public.system_settings FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9014,6 +13147,8 @@ CREATE TABLE public.system_settings_audit (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.system_settings_audit FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: test_attempts; Type: TABLE; Schema: public; Owner: -
@@ -9029,6 +13164,8 @@ CREATE TABLE public.test_attempts (
     accepted_by uuid,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.test_attempts FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9047,6 +13184,8 @@ CREATE TABLE public.test_results (
     CONSTRAINT test_results_normalized_decision_check CHECK ((normalized_decision = ANY (ARRAY['passed'::text, 'failed'::text, 'partial'::text])))
 );
 
+ALTER TABLE ONLY public.test_results FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: test_set_items; Type: TABLE; Schema: public; Owner: -
@@ -9060,6 +13199,8 @@ CREATE TABLE public.test_set_items (
     comment text,
     organization_id uuid
 );
+
+ALTER TABLE ONLY public.test_set_items FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9078,6 +13219,8 @@ CREATE TABLE public.test_sets (
     organization_id uuid,
     CONSTRAINT test_sets_publication_status_check CHECK ((publication_status = ANY (ARRAY['draft'::text, 'published'::text])))
 );
+
+ALTER TABLE ONLY public.test_sets FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9102,6 +13245,8 @@ CREATE TABLE public.tests (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.tests FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: treatment_program_events; Type: TABLE; Schema: public; Owner: -
@@ -9122,6 +13267,8 @@ CREATE TABLE public.treatment_program_events (
     CONSTRAINT treatment_program_events_target_type_check CHECK ((target_type = ANY (ARRAY['stage'::text, 'stage_item'::text, 'program'::text])))
 );
 
+ALTER TABLE ONLY public.treatment_program_events FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: treatment_program_instance_stage_groups; Type: TABLE; Schema: public; Owner: -
@@ -9139,6 +13286,8 @@ CREATE TABLE public.treatment_program_instance_stage_groups (
     organization_id uuid,
     CONSTRAINT treatment_program_instance_stage_groups_system_kind_check CHECK (((system_kind IS NULL) OR (system_kind = ANY (ARRAY['recommendations'::text, 'tests'::text]))))
 );
+
+ALTER TABLE ONLY public.treatment_program_instance_stage_groups FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9166,6 +13315,8 @@ CREATE TABLE public.treatment_program_instance_stage_items (
     CONSTRAINT treatment_program_instance_stage_items_status_check CHECK ((status = ANY (ARRAY['active'::text, 'disabled'::text])))
 );
 
+ALTER TABLE ONLY public.treatment_program_instance_stage_items FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: treatment_program_instance_stages; Type: TABLE; Schema: public; Owner: -
@@ -9190,6 +13341,8 @@ CREATE TABLE public.treatment_program_instance_stages (
     CONSTRAINT treatment_program_instance_stages_status_check CHECK ((status = ANY (ARRAY['locked'::text, 'available'::text, 'in_progress'::text, 'completed'::text, 'skipped'::text])))
 );
 
+ALTER TABLE ONLY public.treatment_program_instance_stages FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: treatment_program_instances; Type: TABLE; Schema: public; Owner: -
@@ -9211,6 +13364,8 @@ CREATE TABLE public.treatment_program_instances (
     CONSTRAINT treatment_program_instances_status_check CHECK ((status = ANY (ARRAY['active'::text, 'completed'::text])))
 );
 
+ALTER TABLE ONLY public.treatment_program_instances FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: treatment_program_template_stage_groups; Type: TABLE; Schema: public; Owner: -
@@ -9227,6 +13382,8 @@ CREATE TABLE public.treatment_program_template_stage_groups (
     organization_id uuid,
     CONSTRAINT treatment_program_template_stage_groups_system_kind_check CHECK (((system_kind IS NULL) OR (system_kind = ANY (ARRAY['recommendations'::text, 'tests'::text]))))
 );
+
+ALTER TABLE ONLY public.treatment_program_template_stage_groups FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9246,6 +13403,8 @@ CREATE TABLE public.treatment_program_template_stage_items (
     CONSTRAINT treatment_program_template_stage_items_item_type_check CHECK ((item_type = ANY (ARRAY['exercise'::text, 'recommendation'::text, 'lesson'::text, 'clinical_test'::text])))
 );
 
+ALTER TABLE ONLY public.treatment_program_template_stage_items FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: treatment_program_template_stages; Type: TABLE; Schema: public; Owner: -
@@ -9264,6 +13423,8 @@ CREATE TABLE public.treatment_program_template_stages (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.treatment_program_template_stages FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: treatment_program_templates; Type: TABLE; Schema: public; Owner: -
@@ -9280,6 +13441,8 @@ CREATE TABLE public.treatment_program_templates (
     organization_id uuid,
     CONSTRAINT treatment_program_templates_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))
 );
+
+ALTER TABLE ONLY public.treatment_program_templates FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9376,6 +13539,60 @@ CREATE TABLE public.user_oauth_bindings (
 
 
 --
+-- Name: user_passkey_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_passkey_accounts (
+    user_id uuid NOT NULL,
+    user_handle text NOT NULL,
+    created_at timestamp with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT user_passkey_accounts_handle_check CHECK ((user_handle ~ '^[A-Za-z0-9_-]{43}$'::text))
+);
+
+
+--
+-- Name: user_passkey_challenges; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_passkey_challenges (
+    id uuid NOT NULL,
+    purpose text NOT NULL,
+    user_id uuid,
+    challenge text NOT NULL,
+    expected_origin text NOT NULL,
+    rp_id text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    consumed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT statement_timestamp() NOT NULL,
+    CONSTRAINT user_passkey_challenges_purpose_check CHECK ((purpose = ANY (ARRAY['registration'::text, 'authentication'::text]))),
+    CONSTRAINT user_passkey_challenges_user_shape_check CHECK ((((purpose = 'registration'::text) AND (user_id IS NOT NULL)) OR ((purpose = 'authentication'::text) AND (user_id IS NULL)))),
+    CONSTRAINT user_passkey_challenges_value_check CHECK ((challenge ~ '^[A-Za-z0-9_-]{32,1024}$'::text))
+);
+
+
+--
+-- Name: user_passkey_credentials; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_passkey_credentials (
+    credential_id text NOT NULL,
+    user_id uuid NOT NULL,
+    public_key text NOT NULL,
+    counter bigint DEFAULT 0 NOT NULL,
+    transports jsonb DEFAULT '[]'::jsonb NOT NULL,
+    device_type text NOT NULL,
+    backed_up boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT statement_timestamp() NOT NULL,
+    last_used_at timestamp with time zone,
+    CONSTRAINT user_passkey_credentials_counter_check CHECK ((counter >= 0)),
+    CONSTRAINT user_passkey_credentials_device_type_check CHECK ((device_type = ANY (ARRAY['singleDevice'::text, 'multiDevice'::text]))),
+    CONSTRAINT user_passkey_credentials_id_check CHECK ((credential_id ~ '^[A-Za-z0-9_-]{16,1024}$'::text)),
+    CONSTRAINT user_passkey_credentials_public_key_check CHECK ((public_key ~ '^[A-Za-z0-9_-]{16,8192}$'::text)),
+    CONSTRAINT user_passkey_credentials_transports_check CHECK ((jsonb_typeof(transports) = 'array'::text))
+);
+
+
+--
 -- Name: user_password_credentials; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9383,7 +13600,13 @@ CREATE TABLE public.user_password_credentials (
     user_id uuid NOT NULL,
     password_hash text NOT NULL,
     algo text DEFAULT 'argon2id'::text NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    failed_attempts integer DEFAULT 0 NOT NULL,
+    locked_until timestamp with time zone,
+    next_allowed_at timestamp with time zone,
+    verification_lease_token uuid,
+    verification_lease_until timestamp with time zone,
+    CONSTRAINT user_password_credentials_failed_attempts_check CHECK ((failed_attempts >= 0))
 );
 
 
@@ -9402,6 +13625,8 @@ CREATE TABLE public.user_phone_history (
     CONSTRAINT user_phone_history_source_check CHECK ((source = ANY (ARRAY['otp'::text, 'messenger'::text, 'merge'::text, 'admin'::text, 'projection'::text])))
 );
 
+ALTER TABLE ONLY public.user_phone_history FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: user_pins; Type: TABLE; Schema: public; Owner: -
@@ -9414,20 +13639,6 @@ CREATE TABLE public.user_pins (
     locked_until timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: user_subscriptions_webapp; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.user_subscriptions_webapp (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    integrator_user_id bigint NOT NULL,
-    integrator_topic_id bigint NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid
 );
 
 
@@ -9466,6 +13677,8 @@ CREATE TABLE public.webapp_reminder_occurrences (
     organization_id uuid
 );
 
+ALTER TABLE ONLY public.webapp_reminder_occurrences FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: webapp_schema_migrations; Type: TABLE; Schema: public; Owner: -
@@ -9482,13 +13695,6 @@ CREATE TABLE public.webapp_schema_migrations (
 --
 
 ALTER TABLE ONLY drizzle.__drizzle_migrations ALTER COLUMN id SET DEFAULT nextval('drizzle.__drizzle_migrations_id_seq'::regclass);
-
-
---
--- Name: booking_calendar_map id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.booking_calendar_map ALTER COLUMN id SET DEFAULT nextval('integrator.booking_calendar_map_id_seq'::regclass);
 
 
 --
@@ -9520,17 +13726,10 @@ ALTER TABLE ONLY integrator.integration_data_quality_incidents ALTER COLUMN id S
 
 
 --
--- Name: mailing_topics id; Type: DEFAULT; Schema: integrator; Owner: -
+-- Name: message_retry_jobs id; Type: DEFAULT; Schema: integrator; Owner: -
 --
 
-ALTER TABLE ONLY integrator.mailing_topics ALTER COLUMN id SET DEFAULT nextval('integrator.subscriptions_id_seq'::regclass);
-
-
---
--- Name: mailings id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailings ALTER COLUMN id SET DEFAULT nextval('integrator.mailings_id_seq'::regclass);
+ALTER TABLE ONLY integrator.message_retry_jobs ALTER COLUMN id SET DEFAULT nextval('integrator.message_retry_jobs_id_seq'::regclass);
 
 
 --
@@ -9538,55 +13737,6 @@ ALTER TABLE ONLY integrator.mailings ALTER COLUMN id SET DEFAULT nextval('integr
 --
 
 ALTER TABLE ONLY integrator.projection_outbox ALTER COLUMN id SET DEFAULT nextval('integrator.projection_outbox_id_seq'::regclass);
-
-
---
--- Name: rubitime_booking_profiles id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_booking_profiles ALTER COLUMN id SET DEFAULT nextval('integrator.rubitime_booking_profiles_id_seq'::regclass);
-
-
---
--- Name: rubitime_branches id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_branches ALTER COLUMN id SET DEFAULT nextval('integrator.rubitime_branches_id_seq'::regclass);
-
-
---
--- Name: rubitime_cooperators id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_cooperators ALTER COLUMN id SET DEFAULT nextval('integrator.rubitime_cooperators_id_seq'::regclass);
-
-
---
--- Name: rubitime_create_retry_jobs id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_create_retry_jobs ALTER COLUMN id SET DEFAULT nextval('integrator.rubitime_create_retry_jobs_id_seq'::regclass);
-
-
---
--- Name: rubitime_events id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_events ALTER COLUMN id SET DEFAULT nextval('integrator.rubitime_events_id_seq'::regclass);
-
-
---
--- Name: rubitime_records id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_records ALTER COLUMN id SET DEFAULT nextval('integrator.rubitime_records_id_seq'::regclass);
-
-
---
--- Name: rubitime_services id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_services ALTER COLUMN id SET DEFAULT nextval('integrator.rubitime_services_id_seq'::regclass);
 
 
 --
@@ -9608,6 +13758,13 @@ ALTER TABLE ONLY integrator.users ALTER COLUMN id SET DEFAULT nextval('integrato
 --
 
 ALTER TABLE ONLY public.be_patient_packages ALTER COLUMN display_number SET DEFAULT nextval('public.be_patient_packages_display_number_seq'::regclass);
+
+
+--
+-- Name: booking_calendar_map id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.booking_calendar_map ALTER COLUMN id SET DEFAULT nextval('public.booking_calendar_map_id_seq'::regclass);
 
 
 --
@@ -9647,22 +13804,6 @@ ALTER TABLE ONLY app.principal_context
 
 ALTER TABLE ONLY drizzle.__drizzle_migrations
     ADD CONSTRAINT __drizzle_migrations_pkey PRIMARY KEY (id);
-
-
---
--- Name: booking_calendar_map booking_calendar_map_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.booking_calendar_map
-    ADD CONSTRAINT booking_calendar_map_pkey PRIMARY KEY (id);
-
-
---
--- Name: booking_calendar_map booking_calendar_map_rubitime_record_id_key; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.booking_calendar_map
-    ADD CONSTRAINT booking_calendar_map_rubitime_record_id_key UNIQUE (rubitime_record_id);
 
 
 --
@@ -9754,27 +13895,19 @@ ALTER TABLE ONLY integrator.integration_data_quality_incidents
 
 
 --
--- Name: mailing_logs mailing_logs_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailing_logs
-    ADD CONSTRAINT mailing_logs_pkey PRIMARY KEY (user_id, mailing_id);
-
-
---
--- Name: mailings mailings_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailings
-    ADD CONSTRAINT mailings_pkey PRIMARY KEY (id);
-
-
---
 -- Name: message_drafts message_drafts_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
 --
 
 ALTER TABLE ONLY integrator.message_drafts
     ADD CONSTRAINT message_drafts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: message_retry_jobs message_retry_jobs_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
+--
+
+ALTER TABLE ONLY integrator.message_retry_jobs
+    ADD CONSTRAINT message_retry_jobs_pkey PRIMARY KEY (id);
 
 
 --
@@ -9794,123 +13927,11 @@ ALTER TABLE ONLY integrator.question_messages
 
 
 --
--- Name: rubitime_api_throttle rubitime_api_throttle_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_api_throttle
-    ADD CONSTRAINT rubitime_api_throttle_pkey PRIMARY KEY (id);
-
-
---
--- Name: rubitime_booking_profiles rubitime_booking_profiles_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_booking_profiles
-    ADD CONSTRAINT rubitime_booking_profiles_pkey PRIMARY KEY (id);
-
-
---
--- Name: rubitime_branches rubitime_branches_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_branches
-    ADD CONSTRAINT rubitime_branches_pkey PRIMARY KEY (id);
-
-
---
--- Name: rubitime_branches rubitime_branches_rubitime_branch_id_key; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_branches
-    ADD CONSTRAINT rubitime_branches_rubitime_branch_id_key UNIQUE (rubitime_branch_id);
-
-
---
--- Name: rubitime_cooperators rubitime_cooperators_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_cooperators
-    ADD CONSTRAINT rubitime_cooperators_pkey PRIMARY KEY (id);
-
-
---
--- Name: rubitime_cooperators rubitime_cooperators_rubitime_cooperator_id_key; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_cooperators
-    ADD CONSTRAINT rubitime_cooperators_rubitime_cooperator_id_key UNIQUE (rubitime_cooperator_id);
-
-
---
--- Name: rubitime_create_retry_jobs rubitime_create_retry_jobs_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_create_retry_jobs
-    ADD CONSTRAINT rubitime_create_retry_jobs_pkey PRIMARY KEY (id);
-
-
---
--- Name: rubitime_events rubitime_events_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_events
-    ADD CONSTRAINT rubitime_events_pkey PRIMARY KEY (id);
-
-
---
--- Name: rubitime_records rubitime_records_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_records
-    ADD CONSTRAINT rubitime_records_pkey PRIMARY KEY (id);
-
-
---
--- Name: rubitime_records rubitime_records_rubitime_record_id_key; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_records
-    ADD CONSTRAINT rubitime_records_rubitime_record_id_key UNIQUE (rubitime_record_id);
-
-
---
--- Name: rubitime_services rubitime_services_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_services
-    ADD CONSTRAINT rubitime_services_pkey PRIMARY KEY (id);
-
-
---
--- Name: rubitime_services rubitime_services_rubitime_service_id_key; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_services
-    ADD CONSTRAINT rubitime_services_rubitime_service_id_key UNIQUE (rubitime_service_id);
-
-
---
 -- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
 --
 
 ALTER TABLE ONLY integrator.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
-
-
---
--- Name: mailing_topics subscriptions_code_key; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailing_topics
-    ADD CONSTRAINT subscriptions_code_key UNIQUE (code);
-
-
---
--- Name: mailing_topics subscriptions_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailing_topics
-    ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id);
 
 
 --
@@ -9975,14 +13996,6 @@ ALTER TABLE ONLY integrator.user_reminder_occurrences
 
 ALTER TABLE ONLY integrator.user_reminder_rules
     ADD CONSTRAINT user_reminder_rules_pkey PRIMARY KEY (id);
-
-
---
--- Name: user_subscriptions user_subscriptions_pkey; Type: CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.user_subscriptions
-    ADD CONSTRAINT user_subscriptions_pkey PRIMARY KEY (user_id, topic_id);
 
 
 --
@@ -10410,6 +14423,22 @@ ALTER TABLE ONLY public.booking_branches
 
 
 --
+-- Name: booking_calendar_map booking_calendar_map_appointment_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.booking_calendar_map
+    ADD CONSTRAINT booking_calendar_map_appointment_key_key UNIQUE (appointment_key);
+
+
+--
+-- Name: booking_calendar_map booking_calendar_map_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.booking_calendar_map
+    ADD CONSTRAINT booking_calendar_map_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: booking_cities booking_cities_code_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10706,6 +14735,14 @@ ALTER TABLE ONLY public.email_challenges
 
 
 --
+-- Name: email_otp_locks email_otp_locks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_otp_locks
+    ADD CONSTRAINT email_otp_locks_pkey PRIMARY KEY (user_id);
+
+
+--
 -- Name: email_send_cooldowns email_send_cooldowns_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10847,38 +14884,6 @@ ALTER TABLE ONLY public.login_tokens
 
 ALTER TABLE ONLY public.login_tokens
     ADD CONSTRAINT login_tokens_token_hash_key UNIQUE (token_hash);
-
-
---
--- Name: mailing_logs_webapp mailing_logs_webapp_integrator_user_id_integrator_mailing_i_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.mailing_logs_webapp
-    ADD CONSTRAINT mailing_logs_webapp_integrator_user_id_integrator_mailing_i_key UNIQUE (integrator_user_id, integrator_mailing_id);
-
-
---
--- Name: mailing_logs_webapp mailing_logs_webapp_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.mailing_logs_webapp
-    ADD CONSTRAINT mailing_logs_webapp_pkey PRIMARY KEY (id);
-
-
---
--- Name: mailing_topics_webapp mailing_topics_webapp_integrator_topic_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.mailing_topics_webapp
-    ADD CONSTRAINT mailing_topics_webapp_integrator_topic_id_key UNIQUE (integrator_topic_id);
-
-
---
--- Name: mailing_topics_webapp mailing_topics_webapp_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.mailing_topics_webapp
-    ADD CONSTRAINT mailing_topics_webapp_pkey PRIMARY KEY (id);
 
 
 --
@@ -11074,6 +15079,14 @@ ALTER TABLE ONLY public.operator_job_status
 
 
 --
+-- Name: org_brand_revisions org_brand_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_brand_revisions
+    ADD CONSTRAINT org_brand_revisions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: org_enrollments org_enrollments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11114,27 +15127,27 @@ ALTER TABLE ONLY public.outgoing_delivery_queue
 
 
 --
+-- Name: password_altcha_challenges password_altcha_challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_altcha_challenges
+    ADD CONSTRAINT password_altcha_challenges_pkey PRIMARY KEY (challenge_id);
+
+
+--
+-- Name: password_login_identifier_protection password_login_identifier_protection_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.password_login_identifier_protection
+    ADD CONSTRAINT password_login_identifier_protection_pkey PRIMARY KEY (identifier_key);
+
+
+--
 -- Name: patient_bookings patient_bookings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.patient_bookings
     ADD CONSTRAINT patient_bookings_pkey PRIMARY KEY (id);
-
-
---
--- Name: patient_bookings patient_bookings_rubitime_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.patient_bookings
-    ADD CONSTRAINT patient_bookings_rubitime_id_key UNIQUE (rubitime_id);
-
-
---
--- Name: patient_bookings patient_bookings_slot_no_overlap; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.patient_bookings
-    ADD CONSTRAINT patient_bookings_slot_no_overlap EXCLUDE USING gist (rubitime_cooperator_id_snapshot WITH =, tstzrange(slot_start, slot_end, '[)'::text) WITH &&) WHERE (((status = ANY (ARRAY['confirmed'::text, 'rescheduled'::text])) AND (rubitime_cooperator_id_snapshot IS NOT NULL)));
 
 
 --
@@ -11474,11 +15487,115 @@ ALTER TABLE ONLY public.reminder_rules
 
 
 --
+-- Name: saas_billing_accounts saas_billing_accounts_id_organization_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_accounts
+    ADD CONSTRAINT saas_billing_accounts_id_organization_uidx UNIQUE (id, organization_id);
+
+
+--
+-- Name: saas_billing_accounts saas_billing_accounts_organization_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_accounts
+    ADD CONSTRAINT saas_billing_accounts_organization_uidx UNIQUE (organization_id);
+
+
+--
+-- Name: saas_billing_accounts saas_billing_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_accounts
+    ADD CONSTRAINT saas_billing_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_id_organization_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_id_organization_uidx UNIQUE (id, organization_id);
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_period_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_period_uidx UNIQUE (saas_billing_subscription_id, service_period_starts_at, service_period_ends_at);
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_provider_idempotency_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_provider_idempotency_uidx UNIQUE (provider_id, provider_idempotency_key);
+
+
+--
+-- Name: saas_billing_provider_events saas_billing_provider_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_provider_events
+    ADD CONSTRAINT saas_billing_provider_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: saas_billing_provider_events saas_billing_provider_events_provider_event_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_provider_events
+    ADD CONSTRAINT saas_billing_provider_events_provider_event_uidx UNIQUE (provider_id, provider_event_id);
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_id_organization_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_id_organization_uidx UNIQUE (id, organization_id);
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_org_source_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_org_source_uidx UNIQUE (organization_id, source);
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: saas_isolation_coverage_runs saas_isolation_coverage_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.saas_isolation_coverage_runs
     ADD CONSTRAINT saas_isolation_coverage_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: saas_isolation_event_hourly saas_isolation_event_hourly_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_isolation_event_hourly
+    ADD CONSTRAINT saas_isolation_event_hourly_pkey PRIMARY KEY (event_id, bucket_start);
 
 
 --
@@ -11506,11 +15623,35 @@ ALTER TABLE ONLY public.saas_org_entitlement_overrides
 
 
 --
+-- Name: saas_organization_trials saas_organization_trials_organization_uidx; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_organization_trials
+    ADD CONSTRAINT saas_organization_trials_organization_uidx UNIQUE (organization_id);
+
+
+--
+-- Name: saas_organization_trials saas_organization_trials_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_organization_trials
+    ADD CONSTRAINT saas_organization_trials_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: saas_tariffs saas_tariffs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.saas_tariffs
     ADD CONSTRAINT saas_tariffs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: saas_trial_policy saas_trial_policy_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_trial_policy
+    ADD CONSTRAINT saas_trial_policy_pkey PRIMARY KEY (key);
 
 
 --
@@ -11930,6 +16071,38 @@ ALTER TABLE ONLY public.user_oauth_bindings
 
 
 --
+-- Name: user_passkey_accounts user_passkey_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_passkey_accounts
+    ADD CONSTRAINT user_passkey_accounts_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: user_passkey_accounts user_passkey_accounts_user_handle_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_passkey_accounts
+    ADD CONSTRAINT user_passkey_accounts_user_handle_key UNIQUE (user_handle);
+
+
+--
+-- Name: user_passkey_challenges user_passkey_challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_passkey_challenges
+    ADD CONSTRAINT user_passkey_challenges_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_passkey_credentials user_passkey_credentials_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_passkey_credentials
+    ADD CONSTRAINT user_passkey_credentials_pkey PRIMARY KEY (credential_id);
+
+
+--
 -- Name: user_password_credentials user_password_credentials_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11951,22 +16124,6 @@ ALTER TABLE ONLY public.user_phone_history
 
 ALTER TABLE ONLY public.user_pins
     ADD CONSTRAINT user_pins_pkey PRIMARY KEY (user_id);
-
-
---
--- Name: user_subscriptions_webapp user_subscriptions_webapp_integrator_user_id_integrator_top_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_subscriptions_webapp
-    ADD CONSTRAINT user_subscriptions_webapp_integrator_user_id_integrator_top_key UNIQUE (integrator_user_id, integrator_topic_id);
-
-
---
--- Name: user_subscriptions_webapp user_subscriptions_webapp_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_subscriptions_webapp
-    ADD CONSTRAINT user_subscriptions_webapp_pkey PRIMARY KEY (id);
 
 
 --
@@ -12026,13 +16183,6 @@ CREATE INDEX conversations_status_last_message_idx ON integrator.conversations U
 --
 
 CREATE INDEX idempotency_keys_expires_at_idx ON integrator.idempotency_keys USING btree (expires_at);
-
-
---
--- Name: idx_booking_calendar_map_gcal_event_id; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE INDEX idx_booking_calendar_map_gcal_event_id ON integrator.booking_calendar_map USING btree (gcal_event_id);
 
 
 --
@@ -12106,24 +16256,17 @@ CREATE INDEX idx_integration_data_quality_incidents_last_seen ON integrator.inte
 
 
 --
--- Name: idx_mailing_logs_organization_id; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE INDEX idx_mailing_logs_organization_id ON integrator.mailing_logs USING btree (organization_id);
-
-
---
--- Name: idx_mailings_organization_id; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE INDEX idx_mailings_organization_id ON integrator.mailings USING btree (organization_id);
-
-
---
 -- Name: idx_message_drafts_organization_id; Type: INDEX; Schema: integrator; Owner: -
 --
 
 CREATE INDEX idx_message_drafts_organization_id ON integrator.message_drafts USING btree (organization_id);
+
+
+--
+-- Name: idx_message_retry_jobs_due; Type: INDEX; Schema: integrator; Owner: -
+--
+
+CREATE INDEX idx_message_retry_jobs_due ON integrator.message_retry_jobs USING btree (status, next_try_at);
 
 
 --
@@ -12145,41 +16288,6 @@ CREATE UNIQUE INDEX idx_projection_outbox_idempotency_key ON integrator.projecti
 --
 
 CREATE INDEX idx_question_messages_organization_id ON integrator.question_messages USING btree (organization_id);
-
-
---
--- Name: idx_rbp_is_active; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE INDEX idx_rbp_is_active ON integrator.rubitime_booking_profiles USING btree (is_active);
-
-
---
--- Name: idx_rbp_type_category_city; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE UNIQUE INDEX idx_rbp_type_category_city ON integrator.rubitime_booking_profiles USING btree (booking_type, category_code, COALESCE(city_code, ''::text));
-
-
---
--- Name: idx_rubitime_create_retry_jobs_due; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE INDEX idx_rubitime_create_retry_jobs_due ON integrator.rubitime_create_retry_jobs USING btree (status, next_try_at);
-
-
---
--- Name: idx_rubitime_records_phone_normalized; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE INDEX idx_rubitime_records_phone_normalized ON integrator.rubitime_records USING btree (phone_normalized);
-
-
---
--- Name: idx_rubitime_records_record_at; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE INDEX idx_rubitime_records_record_at ON integrator.rubitime_records USING btree (record_at);
 
 
 --
@@ -12211,31 +16319,10 @@ CREATE INDEX idx_user_reminder_rules_organization_id ON integrator.user_reminder
 
 
 --
--- Name: idx_user_subscriptions_organization_id; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE INDEX idx_user_subscriptions_organization_id ON integrator.user_subscriptions USING btree (organization_id);
-
-
---
 -- Name: idx_users_merged_into_user_id; Type: INDEX; Schema: integrator; Owner: -
 --
 
 CREATE INDEX idx_users_merged_into_user_id ON integrator.users USING btree (merged_into_user_id) WHERE (merged_into_user_id IS NOT NULL);
-
-
---
--- Name: integrator_system_settings_global_key_scope_uidx; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE UNIQUE INDEX integrator_system_settings_global_key_scope_uidx ON integrator.system_settings USING btree (key, scope) WHERE (organization_id IS NULL);
-
-
---
--- Name: integrator_system_settings_org_key_scope_uidx; Type: INDEX; Schema: integrator; Owner: -
---
-
-CREATE UNIQUE INDEX integrator_system_settings_org_key_scope_uidx ON integrator.system_settings USING btree (key, scope, organization_id) WHERE (organization_id IS NOT NULL);
 
 
 --
@@ -12351,6 +16438,13 @@ CREATE UNIQUE INDEX app_runtime_settings_org_key_scope_uidx ON public.app_runtim
 
 
 --
+-- Name: be_payment_history_capture_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX be_payment_history_capture_uidx ON public.be_payment_history_events USING btree (organization_id, payment_id, event_type) WHERE ((payment_id IS NOT NULL) AND (event_type = 'payment_captured'::text));
+
+
+--
 -- Name: be_payment_intents_idempotency_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12358,10 +16452,17 @@ CREATE UNIQUE INDEX be_payment_intents_idempotency_uidx ON public.be_payment_int
 
 
 --
--- Name: be_payment_provider_events_idempotency_uidx; Type: INDEX; Schema: public; Owner: -
+-- Name: be_payment_intents_provider_authority_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX be_payment_provider_events_idempotency_uidx ON public.be_payment_provider_events USING btree (organization_id, provider_id, idempotency_key);
+CREATE UNIQUE INDEX be_payment_intents_provider_authority_uidx ON public.be_payment_intents USING btree (provider_id, idempotency_key);
+
+
+--
+-- Name: be_payment_provider_events_lifecycle_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX be_payment_provider_events_lifecycle_uidx ON public.be_payment_provider_events USING btree (provider_id, idempotency_key, event_type);
 
 
 --
@@ -12502,6 +16603,13 @@ CREATE INDEX idx_assignments_patient ON public.patient_lfk_assignments USING btr
 --
 
 CREATE INDEX idx_auth_rate_limit_events_scope_key_time ON public.auth_rate_limit_events USING btree (scope, key, occurred_at);
+
+
+--
+-- Name: idx_auth_rate_limit_events_scope_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_auth_rate_limit_events_scope_time ON public.auth_rate_limit_events USING btree (scope, occurred_at);
 
 
 --
@@ -12656,6 +16764,13 @@ CREATE INDEX idx_be_organization_members_specialist ON public.be_organization_me
 --
 
 CREATE INDEX idx_be_organization_members_user ON public.be_organization_members USING btree (platform_user_id);
+
+
+--
+-- Name: idx_be_organizations_commercial_access_state; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_be_organizations_commercial_access_state ON public.be_organizations USING btree (commercial_access_state, is_active);
 
 
 --
@@ -12953,13 +17068,6 @@ CREATE INDEX idx_booking_branches_is_active ON public.booking_branches USING btr
 
 
 --
--- Name: idx_booking_branches_rubitime_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_booking_branches_rubitime_id ON public.booking_branches USING btree (rubitime_branch_id);
-
-
---
 -- Name: idx_booking_cities_is_active; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12985,13 +17093,6 @@ CREATE INDEX idx_booking_specialists_branch_id ON public.booking_specialists USI
 --
 
 CREATE INDEX idx_booking_specialists_is_active ON public.booking_specialists USING btree (is_active);
-
-
---
--- Name: idx_booking_specialists_rubitime_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_booking_specialists_rubitime_id ON public.booking_specialists USING btree (rubitime_cooperator_id, branch_id);
 
 
 --
@@ -13611,41 +17712,6 @@ CREATE INDEX idx_login_tokens_status ON public.login_tokens USING btree (status,
 
 
 --
--- Name: idx_mailing_logs_webapp_mailing; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_mailing_logs_webapp_mailing ON public.mailing_logs_webapp USING btree (integrator_mailing_id);
-
-
---
--- Name: idx_mailing_logs_webapp_organization_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_mailing_logs_webapp_organization_id ON public.mailing_logs_webapp USING btree (organization_id);
-
-
---
--- Name: idx_mailing_logs_webapp_user; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_mailing_logs_webapp_user ON public.mailing_logs_webapp USING btree (integrator_user_id);
-
-
---
--- Name: idx_mailing_topics_webapp_integrator_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_mailing_topics_webapp_integrator_id ON public.mailing_topics_webapp USING btree (integrator_topic_id);
-
-
---
--- Name: idx_mailing_topics_webapp_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_mailing_topics_webapp_key ON public.mailing_topics_webapp USING btree (key);
-
-
---
 -- Name: idx_manual_patient_commands_org_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14094,6 +18160,13 @@ CREATE INDEX idx_operator_incidents_open_last_seen ON public.operator_incidents 
 
 
 --
+-- Name: idx_operator_incidents_provider_alert_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_operator_incidents_provider_alert_due ON public.operator_incidents USING btree (opened_at, initial_alert_sent_at, one_hour_alert_sent_at, alert_claimed_at) WHERE ((resolved_at IS NULL) AND (acknowledged_at IS NULL) AND (direction = 'outbound_delivery_provider'::text));
+
+
+--
 -- Name: idx_operator_job_status_family_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14105,6 +18178,20 @@ CREATE INDEX idx_operator_job_status_family_key ON public.operator_job_status US
 --
 
 CREATE INDEX idx_operator_job_status_last_finished ON public.operator_job_status USING btree (last_finished_at DESC);
+
+
+--
+-- Name: idx_org_brand_revisions_logo_media; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_brand_revisions_logo_media ON public.org_brand_revisions USING btree (logo_media_id) WHERE (logo_media_id IS NOT NULL);
+
+
+--
+-- Name: idx_org_brand_revisions_org_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_org_brand_revisions_org_status ON public.org_brand_revisions USING btree (organization_id, status);
 
 
 --
@@ -14157,6 +18244,41 @@ CREATE INDEX idx_outgoing_delivery_queue_due ON public.outgoing_delivery_queue U
 
 
 --
+-- Name: idx_password_altcha_challenges_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_password_altcha_challenges_expiry ON public.password_altcha_challenges USING btree (expires_at);
+
+
+--
+-- Name: idx_password_altcha_challenges_identifier_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_password_altcha_challenges_identifier_expiry ON public.password_altcha_challenges USING btree (identifier_key, expires_at DESC);
+
+
+--
+-- Name: idx_password_login_identifier_locked_until; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_password_login_identifier_locked_until ON public.password_login_identifier_protection USING btree (locked_until) WHERE (locked_until IS NOT NULL);
+
+
+--
+-- Name: idx_password_login_identifier_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_password_login_identifier_updated_at ON public.password_login_identifier_protection USING btree (updated_at);
+
+
+--
+-- Name: idx_password_login_identifier_verification_lease_until; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_password_login_identifier_verification_lease_until ON public.password_login_identifier_protection USING btree (verification_lease_until) WHERE (verification_lease_until IS NOT NULL);
+
+
+--
 -- Name: idx_patient_bookings_branch_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14175,13 +18297,6 @@ CREATE INDEX idx_patient_bookings_branch_service_id ON public.patient_bookings U
 --
 
 CREATE INDEX idx_patient_bookings_canonical_appt ON public.patient_bookings USING btree (canonical_appointment_id);
-
-
---
--- Name: idx_patient_bookings_rubitime_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_patient_bookings_rubitime_id ON public.patient_bookings USING btree (rubitime_id);
 
 
 --
@@ -14892,10 +19007,80 @@ CREATE INDEX idx_reminder_rules_platform_user_updated_at ON public.reminder_rule
 
 
 --
+-- Name: idx_saas_billing_accounts_org_updated; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_billing_accounts_org_updated ON public.saas_billing_accounts USING btree (organization_id, updated_at);
+
+
+--
+-- Name: idx_saas_billing_invoices_org_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_billing_invoices_org_created ON public.saas_billing_invoices USING btree (organization_id, created_at);
+
+
+--
+-- Name: idx_saas_billing_invoices_status_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_billing_invoices_status_created ON public.saas_billing_invoices USING btree (status, created_at);
+
+
+--
+-- Name: idx_saas_billing_provider_events_org_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_billing_provider_events_org_created ON public.saas_billing_provider_events USING btree (organization_id, created_at);
+
+
+--
+-- Name: idx_saas_billing_provider_events_unprocessed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_billing_provider_events_unprocessed ON public.saas_billing_provider_events USING btree (created_at) WHERE (processed_at IS NULL);
+
+
+--
+-- Name: idx_saas_billing_subscriptions_lifecycle; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_billing_subscriptions_lifecycle ON public.saas_billing_subscriptions USING btree (lifecycle_state, grace_ends_at, read_only_ends_at);
+
+
+--
+-- Name: idx_saas_billing_subscriptions_org_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_billing_subscriptions_org_status ON public.saas_billing_subscriptions USING btree (organization_id, status);
+
+
+--
 -- Name: idx_saas_org_entitlement_overrides_org; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_saas_org_entitlement_overrides_org ON public.saas_org_entitlement_overrides USING btree (organization_id);
+
+
+--
+-- Name: idx_saas_org_entitlement_overrides_org_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_org_entitlement_overrides_org_expiry ON public.saas_org_entitlement_overrides USING btree (organization_id, expires_at);
+
+
+--
+-- Name: idx_saas_organization_trials_lifecycle; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_organization_trials_lifecycle ON public.saas_organization_trials USING btree (status, grace_ends_at);
+
+
+--
+-- Name: idx_saas_organization_trials_org_updated; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_saas_organization_trials_org_updated ON public.saas_organization_trials USING btree (organization_id, updated_at DESC);
 
 
 --
@@ -15501,6 +19686,27 @@ CREATE INDEX idx_user_notification_topics_user ON public.user_notification_topic
 
 
 --
+-- Name: idx_user_passkey_challenges_expires_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_passkey_challenges_expires_at ON public.user_passkey_challenges USING btree (expires_at);
+
+
+--
+-- Name: idx_user_passkey_credentials_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_passkey_credentials_user_id ON public.user_passkey_credentials USING btree (user_id, created_at);
+
+
+--
+-- Name: idx_user_password_credentials_verification_lease_until; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_password_credentials_verification_lease_until ON public.user_password_credentials USING btree (verification_lease_until) WHERE (verification_lease_until IS NOT NULL);
+
+
+--
 -- Name: idx_user_phone_history_organization_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15519,27 +19725,6 @@ CREATE INDEX idx_user_phone_history_phone ON public.user_phone_history USING btr
 --
 
 CREATE INDEX idx_user_phone_history_user ON public.user_phone_history USING btree (platform_user_id);
-
-
---
--- Name: idx_user_subscriptions_webapp_organization_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_subscriptions_webapp_organization_id ON public.user_subscriptions_webapp USING btree (organization_id);
-
-
---
--- Name: idx_user_subscriptions_webapp_topic; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_subscriptions_webapp_topic ON public.user_subscriptions_webapp USING btree (integrator_topic_id);
-
-
---
--- Name: idx_user_subscriptions_webapp_user; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_subscriptions_webapp_user ON public.user_subscriptions_webapp USING btree (integrator_user_id);
 
 
 --
@@ -15631,6 +19816,13 @@ CREATE INDEX reference_items_category_deleted_active_sort_idx ON public.referenc
 --
 
 CREATE INDEX saas_isolation_coverage_runs_finished_at_idx ON public.saas_isolation_coverage_runs USING btree (finished_at);
+
+
+--
+-- Name: saas_isolation_event_hourly_bucket_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX saas_isolation_event_hourly_bucket_idx ON public.saas_isolation_event_hourly USING btree (bucket_start);
 
 
 --
@@ -15728,7 +19920,7 @@ CREATE UNIQUE INDEX uq_be_working_days_scope_date ON public.be_working_days USIN
 -- Name: uq_clinic_public_directory_entries_slug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_clinic_public_directory_entries_slug ON public.clinic_public_directory_entries USING btree (slug);
+CREATE UNIQUE INDEX uq_clinic_public_directory_entries_slug ON public.clinic_public_directory_entries USING btree (lower(slug));
 
 
 --
@@ -15774,6 +19966,20 @@ CREATE UNIQUE INDEX uq_media_upload_sessions_one_active_per_media ON public.medi
 
 
 --
+-- Name: uq_org_brand_revisions_draft; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_org_brand_revisions_draft ON public.org_brand_revisions USING btree (organization_id) WHERE (status = 'draft'::text);
+
+
+--
+-- Name: uq_org_brand_revisions_published; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_org_brand_revisions_published ON public.org_brand_revisions USING btree (organization_id) WHERE (status = 'published'::text);
+
+
+--
 -- Name: uq_organization_member_invites_org_email_pending; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15788,17 +19994,10 @@ CREATE UNIQUE INDEX uq_organization_slug_claims_current_org ON public.organizati
 
 
 --
--- Name: uq_organization_slug_claims_reservation_org; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_organization_slug_claims_reservation_org ON public.organization_slug_claims USING btree (organization_id) WHERE (kind = 'reservation'::text);
-
-
---
 -- Name: uq_organization_slug_claims_slug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_organization_slug_claims_slug ON public.organization_slug_claims USING btree (slug);
+CREATE UNIQUE INDEX uq_organization_slug_claims_slug ON public.organization_slug_claims USING btree (lower(slug));
 
 
 --
@@ -15806,6 +20005,13 @@ CREATE UNIQUE INDEX uq_organization_slug_claims_slug ON public.organization_slug
 --
 
 CREATE UNIQUE INDEX uq_outgoing_delivery_queue_event_id ON public.outgoing_delivery_queue USING btree (event_id);
+
+
+--
+-- Name: uq_password_login_identifier_verification_lease_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_password_login_identifier_verification_lease_token ON public.password_login_identifier_protection USING btree (verification_lease_token) WHERE (verification_lease_token IS NOT NULL);
 
 
 --
@@ -15907,6 +20113,13 @@ CREATE UNIQUE INDEX uq_user_channel_preferences_platform_user_channel ON public.
 
 
 --
+-- Name: uq_user_password_credentials_verification_lease_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_user_password_credentials_verification_lease_token ON public.user_password_credentials USING btree (verification_lease_token) WHERE (verification_lease_token IS NOT NULL);
+
+
+--
 -- Name: uq_user_phone_history_phone_active; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15963,20 +20176,6 @@ CREATE UNIQUE INDEX webapp_reminder_occurrences_rule_key_uniq ON public.webapp_r
 
 
 --
--- Name: mailing_topics stage13_freeze_mailing_topics; Type: TRIGGER; Schema: integrator; Owner: -
---
-
-CREATE TRIGGER stage13_freeze_mailing_topics BEFORE INSERT OR DELETE OR UPDATE ON integrator.mailing_topics FOR EACH ROW EXECUTE FUNCTION integrator.stage13_prevent_write_mailing_topics();
-
-
---
--- Name: user_subscriptions stage13_freeze_user_subscriptions; Type: TRIGGER; Schema: integrator; Owner: -
---
-
-CREATE TRIGGER stage13_freeze_user_subscriptions BEFORE INSERT OR DELETE OR UPDATE ON integrator.user_subscriptions FOR EACH ROW EXECUTE FUNCTION integrator.stage13_prevent_write_user_subscriptions();
-
-
---
 -- Name: app_runtime_settings app_runtime_settings_audit_change; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15988,6 +20187,13 @@ CREATE TRIGGER app_runtime_settings_audit_change AFTER INSERT OR UPDATE ON publi
 --
 
 CREATE TRIGGER be_organizations_reference_catalog_snapshot AFTER INSERT ON public.be_organizations FOR EACH ROW EXECUTE FUNCTION app.seed_reference_catalog_after_organization_insert();
+
+
+--
+-- Name: be_organizations be_organizations_staff_commercial_columns_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER be_organizations_staff_commercial_columns_guard BEFORE UPDATE OF tariff_id, commercial_access_state ON public.be_organizations FOR EACH ROW EXECUTE FUNCTION app.reject_staff_commercial_organization_update();
 
 
 --
@@ -16019,6 +20225,13 @@ CREATE TRIGGER lfk_exercise_regions_owner_guard BEFORE INSERT OR UPDATE OF owner
 
 
 --
+-- Name: org_brand_revisions org_brand_revisions_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER org_brand_revisions_guard BEFORE INSERT OR UPDATE ON public.org_brand_revisions FOR EACH ROW EXECUTE FUNCTION app.guard_org_brand_revision();
+
+
+--
 -- Name: organization_slug_claims organization_slug_claims_alias_complete_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16036,7 +20249,7 @@ CREATE TRIGGER organization_slug_claims_immutable_guard BEFORE DELETE OR UPDATE 
 -- Name: organization_slug_claims organization_slug_claims_rename_complete_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE CONSTRAINT TRIGGER organization_slug_claims_rename_complete_guard AFTER UPDATE ON public.organization_slug_claims DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (((old.kind = 'current'::text) AND (new.kind = 'current'::text) AND (old.slug IS DISTINCT FROM new.slug))) EXECUTE FUNCTION app.assert_organization_slug_rename_complete();
+CREATE CONSTRAINT TRIGGER organization_slug_claims_rename_complete_guard AFTER UPDATE ON public.organization_slug_claims DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (((old.kind = 'current'::text) AND (((new.kind = 'current'::text) AND (old.slug IS DISTINCT FROM new.slug)) OR ((new.kind = 'alias'::text) AND (NOT (old.slug IS DISTINCT FROM new.slug)) AND (NOT (old.organization_id IS DISTINCT FROM new.organization_id)))))) EXECUTE FUNCTION app.assert_organization_slug_rename_complete();
 
 
 --
@@ -16051,6 +20264,13 @@ CREATE TRIGGER organization_slug_rename_events_immutable_guard BEFORE DELETE OR 
 --
 
 CREATE TRIGGER system_settings_sync_registered_runtime AFTER INSERT OR UPDATE OF value_json, updated_at, updated_by ON public.system_settings FOR EACH ROW EXECUTE FUNCTION public.sync_registered_app_runtime_setting();
+
+
+--
+-- Name: system_settings system_settings_test_lock; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings FOR EACH ROW EXECUTE FUNCTION public.system_settings_test_lock_guard();
 
 
 --
@@ -16072,6 +20292,13 @@ CREATE TRIGGER trg_media_folders_depth_ins BEFORE INSERT ON public.media_folders
 --
 
 CREATE TRIGGER trg_media_folders_depth_upd BEFORE UPDATE OF parent_id ON public.media_folders FOR EACH ROW WHEN ((new.parent_id IS DISTINCT FROM old.parent_id)) EXECUTE FUNCTION public.media_folders_enforce_depth();
+
+
+--
+-- Name: staff_security_profiles trg_staff_session_version_to_session_epoch; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_staff_session_version_to_session_epoch AFTER UPDATE OF session_version ON public.staff_security_profiles FOR EACH ROW WHEN ((new.session_version IS DISTINCT FROM old.session_version)) EXECUTE FUNCTION app.propagate_staff_session_version_to_session_epoch();
 
 
 --
@@ -16147,54 +20374,6 @@ ALTER TABLE ONLY integrator.identities
 
 
 --
--- Name: system_settings integrator_system_settings_organization_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.system_settings
-    ADD CONSTRAINT integrator_system_settings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: mailing_logs mailing_logs_mailing_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailing_logs
-    ADD CONSTRAINT mailing_logs_mailing_id_fkey FOREIGN KEY (mailing_id) REFERENCES integrator.mailings(id) ON DELETE CASCADE;
-
-
---
--- Name: mailing_logs mailing_logs_organization_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailing_logs
-    ADD CONSTRAINT mailing_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: mailing_logs mailing_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailing_logs
-    ADD CONSTRAINT mailing_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES integrator.users(id) ON DELETE CASCADE;
-
-
---
--- Name: mailings mailings_organization_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailings
-    ADD CONSTRAINT mailings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: mailings mailings_topic_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.mailings
-    ADD CONSTRAINT mailings_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES integrator.mailing_topics(id) ON DELETE CASCADE;
-
-
---
 -- Name: message_drafts message_drafts_identity_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
 --
 
@@ -16224,30 +20403,6 @@ ALTER TABLE ONLY integrator.question_messages
 
 ALTER TABLE ONLY integrator.question_messages
     ADD CONSTRAINT question_messages_question_id_fkey FOREIGN KEY (question_id) REFERENCES integrator.user_questions(id) ON DELETE CASCADE;
-
-
---
--- Name: rubitime_booking_profiles rubitime_booking_profiles_branch_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_booking_profiles
-    ADD CONSTRAINT rubitime_booking_profiles_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES integrator.rubitime_branches(id);
-
-
---
--- Name: rubitime_booking_profiles rubitime_booking_profiles_cooperator_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_booking_profiles
-    ADD CONSTRAINT rubitime_booking_profiles_cooperator_id_fkey FOREIGN KEY (cooperator_id) REFERENCES integrator.rubitime_cooperators(id);
-
-
---
--- Name: rubitime_booking_profiles rubitime_booking_profiles_service_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.rubitime_booking_profiles
-    ADD CONSTRAINT rubitime_booking_profiles_service_id_fkey FOREIGN KEY (service_id) REFERENCES integrator.rubitime_services(id);
 
 
 --
@@ -16328,30 +20483,6 @@ ALTER TABLE ONLY integrator.user_reminder_rules
 
 ALTER TABLE ONLY integrator.user_reminder_rules
     ADD CONSTRAINT user_reminder_rules_user_id_fkey FOREIGN KEY (user_id) REFERENCES integrator.users(id) ON DELETE CASCADE;
-
-
---
--- Name: user_subscriptions user_subscriptions_organization_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.user_subscriptions
-    ADD CONSTRAINT user_subscriptions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: user_subscriptions user_subscriptions_subscription_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.user_subscriptions
-    ADD CONSTRAINT user_subscriptions_subscription_id_fkey FOREIGN KEY (topic_id) REFERENCES integrator.mailing_topics(id) ON DELETE CASCADE;
-
-
---
--- Name: user_subscriptions user_subscriptions_user_id_fkey; Type: FK CONSTRAINT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.user_subscriptions
-    ADD CONSTRAINT user_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES integrator.users(id) ON DELETE CASCADE;
 
 
 --
@@ -18139,14 +22270,6 @@ ALTER TABLE ONLY public.login_tokens
 
 
 --
--- Name: mailing_logs_webapp mailing_logs_webapp_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.mailing_logs_webapp
-    ADD CONSTRAINT mailing_logs_webapp_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
-
-
---
 -- Name: manual_patient_commands manual_patient_commands_enrollment_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18472,6 +22595,46 @@ ALTER TABLE ONLY public.online_intake_status_history
 
 ALTER TABLE ONLY public.operator_health_failure_archive
     ADD CONSTRAINT operator_health_failure_archive_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_brand_revisions org_brand_revisions_archived_by_platform_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_brand_revisions
+    ADD CONSTRAINT org_brand_revisions_archived_by_platform_user_id_fkey FOREIGN KEY (archived_by_platform_user_id) REFERENCES public.platform_users(id);
+
+
+--
+-- Name: org_brand_revisions org_brand_revisions_created_by_platform_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_brand_revisions
+    ADD CONSTRAINT org_brand_revisions_created_by_platform_user_id_fkey FOREIGN KEY (created_by_platform_user_id) REFERENCES public.platform_users(id);
+
+
+--
+-- Name: org_brand_revisions org_brand_revisions_logo_media_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_brand_revisions
+    ADD CONSTRAINT org_brand_revisions_logo_media_id_fkey FOREIGN KEY (logo_media_id) REFERENCES public.media_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: org_brand_revisions org_brand_revisions_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_brand_revisions
+    ADD CONSTRAINT org_brand_revisions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: org_brand_revisions org_brand_revisions_published_by_platform_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_brand_revisions
+    ADD CONSTRAINT org_brand_revisions_published_by_platform_user_id_fkey FOREIGN KEY (published_by_platform_user_id) REFERENCES public.platform_users(id);
 
 
 --
@@ -19291,11 +23454,139 @@ ALTER TABLE ONLY public.reminder_rules
 
 
 --
+-- Name: saas_billing_accounts saas_billing_accounts_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_accounts
+    ADD CONSTRAINT saas_billing_accounts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_account_org_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_account_org_fkey FOREIGN KEY (saas_billing_account_id, organization_id) REFERENCES public.saas_billing_accounts(id, organization_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_saas_billing_subscription_org_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_saas_billing_subscription_org_fkey FOREIGN KEY (saas_billing_subscription_id, organization_id) REFERENCES public.saas_billing_subscriptions(id, organization_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_invoices
+    ADD CONSTRAINT saas_billing_invoices_tariff_id_fkey FOREIGN KEY (tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_billing_provider_events saas_billing_provider_events_invoice_org_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_provider_events
+    ADD CONSTRAINT saas_billing_provider_events_invoice_org_fkey FOREIGN KEY (saas_billing_invoice_id, organization_id) REFERENCES public.saas_billing_invoices(id, organization_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_billing_provider_events saas_billing_provider_events_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_provider_events
+    ADD CONSTRAINT saas_billing_provider_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_account_org_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_account_org_fkey FOREIGN KEY (saas_billing_account_id, organization_id) REFERENCES public.saas_billing_accounts(id, organization_id) ON DELETE CASCADE;
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_billing_subscriptions
+    ADD CONSTRAINT saas_billing_subscriptions_tariff_id_fkey FOREIGN KEY (tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_isolation_event_hourly saas_isolation_event_hourly_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_isolation_event_hourly
+    ADD CONSTRAINT saas_isolation_event_hourly_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.saas_isolation_events(id) ON DELETE CASCADE;
+
+
+--
 -- Name: saas_org_entitlement_overrides saas_org_entitlement_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.saas_org_entitlement_overrides
     ADD CONSTRAINT saas_org_entitlement_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: saas_organization_trials saas_organization_trials_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_organization_trials
+    ADD CONSTRAINT saas_organization_trials_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: saas_organization_trials saas_organization_trials_post_trial_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_organization_trials
+    ADD CONSTRAINT saas_organization_trials_post_trial_tariff_id_fkey FOREIGN KEY (post_trial_tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_organization_trials saas_organization_trials_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_organization_trials
+    ADD CONSTRAINT saas_organization_trials_tariff_id_fkey FOREIGN KEY (tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_trial_policy saas_trial_policy_post_trial_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_trial_policy
+    ADD CONSTRAINT saas_trial_policy_post_trial_tariff_id_fkey FOREIGN KEY (post_trial_tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: saas_trial_policy saas_trial_policy_tariff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.saas_trial_policy
+    ADD CONSTRAINT saas_trial_policy_tariff_id_fkey FOREIGN KEY (tariff_id) REFERENCES public.saas_tariffs(id) ON DELETE RESTRICT;
 
 
 --
@@ -19931,6 +24222,30 @@ ALTER TABLE ONLY public.user_oauth_bindings
 
 
 --
+-- Name: user_passkey_accounts user_passkey_accounts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_passkey_accounts
+    ADD CONSTRAINT user_passkey_accounts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_passkey_challenges user_passkey_challenges_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_passkey_challenges
+    ADD CONSTRAINT user_passkey_challenges_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_passkey_credentials user_passkey_credentials_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_passkey_credentials
+    ADD CONSTRAINT user_passkey_credentials_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: user_password_credentials user_password_credentials_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19960,14 +24275,6 @@ ALTER TABLE ONLY public.user_phone_history
 
 ALTER TABLE ONLY public.user_pins
     ADD CONSTRAINT user_pins_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.platform_users(id) ON DELETE CASCADE;
-
-
---
--- Name: user_subscriptions_webapp user_subscriptions_webapp_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_subscriptions_webapp
-    ADD CONSTRAINT user_subscriptions_webapp_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.be_organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -20019,18 +24326,6 @@ ALTER TABLE integrator.conversation_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integrator.conversations ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: mailing_logs; Type: ROW SECURITY; Schema: integrator; Owner: -
---
-
-ALTER TABLE integrator.mailing_logs ENABLE ROW LEVEL SECURITY;
-
---
--- Name: mailings; Type: ROW SECURITY; Schema: integrator; Owner: -
---
-
-ALTER TABLE integrator.mailings ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: message_drafts; Type: ROW SECURITY; Schema: integrator; Owner: -
 --
 
@@ -20041,13 +24336,6 @@ ALTER TABLE integrator.message_drafts ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE integrator.question_messages ENABLE ROW LEVEL SECURITY;
-
---
--- Name: system_settings saas_bootstrap_hybrid_p0_8_6; Type: POLICY; Schema: integrator; Owner: -
---
-
-CREATE POLICY saas_bootstrap_hybrid_p0_8_6 ON integrator.system_settings USING (((organization_id IS NULL) OR ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())))) WITH CHECK (((organization_id IS NULL) OR ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))));
-
 
 --
 -- Name: contacts saas_org_dormant_p0_8_5; Type: POLICY; Schema: integrator; Owner: -
@@ -20085,20 +24373,6 @@ CREATE POLICY saas_org_dormant_p0_8_5 ON integrator.conversations USING (((app.i
   WHERE ((b4f_conversations_identity.id = conversations.user_identity_id) AND (b4f_conversations_identity.user_id = app.current_integrator_user_id()))))))) WITH CHECK (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM integrator.identities b4f_conversations_identity
   WHERE ((b4f_conversations_identity.id = conversations.user_identity_id) AND (b4f_conversations_identity.user_id = app.current_integrator_user_id())))))));
-
-
---
--- Name: mailing_logs saas_org_dormant_p0_8_5; Type: POLICY; Schema: integrator; Owner: -
---
-
-CREATE POLICY saas_org_dormant_p0_8_5 ON integrator.mailing_logs USING (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (user_id = app.current_integrator_user_id())))) WITH CHECK (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (user_id = app.current_integrator_user_id()))));
-
-
---
--- Name: mailings saas_org_dormant_p0_8_5; Type: POLICY; Schema: integrator; Owner: -
---
-
-CREATE POLICY saas_org_dormant_p0_8_5 ON integrator.mailings USING ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())))) WITH CHECK ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))));
 
 
 --
@@ -20168,19 +24442,6 @@ CREATE POLICY saas_org_dormant_p0_8_5 ON integrator.user_reminder_rules USING ((
 
 
 --
--- Name: user_subscriptions saas_org_dormant_p0_8_5; Type: POLICY; Schema: integrator; Owner: -
---
-
-CREATE POLICY saas_org_dormant_p0_8_5 ON integrator.user_subscriptions USING (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (user_id = app.current_integrator_user_id())))) WITH CHECK (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (user_id = app.current_integrator_user_id()))));
-
-
---
--- Name: system_settings; Type: ROW SECURITY; Schema: integrator; Owner: -
---
-
-ALTER TABLE integrator.system_settings ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: user_questions; Type: ROW SECURITY; Schema: integrator; Owner: -
 --
 
@@ -20205,16 +24466,24 @@ ALTER TABLE integrator.user_reminder_occurrences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integrator.user_reminder_rules ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: user_subscriptions; Type: ROW SECURITY; Schema: integrator; Owner: -
---
-
-ALTER TABLE integrator.user_subscriptions ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: admin_audit_log; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: admin_audit_log admin_audit_log_platform_operations_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_audit_log_platform_operations_insert ON public.admin_audit_log FOR INSERT TO app_platform_settings WITH CHECK (true);
+
+
+--
+-- Name: admin_audit_log admin_audit_log_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_audit_log_platform_operations_select ON public.admin_audit_log FOR SELECT TO app_platform_settings USING (true);
+
 
 --
 -- Name: app_runtime_settings; Type: ROW SECURITY; Schema: public; Owner: -
@@ -20295,6 +24564,13 @@ ALTER TABLE public.be_booking_form_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.be_branches ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: be_branches be_branches_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_branches_platform_operations_select ON public.be_branches FOR SELECT TO app_platform_settings USING (true);
+
+
+--
 -- Name: be_cancellation_policies; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20307,10 +24583,44 @@ ALTER TABLE public.be_cancellation_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.be_clinic_services ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: be_clinic_services be_clinic_services_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_clinic_services_platform_operations_select ON public.be_clinic_services FOR SELECT TO app_platform_settings USING (true);
+
+
+--
 -- Name: be_external_entity_mappings; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.be_external_entity_mappings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: be_organizations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.be_organizations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: be_organizations be_organizations_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_organizations_platform_operations_select ON public.be_organizations FOR SELECT TO app_platform_settings USING (true);
+
+
+--
+-- Name: be_organizations be_organizations_platform_operations_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_organizations_platform_operations_update ON public.be_organizations FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
+
+
+--
+-- Name: be_organizations be_organizations_staff_current_org_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_organizations_staff_current_org_read ON public.be_organizations FOR SELECT TO app_staff USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (id = app.current_org_id())));
+
 
 --
 -- Name: be_package_history_events; Type: ROW SECURITY; Schema: public; Owner: -
@@ -20445,6 +24755,13 @@ ALTER TABLE public.be_schedule_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.be_service_location_availability ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: be_service_location_availability be_service_location_availability_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_service_location_availability_platform_operations_select ON public.be_service_location_availability FOR SELECT TO app_platform_settings USING (true);
+
+
+--
 -- Name: be_specialist_locations; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20463,10 +24780,24 @@ ALTER TABLE public.be_specialist_rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.be_specialist_service_availability ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: be_specialist_service_availability be_specialist_service_availability_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_specialist_service_availability_platform_operations_select ON public.be_specialist_service_availability FOR SELECT TO app_platform_settings USING (true);
+
+
+--
 -- Name: be_specialists; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.be_specialists ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: be_specialists be_specialists_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_specialists_platform_operations_select ON public.be_specialists FOR SELECT TO app_platform_settings USING (true);
+
 
 --
 -- Name: be_subscription_packages; Type: ROW SECURITY; Schema: public; Owner: -
@@ -20487,6 +24818,13 @@ ALTER TABLE public.be_working_days ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.be_working_hours ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: be_working_hours be_working_hours_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY be_working_hours_platform_operations_select ON public.be_working_hours FOR SELECT TO app_platform_settings USING (true);
+
+
+--
 -- Name: broadcast_audit; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20505,45 +24843,158 @@ ALTER TABLE public.broadcast_audit_recipients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.broadcast_drafts ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: content_pages c4_web_push_reminder_catalog; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_catalog ON public.content_pages FOR SELECT TO app_operational_web_push_reminder USING (((organization_id IS NULL) OR (organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)));
+
+
+--
+-- Name: content_sections c4_web_push_reminder_catalog; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_catalog ON public.content_sections FOR SELECT TO app_operational_web_push_reminder USING (((organization_id IS NULL) OR (organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)));
+
+
+--
+-- Name: platform_users c4_web_push_reminder_discovery; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_discovery ON public.platform_users FOR SELECT TO app_web_push_reminder_discovery_definer USING (true);
+
+
+--
+-- Name: reminder_rules c4_web_push_reminder_discovery; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_discovery ON public.reminder_rules FOR SELECT TO app_web_push_reminder_discovery_definer USING (true);
+
+
+--
+-- Name: notification_delivery_attempts c4_web_push_reminder_org; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_org ON public.notification_delivery_attempts TO app_operational_web_push_reminder USING ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid));
+
+
+--
+-- Name: product_analytics_hourly c4_web_push_reminder_org; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_org ON public.product_analytics_hourly TO app_operational_web_push_reminder USING ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid));
+
+
+--
+-- Name: product_push_notifications c4_web_push_reminder_org; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_org ON public.product_push_notifications TO app_operational_web_push_reminder USING ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid));
+
+
+--
+-- Name: reminder_rules c4_web_push_reminder_org; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_org ON public.reminder_rules TO app_operational_web_push_reminder USING ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid));
+
+
+--
+-- Name: webapp_reminder_occurrences c4_web_push_reminder_org; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_org ON public.webapp_reminder_occurrences TO app_operational_web_push_reminder USING ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid));
+
+
+--
+-- Name: operator_job_status c4_web_push_reminder_status; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_status ON public.operator_job_status TO app_operational_web_push_reminder USING (((job_family = 'reminders'::text) AND (job_key = 'reminders.web_push_only.tick'::text))) WITH CHECK (((job_family = 'reminders'::text) AND (job_key = 'reminders.web_push_only.tick'::text)));
+
+
+--
+-- Name: operator_job_status c4_web_push_reminder_status_restrictive; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_status_restrictive ON public.operator_job_status AS RESTRICTIVE TO app_operational_web_push_reminder USING (((job_family = 'reminders'::text) AND (job_key = 'reminders.web_push_only.tick'::text))) WITH CHECK (((job_family = 'reminders'::text) AND (job_key = 'reminders.web_push_only.tick'::text)));
+
+
+--
+-- Name: platform_users c4_web_push_reminder_user; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_user ON public.platform_users FOR SELECT TO app_operational_web_push_reminder USING ((EXISTS ( SELECT 1
+   FROM public.reminder_rules rr
+  WHERE ((rr.platform_user_id = platform_users.id) AND (rr.organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)))));
+
+
+--
+-- Name: user_channel_preferences c4_web_push_reminder_user; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_user ON public.user_channel_preferences FOR SELECT TO app_operational_web_push_reminder USING ((EXISTS ( SELECT 1
+   FROM public.reminder_rules rr
+  WHERE ((rr.platform_user_id = user_channel_preferences.platform_user_id) AND (rr.organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)))));
+
+
+--
+-- Name: user_notification_topic_channels c4_web_push_reminder_user; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_user ON public.user_notification_topic_channels FOR SELECT TO app_operational_web_push_reminder USING ((EXISTS ( SELECT 1
+   FROM public.reminder_rules rr
+  WHERE ((rr.platform_user_id = user_notification_topic_channels.user_id) AND (rr.organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)))));
+
+
+--
+-- Name: user_web_push_subscriptions c4_web_push_reminder_user; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY c4_web_push_reminder_user ON public.user_web_push_subscriptions FOR SELECT TO app_operational_web_push_reminder USING ((EXISTS ( SELECT 1
+   FROM public.reminder_rules rr
+  WHERE ((rr.platform_user_id = user_web_push_subscriptions.user_id) AND (rr.organization_id = (NULLIF(current_setting('app.org'::text, true), ''::text))::uuid)))));
+
+
+--
 -- Name: lfk_complex_template_exercises c4d_platform_library_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY c4d_platform_library_read ON public.lfk_complex_template_exercises FOR SELECT USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+CREATE POLICY c4d_platform_library_read ON public.lfk_complex_template_exercises FOR SELECT TO app_staff USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
 
 
 --
 -- Name: lfk_complex_templates c4d_platform_library_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY c4d_platform_library_read ON public.lfk_complex_templates FOR SELECT USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+CREATE POLICY c4d_platform_library_read ON public.lfk_complex_templates FOR SELECT TO app_staff USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
 
 
 --
 -- Name: lfk_exercise_media c4d_platform_library_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY c4d_platform_library_read ON public.lfk_exercise_media FOR SELECT USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+CREATE POLICY c4d_platform_library_read ON public.lfk_exercise_media FOR SELECT TO app_staff USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
 
 
 --
 -- Name: lfk_exercise_regions c4d_platform_library_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY c4d_platform_library_read ON public.lfk_exercise_regions FOR SELECT USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+CREATE POLICY c4d_platform_library_read ON public.lfk_exercise_regions FOR SELECT TO app_staff USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
 
 
 --
 -- Name: lfk_exercises c4d_platform_library_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY c4d_platform_library_read ON public.lfk_exercises FOR SELECT USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+CREATE POLICY c4d_platform_library_read ON public.lfk_exercises FOR SELECT TO app_staff USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
 
 
 --
 -- Name: media_files c4d_platform_library_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY c4d_platform_library_read ON public.media_files FOR SELECT USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
+CREATE POLICY c4d_platform_library_read ON public.media_files FOR SELECT TO app_staff USING (((owner_kind = 'platform'::text) AND (organization_id IS NULL)));
 
 
 --
@@ -20722,12 +25173,6 @@ ALTER TABLE public.lfk_exercises ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lfk_sessions ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: mailing_logs_webapp; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.mailing_logs_webapp ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: manual_patient_commands; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20841,6 +25286,39 @@ ALTER TABLE public.online_intake_status_history ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.operator_health_failure_archive ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: operator_health_failure_archive operator_health_failure_archive_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY operator_health_failure_archive_platform_operations_select ON public.operator_health_failure_archive FOR SELECT TO app_platform_settings USING (true);
+
+
+--
+-- Name: operator_job_status; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.operator_job_status ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: org_brand_revisions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_brand_revisions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: org_brand_revisions org_brand_revisions_enrolled_patient_published_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY org_brand_revisions_enrolled_patient_published_read ON public.org_brand_revisions FOR SELECT USING (((status = 'published'::text) AND (app.current_patient_user_id() IS NOT NULL) AND app.current_patient_has_active_org_enrollment(organization_id)));
+
+
+--
+-- Name: org_brand_revisions org_brand_revisions_exact_org_staff; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY org_brand_revisions_exact_org_staff ON public.org_brand_revisions USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())));
+
 
 --
 -- Name: org_enrollments; Type: ROW SECURITY; Schema: public; Owner: -
@@ -21023,6 +25501,13 @@ ALTER TABLE public.platform_user_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_analytics_events_recent ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: product_analytics_events_recent product_analytics_registration_platform_operations_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY product_analytics_registration_platform_operations_select ON public.product_analytics_events_recent FOR SELECT TO app_platform_settings USING ((event_type = ANY (ARRAY['auth_register_attempt'::text, 'auth_register_success'::text, 'auth_register_failure'::text])));
+
+
+--
 -- Name: product_analytics_user_hourly; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -21155,6 +25640,142 @@ CREATE POLICY s5_runtime_settings_isolation ON public.app_runtime_settings USING
 
 
 --
+-- Name: saas_billing_accounts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_billing_accounts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_billing_accounts saas_billing_accounts_clinic_billing_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_accounts_clinic_billing_select ON public.saas_billing_accounts FOR SELECT TO app_clinic_billing USING (((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())));
+
+
+--
+-- Name: saas_billing_accounts saas_billing_accounts_platform_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_accounts_platform_insert ON public.saas_billing_accounts FOR INSERT TO app_platform_settings WITH CHECK (true);
+
+
+--
+-- Name: saas_billing_accounts saas_billing_accounts_platform_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_accounts_platform_select ON public.saas_billing_accounts FOR SELECT TO app_platform_settings USING (true);
+
+
+--
+-- Name: saas_billing_accounts saas_billing_accounts_platform_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_accounts_platform_update ON public.saas_billing_accounts FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
+
+
+--
+-- Name: saas_billing_invoices; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_billing_invoices ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_clinic_billing_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_invoices_clinic_billing_select ON public.saas_billing_invoices FOR SELECT TO app_clinic_billing USING (((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())));
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_platform_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_invoices_platform_insert ON public.saas_billing_invoices FOR INSERT TO app_platform_settings WITH CHECK (true);
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_platform_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_invoices_platform_select ON public.saas_billing_invoices FOR SELECT TO app_platform_settings USING (true);
+
+
+--
+-- Name: saas_billing_invoices saas_billing_invoices_platform_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_invoices_platform_update ON public.saas_billing_invoices FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
+
+
+--
+-- Name: saas_billing_provider_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_billing_provider_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_billing_provider_events saas_billing_provider_events_clinic_billing_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_provider_events_clinic_billing_select ON public.saas_billing_provider_events FOR SELECT TO app_clinic_billing USING (((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())));
+
+
+--
+-- Name: saas_billing_provider_events saas_billing_provider_events_platform_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_provider_events_platform_insert ON public.saas_billing_provider_events FOR INSERT TO app_platform_settings WITH CHECK (true);
+
+
+--
+-- Name: saas_billing_provider_events saas_billing_provider_events_platform_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_provider_events_platform_select ON public.saas_billing_provider_events FOR SELECT TO app_platform_settings USING (true);
+
+
+--
+-- Name: saas_billing_provider_events saas_billing_provider_events_platform_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_provider_events_platform_update ON public.saas_billing_provider_events FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
+
+
+--
+-- Name: saas_billing_subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_billing_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_clinic_billing_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_subscriptions_clinic_billing_select ON public.saas_billing_subscriptions FOR SELECT TO app_clinic_billing USING (((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())));
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_platform_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_subscriptions_platform_insert ON public.saas_billing_subscriptions FOR INSERT TO app_platform_settings WITH CHECK (true);
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_platform_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_subscriptions_platform_select ON public.saas_billing_subscriptions FOR SELECT TO app_platform_settings USING (true);
+
+
+--
+-- Name: saas_billing_subscriptions saas_billing_subscriptions_platform_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_billing_subscriptions_platform_update ON public.saas_billing_subscriptions FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
+
+
+--
 -- Name: platform_user_contacts saas_bootstrap_hybrid_p0_8_6; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -21180,6 +25801,13 @@ CREATE POLICY saas_bootstrap_hybrid_p0_8_6 ON public.system_settings_audit USING
 --
 
 CREATE POLICY saas_bootstrap_hybrid_p0_8_6 ON public.user_phone_history USING ((((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())) OR ((organization_id IS NULL) AND (app.current_org_id() IS NULL) AND (app.current_patient_user_id() IS NULL) AND (app.current_integrator_user_id() IS NULL) AND (NOT app.is_staff())))) WITH CHECK ((((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())) OR ((organization_id IS NULL) AND (app.current_org_id() IS NULL) AND (app.current_patient_user_id() IS NULL) AND (app.current_integrator_user_id() IS NULL) AND (NOT app.is_staff()))));
+
+
+--
+-- Name: operator_job_status saas_enforce_default_deny_p0_9_1; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_enforce_default_deny_p0_9_1 ON public.operator_job_status USING (true) WITH CHECK (true);
 
 
 --
@@ -21675,13 +26303,6 @@ CREATE POLICY saas_org_dormant_p0_8_3 ON public.lfk_sessions USING (((app.is_sta
 
 
 --
--- Name: mailing_logs_webapp saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY saas_org_dormant_p0_8_3 ON public.mailing_logs_webapp USING (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (integrator_user_id = app.current_integrator_user_id())))) WITH CHECK (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (integrator_user_id = app.current_integrator_user_id()))));
-
-
---
 -- Name: material_ratings saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -21924,6 +26545,13 @@ CREATE POLICY saas_org_dormant_p0_8_3 ON public.saas_org_entitlement_overrides U
 
 
 --
+-- Name: saas_organization_trials saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_org_dormant_p0_8_3 ON public.saas_organization_trials USING ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())))) WITH CHECK ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))));
+
+
+--
 -- Name: specialist_tasks saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -21988,13 +26616,6 @@ CREATE POLICY saas_org_dormant_p0_8_3 ON public.treatment_program_instances USIN
 --
 
 CREATE POLICY saas_org_dormant_p0_8_3 ON public.treatment_program_templates USING ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())))) WITH CHECK ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))));
-
-
---
--- Name: user_subscriptions_webapp saas_org_dormant_p0_8_3; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY saas_org_dormant_p0_8_3 ON public.user_subscriptions_webapp USING (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (integrator_user_id = app.current_integrator_user_id())))) WITH CHECK (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (integrator_user_id = app.current_integrator_user_id()))));
 
 
 --
@@ -22236,7 +26857,11 @@ CREATE POLICY saas_org_dormant_p0_8_4 ON public.reminder_delivery_events USING (
 -- Name: reminder_occurrence_history saas_org_dormant_p0_8_4; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY saas_org_dormant_p0_8_4 ON public.reminder_occurrence_history USING (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (integrator_user_id = app.current_integrator_user_id())))) WITH CHECK (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_integrator_user_id() IS NOT NULL) AND (integrator_user_id = app.current_integrator_user_id()))));
+CREATE POLICY saas_org_dormant_p0_8_4 ON public.reminder_occurrence_history USING (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM public.platform_users b4f_reminder_occurrence_platform_user
+  WHERE ((b4f_reminder_occurrence_platform_user.integrator_user_id = reminder_occurrence_history.integrator_user_id) AND (b4f_reminder_occurrence_platform_user.id = app.current_patient_user_id()))))))) WITH CHECK (((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))) OR ((app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM public.platform_users b4f_reminder_occurrence_platform_user
+  WHERE ((b4f_reminder_occurrence_platform_user.integrator_user_id = reminder_occurrence_history.integrator_user_id) AND (b4f_reminder_occurrence_platform_user.id = app.current_patient_user_id())))))));
 
 
 --
@@ -22394,10 +27019,53 @@ CREATE POLICY saas_org_entitlement_overrides_current_patient_capability_read ON 
 
 
 --
--- Name: saas_org_entitlement_overrides saas_org_entitlement_overrides_org_wall; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_org_entitlement_overrides saas_org_entitlement_overrides_org_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY saas_org_entitlement_overrides_org_wall ON public.saas_org_entitlement_overrides USING ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())))) WITH CHECK ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))));
+CREATE POLICY saas_org_entitlement_overrides_org_read ON public.saas_org_entitlement_overrides FOR SELECT USING ((app.is_staff() AND ((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))));
+
+
+--
+-- Name: saas_org_entitlement_overrides saas_org_entitlement_overrides_platform_operations; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_org_entitlement_overrides_platform_operations ON public.saas_org_entitlement_overrides TO app_platform_settings USING (true) WITH CHECK (true);
+
+
+--
+-- Name: saas_org_entitlement_overrides saas_org_entitlement_overrides_staff_current_org_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_org_entitlement_overrides_staff_current_org_read ON public.saas_org_entitlement_overrides FOR SELECT TO app_staff USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())));
+
+
+--
+-- Name: saas_organization_trials; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_organization_trials ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_organization_trials saas_organization_trials_current_patient_capability_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_organization_trials_current_patient_capability_read ON public.saas_organization_trials FOR SELECT USING (((app.current_org_id() IS NOT NULL) AND (app.current_patient_user_id() IS NOT NULL) AND (organization_id = app.current_org_id()) AND (EXISTS ( SELECT 1
+   FROM public.org_enrollments enrollment
+  WHERE ((enrollment.organization_id = app.current_org_id()) AND (enrollment.platform_user_id = app.current_patient_user_id()) AND (enrollment.status = 'active'::text))))));
+
+
+--
+-- Name: saas_organization_trials saas_organization_trials_platform_operations; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_organization_trials_platform_operations ON public.saas_organization_trials TO app_platform_settings USING (true) WITH CHECK (true);
+
+
+--
+-- Name: saas_organization_trials saas_organization_trials_staff_current_org_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_organization_trials_staff_current_org_read ON public.saas_organization_trials FOR SELECT TO app_staff USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id())));
 
 
 --
@@ -22411,16 +27079,43 @@ ALTER TABLE public.saas_tariffs ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY saas_tariffs_current_patient_capability_read ON public.saas_tariffs FOR SELECT USING (((app.current_org_id() IS NOT NULL) AND (app.current_patient_user_id() IS NOT NULL) AND (EXISTS ( SELECT 1
-   FROM (public.be_organizations organization
+   FROM ((public.be_organizations organization
      JOIN public.org_enrollments enrollment ON (((enrollment.organization_id = organization.id) AND (enrollment.platform_user_id = app.current_patient_user_id()) AND (enrollment.status = 'active'::text))))
-  WHERE ((organization.id = app.current_org_id()) AND (organization.is_active = true) AND (organization.tariff_id = saas_tariffs.id))))));
+     LEFT JOIN public.saas_organization_trials trial ON (((trial.organization_id = organization.id) AND (trial.status = 'active'::text))))
+  WHERE ((organization.id = app.current_org_id()) AND (organization.is_active = true) AND (saas_tariffs.id =
+        CASE
+            WHEN (trial.id IS NULL) THEN organization.tariff_id
+            WHEN (statement_timestamp() <= trial.grace_ends_at) THEN trial.tariff_id
+            WHEN (trial.post_trial_behavior = 'tariff'::text) THEN trial.post_trial_tariff_id
+            ELSE trial.tariff_id
+        END))))));
 
 
 --
--- Name: saas_tariffs saas_tariffs_staff_read_write; Type: POLICY; Schema: public; Owner: -
+-- Name: saas_tariffs saas_tariffs_platform_operations; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY saas_tariffs_staff_read_write ON public.saas_tariffs USING (app.is_staff()) WITH CHECK (app.is_staff());
+CREATE POLICY saas_tariffs_platform_operations ON public.saas_tariffs TO app_platform_settings USING (true) WITH CHECK (true);
+
+
+--
+-- Name: saas_tariffs saas_tariffs_staff_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_tariffs_staff_read ON public.saas_tariffs FOR SELECT USING (app.is_staff());
+
+
+--
+-- Name: saas_trial_policy; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.saas_trial_policy ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: saas_trial_policy saas_trial_policy_platform_operations; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY saas_trial_policy_platform_operations ON public.saas_trial_policy TO app_platform_settings USING (true) WITH CHECK (true);
 
 
 --
@@ -22568,16 +27263,38 @@ ALTER TABLE public.treatment_program_template_stages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.treatment_program_templates ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: app_runtime_settings_audit u9a_platform_runtime_audit_global_only; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY u9a_platform_runtime_audit_global_only ON public.app_runtime_settings_audit FOR INSERT TO app_platform_settings WITH CHECK ((organization_id IS NULL));
+
+
+--
+-- Name: app_runtime_settings u9a_platform_runtime_global_only; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY u9a_platform_runtime_global_only ON public.app_runtime_settings TO app_platform_settings USING ((organization_id IS NULL)) WITH CHECK ((organization_id IS NULL));
+
+
+--
+-- Name: system_settings_audit u9a_platform_settings_audit_global_only; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY u9a_platform_settings_audit_global_only ON public.system_settings_audit FOR INSERT TO app_platform_settings WITH CHECK ((organization_id IS NULL));
+
+
+--
+-- Name: system_settings u9a_platform_settings_global_only; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY u9a_platform_settings_global_only ON public.system_settings TO app_platform_settings USING ((organization_id IS NULL)) WITH CHECK ((organization_id IS NULL));
+
+
+--
 -- Name: user_phone_history; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.user_phone_history ENABLE ROW LEVEL SECURITY;
-
---
--- Name: user_subscriptions_webapp; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.user_subscriptions_webapp ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: webapp_reminder_occurrences; Type: ROW SECURITY; Schema: public; Owner: -

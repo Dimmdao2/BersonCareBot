@@ -72,6 +72,7 @@ SELECT (
   AND to_regclass('public.clinic_public_directory_entries') IS NOT NULL
   AND to_regclass('public.saas_tariffs') IS NOT NULL
   AND to_regclass('public.saas_trial_policy') IS NOT NULL
+  AND to_regclass('public.saas_registration_tariff_policy') IS NOT NULL
   AND to_regclass('public.saas_organization_trials') IS NOT NULL
   AND to_regclass('public.reference_catalog_baselines') IS NOT NULL
   AND to_regprocedure('app.seed_reference_catalog_snapshot(uuid)') IS NOT NULL

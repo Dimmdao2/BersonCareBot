@@ -129,7 +129,7 @@ import { createLfkDiaryService } from '@/modules/diaries/lfk-service';
 import { createChannelPreferencesService } from '@/modules/channel-preferences/service';
 import { createContentCatalogResolver } from '@/modules/content-catalog/service';
 import { mockMediaStoragePort } from '@/infra/repos/mockMediaStorage';
-import { createS3MediaStoragePort } from '@/infra/repos/s3MediaStorage';
+import { createS3MediaStoragePort, listMediaDeleteErrors } from '@/infra/repos/s3MediaStorage';
 import { inMemorySymptomDiaryPort } from '@/infra/repos/symptomDiary';
 import { inMemoryLfkDiaryPort } from '@/infra/repos/lfkDiary';
 import { pgSymptomDiaryPort } from '@/infra/repos/pgSymptomDiary';
@@ -260,7 +260,8 @@ import { inMemoryAppRuntimeSettingsPort } from '@/infra/repos/inMemoryAppRuntime
 import { createRuntimeConfigProvider } from '@/modules/system-settings/runtimeConfig';
 import { createNotifTemplatesService } from '@/modules/notif-templates/notifTemplatesService';
 import { createLfkExercisesService } from '@/modules/lfk-exercises/service';
-import { pgLfkExercisesPort } from '@/infra/repos/pgLfkExercises';
+import { pgLfkExercisesPort, pgListExerciseUsageForMediaIds } from '@/infra/repos/pgLfkExercises';
+import { pgDoctorCalendarTimezonePort } from '@/infra/repos/pgDoctorCalendarTimezone';
 import { inMemoryLfkExercisesPort } from '@/infra/repos/inMemoryLfkExercises';
 import { createClinicalTestsService, createTestSetsService } from '@/modules/tests/service';
 import { createClinicalTestMeasureKindsService } from '@/modules/tests/measureKindsService';
@@ -352,6 +353,11 @@ import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganization
 import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
+import {
+  assertMechanicWriteClearance,
+  ensureMechanicWriteClearanceContext,
+  enterWithMechanicWriteClearance,
+} from '@/app-layer/entitlements/mechanicWriteClearance';
 import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
@@ -1141,6 +1147,7 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
 const coursesService = createCoursesService({
   courses: coursesPort,
   introPages: contentPagesPort,
+  assertWriteClearance: assertMechanicWriteClearance,
   assignTemplateToPatient: (input) =>
     treatmentProgramInstanceService.assignTemplateToPatient(input),
 });
@@ -1164,6 +1171,11 @@ productsServiceResolved =
         },
         isCourseMechanicEnabled: (organizationId) =>
           isMechanicEnabled(orgEntitlementsPort, organizationId, 'courses'),
+        // 3.2 круг 2: `activatePurchase` is the funnel both the payment webhook and the free-course
+        // `startPurchase` reach `courses.enrollPatient` through without a `requireEntitlementForMutation`
+        // call anywhere upstream — see the JSDoc on `WriteClearanceAccess` in products/service.ts.
+        ensureWriteClearanceContext: ensureMechanicWriteClearanceContext,
+        grantWriteClearance: enterWithMechanicWriteClearance,
         hasActivePatientEnrollment: (platformUserId, organizationId) =>
           patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
           Promise.resolve(false),
@@ -1735,6 +1747,10 @@ function _buildAppDeps() {
     healthFailureArchive,
     notificationDelivery,
     media: mediaService,
+    mediaDeleteErrors: {
+      list: listMediaDeleteErrors,
+    },
+    doctorCalendarTimezone: pgDoctorCalendarTimezonePort,
     channelPreferences: channelPreferencesService,
     channelPreferencesPort,
     webPushSubscriptions: webPushSubscriptionsPort,
@@ -1814,6 +1830,9 @@ function _buildAppDeps() {
     runtimeConfig,
     notifTemplates: notifTemplatesService,
     lfkExercises: lfkExercisesService,
+    lfkExerciseMediaUsage: {
+      listForMediaIds: pgListExerciseUsageForMediaIds,
+    },
     clinicalTests: clinicalTestsService,
     measureKinds: clinicalTestMeasureKindsService,
     testSets: testSetsService,

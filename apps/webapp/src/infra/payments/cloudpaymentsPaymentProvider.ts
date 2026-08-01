@@ -78,14 +78,9 @@ function inspectCloudpaymentsWebhook(headers: Headers, bodyText: string) {
 
 export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
+    async createIntent({ amountMinor, currency, idempotencyKey, metadata, returnUrl, providerConfig }) {
       const { publicId, apiSecret } = requireCloudpaymentsCredentials(providerConfig);
       const amount = amountMinor / 100; // CloudPayments uses rubles (float string)
-
-      const returnUrl =
-        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
-          ? metadata.returnUrl.trim()
-          : 'https://cloudpayments.ru';
 
       // Create a pay-by-link order via CloudPayments Orders API
       const body: Record<string, unknown> = {

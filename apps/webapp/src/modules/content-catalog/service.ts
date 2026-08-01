@@ -1,6 +1,6 @@
 import { getBaseCatalog } from './catalog';
 import type { ContentStubItem } from './types';
-import type { ContentPagesPort } from '@/infra/repos/pgContentPages';
+import type { ContentPagesPort } from './ports';
 import type { MediaRecord } from '@/modules/media/types';
 import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 

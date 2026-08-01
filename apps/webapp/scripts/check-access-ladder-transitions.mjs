@@ -26,12 +26,12 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-// Both doors were last redefined by 0286 (§5a item 7.0 — the ladder gets its second anchor, the
-// end of the PAID period), so the proof must extract the CURRENT bodies from there, not from the
-// superseded 0283/0284/0285.
+// Both doors were last redefined by 0296 (#1069 §2.13 — commercial_access_state removed, the
+// eternal-full-access branch collapsed to the paid-period/lifecycle check alone), so the proof
+// must extract the CURRENT bodies from there, not from the superseded 0278/0283/0284/0285/0286.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0286_tariff_ladder_paid_period_anchor_local.sql',
+  'apps/webapp/db/drizzle-migrations/0296_commercial_access_state_removal_local.sql',
 );
 const cabinetMigrationPath = mechanicMigrationPath;
 const mechanicRegistryPath = path.join(
@@ -156,7 +156,6 @@ function schemaSql(functionSource, cabinetSource) {
     CREATE TABLE public.be_organizations (
       id uuid PRIMARY KEY,
       tariff_id uuid,
-      commercial_access_state text NOT NULL DEFAULT 'active',
       is_active boolean NOT NULL DEFAULT true
     );
     CREATE TABLE public.saas_tariffs (
@@ -527,11 +526,10 @@ async function proveCabinetTransitionsAndDataRestoration(connection) {
     [ORG_ID],
   );
 
+  // #1069 §2.13: no separate state column to reassert any more — the organization still has its
+  // assigned TARIFF_ID (never nulled in this proof), so deleting the trial alone is renewal: no
+  // trial, no period, lifecycle active, tariff resolved => the eternal-full-access branch fires.
   await connection.query('DELETE FROM public.saas_organization_trials WHERE organization_id = $1', [ORG_ID]);
-  await connection.query(
-    "UPDATE public.be_organizations SET commercial_access_state = 'active' WHERE id = $1",
-    [ORG_ID],
-  );
   const restored = await resolveCabinetAs(connection, ORG_ID);
   const afterRenewal = await connection.query(
     'SELECT payload FROM public.cabinet_payload WHERE organization_id = $1',
@@ -629,9 +627,11 @@ async function provePaidPeriodDrivesTheCabinet(connection) {
   const blocked = await resolveCabinetAs(connection, ORG_ID);
   if (blocked.state !== 'disabled') fail(`cabinet terminal after non-payment, got ${blocked.state}`);
 
-  // An organization with NO period at all (compatibility clinics from before tariffs, and rows the
-  // backfill could not date) must stay open: killing the eternal-full-access branch must not take
-  // out the only case that legitimately has nothing to measure from.
+  // An organization with an ASSIGNED tariff and NO period at all (rows the backfill could not date,
+  // or a manual assignment that never opened a period) must stay open: killing the eternal-full-
+  // access branch must not take out the only case that legitimately has nothing to measure from.
+  // #1069 §2.13 removed the compatibility state this used to be described by — ORG_ID still has its
+  // TARIFF_ID assigned throughout this proof, which is what keeps it open now, not a raw state.
   await clearPaidPeriod(connection);
   const noPeriod = await resolveCabinetAs(connection, ORG_ID);
   if (noPeriod.state !== 'full_access') {
@@ -696,9 +696,8 @@ const REGRESSIONS = [
     proof: provePaidPeriodDrivesTheLadder,
     breakSource: (source) =>
       source.replace(
-        `WHEN degradation_started_at IS NULL
-          AND NOT (access_source = 'no_trial' OR lifecycle <> 'active') THEN 'full_access'`,
-        `WHEN NOT (access_source = 'no_trial' OR lifecycle <> 'active') THEN 'full_access'`,
+        `WHEN degradation_started_at IS NULL AND lifecycle = 'active' THEN 'full_access'`,
+        `WHEN lifecycle = 'active' THEN 'full_access'`,
       ),
   },
   {

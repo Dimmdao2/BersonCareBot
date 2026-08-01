@@ -81,8 +81,15 @@ export function createCoursesService(deps: {
   courses: CoursesPort;
   introPages: CourseIntroPagesPort;
   assignTemplateToPatient: AssignTemplate;
+  /**
+   * 3.2: physically refuses a write unless a passing `courses` mutation decision already ran in
+   * this request (wired from `buildAppDeps.ts` to `assertMechanicWriteClearance('courses')`).
+   * Same shape as `isCourseMechanicEnabled` below — a plain injected function, no `app-layer`
+   * import here (`ARCHITECTURE.md`: modules depend only on contracts and injected ports).
+   */
+  assertWriteClearance: (mechanic: 'courses') => void;
 }) {
-  const { courses, introPages, assignTemplateToPatient } = deps;
+  const { courses, introPages, assignTemplateToPatient, assertWriteClearance } = deps;
 
   return {
     async listPublishedCatalog(): Promise<CourseCatalogItem[]> {
@@ -130,6 +137,7 @@ export function createCoursesService(deps: {
     },
 
     async createCourse(input: CreateCourseInput, options?: CourseWriteOptions) {
+      assertWriteClearance('courses');
       const title = input.title?.trim() ?? '';
       if (!title) throw new Error('Название курса обязательно');
       assertUuid(input.programTemplateId);
@@ -155,6 +163,7 @@ export function createCoursesService(deps: {
       options?: ArchiveCourseOptions,
       writeOptions?: CourseWriteOptions,
     ) {
+      assertWriteClearance('courses');
       assertUuid(id);
       const patch: UpdateCourseInput = { ...input };
       if (input.title !== undefined) {
@@ -192,6 +201,7 @@ export function createCoursesService(deps: {
      * «Покупка»: та же цепочка, что назначение врача (фаза 4) — deep copy шаблона в экземпляр.
      */
     async enrollPatient(params: { courseId: string; patientUserId: string }) {
+      assertWriteClearance('courses');
       const courseId = params.courseId?.trim() ?? '';
       const patientUserId = params.patientUserId?.trim() ?? '';
       assertUuid(courseId);

@@ -68,7 +68,9 @@
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
  * allowed here (src/infra/db repo).
  */
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import type {
   DirectPublicActorInput,
   DirectPublicActorResolveDeps,
@@ -129,11 +131,12 @@ export async function openSupportConversationDirect(
     const platformUserId = await resolvePlatformUserIdForActor(txDb, input, deps);
     const organizationId = await resolveExactActiveOrganizationId(txDb, platformUserId);
 
-    const res = await txDb.query<{ id: string }>(
-      `INSERT INTO public.support_conversations (
+    const res = await runIntegratorSql<{ id: string }>(
+      txDb,
+      sql`INSERT INTO public.support_conversations (
          integrator_conversation_id, platform_user_id, organization_id, source, admin_scope, status,
          opened_at, last_message_at, channel_code, channel_external_id
-       ) VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9, $10)
+       ) VALUES (${input.integratorConversationId}, ${platformUserId}::uuid, ${organizationId}::uuid, ${input.source}, ${input.adminScope}, ${input.status}, ${input.openedAt}::timestamptz, ${input.lastMessageAt}::timestamptz, ${input.channelCode}, ${input.externalId})
        ON CONFLICT (integrator_conversation_id) DO UPDATE SET
          platform_user_id = COALESCE(support_conversations.platform_user_id, EXCLUDED.platform_user_id),
          organization_id = COALESCE(support_conversations.organization_id, EXCLUDED.organization_id),
@@ -141,18 +144,6 @@ export async function openSupportConversationDirect(
          last_message_at = GREATEST(support_conversations.last_message_at, EXCLUDED.last_message_at),
          updated_at = now()
        RETURNING id::text AS id`,
-      [
-        input.integratorConversationId,
-        platformUserId,
-        organizationId,
-        input.source,
-        input.adminScope,
-        input.status,
-        input.openedAt,
-        input.lastMessageAt,
-        input.channelCode,
-        input.externalId,
-      ],
     );
     const id = res.rows[0]?.id;
     if (!id) throw new Error('support_conversations insert returned no id');
@@ -186,11 +177,11 @@ export async function appendSupportConversationMessageDirect(
   const messageType = trimmedOrNull(input.messageType ?? null) ?? 'text';
 
   return db.tx(async (txDb) => {
-    const convRes = await txDb.query<{ id: string; organization_id: string | null }>(
-      `SELECT id::text AS id, organization_id::text AS organization_id
+    const convRes = await runIntegratorSql<{ id: string; organization_id: string | null }>(
+      txDb,
+      sql`SELECT id::text AS id, organization_id::text AS organization_id
        FROM public.support_conversations
-       WHERE integrator_conversation_id = $1`,
-      [input.integratorConversationId],
+       WHERE integrator_conversation_id = ${input.integratorConversationId}`,
     );
     const conv = convRes.rows[0];
     if (!conv || !conv.organization_id) {
@@ -199,34 +190,23 @@ export async function appendSupportConversationMessageDirect(
       });
     }
 
-    const res = await txDb.query<{ id: string }>(
-      `INSERT INTO public.support_conversation_messages (
+    const res = await runIntegratorSql<{ id: string }>(
+      txDb,
+      sql`INSERT INTO public.support_conversation_messages (
          integrator_message_id, conversation_id, organization_id, sender_role, message_type, text, source,
          external_chat_id, external_message_id, created_at
-       ) VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::timestamptz)
+       ) VALUES (${input.integratorMessageId}, ${conv.id}::uuid, ${conv.organization_id}::uuid, ${input.senderRole}, ${messageType}, ${input.text}, ${input.source}, ${input.externalChatId ?? null}, ${input.externalMessageId ?? null}, ${input.createdAt}::timestamptz)
        ON CONFLICT (integrator_message_id) DO UPDATE SET conversation_id = EXCLUDED.conversation_id
        RETURNING id::text AS id`,
-      [
-        input.integratorMessageId,
-        conv.id,
-        conv.organization_id,
-        input.senderRole,
-        messageType,
-        input.text,
-        input.source,
-        input.externalChatId ?? null,
-        input.externalMessageId ?? null,
-        input.createdAt,
-      ],
     );
     const messageId = res.rows[0]?.id;
     if (!messageId) throw new Error('support_conversation_messages insert returned no id');
 
-    await txDb.query(
-      `UPDATE public.support_conversations
-       SET last_message_at = GREATEST(last_message_at, $2::timestamptz), updated_at = now()
-       WHERE id = $1::uuid`,
-      [conv.id, input.createdAt],
+    await runIntegratorSql(
+      txDb,
+      sql`UPDATE public.support_conversations
+       SET last_message_at = GREATEST(last_message_at, ${input.createdAt}::timestamptz), updated_at = now()
+       WHERE id = ${conv.id}::uuid`,
     );
 
     return { id: messageId, conversationId: conv.id, organizationId: conv.organization_id };
@@ -257,21 +237,15 @@ export async function setSupportConversationStatusDirect(
   input: SetSupportConversationStatusDirectInput,
 ): Promise<SetSupportConversationStatusDirectResult> {
   return db.tx(async (txDb) => {
-    const res = await txDb.query(
-      `UPDATE public.support_conversations SET
-         status = $2,
-         last_message_at = COALESCE($3::timestamptz, last_message_at),
-         closed_at = COALESCE($4::timestamptz, closed_at),
-         close_reason = COALESCE($5, close_reason),
+    const res = await runIntegratorSql(
+      txDb,
+      sql`UPDATE public.support_conversations SET
+         status = ${input.status},
+         last_message_at = COALESCE(${input.lastMessageAt ?? null}::timestamptz, last_message_at),
+         closed_at = COALESCE(${input.closedAt ?? null}::timestamptz, closed_at),
+         close_reason = COALESCE(${input.closeReason ?? null}, close_reason),
          updated_at = now()
-       WHERE integrator_conversation_id = $1`,
-      [
-        input.integratorConversationId,
-        input.status,
-        input.lastMessageAt ?? null,
-        input.closedAt ?? null,
-        input.closeReason ?? null,
-      ],
+       WHERE integrator_conversation_id = ${input.integratorConversationId}`,
     );
     const updated = (res.rowCount ?? res.rows.length ?? 0) > 0;
     if (!updated) {

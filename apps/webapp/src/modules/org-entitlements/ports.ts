@@ -8,10 +8,10 @@ import type {
   EffectiveOrgCommercialAccess,
   MechanicAccessResolution,
   MechanicAccessPolicyMap,
-  OrgCommercialAccessState,
   OrgEntitlementSnapshot,
   OrgMechanic,
   OrgEntitlementOverride,
+  RegistrationTariffPolicy,
   Tariff,
   TariffQuota,
   TariffQuotaMap,
@@ -72,7 +72,6 @@ export type PlatformOrganizationSummary = {
   /** Explicit operator assignment; excludes the tariff persisted for a live trial. */
   manualTariffId: string | null;
   isActive: boolean;
-  commercialAccessState: OrgCommercialAccessState;
   effectiveAccess: EffectiveOrgCommercialAccess;
   overrides: OrgEntitlementOverride[];
   trial: {
@@ -89,6 +88,7 @@ export type PlatformEntitlementsPort = {
   listTariffs(): Promise<Tariff[]>;
   listOrganizations(): Promise<PlatformOrganizationSummary[]>;
   getTrialPolicy(): Promise<TrialPolicy | null>;
+  getRegistrationTariffPolicy(): Promise<RegistrationTariffPolicy>;
   createTariff(
     input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
     audit: PlatformMutationAudit,
@@ -126,6 +126,10 @@ export type PlatformEntitlementsPort = {
     audit: PlatformMutationAudit,
   ): Promise<void>;
   setTrialPolicy(policy: TrialPolicy, audit: PlatformMutationAudit): Promise<void>;
+  setRegistrationTariffPolicy(
+    policy: RegistrationTariffPolicy,
+    audit: PlatformMutationAudit,
+  ): Promise<void>;
   startTrial(
     organizationId: string,
     audit: PlatformMutationAudit,

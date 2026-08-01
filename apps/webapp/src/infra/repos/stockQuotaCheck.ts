@@ -39,6 +39,10 @@ export function parseStockQuota(value: unknown): StockQuotaJson | null {
  * tariff assigned but missing this mechanic's quota key refuses further growth rather than
  * silently falling back to unlimited.
  *
+ * §2.12 — the tariff row this reads is `app.saas_billing_effective_tariff(organizationId,
+ * tariff_id)`, the same frozen/live switch every other reader of tariff content goes through: a
+ * live paid period holds the quota LIMIT to what was configured at payment time, not a live edit.
+ *
  * `increment` is how many units THIS call is about to add on top of `countUsage()` (default 1,
  * matching every count-based `запас` caller). `объём` callers pass the byte size of the file
  * being uploaded; `used + increment > limit` reduces to the plain `used >= limit` count check
@@ -64,7 +68,8 @@ export async function assertStockQuotaAvailable(
          (SELECT eo.quota FROM saas_org_entitlement_overrides eo
           WHERE eo.organization_id = $1 AND eo.mechanic = $2
             AND (eo.expires_at IS NULL OR eo.expires_at > now())),
-         (SELECT t.quotas -> $2 FROM saas_tariffs t WHERE t.id = o.tariff_id)
+         (SELECT t.quotas -> $2
+          FROM app.saas_billing_effective_tariff($1::uuid, o.tariff_id) t)
        ) AS quota_json
      FROM be_organizations o
      WHERE o.id = $1`,

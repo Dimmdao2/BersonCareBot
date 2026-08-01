@@ -52,6 +52,8 @@ const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
     href: '/app/admin/commercial',
     accessTier: 'global_admin',
   },
+  // К1 — payments cabinet plan: how clinics pay the platform for their tariff.
+  { id: 'payments', label: 'Платежи', href: '/app/admin/payments', accessTier: 'global_admin' },
   // Moved in slice 4.
   {
     id: 'admin-app-settings',

@@ -1,5 +1,6 @@
 import type { createBookingEngineService } from '@/modules/booking-engine/service';
 import type { PaymentsService } from '@/modules/payments/service';
+import { env } from '@/config/env';
 import {
   computeItemBalances,
   findItemForService,
@@ -327,6 +328,7 @@ export function createMembershipsService(deps: {
       if (!pkg) throw new Error('package_not_found');
       if (!deps.payments) throw new Error('payments_unavailable');
       const idempotencyKey = `package:${patientPackageId}:offer`;
+      const returnUrl = `${env.APP_BASE_URL}/app/patient/memberships/pay?patientPackageId=${encodeURIComponent(patientPackageId)}`;
       const intent = await deps.payments.createPackagePaymentIntent({
         organizationId,
         platformUserId,
@@ -334,6 +336,7 @@ export function createMembershipsService(deps: {
         amountMinor: pkg.priceMinor,
         currency: pkg.currency,
         idempotencyKey,
+        returnUrl,
       });
       await runMembershipWrite(options, async () => {
         await deps.port.setPatientPackageStatus(

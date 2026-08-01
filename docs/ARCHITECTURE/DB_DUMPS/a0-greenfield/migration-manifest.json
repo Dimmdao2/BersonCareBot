@@ -2,21 +2,21 @@
   "formatVersion": 1,
   "baseline": {
     "sourceDatabase": "bcb_webapp_dev",
-    "sourceCommit": "3ae336ef81ac6027f2629803b91d473c11452152",
-    "generatedAt": "2026-07-21T11:54:55.767Z",
+    "sourceCommit": "730442aea6bd4428e5cb69fe098f2513eb674fea",
+    "generatedAt": "2026-08-01T01:16:57.526Z",
     "pgDumpVersion": "pg_dump (PostgreSQL) 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1)",
     "pgDumpMode": "--schema-only --no-owner --no-privileges --no-comments",
     "schemaFile": "schema.sql",
-    "schemaSha256": "f0df9b156f78d73f42c10de7c6eefe5f2d1a4b1b7a4fe08b480ec3e7fba22d56",
+    "schemaSha256": "4ef35022cc971f65e686e334a6d9529b7c02db32cf349c6587ccd6ad8066c998",
     "seedFile": "seed.sql",
     "seedSha256": "c59cfc38ad1e7c59d65881ee04ff36c190c5426c38f7128e54aacac20c78ff48",
     "normalizedMigrationOwnerRole": "bcb_a0_owner",
     "schemas": ["app", "app_ext", "drizzle", "integrator", "public"],
     "extensions": ["btree_gist", "pgcrypto"],
     "census": {
-      "tables": 242,
-      "functions": 104,
-      "policies": 191
+      "tables": 241,
+      "functions": 196,
+      "policies": 244
     }
   },
   "ledgers": {
@@ -463,6 +463,41 @@
           "version": "core:20260710_0001_r2_integrator_scoped_org_not_null.sql",
           "path": "apps/integrator/src/infra/db/migrations/core/20260710_0001_r2_integrator_scoped_org_not_null.sql",
           "sha256": "6660cba33f14408683afcf4bf3c028293c78fa30b1e385eef9190a65129ee747"
+        },
+        {
+          "scope": "core",
+          "fileName": "20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql",
+          "version": "core:20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql",
+          "path": "apps/integrator/src/infra/db/migrations/core/20260724_0001_rename_rubitime_create_retry_jobs_to_message_retry_jobs.sql",
+          "sha256": "ea3244c54b73eb9c1e0654b444a449061d10acf801f8a54fdc3a9a353d28ccdf"
+        },
+        {
+          "scope": "rubitime",
+          "fileName": "20260724_0002_drop_r7_raw_tables.sql",
+          "version": "rubitime:20260724_0002_drop_r7_raw_tables.sql",
+          "path": "apps/integrator/src/integrations/rubitime/db/migrations/20260724_0002_drop_r7_raw_tables.sql",
+          "sha256": "7705ce5c2fc67d49ef50177409b67f4d07e0d3b2d1b412fa657ac932a27296e8"
+        },
+        {
+          "scope": "core",
+          "fileName": "20260727_0002_booking_calendar_map_appointment_key.sql",
+          "version": "core:20260727_0002_booking_calendar_map_appointment_key.sql",
+          "path": "apps/integrator/src/infra/db/migrations/core/20260727_0002_booking_calendar_map_appointment_key.sql",
+          "sha256": "ecf2032db66be2d9f5186a4e1c2a3b4d33c222c15603abe70066b8bb10fcd423"
+        },
+        {
+          "scope": "core",
+          "fileName": "20260729_0001_drop_integrator_system_settings_mirror.sql",
+          "version": "core:20260729_0001_drop_integrator_system_settings_mirror.sql",
+          "path": "apps/integrator/src/infra/db/migrations/core/20260729_0001_drop_integrator_system_settings_mirror.sql",
+          "sha256": "b7ec6d0aea28b9c22a90d553e7372e6efa51ae2097a862051acad4d29ac05058"
+        },
+        {
+          "scope": "core",
+          "fileName": "20260729_0002_drop_system_settings_sync_machinery.sql",
+          "version": "core:20260729_0002_drop_system_settings_sync_machinery.sql",
+          "path": "apps/integrator/src/infra/db/migrations/core/20260729_0002_drop_system_settings_sync_machinery.sql",
+          "sha256": "c422e9f12fc48d6ef774a452bcd5b2351dde474605813e81064051d81b4c4bf0"
         }
       ]
     },
@@ -1699,7 +1734,7 @@
           "tag": "0175_p0_8_b4_roles_1_is_staff_wall_rls",
           "when": 1790947200000,
           "path": "apps/webapp/db/drizzle-migrations/0175_p0_8_b4_roles_1_is_staff_wall_rls.sql",
-          "sha256": "8ffba436c1f050145f3ba3455d7b8366b29225b9c4d27183359ed2ec3225b60c"
+          "sha256": "670a650104b59014da07d88551db4b17806bf982230bd6b21870050d0b23a861"
         },
         {
           "idx": 176,
@@ -2036,6 +2071,454 @@
           "when": 1793539200018,
           "path": "apps/webapp/db/drizzle-migrations/0223_n1a_auth_channel_policy.sql",
           "sha256": "d3f27a4f4995bdda4cdbfb00b1b31b08d201276374891e22f54b04866ba09e9d"
+        },
+        {
+          "idx": 224,
+          "tag": "0224_unsupported_client_fallback_flag",
+          "when": 1793539200019,
+          "path": "apps/webapp/db/drizzle-migrations/0224_unsupported_client_fallback_flag.sql",
+          "sha256": "0d12b7473401b51c2148ab80ccef76ce6f58c2fc452c8be19b0779a86ce7def3"
+        },
+        {
+          "idx": 225,
+          "tag": "0225_saas_tariff_quotas_trial",
+          "when": 1793539200020,
+          "path": "apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql",
+          "sha256": "151e2562df764c99cad21ba78af65ea8c0f344740ab669c2e80e9a011f7115b7"
+        },
+        {
+          "idx": 226,
+          "tag": "0226_payment_capture_replay_safety",
+          "when": 1793539200021,
+          "path": "apps/webapp/db/drizzle-migrations/0226_payment_capture_replay_safety.sql",
+          "sha256": "d8454765fcbf5126934f5d735c7bffa1a0fc27d0ddecba0e5747d30009c4b370"
+        },
+        {
+          "idx": 227,
+          "tag": "0227_booking_location_default_palette",
+          "when": 1793539200022,
+          "path": "apps/webapp/db/drizzle-migrations/0227_booking_location_default_palette.sql",
+          "sha256": "4d0656f1990d6f87bb3bb25dec6d6d9284c1cc3acf10fe9ba0ed782594f9653f"
+        },
+        {
+          "idx": 228,
+          "tag": "0228_doctor_today_preferences",
+          "when": 1793539200023,
+          "path": "apps/webapp/db/drizzle-migrations/0228_doctor_today_preferences.sql",
+          "sha256": "1da43a71137a85e0ea3c31580df998a824251d5553d4cc9307ee196c18e1b11a"
+        },
+        {
+          "idx": 229,
+          "tag": "0229_operator_incident_alert_claims",
+          "when": 1793539200025,
+          "path": "apps/webapp/db/drizzle-migrations/0229_operator_incident_alert_claims.sql",
+          "sha256": "e056328b0a20f20619eaff776b817c314f37f47e08725c9b51a96da273e4f11a"
+        },
+        {
+          "idx": 230,
+          "tag": "0230_error_tracking_runtime",
+          "when": 1793539200026,
+          "path": "apps/webapp/db/drizzle-migrations/0230_error_tracking_runtime.sql",
+          "sha256": "9030e76b8b42da847c0fe7ecbac75838b614562f4a6ff8757cdf87dcd4c62229"
+        },
+        {
+          "idx": 231,
+          "tag": "0231_admin_email_role_runtime_config",
+          "when": 1793539200027,
+          "path": "apps/webapp/db/drizzle-migrations/0231_admin_email_role_runtime_config.sql",
+          "sha256": "e0288b8c6b11e8736a849e1ce73d10aa7bfab6d497bb848820e6ab4890c61a8f"
+        },
+        {
+          "idx": 232,
+          "tag": "0232_email_otp_atomic_consume",
+          "when": 1793539200028,
+          "path": "apps/webapp/db/drizzle-migrations/0232_email_otp_atomic_consume.sql",
+          "sha256": "43992f5b77f6bb811fe223f7c893f002126397f97f095b8e6a3bff672d96cc91"
+        },
+        {
+          "idx": 233,
+          "tag": "0233_global_admin_hard_role",
+          "when": 1793539200029,
+          "path": "apps/webapp/db/drizzle-migrations/0233_global_admin_hard_role.sql",
+          "sha256": "3fc85cac2e837e8e8c96ae7a41a272771c71f030ae9af5071bc10a71581292ae"
+        },
+        {
+          "idx": 234,
+          "tag": "0234_current_patient_support_activity",
+          "when": 1793539200030,
+          "path": "apps/webapp/db/drizzle-migrations/0234_current_patient_support_activity.sql",
+          "sha256": "23de3972bc68ea3fb68098c8b6b0e61d90d812a5ac8eaf35c12b29fc4b793c3d"
+        },
+        {
+          "idx": 235,
+          "tag": "0235_integrator_smtp_restricted_accessor",
+          "when": 1793539200031,
+          "path": "apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql",
+          "sha256": "9314566f9c38a791bbc77e8da3151f2c3b26747bc45dc688d1f501663198d25f"
+        },
+        {
+          "idx": 236,
+          "tag": "0236_global_admin_channel_auth_toggles",
+          "when": 1793539200032,
+          "path": "apps/webapp/db/drizzle-migrations/0236_global_admin_channel_auth_toggles.sql",
+          "sha256": "be58af557344a774c39ef9821aab3887cdfc013faad93042145d9078dab34826"
+        },
+        {
+          "idx": 237,
+          "tag": "0237_r7_drop_public_rubitime_mirror_tables",
+          "when": 1793539200033,
+          "path": "apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql",
+          "sha256": "77240e92cd6e45bf80105450f8a7ddb81916e8988909e3e6fbc59ca8b212374e"
+        },
+        {
+          "idx": 238,
+          "tag": "0238_org_brand_publication",
+          "when": 1793539200034,
+          "path": "apps/webapp/db/drizzle-migrations/0238_org_brand_publication.sql",
+          "sha256": "52a2bc1a799a8ffc878a8f6b015e6edfee19ddbdf4448230a0399532417ae5bc"
+        },
+        {
+          "idx": 239,
+          "tag": "0239_platform_users_sessions_valid_from",
+          "when": 1793539200035,
+          "path": "apps/webapp/db/drizzle-migrations/0239_platform_users_sessions_valid_from.sql",
+          "sha256": "345c5d91be1a9f60e819e3a2b9fbda8e36c5c6f6e5710d8d9adff24199d23e26"
+        },
+        {
+          "idx": 240,
+          "tag": "0240_smtp_outbound_public_config_accessor",
+          "when": 1793539200036,
+          "path": "apps/webapp/db/drizzle-migrations/0240_smtp_outbound_public_config_accessor.sql",
+          "sha256": "2801a7f6d7bfd20bdb760cf79ca00532621bd2b86a9ed39711e02e16be7b316a"
+        },
+        {
+          "idx": 241,
+          "tag": "0241_platform_operations_audit_health_archive_global_view",
+          "when": 1793539200037,
+          "path": "apps/webapp/db/drizzle-migrations/0241_platform_operations_audit_health_archive_global_view.sql",
+          "sha256": "f80fc5103671ae0e07deb47044cbc2c1c9445bd95d1d1cd5c495b024c3a7b789"
+        },
+        {
+          "idx": 242,
+          "tag": "0242_server_runtime_setting_2fa_allowlist",
+          "when": 1793539200038,
+          "path": "apps/webapp/db/drizzle-migrations/0242_server_runtime_setting_2fa_allowlist.sql",
+          "sha256": "076c9401de9f0bf6ea173957ed82282c788655817f5fbaa6835724872eb806b0"
+        },
+        {
+          "idx": 243,
+          "tag": "0243_platform_users_session_epoch",
+          "when": 1793539200040,
+          "path": "apps/webapp/db/drizzle-migrations/0243_platform_users_session_epoch.sql",
+          "sha256": "11b2f60458bf902c8b2d54ecabaed5447c1855f1dd759cca9ad9d0416e8531f7"
+        },
+        {
+          "idx": 244,
+          "tag": "0244_public_app_base_url_runtime_setting",
+          "when": 1793539200041,
+          "path": "apps/webapp/db/drizzle-migrations/0244_public_app_base_url_runtime_setting.sql",
+          "sha256": "ab2ee305066db13272b291e4a3d13998094766d8e3a2bce42dbab2e342b4143c"
+        },
+        {
+          "idx": 245,
+          "tag": "0245_public_booking_phone_otp_accessors",
+          "when": 1793539200042,
+          "path": "apps/webapp/db/drizzle-migrations/0245_public_booking_phone_otp_accessors.sql",
+          "sha256": "bd45333f9a87d0b1f068cc6e5fd646954068a1a683d9b5436c61f88528295e56"
+        },
+        {
+          "idx": 246,
+          "tag": "0246_drop_be_ssa_duration_minutes_override",
+          "when": 1793539200043,
+          "path": "apps/webapp/db/drizzle-migrations/0246_drop_be_ssa_duration_minutes_override.sql",
+          "sha256": "0aadd9b4adc383094131d6f0267787b62f0ec05ebf3aac7357f64c63d9250f08"
+        },
+        {
+          "idx": 247,
+          "tag": "0247_email_challenge_atomic_attempts",
+          "when": 1793539200044,
+          "path": "apps/webapp/db/drizzle-migrations/0247_email_challenge_atomic_attempts.sql",
+          "sha256": "739b003743dd052eb45a26772f01520ad7bcc967928a3cc7ba8ea18eac5ccea9"
+        },
+        {
+          "idx": 248,
+          "tag": "0248_otp_decaying_lockout",
+          "when": 1793539200045,
+          "path": "apps/webapp/db/drizzle-migrations/0248_otp_decaying_lockout.sql",
+          "sha256": "65da778c3febb86e9daeac3a27e127d0c3df6dd06b150fb0ee00f0c9a01c34f7"
+        },
+        {
+          "idx": 249,
+          "tag": "0249_email_challenge_purpose_binding",
+          "when": 1793539200046,
+          "path": "apps/webapp/db/drizzle-migrations/0249_email_challenge_purpose_binding.sql",
+          "sha256": "92ea00a7bc939c78a6c67ed31e0978d0208d7e1f43705075d930bc40f7d18944"
+        },
+        {
+          "idx": 250,
+          "tag": "0250_c4d_platform_library_read_staff_scope",
+          "when": 1793539200047,
+          "path": "apps/webapp/db/drizzle-migrations/0250_c4d_platform_library_read_staff_scope.sql",
+          "sha256": "fd9e79ff5b626d210b78ccce5c7341ee009695629e1d21cab5d0bd11358674cb"
+        },
+        {
+          "idx": 251,
+          "tag": "0251_current_patient_booking_rows_branch_enrichment",
+          "when": 1793539200048,
+          "path": "apps/webapp/db/drizzle-migrations/0251_current_patient_booking_rows_branch_enrichment.sql",
+          "sha256": "93aca9f4bd98bfde14680fc5dad904836aed3c0c836f898b3138a5abe0b251e1"
+        },
+        {
+          "idx": 252,
+          "tag": "0252_patient_action_accessors",
+          "when": 1793539200049,
+          "path": "apps/webapp/db/drizzle-migrations/0252_patient_action_accessors.sql",
+          "sha256": "9dcc4a98db3c3126eb54681074a19e017a726e032a874b3e131350553741469a"
+        },
+        {
+          "idx": 253,
+          "tag": "0253_patient_reminder_occurrence_actions",
+          "when": 1793539200050,
+          "path": "apps/webapp/db/drizzle-migrations/0253_patient_reminder_occurrence_actions.sql",
+          "sha256": "5becbaccc3abc600b1302f2ec7e124cfb7f6e2066f9e0d5227ac6626698e8c54"
+        },
+        {
+          "idx": 254,
+          "tag": "0254_auth_rate_limit_action_accessors",
+          "when": 1793539200051,
+          "path": "apps/webapp/db/drizzle-migrations/0254_auth_rate_limit_action_accessors.sql",
+          "sha256": "28fbe1b2206bd39dd487c8341e5a7dda65c91e4622f671070aeb3ca229dea732"
+        },
+        {
+          "idx": 255,
+          "tag": "0255_organization_slug_same_org_reclaim",
+          "when": 1793539200052,
+          "path": "apps/webapp/db/drizzle-migrations/0255_organization_slug_same_org_reclaim.sql",
+          "sha256": "77d1fd52c1245d5a69b42442af8a86907d8274d3efc83dadd6c74e3e7c3d02aa"
+        },
+        {
+          "idx": 256,
+          "tag": "0256_staff_security_self_password_hash",
+          "when": 1793539200053,
+          "path": "apps/webapp/db/drizzle-migrations/0256_staff_security_self_password_hash.sql",
+          "sha256": "dfec0c6efa61047abafcf7640d1927caf4f15c7822ed7e69a150840887d441bb"
+        },
+        {
+          "idx": 257,
+          "tag": "0257_specialist_signup_slug_reservation",
+          "when": 1793539200054,
+          "path": "apps/webapp/db/drizzle-migrations/0257_specialist_signup_slug_reservation.sql",
+          "sha256": "82f13a63e98dfdfc40459a3395357f4afd95cf8bd2e3bc59b9707aed5af73d8c"
+        },
+        {
+          "idx": 258,
+          "tag": "0258_bootstrap_auth_table_accessors",
+          "when": 1793539200055,
+          "path": "apps/webapp/db/drizzle-migrations/0258_bootstrap_auth_table_accessors.sql",
+          "sha256": "025477e184145861d0f34427c085402bf520f4e7444e4eb7d49c2558a94eb6c8"
+        },
+        {
+          "idx": 259,
+          "tag": "0259_saas_billing_foundation",
+          "when": 1793539200056,
+          "path": "apps/webapp/db/drizzle-migrations/0259_saas_billing_foundation.sql",
+          "sha256": "cdba309a87082b39269467e41c29e5e5c619c9ef5959e9429300473f39b1c928"
+        },
+        {
+          "idx": 260,
+          "tag": "0260_outgoing_delivery_scope_text_ids",
+          "when": 1793539200057,
+          "path": "apps/webapp/db/drizzle-migrations/0260_outgoing_delivery_scope_text_ids.sql",
+          "sha256": "0be79c5073453bd12bc926e5c5cbc5393c5c4b3de0b1adec7054115bfc5f667a"
+        },
+        {
+          "idx": 261,
+          "tag": "0261_platform_registration_events_read",
+          "when": 1793539200058,
+          "path": "apps/webapp/db/drizzle-migrations/0261_platform_registration_events_read.sql",
+          "sha256": "76e5d5b26bf91cfb6ab53789cc82fcc231658fc5e339be7be1c9ce7e2f705c94"
+        },
+        {
+          "idx": 262,
+          "tag": "0262_remove_rubitime_data",
+          "when": 1793539200059,
+          "path": "apps/webapp/db/drizzle-migrations/0262_remove_rubitime_data.sql",
+          "sha256": "ed7de8df3972a2e80ef60c626b7c675494528723dbcf855c1705cedf6f668001"
+        },
+        {
+          "idx": 263,
+          "tag": "0263_retire_provider_provenance_names",
+          "when": 1793539200060,
+          "path": "apps/webapp/db/drizzle-migrations/0263_retire_provider_provenance_names.sql",
+          "sha256": "f53a1d6abd8dfdf08324bd1cdccc32a35487b76753cfeb83d8b75feef2f06c91"
+        },
+        {
+          "idx": 264,
+          "tag": "0264_platform_integration_availability",
+          "when": 1793539200061,
+          "path": "apps/webapp/db/drizzle-migrations/0264_platform_integration_availability.sql",
+          "sha256": "283d2e33e3c77487a6373a16020687ed46e5ea31de6de7a91f85f60a43ddf12f"
+        },
+        {
+          "idx": 265,
+          "tag": "0265_platform_support_conversations_read",
+          "when": 1793539200062,
+          "path": "apps/webapp/db/drizzle-migrations/0265_platform_support_conversations_read.sql",
+          "sha256": "b1f56552cf04b2a9ce8330a2916d975525915883046824eba58ffc5bf620415d"
+        },
+        {
+          "idx": 266,
+          "tag": "0266_password_login_bruteforce_protection",
+          "when": 1793539200063,
+          "path": "apps/webapp/db/drizzle-migrations/0266_password_login_bruteforce_protection.sql",
+          "sha256": "347f8e3deb3a64d7ba592cb10d6cc9e74f9e1d1baf171b51eb36ee07da6f66b3"
+        },
+        {
+          "idx": 267,
+          "tag": "0267_platform_organization_members_directory",
+          "when": 1793539200065,
+          "path": "apps/webapp/db/drizzle-migrations/0267_platform_organization_members_directory.sql",
+          "sha256": "d38cb58f719ab288aaa4ec470a1cde85cb9b7301fb4f29e97c146734e6d27fdb"
+        },
+        {
+          "idx": 268,
+          "tag": "0268_integrator_global_delivery_attempt_audit",
+          "when": 1793539200066,
+          "path": "apps/webapp/db/drizzle-migrations/0268_integrator_global_delivery_attempt_audit.sql",
+          "sha256": "ff95e5e3b3968e8ae3039cd51274aa2af95800bab58920964e827e077ebccaeb"
+        },
+        {
+          "idx": 269,
+          "tag": "0269_remove_specialist_signup_slug_reservation",
+          "when": 1793539200067,
+          "path": "apps/webapp/db/drizzle-migrations/0269_remove_specialist_signup_slug_reservation.sql",
+          "sha256": "22755c895a284b121680f0205ba5ee4e455aed7aed8552704f8346118d5672f4"
+        },
+        {
+          "idx": 270,
+          "tag": "0270_cms_pages_snapshot_quota",
+          "when": 1793539200068,
+          "path": "apps/webapp/db/drizzle-migrations/0270_cms_pages_snapshot_quota.sql",
+          "sha256": "45ce244a009eaa08fe5caab39229a0c940f7a9c06c0a1b5dedf93c818b61d045"
+        },
+        {
+          "idx": 271,
+          "tag": "0271_organization_slug_case_insensitive",
+          "when": 1793539200069,
+          "path": "apps/webapp/db/drizzle-migrations/0271_organization_slug_case_insensitive.sql",
+          "sha256": "9c59bffaec643fb441d48500c97388927d0091027bf326f8911f021ab405374c"
+        },
+        {
+          "idx": 272,
+          "tag": "0272_google_calendar_clinic_connection",
+          "when": 1793539200070,
+          "path": "apps/webapp/db/drizzle-migrations/0272_google_calendar_clinic_connection.sql",
+          "sha256": "b19104fe9accd9e934778a9bff61b7d21125323595eaf49b3227e41690ca70e6"
+        },
+        {
+          "idx": 273,
+          "tag": "0273_remove_app_base_url_setting",
+          "when": 1793539200071,
+          "path": "apps/webapp/db/drizzle-migrations/0273_remove_app_base_url_setting.sql",
+          "sha256": "b8649cae46e2f47dbc56ce1fce57e4201c9d2d824ac4727a6de28bb8e56b14b9"
+        },
+        {
+          "idx": 274,
+          "tag": "0274_password_login_atomic_admission_altcha",
+          "when": 1793539200072,
+          "path": "apps/webapp/db/drizzle-migrations/0274_password_login_atomic_admission_altcha.sql",
+          "sha256": "e2af0c60e6880bea7a5b1357cc65ce082bc124d55656b2b9771f32f10405f0bd"
+        },
+        {
+          "idx": 275,
+          "tag": "0275_retire_dead_mailing_domain",
+          "when": 1793539200073,
+          "path": "apps/webapp/db/drizzle-migrations/0275_retire_dead_mailing_domain.sql",
+          "sha256": "c5c802c2f157b183c3decb9ffc19c213cb349dd9df29535f855cd2232b883125"
+        },
+        {
+          "idx": 276,
+          "tag": "0276_patient_passkeys",
+          "when": 1793539200074,
+          "path": "apps/webapp/db/drizzle-migrations/0276_patient_passkeys.sql",
+          "sha256": "76e4af1f9d808d41055d90eb4657734e1b1fede34ac67a73d6d647c6b2e67f0d"
+        },
+        {
+          "idx": 277,
+          "tag": "0277_tariff_mechanics_stage12_local",
+          "when": 1793539200075,
+          "path": "apps/webapp/db/drizzle-migrations/0277_tariff_mechanics_stage12_local.sql",
+          "sha256": "6ea730afea26bbf74ed10562dab1d2014db247944f814e981ebe89df9e2f2002"
+        },
+        {
+          "idx": 278,
+          "tag": "0278_access_lifecycle_ladder_local",
+          "when": 1793539200076,
+          "path": "apps/webapp/db/drizzle-migrations/0278_access_lifecycle_ladder_local.sql",
+          "sha256": "b98dc00cac4cc8726671d5b93f0587cdeaa170e707943825cb16e939302e048b"
+        },
+        {
+          "idx": 279,
+          "tag": "0279_organization_mechanic_access_door_local",
+          "when": 1793539200077,
+          "path": "apps/webapp/db/drizzle-migrations/0279_organization_mechanic_access_door_local.sql",
+          "sha256": "a49158b61e320361360982d7d86bc70b7784ad435eecec54e12c17bccb90b273"
+        },
+        {
+          "idx": 280,
+          "tag": "0280_outgoing_delivery_queue_reclaim_count_local",
+          "when": 1793539200078,
+          "path": "apps/webapp/db/drizzle-migrations/0280_outgoing_delivery_queue_reclaim_count_local.sql",
+          "sha256": "8587634fba3fe2a088c01cdad5878283d3a4cb3567e58a1bf1f4dc2ad592c25a"
+        },
+        {
+          "idx": 281,
+          "tag": "0281_tariff_downgrade_policies_local",
+          "when": 1793539200079,
+          "path": "apps/webapp/db/drizzle-migrations/0281_tariff_downgrade_policies_local.sql",
+          "sha256": "b8309576af890cd0497bacacb93bfd2e1bead5c40b49a335a34de69d110f0be5"
+        },
+        {
+          "idx": 282,
+          "tag": "0282_failed_reminder_occurrence_history",
+          "when": 1793539200080,
+          "path": "apps/webapp/db/drizzle-migrations/0282_failed_reminder_occurrence_history.sql",
+          "sha256": "4ff311085eccab220eacdea9bd02bacab125203624187b4b69bc2f337302db11"
+        },
+        {
+          "idx": 283,
+          "tag": "0283_patient_diaries_critical_mechanic_local",
+          "when": 1793539200081,
+          "path": "apps/webapp/db/drizzle-migrations/0283_patient_diaries_critical_mechanic_local.sql",
+          "sha256": "0f98a67b0770d8ed912590f9fc57f54ad339b40ba90085073e5d984b71e04c5e"
+        },
+        {
+          "idx": 284,
+          "tag": "0284_organization_cabinet_access_ladder_local",
+          "when": 1793539200082,
+          "path": "apps/webapp/db/drizzle-migrations/0284_organization_cabinet_access_ladder_local.sql",
+          "sha256": "324be43d47618b49d2280b0d20b395fb8dd3835590eecbc13ffaae3a56facefb"
+        },
+        {
+          "idx": 285,
+          "tag": "0285_tariff_ladder_notifications_local",
+          "when": 1793539200083,
+          "path": "apps/webapp/db/drizzle-migrations/0285_tariff_ladder_notifications_local.sql",
+          "sha256": "a38b896be70afa5c7d62687cb0049a2b45ea528c8a14919047d7bdc449e5a3d9"
+        },
+        {
+          "idx": 286,
+          "tag": "0286_tariff_ladder_paid_period_anchor_local",
+          "when": 1793539200084,
+          "path": "apps/webapp/db/drizzle-migrations/0286_tariff_ladder_paid_period_anchor_local.sql",
+          "sha256": "dd3acaf83ad84b8a25586442c0fb8f3793c3b8053fd36f72a58fa311559e6bfe"
+        },
+        {
+          "idx": 287,
+          "tag": "0287_inbound_reply_delivery_scope",
+          "when": 1793539200085,
+          "path": "apps/webapp/db/drizzle-migrations/0287_inbound_reply_delivery_scope.sql",
+          "sha256": "833bd320634f0c9450fe681dd4bca18194af28fdea25fec8aa953e904688dbc1"
         }
       ]
     }

@@ -74,13 +74,8 @@ function inspectAlfabankWebhook(headers: Headers, bodyText: string) {
 
 export function createAlfabankPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
+    async createIntent({ amountMinor, currency, idempotencyKey, metadata, returnUrl, providerConfig }) {
       const { login, password, baseUrl } = requireAlfabankCredentials(providerConfig);
-
-      const returnUrl =
-        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
-          ? metadata.returnUrl.trim()
-          : 'https://pay.alfabank.ru';
 
       // Alfa-Bank expects amount in kopecks — matches our minor-unit convention
       const params: Record<string, string> = {

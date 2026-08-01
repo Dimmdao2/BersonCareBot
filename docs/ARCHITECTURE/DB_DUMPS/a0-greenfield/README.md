@@ -65,7 +65,11 @@ pnpm run verify:saas-a0-greenfield-baseline
 Generator делает только две детерминированные нормализации:
 
 1. случайный `pg_dump` `\restrict` token заменяется на фиксированный repo token;
-2. exact DEV migration-owner в двух reference-catalog policies заменяется на disposable `bcb_a0_owner`.
+2. роль, реально владеющая `reference_catalog_seed_owner` policies (`provisioning_owner` из
+   `deploy/postgres/reference-catalog-rls.sql` — owner `app.provision_specialist_owner`/
+   `app.seed_reference_catalog_snapshot`, запрошенный напрямую у DEV через `pg_get_userbyid(proowner)`),
+   заменяется на disposable `bcb_a0_owner`. Роль подключения `DATABASE_URL` для этого не используется —
+   она может отличаться от роли-владельца policies.
 
 Перед чтением БД refresh fail-closed проверяет, что migration directories, Drizzle journal и A0 generator files
 чисты относительно `HEAD`. Manifest строится из exact committed tree записанного `sourceCommit`, а checker повторно
@@ -77,3 +81,44 @@ Privileged metadata read запускает только absolute root-owned Pos
 `btree_gist` в `public` и `pgcrypto` в `app_ext` остаются штатными `CREATE EXTENSION`. Любая новая схема, extension,
 policy role, data/PII/credential shape или несовпадение ledger frontier останавливает refresh вместо тихого
 запекания drift.
+
+## Известные policy-роли генератора
+
+`allowedPolicyRoles` в `scripts/a0-greenfield-baseline-lib.mjs` знает `bcb_a0_owner`, `app_patient`, `app_staff`
+и четыре роли, `CREATE ROLE` которых живёт в `deploy/postgres/*.sql` (не в двух отслеживаемых migration ledger —
+это провижининг-скрипты деплоя, не Drizzle/integrator миграции):
+
+- `app_platform_settings` — `deploy/postgres/u9a-platform-settings-role.sql`, `7c9d94bea7`.
+- `app_operational_web_push_reminder`, `app_web_push_reminder_discovery_definer` —
+  `deploy/postgres/c4-web-push-reminder-runtime.sql`, `7ebda04181`.
+- `app_clinic_billing` — `deploy/postgres/c5a-platform-operations-runtime.sql`, `8efd156982`.
+
+Любая policy на ещё не известную роль останавливает refresh (`unexpected_policy_role:<role>`) — список расширяется
+только находкой конкретной `CREATE ROLE`-миграции, не ослаблением проверки.
+
+## Известный плейсхолдер телефона
+
+`+70000000000` — repo-wide sentinel «БЛОК ОКНА» (та же константа, что `ALWAYS_EXCLUDED_ANALYTICS_PHONES` в
+`apps/webapp/src/infra/repos/pgAnalyticsAudience.ts` и `PHONES` в `apps/webapp/scripts/purge-placeholder-bookings.ts`),
+никогда не телефон живого человека. В схему он попадает через тело функции
+`app.is_platform_registration_analytics_user_excluded()`
+(`apps/webapp/db/drizzle-migrations/0261_platform_registration_events_read.sql`). Генератор признаёт ровно этот
+литерал и продолжает останавливаться на любом другом `'+<цифры>'` — включая близкие подмены
+(`+70000000001`, укороченные/удлинённые варианты).
+
+## НАХОДКА: environment identifier запечён в DEV схему (не исправлено этой правкой)
+
+`environment_identifier_forbidden` — верное срабатывание, не ложное. Тела двух функций в живой `bcb_webapp_dev`
+буквально содержат `current_database() <> 'bersoncarebot_test'`:
+
+- `app.set_saas_isolation_test_scenario(text)`
+- `app.read_saas_isolation_test_scenario_fixture_counts()`
+
+обе созданы `deploy/postgres/saas-isolation-telemetry.sql` (`16a910970b`, «prepare owner-ready strict TEST
+environment»). Это provisioning-скрипт деплоя, не один из двух отслеживаемых migration ledger — то, что его
+объекты видны в `bcb_webapp_dev`, означает, что скрипт применялся и к DEV, а не только к TEST, и это запекло
+строковый идентификатор среды прямо в тело функции, сохранённое в каталоге. Генератор **не ослаблен** и
+**не чинит это молча** — `environment_identifier_forbidden` остаётся жёстким стопом. Owner-решение нужно на
+уровне репозитория (например: не применять этот provisioning-скрипт к DEV / вынести guard иначе, без
+литерала имени БД, / решить, что greenfield-эталон обязан исключать `saas_telemetry_owner`-объекты) — вне
+границ этой правки генератора.

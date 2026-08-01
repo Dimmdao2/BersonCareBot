@@ -2,7 +2,7 @@
  * @deprecated Для списков на пациентских страницах используйте `/app/patient/sections/[slug]` и `content_pages`.
  * Оставлено для обратной совместимости и тестов.
  */
-import type { ContentPagesPort } from '@/infra/repos/pgContentPages';
+import type { ContentPagesPort } from '@/modules/content-catalog/ports';
 
 export type LessonCard = {
   id: string;

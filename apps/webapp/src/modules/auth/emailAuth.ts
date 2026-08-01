@@ -1,5 +1,6 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { env, integratorWebhookSecret } from '@/config/env';
+import { normalizeEmail } from '@/modules/auth/emailNormalize';
 import {
   OTP_LOCKOUT_BASE_SEC,
   OTP_MAX_VERIFY_ATTEMPTS,
@@ -123,9 +124,7 @@ async function resetEmailOtpLockoutForUser(userId: string): Promise<void> {
   await requireEmailAuthDb().resetEmailOtpLockout(userId);
 }
 
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
+export { normalizeEmail };
 
 function emailCodePepper(): string {
   return integratorWebhookSecret() || env.SESSION_COOKIE_SECRET || 'test-email-pepper';

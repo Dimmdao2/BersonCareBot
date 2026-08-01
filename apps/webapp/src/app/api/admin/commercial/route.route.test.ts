@@ -96,6 +96,7 @@ beforeEach(() => {
     ...pgPort,
     listOrganizations: async () => [],
     getTrialPolicy: async () => null,
+    getRegistrationTariffPolicy: async () => ({ tariffId: null }),
   });
   fakes.buildAppDeps.mockReturnValue({ platformEntitlements: service });
 });
@@ -124,6 +125,7 @@ describe('/api/admin/commercial tariff persistence', () => {
             },
             downgradePolicies: {},
             includedSeats: 1,
+            additionalSeatPriceMinor: null,
             isActive: true,
           },
         }),

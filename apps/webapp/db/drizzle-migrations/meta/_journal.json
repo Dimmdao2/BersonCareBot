@@ -2024,6 +2024,69 @@
       "when": 1793539200086,
       "tag": "0288_payment_intent_checkout_url_local",
       "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1793539200087,
+      "tag": "0289_saas_registration_tariff_policy_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 290,
+      "version": "7",
+      "when": 1793539200088,
+      "tag": "0290_saas_billing_refunds",
+      "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1793539200089,
+      "tag": "0291_saas_registration_tariff_policy_walls_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1793539200090,
+      "tag": "0292_saas_billing_manual_invoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1793539200091,
+      "tag": "0293_saas_tariff_seat_overage_pricing_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1793539200092,
+      "tag": "0294_saas_billing_autopay_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1793539200093,
+      "tag": "0295_tariff_paid_period_snapshot_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1793539200094,
+      "tag": "0296_snapshot_quota_triggers_frozen_tariff_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1793539210000,
+      "tag": "0297_commercial_access_state_removal_local",
+      "breakpoints": true
     }
   ]
 }

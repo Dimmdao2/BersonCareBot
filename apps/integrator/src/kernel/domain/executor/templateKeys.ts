@@ -3,22 +3,12 @@
  * Keeps keys in one place to avoid typos and simplify refactors.
  */
 export const ADMIN = {
-  REPLY_BUTTON: 'telegram:admin.reply.button',
   REPLY_SENT: 'telegram:admin.reply.sent',
   REPLY_CONTINUE_BUTTON: 'telegram:admin.reply.continueButton',
   DIALOG_CLOSE_BUTTON: 'telegram:admin.dialog.closeButton',
   DIALOG_CLOSED: 'telegram:admin.dialog.closed',
-  DIALOGS_EMPTY: 'telegram:admin.dialogs.empty',
-  DIALOGS_LIST: 'telegram:admin.dialogs.list',
   CONVERSATION_NEW_MESSAGE: 'telegram:admin.conversation.newMessage',
-  CONVERSATION_SHOW: 'telegram:admin.conversation.show',
-  QUESTIONS_EMPTY: 'telegram:admin.questions.empty',
-  QUESTIONS_LIST: 'telegram:admin.questions.list',
-  QUESTIONS_REPLY_BUTTON: 'telegram:admin.questions.replyButton',
-  QUESTIONS_MARK_ALL_BUTTON: 'telegram:admin.questions.markAllButton',
-  QUESTIONS_MARK_ALL_DONE: 'telegram:admin.questions.markAllDone',
   FORWARD: 'telegram:adminForward',
-  RELAY_UNSUPPORTED_ADMIN: 'telegram:admin.relay.unsupportedType',
 } as const;
 
 export const RELAY_USER = {

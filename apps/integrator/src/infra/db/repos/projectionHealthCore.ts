@@ -22,8 +22,18 @@ export const DEFAULT_PROJECTION_HEALTH_RETRY_THRESHOLD = 3;
 /**
  * Single runtime source of projection_outbox health metrics.
  *
- * Kept as parameterized SQL for Wave 2 phase 2: the phase goal is CLI/HTTP
- * parity, not rewriting aggregates to Drizzle builder.
+ * Kept as parameterized SQL — НЕ ПОТОМУ, ЧТО ПЕРЕВОД НЕВОЗМОЖЕН. Прежняя редакция этого
+ * комментария утверждала, что перевод втянет `config/env.ts` и потребует `APP_BASE_URL`,
+ * которых у деплой-гейта нет. Слепой аудит D18 (01.08) это опроверг прогоном: тот же мост
+ * `integratorSqlFromPgText`, которым в этом же коммите закрыли `saasIsolationTelemetry.ts`,
+ * выполняет запрос к `integrator.projection_outbox` на голом пуле, ни разу не импортировав
+ * `config/env.ts`.
+ *
+ * Настоящая цена перевода — сменить форму `ProjectionHealthQueryable` и
+ * `createProjectionHealthPoolProvider` с `query(text, params)` на `execute(fragment)`.
+ * Для HTTP-пути это даром (`getIntegratorDrizzleSession` уже есть), для CLI-скрипта
+ * `infra/scripts/projection-health.ts` — реальная правка его контракта. Файл остаётся в
+ * манифесте `check-no-new-raw-sql.mjs` как ОТЛОЖЕННАЯ работа, а не как невозможная.
  */
 export async function readProjectionHealthSnapshot(
   db: ProjectionHealthQueryable,

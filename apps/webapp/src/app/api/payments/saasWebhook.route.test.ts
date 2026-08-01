@@ -9,6 +9,10 @@ const ALLOWED_IP = '77.75.156.11'; // published ЮKassa notification IP (single-
 const DISALLOWED_IP = '203.0.113.7';
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000009021';
 const YOOKASSA_PAYMENT_ID = 'yk-payment-9021';
+// К4 — a manual invoice's own id differs from the id of the payment eventually made against it;
+// the webhook must correlate through `invoice_details.id`, never the payment's own id.
+const YOOKASSA_MANUAL_INVOICE_ID = 'in-9021';
+const YOOKASSA_INVOICE_PAYMENT_ID = 'yk-payment-from-invoice-9021';
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
   stampBootstrapPrincipal: vi.fn(),
@@ -66,11 +70,34 @@ async function seedPendingInvoice(service: ReturnType<typeof buildService>) {
   return invoice;
 }
 
+/** К4 — a platform-admin-issued manual invoice, seeded the same way a real one is: an assigned
+ *  tariff first (`createManualSaasBillingInvoice` resolves the org's OWN tariff, same authority K0
+ *  uses), then the invoice itself. */
+async function seedManualInvoice(service: ReturnType<typeof buildService>) {
+  await service.assignManualTariff({
+    organizationId: ORGANIZATION_ID,
+    tariffId: 'tariff-9021',
+    audit: { actorId: 'operator-9021', reason: 'test seed' },
+  });
+  return service.createManualSaasBillingInvoice({
+    organizationId: ORGANIZATION_ID,
+    amountMinor: 5000,
+    currency: 'RUB',
+    description: 'Ручной счёт — тест',
+    expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+}
+
 /**
  * The real ЮKassa payment object as returned by `GET /v3/payments/{id}` — the barrier that
  * `verifyWebhook` treats as the sole source of truth for status/amount/currency.
  */
-let remotePaymentObject: { status: string; amount: { value: string; currency: string } } = {
+let remotePaymentObject: {
+  status: string;
+  amount: { value: string; currency: string };
+  /** К4 — set only for the test that pays a manual invoice's own payment id. */
+  invoiceDetailsId?: string;
+} = {
   status: 'succeeded',
   amount: { value: '0.00', currency: 'RUB' },
 };
@@ -94,6 +121,15 @@ function installYookassaFetchStub() {
         confirmation: { confirmation_url: 'https://yookassa.ru/checkout/9021' },
       });
     }
+    // К4 — the real ЮKassa response to POST /v3/invoices: a distinct object id plus a shareable
+    // payment link, never a status assertion about payment.
+    if (url === 'https://api.yookassa.ru/v3/invoices' && method === 'POST') {
+      return jsonResponse({
+        id: YOOKASSA_MANUAL_INVOICE_ID,
+        status: 'pending',
+        delivery_method: { type: 'self', url: 'https://yookassa.ru/my/i/9021' },
+      });
+    }
     const getMatch = /^https:\/\/api\.yookassa\.ru\/v3\/payments\/([^/]+)$/.exec(url);
     if (getMatch && method === 'GET') {
       return jsonResponse({
@@ -101,6 +137,9 @@ function installYookassaFetchStub() {
         status: remotePaymentObject.status,
         amount: remotePaymentObject.amount,
         metadata: {},
+        ...(remotePaymentObject.invoiceDetailsId
+          ? { invoice_details: { id: remotePaymentObject.invoiceDetailsId } }
+          : {}),
       });
     }
     throw new Error(`unexpected fetch call in test: ${method} ${url}`);
@@ -280,6 +319,38 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
     const response = await invoke(webhookRequest(body));
 
     expect(response.status).toBe(200);
+    await expect(invoiceStatus(service)).resolves.toBe('paid');
+  });
+
+  // К4 — the single test the owner asked for (01.08): a manual invoice's payment is counted ONLY
+  // on a verified provider notification, never by the checkout link merely existing. The link is
+  // handed to the admin at creation and reaches nobody's browser in this test — nothing here could
+  // mark the invoice paid except the webhook, so the "pending" assertion right after creation is
+  // the structural half of the guarantee. The behavioural half is the payment's own id: it differs
+  // from the invoice's id issued at creation (`YOOKASSA_INVOICE_PAYMENT_ID` vs
+  // `YOOKASSA_MANUAL_INVOICE_ID`), so capture only succeeds if the webhook correlates through the
+  // API-refetched `invoice_details.id` — a wrong or missing correlation would leave this invoice
+  // stuck `pending` forever, exactly the silent, expensive failure §10a asks a test for.
+  it('К4: a manual invoice is paid ONLY by a verified provider webhook, never by the checkout link existing', async () => {
+    const invoice = await seedManualInvoice(service);
+    expect(invoice.status).toBe('pending');
+    expect(invoice.providerInvoiceRef).toBe(YOOKASSA_MANUAL_INVOICE_ID);
+    expect(invoice.providerCheckoutUrl).toBe('https://yookassa.ru/my/i/9021');
+    await expect(invoiceStatus(service)).resolves.toBe('pending');
+
+    // A payment made against the invoice has ITS OWN id, distinct from the invoice's id — the
+    // webhook body below carries that payment id, never the invoice id.
+    remotePaymentObject = {
+      status: 'succeeded',
+      amount: { value: '50.00', currency: 'RUB' },
+      invoiceDetailsId: YOOKASSA_MANUAL_INVOICE_ID,
+    };
+    const body = yookassaWebhookBody(YOOKASSA_INVOICE_PAYMENT_ID);
+
+    const response = await invoke(webhookRequest(body));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, captured: true, duplicate: false });
     await expect(invoiceStatus(service)).resolves.toBe('paid');
   });
 });

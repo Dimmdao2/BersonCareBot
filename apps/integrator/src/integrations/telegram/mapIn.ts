@@ -33,10 +33,7 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   [REQUEST_PHONE_CANCEL_TEXT]: 'phone.request.cancel',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
-  '/dialogs': 'admin.dialogs.open',
-  '/unanswered': 'admin.questions.unanswered',
   '/show_my_id': 'debug.show_my_id',
-  'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 
 /** Reply-клавиатура главного меню: только текстовые пункты, совпадающие с {@link MESSAGE_TEXT_TO_ACTION}. WebApp-кнопки сюда не входят. */
@@ -132,12 +129,7 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
     }
     return { action: 'program_reply' };
   }
-  for (const prefix of [
-    'admin_reply:',
-    'admin_reply_continue:',
-    'admin_close_dialog:',
-    'dialogs.view:',
-  ]) {
+  for (const prefix of ['admin_reply:', 'admin_reply_continue:', 'admin_close_dialog:']) {
     if (trimmed.startsWith(prefix)) {
       const conversationId = trimmed.slice(prefix.length).trim();
       if (!conversationId) return { action: trimmed };
@@ -202,8 +194,6 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
   }
   if (trimmed === 'q_confirm:yes') return { action: 'q_confirm:yes', questionConfirm: 'yes' };
   if (trimmed === 'q_confirm:no') return { action: 'q_confirm:no', questionConfirm: 'no' };
-  /** Админ: пометить все неотвеченные из текущей выборки списка (см. question.markAllUnansweredAnswered). */
-  if (trimmed === 'questions.mark_all_answered') return { action: 'questions.mark_all_answered' };
   return { action: LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed };
 }
 

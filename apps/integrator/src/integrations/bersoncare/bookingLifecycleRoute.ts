@@ -3,10 +3,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
 import { env } from '../../config/env.js';
 import { createDbPort } from '../../infra/db/client.js';
-import {
-  cancelPendingBookingReminderJobsByBookingId,
-  enqueueMessageRetryJob,
-} from '../../infra/db/repos/jobQueue.js';
+import { cancelPendingBookingReminderJobsByBookingId } from '../../infra/db/repos/jobQueue.js';
+import { createPostgresJobQueue } from '../../infra/adapters/jobQueuePort.js';
+import { appSettings } from '../../config/appSettings.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 import type {
@@ -391,6 +390,10 @@ export async function scheduleBookingReminders(input: {
   const startMs = Date.parse(input.slotStartIso);
   if (!Number.isFinite(startMs)) return;
   const db = createDbPort();
+  const queuePort = createPostgresJobQueue({
+    db,
+    retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
+  });
   const patientLabel = input.patientName ?? 'Пациент';
   const dateLabel = formatBookingRuDateTime(input.slotStartIso, input.timeZone);
   // D13b: константы 24ч/2ч вырезаны — офсеты решает вебапп. Но отсутствие плана обязано быть ВИДИМЫМ:
@@ -432,7 +435,8 @@ export async function scheduleBookingReminders(input: {
         },
       },
       targets,
-      retry: { maxAttempts: 2, backoffSeconds: [60] },
+      // No local retry policy here: maxAttempts:2 / 60s backoff is the shared QueuePort default
+      // (see jobQueuePort.ts createPostgresJobQueue().enqueue), not a second policy to maintain.
       booking: { bookingId: input.bookingId, reminderCode: reminder.code },
       webappPushNotify: {
         ...(input.organizationId ? { organizationId: input.organizationId } : {}),
@@ -441,14 +445,10 @@ export async function scheduleBookingReminders(input: {
         stableKey: `booking-reminder:${input.bookingId}:${reminder.code}`,
       },
     };
-    await enqueueMessageRetryJob(db, {
-      phoneNormalized: input.phoneNormalized,
-      messageText: `${patientLabel}, ${reminder.text}`,
-      firstTryDelaySeconds: 0,
-      firstTryAt: new Date(runAtMs).toISOString(),
-      maxAttempts: 2,
+    await queuePort.enqueue({
       kind: 'message.deliver',
-      payloadJson,
+      payload: payloadJson,
+      runAt: new Date(runAtMs).toISOString(),
     });
   }
 }

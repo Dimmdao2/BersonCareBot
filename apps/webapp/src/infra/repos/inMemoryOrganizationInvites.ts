@@ -52,7 +52,7 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
         tokenHash: input.tokenHash,
       };
       invites.push(invite);
-      return { ok: true, invite };
+      return { ok: true, invite, seatOverage: null };
     },
 
     async listPendingByOrganization(organizationId) {

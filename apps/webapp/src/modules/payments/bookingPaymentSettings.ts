@@ -27,7 +27,7 @@ function parseProviders(raw: unknown): PaymentProviderConfig[] {
 export function parseBookingPaymentSettingsValue(envelope: unknown): BookingPaymentSettings {
   const defaults: BookingPaymentSettings = {
     enabled: false,
-    defaultProviderId: 'mock',
+    defaultProviderId: 'yookassa',
     providers: [
       { id: 'yookassa', label: 'ЮKassa', enabled: false },
       { id: 'tinkoff', label: 'Тинькофф Касса', enabled: false },

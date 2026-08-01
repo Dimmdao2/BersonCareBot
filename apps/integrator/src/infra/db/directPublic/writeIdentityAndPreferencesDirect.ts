@@ -20,7 +20,9 @@
  * SERVER-AGENT TODOs are marked inline where exact schema columns / org resolution / merge wiring
  * must be confirmed against the live DB before this module is put on the live write path.
  */
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type DirectPublicChannelCode = 'telegram' | 'max';
 
@@ -115,9 +117,9 @@ function trimmedOrNull(value: string | null | undefined): string | null {
  * SECURITY DEFINER function (`hashtextextended('<ns>:' || id, 0)`), reproduced here as plain TS/SQL.
  */
 async function lockOnIntegratorUserId(txDb: DbPort, integratorUserId: string): Promise<void> {
-  await txDb.query(
-    `SELECT pg_advisory_xact_lock(hashtextextended('direct-public-identity:' || $1::text, 0))`,
-    [integratorUserId],
+  await runIntegratorSql(
+    txDb,
+    sql`SELECT pg_advisory_xact_lock(hashtextextended('direct-public-identity:' || ${integratorUserId}::text, 0))`,
   );
 }
 
@@ -152,11 +154,11 @@ export async function collectPlatformUserCandidates(
   const ids: string[] = [];
 
   // TODO(server-agent): confirm `integrator_user_id` is BIGINT on live `public.platform_users`.
-  const byInt = await txDb.query<{ id: string }>(
-    `SELECT id::text AS id FROM public.platform_users
-     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
+  const byInt = await runIntegratorSql<{ id: string }>(
+    txDb,
+    sql`SELECT id::text AS id FROM public.platform_users
+     WHERE integrator_user_id = ${input.integratorUserId}::bigint AND merged_into_id IS NULL
      LIMIT 3`,
-    [input.integratorUserId],
   );
   if (byInt.rows.length > 1) {
     throw new DirectPublicWriteError('ambiguous_platform_user_candidates', {
@@ -166,11 +168,11 @@ export async function collectPlatformUserCandidates(
   if (byInt.rows[0]) ids.push(byInt.rows[0].id);
 
   if (input.phoneNormalized) {
-    const byPhone = await txDb.query<{ id: string }>(
-      `SELECT id::text AS id FROM public.platform_users
-       WHERE phone_normalized = $1 AND merged_into_id IS NULL
+    const byPhone = await runIntegratorSql<{ id: string }>(
+      txDb,
+      sql`SELECT id::text AS id FROM public.platform_users
+       WHERE phone_normalized = ${input.phoneNormalized} AND merged_into_id IS NULL
        LIMIT 3`,
-      [input.phoneNormalized],
     );
     if (byPhone.rows.length > 1) {
       throw new DirectPublicWriteError('ambiguous_platform_user_candidates', {
@@ -181,13 +183,13 @@ export async function collectPlatformUserCandidates(
   }
 
   if (input.channelCode && input.externalId) {
-    const byChannel = await txDb.query<{ user_id: string }>(
-      `SELECT pu.id::text AS user_id
+    const byChannel = await runIntegratorSql<{ user_id: string }>(
+      txDb,
+      sql`SELECT pu.id::text AS user_id
        FROM public.user_channel_bindings ucb
        INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
-       WHERE ucb.channel_code = $1 AND ucb.external_id = $2 AND pu.merged_into_id IS NULL
+       WHERE ucb.channel_code = ${input.channelCode} AND ucb.external_id = ${input.externalId} AND pu.merged_into_id IS NULL
        LIMIT 1`,
-      [input.channelCode, input.externalId],
     );
     if (byChannel.rows[0]) ids.push(byChannel.rows[0].user_id);
   }
@@ -207,22 +209,18 @@ export async function insertPlatformUser(
 ): Promise<string> {
   // TODO(server-agent): confirm the exact NOT NULL columns / defaults (display_name default '',
   // role default 'client', patient_phone_trust_at policy) on live `public.platform_users`.
-  const res = await txDb.query<{ id: string }>(
-    `INSERT INTO public.platform_users (
+  const phoneNormalized = input.phoneNormalized;
+  const displayName = input.displayName ?? '';
+  const res = await runIntegratorSql<{ id: string }>(
+    txDb,
+    sql`INSERT INTO public.platform_users (
        integrator_user_id, phone_normalized, display_name, first_name, last_name, patient_phone_trust_at
      )
      VALUES (
-       $1::bigint, $2, $3, $4, $5,
-       CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN now() ELSE NULL END
+       ${input.integratorUserId}::bigint, ${phoneNormalized}, ${displayName}, ${input.firstName}, ${input.lastName},
+       CASE WHEN ${phoneNormalized}::text IS NOT NULL AND trim(${phoneNormalized}::text) <> '' THEN now() ELSE NULL END
      )
      RETURNING id::text AS id`,
-    [
-      input.integratorUserId,
-      input.phoneNormalized,
-      input.displayName ?? '',
-      input.firstName,
-      input.lastName,
-    ],
   );
   const id = res.rows[0]?.id;
   if (!id) throw new DirectPublicWriteError('platform_user_write_failed');
@@ -246,43 +244,44 @@ export async function enrichPlatformUser(
   // (structured triple takes priority over whatever is already stored); otherwise it only fills a
   // currently-empty display_name. integrator_user_id / phone are backfilled via COALESCE; phone sets
   // trust anchor.
-  const upd = await txDb.query(
-    `UPDATE public.platform_users SET
+  const { displayName, firstName, lastName, phoneNormalized, channelCode, integratorUserId } = input;
+  // Each input value is bound exactly once (via the `v` row) and referenced by name below — a plain
+  // `sql` template re-interpolates a repeated `${value}` as a NEW bind parameter every time (no
+  // placeholder reuse like hand-written `$2 ... $2`), so reusing a value 2-3x in a CASE would otherwise
+  // just add extra parameters (harmless for Postgres) rather than change behavior.
+  const upd = await runIntegratorSql(
+    txDb,
+    sql`UPDATE public.platform_users AS pu SET
        display_name = CASE
-         WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
-          AND $3::text IS NOT NULL AND trim($3::text) <> ''
-          AND $4::text IS NOT NULL AND trim($4::text) <> ''
-         THEN $2::text
-         WHEN (display_name IS NULL OR trim(display_name) = '')
-          AND $2::text IS NOT NULL AND trim($2::text) <> ''
-         THEN $2::text
-         ELSE display_name
+         WHEN v.display_name IS NOT NULL AND trim(v.display_name) <> ''
+          AND v.first_name IS NOT NULL AND trim(v.first_name) <> ''
+          AND v.last_name IS NOT NULL AND trim(v.last_name) <> ''
+         THEN v.display_name
+         WHEN (pu.display_name IS NULL OR trim(pu.display_name) = '')
+          AND v.display_name IS NOT NULL AND trim(v.display_name) <> ''
+         THEN v.display_name
+         ELSE pu.display_name
        END,
        first_name = CASE
-         WHEN $6::text IN ('telegram', 'max') THEN COALESCE(first_name, $3::text)
-         ELSE COALESCE($3::text, first_name)
+         WHEN v.channel_code IN ('telegram', 'max') THEN COALESCE(pu.first_name, v.first_name)
+         ELSE COALESCE(v.first_name, pu.first_name)
        END,
        last_name = CASE
-         WHEN $6::text IN ('telegram', 'max') THEN COALESCE(last_name, $4::text)
-         ELSE COALESCE($4::text, last_name)
+         WHEN v.channel_code IN ('telegram', 'max') THEN COALESCE(pu.last_name, v.last_name)
+         ELSE COALESCE(v.last_name, pu.last_name)
        END,
-       phone_normalized = COALESCE(phone_normalized, $5::text),
+       phone_normalized = COALESCE(pu.phone_normalized, v.phone_normalized),
        patient_phone_trust_at = CASE
-         WHEN $5::text IS NOT NULL AND trim($5::text) <> '' THEN now()
-         ELSE patient_phone_trust_at
+         WHEN v.phone_normalized IS NOT NULL AND trim(v.phone_normalized) <> '' THEN now()
+         ELSE pu.patient_phone_trust_at
        END,
-       integrator_user_id = COALESCE(integrator_user_id, $7::bigint),
+       integrator_user_id = COALESCE(pu.integrator_user_id, v.integrator_user_id),
        updated_at = now()
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [
-      platformUserId,
-      input.displayName,
-      input.firstName,
-      input.lastName,
-      input.phoneNormalized,
-      input.channelCode,
-      input.integratorUserId,
-    ],
+     FROM (VALUES (
+       ${platformUserId}::uuid, ${displayName}::text, ${firstName}::text, ${lastName}::text,
+       ${phoneNormalized}::text, ${channelCode}::text, ${integratorUserId}::bigint
+     )) AS v(id, display_name, first_name, last_name, phone_normalized, channel_code, integrator_user_id)
+     WHERE pu.id = v.id AND pu.merged_into_id IS NULL`,
   );
   if ((upd.rowCount ?? 0) < 1) {
     throw new DirectPublicWriteError('platform_user_write_failed', {
@@ -308,17 +307,17 @@ async function seedChannelPreferencesDefaults(
   now: Date = new Date(),
 ): Promise<void> {
   if (!CHANNEL_PREFERENCES_SEED_CHANNELS.has(channelCode)) return;
-  await txDb.query(
-    `INSERT INTO public.user_channel_preferences (
+  await runIntegratorSql(
+    txDb,
+    sql`INSERT INTO public.user_channel_preferences (
        user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
      )
-     VALUES ($1::text, $1::uuid, $2, true, true, $3)
+     VALUES (${platformUserId}::text, ${platformUserId}::uuid, ${channelCode}, true, true, ${now})
      ON CONFLICT (user_id, channel_code) DO UPDATE SET
        platform_user_id = COALESCE(public.user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
        is_enabled_for_messages = true,
        is_enabled_for_notifications = true,
        updated_at = EXCLUDED.updated_at`,
-    [platformUserId, channelCode, now],
   );
 }
 
@@ -328,12 +327,12 @@ async function upsertChannelBinding(
   channelCode: string,
   externalId: string,
 ): Promise<boolean> {
-  const res = await txDb.query<{ user_id: string }>(
-    `INSERT INTO public.user_channel_bindings (user_id, channel_code, external_id)
-     VALUES ($1::uuid, $2, $3)
+  const res = await runIntegratorSql<{ user_id: string }>(
+    txDb,
+    sql`INSERT INTO public.user_channel_bindings (user_id, channel_code, external_id)
+     VALUES (${platformUserId}::uuid, ${channelCode}, ${externalId})
      ON CONFLICT (channel_code, external_id) DO NOTHING
      RETURNING user_id::text AS user_id`,
-    [platformUserId, channelCode, externalId],
   );
   const inserted = res.rows.length > 0;
   if (inserted) {
@@ -351,12 +350,12 @@ export async function upsertNotificationTopics(
   for (const topic of topics) {
     const code = trimmedOrNull(topic.topicCode);
     if (!code) continue;
-    await txDb.query(
-      `INSERT INTO public.user_notification_topics (user_id, topic_code, is_enabled)
-       VALUES ($1::uuid, $2, $3)
+    await runIntegratorSql(
+      txDb,
+      sql`INSERT INTO public.user_notification_topics (user_id, topic_code, is_enabled)
+       VALUES (${platformUserId}::uuid, ${code}, ${topic.isEnabled})
        ON CONFLICT (user_id, topic_code) DO UPDATE SET
          is_enabled = EXCLUDED.is_enabled, updated_at = now()`,
-      [platformUserId, code, topic.isEnabled],
     );
     written += 1;
   }

@@ -38,6 +38,14 @@ export const SAAS_BILLING_INVOICE_STATUS_VALUES = [
 ] as const;
 export type SaasBillingInvoiceStatus = (typeof SAAS_BILLING_INVOICE_STATUS_VALUES)[number];
 
+/**
+ * К2 — `pending` until the provider webhook confirms it (see `PAYMENTS_CABINET_PLAN.md` К2: "пока
+ * не подтверждён — «в обработке», а не «возвращено»"). `failed` is a provider-call error (network,
+ * rejected) and frees the amount for a fresh attempt; it is never surfaced as money returned.
+ */
+export const SAAS_BILLING_REFUND_STATUS_VALUES = ['pending', 'succeeded', 'failed', 'canceled'] as const;
+export type SaasBillingRefundStatus = (typeof SAAS_BILLING_REFUND_STATUS_VALUES)[number];
+
 export const saasBillingAccounts = pgTable(
   'saas_billing_accounts',
   {
@@ -86,6 +94,17 @@ export const saasBillingSubscriptions = pgTable(
     lifecycleState: text('lifecycle_state').$type<SaasBillingLifecycleState>().notNull(),
     providerId: text('provider_id'),
     savedPaymentMethodId: text('saved_payment_method_id'),
+    /**
+     * К6 — explicit consent to off-session autopay, stored with the date and the EXACT text the
+     * payer saw (`autopayConsentText`), not a boolean: `AUTOPAY_CONSENT_TEXT` is what both the
+     * screen renders and this column stores, so a later copy change never rewrites history of what
+     * someone actually agreed to. Active iff `autopayConsentedAt IS NOT NULL AND autopayRevokedAt IS
+     * NULL` — granting again after a revoke clears `autopayRevokedAt` back to null (see
+     * `grantSaasBillingAutopayConsent`).
+     */
+    autopayConsentedAt: timestamp('autopay_consented_at', { withTimezone: true, mode: 'string' }),
+    autopayConsentText: text('autopay_consent_text'),
+    autopayRevokedAt: timestamp('autopay_revoked_at', { withTimezone: true, mode: 'string' }),
     currentPeriodStartsAt: timestamp('current_period_starts_at', {
       withTimezone: true,
       mode: 'string',
@@ -96,6 +115,15 @@ export const saasBillingSubscriptions = pgTable(
     }),
     graceEndsAt: timestamp('grace_ends_at', { withTimezone: true, mode: 'string' }),
     readOnlyEndsAt: timestamp('read_only_ends_at', { withTimezone: true, mode: 'string' }),
+    /**
+     * §2.12 — owner ruling 01.08: «при оплате тарифа все настройки оплаченного тарифа
+     * фиксируются на оплаченный период». A COPY of the entire `saas_tariffs` row (`to_jsonb`,
+     * written by the same call that sets `currentPeriodStartsAt`/`currentPeriodEndsAt` below),
+     * never a chosen list of fields — a tariff column added later lands here automatically. `null`
+     * for a row with no live period (unassigned, or written before this column existed); the
+     * resolver falls back to the live tariff whenever it is `null`, same as no paid period at all.
+     */
+    tariffSnapshot: jsonb('tariff_snapshot').$type<Record<string, unknown>>(),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -148,6 +176,12 @@ export const saasBillingSubscriptions = pgTable(
       'saas_billing_subscriptions_lifecycle_dates_check',
       sql`(${table.graceEndsAt} IS NULL OR ${table.currentPeriodEndsAt} IS NULL OR ${table.graceEndsAt} >= ${table.currentPeriodEndsAt}) AND (${table.readOnlyEndsAt} IS NULL OR ${table.graceEndsAt} IS NULL OR ${table.readOnlyEndsAt} >= ${table.graceEndsAt})`,
     ),
+    // К6 — a consent date with no text (or vice versa) is not a fact anyone can point to; keep the
+    // two born and cleared together instead of letting them drift independently.
+    check(
+      'saas_billing_subscriptions_autopay_consent_check',
+      sql`(${table.autopayConsentedAt} IS NULL) = (${table.autopayConsentText} IS NULL)`,
+    ),
   ],
 );
 
@@ -160,6 +194,9 @@ export const saasBillingInvoices = pgTable(
     saasBillingSubscriptionId: uuid('saas_billing_subscription_id').notNull(),
     tariffId: uuid('tariff_id').notNull(),
     tariffName: text('tariff_name').notNull(),
+    /** К4 — admin-entered "за что" for a manual invoice; `null` for auto/renewal invoices, which
+     *  are fully described by `tariffName` + the service period. See PAYMENTS_CABINET_PLAN.md К4. */
+    description: text(),
     amountMinor: integer('amount_minor').notNull(),
     currency: text().notNull(),
     tariffBillingPeriod: text('tariff_billing_period').notNull(),
@@ -171,6 +208,11 @@ export const saasBillingInvoices = pgTable(
       withTimezone: true,
       mode: 'string',
     }).notNull(),
+    /** К4 — the invoice's OWN payment deadline ("срок действия"), distinct from the service period
+     *  above. `null` for auto/renewal invoices, which never expire on their own. Overdue is derived
+     *  by comparing this to now at read time, never a stored status (plan К4: "просрочка считается
+     *  от срока действия, а не выставляется вручную"). */
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }),
     status: text().$type<SaasBillingInvoiceStatus>().default('draft').notNull(),
     providerId: text('provider_id').notNull(),
     providerInvoiceRef: text('provider_invoice_ref'),
@@ -230,6 +272,62 @@ export const saasBillingInvoices = pgTable(
     check(
       'saas_billing_invoices_status_check',
       sql`${table.status} = ANY (ARRAY['draft'::text, 'pending'::text, 'paid'::text, 'failed'::text, 'void'::text])`,
+    ),
+  ],
+);
+
+/**
+ * К2 — one refund attempt against a paid invoice. `providerIdempotencyKey` is what makes a
+ * repeated click a no-op: the reservation transaction inserts this row under a unique
+ * `(provider_id, provider_idempotency_key)` key, so a second request with the same key returns the
+ * row already reserved instead of inserting a second one. See `PAYMENTS_CABINET_PLAN.md` К2.
+ */
+export const saasBillingRefunds = pgTable(
+  'saas_billing_refunds',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid('organization_id').notNull(),
+    saasBillingInvoiceId: uuid('saas_billing_invoice_id').notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text().notNull(),
+    status: text().$type<SaasBillingRefundStatus>().default('pending').notNull(),
+    providerId: text('provider_id').notNull(),
+    providerRefundRef: text('provider_refund_ref'),
+    providerIdempotencyKey: text('provider_idempotency_key').notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('saas_billing_refunds_provider_idempotency_uidx').on(
+      table.providerId,
+      table.providerIdempotencyKey,
+    ),
+    index('idx_saas_billing_refunds_invoice_created').on(
+      table.saasBillingInvoiceId,
+      table.createdAt,
+    ),
+    index('idx_saas_billing_refunds_status_created').on(table.status, table.createdAt),
+    index('idx_saas_billing_refunds_provider_ref').on(table.providerId, table.providerRefundRef),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'saas_billing_refunds_organization_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.saasBillingInvoiceId, table.organizationId],
+      foreignColumns: [saasBillingInvoices.id, saasBillingInvoices.organizationId],
+      name: 'saas_billing_refunds_invoice_org_fkey',
+    }).onDelete('restrict'),
+    check('saas_billing_refunds_amount_check', sql`${table.amountMinor} > 0`),
+    check('saas_billing_refunds_currency_check', sql`${table.currency} ~ '^[A-Z]{3}$'`),
+    check(
+      'saas_billing_refunds_status_check',
+      sql`${table.status} = ANY (ARRAY['pending'::text, 'succeeded'::text, 'failed'::text, 'canceled'::text])`,
     ),
   ],
 );

@@ -52,18 +52,27 @@ function isYookassaSenderIpAllowed(headers: Headers): boolean {
   }
 }
 
-async function fetchYookassaPaymentObject(
-  paymentId: string,
-  shopId: string,
-  secretKey: string,
-): Promise<{
+type YookassaObjectResponse = {
   id?: string;
   status?: string;
   amount?: { value?: string; currency?: string };
   metadata?: Record<string, unknown>;
-}> {
+  /** К4 — present on a payment created by paying a YooKassa invoice; points back at that invoice's
+   *  own id (`in-...`), which is NOT the same id as the payment object itself (`remote.id`). */
+  invoice_details?: { id?: string };
+  /** К6 — present when `save_payment_method: true` (or an existing saved method) was used; `saved`
+   *  is only `true` once the provider actually persisted it for reuse. */
+  payment_method?: { id?: string; saved?: boolean };
+};
+
+async function fetchYookassaObject(
+  path: 'payments' | 'refunds',
+  objectId: string,
+  shopId: string,
+  secretKey: string,
+): Promise<YookassaObjectResponse> {
   return fetchWithTimeout(
-    `https://api.yookassa.ru/v3/payments/${encodeURIComponent(paymentId)}`,
+    `https://api.yookassa.ru/v3/${path}/${encodeURIComponent(objectId)}`,
     {
       method: 'GET',
       headers: { Authorization: basicAuth(shopId, secretKey) },
@@ -72,18 +81,20 @@ async function fetchYookassaPaymentObject(
     async (res) => {
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error(`yookassa_payment_fetch_failed:${res.status}:${text.slice(0, 200)}`);
+        throw new Error(`yookassa_${path}_fetch_failed:${res.status}:${text.slice(0, 200)}`);
       }
-      return (await res.json()) as {
-        id?: string;
-        status?: string;
-        amount?: { value?: string; currency?: string };
-        metadata?: Record<string, unknown>;
-      };
+      return (await res.json()) as YookassaObjectResponse;
     },
   );
 }
 
+/**
+ * К2 — ЮKassa sends `payment.*` and `refund.*` notifications through the same channel; `event`
+ * carries which domain fired (`object.status` alone is ambiguous, since both domains use
+ * `"succeeded"`). This body is untrusted until `verifyWebhook`'s API refetch confirms it — the
+ * domain read here only picks WHICH object endpoint (`/v3/payments/` vs `/v3/refunds/`) to refetch,
+ * never a final status.
+ */
 function inspectYookassaWebhook(bodyText: string) {
   const payload = JSON.parse(bodyText) as {
     event?: string;
@@ -101,10 +112,11 @@ function inspectYookassaWebhook(bodyText: string) {
     typeof object.metadata?.idempotencyKey === 'string'
       ? object.metadata.idempotencyKey
       : object.id;
+  const domain = event.startsWith('refund.') ? 'refund' : 'payment';
   const eventType =
-    event === 'payment.succeeded' || object.status === 'succeeded'
-      ? 'payment.succeeded'
-      : event || 'payment.unknown';
+    event === `${domain}.succeeded` || object.status === 'succeeded'
+      ? `${domain}.succeeded`
+      : event || `${domain}.unknown`;
   const amountMinor =
     object.amount?.value != null
       ? Math.round(Number.parseFloat(String(object.amount.value)) * 100)
@@ -115,19 +127,82 @@ function inspectYookassaWebhook(bodyText: string) {
     payload: payload as Record<string, unknown>,
     intentRef: object.id,
     amountMinor,
+    domain,
   };
+}
+
+type YookassaListResponse = {
+  type?: string;
+  items?: Array<{ id?: string; status?: string; amount?: { value?: string; currency?: string } }>;
+  next_cursor?: string;
+};
+
+/** ЮKassa's own page size ceiling for `GET /v3/payments`. */
+const YOOKASSA_LIST_PAGE_LIMIT = 100;
+/** Backstop against an unbounded reconciliation call — 100 pages is 10 000 payments per period. */
+const YOOKASSA_LIST_MAX_PAGES = 100;
+
+async function fetchYookassaPaymentsPage(
+  shopId: string,
+  secretKey: string,
+  params: { periodFromIso: string; periodToIso: string; cursor?: string },
+): Promise<YookassaListResponse> {
+  const query = new URLSearchParams({
+    'created_at.gte': params.periodFromIso,
+    'created_at.lte': params.periodToIso,
+    limit: String(YOOKASSA_LIST_PAGE_LIMIT),
+  });
+  if (params.cursor) query.set('cursor', params.cursor);
+  return fetchWithTimeout(
+    `https://api.yookassa.ru/v3/payments?${query.toString()}`,
+    { method: 'GET', headers: { Authorization: basicAuth(shopId, secretKey) } },
+    { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+    async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`yookassa_payments_list_failed:${res.status}:${text.slice(0, 200)}`);
+      }
+      return (await res.json()) as YookassaListResponse;
+    },
+  );
 }
 
 export function createYookassaPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
+    async createIntent({
+      amountMinor,
+      currency,
+      idempotencyKey,
+      metadata,
+      returnUrl,
+      providerConfig,
+      savePaymentMethod,
+      paymentMethodId,
+    }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
-      const returnUrl =
-        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
-          ? metadata.returnUrl.trim()
-          : 'https://yookassa.ru';
 
+      // К6 — off-session autopay charges a saved method directly: no `confirmation` (there is no
+      // payer to redirect) and no repeated `save_payment_method` (the method is already saved).
+      const requestBody = paymentMethodId
+        ? {
+            amount: { value, currency },
+            capture: true,
+            payment_method_id: paymentMethodId,
+            metadata: { idempotencyKey, ...metadata },
+          }
+        : {
+            amount: { value, currency },
+            capture: true,
+            confirmation: { type: 'redirect', return_url: returnUrl },
+            ...(savePaymentMethod ? { save_payment_method: true } : {}),
+            metadata: {
+              idempotencyKey,
+              ...metadata,
+            },
+          };
+
+      // eslint-disable-next-line no-console
       const body = await fetchWithTimeout(
         'https://api.yookassa.ru/v3/payments',
         {
@@ -137,15 +212,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             Authorization: basicAuth(shopId, secretKey),
             'Idempotence-Key': idempotencyKey,
           },
-          body: JSON.stringify({
-            amount: { value, currency },
-            capture: true,
-            confirmation: { type: 'redirect', return_url: returnUrl },
-            metadata: {
-              idempotencyKey,
-              ...metadata,
-            },
-          }),
+          body: JSON.stringify(requestBody),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
         async (res) => {
@@ -155,12 +222,20 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           }
           return (await res.json()) as {
             id?: string;
+            status?: string;
             confirmation?: { confirmation_url?: string };
           };
         },
       );
       const providerIntentRef = String(body.id ?? '');
       if (!providerIntentRef) throw new Error('yookassa_missing_payment_id');
+      // К6 — an off-session charge can be declined SYNCHRONOUSLY (e.g. the saved card no longer
+      // works): the HTTP call itself still returns `200`, only `status` says so. Surface it as a
+      // thrown error, the same shape every other adapter failure already takes, so the renewal
+      // tick's existing try/catch marks the invoice `failed` instead of leaving it `draft` forever.
+      if (body.status === 'canceled') {
+        throw new Error(`yookassa_payment_canceled:${providerIntentRef}`);
+      }
       return {
         providerIntentRef,
         checkoutUrl: body.confirmation?.confirmation_url,
@@ -205,12 +280,19 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
 
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const untrusted = inspectYookassaWebhook(bodyText);
-      const paymentId = untrusted.intentRef;
-      if (!paymentId) throw new Error('invalid_webhook_payload');
+      const objectId = untrusted.intentRef;
+      if (!objectId) throw new Error('invalid_webhook_payload');
 
       // Barrier: status/amount/currency come from the API response, never from the notification
-      // body — the body is only used above to learn which payment to look up.
-      const remote = await fetchYookassaPaymentObject(paymentId, shopId, secretKey);
+      // body — the body is only used above to learn which object (payment or refund) to look up,
+      // and from which endpoint (K2: a refund notification's `object.id` is a refund id, not a
+      // payment id — refetching it from `/v3/payments/` would look up the wrong thing).
+      const remote = await fetchYookassaObject(
+        untrusted.domain === 'refund' ? 'refunds' : 'payments',
+        objectId,
+        shopId,
+        secretKey,
+      );
       if (!remote.id) throw new Error('invalid_webhook_signature');
 
       const idempotencyKey =
@@ -218,7 +300,9 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           ? remote.metadata.idempotencyKey
           : remote.id;
       const eventType =
-        remote.status === 'succeeded' ? 'payment.succeeded' : `payment.${remote.status ?? 'unknown'}`;
+        remote.status === 'succeeded'
+          ? `${untrusted.domain}.succeeded`
+          : `${untrusted.domain}.${remote.status ?? 'unknown'}`;
       const amountMinor =
         remote.amount?.value != null
           ? Math.round(Number.parseFloat(String(remote.amount.value)) * 100)
@@ -228,9 +312,104 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
         idempotencyKey,
         eventType,
         payload: { event: eventType, object: remote, currency: remote.amount?.currency },
-        intentRef: remote.id,
+        // К4: a payment created by paying an invoice carries the INVOICE's id here, never its own
+        // — that invoice id is what `attachSaasBillingInvoiceProviderIntent` stored as our
+        // `providerInvoiceRef` at invoice-creation time, before any payment existed to have an id
+        // of its own. Direct payments (createIntent, no invoice involved) have no `invoice_details`
+        // and fall back to the payment's own id, unchanged from before.
+        intentRef: remote.invoice_details?.id ?? remote.id,
         amountMinor,
+        savedPaymentMethodId:
+          remote.payment_method?.saved === true && remote.payment_method.id
+            ? remote.payment_method.id
+            : undefined,
       };
+    },
+
+    async listPayments({ periodFromIso, periodToIso, providerConfig }) {
+      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      const items: {
+        providerPaymentRef: string;
+        status: string;
+        amountMinor: number;
+        currency: string;
+      }[] = [];
+      let cursor: string | undefined;
+      let truncated = false;
+      for (let page = 0; page < YOOKASSA_LIST_MAX_PAGES; page += 1) {
+        const response = await fetchYookassaPaymentsPage(shopId, secretKey, {
+          periodFromIso,
+          periodToIso,
+          cursor,
+        });
+        for (const item of response.items ?? []) {
+          if (!item.id) continue;
+          items.push({
+            providerPaymentRef: item.id,
+            status: item.status ?? 'unknown',
+            amountMinor:
+              item.amount?.value != null
+                ? Math.round(Number.parseFloat(String(item.amount.value)) * 100)
+                : 0,
+            currency: item.amount?.currency ?? '',
+          });
+        }
+        if (!response.next_cursor) break;
+        cursor = response.next_cursor;
+        if (page === YOOKASSA_LIST_MAX_PAGES - 1) truncated = true;
+      }
+      return { items, truncated };
+    },
+
+    /**
+     * К4 — `POST /v3/invoices`: a shareable payment link distinct from a direct payment
+     * (`createIntent` → `/v3/payments`). `cart` mirrors `payment_data.amount` as a single line so
+     * the invoice page shows one recognizable item; `delivery_method_data: { type: 'self' }` means
+     * no physical/email/SMS delivery — we hand the link to the recipient ourselves.
+     */
+    async createInvoice({ amountMinor, currency, description, expiresAt, idempotencyKey, metadata, providerConfig }) {
+      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      const value = (amountMinor / 100).toFixed(2);
+
+      const body = await fetchWithTimeout(
+        'https://api.yookassa.ru/v3/invoices',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: basicAuth(shopId, secretKey),
+            'Idempotence-Key': idempotencyKey,
+          },
+          body: JSON.stringify({
+            payment_data: {
+              amount: { value, currency },
+              capture: true,
+              description,
+              metadata: { idempotencyKey, ...metadata },
+            },
+            cart: [{ description, price: { value, currency }, quantity: 1 }],
+            delivery_method_data: { type: 'self' },
+            expires_at: expiresAt,
+            description,
+            metadata: { idempotencyKey, ...metadata },
+          }),
+        },
+        { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+        async (res) => {
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(`yookassa_create_invoice_failed:${res.status}:${text.slice(0, 500)}`);
+          }
+          return (await res.json()) as {
+            id?: string;
+            delivery_method?: { url?: string };
+          };
+        },
+      );
+      const providerInvoiceRef = String(body.id ?? '');
+      const checkoutUrl = body.delivery_method?.url ?? '';
+      if (!providerInvoiceRef || !checkoutUrl) throw new Error('yookassa_missing_invoice_fields');
+      return { providerInvoiceRef, checkoutUrl };
     },
   };
 }

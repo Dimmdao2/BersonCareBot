@@ -34,18 +34,12 @@ function isInsidePort(fileName) {
 const rawSqlQueryManifest = {
   integrator: new Set([
     'apps/integrator/src/infra/db/client.ts',
-    'apps/integrator/src/infra/db/directPublic/mergeCandidatesDirect.ts',
-    'apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts',
     'apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.rls.integration.test.ts',
-    'apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.ts',
-    'apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts',
-    'apps/integrator/src/infra/db/directPublic/writeSupportQuestionsDirect.ts',
     'apps/integrator/src/infra/db/integratorPoolProvider.ts',
     'apps/integrator/src/infra/db/migrate.ts',
     'apps/integrator/src/infra/db/repos/projectionHealthCore.ts',
     'apps/integrator/src/infra/db/runIntegratorSql.ts',
     'apps/integrator/src/infra/db/withClient.ts',
-    'apps/integrator/src/infra/observability/saasIsolationTelemetry.ts',
   ]),
   webapp: new Set([
     'apps/webapp/src/infra/adminAuditLog.devDb.integration.test.ts',

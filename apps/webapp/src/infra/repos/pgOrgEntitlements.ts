@@ -26,8 +26,10 @@ import { patientFiles } from '../../../db/schema/patientFiles';
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
-  saasTariffs,
 } from '../../../db/schema/saasEntitlements';
+
+type Db = ReturnType<typeof getDrizzle>;
+type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 type CurrentPatientEntitlementRow = {
   tariff_mechanics: Record<string, boolean> | null;
@@ -113,7 +115,6 @@ async function readCurrentPatientSnapshot(
 
 function resolveAccess(input: {
   organizationTariffId: string | null;
-  commercialAccessState: 'compatibility' | 'no_trial' | 'trial_pending' | 'active';
   trial: {
     tariffId: string;
     endsAt: string;
@@ -128,12 +129,7 @@ function resolveAccess(input: {
     return {
       lifecycle: 'active',
       tariffId: input.organizationTariffId,
-      source:
-        input.commercialAccessState === 'compatibility'
-          ? 'compatibility'
-          : input.commercialAccessState === 'no_trial'
-            ? 'no_trial'
-            : 'assignment',
+      source: 'assignment',
     };
   }
   const trialDates = {
@@ -163,12 +159,40 @@ function resolveAccess(input: {
   };
 }
 
+type EffectiveTariffRow = {
+  id: string;
+  name: string;
+  mechanics: Record<string, boolean>;
+  quotas: Record<string, unknown>;
+  system_access_policy: Record<string, unknown> | null;
+  mechanic_access_policies: Record<string, unknown>;
+  included_seats: number | null;
+};
+
+/**
+ * §2.12 — the ONE call every reader of tariff content goes through: `app.saas_billing_effective_tariff`
+ * (migration 0295) returns the frozen snapshot while a paid period for this exact org+tariff is live,
+ * and the live `saas_tariffs` row otherwise. This mirrors the same function the SQL doors
+ * (`app.resolve_organization_mechanic_access` et al.) already call — the frozen/live switch is not
+ * reimplemented here, only invoked.
+ */
+async function readEffectiveTariff(
+  tx: Transaction,
+  organizationId: string,
+  tariffId: string,
+): Promise<EffectiveTariffRow | null> {
+  const result = await tx.execute(sql`
+    SELECT id, name, mechanics, quotas, system_access_policy, mechanic_access_policies, included_seats
+    FROM app.saas_billing_effective_tariff(${organizationId}::uuid, ${tariffId}::uuid)
+  `);
+  return (result.rows[0] as EffectiveTariffRow | undefined) ?? null;
+}
+
 async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlementSnapshot> {
   return getDrizzle().transaction(async (tx) => {
     const [organization] = await tx
       .select({
         tariffId: beOrganizations.tariffId,
-        commercialAccessState: beOrganizations.commercialAccessState,
       })
       .from(beOrganizations)
       .where(eq(beOrganizations.id, organizationId))
@@ -193,29 +217,12 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
       .limit(1);
     const access = resolveAccess({
       organizationTariffId: organization.tariffId,
-      commercialAccessState: organization.commercialAccessState as
-        | 'compatibility'
-        | 'no_trial'
-        | 'trial_pending'
-        | 'active',
       trial: trial ?? null,
       now: Date.now(),
     });
-    const [tariff] = access.tariffId
-      ? await tx
-          .select({
-            id: saasTariffs.id,
-            name: saasTariffs.name,
-            mechanics: saasTariffs.mechanics,
-            quotas: saasTariffs.quotas,
-            systemAccessPolicy: saasTariffs.systemAccessPolicy,
-            mechanicAccessPolicies: saasTariffs.mechanicAccessPolicies,
-            includedSeats: saasTariffs.includedSeats,
-          })
-          .from(saasTariffs)
-          .where(eq(saasTariffs.id, access.tariffId))
-          .limit(1)
-      : [];
+    const tariff = access.tariffId
+      ? await readEffectiveTariff(tx, organizationId, access.tariffId)
+      : null;
     const overrides = await tx
       .select({
         mechanic: saasOrgEntitlementOverrides.mechanic,
@@ -233,10 +240,9 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
             name: tariff.name,
             mechanics: tariff.mechanics,
             quotas: tariff.quotas as TariffQuotaMap,
-            systemAccessPolicy: tariff.systemAccessPolicy as AccessLifecyclePolicy | null,
-            mechanicAccessPolicies:
-              tariff.mechanicAccessPolicies as MechanicAccessPolicyMap,
-            includedSeats: tariff.includedSeats,
+            systemAccessPolicy: tariff.system_access_policy as AccessLifecyclePolicy | null,
+            mechanicAccessPolicies: tariff.mechanic_access_policies as MechanicAccessPolicyMap,
+            includedSeats: tariff.included_seats,
           }
         : null,
       overrides: overrides.map((override) => ({

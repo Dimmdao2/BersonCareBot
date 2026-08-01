@@ -11,8 +11,8 @@ import type {
   DowngradePolicyMap,
   EffectiveOrgCommercialAccess,
   MechanicAccessPolicyMap,
-  OrgCommercialAccessState,
   OrgEntitlementOverride,
+  RegistrationTariffPolicy,
   Tariff,
   TariffQuota,
   TariffQuotaMap,
@@ -24,6 +24,7 @@ import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
+  saasRegistrationTariffPolicy,
   saasTariffs,
   saasTrialPolicy,
 } from '../../../db/schema/saasEntitlements';
@@ -54,6 +55,12 @@ function toTrialPolicy(row: typeof saasTrialPolicy.$inferSelect): TrialPolicy {
     postTrialTariffId: row.postTrialTariffId,
     isActive: row.isActive,
   };
+}
+
+function toRegistrationTariffPolicy(
+  row: typeof saasRegistrationTariffPolicy.$inferSelect | undefined,
+): RegistrationTariffPolicy {
+  return { tariffId: row?.tariffId ?? null };
 }
 
 async function appendAudit(
@@ -116,6 +123,7 @@ function tariffValues(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
     mechanicAccessPolicies: input.mechanicAccessPolicies,
     downgradePolicies: input.downgradePolicies,
     includedSeats: input.includedSeats,
+    additionalSeatPriceMinor: input.additionalSeatPriceMinor,
     isActive: input.isActive,
     updatedAt: new Date().toISOString(),
   };
@@ -130,7 +138,6 @@ function assertPlatformOperationsPrincipal(): void {
 
 function effectiveAccessForPlatform(input: {
   tariffId: string | null;
-  commercialAccessState: OrgCommercialAccessState;
   trial: typeof saasOrganizationTrials.$inferSelect | null;
   now: number;
 }): EffectiveOrgCommercialAccess {
@@ -139,12 +146,7 @@ function effectiveAccessForPlatform(input: {
     return {
       lifecycle: 'active',
       tariffId: input.tariffId,
-      source:
-        input.commercialAccessState === 'compatibility'
-          ? 'compatibility'
-          : input.commercialAccessState === 'no_trial'
-            ? 'no_trial'
-            : 'assignment',
+      source: 'assignment',
     };
   }
   if (input.now <= new Date(trial.endsAt).getTime()) {
@@ -228,7 +230,7 @@ async function startTrialForOrganization(
     }
     await tx
       .update(beOrganizations)
-      .set({ tariffId: policyRow.tariffId, commercialAccessState: 'active' })
+      .set({ tariffId: policyRow.tariffId })
       .where(eq(beOrganizations.id, organizationId));
     await appendAudit(tx, {
       audit,
@@ -266,7 +268,6 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
               title: beOrganizations.title,
               tariffId: beOrganizations.tariffId,
               isActive: beOrganizations.isActive,
-              commercialAccessState: beOrganizations.commercialAccessState,
             })
             .from(beOrganizations)
             .orderBy(beOrganizations.title),
@@ -298,18 +299,14 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         );
         return organizations.map((organization) => {
           const trial = trialByOrg.get(organization.id) ?? null;
-          const commercialAccessState =
-            organization.commercialAccessState as OrgCommercialAccessState;
           const effectiveAccess = effectiveAccessForPlatform({
             tariffId: organization.tariffId,
-            commercialAccessState,
             trial,
             now,
           });
           return {
             ...organization,
             manualTariffId: manualTariffByOrg.get(organization.id) ?? null,
-            commercialAccessState,
             effectiveAccess,
             overrides: overridesByOrg.get(organization.id) ?? [],
             trial: trial
@@ -363,6 +360,16 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         .where(eq(saasTrialPolicy.key, 'global'))
         .limit(1);
       return rows[0] ? toTrialPolicy(rows[0]) : null;
+    },
+
+    async getRegistrationTariffPolicy() {
+      assertPlatformOperationsPrincipal();
+      const rows = await getDrizzle()
+        .select()
+        .from(saasRegistrationTariffPolicy)
+        .where(eq(saasRegistrationTariffPolicy.key, 'global'))
+        .limit(1);
+      return toRegistrationTariffPolicy(rows[0]);
     },
 
     async createTariff(input, audit) {
@@ -529,6 +536,37 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         await appendAudit(tx, {
           audit,
           action: 'saas_trial_policy_update',
+          targetId: 'global',
+          organizationId: null,
+          before: before ?? null,
+          after,
+        });
+      });
+    },
+
+    async setRegistrationTariffPolicy(policy, audit) {
+      assertPlatformOperationsPrincipal();
+      await getDrizzle().transaction(async (tx) => {
+        if (policy.tariffId) await requireActiveTariff(tx, policy.tariffId);
+        const [before] = await tx
+          .select()
+          .from(saasRegistrationTariffPolicy)
+          .where(eq(saasRegistrationTariffPolicy.key, 'global'))
+          .limit(1);
+        const values = {
+          key: 'global' as const,
+          tariffId: policy.tariffId,
+          updatedBy: audit.actorId,
+          updatedAt: new Date().toISOString(),
+        };
+        const [after] = await tx
+          .insert(saasRegistrationTariffPolicy)
+          .values(values)
+          .onConflictDoUpdate({ target: saasRegistrationTariffPolicy.key, set: values })
+          .returning();
+        await appendAudit(tx, {
+          audit,
+          action: 'saas_registration_tariff_policy_update',
           targetId: 'global',
           organizationId: null,
           before: before ?? null,

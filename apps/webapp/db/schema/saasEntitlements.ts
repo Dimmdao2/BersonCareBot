@@ -59,6 +59,15 @@ export const saasTariffs = pgTable(
      * so the column was dropped in `0285_tariff_ladder_notifications_local.sql`.
      */
     includedSeats: integer('included_seats'),
+    /**
+     * §5a item 5.1 — price of ONE specialist seat beyond `includedSeats`, in the tariff's own
+     * `currency`. `NULL` is the distinguishing flag between the two allowed behaviors at the seat
+     * ceiling (owner 30.07/31.07, C4A `includedSeats`-adjacent decision): `NULL` keeps §5.2's
+     * hard block (new seat simply refuses past base); a stored nonnegative value means overage IS
+     * allowed at that price, gated on the clinic confirming this exact amount before the seat is
+     * created. Never a code default — set explicitly per tariff by the platform admin.
+     */
+    additionalSeatPriceMinor: integer('additional_seat_price_minor'),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -71,6 +80,10 @@ export const saasTariffs = pgTable(
     check(
       'saas_tariffs_included_seats_nonnegative_check',
       sql`${table.includedSeats} IS NULL OR ${table.includedSeats} >= 0`,
+    ),
+    check(
+      'saas_tariffs_additional_seat_price_nonnegative_check',
+      sql`${table.additionalSeatPriceMinor} IS NULL OR ${table.additionalSeatPriceMinor} >= 0`,
     ),
     check(
       'saas_tariffs_billing_period_check',
@@ -169,6 +182,36 @@ export const saasTrialPolicy = pgTable(
       'saas_trial_policy_post_tariff_check',
       sql`(${table.postTrialBehavior} = 'tariff' AND ${table.postTrialTariffId} IS NOT NULL) OR (${table.postTrialBehavior} <> 'tariff' AND ${table.postTrialTariffId} IS NULL)`,
     ),
+  ],
+);
+
+/**
+ * Singleton, platform-global registration policy — §5a item 2.6a (owner 31.07): "какой тариф
+ * выдаётся при регистрации" is its OWN setting, independent of {@link saasTrialPolicy}. `tariffId`
+ * legally NULL: an empty setting means the person picks a tariff themselves, not a code default.
+ * Only takes effect when no trial policy fires for the registration event — a firing trial policy
+ * still owns the org's tariff for its own duration, unchanged.
+ */
+export const saasRegistrationTariffPolicy = pgTable(
+  'saas_registration_tariff_policy',
+  {
+    key: text().primaryKey().default('global').notNull(),
+    tariffId: uuid('tariff_id'),
+    updatedBy: uuid('updated_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tariffId],
+      foreignColumns: [saasTariffs.id],
+      name: 'saas_registration_tariff_policy_tariff_id_fkey',
+    }).onDelete('restrict'),
+    check('saas_registration_tariff_policy_key_check', sql`${table.key} = 'global'`),
   ],
 );
 

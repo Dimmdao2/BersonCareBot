@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   validateDeclaredNoSurfaceClaims,
+  validateMechanicBearingExports,
   runS4ProtectedActionCoverageCheck,
+  runS4EntitlementCoverageCheck,
 } from '../../../scripts/check-s4-entitlement-coverage';
 import { DECLARED_NO_SURFACE, PROTECTED_ACTION_MAPPINGS } from './protectedActionRegistry';
 
@@ -56,4 +58,89 @@ describe('runS4ProtectedActionCoverageCheck on the real registry', () => {
     expect(ids).not.toContain('exercise_catalog');
     expect(ids).not.toContain('proactive_insights');
   });
+});
+
+/**
+ * 3.1/3.2: before this test, `check-s4-entitlement-coverage.ts` (`validateMechanicBearingExports`,
+ * `staticBypassFindings`) was never invoked by anything `pnpm run ci`/`pnpm test` runs — `grep -rn
+ * "check-s4-entitlement-coverage" package.json apps/webapp/package.json .github` found zero wiring.
+ * The checker existed, was correct, and enforced nothing: a new unregistered export or a new direct
+ * resolver call outside the approved boundary would pass every existing gate silently. Running the
+ * full check here, against the real registry and the real repository tree, is what makes it a gate
+ * again — no scripts/ or ci.yml edit needed, since vitest already runs this file in `pnpm run ci`.
+ */
+describe('runS4EntitlementCoverageCheck is wired into the test suite (was previously unreachable)', () => {
+  it('reports zero findings for the real registry and the real repository tree', () => {
+    const findings = runS4EntitlementCoverageCheck();
+    expect(findings).toEqual([]);
+  });
+});
+
+/**
+ * 3.2 DoD: "падающий тест на неклассифицированную ручку" — adding a handler and not registering
+ * it in the registry must turn this check red. `validateMechanicBearingExports` already carries
+ * this logic (used to require a literal guard-call match in source text too, until the owner's
+ * 29.07 ruling — "сноси машинерию, оставляй пользу" — removed that specific brittle check because
+ * prettier's own formatting produced ten false positives; the inventory check below is what
+ * survived that ruling and is exercised here as a real, always-run regression, not just the CLI
+ * `--self-test` path).
+ */
+describe('validateMechanicBearingExports catches an unclassified handler (3.2 falling test)', () => {
+  const file = 'src/app/api/doctor/newmechanic/route.ts';
+
+  it('is green when every export in a declared file is mapped or exempted', () => {
+    const sourceFor = () => "export async function GET() { return null; }";
+    const findings = validateMechanicBearingExports(
+      [
+        {
+          id: 'newmechanic.read',
+          mechanic: 'courses',
+          file,
+          exportName: 'GET',
+          method: 'GET',
+          authContext: 'requireDoctorWorkspaceApiContext',
+          guard: 'requireEntitlementForRead',
+          serviceBoundary: 'deps.courses.listCoursesForDoctor',
+        },
+      ],
+      [],
+      sourceFor,
+      [file],
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it('goes red the moment a new export lands in that file without a mapping or an exemption', () => {
+    // Same file, same declared coverage — but the file itself grew a second export (a POST
+    // handler) that nobody added to PROTECTED_ACTION_MAPPINGS or PROTECTED_ACTION_EXEMPTIONS.
+    // This is the exact shape of a real regression: a write path added mimo the registry.
+    const sourceFor = () =>
+      "export async function GET() { return null; }\nexport async function POST() { return null; }";
+    const findings = validateMechanicBearingExports(
+      [
+        {
+          id: 'newmechanic.read',
+          mechanic: 'courses',
+          file,
+          exportName: 'GET',
+          method: 'GET',
+          authContext: 'requireDoctorWorkspaceApiContext',
+          guard: 'requireEntitlementForRead',
+          serviceBoundary: 'deps.courses.listCoursesForDoctor',
+        },
+      ],
+      [],
+      sourceFor,
+      [file],
+    );
+    expect(findings).toEqual([
+      {
+        id: `${file}:POST`,
+        message: 'unregistered exported action in mechanic-bearing file',
+      },
+    ]);
+  });
+
+  // The real registry against the real repository tree is covered above by
+  // `runS4EntitlementCoverageCheck` (which calls this same function over every declared file).
 });

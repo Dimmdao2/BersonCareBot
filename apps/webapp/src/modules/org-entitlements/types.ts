@@ -265,6 +265,12 @@ export type Tariff = {
    * growth; it is never converted into an agent-chosen baseline.
    */
   includedSeats: number | null;
+  /**
+   * §5a item 5.1 — price (in `currency`) of one specialist seat beyond `includedSeats`. `null`
+   * keeps the §5.2 hard block at the seat ceiling; a nonnegative value allows confirmed, paid
+   * overage. See `apps/webapp/db/schema/saasEntitlements.ts` for the storage-level contract.
+   */
+  additionalSeatPriceMinor: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -311,14 +317,22 @@ export type TrialPolicy = {
   isActive: boolean;
 };
 
-export type OrgCommercialLifecycleState = 'active' | 'grace' | 'read_only' | 'blocked';
+/**
+ * §5a item 2.6a -- the tariff granted at registration, independent of {@link TrialPolicy}. `null`
+ * is a legal value: no code default, the person picks a tariff themselves. Only takes effect when
+ * no trial policy fires for the registration event.
+ */
+export type RegistrationTariffPolicy = {
+  tariffId: string | null;
+};
 
-export type OrgCommercialAccessState = 'compatibility' | 'no_trial' | 'trial_pending' | 'active';
+export type OrgCommercialLifecycleState = 'active' | 'grace' | 'read_only' | 'blocked';
 
 export type EffectiveOrgCommercialAccess = {
   lifecycle: OrgCommercialLifecycleState;
   tariffId: string | null;
-  source: 'compatibility' | 'assignment' | 'trial' | 'post_trial_tariff' | 'no_trial';
+  /** #1069 §2.13 — the org's one fact is which tariff is assigned; `source` only says WHICH clock produced it. */
+  source: 'assignment' | 'trial' | 'post_trial_tariff';
   /**
    * Present only when this access derives from an active organization trial (`source === "trial"`,
    * or a lifecycle of `grace`/`blocked`/`read_only` reached via a trial). Owner-facing displays
