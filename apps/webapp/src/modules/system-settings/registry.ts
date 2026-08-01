@@ -306,7 +306,7 @@ export const SYSTEM_SETTING_REGISTRY = {
     'admin',
     'per_org',
     'secret_envelope',
-    'mock',
+    'yookassa',
     'redacted',
     'booking_payment_public_config',
   ),

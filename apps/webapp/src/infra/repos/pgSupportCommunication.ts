@@ -115,22 +115,6 @@ export type AdminConversationListRow = {
   unreadFromUserCount: number;
 };
 
-export type AdminConversationDetailRow = AdminConversationListRow & {
-  userChatId: string | null;
-};
-
-export type AdminQuestionListRow = {
-  integratorQuestionId: string;
-  integratorConversationId: string | null;
-  text: string;
-  createdAt: string;
-  answered: boolean;
-  answeredAt: string | null;
-  displayName: string;
-  phoneNormalized: string | null;
-  channelExternalId: string | null;
-};
-
 export type SupportCommunicationPort = {
   upsertConversationFromProjection(params: {
     integratorConversationId: string;
@@ -209,13 +193,6 @@ export type SupportCommunicationPort = {
     unreadOnly?: boolean;
     organizationId?: string;
   }): Promise<AdminConversationListRow[]>;
-  getConversationByIntegratorId(
-    integratorConversationId: string,
-  ): Promise<AdminConversationDetailRow | null>;
-  listUnansweredQuestionsForAdmin(params: { limit?: number }): Promise<AdminQuestionListRow[]>;
-  getQuestionByIntegratorConversationId(
-    integratorConversationId: string,
-  ): Promise<{ id: string; answered: boolean } | null>;
   /** Один диалог webapp на пару организация+пользователь; legacy global ID сохраняется без потери истории. */
   ensureWebappConversationForUser(
     platformUserId: string,
@@ -402,25 +379,6 @@ type AdminConversationListDbRow = {
   last_message_text: string | null;
   last_sender_role: string | null;
   unread_from_user_count: number;
-};
-
-type AdminConversationDetailDbRow = AdminConversationListDbRow & {
-  user_chat_id: string | null;
-};
-
-type AdminQuestionListDbRow = {
-  integrator_question_id: string;
-  integrator_conversation_id: string | null;
-  text: string;
-  created_at: string;
-  answered: boolean;
-  answered_at: string | null;
-  display_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  patronymic: string | null;
-  phone_normalized: string | null;
-  channel_external_id: string | null;
 };
 
 function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConversationListRow {
@@ -939,127 +897,6 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       return r.rows.map(mapAdminConversationListRow);
     },
 
-    async getConversationByIntegratorId(integratorConversationId) {
-      const r = await runWebappPgText<AdminConversationDetailDbRow>(
-        `SELECT
-          sc.id AS conversation_id,
-          sc.integrator_conversation_id,
-          sc.source,
-          sc.integrator_user_id::text,
-          sc.admin_scope,
-          sc.status,
-          sc.opened_at::text,
-          sc.last_message_at::text,
-          sc.closed_at::text,
-          sc.close_reason,
-          pu.display_name,
-          pu.first_name,
-          pu.last_name,
-          pu.patronymic,
-          pu.phone_normalized,
-          sc.channel_external_id,
-          lm.text AS last_message_text,
-          lm.sender_role AS last_sender_role,
-          COALESCE(unread.unread_from_user_count, 0)::int AS unread_from_user_count,
-          user_chat.external_chat_id AS user_chat_id
-         FROM support_conversations sc
-         LEFT JOIN platform_users pu ON pu.id = sc.platform_user_id
-         LEFT JOIN LATERAL (
-           SELECT m.text, m.sender_role
-           FROM support_conversation_messages m
-           WHERE m.conversation_id = sc.id
-             AND NOT ${SUPPORT_NOTIFICATION_SQL}
-           ORDER BY m.created_at DESC
-           LIMIT 1
-         ) lm ON true
-         LEFT JOIN LATERAL (
-           SELECT COUNT(*)::int AS unread_from_user_count
-           FROM support_conversation_messages m
-           WHERE m.conversation_id = sc.id
-             AND m.sender_role = 'user'
-             AND m.read_at IS NULL
-         ) unread ON true
-         LEFT JOIN LATERAL (
-           SELECT m2.external_chat_id
-           FROM support_conversation_messages m2
-           WHERE m2.conversation_id = sc.id AND m2.sender_role = 'user' AND m2.external_chat_id IS NOT NULL
-           ORDER BY m2.created_at DESC
-           LIMIT 1
-         ) user_chat ON true
-         WHERE sc.integrator_conversation_id = $1
-         LIMIT 1`,
-        [integratorConversationId],
-      );
-      if (r.rows.length === 0) return null;
-      const row = r.rows[0]!;
-      return { ...mapAdminConversationListRow(row), userChatId: row.user_chat_id };
-    },
-
-    async listUnansweredQuestionsForAdmin(params) {
-      const limit =
-        typeof params.limit === 'number' && params.limit > 0 ? Math.min(params.limit, 100) : 50;
-      const r = await runWebappPgText<AdminQuestionListDbRow>(
-        `SELECT
-          sq.integrator_question_id,
-          sc.integrator_conversation_id AS integrator_conversation_id,
-          COALESCE(qm.text, '') AS text,
-          sq.created_at::text,
-          (sq.status = 'answered') AS answered,
-          sq.answered_at::text,
-          pu.display_name,
-          pu.first_name,
-          pu.last_name,
-          pu.patronymic,
-          pu.phone_normalized,
-          sc.channel_external_id
-         FROM support_questions sq
-         LEFT JOIN support_conversations sc ON sc.id = sq.conversation_id
-         LEFT JOIN platform_users pu ON pu.id = sc.platform_user_id
-         LEFT JOIN LATERAL (
-           SELECT qm2.text
-           FROM support_question_messages qm2
-           WHERE qm2.question_id = sq.id
-           ORDER BY qm2.created_at ASC
-           LIMIT 1
-         ) qm ON true
-         WHERE (sq.status IS NULL OR sq.status <> 'answered')
-         ORDER BY sq.created_at DESC
-         LIMIT $1`,
-        [limit],
-      );
-      return r.rows.map((row) => ({
-        integratorQuestionId: row.integrator_question_id,
-        integratorConversationId: row.integrator_conversation_id,
-        text: row.text ?? '',
-        createdAt: row.created_at,
-        answered: Boolean(row.answered),
-        answeredAt: row.answered_at,
-        displayName: formatDoctorFio(
-          { lastName: row.last_name, firstName: row.first_name, patronymic: row.patronymic },
-          row.display_name ?? '',
-        ),
-        phoneNormalized: row.phone_normalized,
-        channelExternalId: row.channel_external_id,
-      }));
-    },
-
-    async getQuestionByIntegratorConversationId(integratorConversationId) {
-      const r = await runWebappPgText<{ integrator_question_id: string; status: string }>(
-        `SELECT sq.integrator_question_id, sq.status
-         FROM support_questions sq
-         JOIN support_conversations sc ON sc.id = sq.conversation_id
-         WHERE sc.integrator_conversation_id = $1
-         ORDER BY sq.created_at DESC
-         LIMIT 1`,
-        [integratorConversationId],
-      );
-      if (r.rows.length === 0) return null;
-      const row = r.rows[0]!;
-      return {
-        id: row.integrator_question_id,
-        answered: row.status === 'answered',
-      };
-    },
 
     async ensureWebappConversationForUser(platformUserId) {
       return runDrizzleMutationTransaction(async (tx) => {
