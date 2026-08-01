@@ -130,7 +130,7 @@ export const AUTHENTICATED_RUNTIME_STRING_KEYS = [
   'video_default_delivery',
 ] as const;
 
-export const SERVER_RUNTIME_BOOLEAN_KEYS = ['debug_forward_to_admin', 'auth_2fa_enabled'] as const;
+export const SERVER_RUNTIME_BOOLEAN_KEYS = ['debug_forward_to_admin'] as const;
 
 export const SERVER_RUNTIME_TOKEN_LIST_KEYS = [
   'admin_telegram_ids',

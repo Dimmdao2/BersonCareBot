@@ -8,8 +8,8 @@
  * layout checked only `session.user.role !== "admin"`. That is WEAKER than
  * `requirePlatformOperationsPage()`: it never checked `adminMode` (in practice always forced true
  * for role "admin" — `ensureAdminMode` in `modules/auth/service.ts` — so no legitimate admin
- * session is newly excluded), never enforced the `isRestrictedStaffSecuritySession` 2FA gate, and
- * never stamped the platform DB principal that every moved `admin/*` settings page needs to read
+ * session is newly excluded), and never stamped the platform DB principal that every moved
+ * `admin/*` settings page needs to read
  * `system_settings` (see the long comment on `requirePlatformOperationsPage` in
  * `app-layer/guards/requireRole.ts` — without that stamp these reads 42501 under the nonstaff
  * pool). `requirePlatformOperationsPage()` is therefore strictly no weaker and is now the only

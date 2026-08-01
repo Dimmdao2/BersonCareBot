@@ -2115,6 +2115,13 @@
       "when": 1793539230003,
       "tag": "0302_public_auth_channel_configured_accessors",
       "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1793539230004,
+      "tag": "0303_remove_platform_staff_2fa_enforcement",
+      "breakpoints": true
     }
   ]
 }

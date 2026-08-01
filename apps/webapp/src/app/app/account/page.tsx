@@ -44,7 +44,7 @@ export default async function AccountPage({
   const sp = searchParams != null ? await searchParams : {};
   const requestedTab = parseTab(sp.tab);
   const { session, workspaceContext } = await loadStaffAccountPageContext();
-  const restrictedSecuritySession = await isRestrictedStaffSecuritySession(session);
+  const restrictedSecuritySession = isRestrictedStaffSecuritySession(session);
   const isPlatformConsole = session.user.role === 'admin' && session.adminMode === true;
   const recoveryOnly =
     session.staffSecurity?.assurance === 'recovery' ||

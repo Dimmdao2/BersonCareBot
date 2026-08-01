@@ -29,10 +29,6 @@ vi.mock('@/modules/auth/service', () => ({
   getCurrentSessionForIdentitySelf: vi.fn(),
 }));
 
-vi.mock('@/modules/system-settings/configAdapter', () => ({
-  getServerRuntimeBool: vi.fn(),
-}));
-
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: vi.fn(),
 }));
@@ -45,7 +41,6 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getCurrentSession } from '@/modules/auth/service';
-import { getServerRuntimeBool } from '@/modules/system-settings/configAdapter';
 import { PATCH as patchTask } from '@/app/api/doctor/tasks/[taskId]/route';
 
 type AppDeps = ReturnType<typeof buildAppDeps>;
@@ -84,7 +79,6 @@ const fakeDeps = {
 >;
 
 const getCurrentSessionMock = vi.mocked(getCurrentSession);
-const getServerRuntimeBoolMock = vi.mocked(getServerRuntimeBool);
 const buildAppDepsMock = vi.mocked(buildAppDeps);
 
 function session(
@@ -147,7 +141,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   buildAppDepsMock.mockReturnValue(fakeDeps as AppDeps);
   getCurrentSessionMock.mockResolvedValue(null);
-  getServerRuntimeBoolMock.mockResolvedValue(false);
   resolveOrganizationForUser.mockResolvedValue({
     ok: false,
     reason: 'no_active_membership',

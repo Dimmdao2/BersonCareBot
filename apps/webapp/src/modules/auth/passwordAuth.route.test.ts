@@ -24,7 +24,6 @@ const fakes = vi.hoisted(() => ({
   getVerifiedEmail: vi.fn<UserByPhonePort['getVerifiedEmailForUser']>(),
   invalidateSessions: vi.fn<UserByPhonePort['invalidateSessionsForSelf']>(),
   getSecurityStatus: vi.fn<StaffSecurityService['getStatus']>(),
-  platformRequiresTwoFactor: vi.fn<() => Promise<boolean>>(),
   revokeStaffSessions: vi.fn<StaffSecurityService['revokeSessions']>(),
   changePassword: vi.fn<PasswordChangeService['changePassword']>(),
   consumeChallenge: vi.fn<ConsumeChallenge>(),
@@ -57,9 +56,6 @@ vi.mock('@/modules/auth/emailAuth', () => ({
   normalizeEmail: (value: string) => value.trim().toLowerCase(),
 }));
 vi.mock('@/modules/auth/pinHash', () => ({ hashPin: fakes.hashPassword }));
-vi.mock('@/modules/staff-security/platformPolicy', () => ({
-  platformRequiresStaffTwoFactor: fakes.platformRequiresTwoFactor,
-}));
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: fakes.setSession }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
@@ -115,7 +111,6 @@ beforeEach(() => {
   fakes.verifyAltcha.mockResolvedValue(undefined);
   fakes.hashPassword.mockResolvedValue('hashed-for-route-test');
   fakes.getSecurityStatus.mockResolvedValue(null);
-  fakes.platformRequiresTwoFactor.mockResolvedValue(false);
   fakes.invalidateSessions.mockResolvedValue(undefined);
   fakes.updatePassword.mockResolvedValue(undefined);
   fakes.requireStaffSession.mockResolvedValue({ ok: true, session });
@@ -175,11 +170,7 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
-  it('surfaces factor enrollment only when the platform switch requires it', async () => {
-    // Поломка, которую тест обязан ловить: решение «вести на настройку фактора» принимается по
-    // одному лишь отсутствию фактора у пользователя, мимо платформенного переключателя. Тогда
-    // выключенный в админке второй фактор всё равно уводит персонал на вкладку безопасности,
-    // хотя страж страниц уже пускает в кабинет.
+  it('sends staff without a self-enrolled factor to their cabinet', async () => {
     fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
     fakes.findUser.mockResolvedValue(user);
     fakes.getSecurityStatus.mockResolvedValue({
@@ -190,40 +181,11 @@ describe('email/password login HTTP boundary', () => {
       sessionVersion: 1,
     });
 
-    fakes.platformRequiresTwoFactor.mockResolvedValue(false);
     await expect((await login(request())).json()).resolves.toMatchObject({
       ok: true,
       redirectTo: '/app/doctor',
     });
-
-    fakes.platformRequiresTwoFactor.mockResolvedValue(true);
-    await expect((await login(request())).json()).resolves.toMatchObject({
-      ok: true,
-      redirectTo: '/app/account?tab=security',
-    });
-  });
-
-  it('does not issue a staff session before the required 2FA setting is available', async () => {
-    // Authority Ч7: missing/unavailable runtime policy means the login operation is temporarily
-    // unavailable. A cookie minted before that decision would complete authentication even though
-    // the route itself fails, so the next request could reuse a session from a rejected login.
-    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
-    fakes.findUser.mockResolvedValue(user);
-    fakes.getSecurityStatus.mockResolvedValue({
-      enrolled: false,
-      recoveryConfirmed: false,
-      replacementRequired: false,
-      lockedUntil: null,
-      sessionVersion: 1,
-    });
-    fakes.platformRequiresTwoFactor.mockRejectedValue(
-      new Error('runtime_setting_unavailable:auth_2fa_enabled'),
-    );
-
-    await expect(login(request())).rejects.toThrow(
-      'runtime_setting_unavailable:auth_2fa_enabled',
-    );
-    expect(fakes.setSession).not.toHaveBeenCalled();
+    expect(fakes.setSession).toHaveBeenCalledOnce();
   });
 });
 
