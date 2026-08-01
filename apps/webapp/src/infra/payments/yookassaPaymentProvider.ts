@@ -60,6 +60,9 @@ type YookassaObjectResponse = {
   /** К4 — present on a payment created by paying a YooKassa invoice; points back at that invoice's
    *  own id (`in-...`), which is NOT the same id as the payment object itself (`remote.id`). */
   invoice_details?: { id?: string };
+  /** К6 — present when `save_payment_method: true` (or an existing saved method) was used; `saved`
+   *  is only `true` once the provider actually persisted it for reuse. */
+  payment_method?: { id?: string; saved?: boolean };
 };
 
 async function fetchYookassaObject(
@@ -166,13 +169,41 @@ async function fetchYookassaPaymentsPage(
 
 export function createYookassaPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
+    async createIntent({
+      amountMinor,
+      currency,
+      idempotencyKey,
+      metadata,
+      providerConfig,
+      savePaymentMethod,
+      paymentMethodId,
+    }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
       const returnUrl =
         typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
           ? metadata.returnUrl.trim()
           : 'https://yookassa.ru';
+
+      // К6 — off-session autopay charges a saved method directly: no `confirmation` (there is no
+      // payer to redirect) and no repeated `save_payment_method` (the method is already saved).
+      const requestBody = paymentMethodId
+        ? {
+            amount: { value, currency },
+            capture: true,
+            payment_method_id: paymentMethodId,
+            metadata: { idempotencyKey, ...metadata },
+          }
+        : {
+            amount: { value, currency },
+            capture: true,
+            confirmation: { type: 'redirect', return_url: returnUrl },
+            ...(savePaymentMethod ? { save_payment_method: true } : {}),
+            metadata: {
+              idempotencyKey,
+              ...metadata,
+            },
+          };
 
       const body = await fetchWithTimeout(
         'https://api.yookassa.ru/v3/payments',
@@ -183,15 +214,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             Authorization: basicAuth(shopId, secretKey),
             'Idempotence-Key': idempotencyKey,
           },
-          body: JSON.stringify({
-            amount: { value, currency },
-            capture: true,
-            confirmation: { type: 'redirect', return_url: returnUrl },
-            metadata: {
-              idempotencyKey,
-              ...metadata,
-            },
-          }),
+          body: JSON.stringify(requestBody),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
         async (res) => {
@@ -201,12 +224,20 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           }
           return (await res.json()) as {
             id?: string;
+            status?: string;
             confirmation?: { confirmation_url?: string };
           };
         },
       );
       const providerIntentRef = String(body.id ?? '');
       if (!providerIntentRef) throw new Error('yookassa_missing_payment_id');
+      // К6 — an off-session charge can be declined SYNCHRONOUSLY (e.g. the saved card no longer
+      // works): the HTTP call itself still returns `200`, only `status` says so. Surface it as a
+      // thrown error, the same shape every other adapter failure already takes, so the renewal
+      // tick's existing try/catch marks the invoice `failed` instead of leaving it `draft` forever.
+      if (body.status === 'canceled') {
+        throw new Error(`yookassa_payment_canceled:${providerIntentRef}`);
+      }
       return {
         providerIntentRef,
         checkoutUrl: body.confirmation?.confirmation_url,
@@ -290,6 +321,10 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
         // and fall back to the payment's own id, unchanged from before.
         intentRef: remote.invoice_details?.id ?? remote.id,
         amountMinor,
+        savedPaymentMethodId:
+          remote.payment_method?.saved === true && remote.payment_method.id
+            ? remote.payment_method.id
+            : undefined,
       };
     },
 

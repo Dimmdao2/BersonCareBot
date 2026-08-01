@@ -2052,6 +2052,13 @@
       "when": 1793539200090,
       "tag": "0292_saas_billing_manual_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1793539200091,
+      "tag": "0293_saas_billing_autopay_local",
+      "breakpoints": true
     }
   ]
 }

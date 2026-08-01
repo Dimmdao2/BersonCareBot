@@ -209,6 +209,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             lifecycleState: 'active',
             providerId: null,
             savedPaymentMethodId: null,
+            autopayConsentedAt: null,
+            autopayConsentText: null,
+            autopayRevokedAt: null,
             currentPeriodStartsAt: period?.startsAt ?? null,
             currentPeriodEndsAt: period?.endsAt ?? null,
             graceEndsAt: null,
@@ -363,13 +366,21 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         lifecycleState: current?.lifecycleState ?? 'active',
         providerId: current?.providerId ?? null,
         savedPaymentMethodId: current?.savedPaymentMethodId ?? null,
+        autopayConsentedAt: current?.autopayConsentedAt ?? null,
+        autopayConsentText: current?.autopayConsentText ?? null,
+        autopayRevokedAt: current?.autopayRevokedAt ?? null,
         currentPeriodStartsAt: current?.currentPeriodStartsAt ?? null,
         currentPeriodEndsAt: current?.currentPeriodEndsAt ?? null,
         graceEndsAt: current?.graceEndsAt ?? null,
         readOnlyEndsAt: current?.readOnlyEndsAt ?? null,
       };
       rows.set(key, row);
-      return { saasBillingSubscriptionId: row.id, tariffId, billingPeriod: 'month' as const };
+      return {
+        saasBillingSubscriptionId: row.id,
+        tariffId,
+        billingPeriod: 'month' as const,
+        savedPaymentMethodId: row.savedPaymentMethodId,
+      };
     },
 
     async listSaasBillingSubscriptionsDueForRenewal({ asOf, limit }) {
@@ -390,6 +401,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           // (pg) repository is what the renewal tick actually runs against.
           billingPeriod: 'month' as const,
           currentPeriodEndsAt: row.currentPeriodEndsAt as string,
+          savedPaymentMethodId: row.savedPaymentMethodId,
+          autopayConsentedAt: row.autopayConsentedAt,
+          autopayRevokedAt: row.autopayRevokedAt,
         }));
     },
 
@@ -525,6 +539,54 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       const refund: SaasBillingRefund = { ...current, status, confirmedAt };
       refunds.set(refund.id, refund);
       return refund;
+    },
+
+    async grantSaasBillingAutopayConsent({ organizationId, consentText, consentedAt }) {
+      const key = subscriptionKey(organizationId, 'paid_subscription');
+      const current = rows.get(key);
+      if (!current) return { outcome: 'no_subscription' as const };
+      rows.set(key, {
+        ...current,
+        autopayConsentedAt: consentedAt,
+        autopayConsentText: consentText,
+        autopayRevokedAt: null,
+      });
+      return { outcome: 'granted' as const };
+    },
+
+    async revokeSaasBillingAutopayConsent({ organizationId, revokedAt }) {
+      const key = subscriptionKey(organizationId, 'paid_subscription');
+      const current = rows.get(key);
+      if (!current) return { outcome: 'no_subscription' as const };
+      rows.set(key, { ...current, autopayRevokedAt: revokedAt });
+      return { outcome: 'revoked' as const };
+    },
+
+    async saveSaasBillingSubscriptionPaymentMethod({
+      saasBillingSubscriptionId,
+      organizationId,
+      savedPaymentMethodId,
+    }) {
+      const entry = [...rows.entries()].find(
+        ([, row]) => row.id === saasBillingSubscriptionId && row.organizationId === organizationId,
+      );
+      if (!entry) throw new Error('saas_billing_subscription_not_found');
+      const [key, current] = entry;
+      rows.set(key, { ...current, savedPaymentMethodId });
+    },
+
+    async markSaasBillingInvoiceFailed({ saasBillingInvoiceId, organizationId }) {
+      const current = invoices.get(saasBillingInvoiceId);
+      if (
+        !current ||
+        current.organizationId !== organizationId ||
+        (current.status !== 'draft' && current.status !== 'pending')
+      ) {
+        return null;
+      }
+      const row: SaasBillingInvoice = { ...current, status: 'failed' };
+      invoices.set(row.id, row);
+      return row;
     },
   };
 }
