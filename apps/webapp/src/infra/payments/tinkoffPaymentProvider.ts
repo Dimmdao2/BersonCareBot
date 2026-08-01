@@ -84,6 +84,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       providerConfig,
     }) {
       if (invoice) throw new Error('payment_provider_invoices_unsupported:tinkoff');
+      if (currency !== 'RUB') throw new Error('tinkoff_currency_unsupported');
       const { terminalKey, password } = requireTinkoffCredentials(providerConfig);
 
       const params: Record<string, unknown> = {
@@ -92,7 +93,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
         OrderId: idempotencyKey,
         Description: typeof metadata.description === 'string' ? metadata.description : undefined,
         SuccessURL: returnUrl,
-        DATA: { ...metadata, idempotencyKey, payerRef, purpose, subjectRef },
+        DATA: { ...metadata, idempotencyKey, payerRef, purpose, subjectRef, currency },
       };
       const token = computeTinkoffToken(params, password);
 

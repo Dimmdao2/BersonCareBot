@@ -147,6 +147,11 @@
       (`apps/webapp/src/infra/payments/yookassaPaymentProvider.ts:206`); тот же provider-payload test
       краснеет при удалении поля и после восстановления зелёный в наборе 9 tests. Отчёт:
       `BILLING_PAYMENT_DOOR_R3_FIX_REPORT.md`._
+      _T-Bank currency fix 01.08: этот product commit сохраняет принятую `currency` в
+      `DATA` (`apps/webapp/src/infra/payments/tinkoffPaymentProvider.ts`) и до HTTP отказывает
+      `currency !== 'RUB'`; удаление `DATA.currency` снова роняет provider assertion, а non-RUB test
+      подтверждает отсутствие `fetch`. Проверки: SaaS billing suite 14 tests, typecheck, scoped lint,
+      `git diff --check`; отчёт `BILLING_PAYMENT_DOOR_R3_AUDIT_REPORT.md`._
 
 - [ ] **B1.2 Опознание плательщика — до двери, в одном месте.** Владелец 01.08: «публичная запись
       держится на телефоне или имэйле одинаково». Сессия, подтверждённый телефон, подтверждённая почта —

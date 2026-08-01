@@ -171,6 +171,21 @@ describe('B1.1: required payment-door values reach provider requests', () => {
     expect(data.currency).toBe(paymentInput.currency);
   });
 
+  it('refuses a non-RUB Tinkoff amount before issuing an HTTP request', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(
+      createTinkoffPaymentProvider().createIntent({
+        ...paymentInput,
+        currency: 'USD',
+        providerConfig: providerConfigs.tinkoff,
+      }),
+    ).rejects.toThrow('tinkoff_currency_unsupported');
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('sends payer, subject, amount/currency and return URL to a YooKassa payment', async () => {
     const captured = captureProviderRequests();
 

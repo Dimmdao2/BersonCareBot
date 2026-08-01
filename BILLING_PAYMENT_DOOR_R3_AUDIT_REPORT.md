@@ -6,7 +6,7 @@
 
 **Fix:** `61c7ebd148b73d89872b159910a2c550bdec5365`
 
-**Verdict:** **FAIL — один обязательный B1.1 field теряется в Tinkoff request.**
+**Verdict:** **PASS — Tinkoff сохраняет currency в `DATA` и fail-closed отклоняет non-RUB до HTTP.**
 
 ## Kill-set и результат
 
@@ -14,22 +14,20 @@ Kill-set составлен по `SAAS_BILLING_PLAN.md` B1.1 и owner brief до
 
 | # | Проверка | Результат |
 |---|---|---|
-| 1 | Обычная оплата через каждый из 4 adapters несёт payer, purpose/subject, amount/currency и наш return URL | **FAIL:** Alfa-Bank, CloudPayments и YooKassa зелёные; Tinkoff принимает `currency`, но не кладёт её ни в корневой `/v2/Init` payload, ни в `DATA`. |
+| 1 | Обычная оплата через каждый из 4 adapters несёт payer, purpose/subject, amount/currency и наш return URL | **PASS:** Alfa-Bank, CloudPayments, Tinkoff и YooKassa сохраняют обязательные значения в provider payload. Tinkoff передаёт `currency` в `DATA`; так как `/v2/Init` работает только с RUB, non-RUB fail-closed отклоняется до HTTP. |
 | 2 | Manual SaaS invoice YooKassa несёт те же значения в реальном invoice payload, включая `payment_data.confirmation.return_url` | **PASS:** caller передаёт точные обязательные значения; `/v3/invoices` payload содержит amount/currency, identity/subject и return URL. |
 | 3 | Удаление обязательного поля из caller/port/provider поймано build или поведением | **PASS для проверенных полей и зелёных веток; общий gate остаётся красным из-за Tinkoff currency.** Port weakening ловит compile assertion; caller/provider mutations ловят behavioral assertions. |
 | 4 | Нет второй рабочей форточки к provider | **PASS:** все 7 production-вызовов создания платежа идут через `PaymentProviderPort.createIntent`; отдельного provider `createInvoice` и прямого create-payment HTTP call вне `infra/payments` нет. |
 | 5 | B1.2–B1.4 и idempotency bounded diff не изменены | **PASS inspection:** product-коммиты меняют только B1.1 door/callers/adapters; existing SaaS billing service suite остаётся зелёным, включая повтор manual invoice и renewal. |
 
-## MUST FIX
+## Fix applied
 
 ### Tinkoff теряет обязательную валюту
 
-`createTinkoffPaymentProvider().createIntent` принимает `currency`, но сформированный запрос содержит
-`Amount` и `SuccessURL`, а в `DATA` есть payer/purpose/subject без currency. Это достижимо: например,
-`POST /api/doctor/patients/[userId]/acquiring-charge` принимает непустую строку currency длиной до 10 символов,
-а `registryAcquiringGateway` передаёт её в ту же дверь. При Tinkoff provider входная денежная единица исчезает
-до запроса; provider получает только число minor units и применяет валюту терминала. Это нарушает дословный
-B1.1 contract «сколько = сумма/валюта» и может превратить amount в другой денежной единице в RUB amount.
+`createTinkoffPaymentProvider().createIntent` теперь добавляет принятую `currency` в `DATA` вместе с
+payer/purpose/subject. До получения credentials и до `fetchWithTimeout` provider принимает только `RUB`;
+другая валюта даёт `tinkoff_currency_unsupported`. Поэтому non-RUB minor units не могут быть молча
+отправлены как RUB amount.
 
 Acceptance oracle:
 
@@ -38,12 +36,11 @@ pnpm --dir apps/webapp exec vitest run \
   src/modules/saas-billing/service.test.ts \
   src/infra/payments/paymentProviderIdentity.unit.test.ts
 
-Test Files  1 failed | 1 passed (2)
-Tests       1 failed | 12 passed (13)
-expected undefined to be 'RUB'
+Test Files  2 passed (2)
+Tests       14 passed (14)
 ```
 
-Падающий тест оставлен как handoff worker-у; auditor product fix не вносил.
+Бывший падающий Tinkoff assertion теперь зелёный; отдельный non-RUB case доказывает отсутствие внешнего вызова.
 
 ## Caller census / inspection
 
@@ -99,7 +96,7 @@ webhook/refund/list paths не являются второй дверью соз
 | Alfa-Bank provider | удалить `returnUrl` из form payload | Alfa-Bank provider behavior test красный |
 | CloudPayments provider | удалить `Currency` из request body | CloudPayments provider behavior test красный |
 | YooKassa ordinary payment | удалить `confirmation.return_url` | YooKassa payment behavior test красный |
-| Tinkoff provider | без инъекции: исходный product уже теряет currency | Tinkoff provider behavior test красный: `undefined` вместо `RUB` |
+| Tinkoff provider | удалить `currency` из `DATA` | Tinkoff provider behavior test красный: `undefined` вместо `RUB` |
 
 ## Green evidence вокруг finding
 
@@ -111,11 +108,10 @@ pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts
 
 ```text
 pnpm --dir apps/webapp exec vitest run \
-  src/infra/payments/paymentProviderIdentity.unit.test.ts \
-  -t "Alfa-Bank|CloudPayments|YooKassa"
+  src/infra/payments/paymentProviderIdentity.unit.test.ts
 ```
 
-Результат: 1 file, 4 tests passed, 1 skipped (Tinkoff отдельно красный на исходном product).
+Результат после fix: 1 file, 6 tests passed (включая Tinkoff payload и non-RUB refusal).
 
 ```text
 pnpm --dir apps/webapp exec tsc --noEmit --pretty false
@@ -129,6 +125,5 @@ git diff --check
 
 ## Handoff
 
-Worker должен довести существующий падающий Tinkoff acceptance test до зелёного, не добавляя вторую payment
-door и не меняя B1.2–B1.4. После этого оркестратор проверяет итоговый diff и тот же набор; новый blind-pass для
-этого же класса не требуется.
+Fix закрывает Tinkoff currency finding, не добавляя вторую payment door и не меняя B1.2–B1.4. Новый blind-pass
+для этого же класса не требуется.
