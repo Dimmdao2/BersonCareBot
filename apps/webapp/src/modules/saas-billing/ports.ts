@@ -165,6 +165,28 @@ export type SaasBillingRepositoryPort = {
     organizationId: string;
     paidAt: string;
   }): Promise<SaasBillingInvoice>;
+  /**
+   * K0 — resolves the organization's OWN assigned tariff (the admin's choice, not a client input)
+   * and ensures the `paid_subscription`-sourced subscription row for it exists, without touching the
+   * `manual`-sourced row: the two live side by side under the `(organizationId, source)` unique key.
+   * Throws `saas_billing_no_tariff_assigned` when the organization has no tariff to renew.
+   */
+  requireOwnTariffBillingSubscription(organizationId: string): Promise<{
+    saasBillingSubscriptionId: string;
+    tariffId: string;
+    billingPeriod: SaasBillingPeriod;
+  }>;
+  /**
+   * §5a item К0 — a captured payment extends the ONE subscription row the paid invoice was raised
+   * against (identified by id, never by organization+source), so a `paid_subscription` capture can
+   * never reach and silently overwrite a `manual` admin assignment.
+   */
+  activateSaasBillingSubscriptionPeriod(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    periodStartsAt: string;
+    periodEndsAt: string;
+  }): Promise<void>;
 };
 
 export type SaasBillingSettingsReadPort = {

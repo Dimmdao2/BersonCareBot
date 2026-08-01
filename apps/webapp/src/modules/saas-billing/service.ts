@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
 import type {
   ResolvedSaasBillingPaymentProvider,
@@ -44,6 +45,36 @@ export function createSaasBillingService(dependencies: {
       providerConfig,
       adapter: dependencies.resolvePaymentProvider(providerConfig.id),
     };
+  }
+
+  async function createRenewalSaasBillingInvoice(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    servicePeriodStartsAt: string;
+    servicePeriodEndsAt: string;
+    providerIdempotencyKey: string;
+  }) {
+    const provider = await resolvePaymentProvider();
+    const invoice = await dependencies.repository.createSaasBillingInvoice({
+      ...input,
+      providerId: provider.providerId,
+    });
+    const intent = await provider.adapter.createIntent({
+      amountMinor: invoice.amountMinor,
+      currency: invoice.currency,
+      idempotencyKey: invoice.providerIdempotencyKey,
+      metadata: {
+        organizationId: invoice.organizationId,
+        saasBillingInvoiceId: invoice.id,
+        saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
+      },
+      providerConfig: provider.providerConfig,
+    });
+    return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+      saasBillingInvoiceId: invoice.id,
+      providerInvoiceRef: intent.providerIntentRef,
+      providerCheckoutUrl: intent.checkoutUrl ?? null,
+    });
   }
 
   return {
@@ -114,33 +145,26 @@ export function createSaasBillingService(dependencies: {
       });
     },
 
-    async createRenewalSaasBillingInvoice(input: {
-      organizationId: string;
-      saasBillingSubscriptionId: string;
-      servicePeriodStartsAt: string;
-      servicePeriodEndsAt: string;
-      providerIdempotencyKey: string;
-    }) {
-      const provider = await resolvePaymentProvider();
-      const invoice = await dependencies.repository.createSaasBillingInvoice({
-        ...input,
-        providerId: provider.providerId,
-      });
-      const intent = await provider.adapter.createIntent({
-        amountMinor: invoice.amountMinor,
-        currency: invoice.currency,
-        idempotencyKey: invoice.providerIdempotencyKey,
-        metadata: {
-          organizationId: invoice.organizationId,
-          saasBillingInvoiceId: invoice.id,
-          saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
-        },
-        providerConfig: provider.providerConfig,
-      });
-      return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
-        saasBillingInvoiceId: invoice.id,
-        providerInvoiceRef: intent.providerIntentRef,
-        providerCheckoutUrl: intent.checkoutUrl ?? null,
+    createRenewalSaasBillingInvoice,
+
+    /**
+     * K0 — the clinic-facing "pay for our tariff" entry point. Amount, tariff and organization are
+     * ALL server-derived: the tariff is whatever the platform admin already assigned
+     * (`requireOwnTariffBillingSubscription`), the amount comes from that tariff's own price row
+     * (`createSaasBillingInvoice`), and the organization is the caller's own, never a request body
+     * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
+     */
+    async createOwnTariffRenewalInvoice(organizationId: string) {
+      const { saasBillingSubscriptionId, billingPeriod } =
+        await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
+      const servicePeriodStartsAt = now().toISOString();
+      const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
+      return createRenewalSaasBillingInvoice({
+        organizationId,
+        saasBillingSubscriptionId,
+        servicePeriodStartsAt,
+        servicePeriodEndsAt,
+        providerIdempotencyKey: `saas_tariff_renewal:${organizationId}:${saasBillingSubscriptionId}:${randomUUID()}`,
       });
     },
 
@@ -226,10 +250,19 @@ export function createSaasBillingService(dependencies: {
       if (input.verified.eventType !== 'payment.succeeded') {
         return { captured: false, duplicate: false };
       }
-      await dependencies.repository.markSaasBillingInvoicePaid({
+      const paidInvoice = await dependencies.repository.markSaasBillingInvoicePaid({
         saasBillingInvoiceId: input.saasBillingInvoiceId,
         organizationId: input.organizationId,
         paidAt: now().toISOString(),
+      });
+      // §5a К0 — extends exactly the subscription row the invoice was raised against, by id; a
+      // `manual` admin assignment lives under a different row (different `source`) and this update
+      // never addresses it, so it cannot be silently overwritten by this capture.
+      await dependencies.repository.activateSaasBillingSubscriptionPeriod({
+        organizationId: input.organizationId,
+        saasBillingSubscriptionId: paidInvoice.saasBillingSubscriptionId,
+        periodStartsAt: paidInvoice.servicePeriodStartsAt,
+        periodEndsAt: paidInvoice.servicePeriodEndsAt,
       });
       return { captured: true, duplicate: false };
     },
