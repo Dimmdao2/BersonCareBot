@@ -33,7 +33,18 @@ const knownInvisiblePath = join(repoRoot, 'scripts/test-runner-visibility-known-
 
 const APPS = [
   { name: 'integrator', dir: 'apps/integrator', testRoots: ['src', 'e2e'] },
-  { name: 'webapp', dir: 'apps/webapp', testRoots: ['src'] },
+  {
+    name: 'webapp',
+    dir: 'apps/webapp',
+    testRoots: ['src'],
+    runnerInvocations: [
+      { args: [], env: {} },
+      {
+        args: ['--config', 'vitest.postgres.config.ts'],
+        env: { POSTGRES_INTEGRATION_LIST_ONLY: '1' },
+      },
+    ],
+  },
   { name: 'media-worker', dir: 'apps/media-worker', testRoots: ['src'] },
 ];
 
@@ -42,7 +53,8 @@ function loadKnownInvisible() {
   const apps = {};
   for (const [app, files] of Object.entries(raw.apps ?? {})) apps[app] = new Set(files);
   const frozenBaseline = {};
-  for (const [app, files] of Object.entries(raw.frozenBaseline ?? {})) frozenBaseline[app] = new Set(files);
+  for (const [app, files] of Object.entries(raw.frozenBaseline ?? {}))
+    frozenBaseline[app] = new Set(files);
   return { asOf: raw.asOf, apps, frozenBaseline };
 }
 
@@ -68,10 +80,11 @@ function listDiskTestFiles(appDirAbs, testRoots) {
   return files.sort();
 }
 
-function listRunnerFiles(appDirAbs) {
-  const result = spawnSync('pnpm', ['exec', 'vitest', 'list', '--filesOnly'], {
+function listRunnerFiles(appDirAbs, invocation = { args: [], env: {} }) {
+  const result = spawnSync('pnpm', ['exec', 'vitest', 'list', '--filesOnly', ...invocation.args], {
     cwd: appDirAbs,
     encoding: 'utf8',
+    env: { ...process.env, ...invocation.env },
   });
   if (result.error) {
     throw new Error(`не удалось запустить vitest list в ${appDirAbs}: ${result.error.message}`);
@@ -95,7 +108,11 @@ function checkApp(app, known) {
   const appDirAbs = join(repoRoot, app.dir);
   const disk = listDiskTestFiles(appDirAbs, app.testRoots);
   const diskSet = new Set(disk);
-  const runner = listRunnerFiles(appDirAbs);
+  const runner = new Set(
+    (app.runnerInvocations ?? [{ args: [], env: {} }]).flatMap((invocation) => [
+      ...listRunnerFiles(appDirAbs, invocation),
+    ]),
+  );
   const invisible = disk.filter((file) => !runner.has(file));
   const knownFiles = known.apps[app.name] ?? new Set();
   const baselineFiles = known.frozenBaseline[app.name] ?? new Set();
@@ -107,31 +124,53 @@ function checkApp(app, known) {
   // сегодня реально невидим раннеру, дописать его в исключения без правки frozenBaseline — FAIL.
   const baselineGrowth = [...knownFiles].filter((file) => !baselineFiles.has(file));
 
-  return { app: app.name, disk: disk.length, runner: runner.size, invisible, newInvisible, staleKnown, baselineGrowth };
+  return {
+    app: app.name,
+    disk: disk.length,
+    runner: runner.size,
+    invisible,
+    newInvisible,
+    staleKnown,
+    baselineGrowth,
+  };
 }
 
 function printReport(results, known) {
   let failed = false;
   for (const r of results) {
-    console.log(`check-test-runner-visibility: ${r.app}: диск=${r.disk} раннер=${r.runner} невидимых=${r.invisible.length}`);
+    console.log(
+      `check-test-runner-visibility: ${r.app}: диск=${r.disk} раннер=${r.runner} невидимых=${r.invisible.length}`,
+    );
     if (r.newInvisible.length > 0) {
       failed = true;
-      console.error(`  НОВЫЙ невидимый файл (не в списке исключений ${knownInvisiblePath}, asOf=${known.asOf}):`);
+      console.error(
+        `  НОВЫЙ невидимый файл (не в списке исключений ${knownInvisiblePath}, asOf=${known.asOf}):`,
+      );
       for (const f of r.newInvisible) console.error(`    - ${r.app}/${f}`);
-      console.error('  Файл не выбирается ни одним vitest-проектом. Либо чини include/exclude, либо это');
-      console.error('  осознанное исключение — тогда решение по нему принимает владелец плана блока Б3, не этот гейт.');
+      console.error(
+        '  Файл не выбирается ни одним vitest-проектом. Либо чини include/exclude, либо это',
+      );
+      console.error(
+        '  осознанное исключение — тогда решение по нему принимает владелец плана блока Б3, не этот гейт.',
+      );
     }
     if (r.staleKnown.length > 0) {
       failed = true;
       console.error(`  ПРОТУХШАЯ запись списка исключений (файла больше нет на диске):`);
       for (const f of r.staleKnown) console.error(`    - ${r.app}/${f}`);
-      console.error(`  Удали запись из ${knownInvisiblePath} — список имеет право только сокращаться.`);
+      console.error(
+        `  Удали запись из ${knownInvisiblePath} — список имеет право только сокращаться.`,
+      );
     }
     if (r.baselineGrowth.length > 0) {
       failed = true;
-      console.error(`  РОСТ СПИСКА ИСКЛЮЧЕНИЙ (запись в 'apps' отсутствует в 'frozenBaseline' ${knownInvisiblePath}):`);
+      console.error(
+        `  РОСТ СПИСКА ИСКЛЮЧЕНИЙ (запись в 'apps' отсутствует в 'frozenBaseline' ${knownInvisiblePath}):`,
+      );
       for (const f of r.baselineGrowth) console.error(`    - ${r.app}/${f}`);
-      console.error(`  'apps' обязан быть подмножеством 'frozenBaseline'. Если это осознанное новое`);
+      console.error(
+        `  'apps' обязан быть подмножеством 'frozenBaseline'. Если это осознанное новое`,
+      );
       console.error(`  исключение — правку принимает владелец плана блока М, и она обязана явно`);
       console.error(`  редактировать сам 'frozenBaseline', а не только 'apps'.`);
     }

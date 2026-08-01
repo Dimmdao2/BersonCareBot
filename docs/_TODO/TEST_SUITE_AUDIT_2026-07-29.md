@@ -171,7 +171,7 @@ cd apps/webapp && pnpm exec vitest run src/infra/repos/pgDoctorClients.devDb.int
 
 ### Блок Б — одноразовая PostgreSQL (owner-go дан 31.07)
 
-- [ ] **Б1. Общий disposable PostgreSQL harness для DB-тестов; A1 отдельно для RLS.**
+- [x] **Б1. Общий disposable PostgreSQL harness для DB-тестов; A1 отдельно для RLS.**
       Одноразовая PostgreSQL нужна не только для стен арендатора: В2–В8 проверяют конкурентное погашение кодов,
       идемпотентность провижининга/денег, merge, booking и media integrity. A1 — узкий non-owner RLS gate и не
       заменяет per-test clone для этих путей. Общий harness строит один template из `a0-greenfield` + pending
@@ -181,12 +181,15 @@ cd apps/webapp && pnpm exec vitest run src/infra/repos/pgDoctorClients.devDb.int
       `run-migrations.mjs`/`loadCutoverEnv()` не вызываются. Кандидат переиспользует существующие A0 helpers и
       `resolveTrustedPostgresBinaries`, а не строит второй способ поднятия PostgreSQL, поэтому автоматически
       отвергать его нельзя.
-      **Текущее состояние:** `5aec73dd8` не принят и не отклонён; нужен один независимый audit на свежем `feat`.
-      Проверить фактические разрывы: актуален ли A0 baseline/ledger; битая pending migration красит сборку;
-      параллельные clones не сталкиваются; pre-query guard не допускает DEV; cleanup переживает setup/test failure;
-      пилот виден runner. Упрощённая owner-role модель допустима для В2–В8, но не выдаётся за RLS proof — В1/В9б
-      идут через A1 под настоящими `app_*_login`. Integrator migrations не втягивать в webapp harness: у Track D
-      свой test contour.
+      **Закрыто 01.08 после независимого FAIL-аудита и bounded fix-round.** Отчёт
+      `runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md`: исходный kill-set убил 17/20,
+      нашёл три настоящих разрыва — A0 integrator ledger `0/68`, cleanup без exact-invocation ownership и
+      проглоченный `pg_ctl stop`. Все три закрыты; сохранённые acceptance tests зелёные. Лично повторено
+      оркестратором: `pnpm run test:webapp:postgres` → 2 файла / 3 теста, `exit 0`, 15.01 с;
+      `pnpm run check:saas-a0-greenfield-baseline` → 8/8, manifest `68/288`, pending `0/10`; runner visibility,
+      typecheck, targeted lint и `git diff --check` → `exit 0`. Упрощённая owner-role модель остаётся только для
+      В2–В8; В1/В9б идут через A1 под настоящими `app_*_login`. Integrator migrations не запускаются: committed
+      ledger rows трансплантируются как baseline data, у Track D свой test contour.
       **Доказательства к приёмке:** две сборки дают одинаковую схему; битая migration → red; `\l` до/после не
       содержит утечек; два параллельных clone-теста зелёные; пилотный DB-тест зелёный и виден runner; время названо
       командой. Отдельно запустить `pnpm run check:saas-a1-rls-conformance` для RLS-пути.
