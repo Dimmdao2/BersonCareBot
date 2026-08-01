@@ -2073,6 +2073,13 @@
       "when": 1793539200093,
       "tag": "0295_tariff_paid_period_snapshot_local",
       "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1793539200094,
+      "tag": "0296_snapshot_quota_triggers_frozen_tariff_local",
+      "breakpoints": true
     }
   ]
 }

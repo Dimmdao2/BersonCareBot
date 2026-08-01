@@ -2,12 +2,14 @@
  * §2.12 — executable proof, real DB, opt-in (never CI). Owner ruling 01.08, verbatim: «при оплате
  * тарифа все настройки оплаченного тарифа фиксируются на оплаченный период для конкретной клиники.
  * Не важно что меняется после - клиника уже оплатила и пока оплата не закончилась - имеет доступ к
- * оплаченному». Two behaviours, exactly the two AGENTS.md §10a picked out for this work — both hit
- * the REAL, migrated `app.resolve_organization_mechanic_access` door (migration
- * 0295_tariff_paid_period_snapshot_local.sql), not a mock:
+ * оплаченному». These hit the REAL, migrated `app.resolve_organization_mechanic_access` door
+ * (migration 0295_tariff_paid_period_snapshot_local.sql) and the real `assertStockQuotaAvailable`
+ * (`stockQuotaCheck.ts`), not a mock:
  *
  *   1. editing the LIVE tariff mid-period does not take away what the clinic already paid for.
- *   2. once the paid period ends, the clinic moves onto whatever the tariff looks like NOW.
+ *   2. round 2 (#1069 FAIL, migration 0296) — shrinking a LIVE tariff QUOTA mid-period does not
+ *      reach the frozen limit either; the bug was numbers bypassing the freeze the doors already had.
+ *   3. once the paid period ends, the clinic moves onto whatever the tariff looks like NOW.
  *
  * `saas_billing_subscriptions`/`be_organizations` are FORCE RLS with no policy for an ordinary
  * login (0259: "ambient app_staff receives no billing table privilege") and organization insert
@@ -21,6 +23,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
 
 const TARIFF = '7e510000-0000-4000-8000-0000002c1201';
 const ORG = '7e510000-0000-4000-8000-0000002c1202';
@@ -94,7 +98,10 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
 
     await client.query(
       `INSERT INTO public.saas_tariffs (id, name, mechanics, quotas, billing_period, included_seats)
-       VALUES ($1::uuid, 'Ч2.12 proof tariff', '{"courses": true}'::jsonb, '{}'::jsonb, 'month', 5)`,
+       VALUES (
+         $1::uuid, 'Ч2.12 proof tariff', '{"courses": true}'::jsonb,
+         '{"patient_count": {"kind": "numeric", "limit": 10}}'::jsonb, 'month', 5
+       )`,
       [TARIFF],
     );
     // Seeding trigger on organization insert hits RLS under its own SECURITY DEFINER path even for
@@ -142,6 +149,26 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
     ]);
 
     expect(await resolveCourses(client)).toMatchObject({ state: 'full_access', mutation_allowed: true });
+  });
+
+  it('§2.12 round 2 — shrinking the LIVE tariff quota mid-period does not reach the frozen limit (stockQuotaCheck.ts)', async () => {
+    const tx = getWebappSqlFromPgClient(client);
+    // Frozen snapshot still says limit 10 — 9 used + 1 more fits.
+    await expect(
+      assertStockQuotaAvailable(tx, ORG, 'patient_count', async () => 9),
+    ).resolves.toBeUndefined();
+
+    await client.query(
+      `UPDATE public.saas_tariffs SET quotas = '{"patient_count": {"kind": "numeric", "limit": 3}}'::jsonb
+       WHERE id = $1::uuid`,
+      [TARIFF],
+    );
+
+    // Before the round-2 fix this read the LIVE tariff (limit 3) and threw here; the frozen
+    // snapshot still says 10, so 9 used + 1 more still fits for the rest of the paid period.
+    await expect(
+      assertStockQuotaAvailable(tx, ORG, 'patient_count', async () => 9),
+    ).resolves.toBeUndefined();
   });
 
   it('once the paid period ends, the clinic moves onto whatever the tariff looks like now', async () => {
