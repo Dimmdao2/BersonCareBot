@@ -910,9 +910,9 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
   });
 });
 
-describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)', () => {
-  it('rejects `full_access` as a configured terminal state', async () => {
-    const platformPort: PlatformEntitlementsPort = {
+describe('access ladder terminal state (§5a item 2.8 — Stripe-shaped choice of exactly three values)', () => {
+  function platformPortAccepting(): PlatformEntitlementsPort {
+    return {
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
@@ -936,27 +936,49 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
       startTrial: async () => null,
       extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
-    const service = createPlatformEntitlementsService(platformPort);
+  }
+
+  function inputWithTerminalState(terminalState: string) {
+    return {
+      name: 'Тариф',
+      description: '',
+      priceMinor: null,
+      currency: null,
+      billingPeriod: 'month' as const,
+      mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
+      quotas: {},
+      systemAccessPolicy: {
+        graceDays: 1,
+        readOnlyDays: 1,
+        notifications: [],
+        terminalState: terminalState as never,
+      },
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      includedSeats: 1,
+      isActive: true,
+    };
+  }
+
+  // §5a item 2.8 (owner 30.07, QUOTAS_RESEARCH_2026-07-28.md Часть III): reverses stage 4b.2 —
+  // «оставить доступ» is a real, functioning terminal state now, not the pre-ladder no-op it used
+  // to be, so a tariff choosing it is accepted, not refused.
+  it.each(['full_access', 'read_only', 'disabled'] as const)(
+    'accepts `%s` as a configured terminal state',
+    async (terminalState) => {
+      const service = createPlatformEntitlementsService(platformPortAccepting());
+
+      await expect(
+        service.createTariff(inputWithTerminalState(terminalState), { actorId: null, reason: '' }),
+      ).resolves.toMatchObject({ systemAccessPolicy: { terminalState } });
+    },
+  );
+
+  it('rejects a terminal state outside the three owner-facing values', async () => {
+    const service = createPlatformEntitlementsService(platformPortAccepting());
 
     expect(() =>
-      service.createTariff(
-        {
-          name: 'Broken',
-          description: '',
-          priceMinor: null,
-          currency: null,
-          billingPeriod: 'month',
-          mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
-          quotas: {},
-          // @ts-expect-error `full_access` was removed from AccessTerminalState — this must be a type error too.
-          systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'full_access' },
-          mechanicAccessPolicies: {},
-          downgradePolicies: {},
-          includedSeats: 1,
-          isActive: true,
-        },
-        { actorId: null, reason: '' },
-      ),
+      service.createTariff(inputWithTerminalState('archived'), { actorId: null, reason: '' }),
     ).toThrow('access_policy_terminal_state_invalid');
   });
 });

@@ -353,7 +353,7 @@ function AccessPolicyEditor({
             <Select
               value={value.terminalState ?? 'unset'}
               onValueChange={(next) => {
-                if (next === 'read_only' || next === 'disabled') {
+                if (next === 'full_access' || next === 'read_only' || next === 'disabled') {
                   onChange({ ...value, terminalState: next });
                 }
               }}
@@ -361,11 +361,13 @@ function AccessPolicyEditor({
               <SelectTrigger
                 aria-label={`${title}: Затем`}
                 displayLabel={
-                  value.terminalState === 'read_only'
-                    ? 'Только чтение'
-                    : value.terminalState === 'disabled'
-                      ? 'Выключено'
-                      : 'Выберите состояние'
+                  value.terminalState === 'full_access'
+                    ? 'Оставить доступ'
+                    : value.terminalState === 'read_only'
+                      ? 'Только чтение'
+                      : value.terminalState === 'disabled'
+                        ? 'Выключено'
+                        : 'Выберите состояние'
                 }
               >
                 <SelectValue />
@@ -374,6 +376,7 @@ function AccessPolicyEditor({
                 <SelectItem value="unset" disabled>
                   Выберите состояние
                 </SelectItem>
+                <SelectItem value="full_access">Оставить доступ</SelectItem>
                 <SelectItem value="read_only">Только чтение</SelectItem>
                 <SelectItem value="disabled">Выключено</SelectItem>
               </SelectContent>

@@ -101,7 +101,7 @@ function assertAccessPolicy(policy: AccessLifecyclePolicy): void {
     throw new Error('access_policy_notifications_invalid');
   }
   for (const rule of policy.notifications) assertAccessNotification(rule);
-  const terminalStates: AccessTerminalState[] = ['read_only', 'disabled'];
+  const terminalStates: AccessTerminalState[] = ['full_access', 'read_only', 'disabled'];
   if (!terminalStates.includes(policy.terminalState)) {
     throw new Error('access_policy_terminal_state_invalid');
   }

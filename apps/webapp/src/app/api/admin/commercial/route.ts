@@ -46,7 +46,7 @@ const accessPolicySchema = z.object({
   graceDays: z.number().int().nonnegative(),
   readOnlyDays: z.number().int().nonnegative(),
   notifications: z.array(accessNotificationSchema),
-  terminalState: z.enum(['read_only', 'disabled']),
+  terminalState: z.enum(['full_access', 'read_only', 'disabled']),
 });
 
 // §5a stage 4b.3 — the union covers both mechanic classes; `assertDowngradePolicy` (service.ts)

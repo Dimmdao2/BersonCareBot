@@ -148,7 +148,9 @@ describe('commercial constructor access ladder', () => {
     expect(screen.getByLabelText('Онлайн-запись: Затем')).toHaveTextContent('Только чтение');
   });
 
-  it('never offers "full access" as a ladder terminal state (§5a stage 4b.2 — exactly two values)', async () => {
+  // §5a item 2.8 (owner 30.07, QUOTAS_RESEARCH_2026-07-28.md Часть III): reverses stage 4b.2 — the
+  // terminal state is a Stripe-shaped choice of exactly three values, «оставить доступ» included.
+  it('offers exactly the three terminal states «оставить доступ» / «только чтение» / «выключено»', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -172,10 +174,10 @@ describe('commercial constructor access ladder', () => {
       '[data-slot="select-content"][data-open]',
     );
     expect(openSelect).not.toBeNull();
-    expect(
-      within(openSelect!).queryByRole('option', { name: 'Полный доступ' }),
-    ).not.toBeInTheDocument();
+    expect(within(openSelect!).getByRole('option', { name: 'Оставить доступ' })).toBeInTheDocument();
     expect(within(openSelect!).getByRole('option', { name: 'Только чтение' })).toBeInTheDocument();
     expect(within(openSelect!).getByRole('option', { name: 'Выключено' })).toBeInTheDocument();
+    // Exactly three real choices plus the disabled placeholder — no fourth value snuck in.
+    expect(within(openSelect!).getAllByRole('option')).toHaveLength(4);
   });
 });
