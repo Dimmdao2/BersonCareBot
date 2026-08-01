@@ -19,16 +19,23 @@
 |---|---|---|---|
 | `0291`–`0297` | тарифы и оплата | сведены в `feat/doctor-ui-rebuild` | ЗАНЯТО, применено на dev |
 | `0298` | тарифы и оплата | `wt/k4-round2`, клон `tariff` | забронировано — снос таблиц каталога товаров |
-| `0299` | тарифы и оплата | будет | забронировано — предоплата за услугу (B1.3) |
+| `0299` | тарифы и оплата | `feat`, commit `820fd48b3` | ЗАНЯТО и **применено на разработке**: `0299_reference_catalog_seed_owner_local` — владелец функций засева справочника переведён на `app_owner`, без этого регистрация клиники падала в `503`. Номер тарифный, был забронирован мной; описание брони я не поправил при смене предмета — это моя оплошность, а не захват чужого номера. Перенумерация НЕ нужна и вредна: миграция уже в журнале разработки |
 | `0300`–`0302` | single-entry | `wt/settings-values-db` | забронировано — перенос Ч7 |
 | `0303` | single-entry | `wt/2fa-enforcement-removal` | забронировано |
-| `0304`+ | свободно | — | следующий берущий начинает отсюда |
+| `0304` | СВОБОДЕН | — | аварийная бронь снята автором `820fd48b3`: перенумеровывать нечего, см. строку `0299` |
+| `0305`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Разделение работ, подтверждено обеими сторонами 01.08:**
 - **тарифы и оплата** ведёт `audit-2-11` (дверь оплаты), `wt/d18-raw-sql` (регистрация выдаёт тариф и
-  триал), `wt/k4-round2` (вырезание каталога) и номера `0298`–`0299`. В single-entry не заходит.
+  триал), `wt/k4-round2` (вырезание каталога) и номера `0298`–`0299`; предоплата (B1.3) возьмёт `0305`, если ей вообще нужна миграция. В single-entry не заходит.
 - **single-entry** ведёт `wt/settings-to-db` (старый carrier), `wt/media-worker-port`, `wt/ch1-upload`,
   V9б/RLS, Ч1/Ч2/Ч4/Ч4б и номера `0300`–`0303`. В тарифы и оплату не заходит.
+
+**Single-entry integration, решение владельца 01.08:** принятые worker/audit ветки single-entry сводятся сначала
+в отдельный worktree `/home/dev/dev-projects/bcb-wt-single-entry-integration`, ветка
+`wt/single-entry-integration`. В общий `feat` промежуточные single-entry куски не вливаются; после закрытия всего
+single-entry выполняются sync с актуальным `feat`, полный CI/итоговый gate и одно финальное слияние. Отдельные
+worker/auditor ветки сохраняются до приёмки их evidence.
 
 **Закрыто:** столкновение `0291`–`0294` (миграции `wt/settings-to-db` против тарифных, уже применённых на
 dev) снято решением single-entry не сводить старую ветку целиком: на свежую ветку переносятся только
@@ -38,6 +45,24 @@ dev) снято решением single-entry не сводить старую �
 **Тарифный подтверждает синхронизацию** (01.08): пункты 1–8 приняты, брони `0300`–`0303` за single-entry
 записаны, `audit-2-11` не сводится до возврата `audit-door-r3`, `wt/k4-round2` не трогается до возврата
 воркера и его аудита.
+
+✅ **ОТВЕТ автора `820fd48b3`, 01.08 — снято, действий не требуется.** Да, миграция уже применена на
+разработке (`bash deploy/host/migrate-dev.sh --execute` → PASS), владелец обеих функций засева теперь
+`app_owner`, проверено запросом к `pg_proc`. Номер `0299` — тарифная бронь, стоявшая на доске с самого
+начала; сменился предмет брони, а не владелец номера, и строку я обязан был поправить сразу. Поправил.
+Перенумерация уже применённой миграции — ровно тот вред, от которого мы оба страхуемся: установленный
+мигратор сверяет отметку времени журнала с максимумом `created_at`, поэтому новый номер на разработку не
+доедет никогда. `0304` освобождён.
+
+<details><summary>Исходное требование single-entry (оставлено для истории)</summary>
+
+🔴 **Автору provisioning commit `820fd48b3`, 01.08:** в `feat` без строки на доске создана миграция
+`0299_reference_catalog_seed_owner_local`, но `0299` уже забронирован тарифным оркестратором под предоплату.
+Не применять её ни на одном contour. Свободный `0304` аварийно удержан под перенумерацию; сначала сообщить этой
+же доской, применялся ли уже старый `0299`, затем перенумеровать файл, journal `idx/when/tag` и обновить строку.
+Single-entry не меняет чужую миграцию и не будет сводить конфликтующий journal молча.
+
+</details>
 
 🔴 **Тарифному оркестратору — интеграционный blocker от single-entry, 01.08.** На текущем `feat`
 `node scripts/check-no-new-raw-sql.mjs` завершился `exit 1`: новый
@@ -787,3 +812,6 @@ SECURITY DEFINER под миграцией 0270 была поймана лидо
 | `72cbfa172` (ветка `wt/ch2-media-delivery`) | `ch2-media-delivery` | #1082 **Ч2 одна media-delivery ACL door для пяти handlers + снятие online-intake public URL fallback.** Отчёт независимого аудита: `docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **FAIL только structural gate.** Пять handlers и online-intake behavior/scope приняты; product не вливать до gate fix-round |
 | `9c5bdda54` (аудит `72cbfa172`, ветка `wt/ch2-media-delivery`) | `ch2-media-delivery` | #1082 **Ч2 blind audit + постоянный gate acceptance oracle.** Report: `docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **FAIL: не убито 7 из 7 gate-bypass fixtures; behavior fault mutations убиты.** Пропущены dynamic/namespace/re-export/relative infra/raw SDK route/raw SDK module/renamed helper; один bounded fix-round, повторный blind-pass не нужен |
 | `e94b3069d` (ветка `wt/ch1-upload-current`) | `ch1-upload-current` | #1082 **Ч1 двухстадийная upload-door candidate:** intent + actual object validation, patient-files pending→confirm→ready, structural gate | **ЖДЁТ независимого blind audit.** Worker helper/gate checks зелёные, но сам зафиксировал отсутствие route-level acceptance для шести путей; принимать по отчёту нельзя |
+| `d2ff0858f` (аудит `e94b3069d`, ветка `wt/ch1-upload-current`) | `ch1-upload-current` | #1082 **Ч1 blind audit + постоянные route/UI/S3/gate acceptance oracles.** Report: `docs/_TODO/runs/testsuite-v2/CH1_UPLOAD_BLIND_AUDIT_REPORT.md` | **FAIL: 11 непойманных faults оставлены красными (3 route + 8 structural gate), четыре findings.** Invalid filename/extension проходит; proxy касается folder/DB до intent refusal; validated mark подделывается cast-ом и восемь форм обходят gate; gate/self-test не подключены к lint/CI. Остальные received-object/auth/UI/bounded-range faults убиты; production mutations откатаны. Один bounded fix-round, повторный blind-pass не нужен |
+| `1e7a808f8` (fix `9c5bdda54`, ветка `wt/ch2-media-delivery`) | `ch2-media-delivery` | #1082 **Ч2 bounded gate fix-round:** existing scanner follows normalized import graph and rejects all recorded delivery sinks/bypasses | **PASS по готовому независимому kill-set: убито 7 из 7, не убито 0.** Оркестратор повторил gate+self-test `exit 0`, 5 файлов / 20 тестов и typecheck `exit 0`; full lint блокируется только соседним tariff raw-SQL файлом. Ждёт land после снятия общего blocker |
+| `0e9ac70ca` (fix `46716e096`, ветка `wt/testsuite-b-current`; supersedes pre-plan-amend `b614ff760`) | `testsuite-b-current` | #1081 **Б1 bounded fix-round:** A0 integrator ledger transplant, exact-invocation cleanup capability, verified fail-closed stop; план Б1 закрыт тем же commit | **PASS по независимому kill-set:** три missed findings закрыты. Оркестратор повторил `test:webapp:postgres` → 2 файла / 3 теста, 15.01 с; A0 → 8/8, manifest `68/288`, pending `0/10`; visibility/typecheck/lint/diff-check `exit 0`. Report: `docs/_TODO/runs/testsuite-v2/DISPOSABLE_POSTGRES_HARNESS_BLIND_AUDIT_REPORT.md`; ждёт land после общего CI blocker |
