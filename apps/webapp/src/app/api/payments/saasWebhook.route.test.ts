@@ -1,11 +1,14 @@
-import { createHmac } from 'node:crypto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSaasBillingService } from '@/modules/saas-billing/service';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
 import { getPaymentProviderAdapter } from '@/infra/payments/paymentProviderRegistry';
 
-const WEBHOOK_SECRET = 'saas-webhook-secret-9021';
+const SHOP_ID = 'shop-9021';
+const API_KEY = 'secret-key-9021';
+const ALLOWED_IP = '77.75.156.11'; // published ЮKassa notification IP (single-host entry)
+const DISALLOWED_IP = '203.0.113.7';
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000009021';
+const YOOKASSA_PAYMENT_ID = 'yk-payment-9021';
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
   stampBootstrapPrincipal: vi.fn(),
@@ -20,8 +23,17 @@ function buildService() {
     repository: createInMemorySaasBillingRepository(),
     settings: {
       getSaasBillingPaymentProviderValue: async () => ({
-        defaultProviderId: 'mock',
-        providers: [{ id: 'mock', label: 'Mock', enabled: true, webhookSecret: WEBHOOK_SECRET }],
+        defaultProviderId: 'yookassa',
+        providers: [
+          {
+            id: 'yookassa',
+            label: 'ЮKassa',
+            enabled: true,
+            webhookSecret: 'unused-webhook-secret-9021',
+            shopId: SHOP_ID,
+            apiKey: API_KEY,
+          },
+        ],
       }),
     },
     resolvePaymentProvider: getPaymentProviderAdapter,
@@ -54,14 +66,65 @@ async function seedPendingInvoice(service: ReturnType<typeof buildService>) {
   return invoice;
 }
 
-function sign(bodyText: string): string {
-  return createHmac('sha256', WEBHOOK_SECRET).update(bodyText).digest('hex');
+/**
+ * The real ЮKassa payment object as returned by `GET /v3/payments/{id}` — the barrier that
+ * `verifyWebhook` treats as the sole source of truth for status/amount/currency.
+ */
+let remotePaymentObject: { status: string; amount: { value: string; currency: string } } = {
+  status: 'succeeded',
+  amount: { value: '0.00', currency: 'RUB' },
+};
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  } as Response;
 }
 
-function webhookRequest(bodyText: string, signature?: string): Request {
-  const headers = new Headers({ 'content-type': 'application/json' });
-  if (signature !== undefined) headers.set('x-mock-signature', signature);
-  return new Request('https://app.example.test/api/payments/saas-webhook/mock', {
+function installYookassaFetchStub() {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    if (url === 'https://api.yookassa.ru/v3/payments' && method === 'POST') {
+      return jsonResponse({
+        id: YOOKASSA_PAYMENT_ID,
+        confirmation: { confirmation_url: 'https://yookassa.ru/checkout/9021' },
+      });
+    }
+    const getMatch = /^https:\/\/api\.yookassa\.ru\/v3\/payments\/([^/]+)$/.exec(url);
+    if (getMatch && method === 'GET') {
+      return jsonResponse({
+        id: getMatch[1],
+        status: remotePaymentObject.status,
+        amount: remotePaymentObject.amount,
+        metadata: {},
+      });
+    }
+    throw new Error(`unexpected fetch call in test: ${method} ${url}`);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+/** The notification body — a forged/replayed one carries whatever an attacker or a stale retry wants. */
+function yookassaWebhookBody(paymentId: string): string {
+  return JSON.stringify({
+    event: 'payment.succeeded',
+    object: {
+      id: paymentId,
+      status: 'succeeded',
+      amount: { value: '0.00', currency: 'RUB' },
+      metadata: {},
+    },
+  });
+}
+
+function webhookRequest(bodyText: string, realIp: string = ALLOWED_IP): Request {
+  const headers = new Headers({ 'content-type': 'application/json', 'x-real-ip': realIp });
+  return new Request('https://app.example.test/api/payments/saas-webhook/yookassa', {
     method: 'POST',
     headers,
     body: bodyText,
@@ -69,7 +132,7 @@ function webhookRequest(bodyText: string, signature?: string): Request {
 }
 
 function invoke(request: Request) {
-  return receiveSaasWebhook(request, { params: Promise.resolve({ provider: 'mock' }) });
+  return receiveSaasWebhook(request, { params: Promise.resolve({ provider: 'yookassa' }) });
 }
 
 async function invoiceStatus(service: ReturnType<typeof buildService>) {
@@ -79,63 +142,74 @@ async function invoiceStatus(service: ReturnType<typeof buildService>) {
 
 describe('POST /api/payments/saas-webhook/[provider]', () => {
   let service: ReturnType<typeof buildService>;
+  let fetchMock: ReturnType<typeof installYookassaFetchStub>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
+    remotePaymentObject = { status: 'succeeded', amount: { value: '0.00', currency: 'RUB' } };
+    fetchMock = installYookassaFetchStub();
     service = buildService();
     fakes.buildAppDeps.mockReturnValue({ saasBilling: service });
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('captures the clinic tariff payment on a valid succeeded event', async () => {
     const invoice = await seedPendingInvoice(service);
-    const body = JSON.stringify({
-      idempotencyKey: 'event-9021-a',
-      eventType: 'payment.succeeded',
-      intentRef: invoice.providerInvoiceRef,
-      amountMinor: 0,
-      currency: 'RUB',
-    });
+    const body = yookassaWebhookBody(invoice.providerInvoiceRef ?? '');
 
-    const response = await invoke(webhookRequest(body, sign(body)));
+    const response = await invoke(webhookRequest(body));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, captured: true, duplicate: false });
     await expect(invoiceStatus(service)).resolves.toBe('paid');
   });
 
-  // Отказ 1/4: подделанная подпись не меняет доступ.
-  it('rejects a forged signature and captures nothing', async () => {
-    await seedPendingInvoice(service);
-    const body = JSON.stringify({
-      idempotencyKey: 'event-9021-forged',
-      eventType: 'payment.succeeded',
-      intentRef: 'mock_intent_renewal-9021',
-      amountMinor: 0,
-      currency: 'RUB',
-    });
+  // Отказ 1/5: уведомление не с опубликованного IP ЮKassa не проводит оплату.
+  it('rejects a notification from an IP outside the published allowlist and captures nothing', async () => {
+    const invoice = await seedPendingInvoice(service);
+    fetchMock.mockClear();
+    const body = yookassaWebhookBody(invoice.providerInvoiceRef ?? '');
 
-    const response = await invoke(webhookRequest(body, 'not-a-valid-signature'));
+    const response = await invoke(webhookRequest(body, DISALLOWED_IP));
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({
       ok: false,
       error: 'invalid_webhook_signature',
     });
+    expect(fetchMock).not.toHaveBeenCalled();
     await expect(invoiceStatus(service)).resolves.toBe('pending');
   });
 
-  // Отказ 2/4: несовпадение суммы не меняет доступ.
-  it('acknowledges an amount mismatch without capturing', async () => {
-    await seedPendingInvoice(service);
-    const body = JSON.stringify({
-      idempotencyKey: 'event-9021-amount',
-      eventType: 'payment.succeeded',
-      intentRef: 'mock_intent_renewal-9021',
-      amountMinor: 999_999,
-      currency: 'RUB',
-    });
+  // Отказ 2/5: тело, расходящееся с ответом API, не проводит оплату — только API решает, что случилось.
+  it('does not capture when the notification body diverges from the API payment object', async () => {
+    const invoice = await seedPendingInvoice(service);
+    // Body claims success; the real payment (per the API) is still awaiting capture.
+    remotePaymentObject = { status: 'waiting_for_capture', amount: { value: '0.00', currency: 'RUB' } };
+    const body = yookassaWebhookBody(invoice.providerInvoiceRef ?? '');
 
-    const response = await invoke(webhookRequest(body, sign(body)));
+    const response = await invoke(webhookRequest(body));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      captured: false,
+      duplicate: false,
+    });
+    await expect(invoiceStatus(service)).resolves.toBe('pending');
+  });
+
+  // Отказ 3/5: несовпадение суммы (по данным API) не меняет доступ.
+  it('acknowledges an amount mismatch without capturing', async () => {
+    const invoice = await seedPendingInvoice(service);
+    remotePaymentObject = { status: 'succeeded', amount: { value: '9999.99', currency: 'RUB' } };
+    const body = yookassaWebhookBody(invoice.providerInvoiceRef ?? '');
+
+    const response = await invoke(webhookRequest(body));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -146,18 +220,13 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
     await expect(invoiceStatus(service)).resolves.toBe('pending');
   });
 
-  // Отказ 3/4: несовпадение валюты не меняет доступ.
+  // Отказ 4/5: несовпадение валюты (по данным API) не меняет доступ.
   it('acknowledges a currency mismatch without capturing', async () => {
-    await seedPendingInvoice(service);
-    const body = JSON.stringify({
-      idempotencyKey: 'event-9021-currency',
-      eventType: 'payment.succeeded',
-      intentRef: 'mock_intent_renewal-9021',
-      amountMinor: 0,
-      currency: 'USD',
-    });
+    const invoice = await seedPendingInvoice(service);
+    remotePaymentObject = { status: 'succeeded', amount: { value: '0.00', currency: 'USD' } };
+    const body = yookassaWebhookBody(invoice.providerInvoiceRef ?? '');
 
-    const response = await invoke(webhookRequest(body, sign(body)));
+    const response = await invoke(webhookRequest(body));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -168,23 +237,17 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
     await expect(invoiceStatus(service)).resolves.toBe('pending');
   });
 
-  // Отказ 4/4: повтор события не удваивает оплату и не меняет доступ повторно.
+  // Отказ 5/5: повтор события не удваивает оплату и не меняет доступ повторно.
   it('does not double-process a replayed event', async () => {
     const invoice = await seedPendingInvoice(service);
-    const body = JSON.stringify({
-      idempotencyKey: 'event-9021-replay',
-      eventType: 'payment.succeeded',
-      intentRef: invoice.providerInvoiceRef,
-      amountMinor: 0,
-      currency: 'RUB',
-    });
+    const body = yookassaWebhookBody(invoice.providerInvoiceRef ?? '');
 
-    const first = await invoke(webhookRequest(body, sign(body)));
+    const first = await invoke(webhookRequest(body));
     expect(first.status).toBe(200);
     await expect(first.json()).resolves.toEqual({ ok: true, captured: true, duplicate: false });
     await expect(invoiceStatus(service)).resolves.toBe('paid');
 
-    const second = await invoke(webhookRequest(body, sign(body)));
+    const second = await invoke(webhookRequest(body));
     expect(second.status).toBe(200);
     await expect(second.json()).resolves.toEqual({ ok: true, captured: false, duplicate: true });
     await expect(invoiceStatus(service)).resolves.toBe('paid');
@@ -192,15 +255,9 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
 
   it('safe-acknowledges an unknown provider reference without lookup side effects', async () => {
     await seedPendingInvoice(service);
-    const body = JSON.stringify({
-      idempotencyKey: 'event-9021-unknown',
-      eventType: 'payment.succeeded',
-      intentRef: 'mock_intent_does-not-exist',
-      amountMinor: 0,
-      currency: 'RUB',
-    });
+    const body = yookassaWebhookBody('yk-payment-does-not-exist');
 
-    const response = await invoke(webhookRequest(body, sign(body)));
+    const response = await invoke(webhookRequest(body));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -218,15 +275,9 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
   // организации (в цепочке вызовов такого чтения нет в принципе).
   it('captures payment purely from provider+invoice identity, never touching commercial state', async () => {
     const invoice = await seedPendingInvoice(service);
-    const body = JSON.stringify({
-      idempotencyKey: 'event-9021-blocked-org',
-      eventType: 'payment.succeeded',
-      intentRef: invoice.providerInvoiceRef,
-      amountMinor: 0,
-      currency: 'RUB',
-    });
+    const body = yookassaWebhookBody(invoice.providerInvoiceRef ?? '');
 
-    const response = await invoke(webhookRequest(body, sign(body)));
+    const response = await invoke(webhookRequest(body));
 
     expect(response.status).toBe(200);
     await expect(invoiceStatus(service)).resolves.toBe('paid');

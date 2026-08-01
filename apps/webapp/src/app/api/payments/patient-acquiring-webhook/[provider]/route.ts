@@ -67,7 +67,7 @@ export async function POST(request: Request, context: RouteContext) {
   let verified;
   try {
     const adapter = getPaymentProviderAdapter(providerId);
-    verified = adapter.verifyWebhook({
+    verified = await adapter.verifyWebhook({
       headers: request.headers,
       bodyText,
       webhookSecret: secret,
