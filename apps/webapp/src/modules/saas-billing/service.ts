@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
 import type {
   ResolvedSaasBillingPaymentProvider,
@@ -24,6 +24,30 @@ import { parseSaasBillingPaymentProviderSettings } from './settings';
  * `service.test.ts` (§5a/2.1c suite), not by a runtime check here — a runtime check would be the
  * very coupling the invariant forbids.
  */
+
+/**
+ * К4 round 2 — the ONE place both `createManualSaasBillingInvoice` and
+ * `createOwnTariffRenewalInvoice` derive their `providerIdempotencyKey` from, instead of each
+ * minting a fresh `randomUUID()` per call. A key born from `randomUUID()` can never collide with
+ * itself, so the DB's own unique index on `(providerId, providerIdempotencyKey)` — which exists
+ * precisely to catch a duplicate — never fires: two clicks of the same form always looked like two
+ * different requests. Hashing the REQUEST's own fields instead makes two identical requests hash
+ * to the same key (repeat click is a no-op) and two deliberately different requests (different
+ * amount, different clinic, ...) hash to different keys (both get created).
+ */
+function deriveSaasBillingIdempotencyKey(parts: ReadonlyArray<string | number>): string {
+  return createHash('sha256').update(parts.map(String).join(' ')).digest('hex');
+}
+
+/**
+ * К0's "pay for our own tariff" click carries no distinguishing content of its own (no amount, no
+ * description — those are server-resolved from the tariff) — unlike К4's manual-invoice form, there
+ * is nothing but `organizationId` to hash. Bucketing the clock into a coarse window lets a genuine
+ * double-click / page-reload-resubmit (always well under a minute apart) collapse onto the same key,
+ * while a real later renewal (at minimum a full billing day away, per `saasTariffs.billingPeriod`)
+ * lands in a different bucket and is free to create its own invoice.
+ */
+const SAAS_TARIFF_RENEWAL_IDEMPOTENCY_BUCKET_MS = 10 * 60 * 1000;
 
 export function createSaasBillingService(dependencies: {
   repository: SaasBillingRepositoryPort;
@@ -60,10 +84,14 @@ export function createSaasBillingService(dependencies: {
     providerIdempotencyKey: string;
   }) {
     const provider = await resolvePaymentProvider();
-    const invoice = await dependencies.repository.createSaasBillingInvoice({
+    const { invoice, created } = await dependencies.repository.createSaasBillingInvoice({
       ...input,
       providerId: provider.providerId,
     });
+    // Repeat of an already-inserted request (same idempotency key): the first call already ran the
+    // provider intent and attached its checkout link below — return that invoice as-is rather than
+    // charging the provider a second time for the same click.
+    if (!created) return invoice;
     const intent = await provider.adapter.createIntent({
       amountMinor: invoice.amountMinor,
       currency: invoice.currency,
@@ -79,6 +107,91 @@ export function createSaasBillingService(dependencies: {
       saasBillingInvoiceId: invoice.id,
       providerInvoiceRef: intent.providerIntentRef,
       providerCheckoutUrl: intent.checkoutUrl ?? null,
+    });
+  }
+
+  /**
+   * К4 — platform-admin-issued invoice for the organization's OWN currently assigned tariff, via
+   * YooKassa's `/v3/invoices` (a shareable link) rather than `createIntent`'s direct payment. Amount/
+   * description/expiry are admin-chosen; the tariff, subscription and resulting service period are
+   * server-resolved from the organization's existing assignment, same authority K0 uses.
+   */
+  async function createManualSaasBillingInvoice(input: {
+    organizationId: string;
+    amountMinor: number;
+    currency: string;
+    description: string;
+    expiresAt: string;
+  }) {
+    if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw new Error('saas_billing_manual_invoice_amount_must_be_positive_integer');
+    }
+    const description = input.description.trim();
+    if (!description) {
+      throw new Error('saas_billing_manual_invoice_description_required');
+    }
+    const expiresAtMs = new Date(input.expiresAt).getTime();
+    if (Number.isNaN(expiresAtMs) || expiresAtMs <= now().getTime()) {
+      throw new Error('saas_billing_manual_invoice_expiry_invalid');
+    }
+
+    const { saasBillingSubscriptionId, billingPeriod } =
+      await dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId);
+    const servicePeriodStartsAt = now().toISOString();
+    const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
+
+    const provider = await resolvePaymentProvider();
+    if (!provider.adapter.createInvoice) {
+      throw new Error(`saas_billing_provider_invoices_unsupported:${provider.providerId}`);
+    }
+
+    // Deterministic, not `randomUUID()`: the same (org, amount, currency, description, expiry)
+    // submitted twice hashes to the same key, so the DB's unique index on
+    // `(providerId, providerIdempotencyKey)` catches the repeat below; a deliberately different
+    // request (different amount, different clinic, ...) hashes to a different key and is created.
+    const providerIdempotencyKey = `saas_manual_invoice:${deriveSaasBillingIdempotencyKey([
+      input.organizationId,
+      input.amountMinor,
+      input.currency,
+      description,
+      input.expiresAt,
+    ])}`;
+
+    const { invoice, created: wasCreated } =
+      await dependencies.repository.createManualSaasBillingInvoice({
+        organizationId: input.organizationId,
+        saasBillingSubscriptionId,
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        description,
+        servicePeriodStartsAt,
+        servicePeriodEndsAt,
+        expiresAt: input.expiresAt,
+        providerId: provider.providerId,
+        providerIdempotencyKey,
+      });
+    // Repeat of an already-inserted request: the first call already raised the provider invoice and
+    // attached its checkout link below — hand back that SAME invoice/link, not a second one.
+    if (!wasCreated) return invoice;
+
+    const created = await provider.adapter.createInvoice({
+      amountMinor: invoice.amountMinor,
+      currency: invoice.currency,
+      description,
+      expiresAt: input.expiresAt,
+      idempotencyKey: invoice.providerIdempotencyKey,
+      metadata: {
+        organizationId: invoice.organizationId,
+        saasBillingInvoiceId: invoice.id,
+        saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
+      },
+      providerConfig: provider.providerConfig,
+    });
+
+    return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+      saasBillingInvoiceId: invoice.id,
+      providerInvoiceRef: created.providerInvoiceRef,
+      providerCheckoutUrl: created.checkoutUrl,
     });
   }
 
@@ -268,6 +381,17 @@ export function createSaasBillingService(dependencies: {
 
     createRenewalSaasBillingInvoice,
 
+    createManualSaasBillingInvoice,
+
+    /** К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port doc. */
+    cancelSaasBillingInvoice(input: {
+      saasBillingInvoiceId: string;
+      actorId: string | null;
+      reason: string;
+    }) {
+      return dependencies.repository.cancelSaasBillingInvoice(input);
+    },
+
     /**
      * К5 — the background renewal tick. Called only from the internal cron route
      * (`/api/internal/saas-billing/renewal/tick`), never from a user request or a screen open.
@@ -370,12 +494,22 @@ export function createSaasBillingService(dependencies: {
         await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
       const servicePeriodStartsAt = now().toISOString();
       const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
+      // Deterministic, not `randomUUID()`: bucketed so a genuine repeat click (well under the
+      // bucket width apart) hashes to the same key as the first call, while a real later renewal
+      // (at least a full billing day away) lands in a new bucket and gets its own invoice.
+      const idempotencyBucket = Math.floor(
+        now().getTime() / SAAS_TARIFF_RENEWAL_IDEMPOTENCY_BUCKET_MS,
+      );
       return createRenewalSaasBillingInvoice({
         organizationId,
         saasBillingSubscriptionId,
         servicePeriodStartsAt,
         servicePeriodEndsAt,
-        providerIdempotencyKey: `saas_tariff_renewal:${organizationId}:${saasBillingSubscriptionId}:${randomUUID()}`,
+        providerIdempotencyKey: `saas_tariff_renewal:${deriveSaasBillingIdempotencyKey([
+          organizationId,
+          saasBillingSubscriptionId,
+          idempotencyBucket,
+        ])}`,
       });
     },
 
@@ -471,6 +605,11 @@ export function createSaasBillingService(dependencies: {
         organizationId: input.organizationId,
         paidAt: now().toISOString(),
       });
+      // К4 — `null` means the invoice no longer matches a payable status: already `paid` (a replay
+      // that slipped past the event-id dedup above under a different provider event id), or `void`
+      // because a platform admin cancelled it. Either way this is a safe no-op, never a silent
+      // "cancelled invoice just got paid" — the event is acknowledged, no subscription period moves.
+      if (!paidInvoice) return { captured: false, duplicate: false };
       // §5a К0 — extends exactly the subscription row the invoice was raised against, by id; a
       // `manual` admin assignment lives under a different row (different `source`) and this update
       // never addresses it, so it cannot be silently overwritten by this capture.

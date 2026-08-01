@@ -38,6 +38,40 @@ function toSaasBillingRefund(row: typeof saasBillingRefunds.$inferSelect): SaasB
   return { ...row, status: row.status as SaasBillingRefund['status'] };
 }
 
+/**
+ * К4 round 2 — the ONE place `createSaasBillingInvoice` and `createManualSaasBillingInvoice` both
+ * insert through, instead of each doing a plain insert that a same-key repeat would either throw
+ * on or (worse, per the К4 round-1 bug) never even collide with. `onConflictDoNothing` on the
+ * unique `(provider_id, provider_idempotency_key)` index makes the second call a no-op at the DB
+ * level; the reselect below is what turns that no-op into "hand back the invoice already raised."
+ */
+async function insertSaasBillingInvoiceIdempotent(
+  db: Db | Transaction,
+  values: typeof saasBillingInvoices.$inferInsert,
+): Promise<{ invoice: SaasBillingInvoice; created: boolean }> {
+  const [inserted] = await db
+    .insert(saasBillingInvoices)
+    .values(values)
+    .onConflictDoNothing({
+      target: [saasBillingInvoices.providerId, saasBillingInvoices.providerIdempotencyKey],
+    })
+    .returning();
+  if (inserted) return { invoice: toSaasBillingInvoice(inserted), created: true };
+
+  const [existing] = await db
+    .select()
+    .from(saasBillingInvoices)
+    .where(
+      and(
+        eq(saasBillingInvoices.providerId, values.providerId),
+        eq(saasBillingInvoices.providerIdempotencyKey, values.providerIdempotencyKey),
+      ),
+    )
+    .limit(1);
+  if (!existing) throw new Error('saas_billing_invoice_conflict_not_found');
+  return { invoice: toSaasBillingInvoice(existing), created: false };
+}
+
 /** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
 const OPEN_REFUND_STATUSES = ['pending', 'succeeded'] as const;
 
@@ -447,26 +481,21 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           throw new Error('saas_billing_tariff_not_billable');
         }
 
-        const [row] = await tx
-          .insert(saasBillingInvoices)
-          .values({
-            organizationId: authority.organizationId,
-            saasBillingAccountId: authority.saasBillingAccountId,
-            saasBillingSubscriptionId: input.saasBillingSubscriptionId,
-            tariffId: authority.tariffId,
-            tariffName: authority.tariffName,
-            amountMinor: authority.amountMinor,
-            currency: authority.currency,
-            tariffBillingPeriod: authority.tariffBillingPeriod,
-            servicePeriodStartsAt: input.servicePeriodStartsAt,
-            servicePeriodEndsAt: input.servicePeriodEndsAt,
-            status: 'draft',
-            providerId: input.providerId,
-            providerIdempotencyKey: input.providerIdempotencyKey,
-          })
-          .returning();
-        if (!row) throw new Error('saas_billing_invoice_create_failed');
-        return toSaasBillingInvoice(row);
+        return insertSaasBillingInvoiceIdempotent(tx, {
+          organizationId: authority.organizationId,
+          saasBillingAccountId: authority.saasBillingAccountId,
+          saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+          tariffId: authority.tariffId,
+          tariffName: authority.tariffName,
+          amountMinor: authority.amountMinor,
+          currency: authority.currency,
+          tariffBillingPeriod: authority.tariffBillingPeriod,
+          servicePeriodStartsAt: input.servicePeriodStartsAt,
+          servicePeriodEndsAt: input.servicePeriodEndsAt,
+          status: 'draft',
+          providerId: input.providerId,
+          providerIdempotencyKey: input.providerIdempotencyKey,
+        });
       });
     },
 
@@ -519,6 +548,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
     },
 
     async markSaasBillingInvoicePaid({ saasBillingInvoiceId, organizationId, paidAt }) {
+      // К4 — CAS on status: only a `draft`/`pending` invoice can transition to `paid`. Excludes an
+      // already-`paid` row (replay under a different event id) and a `void` one (cancelled by a
+      // platform admin) — a late webhook must never resurrect a cancelled invoice.
       const [row] = await getDrizzle()
         .update(saasBillingInvoices)
         .set({ status: 'paid', paidAt, updatedAt: new Date().toISOString() })
@@ -526,11 +558,90 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           and(
             eq(saasBillingInvoices.id, saasBillingInvoiceId),
             eq(saasBillingInvoices.organizationId, organizationId),
+            inArray(saasBillingInvoices.status, ['draft', 'pending']),
           ),
         )
         .returning();
-      if (!row) throw new Error('saas_billing_invoice_not_found');
-      return toSaasBillingInvoice(row);
+      return row ? toSaasBillingInvoice(row) : null;
+    },
+
+    /** К4 — same join as `createSaasBillingInvoice`; amount/description/expiry are admin input, not derived. */
+    async createManualSaasBillingInvoice(input) {
+      const [authority] = await getDrizzle()
+        .select({
+          organizationId: saasBillingSubscriptions.organizationId,
+          saasBillingAccountId: saasBillingSubscriptions.saasBillingAccountId,
+          tariffId: saasTariffs.id,
+          tariffName: saasTariffs.name,
+          tariffBillingPeriod: saasTariffs.billingPeriod,
+        })
+        .from(saasBillingSubscriptions)
+        .innerJoin(saasTariffs, eq(saasTariffs.id, saasBillingSubscriptions.tariffId))
+        .where(
+          and(
+            eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+            eq(saasBillingSubscriptions.organizationId, input.organizationId),
+          ),
+        )
+        .limit(1);
+      if (!authority) throw new Error('saas_billing_subscription_not_found');
+
+      return insertSaasBillingInvoiceIdempotent(getDrizzle(), {
+        organizationId: authority.organizationId,
+        saasBillingAccountId: authority.saasBillingAccountId,
+        saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+        tariffId: authority.tariffId,
+        tariffName: authority.tariffName,
+        description: input.description,
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        tariffBillingPeriod: authority.tariffBillingPeriod,
+        servicePeriodStartsAt: input.servicePeriodStartsAt,
+        servicePeriodEndsAt: input.servicePeriodEndsAt,
+        expiresAt: input.expiresAt,
+        status: 'draft',
+        providerId: input.providerId,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+      });
+    },
+
+    /** К4 — platform-wide lookup by invoice id alone, same shape as `reserveSaasBillingRefund`. */
+    async cancelSaasBillingInvoice(input) {
+      return getDrizzle().transaction(async (tx) => {
+        const [invoiceRow] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))
+          .limit(1)
+          .for('update');
+        if (!invoiceRow) return { outcome: 'invoice_not_found' as const };
+        const invoice = toSaasBillingInvoice(invoiceRow);
+        if (invoice.status !== 'draft' && invoice.status !== 'pending') {
+          return { outcome: 'invoice_not_cancellable' as const, status: invoice.status };
+        }
+
+        const [updated] = await tx
+          .update(saasBillingInvoices)
+          .set({ status: 'void', updatedAt: new Date().toISOString() })
+          .where(eq(saasBillingInvoices.id, invoice.id))
+          .returning();
+        if (!updated) throw new Error('saas_billing_invoice_cancel_failed');
+
+        await tx.insert(adminAuditLog).values({
+          organizationId: invoice.organizationId,
+          actorId: input.actorId,
+          action: 'saas_billing_invoice_cancelled',
+          targetId: invoice.id,
+          details: {
+            reason: input.reason,
+            amountMinor: invoice.amountMinor,
+            currency: invoice.currency,
+          },
+          status: 'ok',
+        });
+
+        return { outcome: 'cancelled' as const, invoice: toSaasBillingInvoice(updated) };
+      });
     },
 
     async requireOwnTariffBillingSubscription(organizationId) {
