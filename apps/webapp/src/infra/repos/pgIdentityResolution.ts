@@ -61,7 +61,6 @@ async function loadSessionUserForId(
   userId: string,
   externalIdForDisplay: string,
 ): Promise<SessionUser> {
-  const pool = getPool();
   const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
     'SELECT display_name, role, phone_normalized FROM platform_users WHERE id = $1',
