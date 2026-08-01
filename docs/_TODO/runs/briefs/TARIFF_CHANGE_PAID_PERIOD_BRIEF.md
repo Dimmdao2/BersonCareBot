@@ -7,8 +7,11 @@
 Product base — свежий descendant `wt/single-entry-integration`, где уже принята migration `0305` с frozen
 paid-period snapshot. Migration `0307` забронирована на общей доске; `0306` принадлежит V9б S02.
 
-Источник оракула: `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5.6 — «повышение сразу; понижение с начала следующего
-расчётного периода», и owner D-9 — «в этом цикле тариф уже оплачен».
+Источник оракула: `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a-0 Р-14 и §5.6, owner D-9 — «в мире понижение
+вступает в силу со следующего платёжного цикла — конечно, в этом цикле тариф уже оплачен». Повышение даёт новый
+entitlement сразу; понижение вступает в силу со следующего расчётного периода, потому что текущий уже оплачен.
+Это не задаёт денежную формулу повышения: немедленный prorated charge, полная разница или бесплатный остаток
+периода остаются отдельным owner-money решением и не изобретаются исполнителем.
 
 ## Последствие
 
@@ -24,23 +27,28 @@ paid-period snapshot. Migration `0307` забронирована на обще�
 ## Scope
 
 1. Переиспользовать существующие subscription/invoice/tariff/entitlement двери. Новую таблицу, второй billing
-   service, новый экран или дублирующий quota evaluator не создавать. Допустима одна минимальная колонка pending
-   target в существующей subscription; если код доказывает, что для атомарности нужен ещё один факт, остановиться
-   и вернуть доказательство оркестратору, а не расширять модель молча.
-2. Создать ровно одну migration `0307_*` с первой строкой
+   service, новый экран или дублирующий quota evaluator не создавать. Сохраняются ровно два недостающих факта:
+   `pending_tariff_id` в существующей paid subscription и полный неизменяемый `tariff_snapshot` в существующем
+   invoice. Отдельную pending-date не заводить: граница уже хранится в `current_period_ends_at`. Исторические
+   invoice допускают `NULL`; каждый новый invoice фиксирует всю строку тарифа при создании invoice/provider offer.
+2. Создать ровно одну migration `0307_*` для обеих колонок с первой строкой
    `-- TEMPORARY LOCAL MIGRATION NUMBER 0307`, journal `idx=307` и `when` строго после `0306`. Добавить FK/index
    по канону горячей колонки. D-9 внести в единственный реестр действующих решений §5a-0, устранив расхождение,
    без переписывания исторического owner log.
-3. Upgrade: применить новый тариф сразу, но сохранить неизменными `current_period_starts_at` и
+3. Upgrade: применить новый entitlement сразу, но сохранить неизменными `current_period_starts_at` и
    `current_period_ends_at` текущего оплаченного цикла; snapshot обновить атомарно для нового effective тарифа.
+   Platform-admin manual assignment может сделать это без платежа. Clinic money-path не должен создавать invoice
+   до фиксации owner-money формулы; это единственная разрешённая пауза среза, а не повод придумать proration.
 4. Downgrade: сохранить pending target и effective boundary, не менять текущий tariff/projection/snapshot/period.
    Перед принятием проверить будущие лимиты по принятой классовой политике: patients/branches должны быть убраны;
    files разрешают schedule с freeze-growth; seats не блокируют. Повторная проверка обязана быть до списания либо
    до создания provider intent, чтобы клиника не заплатила за неприменимый downgrade.
 5. Renewal invoice обязан брать pending target и начинаться ровно в текущем `current_period_ends_at`; обычная
-   ранняя renewal-оплата текущего тарифа использует тот же якорь. Успешная оплата не должна отнять остаток текущего
-   периода. На boundary новый тариф, organization projection, snapshot и очистка pending применяются атомарно.
-   Повтор webhook/tick остаётся идемпотентным.
+   ранняя renewal-оплата текущего тарифа использует тот же якорь. Успешная ранняя оплата фиксирует купленные условия
+   в invoice, но не меняет текущий доступ или даты. На boundary ровно этот оплаченный invoice атомарно переносит в
+   subscription tariff id, полный snapshot и период, обновляет organization projection и очищает pending.
+   Provider-event dedupe, invoice CAS `paid`, сохранение способа оплаты и действие периода выполняются в одной
+   repository transaction; повтор webhook/tick остаётся идемпотентным и завершает целое состояние.
 6. Довести существующий clinic billing путь без новой страницы: выбор доступного активного тарифа, ясное состояние
    «вступит <дата>», blockers и отмена pending. Platform admin путь показывает schedule, а не сообщает о
    немедленной смене. Не добавлять поясняющий UI-текст сверх необходимого состояния/ошибки.
@@ -56,9 +64,11 @@ paid-period snapshot. Migration `0307` забронирована на обще�
 
 ## Приёмка worker
 
-- unit/service tests: downgrade не меняет текущую дверь до boundary; upgrade меняет дверь сразу без сдвига end;
+- unit/service tests: downgrade не меняет текущую дверь до boundary; manual upgrade меняет дверь сразу без сдвига end;
   ранняя renewal сохраняет остаток; boundary promotion/idempotency; cleanup blocker до provider intent; file
   freeze-growth; seats non-blocking;
+- invoice snapshot переживает правку живого тарифа между invoice/provider offer и webhook; падение/повтор webhook
+  не оставляет invoice `paid` без соответствующего атомарного действия;
 - route/UI tests существующих admin/clinic поверхностей: select/schedule/cancel/error state без сырого enum/UUID;
 - repository tests для pending target, invoice authority и atomic promotion; kill-set на строках, сохраняющих
   период и повторно проверяющих cleanup;
