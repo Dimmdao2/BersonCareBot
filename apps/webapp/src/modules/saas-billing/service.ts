@@ -15,6 +15,15 @@ import type {
 import { paidPeriodEndsAt } from './paidPeriod';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
+import { env } from '@/config/env';
+import { routePaths } from '@/app-layer/routes/paths';
+
+/**
+ * B1.1 — the door's "куда вернуть" for every tariff payment: the settings screen holding the
+ * "Оплатить тариф" button (`PayTariffButton.tsx`), whether the payer got there by clicking it (K0)
+ * or is only seeing the resulting invoice later after an unattended autopay tick (К5).
+ */
+const SAAS_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?tab=billing`;
 
 /**
  * §5a/2.1c — INVARIANT OF THE TWO MONEY FLOWS. The path by which a clinic pays US for its tariff is
@@ -102,6 +111,10 @@ export function createSaasBillingService(dependencies: {
       amountMinor: invoice.amountMinor,
       currency: invoice.currency,
       idempotencyKey: invoice.providerIdempotencyKey,
+      payerRef: `organization:${invoice.organizationId}`,
+      purpose: 'saas_billing_tariff_renewal',
+      subjectRef: invoice.id,
+      returnUrl: SAAS_BILLING_RETURN_URL,
       metadata: {
         organizationId: invoice.organizationId,
         saasBillingInvoiceId: invoice.id,
@@ -473,6 +486,10 @@ export function createSaasBillingService(dependencies: {
             amountMinor: invoice.amountMinor,
             currency: invoice.currency,
             idempotencyKey: invoice.providerIdempotencyKey,
+            payerRef: `organization:${invoice.organizationId}`,
+            purpose: 'saas_billing_tariff_renewal',
+            subjectRef: invoice.id,
+            returnUrl: SAAS_BILLING_RETURN_URL,
             metadata: {
               organizationId: invoice.organizationId,
               saasBillingInvoiceId: invoice.id,

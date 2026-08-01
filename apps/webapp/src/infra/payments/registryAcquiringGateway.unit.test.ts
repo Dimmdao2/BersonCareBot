@@ -61,6 +61,7 @@ describe('registry acquiring provider boundary', () => {
         amountMinor: 12_345,
         currency: 'RUB',
         idempotencyKey: 'charge-1074-disabled',
+        returnUrl: 'https://app.example.test/payments/return',
       }),
     ).resolves.toEqual({ ok: false, reason: 'payments_disabled' });
     expect(registry.getPaymentProviderAdapter).not.toHaveBeenCalled();
@@ -78,7 +79,7 @@ describe('registry acquiring provider boundary', () => {
         currency: 'RUB',
         idempotencyKey: 'charge-1074-stable',
         description: 'Test charge',
-        metadata: { returnUrl: 'https://app.example.test/payments/return' },
+        returnUrl: 'https://app.example.test/payments/return',
       }),
     ).resolves.toEqual({
       ok: true,
@@ -90,10 +91,13 @@ describe('registry acquiring provider boundary', () => {
       amountMinor: 12_345,
       currency: 'RUB',
       idempotencyKey: 'charge-1074-stable',
+      payerRef: 'platform_user:00000000-0000-4000-8000-000000001074',
+      purpose: 'patient_acquiring_charge',
+      subjectRef: 'charge-1074-stable',
+      returnUrl: 'https://app.example.test/payments/return',
       metadata: {
         patientUserId: '00000000-0000-4000-8000-000000001074',
         description: 'Test charge',
-        returnUrl: 'https://app.example.test/payments/return',
       },
       providerConfig,
     });

@@ -65,16 +65,17 @@ export function createRegistryAcquiringGateway(
       }
 
       try {
-        const returnUrl =
-          typeof input.metadata?.returnUrl === 'string' ? input.metadata.returnUrl : undefined;
         const result = await adapter.createIntent({
           amountMinor: input.amountMinor,
           currency: input.currency,
           idempotencyKey: input.idempotencyKey,
+          payerRef: `platform_user:${input.patientUserId}`,
+          purpose: 'patient_acquiring_charge',
+          subjectRef: input.idempotencyKey,
+          returnUrl: input.returnUrl,
           metadata: {
             patientUserId: input.patientUserId,
             description: input.description,
-            returnUrl,
             ...input.metadata,
           },
           providerConfig: providerCfg,

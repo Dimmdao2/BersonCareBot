@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import type { ClientIdentity } from '@/modules/doctor-clients/ports';
 import type { PatientPayment } from '@/modules/patient-payments/ports';
+import { env } from '@/config/env';
+import { routePaths } from '@/app-layer/routes/paths';
 
 type AppDeps = ReturnType<
   typeof import('@/app-layer/di/buildAppDeps').buildAppDeps
@@ -242,7 +244,7 @@ describe('patient acquiring charge HTTP boundary', () => {
       currency: 'RUB',
       idempotencyKey: 'charge-1074-stable',
       description: 'Test charge',
-      metadata: { returnUrl: undefined },
+      returnUrl: `${env.APP_BASE_URL}${routePaths.purchases}`,
     });
   });
 
