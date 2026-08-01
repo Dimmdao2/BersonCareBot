@@ -72,10 +72,9 @@ export type UpsertReminderRuleDirectInput = {
   quietHoursStartMinute: number | null;
   quietHoursEndMinute: number | null;
   /**
-   * `undefined` (caller's mutation had no `notificationTopicCode` key at all — the `reminders.rule.toggle`
-   * / `.cyclePreset` write paths never send it) means PRESERVE the existing stored value, matching
-   * `upsertReminderRule`'s (the integrator-local writer's) own `hasOwnProperty` preserve-on-absent
-   * semantic — NOT "clear it". `null` means explicitly clear.
+   * `undefined` (caller's mutation had no `notificationTopicCode` key at all) means PRESERVE the
+   * existing stored value, matching `upsertReminderRule`'s (the integrator-local writer's) own
+   * `hasOwnProperty` preserve-on-absent semantic — NOT "clear it". `null` means explicitly clear.
    */
   notificationTopicCode: string | null | undefined;
 };
