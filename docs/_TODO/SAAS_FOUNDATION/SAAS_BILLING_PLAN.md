@@ -142,6 +142,11 @@
       (`apps/webapp/src/infra/payments/paymentProviderIdentity.unit.test.ts:32`). Лично пройдено:
       `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/infra/payments/paymentProviderIdentity.unit.test.ts`
       — 9 tests; `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec eslint .`._
+      _Fix-round 01.08: `61c7ebd148b73d89872b159910a2c550bdec5365` передаёт обязательный return URL
+      в `payment_data.confirmation.return_url` сформированного YooKassa invoice request
+      (`apps/webapp/src/infra/payments/yookassaPaymentProvider.ts:206`); тот же provider-payload test
+      краснеет при удалении поля и после восстановления зелёный в наборе 9 tests. Отчёт:
+      `BILLING_PAYMENT_DOOR_R3_FIX_REPORT.md`._
 
 - [ ] **B1.2 Опознание плательщика — до двери, в одном месте.** Владелец 01.08: «публичная запись
       держится на телефоне или имэйле одинаково». Сессия, подтверждённый телефон, подтверждённая почта —
