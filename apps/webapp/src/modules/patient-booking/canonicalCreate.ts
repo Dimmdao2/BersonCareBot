@@ -17,7 +17,6 @@ type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService
 import type { AppointmentProjectionPort } from './ports';
 import type { PaymentsService } from '@/modules/payments/service';
 import type { MembershipsService } from '@/modules/memberships/service';
-import type { ProductsService } from '@/modules/products/service';
 import type { ClientHistoryService } from '@/modules/client-history/service';
 import type { PlatformUserContactsService } from '@/modules/platform-user-contacts/service';
 import type { IdentityContactFields } from '@/modules/platform-user-contacts/identityContactMatch';
@@ -78,7 +77,6 @@ export type CanonicalBookingDeps = {
   payments: PaymentsService | null;
   canAcceptBookingPrepayment: (organizationId: string) => Promise<boolean>;
   memberships: MembershipsService | null;
-  products: ProductsService | null;
   clientHistory: ClientHistoryService | null;
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
@@ -289,17 +287,10 @@ export async function createBookingOnCanonicalEngine(
   const pending = pendingRows[0]!;
 
   let packageCoversVisit = false;
-  let productCoversVisit = false;
   let patientPackageId =
     createInput.type === 'in_person' ? createInput.patientPackageId?.trim() : undefined;
-  const productPurchaseId =
-    createInput.type === 'in_person' ? createInput.productPurchaseId?.trim() : undefined;
-  if (patientPackageId && productPurchaseId) {
-    throw new Error('payment_option_conflict');
-  }
   if (
     createInput.type === 'in_person' &&
-    !productPurchaseId &&
     !patientPackageId &&
     canonicalServiceId &&
     deps.memberships
@@ -325,20 +316,6 @@ export async function createBookingOnCanonicalEngine(
     }
     packageCoversVisit = true;
   }
-  if (productPurchaseId) {
-    if (!canonicalServiceId || !deps.products) {
-      throw new Error('product_purchase_not_found');
-    }
-    const eligible = await deps.products.listActivePurchasesForBooking(
-      createInput.userId,
-      orgId,
-      canonicalServiceId,
-    );
-    if (!eligible.some((p) => p.id === productPurchaseId)) {
-      throw new Error('product_purchase_not_found');
-    }
-    productCoversVisit = true;
-  }
 
   const prepaymentMechanicAllowsMoney =
     deps.payments !== null && (await deps.canAcceptBookingPrepayment(orgId));
@@ -353,7 +330,6 @@ export async function createBookingOnCanonicalEngine(
     : null;
   const needsPrepayment =
     !packageCoversVisit &&
-    !productCoversVisit &&
     prepayQuote?.required === true &&
     (prepayQuote.amountMinor ?? 0) > 0;
   const initialAppointmentStatus = needsPrepayment ? 'awaiting_payment' : 'confirmed';
@@ -386,7 +362,6 @@ export async function createBookingOnCanonicalEngine(
           attributionJson: {
             ...(createInput.attribution ?? {}),
             ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
-            ...(productPurchaseId ? { productPurchaseId } : {}),
           },
         };
       },
@@ -481,32 +456,6 @@ export async function createBookingOnCanonicalEngine(
           reserveErr.message === 'package_not_active')
           ? reserveErr.message
           : 'package_reserve_failed';
-      throw new Error(code);
-    }
-  }
-
-  if (productCoversVisit && productPurchaseId && canonicalServiceId && deps.products) {
-    try {
-      for (const item of appointments) {
-        await deps.products.consumeVisitForAppointment({
-          organizationId: orgId,
-          productPurchaseId,
-          platformUserId: createInput.userId,
-          appointmentId: item.id,
-          serviceId: canonicalServiceId,
-        });
-      }
-    } catch (consumeErr) {
-      await rollbackChain('product_consume_failed');
-      const code =
-        consumeErr instanceof Error &&
-        (consumeErr.message === 'product_purchase_not_found' ||
-          consumeErr.message === 'product_no_visits' ||
-          consumeErr.message === 'product_expired' ||
-          consumeErr.message === 'product_not_active' ||
-          consumeErr.message === 'product_service_mismatch')
-          ? consumeErr.message
-          : 'product_consume_failed';
       throw new Error(code);
     }
   }

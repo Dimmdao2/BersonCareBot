@@ -94,8 +94,9 @@ export async function POST(request: Request) {
     const service = await gate.ctx.service.services.getService(scopeEntityId);
     scopeBelongsToOrganization = service?.organizationId === organizationId;
   } else if (parsed.data.scopeLevel === 'product') {
-    const products = await deps.products?.listStaffProducts(organizationId);
-    scopeBelongsToOrganization = products?.some((product) => product.id === scopeEntityId) ?? false;
+    // Product catalog was cut (B1.4, docs/_TODO/SAAS_FOUNDATION/SAAS_BILLING_PLAN.md) — no source
+    // left to validate a product-scoped policy against, so this scope level can never resolve.
+    scopeBelongsToOrganization = false;
   }
   if (!scopeBelongsToOrganization) {
     return NextResponse.json({ ok: false, error: 'scope_entity_not_found' }, { status: 404 });

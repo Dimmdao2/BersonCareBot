@@ -123,7 +123,7 @@
 
 ### B1. Одна дверь оплаты — решения владельца 01.08
 
-- [ ] 🔴 **B1.1 ОДНА ДВЕРЬ ОПЛАТЫ.** Решение владельца 01.08, дословно: «Одна дверь оплаты, у которой
+- [x] 🔴 **B1.1 ОДНА ДВЕРЬ ОПЛАТЫ.** Решение владельца 01.08, дословно: «Одна дверь оплаты, у которой
       обязательные поля: кто платит, за что, сколько, куда вернуть». И следом: «переводи оплату на один
       порт».
       **Что сегодня:** платёж собирают вручную в пяти местах (`modules/payments/service.ts` ×3,
@@ -136,6 +136,22 @@
       **Что делаем:** обязательные поля у самой двери — кто платит, за что, сколько, куда вернуть.
       Забыть нельзя: код не соберётся. Запасные подстановки из адаптеров удаляются, угадывать нечего.
       «За что» становится значением, а не отдельным куском кода на каждый повод.
+      _Доказательство 01.08: ручной SaaS-счёт проходит через `createIntent`
+      (`apps/webapp/src/modules/saas-billing/service.ts:197`); адаптеры кладут три значения в
+      provider payload, а отрицательная type-проверка не допускает дверь без `payerRef`
+      (`apps/webapp/src/infra/payments/paymentProviderIdentity.unit.test.ts:32`). Лично пройдено:
+      `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/infra/payments/paymentProviderIdentity.unit.test.ts`
+      — 9 tests; `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec eslint .`._
+      _Fix-round 01.08: `61c7ebd148b73d89872b159910a2c550bdec5365` передаёт обязательный return URL
+      в `payment_data.confirmation.return_url` сформированного YooKassa invoice request
+      (`apps/webapp/src/infra/payments/yookassaPaymentProvider.ts:206`); тот же provider-payload test
+      краснеет при удалении поля и после восстановления зелёный в наборе 9 tests. Отчёт:
+      `BILLING_PAYMENT_DOOR_R3_FIX_REPORT.md`._
+      _T-Bank currency fix 01.08: этот product commit сохраняет принятую `currency` в
+      `DATA` (`apps/webapp/src/infra/payments/tinkoffPaymentProvider.ts`) и до HTTP отказывает
+      `currency !== 'RUB'`; удаление `DATA.currency` снова роняет provider assertion, а non-RUB test
+      подтверждает отсутствие `fetch`. Проверки: SaaS billing suite 14 tests, typecheck, scoped lint,
+      `git diff --check`; отчёт `BILLING_PAYMENT_DOOR_R3_AUDIT_REPORT.md`._
 
 - [ ] **B1.2 Опознание плательщика — до двери, в одном месте.** Владелец 01.08: «публичная запись
       держится на телефоне или имэйле одинаково». Сессия, подтверждённый телефон, подтверждённая почта —
@@ -143,7 +159,7 @@
       опознанный плательщик. Это снимает деление маршрутов на «в кабинете» и «публично», которое сегодня
       удваивает один и тот же код.
 
-- [ ] 🔴 **B1.4 КАТАЛОГ ТОВАРОВ ВЫРЕЗАЕТСЯ ЦЕЛИКОМ. Решение владельца 01.08, дословно: «вырезай каталог».**
+- [x] 🔴 **B1.4 КАТАЛОГ ТОВАРОВ ВЫРЕЗАЕТСЯ ЦЕЛИКОМ. Решение владельца 01.08, дословно: «вырезай каталог».**
       Предыстория того же дня: «вырежи этот коммит просто из кода» (про `d8f739587` от 29.05, «booking
       stage 7 products»), «я никогда не просил продавать „промо" - это противоречит смыслу», «подписка и
       доступ к контенту это одно и то же».
@@ -169,6 +185,13 @@
       ⛔ **Прод:** на dev покупок ноль, про прод неизвестно.
       Данных нет нигде: на dev ноль строк, про прод владелец 01.08 подтвердил — «там нет этого».
       Значит удаление обычное, без проверок на непустоту.
+
+      _Закрыто 01.08 product `82879072e` + integration `9ba46b865` + audit `b7ce6e033` + bounded
+      fix текущего коммита. `catalogRemovalB14.unit.test.ts` — 3/3: запись без product purchase,
+      продажа и списание абонемента; все три fault injection красные. Лид повторил
+      `check-p0-12-json-payloads`, `check-saas-db-regression`, journal sync, raw-SQL gate, webapp
+      typecheck и exact orphan census — exit 0. Отчёт:
+      `docs/_TODO/SAAS_FOUNDATION/BILLING_CATALOG_REMOVAL_AUDIT_REPORT.md`._
 
 - [ ] 🔴 **B1.3 ПРЕДОПЛАТА ЗА УСЛУГУ — БЕЗ ТОВАРОВ.** Решение владельца 01.08, дословно: «пока мы не
       усложняем и не делаем никакие товары - у нас есть стоимость услуги, можно добавить поле «сумма
@@ -434,4 +457,3 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
 **Выход:** клиника может оплатить тариф через существующий provider layer в mock-режиме на test; когда владелец
 даст реальные ключи, включение — это просто смена `providerId` в Settings, без нового кода.
-

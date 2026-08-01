@@ -1438,10 +1438,6 @@ async function mergeExtendedUserOwnedData(
       [targetId, duplicateId],
     ],
     [
-      `UPDATE be_product_purchases SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-      [targetId, duplicateId],
-    ],
-    [
       `UPDATE be_patient_packages SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
       [targetId, duplicateId],
     ],

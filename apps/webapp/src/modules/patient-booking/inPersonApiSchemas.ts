@@ -41,6 +41,5 @@ export const inPersonCreateBodySchema = z
     contactEmail: z.string().email().optional(),
     formAnswers: z.array(z.object({ fieldKey: z.string().min(1), value: z.string() })).optional(),
     patientPackageId: z.string().uuid().optional(),
-    productPurchaseId: z.string().uuid().optional(),
   })
   .refine(inPersonKeysRefine, { message: 'invalid_in_person_keys' });

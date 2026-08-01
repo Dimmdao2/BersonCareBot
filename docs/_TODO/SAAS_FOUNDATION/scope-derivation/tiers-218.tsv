@@ -105,10 +105,6 @@ SCOPED|public.be_payment_intents
 SCOPED|public.be_payment_provider_events
 SCOPED|public.be_payments
 SCOPED|public.be_prepayment_policies
-SCOPED|public.be_product_history_events
-SCOPED|public.be_product_pay_links
-SCOPED|public.be_product_purchases
-SCOPED|public.be_products
 SCOPED|public.be_refunds
 SCOPED|public.be_reschedule_policies
 SCOPED|public.be_rooms

@@ -103,10 +103,6 @@ const ids = {
   ],
   mediaFiles: ['53000000-0000-4000-8000-0000000080a1', '53000000-0000-4000-8000-0000000080b1'],
   exerciseMedia: ['53000000-0000-4000-8000-0000000081a1', '53000000-0000-4000-8000-0000000081b1'],
-  products: ['53000000-0000-4000-8000-0000000090a1', '53000000-0000-4000-8000-0000000090b1'],
-  purchases: ['53000000-0000-4000-8000-0000000091a1', '53000000-0000-4000-8000-0000000091b1'],
-  paymentIntents: ['53000000-0000-4000-8000-0000000092a1', '53000000-0000-4000-8000-0000000092b1'],
-  payments: ['53000000-0000-4000-8000-0000000093a1', '53000000-0000-4000-8000-0000000093b1'],
   tariff: '53000000-0000-4000-8000-0000000094a1',
   messageLogs: ['53000000-0000-4000-8000-0000000095a1', '53000000-0000-4000-8000-0000000095b1'],
   appointmentsA: Array.from(
@@ -870,14 +866,6 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         inArray(schema.beServiceLocationAvailability.id, [...ids.serviceLocationAvailability]),
       );
     await tx.delete(schema.beBranches).where(inArray(schema.beBranches.id, [...ids.branches]));
-    await tx.delete(schema.bePayments).where(inArray(schema.bePayments.id, [...ids.payments]));
-    await tx
-      .delete(schema.bePaymentIntents)
-      .where(inArray(schema.bePaymentIntents.id, [...ids.paymentIntents]));
-    await tx
-      .delete(schema.beProductPurchases)
-      .where(inArray(schema.beProductPurchases.id, [...ids.purchases]));
-    await tx.delete(schema.beProducts).where(inArray(schema.beProducts.id, [...ids.products]));
     await tx.delete(schema.saasTariffs).where(eq(schema.saasTariffs.id, ids.tariff));
     await tx
       .delete(schema.lfkExerciseMedia)
@@ -1466,86 +1454,6 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       isActive: true,
       updatedAt: nowIso,
     });
-    await tx.insert(schema.beProducts).values([
-      {
-        id: ids.products[0],
-        organizationId: ids.organizationA,
-        productType: 'single_visit',
-        title: 'TEST визит A',
-        description: 'Без внешней оплаты',
-        priceMinor: 100000,
-        currency: 'RUB',
-        compositionJson: { fixture: 'v2' },
-        accessRulesJson: {},
-        paymentRulesJson: { provider: 'fixture_noop' },
-        showInPatientCatalog: true,
-        payByLinkEnabled: false,
-        isActive: true,
-        updatedAt: nowIso,
-      },
-      {
-        id: ids.products[1],
-        organizationId: ids.organizationB,
-        productType: 'single_visit',
-        title: 'TEST визит B',
-        description: 'Без внешней оплаты',
-        priceMinor: 80000,
-        currency: 'RUB',
-        compositionJson: { fixture: 'v2' },
-        accessRulesJson: {},
-        paymentRulesJson: { provider: 'fixture_noop' },
-        showInPatientCatalog: true,
-        payByLinkEnabled: false,
-        isActive: true,
-        updatedAt: nowIso,
-      },
-    ]);
-    for (const [index, organizationId] of [ids.organizationA, ids.organizationB].entries()) {
-      const patientId = index === 0 ? ids.patientsA[0] : ids.patientsB[0];
-      await tx.insert(schema.bePaymentIntents).values({
-        id: ids.paymentIntents[index]!,
-        organizationId,
-        idempotencyKey: `saas-fixture-v2-${index}`,
-        providerId: 'fixture_noop',
-        platformUserId: patientId,
-        productRef: ids.products[index]!,
-        amountMinor: index === 0 ? 100000 : 80000,
-        currency: 'RUB',
-        status: 'succeeded',
-        purpose: 'product_purchase',
-        providerIntentRef: null,
-        metadataJson: { fixture: 'v2', externalCall: false },
-        updatedAt: nowIso,
-      });
-      await tx.insert(schema.bePayments).values({
-        id: ids.payments[index]!,
-        organizationId,
-        paymentIntentId: ids.paymentIntents[index]!,
-        platformUserId: patientId,
-        providerId: 'fixture_noop',
-        amountMinor: index === 0 ? 100000 : 80000,
-        currency: 'RUB',
-        status: 'captured',
-        purpose: 'product_purchase',
-        capturedAt: relativeIso(now, -3),
-      });
-      await tx.insert(schema.beProductPurchases).values({
-        id: ids.purchases[index]!,
-        organizationId,
-        productId: ids.products[index]!,
-        productType: 'single_visit',
-        platformUserId: patientId,
-        status: 'active',
-        title: index === 0 ? 'TEST визит A' : 'TEST визит B',
-        priceMinor: index === 0 ? 100000 : 80000,
-        currency: 'RUB',
-        fulfillmentJson: { fixture: 'v2', sendSafe: true },
-        paymentIntentId: ids.paymentIntents[index]!,
-        paymentRef: `fixture-noop-${index}`,
-        assignedByPlatformUserId: index === 0 ? ids.ownerA : ids.ownerB,
-        updatedAt: nowIso,
-      });
-    }
     await tx
       .insert(schema.userNotificationTopics)
       .values([
@@ -2049,11 +1957,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       shared_patient_login_count: number;
       registration_setting_count: number;
       local_media_count: number;
-      noop_payment_count: number;
       tariff_count: number;
-      safe_product_count: number;
-      captured_payment_count: number;
-      active_purchase_count: number;
       disabled_notification_count: number;
       send_safe_message_count: number;
       fixture_outbox_count: number;
@@ -2082,40 +1986,11 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
             AND stored_path = ${SAAS_TEST_FIXTURE_MANIFEST.localMediaPath}
             AND mime_type = 'image/svg+xml'
             AND status = 'ready') AS local_media_count,
-        (SELECT count(*)::int FROM be_payment_intents
-          WHERE id IN (${sql.join(
-            ids.paymentIntents.map((id) => sql`${id}::uuid`),
-            sql`, `,
-          )})
-            AND provider_id = 'fixture_noop'
-            AND status = 'succeeded') AS noop_payment_count,
         (SELECT count(*)::int FROM saas_tariffs
           WHERE id = ${ids.tariff}::uuid
             AND is_active = true
             AND price_minor = 0
             AND currency = 'RUB') AS tariff_count,
-        (SELECT count(*)::int FROM be_products
-          WHERE id IN (${sql.join(
-            ids.products.map((id) => sql`${id}::uuid`),
-            sql`, `,
-          )})
-            AND is_active = true
-            AND pay_by_link_enabled = false
-            AND payment_rules_json->>'provider' = 'fixture_noop') AS safe_product_count,
-        (SELECT count(*)::int FROM be_payments
-          WHERE id IN (${sql.join(
-            ids.payments.map((id) => sql`${id}::uuid`),
-            sql`, `,
-          )})
-            AND provider_id = 'fixture_noop'
-            AND status = 'captured') AS captured_payment_count,
-        (SELECT count(*)::int FROM be_product_purchases
-          WHERE id IN (${sql.join(
-            ids.purchases.map((id) => sql`${id}::uuid`),
-            sql`, `,
-          )})
-            AND status = 'active'
-            AND payment_ref LIKE 'fixture-noop-%') AS active_purchase_count,
         (SELECT count(*)::int FROM user_notification_topics
           WHERE user_id IN (${sql.join(
             [ids.patientsA[0], ids.patientsB[0]].map((id) => sql`${id}::uuid`),
@@ -2148,11 +2023,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
     assertCount('shared_patient_login', safeProof?.shared_patient_login_count ?? 0, 1);
     assertCount('registration_settings_mirrored', safeProof?.registration_setting_count ?? 0, 2);
     assertCount('local_media', safeProof?.local_media_count ?? 0, 2);
-    assertCount('noop_payments', safeProof?.noop_payment_count ?? 0, 2);
     assertCount('tariff', safeProof?.tariff_count ?? 0, 1);
-    assertCount('safe_products', safeProof?.safe_product_count ?? 0, 2);
-    assertCount('captured_payments', safeProof?.captured_payment_count ?? 0, 2);
-    assertCount('active_purchases', safeProof?.active_purchase_count ?? 0, 2);
     assertCount('disabled_notifications', safeProof?.disabled_notification_count ?? 0, 2);
     assertCount('send_safe_messages', safeProof?.send_safe_message_count ?? 0, 2);
     assertCount('fixture_outbox_jobs', safeProof?.fixture_outbox_count ?? 0, 0);

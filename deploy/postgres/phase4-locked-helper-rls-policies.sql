@@ -379,42 +379,6 @@ CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_prepayment_policies" FOR
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_prepayment_policies" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
 \endif
 
--- public.be_product_history_events (saas_org_dormant_p0_8_3)
-ALTER TABLE "public"."be_product_history_events" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_product_history_events";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_product_history_events" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "public"."be_product_purchases" AS "b4f_purchase" WHERE "b4f_purchase"."id" = "product_purchase_id" AND "b4f_purchase"."platform_user_id" = app.current_patient_user_id() )))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "public"."be_product_purchases" AS "b4f_purchase" WHERE "b4f_purchase"."id" = "product_purchase_id" AND "b4f_purchase"."platform_user_id" = app.current_patient_user_id() ))));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_product_history_events" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "public"."be_product_purchases" AS "b4f_purchase" WHERE "b4f_purchase"."id" = "product_purchase_id" AND "b4f_purchase"."platform_user_id" = app.current_patient_user_id() ))))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "public"."be_product_purchases" AS "b4f_purchase" WHERE "b4f_purchase"."id" = "product_purchase_id" AND "b4f_purchase"."platform_user_id" = app.current_patient_user_id() )))));
-\endif
-
--- public.be_product_pay_links (saas_org_dormant_p0_8_3)
-ALTER TABLE "public"."be_product_pay_links" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_product_pay_links";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_product_pay_links" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_product_pay_links" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
-\endif
-
--- public.be_product_purchases (saas_org_dormant_p0_8_3)
-ALTER TABLE "public"."be_product_purchases" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_product_purchases";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_product_purchases" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_product_purchases" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))));
-\endif
-
--- public.be_products (saas_org_dormant_p0_8_3)
-ALTER TABLE "public"."be_products" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_products";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_products" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."be_products" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
-\endif
-
 -- public.be_refunds (saas_org_dormant_p0_8_3)
 ALTER TABLE "public"."be_refunds" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."be_refunds";
