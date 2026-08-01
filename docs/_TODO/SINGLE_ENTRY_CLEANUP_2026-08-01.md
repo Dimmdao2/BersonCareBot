@@ -32,10 +32,10 @@
 
 ## Источник списка
 
-Первичный `runs/testsuite-v2/CHOKEPOINT_SWEEP_REPORT.md` в git отсутствует:
-`git log --all --oneline -- docs/_TODO/runs/testsuite-v2/CHOKEPOINT_SWEEP_REPORT.md` даёт пустой вывод.
-Поэтому его числа не считаются доказательством и каждый пункт перемеряется по актуальному коду до брифа. Для Ч1
-команда `rg -l --glob 'route.ts' 'presignPutUrl|s3CreateMultipartUpload|request\.formData\(\)' apps/webapp/src/app/api | sort`
+Первичный `runs/testsuite-v2/CHOKEPOINT_SWEEP_REPORT.md` сохранён коммитом `b6e9a7c58` и приземлён в `feat`
+02.08 как исторический вход. Его числа относятся к базе `bb0cce618`, поэтому каждый пункт всё равно перемеряется
+по актуальному коду до брифа. Для Ч1 команда
+`rg -l --glob 'route.ts' 'presignPutUrl|s3CreateMultipartUpload|request\.formData\(\)' apps/webapp/src/app/api | sort`
 дала шесть intake-маршрутов. Для Ч2 точные актуальные команды и исправленная классификация записаны в брифе
 `runs/briefs/CH2_MEDIA_DELIVERY_CHOKEPOINT_BRIEF.md`.
 
@@ -54,8 +54,9 @@
       `mediaUploadDoorGate.unit.test.ts` (14) и canonical gate/self-test — PASS.
 - [ ] **Ч1б. Storage commit/cleanup после разрыва upload.** Отдельный этап, найденный проходом по тем же живым
       путям, не маскируется под валидацию: proxy пишет S3 до DB и при DB-сбое оставляет orphan; single-PUT после
-      PUT/до confirm оставляет pending row + object без cleanup; patient confirm при невалидном HEAD удаляет DB
-      row, но не object. Готово = единый commit/abort lifecycle на существующих `media_files`/storage ports и
+      PUT/до confirm оставляет pending row + object без cleanup; patient confirm при невалидном HEAD теперь
+      отвечает ошибкой, но оставляет связанные `patient_files` + `media_files.pending` + object. Готово = единый
+      commit/abort lifecycle на существующих `media_files`/storage ports и
       доказанный cleanup каждого из трёх достижимых сбоев; новой таблицы или второго upload-service нет.
 - [ ] **Ч2. Выдача медиа из хранилища.** Актуальный замер: семь GET-поверхностей; пять
       `/api/media/[id]/**` handler'ов копируют одну ACL-последовательность; текущего пути выдачи `media_files`
