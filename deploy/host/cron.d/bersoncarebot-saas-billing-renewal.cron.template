@@ -1,0 +1,3 @@
+# К5: SaaS billing renewal tick (raises the tariff-renewal invoice for subscriptions whose paid
+# period has ended). Requires INTERNAL_JOB_SECRET in webapp.prod.
+0 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/saas-billing/renewal/tick?limit=50" >/dev/null'

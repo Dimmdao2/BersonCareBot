@@ -311,6 +311,63 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       return { saasBillingSubscriptionId: row.id, tariffId, billingPeriod: 'month' as const };
     },
 
+    async listSaasBillingSubscriptionsDueForRenewal({ asOf, limit }) {
+      return [...rows.values()]
+        .filter(
+          (row) =>
+            row.source === 'paid_subscription' &&
+            row.status === 'active' &&
+            row.currentPeriodEndsAt !== null &&
+            row.currentPeriodEndsAt <= asOf,
+        )
+        .slice(0, limit)
+        .map((row) => ({
+          saasBillingSubscriptionId: row.id,
+          organizationId: row.organizationId,
+          tariffId: row.tariffId,
+          // No tariff-detail store in this fake (see `createSaasBillingInvoice` above) — the real
+          // (pg) repository is what the renewal tick actually runs against.
+          billingPeriod: 'month' as const,
+          currentPeriodEndsAt: row.currentPeriodEndsAt as string,
+        }));
+    },
+
+    async createSaasBillingRenewalInvoiceIfAbsent(input) {
+      const existing = [...invoices.values()].find(
+        (row) =>
+          row.saasBillingSubscriptionId === input.saasBillingSubscriptionId &&
+          row.servicePeriodStartsAt === input.servicePeriodStartsAt &&
+          row.servicePeriodEndsAt === input.servicePeriodEndsAt,
+      );
+      if (existing) return { invoice: existing, created: false };
+
+      const authority = [...rows.values()].find(
+        (row) =>
+          row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
+      );
+      if (!authority) throw new Error('saas_billing_subscription_not_found');
+      const row: SaasBillingInvoice = {
+        id: crypto.randomUUID(),
+        organizationId: authority.organizationId,
+        saasBillingAccountId: authority.saasBillingAccountId,
+        saasBillingSubscriptionId: authority.id,
+        tariffId: authority.tariffId,
+        tariffName: 'In-memory tariff',
+        amountMinor: 0,
+        currency: 'RUB',
+        tariffBillingPeriod: 'month',
+        servicePeriodStartsAt: input.servicePeriodStartsAt,
+        servicePeriodEndsAt: input.servicePeriodEndsAt,
+        status: 'draft',
+        providerId: input.providerId,
+        providerInvoiceRef: null,
+        providerCheckoutUrl: null,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+      };
+      invoices.set(row.id, row);
+      return { invoice: row, created: true };
+    },
+
     async activateSaasBillingSubscriptionPeriod({
       organizationId,
       saasBillingSubscriptionId,
