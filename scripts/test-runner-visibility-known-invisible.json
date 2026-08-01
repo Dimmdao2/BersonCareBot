@@ -16,7 +16,6 @@
       "src/infra/repos/pgDoctorClients.devDb.integration.test.ts",
       "src/infra/repos/pgDoctorPhase13d.devDb.integration.test.ts",
       "src/infra/repos/pgEmailChallengeAtomicAttempts.devDb.integration.test.ts",
-      "src/infra/repos/pgEmailOtpPublicAtomicConsume.devDb.integration.test.ts",
       "src/infra/repos/pgOnlineIntake.devDb.integration.test.ts",
       "src/infra/repos/pgOtpDecayingLockoutAtomicEscalation.devDb.integration.test.ts",
       "src/infra/repos/pgPatientBookings.devDb.integration.test.ts",
