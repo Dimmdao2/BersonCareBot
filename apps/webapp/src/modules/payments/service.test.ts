@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createPaymentsService } from './service';
 import type { PaymentsPort } from './ports';
-import type { PaymentIntentRecord } from './types';
+import type { BookingPaymentSettings, PaymentIntentRecord } from './types';
 
 const intent: PaymentIntentRecord = {
   id: 'intent-1',
@@ -19,18 +19,20 @@ const intent: PaymentIntentRecord = {
   checkoutUrl: 'https://yookassa.ru/checkout/intent-1',
 };
 
-function buildService() {
+function buildService(
+  settings: BookingPaymentSettings = {
+    enabled: false,
+    defaultProviderId: '',
+    providers: [],
+  },
+) {
   const port = {
     findIntentById: vi.fn(async (id: string) => (id === intent.id ? intent : null)),
   } as unknown as PaymentsPort;
   return createPaymentsService({
     port,
     config: {
-      getBookingPaymentSettings: async () => ({
-        enabled: false,
-        defaultProviderId: '',
-        providers: [],
-      }),
+      getBookingPaymentSettings: async () => settings,
     },
     captureUnitOfWork: {
       run: async (_orgId, fn) => fn(),
@@ -60,5 +62,66 @@ describe('getIntentForOrganization: org-scoped payment intent lookup', () => {
     const service = buildService();
     const result = await service.getIntentForOrganization('missing', 'org-1');
     expect(result).toBeNull();
+  });
+});
+
+describe('B1.3 — prepayment provider availability', () => {
+  it.each([
+    [
+      'payments are disabled globally',
+      { enabled: false, defaultProviderId: '', providers: [] } satisfies BookingPaymentSettings,
+      'payments_disabled',
+    ],
+    [
+      'the default provider has no credentials',
+      {
+        enabled: true,
+        defaultProviderId: 'yookassa',
+        providers: [{ id: 'yookassa', label: 'YooKassa', enabled: true, shopId: 'shop-1' }],
+      } satisfies BookingPaymentSettings,
+      'payment_provider_unavailable',
+    ],
+  ] as const)('refuses an active policy when %s', async (_case, settings, reason) => {
+    const availability = await buildService(settings).getPrepaymentAvailability('org-1');
+
+    expect(availability).toEqual({ available: false, reason });
+  });
+
+  it('allows an active policy when payments and the default provider are usable', async () => {
+    const availability = await buildService({
+      enabled: true,
+      defaultProviderId: 'yookassa',
+      providers: [
+        {
+          id: 'yookassa',
+          label: 'YooKassa',
+          enabled: true,
+          apiKey: 'api-key',
+          shopId: 'shop-1',
+        },
+      ],
+    }).getPrepaymentAvailability('org-1');
+
+    expect(availability).toEqual({ available: true });
+  });
+
+  it('keeps payment_provider_unavailable as the booking-time guard', async () => {
+    const payments = buildService({
+      enabled: true,
+      defaultProviderId: 'yookassa',
+      providers: [{ id: 'yookassa', label: 'YooKassa', enabled: true, shopId: 'shop-1' }],
+    });
+
+    await expect(
+      payments.createAppointmentPaymentIntent({
+        organizationId: 'org-1',
+        appointmentId: 'appointment-1',
+        platformUserId: 'user-1',
+        amountMinor: 1_000,
+        currency: 'RUB',
+        idempotencyKey: 'prepayment-1',
+        returnUrl: 'https://example.test/pay',
+      }),
+    ).rejects.toThrow('payment_provider_unavailable');
   });
 });
