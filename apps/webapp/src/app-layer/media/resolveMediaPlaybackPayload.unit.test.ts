@@ -79,4 +79,32 @@ describe('resolveMediaPlaybackPayload', () => {
     });
     expect(mocks.presign).not.toHaveBeenCalled();
   });
+
+  it('keeps a trusted HLS master same-origin with the protected MP4 fallback', async () => {
+    mocks.getRow.mockResolvedValue({
+      mime_type: 'video/mp4',
+      s3_key: `media/${mediaId}/source.mp4`,
+      stored_path: `media/${mediaId}/source.mp4`,
+      video_processing_status: 'ready',
+      hls_master_playlist_s3_key: `media/${mediaId}/hls/master.m3u8`,
+      poster_s3_key: null,
+      video_duration_seconds: 12,
+      available_qualities_json: [],
+      video_delivery_override: null,
+      usage_purpose: null,
+      uploaded_by: 'patient-1',
+    });
+
+    await expect(
+      resolveMediaPlaybackPayload({ id: mediaId, session, adminPrefer: null }),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        delivery: 'hls',
+        hls: { masterUrl: `/api/media/${mediaId}/hls/master.m3u8` },
+        mp4: { url: `/api/media/${mediaId}` },
+      },
+    });
+    expect(mocks.presign).not.toHaveBeenCalled();
+  });
 });

@@ -58,6 +58,10 @@ describe('authorizeMediaDelivery', () => {
       ok: false,
       reason: 'not_found',
     });
+    expect(mocks.resolvePlatformLfkMediaAccess).toHaveBeenCalledOnce();
+    expect(mocks.resolvePlatformLfkMediaAccess).toHaveBeenCalledWith(mediaId);
+    expect(mocks.getMediaAccessRow).toHaveBeenCalledOnce();
+    expect(mocks.getMediaAccessRow).toHaveBeenCalledWith(mediaId);
   });
 
   it('allows only the submission uploader or doctor/admin after the scoped row exists', async () => {

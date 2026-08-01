@@ -79,10 +79,8 @@ describe('buildDoctorOnlineIntakeDetailResponse', () => {
 
     expect(response.attachmentFiles?.[0]?.url).toBe('');
     expect(mocks.presign).not.toHaveBeenCalled();
-    expect(mocks.logError).toHaveBeenCalledWith(
-      'online_intake_s3_url',
-      expect.any(Error),
-      expect.objectContaining({ keyKind: 'media' }),
-    );
+    expect(mocks.logError).toHaveBeenCalledWith('online_intake_s3_url', expect.any(Error), {
+      keyKind: 'media',
+    });
   });
 });

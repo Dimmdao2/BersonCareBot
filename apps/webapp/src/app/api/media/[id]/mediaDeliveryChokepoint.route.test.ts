@@ -115,6 +115,18 @@ describe('media delivery routes', () => {
     expect(mocks.getS3Key).not.toHaveBeenCalled();
   });
 
+  it('preserves the base route forbidden status without reaching S3', async () => {
+    mocks.authorize.mockResolvedValue({ ok: false, reason: 'forbidden' });
+
+    const response = await getMedia(new Request(`https://app.test/api/media/${mediaId}`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(mocks.getS3Key).not.toHaveBeenCalled();
+    expect(mocks.presign).not.toHaveBeenCalled();
+  });
+
   it('keeps progressive MP4 as a private 307 and applies the dynamic presign TTL', async () => {
     const response = await getMedia(new Request(`https://app.test/api/media/${mediaId}`), {
       params: Promise.resolve({ id: mediaId }),
@@ -144,6 +156,42 @@ describe('media delivery routes', () => {
     expect(mocks.getPreviewKey).not.toHaveBeenCalled();
   });
 
+  it('serves a preview body with its private validators after authorization', async () => {
+    const response = await getPreview(
+      new Request(`https://app.test/api/media/${mediaId}/preview/sm`),
+      { params: Promise.resolve({ id: mediaId, size: 'sm' }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/jpeg');
+    expect(response.headers.get('cache-control')).toBe(
+      'private, max-age=86400, stale-while-revalidate=604800',
+    );
+    expect(response.headers.get('etag')).toBe('"etag"');
+    await expect(response.arrayBuffer()).resolves.toEqual(Uint8Array.from([1, 2, 3]).buffer);
+  });
+
+  it('keeps both preview fallbacks private and behind authorization', async () => {
+    mocks.getPreviewKey.mockResolvedValueOnce(null);
+    const original = await getPreview(
+      new Request(`https://app.test/api/media/${mediaId}/preview/sm`),
+      { params: Promise.resolve({ id: mediaId, size: 'sm' }) },
+    );
+    expect(original.status).toBe(307);
+    expect(original.headers.get('location')).toBe(`/api/media/${mediaId}`);
+    expect(original.headers.get('cache-control')).toBe('private, max-age=60');
+
+    mocks.getPreviewBody.mockResolvedValueOnce(null);
+    const signed = await getPreview(
+      new Request(`https://app.test/api/media/${mediaId}/preview/md`),
+      { params: Promise.resolve({ id: mediaId, size: 'md' }) },
+    );
+    expect(signed.status).toBe(307);
+    expect(signed.headers.get('location')).toBe('https://storage.example/signed');
+    expect(signed.headers.get('cache-control')).toBe('private, max-age=900, must-revalidate');
+    expect(mocks.presign).toHaveBeenCalledWith('media/preview.jpg', 900);
+  });
+
   it('keeps HLS-disabled 503 and forwards Range only after the common door', async () => {
     mocks.playbackEnabled.mockResolvedValueOnce(false);
     const disabled = await getHls(
@@ -166,6 +214,19 @@ describe('media delivery routes', () => {
     );
   });
 
+  it('stops HLS before settings and proxy work when the shared door refuses', async () => {
+    mocks.authorize.mockResolvedValue({ ok: false, reason: 'forbidden' });
+
+    const response = await getHls(
+      new Request(`https://app.test/api/media/${mediaId}/hls/master.m3u8`),
+      { params: Promise.resolve({ id: mediaId, path: ['master.m3u8'] }) },
+    );
+
+    expect(response.status).toBe(401);
+    expect(mocks.playbackEnabled).not.toHaveBeenCalled();
+    expect(mocks.hls).not.toHaveBeenCalled();
+  });
+
   it('does not write playback events until the common door allows the media', async () => {
     mocks.authorize.mockResolvedValue({ ok: false, reason: 'not_found' });
     const response = await postPlaybackEvent(
@@ -178,5 +239,32 @@ describe('media delivery routes', () => {
 
     expect(response.status).toBe(404);
     expect(mocks.recordEvent).not.toHaveBeenCalled();
+  });
+
+  it('skips submission telemetry but records an authorized ordinary event', async () => {
+    mocks.authorize.mockResolvedValueOnce({
+      ...allowed,
+      row: { ...allowed.row, usage_purpose: 'program_item_submission' },
+    });
+    const request = () =>
+      new Request(`https://app.test/api/media/${mediaId}/playback/events`, {
+        method: 'POST',
+        body: JSON.stringify({ eventClass: 'hls_fatal', delivery: 'hls' }),
+      });
+
+    const skipped = await postPlaybackEvent(request(), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+    expect(skipped.status).toBe(200);
+    await expect(skipped.json()).resolves.toEqual({ ok: true, skipped: true });
+    expect(mocks.recordEvent).not.toHaveBeenCalled();
+
+    const recorded = await postPlaybackEvent(request(), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+    expect(recorded.status).toBe(200);
+    expect(mocks.recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaId, userId: 'patient-1', eventClass: 'hls_fatal' }),
+    );
   });
 });
