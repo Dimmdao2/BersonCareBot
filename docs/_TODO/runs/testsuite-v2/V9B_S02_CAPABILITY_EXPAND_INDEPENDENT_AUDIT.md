@@ -130,6 +130,30 @@ No existing S02-specific grant/accessor runtime smoke exists. The static gate an
 
 1. **Evidence gate blocked (not a product-S02 defect):** the required existing clean-replay harness cannot restore its own baseline before running any migration, due to missing `app_platform_settings` at `docs/ARCHITECTURE/DB_DUMPS/a0-greenfield/schema.sql:24478`. Consequence: no successful clean replay evidence exists for `0306`. The defect predates the candidate and is recorded by the A0 README, but it prevents an unconditional audit PASS for the requested executable replay gate.
 
-## Result
+## Initial result before accepted harness land
 
-**FAIL (evidence gate).** Inspection is 38/38 PASS and all prescribed static checks are green, but the independently run existing clean-migration harness is blocked before `0306`; no product fix was made. This audit artifact remains uncommitted, as the brief permits a commit only on PASS.
+**FAIL (evidence gate).** Inspection was 38/38 PASS and all prescribed static checks were green, but the
+independently run old clean-migration command was blocked before `0306`; no product fix was made. At that point
+the audit could not issue PASS.
+
+## Evidence-gate closure on the accepted disposable harness
+
+After the independently audited Б1/Б3 harness pilot (`6735dd2ae`, audit `64d082f46`) was merged into the
+candidate base, the lead ran the same product PostgreSQL project on this exact branch:
+
+```bash
+pnpm --filter @bersoncare/db-principal build
+pnpm --filter @bersoncare/operator-db-schema build
+pnpm run test:webapp:postgres
+```
+
+Result: `exit=0`; the real webapp migrator reported `count=307` for both private file clones, so the chain reached
+and applied `0306`; `3` files / `4` tests passed in `21.41s`. The harness audit already proves that A0 is clean
+migration/concurrency/isolation evidence only, not an ACL/RLS or actor proof. No DEV, TEST, PROD or deploy was
+used for this closure.
+
+## Final verdict
+
+**PASS.** The independent row/function/scope audit is 38/38 PASS, all static gates are green, and the only named
+evidence blocker is now closed by a clean disposable replay through migration count `307`. S02 may merge into
+`wt/single-entry-integration`; this does not authorize S03 revoke/FORCE/caller work.
