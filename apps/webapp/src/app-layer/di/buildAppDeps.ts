@@ -352,7 +352,11 @@ import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganization
 import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
-import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
+import {
+  assertMechanicWriteClearance,
+  ensureMechanicWriteClearanceContext,
+  enterWithMechanicWriteClearance,
+} from '@/app-layer/entitlements/mechanicWriteClearance';
 import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
@@ -1166,6 +1170,11 @@ productsServiceResolved =
         },
         isCourseMechanicEnabled: (organizationId) =>
           isMechanicEnabled(orgEntitlementsPort, organizationId, 'courses'),
+        // 3.2 круг 2: `activatePurchase` is the funnel both the payment webhook and the free-course
+        // `startPurchase` reach `courses.enrollPatient` through without a `requireEntitlementForMutation`
+        // call anywhere upstream — see the JSDoc on `WriteClearanceAccess` in products/service.ts.
+        ensureWriteClearanceContext: ensureMechanicWriteClearanceContext,
+        grantWriteClearance: enterWithMechanicWriteClearance,
         hasActivePatientEnrollment: (platformUserId, organizationId) =>
           patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
           Promise.resolve(false),
