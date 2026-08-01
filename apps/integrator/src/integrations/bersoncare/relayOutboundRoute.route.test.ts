@@ -1,10 +1,25 @@
 import { createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type { DispatchPort, IdempotencyPort, OutgoingIntent } from '../../kernel/contracts/index.js';
 import type { RecordOperatorFailureIncidentInput } from '../../infra/operatorIncident/reportOperatorFailure.js';
 import { OutboundMessagePolicyError } from '../../infra/adapters/outboundMessagePolicy.js';
 import { registerBersoncareRelayOutboundRoute } from './relayOutboundRoute.js';
+
+/** Simulates the store `createPostgresIdempotencyPort` backs onto: a table row, not process memory. */
+function fakePersistentIdempotencyPort(): IdempotencyPort {
+  const store = new Map<string, number>();
+  return {
+    tryAcquire: async (key: string) => {
+      if (store.has(key)) return false;
+      store.set(key, 1);
+      return true;
+    },
+    release: async (key: string) => {
+      store.delete(key);
+    },
+  };
+}
 
 const incidentRecorder = vi.hoisted(() =>
   vi.fn<
@@ -69,12 +84,14 @@ function protocolHeaders(
 
 async function buildApp(
   dispatchOutgoing: DispatchPort['dispatchOutgoing'],
+  options: { idempotencyPort?: IdempotencyPort } = {},
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   apps.push(app);
   await registerBersoncareRelayOutboundRoute(app, {
     dispatchPort: { dispatchOutgoing },
     sharedSecret: SHARED_SECRET,
+    idempotencyPort: options.idempotencyPort ?? fakePersistentIdempotencyPort(),
   });
   return app;
 }
@@ -177,6 +194,26 @@ describe('POST /api/bersoncare/relay-outbound', () => {
       ok: true,
       status: 'accepted',
     });
+  });
+
+  it('does not dispatch the same idempotency key twice across a process restart', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    // The durable store (Postgres in production) is the one thing that survives a restart —
+    // a fresh app instance below has no memory of the first request beyond this shared port.
+    const idempotencyPort = fakePersistentIdempotencyPort();
+    const payload = relayPayload({ idempotencyKey: 'retry-after-restart-key' });
+
+    const firstApp = await buildApp(dispatchOutgoing, { idempotencyPort });
+    const firstResponse = await injectSigned(firstApp, payload);
+
+    const secondApp = await buildApp(dispatchOutgoing, { idempotencyPort });
+    const secondResponse = await injectSigned(secondApp, payload);
+
+    expect(firstResponse.statusCode).toBe(200);
+    expect(JSON.parse(firstResponse.body) as unknown).toEqual({ ok: true, status: 'accepted' });
+    expect(secondResponse.statusCode).toBe(200);
+    expect(JSON.parse(secondResponse.body) as unknown).toEqual({ ok: true, status: 'duplicate' });
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
   });
 
   it('returns a policy denial without recording a provider incident', async () => {

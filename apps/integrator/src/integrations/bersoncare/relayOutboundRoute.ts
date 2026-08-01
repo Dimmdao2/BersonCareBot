@@ -7,7 +7,12 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DbPort, DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DbPort,
+  DispatchPort,
+  IdempotencyPort,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../infra/db/repos/notificationDeliveryAttempts.js';
@@ -200,36 +205,24 @@ export type BersoncareRelayOutboundDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
   isSmsProviderConnected?: () => Promise<boolean>;
+  /** Durable dedup store (`integrator.idempotency_keys`) — survives process restarts/replicas. */
+  idempotencyPort: IdempotencyPort;
 };
 
 export async function registerBersoncareRelayOutboundRoute(
   app: FastifyInstance,
   deps: BersoncareRelayOutboundDeps,
 ): Promise<void> {
-  const { db, dispatchPort, sharedSecret, isSmsProviderConnected } = deps;
+  const { db, dispatchPort, sharedSecret, isSmsProviderConnected, idempotencyPort } = deps;
 
-  // In-memory dedup: key → expiry timestamp. This closes concurrent duplicates in one
-  // process. Persistent exactly-once/outbox across process restarts is deliberately
-  // deferred; the external delivery contract remains at-least-once across a restart.
-  const dedupMap = new Map<string, number>();
+  // In-memory guard: closes duplicate dispatch from requests that overlap within this
+  // process while the first is still in flight (returns 503 so the caller retries).
+  // The durable "already delivered" check lives in idempotencyPort, which survives a
+  // restart or a different replica handling the retry.
   const inFlight = new Set<string>();
 
   function scopedKey(payload: RelayPayload): string {
     return `${payload.organizationId ?? 'global'}:${payload.idempotencyKey}`;
-  }
-
-  function isDuplicate(key: string): boolean {
-    const exp = dedupMap.get(key);
-    if (exp === undefined) return false;
-    if (Date.now() > exp) {
-      dedupMap.delete(key);
-      return false;
-    }
-    return true;
-  }
-
-  function registerKey(key: string): void {
-    dedupMap.set(key, Date.now() + DEDUP_TTL_MS);
   }
 
   app.post('/api/bersoncare/relay-outbound', async (request, reply) => {
@@ -270,15 +263,15 @@ export async function registerBersoncareRelayOutboundRoute(
     }
 
     const dedupKey = scopedKey(parsed);
-    if (isDuplicate(dedupKey)) {
+    if (inFlight.has(dedupKey)) {
+      return reply.code(503).send({ ok: false, error: 'dispatch_in_flight' });
+    }
+    if (!(await idempotencyPort.tryAcquire(dedupKey, DEDUP_TTL_MS / 1000))) {
       logger.info(
         { idempotencyKey: parsed.idempotencyKey },
         'relay-outbound: duplicate request, skipping',
       );
       return reply.code(200).send({ ok: true, status: 'duplicate' });
-    }
-    if (inFlight.has(dedupKey)) {
-      return reply.code(503).send({ ok: false, error: 'dispatch_in_flight' });
     }
 
     inFlight.add(dedupKey);
@@ -288,7 +281,6 @@ export async function registerBersoncareRelayOutboundRoute(
         { channel: parsed.channel },
         'relay-outbound: unsupported channel, skipping dispatch',
       );
-      registerKey(dedupKey);
       inFlight.delete(dedupKey);
       return reply.code(200).send({ ok: true, status: 'accepted' });
     }
@@ -297,7 +289,6 @@ export async function registerBersoncareRelayOutboundRoute(
       const dispatchResult = await runWithOptionalOrganizationPrincipal(parsed.organizationId, () =>
         dispatchPort.dispatchOutgoing(intent),
       );
-      registerKey(dedupKey);
       inFlight.delete(dedupKey);
       if (db && parsed.channel === 'web_push') {
         const topicCode =
@@ -339,6 +330,7 @@ export async function registerBersoncareRelayOutboundRoute(
       return reply.code(200).send({ ok: true, status: 'accepted' });
     } catch (err) {
       inFlight.delete(dedupKey);
+      await idempotencyPort.release?.(dedupKey);
       if (isOutboundMessagePolicyDenied(err)) {
         logger.warn(
           { channel: parsed.channel, messageId: parsed.messageId },
@@ -374,9 +366,6 @@ export async function registerBersoncareRelayOutboundRoute(
       return reply.code(502).send({ ok: false, error: 'dispatch_failed' });
     }
   });
-
-  // Expose dedup map for testing via internal symbol
-  (app as unknown as { _relayDedupMap?: Map<string, number> })._relayDedupMap = dedupMap;
 }
 
 /** Visible for testing: generate a valid HMAC signature for a body. */
