@@ -19,16 +19,8 @@
 -- accompanying report for the full three-way comparison (declared-and-matches /
 -- declared-and-mismatched / not declared by anything).
 --
--- Deliberately NOT included (not declared by any script -- granting these would be inventing scope,
--- not reading it):
---   * app_patient on public.be_products / public.be_product_pay_links. Both tables' RLS policy (see
---     phase4-locked-helper-rls-policies.sql, either \if branch) only ever allows `app.is_staff()` or
---     the fully-anonymous/bootstrap principal -- never an authenticated patient. No overlay grants
---     app_patient anything on either table. This is why `POST /api/booking/products/purchase` (an
---     authenticated `dev:client` session) still fails after this script: `resolveProductOrganizationId`
---     (apps/webapp/src/infra/repos/pgProducts.ts) does a raw un-scoped SELECT on be_products under
---     the ambient app_patient pool, which no deploy script or RLS policy supports for a patient
---     principal. That is a product/RLS-design gap, not a dev-provisioning drift -- out of scope here.
+-- Deliberately NOT included: tables not declared by an existing overlay. Adding a grant here would
+-- invent scope instead of aligning DEV with the committed runtime-grant declarations.
 --
 -- Required: run as the `postgres` superuser against the `bcb_webapp_dev` database, after dev-c0/c1/c3
 -- and the p0-5b/c5a/saas-system-health-diagnostics/patient-write-grants-role-pool-mismatch overlays

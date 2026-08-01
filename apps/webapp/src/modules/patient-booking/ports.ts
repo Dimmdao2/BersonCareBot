@@ -192,7 +192,6 @@ export type PatientBookingService = {
         notificationOutcomeFailed?: boolean;
         paymentOutcomeFailed?: boolean;
         membershipOutcomeFailed?: boolean;
-        productOutcomeFailed?: boolean;
       }
     | {
         ok: false;

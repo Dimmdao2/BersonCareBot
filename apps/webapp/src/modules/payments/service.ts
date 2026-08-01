@@ -13,7 +13,6 @@ import type { AppointmentPaymentSummary, BookingPaymentSettings, PrepaymentQuote
 import type { ResolvePrepaymentParams } from './ports';
 import type { PrepaymentResolveContext } from './prepaymentContextFromBooking';
 import { parsePatientPackageProductRef } from '@/modules/memberships/patientPackageProductRef';
-import { parseProductPurchaseProductRef } from '@/modules/products/productPurchaseProductRef';
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 
@@ -65,12 +64,6 @@ export function createPaymentsService(deps: {
   }) => Promise<void>;
   onPackagePaymentCaptured?: (input: {
     patientPackageId: string;
-    paymentId: string;
-    platformUserId: string | null;
-    organizationId: string;
-  }) => Promise<void>;
-  onProductPaymentCaptured?: (input: {
-    productPurchaseId: string;
     paymentId: string;
     platformUserId: string | null;
     organizationId: string;
@@ -219,16 +212,6 @@ export function createPaymentsService(deps: {
     if (patientPackageId && deps.onPackagePaymentCaptured) {
       await deps.onPackagePaymentCaptured({
         patientPackageId,
-        paymentId: payment.id,
-        platformUserId: intent.platformUserId,
-        organizationId,
-      });
-    }
-
-    const productPurchaseId = parseProductPurchaseProductRef(intent.productRef);
-    if (productPurchaseId && deps.onProductPaymentCaptured) {
-      await deps.onProductPaymentCaptured({
-        productPurchaseId,
         paymentId: payment.id,
         platformUserId: intent.platformUserId,
         organizationId,
@@ -482,70 +465,6 @@ export function createPaymentsService(deps: {
         status: intent.status,
         purpose: intent.purpose,
         payloadJson: { patientPackageId: input.patientPackageId, productRef },
-      });
-
-      return intent;
-    },
-
-    async createProductPaymentIntent(input: {
-      organizationId: string;
-      platformUserId: string;
-      productPurchaseId: string;
-      amountMinor: number;
-      currency: string;
-      idempotencyKey: string;
-      providerId?: string;
-      returnUrl: string;
-    }) {
-      const settings = await loadSettings(input.organizationId);
-      if (!settings.enabled) throw new Error('payments_disabled');
-      const provider = resolveActiveProvider(settings, input.providerId);
-      const adapter = getPaymentProviderAdapter(provider.id);
-      const existing = await deps.port.findIntentByIdempotency(
-        input.organizationId,
-        input.idempotencyKey,
-      );
-      if (existing) return existing;
-
-      const productRef = `product_purchase:${input.productPurchaseId}`;
-      const created = await adapter.createIntent({
-        amountMinor: input.amountMinor,
-        currency: input.currency,
-        idempotencyKey: input.idempotencyKey,
-        payerRef: `platform_user:${input.platformUserId}`,
-        purpose: 'product_purchase',
-        subjectRef: productRef,
-        returnUrl: resolveReturnUrl(input.returnUrl),
-        metadata: {
-          productPurchaseId: input.productPurchaseId,
-        },
-        providerConfig: provider,
-      });
-
-      const intent = await deps.port.createPaymentIntent({
-        organizationId: input.organizationId,
-        idempotencyKey: input.idempotencyKey,
-        providerId: provider.id,
-        platformUserId: input.platformUserId,
-        productRef,
-        amountMinor: input.amountMinor,
-        currency: input.currency,
-        purpose: 'product_purchase',
-        providerIntentRef: created.providerIntentRef,
-        checkoutUrl: created.checkoutUrl ?? null,
-        metadataJson: { productPurchaseId: input.productPurchaseId },
-      });
-
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        platformUserId: input.platformUserId,
-        eventType: 'product_intent_created',
-        amountMinor: input.amountMinor,
-        currency: input.currency,
-        providerId: provider.id,
-        status: intent.status,
-        purpose: intent.purpose,
-        payloadJson: { productPurchaseId: input.productPurchaseId, productRef },
       });
 
       return intent;

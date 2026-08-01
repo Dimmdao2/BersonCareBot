@@ -74,7 +74,19 @@ function inspectAlfabankWebhook(headers: Headers, bodyText: string) {
 
 export function createAlfabankPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({ amountMinor, currency, idempotencyKey, metadata, returnUrl, providerConfig }) {
+    async createIntent({
+      amountMinor,
+      currency,
+      idempotencyKey,
+      payerRef,
+      purpose,
+      subjectRef,
+      metadata,
+      returnUrl,
+      invoice,
+      providerConfig,
+    }) {
+      if (invoice) throw new Error('payment_provider_invoices_unsupported:alfabank');
       const { login, password, baseUrl } = requireAlfabankCredentials(providerConfig);
 
       // Alfa-Bank expects amount in kopecks — matches our minor-unit convention
@@ -87,7 +99,7 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
         returnUrl,
         description:
           typeof metadata.description === 'string' ? metadata.description : idempotencyKey,
-        jsonParams: JSON.stringify({ idempotencyKey, ...metadata }),
+        jsonParams: JSON.stringify({ ...metadata, idempotencyKey, payerRef, purpose, subjectRef }),
       };
 
       const res = await fetch(`${baseUrl}/register.do`, {

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -25,8 +25,7 @@ import {
   bePatientPackages,
 } from '../../../db/schema/bookingMemberships';
 import { bePaymentHistoryEvents } from '../../../db/schema/bookingPayments';
-import { beProductHistoryEvents, beProductPurchases } from '../../../db/schema/bookingProducts';
-import { doctorNotes, platformUsers } from '../../../db/schema/schema';
+import { doctorNotes } from '../../../db/schema/schema';
 import type { ClientHistoryPort } from '@/modules/client-history/ports';
 import type {
   AppointmentStaffCommentRow,
@@ -99,100 +98,6 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   return principalOrganizationId;
 }
 
-async function resolveUserPhone(platformUserId: string): Promise<string | null> {
-  const db = getDrizzle();
-  const rows = await db
-    .select({
-      phone: platformUsers.phoneNormalized,
-      patientPhoneTrustAt: platformUsers.patientPhoneTrustAt,
-    })
-    .from(platformUsers)
-    .where(eq(platformUsers.id, platformUserId))
-    .limit(1);
-  if (!rows[0]?.patientPhoneTrustAt) return null;
-  const phone = rows[0]?.phone?.trim();
-  return phone || null;
-}
-
-function productPurchaseScope(
-  organizationId: string,
-  platformUserId: string,
-  phone: string | null,
-) {
-  if (!phone) {
-    return and(
-      eq(beProductPurchases.organizationId, organizationId),
-      eq(beProductPurchases.platformUserId, platformUserId),
-    );
-  }
-  return and(
-    eq(beProductPurchases.organizationId, organizationId),
-    or(
-      eq(beProductPurchases.platformUserId, platformUserId),
-      and(
-        isNull(beProductPurchases.platformUserId),
-        eq(beProductPurchases.buyerPhoneNormalized, phone),
-      ),
-    ),
-  );
-}
-
-type PaymentHistoryRow = typeof bePaymentHistoryEvents.$inferSelect;
-
-async function fetchPhoneMatchedOrphanPaymentRows(
-  organizationId: string,
-  userPhone: string | null,
-  fetchLimit: number,
-): Promise<PaymentHistoryRow[]> {
-  if (!userPhone) return [];
-  const db = getDrizzle();
-  const phonePurchases = await db
-    .select({ id: beProductPurchases.id })
-    .from(beProductPurchases)
-    .where(
-      and(
-        eq(beProductPurchases.organizationId, organizationId),
-        isNull(beProductPurchases.platformUserId),
-        eq(beProductPurchases.buyerPhoneNormalized, userPhone),
-      ),
-    );
-  const refs = phonePurchases.map((p) => `product_purchase:${p.id}`);
-  if (refs.length === 0) return [];
-
-  const orphanRows = await db
-    .select()
-    .from(bePaymentHistoryEvents)
-    .where(
-      and(
-        eq(bePaymentHistoryEvents.organizationId, organizationId),
-        isNull(bePaymentHistoryEvents.platformUserId),
-      ),
-    )
-    .orderBy(desc(bePaymentHistoryEvents.occurredAt))
-    .limit(fetchLimit);
-
-  return orphanRows.filter((row) => {
-    const payload = row.payloadJson as Record<string, unknown>;
-    const productRef = typeof payload.productRef === 'string' ? payload.productRef : null;
-    return productRef != null && refs.includes(productRef);
-  });
-}
-
-function mergePaymentHistoryRows(
-  primaryRows: PaymentHistoryRow[],
-  extraRows: PaymentHistoryRow[],
-  fetchLimit: number,
-) {
-  const seenIds = new Set<string>();
-  const rows = [...primaryRows, ...extraRows].filter((row) => {
-    if (seenIds.has(row.id)) return false;
-    seenIds.add(row.id);
-    return true;
-  });
-  rows.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
-  return rows.slice(0, fetchLimit);
-}
-
 export function createPgClientHistoryPort(): ClientHistoryPort {
   return {
     async listPatientTimeline(organizationId, platformUserId, limit = 100) {
@@ -202,8 +107,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
         timelineRows,
         paymentRows,
         packageHistoryRows,
-        productHistoryRows,
-        productRows,
         packageUsageRows,
         rescheduleRows,
         cancelRows,
@@ -251,39 +154,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
             ),
           )
           .orderBy(desc(bePackageHistoryEvents.occurredAt))
-          .limit(fetchLimit),
-        db
-          .select({
-            id: beProductHistoryEvents.id,
-            eventType: beProductHistoryEvents.eventType,
-            occurredAt: beProductHistoryEvents.occurredAt,
-            payloadJson: beProductHistoryEvents.payloadJson,
-            productPurchaseId: beProductHistoryEvents.productPurchaseId,
-            purchaseTitle: beProductPurchases.title,
-          })
-          .from(beProductHistoryEvents)
-          .innerJoin(
-            beProductPurchases,
-            eq(beProductHistoryEvents.productPurchaseId, beProductPurchases.id),
-          )
-          .where(
-            and(
-              eq(beProductHistoryEvents.organizationId, organizationId),
-              eq(beProductPurchases.platformUserId, platformUserId),
-            ),
-          )
-          .orderBy(desc(beProductHistoryEvents.occurredAt))
-          .limit(fetchLimit),
-        db
-          .select()
-          .from(beProductPurchases)
-          .where(
-            and(
-              eq(beProductPurchases.organizationId, organizationId),
-              eq(beProductPurchases.platformUserId, platformUserId),
-            ),
-          )
-          .orderBy(desc(beProductPurchases.createdAt))
           .limit(fetchLimit),
         db
           .select({
@@ -401,43 +271,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           payload: (row.payloadJson as Record<string, unknown>) ?? {},
         });
       }
-      for (const row of productHistoryRows) {
-        items.push({
-          id: row.id,
-          category: 'product',
-          eventType: row.eventType,
-          title: timelineEventTitle(row.eventType),
-          summary: row.purchaseTitle,
-          occurredAt: row.occurredAt,
-          linkedObjectType: 'product_history_event',
-          linkedObjectId: row.id,
-          appointmentId: null,
-          payload: {
-            productPurchaseId: row.productPurchaseId,
-            ...((row.payloadJson as Record<string, unknown>) ?? {}),
-          },
-        });
-      }
-      for (const row of productRows) {
-        items.push({
-          id: row.id,
-          category: 'product',
-          eventType: 'product_purchased',
-          title: timelineEventTitle('product_purchased'),
-          summary: row.title,
-          occurredAt: row.createdAt,
-          linkedObjectType: 'product_purchase',
-          linkedObjectId: row.id,
-          appointmentId: null,
-          payload: {
-            productPurchaseId: row.id,
-            productType: row.productType,
-            status: row.status,
-            priceMinor: row.priceMinor,
-            currency: row.currency,
-          },
-        });
-      }
       for (const row of packageUsageRows) {
         if (row.usageKind === 'reserve' || row.usageKind === 'release') continue;
         const eventType =
@@ -513,15 +346,13 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
         .limit(limit);
 
       const packageIds = new Set<string>();
-      const productPurchaseIds = new Set<string>();
       for (const row of rows) {
         const refs = parsePaymentPayloadRefs(row.payloadJson as Record<string, unknown>);
         if (refs.patientPackageId) packageIds.add(refs.patientPackageId);
-        if (refs.productPurchaseId) productPurchaseIds.add(refs.productPurchaseId);
       }
-      const [packages, products] = await Promise.all([
+      const packages =
         packageIds.size > 0
-          ? db
+          ? await db
               .select({ id: bePatientPackages.id, title: bePatientPackages.title })
               .from(bePatientPackages)
               .where(
@@ -531,22 +362,8 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
                   inArray(bePatientPackages.id, [...packageIds]),
                 ),
               )
-          : Promise.resolve([]),
-        productPurchaseIds.size > 0
-          ? db
-              .select({ id: beProductPurchases.id, title: beProductPurchases.title })
-              .from(beProductPurchases)
-              .where(
-                and(
-                  eq(beProductPurchases.organizationId, organizationId),
-                  eq(beProductPurchases.platformUserId, platformUserId),
-                  inArray(beProductPurchases.id, [...productPurchaseIds]),
-                ),
-              )
-          : Promise.resolve([]),
-      ]);
+          : [];
       const packageTitles = new Map(packages.map((row) => [row.id, row.title]));
-      const productTitles = new Map(products.map((row) => [row.id, row.title]));
 
       return rows.map((row) =>
         enrichPaymentHistoryRow(
@@ -568,7 +385,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           {
             serviceByAppt: new Map(),
             packageTitles,
-            productTitles,
             paymentMethodLabel,
           },
         ),
@@ -682,14 +498,11 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
     async listTimeline(organizationId, platformUserId, limit = 100) {
       const db = getDrizzle();
       const fetchLimit = sourceFetchLimit(limit);
-      const userPhone = await resolveUserPhone(platformUserId);
 
       const [
         timelineRows,
-        primaryPaymentRows,
+        paymentRows,
         packageHistoryRows,
-        productHistoryRows,
-        productRows,
         packageUsageRows,
         rescheduleRows,
         cancelRows,
@@ -739,34 +552,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
             ),
           )
           .orderBy(desc(bePackageHistoryEvents.occurredAt))
-          .limit(fetchLimit),
-        db
-          .select({
-            id: beProductHistoryEvents.id,
-            eventType: beProductHistoryEvents.eventType,
-            occurredAt: beProductHistoryEvents.occurredAt,
-            payloadJson: beProductHistoryEvents.payloadJson,
-            productPurchaseId: beProductHistoryEvents.productPurchaseId,
-            purchaseTitle: beProductPurchases.title,
-          })
-          .from(beProductHistoryEvents)
-          .innerJoin(
-            beProductPurchases,
-            eq(beProductHistoryEvents.productPurchaseId, beProductPurchases.id),
-          )
-          .where(
-            and(
-              eq(beProductHistoryEvents.organizationId, organizationId),
-              productPurchaseScope(organizationId, platformUserId, userPhone),
-            ),
-          )
-          .orderBy(desc(beProductHistoryEvents.occurredAt))
-          .limit(fetchLimit),
-        db
-          .select()
-          .from(beProductPurchases)
-          .where(productPurchaseScope(organizationId, platformUserId, userPhone))
-          .orderBy(desc(beProductPurchases.createdAt))
           .limit(fetchLimit),
         db
           .select({
@@ -856,13 +641,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           .limit(fetchLimit),
       ]);
 
-      const phonePaymentRows = await fetchPhoneMatchedOrphanPaymentRows(
-        organizationId,
-        userPhone,
-        fetchLimit,
-      );
-      const paymentRows = mergePaymentHistoryRows(primaryPaymentRows, phonePaymentRows, fetchLimit);
-
       const items: ClientTimelineItem[] = [];
 
       for (const row of timelineRows) {
@@ -925,44 +703,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
         });
       }
 
-      for (const row of productHistoryRows) {
-        items.push({
-          id: row.id,
-          category: 'product',
-          eventType: row.eventType,
-          title: timelineEventTitle(row.eventType),
-          summary: row.purchaseTitle,
-          occurredAt: row.occurredAt,
-          linkedObjectType: 'product_history_event',
-          linkedObjectId: row.id,
-          appointmentId: null,
-          payload: {
-            productPurchaseId: row.productPurchaseId,
-            ...((row.payloadJson as Record<string, unknown>) ?? {}),
-          },
-        });
-      }
-
-      for (const row of productRows) {
-        items.push({
-          id: row.id,
-          category: 'product',
-          eventType: 'product_purchased',
-          title: timelineEventTitle('product_purchased'),
-          summary: row.title,
-          occurredAt: row.createdAt,
-          linkedObjectType: 'product_purchase',
-          linkedObjectId: row.id,
-          appointmentId: null,
-          payload: {
-            productPurchaseId: row.id,
-            productType: row.productType,
-            status: row.status,
-            priceMinor: row.priceMinor,
-            currency: row.currency,
-          },
-        });
-      }
 
       for (const row of packageUsageRows) {
         if (row.usageKind === 'reserve' || row.usageKind === 'release') continue;
@@ -1071,9 +811,8 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
     async listPaymentHistory(organizationId, platformUserId, limit = 100) {
       const db = getDrizzle();
       const fetchLimit = sourceFetchLimit(limit);
-      const userPhone = await resolveUserPhone(platformUserId);
 
-      const primaryRows = await db
+      const limitedRows = await db
         .select()
         .from(bePaymentHistoryEvents)
         .where(
@@ -1084,13 +823,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
         )
         .orderBy(desc(bePaymentHistoryEvents.occurredAt))
         .limit(fetchLimit);
-
-      const phoneMatchedRows = await fetchPhoneMatchedOrphanPaymentRows(
-        organizationId,
-        userPhone,
-        fetchLimit,
-      );
-      const limitedRows = mergePaymentHistoryRows(primaryRows, phoneMatchedRows, fetchLimit);
 
       const appointmentIds = [
         ...new Set(limitedRows.map((r) => r.appointmentId).filter(Boolean)),
@@ -1111,11 +843,9 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
       }
 
       const packageIds = new Set<string>();
-      const productPurchaseIds = new Set<string>();
       for (const row of limitedRows) {
         const refs = parsePaymentPayloadRefs(row.payloadJson as Record<string, unknown>);
         if (refs.patientPackageId) packageIds.add(refs.patientPackageId);
-        if (refs.productPurchaseId) productPurchaseIds.add(refs.productPurchaseId);
       }
 
       const packageTitles = new Map<string, string>();
@@ -1125,15 +855,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           .from(bePatientPackages)
           .where(inArray(bePatientPackages.id, [...packageIds]));
         for (const p of pkgs) packageTitles.set(p.id, p.title);
-      }
-
-      const productTitles = new Map<string, string>();
-      if (productPurchaseIds.size > 0) {
-        const prods = await db
-          .select({ id: beProductPurchases.id, title: beProductPurchases.title })
-          .from(beProductPurchases)
-          .where(inArray(beProductPurchases.id, [...productPurchaseIds]));
-        for (const p of prods) productTitles.set(p.id, p.title);
       }
 
       return limitedRows.slice(0, limit).map((row) =>
@@ -1156,7 +877,6 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           {
             serviceByAppt,
             packageTitles,
-            productTitles,
             paymentMethodLabel,
           },
         ),
