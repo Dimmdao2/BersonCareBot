@@ -190,3 +190,25 @@ mandatory structural protection does not. Ch2 checkbox remains open; no audit co
 `patient_files` runtime regression (inspection only because it is outside target diff); full webapp lint completion
 beyond the unrelated earlier raw-SQL gate failure; full unscoped `git diff --check` beyond the pre-existing
 character-device blocker; full CI (explicitly not required).
+
+## Fix-round evidence — worker `#1082`
+
+The existing `check-media-delivery-chokepoint.mjs` now normalizes alias and relative paths, follows static,
+re-export, dynamic and namespace imports from each `/api/media/[id]/**` route and `modules/media` source, and
+stops only at the established `authorizeMediaDelivery` door. It rejects reachable ACL primitives, direct infra S3
+imports and raw AWS S3 SDK imports outside the existing media storage port. Upload/multipart and background-delete
+remain outside the delivery traversal.
+
+| Command | Result |
+| --- | --- |
+| `node scripts/check-media-delivery-chokepoint.mjs --self-test` | **PASS:** green route accepted; 7/7 formerly missed reachable forms exit nonzero; upload/background-delete controls accepted. |
+| `node scripts/check-media-delivery-chokepoint.mjs` | **PASS** on the current tree. |
+| `pnpm --dir apps/webapp exec vitest run src/app-layer/media/authorizeMediaDelivery.unit.test.ts src/app-layer/media/resolveMediaPlaybackPayload.unit.test.ts 'src/app/api/media/[id]/mediaDeliveryChokepoint.route.test.ts' src/modules/online-intake/doctorIntakeDetailResponse.unit.test.ts src/app-layer/media/mediaDeliveryChokepointGate.unit.test.ts` | **PASS: 5 files, 20 tests** — four behavior files/18 tests plus the saved gate oracle/2 tests; no expected-red remains. |
+| `pnpm --dir apps/webapp typecheck` | **PASS**. |
+| `pnpm exec eslint scripts/check-media-delivery-chokepoint.mjs && pnpm --dir apps/webapp exec eslint --no-ignore src/app-layer/media/mediaDeliveryChokepointGate.unit.test.ts` | **PASS**. |
+| `pnpm --dir apps/webapp lint` | **PASS** on the current tree. |
+| `git diff --check -- scripts/check-media-delivery-chokepoint.mjs docs/_TODO/runs/testsuite-v2/CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md` | **PASS**. |
+
+**Fix-round structural count:** killed **7** formerly missed bypass forms; missed **0**. The two previously caught
+direct named-import forms remain covered by the saved oracle. This worker evidence does not replace the
+orchestrator's final acceptance or change the initial independent-audit verdict.
