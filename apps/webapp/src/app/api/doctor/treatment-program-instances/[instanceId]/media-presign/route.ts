@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -8,13 +7,13 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
 import { logger } from '@/app-layer/logging/logger';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
-import { presignPutUrl, s3ObjectKey } from '@/app-layer/media/s3Client';
 import {
   deletePendingMediaFileById,
   insertPendingMediaFileTx,
 } from '@/app-layer/media/s3MediaStorage';
 import { env, isS3MediaEnabled } from '@/config/env';
-import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
+import { prepareMediaUpload, presignPreparedUpload } from '@/app-layer/media/mediaUploadAdapter';
+import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { resolveDoctorInstanceInWorkspace } from '../../_doctorInstanceWorkspace';
 
 const bodySchema = z.object({
@@ -37,16 +36,17 @@ export async function POST(request: Request, context: { params: Promise<{ instan
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
-  const mime = parsed.data.mimeType.toLowerCase();
-  if (!ALLOWED_MEDIA_MIME.has(mime) || !mime.startsWith('video/')) {
-    return NextResponse.json({ ok: false, error: 'mime_not_allowed', mime }, { status: 415 });
+  const prepared = prepareMediaUpload({
+    filename: parsed.data.filename,
+    mimeType: parsed.data.mimeType,
+    sizeBytes: parsed.data.size,
+    policyId: 'individual-exercise-video',
+  });
+  if (!prepared.ok) {
+    const rejection = uploadValidationResponse(prepared);
+    return NextResponse.json(rejection.body, { status: rejection.status });
   }
-  if (parsed.data.size > MAX_MEDIA_BYTES) {
-    return NextResponse.json(
-      { ok: false, error: 'file_too_large', maxBytes: MAX_MEDIA_BYTES },
-      { status: 413 },
-    );
-  }
+  const upload = prepared.value;
 
   const deps = buildAppDeps();
   const resolved = await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -54,8 +54,8 @@ export async function POST(request: Request, context: { params: Promise<{ instan
   );
   if (!resolved.ok) return resolved.response;
 
-  const mediaId = randomUUID();
-  const key = s3ObjectKey(mediaId, parsed.data.filename);
+  const mediaId = upload.id;
+  const key = upload.key;
   try {
     await withDoctorWorkspacePrincipal(gate.ctx, async () => {
       const folder = await pgEnsureClientPatientFolder(resolved.instance.patientUserId);
@@ -68,15 +68,15 @@ export async function POST(request: Request, context: { params: Promise<{ instan
             id: mediaId,
             filename: parsed.data.filename,
             key,
-            mimeType: mime,
-            sizeBytes: parsed.data.size,
+            mimeType: upload.intent.mimeType,
+            sizeBytes: upload.intent.sizeBytes,
             userId: gate.ctx.session.user.userId,
             folderId: folder.id,
           });
         },
       );
     });
-    const uploadUrl = await presignPutUrl(key, mime);
+    const uploadUrl = await presignPreparedUpload(upload);
     return NextResponse.json({
       ok: true as const,
       mediaId,

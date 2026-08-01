@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env, isS3MediaEnabled } from '@/config/env';
@@ -11,14 +10,11 @@ import {
   insertPendingProgramSubmissionMediaFileTx,
 } from '@/app-layer/media/s3MediaStorage';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
-import { presignPutUrl, s3ObjectKey } from '@/app-layer/media/s3Client';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  MAX_PROGRAM_SUBMISSION_BYTES,
-  PROGRAM_SUBMISSION_ALLOWED_MIME,
-} from '@/modules/media/programSubmissionUploadLimits';
+import { prepareMediaUpload, presignPreparedUpload } from '@/app-layer/media/mediaUploadAdapter';
+import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { assertPatientProgramMediaAllowed } from '@/modules/doctor-clients/assertPatientProgramInteraction';
 import { isPatientProgramDiscussionMediaFlowEnabled } from '@/modules/program-item-discussion/discussionFeatureGates';
 
@@ -69,19 +65,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
-  const mime = parsed.data.mimeType.toLowerCase();
-  if (!PROGRAM_SUBMISSION_ALLOWED_MIME.has(mime)) {
-    return NextResponse.json({ ok: false, error: 'mime_not_allowed', mime }, { status: 415 });
+  const prepared = prepareMediaUpload({
+    filename: parsed.data.filename,
+    mimeType: parsed.data.mimeType,
+    sizeBytes: parsed.data.size,
+    policyId: 'patient-program-submission',
+  });
+  if (!prepared.ok) {
+    const rejection = uploadValidationResponse(prepared);
+    return NextResponse.json(rejection.body, { status: rejection.status });
   }
-  if (parsed.data.size > MAX_PROGRAM_SUBMISSION_BYTES) {
-    return NextResponse.json(
-      { ok: false, error: 'file_too_large', maxBytes: MAX_PROGRAM_SUBMISSION_BYTES },
-      { status: 413 },
-    );
-  }
+  const upload = prepared.value;
 
-  const mediaId = randomUUID();
-  const key = s3ObjectKey(mediaId, parsed.data.filename);
+  const mediaId = upload.id;
+  const key = upload.key;
   const readUrl = `/api/media/${mediaId}`;
 
   try {
@@ -98,8 +95,8 @@ export async function POST(request: Request) {
               id: mediaId,
               filename: parsed.data.filename,
               key,
-              mimeType: mime,
-              sizeBytes: parsed.data.size,
+              mimeType: upload.intent.mimeType,
+              sizeBytes: upload.intent.sizeBytes,
               userId: gate.session.user.userId,
               folderId: patientFolder.id,
             });
@@ -107,7 +104,7 @@ export async function POST(request: Request) {
         );
       },
     );
-    const uploadUrl = await presignPutUrl(key, mime);
+    const uploadUrl = await presignPreparedUpload(upload);
     return NextResponse.json({
       ok: true as const,
       mediaId,

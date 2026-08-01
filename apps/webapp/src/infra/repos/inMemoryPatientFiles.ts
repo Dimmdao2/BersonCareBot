@@ -9,6 +9,7 @@ import type {
   PatientFileRecord,
   PatientFilesPort,
 } from '@/modules/patient-files/ports';
+import type { ReceivedUpload } from '@/modules/media/uploadValidation';
 
 const store: Map<string, PatientFileRecord> = new Map();
 
@@ -49,6 +50,13 @@ export const inMemoryPatientFilesPort: PatientFilesPort = {
     };
     store.set(record.id, record);
     return record;
+  },
+
+  async confirmFileUpload(
+    mediaFileId: string,
+    _received: ReceivedUpload,
+  ): Promise<PatientFileRecord | null> {
+    return Array.from(store.values()).find((file) => file.mediaFileId === mediaFileId) ?? null;
   },
 
   async linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null> {

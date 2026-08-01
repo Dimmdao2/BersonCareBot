@@ -27,6 +27,7 @@ import {
   s3PutObjectBody,
 } from '@/infra/s3/client';
 import type { MediaStoragePort } from '@/modules/media/ports';
+import type { ReceivedUpload } from '@/modules/media/uploadValidation';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 import type {
   MediaListParams,
@@ -674,7 +675,11 @@ export async function getMediaRowForConfirm(
   };
 }
 
-export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
+/** Only the received-object door may transition a pending row to ready. */
+export async function confirmMediaFileReady(
+  mediaId: string,
+  _received: ReceivedUpload,
+): Promise<boolean> {
   const organizationId = currentPrincipalOrganizationId();
   const rows = await getWebappSqlDb()
     .update(mediaFiles)
@@ -691,7 +696,10 @@ export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
 }
 
 /** Confirm patient program submission upload (must have usage_purpose set at presign). */
-export async function confirmProgramSubmissionMediaFileReady(mediaId: string): Promise<boolean> {
+export async function confirmProgramSubmissionMediaFileReady(
+  mediaId: string,
+  _received: ReceivedUpload,
+): Promise<boolean> {
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql(
     getWebappSqlDb(),

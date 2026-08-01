@@ -4,6 +4,7 @@ import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
+import type { ReceivedUpload } from '@/modules/media/uploadValidation';
 
 export type UploadSessionRow = {
   id: string;
@@ -154,6 +155,7 @@ export async function finalizeMultipartSuccessTx(
   mediaId: string,
   ownerUserId: string,
   organizationId: string,
+  _received: ReceivedUpload,
 ): Promise<FinalizeMultipartResult> {
   const db = getWebappSqlFromPgClient(client);
   const sessionRes = await runWebappSql(
@@ -188,6 +190,7 @@ export async function tryFinalizeMultipartIdempotentTx(
   mediaId: string,
   ownerUserId: string,
   organizationId: string,
+  received: ReceivedUpload,
 ): Promise<{ kind: 'finalized' | 'already_done' | 'partial'; result: FinalizeMultipartResult }> {
   const db = getWebappSqlFromPgClient(client);
   const state = await runWebappSql<{ s: string; m: string }>(
@@ -213,6 +216,7 @@ export async function tryFinalizeMultipartIdempotentTx(
     mediaId,
     ownerUserId,
     organizationId,
+    received,
   );
   if (result.sessionRows > 0 && result.mediaRows > 0) {
     return { kind: 'finalized', result };
@@ -323,45 +327,6 @@ export async function deletePendingMediaFileTx(
     sql`DELETE FROM media_files WHERE id = ${mediaId}::uuid AND status = 'pending'`,
   );
   return res.rowCount ?? 0;
-}
-
-export async function finalizeMultipartSuccess(
-  sessionId: string,
-  mediaId: string,
-  organizationId: string,
-): Promise<void> {
-  const pool = getPool();
-  const r = await withPoolTransaction(pool, async (client) => {
-    const r = await finalizeMultipartSuccessTx(
-      client,
-      sessionId,
-      mediaId,
-      await ownerForSession(client, sessionId, organizationId),
-      organizationId,
-    );
-    return r;
-  });
-  if (r.sessionRows === 0 || r.mediaRows === 0) {
-    throw new Error('finalize_multipart_no_rows_updated');
-  }
-}
-
-async function ownerForSession(
-  client: PoolClient,
-  sessionId: string,
-  organizationId: string,
-): Promise<string> {
-  const db = getWebappSqlFromPgClient(client);
-  const res = await runWebappSql<{ owner_user_id: string }>(
-    db,
-    sql`SELECT s.owner_user_id::text
-       FROM media_upload_sessions s
-       JOIN media_files m ON m.id = s.media_id
-      WHERE s.id = ${sessionId}::uuid AND m.organization_id = ${organizationId}::uuid`,
-  );
-  const id = res.rows[0]?.owner_user_id;
-  if (!id) throw new Error('session_not_found');
-  return id;
 }
 
 export async function markUploadSessionFailed(sessionId: string, message: string): Promise<void> {

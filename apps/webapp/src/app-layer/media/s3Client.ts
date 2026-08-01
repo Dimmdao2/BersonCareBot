@@ -7,6 +7,7 @@ export {
   s3CompleteMultipartUpload,
   s3DeleteObject,
   s3GetObjectBody,
+  s3GetObjectPrefix,
   s3GetPrivateObjectBuffer,
   s3GetObjectStream,
   s3HeadObject,

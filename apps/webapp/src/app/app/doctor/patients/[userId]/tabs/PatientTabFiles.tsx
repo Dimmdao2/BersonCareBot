@@ -238,6 +238,7 @@ function UploadPanel({
 
     // Step 1: POST to create metadata + get presigned PUT url.
     let uploadUrl: string | null = null;
+    let pendingFileId: string | null = null;
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/files`, {
         method: 'POST',
@@ -262,35 +263,46 @@ function UploadPanel({
       }
 
       uploadUrl = data.uploadUrl ?? null;
+      pendingFileId = data.file?.id ?? null;
     } catch {
       setUploadState({ phase: 'error', message: 'Сетевая ошибка при создании записи' });
       return false;
     }
 
-    // Step 2: PUT the file to the presigned S3 URL (no auth headers — it's a presigned url).
-    if (uploadUrl) {
-      setUploadState({ phase: 'pending', fileName, progress: 10 });
-      try {
-        const s3Res = await fetch(uploadUrl, {
-          method: 'PUT',
-          body: file,
-          headers: {
-            'Content-Type': file.type || 'application/octet-stream',
-          },
-        });
-        if (!s3Res.ok) {
-          setUploadState({ phase: 'error', message: `S3 ошибка: ${s3Res.status}` });
-          return false;
-        }
-        setUploadState({ phase: 'pending', fileName, progress: 100 });
-      } catch {
-        setUploadState({ phase: 'error', message: 'Ошибка загрузки в S3' });
+    // Step 2: PUT, then confirm. Neither a missing URL nor a failed confirm is a successful upload.
+    if (!uploadUrl || !pendingFileId) {
+      setUploadState({ phase: 'error', message: 'Не удалось подготовить загрузку' });
+      return false;
+    }
+    setUploadState({ phase: 'pending', fileName, progress: 10 });
+    try {
+      const s3Res = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+      if (!s3Res.ok) {
+        setUploadState({ phase: 'error', message: `S3 ошибка: ${s3Res.status}` });
         return false;
       }
-    } else {
-      // S3 not configured — metadata saved, no binary upload possible.
-      // Treat as success (graceful: the record exists, file body not stored).
+      const confirmRes = await fetch(
+        `/api/doctor/patients/${userId}/files/${pendingFileId}/confirm`,
+        {
+          method: 'POST',
+        },
+      );
+      const confirm = (await confirmRes.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+      } | null;
+      if (!confirmRes.ok || !confirm?.ok) {
+        setUploadState({ phase: 'error', message: uploadErrorMessage(confirm?.error) });
+        return false;
+      }
       setUploadState({ phase: 'pending', fileName, progress: 100 });
+    } catch {
+      setUploadState({ phase: 'error', message: 'Ошибка загрузки в S3' });
+      return false;
     }
     return true;
   }

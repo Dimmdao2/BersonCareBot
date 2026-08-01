@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env, isS3MediaEnabled } from '@/config/env';
-import { confirmMediaFileReady, getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
+import { getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
 import { maybeAutoEnqueueVideoTranscodeAfterUpload } from '@/app-layer/media/mediaTranscodeAutoEnqueue';
-import { s3HeadObject } from '@/app-layer/media/s3Client';
+import {
+  acceptReceivedMedia,
+  validateReceivedMediaObject,
+} from '@/app-layer/media/mediaUploadAdapter';
+import { uploadValidationResponse, validateUploadIntent } from '@/modules/media/uploadValidation';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
@@ -56,13 +60,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_status' }, { status: 409 });
   }
 
-  const exists = await s3HeadObject(row.s3_key);
-  if (!exists) {
-    return NextResponse.json({ ok: false, error: 'file_not_found_in_s3' }, { status: 404 });
+  const intent = validateUploadIntent({
+    filename: parsed.data.mediaId,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes ?? 0,
+    policyId: 'cms',
+  });
+  if (!intent.ok) {
+    const rejection = uploadValidationResponse(intent);
+    return NextResponse.json(rejection.body, { status: rejection.status });
+  }
+  const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
+  if (!received.ok) {
+    const rejection = uploadValidationResponse(received);
+    return NextResponse.json(rejection.body, { status: rejection.status });
   }
 
   const updated = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    confirmMediaFileReady(parsed.data.mediaId),
+    acceptReceivedMedia(parsed.data.mediaId, received.value),
   );
   if (!updated) {
     const again = await withDoctorWorkspacePrincipal(gate.ctx, () =>
