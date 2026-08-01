@@ -99,7 +99,35 @@ say "запуск $RUN_ID ($ROLE, ${ORCH_PROVIDER:-codex}/$MODEL/$EFFORT) по �
 # Отказ гейта строку не расходует.
 if ! OUT=$(ORCH_DRY=1 tools/orch-launch.sh "$ROLE" "$CLONE_NAME" "$RUN_ID" "$MODEL" "$EFFORT" "$BRIEF" "$SLICE" 2>&1); then
   say "ОТКАЗ порта (гейты): $OUT"
-  notify_lead "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID. $OUT"
+  # Отказ, который повторяется, ожиданием не лечится. Раньше такая строка висела первой в очереди и
+  # каждые десять минут писала лиду одну и ту же жалобу: конвейер стоял, а выглядело как живая работа, и
+  # настоящие сообщения тонули в повторах. Третий одинаковый отказ подряд откладывает строку —
+  # очередь едет дальше, лид получает ОДНО сообщение и сам решает, чинить бриф или снять работу.
+  STATE="$REPO/runs/.queue-refusals-$CLONE_NAME"
+  PREV_ID=$(cut -d' ' -f1 "$STATE" 2>/dev/null || true)
+  PREV_N=$(cut -d' ' -f2 "$STATE" 2>/dev/null || true)
+  if [ "$PREV_ID" = "$RUN_ID" ] && [ -n "$PREV_N" ]; then N=$((PREV_N + 1)); else N=1; fi
+  printf '%s %s\n' "$RUN_ID" "$N" > "$STATE"
+  if [ "$N" -ge 3 ]; then
+    REASON=$(printf '%s' "$OUT" | head -1)
+    python3 - "$QUEUE" "$LINE" "$REASON" <<'PY'
+import sys, time
+q, line, reason = sys.argv[1], sys.argv[2], sys.argv[3]
+stamp = '# отложено ' + time.strftime('%Y-%m-%d %H:%M') + ' (гейт отказал 3 раза: ' + reason + ') | '
+out, done = [], False
+for raw in open(q).read().split('\n'):
+    if not done and raw == line and not raw.lstrip().startswith('#'):
+        out.append(stamp + raw); done = True
+    else:
+        out.append(raw)
+open(q, 'w').write('\n'.join(out))
+PY
+    rm -f "$STATE"
+    say "ОТЛОЖЕНО $RUN_ID: третий одинаковый отказ подряд, строка снята с очереди"
+    notify_lead "Конвейер $CLONE_NAME: $RUN_ID отложен — гейт отказал три раза подряд, ожидание не помогает. $REASON"
+  else
+    notify_lead "Конвейер $CLONE_NAME: порт отказал запускать $RUN_ID (отказ $N из 3). $OUT"
+  fi
   exit 0
 fi
 
