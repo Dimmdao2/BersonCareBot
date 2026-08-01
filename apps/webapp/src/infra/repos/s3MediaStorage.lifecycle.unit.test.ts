@@ -119,6 +119,22 @@ describe('proxy S3-to-DB lifecycle', () => {
     expect(fakes.readyReturning).toHaveBeenCalledOnce();
     expect(fakes.s3DeleteObject).not.toHaveBeenCalled();
   });
+
+  it('does not PUT an object when creating its durable pending lifecycle row fails', async () => {
+    fakes.insertValues.mockRejectedValueOnce(new Error('pending_insert_failed'));
+    const port = createS3MediaStoragePort();
+
+    await expect(
+      port.upload({
+        body: Buffer.from([0xff, 0xd8, 0xff]),
+        filename: 'photo.jpg',
+        mimeType: 'image/jpeg',
+        received: receivedJpeg(),
+      }),
+    ).rejects.toThrow('pending_insert_failed');
+
+    expect(fakes.s3PutObjectBody).not.toHaveBeenCalled();
+  });
 });
 
 describe('pending upload abort lifecycle', () => {
