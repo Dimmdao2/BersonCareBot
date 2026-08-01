@@ -296,6 +296,12 @@ export type SaasBillingRepositoryPort = {
   runManualAssignmentTransaction<T>(
     work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<T>,
   ): Promise<T>;
+  /**
+   * К4 round 2 — idempotent by construction, same shape as
+   * {@link createSaasBillingRenewalInvoiceIfAbsent}: a second call under the same
+   * `(providerId, providerIdempotencyKey)` returns the invoice already raised (`created: false`)
+   * instead of a duplicate row. Callers must skip the provider charge when `created` is `false`.
+   */
   createSaasBillingInvoice(input: {
     organizationId: string;
     saasBillingSubscriptionId: string;
@@ -303,7 +309,7 @@ export type SaasBillingRepositoryPort = {
     providerIdempotencyKey: string;
     servicePeriodStartsAt: string;
     servicePeriodEndsAt: string;
-  }): Promise<SaasBillingInvoice>;
+  }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
   attachSaasBillingInvoiceProviderIntent(input: {
     saasBillingInvoiceId: string;
     providerInvoiceRef: string;
@@ -334,6 +340,10 @@ export type SaasBillingRepositoryPort = {
    * (same subscription row `requireOwnTariffBillingSubscription` resolves), with an admin-chosen
    * amount/description/expiry instead of the tariff's list price. `tariffName`/`tariffBillingPeriod`
    * are still derived from the live tariff row, same as `createSaasBillingInvoice`.
+   *
+   * К4 round 2 — idempotent by construction, same shape as `createSaasBillingInvoice`: a second
+   * call under the same `(providerId, providerIdempotencyKey)` returns the invoice already raised
+   * (`created: false`) instead of a duplicate row.
    */
   createManualSaasBillingInvoice(input: {
     organizationId: string;
@@ -346,7 +356,7 @@ export type SaasBillingRepositoryPort = {
     expiresAt: string;
     providerId: string;
     providerIdempotencyKey: string;
-  }): Promise<SaasBillingInvoice>;
+  }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by
    * invoice id alone, not organization-scoped (see `reserveSaasBillingRefund`). Only `draft`/

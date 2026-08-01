@@ -635,12 +635,6 @@ type TariffOption = {
   billingPeriod: 'day' | 'month' | 'year';
 };
 
-const BILLING_PERIOD_LABELS: Record<TariffOption['billingPeriod'], string> = {
-  day: 'день',
-  month: 'месяц',
-  year: 'год',
-};
-
 /** `datetime-local` input value, three days out — a visible, editable default, not a hidden one. */
 function defaultExpiresAtLocal(): string {
   const d = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);

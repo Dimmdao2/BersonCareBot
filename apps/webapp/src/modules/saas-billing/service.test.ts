@@ -5,6 +5,7 @@ import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 import { createSaasBillingService } from './service';
 import type { SaasBillingInvoice, SaasBillingRepositoryPort } from './ports';
+import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
 
 const invoice: SaasBillingInvoice = {
   id: 'invoice-1',
@@ -77,7 +78,7 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
   });
 
   it('creates a checkout for the clinic tariff', async () => {
-    const createSaasBillingInvoice = vi.fn(async () => invoice);
+    const createSaasBillingInvoice = vi.fn(async () => ({ invoice, created: true }));
     const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({
       ...invoice,
       providerInvoiceRef: input.providerInvoiceRef,
@@ -255,5 +256,66 @@ describe('К5: повторный тик по тому же периоду не 
     expect(second).toMatchObject({ dueCount: 1, created: 0, alreadyInvoiced: 1, failed: 0 });
     expect(createIntent).toHaveBeenCalledTimes(1);
     expect(attachSaasBillingInvoiceProviderIntent).toHaveBeenCalledTimes(1);
+  });
+});
+
+// К4 round 2 — the bug the blind audit reproduced 100% of the time: two identical
+// `createManualSaasBillingInvoice` calls each minted their OWN `providerIdempotencyKey` via
+// `randomUUID()` and their OWN `servicePeriodStartsAt` via `now()`, so neither of the two unique
+// indexes on `saas_billing_invoices` ever saw a repeat — three clicks made three invoices. This
+// test runs through the REAL in-memory repository (not a hand-rolled mock of "what idempotency
+// should do") so the actual `insertInvoiceIdempotent` codepath is what's under test.
+// Арбитр: revert the `providerIdempotencyKey` in `createManualSaasBillingInvoice` back to
+// `randomUUID()` and this test goes red on the first assertion.
+describe('К4 round 2: повторное «Выставить счёт» не создаёт второй счёт', () => {
+  async function seedOrgWithTariff(service: ReturnType<typeof createSaasBillingService>) {
+    await service.assignManualTariff({
+      organizationId: 'org-k4r2',
+      tariffId: 'tariff-k4r2',
+      audit: { actorId: 'operator-k4r2', reason: 'test seed' },
+    });
+  }
+
+  it('тот же запрос дважды возвращает ОДИН и тот же счёт; другой запрос создаёт новый', async () => {
+    const createInvoice = vi.fn(async () => ({
+      providerInvoiceRef: `provider-invoice-${createInvoice.mock.calls.length}`,
+      checkoutUrl: `https://yookassa.example.test/checkout-${createInvoice.mock.calls.length}`,
+    }));
+    const service = createSaasBillingService({
+      repository: createInMemorySaasBillingRepository(),
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [
+            { id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' },
+          ],
+        }),
+      },
+      resolvePaymentProvider: () => ({ createInvoice }) as never,
+    });
+    await seedOrgWithTariff(service);
+
+    const request = {
+      organizationId: 'org-k4r2',
+      amountMinor: 5_000,
+      currency: 'RUB',
+      description: 'Счёт за тариф',
+      expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    const first = await service.createManualSaasBillingInvoice(request);
+    const second = await service.createManualSaasBillingInvoice({ ...request });
+
+    expect(second.id).toBe(first.id);
+    expect(second.providerCheckoutUrl).toBe(first.providerCheckoutUrl);
+    expect(createInvoice).toHaveBeenCalledTimes(1);
+
+    const different = await service.createManualSaasBillingInvoice({
+      ...request,
+      amountMinor: 7_000,
+    });
+
+    expect(different.id).not.toBe(first.id);
+    expect(createInvoice).toHaveBeenCalledTimes(2);
   });
 });

@@ -38,6 +38,40 @@ function toSaasBillingRefund(row: typeof saasBillingRefunds.$inferSelect): SaasB
   return { ...row, status: row.status as SaasBillingRefund['status'] };
 }
 
+/**
+ * К4 round 2 — the ONE place `createSaasBillingInvoice` and `createManualSaasBillingInvoice` both
+ * insert through, instead of each doing a plain insert that a same-key repeat would either throw
+ * on or (worse, per the К4 round-1 bug) never even collide with. `onConflictDoNothing` on the
+ * unique `(provider_id, provider_idempotency_key)` index makes the second call a no-op at the DB
+ * level; the reselect below is what turns that no-op into "hand back the invoice already raised."
+ */
+async function insertSaasBillingInvoiceIdempotent(
+  db: Db | Transaction,
+  values: typeof saasBillingInvoices.$inferInsert,
+): Promise<{ invoice: SaasBillingInvoice; created: boolean }> {
+  const [inserted] = await db
+    .insert(saasBillingInvoices)
+    .values(values)
+    .onConflictDoNothing({
+      target: [saasBillingInvoices.providerId, saasBillingInvoices.providerIdempotencyKey],
+    })
+    .returning();
+  if (inserted) return { invoice: toSaasBillingInvoice(inserted), created: true };
+
+  const [existing] = await db
+    .select()
+    .from(saasBillingInvoices)
+    .where(
+      and(
+        eq(saasBillingInvoices.providerId, values.providerId),
+        eq(saasBillingInvoices.providerIdempotencyKey, values.providerIdempotencyKey),
+      ),
+    )
+    .limit(1);
+  if (!existing) throw new Error('saas_billing_invoice_conflict_not_found');
+  return { invoice: toSaasBillingInvoice(existing), created: false };
+}
+
 /** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
 const OPEN_REFUND_STATUSES = ['pending', 'succeeded'] as const;
 
@@ -447,26 +481,21 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           throw new Error('saas_billing_tariff_not_billable');
         }
 
-        const [row] = await tx
-          .insert(saasBillingInvoices)
-          .values({
-            organizationId: authority.organizationId,
-            saasBillingAccountId: authority.saasBillingAccountId,
-            saasBillingSubscriptionId: input.saasBillingSubscriptionId,
-            tariffId: authority.tariffId,
-            tariffName: authority.tariffName,
-            amountMinor: authority.amountMinor,
-            currency: authority.currency,
-            tariffBillingPeriod: authority.tariffBillingPeriod,
-            servicePeriodStartsAt: input.servicePeriodStartsAt,
-            servicePeriodEndsAt: input.servicePeriodEndsAt,
-            status: 'draft',
-            providerId: input.providerId,
-            providerIdempotencyKey: input.providerIdempotencyKey,
-          })
-          .returning();
-        if (!row) throw new Error('saas_billing_invoice_create_failed');
-        return toSaasBillingInvoice(row);
+        return insertSaasBillingInvoiceIdempotent(tx, {
+          organizationId: authority.organizationId,
+          saasBillingAccountId: authority.saasBillingAccountId,
+          saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+          tariffId: authority.tariffId,
+          tariffName: authority.tariffName,
+          amountMinor: authority.amountMinor,
+          currency: authority.currency,
+          tariffBillingPeriod: authority.tariffBillingPeriod,
+          servicePeriodStartsAt: input.servicePeriodStartsAt,
+          servicePeriodEndsAt: input.servicePeriodEndsAt,
+          status: 'draft',
+          providerId: input.providerId,
+          providerIdempotencyKey: input.providerIdempotencyKey,
+        });
       });
     },
 
@@ -557,28 +586,23 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .limit(1);
       if (!authority) throw new Error('saas_billing_subscription_not_found');
 
-      const [row] = await getDrizzle()
-        .insert(saasBillingInvoices)
-        .values({
-          organizationId: authority.organizationId,
-          saasBillingAccountId: authority.saasBillingAccountId,
-          saasBillingSubscriptionId: input.saasBillingSubscriptionId,
-          tariffId: authority.tariffId,
-          tariffName: authority.tariffName,
-          description: input.description,
-          amountMinor: input.amountMinor,
-          currency: input.currency,
-          tariffBillingPeriod: authority.tariffBillingPeriod,
-          servicePeriodStartsAt: input.servicePeriodStartsAt,
-          servicePeriodEndsAt: input.servicePeriodEndsAt,
-          expiresAt: input.expiresAt,
-          status: 'draft',
-          providerId: input.providerId,
-          providerIdempotencyKey: input.providerIdempotencyKey,
-        })
-        .returning();
-      if (!row) throw new Error('saas_billing_invoice_create_failed');
-      return toSaasBillingInvoice(row);
+      return insertSaasBillingInvoiceIdempotent(getDrizzle(), {
+        organizationId: authority.organizationId,
+        saasBillingAccountId: authority.saasBillingAccountId,
+        saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+        tariffId: authority.tariffId,
+        tariffName: authority.tariffName,
+        description: input.description,
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        tariffBillingPeriod: authority.tariffBillingPeriod,
+        servicePeriodStartsAt: input.servicePeriodStartsAt,
+        servicePeriodEndsAt: input.servicePeriodEndsAt,
+        expiresAt: input.expiresAt,
+        status: 'draft',
+        providerId: input.providerId,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+      });
     },
 
     /** К4 — platform-wide lookup by invoice id alone, same shape as `reserveSaasBillingRefund`. */
