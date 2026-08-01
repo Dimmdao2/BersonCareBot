@@ -39,9 +39,14 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
     const sources = readdirSync(moduleDir)
       .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
       .map((name) => join(moduleDir, name));
-    // The clinic-facing billing route is the same money path one layer up.
+    // The clinic-facing billing route and the SaaS payment webhook are the same money path one
+    // layer up — the webhook is the provider telling us the clinic paid, and capturing that must
+    // stay just as untouched by the ladder as issuing the checkout.
     sources.push(
       fileURLToPath(new URL('../../app/api/clinic/billing/route.ts', import.meta.url)),
+      fileURLToPath(
+        new URL('../../app/api/payments/saas-webhook/[provider]/route.ts', import.meta.url),
+      ),
     );
 
     const offenders: string[] = [];

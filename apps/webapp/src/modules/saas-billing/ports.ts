@@ -155,6 +155,16 @@ export type SaasBillingRepositoryPort = {
     saasBillingInvoiceId: string | null;
     event: SaasBillingProviderEventEnvelope;
   }): Promise<{ created: boolean }>;
+  /** Unscoped lookup — the webhook does not know the organization until this resolves it. */
+  findSaasBillingInvoiceByProviderRef(input: {
+    providerId: string;
+    providerInvoiceRef: string;
+  }): Promise<SaasBillingInvoice | null>;
+  markSaasBillingInvoicePaid(input: {
+    saasBillingInvoiceId: string;
+    organizationId: string;
+    paidAt: string;
+  }): Promise<SaasBillingInvoice>;
 };
 
 export type SaasBillingSettingsReadPort = {
