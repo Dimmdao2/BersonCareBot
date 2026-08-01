@@ -39,6 +39,27 @@ type CourseProductAccess = {
   hasActivePatientEnrollment?: (platformUserId: string, organizationId: string) => Promise<boolean>;
 };
 
+/**
+ * 3.2 круг 2: `activatePurchase` — единственный funnel, которым обе точки, ведущие к
+ * `courses.enrollPatient` без обычного HTTP-запроса, доходят до записи (платёжный вебхук через
+ * `onProductPaymentCaptured`, и бесплатный курс через `startPurchase`). Ни та ни другая не проходит
+ * через `requireEntitlementForMutation`, поэтому ALS-допуск (`assertWriteClearance('courses')` в
+ * `courses/service.ts`) там неоткуда взять. Тот же приём, что `assertWriteClearance` уже применён к
+ * courses/service.ts — плоские инжектированные функции, без импорта app-layer в модуль
+ * (`ARCHITECTURE.md`: modules depend only on contracts, pure utilities, and injected ports).
+ *
+ * `ensureWriteClearanceContext` синхронно, ДО первого await в `activatePurchase`, гарантирует ALS-ячейку
+ * на весь остаток этого continuation (тот же приём и та же причина, что у `ensureMechanicWriteClearanceContext`
+ * в `requireEntitlement.ts` — см. её JSDoc про потерю контекста при первом `enterWith` вглубь nested await).
+ * `grantWriteClearance` зовётся не отсюда и не из `assertCourseProductAvailable` (который читают и на
+ * чтение — каталог, pay-link), а точечно из `fulfillProduct`, сразу после того как то же самое место
+ * заново спросило резолвера и получило «да» — то есть от настоящего решения, а не от края маршрута.
+ */
+type WriteClearanceAccess = {
+  ensureWriteClearanceContext?: () => void;
+  grantWriteClearance?: (mechanic: 'courses') => void;
+};
+
 function visitsRemainingFromFulfillment(fulfillment: Record<string, unknown>): number {
   const n = fulfillment.visitsRemaining;
   return typeof n === 'number' && Number.isFinite(n) ? n : 0;
@@ -96,7 +117,8 @@ export function createProductsService(
     courses: CoursesService | null;
     resolvePlatformUserByPhone?: ResolvePlatformUserByPhone;
     findPlatformUserByPhone?: FindPlatformUserByPhone;
-  } & CourseProductAccess,
+  } & CourseProductAccess &
+    WriteClearanceAccess,
 ) {
   function isCourseLinked(product: ProductRecord): boolean {
     return product.productType === 'course' || product.courseId !== null;
@@ -438,6 +460,7 @@ export function createProductsService(
     },
 
     async activatePurchase(purchaseId: string, organizationId: string, paymentRef?: string) {
+      deps.ensureWriteClearanceContext?.();
       let purchase = await deps.port.getPurchase(purchaseId, organizationId);
       if (!purchase) return null;
       if (purchase.status === 'active') return purchase;
@@ -492,6 +515,7 @@ export function createProductsService(
 
       if (product.productType === 'course' && product.courseId && deps.courses) {
         await assertCourseProductAvailable(product, purchase.organizationId, platformUserId);
+        deps.grantWriteClearance?.('courses');
         await deps.courses.enrollPatient({
           courseId: product.courseId,
           patientUserId: platformUserId,

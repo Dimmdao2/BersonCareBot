@@ -13,6 +13,7 @@ import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyP
 
 const postBodySchema = z.object({
   text: z.string().min(1).max(4000),
+  idempotencyKey: z.string().min(1).max(200).optional(),
 });
 
 type WorkspaceConversationRef = { organizationId?: string | null };
@@ -110,6 +111,7 @@ export async function POST(
         }),
         gate.ctx.session.user.displayName,
       ),
+      parsed.data.idempotencyKey,
     ),
   );
   if (!result.ok) {

@@ -1201,4 +1201,12 @@ export const DECLARED_NO_SURFACE = {
   custom_domain: 'code-search: no custom-domain write action',
   patient_count: 'creation/reactivation path is not yet identified; stage 4.4 owns its inventory',
   doctor_statistics: 'statistics and booking-attribution surfaces are read-only',
+  // 3.3: class "никогда" mechanics (MECHANIC_REGISTRY) are never tariff-gated by owner decision —
+  // patient_card (owner 31.07, see the exemptions below) and patient_diaries (owner 31.07, 4a.4:
+  // "дневники у пациентов не отбираем"). No PROTECTED_ACTION_MAPPINGS row for either can ever be
+  // correct, so this is the accurate DoD, not a placeholder — running the full coverage check for
+  // the first time (this stage) surfaced them as `unregistered mechanic surface` findings.
+  patient_card: 'critical mechanic (class "никогда") — never tariff-gated, by design, no write gate',
+  patient_diaries:
+    'critical mechanic (class "никогда") — owner 31.07 "дневники у пациентов не отбираем", never tariff-gated',
 } as const satisfies Partial<Record<OrgMechanic, string>>;

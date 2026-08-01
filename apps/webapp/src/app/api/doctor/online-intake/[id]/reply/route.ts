@@ -16,6 +16,7 @@ import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyP
 
 const bodySchema = z.object({
   text: z.string().min(1).max(4000),
+  idempotencyKey: z.string().min(1).max(200).optional(),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -63,6 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }),
         gate.ctx.session.user.displayName,
       ),
+      parsed.data.idempotencyKey,
     ),
   );
   if (!result.ok) {

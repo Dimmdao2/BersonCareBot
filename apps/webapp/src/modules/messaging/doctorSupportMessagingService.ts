@@ -74,19 +74,25 @@ export function createDoctorSupportMessagingService(
       text: string,
       organizationId?: string,
       senderDisplayName?: string,
+      /** Client-supplied key: same key on retry ⇒ same `integratorMessageId`, so the unique
+       * constraint on `support_conversation_messages.integrator_message_id` dedupes the write
+       * and the patient is not notified twice. Falls back to a fresh id for legacy callers. */
+      idempotencyKey?: string,
     ): Promise<{ ok: true } | { ok: false; error: string }> {
       const convInfo = await port.getConversationRelayInfo(conversationId, organizationId);
       if (!convInfo) return { ok: false, error: 'not_found' };
       const trimmed = text.trim();
       if (!trimmed) return { ok: false, error: 'empty' };
       if (trimmed.length > MAX_LEN) return { ok: false, error: 'too_long' };
-      const integratorMessageId = `webapp-msg:${crypto.randomUUID()}`;
+      const integratorMessageId = idempotencyKey
+        ? `webapp-msg:${conversationId}:${idempotencyKey}`
+        : `webapp-msg:${crypto.randomUUID()}`;
       const now = new Date().toISOString();
       const channelCode = convInfo.channelCode ?? null;
       const channelExternalId = convInfo.channelExternalId ?? null;
       const platformUserId = convInfo.platformUserId ?? null;
 
-      await port.appendWebappMessage({
+      const { created } = await port.appendWebappMessage({
         conversationId,
         integratorMessageId,
         senderRole: 'admin',
@@ -95,6 +101,12 @@ export function createDoctorSupportMessagingService(
         createdAt: now,
         ...(organizationId ? { organizationId } : {}),
       });
+
+      if (!created) {
+        // Same idempotencyKey as an earlier call: message already appended and the
+        // patient already notified — do not relay a second time.
+        return { ok: true };
+      }
 
       if (platformUserId && convInfo.organizationId && opts?.notifyPatientOfDoctorReply) {
         opts

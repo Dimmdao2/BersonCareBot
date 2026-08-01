@@ -13,6 +13,10 @@ import type {
   OrgMechanic,
 } from '@/modules/org-entitlements/types';
 import { MECHANIC_REGISTRY } from '@/modules/org-entitlements/types';
+import {
+  ensureMechanicWriteClearanceContext,
+  enterWithMechanicWriteClearance,
+} from '@/app-layer/entitlements/mechanicWriteClearance';
 
 /** A route/action may pass only an already-authorized, server-derived organization. */
 export type EntitlementContext = Readonly<{ organizationId: string }>;
@@ -66,6 +70,12 @@ async function checkEntitlement(
   }
   if (resolution.state === 'read_only' && access === 'mutation') {
     return { ok: false, reason: 'commercial_read_only' };
+  }
+  // 3.2 construction: a passing MUTATION decision marks this mechanic cleared for the rest of
+  // this request's continuation, so `assertMechanicWriteClearance` at the actual write function
+  // (wired from `buildAppDeps.ts`) can refuse to run without it — see mechanicWriteClearance.ts.
+  if (access === 'mutation') {
+    enterWithMechanicWriteClearance(mechanic);
   }
   return { ok: true, warning: resolution.warning };
 }
@@ -172,6 +182,7 @@ export async function requireEntitlementForMutation(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<EntitlementSuccess | { ok: false; response: NextResponse }> {
+  ensureMechanicWriteClearanceContext();
   const decision = await checkEntitlement(ctx, mechanic, 'mutation');
   if (!decision.ok) {
     return {
@@ -200,6 +211,7 @@ export async function requireEntitlementForMutationAction(
 ): Promise<
   EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }
 > {
+  ensureMechanicWriteClearanceContext();
   const decision = await checkEntitlement(ctx, mechanic, 'mutation');
   return decision.ok ? decision : { ok: false, mechanic, reason: decision.reason };
 }
