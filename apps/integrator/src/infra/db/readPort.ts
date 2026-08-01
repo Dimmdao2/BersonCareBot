@@ -1,6 +1,5 @@
 import type {
   AppointmentsReadsPort,
-  CommunicationReadsPort,
   DbPort,
   DbReadPort,
   DbReadQuery,
@@ -21,14 +20,7 @@ import {
   getReminderOccurrenceOwnerUserId,
   getStaleReminderMessengerMessageIdForResend,
 } from './repos/reminders.js';
-import {
-  getActiveDraftByIdentity,
-  getConversationById,
-  getOpenConversationByIdentity,
-  listOpenConversations,
-  listUnansweredQuestions,
-  getQuestionByConversationId,
-} from './repos/messageThreads.js';
+import { getActiveDraftByIdentity, getOpenConversationByIdentity } from './repos/messageThreads.js';
 import { getPhoneNormalizedForDeliveryLookup } from './repos/platformUserDeliveryPhone.js';
 import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLookup.js';
 
@@ -57,13 +49,11 @@ async function handleUserLookup<T = unknown>(db: DbPort, query: DbReadQuery): Pr
 export function createDbReadPort(
   input: {
     db?: DbPort;
-    communicationReadsPort?: CommunicationReadsPort;
     remindersReadsPort?: RemindersReadsPort;
     appointmentsReadsPort?: AppointmentsReadsPort;
   } = {},
 ): DbReadPort {
   const db = input.db ?? createDbPort();
-  const communicationReadsPort = input.communicationReadsPort;
   const remindersReadsPort = input.remindersReadsPort;
   const appointmentsReadsPort = input.appointmentsReadsPort;
   return {
@@ -124,45 +114,6 @@ export function createDbReadPort(
             externalId,
             ...(source ? { source } : {}),
           })) as T;
-        }
-        case 'conversation.byId': {
-          const id = asNonEmptyString(query.params.id ?? query.params.conversationId);
-          if (!id) return null as T;
-          if (communicationReadsPort) {
-            return (await communicationReadsPort.getConversationById(id)) as T;
-          }
-          return (await getConversationById(db, { id })) as T;
-        }
-        case 'conversation.listOpen': {
-          const source = asNonEmptyString(query.params.source);
-          const limit = asFiniteNumber(query.params.limit);
-          if (communicationReadsPort) {
-            return (await communicationReadsPort.listOpenConversations({
-              ...(source ? { source } : {}),
-              ...(limit !== null ? { limit } : {}),
-            })) as T;
-          }
-          return (await listOpenConversations(db, {
-            ...(source ? { source } : {}),
-            ...(limit !== null ? { limit } : {}),
-          })) as T;
-        }
-        case 'questions.unanswered': {
-          const limit = asFiniteNumber(query.params.limit);
-          if (communicationReadsPort) {
-            return (await communicationReadsPort.listUnansweredQuestions({
-              ...(limit !== null ? { limit } : {}),
-            })) as T;
-          }
-          return (await listUnansweredQuestions(db, { ...(limit !== null ? { limit } : {}) })) as T;
-        }
-        case 'question.byConversationId': {
-          const conversationId = asNonEmptyString(query.params.conversationId);
-          if (!conversationId) return null as T;
-          if (communicationReadsPort) {
-            return (await communicationReadsPort.getQuestionByConversationId(conversationId)) as T;
-          }
-          return (await getQuestionByConversationId(db, { conversationId })) as T;
         }
         case 'identity.idByResourceAndExternalId': {
           const resource = asNonEmptyString(query.params.resource);

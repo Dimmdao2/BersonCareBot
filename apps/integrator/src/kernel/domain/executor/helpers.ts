@@ -25,10 +25,9 @@ import type {
 } from '../../contracts/index.js';
 import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 
-/** Policy for support relay: which message types are allowed user→admin and admin→user. */
+/** Policy for support relay: which message types are allowed user→admin. */
 export type SupportRelayPolicy = {
   isAllowedUserToAdmin(messageType: string): boolean;
-  isAllowedAdminToUser(messageType: string): boolean;
 };
 
 export type ExecutorDeps = {
@@ -179,23 +178,6 @@ export function readMessengerChannelUserId(
     asNumericString(incoming.channelUserId) ??
     asNumericString(incoming.chatId)
   );
-}
-
-export function formatActorLabel(input: {
-  firstName?: string | null;
-  lastName?: string | null;
-  username?: string | null;
-  channelId?: string | null;
-}): string {
-  const name = [input.firstName, input.lastName]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .join(' ')
-    .trim();
-  const username = asString(input.username);
-  if (name && username) return `${name} (@${username})`;
-  if (name) return name;
-  if (username) return `@${username}`;
-  return input.channelId ?? 'user';
 }
 
 /** Appends `@username` for Telegram admin notifications when not already present in label. */

@@ -61,7 +61,6 @@ import type { ResolveMessengerStaffAdmin } from '../kernel/contracts/index.js';
 import { defaultSupportRelayPolicy } from '../integrations/telegram/supportRelayPolicy.js';
 import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
 import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort.js';
-import { createCommunicationReadsPort } from '../infra/adapters/communicationReadsPort.js';
 import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.js';
 import { createRemindersWritesPort } from '../infra/adapters/remindersWritesPort.js';
 import { createAppointmentsReadsPort } from '../infra/adapters/appointmentsReadsPort.js';
@@ -163,7 +162,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     baseUrl: smscConfig.baseUrl,
     log: logger,
   });
-  const communicationReadsPort = createCommunicationReadsPort({ db: dbPort });
   /** Filled after `dispatchPort` is constructed (reminders reads need Telegram on display-TZ fallback). */
   const dispatchPortForReminders: { current?: DispatchPort } = {};
   /** Without webhook secret, reminder product reads stay on integrator DB (safe fallback). */
@@ -185,7 +183,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     input.dbReadPort ??
     createDbReadPort({
       db: dbPort,
-      communicationReadsPort,
       ...(remindersReadsPort !== undefined ? { remindersReadsPort } : {}),
       ...(appointmentsReadsPort !== undefined ? { appointmentsReadsPort } : {}),
     });

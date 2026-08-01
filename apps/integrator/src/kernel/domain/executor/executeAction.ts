@@ -43,7 +43,6 @@ import {
   readExternalActorId,
   readMessengerChannelUserId,
   readIncomingPhone,
-  formatActorLabel,
   buildIntentMeta,
   renderText,
   buildReplyMarkup,
@@ -1403,19 +1402,28 @@ export async function executeAction(
       const firstExternalChatId = asString(draft.external_chat_id);
       const firstExternalMessageId = asString(draft.external_message_id);
       const platformUserId = await resolvePlatformUserIdForChannel(fullDeps, source, externalId);
-      const webappSync = platformUserId
-        ? await mirrorPatientUserMessageToWebapp(fullDeps, {
-            platformUserId,
-            integratorMessageId: firstMessageId,
-            text: draftTextCurrent,
-            source,
-            createdAt: ctx.nowIso,
-            externalChatId: firstExternalChatId,
-            externalMessageId: firstExternalMessageId,
-          })
-        : { mirrored: false };
-      const conversationId = webappSync.canonicalWrite?.conversationId ?? randomUUID();
-      const canonicalWriteHandled = Boolean(webappSync.canonicalWrite);
+      if (!platformUserId) {
+        // D23: support for people with no linked platform account was cut with no replacement —
+        // this used to mint a legacy conversationId here and open a conversation the (now removed)
+        // bot admin console alone could see.
+        return { actionId: action.id, status: 'skipped', error: 'DRAFT_SEND_UNLINKED_ACCOUNT' };
+      }
+      const webappSync = await mirrorPatientUserMessageToWebapp(fullDeps, {
+        platformUserId,
+        integratorMessageId: firstMessageId,
+        text: draftTextCurrent,
+        source,
+        createdAt: ctx.nowIso,
+        externalChatId: firstExternalChatId,
+        externalMessageId: firstExternalMessageId,
+      });
+      if (!webappSync.canonicalWrite) {
+        // Do not fall back to a legacy conversationId when the webapp mirror fails: that path
+        // (and the admin-reply branch that could still service it) no longer exists.
+        return { actionId: action.id, status: 'skipped', error: 'DRAFT_SEND_WEBAPP_SYNC_FAILED' };
+      }
+      const conversationId = webappSync.canonicalWrite.conversationId;
+      const canonicalWriteHandled = true;
       const questionId = randomUUID();
       const firstQuestionMessageId = randomUUID();
       let userIdentityId = asString(draft.identity_id);
@@ -1495,7 +1503,6 @@ export async function executeAction(
       await persistWrites(deps.writePort, writes);
 
       const intents = await buildDoctorPatientMessageNotificationIntents({
-        action,
         ctx,
         deps: fullDeps,
         source,
@@ -1503,10 +1510,6 @@ export async function executeAction(
         conversationId,
         integratorMessageId: firstMessageId,
         messageText: draftTextCurrent,
-        firstName: asString(draft.first_name),
-        lastName: asString(draft.last_name),
-        username: asString(draft.username),
-        channelId: userChannelId,
         webappSync,
       });
       return {
@@ -1577,292 +1580,6 @@ export async function executeAction(
         writes,
         ...(intents.length > 0 ? { intents } : {}),
       };
-    }
-
-    case 'conversation.listOpen': {
-      if (!deps.readPort) {
-        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
-      }
-      const items = await deps.readPort.readDb<Array<Record<string, unknown>>>({
-        type: 'conversation.listOpen',
-        params: {
-          source: asString(action.params.source) ?? ctx.event.meta.source,
-          limit: asNumber(action.params.limit) ?? 10,
-        },
-      });
-      const adminChatId = asNumber(readIncoming(ctx).chatId);
-      if (adminChatId === null) {
-        return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_MISSING' };
-      }
-      const rows = Array.isArray(items) ? items : [];
-      const listBody = rows
-        .map((item, index) => {
-          const label = formatActorLabel({
-            firstName: asString(item.first_name),
-            lastName: asString(item.last_name),
-            username: asString(item.username),
-            channelId: asString(item.user_channel_id),
-          });
-          const status = asString(item.status) ?? 'open';
-          return `${index + 1}. ${label} [${status}]`;
-        })
-        .join('\n');
-      const text =
-        rows.length === 0
-          ? deps.templatePort
-            ? (await renderText({
-                templateKey: ADMIN.DIALOGS_EMPTY,
-                ctx,
-                templatePort: deps.templatePort,
-              })) || 'Открытых диалогов нет.'
-            : 'Открытых диалогов нет.'
-          : deps.templatePort
-            ? (await renderText({
-                templateKey: ADMIN.DIALOGS_LIST,
-                vars: { listBody },
-                ctx,
-                templatePort: deps.templatePort,
-              })) || `Открытые диалоги:\n\n${listBody}`
-            : `Открытые диалоги:\n\n${listBody}`;
-      const inline_keyboard = rows.slice(0, 10).map((item) => [
-        {
-          text: formatActorLabel({
-            firstName: asString(item.first_name),
-            lastName: asString(item.last_name),
-            username: asString(item.username),
-            channelId: asString(item.user_channel_id),
-          }),
-          callback_data: `dialogs.view:${asString(item.id)}`,
-        },
-      ]);
-      const intents: OutgoingIntent[] = [
-        {
-          type: 'message.send',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient: { chatId: adminChatId },
-            message: { text },
-            ...(inline_keyboard.length > 0 ? { replyMarkup: { inline_keyboard } } : {}),
-            delivery: { maxAttempts: 1 },
-          },
-        },
-      ];
-      return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'question.listUnanswered': {
-      if (!deps.readPort) {
-        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
-      }
-      const items = await deps.readPort.readDb<Array<Record<string, unknown>>>({
-        type: 'questions.unanswered',
-        params: { limit: asNumber(action.params.limit) ?? 20 },
-      });
-      const adminChatId = asNumber(readIncoming(ctx).chatId);
-      if (adminChatId === null) {
-        return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_MISSING' };
-      }
-      const rows = Array.isArray(items) ? items : [];
-      const listBodyUnanswered = rows
-        .map((item, index) => {
-          const label = formatActorLabel({
-            firstName: asString(item.first_name),
-            lastName: asString(item.last_name),
-            username: asString(item.username),
-            channelId: asString(item.user_channel_id),
-          });
-          const excerpt = (asString(item.text) ?? '').slice(0, 80);
-          return `${index + 1}. ${label}\n   ${excerpt}${(asString(item.text) ?? '').length > 80 ? '…' : ''}`;
-        })
-        .join('\n\n');
-      const text =
-        rows.length === 0
-          ? deps.templatePort
-            ? (await renderText({
-                templateKey: ADMIN.QUESTIONS_EMPTY,
-                ctx,
-                templatePort: deps.templatePort,
-              })) || 'Неотвеченных вопросов нет.'
-            : 'Неотвеченных вопросов нет.'
-          : deps.templatePort
-            ? (await renderText({
-                templateKey: ADMIN.QUESTIONS_LIST,
-                vars: { count: rows.length, listBody: listBodyUnanswered },
-                ctx,
-                templatePort: deps.templatePort,
-              })) || `Неотвеченные вопросы (${rows.length}):\n\n${listBodyUnanswered}`
-            : `Неотвеченные вопросы (${rows.length}):\n\n${listBodyUnanswered}`;
-      const filteredRows = rows.filter((item) => asString(item.conversation_id)).slice(0, 15);
-      const inline_keyboard = deps.templatePort
-        ? await Promise.all(
-            filteredRows.map(async (item) => {
-              const label = formatActorLabel({
-                firstName: asString(item.first_name),
-                lastName: asString(item.last_name),
-                username: asString(item.username),
-                channelId: asString(item.user_channel_id),
-              });
-              const btnText =
-                (await renderText({
-                  templateKey: ADMIN.QUESTIONS_REPLY_BUTTON,
-                  vars: { label },
-                  ctx,
-                  templatePort: deps.templatePort,
-                })) || `Ответить: ${label}`;
-              return [
-                { text: btnText, callback_data: `admin_reply:${asString(item.conversation_id)}` },
-              ];
-            }),
-          )
-        : filteredRows.map((item) => [
-            {
-              text: `Ответить: ${formatActorLabel({
-                firstName: asString(item.first_name),
-                lastName: asString(item.last_name),
-                username: asString(item.username),
-                channelId: asString(item.user_channel_id),
-              })}`,
-              callback_data: `admin_reply:${asString(item.conversation_id)}`,
-            },
-          ]);
-      const inlineRows: Array<Array<{ text: string; callback_data: string }>> = [
-        ...inline_keyboard,
-      ];
-      if (rows.length > 0) {
-        const markAllLabel = deps.templatePort
-          ? (
-              await renderText({
-                templateKey: ADMIN.QUESTIONS_MARK_ALL_BUTTON,
-                ctx,
-                templatePort: deps.templatePort,
-              })
-            )?.trim() || 'Пометить все как отвеченные'
-          : 'Пометить все как отвеченные';
-        inlineRows.push([{ text: markAllLabel, callback_data: 'questions.mark_all_answered' }]);
-      }
-      const intents: OutgoingIntent[] = [
-        {
-          type: 'message.send',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient: { chatId: adminChatId },
-            message: { text },
-            ...(inlineRows.length > 0 ? { replyMarkup: { inline_keyboard: inlineRows } } : {}),
-            delivery: { maxAttempts: 1 },
-          },
-        },
-      ];
-      return { actionId: action.id, status: 'success', intents };
-    }
-
-    /**
-     * «Все» = неотвеченные в той же выборке, что и ветка `question.listUnanswered`: один read
-     * `questions.unanswered` с тем же `limit` (по умолчанию 20), затем по каждой строке с непустым `id`
-     * — мутация `question.markAnswered` (как при одиночной пометке), не только строки с инлайн «Ответить» (до 15).
-     */
-    case 'question.markAllUnansweredAnswered': {
-      if (!deps.readPort) {
-        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
-      }
-      if (!deps.writePort) {
-        return { actionId: action.id, status: 'skipped', error: 'WRITE_PORT_REQUIRED' };
-      }
-      const limit = asNumber(action.params.limit) ?? 20;
-      const items = await deps.readPort.readDb<Array<Record<string, unknown>>>({
-        type: 'questions.unanswered',
-        params: { limit },
-      });
-      const rows = Array.isArray(items) ? items : [];
-      const writes: DbWriteMutation[] = [];
-      for (const item of rows) {
-        const questionId = asString(item.id)?.trim();
-        if (!questionId) continue;
-        writes.push({
-          type: 'question.markAnswered',
-          params: {
-            questionId,
-            conversationId: asString(item.conversation_id),
-            answeredAt: ctx.nowIso,
-          },
-        });
-      }
-      if (writes.length > 0) {
-        await persistWrites(deps.writePort, writes);
-      }
-      return {
-        actionId: action.id,
-        status: 'success',
-        values: { markedCount: writes.length },
-        ...(writes.length > 0 ? { writes } : {}),
-      };
-    }
-
-    case 'conversation.show': {
-      if (!deps.readPort) {
-        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
-      }
-      const conversationId = readConversationId(action, ctx);
-      const adminChatId = asNumber(readIncoming(ctx).chatId);
-      if (!conversationId || adminChatId === null) {
-        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_SHOW_INPUT_MISSING' };
-      }
-      const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
-        type: 'conversation.byId',
-        params: { id: conversationId },
-      });
-      if (!conversation) {
-        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_NOT_FOUND' };
-      }
-      const label = formatActorLabel({
-        firstName: asString(conversation.first_name),
-        lastName: asString(conversation.last_name),
-        username: asString(conversation.username),
-        channelId: asString(conversation.user_channel_id),
-      });
-      const status = asString(conversation.status) ?? 'open';
-      const showText = deps.templatePort
-        ? (await renderText({
-            templateKey: ADMIN.CONVERSATION_SHOW,
-            vars: { label, status },
-            ctx,
-            templatePort: deps.templatePort,
-          })) || `Диалог\nПользователь: ${label}\nСтатус: ${status}`
-        : `Диалог\nПользователь: ${label}\nСтатус: ${status}`;
-      const replyBtnText = deps.templatePort
-        ? (await renderText({
-            templateKey: ADMIN.REPLY_BUTTON,
-            ctx,
-            templatePort: deps.templatePort,
-          })) || 'Ответить'
-        : 'Ответить';
-      const closeBtnText = deps.templatePort
-        ? ((
-            await renderText({
-              templateKey: ADMIN.DIALOG_CLOSE_BUTTON,
-              ctx,
-              templatePort: deps.templatePort,
-            })
-          )?.trim() ?? '')
-        : '';
-      const rows: Array<Array<{ text: string; callback_data: string }>> = [
-        [{ text: replyBtnText, callback_data: `admin_reply:${conversationId}` }],
-      ];
-      if (closeBtnText) {
-        rows.push([{ text: closeBtnText, callback_data: `admin_close_dialog:${conversationId}` }]);
-      }
-      const intents: OutgoingIntent[] = [
-        {
-          type: 'message.send',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient: { chatId: adminChatId },
-            message: { text: showText },
-            replyMarkup: { inline_keyboard: rows },
-            delivery: { maxAttempts: 1 },
-          },
-        },
-      ];
-      return { actionId: action.id, status: 'success', intents };
     }
 
     default:

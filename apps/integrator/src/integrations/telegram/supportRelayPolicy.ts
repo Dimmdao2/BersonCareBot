@@ -8,7 +8,6 @@ import { appSettings } from '../../config/appSettings.js';
 
 export type SupportRelayPolicy = {
   isAllowedUserToAdmin(messageType: string): boolean;
-  isAllowedAdminToUser(messageType: string): boolean;
 };
 
 function allowedSet(types: readonly SupportRelayMessageType[]): Set<string> {
@@ -19,14 +18,10 @@ export function createSupportRelayPolicy(
   settings: AppSettings['supportRelay'],
 ): SupportRelayPolicy {
   const userToAdmin = allowedSet(settings.allowedUserToAdminMessageTypes);
-  const adminToUser = allowedSet(settings.allowedAdminToUserMessageTypes);
 
   return {
     isAllowedUserToAdmin(messageType: string): boolean {
       return isSupportRelayMessageType(messageType) && userToAdmin.has(messageType);
-    },
-    isAllowedAdminToUser(messageType: string): boolean {
-      return isSupportRelayMessageType(messageType) && adminToUser.has(messageType);
     },
   };
 }
