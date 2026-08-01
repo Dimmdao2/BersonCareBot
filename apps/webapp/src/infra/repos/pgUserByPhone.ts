@@ -55,7 +55,7 @@ import {
   userIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
-import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
 
 async function markPatientPhoneTrusted(client: PoolClient, userId: string): Promise<void> {
   const db = getWebappSqlFromPgClient(client);
@@ -89,7 +89,7 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
  * and this check is what makes it hold on EVERY subsequent request.
  */
 async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<SessionUser | null> {
-  const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+  const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
     `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
             pu.session_epoch,
@@ -127,7 +127,7 @@ async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<Sess
 export const pgUserByPhonePort: UserByPhonePort = {
   async getPhoneByUserId(userId: string): Promise<string | null> {
     const pool = getPool();
-    const canonical = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+    const canonical = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
     const res = await runIdentityPoolPgText(
       'SELECT phone_normalized FROM platform_users WHERE id = $1',
       [canonical],
@@ -140,7 +140,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
   async getVerifiedEmailForUser(userId: string): Promise<string | null> {
     const pool = getPool();
-    const canonical = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+    const canonical = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
     const res = await runIdentityPoolPgText(
       'SELECT email FROM platform_users WHERE id = $1 AND email_verified_at IS NOT NULL',
       [canonical],
@@ -171,7 +171,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
   async findByUserId(userId: string): Promise<SessionUser | null> {
     const pool = getPool();
-    const canonicalId = await resolveCanonicalUserId(pool, userId);
+    const canonicalId = await resolveCanonicalUserId(getWebappSqlDb(), userId);
     if (!canonicalId) return null;
     if (getCurrentDbPrincipalPlatformUserId() !== canonicalId) {
       throw new Error('session_user_identity_self_principal_mismatch');
@@ -234,7 +234,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {
     const pool = getPool();
-    const canonicalId = await findCanonicalUserIdByPhone(pool, normalizedPhone);
+    const canonicalId = await findCanonicalUserIdByPhone(getWebappSqlDb(), normalizedPhone);
     if (!canonicalId) return null;
     // Phone lookup is not authentication proof. Do not read identity-self staff-security
     // state here; only the exact-id post-verification path may attach it to a session user.
@@ -271,7 +271,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
             bindingLock.rows[0],
             'binding_lock',
           ).user_id;
-          const canonicalId = (await resolveCanonicalUserId(client, userId)) ?? userId;
+          const canonicalId = (await resolveCanonicalUserId(getWebappSqlFromPgClient(client), userId)) ?? userId;
           userId = canonicalId;
           const displayName = parsedContext.displayName ?? normalized;
           await runIdentityClientPgText(
@@ -306,7 +306,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
         let wasCreated = false;
         const requestedProfileId = options?.profileBindUserId?.trim() || null;
         const canonicalProfileId = requestedProfileId
-          ? ((await resolveCanonicalUserId(client, requestedProfileId)) ?? requestedProfileId)
+          ? ((await resolveCanonicalUserId(getWebappSqlFromPgClient(client), requestedProfileId)) ?? requestedProfileId)
           : null;
 
         if (canonicalProfileId) {
@@ -339,7 +339,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
               phoneRow.rows[0],
               'profile_phone_owner',
             );
-            const canonicalOwnerId = (await resolveCanonicalUserId(client, owner.id)) ?? owner.id;
+            const canonicalOwnerId = (await resolveCanonicalUserId(getWebappSqlFromPgClient(client), owner.id)) ?? owner.id;
             if (canonicalOwnerId !== canonicalProfileId) {
               await mergePlatformUsersInTransaction(
                 client,
@@ -411,7 +411,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
             [userId, channelCode, parsedContext.chatId],
           );
           if (insB.rows.length > 0) {
-            await upsertBroadcastDefaultsAfterChannelBind(client, userId, channelCode);
+            await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, channelCode);
           } else {
             const o = await runIdentityClientPgText(
               client,

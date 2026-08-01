@@ -1,5 +1,4 @@
-import type { Pool } from 'pg';
-import { runPgPoolPgText, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 
 export async function replaceChannelLinkSecret(params: {
@@ -20,12 +19,10 @@ export async function replaceChannelLinkSecret(params: {
 }
 
 export async function loadPlatformPhoneBindingInfo(
-  pool: Pool,
   userId: string,
 ): Promise<{ needsPhone: boolean; phoneNormalized?: string }> {
-  const canonical = await resolveCanonicalUserId(pool, userId);
-  const result = await runPgPoolPgText<{ phone_normalized: string | null }>(
-    pool,
+  const canonical = await resolveCanonicalUserId(getWebappSqlDb(), userId);
+  const result = await runWebappPgText<{ phone_normalized: string | null }>(
     `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid`,
     [canonical],
   );

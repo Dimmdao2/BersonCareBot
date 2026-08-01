@@ -8,6 +8,16 @@ import ts from 'typescript';
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const scanRoots = ['apps/integrator/src', 'apps/webapp/src'];
 
+// Каталог самого порта. Сырой драйвер обязан жить ЗДЕСЬ и больше нигде: транзакция
+// (BEGIN/COMMIT), установка принципала, маршрутизация пулов, мост `$n` → drizzle и загрузочная
+// проба — это и есть порт, а не долг. Всё, что вне этих каталогов и не тест, обязано ходить через
+// него. Владелец 01.08: «сырого sql и запросов мимо порта не должно остаться вообще».
+const portDirs = ['apps/webapp/src/infra/db/'];
+
+function isInsidePort(fileName) {
+  return portDirs.some((dir) => fileName.startsWith(dir));
+}
+
 // Frozen D18a inventory of every existing raw .query() call. Do not add entries:
 // a newly added call must use the application's Drizzle port instead. D18c removes
 // entries as the legacy calls are converted. Keep each app's entries sorted.
@@ -28,10 +38,6 @@ const rawSqlQueryManifest = {
     'apps/integrator/src/infra/observability/saasIsolationTelemetry.ts',
   ]),
   webapp: new Set([
-    'apps/webapp/src/infra/db/client.ts',
-    'apps/webapp/src/infra/db/runWebappSql.ts',
-    'apps/webapp/src/infra/db/webappPoolProvider.ts',
-    'apps/webapp/src/infra/db/withClient.ts',
     'apps/webapp/src/infra/adminAuditLog.devDb.integration.test.ts',
     'apps/webapp/src/infra/platformUserFullPurge.devDb.integration.test.ts',
     'apps/webapp/src/infra/platformUserMergePreview.devDb.integration.test.ts',
@@ -39,14 +45,12 @@ const rawSqlQueryManifest = {
     'apps/webapp/src/infra/repos/pgAuthRateLimitEvents.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgBookingScheduling.deactivateWorkingHours.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgBookingScheduling.readChokepoint.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts',
     'apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgDoctorClients.appointmentJoin.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgDoctorClients.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgDoctorPhase13d.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgEmailChallengeAtomicAttempts.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgEmailOtpPublicAtomicConsume.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgMessengerPhoneHttpBind.ts',
     'apps/webapp/src/infra/repos/pgOnlineIntake.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgOtpDecayingLockoutAtomicEscalation.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgPatientBookings.devDb.integration.test.ts',
@@ -56,8 +60,6 @@ const rawSqlQueryManifest = {
     'apps/webapp/src/infra/repos/pgProgramItemDiscussion.doctorComments.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgSupportCommunication.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgUserProjection.devDb.integration.test.ts',
-    'apps/webapp/src/infra/upsertBroadcastDefaultsAfterChannelBind.ts',
-    'apps/webapp/src/modules/auth/sessionRevocationSchema.ts',
   ]),
 };
 
@@ -154,7 +156,8 @@ function rawSqlQueryLines(fileName, source) {
 
 function rawSqlOffenders(fileName, source, allowedFiles) {
   const lines = rawSqlQueryLines(fileName, source);
-  return lines.length > 0 && !allowedFiles.has(fileName) ? [`${fileName}:${lines.join(',')}`] : [];
+  if (lines.length === 0 || allowedFiles.has(fileName) || isInsidePort(fileName)) return [];
+  return [`${fileName}:${lines.join(',')}`];
 }
 
 function staleDebtEntries(manifest, liveDebt) {

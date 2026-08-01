@@ -79,7 +79,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   }
 
   const pool = getPool();
-  const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+  const canonicalId = (await resolveCanonicalUserId(userId)) ?? userId;
   const deps = buildAppDeps();
 
   if (patch.email !== undefined && patch.email !== null && patch.email.trim() !== '') {

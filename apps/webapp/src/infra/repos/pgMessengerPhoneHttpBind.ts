@@ -1,20 +1,20 @@
-import type { Pool, PoolClient } from 'pg';
+import type { Pool } from 'pg';
 import { z } from 'zod';
 import type { MessengerPhoneBindDb } from '@bersoncare/platform-merge';
 import {
+  getWebappSqlDb,
   getWebappSqlFromPgClient,
-  runPgPoolPgText,
   runWebappPgText,
+  type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
 import { startPoolTransaction } from '@/infra/db/withClient';
 import { logger } from '@/infra/logging/logger';
 
-export type TxQuery = {
-  query<T = unknown>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount?: number }>;
-};
-
 export type MessengerPhoneBindTransaction = {
-  txDb: TxQuery;
+  /** Порт вебаппа: наши собственные запросы идут только через него. */
+  db: WebappSqlExecutor;
+  /** Тот же порт, обёрнутый под интерфейс пакета `platform-merge` (он транспортно-независим). */
+  mergeDb: MessengerPhoneBindDb;
   commit(): Promise<void>;
   rollback(): Promise<void>;
   release(): Promise<void>;
@@ -31,31 +31,29 @@ const integratorIdentityRowSchema = z.object({
   user_id: z.string(),
 });
 
-export function poolAsMessengerPhoneBindDb(pool: Pool): MessengerPhoneBindDb {
+/**
+ * Единственный переходник между портом вебаппа и `.query`-формой пакета `platform-merge`.
+ * Пакет общий с интегратором и поэтому не может зависеть от drizzle-порта вебаппа; всё, что
+ * выполняется, всё равно проходит через `runWebappPgText`.
+ */
+export function asMessengerPhoneBindDb(db: WebappSqlExecutor): MessengerPhoneBindDb {
   return {
-    query: async (sql, values = []) => runPgPoolPgText(pool, sql, values),
+    query: async (sql, values = []) => runWebappPgText(sql, values, db),
   };
 }
 
-export function createTxQuery(client: PoolClient): TxQuery {
-  const executor = getWebappSqlFromPgClient(client);
-  return {
-    query: async <T = unknown>(sql: string, params?: unknown[]) => {
-      const res = await runWebappPgText<T>(sql, params ?? [], executor);
-      return {
-        rows: res.rows,
-        ...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
-      };
-    },
-  };
+export function poolAsMessengerPhoneBindDb(): MessengerPhoneBindDb {
+  return asMessengerPhoneBindDb(getWebappSqlDb());
 }
 
 export async function startMessengerPhoneBindTransaction(
   pool: Pool,
 ): Promise<MessengerPhoneBindTransaction> {
   const tx = await startPoolTransaction(pool);
+  const db = getWebappSqlFromPgClient(tx.client);
   return {
-    txDb: createTxQuery(tx.client),
+    db,
+    mergeDb: asMessengerPhoneBindDb(db),
     commit: () => tx.commit(),
     rollback: () => tx.rollback(),
     release: () => tx.release(),
@@ -63,7 +61,7 @@ export async function startMessengerPhoneBindTransaction(
 }
 
 export async function resolveCanonicalIntegratorUserId(
-  db: TxQuery,
+  db: WebappSqlExecutor,
   integratorUserId: string,
 ): Promise<string> {
   const trimmed = integratorUserId.trim();
@@ -81,12 +79,13 @@ export async function resolveCanonicalIntegratorUserId(
     }
     visited.add(current);
 
-    const res = await db.query(
+    const res = await runWebappPgText(
       `SELECT merged_into_user_id::text AS merged_into_user_id
        FROM users
        WHERE id = $1::bigint
        LIMIT 1`,
       [current],
+      db,
     );
     const parsed = mergedIntoRowSchema.safeParse(res.rows[0]);
     if (!parsed.success) {
@@ -106,7 +105,7 @@ export async function resolveCanonicalIntegratorUserId(
 }
 
 export async function ensureIdentityForMessenger(
-  db: TxQuery,
+  db: WebappSqlExecutor,
   input: { resource: string; externalId: string },
 ): Promise<void> {
   if (input.resource !== 'max' || !input.externalId.trim()) return;
@@ -137,19 +136,20 @@ export async function ensureIdentityForMessenger(
     )
     SELECT 1
   `;
-  await db.query(sql, [input.resource, input.externalId.trim()]);
+  await runWebappPgText(sql, [input.resource, input.externalId.trim()], db);
 }
 
 export async function loadIntegratorIdentityUserId(
-  db: TxQuery,
+  db: WebappSqlExecutor,
   input: { resource: string; channelUserId: string },
 ): Promise<string | null> {
-  const idPeek = await db.query(
+  const idPeek = await runWebappPgText(
     `SELECT i.user_id::text AS user_id
      FROM identities i
      WHERE i.resource = $2 AND i.external_id = $1
      LIMIT 1`,
     [input.channelUserId, input.resource],
+    db,
   );
   const peekParsed = integratorIdentityRowSchema.safeParse(idPeek.rows[0]);
   return peekParsed.success ? peekParsed.data.user_id : null;
@@ -158,30 +158,32 @@ export async function loadIntegratorIdentityUserId(
 export type SetUserPhoneOutcome = 'applied' | 'noop_conflict' | 'failed';
 
 export async function setUserPhone(
-  db: TxQuery,
+  db: WebappSqlExecutor,
   channelUserId: string,
   phoneNormalized: string,
   resource: string,
 ): Promise<SetUserPhoneOutcome> {
-  const idRes = await db.query(
+  const idRes = await runWebappPgText(
     `SELECT i.user_id::text AS user_id
      FROM identities i
      WHERE i.resource = $2
        AND i.external_id = $1
      LIMIT 1`,
     [channelUserId, resource],
+    db,
   );
   const idParsed = integratorIdentityRowSchema.safeParse(idRes.rows[0]);
   if (!idParsed.success) return 'failed';
 
   const userId = await resolveCanonicalIntegratorUserId(db, idParsed.data.user_id);
 
-  await db.query(
+  await runWebappPgText(
     `DELETE FROM contacts
      WHERE type = 'phone'
        AND value_normalized = $2
        AND user_id <> $1::bigint`,
     [userId, phoneNormalized],
+    db,
   );
 
   const query = `
@@ -195,7 +197,7 @@ export async function setUserPhone(
     WHERE contacts.user_id = $1::bigint
   `;
   try {
-    const res = await db.query(query, [userId, phoneNormalized, resource]);
+    const res = await runWebappPgText(query, [userId, phoneNormalized, resource], db);
     return (res.rowCount ?? 0) > 0 ? 'applied' : 'noop_conflict';
   } catch (err) {
     logger.error({ err }, 'setUserPhone error');

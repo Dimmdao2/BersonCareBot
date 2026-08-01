@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getPool } from '@/app-layer/db/client';
 import { findCanonicalUserIdByIntegratorId } from '@/app-layer/platform-user/canonicalPlatformUser';
 import { DEFAULT_NOTIFICATION_TOPICS } from '@/modules/patient-notifications/notificationsTopics';
 import { allowedChannelsForTopic } from '@/modules/patient-notifications/topicChannelRules';
@@ -36,8 +35,7 @@ export async function POST(request: Request) {
   }
   const channel = channelRaw as 'telegram' | 'max';
 
-  const pool = getPool();
-  const platformUserId = await findCanonicalUserIdByIntegratorId(pool, integratorUserId);
+  const platformUserId = await findCanonicalUserIdByIntegratorId(integratorUserId);
   if (!platformUserId) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }

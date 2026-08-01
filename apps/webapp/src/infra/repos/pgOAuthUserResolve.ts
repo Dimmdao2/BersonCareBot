@@ -1,5 +1,4 @@
-import { getPool } from '@/infra/db/client';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   findCanonicalUserIdByPhone,
   resolveCanonicalUserId,
@@ -97,13 +96,11 @@ async function upsertOAuthBinding(
 }
 
 async function findCanonicalUserIdByPhoneNorm(phoneNorm: string): Promise<string | null> {
-  const pool = getPool();
-  return findCanonicalUserIdByPhone(pool, phoneNorm);
+  return findCanonicalUserIdByPhone(getWebappSqlDb(), phoneNorm);
 }
 
 async function resolveCanonicalUserIdForOAuth(userId: string): Promise<string | null> {
-  const pool = getPool();
-  return resolveCanonicalUserId(pool, userId);
+  return resolveCanonicalUserId(getWebappSqlDb(), userId);
 }
 
 export const pgOAuthUserResolvePort: OAuthUserResolvePort = {

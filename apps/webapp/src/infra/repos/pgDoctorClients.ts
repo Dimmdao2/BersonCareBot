@@ -4,7 +4,7 @@
 import { getPool } from '@/infra/db/client';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
 import { and, countDistinct, eq, inArray, isNull } from 'drizzle-orm';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import type { ChannelBindings } from '@/shared/types/session';
@@ -693,7 +693,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       organizationId?: string,
     ): Promise<PatientAppointmentItem[]> {
       const pool = getPool();
-      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+      const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
 
       const rows = await runWebappPgText<{
         internal_id: string;
@@ -783,7 +783,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getPatientCardHeader(userId: string) {
       // Resolve canonical user id
       const pool = getPool();
-      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+      const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
 
       // Fetch identity
       const userRow = await runWebappPgText<{
@@ -1159,7 +1159,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
     async getPatientClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
-      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+      const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
       const roleRow = await runWebappPgText<{ role: string }>(
         `SELECT role FROM platform_users WHERE id = $1::uuid`,
         [canonicalId],
@@ -1173,7 +1173,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       organizationId: string,
     ): Promise<ClientIdentity | null> {
       const pool = getPool();
-      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+      const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
       const membershipRow = await runWebappPgText<{ id: string }>(
         `SELECT pu.id
          FROM platform_users pu
@@ -1202,7 +1202,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
-      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+      const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
       const userRow = await runWebappPgText(
         `SELECT id, display_name, phone_normalized, created_at,
                 first_name, last_name, email, email_verified_at,
