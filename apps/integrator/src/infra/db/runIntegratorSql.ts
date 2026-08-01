@@ -1,4 +1,4 @@
-import type { SQL } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import type { IntegratorDrizzleDb } from './drizzle.js';
@@ -45,4 +45,37 @@ export async function runIntegratorSql<T = unknown>(
     }
   }
   return db.query<T>(text, params);
+}
+
+/**
+ * Bridge legacy `$1..$n` PostgreSQL query text to a Drizzle `SQL` fragment (run via
+ * `db.execute(...)`/`runIntegratorSql`). Mirrors `webappSqlFromPgText`
+ * (`apps/webapp/src/infra/db/runWebappSql.ts`) — the general-purpose direction for a
+ * `query(text, values)`-shaped caller that cannot construct a Drizzle fragment itself
+ * (e.g. an external package's generic DB hook). Keep both in sync if the
+ * placeholder-splitting logic changes.
+ */
+export function integratorSqlFromPgText(queryText: string, values: readonly unknown[] = []): SQL {
+  const segments: SQL[] = [];
+  let lastIndex = 0;
+  const re = /\$(\d+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(queryText)) !== null) {
+    if (m.index > lastIndex) {
+      segments.push(sql.raw(queryText.slice(lastIndex, m.index)));
+    }
+    const idx = Number.parseInt(m[1]!, 10) - 1;
+    segments.push(sql`${sql.param(values[idx])}`);
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < queryText.length) {
+    segments.push(sql.raw(queryText.slice(lastIndex)));
+  }
+  if (segments.length === 0) {
+    return sql.raw(queryText);
+  }
+  if (segments.length === 1) {
+    return segments[0]!;
+  }
+  return sql.join(segments, sql.raw(''));
 }
