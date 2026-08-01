@@ -106,10 +106,25 @@ export function createPaymentsService(deps: {
     return payment.amountMinor / appointmentCount;
   }
 
+  function providerHasCredentials(provider: BookingPaymentSettings['providers'][number]): boolean {
+    const apiKey = provider.apiKey?.trim();
+    if (!apiKey) return false;
+    const identifier =
+      provider.shopId?.trim() ||
+      provider.terminalKey?.trim() ||
+      provider.merchantLogin?.trim() ||
+      provider.publicId?.trim();
+    return Boolean(identifier);
+  }
+
   function resolveActiveProvider(settings: BookingPaymentSettings, providerId?: string) {
     const id = providerId?.trim() || settings.defaultProviderId;
     const provider = settings.providers.find((p) => p.id === id && p.enabled);
-    if (!provider) throw new Error('payment_provider_unavailable');
+    // A provider toggled on without credentials is not actually usable — fail here, before an
+    // outbound call to the provider, with the same code callers already treat as "not configured".
+    if (!provider || !providerHasCredentials(provider)) {
+      throw new Error('payment_provider_unavailable');
+    }
     return provider;
   }
 
@@ -318,6 +333,13 @@ export function createPaymentsService(deps: {
       return intent?.organizationId ?? null;
     },
 
+    /** Org-scoped: never returns another organization's intent, even for a valid id. */
+    async getIntentForOrganization(intentId: string, organizationId: string) {
+      const intent = await deps.port.findIntentById(intentId);
+      if (!intent || intent.organizationId !== organizationId) return null;
+      return intent;
+    },
+
     async resolveProviderWebhookOrganizationId(input: {
       providerId: string;
       idempotencyKey: string;
@@ -366,6 +388,7 @@ export function createPaymentsService(deps: {
         amountMinor: input.amountMinor,
         currency: input.currency,
         providerIntentRef: created.providerIntentRef,
+        checkoutUrl: created.checkoutUrl ?? null,
       });
 
       await deps.port.appendHistoryEvent({
@@ -421,6 +444,7 @@ export function createPaymentsService(deps: {
         currency: input.currency,
         purpose: 'package_purchase',
         providerIntentRef: created.providerIntentRef,
+        checkoutUrl: created.checkoutUrl ?? null,
         metadataJson: { patientPackageId: input.patientPackageId },
       });
 
@@ -477,6 +501,7 @@ export function createPaymentsService(deps: {
         currency: input.currency,
         purpose: 'product_purchase',
         providerIntentRef: created.providerIntentRef,
+        checkoutUrl: created.checkoutUrl ?? null,
         metadataJson: { productPurchaseId: input.productPurchaseId },
       });
 

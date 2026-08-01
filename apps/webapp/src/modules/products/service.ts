@@ -410,7 +410,11 @@ export function createProductsService(
         eventType: 'payment_offer_created',
         payloadJson: { intentId: intent.id },
       });
-      return { purchase: updated ?? purchase, paymentIntentId: intent.id };
+      return {
+        purchase: updated ?? purchase,
+        paymentIntentId: intent.id,
+        checkoutUrl: intent.checkoutUrl,
+      };
     },
 
     async captureProductPayment(intentId: string, organizationId: string, platformUserId: string) {

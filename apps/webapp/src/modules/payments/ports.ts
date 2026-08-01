@@ -30,6 +30,7 @@ export type CreatePaymentIntentInput = {
   currency: string;
   purpose?: string;
   providerIntentRef: string;
+  checkoutUrl?: string | null;
   metadataJson?: Record<string, unknown>;
 };
 

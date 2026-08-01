@@ -353,7 +353,11 @@ export function createMembershipsService(deps: {
       });
       const updated = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!updated) throw new Error('package_not_found');
-      return { ...(await withBalance(updated)), paymentIntentId: intent.id };
+      return {
+        ...(await withBalance(updated)),
+        paymentIntentId: intent.id,
+        checkoutUrl: intent.checkoutUrl,
+      };
     },
 
     async createPaymentOfferOrKeepOffered(
