@@ -203,6 +203,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
               payment_data: {
                 amount: { value, currency },
                 capture: true,
+                confirmation: { type: 'redirect', return_url: returnUrl },
                 description: invoice.description,
                 metadata: paymentMetadata,
               },

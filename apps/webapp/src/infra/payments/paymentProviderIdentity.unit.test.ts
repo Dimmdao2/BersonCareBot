@@ -90,5 +90,9 @@ describe('B1.1: identity reaches every provider request', () => {
     }
     expect(captured[1]!.body.AccountId).toBe(paymentInput.payerRef);
     expect(captured[4]!.url).toBe('https://api.yookassa.ru/v3/invoices');
+    expect((captured[4]!.body.payment_data as { confirmation?: unknown }).confirmation).toEqual({
+      type: 'redirect',
+      return_url: paymentInput.returnUrl,
+    });
   });
 });
