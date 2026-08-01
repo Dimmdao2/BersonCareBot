@@ -1,6 +1,0 @@
----
-description: Patient UI — reuse shared/shadcn primitives before custom styles
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §15 «Patient UI Shared Primitives». Текст здесь не дублируется.

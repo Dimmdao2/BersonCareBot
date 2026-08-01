@@ -1,6 +1,0 @@
----
-description: Codex agents answer the owner in Russian; internal and inter-agent work stays in English.
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §14a «Языковая политика Codex». Текст здесь не дублируется.

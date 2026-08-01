@@ -1,6 +1,0 @@
----
-description: Стандарт составления и исполнения планов без scope creep
-alwaysApply: true
----
-
-Правило живёт в `AGENTS.md` §12 «Plan Authoring And Execution Standard». Текст здесь не дублируется.
