@@ -16,3 +16,4 @@ export {
   listMediaDeleteErrors,
   purgePendingMediaDeleteBatch,
 } from '@/infra/repos/s3MediaStorage';
+export type { MediaAccessRow } from '@/infra/repos/s3MediaStorage';

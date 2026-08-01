@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import { getStoredMediaBody } from '@/app-layer/media/mockMediaStorage';
-import { getMediaS3KeyForRedirect, getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';
+import { getMediaS3KeyForRedirect } from '@/app-layer/media/s3MediaStorage';
 import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
 import { presignGetUrl } from '@/app-layer/media/s3Client';
 import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
 import { getCurrentSession } from '@/modules/auth/service';
-import { assertMediaPlaybackAccess } from '@/modules/media/assertMediaPlaybackAccess';
 import { readSaasTestLocalMedia } from '@/app-layer/media/localSaasTestFixtureMedia';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
@@ -16,7 +15,7 @@ import {
 } from '@/app-layer/guards/requireRole';
 import { canAccessDoctor } from '@/modules/roles/service';
 import type { AppSession } from '@/shared/types/session';
-import { resolvePlatformLfkMediaAccess } from '@/app-layer/media/resolvePlatformLfkMediaAccess';
+import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -51,33 +50,27 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     /** UUID in DB → bytes live in MinIO/S3; presigned GET only (never in-process mock). */
     if (dbUrl && isUuid) {
-      let allowPlatformBase = false;
-      let accessRow = await getMediaAccessRow(id);
-      if (!accessRow) {
-        allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
-        if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+      const access = await authorizeMediaDelivery(id, session);
+      if (!access.ok && access.reason === 'not_found') {
+        return NextResponse.json({ error: 'not found' }, { status: 404 });
       }
-      if (!accessRow) return NextResponse.json({ error: 'not found' }, { status: 404 });
-      if (
-        !assertMediaPlaybackAccess(session, {
-          usagePurpose: accessRow.usage_purpose,
-          uploadedBy: accessRow.uploaded_by,
-        })
-      ) {
+      if (!access.ok) {
         return NextResponse.json({ error: 'forbidden' }, { status: 403 });
       }
-      const s3Key = await getMediaS3KeyForRedirect(id, { allowPlatformBase });
+      const s3Key = await getMediaS3KeyForRedirect(id, {
+        allowPlatformBase: access.allowPlatformBase,
+      });
       if (s3Key) return redirectPresignedOr503(s3Key);
       const localBody = await readSaasTestLocalMedia({
         databaseUrl: dbUrl,
-        storedPath: accessRow.stored_path,
-        s3Key: accessRow.s3_key,
-        mimeType: accessRow.mime_type,
+        storedPath: access.row.stored_path,
+        s3Key: access.row.s3_key,
+        mimeType: access.row.mime_type,
       });
       if (localBody) {
         return new Response(localBody, {
           headers: {
-            'Content-Type': accessRow.mime_type,
+            'Content-Type': access.row.mime_type,
             'Content-Length': String(localBody.byteLength),
             'Cache-Control': 'private, max-age=3600',
             'X-Content-Type-Options': 'nosniff',
