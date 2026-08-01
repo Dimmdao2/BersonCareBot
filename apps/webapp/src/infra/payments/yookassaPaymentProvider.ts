@@ -125,6 +125,42 @@ function inspectYookassaWebhook(bodyText: string) {
   };
 }
 
+type YookassaListResponse = {
+  type?: string;
+  items?: Array<{ id?: string; status?: string; amount?: { value?: string; currency?: string } }>;
+  next_cursor?: string;
+};
+
+/** ЮKassa's own page size ceiling for `GET /v3/payments`. */
+const YOOKASSA_LIST_PAGE_LIMIT = 100;
+/** Backstop against an unbounded reconciliation call — 100 pages is 10 000 payments per period. */
+const YOOKASSA_LIST_MAX_PAGES = 100;
+
+async function fetchYookassaPaymentsPage(
+  shopId: string,
+  secretKey: string,
+  params: { periodFromIso: string; periodToIso: string; cursor?: string },
+): Promise<YookassaListResponse> {
+  const query = new URLSearchParams({
+    'created_at.gte': params.periodFromIso,
+    'created_at.lte': params.periodToIso,
+    limit: String(YOOKASSA_LIST_PAGE_LIMIT),
+  });
+  if (params.cursor) query.set('cursor', params.cursor);
+  return fetchWithTimeout(
+    `https://api.yookassa.ru/v3/payments?${query.toString()}`,
+    { method: 'GET', headers: { Authorization: basicAuth(shopId, secretKey) } },
+    { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+    async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`yookassa_payments_list_failed:${res.status}:${text.slice(0, 200)}`);
+      }
+      return (await res.json()) as YookassaListResponse;
+    },
+  );
+}
+
 export function createYookassaPaymentProvider(): PaymentProviderPort {
   return {
     async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
@@ -247,6 +283,41 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
         intentRef: remote.id,
         amountMinor,
       };
+    },
+
+    async listPayments({ periodFromIso, periodToIso, providerConfig }) {
+      const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
+      const items: {
+        providerPaymentRef: string;
+        status: string;
+        amountMinor: number;
+        currency: string;
+      }[] = [];
+      let cursor: string | undefined;
+      let truncated = false;
+      for (let page = 0; page < YOOKASSA_LIST_MAX_PAGES; page += 1) {
+        const response = await fetchYookassaPaymentsPage(shopId, secretKey, {
+          periodFromIso,
+          periodToIso,
+          cursor,
+        });
+        for (const item of response.items ?? []) {
+          if (!item.id) continue;
+          items.push({
+            providerPaymentRef: item.id,
+            status: item.status ?? 'unknown',
+            amountMinor:
+              item.amount?.value != null
+                ? Math.round(Number.parseFloat(String(item.amount.value)) * 100)
+                : 0,
+            currency: item.amount?.currency ?? '',
+          });
+        }
+        if (!response.next_cursor) break;
+        cursor = response.next_cursor;
+        if (page === YOOKASSA_LIST_MAX_PAGES - 1) truncated = true;
+      }
+      return { items, truncated };
     },
   };
 }

@@ -4,7 +4,10 @@ import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingInvoiceStatus,
   SaasBillingPaymentProviderResolver,
+  SaasBillingPlatformSummaryFilter,
   SaasBillingProviderEventEnvelope,
+  SaasBillingReconciliationDiscrepancy,
+  SaasBillingReconciliationResult,
   SaasBillingRefund,
   SaasBillingRepositoryPort,
   SaasBillingSettingsReadPort,
@@ -92,6 +95,112 @@ export function createSaasBillingService(dependencies: {
       payerSearch?: string;
     }) {
       return dependencies.repository.listPlatformInvoices(filter);
+    },
+
+    /** К3 — period summary, broken down by status; see `SaasBillingPlatformSummaryFilter`. */
+    getPlatformPaymentsSummary(filter: SaasBillingPlatformSummaryFilter) {
+      return dependencies.repository.getPlatformPaymentsSummary(filter);
+    },
+
+    /** К3 — "разрез по видам покупок" (tariff × billing period). */
+    getPlatformPaymentsBreakdown(filter: SaasBillingPlatformSummaryFilter) {
+      return dependencies.repository.getPlatformPaymentsBreakdown(filter);
+    },
+
+    /**
+     * К3 — reconciliation against the provider's own `GET /v3/payments` list for the period.
+     * Read-only: never writes back to the journal, however it disagrees with the provider — the
+     * plan is explicit that a human decides, not this call (item 3 of К3).
+     */
+    async reconcilePlatformPaymentsWithProvider(input: {
+      periodFrom: string;
+      periodTo: string;
+    }): Promise<SaasBillingReconciliationResult> {
+      const provider = await resolvePaymentProvider();
+      if (!provider.adapter.listPayments) {
+        return { outcome: 'provider_unavailable', providerId: provider.providerId };
+      }
+
+      const [journalRows, providerList] = await Promise.all([
+        dependencies.repository.listPlatformInvoices({
+          periodFrom: input.periodFrom,
+          periodTo: input.periodTo,
+        }),
+        provider.adapter
+          .listPayments({
+            periodFromIso: input.periodFrom,
+            periodToIso: input.periodTo,
+            providerConfig: provider.providerConfig,
+          })
+          .catch(() => null),
+      ]);
+      if (!providerList) {
+        return { outcome: 'provider_error', providerId: provider.providerId };
+      }
+
+      // Only invoices actually raised against THIS provider and that reached it (have a
+      // providerInvoiceRef) are comparable — a `draft` invoice never left our journal.
+      const comparableJournalRows = journalRows.filter(
+        (row) => row.providerId === provider.providerId && row.providerInvoiceRef,
+      );
+      const journalByRef = new Map(
+        comparableJournalRows.map((row) => [row.providerInvoiceRef as string, row]),
+      );
+      const providerByRef = new Map(
+        providerList.items.map((item) => [item.providerPaymentRef, item]),
+      );
+
+      const discrepancies: SaasBillingReconciliationDiscrepancy[] = [];
+      for (const row of comparableJournalRows) {
+        const providerRef = row.providerInvoiceRef as string;
+        const match = providerByRef.get(providerRef);
+        if (!match) {
+          discrepancies.push({
+            kind: 'missing_in_provider',
+            saasBillingInvoiceId: row.id,
+            organizationTitle: row.organizationTitle,
+            providerInvoiceRef: providerRef,
+            amountMinor: row.amountMinor,
+            currency: row.currency,
+          });
+          continue;
+        }
+        if (match.amountMinor !== row.amountMinor || match.currency !== row.currency) {
+          discrepancies.push({
+            kind: 'amount_mismatch',
+            saasBillingInvoiceId: row.id,
+            organizationTitle: row.organizationTitle,
+            providerInvoiceRef: providerRef,
+            journalAmountMinor: row.amountMinor,
+            journalCurrency: row.currency,
+            providerAmountMinor: match.amountMinor,
+            providerCurrency: match.currency,
+          });
+        }
+      }
+      for (const item of providerList.items) {
+        if (!journalByRef.has(item.providerPaymentRef)) {
+          discrepancies.push({
+            kind: 'missing_in_journal',
+            providerPaymentRef: item.providerPaymentRef,
+            providerStatus: item.status,
+            amountMinor: item.amountMinor,
+            currency: item.currency,
+          });
+        }
+      }
+
+      return {
+        outcome: 'ok',
+        providerId: provider.providerId,
+        periodFrom: input.periodFrom,
+        periodTo: input.periodTo,
+        checkedAt: now().toISOString(),
+        journalCount: comparableJournalRows.length,
+        providerCount: providerList.items.length,
+        truncated: providerList.truncated,
+        discrepancies,
+      };
     },
 
     assignManualTariff(input: {
@@ -241,10 +350,15 @@ export function createSaasBillingService(dependencies: {
       organizationId: string;
       saasBillingInvoiceId: string;
       providerId: string;
-      verified: Pick<PaymentProviderVerifyResult, 'idempotencyKey' | 'eventType' | 'amountMinor' | 'payload'>;
+      verified: Pick<
+        PaymentProviderVerifyResult,
+        'idempotencyKey' | 'eventType' | 'amountMinor' | 'payload'
+      >;
     }): Promise<{ captured: boolean; duplicate: boolean }> {
       const payloadCurrency =
-        typeof input.verified.payload.currency === 'string' ? input.verified.payload.currency : null;
+        typeof input.verified.payload.currency === 'string'
+          ? input.verified.payload.currency
+          : null;
       const { created } = await dependencies.repository.recordSaasBillingProviderEvent({
         organizationId: input.organizationId,
         saasBillingInvoiceId: input.saasBillingInvoiceId,
@@ -394,7 +508,9 @@ export function createSaasBillingService(dependencies: {
       >;
     }): Promise<{ captured: boolean; duplicate: boolean }> {
       const payloadCurrency =
-        typeof input.verified.payload.currency === 'string' ? input.verified.payload.currency : null;
+        typeof input.verified.payload.currency === 'string'
+          ? input.verified.payload.currency
+          : null;
       const { created } = await dependencies.repository.recordSaasBillingProviderEvent({
         organizationId: input.organizationId,
         saasBillingInvoiceId: input.saasBillingInvoiceId,

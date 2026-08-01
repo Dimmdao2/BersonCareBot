@@ -8,6 +8,20 @@ export type PaymentProviderVerifyResult = {
 
 import type { PaymentProviderConfig } from './types';
 
+/** К3 reconciliation — one payment as the provider itself reports it, not our journal's view of it. */
+export type PaymentProviderListedPayment = {
+  providerPaymentRef: string;
+  status: string;
+  amountMinor: number;
+  currency: string;
+};
+
+export type PaymentProviderListPaymentsResult = {
+  items: PaymentProviderListedPayment[];
+  /** The provider's list ran past this adapter's page cap — result may be incomplete. */
+  truncated: boolean;
+};
+
 export type PaymentProviderPort = {
   createIntent(params: {
     amountMinor: number;
@@ -37,4 +51,16 @@ export type PaymentProviderPort = {
     webhookSecret: string;
     providerConfig?: PaymentProviderConfig;
   }): Promise<PaymentProviderVerifyResult>;
+
+  /**
+   * К3 — list payments the provider itself has on record for a period, for reconciliation against
+   * our journal. Optional: added only where the provider's API supports it (today, ЮKassa's
+   * `GET /v3/payments`); adapters without it are unaffected, and the reconciliation caller treats a
+   * missing method as "provider unavailable for reconciliation", not an error.
+   */
+  listPayments?(params: {
+    periodFromIso: string;
+    periodToIso: string;
+    providerConfig?: PaymentProviderConfig;
+  }): Promise<PaymentProviderListPaymentsResult>;
 };

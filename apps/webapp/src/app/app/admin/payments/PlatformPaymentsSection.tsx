@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   SaasBillingInvoiceStatus,
+  SaasBillingPlatformBreakdownRow,
   SaasBillingPlatformInvoiceRow,
+  SaasBillingPlatformSummary,
+  SaasBillingReconciliationDiscrepancy,
   SaasBillingRefund,
 } from '@/modules/saas-billing/ports';
 import {
@@ -13,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/shared/ui/doctor/primitives/card';
-import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
@@ -92,6 +95,340 @@ function formatAmount(amountMinor: number, currency: string): string {
   } catch {
     return `${new Intl.NumberFormat('ru-RU').format(amountMinor / 100)} ${currency}`;
   }
+}
+
+const BILLING_PERIOD_LABELS: Record<'day' | 'month' | 'year', string> = {
+  day: 'день',
+  month: 'месяц',
+  year: 'год',
+};
+
+type SummaryApiResponse =
+  | { ok: true; summary: SaasBillingPlatformSummary; breakdown: SaasBillingPlatformBreakdownRow[] }
+  | { ok: false; error?: string };
+
+type ReconcileOkResult = {
+  providerId: string;
+  periodFrom: string;
+  periodTo: string;
+  checkedAt: string;
+  journalCount: number;
+  providerCount: number;
+  truncated: boolean;
+  discrepancies: SaasBillingReconciliationDiscrepancy[];
+};
+
+type ReconcileApiResponse =
+  | { ok: true; result: ReconcileOkResult }
+  | { ok: false; error?: string; providerId?: string };
+
+/**
+ * К3 item 1/2 — deliberately filtered by period+payer only, NOT status: it always shows all four
+ * buckets for the period the list below is scoped to, regardless of which status the list itself is
+ * currently narrowed to (see the route's own comment for why).
+ */
+function PlatformPaymentsSummarySection({
+  periodFrom,
+  periodTo,
+  payer,
+}: {
+  periodFrom: string;
+  periodTo: string;
+  payer: string;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<SaasBillingPlatformSummary | null>(null);
+  const [breakdown, setBreakdown] = useState<SaasBillingPlatformBreakdownRow[] | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams();
+    if (periodFrom) params.set('from', periodFrom);
+    if (periodTo) params.set('to', periodTo);
+    if (payer.trim()) params.set('payer', payer.trim());
+    try {
+      const json = await apiJson<SummaryApiResponse>(
+        `/api/admin/saas-billing/payments/summary?${params.toString()}`,
+        { credentials: 'include' },
+      );
+      if (json.ok) {
+        setSummary(json.summary);
+        setBreakdown(json.breakdown);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'network');
+    } finally {
+      setLoading(false);
+    }
+  }, [periodFrom, periodTo, payer]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading) return <p className="text-sm text-muted-foreground">Загрузка сводки…</p>;
+  if (error) {
+    return (
+      <p className="text-sm text-destructive" role="alert">
+        Сводка не загрузилась ({error}).
+      </p>
+    );
+  }
+  if (!summary || summary.byCurrency.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">За этот период платежей нет — сводка пуста.</p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {summary.byCurrency.map((row) => (
+        <div key={row.currency} className="grid gap-3 sm:grid-cols-4">
+          {(
+            [
+              ['Принято', row.received],
+              ['Возвращено', row.refunded],
+              ['В обработке', row.inProcess],
+              ['Не оплачено', row.unpaid],
+            ] as const
+          ).map(([label, bucket]) => (
+            <div key={label} className="rounded-md border border-border/60 p-3">
+              <div className="text-xs text-muted-foreground">{label}</div>
+              <div className="text-lg font-semibold">
+                {formatAmount(bucket.amountMinor, row.currency)}
+              </div>
+              <div className="text-xs text-muted-foreground">{bucket.count} шт.</div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <div>
+        <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+          Разрез по тарифам
+        </div>
+        {!breakdown || breakdown.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Оплаченных счетов за период нет — разрез по тарифам пуст.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-md border border-border/60">
+            <table className="w-full min-w-[480px] text-left text-sm">
+              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Тариф</th>
+                  <th className="px-3 py-2 font-medium">Период подписки</th>
+                  <th className="px-3 py-2 font-medium">Оплат</th>
+                  <th className="px-3 py-2 font-medium">Сумма</th>
+                </tr>
+              </thead>
+              <tbody>
+                {breakdown.map((row) => (
+                  <tr
+                    key={`${row.tariffId}:${row.tariffBillingPeriod}:${row.currency}`}
+                    className="border-t border-border/50"
+                  >
+                    <td className="px-3 py-2">{row.tariffName}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {BILLING_PERIOD_LABELS[row.tariffBillingPeriod]}
+                    </td>
+                    <td className="px-3 py-2">{row.count}</td>
+                    <td className="px-3 py-2 font-medium">
+                      {formatAmount(row.amountMinor, row.currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const RECONCILE_DISCREPANCY_LABELS: Record<SaasBillingReconciliationDiscrepancy['kind'], string> = {
+  missing_in_provider: 'Есть у нас — нет у провайдера',
+  missing_in_journal: 'Есть у провайдера — нет у нас',
+  amount_mismatch: 'Суммы расходятся',
+};
+
+function ReconciliationDiscrepancyRow({
+  discrepancy,
+}: {
+  discrepancy: SaasBillingReconciliationDiscrepancy;
+}) {
+  if (discrepancy.kind === 'missing_in_provider') {
+    return (
+      <tr className="border-t border-border/50">
+        <td className="px-3 py-2">{RECONCILE_DISCREPANCY_LABELS[discrepancy.kind]}</td>
+        <td className="px-3 py-2">{discrepancy.organizationTitle}</td>
+        <td className="px-3 py-2 text-xs text-muted-foreground">
+          {discrepancy.providerInvoiceRef}
+        </td>
+        <td className="px-3 py-2">{formatAmount(discrepancy.amountMinor, discrepancy.currency)}</td>
+      </tr>
+    );
+  }
+  if (discrepancy.kind === 'missing_in_journal') {
+    return (
+      <tr className="border-t border-border/50">
+        <td className="px-3 py-2">{RECONCILE_DISCREPANCY_LABELS[discrepancy.kind]}</td>
+        <td className="px-3 py-2 text-muted-foreground">—</td>
+        <td className="px-3 py-2 text-xs text-muted-foreground">
+          {discrepancy.providerPaymentRef} ({discrepancy.providerStatus})
+        </td>
+        <td className="px-3 py-2">{formatAmount(discrepancy.amountMinor, discrepancy.currency)}</td>
+      </tr>
+    );
+  }
+  return (
+    <tr className="border-t border-border/50">
+      <td className="px-3 py-2">{RECONCILE_DISCREPANCY_LABELS[discrepancy.kind]}</td>
+      <td className="px-3 py-2">{discrepancy.organizationTitle}</td>
+      <td className="px-3 py-2 text-xs text-muted-foreground">{discrepancy.providerInvoiceRef}</td>
+      <td className="px-3 py-2">
+        у нас: {formatAmount(discrepancy.journalAmountMinor, discrepancy.journalCurrency)}, у
+        провайдера: {formatAmount(discrepancy.providerAmountMinor, discrepancy.providerCurrency)}
+      </td>
+    </tr>
+  );
+}
+
+const RECONCILE_ERROR_LABELS: Record<string, string> = {
+  provider_unavailable: 'Провайдер не умеет отдавать список платежей — сверка недоступна.',
+  provider_error: 'Провайдер недоступен. Попробуйте ещё раз позже.',
+  invalid_reconcile_request: 'Укажите период (с и по) для сверки.',
+  unauthorized: 'Сессия истекла — войдите заново.',
+  forbidden: 'Нет прав на сверку.',
+};
+
+function reconcileErrorLabel(code: string): string {
+  return RECONCILE_ERROR_LABELS[code] ?? `Сверка не выполнена (${code}).`;
+}
+
+/**
+ * К3 item 3/4 — runs only on button press (never on render/mount): this is an external call to the
+ * provider, not a display of our own data. Read-only — it never writes back to the journal.
+ */
+function ReconciliationSection({
+  initialFrom,
+  initialTo,
+}: {
+  initialFrom: string;
+  initialTo: string;
+}) {
+  const [from, setFrom] = useState(initialFrom);
+  const [to, setTo] = useState(initialTo);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ReconcileOkResult | null>(null);
+
+  const run = useCallback(async () => {
+    if (!from || !to) {
+      setError(reconcileErrorLabel('invalid_reconcile_request'));
+      return;
+    }
+    setRunning(true);
+    setError(null);
+    try {
+      const json = await apiJson<ReconcileApiResponse>(
+        '/api/admin/saas-billing/payments/reconcile',
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from, to }),
+        },
+      );
+      if (json.ok) setResult(json.result);
+    } catch (e) {
+      setError(reconcileErrorLabel(e instanceof Error ? e.message : 'network'));
+      setResult(null);
+    } finally {
+      setRunning(false);
+    }
+  }, [from, to]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Сверка с провайдером</CardTitle>
+        <CardDescription>
+          Список платежей ЮKassa за период (`GET /v3/payments`) против нашего журнала. Ничего не
+          дописывает в журнал — только показывает расхождения.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="reconcile-from">Период с</Label>
+            <Input
+              id="reconcile-from"
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="reconcile-to">Период по</Label>
+            <Input
+              id="reconcile-to"
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </div>
+          <div className="flex items-end">
+            <Button type="button" onClick={run} disabled={running} className="w-full sm:w-auto">
+              {running ? 'Сверяем…' : 'Сверить с провайдером'}
+            </Button>
+          </div>
+        </div>
+
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+
+        {result && (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              У нас: {result.journalCount} платежей, у провайдера: {result.providerCount}.
+              {result.truncated &&
+                ' Список провайдера обрезан по лимиту страниц — сверка неполная.'}
+            </p>
+            {result.discrepancies.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Расхождений нет — журнал сходится с провайдером.
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-md border border-border/60">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Расхождение</th>
+                      <th className="px-3 py-2 font-medium">Плательщик</th>
+                      <th className="px-3 py-2 font-medium">Ссылка провайдера</th>
+                      <th className="px-3 py-2 font-medium">Сумма</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.discrepancies.map((d, i) => (
+                      <ReconciliationDiscrepancyRow key={i} discrepancy={d} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 type FilterState = {
@@ -267,10 +604,9 @@ export function PlatformPaymentsSection() {
     setLoading(true);
     setError(null);
     try {
-      const json = await apiJson<ApiResponse>(
-        `/api/admin/saas-billing/payments?${queryString}`,
-        { credentials: 'include' },
-      );
+      const json = await apiJson<ApiResponse>(`/api/admin/saas-billing/payments?${queryString}`, {
+        credentials: 'include',
+      });
       setPayments(json.ok ? json.payments : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'network');
@@ -284,148 +620,190 @@ export function PlatformPaymentsSection() {
     void load();
   }, [load]);
 
+  const exportQueryString = useMemo(() => {
+    const p = new URLSearchParams();
+    if (applied.status) p.set('status', applied.status);
+    if (applied.from) p.set('from', applied.from);
+    if (applied.to) p.set('to', applied.to);
+    if (applied.payer.trim()) p.set('payer', applied.payer.trim());
+    return p.toString();
+  }, [applied]);
+
   return (
-    <Card id="platform-payments">
-      <CardHeader>
-        <CardTitle className="text-base">Платежи</CardTitle>
-        <CardDescription>
-          Счета клиник за тариф из нашего журнала (`saas_billing_invoices`). Сверка с провайдером — на
-          отдельном этапе.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="payments-status">Статус</Label>
-            <Select
-              value={draft.status}
-              onValueChange={(v) => setDraft((d) => ({ ...d, status: v as FilterState['status'] }))}
-            >
-              <SelectTrigger id="payments-status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Все</SelectItem>
-                {(Object.keys(INVOICE_STATUS_LABELS) as SaasBillingInvoiceStatus[]).map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {INVOICE_STATUS_LABELS[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="payments-from">Дата с</Label>
-            <Input
-              id="payments-from"
-              type="date"
-              value={draft.from}
-              onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="payments-to">Дата по</Label>
-            <Input
-              id="payments-to"
-              type="date"
-              value={draft.to}
-              onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="payments-payer">Плательщик</Label>
-            <Input
-              id="payments-payer"
-              value={draft.payer}
-              onChange={(e) => setDraft((d) => ({ ...d, payer: e.target.value }))}
-              placeholder="Название клиники"
-            />
-          </div>
-          <div className="flex items-end">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              onClick={() => setApplied({ ...draft })}
-            >
-              Применить фильтры
-            </Button>
-          </div>
-        </div>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Сводка за период</CardTitle>
+          <CardDescription>
+            Считается из нашего журнала за тот же период и по тому же плательщику, что выбраны
+            фильтрами списка ниже — статус списка на сводку не влияет, она всегда показывает
+            разбивку по всем статусам сразу.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PlatformPaymentsSummarySection
+            periodFrom={applied.from}
+            periodTo={applied.to}
+            payer={applied.payer}
+          />
+        </CardContent>
+      </Card>
 
-        {error && (
-          <p className="text-sm text-destructive" role="alert">
-            Список платежей не загрузился ({error}).
-          </p>
-        )}
+      <Card id="platform-payments">
+        <CardHeader>
+          <CardTitle className="text-base">Платежи</CardTitle>
+          <CardDescription>
+            Счета клиник за тариф из нашего журнала (`saas_billing_invoices`).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="payments-status">Статус</Label>
+              <Select
+                value={draft.status}
+                onValueChange={(v) =>
+                  setDraft((d) => ({ ...d, status: v as FilterState['status'] }))
+                }
+              >
+                <SelectTrigger id="payments-status" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Все</SelectItem>
+                  {(Object.keys(INVOICE_STATUS_LABELS) as SaasBillingInvoiceStatus[]).map(
+                    (status) => (
+                      <SelectItem key={status} value={status}>
+                        {INVOICE_STATUS_LABELS[status]}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="payments-from">Дата с</Label>
+              <Input
+                id="payments-from"
+                type="date"
+                value={draft.from}
+                onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="payments-to">Дата по</Label>
+              <Input
+                id="payments-to"
+                type="date"
+                value={draft.to}
+                onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="payments-payer">Плательщик</Label>
+              <Input
+                id="payments-payer"
+                value={draft.payer}
+                onChange={(e) => setDraft((d) => ({ ...d, payer: e.target.value }))}
+                placeholder="Название клиники"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={() => setApplied({ ...draft })}
+              >
+                Применить фильтры
+              </Button>
+              <a
+                href={`/api/admin/saas-billing/payments/export?${exportQueryString}`}
+                download
+                className={buttonVariants({ variant: 'outline', className: 'w-full sm:w-auto' })}
+              >
+                Выгрузить
+              </a>
+            </div>
+          </div>
 
-        {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              Список платежей не загрузился ({error}).
+            </p>
+          )}
 
-        {!loading && !error && (
-          <div className="overflow-x-auto rounded-md border border-border/60">
-            <table className="w-full min-w-[980px] text-left text-sm">
-              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Дата</th>
-                  <th className="px-3 py-2 font-medium">Плательщик</th>
-                  <th className="px-3 py-2 font-medium">За что</th>
-                  <th className="px-3 py-2 font-medium">Сумма</th>
-                  <th className="px-3 py-2 font-medium">Статус</th>
-                  <th className="px-3 py-2 font-medium">Провайдер</th>
-                  <th className="px-3 py-2 font-medium">Возврат</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(payments ?? []).length === 0 ? (
+          {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
+
+          {!loading && !error && (
+            <div className="overflow-x-auto rounded-md border border-border/60">
+              <table className="w-full min-w-[980px] text-left text-sm">
+                <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
-                      Платежей пока нет.
-                    </td>
+                    <th className="px-3 py-2 font-medium">Дата</th>
+                    <th className="px-3 py-2 font-medium">Плательщик</th>
+                    <th className="px-3 py-2 font-medium">За что</th>
+                    <th className="px-3 py-2 font-medium">Сумма</th>
+                    <th className="px-3 py-2 font-medium">Статус</th>
+                    <th className="px-3 py-2 font-medium">Провайдер</th>
+                    <th className="px-3 py-2 font-medium">Возврат</th>
                   </tr>
-                ) : (
-                  (payments ?? []).map((row) => (
-                    <tr key={row.id} className="border-t border-border/50 hover:bg-muted/30">
-                      <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-muted-foreground">
-                        {formatDateTime(row.createdAt)}
-                      </td>
-                      <td className="px-3 py-2 align-top font-medium">{row.organizationTitle}</td>
-                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                        {row.tariffName}
-                        <br />
-                        {formatDate(row.servicePeriodStartsAt)} — {formatDate(row.servicePeriodEndsAt)}
-                      </td>
-                      <td className="px-3 py-2 align-top font-medium">
-                        {formatAmount(row.amountMinor, row.currency)}
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <Badge variant={statusBadgeVariant(row.status)}>
-                          {INVOICE_STATUS_LABELS[row.status]}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                        {row.providerId}
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <RefundCell row={row} onOpenRefund={() => setRefundRow(row)} />
+                </thead>
+                <tbody>
+                  {(payments ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                        Платежей пока нет.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    (payments ?? []).map((row) => (
+                      <tr key={row.id} className="border-t border-border/50 hover:bg-muted/30">
+                        <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-muted-foreground">
+                          {formatDateTime(row.createdAt)}
+                        </td>
+                        <td className="px-3 py-2 align-top font-medium">{row.organizationTitle}</td>
+                        <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                          {row.tariffName}
+                          <br />
+                          {formatDate(row.servicePeriodStartsAt)} —{' '}
+                          {formatDate(row.servicePeriodEndsAt)}
+                        </td>
+                        <td className="px-3 py-2 align-top font-medium">
+                          {formatAmount(row.amountMinor, row.currency)}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <Badge variant={statusBadgeVariant(row.status)}>
+                            {INVOICE_STATUS_LABELS[row.status]}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                          {row.providerId}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <RefundCell row={row} onOpenRefund={() => setRefundRow(row)} />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+        {refundRow && (
+          <RefundDialog
+            row={refundRow}
+            onClose={() => setRefundRow(null)}
+            onSuccess={() => {
+              setRefundRow(null);
+              void load();
+            }}
+          />
         )}
-      </CardContent>
-      {refundRow && (
-        <RefundDialog
-          row={refundRow}
-          onClose={() => setRefundRow(null)}
-          onSuccess={() => {
-            setRefundRow(null);
-            void load();
-          }}
-        />
-      )}
-    </Card>
+      </Card>
+
+      <ReconciliationSection initialFrom={applied.from} initialTo={applied.to} />
+    </div>
   );
 }
