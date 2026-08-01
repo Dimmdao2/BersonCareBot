@@ -176,7 +176,7 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
      * This route has no getOrderStatusExtended follow-up, so unsigned callbacks must
      * fail closed instead of being trusted as payment state authority.
      */
-    verifyWebhook({ headers, bodyText, webhookSecret }) {
+    async verifyWebhook({ headers, bodyText, webhookSecret }) {
       const inspected = inspectAlfabankWebhook(headers, bodyText);
       const payload = inspected.payload;
       const mdOrder = inspected.intentRef ?? '';

@@ -115,6 +115,7 @@ export const bePaymentIntents = pgTable(
     status: text().notNull().default('pending'),
     purpose: text().notNull().default('appointment_prepayment'),
     providerIntentRef: text('provider_intent_ref'),
+    checkoutUrl: text('checkout_url'),
     metadataJson: jsonb('metadata_json').default({}).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()

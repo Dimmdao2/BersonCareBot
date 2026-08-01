@@ -167,7 +167,7 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       return inspectTinkoffWebhook(bodyText);
     },
 
-    verifyWebhook({ bodyText, webhookSecret }) {
+    async verifyWebhook({ bodyText, webhookSecret }) {
       // webhookSecret = Tinkoff terminal password (same as apiKey / password used for Token)
       const payload = JSON.parse(bodyText) as Record<string, unknown>;
       const incomingToken = String(payload['Token'] ?? '');

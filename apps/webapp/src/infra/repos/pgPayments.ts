@@ -55,6 +55,7 @@ function mapIntent(row: typeof bePaymentIntents.$inferSelect): PaymentIntentReco
     status: row.status,
     purpose: row.purpose,
     providerIntentRef: row.providerIntentRef,
+    checkoutUrl: row.checkoutUrl,
   };
 }
 
@@ -300,6 +301,7 @@ export function createPgPaymentsPort(): PaymentsPort {
             status: 'pending',
             purpose: input.purpose ?? 'appointment_prepayment',
             providerIntentRef: input.providerIntentRef,
+            checkoutUrl: input.checkoutUrl ?? null,
             metadataJson: input.metadataJson ?? {},
             createdAt: now,
             updatedAt: now,

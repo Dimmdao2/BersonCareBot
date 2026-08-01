@@ -78,6 +78,8 @@ const BOOKING_CREATE_ERROR_RULES = {
   package_not_found: { status: 409, code: 'package_not_found' },
   package_reserve_failed: { status: 409, code: 'package_reserve_failed' },
   payment_option_conflict: { status: 400, code: 'payment_option_conflict' },
+  payment_provider_unavailable: { status: 422, code: 'payment_provider_unavailable' },
+  payments_disabled: { status: 422, code: 'payments_disabled' },
   product_consume_failed: { status: 409, code: 'product_consume_failed' },
   product_expired: { status: 409, code: 'product_expired' },
   product_no_visits: { status: 409, code: 'product_no_visits' },
@@ -135,7 +137,15 @@ export async function POST(request: Request) {
         });
       },
     );
-    return jsonOk({ booking }, { status: 200 });
+    let checkoutUrl: string | null = null;
+    if (booking.status === 'awaiting_payment') {
+      const paymentStatus = await deps.patientBooking.getBookingPaymentStatus(
+        booking.id,
+        session.user.userId,
+      );
+      checkoutUrl = paymentStatus.ok ? (paymentStatus.summary?.intent?.checkoutUrl ?? null) : null;
+    }
+    return jsonOk({ booking, checkoutUrl }, { status: 200 });
   } catch (error) {
     const mapped = mapApiError(
       error,

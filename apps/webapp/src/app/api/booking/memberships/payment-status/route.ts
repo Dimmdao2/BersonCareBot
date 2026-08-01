@@ -27,11 +27,16 @@ export async function GET(request: Request) {
   if (!pkg || pkg.package.platformUserId !== gate.session.user.userId) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  const intent = pkg.package.paymentIntentId
+    ? await deps.payments?.getIntentForOrganization(pkg.package.paymentIntentId, organizationId)
+    : null;
   return NextResponse.json({
     ok: true,
     patientPackageId,
     status: pkg.package.status,
     intentId: pkg.package.paymentIntentId,
+    intentStatus: intent?.status ?? null,
+    checkoutUrl: intent?.checkoutUrl ?? null,
     priceMinor: pkg.package.priceMinor,
     currency: pkg.package.currency,
     package: pkg.package,
