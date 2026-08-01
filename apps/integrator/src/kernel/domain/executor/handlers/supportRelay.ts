@@ -282,7 +282,61 @@ export async function handleConversationUserMessage(
   };
 }
 
+/**
+ * D23: texts for the single point below that guarantees an admin whose reply attempt was
+ * `skipped` (nothing written, nothing forwarded) always hears why — keyed by the handler's own
+ * `error` code so each cause gets its own honest sentence instead of a shared generic one.
+ */
+const ADMIN_REPLY_NOT_DELIVERED_TEXT: Record<string, string> = {
+  CONVERSATION_ADMIN_REPLY_LEGACY_REMOVED:
+    'Ответ не отправлен: старая консоль поддержки в боте закрыта, этот диалог через неё больше не обслуживается. Ответьте пациенту в кабинете врача.',
+  CONVERSATION_ADMIN_REPLY_WEBAPP_TEXT_ONLY:
+    'Вложение не отправлено: в этот диалог пересылается только текст. Напишите ответ текстом.',
+};
+
+function adminReplyNotDeliveredText(error: string | undefined): string {
+  return (
+    (error && ADMIN_REPLY_NOT_DELIVERED_TEXT[error]) ||
+    'Ответ не отправлен. Попробуйте ещё раз или ответьте пациенту в кабинете врача.'
+  );
+}
+
+/**
+ * D23: single point closing "skipped without intents reads as success" for admin replies — any
+ * `skipped` result from the attempt below that carries no intents of its own gets an honest
+ * "not delivered, here's why" reply to the admin who just wrote it, instead of the admin waiting
+ * on a message that already silently died. Covers every skip branch inside the attempt (missing
+ * input, legacy conversation, non-text on a webapp thread, …) from one place, so a new skip added
+ * there later inherits the guarantee instead of needing its own patch.
+ */
 export async function handleConversationAdminReply(
+  action: Action,
+  ctx: DomainContext,
+  deps: ExecutorDeps,
+): Promise<ActionResult> {
+  const result = await attemptConversationAdminReply(action, ctx, deps);
+  if (result.status !== 'skipped' || (result.intents && result.intents.length > 0)) {
+    return result;
+  }
+  const adminChatId = asNumber(readIncoming(ctx).chatId);
+  if (adminChatId === null) return result;
+  return {
+    ...result,
+    intents: [
+      {
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text: adminReplyNotDeliveredText(result.error) },
+          delivery: channelDeliveryPayload(ctx.event.meta.source),
+        },
+      },
+    ],
+  };
+}
+
+async function attemptConversationAdminReply(
   action: Action,
   ctx: DomainContext,
   deps: ExecutorDeps,
