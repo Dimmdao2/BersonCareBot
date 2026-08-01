@@ -1,324 +1,210 @@
 # В9б — исполнимые slices tenant-wall
 
-Статус: **план декомпозиции, не PASS**. Этот файл не меняет БД, серверы, DEV/TEST/PROD,
-deploy или production code; номера миграций намеренно не назначены.
+Статус: **revised docs-only plan, не PASS**. Этот round не меняет product code, миграции,
+DB/DEV/TEST/PROD, deploy, taskdb или checkbox. До PASS повторного docs-only аудита product work
+запрещён.
 
-## Граница и правило порядка
+## Цель и источник фактов
 
-Человек не должен получить чужую запись, а маршрут без принципала — любую tenant/user
-строку. Для десяти живых строк этого класса граница будет в PostgreSQL: одинаковый
-`USING`/`WITH CHECK`, затем `ENABLE` + `FORCE RLS`. Ранний route/session/HMAC guard
-остаётся UX-отказом, но не доказательством security boundary.
+Оракул В9б: `docs/_TODO/TEST_SUITE_AUDIT_2026-07-29.md` — **данные недостижимы без
+принципала**, и это доказано прогоном: маршрут без принципала не получает данных ни по одному
+пути. Маршрутный guard остаётся UX-отказом; security boundary — единый DB port + exact
+capability либо `ENABLE` + `FORCE RLS` с одинаковыми `USING` / `WITH CHECK`.
 
-Физический порядок безопаснее нумерации разделов: capability/role или caller должен
-существовать **до** отзыва его broad grant; детерминированный backfill и quarantine — до
-`NOT NULL`/FORCE; все caller-ы — до включения политики. Поэтому ACL-revoke, который
-сделает живой caller неработоспособным, land-ится одной транзакционной поставкой с его
-узким replacement из S04, хотя её проектирование и SQL-контракт принадлежат S02. Это не
-обход порядка, а fail-closed prerequisite: нельзя безопасно «сначала revoke, потом
-починим вход».
+`p0-5b-grants-sql.mjs` — source-level baseline текущих grants, не заменяет TEST
+introspection. В нём `app_staff` получает full DML на tiered table, кроме
+`migrationOnlyTables`, `overlayManagedAppStaffTables` и retired Rubitime set; `app_patient`
+получает только curated bootstrap grants. Overlay `c4-*` уже задаёт пять узких operational
+contours, а `integrator-login-public-identity-grants.sql` — bare NOINHERIT integrator-login
+overlay. Перед каждым implementation land worker обязан сверить эту baseline с фактическими
+`information_schema.role_table_grants`, `pg_proc`, `pg_auth_members` и `pg_roles`; расхождение
+— технический blocker, не повод вернуть broad grant.
 
-Роли, на которых строится proof: `app_runtime_staff_login → SET ROLE app_staff` и
-`app_runtime_nonstaff_login → SET ROLE app_patient`; оба login — `LOGIN NOINHERIT
-NOBYPASSRLS`. `app_owner`/migrator — только установщики, не evidence actor. Для
-операционных задач применяется уже существующая узкая роль `app_worker` либо
-назначенная integrator/login role; **не** `app_staff`/`app_patient` и не новый общий
-tenant grant. Точное имя active TEST integrator/worker login перепроверяет TEST verifier.
+Для всех строк ниже `direct table deny` означает: после contract нет grant у `app_staff`,
+`app_patient`, bare operational login или bare integrator login; allow есть только у указанной
+function/capability role. `A1` — disposable `check:saas-a1-rls-conformance`; `TEST` повторяет
+тот же `<table>.<actor>.<verb>` на named non-owner TEST login. `app_owner`/migrator никогда не
+являются evidence actor.
 
-## Исследовательская опора и ограничения
+## Deployable порядок и семь файлов
 
-Три источника для каждого решения «нет caller/FK/grant/capability»:
+Каждый land остаётся рабочим сам по себе:
 
-1. Exact search (из рабочего дерева):
+1. **expand — S02, один migration:** создать/reuse exact `SECURITY DEFINER` seams и `EXECUTE` /
+   existing narrow operational-role grants. Никаких final direct-table revokes здесь нет.
+2. **adopt — S03/S04 code + S03 migration:** S03 добавляет/stamps booking ownership; S04 переводит
+   каждого caller из матриц на already-existing/expanded seam. S04 не создаёт второй D1 writer.
+3. **contract — S04, один migration:** только после green adoption tests отозвать legacy direct
+   ACL, включая D1 bare-login table ACL. S05 FORCE migrations идут лишь после contract той строки.
 
-   ```bash
-   rg -n --glob '!**/*.test.*' --glob '!**/migrations/**' --glob '!**/drizzle-migrations/**' --glob '!**/db/schema/**' 'from .*(bookingBranches|bookingServices|bookingSpecialists|bookingBranchServices)|\b(bookingBranches|bookingServices|bookingSpecialists|bookingBranchServices)\b' apps/webapp/src packages
-   rg -n --glob '!**/*.test.*' --glob '!**/migrations/**' --glob '!**/drizzle-migrations/**' 'getByIntegratorBranchId|upsertFromProjection|deps\.branches|branches:' apps/webapp/src packages
-   rg -n 'patient_bookings|appointment_records|be_organization_members|platform_users|product_analytics_hourly|user_channel_bindings|user_channel_preferences|user_notification_topic_channels|user_notification_topics|user_web_push_subscriptions' deploy/postgres/p0-5b-grants.sql docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs
-   ```
+| File assignment | Count | Содержимое и binary land condition |
+| --- | ---: | --- |
+| S01 | 1 | Remove exactly five legacy booking projections/FKs/grants after board reservation. |
+| S02 expand | 1 | Capability definitions/reused function ACL and narrow role ACL only; no caller-breaking revoke. |
+| S03 | 1 | Nullable booking `organization_id`, deterministic backfill and transactional abort. |
+| S04 contract | 1 | Final direct revokes only after every S02/S04 adoption case is green. |
+| S05a | 1 | Identity/preferences policies + FORCE after D1 seam and revoke are green. |
+| S05b | 1 | Booking policies + FORCE after S03/S04 are green. |
+| S05c | 1 | Membership/analytics policies + FORCE after their exact seams are green. |
 
-   Первая команда не вернула application caller для четырёх `booking_*`; вторая оставила
-   `pgBranches.ts` и `buildAppDeps.ts` для `branches`. Это не доказательство отсутствия
-   внешнего consumer вне repo.
+Thus the count is **7**, derived from the table above (`awk`/manual row count: 7), rather than a
+pre-reserved claim. Every number is reread from
+`docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md` and reserved there immediately before creating
+its file.
 
-2. Lexical code search (до exact search):
+## Per-table closure matrix — ten FORCE rows
 
-   ```bash
-   node /home/dev/brain/tools/code-search.mjs "booking branches booking services booking specialists booking branch services schema foreign key" --repo bcb -k 20
-   node /home/dev/brain/tools/code-search.mjs "patient bookings appointment records schema foreign keys canonical appointment organization id" --repo bcb -k 20
-   node /home/dev/brain/tools/code-search.mjs "A1 real PostgreSQL tenant isolation test harness app_staff app_patient login" --repo bcb -k 20
-   node /home/dev/brain/tools/code-search.mjs "p0 5b broad grant generator capability security definer app_staff" --repo bcb -k 20
-   ```
+| Table | Current source-level grants / role | Live callers | Exact seam and implementing slice | Contract / policy owner column | A1 and TEST oracle |
+| --- | --- | --- | --- | --- | --- |
+| `patient_bookings` | `app_staff` broad tier; no FORCE | `pgPatientBookings`, `pgAppointmentProjection`, `canonicalCreate`, `pgChannelLinkClaim`, payment and merge/purge paths | S03 stamps `organization_id`; S04 converts ID/public/integrator/merge paths to signed exact booking or platform-ops capability; patient history stays `app.read_current_patient_booking_rows` | S04 revoke; S05b: staff `organization_id = app.current_org_id()`, patient `platform_user_id = app.current_patient_user_id()` | `no_principal`, patient A/B and staff org A/B `SELECT/INSERT/UPDATE/DELETE`; same actual TEST staff/nonstaff logins |
+| `appointment_records` | `app_staff` broad tier; no FORCE | `pgAppointmentProjection`, admin soft-delete route, `pgDoctorClients`, integrator admin stats, merge/purge | S03 stamps `organization_id`; S04 exact integrator-record and staff-delete capability | S04 revoke; S05b same `organization_id` / `platform_user_id` predicate | Same four verbs; exact record capability succeeds only for signed record, foreign record denies |
+| `be_organization_members` | `app_staff` tier; D1 overlay bare-login `SELECT` | `pgOrganizationMembership`, `pgOrganizationInvites`, `seatUsageSql`, integrator org resolvers/reminders/message threads | S02 exact bootstrap membership lookup; S04 moves integrator/bootstrap callers to it | S04 revoke bare/direct grants; S05c staff `organization_id = app.current_org_id()`; bootstrap has no table grant | staff A reads/mutates own org only; `bootstrap_direct_table` denies and `bootstrap_exact_capability` returns only exact membership |
+| `platform_users` | `app_staff` broad; `app_patient SELECT` + restricted updates; D1 bare-login overlay `SELECT/INSERT/UPDATE` | D1 writer, `pgUserProjection`, channel/phone repos, merge/purge, reminder/support direct writers | S04 adopts existing `writeIdentityAndPreferencesDirect.ts` under exact pre-principal integrator capability; other cross-user operations use exact platform-ops capability | S04 revokes D1 bare table ACL after adoption; S05a patient `id = app.current_patient_user_id()`, staff via active current-org enrollment/member relation | patient self vs B; staff current-org relation; D1 `exact_capability` upsert only; bare integrator direct table denies |
+| `product_analytics_hourly` | `app_staff` broad; existing web-push role `SELECT/INSERT/UPDATE` | `pgProductAnalytics`, retention module, web-push reminder | S02 retains only named web-push operational role; S04 moves retention to its function/role seam | S04 revoke staff direct ACL; S05c staff only `organization_id = app.current_org_id()`, null-org is platform analytics capability only | staff cannot read null/B-org; web-push may operate only installed org partition; direct table for its base login denies |
+| `user_channel_bindings` | `app_staff` broad; `app_patient SELECT`; D1 bare-login `SELECT/INSERT` | D1 writer, channel users/by-channel/bot-blocked, support writer, webapp bindings/merge/purge | S04 uses the same D1 writer and exact channel lookup/cross-user operational seam | S04 revoke bare D1 and broad grants; S05a owner `user_id = app.current_patient_user_id()` | patient own row only; D1 exact insert/read only its signed identity; no direct bare table access |
+| `user_channel_preferences` | `app_staff` broad; `app_patient SELECT` plus restricted insert/update; D1 bare-login `SELECT/INSERT/UPDATE` | D1 writer, `pgChannelPreferences`, broadcasts, doctor clients, profile model | S04 adopts D1 writer and existing patient preference port; cross-user delivery only operational seam | S04 revoke bare D1/broad ACL; S05a owner `platform_user_id = app.current_patient_user_id()` | own preference DML; foreign user and direct bootstrap deny; operational role only its assigned reminder relation |
+| `user_notification_topic_channels` | `app_staff` broad; `app_patient SELECT/INSERT/UPDATE` | patient unsubscribe, reminder model/disable port, merge/purge | S02/S04 exact patient notification port; delivery uses named operational seam | S04 revoke broad ACL; S05a owner `user_id = app.current_patient_user_id()` | patient self DML only; foreign/D1 bare/operational direct table deny unless listed role path |
+| `user_notification_topics` | `app_staff` broad; `app_patient SELECT/INSERT/UPDATE`; D1 bare-login `INSERT/UPDATE` | D1 writer, `pgUserProjection`, reminder gate, patient notification port, merge/purge | S04 uses existing D1 writer for exact identity and patient notification port for self edits | S04 revoke D1 broad direct ACL; S05a owner `user_id = app.current_patient_user_id()` | D1 exact topic upsert succeeds, bare table denied; patient A cannot modify B |
+| `user_web_push_subscriptions` | `app_staff` broad; `app_patient SELECT/INSERT/UPDATE/DELETE`; web-push operational `SELECT` | `pgWebPushSubscriptions`, broadcast counts/doctor clients, reminder stats, merge/purge | S02 retains only `app_operational_web_push_reminder`; S04 moves delivery/cross-user reads to that role/seam | S04 revoke staff/patient direct ACL; S05a owner `platform_user_id = app.current_patient_user_id()` | self `SELECT/INSERT/UPDATE/DELETE`; operational selected rows only by reminder/org relation; base login direct deny |
 
-3. Backrefs/registries: `apps/webapp/db/schema/schema.ts`,
-   `apps/webapp/db/schema/relations.ts`,
-   `docs/_TODO/SAAS_FOUNDATION/R1_TABLE_TAXONOMY.md`,
-   `docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs`, Rubitime retirement
-   inventory, Track D1 decision and tariff plan named below.
+All S05 predicates use the existing `app.current_org_id()` only. `WITH CHECK` is identical to
+`USING`; a missing helper or a `NULL` principal denies. S05a cannot land until: (a) D1 adoption tests below green, (b) its final
+bare-login grants are revoked by S04, and (c) A1 D1 exact-capability/direct-deny cases are green.
 
-Это docs-only разбор: runtime counts не запускались и старые числа не повторяются.
-`НЕ ПРОВЕРЕНО` в конце перечисляет, что обязан измерить TEST verifier.
+## Per-table closure matrix — 29 capability/ACL rows
 
-## Closure matrix рекомендации
+`Current` says source-level role state, which S02 validates live before changing it: **staff DML** =
+generated broad `app_staff` tier; **overlay** = excluded from that generator and owned by an existing
+function/overlay; **none** = retired/absent or no runtime direct grant. Each `revoke land` below is
+the S04 contract migration, never S02 expand.
 
-| Исходная строка | Решение | Slice закрытия |
+| Table | Current grants / roles | Live caller family | Exact seam → slice/adoption | Revoke land and final actor+verb oracle |
+| --- | --- | --- | --- | --- |
+| `auth_rate_limit_events` | staff DML | auth rate limiter | existing `0254_auth_rate_limit_action_accessors` → S02 reuse, caller S04 | revoke staff; `no_principal.SELECT` deny, `auth_exact_key.INSERT/UPDATE` only accessor |
+| `booking_calendar_map` | none: retired `integrator` Rubitime table | none (registry only) | no seam; S02 proves absent via `to_regclass` | no revoke file against absent relation; TEST migrator confirms absent/no runtime grant |
+| `channel_link_secrets` | staff DML | `pgChannelLinkClaim`, merge | existing exact claim token function → S02; S04 caller | revoke staff; `claim_foreign_token.SELECT` fails, exact token consume succeeds |
+| `email_challenges` | staff DML | email-password forgot, email setup port | exact normalized email challenge accessor → S02/S04 | revoke staff; `email_exact_key.SELECT/INSERT` capability only |
+| `email_otp_locks` | staff DML | `pgEmailAuth`, email auth service | exact email OTP lock accessor → S02/S04 | revoke staff; `email_exact_key.UPDATE` only |
+| `email_send_cooldowns` | staff DML | transactional email cooldown repo | exact normalized email cooldown accessor → S02/S04 | revoke staff; service `INSERT/UPDATE` only through accessor |
+| `idempotency_keys` | public staff DML; integrator scheduler role already exact on `integrator.idempotency_keys` | webapp `pgStore`; integrator idempotency repo/routes | split by schema: webapp exact request-key capability, integrator scheduler existing role → S02/S04 | revoke public staff; scheduler `SELECT/INSERT/UPDATE/DELETE` only `integrator.idempotency_keys`; foreign key deny |
+| `integration_webhook_error_events` | staff DML | health guard/operator-health port | exact health read capability → S02/S04 | revoke staff; diagnostic `SELECT` only capability, no tenant login verb |
+| `integration_webhook_last_status` | staff DML | operator-health port | exact health status capability → S02/S04 | revoke staff; diagnostic `SELECT` only capability |
+| `integrator_push_outbox` | staff DML | push worker/tick/health guard/reminders | dedicated push worker capability, not tenant role → S02/S04 | revoke staff; operational assigned queue `SELECT/UPDATE`, direct tenant deny |
+| `login_tokens` | staff DML | admin phone utility, purge, merge | exact token lookup/revoke capability → S02/S04 | revoke staff; exact token `SELECT/DELETE` only platform-ops capability |
+| `operator_health_alert_sent` | staff DML | health collector | exact health marker capability → S02/S04 | revoke staff; diagnostic `SELECT/INSERT` capability only |
+| `operator_incidents` | staff DML; delivery functions already definer | health tick/admin routes, delivery failure reporter | existing `app.operator_incident_alert_already_sent` / `mark_operator_incident_alert_sent` plus exact admin health port → S02/S04 | revoke staff; delivery capability functions only; admin exact incident verb, arbitrary tenant deny |
+| `outgoing_delivery_queue` | staff DML; `app_operational_delivery_worker SELECT/UPDATE` | integrator delivery repo/pipeline, doctor broadcast, health metrics | existing delivery role plus `app.resolve_outgoing_delivery_scope` → S02/S04 | revoke staff; delivery `SELECT/UPDATE` assigned queue; every other operational role direct deny |
+| `password_altcha_challenges` | overlay, no broad staff | password admission flow | existing password exact challenge functions → S02/S04 verification only | retain deny; `password_exact_key.SELECT/INSERT` function only |
+| `password_login_identifier_protection` | overlay, no broad staff | password admission flow | existing identifier-protection function → S02/S04 verification | retain deny; exact identifier function only |
+| `phone_challenges` | staff DML | phone challenge store, public booking OTP, admin utility | existing exact phone challenge capability → S02/S04 | revoke staff; phone proof `SELECT/INSERT/UPDATE` only capability |
+| `phone_messenger_bind_secrets` | staff DML | `pgPhoneMessengerBind` | existing exact bind-secret consume seam → S02/S04 | revoke staff; exact secret `SELECT/DELETE` only capability |
+| `phone_otp_locks` | staff DML | `pgPhoneOtpLimits`, public booking rate limit/OTP | existing normalized phone lock seam → S02/S04 | revoke staff; exact phone `INSERT/UPDATE` only capability |
+| `reference_catalog_snapshot_receipts` | overlay, no broad staff | none outside seed infrastructure | existing `0182/0183/0184` definer seed seam → S02 evidence | retain deny; seed definer `INSERT/SELECT`, tenant `SELECT` deny |
+| `specialist_signup_intents` | overlay, no broad staff | `pgOrganizationProvisioning` | existing specialist provisioning definer → S02/S04 verification | retain deny; verified signup `INSERT/UPDATE` function only |
+| `staff_security_profiles` | overlay, patient already revoked | role/session security routes | existing `0215` / `0256` self-scoped functions → S02/S04 | retain direct deny; authenticated staff self function `SELECT/UPDATE` only |
+| `user_email_setup_tokens` | staff DML | full purge | platform-ops exact user cleanup capability → S02/S04 | revoke staff; platform-ops exact user `DELETE` only |
+| `user_oauth_bindings` | app_patient direct `SELECT` is explicitly revoked; staff DML | platform access gate, merge/purge/admin utility | existing `app.current_patient_has_web_oauth_binding()` plus platform-ops exact seam → S02/S04 | revoke remaining staff; patient boolean function only, no raw binding read |
+| `user_passkey_accounts` | overlay, no broad staff | passkey functions (no TS direct table caller) | existing passkey exact function API → S02 verification | retain deny; passkey account function verb only |
+| `user_passkey_challenges` | overlay, no broad staff | passkey functions (no TS direct table caller) | existing passkey exact function API → S02 verification | retain deny; challenge exact-key function only |
+| `user_passkey_credentials` | overlay, no broad staff | passkey functions (no TS direct table caller) | existing passkey exact function API → S02 verification | retain deny; credential exact key function only |
+| `user_password_credentials` | app_patient already revoked; staff DML | email password lookup/setup, forgot route, merge | `app.current_patient_has_password_credentials()` plus exact password setup/reset seam → S02/S04 | revoke staff; patient boolean and verified reset `SELECT/INSERT/UPDATE` functions only |
+| `user_pins` | staff DML; patient `SELECT/INSERT` + `pin_hash UPDATE` | PIN profile/API, merge/purge/admin utility | existing exact set/verify PIN accessor → S02/S04 | revoke patient/staff direct; patient `set/verify` capability only, never hash SELECT |
+
+S04 manifest is the union of the caller families above: the named existing repos/routes plus their
+module ports/tests, not only booking paths. A worker may replace a listed seam only after proving an
+existing one cannot carry that caller's exact input/result; a second general writer is prohibited.
+
+## Per-table closure matrix — nine global/no-RLS rows
+
+| Table | Current grants / roles | Live caller | Final allow/deny contract and slice | Binary A1 / TEST oracle |
+| --- | --- | --- | --- | --- |
+| `booking_cities` | staff DML | patient help address link | S02 removes tenant direct grant; catalog read becomes bounded public/patient catalog capability, no RLS | patient catalog `SELECT` only; `INSERT/UPDATE/DELETE` deny |
+| `clinical_test_measure_kinds` | staff DML | no live TS caller found | S02 removes tenant grant; clinical catalog service capability only when caller appears | staff/patient all DML deny; catalog capability `SELECT` only if introduced with caller |
+| `media_playback_stats_hourly` | staff DML | playback hourly retention/internal route | S02 operational retention capability, no tenant grant | retention `SELECT/DELETE` assigned retention verb; staff/patient direct deny |
+| `reference_catalog_baselines` | overlay, no broad staff | no live TS caller found | existing seed/baseline capability only; no tenant direct grant | seed capability exact verb; staff/patient direct `SELECT` deny |
+| `saas_isolation_coverage_runs` | overlay, no broad staff | no product caller | existing isolation operator capability only | operator exact `INSERT/SELECT`; staff/patient deny |
+| `saas_isolation_event_hourly` | overlay, no broad staff | no product caller | existing isolation operator capability only | operator exact `INSERT/SELECT`; staff/patient deny |
+| `saas_isolation_events` | overlay, no broad staff | no product caller | existing isolation operator capability only | operator exact `INSERT/SELECT`; staff/patient deny |
+| `schema_migrations` | migrator only, excluded by generator | `apps/integrator/src/infra/db/migrate.ts` | S02 asserts migrator-only, never runtime role | migrator `SELECT/INSERT`; every A1/runtime role all verbs deny |
+| `webapp_schema_migrations` | migrator only, excluded by generator | no runtime caller | S02 asserts migrator-only | migrator `SELECT/INSERT`; every A1/runtime role all verbs deny |
+
+## D1 pre-principal contract
+
+There is exactly one identity writer:
+`apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts`, called from
+`apps/integrator/src/infra/db/writePort.ts` inside the existing transaction. S04 must amend that
+writer and `writePort.ts`, its existing D1 tests, and
+`deploy/postgres/integrator-login-public-identity-grants.sql`; it must not create another writer or
+definer replacement.
+
+The exact pre-principal seam is **a signed bootstrap/integrator identity event bound to one
+`(channel_code, external_id, integrator_user_id)`**, running the existing writer's candidate
+resolution/upsert transaction. Its permitted result is the one canonical `platform_users` row and
+its bindings/preferences/topics; ambiguous candidates abort. S04 grants only the function/helper
+ACL needed by the S05a policies plus the capability transaction, then proves direct bare-login table
+`SELECT/INSERT/UPDATE/DELETE` deny. Only after those tests turn green does S04 revoke the overlay's
+current bare login grants on `platform_users`, `user_channel_bindings`,
+`user_channel_preferences`, `user_notification_topics`, and its membership/org-resolution direct
+reads. D10 is drain-only transport teardown and is not a prerequisite.
+
+## Operational actors: exact A1 and TEST matrix
+
+| A1 synthetic login → TEST login | Membership (only) | Allowed tables/functions and verbs | Required deny |
+| --- | --- | --- | --- |
+| `a1_operational_diagnostic_login` → `bcb_test_operational_diagnostic_login` | `app_operational_diagnostic` | `integrator.projection_outbox SELECT` | all sibling queue, business and tenant tables |
+| `a1_operational_delivery_login` → `bcb_test_operational_delivery_login` | `app_operational_delivery_worker` | queue `SELECT/UPDATE`; `projection_outbox`, `message_retry_jobs`; `app.resolve_outgoing_delivery_scope`, `operator_incident_alert_already_sent`, `mark_operator_incident_alert_sent`, `record_operator_delivery_attempt EXECUTE` | `idempotency_keys`, reminder, media, arbitrary queue DML |
+| `a1_operational_scheduler_login` → `bcb_test_operational_scheduler_login` | `app_operational_scheduler` | `integrator.idempotency_keys SELECT/INSERT/UPDATE/DELETE`; `app.list_scheduler_reminder_organization_ids EXECUTE` | delivery queue, media, tenant tables |
+| `a1_operational_media_login` → `bcb_test_operational_media_login` | `app_operational_media_worker` | `media_transcode_jobs`, `media_files SELECT/UPDATE`; `app.read_media_worker_runtime_setting EXECUTE` | queue, scheduler, tenant tables |
+| `a1_operational_web_push_login` → `bcb_test_operational_web_push_reminder_login` | `app_operational_web_push_reminder` | listed C4 web-push org-scoped `SELECT`; `product_analytics_hourly SELECT/INSERT/UPDATE`; named reminder discovery functions | direct unrelated business/queue access; other org; arbitrary `operator_job_status` key |
+
+All five login roles are `LOGIN NOINHERIT NOBYPASSRLS`, have exactly the shown terminal capability
+membership, and no `app_owner` membership. S06 creates the five synthetic roles with the same shape
+and tests each allow plus every named denial; S07 records `session_user`, `current_user`,
+`rolbypassrls`, `pg_auth_members`, function ACL and table verb results for precisely the named TEST
+logins above. `app_worker` is not an evidence actor or fallback capability.
+
+## Slices, conditions and first worker
+
+| Slice | Status / measurable prerequisite | Deliverable |
 | --- | --- | --- |
-| `booking_branch_services`, `booking_branches`, `booking_services`, `booking_specialists`, `branches` | Не строить RLS поверх мёртвой проекции; удалить schema/FK/backrefs/DI и revoke grants. | S01 |
-| `auth_rate_limit_events`, `booking_calendar_map`, `channel_link_secrets`, `email_challenges`, `email_otp_locks`, `email_send_cooldowns`, `idempotency_keys`, `integration_webhook_error_events`, `integration_webhook_last_status`, `integrator_push_outbox`, `login_tokens`, `operator_health_alert_sent`, `operator_incidents`, `outgoing_delivery_queue`, `password_altcha_challenges`, `password_login_identifier_protection`, `phone_challenges`, `phone_messenger_bind_secrets`, `phone_otp_locks`, `reference_catalog_snapshot_receipts`, `specialist_signup_intents`, `staff_security_profiles`, `user_email_setup_tokens`, `user_oauth_bindings`, `user_passkey_accounts`, `user_passkey_challenges`, `user_passkey_credentials`, `user_password_credentials`, `user_pins` | Direct app-role table access is removed; exact-key `SECURITY DEFINER` or narrow operational role only. No tenant-wide secret grant. | S02, adoption/S04 proof |
-| `patient_bookings`, `appointment_records` | Add immutable direct `organization_id`, deterministic canonical backfill, quarantine non-provable rows. | S03 |
-| `patient_bookings`, `appointment_records` id-only/public/integrator/merge paths | Give each caller a signed principal, exact capability or dedicated operational role before FORCE. | S04 |
-| `be_organization_members`, `platform_users`, `product_analytics_hourly`, `user_channel_bindings`, `user_channel_preferences`, `user_notification_topic_channels`, `user_notification_topics`, `user_web_push_subscriptions`, plus both booking projections | Same read/write predicate, then ENABLE+FORCE. | S05a–S05c |
-| `booking_cities`, `clinical_test_measure_kinds`, `media_playback_stats_hourly`, `reference_catalog_baselines`, `saas_isolation_coverage_runs`, `saas_isolation_event_hourly`, `saas_isolation_events`, `schema_migrations`, `webapp_schema_migrations` | No tenant RLS. Retain minimal catalog/telemetry/migrator ACL; do not give platform rows tenant-role grants. | S02 ACL audit; no FORCE slice |
-| Disposable A1 and real TEST proof | Extend the existing A1 fixture, verifier and conformance program; then run allowed TEST gate under real non-owner logins. | S06, S07 |
+| S01 | **READY NOW.** Immediately before start reread board; inspect active integration SHA/diff only for `buildAppDeps.ts` `branches` import/factory/property. If same hunk is occupied, record branch+SHA+path and wait for that SHA land/rebase; otherwise reserve a free number and start. | Delete only `booking_branch_services`, `booking_branches`, `booking_services`, `booking_specialists`, `branches`, their FK/backrefs, `pgBranches` and three DI lines; regenerate grant SQL. |
+| S02 | Ready after S01 source shape lock. No D1/D10 owner release condition. | Expand seams/EXECUTE and operational ACLs in the 29+9 matrix; no final revoke. |
+| S03 | S01 land plus one current board number. | Deterministic booking ownership backfill. |
+| S04 | S02 seams exist; every named adoption test, including D1 writer test, green. | Caller adoption then one contract migration with final revokes. |
+| S05a | D1 exact capability green + S04 D1 direct grants revoked + direct-deny A1 green. | identity/preferences FORCE. |
+| S05b | S03 backfill zero-unresolved verifier + S04 booking callers green. | booking FORCE. |
+| S05c | membership/analytics exact seams and A1 direct-deny green. | membership/analytics FORCE. |
+| S06 | all S05 A1 additions ready. | Existing A1 harness only, full table/actor/verb matrix. |
+| S07 | S06 green and explicit authorized TEST action. | Existing TEST deploy contour records the exact same matrix. |
 
-## Execution slices
+S03 backfill is transactional and deterministic. It stamps only proven canonical matches; before
+`NOT NULL` it computes reason counts (`zero_match`, `multiple_match`, `deleted_parent`,
+`user_mismatch`, `provider_mismatch`) and **raises an exception that aborts the whole migration** if
+any count is non-zero. No quarantine/audit relation is created; no `patient_bookings`,
+`appointment_records`, pending booking, `be_*` row or canonical record is deleted/denied to fake a
+zero count. `canonicalCreate.ts` must resolve and write the canonical appointment's organization
+before a pending booking insert. `NOT NULL` and S05b are unreachable until an authorised reconcile
+shows every count zero.
 
-| Order | Slice / status | Human consequence and hard prerequisite | Migration files needed | Land / evidence order |
-| --- | --- | --- | ---: | --- |
-| 01 | S01 legacy booking-projection retirement — `WAIT_OVERLAP` | Keeping a dead catalog broad-grantable makes future accidental reads globally reachable. It must disappear rather than receive fake `organization_id`/RLS. `patient_bookings` still has three legacy FKs, so drop only after its snapshot/canonical replacement is prepared. | 1 | Resolve DI/Track-D overlap → source removal + schema migration → grant generator regen → audit static absence. |
-| 02 | S02 exact ACL/capability contract — `WAIT_OVERLAP` | A login, signup, token or worker operation must still work without giving every tenant role the whole secret/queue table. Capability exists before revoke; revoke waits until S04 moves each live caller. | 1 | Capability/role SQL + code ports → narrow ACL/revoke regeneration → unit/accessor proof. |
-| 03 | S03 booking projection ownership — ready after S01 shape lock | Staff require a real org key even for pending records. Without backfill/quarantine, FORCE either leaks mis-stamped rows or silently makes unknown legacy rows visible. | 1 | Add nullable columns/FK/index → deterministic stamp/quarantine → measured verifier → `NOT NULL` only if no unresolved live rows. |
-| 04 | S04 principal/caller remediation — `WAIT_OVERLAP` | FORCE turns today’s unprincipled/id-only reads into zero rows. Each legitimate actor must carry a signed principal or exact capability before the wall is switched on. | 1 | Replace callers and grant consumers → focused behavior tests → co-land S02 final revokes. |
-| 05a | S05a identity/preferences FORCE — `WAIT_OVERLAP` | A patient must only access own identity/preferences; D1 still writes four of these tables directly as integrator. Switching FORCE first would break its direct projection write or make it depend on `app_staff`. | 1 | Only after D1 direct-write/transport disposition is accepted; policy + ENABLE/FORCE + matrix. |
-| 05b | S05b booking projections FORCE | Patient/staff access to bookings must be data-bound even when a new route misses a `WHERE`. Requires S03 + S04 and no FK to retired booking catalog. | 1 | Policy + ENABLE/FORCE → A1 booking cases. |
-| 05c | S05c membership and org analytics FORCE | Membership and per-clinic analytics must not disclose another clinic. Bootstrap membership lookup/global analytics writes need narrow paths first. | 1 | Bootstrap capability/operational writer → policy + ENABLE/FORCE → A1 cases. |
-| 06 | S06 named A1 SELECT/DML matrix | Synthetic real PostgreSQL must catch policy/ACL regressions before shared TEST. Existing A1 already proves non-owner login routing; a second harness would duplicate and weaken it. | 0 | Extend fixture/program/verifier → `pnpm run check:saas-a1-rls-conformance`. |
-| 07 | S07 TEST enforcement gate | The human protection is not proven until the actual TEST deployment uses non-owner `app_*_login`; owner results are exempt and invalid. | 0 | Only after S06 green and explicit TEST authorization → deploy contour → record matrix/metadata evidence. |
+### First-worker brief — S01, READY NOW
 
-The migration count is **7 files total** (S01–S05c each one; S06/S07 zero). They are placeholders,
-not reservations; orchestrator obtains every number from the board immediately before creation.
+> Work only S01 on a fresh `wt/` branch from the current single-entry integration SHA. Before any
+> migration file: reread `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`, inspect active SHA/diff only for the
+> `buildAppDeps.ts` branches hunk, reserve one currently free number on the board, then create it.
+> Modify only `apps/webapp/db/schema/{schema.ts,relations.ts}`, `pgBranches.ts`,
+> `buildAppDeps.ts`, `di.md`, one numbered webapp Drizzle migration, and
+> `p0-5b-grants-sql.mjs` with regenerated `deploy/postgres/p0-5b-grants.sql` and its existing grant
+> smoke. Remove exactly five legacy declarations/FKs/backrefs, `pgBranches`, its import/factory/returned
+> DI property and generator entries. Preserve `stockQuotaCheck.ts`, `pgOrganizationInvites.ts`, canonical
+> `be_*`, all `patient_bookings`/`appointment_records` data declarations, D1 writer and D10 transport.
+> Regenerate `p0-5b-grants.sql` from its generator; run schema/type/grant smoke. If a runtime consumer
+> appears, report `path:symbol` and set the technical blocker with its branch/SHA/path condition — do
+> not ask an owner for release and do not build an RLS wall.
 
-### S01 — retire five dead booking projections
+## Required repeat audit gate
 
-**Tables and exact backrefs.** Retire `booking_branch_services`, `booking_branches`,
-`booking_services`, `booking_specialists`, and `branches`. The first four have the FK graph
-`booking_branches.city_id → booking_cities`, `booking_specialists.branch_id → booking_branches`,
-`booking_branch_services.(branch_id,service_id,specialist_id) → booking_*`; `patient_bookings` holds
-`branch_id`, `service_id`, and `branch_service_id` FKs/backrefs. `appointment_records.branch_id →
-branches`; `branchesRelations` is the reciprocal backref. The production replacement is canonical
-`be_appointments`/`be_branches`/`be_clinic_services`, already used by
-`app.read_current_patient_booking_rows` (0251).
-
-**Manifest.** Modify
-`apps/webapp/db/schema/schema.ts`, `apps/webapp/db/schema/relations.ts`,
-`apps/webapp/src/infra/repos/pgBranches.ts`, `apps/webapp/src/app-layer/di/buildAppDeps.ts`, and its
-contract documentation `apps/webapp/src/app-layer/di/di.md`; create exactly one numbered Drizzle
-migration chosen later under `apps/webapp/db/drizzle-migrations/`; edit
-`docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs`, regenerate (never hand-edit)
-`deploy/postgres/p0-5b-grants.sql`, and update its existing
-`docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs`. Add focused repo/removal tests beside
-`pgBranches.ts` only if a live consumer is discovered; otherwise static migration/schema inspection is
-the appropriate one-pass evidence.
-
-**Acceptance kill-set.** A temporary re-add of any `booking_*` application import/port must fail the
-existing chokepoint/type surface; migration must first remove the three `patient_bookings` legacy
-FKs/backrefs, then the catalog graph; generated SQL must contain no grant for all five; no direct
-`pgBranches` consumer remains. No artificial RLS policy is accepted as a substitute for retirement.
-
-**Overlap.** `buildAppDeps.ts` also owns `pgOrganizationInvites` (tariff/seat path) and Track-D wiring,
-while `stockQuotaCheck.ts` intentionally shares the atomic quota pattern with
-`pgOrganizationInvites.createReplacingPending`. This slice may remove only the `branches` import,
-factory and returned dependency; it must not refactor the composition root or quota code. Marked
-`WAIT_OVERLAP` until the Track D transport owner confirms the dead projection transport is not being
-rewired in the same hunk.
-
-### S02 — revoke broad grants; install exact barriers
-
-**Reuse first.** Reuse `0254_auth_rate_limit_action_accessors.sql` for rate limits,
-`0258_bootstrap_auth_table_accessors.sql` for exact user-pin/channel-link/email/OAuth/login-token
-operations, `0215_staff_security_profiles.sql`/`0256_staff_security_self_password_hash.sql` for the
-staff vault, and `0182/0183/0184_reference_catalog_*` for receipt seeding. `0199/0251` prove the
-same bounded-definer pattern for booking read/enrichment. A new function may be added only after the
-worker names a caller and demonstrates that no existing exact accessor serves its inputs/result.
-
-**Contract.** Revoke direct table ACL from `app_staff` and `app_patient` for every S02 table in the
-closure matrix. For `user_pins`, replace direct patient read/set with the existing exact set/verify
-accessor rather than granting pin hash. For pre-principal rows, capability input is an opaque token,
-exact UUID or exact normalised key and result is the minimal DTO/boolean; `SECURITY DEFINER` has a
-fixed `pg_catalog` search path, owner `app_owner`, `PUBLIC` revoked and exact `EXECUTE` only. For
-`outgoing_delivery_queue`, `integrator_push_outbox`, webhook/operator incidents/status and telemetry,
-use the existing `app_worker` or specifically proven integrator/ops login role; never a clinic role.
-`booking_calendar_map` is a provider mapping, not a tenant row. `reference_catalog_snapshot_receipts`
-retains its existing seed seam. No direct grant to pre-principal secrets or global/platform rows is
-permitted.
-
-**Manifest.** S02 creates exactly one numbered Drizzle migration containing only capability/role
-definitions and ACLs; it does not change TS callers (that is S04). Modify
-`docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs`, regenerate
-`deploy/postgres/p0-5b-grants.sql`, and extend the existing
-`docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-5b-grants.mjs`. Existing accessors are amended by
-`CREATE OR REPLACE` in that migration, never copied into a second harness. Caller ports and their
-focused tests are deliberately and exclusively listed in S04 once the per-table census proves a
-real gap; inventing an untraceable TS file or capability name here would violate this slice boundary.
-
-**Acceptance kill-set.** Bare staff/patient direct `SELECT`, `INSERT`, `UPDATE`, `DELETE` on every
-S02 table deny; a valid exact key succeeds only through its capability; altered/foreign key fails;
-worker/integrator can see only assigned queue/diagnostic surface; `app_owner` is not the evidence
-actor. The grant generator, materialized SQL and smoke script must agree.
-
-**Overlap.** Track D1 is moving direct writes to `platform_users`, `user_channel_bindings`,
-`user_notification_topics`, optionally `user_channel_preferences`; its documented bootstrap login
-grant defect makes this slice `WAIT_OVERLAP`. Tariff code is not a capability consumer in this table
-set; `stockQuotaCheck.ts` and `pgOrganizationInvites.ts` are explicitly out of scope.
-
-### S03 — direct ownership and fail-closed backfill
-
-**Schema.** Add `organization_id uuid` to `patient_bookings` and `appointment_records`, FK each to
-`be_organizations(id)`, then `(organization_id, created_at)` / access-shape indexes (at minimum an
-org index required by every future policy). `patient_bookings.canonical_appointment_id` is a logical
-backref to `be_appointments.id` but no FK exists in the current Drizzle declaration; do not invent it
-without lifecycle proof. `appointment_records` uses `integrator_record_id` and may be linked only when
-canonical `be:<uuid>` resolves to `be_appointments`.
-
-**Deterministic backfill/quarantine.** For a booking with one canonical appointment, stamp its
-`organization_id` only when the matched `be_appointments` row is live and its `platform_user_id`
-matches the projection when both IDs are non-null. For appointment records, accept only one
-canonical `be:<uuid>` whose organisation/provider relation is provable. Zero matches, deleted parent,
-multiple candidates or mismatched users go into a migration-created quarantine/audit relation with
-row id, reason and immutable source keys, then are deleted/denied from the live RLS table; they never
-receive a guessed org or a global policy. Pending public bookings receive the resolved organisation at
-creation before insert; a global cancellation cleanup becomes an explicit scheduler/operational
-capability partitioned by organisation.
-
-**Manifest.** Modify `apps/webapp/db/schema/schema.ts` and
-`apps/webapp/src/infra/repos/pgPatientBookings.ts`,
-`apps/webapp/src/infra/repos/pgAppointmentProjection.ts`,
-`apps/webapp/src/modules/patient-booking/canonicalCreate.ts`; create one numbered Drizzle migration;
-extend focused tests beside both repositories and `apps/webapp/src/modules/patient-booking/`. No deploy
-file changes are allowed in this slice: deploy-level grant generation remains S02.
-
-**Acceptance kill-set.** A booking/record without proof never receives an org; wrong canonical UUID,
-cross-org parent and conflicting user are quarantined; pending insertion without org fails; a correct
-canonical parent stamps the same org and user; rerun is idempotent. Runtime row totals belong to the
-TEST verifier, not this document.
-
-### S04 — remediate callers before FORCE
-
-**Exact callers.** Replace or principal-wrap:
-
-- `pgPatientBookings.ts`: `getById`, `getByCanonicalAppointmentId`, `getByIdForUser`,
-  `createPending`, `markConfirmed`, `markCancelled`, `updateSlots` and its global cleanup;
-- `pgAppointmentProjection.ts`: projection reads by integrator record/phone and staff soft-delete;
-- `pgChannelLinkClaim.ts`: exact `platform_users`/binding/booking count and merge claim;
-- `apps/webapp/src/app-layer/merge/platformUserMergePreview.ts` and
-  `packages/platform-merge/src/pgPlatformUserMerge.ts`: platform-ops exact-user transaction;
-- public create/confirm/payment context in `canonicalCreate.ts` and
-  `modules/payments/prepaymentContextFromBooking.ts`;
-- `apps/webapp/src/app-layer/integrator/assertIntegratorGetRequest.ts` plus
-  `app/api/integrator/appointments/{record,active-by-user}/route.ts`.
-
-Patient list/history already reuses `app.read_current_patient_booking_rows`; do not replace it with a
-new direct table read. HMAC is insufficient as a generic table principal: integrator reads obtain an
-exact signed-integrator accessor returning only the requested row/list. Cross-user merges use a
-separate audited platform-operations principal/capability, not `app_staff`.
-
-**Manifest.** Modify exactly the paths above, their ports in
-`apps/webapp/src/modules/patient-booking/ports.ts`, and composition wiring only where a new injected
-port is unavoidable in `buildAppDeps.ts`; focused tests beside the repositories/routes, plus
-`packages/platform-merge` tests. One numbered Drizzle migration contains only capability/ACL changes
-not already landed in S02. Do not modify `stockQuotaCheck.ts` or `pgOrganizationInvites.ts`.
-
-**Acceptance kill-set.** No principal returns zero/permission denial; patient A cannot use B’s opaque
-booking id; staff A cannot mutate B; public bootstrap can use only the exact verified token/phone
-proof; signed integrator cannot enumerate by phone beyond its authorised relationship; platform merge
-does not become a staff bypass; scheduler cleans only its assigned partition. Every changed write tests
-INSERT, UPDATE and DELETE, not merely SELECT.
-
-**Overlap.** `pgChannelLinkClaim` and platform-user projections are Track D1 territory. The direct
-identity transport remains drain-only until D10. This slice is `WAIT_OVERLAP` for those paths; booking
-paths that do not touch the D1 transport may proceed independently after S03.
-
-### S05 — policy/ENABLE/FORCE waves
-
-All live-table policies use the same read/write predicate; helpers returning `NULL` must not be
-coalesced to allow. `FORCE ROW LEVEL SECURITY` is mandatory and no runtime login has
-`rolbypassrls`. The policy surface is:
-
-| Wave | Tables | Predicate / special prerequisite |
-| --- | --- | --- |
-| S05a | `platform_users`, `user_channel_bindings`, `user_channel_preferences`, `user_notification_topics`, `user_notification_topic_channels`, `user_web_push_subscriptions` | Patient self (`id`/`user_id`/`platform_user_id = app.current_patient_user_id()`); staff only through current-org active membership/enrollment where business need is proved. Bootstrap/identity/delivery uses S02/S04 seam. WAIT_OVERLAP Track D1. |
-| S05b | `patient_bookings`, `appointment_records` | `(app.is_staff() AND organization_id = app.current_organization_id()) OR platform_user_id = app.current_patient_user_id()`. S03 non-null ownership and S04 callers required. |
-| S05c | `be_organization_members`, `product_analytics_hourly` | Member: staff current-org plus a self-bootstrap capability; analytics: only non-null org rows to staff current-org. Null analytics remains platform retention/analytics capability, never tenant-visible. |
-
-**Manifest per wave.** One numbered Drizzle migration; update matching tables in
-`apps/webapp/db/schema/{schema.ts,bookingEngine.ts,productAnalytics.ts}` and
-`relations.ts` only if the migration changes declared constraints; edit the already named caller files
-only for failures exposed by the focused policy tests. Update grant generator/materialised SQL/smoke
-only when privilege changes. Test manifest: extend `apps/webapp/scripts/run-a1-rls-conformance.ts`,
-`docs/ARCHITECTURE/DB_DUMPS/a1-rls/seed.sql`,
-`docs/ARCHITECTURE/DB_DUMPS/a1-rls/missing-context-denial.sql`, and
-`scripts/verify-a1-rls-conformance.mjs`; no new harness.
-
-**Acceptance kill-set for every table.** (1) bare login with no principal: SELECT zero or direct
-permission denied, DML denied; (2) patient A sees/mutates only A and cannot read B; (3) staff org A
-sees all permitted A and zero B; (4) wrong-org INSERT/UPDATE `WITH CHECK` fails; (5) delete follows
-the same predicate; (6) bootstrap/operational capability works but direct table access stays denied;
-(7) metadata says `relrowsecurity=true`, `relforcerowsecurity=true`; (8) runtime login says
-`rolbypassrls=false`, with no owner/migrator membership. Owner-role result is explicitly rejected.
-
-## A1 and TEST evidence
-
-Existing A1 is the only harness: root command is
-
-```bash
-pnpm run check:saas-a1-rls-conformance
-```
-
-It restores A0 to a private disposable cluster, invokes
-`apps/webapp/scripts/run-a1-rls-conformance.ts` via
-`scripts/verify-a1-rls-conformance.mjs`, and authenticates real non-owner
-`app_runtime_staff_login`/`app_runtime_nonstaff_login`. Extend, do not clone, those four files and
-the two fixture SQL files named in S05.
-
-S06 names every test case as `<table>.<actor>.<verb>` for all ten tables and all
-`SELECT/INSERT/UPDATE/DELETE` combinations that the actor is meant to possess. Include negative
-`no_principal`, `patient_A_to_B`, `staff_A_to_B`, `bootstrap_direct_table`,
-`bootstrap_exact_capability`, `operational_direct_table`, `operational_assigned_surface`,
-`force_metadata`, `login_nobypassrls`, and `no_owner_membership`. Fixtures contain two orgs, two
-patients, an org-null analytics row and each exact-key/queue case; they never contain real credentials.
-
-S07 is a separate, authorised shared-TEST action. Reuse the existing deploy contour
-`deploy/host/deploy-test-saas.sh` and its post-service A1 invocation; do not run it in this worktree
-or under a dev owner. The verifier records the exact TEST login role, `session_user`, `current_user`,
-role memberships, policy metadata and each matrix result. A green local A1 is a prerequisite, not
-substitute, for that record.
-
-## Conflict map
-
-| Neighbour | Shared files/surface | Required handling |
-| --- | --- | --- |
-| Track D1 / D10 | Direct identity projection of `platform_users`, `user_channel_bindings`, `user_notification_topics`, optional preferences; projection transport remains drain-only until D10. | S02/S04/S05a are `WAIT_OVERLAP`; agree a single transaction/role contract, then land one side at a time. |
-| Track D transport retirement | `pgBranches.ts`, `buildAppDeps.ts`, legacy projection transport. | S01 is `WAIT_OVERLAP`; remove only a confirmed dead `branches` dependency after D owner confirms no transport rewrite. |
-| Tariff/entitlements neighbour | `buildAppDeps.ts`, `stockQuotaCheck.ts`, `pgOrganizationInvites.ts`; seat quota uses the same atomic transaction pattern. | No semantic or mechanical refactor of these files. If S01 needs the DI hunk while tariff work is active, wait and make a three-line branches-only change after its land. |
-| P0.5b grant generator | `docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs` → generated `deploy/postgres/p0-5b-grants.sql`. | One owner changes the generator; regenerate output and grant smoke in the same commit. Never hand-edit the output. |
-
-## First-worker brief
-
-> Work only S01 on an isolated `wt/` branch after the overlap owner releases
-> `buildAppDeps.ts`/dead projection transport. Read AGENTS §1/§5/§7/§9/§24, this file, the V9b
-> recommendation and Rubitime retirement disposition. Do not create an RLS policy, org column,
-> capability, runtime grant, TEST/DEV/DB/deploy action or migration number before the orchestration
-> board reservation. Prove the four legacy catalog tables have no app caller with code-search, exact
-> search and schema/registry backrefs; prove the `branches` port has no consumer beyond DI. Remove
-> only the five projection declarations/FKs/backrefs/DI and their generator entries; preserve canonical
-> `be_*` booking data and tariff quota wiring. Use one migration, regenerate the P0.5b SQL, run focused
-> static/type/grant-generation checks, commit only named paths, and hand off the exact diff plus
-> evidence. If any runtime consumer appears, stop with `WAIT_OVERLAP` rather than inventing an RLS wall.
-
-## НЕ ПРОВЕРЕНО
-
-- No runtime counts, grant catalogue or backfill cardinalities were read in this docs-only pass.
-- The exact active TEST integrator/worker login roles and their queue/diagnostic grants are not proven;
-  S02/S07 must query `pg_roles`, `pg_auth_members`, `information_schema.role_table_grants` and function
-  ACLs under the authorised TEST contour.
-- No TEST policy metadata, FORCE behaviour or cross-org DML has been run. DEV owner-role output is
-  explicitly unusable as tenant proof.
-- No external/ad-hoc consumer of retired booking projections is known; only repository absence is
-  evidenced.
-- `patient_bookings.canonical_appointment_id` has no declared Drizzle FK in the inspected schema;
-  whether a physical FK is lifecycle-safe remains a migration design question, not an assumption.
-- The final caller/test-file census for every pre-principal/operational table is intentionally pending
-  S02’s per-table code audit; inventing capability names or direct grants before that proof would widen
-  scope and risk secrets.
-
-В9б остаётся открытым до S07 evidence; этот document is not a completion marker.
+The independent repeat audit checks F1–F7 against this document only: every matrix row has current
+role, caller, seam, implementing slice, adoption/revoke condition and actor+verb oracle; D1 is the
+existing writer; every land is expand/adopt/contract-safe; S03 aborts rather than deletes; all waits
+are binary; operational logins are named; policies use `app.current_org_id()`; and the seven-file
+assignment is countable. Product work starts only after that audit returns PASS.
