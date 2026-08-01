@@ -1,9 +1,10 @@
-import { and, desc, eq, gte, ilike, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, lte, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
   SaasBillingPlatformInvoiceRow,
+  SaasBillingRefund,
   SaasBillingRepositoryPort,
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
@@ -14,6 +15,7 @@ import {
   saasBillingAccounts,
   saasBillingInvoices,
   saasBillingProviderEvents,
+  saasBillingRefunds,
   saasBillingSubscriptions,
 } from '../../../db/schema/saasBilling';
 import { saasOrganizationTrials, saasTariffs } from '../../../db/schema/saasEntitlements';
@@ -28,6 +30,13 @@ function toSaasBillingInvoice(row: typeof saasBillingInvoices.$inferSelect): Saa
     tariffBillingPeriod: row.tariffBillingPeriod as SaasBillingInvoice['tariffBillingPeriod'],
   };
 }
+
+function toSaasBillingRefund(row: typeof saasBillingRefunds.$inferSelect): SaasBillingRefund {
+  return { ...row, status: row.status as SaasBillingRefund['status'] };
+}
+
+/** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
+const OPEN_REFUND_STATUSES = ['pending', 'succeeded'] as const;
 
 async function upsertSaasBillingAccount(
   tx: Transaction,
@@ -110,6 +119,31 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(saasBillingInvoices.createdAt));
 
+      const invoiceIds = rows.map(({ invoice }) => invoice.id);
+      const refundSums = invoiceIds.length
+        ? await db
+            .select({
+              saasBillingInvoiceId: saasBillingRefunds.saasBillingInvoiceId,
+              status: saasBillingRefunds.status,
+              totalMinor: sql<string>`sum(${saasBillingRefunds.amountMinor})`,
+            })
+            .from(saasBillingRefunds)
+            .where(
+              and(
+                inArray(saasBillingRefunds.saasBillingInvoiceId, invoiceIds),
+                inArray(saasBillingRefunds.status, OPEN_REFUND_STATUSES),
+              ),
+            )
+            .groupBy(saasBillingRefunds.saasBillingInvoiceId, saasBillingRefunds.status)
+        : [];
+      const refundedByInvoice = new Map<string, number>();
+      const pendingByInvoice = new Map<string, number>();
+      for (const sum of refundSums) {
+        const totalMinor = Number(sum.totalMinor);
+        if (sum.status === 'succeeded') refundedByInvoice.set(sum.saasBillingInvoiceId, totalMinor);
+        else if (sum.status === 'pending') pendingByInvoice.set(sum.saasBillingInvoiceId, totalMinor);
+      }
+
       return rows.map(
         ({ invoice, organizationTitle }): SaasBillingPlatformInvoiceRow => ({
           ...toSaasBillingInvoice(invoice),
@@ -118,6 +152,8 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           updatedAt: invoice.updatedAt,
           organizationId: invoice.organizationId,
           organizationTitle,
+          refundedMinor: refundedByInvoice.get(invoice.id) ?? 0,
+          pendingRefundMinor: pendingByInvoice.get(invoice.id) ?? 0,
         }),
       );
     },
@@ -444,6 +480,137 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         )
         .returning({ id: saasBillingSubscriptions.id });
       if (!row) throw new Error('saas_billing_subscription_not_found');
+    },
+
+    async reserveSaasBillingRefund(input) {
+      return getDrizzle().transaction(async (tx) => {
+        // Locks the invoice for the duration of this transaction, so two reservation attempts
+        // against the SAME invoice (whatever their idempotency key) serialize here — the second
+        // one only proceeds once the first has committed (or rolled back) its refund row.
+        const [invoiceRow] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))
+          .limit(1)
+          .for('update');
+        if (!invoiceRow) return { outcome: 'invoice_not_found' as const };
+        const invoice = toSaasBillingInvoice(invoiceRow);
+        if (invoice.status !== 'paid') {
+          return { outcome: 'invoice_not_refundable' as const, status: invoice.status };
+        }
+
+        const [{ refundedMinor }] = await tx
+          .select({
+            refundedMinor: sql<string>`coalesce(sum(${saasBillingRefunds.amountMinor}), 0)`,
+          })
+          .from(saasBillingRefunds)
+          .where(
+            and(
+              eq(saasBillingRefunds.saasBillingInvoiceId, invoice.id),
+              inArray(saasBillingRefunds.status, OPEN_REFUND_STATUSES),
+            ),
+          );
+        const remainingMinor = invoice.amountMinor - Number(refundedMinor);
+        if (input.amountMinor > remainingMinor) {
+          return { outcome: 'amount_exceeds_remaining' as const, remainingMinor };
+        }
+
+        const [existing] = await tx
+          .select()
+          .from(saasBillingRefunds)
+          .where(
+            and(
+              eq(saasBillingRefunds.providerId, invoice.providerId),
+              eq(saasBillingRefunds.providerIdempotencyKey, input.providerIdempotencyKey),
+            ),
+          )
+          .limit(1);
+        if (existing) {
+          return { outcome: 'duplicate' as const, refund: toSaasBillingRefund(existing) };
+        }
+
+        const [row] = await tx
+          .insert(saasBillingRefunds)
+          .values({
+            organizationId: invoice.organizationId,
+            saasBillingInvoiceId: invoice.id,
+            amountMinor: input.amountMinor,
+            currency: invoice.currency,
+            status: 'pending',
+            providerId: invoice.providerId,
+            providerIdempotencyKey: input.providerIdempotencyKey,
+          })
+          .onConflictDoNothing({
+            target: [saasBillingRefunds.providerId, saasBillingRefunds.providerIdempotencyKey],
+          })
+          .returning();
+        if (!row) throw new Error('saas_billing_refund_reservation_failed');
+
+        await tx.insert(adminAuditLog).values({
+          organizationId: invoice.organizationId,
+          actorId: input.audit.actorId,
+          action: 'saas_billing_refund_requested',
+          targetId: row.id,
+          details: {
+            reason: input.audit.reason,
+            saasBillingInvoiceId: invoice.id,
+            amountMinor: input.amountMinor,
+            currency: invoice.currency,
+          },
+          status: 'ok',
+        });
+
+        return { outcome: 'reserved' as const, refund: toSaasBillingRefund(row), invoice };
+      });
+    },
+
+    async attachSaasBillingRefundProviderRef(input) {
+      const [row] = await getDrizzle()
+        .update(saasBillingRefunds)
+        .set({ providerRefundRef: input.providerRefundRef, updatedAt: new Date().toISOString() })
+        .where(eq(saasBillingRefunds.id, input.saasBillingRefundId))
+        .returning();
+      if (!row) throw new Error('saas_billing_refund_not_found');
+      return toSaasBillingRefund(row);
+    },
+
+    async markSaasBillingRefundFailed(input) {
+      const [row] = await getDrizzle()
+        .update(saasBillingRefunds)
+        .set({ status: 'failed', updatedAt: new Date().toISOString() })
+        .where(eq(saasBillingRefunds.id, input.saasBillingRefundId))
+        .returning();
+      if (!row) throw new Error('saas_billing_refund_not_found');
+      return toSaasBillingRefund(row);
+    },
+
+    async findSaasBillingRefundByProviderRef({ providerId, providerRefundRef }) {
+      const [row] = await getDrizzle()
+        .select()
+        .from(saasBillingRefunds)
+        .where(
+          and(
+            eq(saasBillingRefunds.providerId, providerId),
+            eq(saasBillingRefunds.providerRefundRef, providerRefundRef),
+          ),
+        )
+        .limit(1);
+      return row ? toSaasBillingRefund(row) : null;
+    },
+
+    async confirmSaasBillingRefund({ saasBillingRefundId, organizationId, status, confirmedAt }) {
+      const [row] = await getDrizzle()
+        .update(saasBillingRefunds)
+        .set({ status, confirmedAt, updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingRefunds.id, saasBillingRefundId),
+            eq(saasBillingRefunds.organizationId, organizationId),
+          ),
+        )
+        .returning();
+      if (!row) throw new Error('saas_billing_refund_not_found');
+      return toSaasBillingRefund(row);
     },
   };
 }

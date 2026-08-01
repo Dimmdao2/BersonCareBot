@@ -73,6 +73,32 @@ export async function POST(request: Request, context: RouteContext) {
     });
   }
 
+  // К2 — refund confirmations arrive through this same receiver (same IP-allowlist, same
+  // signature-less API refetch), resolved against saas_billing_refunds instead of invoices: a
+  // refund event's ref is a refund id, never the invoice's payment ref.
+  if (verified.eventType.startsWith('refund.')) {
+    const resolvedRefund = await deps.saasBilling.resolveSaasBillingRefundForWebhook({
+      providerId: resolvedProvider.providerId,
+      verified,
+    });
+    if (resolvedRefund.outcome === 'unknown_reference') {
+      return jsonOk({ acknowledged: true, reason: 'unknown_reference' as const });
+    }
+    if (resolvedRefund.outcome === 'mismatch') {
+      return jsonOk({ acknowledged: true, reason: `${resolvedRefund.field}_mismatch` as const });
+    }
+    const refundResult = await runWithDbOrganizationPrincipal(resolvedRefund.organizationId, () =>
+      deps.saasBilling.captureSaasBillingRefundWebhookEvent({
+        organizationId: resolvedRefund.organizationId,
+        saasBillingInvoiceId: resolvedRefund.saasBillingInvoiceId,
+        saasBillingRefundId: resolvedRefund.saasBillingRefundId,
+        providerId: resolvedProvider.providerId,
+        verified,
+      }),
+    );
+    return jsonOk({ captured: refundResult.captured, duplicate: refundResult.duplicate });
+  }
+
   const resolved = await deps.saasBilling.resolveSaasBillingInvoiceForWebhook({
     providerId: resolvedProvider.providerId,
     verified,

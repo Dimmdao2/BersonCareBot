@@ -5,6 +5,7 @@ import type {
   SaasBillingInvoiceStatus,
   SaasBillingPaymentProviderResolver,
   SaasBillingProviderEventEnvelope,
+  SaasBillingRefund,
   SaasBillingRepositoryPort,
   SaasBillingSettingsReadPort,
 } from './ports';
@@ -274,6 +275,148 @@ export function createSaasBillingService(dependencies: {
         saasBillingSubscriptionId: paidInvoice.saasBillingSubscriptionId,
         periodStartsAt: paidInvoice.servicePeriodStartsAt,
         periodEndsAt: paidInvoice.servicePeriodEndsAt,
+      });
+      return { captured: true, duplicate: false };
+    },
+
+    /**
+     * К2 — refund (full or partial) against a paid invoice. `requestKey` is caller-owned and
+     * stable across a retried click (see `PlatformPaymentsSection.tsx`): the reservation
+     * transaction inserts a `pending` row under a unique `(providerId, providerIdempotencyKey)`
+     * key derived from it, so a second call with the same key returns the row the first call
+     * already reserved instead of racing it into a second refund.
+     */
+    async refundSaasBillingInvoice(input: {
+      saasBillingInvoiceId: string;
+      amountMinor: number;
+      requestKey: string;
+      actorId: string | null;
+      reason: string;
+    }): Promise<
+      | { outcome: 'invoice_not_found' }
+      | { outcome: 'invoice_not_refundable'; status: SaasBillingInvoiceStatus }
+      | { outcome: 'amount_exceeds_remaining'; remainingMinor: number }
+      | { outcome: 'refunded'; refund: SaasBillingRefund; duplicate: boolean }
+      | { outcome: 'provider_error' }
+    > {
+      if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+        throw new Error('refund_amount_must_be_positive_integer');
+      }
+      const providerIdempotencyKey = `saas_refund:${input.saasBillingInvoiceId}:${input.requestKey}`;
+      const reservation = await dependencies.repository.reserveSaasBillingRefund({
+        saasBillingInvoiceId: input.saasBillingInvoiceId,
+        amountMinor: input.amountMinor,
+        providerIdempotencyKey,
+        audit: { actorId: input.actorId, reason: input.reason },
+      });
+      if (reservation.outcome === 'duplicate') {
+        return { outcome: 'refunded', refund: reservation.refund, duplicate: true };
+      }
+      if (reservation.outcome !== 'reserved') {
+        return reservation;
+      }
+      const { refund, invoice } = reservation;
+      if (!invoice.providerInvoiceRef) {
+        await dependencies.repository.markSaasBillingRefundFailed({
+          saasBillingRefundId: refund.id,
+        });
+        return { outcome: 'provider_error' };
+      }
+      try {
+        const provider = await resolvePaymentProvider(invoice.providerId);
+        const result = await provider.adapter.refund({
+          providerIntentRef: invoice.providerInvoiceRef,
+          amountMinor: input.amountMinor,
+          currency: invoice.currency,
+          idempotencyKey: providerIdempotencyKey,
+          providerConfig: provider.providerConfig,
+        });
+        const attached = await dependencies.repository.attachSaasBillingRefundProviderRef({
+          saasBillingRefundId: refund.id,
+          providerRefundRef: result.providerRefundRef,
+        });
+        return { outcome: 'refunded', refund: attached, duplicate: false };
+      } catch {
+        await dependencies.repository.markSaasBillingRefundFailed({
+          saasBillingRefundId: refund.id,
+        });
+        return { outcome: 'provider_error' };
+      }
+    },
+
+    /**
+     * Unscoped by design, same shape as `resolveSaasBillingInvoiceForWebhook` — the webhook does
+     * not know the organization until a refund with this `providerId`/refund ref is found.
+     */
+    async resolveSaasBillingRefundForWebhook(input: {
+      providerId: string;
+      verified: Pick<PaymentProviderVerifyResult, 'intentRef' | 'amountMinor' | 'payload'>;
+    }): Promise<
+      | { outcome: 'unknown_reference' }
+      | { outcome: 'mismatch'; field: 'amount' }
+      | {
+          outcome: 'resolved';
+          organizationId: string;
+          saasBillingInvoiceId: string;
+          saasBillingRefundId: string;
+        }
+    > {
+      const providerRefundRef = input.verified.intentRef?.trim();
+      if (!providerRefundRef) return { outcome: 'unknown_reference' };
+      const refund = await dependencies.repository.findSaasBillingRefundByProviderRef({
+        providerId: input.providerId,
+        providerRefundRef,
+      });
+      if (!refund) return { outcome: 'unknown_reference' };
+      if (
+        input.verified.amountMinor !== undefined &&
+        input.verified.amountMinor !== refund.amountMinor
+      ) {
+        return { outcome: 'mismatch', field: 'amount' };
+      }
+      return {
+        outcome: 'resolved',
+        organizationId: refund.organizationId,
+        saasBillingInvoiceId: refund.saasBillingInvoiceId,
+        saasBillingRefundId: refund.id,
+      };
+    },
+
+    /** Org-scoped: call only after `resolveSaasBillingRefundForWebhook` returned `resolved`. */
+    async captureSaasBillingRefundWebhookEvent(input: {
+      organizationId: string;
+      saasBillingInvoiceId: string;
+      saasBillingRefundId: string;
+      providerId: string;
+      verified: Pick<
+        PaymentProviderVerifyResult,
+        'idempotencyKey' | 'eventType' | 'amountMinor' | 'payload'
+      >;
+    }): Promise<{ captured: boolean; duplicate: boolean }> {
+      const payloadCurrency =
+        typeof input.verified.payload.currency === 'string' ? input.verified.payload.currency : null;
+      const { created } = await dependencies.repository.recordSaasBillingProviderEvent({
+        organizationId: input.organizationId,
+        saasBillingInvoiceId: input.saasBillingInvoiceId,
+        event: {
+          providerId: input.providerId,
+          providerEventId: input.verified.idempotencyKey,
+          type: input.verified.eventType,
+          amountMinor: input.verified.amountMinor ?? null,
+          currency: payloadCurrency,
+        },
+      });
+      // Replay: the event row already exists — do not confirm a second time.
+      if (!created) return { captured: false, duplicate: true };
+
+      if (input.verified.eventType !== 'refund.succeeded') {
+        return { captured: false, duplicate: false };
+      }
+      await dependencies.repository.confirmSaasBillingRefund({
+        saasBillingRefundId: input.saasBillingRefundId,
+        organizationId: input.organizationId,
+        status: 'succeeded',
+        confirmedAt: now().toISOString(),
       });
       return { captured: true, duplicate: false };
     },

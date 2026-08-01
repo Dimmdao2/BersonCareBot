@@ -52,18 +52,21 @@ function isYookassaSenderIpAllowed(headers: Headers): boolean {
   }
 }
 
-async function fetchYookassaPaymentObject(
-  paymentId: string,
-  shopId: string,
-  secretKey: string,
-): Promise<{
+type YookassaObjectResponse = {
   id?: string;
   status?: string;
   amount?: { value?: string; currency?: string };
   metadata?: Record<string, unknown>;
-}> {
+};
+
+async function fetchYookassaObject(
+  path: 'payments' | 'refunds',
+  objectId: string,
+  shopId: string,
+  secretKey: string,
+): Promise<YookassaObjectResponse> {
   return fetchWithTimeout(
-    `https://api.yookassa.ru/v3/payments/${encodeURIComponent(paymentId)}`,
+    `https://api.yookassa.ru/v3/${path}/${encodeURIComponent(objectId)}`,
     {
       method: 'GET',
       headers: { Authorization: basicAuth(shopId, secretKey) },
@@ -72,18 +75,20 @@ async function fetchYookassaPaymentObject(
     async (res) => {
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error(`yookassa_payment_fetch_failed:${res.status}:${text.slice(0, 200)}`);
+        throw new Error(`yookassa_${path}_fetch_failed:${res.status}:${text.slice(0, 200)}`);
       }
-      return (await res.json()) as {
-        id?: string;
-        status?: string;
-        amount?: { value?: string; currency?: string };
-        metadata?: Record<string, unknown>;
-      };
+      return (await res.json()) as YookassaObjectResponse;
     },
   );
 }
 
+/**
+ * К2 — ЮKassa sends `payment.*` and `refund.*` notifications through the same channel; `event`
+ * carries which domain fired (`object.status` alone is ambiguous, since both domains use
+ * `"succeeded"`). This body is untrusted until `verifyWebhook`'s API refetch confirms it — the
+ * domain read here only picks WHICH object endpoint (`/v3/payments/` vs `/v3/refunds/`) to refetch,
+ * never a final status.
+ */
 function inspectYookassaWebhook(bodyText: string) {
   const payload = JSON.parse(bodyText) as {
     event?: string;
@@ -101,10 +106,11 @@ function inspectYookassaWebhook(bodyText: string) {
     typeof object.metadata?.idempotencyKey === 'string'
       ? object.metadata.idempotencyKey
       : object.id;
+  const domain = event.startsWith('refund.') ? 'refund' : 'payment';
   const eventType =
-    event === 'payment.succeeded' || object.status === 'succeeded'
-      ? 'payment.succeeded'
-      : event || 'payment.unknown';
+    event === `${domain}.succeeded` || object.status === 'succeeded'
+      ? `${domain}.succeeded`
+      : event || `${domain}.unknown`;
   const amountMinor =
     object.amount?.value != null
       ? Math.round(Number.parseFloat(String(object.amount.value)) * 100)
@@ -115,6 +121,7 @@ function inspectYookassaWebhook(bodyText: string) {
     payload: payload as Record<string, unknown>,
     intentRef: object.id,
     amountMinor,
+    domain,
   };
 }
 
@@ -205,12 +212,19 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
 
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const untrusted = inspectYookassaWebhook(bodyText);
-      const paymentId = untrusted.intentRef;
-      if (!paymentId) throw new Error('invalid_webhook_payload');
+      const objectId = untrusted.intentRef;
+      if (!objectId) throw new Error('invalid_webhook_payload');
 
       // Barrier: status/amount/currency come from the API response, never from the notification
-      // body — the body is only used above to learn which payment to look up.
-      const remote = await fetchYookassaPaymentObject(paymentId, shopId, secretKey);
+      // body — the body is only used above to learn which object (payment or refund) to look up,
+      // and from which endpoint (K2: a refund notification's `object.id` is a refund id, not a
+      // payment id — refetching it from `/v3/payments/` would look up the wrong thing).
+      const remote = await fetchYookassaObject(
+        untrusted.domain === 'refund' ? 'refunds' : 'payments',
+        objectId,
+        shopId,
+        secretKey,
+      );
       if (!remote.id) throw new Error('invalid_webhook_signature');
 
       const idempotencyKey =
@@ -218,7 +232,9 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           ? remote.metadata.idempotencyKey
           : remote.id;
       const eventType =
-        remote.status === 'succeeded' ? 'payment.succeeded' : `payment.${remote.status ?? 'unknown'}`;
+        remote.status === 'succeeded'
+          ? `${untrusted.domain}.succeeded`
+          : `${untrusted.domain}.${remote.status ?? 'unknown'}`;
       const amountMinor =
         remote.amount?.value != null
           ? Math.round(Number.parseFloat(String(remote.amount.value)) * 100)
