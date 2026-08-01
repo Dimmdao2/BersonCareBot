@@ -73,13 +73,14 @@ fi
 ROLE=$1 CLONE_NAME=$2 RUN_ID=$3 MODEL=$4 EFFORT=$5 BRIEF=$6 SCOPE=$7
 CLONE="/home/dev/dev-projects/bcb-wt-$CLONE_NAME"
 
-# auditor-live имеет shell/write для временной fault injection и обязан вернуть чистое дерево.
+# auditor-live имеет shell/write для inspection, временной fault injection и одноразовых acceptance-тестов.
 case "$ROLE" in
   worker)       SANDBOX=workspace-write ;;
   auditor-live) SANDBOX=workspace-write ;;
   auditor) die "роль auditor убрана из порта: её песочница лишает shell/git, поэтому она не может надёжно
   выполнить ни inspection-команды, ни fault injection. Используй auditor-live и начни brief с классификации
-  «тест или взгляд»; изменения допустимы только для временной поломки, дерево после аудита должно быть чистым." ;;
+  «тест или взгляд». Временные production-поломки откатываются; оставить можно только намеренные acceptance-тесты
+  и audit-artifact, продуктовый fix аудитор не делает." ;;
   *) die "роль должна быть worker или auditor-live, дано '$ROLE'" ;;
 esac
 
@@ -220,7 +221,7 @@ nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
   < "$BRIEF" > "$LOG" 2>&1 &
 AGENT_PID=$!
 echo "  pid=$AGENT_PID"
-[ "$ROLE" != auditor-live ] || echo "  ⚠ auditor-live: после прогона проверить, что дерево клона осталось чистым"
+[ "$ROLE" != auditor-live ] || echo "  ⚠ auditor-live: проверить откат временных production-поломок; допустимы только намеренные test/audit artifacts"
 
 # `nohup` защищает от SIGHUP обычного терминала, но не от lifecycle-cleanup короткоживущего
 # automated exec-сеанса: тот удаляет оставшиеся дочерние процессы после выхода shell. Внешний
