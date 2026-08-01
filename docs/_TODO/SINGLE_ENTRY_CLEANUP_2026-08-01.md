@@ -58,12 +58,16 @@
       отвечает ошибкой, но оставляет связанные `patient_files` + `media_files.pending` + object. Готово = единый
       commit/abort lifecycle на существующих `media_files`/storage ports и
       доказанный cleanup каждого из трёх достижимых сбоев; новой таблицы или второго upload-service нет.
-- [ ] **Ч2. Выдача медиа из хранилища.** Актуальный замер: семь GET-поверхностей; пять
+- [x] **Ч2. Выдача медиа из хранилища.** Актуальный замер: семь GET-поверхностей; пять
       `/api/media/[id]/**` handler'ов копируют одну ACL-последовательность; текущего пути выдачи `media_files`
       без проверки организации не найдено, но шестую копию ничто не запрещает. Отдельно online-intake при
       нестандартной конфигурации может вернуть бессрочный public-bucket URL. Исходные «21/4» считали все S3
       imports (upload/cleanup/worker/purge), а не delivery bypasses. Готово = одна дверь ACL для пяти handler'ов,
       structural gate с self-test и отсутствие public-URL fallback; `patient_files` остаётся отдельным ресурсом.
+      **Закрыто 02.08:** product `72cbfa172`, blind audit `9c5bdda54`, fixes `1e7a808f8`/`ea908c23e`/
+      `e1f0cd82a`; `CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md`. Пять handlers / 18 behavior tests сохраняются;
+      structural faults убито 7/7 первоначальных + 2/2 all-root, непойманных 0. Лид повторил saved gate unit 2/2
+      и ordinary gate `exit 0`; public fallback отсутствует.
 - [x] ~~**Ч3. Постановка фоновых работ.**~~ **ОТДАНО СОСЕДНЕМУ СЕАНСУ 01.08 — не мой код.** Обе точки
       обхода общей абстракции `QueuePort` лежат в интеграторе (`integrations/bersoncare/bookingLifecycleRoute.ts`,
       `infra/db/writePort.ts`), это воркстрим интегратора. Из пяти очередей в вебаппе только перекодировка
