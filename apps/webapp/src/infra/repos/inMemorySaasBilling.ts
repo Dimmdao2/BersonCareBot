@@ -171,9 +171,6 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           return {
             organization: {
               tariffId: organizationTariffs.get(organizationId) ?? null,
-              commercialAccessState: organizationTariffs.get(organizationId)
-                ? 'active'
-                : 'no_trial',
             },
             activeTrial: null,
             manualSaasBillingSubscription: manual
@@ -218,12 +215,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             readOnlyEndsAt: null,
           });
         },
-        async updateCompatibilityProjection({ organizationId, tariffId }) {
+        async updateOrganizationTariffAssignment({ organizationId, tariffId }) {
           organizationTariffs.set(organizationId, tariffId);
-          return {
-            tariffId,
-            commercialAccessState: tariffId ? 'active' : 'no_trial',
-          };
+          return { tariffId };
         },
         async endActiveTrial() {
           throw new Error('in_memory_saas_billing_trial_missing');

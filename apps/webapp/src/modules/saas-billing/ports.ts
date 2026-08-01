@@ -243,7 +243,6 @@ export type SaasBillingProviderEventEnvelope = {
 export type SaasBillingManualAssignmentState = {
   organization: {
     tariffId: string | null;
-    commercialAccessState: string;
   };
   activeTrial:
     | (Record<string, unknown> & {
@@ -272,10 +271,10 @@ export type SaasBillingManualAssignmentTransactionPort = {
     /** §5a item 7.0 — the paid period this assignment grants; `null` only when unassigning. */
     period: { startsAt: string; endsAt: string } | null;
   }): Promise<void>;
-  updateCompatibilityProjection(input: {
+  updateOrganizationTariffAssignment(input: {
     organizationId: string;
     tariffId: string | null;
-  }): Promise<{ tariffId: string | null; commercialAccessState: string }>;
+  }): Promise<{ tariffId: string | null }>;
   endActiveTrial(trialId: string): Promise<unknown>;
   appendManualAssignmentAudit(input: {
     actorId: string | null;

@@ -78,7 +78,7 @@ GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_tariffs TO app_platform_settin
 GRANT INSERT, UPDATE ON TABLE public.saas_trial_policy TO app_platform_settings; -- SELECT already granted by dev-c3
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_platform_settings;
 GRANT SELECT ON TABLE public.be_organizations TO app_platform_settings;
-GRANT UPDATE (tariff_id, commercial_access_state, updated_at) ON TABLE public.be_organizations TO app_platform_settings;
+GRANT UPDATE (tariff_id, updated_at) ON TABLE public.be_organizations TO app_platform_settings;
 GRANT SELECT ON TABLE public.be_organization_members TO app_platform_settings;
 GRANT SELECT ON TABLE
   public.be_branches,

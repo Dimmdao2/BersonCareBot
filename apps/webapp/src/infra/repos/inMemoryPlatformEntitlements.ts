@@ -28,11 +28,10 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
           tariffId,
           manualTariffId: trial?.status === 'active' ? null : tariffId,
           isActive: true,
-          commercialAccessState: tariffId ? ('active' as const) : ('no_trial' as const),
           effectiveAccess: {
             lifecycle: 'active' as const,
             tariffId,
-            source: tariffId ? ('assignment' as const) : ('no_trial' as const),
+            source: 'assignment' as const,
           },
           overrides: [],
           trial: trial

@@ -93,7 +93,7 @@ GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_organization_trials TO app_pla
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_platform_settings;
 GRANT SELECT ON TABLE public.be_organizations TO app_platform_settings;
 GRANT SELECT ON TABLE public.be_organization_members TO app_platform_settings;
-GRANT UPDATE (tariff_id, commercial_access_state, updated_at)
+GRANT UPDATE (tariff_id, updated_at)
   ON TABLE public.be_organizations TO app_platform_settings;
 GRANT INSERT ON TABLE public.admin_audit_log TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.list_platform_organization_members(uuid)
@@ -529,7 +529,6 @@ BEGIN
     IF v_registration_tariff_id IS NOT NULL THEN
       UPDATE public.be_organizations
       SET tariff_id = v_registration_tariff_id,
-          commercial_access_state = 'active',
           updated_at = now()
       WHERE id = v_organization_id;
 
@@ -545,17 +544,10 @@ BEGIN
         ),
         'ok'
       );
-    ELSE
-      -- Registration tariff is also unset: the person picks a tariff themselves. Land the
-      -- organization in "compatibility" -- the same explicit state a migrated legacy clinic gets,
-      -- and also `be_organizations.commercial_access_state`'s own column default, so this UPDATE
-      -- only reasserts it explicitly instead of overwriting it with an agent-selected mechanic
-      -- policy.
-      UPDATE public.be_organizations
-      SET commercial_access_state = 'compatibility',
-          updated_at = now()
-      WHERE id = v_organization_id;
     END IF;
+    -- #1069 §2.13 (owner 01.08): «нет активного тарифа и нет триала -- доступа нет». Registration
+    -- tariff also unset: the person picks a tariff themselves, and the organization is left with no
+    -- tariff_id -- there is no separate "compatibility" state left to land it in.
     RETURN false;
   END IF;
 
@@ -577,7 +569,6 @@ BEGIN
 
   UPDATE public.be_organizations
   SET tariff_id = v_policy.tariff_id,
-      commercial_access_state = 'active',
       updated_at = now()
   WHERE id = v_organization_id;
 
@@ -676,7 +667,6 @@ SELECT 1 / (
   )
   AND NOT has_table_privilege('app_platform_settings', 'public.be_organizations', 'UPDATE')
   AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'tariff_id', 'UPDATE')
-  AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'commercial_access_state', 'UPDATE')
   AND has_column_privilege('app_platform_settings', 'public.be_organizations', 'updated_at', 'UPDATE')
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'title', 'UPDATE')
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')

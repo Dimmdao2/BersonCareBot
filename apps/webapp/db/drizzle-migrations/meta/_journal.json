@@ -2080,6 +2080,13 @@
       "when": 1793539200094,
       "tag": "0296_snapshot_quota_triggers_frozen_tariff_local",
       "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1793539210000,
+      "tag": "0297_commercial_access_state_removal_local",
+      "breakpoints": true
     }
   ]
 }
