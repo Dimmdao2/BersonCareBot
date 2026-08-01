@@ -31,6 +31,12 @@
 - **single-entry** ведёт `wt/settings-to-db` (старый carrier), `wt/media-worker-port`, `wt/ch1-upload`,
   V9б/RLS, Ч1/Ч2/Ч4/Ч4б и номера `0300`–`0303`. В тарифы и оплату не заходит.
 
+**Single-entry integration, решение владельца 01.08:** принятые worker/audit ветки single-entry сводятся сначала
+в отдельный worktree `/home/dev/dev-projects/bcb-wt-single-entry-integration`, ветка
+`wt/single-entry-integration`. В общий `feat` промежуточные single-entry куски не вливаются; после закрытия всего
+single-entry выполняются sync с актуальным `feat`, полный CI/итоговый gate и одно финальное слияние. Отдельные
+worker/auditor ветки сохраняются до приёмки их evidence.
+
 **Закрыто:** столкновение `0291`–`0294` (миграции `wt/settings-to-db` против тарифных, уже применённых на
 dev) снято решением single-entry не сводить старую ветку целиком: на свежую ветку переносятся только
 выбранные продуктовые коммиты, без тарифных и merge-коммитов, с номерами от `0300`. Там же выяснилось, что
