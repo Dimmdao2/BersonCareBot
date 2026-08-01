@@ -3,7 +3,6 @@ import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireE
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { webappReposAreInMemory } from '@/config/env';
-import { pgListExerciseUsageForMediaIds } from '@/infra/repos/pgLfkExercises';
 import { logger } from '@/infra/logging/logger';
 import {
   isExerciseArchiveAlreadyArchivedError,
@@ -164,7 +163,7 @@ export async function bulkCreateExercisesFromMediaCore(
       }
     }
   } else if (mediaIds.length > 0) {
-    usageByMediaId = await pgListExerciseUsageForMediaIds(mediaIds);
+    usageByMediaId = await deps.lfkExerciseMediaUsage.listForMediaIds(mediaIds);
   }
 
   let created = 0;

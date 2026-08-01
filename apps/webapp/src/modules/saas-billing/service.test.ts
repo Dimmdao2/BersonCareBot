@@ -319,3 +319,116 @@ describe('К4 round 2: повторное «Выставить счёт» не �
     expect(createInvoice).toHaveBeenCalledTimes(2);
   });
 });
+
+// К6 — the money-safety invariant: a revoked (or never-granted) consent must win even when a saved
+// payment method is still sitting on the row (revoke never clears it, by design — see
+// `revokeSaasBillingAutopayConsent`). Without this gate, `savedPaymentMethodId` alone would let the
+// tick keep charging a card the payer explicitly said to stop using — the exact "списали без
+// согласия" failure the plan calls out as expensive and silent.
+// Арбитр: drop the `autopayRevokedAt === null` half of the `autopayActive` check in
+// `runDueSaasBillingRenewals` and this test goes red (`createIntent` gets called with a
+// `paymentMethodId`).
+describe('К6: без действующего согласия списание не уходит', () => {
+  it('отозванное согласие не даёт тику списать деньги с сохранённого способа', async () => {
+    const dueSubscription = {
+      saasBillingSubscriptionId: 'subscription-1',
+      organizationId: 'org-1',
+      tariffId: 'tariff-1',
+      billingPeriod: 'month' as const,
+      currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+      savedPaymentMethodId: 'pm-1',
+      autopayConsentedAt: '2026-07-01T00:00:00.000Z',
+      autopayRevokedAt: '2026-07-15T00:00:00.000Z',
+    };
+    const createSaasBillingRenewalInvoiceIfAbsent = vi.fn(async (input) => ({
+      invoice: { ...invoice, id: 'invoice-new', providerIdempotencyKey: input.providerIdempotencyKey },
+      created: true,
+    }));
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({ ...invoice, ...input }));
+    const createIntent = vi.fn(async (_input: { paymentMethodId?: string }) => ({
+      providerIntentRef: 'provider-intent-1',
+      checkoutUrl: 'https://yookassa.example.test/checkout-1',
+    }));
+    const markSaasBillingInvoiceFailed = vi.fn();
+
+    const service = createSaasBillingService({
+      repository: {
+        listSaasBillingSubscriptionsDueForRenewal: async () => [dueSubscription],
+        createSaasBillingRenewalInvoiceIfAbsent,
+        attachSaasBillingInvoiceProviderIntent,
+        markSaasBillingInvoiceFailed,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+
+    const result = await service.runDueSaasBillingRenewals();
+
+    expect(result).toMatchObject({ dueCount: 1, created: 1, failed: 0 });
+    expect(createIntent).toHaveBeenCalledTimes(1);
+    const [call] = createIntent.mock.calls;
+    expect(call?.[0]?.paymentMethodId).toBeUndefined();
+    expect(markSaasBillingInvoiceFailed).not.toHaveBeenCalled();
+  });
+});
+
+// К6 — same arbiter shape as the К5 test above, run over the autopay (off-session) path: a repeat
+// tick over the same due subscription must charge the saved method exactly once, never twice, for
+// the same service period.
+// Арбитр: have the fake `createSaasBillingRenewalInvoiceIfAbsent` always return `created: true`
+// (i.e. simulate the period-uniqueness index being dropped) and this test goes red.
+describe('К6: повторный тик с активным автосписанием не списывает дважды за тот же период', () => {
+  it('второй прогон находит ту же due-подписку и не звонит провайдеру снова', async () => {
+    const dueSubscription = {
+      saasBillingSubscriptionId: 'subscription-1',
+      organizationId: 'org-1',
+      tariffId: 'tariff-1',
+      billingPeriod: 'month' as const,
+      currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+      savedPaymentMethodId: 'pm-1',
+      autopayConsentedAt: '2026-07-01T00:00:00.000Z',
+      autopayRevokedAt: null,
+    };
+    const raisedForPeriod = new Set<string>();
+    const createSaasBillingRenewalInvoiceIfAbsent = vi.fn(async (input) => {
+      const key = `${input.saasBillingSubscriptionId}:${input.servicePeriodStartsAt}:${input.servicePeriodEndsAt}`;
+      if (raisedForPeriod.has(key)) {
+        return {
+          invoice: { ...invoice, id: 'invoice-existing', providerIdempotencyKey: input.providerIdempotencyKey },
+          created: false,
+        };
+      }
+      raisedForPeriod.add(key);
+      return {
+        invoice: { ...invoice, id: 'invoice-new', providerIdempotencyKey: input.providerIdempotencyKey },
+        created: true,
+      };
+    });
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({ ...invoice, ...input }));
+    const createIntent = vi.fn(async (_input: { paymentMethodId?: string }) => ({
+      providerIntentRef: 'provider-intent-autopay-1',
+      checkoutUrl: undefined,
+    }));
+
+    const service = createSaasBillingService({
+      repository: {
+        listSaasBillingSubscriptionsDueForRenewal: async () => [dueSubscription],
+        createSaasBillingRenewalInvoiceIfAbsent,
+        attachSaasBillingInvoiceProviderIntent,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+
+    const first = await service.runDueSaasBillingRenewals();
+    const second = await service.runDueSaasBillingRenewals();
+
+    expect(first).toMatchObject({ dueCount: 1, created: 1, alreadyInvoiced: 0, failed: 0 });
+    expect(second).toMatchObject({ dueCount: 1, created: 0, alreadyInvoiced: 1, failed: 0 });
+    expect(createIntent).toHaveBeenCalledTimes(1);
+    const [call] = createIntent.mock.calls;
+    expect(call?.[0]?.paymentMethodId).toBe('pm-1');
+  });
+});

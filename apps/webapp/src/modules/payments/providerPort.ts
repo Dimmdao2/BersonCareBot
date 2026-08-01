@@ -4,6 +4,10 @@ export type PaymentProviderVerifyResult = {
   payload: Record<string, unknown>;
   intentRef?: string;
   amountMinor?: number;
+  /** К6 — present only when the provider reports it actually SAVED a reusable payment method
+   *  (YooKassa `payment_method.saved === true`); read only from the trusted API refetch, never the
+   *  unverified notification body. */
+  savedPaymentMethodId?: string;
 };
 
 import type { PaymentProviderConfig } from './types';
@@ -29,6 +33,10 @@ export type PaymentProviderPort = {
     idempotencyKey: string;
     metadata: Record<string, unknown>;
     providerConfig?: PaymentProviderConfig;
+    /** К6 — ask the provider to keep this payment's method for a later off-session charge. Ignored together with `confirmation`/redirect once `paymentMethodId` is set. */
+    savePaymentMethod?: boolean;
+    /** К6 — charge a PREVIOUSLY saved method with no payer interaction (the renewal tick's autopay path), instead of opening a checkout redirect. */
+    paymentMethodId?: string;
   }): Promise<{ providerIntentRef: string; checkoutUrl?: string }>;
 
   refund(params: {
