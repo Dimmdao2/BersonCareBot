@@ -44,6 +44,23 @@ const credentialPatterns = Object.freeze([
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu;
 const quotedPhonePattern = /['"]\+[1-9][0-9]{9,14}['"]/u;
 
+// Repo-wide sentinel for a placeholder booking, never a real person's phone number — same
+// constant as apps/webapp/src/infra/repos/pgAnalyticsAudience.ts
+// ALWAYS_EXCLUDED_ANALYTICS_PHONES and apps/webapp/scripts/purge-placeholder-bookings.ts
+// PHONES ("БЛОК ОКНА" calendar block-window placeholder). It reaches the schema dump via
+// app.is_platform_registration_analytics_user_excluded()
+// (apps/webapp/db/drizzle-migrations/0261_platform_registration_events_read.sql).
+const SCHEMA_PLACEHOLDER_PHONE_LITERALS = new Set(['+70000000000']);
+
+function findSchemaPhoneLiteral(text) {
+  const globalQuotedPhonePattern = new RegExp(quotedPhonePattern.source, 'gu');
+  for (const match of text.matchAll(globalQuotedPhonePattern)) {
+    const digits = match[0].slice(1, -1);
+    if (!SCHEMA_PLACEHOLDER_PHONE_LITERALS.has(digits)) return digits;
+  }
+  return null;
+}
+
 export function sha256(input) {
   return crypto.createHash('sha256').update(input).digest('hex');
 }
@@ -310,7 +327,7 @@ export function scanSchemaArtifact(text) {
   if (/\bbersoncarebot_(?:dev|test|prod)\b/iu.test(text))
     failures.push('environment_identifier_forbidden');
   if (emailPattern.test(text)) failures.push('email_literal_forbidden');
-  if (quotedPhonePattern.test(text)) failures.push('phone_literal_forbidden');
+  if (findSchemaPhoneLiteral(text) !== null) failures.push('phone_literal_forbidden');
   if (credentialPatterns.some((pattern) => pattern.test(text)))
     failures.push('credential_shape_forbidden');
 
@@ -334,7 +351,22 @@ export function scanSchemaArtifact(text) {
   )) {
     policyRoles.add(match[1]);
   }
-  const allowedPolicyRoles = new Set([BASELINE_OWNER_ROLE, 'app_patient', 'app_staff']);
+  const allowedPolicyRoles = new Set([
+    BASELINE_OWNER_ROLE,
+    'app_patient',
+    'app_staff',
+    // CREATE ROLE app_platform_settings — deploy/postgres/u9a-platform-settings-role.sql,
+    // commit 7c9d94bea7 "feat(platform): add global settings principal spine" (2026-07-21).
+    'app_platform_settings',
+    // CREATE ROLE app_operational_web_push_reminder / app_web_push_reminder_discovery_definer —
+    // deploy/postgres/c4-web-push-reminder-runtime.sql, commit 7ebda04181
+    // "fix(saas): close owner-ready notification runtime gaps" (2026-07-17).
+    'app_operational_web_push_reminder',
+    'app_web_push_reminder_discovery_definer',
+    // CREATE ROLE app_clinic_billing — deploy/postgres/c5a-platform-operations-runtime.sql,
+    // commit 8efd156982 "fix(saas): close C5A quota trial and platform gates" (2026-07-21).
+    'app_clinic_billing',
+  ]);
   for (const role of policyRoles) {
     if (!allowedPolicyRoles.has(role)) failures.push(`unexpected_policy_role:${role}`);
   }

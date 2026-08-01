@@ -32,6 +32,7 @@ test('schema scanner rejects data, ACL, environment-role and PII leakage', () =>
     ['\n-- Data for Name: patients; Type: TABLE DATA\n', 'data_section_forbidden'],
     ['\nALTER TABLE public.platform_users OWNER TO postgres;\n', 'owner_or_acl_forbidden'],
     ['\n-- bcb_webapp_dev_user\n', 'runtime_identifier_forbidden'],
+    ['\n-- bersoncarebot_test\n', 'environment_identifier_forbidden'],
     ['\n-- person@example.test\n', 'email_literal_forbidden'],
     ["\n-- '+79990001122'\n", 'phone_literal_forbidden'],
     ['\n-- postgresql://user:password@example.test/database\n', 'credential_shape_forbidden'],
@@ -39,6 +40,42 @@ test('schema scanner rejects data, ACL, environment-role and PII leakage', () =>
   for (const [suffix, expected] of mutations) {
     assert.ok(scanSchemaArtifact(schema + suffix).failures.includes(expected), expected);
   }
+});
+
+test('schema scanner accepts only the exact known placeholder-booking phone literal', () => {
+  assert.ok(!scanSchemaArtifact(schema).failures.includes('phone_literal_forbidden'));
+  assert.ok(
+    !scanSchemaArtifact(`${schema}\n-- '+70000000000'\n`).failures.includes(
+      'phone_literal_forbidden',
+    ),
+  );
+  const decoys = ["'+79990001122'", "'+70000000001'", "'+7000000000'", "'+700000000000'"];
+  for (const decoy of decoys) {
+    assert.ok(
+      scanSchemaArtifact(`${schema}\n-- ${decoy}\n`).failures.includes('phone_literal_forbidden'),
+      decoy,
+    );
+  }
+});
+
+test('schema scanner recognizes exactly the four deploy-script roles it was taught, nothing else', () => {
+  const knownRoles = [
+    'app_platform_settings',
+    'app_operational_web_push_reminder',
+    'app_web_push_reminder_discovery_definer',
+    'app_clinic_billing',
+  ];
+  for (const role of knownRoles) {
+    const addition = `\nCREATE POLICY a0_probe_policy ON public.a0_probe_table TO ${role};\n`;
+    assert.ok(!scanSchemaArtifact(schema + addition).failures.includes(`unexpected_policy_role:${role}`));
+  }
+  const unknownAddition =
+    '\nCREATE POLICY a0_probe_policy ON public.a0_probe_table TO app_totally_unknown_role;\n';
+  assert.ok(
+    scanSchemaArtifact(schema + unknownAddition).failures.includes(
+      'unexpected_policy_role:app_totally_unknown_role',
+    ),
+  );
 });
 
 test('seed scanner accepts only reserved .test identity and approved tables', () => {
