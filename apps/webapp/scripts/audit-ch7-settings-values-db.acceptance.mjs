@@ -58,6 +58,16 @@ function sqlMustFail(text, label) {
   if (result.status === 0) failures.push(label);
 }
 
+function sqlFailureMessage(text, label) {
+  const result = spawnSync(
+    path.join(pgBin, 'psql'),
+    ['-X', '-qAt', '-h', socket, '-p', port, '-v', 'ON_ERROR_STOP=1', '-d', database],
+    { cwd: root, encoding: 'utf8', env: safeEnv, input: text },
+  );
+  if (result.status === 0) failures.push(label);
+  return `${result.stdout}\n${result.stderr}`;
+}
+
 function apply(relativePath) {
   sql(readFileSync(path.join(root, relativePath), 'utf8'), `apply ${relativePath}`);
 }
@@ -182,7 +192,7 @@ try {
       || '|'
       || (SELECT count(*) FROM public.system_settings WHERE organization_id IS NULL);
   `);
-  assertEqual('fresh global row counts', freshGlobalRowCounts, '39|28');
+  assertEqual('fresh global row counts', freshGlobalRowCounts, '41|28');
 
   installPredecessor();
   sql(`
@@ -232,8 +242,13 @@ try {
   assertEqual('pre-existing restricted values preserved', existingRestrictedValuesPreserved, 't');
 
   sql("DELETE FROM public.system_settings WHERE key = 'smsc_api_key' AND scope = 'admin';");
-  const missingSmsRow = sql('SELECT app.is_sms_provider_configured();');
-  assertEqual('missing SMS row refuses an answer', missingSmsRow, 'runtime_setting_unavailable');
+  const missingSmsRow = sqlFailureMessage(
+    'SELECT app.is_sms_provider_configured();',
+    'missing SMS row returned a configured answer',
+  );
+  if (!missingSmsRow.includes('runtime_setting_unavailable:smsc_api_key')) {
+    failures.push('missing SMS row did not report runtime_setting_unavailable');
+  }
 
   const publicAclAndFunctionShape = sql(`
     SELECT

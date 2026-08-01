@@ -6,9 +6,8 @@ import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
  * настройках — я всё прошу перенести в базу»). Здесь объявляется только КЛЮЧ: его область, контракт
  * значения и обязательность. Начальное значение заводится миграцией, дальше им распоряжается админка.
  *
- * `optional: true` ставится не для удобства, а там, где отсутствие значения — законный ответ
- * (например клиничный `patient_booking_url` без глобального запасного значения). Такой ключ
- * возвращает `null`, и решение принимает вызывающий явно.
+ * Отсутствующая строка никогда не является значением: reader сообщает недоступность до
+ * продуктового side effect. Пустое значение в существующей строке остаётся валидным значением.
  */
 export const RUNTIME_FLAG_DEFINITIONS = {
   patient_program_discussion_ui_enabled: {
@@ -130,32 +129,6 @@ export const AUTHENTICATED_RUNTIME_STRING_KEYS = [
   'patient_booking_url',
   'video_default_delivery',
 ] as const;
-
-/**
- * Ключи, у которых ОТСУТСТВИЕ значения — законный ответ, а не сбой. `patient_booking_url`
- * сознательно не имеет глобального запасного значения, а `doctor_today_preferences` появляется
- * только после первого сохранения врачом. Present-but-invalid значение остаётся ошибкой.
- */
-export const OPTIONAL_RUNTIME_SETTING_KEYS = [
-  'patient_booking_url',
-  'doctor_today_preferences',
-] as const;
-export type OptionalRuntimeSettingKey = (typeof OPTIONAL_RUNTIME_SETTING_KEYS)[number];
-export type OptionalRuntimeStringKey = Extract<
-  OptionalRuntimeSettingKey,
-  AuthenticatedRuntimeStringKey
->;
-export type RequiredAuthenticatedRuntimeStringKey = Exclude<
-  AuthenticatedRuntimeStringKey,
-  OptionalRuntimeStringKey
->;
-const OPTIONAL_RUNTIME_SETTING_KEY_SET: ReadonlySet<string> = new Set(
-  OPTIONAL_RUNTIME_SETTING_KEYS,
-);
-
-export function isOptionalRuntimeSettingKey(key: string): key is OptionalRuntimeSettingKey {
-  return OPTIONAL_RUNTIME_SETTING_KEY_SET.has(key);
-}
 
 export const SERVER_RUNTIME_BOOLEAN_KEYS = ['debug_forward_to_admin', 'auth_2fa_enabled'] as const;
 
@@ -311,25 +284,18 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
       });
       return required(key, parseBooleanEnvelope(row?.valueJson ?? null));
     },
-    /**
-     * Отдаёт `null` ТОЛЬКО для ключей из `OPTIONAL_RUNTIME_STRING_KEYS`, где отсутствие значения —
-     * законный ответ. Для остальных отсутствие значения — не ответ, и вызывающий получает ошибку,
-     * а не подставленную константу.
-     */
     async getAuthenticatedString(
       key: AuthenticatedRuntimeStringKey,
       organizationId: string | null = null,
-    ): Promise<string | null> {
+    ): Promise<string> {
       const row = await port.getEffective({
         key,
         scope: 'admin',
         organizationId,
         allowedAudiences: ['authenticated_client', 'public'],
         operationFamily: 'patient_runtime_config',
-        allowGlobalFallback: key !== 'patient_booking_url',
       });
       const value = parseStringEnvelope(row?.valueJson ?? null);
-      if (value === null && isOptionalRuntimeSettingKey(key)) return null;
       return required(key, value);
     },
     async getServerBoolean(key: ServerRuntimeBooleanKey): Promise<boolean> {

@@ -15,8 +15,6 @@ import {
   createRuntimeConfigProvider,
   type AuthenticatedRuntimeBooleanKey,
   type AuthenticatedRuntimeStringKey,
-  type OptionalRuntimeStringKey,
-  type RequiredAuthenticatedRuntimeStringKey,
   type PublicRuntimeBooleanKey,
   type PublicRuntimeStringKey,
   type RuntimeConfigOperationFamily,
@@ -82,23 +80,10 @@ export function getPatientRuntimeBool(key: AuthenticatedRuntimeBooleanKey): Prom
   return safeRuntimeConfig.getAuthenticatedBoolean(key);
 }
 
-/**
- * `null` — только для ключей, у которых отсутствие значения законно (сейчас `patient_booking_url`:
- * ссылку задаёт клиника, глобального запасного значения у неё нет). Для остальных ключей
- * отсутствие значения — не ответ, и сюда прилетит ошибка вместо подставленной константы.
- */
-export function getPatientRuntimeValue(
-  key: OptionalRuntimeStringKey,
-  organizationId?: string | null,
-): Promise<string | null>;
-export function getPatientRuntimeValue(
-  key: RequiredAuthenticatedRuntimeStringKey,
-  organizationId?: string | null,
-): Promise<string>;
 export function getPatientRuntimeValue(
   key: AuthenticatedRuntimeStringKey,
   organizationId: string | null = null,
-): Promise<string | null> {
+): Promise<string> {
   return safeRuntimeConfig.getAuthenticatedString(key, organizationId);
 }
 

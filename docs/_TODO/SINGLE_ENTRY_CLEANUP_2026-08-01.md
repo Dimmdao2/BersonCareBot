@@ -98,7 +98,8 @@
       константами в коде. Всё остальное продуктовое поведение — из базы.
       Перенесено на `wt/settings-values-db` коммитом `d23028a50` (не влито в `feat`): семь исходных
       коммитов `wt/settings-to-db` сведены в один; миграции `0300`-`0302`; evidence и что не сделано —
-      `docs/_TODO/runs/testsuite-v2/CH7_SETTINGS_VALUES_DB_REPORT.md`.
+      `docs/_TODO/runs/testsuite-v2/CH7_SETTINGS_VALUES_DB_REPORT.md`; fix-round `ed4a9170f` проверен
+      disposable `apps/webapp/scripts/audit-ch7-settings-values-db.acceptance.mjs` (до land чекбокс открыт).
 - [x] **Ч5. Импорт репозиториев мимо DI.** Последствие — слой, которому положено получать зависимости,
       берёт их сам, и подменить их в тесте нельзя.
       ⚠️ **Замер «22» УСТАРЕЛ** (лид 01.08, перемерено по свежему feat после приземления пункта 3). Пункт 3

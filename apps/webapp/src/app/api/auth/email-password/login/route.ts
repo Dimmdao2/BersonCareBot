@@ -156,13 +156,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, factorRequired: true });
   }
 
-  await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
   // Увести на настройку фактора можно только тогда, когда платформа его действительно требует, —
   // тот же предикат, по которому пускает страж страниц. Иначе переключатель админки выключен, страж
   // пускает в кабинет, а вход всё равно шлёт на вкладку безопасности: настройка есть, а половина
   // системы её не знает.
   const surfaceEnrollment =
     security !== null && !security.enrolled && (await platformRequiresStaffTwoFactor());
+  await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
   return NextResponse.json({
     ok: true,
     redirectTo: surfaceEnrollment

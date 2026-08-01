@@ -31,15 +31,6 @@ export type OperatorHeartbeatDefinition = {
   name: OperatorHeartbeatName;
   jobKey: string;
   label: string;
-  /**
-   * Сколько секунд отсутствия пульса считать отказом.
-   *
-   * `pipeline_delivery` по умолчанию щедрый: без синтетической канарейки (следующий слайс)
-   * пульс бьётся только на реальном трафике, а тихая ночь — не отказ. Значение переопределяется
-   * ключом настроек `operator_heartbeat_config`, чтобы порог можно было ужать, как только
-   * канарейка появится.
-   */
-  defaultStaleAfterSec: number;
   /** Переменная окружения с URL ВНЕШНЕГО приёмника (healthchecks-подобного). */
   externalPingUrlEnvVar: string;
 };
@@ -49,14 +40,12 @@ export const OPERATOR_HEARTBEATS: readonly OperatorHeartbeatDefinition[] = [
     name: 'pipeline_delivery',
     jobKey: 'heartbeat.pipeline_delivery',
     label: 'Пульс доставки (подтверждённая отправка)',
-    defaultStaleAfterSec: 6 * 60 * 60,
     externalPingUrlEnvVar: 'OPERATOR_HEARTBEAT_PIPELINE_URL',
   },
   {
     name: 'digest',
     jobKey: 'heartbeat.digest',
     label: 'Пульс суточной сводки',
-    defaultStaleAfterSec: 26 * 60 * 60,
     externalPingUrlEnvVar: 'OPERATOR_HEARTBEAT_DIGEST_URL',
   },
 ] as const;
@@ -68,26 +57,30 @@ export function findOperatorHeartbeat(name: string): OperatorHeartbeatDefinition
 /** Ключ `system_settings` с переопределением порогов: `{"pipeline_delivery": 900}`. */
 export const OPERATOR_HEARTBEAT_CONFIG_KEY = 'operator_heartbeat_config';
 
-export type OperatorHeartbeatStaleOverrides = Partial<Record<OperatorHeartbeatName, number>>;
+export type OperatorHeartbeatStaleOverrides = Record<OperatorHeartbeatName, number>;
 
-/** Разбор конфигурации порогов; мусор игнорируется, дефолты остаются в силе. */
+/** Both mutable thresholds must be present in the DB-backed configuration. */
 export function parseOperatorHeartbeatStaleOverrides(
   raw: string | null | undefined,
 ): OperatorHeartbeatStaleOverrides {
   const text = (raw ?? '').trim();
-  if (!text) return {};
+  if (!text) throw new Error('runtime_setting_unavailable:operator_heartbeat_config');
   let parsed: unknown;
   try {
     parsed = JSON.parse(text) as unknown;
   } catch {
-    return {};
+    throw new Error('runtime_setting_unavailable:operator_heartbeat_config');
   }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-  const out: OperatorHeartbeatStaleOverrides = {};
-  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (!isOperatorHeartbeatName(key)) continue;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('runtime_setting_unavailable:operator_heartbeat_config');
+  }
+  const out = {} as OperatorHeartbeatStaleOverrides;
+  for (const key of OPERATOR_HEARTBEAT_NAMES) {
+    const value = (parsed as Record<string, unknown>)[key];
     const n = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(n) || n <= 0) continue;
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new Error('runtime_setting_unavailable:operator_heartbeat_config');
+    }
     out[key] = Math.floor(n);
   }
   return out;
@@ -97,7 +90,7 @@ export function resolveHeartbeatStaleAfterSec(
   definition: OperatorHeartbeatDefinition,
   overrides: OperatorHeartbeatStaleOverrides,
 ): number {
-  return overrides[definition.name] ?? definition.defaultStaleAfterSec;
+  return overrides[definition.name];
 }
 
 export type OperatorHeartbeatObservation = {

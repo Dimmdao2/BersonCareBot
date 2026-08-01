@@ -11,8 +11,7 @@
 -- здесь как НАЧАЛЬНОЕ значение для среды, где строки ещё нет, а распоряжается ими админка.
 -- `ON CONFLICT DO NOTHING`: существующая строка всегда сильнее — миграция ничего не переписывает.
 --
--- `patient_booking_url` сюда НЕ входит: он задаётся клиникой, глобального значения у него нет по
--- построению (`allowGlobalFallback: false`), и его отсутствие — законный ответ, а не сбой.
+-- Organization overrides take precedence, but a global empty value is still an explicit DB answer.
 
 INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json)
 VALUES
@@ -39,6 +38,7 @@ VALUES
   ('patient_app_maintenance_enabled',             'admin', NULL, 'authenticated_client', '{"value": false}'),
   ('video_playback_api_enabled',                  'admin', NULL, 'authenticated_client', '{"value": false}'),
   ('patient_app_maintenance_message',             'admin', NULL, 'authenticated_client', '{"value": ""}'),
+  ('patient_booking_url',                         'admin', NULL, 'authenticated_client', '{"value": ""}'),
   ('video_default_delivery',                      'admin', NULL, 'authenticated_client', '{"value": "auto"}'),
   ('patient_program_discussion_ui_enabled',       'admin', NULL, 'authenticated_client', '{"value": false}'),
   ('patient_program_discussion_media_submission_enabled', 'admin', NULL, 'authenticated_client', '{"value": false}'),
@@ -54,5 +54,6 @@ VALUES
   ('doctor_telegram_ids',                         'admin', NULL, 'server', '{"value": []}'),
   ('doctor_max_ids',                              'admin', NULL, 'server', '{"value": []}'),
   ('doctor_phones',                               'admin', NULL, 'server', '{"value": []}'),
+  ('doctor_today_preferences',                    'doctor', NULL, 'server', '{"value":{"visibleProactiveInsightKinds":["wellbeing_low_streak","program_inactivity"],"peopleListMode":"on_support"}}'),
   ('video_presign_ttl_seconds',                   'admin', NULL, 'server', '{"value": 3600}')
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;

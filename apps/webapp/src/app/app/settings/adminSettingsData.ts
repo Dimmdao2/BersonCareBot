@@ -26,6 +26,7 @@ import {
   type OperatorHealthProjectionThresholds,
 } from '@/modules/operator-health/operatorHealthProjectionThresholds';
 import { parseOperatorAlertFallbackEmailSetting } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
+import { RuntimeSettingUnavailableError } from '@/modules/system-settings/runtimeSettingUnavailable';
 
 export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   'system-health': '/app/admin/system-health',
@@ -42,6 +43,27 @@ export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   catalog: '/app/admin/booking',
   diagnostics: '/app/admin/technical',
 };
+
+const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
+  'error_tracking_dsn', 'error_tracking_enabled', 'dev_mode', 'debug_forward_to_admin',
+  'max_debug_page_enabled', 'important_fallback_delay_minutes', 'platform_user_merge_v2_enabled',
+  'integrator_linked_phone_source', 'test_account_identifiers', 'patient_app_maintenance_enabled',
+  'patient_app_maintenance_message', 'patient_program_discussion_doctor_reply_from_log_enabled',
+  'patient_program_discussion_ui_enabled', 'patient_program_discussion_media_submission_enabled',
+  'patient_booking_url', 'operator_health_alert_config', 'admin_incident_alert_config',
+  'operator_alert_fallback_email', 'operator_health_projection_thresholds',
+  'video_playback_api_enabled', 'video_default_delivery', 'video_hls_pipeline_enabled',
+  'video_hls_new_uploads_auto_transcode', 'video_hls_reconcile_enabled', 'video_watermark_enabled',
+  'video_presign_ttl_seconds', 'support_contact_url', 'app_display_timezone',
+  'telegram_login_bot_username', 'max_login_bot_nickname', 'max_bot_api_key', 'vk_web_login_url',
+  'vk_id_application_id', 'vk_id_client_secret', 'vk_id_redirect_uri', 'yandex_oauth_client_id',
+  'yandex_oauth_client_secret', 'yandex_oauth_redirect_uri', 'google_client_id',
+  'google_client_secret', 'google_oauth_login_redirect_uri', 'google_redirect_uri',
+  'apple_oauth_client_id', 'apple_oauth_team_id', 'apple_oauth_key_id', 'apple_oauth_private_key',
+  'apple_oauth_redirect_uri', 'google_refresh_token', 'google_calendar_id',
+  'google_calendar_enabled', 'google_connected_email', 'notifications_topics', 'smtp_outbound',
+  'web_push_vapid',
+] as const;
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (
@@ -206,6 +228,13 @@ export type AdminSettingsPageData = {
 export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData> {
   const deps = buildAppDeps();
   const rawAdminSettingsList = await deps.systemSettings.listSettingsByScope('admin');
+  const availableAdminSettingKeys = new Set(rawAdminSettingsList.map((setting) => setting.key));
+  const missingKey = ADMIN_SETTINGS_PAGE_REQUIRED_KEYS.find(
+    (key) => !availableAdminSettingKeys.has(key),
+  );
+  if (missingKey) {
+    throw new RuntimeSettingUnavailableError(missingKey);
+  }
   const errorTrackingDsn = getValueJson(
     rawAdminSettingsList.find((x) => x.key === 'error_tracking_dsn')?.valueJson,
     '',

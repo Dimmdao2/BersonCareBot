@@ -4,63 +4,60 @@
 
 CREATE OR REPLACE FUNCTION app.is_sms_provider_configured()
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $function$
-  SELECT COALESCE(
-    (
-      SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL
-      FROM public.system_settings AS setting
-      WHERE setting.key = 'smsc_api_key'
-        AND setting.scope = 'admin'
-        AND setting.organization_id IS NULL
-      LIMIT 1
-    ),
-    false
-  )
+DECLARE configured boolean;
+BEGIN
+  SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'smsc_api_key'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'runtime_setting_unavailable:smsc_api_key'; END IF;
+  RETURN configured;
+END
 $function$;
 
 CREATE OR REPLACE FUNCTION app.is_telegram_login_configured()
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $function$
-  SELECT COALESCE(
-    (
-      SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL
-      FROM public.app_runtime_settings AS setting
-      WHERE setting.key = 'telegram_login_bot_username'
-        AND setting.scope = 'admin'
-        AND setting.organization_id IS NULL
-        AND setting.audience = 'public'
-      LIMIT 1
-    ),
-    false
-  )
+DECLARE configured boolean;
+BEGIN
+  SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
+  FROM public.app_runtime_settings AS setting
+  WHERE setting.key = 'telegram_login_bot_username'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+    AND setting.audience = 'public';
+  IF NOT FOUND THEN RAISE EXCEPTION 'runtime_setting_unavailable:telegram_login_bot_username'; END IF;
+  RETURN configured;
+END
 $function$;
 
 CREATE OR REPLACE FUNCTION app.is_max_bot_configured()
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $function$
-  SELECT COALESCE(
-    (
-      SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL
-      FROM public.system_settings AS setting
-      WHERE setting.key = 'max_bot_api_key'
-        AND setting.scope = 'admin'
-        AND setting.organization_id IS NULL
-      LIMIT 1
-    ),
-    false
-  )
+DECLARE configured boolean;
+BEGIN
+  SELECT NULLIF(btrim(setting.value_json #>> '{value}'), '') IS NOT NULL INTO configured
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'max_bot_api_key'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'runtime_setting_unavailable:max_bot_api_key'; END IF;
+  RETURN configured;
+END
 $function$;
 
 COMMENT ON FUNCTION app.is_sms_provider_configured() IS
@@ -106,19 +103,3 @@ BEGIN
   END LOOP;
 END
 $accessor_grants$;
-
--- Preserve the formerly compiled initial product values in the database for already-provisioned
--- environments. Only the old empty seed is replaced; an administrator's non-empty value wins.
-UPDATE public.app_runtime_settings
-SET value_json = '{"value":"/app/patient/support"}'::jsonb
-WHERE key = 'support_contact_url'
-  AND scope = 'admin'
-  AND organization_id IS NULL
-  AND value_json = '{"value":""}'::jsonb;
-
-UPDATE public.app_runtime_settings
-SET value_json = '{"value":"Приложение в разработке, функционал частично недоступен."}'::jsonb
-WHERE key = 'patient_app_maintenance_message'
-  AND scope = 'admin'
-  AND organization_id IS NULL
-  AND value_json = '{"value":""}'::jsonb;
