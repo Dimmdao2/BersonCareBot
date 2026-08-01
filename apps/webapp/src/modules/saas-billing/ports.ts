@@ -185,6 +185,20 @@ export type SaasBillingReconciliationDiscrepancy =
       providerCurrency: string;
     };
 
+/**
+ * К5 — one subscription whose paid period has ended and that renews itself (`source =
+ * 'paid_subscription'`), returned by the ONE query allowed to see "which organizations are due"
+ * (see `listSaasBillingSubscriptionsDueForRenewal`). Everything downstream acts on this row alone.
+ */
+export type SaasBillingSubscriptionDueForRenewal = {
+  saasBillingSubscriptionId: string;
+  organizationId: string;
+  tariffId: string;
+  billingPeriod: SaasBillingPeriod;
+  /** The end of the period just paid — the new period's `servicePeriodStartsAt`, never `now()`. */
+  currentPeriodEndsAt: string;
+};
+
 export type SaasBillingReconciliationResult =
   | { outcome: 'provider_unavailable'; providerId: string }
   | { outcome: 'provider_error'; providerId: string }
@@ -328,6 +342,32 @@ export type SaasBillingRepositoryPort = {
     periodStartsAt: string;
     periodEndsAt: string;
   }): Promise<void>;
+
+  /**
+   * К5 — the enumeration boundary: the only place cross-organization `saas_billing_subscriptions`
+   * rows are selected for the renewal tick. Callers hand each returned row on to
+   * {@link createSaasBillingRenewalInvoiceIfAbsent} one at a time; nothing downstream re-queries
+   * "which subscriptions are due" itself.
+   */
+  listSaasBillingSubscriptionsDueForRenewal(input: {
+    asOf: string;
+    limit: number;
+  }): Promise<SaasBillingSubscriptionDueForRenewal[]>;
+  /**
+   * К5 — idempotent by construction: `saas_billing_invoices_period_uidx` (unique on
+   * `(saas_billing_subscription_id, service_period_starts_at, service_period_ends_at)`) makes a
+   * second call for the same subscription+period a no-op that returns the invoice already raised
+   * (`created: false`) instead of a duplicate row. Callers must skip the provider charge when
+   * `created` is `false`.
+   */
+  createSaasBillingRenewalInvoiceIfAbsent(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    providerId: string;
+    providerIdempotencyKey: string;
+    servicePeriodStartsAt: string;
+    servicePeriodEndsAt: string;
+  }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
 
   /**
    * К2 — locks the invoice row, validates it, and either returns the refund already reserved
