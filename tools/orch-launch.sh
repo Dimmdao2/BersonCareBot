@@ -77,7 +77,13 @@ if [ "$1" = land ]; then
   git -C "$MAIN" fetch -q "$CLONE" "$BRANCH" 2>/dev/null || die "не удалось выкачать ветку $BRANCH из клона $CLONE_NAME"
   HEAD_FEAT=$(git -C "$MAIN" rev-parse "$FEAT")
   BRANCH_TIP=$(git -C "$MAIN" rev-parse FETCH_HEAD)
-  git -C "$MAIN" merge-base --is-ancestor "$HEAD_FEAT" "$BRANCH_TIP" 2>/dev/null || die "ветка $BRANCH (${BRANCH_TIP:0:9}) НЕ содержит голову $FEAT (${HEAD_FEAT:0:9}) — сначала влей свежий feat в клон, потом land."
+  # Свежесть ветки НЕ требуется: land делает настоящий merge --no-ff, git сводит расхождение сам.
+  # Прежняя проверка «ветка содержит голову feat» создавала порочный круг: land требует строку вердикта
+  # в очереди, а её коммит двигает голову feat — и ветка становилась устаревшей ровно в тот момент,
+  # когда её делали пригодной к приземлению. Конфликт слияния остаётся законным отказом (см. ниже).
+  if ! git -C "$MAIN" merge-base --is-ancestor "$HEAD_FEAT" "$BRANCH_TIP" 2>/dev/null; then
+    echo "  ветка отстаёт от $FEAT — это нормально, сливаю через merge --no-ff; конфликт остановит land"
+  fi
 
   UNREG=""
   for sha in $(git -C "$MAIN" rev-list --no-merges "$HEAD_FEAT".."$BRANCH_TIP" 2>/dev/null); do
