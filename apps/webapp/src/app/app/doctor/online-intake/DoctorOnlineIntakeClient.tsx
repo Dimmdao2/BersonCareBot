@@ -350,6 +350,9 @@ export function DoctorOnlineIntakeClient({
   const [replySending, setReplySending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [replySuccessId, setReplySuccessId] = useState<string | null>(null);
+  // Persists across a network-error retry of the same reply so it reuses the same idempotency
+  // key instead of minting a new one (which would defeat server-side dedup on retry).
+  const pendingReplyRef = useRef<{ intakeId: string; text: string; key: string } | null>(null);
 
   // Note for status change
   const [statusNote, setStatusNote] = useState('');
@@ -479,14 +482,22 @@ export function DoctorOnlineIntakeClient({
     if (!detail || !replyText.trim()) return;
     setReplySending(true);
     setReplyError(null);
+    const text = replyText.trim();
+    const pending = pendingReplyRef.current;
+    const idempotencyKey =
+      pending?.intakeId === detail.id && pending.text === text
+        ? pending.key
+        : crypto.randomUUID();
+    pendingReplyRef.current = { intakeId: detail.id, text, key: idempotencyKey };
     try {
       const res = await fetch(`/api/doctor/online-intake/${encodeURIComponent(detail.id)}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: replyText.trim() }),
+        body: JSON.stringify({ text, idempotencyKey }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string };
       if (data.ok) {
+        pendingReplyRef.current = null;
         setReplySuccessId(detail.id);
         setReplyText('');
         await loadList();

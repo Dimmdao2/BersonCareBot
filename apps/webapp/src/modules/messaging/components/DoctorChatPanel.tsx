@@ -34,6 +34,10 @@ export function DoctorChatPanel({
   const [error, setError] = useState<string | null>(null);
   const [replyTarget, setReplyTarget] = useState<SerializedSupportMessage | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Persists across retries of the same unsent draft so a network-error retry reuses the same
+  // idempotency key instead of minting a new one (which would defeat server-side dedup). Keyed
+  // by text so editing the draft after a failed attempt starts a fresh key, not a "retry".
+  const pendingSendRef = useRef<{ text: string; key: string } | null>(null);
 
   const markRead = useCallback(async () => {
     try {
@@ -110,17 +114,21 @@ export function DoctorChatPanel({
     if (!t || sending) return;
     setSending(true);
     setError(null);
+    const idempotencyKey =
+      pendingSendRef.current?.text === t ? pendingSendRef.current.key : crypto.randomUUID();
+    pendingSendRef.current = { text: t, key: idempotencyKey };
     try {
       const res = await fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: t }),
+        body: JSON.stringify({ text: t, idempotencyKey }),
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
         setError('Не отправлено');
         return;
       }
+      pendingSendRef.current = null;
       setDraft('');
       setReplyTarget(null);
       await loadMessages();
