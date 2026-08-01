@@ -32,7 +32,7 @@ vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getCurrentSession } from '@/modules/auth/service';
 import { GET as listCourses } from '@/app/api/doctor/courses/route';
-import { GET as readOwnBilling } from '@/app/api/clinic/billing/route';
+import { GET as readOwnBilling, POST as payOwnBilling } from '@/app/api/clinic/billing/route';
 import { cabinetGraceWarningMessages } from './cabinetAccessGate';
 import type { CabinetAccessResolution, MechanicAccessState } from '@/modules/org-entitlements/types';
 
@@ -67,6 +67,7 @@ const session = {
 
 const listCoursesForDoctor = vi.fn();
 const getOrganizationBillingOverview = vi.fn();
+const createOwnTariffRenewalInvoice = vi.fn();
 
 /**
  * Wires the whole stack under the guard. `cabinet` is the ONLY thing that varies between the rungs:
@@ -103,7 +104,7 @@ function withCabinet(cabinet: CabinetAccessResolution | Error): void {
       }),
     },
     courses: { listCoursesForDoctor },
-    saasBilling: { getOrganizationBillingOverview },
+    saasBilling: { getOrganizationBillingOverview, createOwnTariffRenewalInvoice },
   } as unknown as ReturnType<typeof buildAppDeps>);
 }
 
@@ -123,6 +124,10 @@ beforeEach(() => {
   vi.mocked(getCurrentSession).mockResolvedValue(session as never);
   listCoursesForDoctor.mockResolvedValue(EXISTING_COURSES);
   getOrganizationBillingOverview.mockResolvedValue(BILLING_OVERVIEW);
+  createOwnTariffRenewalInvoice.mockResolvedValue({
+    id: 'invoice-own-tariff-1',
+    providerCheckoutUrl: 'https://billing.example.test/checkout-own-tariff-1',
+  });
 });
 
 describe('§5a/2.1a: cabinet entry walks its own three rungs', () => {
@@ -320,5 +325,24 @@ describe('§5a/2.1c: организация в блоке открывает С�
     // своего тарифа — путь восстановления, а не тарифная механика.
     expect((await readOwnBilling()).status).toBe(200);
     expect((await listCourses(coursesRequest())).status).toBe(403);
+  });
+
+  // К0, владелец 01.08 (PAYMENTS_CABINET_PLAN.md): «оплата тарифа НИКОГДА не гейтится лестницей
+  // доступа. Заблокированная клиника обязана иметь возможность заплатить и разблокироваться».
+  // Арбитр: убрать `{ allowCabinetRecovery: true }` из POST в `app/api/clinic/billing/route.ts` —
+  // тест краснеет (403 `cabinet_blocked` вместо 200 со ссылкой на оплату), потому что тогда блок
+  // становится невыходимым: заплатить может только тот, кому уже открыли кабинет.
+  it('счёт на оплату своего тарифа выставляется даже в конечном состоянии «блок»', async () => {
+    withCabinet(cabinetAt('disabled'));
+
+    const response = await payOwnBilling();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      checkoutUrl: 'https://billing.example.test/checkout-own-tariff-1',
+      invoiceId: 'invoice-own-tariff-1',
+    });
+    expect(createOwnTariffRenewalInvoice).toHaveBeenCalledWith(ORG_ID);
   });
 });
