@@ -41,6 +41,14 @@ describe('configAdapter DB-only legacy reads', () => {
     expect(readAdminSystemSettingString).toHaveBeenCalledTimes(2);
   });
 
+  it('does not turn a missing required row into an empty value', async () => {
+    readAdminSystemSettingString.mockResolvedValueOnce(null);
+
+    await expect(getConfigValue('google_client_id')).rejects.toBeInstanceOf(
+      RuntimeSettingUnavailableError,
+    );
+  });
+
   it('invalidates an exact-organization entry by its setting key', async () => {
     readExactOrganizationAdminSystemSettingString
       .mockResolvedValueOnce('old-token')

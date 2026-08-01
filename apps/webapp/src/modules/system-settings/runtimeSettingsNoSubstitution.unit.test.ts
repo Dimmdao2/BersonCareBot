@@ -14,12 +14,9 @@ import { shouldExposeInteractiveLogin } from '@/modules/auth/messengerAuthStrate
 import { getPatientMaintenanceConfig } from './patientMaintenance';
 import { getSupportContactUrl } from './supportContactUrl';
 import { getTelegramBotToken } from './integrationRuntime';
-import {
-  DEFAULT_DOCTOR_TODAY_PREFERENCES,
-  parseDoctorTodayPreferences,
-} from './doctorTodayPreferences';
+import { parseDoctorTodayPreferences } from './doctorTodayPreferences';
 import { parsePlatformIntegrationAvailabilityEnvelope } from './platformIntegrationAvailability';
-import { isOptionalRuntimeSettingKey } from './runtimeConfig';
+import { createRuntimeConfigProvider } from './runtimeConfig';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -67,12 +64,32 @@ describe('DB-backed product values', () => {
     ).toThrow('runtime_setting_unavailable:platform_integration_availability');
   });
 
-  it('accepts absence only for the explicitly optional doctor preferences', () => {
-    expect(isOptionalRuntimeSettingKey('doctor_today_preferences')).toBe(true);
-    expect(parseDoctorTodayPreferences(undefined)).toBe(DEFAULT_DOCTOR_TODAY_PREFERENCES);
+  it('refuses missing doctor preferences instead of substituting a compiled object', () => {
+    expect(() => parseDoctorTodayPreferences(undefined)).toThrow(
+      'runtime_setting_unavailable:doctor_today_preferences',
+    );
     expect(() => parseDoctorTodayPreferences({ value: { peopleListMode: 'unknown' } })).toThrow(
       'runtime_setting_unavailable:doctor_today_preferences',
     );
+  });
+
+  it('refuses a missing organization booking URL instead of treating it as configured absence', async () => {
+    const provider = createRuntimeConfigProvider({
+      getEffective: vi.fn().mockResolvedValue(null),
+    });
+
+    await expect(provider.getAuthenticatedString('patient_booking_url', 'org-1')).rejects.toThrow(
+      'runtime_setting_unavailable:patient_booking_url',
+    );
+  });
+
+  it('propagates a runtime-settings database error without substituting a value', async () => {
+    const databaseError = new Error('database_unavailable');
+    const provider = createRuntimeConfigProvider({
+      getEffective: vi.fn().mockRejectedValue(databaseError),
+    });
+
+    await expect(provider.getPublicBoolean('auth_email_enabled')).rejects.toBe(databaseError);
   });
 
   it('keeps the deployed auth bootstrap behavior without an environment switch', () => {

@@ -5,15 +5,24 @@ const fakes = vi.hoisted(() => ({
   configuredChannels: new Map<string, boolean>(),
   getPublicRuntimeBool: vi.fn<(key: string) => Promise<boolean>>(),
   getPublicAuthChannelConfigured: vi.fn<(channel: string) => Promise<boolean>>(),
+  getConfigValue: vi.fn<(key: string) => Promise<string>>(),
+  getTelegramBotToken: vi.fn<() => Promise<string>>(),
+  getMaxBotApiKey: vi.fn<() => Promise<string>>(),
 }));
 
 vi.mock('@/modules/system-settings/configAdapter', () => ({
+  getConfigValue: fakes.getConfigValue,
   getPublicAuthChannelConfigured: fakes.getPublicAuthChannelConfigured,
   getPublicRuntimeBool: fakes.getPublicRuntimeBool,
+}));
+vi.mock('@/modules/system-settings/integrationRuntime', () => ({
+  getTelegramBotToken: fakes.getTelegramBotToken,
+  getMaxBotApiKey: fakes.getMaxBotApiKey,
 }));
 
 import { getAnonymousClientVisibleAuthChannelPolicy } from './anonymousAuthChannelPolicy';
 import { isOAuthProviderEnabled, type OAuthProvider } from './authChannelPolicy';
+import { getAuthChannelPolicyDetail } from './authChannelPolicyAdmin';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -29,6 +38,22 @@ beforeEach(() => {
     if (value === undefined) throw new Error(`missing channel capability: ${channel}`);
     return value;
   });
+  fakes.getConfigValue.mockImplementation(async (key) => {
+    if (key === 'smtp_outbound') {
+      return JSON.stringify({
+        host: 'smtp.example.test',
+        port: 465,
+        secure: true,
+        user: 'mailer',
+        password: 'fixture-password',
+        from: 'mailer@example.test',
+      });
+    }
+    if (key === 'smsc_api_key') return 'fixture-smsc-key';
+    throw new Error(`unexpected restricted setting: ${key}`);
+  });
+  fakes.getTelegramBotToken.mockResolvedValue('fixture-telegram-token');
+  fakes.getMaxBotApiKey.mockResolvedValue('fixture-max-key');
 });
 
 describe('public auth policy', () => {
@@ -63,4 +88,26 @@ describe('public auth policy', () => {
       await expect(isOAuthProviderEnabled(provider as OAuthProvider)).resolves.toBe(false);
     },
   );
+
+  it('keeps credential-backed configured detail on the authenticated admin accessor', async () => {
+    for (const key of [
+      'auth_email_enabled',
+      'auth_sms_enabled',
+      'auth_telegram_enabled',
+      'auth_max_enabled',
+    ]) {
+      fakes.publicValues.set(key, true);
+    }
+
+    await expect(getAuthChannelPolicyDetail()).resolves.toEqual({
+      email: { enabled: true, configured: true },
+      sms: { enabled: true, configured: true },
+      telegram: { enabled: true, configured: true },
+      max: { enabled: true, configured: true },
+    });
+    expect(fakes.getConfigValue).toHaveBeenCalledWith('smtp_outbound');
+    expect(fakes.getConfigValue).toHaveBeenCalledWith('smsc_api_key');
+    expect(fakes.getTelegramBotToken).toHaveBeenCalledOnce();
+    expect(fakes.getMaxBotApiKey).toHaveBeenCalledOnce();
+  });
 });
