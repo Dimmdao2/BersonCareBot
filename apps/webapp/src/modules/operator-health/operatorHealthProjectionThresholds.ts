@@ -62,9 +62,9 @@ export function parseOperatorHealthProjectionThresholds(
 }
 
 export async function loadOperatorHealthProjectionThresholds(
-  getConfigValue: (key: string, fallback: string) => Promise<string>,
+  getConfigValue: (key: string) => Promise<string>,
 ): Promise<OperatorHealthProjectionThresholds> {
-  const raw = await getConfigValue(OPERATOR_HEALTH_PROJECTION_THRESHOLDS_KEY, '');
+  const raw = await getConfigValue(OPERATOR_HEALTH_PROJECTION_THRESHOLDS_KEY);
   if (!raw.trim()) return DEFAULT_OPERATOR_HEALTH_PROJECTION_THRESHOLDS;
   try {
     return parseOperatorHealthProjectionThresholds(JSON.parse(raw) as unknown);

@@ -13,7 +13,6 @@
 import {
   normalizeAppDisplayTimeZone,
   isAcceptableIanaTimezone,
-  DEFAULT_APP_DISPLAY_TIMEZONE,
 } from '@/modules/system-settings/calendarIana';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
@@ -58,7 +57,7 @@ export async function getDoctorEffectiveCalendarIana(
 ): Promise<string> {
   const [personalRaw, appDefaultRaw] = await Promise.all([
     port.getIanaForDoctor(doctorUserId).catch(() => null),
-    getAppDisplayTimeZone().catch(() => DEFAULT_APP_DISPLAY_TIMEZONE),
+    getAppDisplayTimeZone(),
   ]);
   return resolveDoctorCalendarIana(personalRaw, branchRaw, appDefaultRaw);
 }

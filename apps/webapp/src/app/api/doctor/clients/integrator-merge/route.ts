@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return adminGate.response;
   }
 
-  const v2 = await getConfigBool('platform_user_merge_v2_enabled', false);
+  const v2 = await getConfigBool('platform_user_merge_v2_enabled');
   if (!v2) {
     return NextResponse.json(
       {

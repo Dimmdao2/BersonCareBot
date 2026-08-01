@@ -5,14 +5,10 @@ import {
 import type { PatientBusinessGate } from '@/modules/platform-access';
 import { patientPathsAllowedDuringPhoneActivation } from '@/modules/platform-access';
 
-export const DEFAULT_PATIENT_MAINTENANCE_MESSAGE =
-  'Приложение в разработке, функционал частично недоступен.';
-
 const PATIENT_MAINTENANCE_MESSAGE_MAX = 500;
 
 export function normalizePatientMaintenanceMessage(raw: string): string {
   const t = raw.trim();
-  if (t.length === 0) return DEFAULT_PATIENT_MAINTENANCE_MESSAGE;
   return t.length > PATIENT_MAINTENANCE_MESSAGE_MAX
     ? t.slice(0, PATIENT_MAINTENANCE_MESSAGE_MAX)
     : t;
@@ -21,8 +17,8 @@ export function normalizePatientMaintenanceMessage(raw: string): string {
 /**
  * Normalizes an organization-scoped booking URL. Empty or invalid values omit the CTA.
  */
-export function normalizePatientBookingUrl(raw: string): string | null {
-  const t = raw.trim();
+export function normalizePatientBookingUrl(raw: string | null): string | null {
+  const t = (raw ?? '').trim();
   if (t.length === 0) return null;
   try {
     const u = new URL(t);
@@ -86,14 +82,14 @@ export async function getPatientMaintenanceConfig(
   if (!enabled) {
     return {
       enabled: false,
-      message: DEFAULT_PATIENT_MAINTENANCE_MESSAGE,
+      message: '',
       bookingUrl: null,
     };
   }
   const [messageRaw, bookingRaw] = await Promise.all([
     getPatientRuntimeValue('patient_app_maintenance_message'),
     organizationId === null
-      ? Promise.resolve('')
+      ? Promise.resolve(null)
       : getPatientRuntimeValue('patient_booking_url', organizationId),
   ]);
   return {

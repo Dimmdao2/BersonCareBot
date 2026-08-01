@@ -58,7 +58,7 @@ export async function readHeartbeatVerdict(name: OperatorHeartbeatName): Promise
         OPERATOR_HEARTBEAT_JOB_FAMILY,
         definition.jobKey,
       ),
-      getConfigValue(OPERATOR_HEARTBEAT_CONFIG_KEY, '').catch(() => ''),
+      getConfigValue(OPERATOR_HEARTBEAT_CONFIG_KEY),
     ]);
     const verdict = classifyOperatorHeartbeat({
       name: definition.name,

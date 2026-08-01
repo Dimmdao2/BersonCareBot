@@ -18,12 +18,6 @@ export const MESSENGER_INIT_POLL_SHORT_MS = 550;
  */
 export const MESSENGER_INIT_POLL_CAP_MS = MESSENGER_HARD_POLL_CAP_MS;
 
-/** Ранний показ интерактивного login в обычном браузере (не блокировать AuthFlowV2). */
-export const BROWSER_SOFT_TIMEOUT_MS = 1000;
-
-/** Ранний показ интерактивного login при suspected messenger (initData ещё нет). */
-export const MESSENGER_SOFT_TIMEOUT_MS = 2000;
-
 /** Алиас политики: совпадает с {@link MESSENGER_HARD_POLL_CAP_MS} для опроса. */
 export const MESSENGER_HARD_TIMEOUT_MS = MESSENGER_HARD_POLL_CAP_MS;
 
@@ -95,24 +89,14 @@ export function isConfirmedMessengerByInitData(input: {
   return Boolean(input.telegramInitData.trim()) || Boolean(input.maxInitData.trim());
 }
 
-/** Feature flag: ранний интерактивный login + prefetch (`AuthBootstrap` / `AuthFlowV2`). */
-export function isAuthBootstrapEarlyUiV2Enabled(): boolean {
-  const v = process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2?.trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes';
-}
-
 /**
  * Показать интерактивный login (не блокировать до initData / poll cap).
  * В контексте messenger mini app (`ctx`/cookie) **не** показываем телефонный флоу при `state === "error"`
- * (таймаут initData / отказ init) — только `Повторить` / подсказки; исключение: {@link isAuthBootstrapEarlyUiV2Enabled}
- * + messenger soft-timeout при ещё `unknown` initData.
+ * (таймаут initData / отказ init) — только `Повторить` / подсказки.
  * На канонических `/app/tg` и `/app/max` интерактивный веб-вход отключён полностью — только initData, резервный `?t=`, ошибка.
  */
 export function shouldExposeInteractiveLogin(input: {
-  earlyUiEnabled: boolean;
   isMessengerMiniAppEntry: boolean;
-  messengerSoftOk: boolean;
-  browserSoftOk: boolean;
   initDataStatus: 'unknown' | 'yes' | 'no';
   state: 'idle' | 'loading' | 'error';
   /** Явный miniapp-entry роут: не показывать OAuth/телефон как «обычный сайт». */
@@ -128,19 +112,9 @@ export function shouldExposeInteractiveLogin(input: {
   }
 
   if (input.isMessengerMiniAppEntry) {
-    if (input.state === 'error') return false;
-    if (
-      input.earlyUiEnabled &&
-      input.state === 'idle' &&
-      input.initDataStatus === 'unknown' &&
-      input.messengerSoftOk
-    ) {
-      return true;
-    }
     return false;
   }
 
   if (input.state === 'error') return true;
-  if (!input.earlyUiEnabled || input.initDataStatus !== 'unknown') return false;
-  return input.browserSoftOk;
+  return false;
 }

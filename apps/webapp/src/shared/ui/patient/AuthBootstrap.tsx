@@ -10,16 +10,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { emitAuthFlowEvent } from '@/modules/auth/authFlowObservability';
 import type { UnauthenticatedAppEntryClassification } from '@/modules/auth/appEntryClassification';
 import {
-  BROWSER_SOFT_TIMEOUT_MS,
   MAX_BRIDGE_LOAD_GRACE_MS,
   MAX_INIT_DATA_TIMEOUT_USER_MESSAGE,
   MESSENGER_HARD_POLL_CAP_MS,
   MESSENGER_INIT_POLL_SHORT_MS,
   MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE,
-  MESSENGER_SOFT_TIMEOUT_MS,
   MAX_SERVICE_UNAVAILABLE_MESSAGE,
   MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE,
-  isAuthBootstrapEarlyUiV2Enabled,
   isLikelyMaxMiniAppSurface,
   isSuspectedMessengerContext,
   shouldDeferPhoneLoginWhileMaxBridgeMayLoad,
@@ -176,9 +173,6 @@ export function AuthBootstrap({
     effectiveEntryClassification === 'telegram_miniapp' ||
     effectiveEntryClassification === 'max_miniapp';
 
-  const earlyUi = isAuthBootstrapEarlyUiV2Enabled();
-  const [browserSoftOk, setBrowserSoftOk] = useState(false);
-  const [messengerSoftOk, setMessengerSoftOk] = useState(false);
   const prefetchedAuth = initialPublicAuthConfig ?? null;
   const authChannelPolicy = prefetchedAuth?.authChannelPolicy ?? FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY;
   const prefetchedAuthRef = useRef(prefetchedAuth);
@@ -274,31 +268,12 @@ export function AuthBootstrap({
             : null,
       hasToken: Boolean(token),
       platformCookie: readPlatformCookieBot() ? 'bot' : 'none',
-      earlyUi,
       uaClass: classifyUaClassForAuthObservability(),
     });
-  }, [correlationId, effectiveEntryClassification, token, earlyUi]);
-
-  useEffect(() => {
-    if (!earlyUi) return;
-    if (!isMessengerMiniAppEntry) {
-      const t = window.setTimeout(() => setBrowserSoftOk(true), BROWSER_SOFT_TIMEOUT_MS);
-      return () => window.clearTimeout(t);
-    }
-    return;
-  }, [earlyUi, isMessengerMiniAppEntry]);
-
-  useEffect(() => {
-    if (!earlyUi || !isMessengerMiniAppEntry) return;
-    const t = window.setTimeout(() => setMessengerSoftOk(true), MESSENGER_SOFT_TIMEOUT_MS);
-    return () => window.clearTimeout(t);
-  }, [earlyUi, isMessengerMiniAppEntry, retryKey]);
+  }, [correlationId, effectiveEntryClassification, token]);
 
   const exposeInteractive = shouldExposeInteractiveLogin({
-    earlyUiEnabled: earlyUi,
     isMessengerMiniAppEntry,
-    messengerSoftOk,
-    browserSoftOk,
     initDataStatus,
     state,
     routeBoundMiniappEntry,
@@ -321,24 +296,12 @@ export function AuthBootstrap({
     let reason: string = 'manual';
     if (state === 'error') reason = 'error';
     else if (initDataStatus === 'no') reason = 'initData_no';
-    else if (earlyUi && isMessengerMiniAppEntry && messengerSoftOk)
-      reason = 'messenger_soft_timeout';
-    else if (earlyUi && !isMessengerMiniAppEntry && browserSoftOk) reason = 'browser_soft_timeout';
     emitAuthFlowEvent('fallback_to_interactive', {
       correlationId,
       reason,
       elapsedMs: elapsedMs != null ? Math.round(elapsedMs) : undefined,
     });
-  }, [
-    showPhoneFlow,
-    state,
-    initDataStatus,
-    earlyUi,
-    isMessengerMiniAppEntry,
-    messengerSoftOk,
-    browserSoftOk,
-    correlationId,
-  ]);
+  }, [showPhoneFlow, state, initDataStatus, correlationId]);
 
   const handleInteractiveEngaged = () => {
     if (interactiveEngagedRef.current) return;
@@ -1059,8 +1022,6 @@ export function AuthBootstrap({
     setMiniappHelpLinks({ telegram: null, max: null });
     setInitDataStatus('unknown');
     setDebugInfo(null);
-    setBrowserSoftOk(false);
-    setMessengerSoftOk(false);
     setRetryKey((k) => k + 1);
   };
 

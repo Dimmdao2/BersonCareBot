@@ -130,3 +130,6 @@ export type SettingsWriteUnitOfWork = {
 export type RuntimeReadTelemetry = {
   record(input: { key: string; source: 'runtime' | 'legacy_fallback' | 'mismatch' }): void;
 };
+
+/** Public-login capabilities derived in Postgres without exposing channel credentials. */
+export type PublicAuthChannelCapability = 'email' | 'sms' | 'telegram' | 'max';

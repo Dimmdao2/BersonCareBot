@@ -11,9 +11,9 @@ import {
   normalizeBookingLocationPalette,
 } from '@/modules/booking-engine/locationPalette';
 import {
-  getAuthChannelPolicyDetail,
   getOAuthProviderPolicyDetail,
 } from '@/modules/auth/authChannelPolicy';
+import { getAuthChannelPolicyDetail } from '@/modules/auth/authChannelPolicyAdmin';
 import { normalizePlatformIntegrationAvailability } from '@/modules/system-settings/platformIntegrationAvailability';
 
 /**

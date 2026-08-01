@@ -202,6 +202,29 @@ describe('email/password login HTTP boundary', () => {
       redirectTo: '/app/account?tab=security',
     });
   });
+
+  it('does not issue a staff session before the required 2FA setting is available', async () => {
+    // Authority Ч7: missing/unavailable runtime policy means the login operation is temporarily
+    // unavailable. A cookie minted before that decision would complete authentication even though
+    // the route itself fails, so the next request could reuse a session from a rejected login.
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue(user);
+    fakes.getSecurityStatus.mockResolvedValue({
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 1,
+    });
+    fakes.platformRequiresTwoFactor.mockRejectedValue(
+      new Error('runtime_setting_unavailable:auth_2fa_enabled'),
+    );
+
+    await expect(login(request())).rejects.toThrow(
+      'runtime_setting_unavailable:auth_2fa_enabled',
+    );
+    expect(fakes.setSession).not.toHaveBeenCalled();
+  });
 });
 
 describe('email/password reset HTTP boundary', () => {

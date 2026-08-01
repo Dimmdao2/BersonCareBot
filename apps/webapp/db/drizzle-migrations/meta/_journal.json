@@ -2094,6 +2094,27 @@
       "when": 1793539230000,
       "tag": "0299_reference_catalog_seed_owner_local",
       "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1793539230001,
+      "tag": "0300_runtime_settings_values_live_in_db",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1793539230002,
+      "tag": "0301_legacy_runtime_settings_values_live_in_db",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1793539230003,
+      "tag": "0302_public_auth_channel_configured_accessors",
+      "breakpoints": true
     }
   ]
 }

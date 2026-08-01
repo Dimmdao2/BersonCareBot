@@ -195,11 +195,8 @@ export function AuthProvidersSection({
                 autoComplete="off"
               />
               <span className="text-xs text-muted-foreground">
-                Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое — fallback
-                из env <code className="rounded bg-muted px-0.5">TELEGRAM_BOT_USERNAME</code> (тоже
-                username, не id; env whitelist{' '}
-                <code className="rounded bg-muted px-0.5">ALLOWED_TELEGRAM_IDS</code> — это user id
-                людей).
+                Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое значение
+                отключает диплинк.
               </span>
             </label>
           </section>
@@ -222,8 +219,6 @@ export function AuthProvidersSection({
                 <code className="rounded bg-muted px-0.5">max.ru/ник</code>
                 ). Можно вставить полный URL. Пустое — только команда{' '}
                 <code className="rounded bg-muted px-0.5">/start link_…</code> без перехода.
-                Fallback: env{' '}
-                <code className="rounded bg-muted px-0.5">MAX_LOGIN_BOT_NICKNAME</code>.
                 Документация:{' '}
                 <a
                   className="text-primary underline"

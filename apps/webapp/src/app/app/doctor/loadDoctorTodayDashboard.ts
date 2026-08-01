@@ -24,7 +24,6 @@ import type { ProactiveInsightKind } from '@/modules/doctor-proactive-insights/t
 import { DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT } from '@/modules/doctor-proactive-insights/constants';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
-  DEFAULT_DOCTOR_TODAY_PREFERENCES,
   type DoctorTodayPeopleListMode,
   type DoctorTodayPreferences,
 } from '@/modules/system-settings/doctorTodayPreferences';
@@ -405,8 +404,8 @@ export function getUpcomingAppointments(
 export async function loadDoctorTodayDashboard(
   deps: DoctorTodayDashboardDeps,
   intakeService: OnlineIntakeService,
-  audience?: DoctorAppointmentsAudience,
-  preferences: DoctorTodayPreferences = DEFAULT_DOCTOR_TODAY_PREFERENCES,
+  audience: DoctorAppointmentsAudience | undefined,
+  preferences: DoctorTodayPreferences,
 ): Promise<TodayDashboardData> {
   const scopedAudience: DoctorAppointmentsAudience = {
     excludedUserIds: audience?.excludedUserIds ?? [],

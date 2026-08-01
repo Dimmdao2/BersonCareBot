@@ -9,7 +9,6 @@ import {
 } from '@/shared/ui/doctor/DoctorSection';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import {
-  DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY,
   PLATFORM_INTEGRATION_CATALOG,
   parsePlatformIntegrationAvailabilityEnvelope,
   type PlatformIntegrationAvailability,
@@ -19,9 +18,7 @@ import {
 const SETTING_KEY = 'platform_integration_availability' as const;
 
 export function PlatformIntegrationAvailabilitySection() {
-  const [availability, setAvailability] = useState<PlatformIntegrationAvailability>(
-    DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY,
-  );
+  const [availability, setAvailability] = useState<PlatformIntegrationAvailability | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState<PlatformIntegrationId | null>(null);
 
@@ -49,6 +46,7 @@ export function PlatformIntegrationAvailabilitySection() {
   }, []);
 
   async function updateIntegration(id: PlatformIntegrationId, enabled: boolean): Promise<void> {
+    if (availability === null) return;
     const previous = availability;
     const next: PlatformIntegrationAvailability = {
       version: 1,
@@ -83,25 +81,27 @@ export function PlatformIntegrationAvailabilitySection() {
         клинический экран, но не выдаёт клинике платформенные секреты и не обходит тариф:
         собственные креды клиника добавляет локально, когда тариф это разрешает.
       </p>
-      <div className="grid gap-4 md:grid-cols-2">
-        {PLATFORM_INTEGRATION_CATALOG.map((integration) => (
-          <div key={integration.id} className="flex flex-col gap-1">
-            <LabeledSwitch
-              label={integration.label}
-              hint={integration.clinicHint}
-              checked={availability.integrations[integration.id]}
-              disabled={!loaded || saving !== null}
-              onCheckedChange={(enabled) => void updateIntegration(integration.id, enabled)}
-            />
-            {integration.implementation === 'declared' ? (
-              <p className="text-xs text-amber-700">
-                Только объявлено: включение сохраняет выбор платформы, но синхронизация пока не
-                запустится.
-              </p>
-            ) : null}
-          </div>
-        ))}
-      </div>
+      {availability ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {PLATFORM_INTEGRATION_CATALOG.map((integration) => (
+            <div key={integration.id} className="flex flex-col gap-1">
+              <LabeledSwitch
+                label={integration.label}
+                hint={integration.clinicHint}
+                checked={availability.integrations[integration.id]}
+                disabled={!loaded || saving !== null}
+                onCheckedChange={(enabled) => void updateIntegration(integration.id, enabled)}
+              />
+              {integration.implementation === 'declared' ? (
+                <p className="text-xs text-amber-700">
+                  Только объявлено: включение сохраняет выбор платформы, но синхронизация пока не
+                  запустится.
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </DoctorSection>
   );
 }

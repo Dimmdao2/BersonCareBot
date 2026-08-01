@@ -521,6 +521,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   admin_emails: restricted('admin', 'global', 'string_list'),
   doctor_phones: restricted('admin', 'global', 'string_list'),
   allowed_phones: restricted('admin', 'global', 'string_list'),
+  operator_heartbeat_config: restricted('admin', 'global', 'structured', 'absent'),
 } as const satisfies Record<string, SystemSettingDefinition>;
 
 export type SystemSettingKey = keyof typeof SYSTEM_SETTING_REGISTRY;
