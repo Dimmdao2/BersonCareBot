@@ -77,7 +77,6 @@ function buildDeps(
     payments: null,
     canAcceptBookingPrepayment: async () => false,
     memberships: null,
-    products: null,
     clientHistory: null,
     ...overrides,
   };

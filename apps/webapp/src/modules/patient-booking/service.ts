@@ -11,7 +11,6 @@ import type { createBookingFormService } from '@/modules/booking-form/service';
 import type { createBookingAppointmentLifecycleService } from '@/modules/booking-appointment-lifecycle/service';
 import type { PaymentsService } from '@/modules/payments/service';
 import type { MembershipsService } from '@/modules/memberships/service';
-import type { ProductsService } from '@/modules/products/service';
 import type { ClientHistoryService } from '@/modules/client-history/service';
 import type { PlatformUserContactsService } from '@/modules/platform-user-contacts/service';
 import type { IdentityContactFields } from '@/modules/platform-user-contacts/identityContactMatch';
@@ -147,7 +146,6 @@ export function createPatientBookingService(input: {
   payments?: PaymentsService | null;
   canAcceptBookingPrepayment?: (organizationId: string) => Promise<boolean>;
   memberships?: MembershipsService | null;
-  products?: ProductsService | null;
   clientHistory?: ClientHistoryService | null;
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
@@ -186,7 +184,6 @@ export function createPatientBookingService(input: {
           canAcceptBookingPrepayment:
             input.canAcceptBookingPrepayment ?? (async () => false),
           memberships: input.memberships ?? null,
-          products: input.products ?? null,
           clientHistory: input.clientHistory ?? null,
           platformUserContacts: input.platformUserContacts ?? null,
           getPlatformUserIdentityContacts: input.getPlatformUserIdentityContacts,
@@ -660,7 +657,6 @@ export function createPatientBookingService(input: {
 
         let paymentOutcomeFailed = false;
         let membershipOutcomeFailed = false;
-        let productOutcomeFailed = false;
         let notificationOutcomeFailed = false;
 
         if (input.payments) {
@@ -712,34 +708,6 @@ export function createPatientBookingService(input: {
           }
         }
 
-        if (input.products && input.bookingEngine) {
-          const appt = await input.bookingEngine.getAppointment(row.canonicalAppointmentId);
-          const rawProductId = appt?.attributionJson?.productPurchaseId;
-          const productPurchaseId =
-            typeof rawProductId === 'string' && rawProductId.trim() ? rawProductId.trim() : null;
-          if (productPurchaseId && lifecycleResult.eligibility) {
-            const visitDeducted =
-              !lifecycleResult.eligibility.isFree &&
-              lifecycleResult.eligibility.decisionType === 'package_charged';
-            try {
-              await input.products.applyCancelVisitOutcome({
-                organizationId: orgId,
-                productPurchaseId,
-                appointmentId: row.canonicalAppointmentId,
-                visitDeducted,
-              });
-            } catch (err) {
-              productOutcomeFailed = true;
-              console.error(
-                '[patient-booking] cancel product outcome failed (canonical already cancelled)',
-                {
-                  bookingId: row.id,
-                  err,
-                },
-              );
-            }
-          }
-        }
 
         await input.bookingsPort.markCancelled({
           bookingId: row.id,
@@ -846,7 +814,6 @@ export function createPatientBookingService(input: {
           ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
           ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
           ...(membershipOutcomeFailed ? { membershipOutcomeFailed: true as const } : {}),
-          ...(productOutcomeFailed ? { productOutcomeFailed: true as const } : {}),
         };
       }
 
