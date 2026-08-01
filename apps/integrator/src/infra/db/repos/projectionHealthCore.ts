@@ -22,8 +22,14 @@ export const DEFAULT_PROJECTION_HEALTH_RETRY_THRESHOLD = 3;
 /**
  * Single runtime source of projection_outbox health metrics.
  *
- * Kept as parameterized SQL for Wave 2 phase 2: the phase goal is CLI/HTTP
- * parity, not rewriting aggregates to Drizzle builder.
+ * Kept as parameterized SQL (D18, real exception — see `check-no-new-raw-sql.mjs` manifest).
+ * `infra/scripts/projection-health.ts` (deploy-gate CLI) calls this on a bare
+ * `pg.Pool` it builds itself from a gate-resolved connection string, deliberately
+ * without booting the app's `DbPort`/Drizzle bridge or its `config/env.ts` (which
+ * requires `APP_BASE_URL` and other app-only env the gate never sets). Requiring a
+ * Drizzle session here would force the CLI through that bridge and break the gate
+ * contract; `ProjectionHealthQueryable` (`db.query(text, params)`) is the shared shape
+ * both the HTTP path (`DbPort`) and the bare pool already satisfy.
  */
 export async function readProjectionHealthSnapshot(
   db: ProjectionHealthQueryable,

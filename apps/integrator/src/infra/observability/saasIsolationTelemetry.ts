@@ -4,10 +4,12 @@ import {
   type SaasIsolationBackgroundSource,
   type SaasIsolationTelemetryTransportStatus,
 } from '@bersoncare/db-principal';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   createIntegratorSaasIsolationTelemetryPoolProvider,
   withIntegratorSaasIsolationTelemetryClient,
 } from '../db/integratorPoolProvider.js';
+import { integratorSqlFromPgText } from '../db/runIntegratorSql.js';
 import { logger } from './logger.js';
 import type { Pool } from 'pg';
 
@@ -20,8 +22,14 @@ function getTelemetryPool(): ReturnType<typeof createIntegratorSaasIsolationTele
   return telemetryPool;
 }
 
+let telemetryDrizzle: NodePgDatabase | null = null;
+function getTelemetryDrizzle(): NodePgDatabase {
+  telemetryDrizzle ??= drizzle(getTelemetryPool());
+  return telemetryDrizzle;
+}
+
 function query(sql: string, values: readonly unknown[]): Promise<unknown> {
-  return getTelemetryPool().query(sql, values as unknown[]);
+  return getTelemetryDrizzle().execute(integratorSqlFromPgText(sql, values));
 }
 
 export async function probeSaasIsolationTelemetryWriter(
@@ -30,18 +38,21 @@ export async function probeSaasIsolationTelemetryWriter(
 ): Promise<void> {
   try {
     await withIntegratorSaasIsolationTelemetryClient(pool, async (client) => {
+      const clientDb = drizzle(client);
       try {
-        await client.query('BEGIN');
-        await client.query('SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
-          'unclassified_background_operation',
-          source.service,
-          source.operation,
-          'explained',
-        ]);
-        await client.query('ROLLBACK');
+        await clientDb.execute(integratorSqlFromPgText('BEGIN'));
+        await clientDb.execute(
+          integratorSqlFromPgText('SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
+            'unclassified_background_operation',
+            source.service,
+            source.operation,
+            'explained',
+          ]),
+        );
+        await clientDb.execute(integratorSqlFromPgText('ROLLBACK'));
       } catch (error) {
         try {
-          await client.query('ROLLBACK');
+          await clientDb.execute(integratorSqlFromPgText('ROLLBACK'));
         } catch {
           // The probe still fails; preserve only a redacted process-level status.
         }

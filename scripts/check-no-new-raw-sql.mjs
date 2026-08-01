@@ -30,7 +30,6 @@ const rawSqlQueryManifest = {
     'apps/integrator/src/infra/db/repos/projectionHealthCore.ts',
     'apps/integrator/src/infra/db/runIntegratorSql.ts',
     'apps/integrator/src/infra/db/withClient.ts',
-    'apps/integrator/src/infra/observability/saasIsolationTelemetry.ts',
   ]),
   webapp: new Set([
     'apps/webapp/src/infra/adminAuditLog.devDb.integration.test.ts',
