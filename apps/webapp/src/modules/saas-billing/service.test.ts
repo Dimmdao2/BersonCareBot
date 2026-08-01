@@ -301,6 +301,38 @@ describe('К5: повторный тик по тому же периоду не 
   });
 });
 
+describe('К0: early renewal does not cut the paid period short', () => {
+  it('anchors the next invoice at currentPeriodEndsAt instead of the checkout click', async () => {
+    const createSaasBillingInvoice = vi.fn(async () => ({ invoice, created: true }));
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async () => invoice);
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          savedPaymentMethodId: null,
+          currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+        }),
+        createSaasBillingInvoice,
+        attachSaasBillingInvoiceProviderIntent,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent: async () => ({ providerIntentRef: 'intent' }) }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+
+    await service.createOwnTariffRenewalInvoice('org-1');
+
+    expect(createSaasBillingInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servicePeriodStartsAt: '2026-09-01T00:00:00.000Z',
+        servicePeriodEndsAt: '2026-10-01T00:00:00.000Z',
+      }),
+    );
+  });
+});
+
 // К4 round 2 — the bug the blind audit reproduced 100% of the time: two identical
 // `createManualSaasBillingInvoice` calls each minted their OWN `providerIdempotencyKey` via
 // `randomUUID()` and their OWN `servicePeriodStartsAt` via `now()`, so neither of the two unique
