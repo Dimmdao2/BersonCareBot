@@ -97,6 +97,8 @@ export type AcquiringChargeInput = {
   idempotencyKey: string;
   /** Описание платежа для отображения плательщику. */
   description?: string;
+  /** B1.1 — адрес нашего экрана, куда вернётся плательщик; обязателен, дверь ниже больше не угадывает его. */
+  returnUrl: string;
   /** Возможность передать произвольные метаданные провайдеру. */
   metadata?: Record<string, unknown>;
 };

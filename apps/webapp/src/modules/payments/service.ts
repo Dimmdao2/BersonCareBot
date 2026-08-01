@@ -386,9 +386,12 @@ export function createPaymentsService(deps: {
         amountMinor: input.amountMinor,
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
+        payerRef: `platform_user:${input.platformUserId}`,
+        purpose: 'appointment_prepayment',
+        subjectRef: input.appointmentId,
+        returnUrl: resolveReturnUrl(input.returnUrl),
         metadata: {
           appointmentId: input.appointmentId,
-          returnUrl: resolveReturnUrl(input.returnUrl),
         },
         providerConfig: provider,
       });
@@ -445,9 +448,12 @@ export function createPaymentsService(deps: {
         amountMinor: input.amountMinor,
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
+        payerRef: `platform_user:${input.platformUserId}`,
+        purpose: 'package_purchase',
+        subjectRef: productRef,
+        returnUrl: resolveReturnUrl(input.returnUrl),
         metadata: {
           patientPackageId: input.patientPackageId,
-          returnUrl: resolveReturnUrl(input.returnUrl),
         },
         providerConfig: provider,
       });
@@ -506,9 +512,12 @@ export function createPaymentsService(deps: {
         amountMinor: input.amountMinor,
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
+        payerRef: `platform_user:${input.platformUserId}`,
+        purpose: 'product_purchase',
+        subjectRef: productRef,
+        returnUrl: resolveReturnUrl(input.returnUrl),
         metadata: {
           productPurchaseId: input.productPurchaseId,
-          returnUrl: resolveReturnUrl(input.returnUrl),
         },
         providerConfig: provider,
       });

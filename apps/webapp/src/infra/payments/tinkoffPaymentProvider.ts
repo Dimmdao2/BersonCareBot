@@ -71,12 +71,8 @@ function inspectTinkoffWebhook(bodyText: string) {
 
 export function createTinkoffPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
+    async createIntent({ amountMinor, currency, idempotencyKey, metadata, returnUrl, providerConfig }) {
       const { terminalKey, password } = requireTinkoffCredentials(providerConfig);
-      const returnUrl =
-        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
-          ? metadata.returnUrl.trim()
-          : 'https://www.tbank.ru';
 
       const params: Record<string, unknown> = {
         TerminalKey: terminalKey,

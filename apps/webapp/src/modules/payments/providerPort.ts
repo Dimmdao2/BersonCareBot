@@ -27,10 +27,24 @@ export type PaymentProviderListPaymentsResult = {
 };
 
 export type PaymentProviderPort = {
+  /**
+   * B1.1 — the one door every payment intent is opened through. `payerRef`, `purpose`, `subjectRef`
+   * and `returnUrl` are required IN THE TYPE, not carried in `metadata`: forgetting one fails the
+   * build instead of silently landing the payer on the provider's own site
+   * (`https://yookassa.ru` and friends — deleted from the adapters, nothing left to fall back to).
+   */
   createIntent(params: {
     amountMinor: number;
     currency: string;
     idempotencyKey: string;
+    /** Кто платит — ссылка на уже опознанного плательщика (`platform_user:<id>` / `organization:<id>`); как он опознан, дверь не знает. */
+    payerRef: string;
+    /** За что — повод оплаты значением (например `appointment_prepayment`, `saas_billing_tariff_renewal`), не веткой кода. */
+    purpose: string;
+    /** За что — ссылка на оплачиваемый предмет (id брони, счёта и т.п.). */
+    subjectRef: string;
+    /** Куда вернуть — адрес нашего экрана; провайдер получает его отсюда, не из мешка. */
+    returnUrl: string;
     metadata: Record<string, unknown>;
     providerConfig?: PaymentProviderConfig;
     /** К6 — ask the provider to keep this payment's method for a later off-session charge. Ignored together with `confirmation`/redirect once `paymentMethodId` is set. */

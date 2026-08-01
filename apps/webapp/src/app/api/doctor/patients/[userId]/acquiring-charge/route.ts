@@ -26,6 +26,8 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { env } from '@/config/env';
+import { routePaths } from '@/app-layer/routes/paths';
 
 const postBodySchema = z.object({
   amountMinor: z.number().int().positive(),
@@ -79,18 +81,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     );
   }
 
-  // Initiate the charge via the acquiring gateway.
+  // Initiate the charge via the acquiring gateway. This link is handed to the patient (copied or
+  // shown as a QR at the counter), so it returns to their own purchases screen, not the doctor's.
   const chargeResult = await deps.acquiringGateway.createCharge({
     patientUserId: identity.userId,
     amountMinor,
     currency,
     idempotencyKey,
     description,
-    metadata: {
-      // Provide a generic return URL; front-end can pass a specific one via metadata if needed.
-      // Using string concatenation to avoid process.env reference (typed separately per route env).
-      returnUrl: undefined,
-    },
+    returnUrl: `${env.APP_BASE_URL}${routePaths.purchases}`,
   });
 
   if (!chargeResult.ok) {

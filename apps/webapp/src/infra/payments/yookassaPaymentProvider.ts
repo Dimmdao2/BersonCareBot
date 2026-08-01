@@ -174,16 +174,13 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       currency,
       idempotencyKey,
       metadata,
+      returnUrl,
       providerConfig,
       savePaymentMethod,
       paymentMethodId,
     }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
-      const returnUrl =
-        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
-          ? metadata.returnUrl.trim()
-          : 'https://yookassa.ru';
 
       // К6 — off-session autopay charges a saved method directly: no `confirmation` (there is no
       // payer to redirect) and no repeated `save_payment_method` (the method is already saved).
@@ -205,6 +202,8 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             },
           };
 
+      // eslint-disable-next-line no-console
+      console.error('[TEMP-DEBUG yookassa createIntent requestBody]', JSON.stringify(requestBody));
       const body = await fetchWithTimeout(
         'https://api.yookassa.ru/v3/payments',
         {
