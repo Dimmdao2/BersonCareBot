@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   }
   enterWithDbInfraPrincipal({ source: 'api/internal/media-transcode/enqueue:POST' });
 
-  const enabled = await getConfigBool('video_hls_pipeline_enabled', false);
+  const enabled = await getConfigBool('video_hls_pipeline_enabled');
   if (!enabled) {
     return NextResponse.json({ ok: false, error: 'pipeline_disabled' }, { status: 503 });
   }

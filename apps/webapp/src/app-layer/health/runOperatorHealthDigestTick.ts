@@ -28,8 +28,8 @@ export type RunOperatorHealthDigestTickResult = {
 
 async function loadDigestConfig(): Promise<OperatorHealthAlertConfig> {
   const [operatorRaw, legacyRaw] = await Promise.all([
-    getConfigValue(OPERATOR_HEALTH_ALERT_CONFIG_KEY, ''),
-    getConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY, ''),
+    getConfigValue(OPERATOR_HEALTH_ALERT_CONFIG_KEY),
+    getConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY),
   ]);
   const parseJson = (raw: string): unknown | null => {
     const t = raw.trim();

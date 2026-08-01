@@ -2,6 +2,8 @@ import {
   PROACTIVE_INSIGHT_KINDS,
   type ProactiveInsightKind,
 } from '@/modules/doctor-proactive-insights/types';
+import { isOptionalRuntimeSettingKey } from './runtimeConfig';
+import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 
 export const DOCTOR_TODAY_PREFERENCES_KEY = 'doctor_today_preferences' as const;
 
@@ -48,8 +50,15 @@ export function normalizeDoctorTodayPreferences(value: unknown): DoctorTodayPref
   };
 }
 
-/** Reads the canonical `{ value: ... }` system_settings envelope with a fail-safe default. */
+/** Missing is the explicit optional state; a present malformed value is not an answer. */
 export function parseDoctorTodayPreferences(valueJson: unknown): DoctorTodayPreferences {
-  if (!isRecord(valueJson) || !('value' in valueJson)) return DEFAULT_DOCTOR_TODAY_PREFERENCES;
-  return normalizeDoctorTodayPreferences(valueJson.value) ?? DEFAULT_DOCTOR_TODAY_PREFERENCES;
+  if (valueJson == null && isOptionalRuntimeSettingKey(DOCTOR_TODAY_PREFERENCES_KEY)) {
+    return DEFAULT_DOCTOR_TODAY_PREFERENCES;
+  }
+  if (!isRecord(valueJson) || !('value' in valueJson)) {
+    throw new RuntimeSettingUnavailableError(DOCTOR_TODAY_PREFERENCES_KEY);
+  }
+  const value = normalizeDoctorTodayPreferences(valueJson.value);
+  if (value === null) throw new RuntimeSettingUnavailableError(DOCTOR_TODAY_PREFERENCES_KEY);
+  return value;
 }

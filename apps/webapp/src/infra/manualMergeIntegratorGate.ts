@@ -31,7 +31,7 @@ export async function verifyManualMergeIntegratorIntegratorGate(
   targetId: string,
   duplicateId: string,
 ): Promise<ManualMergeIntegratorGateOk | ManualMergeIntegratorGateFail> {
-  const v2 = await getConfigBool('platform_user_merge_v2_enabled', false);
+  const v2 = await getConfigBool('platform_user_merge_v2_enabled');
   const r = await runPgPoolPgText<{ id: string; integrator_user_id: string | null }>(
     pool,
     `SELECT id::text AS id, integrator_user_id::text AS integrator_user_id

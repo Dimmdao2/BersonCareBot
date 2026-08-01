@@ -15,10 +15,10 @@ export async function loadNotifyTargets(): Promise<{
   max: string[];
 }> {
   const [adminTg, adminMax, doctorTg, doctorMax] = await Promise.all([
-    getConfigValue('admin_telegram_ids', ''),
-    getConfigValue('admin_max_ids', ''),
-    getConfigValue('doctor_telegram_ids', ''),
-    getConfigValue('doctor_max_ids', ''),
+    getConfigValue('admin_telegram_ids'),
+    getConfigValue('admin_max_ids'),
+    getConfigValue('doctor_telegram_ids'),
+    getConfigValue('doctor_max_ids'),
   ]);
   return {
     telegram: dedupe([...parseIdTokens(adminTg), ...parseIdTokens(doctorTg)]),

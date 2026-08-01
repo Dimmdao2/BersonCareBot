@@ -1,7 +1,4 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
-import { DEFAULT_SUPPORT_CONTACT_URL } from '@/modules/system-settings/supportContactConstants';
-import { DEFAULT_PATIENT_MAINTENANCE_MESSAGE } from '@/modules/system-settings/patientMaintenance';
 import { normalizeTestAccountIdentifiersValue } from '@/modules/system-settings/testAccounts';
 import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
@@ -293,7 +290,7 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
         '',
       );
       const s = typeof raw === 'string' ? raw.trim() : '';
-      return s.length > 0 ? s : DEFAULT_PATIENT_MAINTENANCE_MESSAGE;
+      return s;
     })(),
     patientProgramDiscussionDoctorReplyFromLogEnabled: (() => {
       const raw = getValueJson<unknown>(
@@ -374,16 +371,14 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
           adminSettingsList.find((x) => x.key === 'support_contact_url')?.valueJson,
           '',
         );
-        const s = typeof raw === 'string' ? raw.trim() : '';
-        return s.length > 0 ? s : DEFAULT_SUPPORT_CONTACT_URL;
+        return typeof raw === 'string' ? raw.trim() : '';
       })(),
       appDisplayTimezone: (() => {
         const raw = getValueJson(
           adminSettingsList.find((x) => x.key === 'app_display_timezone')?.valueJson,
           '',
         );
-        const s = typeof raw === 'string' ? raw.trim() : '';
-        return s.length > 0 ? s : DEFAULT_APP_DISPLAY_TIMEZONE;
+        return typeof raw === 'string' ? raw.trim() : '';
       })(),
     },
     authProvidersConfig: {

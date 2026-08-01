@@ -1,7 +1,14 @@
 import { redactSettingValueForAudit } from '@/modules/system-settings/auditRedaction';
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappPgText,
+  runWebappSql,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
+import { sql, type SQL } from 'drizzle-orm';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
+  PublicAuthChannelCapability,
   RuntimeWrite,
   SettingsWriteUnitOfWork,
   SystemSettingsPort,
@@ -16,7 +23,10 @@ import type {
 } from '@/modules/system-settings/types';
 import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
-import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  runWithDbBootstrapPrincipal,
+} from '@bersoncare/db-principal';
 
 type SystemSettingRow = {
   key: string;
@@ -94,7 +104,7 @@ export async function readSystemSettingInnerValueByScopes(
 }
 
 export function systemSettingInnerValueToString(value: unknown): string | null {
-  if (typeof value === 'string') return value.trim() || null;
+  if (typeof value === 'string') return value.trim();
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') return String(value);
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -106,7 +116,7 @@ export function systemSettingInnerValueToString(value: unknown): string | null {
   }
   if (Array.isArray(value)) {
     const normalized = value.map((item) => String(item).trim()).filter(Boolean);
-    return normalized.length > 0 ? JSON.stringify(normalized) : null;
+    return JSON.stringify(normalized);
   }
   return null;
 }
@@ -171,9 +181,23 @@ export async function readPublicConfigBoolean(key: string): Promise<boolean | nu
  * unauthenticated bootstrap login pool, unlike a direct `SELECT ... FROM system_settings`, which
  * that pool has no table privilege for (see authChannelPolicy.ts:isSmtpConfigured header).
  */
-export async function readIsSmtpOutboundConfigured(): Promise<boolean> {
-  const result = await runWebappPgText<{ configured: boolean | null }>(
-    'SELECT app.is_smtp_outbound_configured() AS configured',
+const AUTH_CHANNEL_CONFIGURED_QUERY = {
+  email: sql`SELECT app.is_smtp_outbound_configured() AS configured`,
+  sms: sql`SELECT app.is_sms_provider_configured() AS configured`,
+  telegram: sql`SELECT app.is_telegram_login_configured() AS configured`,
+  max: sql`SELECT app.is_max_bot_configured() AS configured`,
+} as const satisfies Record<PublicAuthChannelCapability, SQL>;
+
+export async function readPublicAuthChannelConfigured(
+  channel: PublicAuthChannelCapability,
+): Promise<boolean> {
+  const result = await runWithDbBootstrapPrincipal(
+    { source: 'webapp-public-smtp-config' },
+    () =>
+      runWebappSql<{ configured: boolean | null }>(
+        getWebappSqlDb(),
+        AUTH_CHANNEL_CONFIGURED_QUERY[channel],
+      ),
   );
   return result.rows[0]?.configured === true;
 }

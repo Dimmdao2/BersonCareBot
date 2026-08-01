@@ -3,10 +3,7 @@ import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireR
 import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import { resolveActiveOwnSpecialistId } from '@/modules/doctor-schedule/scope';
-import {
-  DEFAULT_APP_DISPLAY_TIMEZONE,
-  getAppDisplayTimeZone,
-} from '@/modules/system-settings/appDisplayTimezone';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { scheduleTabFromQuery } from './doctorScheduleTabs';
 import { DoctorScheduleShell } from './DoctorScheduleShell';
 
@@ -20,9 +17,7 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
   const deps = buildAppDeps();
 
   const initialTab = scheduleTabFromQuery(params.tab ?? null);
-  const appDisplayTimeZone = await getAppDisplayTimeZone().catch(
-    () => DEFAULT_APP_DISPLAY_TIMEZONE,
-  );
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
   const initialTimeZone = await getDoctorEffectiveCalendarIana(
     workspace.session.user.userId,
     deps.doctorCalendarTimezone,

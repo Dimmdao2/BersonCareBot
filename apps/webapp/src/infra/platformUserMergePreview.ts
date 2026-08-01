@@ -857,7 +857,7 @@ export async function buildMergePreview(
     countDependents(pool, duplicateId),
   ]);
 
-  const v2Enabled = await getConfigBool('platform_user_merge_v2_enabled', false);
+  const v2Enabled = await getConfigBool('platform_user_merge_v2_enabled');
   const iT = normStr(target.integrator_user_id);
   const iD = normStr(duplicate.integrator_user_id);
 

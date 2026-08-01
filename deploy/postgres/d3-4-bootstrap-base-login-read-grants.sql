@@ -204,6 +204,12 @@ REVOKE EXECUTE ON FUNCTION app.get_public_config_bool(text) FROM :"d3_4_bootstra
 -- than an error; mirrors the same absent-function tolerance the ownership normalization uses.
 SELECT format('REVOKE EXECUTE ON FUNCTION app.is_smtp_outbound_configured() FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.is_smtp_outbound_configured()') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.is_sms_provider_configured() FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.is_sms_provider_configured()') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.is_telegram_login_configured() FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.is_telegram_login_configured()') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.is_max_bot_configured() FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.is_max_bot_configured()') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.current_patient_has_password_credentials() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) FROM :"d3_4_bootstrap_base_role";
@@ -598,6 +604,12 @@ GRANT EXECUTE ON FUNCTION app.get_public_config_bool(text) TO :"d3_4_bootstrap_b
 -- (older DB, migration 0240 not yet applied) is a no-op rather than a FATAL here.
 SELECT format('GRANT EXECUTE ON FUNCTION app.is_smtp_outbound_configured() TO %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.is_smtp_outbound_configured()') IS NOT NULL \gexec
+SELECT format('GRANT EXECUTE ON FUNCTION app.is_sms_provider_configured() TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.is_sms_provider_configured()') IS NOT NULL \gexec
+SELECT format('GRANT EXECUTE ON FUNCTION app.is_telegram_login_configured() TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.is_telegram_login_configured()') IS NOT NULL \gexec
+SELECT format('GRANT EXECUTE ON FUNCTION app.is_max_bot_configured() TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.is_max_bot_configured()') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.current_patient_has_password_credentials() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) TO :"d3_4_bootstrap_base_role";

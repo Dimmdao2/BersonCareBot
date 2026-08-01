@@ -115,8 +115,8 @@ async function probeProjection(): Promise<CriticalHealthProjectionInput> {
 async function probeVideoTranscodeStatus(): Promise<VideoTranscodeHealthStatus> {
   try {
     const [pipelineEnabled, reconcileEnabled] = await Promise.all([
-      getConfigBool('video_hls_pipeline_enabled', false),
-      getConfigBool('video_hls_reconcile_enabled', false),
+      getConfigBool('video_hls_pipeline_enabled'),
+      getConfigBool('video_hls_reconcile_enabled'),
     ]);
     const read = buildAppDeps().operatorHealthRead;
     const [metrics, tickRow] = await Promise.all([

@@ -7,10 +7,7 @@ import type { UpdateRuleData } from '@/modules/reminders/service';
 import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
 import { SLOTS_V1_DB_PLACEHOLDER } from '@/modules/reminders/scheduleSlots';
 import { reminderRuleToPatientJson } from '../reminderPatientJson';
-import {
-  DEFAULT_APP_DISPLAY_TIMEZONE,
-  getAppDisplayTimeZone,
-} from '@/modules/system-settings/appDisplayTimezone';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
 
 function parseQuietFromSchedule(
@@ -168,7 +165,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     ok: true,
     reminder: reminderRuleToPatientJson(
       res.data,
-      await getAppDisplayTimeZone().catch(() => DEFAULT_APP_DISPLAY_TIMEZONE),
+      await getAppDisplayTimeZone(),
     ),
     ...(res.syncWarning ? { syncWarning: res.syncWarning } : {}),
   });

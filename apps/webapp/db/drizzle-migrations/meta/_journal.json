@@ -2087,6 +2087,27 @@
       "when": 1793539210000,
       "tag": "0297_commercial_access_state_removal_local",
       "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1793539210001,
+      "tag": "0300_runtime_settings_values_live_in_db",
+      "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1793539210002,
+      "tag": "0301_legacy_runtime_settings_values_live_in_db",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1793539210003,
+      "tag": "0302_public_auth_channel_configured_accessors",
+      "breakpoints": true
     }
   ]
 }

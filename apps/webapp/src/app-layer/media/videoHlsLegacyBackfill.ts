@@ -141,7 +141,7 @@ export async function runVideoHlsLegacyBackfill(
     failedReasons: [],
   };
 
-  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled', false);
+  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled');
   report.pipelineEnabled = pipelineOn;
 
   if (!pipelineOn && opts.requirePipelineEnabled) {

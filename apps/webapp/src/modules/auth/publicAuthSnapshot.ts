@@ -4,7 +4,7 @@
  */
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
-import { getLoginAlternativesPublicConfig } from '@/modules/auth/loginAlternativesConfig';
+import { getAnonymousLoginAlternativesPublicConfig } from '@/modules/auth/loginAlternativesConfig';
 import { getSpecialistSignupEnabled } from '@/modules/auth/specialistSignupRollout';
 import type { PrefetchedPublicAuthConfig } from '@/shared/ui/patient/auth/AuthFlowV2';
 
@@ -14,7 +14,7 @@ export async function buildPrefetchedPublicAuthConfig(): Promise<PrefetchedPubli
     isOAuthProviderEnabled('google'),
     isOAuthProviderEnabled('apple'),
     isIndependentAuthMethodEnabled('passkey'),
-    getLoginAlternativesPublicConfig(),
+    getAnonymousLoginAlternativesPublicConfig(),
     getSpecialistSignupEnabled(),
   ]);
 

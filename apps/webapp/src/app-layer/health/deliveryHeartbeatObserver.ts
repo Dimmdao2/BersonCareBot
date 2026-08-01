@@ -35,7 +35,7 @@ export async function readOperatorHeartbeatVerdicts(
   nowMs: number = Date.now(),
 ): Promise<OperatorHeartbeatVerdict[]> {
   const read = buildAppDeps().operatorHealthRead;
-  const overridesRaw = await getConfigValue(OPERATOR_HEARTBEAT_CONFIG_KEY, '').catch(() => '');
+  const overridesRaw = await getConfigValue(OPERATOR_HEARTBEAT_CONFIG_KEY);
   const overrides = parseOperatorHeartbeatStaleOverrides(overridesRaw);
   const rows = await Promise.all(
     OPERATOR_HEARTBEATS.map((definition) =>

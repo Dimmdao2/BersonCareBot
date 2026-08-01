@@ -9,5 +9,5 @@ export const DEFAULT_PATIENT_SUPPORT_PATH = '/app/patient/support';
  */
 export const LOGIN_CONTACT_SUPPORT_PATH = '/app/contact-support';
 
-/** Fallback, если в `system_settings` нет `support_contact_url`. */
+/** Internal support route identity for client-only/error surfaces; not a settings fallback. */
 export const DEFAULT_SUPPORT_CONTACT_URL = DEFAULT_PATIENT_SUPPORT_PATH;
