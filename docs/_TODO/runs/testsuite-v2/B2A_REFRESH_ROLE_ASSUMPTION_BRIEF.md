@@ -56,5 +56,6 @@ node scripts/refresh-a0-greenfield-baseline.mjs --confirm-local-dev-schema-refre
 - Ветка `wt/testsuite-b2`, коммиты только в неё. **Push и merge не делать, галочки плана не ставить.**
 - Отчёт: `docs/_TODO/runs/testsuite-v2/B2A_REFRESH_ROLE_REPORT.md`, раздел «НЕ СДЕЛАНО» обязателен.
 
-**Правила:** `.cursor/rules/host-psql-database-url.mdc`, `.cursor/rules/dev-prod-isolation-no-real-creds.mdc`,
+**Правила:** [`AGENTS.md` §6](../../../../AGENTS.md#6-host-postgresql-и-database_url),
+[§1b](../../../../AGENTS.md#1b-безопасность-dev-среды-изоляция-от-прод-и-реальных-каналов),
 `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`, `.cursor/rules/test-execution-policy.md`.

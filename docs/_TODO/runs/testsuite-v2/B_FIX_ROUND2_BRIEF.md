@@ -53,4 +53,4 @@
 - Не переносить остальные файлы живой БД и не писать матрицу стен — это следующая работа.
 - Отчёт: `docs/_TODO/runs/testsuite-v2/B_FIX_ROUND2_REPORT.md`, раздел «НЕ СДЕЛАНО» обязателен.
 - Правила: `.cursor/rules/tests-check-behaviour-not-circumstances.mdc`,
-  `.cursor/rules/test-execution-policy.md`, `.cursor/rules/host-psql-database-url.mdc`.
+  `.cursor/rules/test-execution-policy.md`, [`AGENTS.md` §6](../../../../AGENTS.md#6-host-postgresql-и-database_url).
