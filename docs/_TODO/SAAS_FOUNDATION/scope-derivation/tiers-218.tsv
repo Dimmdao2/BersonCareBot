@@ -56,6 +56,7 @@ INFRA|public.reference_catalog_snapshot_receipts
 INFRA|public.schema_migrations
 INFRA|public.saas_tariffs
 INFRA|public.saas_trial_policy
+INFRA|public.saas_registration_tariff_policy
 INFRA|public.webapp_schema_migrations
 LEGACY|integrator.message_retry_jobs
 LEGACY|public.appointment_records
