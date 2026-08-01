@@ -1,8 +1,8 @@
 # В9б — исполнимые slices tenant-wall
 
-Статус: **revised docs-only plan, не PASS**. Этот round не меняет product code, миграции,
-DB/DEV/TEST/PROD, deploy, taskdb или checkbox. До PASS повторного docs-only аудита product work
-запрещён.
+Статус: **revised docs-only plan; RF1/RF2 corrected**. Этот round не меняет product code, миграции,
+DB/DEV/TEST/PROD, deploy, taskdb или checkbox. Product work начинается только по итогам
+`V9B_IMPLEMENTATION_SLICES_REAUDIT_REPORT.md` с `9/9 PASS`.
 
 ## Цель и источник фактов
 
@@ -65,10 +65,11 @@ its file.
 | `user_channel_preferences` | `app_staff` broad; `app_patient SELECT` plus restricted insert/update; D1 bare-login `SELECT/INSERT/UPDATE` | D1 writer, `pgChannelPreferences`, broadcasts, doctor clients, profile model | S04 adopts D1 writer and existing patient preference port; cross-user delivery only operational seam | S04 revoke bare D1/broad ACL; S05a owner `platform_user_id = app.current_patient_user_id()` | own preference DML; foreign user and direct bootstrap deny; operational role only its assigned reminder relation |
 | `user_notification_topic_channels` | `app_staff` broad; `app_patient SELECT/INSERT/UPDATE` | patient unsubscribe, reminder model/disable port, merge/purge | S02/S04 exact patient notification port; delivery uses named operational seam | S04 revoke broad ACL; S05a owner `user_id = app.current_patient_user_id()` | patient self DML only; foreign/D1 bare/operational direct table deny unless listed role path |
 | `user_notification_topics` | `app_staff` broad; `app_patient SELECT/INSERT/UPDATE`; D1 bare-login `INSERT/UPDATE` | D1 writer, `pgUserProjection`, reminder gate, patient notification port, merge/purge | S04 uses existing D1 writer for exact identity and patient notification port for self edits | S04 revoke D1 broad direct ACL; S05a owner `user_id = app.current_patient_user_id()` | D1 exact topic upsert succeeds, bare table denied; patient A cannot modify B |
-| `user_web_push_subscriptions` | `app_staff` broad; `app_patient SELECT/INSERT/UPDATE/DELETE`; web-push operational `SELECT` | `pgWebPushSubscriptions`, broadcast counts/doctor clients, reminder stats, merge/purge | S02 retains only `app_operational_web_push_reminder`; S04 moves delivery/cross-user reads to that role/seam | S04 revoke staff/patient direct ACL; S05a owner `platform_user_id = app.current_patient_user_id()` | self `SELECT/INSERT/UPDATE/DELETE`; operational selected rows only by reminder/org relation; base login direct deny |
+| `user_web_push_subscriptions` | `app_staff` broad; `app_patient SELECT/INSERT/UPDATE/DELETE`; web-push operational `SELECT` | `pgWebPushSubscriptions`, broadcast counts/doctor clients, reminder stats, merge/purge | S02 retains only `app_operational_web_push_reminder`; S04 moves delivery/cross-user reads to that role/seam | S04 revoke staff/patient direct ACL; S05a owner `user_id = app.current_patient_user_id()` | self `SELECT/INSERT/UPDATE/DELETE`; operational selected rows only by reminder/org relation; base login direct deny |
 
-All S05 predicates use the existing `app.current_org_id()` only. `WITH CHECK` is identical to
-`USING`; a missing helper or a `NULL` principal denies. S05a cannot land until: (a) D1 adoption tests below green, (b) its final
+All S05 staff predicates use the existing `app.current_org_id()`; patient predicates use the
+row's declared `platform_user_id` or `user_id` with `app.current_patient_user_id()`. `WITH CHECK`
+is identical to `USING`; a missing helper or a `NULL` principal denies. S05a cannot land until: (a) D1 adoption tests below green, (b) its final
 bare-login grants are revoked by S04, and (c) A1 D1 exact-capability/direct-deny cases are green.
 
 ## Per-table closure matrix — 29 capability/ACL rows
@@ -119,7 +120,7 @@ existing one cannot carry that caller's exact input/result; a second general wri
 | Table | Current grants / roles | Live caller | Final allow/deny contract and slice | Binary A1 / TEST oracle |
 | --- | --- | --- | --- | --- |
 | `booking_cities` | staff DML | patient help address link | S02 removes tenant direct grant; catalog read becomes bounded public/patient catalog capability, no RLS | patient catalog `SELECT` only; `INSERT/UPDATE/DELETE` deny |
-| `clinical_test_measure_kinds` | staff DML | no live TS caller found | S02 removes tenant grant; clinical catalog service capability only when caller appears | staff/patient all DML deny; catalog capability `SELECT` only if introduced with caller |
+| `clinical_test_measure_kinds` | staff DML (current overlays already revoke staff `UPDATE/DELETE`; platform catalog role has `SELECT/UPDATE`) | `GET/POST/PATCH /api/doctor/measure-kinds` → `buildAppDeps().measureKinds` → `pgClinicalTestMeasureKindsPort` (`SELECT`, idempotent label `SELECT/INSERT`, bulk `UPDATE`) | S02 expands three `SECURITY DEFINER` catalog seams — `app.list_clinical_test_measure_kinds()`, `app.upsert_clinical_test_measure_kind_by_label(text)`, `app.save_clinical_test_measure_kinds(jsonb)` — with `EXECUTE` only for the doctor/platform route principals; S04 changes that port to those seams and proves GET/POST/PATCH adoption, then S04 revokes every remaining direct table ACL | Before S04 contract the live route remains on its current direct ACL; after it, direct table `SELECT/INSERT/UPDATE/DELETE` deny for staff/patient/bare roles and only the three catalog capabilities allow their assigned operation |
 | `media_playback_stats_hourly` | staff DML | playback hourly retention/internal route | S02 operational retention capability, no tenant grant | retention `SELECT/DELETE` assigned retention verb; staff/patient direct deny |
 | `reference_catalog_baselines` | overlay, no broad staff | no live TS caller found | existing seed/baseline capability only; no tenant direct grant | seed capability exact verb; staff/patient direct `SELECT` deny |
 | `saas_isolation_coverage_runs` | overlay, no broad staff | no product caller | existing isolation operator capability only | operator exact `INSERT/SELECT`; staff/patient deny |
