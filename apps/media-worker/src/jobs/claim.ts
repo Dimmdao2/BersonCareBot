@@ -1,5 +1,9 @@
 import type { Pool } from 'pg';
 import type { Logger } from '../logger.js';
+import {
+  runMediaWorkerClientPgText,
+  runMediaWorkerPgText,
+} from '../runMediaWorkerSql.js';
 import { startMediaWorkerTransaction } from '../withClient.js';
 
 export type ClaimedJob = {
@@ -15,7 +19,8 @@ export async function reclaimStaleProcessing(
   staleLockMinutes: number,
   log: Logger,
 ): Promise<number> {
-  const r = await pool.query(
+  const r = await runMediaWorkerPgText(
+    pool,
     `UPDATE media_transcode_jobs
      SET status = 'pending',
          locked_at = NULL,
@@ -43,11 +48,12 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
   const tx = await startMediaWorkerTransaction(pool);
   const client = tx.client;
   try {
-    const sel = await client.query<{
+    const sel = await runMediaWorkerClientPgText<{
       id: string;
       job_organization_id: string | null;
       media_organization_id: string | null;
     }>(
+      client,
       `SELECT j.id,
               j.organization_id AS job_organization_id,
               mf.organization_id AS media_organization_id
@@ -69,7 +75,8 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
       !row.media_organization_id?.trim() ||
       row.job_organization_id !== row.media_organization_id
     ) {
-      await client.query(
+      await runMediaWorkerClientPgText(
+        client,
         `UPDATE media_transcode_jobs
          SET status = 'failed',
              attempts = attempts + 1,
@@ -86,12 +93,13 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
       await tx.commit();
       return null;
     }
-    const upd = await client.query<{
+    const upd = await runMediaWorkerClientPgText<{
       id: string;
       media_id: string;
       organization_id: string | null;
       attempts: number;
     }>(
+      client,
       `UPDATE media_transcode_jobs
        SET status = 'processing',
            locked_at = now(),

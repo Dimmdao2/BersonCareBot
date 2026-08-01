@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-const scanRoots = ['apps/integrator/src', 'apps/webapp/src'];
+const scanRoots = ['apps/integrator/src', 'apps/media-worker/src', 'apps/webapp/src'];
 
 // Каталог самого порта. Сырой драйвер обязан жить ЗДЕСЬ и больше нигде: транзакция
 // (BEGIN/COMMIT), установка принципала, маршрутизация пулов, мост `$n` → drizzle и загрузочная
@@ -14,8 +14,18 @@ const scanRoots = ['apps/integrator/src', 'apps/webapp/src'];
 // него. Владелец 01.08: «сырого sql и запросов мимо порта не должно остаться вообще».
 const portDirs = ['apps/webapp/src/infra/db/'];
 
+// media-worker — плоское приложение, каталога `infra/db` у него нет: порт — вот эти три файла
+// (мост `sql`→текст+параметры, BEGIN/COMMIT и установка принципала на пуле — ровно то, что у
+// вебаппа лежит в `infra/db`). Это НЕ список долга: сюда нельзя дописать файл, чтобы «разрешить
+// себе» сырой запрос, — эти три и есть сам порт.
+const portFiles = new Set([
+  'apps/media-worker/src/poolProvider.ts',
+  'apps/media-worker/src/runMediaWorkerSql.ts',
+  'apps/media-worker/src/withClient.ts',
+]);
+
 function isInsidePort(fileName) {
-  return portDirs.some((dir) => fileName.startsWith(dir));
+  return portDirs.some((dir) => fileName.startsWith(dir)) || portFiles.has(fileName);
 }
 
 // Frozen D18a inventory of every existing raw .query() call. Do not add entries:
