@@ -123,7 +123,7 @@
 
 ### B1. Одна дверь оплаты — решения владельца 01.08
 
-- [ ] 🔴 **B1.1 ОДНА ДВЕРЬ ОПЛАТЫ.** Решение владельца 01.08, дословно: «Одна дверь оплаты, у которой
+- [x] 🔴 **B1.1 ОДНА ДВЕРЬ ОПЛАТЫ.** Решение владельца 01.08, дословно: «Одна дверь оплаты, у которой
       обязательные поля: кто платит, за что, сколько, куда вернуть». И следом: «переводи оплату на один
       порт».
       **Что сегодня:** платёж собирают вручную в пяти местах (`modules/payments/service.ts` ×3,
@@ -136,6 +136,22 @@
       **Что делаем:** обязательные поля у самой двери — кто платит, за что, сколько, куда вернуть.
       Забыть нельзя: код не соберётся. Запасные подстановки из адаптеров удаляются, угадывать нечего.
       «За что» становится значением, а не отдельным куском кода на каждый повод.
+      _Доказательство 01.08: ручной SaaS-счёт проходит через `createIntent`
+      (`apps/webapp/src/modules/saas-billing/service.ts:197`); адаптеры кладут три значения в
+      provider payload, а отрицательная type-проверка не допускает дверь без `payerRef`
+      (`apps/webapp/src/infra/payments/paymentProviderIdentity.unit.test.ts:32`). Лично пройдено:
+      `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/infra/payments/paymentProviderIdentity.unit.test.ts`
+      — 9 tests; `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec eslint .`._
+      _Fix-round 01.08: `61c7ebd148b73d89872b159910a2c550bdec5365` передаёт обязательный return URL
+      в `payment_data.confirmation.return_url` сформированного YooKassa invoice request
+      (`apps/webapp/src/infra/payments/yookassaPaymentProvider.ts:206`); тот же provider-payload test
+      краснеет при удалении поля и после восстановления зелёный в наборе 9 tests. Отчёт:
+      `BILLING_PAYMENT_DOOR_R3_FIX_REPORT.md`._
+      _T-Bank currency fix 01.08: этот product commit сохраняет принятую `currency` в
+      `DATA` (`apps/webapp/src/infra/payments/tinkoffPaymentProvider.ts`) и до HTTP отказывает
+      `currency !== 'RUB'`; удаление `DATA.currency` снова роняет provider assertion, а non-RUB test
+      подтверждает отсутствие `fetch`. Проверки: SaaS billing suite 14 tests, typecheck, scoped lint,
+      `git diff --check`; отчёт `BILLING_PAYMENT_DOOR_R3_AUDIT_REPORT.md`._
 
 - [ ] **B1.2 Опознание плательщика — до двери, в одном месте.** Владелец 01.08: «публичная запись
       держится на телефоне или имэйле одинаково». Сессия, подтверждённый телефон, подтверждённая почта —
