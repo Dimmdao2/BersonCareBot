@@ -41,7 +41,7 @@ B. BUILD the missing valuable tests for the priority tiers, in order: (1) tenant
    (testing chapters, test-behavior-not-implementation), mutation-testing-in-CI literature, RLS/row-level-
    security testing patterns, Postgres role-privilege testing. Cite specifics, not "best practices".
 
-C. The CI RATCHET so the suite cannot re-bloat: exactly how to wire a diff-scoped mutation gate on changed
+C. The CI SHRINK-ONLY GATE so the suite cannot re-bloat: exactly how to wire a diff-scoped mutation gate on changed
    DECISION lines into the merge gate — thresholds, how to handle equivalent mutants (score is a LOWER bound),
    time/flake budget for an 8-minute merge gate, what precisely fails the build. Plus the mechanism to make the
    `a0-greenfield` schema baseline real (rebuild in the SAME commit as the migration; drift fails CI) — how
@@ -59,7 +59,7 @@ C. The CI RATCHET so the suite cannot re-bloat: exactly how to wire a diff-scope
 ## Deliverable shape
 1. HOW-A (cut) — ordered pipeline + tooling config + checkpoints + cost/time.
 2. HOW-B (build) — authoring recipe per tier + the live-DB matrix design + world-practice citations.
-3. HOW-C (ratchet) — CI wiring, thresholds, equivalent-mutant handling, a0-baseline mechanism.
+3. HOW-C (shrink-only gate) — CI wiring, thresholds, equivalent-mutant handling, a0-baseline mechanism.
 4. STAGE RECONCILIATION — table: stage 0–8 → {done / cancel / fold} + one-line reason each.
 5. HONEST UNCERTAINTY — where you're guessing, cost risks, equivalent-mutant unknowns.
 

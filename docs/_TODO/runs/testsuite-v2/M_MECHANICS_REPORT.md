@@ -39,9 +39,9 @@ find src \( -name '*.test.ts' -o -name '*.test.tsx' \) | wc -l              # 0 
   `media-worker`) сравнивает список `*.test.ts`/`*.test.tsx` на диске (`src` + `e2e` у интегратора)
   со списком, который реально отдаёт `pnpm exec vitest list --filesOnly` в каталоге приложения.
   Падает на:
-  - новом невидимом файле, которого нет в храповике;
-  - протухшей записи храповика (файл на диске больше не существует).
-- `scripts/test-runner-visibility-known-invisible.json` — храповик, `asOf: "2026-08-01"`, ровно 22
+  - новом невидимом файле, которого нет в списке исключений;
+  - протухшей записи списка исключений (файл на диске больше не существует).
+- `scripts/test-runner-visibility-known-invisible.json` — список исключений, `asOf: "2026-08-01"`, ровно 22
   пути `apps/webapp/src/**/*.devDb.integration.test.ts` (список сверен `comm -13` с замером плана и
   совпадает 1:1 со списком в `scripts/check-db-chokepoint.mjs`, webapp-манифест).
 - Подключение к CI: корневой `package.json` → `"lint"`:
@@ -65,13 +65,13 @@ exit=0
 
 **2. Намеренная поломка «новый невидимый файл»** — создан
 `apps/webapp/src/__m4_selftest__/gateSelfTest.devDb.integration.test.ts` (валидный тест-файл, суффикс
-не выбирается ни одним vitest-проектом, путь заведомо не в храповике):
+не выбирается ни одним vitest-проектом, путь заведомо не в списке исключений):
 
 ```
 $ node scripts/check-test-runner-visibility.mjs
 check-test-runner-visibility: integrator: диск=27 раннер=27 невидимых=0
 check-test-runner-visibility: webapp: диск=122 раннер=99 невидимых=23
-  НОВЫЙ невидимый файл (не в храповике /home/dev/dev-projects/bcb-wt-docs3/scripts/test-runner-visibility-known-invisible.json, asOf=2026-08-01):
+  НОВЫЙ невидимый файл (не в списке исключений /home/dev/dev-projects/bcb-wt-docs3/scripts/test-runner-visibility-known-invisible.json, asOf=2026-08-01):
     - webapp/src/__m4_selftest__/gateSelfTest.devDb.integration.test.ts
   Файл не выбирается ни одним vitest-проектом. Либо чини include/exclude, либо это
   осознанное исключение — тогда решение по нему принимает владелец плана блока Б3, не этот гейт.
@@ -83,14 +83,14 @@ exit=1
 Файл и каталог `apps/webapp/src/__m4_selftest__/` удалены сразу после снятия вывода
 (`rm -rf apps/webapp/src/__m4_selftest__`), продуктовое дерево не тронуто.
 
-**3. Намеренная поломка «протухшая запись храповика»** — во временную копию `known-invisible.json`
+**3. Намеренная поломка «протухшая запись списка исключений»** — во временную копию `known-invisible.json`
 дописан несуществующий путь `src/infra/repos/thisFileDoesNotExist.devDb.integration.test.ts`:
 
 ```
 $ node scripts/check-test-runner-visibility.mjs
 check-test-runner-visibility: integrator: диск=27 раннер=27 невидимых=0
 check-test-runner-visibility: webapp: диск=121 раннер=99 невидимых=22
-  ПРОТУХШАЯ запись храповика (файла больше нет на диске):
+  ПРОТУХШАЯ запись списка исключений (файла больше нет на диске):
     - webapp/src/infra/repos/thisFileDoesNotExist.devDb.integration.test.ts
   Удали запись из /home/dev/dev-projects/bcb-wt-docs3/scripts/test-runner-visibility-known-invisible.json — список имеет право только сокращаться.
 check-test-runner-visibility: media-worker: диск=0 раннер=0 невидимых=0
@@ -98,7 +98,7 @@ check-test-runner-visibility: FAIL
 exit=1
 ```
 
-Храповик восстановлен из резервной копии сразу после снятия вывода; повторный прогон — снова `OK`
+Список исключений восстановлен из резервной копии сразу после снятия вывода; повторный прогон — снова `OK`
 (идентичен пункту 1).
 
 ### Побочная находка (не в скоупе М4, не трогаю)

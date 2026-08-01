@@ -51,7 +51,7 @@ Imports, types, logging, static labels, JSX copy and wiring-only object literals
 
 ### A3. Use two Stryker modes, not one
 
-| Setting | Offline cleanup/audit | Pull-request ratchet |
+| Setting | Offline cleanup/audit | Pull-request shrink-only gate |
 |---|---:|---:|
 | Scope | Fixed module batch | Changed decision-line ranges |
 | `coverageAnalysis` | `perTest` | `perTest` |
@@ -414,7 +414,7 @@ Estimated implementation: 1–2 engineer-days.
 
 Total HOW-B estimate: approximately 16–31 engineer-days. Parallelization can reduce calendar time, but DB harness changes and mutation/fault-injection runs must remain serialized around their shared artifacts.
 
-## 3. HOW-C — CI ratchet
+## 3. HOW-C — CI shrink-only gate
 
 ### C1. Diff-scoped mutation merge job
 
@@ -526,7 +526,7 @@ Estimated HOW-C implementation: 4–8 engineer-days—two to three for mutation 
 | **3. Mutation over 200 heavy files** | **FOLD INTO HOW-A A2–A9** | Replace per-test prose verdicts with the fixed decision-mutant kill matrix, environment-specific covering set, arbiter and consequence worklist. Retire the old open-ended stage when those fixed batches finish. |
 | **4. Thirty-four mock-echo files** | **FOLD INTO HOW-A A5–A7** | Process as one fixed batch after heavy-file overlap removal. State/output contracts and hand fault injection decide ambiguous cases; no visual/AI opinion pass remains. |
 | **5. Three unguarded invariants** | **FOLD INTO HOW-B Tier 5** | Two public behavioral contracts and one PostgreSQL FK contract, each with a required fault injection, replace the standalone stage. |
-| **6. New-code mutation gate** | **FOLD INTO HOW-C C1–C4** | The owner-approved requirement becomes the strict changed-decision merge ratchet with explicit statuses, exception handling and time budget. |
+| **6. New-code mutation gate** | **FOLD INTO HOW-C C1–C4** | The owner-approved requirement becomes the strict changed-decision merge shrink-only gate with explicit statuses, exception handling and time budget. |
 | **7. Real A0 greenfield baseline** | **FOLD INTO HOW-C C5** | Same-commit staged regeneration, zero-pending frontier and CI drift comparison implement the accepted requirement. The `0175` historical-drift investigation remains a blocking prerequisite to the first legitimate refresh. |
 | **8. Shared env layer** | **CANCEL AS A TEST-SUITE STAGE** | Env-file deduplication is operational configuration work and neither deletes meaningless tests nor builds missing contracts. Removing it from this audit does not reverse the owner’s separate approval; it only prevents unrelated prod-env work from blocking completion of “clean the tests.” No new task or card is created here. |
 
