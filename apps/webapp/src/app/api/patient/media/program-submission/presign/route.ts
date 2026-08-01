@@ -5,15 +5,16 @@ import { logger } from '@/app-layer/logging/logger';
 import { getPool } from '@/app-layer/db/client';
 import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import {
-  deletePendingMediaFileById,
-  insertPendingProgramSubmissionMediaFileTx,
-} from '@/app-layer/media/s3MediaStorage';
+import { insertPendingProgramSubmissionMediaFileTx } from '@/app-layer/media/s3MediaStorage';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { prepareMediaUpload, presignPreparedUpload } from '@/app-layer/media/mediaUploadAdapter';
+import {
+  abortPendingMediaUpload,
+  prepareMediaUpload,
+  presignPreparedUpload,
+} from '@/app-layer/media/mediaUploadAdapter';
 import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { assertPatientProgramMediaAllowed } from '@/modules/doctor-clients/assertPatientProgramInteraction';
 import { isPatientProgramDiscussionMediaFlowEnabled } from '@/modules/program-item-discussion/discussionFeatureGates';
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
     await withExplicitOrganizationPrincipal(
       { organizationId, source: 'patient.program-submission.media.presign.rollback' },
       async () => {
-        await deletePendingMediaFileById(mediaId).catch(() => {
+        await abortPendingMediaUpload(mediaId).catch(() => {
           /* best-effort rollback */
         });
       },

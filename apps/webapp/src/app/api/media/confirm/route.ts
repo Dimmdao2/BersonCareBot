@@ -5,6 +5,7 @@ import { getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
 import { maybeAutoEnqueueVideoTranscodeAfterUpload } from '@/app-layer/media/mediaTranscodeAutoEnqueue';
 import {
   acceptReceivedMedia,
+  abortPendingMediaUpload,
   validateReceivedMediaObject,
 } from '@/app-layer/media/mediaUploadAdapter';
 import { uploadValidationResponse, validateUploadIntent } from '@/modules/media/uploadValidation';
@@ -67,11 +68,17 @@ export async function POST(request: Request) {
     policyId: 'cms',
   });
   if (!intent.ok) {
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      abortPendingMediaUpload(parsed.data.mediaId),
+    );
     const rejection = uploadValidationResponse(intent);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
   const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
   if (!received.ok) {
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      abortPendingMediaUpload(parsed.data.mediaId),
+    );
     const rejection = uploadValidationResponse(received);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }

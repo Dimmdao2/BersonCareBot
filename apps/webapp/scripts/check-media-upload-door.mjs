@@ -34,6 +34,7 @@ const receivedAcceptanceBindings = new Set([
 const statePrimitives = new Set([
   'insertPendingMediaFileTx',
   'insertPendingProgramSubmissionMediaFileTx',
+  'deletePendingMediaFileById',
   'confirmMediaFileReady',
   'confirmProgramSubmissionMediaFileReady',
   'tryFinalizeMultipartIdempotentTx',
@@ -49,6 +50,7 @@ const storageWriteBindings = new Set([
   's3CreateMultipartUpload',
   's3CompleteMultipartUpload',
   's3PutObjectBody',
+  's3DeleteObject',
 ]);
 
 function isRawStorageSpecifier(specifier) {
@@ -61,6 +63,17 @@ function isStorageClientSpecifier(specifier) {
 
 function isRoute(filename) {
   return filename.endsWith(`${path.sep}route.ts`) || filename.endsWith('/route.ts');
+}
+
+function isPublicRoute(filename) {
+  return (
+    isRoute(filename) &&
+    !filename.includes(`${path.sep}app${path.sep}api${path.sep}internal${path.sep}`)
+  );
+}
+
+function isDeleteRoute(filename) {
+  return filename.includes(`${path.sep}delete${path.sep}`);
 }
 
 function isImplementation(filename) {
@@ -101,6 +114,7 @@ function checkSource(filename, text) {
     ts.ScriptKind.TS,
   );
   const route = isRoute(filename);
+  const publicRoute = isPublicRoute(filename);
   const localToImported = new Map();
   const restrictedExportLocals = new Set();
   const rawStorageExportLocals = new Set();
@@ -138,7 +152,12 @@ function checkSource(filename, text) {
         if (preparedWriteBindings.has(imported)) importedPreparedWrites.add(local);
         if (multipartCompletionBindings.has(imported)) importedMultipartCompletions.add(local);
         if (receivedAcceptanceBindings.has(imported)) importedReceivedAcceptances.add(local);
-        if (route && storageClient && storageWriteBindings.has(imported)) {
+        if (
+          publicRoute &&
+          !isDeleteRoute(filename) &&
+          storageClient &&
+          storageWriteBindings.has(imported)
+        ) {
           findings.push(`${filename}: route imports storage write ${local}`);
         }
       }
@@ -220,24 +239,24 @@ function checkSource(filename, text) {
   };
   visit(source);
 
-  if (route && usesFormData && !callsIntentDoor) {
+  if (publicRoute && usesFormData && !callsIntentDoor) {
     findings.push(`${filename}: intake route lacks an executable media upload door`);
   }
-  if (route && importedStatePrimitives.size > 0 && !callsIntentDoor) {
+  if (publicRoute && importedStatePrimitives.size > 0 && !callsIntentDoor) {
     findings.push(`${filename}: route reaches pending/ready storage state without an intent door`);
   }
-  if (route && importedReadyPrimitives.size > 0 && !isImplementation(filename)) {
+  if (publicRoute && importedReadyPrimitives.size > 0 && !isImplementation(filename)) {
     findings.push(`${filename}: route imports a ready primitive outside mediaUploadAdapter`);
   }
-  if (route && importedPreparedWrites.size > 0 && !callsIntentDoor) {
+  if (publicRoute && importedPreparedWrites.size > 0 && !callsIntentDoor) {
     findings.push(`${filename}: route writes a prepared upload without preparing an intent`);
   }
-  if (route && importedMultipartCompletions.size > 0 && !callsReceivedDoor) {
+  if (publicRoute && importedMultipartCompletions.size > 0 && !callsReceivedDoor) {
     findings.push(
       `${filename}: route completes multipart upload without received-object validation`,
     );
   }
-  if (route && importedReceivedAcceptances.size > 0 && !callsReceivedDoor) {
+  if (publicRoute && importedReceivedAcceptances.size > 0 && !callsReceivedDoor) {
     findings.push(`${filename}: route accepts media without received-object validation`);
   }
   return findings;
@@ -276,6 +295,11 @@ function selfTest() {
       'pending primitive',
       'virtual/app/api/new/route.ts',
       "import { insertPendingMediaFileTx } from '@/app-layer/media/s3MediaStorage'; void insertPendingMediaFileTx;",
+    ],
+    [
+      'direct lifecycle delete primitive',
+      'virtual/app/api/new/route.ts',
+      "import { deletePendingMediaFileById } from '@/app-layer/media/s3MediaStorage'; void deletePendingMediaFileById('id');",
     ],
     [
       'aliased ready primitive',

@@ -7,12 +7,13 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
 import { logger } from '@/app-layer/logging/logger';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
-import {
-  deletePendingMediaFileById,
-  insertPendingMediaFileTx,
-} from '@/app-layer/media/s3MediaStorage';
+import { insertPendingMediaFileTx } from '@/app-layer/media/s3MediaStorage';
 import { env, isS3MediaEnabled } from '@/config/env';
-import { prepareMediaUpload, presignPreparedUpload } from '@/app-layer/media/mediaUploadAdapter';
+import {
+  abortPendingMediaUpload,
+  prepareMediaUpload,
+  presignPreparedUpload,
+} from '@/app-layer/media/mediaUploadAdapter';
 import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { resolveDoctorInstanceInWorkspace } from '../../_doctorInstanceWorkspace';
 
@@ -84,7 +85,7 @@ export async function POST(request: Request, context: { params: Promise<{ instan
       readUrl: `/api/media/${mediaId}`,
     });
   } catch (error) {
-    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(mediaId)).catch(
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(mediaId)).catch(
       () => undefined,
     );
     logger.error({ err: error }, '[doctor/individual-exercise/media-presign] presign_failed');

@@ -52,12 +52,16 @@
       self-test запрещает седьмой обход. **Fix-round #1082 (audit `d2ff0858f`):** F1–F4 закрыты в
       `CH1_UPLOAD_FIX_REPORT.md`; `uploadDoorAcceptance.route.test.ts` (23),
       `mediaUploadDoorGate.unit.test.ts` (14) и canonical gate/self-test — PASS.
-- [ ] **Ч1б. Storage commit/cleanup после разрыва upload.** Отдельный этап, найденный проходом по тем же живым
+- [x] **Ч1б. Storage commit/cleanup после разрыва upload.** Отдельный этап, найденный проходом по тем же живым
       путям, не маскируется под валидацию: proxy пишет S3 до DB и при DB-сбое оставляет orphan; single-PUT после
       PUT/до confirm оставляет pending row + object без cleanup; patient confirm при невалидном HEAD теперь
       отвечает ошибкой, но оставляет связанные `patient_files` + `media_files.pending` + object. Готово = единый
       commit/abort lifecycle на существующих `media_files`/storage ports и
       доказанный cleanup каждого из трёх достижимых сбоев; новой таблицы или второго upload-service нет.
+      **Закрыто 02.08:** product `a38d23c96`, independent audit `79c547755`,
+      `CH1B_STORAGE_LIFECYCLE_INDEPENDENT_AUDIT.md`; финальные faults убито 5/5, непойманных 0, units 21/21,
+      routes 23/23, typecheck/lint/upload-door/raw-SQL/runner gates PASS. K2/K4 подтверждены compiled Drizzle SQL
+      и inspection транзакции, не выданы за live PostgreSQL proof; новая DB-test infrastructure не создавалась.
 - [x] **Ч2. Выдача медиа из хранилища.** Актуальный замер: семь GET-поверхностей; пять
       `/api/media/[id]/**` handler'ов копируют одну ACL-последовательность; текущего пути выдачи `media_files`
       без проверки организации не найдено, но шестую копию ничто не запрещает. Отдельно online-intake при

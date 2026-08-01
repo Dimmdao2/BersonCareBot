@@ -32,6 +32,7 @@ const fakes = vi.hoisted(() => ({
   insertPendingMediaFileTx: vi.fn(),
   insertPendingProgramSubmissionMediaFileTx: vi.fn(),
   deletePendingMediaFileById: vi.fn(),
+  stagePendingMediaAbort: vi.fn(),
   getMediaRowForConfirm: vi.fn(),
   confirmMediaFileReady: vi.fn(),
   confirmProgramSubmissionMediaFileReady: vi.fn(),
@@ -111,6 +112,7 @@ vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   insertPendingMediaFileTx: fakes.insertPendingMediaFileTx,
   insertPendingProgramSubmissionMediaFileTx: fakes.insertPendingProgramSubmissionMediaFileTx,
   deletePendingMediaFileById: fakes.deletePendingMediaFileById,
+  stagePendingMediaAbort: fakes.stagePendingMediaAbort,
   getMediaRowForConfirm: fakes.getMediaRowForConfirm,
   confirmMediaFileReady: fakes.confirmMediaFileReady,
   confirmProgramSubmissionMediaFileReady: fakes.confirmProgramSubmissionMediaFileReady,
@@ -261,6 +263,7 @@ beforeEach(() => {
   fakes.s3GetObjectPrefix.mockResolvedValue(Buffer.from([0xff, 0xd8, 0xff]));
   fakes.confirmMediaFileReady.mockResolvedValue(true);
   fakes.confirmProgramSubmissionMediaFileReady.mockResolvedValue(true);
+  fakes.stagePendingMediaAbort.mockResolvedValue(true);
   fakes.tryFinalizeMultipartIdempotentTx.mockResolvedValue({
     kind: 'finalized',
     result: { sessionRows: 1, mediaRows: 1 },
@@ -450,6 +453,8 @@ describe('Ч1 received object at real confirm handlers', () => {
     expect(response.status).toBe(status);
     expect(fakes.confirmMediaFileReady).not.toHaveBeenCalled();
     expect(fakes.maybeAutoEnqueueVideoTranscodeAfterUpload).not.toHaveBeenCalled();
+    expect(fakes.stagePendingMediaAbort).toHaveBeenCalledOnce();
+    expect(fakes.stagePendingMediaAbort).toHaveBeenCalledWith(ids.media);
   });
 
   it('generic confirm reaches ready only with the branded received result', async () => {
@@ -511,6 +516,8 @@ describe('Ч1 received object at real confirm handlers', () => {
     expect(response.status).toBe(413);
     expect(fakes.confirmProgramSubmissionMediaFileReady).not.toHaveBeenCalled();
     expect(fakes.enqueueProgramSubmissionTranscodeAfterConfirm).not.toHaveBeenCalled();
+    expect(fakes.stagePendingMediaAbort).toHaveBeenCalledOnce();
+    expect(fakes.stagePendingMediaAbort).toHaveBeenCalledWith(ids.media);
   });
 
   it('patient-file confirm refuses a received mismatch before atomic quota/state change', async () => {
@@ -526,6 +533,8 @@ describe('Ч1 received object at real confirm handlers', () => {
 
     expect(response.status).toBe(415);
     expect(fakes.confirmPatientFileUpload).not.toHaveBeenCalled();
+    expect(fakes.stagePendingMediaAbort).toHaveBeenCalledOnce();
+    expect(fakes.stagePendingMediaAbort).toHaveBeenCalledWith(ids.media);
   });
 });
 
