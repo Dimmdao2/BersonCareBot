@@ -36,9 +36,11 @@ runtime CRUD/admin routes уже удалены, остались schema/types/b
 и отозвать app-role grants, затем убрать FK/backrefs из `patient_bookings` и drop/archive. Добавлять им новые org
 колонки и policies не требуется.
 
-`branches` — отдельная живая integrator projection без org key. До замены на `be_branches` или добавления и
-backfill `organization_id` прямые app-login grants запрещены; доступ только через exact integrator capability.
-Если таблица сохраняется как tenant data, после backfill включить FORCE ORG.
+`branches` — также кандидат на retirement, а не на новую стену. Точный поиск
+`getByIntegratorBranchId|branches.upsertFromProjection|deps.branches` на актуальном коде находит только методы
+`pgBranches.ts` и DI wiring `buildAppDeps.ts`; runtime consumers отсутствуют, старый projection-event удалён.
+Сначала удалить мёртвый port/wiring и проверить FK/backrefs; только найденный живой consumer может обосновать
+сохранение таблицы и тогда — org discriminator/capability. Строить backfill/RLS для неиспользуемой проекции нельзя.
 
 ## Capability/ACL, не tenant RLS
 
