@@ -972,7 +972,6 @@ SELECT json_build_object(
   'current_slug_claims', (SELECT count(*) FROM public.organization_slug_claims WHERE slug = ${quoteLiteral(seed.organizationSlug)} AND kind = 'current' AND organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'directory_slug', (SELECT slug FROM public.clinic_public_directory_entries WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'organization_tariff', (SELECT tariff_id FROM public.be_organizations WHERE id = ${quoteLiteral(receipt.organizationId)}::uuid),
-  'commercial_access_state', (SELECT commercial_access_state FROM public.be_organizations WHERE id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'trials', (SELECT count(*) FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'trial_tariff', (SELECT tariff_id FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'trial_status', (SELECT status FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
@@ -998,7 +997,6 @@ SELECT json_build_object(
   assert(row.current_slug_claims === 1, 'signup provisioning must insert one current slug claim');
   assert(row.directory_slug === seed.organizationSlug, 'signup must publish the intent slug');
   assert(row.organization_tariff === trialTariffId, 'organization must receive the trial tariff');
-  assert(row.commercial_access_state === 'active', 'trial must activate commercial access');
   assert(row.trials === 1, 'provisioning replay must retain exactly one trial');
   assert(row.trial_tariff === trialTariffId, 'trial must snapshot the configured tariff');
   assert(row.trial_status === 'active', 'newly provisioned trial must be active');
@@ -1212,7 +1210,7 @@ function assertStaticSourceGuards() {
       !source.migration0267.includes('phone_normalized') &&
       !source.migration0267.includes('email_normalized') &&
       source.c5aPlatformOperations.includes(
-        'GRANT UPDATE (tariff_id, commercial_access_state, updated_at)',
+        'GRANT UPDATE (tariff_id, updated_at)',
       ) &&
       source.c5aPlatformOperations.includes(
         "NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'title', 'UPDATE')",

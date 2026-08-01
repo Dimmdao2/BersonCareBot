@@ -109,8 +109,8 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
     // never inserts an organization row itself.
     await db.execute(sql`ALTER TABLE public.be_organizations DISABLE TRIGGER ALL`);
     await db.execute(
-      sql`INSERT INTO public.be_organizations (id, title, tariff_id, commercial_access_state, is_active)
-          VALUES (${ORG}::uuid, 'Ч2.12 proof clinic', ${TARIFF}::uuid, 'active', true)`,
+      sql`INSERT INTO public.be_organizations (id, title, tariff_id, is_active)
+          VALUES (${ORG}::uuid, 'Ч2.12 proof clinic', ${TARIFF}::uuid, true)`,
     );
     await db.execute(sql`ALTER TABLE public.be_organizations ENABLE TRIGGER ALL`);
     await db.execute(

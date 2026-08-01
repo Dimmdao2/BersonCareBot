@@ -26,12 +26,12 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-// Both doors were last redefined by 0296 (#1069 §2.13 — commercial_access_state removed, the
+// Both doors were last redefined by 0297 (#1069 §2.13 — commercial_access_state removed, the
 // eternal-full-access branch collapsed to the paid-period/lifecycle check alone), so the proof
 // must extract the CURRENT bodies from there, not from the superseded 0278/0283/0284/0285/0286.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0296_commercial_access_state_removal_local.sql',
+  'apps/webapp/db/drizzle-migrations/0297_commercial_access_state_removal_local.sql',
 );
 const cabinetMigrationPath = mechanicMigrationPath;
 const mechanicRegistryPath = path.join(

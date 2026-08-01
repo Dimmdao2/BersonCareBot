@@ -770,6 +770,16 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       Пункт держать открытым, пока эти три не приведены в порядок: сегодня они дают ложный красный на
       путях, которые на самом деле работают.
 
+      **ПРОВЕРКА 02.08:** `node apps/webapp/scripts/check-access-ladder-transitions.mjs` прошёл на
+      своём private PostgreSQL cluster; `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only`
+      прошёл и подтвердил цепочку назначенного тарифа + active trial без удалённой колонки/гранта.
+      Полный private-cluster smoke остаётся blocker: команда
+      `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` падает до
+      assertions provisioning/trial с `prerequisites missing -- app_patient, app_owner (NOLOGIN+BYPASSRLS), schema app, signup/users/orgs/members and reference catalog baseline must all exist`
+      при наложении `deploy/postgres/specialist-owner-provisioning-rls.sql`. Это не хвост колонки и не
+      входит в scope 2.13. Opt-in snapshot proof требует отдельный безопасный migrated BYPASSRLS
+      `DATABASE_URL`; такой disposable env не предоставлен, а общая DEV/TEST/PROD БД намеренно не использована.
+
 - [x] 🔴 **2.12 ОПЛАЧЕННЫЙ ПЕРИОД ЗАМОРАЖИВАЕТ УСЛОВИЯ ТАРИФА.** ✅ **ЗАКРЫТО 01.08**, доказано независимым прогоном на клинике с активным оплаченным периодом. Решения **Р-10** и **Р-11** реестра §5а-0. Дословные формулировки — там.
       «должно быть так: при оплате тарифа все настройки оплаченного тарифа фиксируются на оплаченный
       период для конкретной клиники. Не важно что меняется после - клиника уже оплатила и пока оплата не
