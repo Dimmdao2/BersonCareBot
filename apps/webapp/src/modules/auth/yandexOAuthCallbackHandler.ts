@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { env, webappReposAreInMemory } from '@/config/env';
+import { env } from '@/config/env';
 import {
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
@@ -11,10 +11,8 @@ import { setSessionFromUser } from '@/modules/auth/service';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
 import { resolveUserIdForYandexOAuth } from '@/modules/auth/oauthYandexResolve';
-import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
-import { pgOAuthBindingsPort } from '@/infra/repos/pgOAuthBindings';
-import { inMemoryOAuthBindingsPort } from '@/infra/repos/inMemoryOAuthBindings';
-import { trySetInitialCalendarTimezoneIfEmpty } from '@/infra/repos/pgPatientCalendarTimezone';
+import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
+import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
 import {
   getYandexOauthClientId,
   getYandexOauthClientSecret,
@@ -30,6 +28,14 @@ const LOG_BASE = {
   entryChannel: 'browser' as const,
   contactType: 'oauth_provider' as const,
   contactValue: 'yandex',
+};
+
+export type YandexOAuthCallbackDeps = {
+  oauthBindings: OAuthBindingsPort;
+  userByPhone: UserByPhonePort;
+  patientCalendarTimezone: {
+    trySetInitialIfEmpty(userId: string, raw: string | null): Promise<void>;
+  };
 };
 
 async function logOAuthFailure(
@@ -51,7 +57,10 @@ async function logOAuthFailure(
  * Yandex OAuth callback: signed state → code → token → userinfo → resolve user → session → redirect.
  * Used by {@link GET} on `/api/auth/oauth/callback/yandex` and legacy `/api/auth/oauth/callback`.
  */
-export async function handleYandexOAuthCallbackGet(request: Request): Promise<NextResponse> {
+export async function handleYandexOAuthCallbackGet(
+  request: Request,
+  deps: YandexOAuthCallbackDeps,
+): Promise<NextResponse> {
   const appBase = env.APP_BASE_URL;
   const redirectToAppQuery = (reason: string): URL =>
     new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, appBase);
@@ -122,9 +131,7 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     return NextResponse.redirect(redirectToAppQuery('userinfo_failed'));
   }
 
-  const oauthPort = webappReposAreInMemory() ? inMemoryOAuthBindingsPort : pgOAuthBindingsPort;
-
-  const resolved = await resolveUserIdForYandexOAuth(oauthPort, {
+  const resolved = await resolveUserIdForYandexOAuth(deps.oauthBindings, {
     yandexId,
     email: oauthEmail,
     displayName: oauthName,
@@ -144,7 +151,7 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   }
 
   if (env.DATABASE_URL?.trim()) {
-    await trySetInitialCalendarTimezoneIfEmpty(
+    await deps.patientCalendarTimezone.trySetInitialIfEmpty(
       resolved.userId,
       verifiedState.browserCalendarIana ?? null,
     );
@@ -155,7 +162,7 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     if (isPlatformUserUuid(resolved.userId)) {
       enterStaffSecuritySelfPrincipal(resolved.userId, 'auth/oauth-yandex:provider-verified-self');
     }
-    sessionUser = await pgUserByPhonePort.findByUserId(resolved.userId);
+    sessionUser = await deps.userByPhone.findByUserId(resolved.userId);
   } catch {
     await logOAuthFailure(attemptId, 'db_error', 'session_set', resolved.userId);
     return NextResponse.redirect(redirectToAppQuery('db_error'));

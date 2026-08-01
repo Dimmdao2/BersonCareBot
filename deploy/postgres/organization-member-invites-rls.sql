@@ -206,6 +206,7 @@ DECLARE
   v_clinic_team_enabled boolean;
   v_seat_limit integer;
   v_seat_used integer;
+  v_seat_overage_price_minor integer;
   v_invite_organization_id uuid;
 BEGIN
   -- Resolve the organization first, then acquire the same organization-wide lock used by invite
@@ -325,8 +326,23 @@ BEGIN
     INTO v_seat_used;
 
     IF v_seat_limit IS NULL OR v_seat_used >= v_seat_limit THEN
-      RETURN QUERY SELECT false, 'seat_limit_reached'::text, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text;
-      RETURN;
+      -- §5a item 5.1 — a tariff with a configured additional_seat_price_minor allows this
+      -- specific reservation through even past v_seat_limit: it was already confirmed and priced
+      -- at CREATE time (pgOrganizationInvites.createReplacingPending performed the same check
+      -- against the SAME price column before this invite row could exist), so re-blocking it here
+      -- would silently take back an already-paid-for seat. Re-read against the CURRENT tariff, not
+      -- a value cached on the invite, same fail-closed-on-change posture as v_clinic_team_enabled
+      -- above. NULL (overage not allowed by this tariff) falls through to the unchanged hard block.
+      SELECT t.additional_seat_price_minor
+      INTO v_seat_overage_price_minor
+      FROM public.be_organizations AS o
+      JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
+      WHERE o.id = v_invite.organization_id;
+
+      IF v_seat_overage_price_minor IS NULL THEN
+        RETURN QUERY SELECT false, 'seat_limit_reached'::text, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text;
+        RETURN;
+      END IF;
     END IF;
   END IF;
 

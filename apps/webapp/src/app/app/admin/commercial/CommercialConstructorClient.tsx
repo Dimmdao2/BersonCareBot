@@ -75,6 +75,8 @@ type TariffDraft = {
   priceRub: string;
   billingPeriod: Tariff['billingPeriod'];
   includedSeats: string;
+  /** §5a item 5.1 — empty means overage past includedSeats stays hard-blocked (§5.2, unchanged). */
+  additionalSeatPriceRub: string;
   isActive: boolean;
   mechanics: Record<OrgMechanic, boolean>;
   quotas: TariffQuotaMap;
@@ -148,6 +150,7 @@ function emptyTariffDraft(): TariffDraft {
     // Owner 31.07: «при создании тарифа по умолчанию пусть ставится одно — это разумный
     // минимум». A prefilled value the owner sees and changes, not a runtime substitution.
     includedSeats: '1',
+    additionalSeatPriceRub: '',
     isActive: true,
     mechanics: emptyMechanics(),
     quotas: {},
@@ -165,6 +168,8 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     priceRub: tariff.priceMinor === null ? '' : String(tariff.priceMinor / 100),
     billingPeriod: tariff.billingPeriod,
     includedSeats: tariff.includedSeats === null ? '' : String(tariff.includedSeats),
+    additionalSeatPriceRub:
+      tariff.additionalSeatPriceMinor === null ? '' : String(tariff.additionalSeatPriceMinor / 100),
     isActive: tariff.isActive,
     mechanics: Object.fromEntries(
       CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
@@ -661,6 +666,9 @@ export function CommercialConstructorClient() {
   async function saveTariff(event: FormEvent) {
     event.preventDefault();
     const price = tariff.priceRub.trim() ? Math.round(Number(tariff.priceRub) * 100) : null;
+    const additionalSeatPrice = tariff.additionalSeatPriceRub.trim()
+      ? Math.round(Number(tariff.additionalSeatPriceRub) * 100)
+      : null;
     let systemAccessPolicy: AccessLifecyclePolicy | null;
     let mechanicAccessPolicies: MechanicAccessPolicyMap;
     try {
@@ -679,7 +687,7 @@ export function CommercialConstructorClient() {
       name: tariff.name,
       description: tariff.description,
       priceMinor: Number.isFinite(price) ? price : null,
-      currency: price === null ? null : 'RUB',
+      currency: price === null && additionalSeatPrice === null ? null : 'RUB',
       billingPeriod: tariff.billingPeriod,
       mechanics: tariff.mechanics,
       quotas: tariff.quotas,
@@ -687,6 +695,7 @@ export function CommercialConstructorClient() {
       mechanicAccessPolicies,
       downgradePolicies: tariff.downgradePolicies,
       includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
+      additionalSeatPriceMinor: Number.isFinite(additionalSeatPrice) ? additionalSeatPrice : null,
       isActive: tariff.isActive,
     };
     await mutate(
@@ -827,6 +836,21 @@ export function CommercialConstructorClient() {
                   required
                   value={tariff.includedSeats}
                   onChange={(event) => setTariff({ ...tariff, includedSeats: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tariff-seat-overage-price">
+                  Цена доп. места, ₽ (пусто — превышение запрещено)
+                </Label>
+                <Input
+                  id="tariff-seat-overage-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={tariff.additionalSeatPriceRub}
+                  onChange={(event) =>
+                    setTariff({ ...tariff, additionalSeatPriceRub: event.target.value })
+                  }
                 />
               </div>
             </div>

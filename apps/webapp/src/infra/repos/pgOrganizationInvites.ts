@@ -134,6 +134,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           return { ok: false, code: 'already_member' };
         }
 
+        let seatOverage: { priceMinor: number; currency: string } | null = null;
         if (input.invitedRole === 'doctor') {
           // Atomic, race-safe seat capacity check — the authoritative enforcement (the JS-level
           // clinicSeats.assertSeatAvailableForInvite pre-check is best-effort UX only). Mirrors
@@ -143,9 +144,15 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           // `i.invited_email <> $2` excludes this email's own prior pending reservation: a
           // same-email replacement at the limit does not add a reservation, so it must not be
           // counted against itself.
+          // §5a item 5.1 — `additional_seat_price_minor`/`currency` come from the tariff alone
+          // (never the per-org seat-limit override, which only ever moves the FREE included count):
+          // a NULL price keeps §5.2's hard block; a configured price allows this call through once
+          // `input.confirmedSeatOveragePriceMinor` matches it exactly.
           const capacity = await runWebappPgText<{
             limit_value: number | null;
             used_value: number;
+            overage_price_minor: number | null;
+            overage_currency: string | null;
           }>(
             `WITH seat_limit AS (
                SELECT COALESCE(
@@ -159,7 +166,15 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
              )
              SELECT
                (SELECT value FROM seat_limit)::int AS limit_value,
-               ${CLINIC_SEAT_USAGE_SQL} AS used_value`,
+               ${CLINIC_SEAT_USAGE_SQL} AS used_value,
+               (SELECT t.additional_seat_price_minor
+                FROM be_organizations o
+                JOIN saas_tariffs t ON t.id = o.tariff_id
+                WHERE o.id = $1) AS overage_price_minor,
+               (SELECT t.currency
+                FROM be_organizations o
+                JOIN saas_tariffs t ON t.id = o.tariff_id
+                WHERE o.id = $1) AS overage_currency`,
             [input.organizationId, input.invitedEmail],
             tx,
           );
@@ -167,7 +182,20 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           const limitValue = row?.limit_value;
           const usedValue = row?.used_value ?? 0;
           if (limitValue === null || limitValue === undefined || usedValue >= limitValue) {
-            return { ok: false, code: 'seat_limit_reached' };
+            const overagePriceMinor = row?.overage_price_minor ?? null;
+            const overageCurrency = row?.overage_currency ?? null;
+            if (overagePriceMinor === null || overageCurrency === null) {
+              return { ok: false, code: 'seat_limit_reached' };
+            }
+            if (input.confirmedSeatOveragePriceMinor !== overagePriceMinor) {
+              return {
+                ok: false,
+                code: 'seat_overage_confirmation_required',
+                priceMinor: overagePriceMinor,
+                currency: overageCurrency,
+              };
+            }
+            seatOverage = { priceMinor: overagePriceMinor, currency: overageCurrency };
           }
         }
 
@@ -237,7 +265,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
         );
         const invite = inserted.rows[0];
         if (!invite) throw new Error('organization_invite_insert_failed');
-        return { ok: true, invite: mapInvite(invite) };
+        return { ok: true, invite: mapInvite(invite), seatOverage };
       });
     },
 

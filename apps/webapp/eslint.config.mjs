@@ -37,6 +37,13 @@ export default [
           ],
         },
       ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression > Literal[value=/^@\\/infra\\/(db|repos)\\//]',
+          message: 'modules must not dynamically import infra/db or infra/repos directly.',
+        },
+      ],
     },
   },
 
@@ -61,6 +68,13 @@ export default [
           ],
         },
       ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression > Literal[value=/^@\\/infra\\/(db|repos)\\//]',
+          message: 'Route handlers must not dynamically import infra/db or infra/repos directly.',
+        },
+      ],
     },
   },
 
@@ -71,21 +85,13 @@ export default [
   // три тянули логгер и очередь к интегратору, а не базу — правило их и не запрещало.
   {
     files: [
-      'src/modules/auth/oauthWebSession.ts',
-      'src/modules/auth/yandexOAuthCallbackHandler.ts',
       'src/modules/auth/service.ts',
-      'src/modules/content-catalog/service.ts',
-      'src/modules/emergency/service.ts',
       'src/modules/integrator/events.ts',
-      'src/modules/lessons/service.ts',
-      'src/modules/menu/service.ts',
-      'src/modules/messaging/doctorSupportMessagingService.ts',
-      'src/modules/messaging/patientMessagingService.ts',
-      'src/modules/messaging/serializeSupportMessage.ts',
       'src/modules/system-settings/configAdapter.ts',
     ],
     rules: {
       'no-restricted-imports': 'off',
+      'no-restricted-syntax': 'off',
     },
   },
 
