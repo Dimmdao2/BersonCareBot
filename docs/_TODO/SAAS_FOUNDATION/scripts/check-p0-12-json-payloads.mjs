@@ -32,8 +32,6 @@ const expectedRows = new Map([
   ['public.be_payment_provider_events', 'payload_json'],
   ['public.be_payment_history_events', 'payload_json'],
   ['public.be_package_history_events', 'payload_json'],
-  ['public.be_product_history_events', 'payload_json'],
-  ['public.be_products', 'composition_json,access_rules_json,payment_rules_json'],
   ['public.be_subscription_packages', 'fulfillment_json'],
   ['public.be_appointment_cancellations', 'applied_policy_snapshot,notifications_sent'],
   ['public.be_appointment_reschedules', 'applied_policy_snapshot,notifications_sent'],

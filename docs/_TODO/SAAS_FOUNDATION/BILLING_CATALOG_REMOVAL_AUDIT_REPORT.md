@@ -165,3 +165,48 @@ curl -sS -D - --max-time 5 http://127.0.0.1:5202/api/me
 Это не BersonCare webapp. Отдельный Next и новое платёжное/абонементное состояние ради уже закрытого
 DB-free oracle не создавались; такой smoke всё равно не доказал бы PostgreSQL/RLS. PROD, deploy, DDL и миграции
 на базе не выполнялись.
+
+## B1.4 bounded fix-round — PASS
+
+Fix-round на ветке `wt/k4-round2` закрыл только F1–F2:
+
+- из active P0.12 JSON census удалены expectations для удалённых
+  `be_product_history_events` и `be_products`;
+- удалены orphan `BookingPatientProductsSection` и dead
+  `grantPrepaidCatalogPackage`; purchase/consume path абонементов не менялся;
+- текущие `memberships.md`, `api.md` и DEV C4 comment больше не объявляют product layer.
+
+Проверки на итоговом diff:
+
+```text
+node docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-12-json-payloads.mjs
+→ check-p0-12-json-payloads: OK
+
+node scripts/check-saas-db-regression.mjs
+→ check-saas-db-regression: OK
+
+pnpm --dir apps/webapp exec vitest run --project=unit src/modules/patient-booking/catalogRemovalB14.unit.test.ts
+→ Test Files 1 passed (1); Tests 3 passed (3)
+
+pnpm --dir apps/webapp typecheck
+→ exit 0
+
+pnpm --dir apps/webapp exec eslint src/modules/memberships/service.ts src/modules/patient-booking/catalogRemovalB14.unit.test.ts
+→ exit 0
+
+node scripts/check-no-new-raw-sql.mjs
+→ check-no-new-raw-sql: OK
+
+git diff --check
+→ exit 0
+```
+
+Exact active-tree census:
+
+```bash
+rg -n -S 'BookingPatientProductsSection|grantPrepaidCatalogPackage' apps/webapp/src --glob '*.{ts,tsx}'
+rg -n -S 'productPurchaseId|product_purchase_id|booking/products/purchase|pgProducts\\.ts|be_product_history_events|be_products|be_product_pay_links' apps/webapp/src/modules/memberships/memberships.md apps/webapp/src/app/api/api.md deploy/postgres/dev-c4-runtime-table-grants.sql
+```
+
+Обе команды дали пустой результат. Historical migrations, планы/provenance, `0298`, journal, subscription-package
+schema, booking behavior, course sales, DB/DEV/TEST/PROD/deploy не менялись.
