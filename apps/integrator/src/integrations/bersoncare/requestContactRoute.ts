@@ -2,12 +2,14 @@
  * M2M: webapp просит интегратор отправить в чат запрос контакта (Telegram reply keyboard / MAX inline request_contact).
  * Подпись — как relay-outbound / send-otp.
  *
- * **Дедуп `idempotencyKey`:** `dedupMap` в памяти процесса (см. `DEDUP_TTL_MS`). Не shared между репликами — см. `INTEGRATOR_CONTRACT.md` Flow 6b.
+ * **Дедуп `idempotencyKey`:** durable store `integrator.idempotency_keys` через `idempotencyPort`
+ * (см. `DEDUP_TTL_MS`) — переживает рестарт процесса и общий для всех реплик, в отличие от прежнего
+ * `Map` в памяти процесса. См. `INTEGRATOR_CONTRACT.md` Flow 6b.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
+import type { DbPort, DispatchPort, IdempotencyPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { createDbWritePort } from '../../infra/db/writePort.js';
@@ -54,6 +56,8 @@ export type BersoncareRequestContactDeps = {
   ) => Promise<string | null>;
   /** T0.4 channel-binding fallback when the recipient has no per-user org context yet (see routes.ts). */
   resolveDeploymentOrganizationId?: () => Promise<string | null>;
+  /** Durable dedup store (`integrator.idempotency_keys`) — survives process restarts/replicas. */
+  idempotencyPort: IdempotencyPort;
 };
 
 export async function registerBersoncareRequestContactRoute(
@@ -67,23 +71,8 @@ export async function registerBersoncareRequestContactRoute(
     isAuthChannelEnabled,
     resolveOrganizationIdForMessengerIdentity,
     resolveDeploymentOrganizationId,
+    idempotencyPort,
   } = deps;
-  /** In-process only; see module JSDoc. */
-  const dedupMap = new Map<string, number>();
-
-  function isDuplicate(key: string): boolean {
-    const exp = dedupMap.get(key);
-    if (exp === undefined) return false;
-    if (Date.now() > exp) {
-      dedupMap.delete(key);
-      return false;
-    }
-    return true;
-  }
-
-  function registerKey(key: string): void {
-    dedupMap.set(key, Date.now() + DEDUP_TTL_MS);
-  }
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -123,7 +112,7 @@ export async function registerBersoncareRequestContactRoute(
     if (!(await isAuthChannelEnabled(channel))) {
       return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
     }
-    if (isDuplicate(idempotencyKey)) {
+    if (!(await idempotencyPort.tryAcquire(idempotencyKey, DEDUP_TTL_MS / 1000))) {
       logger.info({ idempotencyKey }, 'request-contact: duplicate, skipping');
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
@@ -169,10 +158,10 @@ export async function registerBersoncareRequestContactRoute(
         );
         await dispatchContact();
       }
-      registerKey(idempotencyKey);
       logger.info({ channel }, 'request-contact: dispatched');
       return reply.code(200).send({ ok: true, status: 'accepted' });
     } catch (err) {
+      await idempotencyPort.release?.(idempotencyKey);
       const codeErr = (err as { code?: number }).code ?? 0;
       const isClientError = codeErr >= 400 && codeErr < 500;
       logger.error({ err, channel }, 'request-contact: dispatch failed');

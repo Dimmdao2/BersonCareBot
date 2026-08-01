@@ -1,7 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DispatchPort,
+  IdempotencyPort,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
@@ -121,13 +125,18 @@ export type OperatorAlertRelayDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
   isSmsProviderReady: () => Promise<boolean>;
+  /** Durable dedup store (`integrator.idempotency_keys`) — survives process restarts/replicas. */
+  idempotencyPort: IdempotencyPort;
 };
 
 export async function registerOperatorAlertRelayRoute(
   app: FastifyInstance,
   deps: OperatorAlertRelayDeps,
 ): Promise<void> {
-  const dedup = new Map<string, number>();
+  // In-memory guard: closes duplicate dispatch from requests that overlap within this
+  // process while the first is still in flight (returns 503 so the caller retries).
+  // The durable "already delivered" check lives in deps.idempotencyPort, which survives
+  // a restart or a different replica handling the retry.
   const inFlight = new Set<string>();
   app.post('/api/bersoncare/operator-alert-relay', async (request, reply) => {
     const rawBody = (request as ReqWithRawBody).rawBody ?? JSON.stringify(request.body ?? {});
@@ -146,18 +155,17 @@ export async function registerOperatorAlertRelayRoute(
       return reply.code(200).send({ ok: true, status: 'skipped' });
     }
     const key = `${payload.organizationId ?? 'global'}:${payload.idempotencyKey}`;
-    const expiry = dedup.get(key);
-    if (expiry !== undefined && Date.now() <= expiry)
-      return reply.code(200).send({ ok: true, status: 'duplicate' });
     if (inFlight.has(key)) return reply.code(503).send({ ok: false, error: 'dispatch_in_flight' });
+    if (!(await deps.idempotencyPort.tryAcquire(key, DEDUP_TTL_MS / 1000)))
+      return reply.code(200).send({ ok: true, status: 'duplicate' });
     inFlight.add(key);
     try {
       await runWithOptionalOrganizationPrincipal(payload.organizationId, () =>
         deps.dispatchPort.dispatchOutgoing(buildIntent(payload)),
       );
-      dedup.set(key, Date.now() + DEDUP_TTL_MS);
       return reply.code(200).send({ ok: true, status: 'accepted' });
     } catch (error) {
+      await deps.idempotencyPort.release?.(key);
       if (isOutboundMessagePolicyDenied(error))
         return reply.code(403).send({ ok: false, error: 'egress_policy_denied' });
       logger.error({ error, channel: payload.channel }, 'operator-alert relay dispatch failed');

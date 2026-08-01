@@ -341,7 +341,7 @@ Canonical linking rules:
 }
 ```
 
-**Idempotency key:** `${organizationId ?? "global"}:${messageId}:${channel}:${recipient}` — TTL 24 часа (in-memory). Tenant входит в ключ; одновременный дубль до завершения первой отправки получает retryable `503 dispatch_in_flight`, а `200 duplicate` возвращается только после успешного завершения. Persistent exactly-once после рестарта не заявлен: до отдельного outbox/claim этапа контракт остаётся at-least-once через границу рестарта процесса.
+**Idempotency key:** `${organizationId ?? "global"}:${messageId}:${channel}:${recipient}` — TTL 24 часа, хранится durable в `integrator.idempotency_keys` (через `IdempotencyPort`, тот же store, что и у event gateway / booking-lifecycle) и переживает рестарт процесса и смену реплики. Tenant входит в ключ; одновременный дубль в рамках одного процесса, пока первая отправка ещё не завершена, получает retryable `503 dispatch_in_flight` (in-memory guard, не переживает рестарт); после рестарта или на другой реплике повтор с тем же ключом получает `200 duplicate` сразу, без повторной доставки.
 
 **Ответы integrator:**
 
@@ -415,7 +415,7 @@ fail-closed конфигурацию из глобального `public.system_
 
 **Ответы:** `200 { ok: true, status: "accepted" | "duplicate" }`, ошибки как у send-otp / relay-outbound (`invalid_signature`, `dispatch_failed`, …).
 
-**Идемпотентность (integrator):** дедуп по `idempotencyKey` хранится **в памяти процесса** (`Map` в обработчике `/api/bersoncare/request-contact`): при нескольких инстансах API у каждого свой набор ключей; TTL задаётся в коде роутера. Это осознанное ограничение без отдельного shared store.
+**Идемпотентность (integrator):** дедуп по `idempotencyKey` хранится в durable store `integrator.idempotency_keys` (через `IdempotencyPort`, тот же механизм, что и у event gateway) — переживает рестарт процесса и общий для всех реплик API; TTL задаётся в коде роутера.
 
 **Webapp → integrator:** если в сессии **оба** binding (Telegram и Max), заголовок **`X-Bersoncare-Contact-Channel: telegram | max` обязателен**; иначе **`400`** с `contact_channel_required`. При одном канале заголовок опционален (канал выводится из сессии). Лимит **60 с** на `userId` на route handler обновляется **только после успешного** ответа integrator (`ok: true`, в т.ч. **`duplicate`** — чат уже получил или дедупнул запрос).
 

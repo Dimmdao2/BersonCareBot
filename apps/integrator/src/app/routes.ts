@@ -178,12 +178,14 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     db: createDbPort(),
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
+    idempotencyPort: deps.idempotencyPort,
   });
   const operatorAlertDb = createDbPort();
   await registerOperatorAlertRelayRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     isSmsProviderReady: () => isSmscProviderReady(operatorAlertDb),
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerBersoncareRequestContactRoute(app, {
@@ -193,6 +195,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     isAuthChannelEnabled: authChannelPolicy,
     resolveOrganizationIdForMessengerIdentity,
     resolveDeploymentOrganizationId,
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerBersoncareSendOtpRoute(app, {
