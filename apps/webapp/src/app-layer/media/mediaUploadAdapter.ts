@@ -20,6 +20,7 @@ import type { PoolClient } from 'pg';
 import {
   validateReceivedUpload,
   validateUploadIntent,
+  assertReceivedUpload,
   type ReceivedUpload,
   type UploadIntent,
   type UploadPolicyId,
@@ -134,6 +135,7 @@ export function validateBufferedMediaUpload(
 
 /** The only adapter allowed to hand a received proof to the ready repository primitives. */
 export function acceptReceivedMedia(mediaId: string, received: ReceivedUpload): Promise<boolean> {
+  assertReceivedUpload(received);
   return confirmMediaFileReady(mediaId, received);
 }
 
@@ -141,6 +143,7 @@ export function acceptReceivedProgramSubmission(
   mediaId: string,
   received: ReceivedUpload,
 ): Promise<boolean> {
+  assertReceivedUpload(received);
   return confirmProgramSubmissionMediaFileReady(mediaId, received);
 }
 
@@ -154,6 +157,7 @@ export function finalizeReceivedMultipart(
     received: ReceivedUpload;
   },
 ) {
+  assertReceivedUpload(params.received);
   return tryFinalizeMultipartIdempotentTx(
     client,
     params.sessionId,

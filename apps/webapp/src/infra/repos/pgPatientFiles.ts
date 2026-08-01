@@ -13,7 +13,7 @@ import type {
   PatientFileRecord,
   PatientFilesPort,
 } from '@/modules/patient-files/ports';
-import type { ReceivedUpload } from '@/modules/media/uploadValidation';
+import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { mediaFiles } from '../../../db/schema/schema';
@@ -164,6 +164,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
       mediaFileId: string,
       received: ReceivedUpload,
     ): Promise<PatientFileRecord | null> {
+      assertReceivedUpload(received);
       const organizationId = currentPrincipalOrganizationId();
       const rows = await runDrizzleMutationTransaction(async (tx) => {
         const [existing] = await tx

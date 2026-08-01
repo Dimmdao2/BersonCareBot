@@ -6,6 +6,7 @@ import {
 
 const uploadIntentBrand: unique symbol = Symbol('uploadIntent');
 const receivedUploadBrand: unique symbol = Symbol('receivedUpload');
+const receivedUploadCapabilities = new WeakSet<object>();
 
 export type UploadPolicyId =
   | 'cms'
@@ -20,6 +21,37 @@ type UploadPolicy = {
 };
 
 const VIDEO_MIME = new Set([...ALLOWED_MEDIA_MIME].filter((mime) => mime.startsWith('video/')));
+
+/** Closed MIME-to-extension policy for every public upload intent. */
+const UPLOAD_FILENAME_EXTENSIONS: Record<string, readonly string[]> = {
+  'image/jpeg': ['.jpg', '.jpeg', '.jpe'],
+  'image/png': ['.png'],
+  'image/webp': ['.webp'],
+  'image/gif': ['.gif'],
+  'image/heic': ['.heic'],
+  'image/heif': ['.heif'],
+  'image/avif': ['.avif'],
+  'image/tiff': ['.tif', '.tiff'],
+  'image/svg+xml': ['.svg'],
+  'video/mp4': ['.mp4', '.m4v'],
+  'video/quicktime': ['.mov', '.qt'],
+  'video/webm': ['.webm'],
+  'audio/mpeg': ['.mp3'],
+  'audio/wav': ['.wav'],
+  'audio/ogg': ['.ogg', '.oga'],
+  'audio/aac': ['.aac'],
+  'audio/mp4': ['.m4a', '.mp4'],
+  'audio/x-m4a': ['.m4a'],
+  'application/pdf': ['.pdf'],
+  'application/msword': ['.doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'application/vnd.ms-excel': ['.xls'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'application/vnd.ms-powerpoint': ['.ppt'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+  'text/plain': ['.txt'],
+  'text/csv': ['.csv'],
+};
 
 /** Closed registry: routes select an id; they cannot mint a permissive policy object. */
 const UPLOAD_POLICIES: Record<UploadPolicyId, UploadPolicy> = {
@@ -48,6 +80,7 @@ export type ReceivedUpload = Readonly<{
 
 export type UploadValidationFailure =
   | { ok: false; error: 'invalid_upload_intent' }
+  | { ok: false; error: 'file_extension_not_allowed'; mime: string }
   | { ok: false; error: 'mime_not_allowed'; mime: string }
   | { ok: false; error: 'file_too_large'; maxBytes: number }
   | { ok: false; error: 'empty_file' }
@@ -57,6 +90,14 @@ export type UploadValidationFailure =
   | { ok: false; error: 'file_not_found_in_s3' };
 
 export type UploadValidationResult<T> = { ok: true; value: T } | UploadValidationFailure;
+
+function hasCompatibleExtension(filename: string, mimeType: string): boolean {
+  if (/[\\/]/.test(filename)) return false;
+  const extensionStart = filename.lastIndexOf('.');
+  if (extensionStart <= 0 || extensionStart === filename.length - 1) return false;
+  const extension = filename.slice(extensionStart).toLowerCase();
+  return UPLOAD_FILENAME_EXTENSIONS[mimeType]?.includes(extension) ?? false;
+}
 
 export function validateUploadIntent(input: {
   filename: string;
@@ -77,6 +118,9 @@ export function validateUploadIntent(input: {
   const mimeType = input.mimeType.trim().toLowerCase();
   if (!policy.allowedMime.has(mimeType))
     return { ok: false, error: 'mime_not_allowed', mime: mimeType };
+  if (!hasCompatibleExtension(filename, mimeType)) {
+    return { ok: false, error: 'file_extension_not_allowed', mime: mimeType };
+  }
   if (input.sizeBytes > policy.maxBytes) {
     return { ok: false, error: 'file_too_large', maxBytes: policy.maxBytes };
   }
@@ -195,7 +239,18 @@ export function validateReceivedUpload(input: {
     return { ok: false, error: 'received_content_type_mismatch', mime: input.intent.mimeType };
   if (!matchesUploadSignature(input.intent.mimeType, input.firstBytes))
     return { ok: false, error: 'file_signature_mismatch', mime: input.intent.mimeType };
-  return { ok: true, value: { intent: input.intent, [receivedUploadBrand]: true } };
+  const received: ReceivedUpload = Object.freeze({
+    intent: input.intent,
+    [receivedUploadBrand]: true,
+  });
+  receivedUploadCapabilities.add(received);
+  return { ok: true, value: received };
+}
+
+/** Runtime-only proof: a TypeScript cast cannot mint a received-object result. */
+export function assertReceivedUpload(value: unknown): asserts value is ReceivedUpload {
+  if (typeof value === 'object' && value !== null && receivedUploadCapabilities.has(value)) return;
+  throw new Error('invalid_received_upload_capability');
 }
 
 export function uploadValidationResponse(failure: UploadValidationFailure): {
@@ -204,6 +259,7 @@ export function uploadValidationResponse(failure: UploadValidationFailure): {
 } {
   if (
     failure.error === 'mime_not_allowed' ||
+    failure.error === 'file_extension_not_allowed' ||
     failure.error === 'received_content_type_mismatch' ||
     failure.error === 'file_signature_mismatch'
   )

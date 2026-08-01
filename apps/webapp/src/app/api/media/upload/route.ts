@@ -65,7 +65,7 @@ function validateFile(
   | { ok: true; value: UploadCandidateMeta }
   | { ok: false; status: number; payload: Record<string, unknown> } {
   const validated = validateUploadIntent({
-    filename: file.name || 'upload',
+    filename: file.name,
     mimeType: file.type || 'application/octet-stream',
     sizeBytes: file.size,
     policyId: 'proxy',
@@ -75,7 +75,7 @@ function validateFile(
     return {
       ok: false,
       status: rejection.status,
-      payload: { ...rejection.body, index, filename: file.name || 'upload' },
+      payload: { ...rejection.body, index, filename: file.name },
     };
   }
   return {
@@ -111,6 +111,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'missing_file' }, { status: 400 });
   }
 
+  const candidateMeta: UploadCandidateMeta[] = [];
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i]!;
+    const validation = validateFile(file, i);
+    if (!validation.ok) {
+      return NextResponse.json(validation.payload, { status: validation.status });
+    }
+    candidateMeta.push(validation.value);
+  }
+
   const deps = buildAppDeps();
   const folderRes = await resolveUploadFolderIdFromForm(
     (folderId) => deps.media.folderExists(folderId),
@@ -121,23 +131,20 @@ export async function POST(request: Request) {
   }
 
   const candidates: UploadCandidate[] = [];
-  for (let i = 0; i < files.length; i += 1) {
-    const file = files[i]!;
-    const validation = validateFile(file, i);
-    if (!validation.ok) {
-      return NextResponse.json(validation.payload, { status: validation.status });
-    }
+  for (let i = 0; i < candidateMeta.length; i += 1) {
+    const validation = candidateMeta[i]!;
+    const file = validation.file;
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const received = validateBufferedMediaUpload(validation.value.intent, bytes);
+    const received = validateBufferedMediaUpload(validation.intent, bytes);
     if (!received.ok) {
       const rejection = uploadValidationResponse(received);
       return NextResponse.json(
-        { ...rejection.body, index: i, filename: validation.value.filename },
+        { ...rejection.body, index: i, filename: validation.filename },
         { status: rejection.status },
       );
     }
     candidates.push({
-      ...validation.value,
+      ...validation,
       body: bytes.buffer,
       received: received.value,
     });

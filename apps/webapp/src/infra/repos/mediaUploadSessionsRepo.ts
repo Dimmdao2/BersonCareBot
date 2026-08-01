@@ -4,7 +4,7 @@ import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
-import type { ReceivedUpload } from '@/modules/media/uploadValidation';
+import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 
 export type UploadSessionRow = {
   id: string;
@@ -15,6 +15,7 @@ export type UploadSessionRow = {
   status: string;
   expected_size_bytes: string;
   mime_type: string;
+  original_name: string;
   part_size_bytes: number;
   expires_at: Date;
 };
@@ -32,7 +33,7 @@ export type AbortMultipartDbResult =
 
 const uploadSessionReturning = sql`
   s.id, s.media_id, s.s3_key, s.upload_id, s.owner_user_id, s.status,
-  s.expected_size_bytes::text, s.mime_type, s.part_size_bytes, s.expires_at
+  s.expected_size_bytes::text, s.mime_type, m.original_name, s.part_size_bytes, s.expires_at
 `;
 
 export async function insertUploadSessionTx(
@@ -155,8 +156,9 @@ export async function finalizeMultipartSuccessTx(
   mediaId: string,
   ownerUserId: string,
   organizationId: string,
-  _received: ReceivedUpload,
+  received: ReceivedUpload,
 ): Promise<FinalizeMultipartResult> {
+  assertReceivedUpload(received);
   const db = getWebappSqlFromPgClient(client);
   const sessionRes = await runWebappSql(
     db,
@@ -192,6 +194,7 @@ export async function tryFinalizeMultipartIdempotentTx(
   organizationId: string,
   received: ReceivedUpload,
 ): Promise<{ kind: 'finalized' | 'already_done' | 'partial'; result: FinalizeMultipartResult }> {
+  assertReceivedUpload(received);
   const db = getWebappSqlFromPgClient(client);
   const state = await runWebappSql<{ s: string; m: string }>(
     db,
@@ -354,7 +357,7 @@ export async function gateUploadSessionForPartUrl(
   const res = await runWebappSql<UploadSessionRow & { expired: boolean }>(
     getWebappSqlDb(),
     sql`SELECT s.id, s.media_id, s.s3_key, s.upload_id, s.owner_user_id, s.status,
-            s.expected_size_bytes::text, s.mime_type, s.part_size_bytes, s.expires_at,
+            s.expected_size_bytes::text, s.mime_type, m.original_name, s.part_size_bytes, s.expires_at,
             (expires_at <= now()) AS expired
        FROM media_upload_sessions s
        JOIN media_files m ON m.id = s.media_id

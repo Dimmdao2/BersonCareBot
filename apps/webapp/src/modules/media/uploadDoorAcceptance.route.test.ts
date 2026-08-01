@@ -204,6 +204,7 @@ function pendingRow(overrides: Record<string, unknown> = {}) {
     s3_key: 'uploads/object',
     status: 'pending',
     mime_type: 'image/jpeg',
+    original_name: 'photo.jpg',
     usage_purpose: null,
     size_bytes: 3,
     ...overrides,
@@ -475,6 +476,7 @@ describe('Ч1 received object at real confirm handlers', () => {
       status: 'initiated',
       expected_size_bytes: '3',
       mime_type: 'image/jpeg',
+      original_name: 'photo.jpg',
       part_size_bytes: 3,
       expires_at: new Date('2030-01-01T00:00:00.000Z'),
     };

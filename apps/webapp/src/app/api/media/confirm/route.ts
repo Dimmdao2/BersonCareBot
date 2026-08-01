@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   }
 
   const intent = validateUploadIntent({
-    filename: parsed.data.mediaId,
+    filename: row.original_name,
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes ?? 0,
     policyId: 'cms',

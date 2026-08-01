@@ -9,7 +9,7 @@ import type {
   PatientFileRecord,
   PatientFilesPort,
 } from '@/modules/patient-files/ports';
-import type { ReceivedUpload } from '@/modules/media/uploadValidation';
+import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 
 const store: Map<string, PatientFileRecord> = new Map();
 
@@ -54,8 +54,9 @@ export const inMemoryPatientFilesPort: PatientFilesPort = {
 
   async confirmFileUpload(
     mediaFileId: string,
-    _received: ReceivedUpload,
+    received: ReceivedUpload,
   ): Promise<PatientFileRecord | null> {
+    assertReceivedUpload(received);
     return Array.from(store.values()).find((file) => file.mediaFileId === mediaFileId) ?? null;
   },
 

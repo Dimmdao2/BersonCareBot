@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { validateReceivedUpload, validateUploadIntent } from './uploadValidation';
+import {
+  assertReceivedUpload,
+  validateReceivedUpload,
+  validateUploadIntent,
+  type ReceivedUpload,
+} from './uploadValidation';
 
 function jpegIntent(sizeBytes: number = 3) {
   const result = validateUploadIntent({
@@ -59,5 +64,21 @@ describe('media upload received-object door', () => {
         policyId: 'patient-program-submission',
       }),
     ).toMatchObject({ ok: false, error: 'file_too_large' });
+  });
+
+  it('does not let a TypeScript cast mint the received-object capability', () => {
+    expect(() => assertReceivedUpload({} as ReceivedUpload)).toThrow(
+      'invalid_received_upload_capability',
+    );
+
+    const received = validateReceivedUpload({
+      intent: jpegIntent(),
+      contentLength: 3,
+      contentType: 'image/jpeg',
+      firstBytes: new Uint8Array([0xff, 0xd8, 0xff]),
+    });
+    if (!received.ok) throw new Error('valid received object rejected');
+
+    expect(() => assertReceivedUpload(received.value)).not.toThrow();
   });
 });
