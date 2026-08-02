@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { DbPort, DeliveryAdapter, OutgoingIntent } from '../kernel/contracts/index.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
 import { readMaxRuntimeConfig, readSmscRuntimeConfig, readTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
@@ -9,6 +10,13 @@ function dbFor(values: SettingValues, failure?: Error): DbPort {
   return {
     query: vi.fn((query: string, params: unknown[] = []) => {
       if (failure) return Promise.reject(failure);
+      const principal = getCurrentDbPrincipal();
+      if (
+        principal?.kind !== 'bootstrap' ||
+        principal.source !== 'integrator-server-runtime-config'
+      ) {
+        return Promise.reject(new Error('runtime config bootstrap principal missing'));
+      }
       // Mirrors the locked TEST login: direct credential-table reads are denied, while the
       // fixed-key SECURITY DEFINER capability is executable.
       if (/\bpublic\.system_settings\b/i.test(query)) {

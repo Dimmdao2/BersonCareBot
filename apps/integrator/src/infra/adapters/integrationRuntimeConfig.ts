@@ -7,6 +7,7 @@ import {
   parseSystemSettingStringValue,
   parseSystemSettingTrueLiteral,
 } from '../db/publicSystemSettings.js';
+import { runWithBootstrapPrincipal } from '../principal/organizationPrincipal.js';
 
 export type TelegramRuntimeConfig = {
   enabled: boolean;
@@ -31,11 +32,15 @@ const url = (input: string): string => (z.string().url().safeParse(input).succes
 /** The single DB-backed runtime accessor for platform provider configuration. */
 export async function readTelegramRuntimeConfig(db: DbPort): Promise<TelegramRuntimeConfig> {
   try {
-    const [botToken, webhookSecret, menu] = await Promise.all([
-      value(db, 'telegram_bot_token'),
-      value(db, 'telegram_webhook_secret'),
-      fetchIntegratorProviderRuntimeSettingValueJson(db, 'telegram_send_menu_on_button_press'),
-    ]);
+    const [botToken, webhookSecret, menu] = await runWithBootstrapPrincipal(
+      { source: 'integrator-server-runtime-config' },
+      () =>
+        Promise.all([
+          value(db, 'telegram_bot_token'),
+          value(db, 'telegram_webhook_secret'),
+          fetchIntegratorProviderRuntimeSettingValueJson(db, 'telegram_send_menu_on_button_press'),
+        ]),
+    );
     return {
       enabled: Boolean(botToken && webhookSecret),
       botToken,
@@ -52,11 +57,15 @@ export function getTelegramRuntimeConfig(): Promise<TelegramRuntimeConfig> {
 
 export async function readMaxRuntimeConfig(db: DbPort): Promise<MaxRuntimeConfig> {
   try {
-    const [apiKey, webhookSecret, baseUrlRaw] = await Promise.all([
-      value(db, 'max_bot_api_key'),
-      value(db, 'max_webhook_secret'),
-      value(db, 'max_api_base_url'),
-    ]);
+    const [apiKey, webhookSecret, baseUrlRaw] = await runWithBootstrapPrincipal(
+      { source: 'integrator-server-runtime-config' },
+      () =>
+        Promise.all([
+          value(db, 'max_bot_api_key'),
+          value(db, 'max_webhook_secret'),
+          value(db, 'max_api_base_url'),
+        ]),
+    );
     const baseUrl = url(baseUrlRaw);
     return { enabled: Boolean(apiKey && webhookSecret && baseUrl), apiKey, webhookSecret, baseUrl };
   } catch {
@@ -69,11 +78,15 @@ export function getMaxRuntimeConfig(): Promise<MaxRuntimeConfig> {
 
 export async function readSmscRuntimeConfig(db: DbPort): Promise<SmscRuntimeConfig> {
   try {
-    const [enabledValue, apiKey, baseUrlRaw] = await Promise.all([
-      fetchIntegratorProviderRuntimeSettingValueJson(db, 'smsc_enabled'),
-      value(db, 'smsc_api_key'),
-      value(db, 'smsc_base_url'),
-    ]);
+    const [enabledValue, apiKey, baseUrlRaw] = await runWithBootstrapPrincipal(
+      { source: 'integrator-server-runtime-config' },
+      () =>
+        Promise.all([
+          fetchIntegratorProviderRuntimeSettingValueJson(db, 'smsc_enabled'),
+          value(db, 'smsc_api_key'),
+          value(db, 'smsc_base_url'),
+        ]),
+    );
     const baseUrl = url(baseUrlRaw);
     const enabled =
       enabledValue !== null &&
