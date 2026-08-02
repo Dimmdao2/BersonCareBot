@@ -126,7 +126,6 @@ export async function POST() {
       invoiceId: invoice.id,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
     const message = error instanceof Error ? error.message : '';
     if (message === 'saas_billing_no_tariff_assigned') {
       return NextResponse.json(

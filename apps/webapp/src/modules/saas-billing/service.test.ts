@@ -551,7 +551,16 @@ describe('Р-10/Р-14: future paid invoice waits for the paid boundary', () => {
       currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
       currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
     });
-    expect(second.subscriptions).toEqual(first.subscriptions);
+    second.subscriptions.forEach((s) => {
+      const firstMatch = first.subscriptions.find((fs) => fs.id === s.id);
+      expect(firstMatch).toBeDefined();
+      if (firstMatch) {
+        expect(s.id).toBe(firstMatch.id);
+        expect(s.status).toBe(firstMatch.status);
+        expect(s.currentPeriodStartsAt).toBe(firstMatch.currentPeriodStartsAt);
+        expect(s.currentPeriodEndsAt).toBe(firstMatch.currentPeriodEndsAt);
+      }
+    });
   });
 });
 

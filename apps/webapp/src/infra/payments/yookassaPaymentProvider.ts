@@ -249,7 +249,6 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             metadata: paymentMetadata,
           };
 
-      // eslint-disable-next-line no-console
       const body = await fetchWithTimeout(
         'https://api.yookassa.ru/v3/payments',
         {
