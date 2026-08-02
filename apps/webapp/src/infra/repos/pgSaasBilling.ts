@@ -185,6 +185,7 @@ function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
   const currency = snapshot?.currency;
   const billingPeriod = snapshot?.billing_period;
   if (
+    typeof priceMinor !== 'number' ||
     !Number.isSafeInteger(priceMinor) ||
     typeof currency !== 'string' ||
     !/^[A-Z]{3}$/.test(currency) ||
@@ -198,7 +199,11 @@ function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
 function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown> | null): number | null {
   const additionalSeatPriceMinor = snapshot?.additional_seat_price_minor;
   if (additionalSeatPriceMinor === null || additionalSeatPriceMinor === undefined) return null;
-  if (!Number.isSafeInteger(additionalSeatPriceMinor) || additionalSeatPriceMinor < 0) {
+  if (
+    typeof additionalSeatPriceMinor !== 'number' ||
+    !Number.isSafeInteger(additionalSeatPriceMinor) ||
+    additionalSeatPriceMinor < 0
+  ) {
     throw new Error('saas_billing_paid_period_snapshot_missing');
   }
   return additionalSeatPriceMinor;
@@ -933,7 +938,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               and(
                 eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
                 eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
-                eq(saasBillingInvoices.description, null),
+                isNull(saasBillingInvoices.description),
                 eq(saasBillingInvoices.status, 'paid'),
                 eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
               ),

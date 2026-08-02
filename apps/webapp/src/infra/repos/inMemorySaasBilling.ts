@@ -21,6 +21,7 @@ function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
   const currency = snapshot?.currency;
   const billingPeriod = snapshot?.billing_period;
   if (
+    typeof priceMinor !== 'number' ||
     !Number.isSafeInteger(priceMinor) ||
     typeof currency !== 'string' ||
     !/^[A-Z]{3}$/.test(currency) ||
@@ -34,7 +35,11 @@ function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
 function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown> | null): number | null {
   const additionalSeatPriceMinor = snapshot?.additional_seat_price_minor;
   if (additionalSeatPriceMinor === null || additionalSeatPriceMinor === undefined) return null;
-  if (!Number.isSafeInteger(additionalSeatPriceMinor) || additionalSeatPriceMinor < 0) {
+  if (
+    typeof additionalSeatPriceMinor !== 'number' ||
+    !Number.isSafeInteger(additionalSeatPriceMinor) ||
+    additionalSeatPriceMinor < 0
+  ) {
     throw new Error('saas_billing_paid_period_snapshot_missing');
   }
   return additionalSeatPriceMinor;
@@ -116,7 +121,7 @@ export function createInMemorySaasBillingRepository(
       return [
         ...new Set([
           ...tariffs.keys(),
-          ...organizationTariffs.values().filter((id): id is string => id !== null),
+          ...[...organizationTariffs.values()].filter((id): id is string => id !== null),
         ]),
       ]
         .sort()
@@ -637,6 +642,7 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
+      const tariff = tariffs.get(authority.pendingTariffId ?? authority.tariffId);
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
@@ -755,6 +761,7 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
+      const tariff = tariffs.get(authority.pendingTariffId ?? authority.tariffId);
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
