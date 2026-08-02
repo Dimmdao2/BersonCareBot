@@ -9,7 +9,7 @@ import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
 import { MaxSendError } from './client.js';
 import { parseMaxPlatformUserId, readMaxOutboundRecipient } from './maxRecipient.js';
-import { getMaxApiKey, getMaxBaseUrl } from './runtimeConfig.js';
+import { getMaxRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 
 /**
@@ -136,10 +136,16 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         clinicCredential?.channel === 'max' && typeof clinicCredential.apiKey === 'string'
           ? clinicCredential.apiKey.trim()
           : '';
-      const apiKey = clinicApiKey || (await getMaxApiKey());
-      if (!apiKey) throw new Error('max api key missing');
-      const baseUrl = getMaxBaseUrl();
-      const config = { apiKey, ...(baseUrl ? { baseUrl } : {}) };
+      const runtimeConfig = await getMaxRuntimeConfig();
+      if (!clinicApiKey && !runtimeConfig.enabled) {
+        throw new Error('MAX_RUNTIME_CONFIG_UNAVAILABLE');
+      }
+      const config = clinicApiKey
+        ? {
+            apiKey: clinicApiKey,
+            ...(runtimeConfig.baseUrl ? { baseUrl: runtimeConfig.baseUrl } : {}),
+          }
+        : { apiKey: runtimeConfig.apiKey, baseUrl: runtimeConfig.baseUrl };
       const text = asNonEmptyString(payload.message?.text);
       const messageId = payload.messageId;
 

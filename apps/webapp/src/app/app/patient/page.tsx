@@ -8,6 +8,7 @@ import { patientRscPersonalDataGate, requirePatientAccess } from '@/app-layer/gu
 import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { routePaths } from '@/app-layer/routes/paths';
+import { notFound } from 'next/navigation';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { patientGreetingPersonalizedName } from '@/modules/patient-home/patientGreetingPersonalizedName';
 import { resolvePatientCanViewAuthOnlyContent } from '@/app-layer/platform-access';
@@ -44,20 +45,17 @@ export default async function PatientHomePage() {
     platformUserId: session.user.userId,
     source: 'app.patient.page',
   });
-  const coursesOrganizationId = (
-    await getMechanicSurfaceVisibility(
-      { organizationId: patientContext.organizationId },
-      'courses',
-    )
-  ).patientNavigation
+  const mechanicContext = { organizationId: patientContext.organizationId };
+  const [todayVisibility, coursesVisibility, warmupsVisibility] = await Promise.all([
+    getMechanicSurfaceVisibility(mechanicContext, 'patient_home_today'),
+    getMechanicSurfaceVisibility(mechanicContext, 'courses'),
+    getMechanicSurfaceVisibility(mechanicContext, 'warmups'),
+  ]);
+  if (!todayVisibility.directUrl) notFound();
+  const coursesOrganizationId = coursesVisibility.patientNavigation
     ? patientContext.organizationId
     : null;
-  const warmupsOrganizationId = (
-    await getMechanicSurfaceVisibility(
-      { organizationId: patientContext.organizationId },
-      'warmups',
-    )
-  ).patientNavigation
+  const warmupsOrganizationId = warmupsVisibility.patientNavigation
     ? patientContext.organizationId
     : null;
   const appTz = await getAppDisplayTimeZone();

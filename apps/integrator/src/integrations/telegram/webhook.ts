@@ -10,7 +10,7 @@ import { getRequestLogger, logger, newEventId } from '../../infra/observability/
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
-import { telegramConfig } from './config.js';
+import { getTelegramRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
 import { buildWebappEntryUrl } from '../webappEntryToken.js';
 import { parseMessengerStartCommand } from '../common/messengerStartParse.js';
 import {
@@ -60,6 +60,10 @@ export async function buildLinksFromBody(
   const displayName = from ? joinDisplayName(from) : undefined;
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
   const links: Record<string, unknown> = {};
+  const appBase = (appBaseUrl ?? env.APP_BASE_URL).trim().replace(/\/+$/, '');
+  if (appBase.startsWith('http://') || appBase.startsWith('https://')) {
+    links.remindersUrl = `${appBase}/app/patient/reminders`;
+  }
   if (typeof chatId === 'number') {
     let integratorUserId: string | undefined;
     try {
@@ -82,7 +86,6 @@ export async function buildLinksFromBody(
       links.webappEntryUrl = baseWebappUrl;
       const enc = (p: string) => encodeURIComponent(p);
       links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
-      links.webappRemindersUrl = `${baseWebappUrl}&next=${enc('/app/patient/reminders')}`;
       links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
       links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
       links.bookingUrl = links.webappCabinetUrl;
@@ -99,10 +102,7 @@ export async function buildAdminFacts(
   body: TelegramWebhookBodyValidated,
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
-  const adminTelegramId = telegramConfig.adminTelegramId;
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
-  const envAdmin =
-    typeof adminTelegramId === 'number' && typeof chatId === 'number' && chatId === adminTelegramId;
   let dbAdmin = false;
   if (typeof chatId === 'number' && resolveMessengerStaffAdmin) {
     try {
@@ -119,9 +119,8 @@ export async function buildAdminFacts(
       dbAdmin = false;
     }
   }
-  const isAdmin = envAdmin || dbAdmin;
+  const isAdmin = dbAdmin;
   const result: Record<string, unknown> = { isAdmin };
-  if (typeof adminTelegramId === 'number') result.adminChatId = adminTelegramId;
   return result;
 }
 
@@ -423,10 +422,12 @@ export async function registerTelegramWebhookRoutes(
     const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     try {
-      const secret = telegramConfig.webhookSecret;
-      if (secret) {
-        const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
-        if (headerSecret !== secret) {
+      const config = await getTelegramRuntimeConfig();
+      if (!config.enabled) {
+        return reply.code(503).send({ ok: false, error: 'Unavailable' });
+      }
+      const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
+      if (headerSecret !== config.webhookSecret) {
           reqLogger.warn('telegram webhook secret mismatch');
           recordTelegramWebhookOutcome({
             source: 'telegram',
@@ -436,7 +437,6 @@ export async function registerTelegramWebhookRoutes(
             detail: 'secret mismatch',
           });
           return reply.code(200).send({ ok: false, error: 'Forbidden' });
-        }
       }
 
       const parseResult = parseWebhookBody(request.body);

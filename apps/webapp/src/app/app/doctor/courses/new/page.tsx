@@ -1,5 +1,5 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import { requireEntitlementForMutationPage } from '@/app-layer/guards/requireEntitlement';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
@@ -25,7 +25,7 @@ export default async function DoctorCoursesNewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const workspace = await requireDoctorWorkspaceContext();
-  await requireEntitlementForPage({ organizationId: workspace.organizationId }, 'courses');
+  await requireEntitlementForMutationPage({ organizationId: workspace.organizationId }, 'courses');
   const sp = await searchParams;
   const returnContext: PatientHomeCmsReturnQuery = parsePatientHomeCmsReturnQuery({
     returnTo: pick(sp, 'returnTo'),

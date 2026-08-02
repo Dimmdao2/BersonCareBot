@@ -2,7 +2,10 @@ import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   parsePatientHomeCmsReturnQuery,
@@ -29,8 +32,6 @@ export default async function DoctorContentNewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) notFound();
   const session = workspace.session;
   const sp = await searchParams;
   const patientHomeContext: PatientHomeCmsReturnQuery | null = parsePatientHomeCmsReturnQuery({
@@ -42,6 +43,10 @@ export default async function DoctorContentNewPage({
   const sectionQueryRaw = pick(sp, 'section')?.trim() ?? '';
   const systemParentRaw = pick(sp, 'systemParentCode')?.trim().toLowerCase() ?? '';
   const systemParentFilter = isSystemParentCode(systemParentRaw) ? systemParentRaw : undefined;
+  const mechanic = systemParentFilter === 'warmups' ? 'warmups' : 'cms_pages';
+  const entitlement = await requireEntitlementForReadAction(workspace, mechanic);
+  if (!entitlement.ok) notFound();
+  if (!(await getMechanicMutationAvailability(workspace, mechanic)).available) notFound();
 
   const deps = buildAppDeps();
   const coursesEnabled = (await requireEntitlementForReadAction(workspace, 'courses')).ok;

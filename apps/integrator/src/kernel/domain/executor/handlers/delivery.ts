@@ -87,7 +87,7 @@ async function handleDeliveryInner(
       templatePort: deps.templatePort,
     });
     if (
-      deps.sendMenuOnButtonPress === true &&
+      (await deps.isTelegramMenuOnButtonPress?.()) === true &&
       contentAudience(ctx) === 'user' &&
       canAttachMainReplyKeyboard(ctx) &&
       !resolvedParams.replyMarkup

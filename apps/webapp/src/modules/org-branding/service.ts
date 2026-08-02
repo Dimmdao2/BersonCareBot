@@ -17,6 +17,7 @@
  *        unpublish archives, it does not delete.
  */
 import type { CoreOrganizationContext, OrgBrandRevision, OrgBrandingPort } from './ports';
+import type { MechanicAccessResolution, MechanicAccessState } from '../org-entitlements/types';
 
 /** Trusted staff context. Only `requireOrganizationManagementContext()` may produce this. */
 export type OrgBrandingManagementContext = Readonly<{
@@ -43,7 +44,11 @@ export type EffectiveOrgBranding = {
 
 export type OrgBrandingManagementState = {
   effective: EffectiveOrgBranding;
-  brandingMechanicEnabled: boolean;
+  /** The section is visible for full access, grace and read-only lifecycle states. */
+  brandingVisible: boolean;
+  /** Only full access and grace may mutate the retained brand revision. */
+  brandingMutationAvailable: boolean;
+  accessState: MechanicAccessState;
   draft: OrgBrandRevision | null;
   published: OrgBrandRevision | null;
 };
@@ -55,6 +60,7 @@ export type OrgBrandDraftInput = {
 
 export type OrgBrandMutationFailure =
   | { ok: false; code: 'entitlement_disabled' }
+  | { ok: false; code: 'commercial_read_only' }
   | { ok: false; code: 'nothing_to_publish' }
   | { ok: false; code: 'nothing_published' };
 
@@ -125,13 +131,28 @@ function platformOnly(
   };
 }
 
+function brandingVisible(state: MechanicAccessState): boolean {
+  return state === 'full_access' || state === 'grace' || state === 'read_only';
+}
+
+function brandingMutationAvailable(state: MechanicAccessState): boolean {
+  return state === 'full_access' || state === 'grace';
+}
+
+function brandingMutationFailure(state: MechanicAccessState): OrgBrandMutationFailure | null {
+  if (state === 'read_only') return { ok: false, code: 'commercial_read_only' };
+  if (!brandingVisible(state)) return { ok: false, code: 'entitlement_disabled' };
+  return null;
+}
+
 export function createOrgBrandingService(deps: {
   port: OrgBrandingPort;
   /**
-   * Existing entitlement resolver (the `branding` mechanic check wired at the composition root).
-   * Only the PAID additions depend on it — core context never does (§3.4).
+   * Existing entitlement resolver, wired at the composition root. Only paid additions depend on
+   * it — core context never does (§3.4). The complete access state, rather than a boolean, keeps
+   * presentation visible in `read_only` while refusing mutations through the same tariff ladder.
    */
-  isBrandingMechanicEnabled: (organizationId: string) => Promise<boolean>;
+  resolveBrandingAccess: (organizationId: string) => Promise<MechanicAccessResolution>;
 }) {
   async function requireCoreContext(organizationId: string): Promise<CoreOrganizationContext> {
     const core = await deps.port.getCoreContext(organizationId);
@@ -147,17 +168,16 @@ export function createOrgBrandingService(deps: {
    * The single resolver every surface uses. `organizationId` must already be trusted (§3.4): a
    * session membership, an enrollment, an invite or a booking object — never a host, slug or body.
    */
-  async function resolveEffectiveOrgBranding(
-    organizationId: string,
-  ): Promise<EffectiveOrgBranding> {
-    const core = await requireCoreContext(organizationId);
-
-    if (!(await deps.isBrandingMechanicEnabled(organizationId))) {
+  function resolveEffectiveWithAccess(
+    core: CoreOrganizationContext,
+    access: MechanicAccessResolution,
+    published: OrgBrandRevision | null,
+  ): EffectiveOrgBranding {
+    if (!brandingVisible(access.state)) {
       // Retained published data is NOT deleted; it is merely not applied (§10).
       return platformOnly(core, 'entitlement_disabled');
     }
 
-    const published = await deps.port.getPublishedRevision(organizationId);
     if (!published) return platformOnly(core, 'no_published_revision');
 
     const paidDisplayName = normalizeDisplayNameOverride(published.displayName);
@@ -177,6 +197,17 @@ export function createOrgBrandingService(deps: {
     };
   }
 
+  async function resolveEffectiveOrgBranding(
+    organizationId: string,
+  ): Promise<EffectiveOrgBranding> {
+    const [core, access, published] = await Promise.all([
+      requireCoreContext(organizationId),
+      deps.resolveBrandingAccess(organizationId),
+      deps.port.getPublishedRevision(organizationId),
+    ]);
+    return resolveEffectiveWithAccess(core, access, published);
+  }
+
   return {
     resolveEffectiveOrgBranding,
 
@@ -184,13 +215,20 @@ export function createOrgBrandingService(deps: {
     async getManagementState(
       ctx: OrgBrandingManagementContext,
     ): Promise<OrgBrandingManagementState> {
-      const [effective, brandingMechanicEnabled, draft, published] = await Promise.all([
-        resolveEffectiveOrgBranding(ctx.organizationId),
-        deps.isBrandingMechanicEnabled(ctx.organizationId),
+      const [core, access, draft, published] = await Promise.all([
+        requireCoreContext(ctx.organizationId),
+        deps.resolveBrandingAccess(ctx.organizationId),
         deps.port.getDraftRevision(ctx.organizationId),
         deps.port.getPublishedRevision(ctx.organizationId),
       ]);
-      return { effective, brandingMechanicEnabled, draft, published };
+      return {
+        effective: resolveEffectiveWithAccess(core, access, published),
+        brandingVisible: brandingVisible(access.state),
+        brandingMutationAvailable: brandingMutationAvailable(access.state),
+        accessState: access.state,
+        draft,
+        published,
+      };
     },
 
     async saveDraft(
@@ -198,9 +236,10 @@ export function createOrgBrandingService(deps: {
       input: OrgBrandDraftInput,
     ): Promise<{ ok: true; draft: OrgBrandRevision } | OrgBrandMutationFailure> {
       assertNoCallerSuppliedFields(input);
-      if (!(await deps.isBrandingMechanicEnabled(ctx.organizationId))) {
-        return { ok: false, code: 'entitlement_disabled' };
-      }
+      const failure = brandingMutationFailure(
+        (await deps.resolveBrandingAccess(ctx.organizationId)).state,
+      );
+      if (failure) return failure;
       const draft = await deps.port.saveDraft({
         // The trusted context is the ONLY source of the organization id.
         organizationId: ctx.organizationId,
@@ -214,9 +253,10 @@ export function createOrgBrandingService(deps: {
     async publishDraft(
       ctx: OrgBrandingManagementContext,
     ): Promise<{ ok: true; published: OrgBrandRevision } | OrgBrandMutationFailure> {
-      if (!(await deps.isBrandingMechanicEnabled(ctx.organizationId))) {
-        return { ok: false, code: 'entitlement_disabled' };
-      }
+      const failure = brandingMutationFailure(
+        (await deps.resolveBrandingAccess(ctx.organizationId)).state,
+      );
+      if (failure) return failure;
       const published = await deps.port.publishDraft({
         organizationId: ctx.organizationId,
         actorPlatformUserId: ctx.actorPlatformUserId,
@@ -229,9 +269,10 @@ export function createOrgBrandingService(deps: {
     async unpublish(
       ctx: OrgBrandingManagementContext,
     ): Promise<{ ok: true } | OrgBrandMutationFailure> {
-      if (!(await deps.isBrandingMechanicEnabled(ctx.organizationId))) {
-        return { ok: false, code: 'entitlement_disabled' };
-      }
+      const failure = brandingMutationFailure(
+        (await deps.resolveBrandingAccess(ctx.organizationId)).state,
+      );
+      if (failure) return failure;
       const unpublished = await deps.port.unpublish({
         organizationId: ctx.organizationId,
         actorPlatformUserId: ctx.actorPlatformUserId,

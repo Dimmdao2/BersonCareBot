@@ -18,16 +18,19 @@ import {
   resolveDeploymentSingleActiveOrganizationId,
 } from '../infra/db/repos/channelUsers.js';
 import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
+import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
 import { env, integratorWebhookSecret } from '../config/env.js';
-import { telegramConfig } from '../integrations/telegram/config.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
 import type { OutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
-import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
+import {
+  runWithBootstrapPrincipal,
+  runWithOrganizationPrincipal,
+} from '../infra/principal/organizationPrincipal.js';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
-import { isSmscProviderReady } from '../integrations/smsc/runtimeConfig.js';
+import { getSmscRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -104,6 +107,18 @@ function createResolveDedicatedClinicBotOrganization(
       return null;
     }
   };
+}
+
+function createResolveDedicatedClinicMaxApiKey(): (
+  organizationId: string,
+) => Promise<string | null> {
+  const db = createDbPort();
+  const resolveCredential = createClinicDeliveryCredentialResolver(db);
+  return async (organizationId) =>
+    runWithOrganizationPrincipal(organizationId, async () => {
+      const credential = await resolveCredential('max');
+      return credential?.channel === 'max' ? credential.apiKey : null;
+    });
 }
 
 /**
@@ -199,11 +214,10 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     sharedSecret: integratorWebhookSecret(),
     idempotencyPort: deps.idempotencyPort,
   });
-  const operatorAlertDb = createDbPort();
   await registerOperatorAlertRelayRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
-    isSmsProviderReady: () => isSmscProviderReady(operatorAlertDb),
+    isSmsProviderReady: async () => (await getSmscRuntimeConfig()).enabled,
     idempotencyPort: deps.idempotencyPort,
   });
 
@@ -260,18 +274,15 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     resolveMessengerStaffAdmin,
     resolveDedicatedClinicBotOrganization: resolveDedicatedTelegramBotOrganization,
   };
-  if (telegramConfig.botToken) {
-    if (telegramConfig.mode === 'long_polling') {
-      // RU-isolated host: Telegram cannot reach us inbound — pull updates via
-      // getUpdates instead of a webhook. Non-fatal, fire-and-forget; NO webhook route.
-      startTelegramLongPolling(telegramWebhookDeps);
-    } else if (deps.registerTelegramWebhookRoutes) {
-      app.register(async (instance) => {
-        await deps.registerTelegramWebhookRoutes?.(instance, telegramWebhookDeps);
-      });
-    }
+  if (env.TELEGRAM_MODE === 'long_polling') {
+    // RU-isolated host: Telegram cannot reach us inbound — pull updates via
+    // getUpdates instead of a webhook. Non-fatal, fire-and-forget; NO webhook route.
+    startTelegramLongPolling(telegramWebhookDeps);
+  } else if (deps.registerTelegramWebhookRoutes) {
+    app.register(async (instance) => {
+      await deps.registerTelegramWebhookRoutes?.(instance, telegramWebhookDeps);
+    });
   }
-
   if (deps.registerMaxWebhookRoutes) {
     app.register(async (instance) => {
       await deps.registerMaxWebhookRoutes?.(instance, {
@@ -281,6 +292,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         getAppBaseUrl: getAppBaseUrlForWebhooks,
         resolveMessengerStaffAdmin,
         resolveDedicatedClinicBotOrganization: resolveDedicatedMaxBotOrganization,
+        resolveDedicatedClinicBotApiKey: createResolveDedicatedClinicMaxApiKey(),
       });
     });
   }

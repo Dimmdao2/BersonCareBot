@@ -6,13 +6,11 @@ import { revalidatePatientContentPaths } from '@/app-layer/content/revalidatePat
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
+  entitlementMutationRefusalMessage,
   requireEntitlementForReadAction,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
-import {
-  isWarmupsContentSection,
-  warmupsContentMutationRefusal,
-} from '@/app-layer/content/warmupsContentMutationGuard';
+import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
 
@@ -27,9 +25,31 @@ export async function saveContentPage(
 
   const section = (formData.get('section') as string)?.trim() || '';
   const slug = (formData.get('slug') as string)?.trim() || '';
+  const intendedMechanic = formData.get('content_mechanic') === 'warmups' ? 'warmups' : 'cms_pages';
+  const intendedEntitlement = await requireEntitlementForMutationAction(
+    workspace,
+    intendedMechanic,
+  );
+  if (!intendedEntitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', intendedEntitlement.reason),
+    };
+  }
+
   const sectionRow = await deps.contentSections.getBySlug(section);
   if (!sectionRow) {
     return { ok: false, error: 'Раздел не найден. Создайте раздел в «Контент → Разделы».' };
+  }
+  const targetMechanic = contentMechanicForSection(sectionRow);
+  if (targetMechanic !== intendedMechanic) {
+    const targetEntitlement = await requireEntitlementForMutationAction(workspace, targetMechanic);
+    if (!targetEntitlement.ok) {
+      return {
+        ok: false,
+        error: entitlementMutationRefusalMessage('изменить контент', targetEntitlement.reason),
+      };
+    }
   }
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return { ok: false, error: 'Slug: только латиница, цифры и дефис' };
@@ -103,9 +123,6 @@ export async function saveContentPage(
   }
 
   const editingId = pageIdParsed?.success ? pageIdParsed.data : null;
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
-
   if (editingId) {
     const existingById = await deps.contentPages.getById(editingId);
     if (!existingById) {
@@ -115,9 +132,18 @@ export async function saveContentPage(
       existingById.section === section
         ? sectionRow
         : await deps.contentSections.getBySlug(existingById.section);
-    if (isWarmupsContentSection(sectionRow) || isWarmupsContentSection(existingSectionRow)) {
-      const refusal = await warmupsContentMutationRefusal(workspace);
-      if (refusal) return { ok: false, error: refusal };
+    const existingMechanic = contentMechanicForSection(existingSectionRow);
+    if (existingMechanic !== targetMechanic) {
+      const existingEntitlement = await requireEntitlementForMutationAction(
+        workspace,
+        existingMechanic,
+      );
+      if (!existingEntitlement.ok) {
+        return {
+          ok: false,
+          error: entitlementMutationRefusalMessage('изменить контент', existingEntitlement.reason),
+        };
+      }
     }
     const dup = allPages.find(
       (p) => p.section === section && p.slug === slug && p.id !== editingId,
@@ -190,10 +216,6 @@ export async function saveContentPage(
     return { ok: true };
   }
 
-  if (isWarmupsContentSection(sectionRow)) {
-    const refusal = await warmupsContentMutationRefusal(workspace);
-    if (refusal) return { ok: false, error: refusal };
-  }
   const existingPage = allPages.find((p) => p.section === section && p.slug === slug);
   const sortOrder = existingPage
     ? existingPage.sortOrder

@@ -96,6 +96,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   ),
   smsc_enabled: restricted('admin', 'global', 'boolean', 'false'),
   smsc_api_key: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+  smsc_base_url: restricted('admin', 'global', 'url', 'absent'),
   doctor_patient_support_comments_without_support_default_enabled: runtime(
     'doctor',
     'per_org',
@@ -122,7 +123,7 @@ export const SYSTEM_SETTING_REGISTRY = {
     'per_org',
     'server',
     'structured',
-    '{"visibleProactiveInsightKinds":["wellbeing_low_streak","program_inactivity"],"peopleListMode":"on_support"}',
+    '{"peopleListMode":"on_support"}',
   ),
   doctor_appointment_reminder_enabled: runtime('doctor', 'per_org', 'server', 'boolean', 'false'),
   doctor_appointment_reminder_offsets_minutes: runtime(
@@ -142,6 +143,11 @@ export const SYSTEM_SETTING_REGISTRY = {
   telegram_login_bot_username: runtime('admin', 'global', 'public', 'string', ''),
   max_login_bot_nickname: runtime('admin', 'global', 'public', 'string', ''),
   max_bot_api_key: restricted('admin', 'global', 'secret_envelope'),
+  max_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
+  max_api_base_url: restricted('admin', 'global', 'url', 'absent'),
+  telegram_bot_token: restricted('admin', 'global', 'secret_envelope'),
+  telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
+  telegram_send_menu_on_button_press: restricted('admin', 'global', 'boolean', 'false'),
   vk_web_login_url: runtime('admin', 'global', 'public', 'url', ''),
   app_display_timezone: runtime('admin', 'global', 'public', 'string', 'Europe/Moscow'),
   patient_home_daily_practice_target: runtime(

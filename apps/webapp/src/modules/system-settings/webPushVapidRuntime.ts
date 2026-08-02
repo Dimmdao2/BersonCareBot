@@ -1,6 +1,7 @@
 import type { SystemSettingsService } from './service';
 import type { SystemSetting } from './types';
 import { redactSaasBillingPaymentProviderValue } from '@/modules/saas-billing/settings';
+import { isSecretValueSettingKey } from './auditRedaction';
 
 export type WebPushVapidKeyPair = {
   publicKey: string;
@@ -132,6 +133,18 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         ...s,
         valueJson: {
           value: { hasStoredSecret: typeof value === 'string' && value.trim().length > 0 },
+        },
+      };
+    }
+    if (isSecretValueSettingKey(s.key)) {
+      const value =
+        s.valueJson !== null && typeof s.valueJson === 'object'
+          ? (s.valueJson as Record<string, unknown>).value
+          : null;
+      return {
+        ...s,
+        valueJson: {
+          value: typeof value === 'string' && value.trim().length > 0 ? '[REDACTED]' : '',
         },
       };
     }

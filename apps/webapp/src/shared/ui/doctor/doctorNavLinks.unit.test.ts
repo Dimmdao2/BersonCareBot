@@ -88,4 +88,35 @@ describe('doctor navigation schedule access', () => {
     expect(readOnlyIds).toContain('content');
     expect(readOnlyIds).toContain('files-and-media');
   });
+
+  it('keeps Today settings independent from CMS visibility', () => {
+    const capabilities = ['account.self', 'clinical.workspace'] as const;
+    const readOnlyToday = resolveMechanicSurfaceVisibility({
+      mechanic: 'patient_home_today',
+      state: 'read_only',
+      policySource: 'system',
+      warning: null,
+    });
+    const disabledToday = resolveMechanicSurfaceVisibility({
+      mechanic: 'patient_home_today',
+      state: 'disabled',
+      policySource: 'system',
+      warning: null,
+    });
+
+    const readOnlyIds = getDoctorMenuItems({
+      capabilities,
+      cmsEnabled: false,
+      patientHomeTodayEnabled: readOnlyToday.specialistNavigation,
+    }).map((item) => item.id);
+    const disabledIds = getDoctorMenuItems({
+      capabilities,
+      cmsEnabled: true,
+      patientHomeTodayEnabled: disabledToday.specialistNavigation,
+    }).map((item) => item.id);
+
+    expect(readOnlyIds).toContain('patient-home');
+    expect(readOnlyIds).not.toContain('content');
+    expect(disabledIds).not.toContain('patient-home');
+  });
 });

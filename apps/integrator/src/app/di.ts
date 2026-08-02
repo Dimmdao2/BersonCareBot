@@ -46,15 +46,12 @@ import { createProtectedAccessPort } from '../infra/adapters/protectedAccessPort
 import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
-import { smscConfig } from '../integrations/smsc/config.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
-import { getSmscApiKey } from '../integrations/smsc/runtimeConfig.js';
+import { getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
 import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
-import { maxConfig } from '../integrations/max/config.js';
 import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
 import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
-import { telegramConfig } from '../integrations/telegram/config.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import type { ResolveMessengerStaffAdmin } from '../kernel/contracts/index.js';
@@ -96,6 +93,8 @@ export type MessengerWebappEntryIdentityDeps = {
   resolveDeploymentOrganizationId?: () => Promise<string | null>;
   /** Dedicated webhook path resolves the actual bot instance to one clinic, never a default org. */
   resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
+  /** MAX contact verification uses the exact clinic bot credential after organization binding. */
+  resolveDedicatedClinicBotApiKey?: (organizationId: string) => Promise<string | null>;
 };
 
 export type TelegramRoutesRegistrar = (
@@ -142,7 +141,7 @@ export type AppDeps = {
   /** Шаблоны контента (reply keyboard / inline из JSON меню). */
   templatePort: TemplatePort;
   /** Когда true, к исходящим user `message.send` в Telegram подмешивается главное reply-меню (см. executor). */
-  sendMenuOnButtonPress: boolean;
+  isTelegramMenuOnButtonPress: () => Promise<boolean>;
   contentCatalogPort: ContentCatalogPort;
   contextQueryPort: ContextQueryPort;
   eventGateway: EventGateway;
@@ -161,8 +160,7 @@ export type AppDeps = {
 export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const dbPort = createDbPort();
   const smsClient: SmsClient = createSmscClient({
-    getApiKey: () => getSmscApiKey(dbPort),
-    baseUrl: smscConfig.baseUrl,
+    getRuntimeConfig: getSmscRuntimeConfig,
     log: logger,
   });
   /** Filled after `dispatchPort` is constructed (reminders reads need Telegram on display-TZ fallback). */
@@ -231,9 +229,19 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     createSmscDeliveryAdapter({
       smsClient,
       createClinicSmsClient: (apiKey) =>
-        createSmscClient({ apiKey, baseUrl: smscConfig.baseUrl, log: logger }),
+        createSmscClient({
+          getRuntimeConfig: async () => {
+            const runtime = await getSmscRuntimeConfig();
+            return {
+              enabled: Boolean(runtime.baseUrl),
+              apiKey,
+              baseUrl: runtime.baseUrl,
+            };
+          },
+          log: logger,
+        }),
     }),
-    ...(maxConfig.enabled ? [createMaxDeliveryAdapter()] : []),
+    createMaxDeliveryAdapter(),
     createEmailDeliveryAdapter({ getDb: () => dbPort }),
     createWebPushDeliveryAdapter({ webPushAccessPort }),
   ];
@@ -274,7 +282,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     actorResolutionPort,
     deliveryDefaultsPort,
     contentPort,
-    sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,
+    isTelegramMenuOnButtonPress: async () => (await getTelegramRuntimeConfig()).sendMenuOnButtonPress,
     supportRelayPolicy: defaultSupportRelayPolicy,
     webappEventsPort,
     deliveryTargetsPort,
@@ -287,13 +295,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     pipeline,
   });
 
-  const telegramRegistrar = telegramConfig.botToken
-    ? (input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes)
-    : undefined;
-
-  const maxRegistrar = maxConfig.enabled
-    ? (input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes)
-    : undefined;
+  const telegramRegistrar = input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes;
+  const maxRegistrar = input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes;
 
   return {
     healthCheckDb,
@@ -305,15 +308,13 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     unifiedSender,
     contentPort,
     templatePort,
-    sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,
+    isTelegramMenuOnButtonPress: async () => (await getTelegramRuntimeConfig()).sendMenuOnButtonPress,
     contentCatalogPort,
     contextQueryPort,
     eventGateway,
     webappEventsPort,
     webPushAccessPort,
-    ...(telegramRegistrar !== undefined
-      ? { registerTelegramWebhookRoutes: telegramRegistrar }
-      : {}),
-    ...(maxRegistrar !== undefined ? { registerMaxWebhookRoutes: maxRegistrar } : {}),
+    registerTelegramWebhookRoutes: telegramRegistrar,
+    registerMaxWebhookRoutes: maxRegistrar,
   };
 }

@@ -8,6 +8,8 @@ import { NextResponse } from 'next/server';
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  getMechanicMutationAvailability: vi.fn(),
+  requireEntitlementForRead: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   requireEntitlementForMutationAction: vi.fn(),
   entitlementMutationRefusalMessage: (action: string) =>
@@ -58,7 +60,11 @@ vi.mock('@/app/api/booking/bookingTenant', () => ({
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForRead,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import {
   requireClinicManagementApiContext,
@@ -73,11 +79,17 @@ import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookin
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { PATCH as updateWarmupSchedule } from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
-import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-templates/route';
+import {
+  GET as getNotificationTemplates,
+  PUT as saveNotificationTemplate,
+} from '@/app/api/doctor/notification-templates/route';
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
-import { PATCH as updatePromoProgram } from '@/app/api/doctor/treatment-program-promo/route';
+import {
+  GET as getPromoProgram,
+  PATCH as updatePromoProgram,
+} from '@/app/api/doctor/treatment-program-promo/route';
 import { PATCH as updateAdminSetting } from '@/app/api/admin/settings/route';
 import { POST as updatePatientPromo } from '@/app/api/patient/treatment-program-promo/action/route';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
@@ -143,14 +155,22 @@ beforeEach(() => {
   vi.mocked(getCurrentSession).mockResolvedValue(null);
   vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
   vi.mocked(requireOrganizationManagementContext).mockResolvedValue(workspace as never);
+  vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
+  vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
+  vi.mocked(getMechanicMutationAvailability).mockResolvedValue({ available: true });
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
     ok: true,
     organizationId: ORG_ID,
   });
   vi.mocked(buildAppDeps).mockReturnValue({
     courses: { createCourse: vi.fn() },
-    notifTemplates: { saveManagedTemplate: vi.fn(), saveManagedPresentation: vi.fn() },
+    notifTemplates: {
+      getManagedTemplates: vi.fn(),
+      getManagedPresentation: vi.fn(),
+      saveManagedTemplate: vi.fn(),
+      saveManagedPresentation: vi.fn(),
+    },
     systemSettings: { getSetting: vi.fn().mockResolvedValue({ valueJson: { value: false } }) },
     contentSections: { getBySlug: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
     doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
@@ -176,6 +196,13 @@ afterEach(() => {
 });
 
 describe('tariff and platform mutation gates', () => {
+  it('refuses reading promo configuration when promo is disabled', async () => {
+    const response = await getPromoProgram();
+
+    expect(response.status).toBe(403);
+    expect(requireEntitlementForRead).toHaveBeenCalledWith(workspace, 'promo');
+  });
+
   it('refuses course creation when courses are not included in the tariff', async () => {
     const response = await createCourse(
       request('https://app.example.test/api/doctor/courses', {
@@ -205,6 +232,39 @@ describe('tariff and platform mutation gates', () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it('does not expose clinic notification-template controls when branding is disabled', async () => {
+    const response = await getNotificationTemplates();
+
+    expect(response.status).toBe(403);
+    expect(buildAppDeps().notifTemplates.getManagedTemplates).not.toHaveBeenCalled();
+    expect(buildAppDeps().notifTemplates.getManagedPresentation).not.toHaveBeenCalled();
+  });
+
+  it('keeps published clinic notification templates readable but marks their mutations unavailable in read-only access', async () => {
+    vi.mocked(requireEntitlementForRead).mockResolvedValue({ ok: true } as never);
+    vi.mocked(getMechanicMutationAvailability).mockResolvedValue({
+      available: false,
+      reason: 'commercial_read_only',
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      notifTemplates: {
+        getManagedTemplates: vi.fn().mockResolvedValue([]),
+        getManagedPresentation: vi.fn().mockResolvedValue({
+          presentation: { layout: 'organization', signature: 'Клиника', contacts: 'Контакты' },
+        }),
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await getNotificationTemplates();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      brandingMutationAvailable: false,
+      presentation: { presentation: { signature: 'Клиника' } },
+    });
   });
 
   it('refuses external-calendar connection visibly when it is not included in the tariff', async () => {
@@ -339,7 +399,6 @@ describe('tariff and platform mutation gates', () => {
     for (const invoke of cases) {
       vi.mocked(requireEntitlementForMutationAction)
         .mockReset()
-        .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({
           ok: false,
@@ -637,7 +696,6 @@ describe('tariff and platform mutation gates', () => {
 
   it('refuses creating a CMS section in the warmups cluster', async () => {
     vi.mocked(requireEntitlementForMutationAction)
-      .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({
         ok: false,
         reason: 'entitlement_required',
@@ -813,7 +871,12 @@ describe('tariff and platform mutation gates', () => {
     vi.mocked(buildAppDeps).mockReturnValue({
       orgBranding: createOrgBrandingService({
         port: brandingPort,
-        isBrandingMechanicEnabled: async () => false,
+        resolveBrandingAccess: async () => ({
+          mechanic: 'branding',
+          state: 'disabled',
+          policySource: 'mechanic',
+          warning: null,
+        }),
       }),
     } as unknown as ReturnType<typeof buildAppDeps>);
 
