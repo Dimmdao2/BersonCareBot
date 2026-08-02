@@ -549,6 +549,7 @@ type Props = {
   initialAppointments?: PatientAppointmentItem[] | null;
   /** SSR-provided patient packages. When present, skips the client-side fetch. */
   initialPackages?: PackageItem[] | null;
+  membershipsVisible?: boolean;
   /** SSR-provided effective support policy. Passed to DoctorClientSupportPanel to skip its fetch. */
   initialSupportEffectivePolicy?:
     | import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy
@@ -652,6 +653,7 @@ export function PatientTabOverview({
   initialProgramActivity,
   initialAppointments,
   initialPackages,
+  membershipsVisible = true,
   initialSupportEffectivePolicy,
 }: Props) {
   const [calView, setCalView] = useState<'month' | 'week'>('month');
@@ -744,6 +746,7 @@ export function PatientTabOverview({
   }, [userId, calYear, calMonth]);
 
   useEffect(() => {
+    if (!membershipsVisible) return;
     let active = true;
     const loadPackages = () => {
       fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
@@ -772,14 +775,16 @@ export function PatientTabOverview({
       active = false;
       window.removeEventListener('patient:packages-changed', loadPackages);
     };
-  }, [userId]);
+  }, [userId, membershipsVisible]);
 
   useEffect(() => {
     let active = true;
 
     // patient-packages: skip when SSR data provided
     const fetchPackages =
-      initialPackages != null
+      !membershipsVisible
+        ? Promise.resolve(null)
+        : initialPackages != null
         ? Promise.resolve({ ok: true, packages: initialPackages } as PackagesApiResponse)
         : fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
             credentials: 'include',
@@ -1072,7 +1077,7 @@ export function PatientTabOverview({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, membershipsVisible]);
 
   const isStale = loadedUserId !== userId;
   const isLoading = isStale || data === null;
@@ -1196,33 +1201,34 @@ export function PatientTabOverview({
                 : 'нет предстоящих записей'
             }
           />
-          {/* Абонемент KPI */}
-          <KpiCard
-            label="Абонемент"
-            loading={isLoading}
-            value={
-              data?.packageStatus === 'empty' || !data?.activePackage
-                ? '—'
-                : (() => {
-                    const activePackages =
-                      data.activePackages.length > 0 ? data.activePackages : [data.activePackage];
-                    const totals = activePackages.map(summarizePackageBalance);
-                    const remaining = totals.every((total) => total.remaining != null)
-                      ? totals.reduce((sum, total) => sum + (total.remaining ?? 0), 0)
-                      : null;
-                    return remaining == null
-                      ? 'Осталось — визитов:'
-                      : `Осталось ${remaining} визитов:`;
-                  })()
-            }
-            hint={
-              data?.packageStatus === 'empty'
-                ? 'абонемент не активен'
-                : (data?.activePackages ?? []).length > 0
-                  ? (data?.activePackages ?? []).map(formatOverviewPackageSummary).join(', ')
-                  : 'осталось занятий'
-            }
-          />
+          {membershipsVisible ? (
+            <KpiCard
+              label="Абонемент"
+              loading={isLoading}
+              value={
+                data?.packageStatus === 'empty' || !data?.activePackage
+                  ? '—'
+                  : (() => {
+                      const activePackages =
+                        data.activePackages.length > 0 ? data.activePackages : [data.activePackage];
+                      const totals = activePackages.map(summarizePackageBalance);
+                      const remaining = totals.every((total) => total.remaining != null)
+                        ? totals.reduce((sum, total) => sum + (total.remaining ?? 0), 0)
+                        : null;
+                      return remaining == null
+                        ? 'Осталось — визитов:'
+                        : `Осталось ${remaining} визитов:`;
+                    })()
+              }
+              hint={
+                data?.packageStatus === 'empty'
+                  ? 'абонемент не активен'
+                  : (data?.activePackages ?? []).length > 0
+                    ? (data?.activePackages ?? []).map(formatOverviewPackageSummary).join(', ')
+                    : 'осталось занятий'
+              }
+            />
+          ) : null}
         </div>
 
         {/* Сигналы — shown only when present */}

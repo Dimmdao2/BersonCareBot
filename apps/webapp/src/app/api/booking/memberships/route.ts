@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -15,6 +16,8 @@ export async function GET() {
   const resolvedOrg = await resolvePatientEnrollmentOrganizationId(deps, gate.session.user.userId);
   if (!resolvedOrg.ok) return resolvedOrg.response;
   const organizationId = resolvedOrg.organizationId;
+  const entitlement = await requireEntitlementForRead({ organizationId }, 'subscriptions');
+  if (!entitlement.ok) return entitlement.response;
   const packages = await withExplicitOrganizationPrincipal(
     { organizationId, source: 'api/booking/memberships:GET' },
     () => deps.memberships!.listPatientPackagesForUser(gate.session.user.userId, organizationId),

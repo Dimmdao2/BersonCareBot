@@ -6,6 +6,10 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import {
+  getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -36,6 +40,10 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const workspace = await requireDoctorWorkspaceContext();
   const session = workspace.session;
   const deps = buildAppDeps();
+  const membershipAccess = await getMechanicSurfaceVisibility(workspace, 'subscriptions');
+  const membershipMutation = membershipAccess.specialistNavigation
+    ? await getMechanicMutationAvailability(workspace, 'subscriptions')
+    : { available: false as const };
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     workspace.organizationId,
@@ -116,7 +124,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       : Promise.resolve(
           [] as Awaited<ReturnType<NonNullable<typeof deps.payments>['listPaymentHistoryForUser']>>,
         ),
-    deps.memberships
+    membershipAccess.specialistNavigation && deps.memberships
       ? deps.memberships
           .listPatientPackagesForUser(patientUserId, workspace.organizationId)
           .catch(() => null)
@@ -267,6 +275,8 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialFinancesData={initialFinancesData}
           initialSupplementaryContacts={initialSupplementaryContacts}
           initialPackages={initialPackagesForTabs}
+          membershipsVisible={membershipAccess.specialistNavigation}
+          membershipMutationsAllowed={membershipMutation.available}
           initialPaymentsSummary={initialPaymentsSummary}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
           initialPortalState={portalState}

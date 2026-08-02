@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -18,6 +19,8 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!organizationId) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+  const entitlement = await requireEntitlementForRead({ organizationId }, 'subscriptions');
+  if (!entitlement.ok) return entitlement.response;
   const detail = await withExplicitOrganizationPrincipal(
     { organizationId, source: 'api/booking/memberships/[id]:GET' },
     () => deps.memberships!.getPatientPackageDetail(id, organizationId),

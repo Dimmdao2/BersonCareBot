@@ -949,6 +949,13 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 - [ ] **4.6** Предоплата при записи; правила отмены не трогать.
 - [ ] **4.7** Курсы · CMS · каталог и пакеты упражнений · абонементы · приём оплат · платная подписка пациента ·
       брендирование (включает свои шаблоны уведомлений) · свой домен — привести к порту и к лестнице.
+  - [x] **4.7 / абонементы — patient packages (#1069).** `subscriptions` спрашивается на видимости
+        карточки пациента у врача и раздела пациента, на прямых read/write API; `read_only` сохраняет
+        клиническое чтение и убирает все package mutations, `disabled` скрывает обе поверхности и
+        возвращает отказ. Реестр: `protectedActionRegistry.ts` (`subscriptions.patient-package.*`).
+        Evidence: targeted route tests for doctor consume and patient list/purchase;
+        `protectedActionRegistryCoverage.unit.test.ts`; `pnpm --dir apps/webapp typecheck`,
+        `pnpm run typecheck`, scoped webapp ESLint, `git diff --check` (2026-08-02).
 - [ ] **4.8** Рассылки — после появления модели каналов клиники в соседнем потоке (#1071), по их контракту.
 - [ ] **4.9** Три механики владельца («Сегодня», разминки, промо) — выключены у всех, включаются ему существующим
       исключением организации, и подчиняются лестнице как все.
