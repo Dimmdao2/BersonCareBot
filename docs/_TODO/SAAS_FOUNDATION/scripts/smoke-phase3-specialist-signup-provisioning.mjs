@@ -25,7 +25,7 @@
  * `--static-only` runs source/contract guards without starting PostgreSQL.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -141,6 +141,7 @@ const clusterData = path.join(clusterRoot, 'data');
 const clusterSocket = path.join(clusterRoot, 'socket');
 const clusterPort = String(56000 + (process.pid % 5000));
 const trialTariffId = '30000000-0000-4000-8000-000000000001';
+const registrationPolicyRaceTariffId = '30000000-0000-4000-8000-000000000002';
 
 const users = {
   first: {
@@ -202,6 +203,11 @@ const users = {
 
 let clusterStarted = false;
 let cleanupStarted = false;
+
+if (process.argv[2] === '--registration-policy-race-worker') {
+  await runRegistrationPolicyRaceWorker(process.argv[3]);
+  process.exit(0);
+}
 
 for (const name of [dbName, ownerRole, runtimeRole]) assertSafeScratchName(name);
 assertNoUnsafeParentDbHints();
@@ -368,7 +374,7 @@ function createScratchRolesAndDatabase() {
       'CREATE ROLE app_staff NOLOGIN NOBYPASSRLS;',
       'CREATE ROLE app_patient NOLOGIN NOBYPASSRLS;',
       `CREATE ROLE ${quoteIdent(runtimeRole)} LOGIN NOINHERIT NOBYPASSRLS PASSWORD ${quoteLiteral(runtimePassword)};`,
-      `GRANT app_staff, app_patient TO ${quoteIdent(runtimeRole)};`,
+      `GRANT app_staff, app_patient, ${quoteIdent(platformSettingsRole)} TO ${quoteIdent(runtimeRole)};`,
     ].join('\n'),
     { database: 'postgres', label: 'create disposable U3S roles' },
   );
@@ -422,6 +428,15 @@ function installCanonicalSchema() {
       label: `apply canonical ${path.basename(migrationPath)}`,
     });
   }
+  // The existing U3S disposable baseline stops at the registration-policy migrations; load the
+  // current repository port against the four later tariff-shape columns it selects.
+  psql(`
+ALTER TABLE public.saas_tariffs
+  ADD COLUMN IF NOT EXISTS system_access_policy jsonb,
+  ADD COLUMN IF NOT EXISTS mechanic_access_policies jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS downgrade_policies jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS additional_seat_price_minor integer;
+`, { label: 'complete disposable tariff shape for the registration policy port race' });
   psqlFile(paths.ownerProvisioningOverlay, {
     label: 'apply canonical specialist owner provisioning overlay',
   });
@@ -667,10 +682,161 @@ async function runCurrentContractProof() {
 
   assertProvisioningState(users.first, first);
   assertProvisioningState(users.concurrent, concurrent[0]);
+  if (!process.argv.includes('--skip-registration-policy-race')) {
+    await assertRegistrationTariffPolicyWriteRace();
+  }
   await assertRegistrationTariffPolicyContracts(principal, lockedOptions);
   await assertStaffCommercialReadWall(principal, lockedOptions, first, concurrent[0]);
   runCanonicalBindingHelper(first, users.existingMember.organizationId);
   assertBindingState(users.first, first);
+}
+
+async function runRegistrationPolicyRaceWorker(operation) {
+  if (operation !== 'set' && operation !== 'archive') {
+    throw new Error('registration policy race worker requires set or archive');
+  }
+  const tariffId = process.env.REGISTRATION_POLICY_RACE_TARIFF_ID;
+  if (!tariffId) throw new Error('registration policy race worker requires REGISTRATION_POLICY_RACE_TARIFF_ID');
+  const [{ createPgPlatformEntitlementsPort }, { runWithDbPlatformPrincipal }] = await Promise.all([
+    import(
+      pathToFileURL(
+        path.join(repoRoot, 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'),
+      ).href,
+    ),
+    import(pathToFileURL(path.join(repoRoot, 'packages/db-principal/dist/index.js')).href),
+  ]);
+  const audit = { actorId: users.first.userId, reason: 'independent registration tariff race audit' };
+  await runWithDbPlatformPrincipal(
+    { platformUserId: users.first.userId, source: 'platform.operations:authenticated' },
+    async () => {
+      const port = createPgPlatformEntitlementsPort();
+      if (operation === 'set') {
+        await port.setRegistrationTariffPolicy({ tariffId }, audit);
+      } else {
+        await port.archiveTariff(tariffId, audit);
+      }
+    },
+  );
+}
+
+function runRegistrationPolicyRaceWorkerProcess(operation) {
+  const scriptPath = path.join(
+    repoRoot,
+    'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs',
+  );
+  const child = spawn(
+    'pnpm',
+    ['--dir', 'apps/webapp', 'exec', 'tsx', scriptPath, '--registration-policy-race-worker', operation],
+    {
+      cwd: repoRoot,
+      env: sanitizedChildEnv({
+        DATABASE_URL: runtimeDatabaseUrl(),
+        DB_PRINCIPAL_CONTEXT_MODE: 'locked',
+        DB_PRINCIPAL_SIGNING_SECRET: signingSecret,
+        NODE_ENV: 'test',
+        REGISTRATION_POLICY_RACE_TARIFF_ID: registrationPolicyRaceTariffId,
+        SESSION_COOKIE_SECRET: signingSecret,
+        USE_REAL_DATABASE: '1',
+      }),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.once('error', (error) => reject(error));
+    child.once('close', (code) => {
+      if (code === 0) return resolve(undefined);
+      reject(new Error(`registration policy ${operation} worker failed (${code}): ${stdout}${stderr}`));
+    });
+  });
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function settle(promise) {
+  try {
+    await promise;
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+async function waitForRegistrationPolicyWriter() {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const waiting = Number(
+      psqlScalar(`
+SELECT count(*)
+FROM pg_stat_activity
+WHERE datname = ${quoteLiteral(dbName)}
+  AND wait_event_type = 'Lock'
+  AND query ILIKE '%saas_registration_tariff_policy%';
+`),
+    );
+    if (waiting > 0) return;
+    await delay(50);
+  }
+  throw new Error('registration policy set worker did not reach the forced policy-row interleaving');
+}
+
+async function assertRegistrationTariffPolicyWriteRace() {
+  psql(`
+SET ROLE ${quoteIdent(appOwnerRole)};
+INSERT INTO public.saas_registration_tariff_policy (key, tariff_id)
+VALUES ('global', NULL)
+ON CONFLICT (key) DO UPDATE SET tariff_id = NULL, updated_at = now();
+UPDATE public.saas_tariffs SET is_active = true WHERE id = ${quoteLiteral(registrationPolicyRaceTariffId)}::uuid;
+RESET ROLE;
+`);
+  const lockClient = makeRuntimeClient();
+  await lockClient.connect();
+  try {
+    await lockClient.query('BEGIN');
+    await lockClient.query('SET ROLE app_platform_settings');
+    await lockClient.query(
+      "SELECT key FROM public.saas_registration_tariff_policy WHERE key = 'global' FOR UPDATE",
+    );
+    const setWorker = settle(runRegistrationPolicyRaceWorkerProcess('set'));
+    await waitForRegistrationPolicyWriter();
+    const archiveWorker = settle(runRegistrationPolicyRaceWorkerProcess('archive'));
+    const archiveBeforeUnlock = await Promise.race([
+      archiveWorker,
+      delay(2_000).then(() => null),
+    ]);
+    await lockClient.query('COMMIT');
+    const [setResult, archiveResult] = await Promise.all([setWorker, archiveWorker]);
+    assert(
+      setResult.ok || archiveResult.ok,
+      'both concurrent registration policy operations failed instead of preserving one legal write',
+    );
+    if (archiveBeforeUnlock?.ok === false) {
+      throw archiveBeforeUnlock.error;
+    }
+  } finally {
+    await lockClient.query('ROLLBACK').catch(() => undefined);
+    await lockClient.end();
+  }
+  const finalState = JSON.parse(
+    psqlScalar(`
+SELECT json_build_object(
+  'policy_tariff_id', (SELECT tariff_id FROM public.saas_registration_tariff_policy WHERE key = 'global'),
+  'tariff_is_active', (SELECT is_active FROM public.saas_tariffs WHERE id = ${quoteLiteral(registrationPolicyRaceTariffId)}::uuid)
+)::text;
+`),
+  );
+  assert(
+    finalState.policy_tariff_id !== registrationPolicyRaceTariffId || finalState.tariff_is_active !== false,
+    'concurrent registration policy set and tariff archive committed an inactive policy reference',
+  );
 }
 
 async function assertRegistrationTariffPolicyContracts(principal, lockedOptions) {
@@ -758,6 +924,16 @@ INSERT INTO public.saas_tariffs (
   ${quoteLiteral(trialTariffId)}::uuid,
   'U3S Scratch Trial',
   'Disposable provisioning proof',
+  NULL,
+  NULL,
+  '{"clients": true}'::jsonb,
+  'month',
+  '{}'::jsonb,
+  true
+), (
+  ${quoteLiteral(registrationPolicyRaceTariffId)}::uuid,
+  'Registration policy race tariff',
+  'Disposable concurrent write proof',
   NULL,
   NULL,
   '{"clients": true}'::jsonb,
@@ -888,7 +1064,9 @@ RESET ROLE;
 
       const tariffs = await client.query('SELECT id::text FROM public.saas_tariffs ORDER BY id');
       assert(
-        tariffs.rows.length === 1 && tariffs.rows[0]?.id === trialTariffId,
+        tariffs.rows.length === 2 &&
+          tariffs.rows.some((row) => row.id === trialTariffId) &&
+          tariffs.rows.some((row) => row.id === registrationPolicyRaceTariffId),
         'staff must retain global read visibility of the tariff catalog',
       );
 
