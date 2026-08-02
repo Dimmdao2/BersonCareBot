@@ -1492,7 +1492,7 @@ SELECT (
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (83 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (95 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){
