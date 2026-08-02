@@ -121,7 +121,7 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
         )}
         <PatientBookingPaymentHistorySection />
         <PatientMembershipsSection
-          visible={membershipAccess?.patientNavigation === true}
+          visible
           mutationsAllowed={membershipMutation.available}
         />
         <FormatStepClient

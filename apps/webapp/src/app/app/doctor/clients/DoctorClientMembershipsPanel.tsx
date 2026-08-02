@@ -90,8 +90,10 @@ type Props = {
    * Defaults to true (full panel).
    */
   showCreateForm?: boolean;
-  /** Read-only access keeps package history visible but removes every write control. */
+  /** Controls which create and sale mutations are available. */
   mutationsAllowed?: boolean;
+  /** Existing purchased packages remain consumable through the access lifecycle. */
+  consumptionAllowed?: boolean;
 };
 
 export function DoctorClientMembershipsPanel({
@@ -99,6 +101,7 @@ export function DoctorClientMembershipsPanel({
   appointments = [],
   showCreateForm = true,
   mutationsAllowed = true,
+  consumptionAllowed = true,
 }: Props) {
   const router = useRouter();
   const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
@@ -491,7 +494,7 @@ export function DoctorClientMembershipsPanel({
         </>
       ) : null}
 
-      {mutationsAllowed ? (
+      {consumptionAllowed ? (
         <details className="group">
           <summary className="cursor-pointer text-sm font-medium">
             Списать сеанс по абонементу

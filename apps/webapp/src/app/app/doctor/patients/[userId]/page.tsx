@@ -12,7 +12,6 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
-  getMechanicMutationAvailability,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -136,7 +135,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       : Promise.resolve(
           [] as Awaited<ReturnType<NonNullable<typeof deps.payments>['listPaymentHistoryForUser']>>,
         ),
-    membershipAccess.specialistNavigation && deps.memberships
+    deps.memberships
       ? deps.memberships
           .listPatientPackagesForUser(patientUserId, workspace.organizationId)
           .catch(() => null)
@@ -289,7 +288,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialFinancesData={initialFinancesData}
           initialSupplementaryContacts={initialSupplementaryContacts}
           initialPackages={initialPackagesForTabs}
-          membershipsVisible={membershipAccess.specialistNavigation}
+          membershipsVisible
           membershipMutationsAllowed={membershipMutation.available}
           initialPaymentsSummary={initialPaymentsSummary}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}

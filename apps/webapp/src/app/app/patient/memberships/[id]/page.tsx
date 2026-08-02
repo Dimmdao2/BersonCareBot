@@ -1,6 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
 import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { PatientPackageDetailClient } from './PatientPackageDetailClient';
@@ -13,6 +12,5 @@ export default async function PatientMembershipDetailPage({ params }: Props) {
   if (!session) redirect(routePaths.patient);
   const organizationId = await buildAppDeps().memberships?.resolvePatientPackageOrganizationId(id);
   if (!organizationId) notFound();
-  await requireEntitlementForPage({ organizationId }, 'subscriptions');
   return <PatientPackageDetailClient patientPackageId={id} />;
 }

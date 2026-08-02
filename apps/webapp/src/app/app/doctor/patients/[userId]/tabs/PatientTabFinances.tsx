@@ -392,6 +392,7 @@ export function PatientTabFinances({
             appointments={appointments}
             showCreateForm
             mutationsAllowed={membershipMutationsAllowed}
+            consumptionAllowed
           />
         </div>
       ) : null}

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement';
 import { membershipErrorResponse } from '@/app/api/booking-engine/patientPackagesRouteShared';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
 
@@ -17,8 +16,6 @@ function parseAllowPastUnlink(valueJson: unknown): boolean {
 export async function GET(request: Request, context: RouteContext) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForRead(gate.ctx, 'subscriptions');
-  if (!entitlement.ok) return entitlement.response;
   const { id } = await context.params;
   const includePast = new URL(request.url).searchParams.get('includePast') === 'true';
   const deps = buildAppDeps();

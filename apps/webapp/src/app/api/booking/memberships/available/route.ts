@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  getMechanicMutationAvailability,
-  requireEntitlementForRead,
-} from '@/app-layer/guards/requireEntitlement';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -48,21 +44,6 @@ export async function GET(request: Request) {
     serviceId: params.get('serviceId') ?? undefined,
   });
   if (resolvedOrResponse instanceof NextResponse) return resolvedOrResponse;
-  const entitlement = await requireEntitlementForRead(
-    { organizationId: resolvedOrResponse.organizationId },
-    'subscriptions',
-  );
-  if (!entitlement.ok) return entitlement.response;
-  const mutationAvailability = await getMechanicMutationAvailability(
-    { organizationId: resolvedOrResponse.organizationId },
-    'subscriptions',
-  );
-  // This is not clinical history: it powers selecting a package for a new booking. Read-only
-  // clinics keep their package records but must create ordinary bookings without reserving one.
-  if (!mutationAvailability.available) {
-    return NextResponse.json({ ok: true, packages: [] });
-  }
-
   const packages = await withExplicitOrganizationPrincipal(
     {
       organizationId: resolvedOrResponse.organizationId,

@@ -14,7 +14,9 @@ export type ProtectedActionMapping = Readonly<{
     | 'requireEntitlementForReadAction'
     | 'requireEntitlementForMutationAction'
     | 'requireDoctorForPatientHomeRead'
-    | 'requireDoctorForPatientHomeMutation';
+    | 'requireDoctorForPatientHomeMutation'
+    /** Purchased membership history and consumption survive subscriptions disablement. */
+    | 'retainedMembershipAccess';
   serviceBoundary: string;
 }>;
 
@@ -373,7 +375,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     exportName: 'GET',
     method: 'GET',
     authContext: 'requireDoctorBookingEngine',
-    guard: 'requireEntitlementForRead',
+    guard: 'retainedMembershipAccess',
     serviceBoundary: 'deps.memberships.listPatientPackagesForUser',
   },
   {
@@ -453,7 +455,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     exportName: 'GET',
     method: 'GET',
     authContext: 'requireDoctorBookingEngine',
-    guard: 'requireEntitlementForRead',
+    guard: 'retainedMembershipAccess',
     serviceBoundary: 'deps.memberships.getPatientPackageDetail',
   },
   {
@@ -463,7 +465,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     exportName: 'POST',
     method: 'POST',
     authContext: 'requireDoctorBookingEngine',
-    guard: 'requireEntitlementForMutation',
+    guard: 'retainedMembershipAccess',
     serviceBoundary: 'deps.memberships.manualConsume',
   },
   {
@@ -483,7 +485,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     exportName: 'GET',
     method: 'GET',
     authContext: 'requireDoctorBookingEngine',
-    guard: 'requireEntitlementForRead',
+    guard: 'retainedMembershipAccess',
     serviceBoundary: 'deps.memberships.listPatientPackageSessions',
   },
   {
@@ -633,7 +635,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     exportName: 'GET',
     method: 'GET',
     authContext: 'requirePatientApiBusinessAccess + resolvePatientEnrollmentOrganizationId',
-    guard: 'requireEntitlementForRead',
+    guard: 'retainedMembershipAccess',
     serviceBoundary: 'deps.memberships.listPatientPackagesForUser',
   },
   {
@@ -643,7 +645,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     exportName: 'GET',
     method: 'GET',
     authContext: 'requirePatientApiBusinessAccess + resolvePatientPackageOrganizationId',
-    guard: 'requireEntitlementForRead',
+    guard: 'retainedMembershipAccess',
     serviceBoundary: 'deps.memberships.getPatientPackageDetail',
   },
   {
@@ -653,7 +655,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     exportName: 'GET',
     method: 'GET',
     authContext: 'requirePatientApiBusinessAccess + resolveInPersonBookingContext',
-    guard: 'requireEntitlementForRead',
+    guard: 'retainedMembershipAccess',
     serviceBoundary: 'memberships.listActivePackagesForBooking',
   },
   {

@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   requireEntitlementForMutation,
-  requireEntitlementForRead,
 } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { membershipErrorResponse } from '@/app/api/booking-engine/patientPackagesRouteShared';
@@ -52,8 +51,6 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function GET(_request: Request, context: RouteContext) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForRead(gate.ctx, 'subscriptions');
-  if (!entitlement.ok) return entitlement.response;
   const { id } = await context.params;
   const deps = buildAppDeps();
   if (!deps.memberships) {
