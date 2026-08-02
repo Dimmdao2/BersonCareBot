@@ -120,6 +120,28 @@ async function upsertSaasBillingAccount(
   return row;
 }
 
+async function promotePaidInvoice(
+  tx: Transaction,
+  invoice: typeof saasBillingInvoices.$inferSelect,
+  organizationId: string,
+): Promise<boolean> {
+  const [subscription] = await tx
+    .select()
+    .from(saasBillingSubscriptions)
+    .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, organizationId)))
+    .limit(1)
+    .for('update');
+  if (!subscription || subscription.currentPeriodEndsAt !== invoice.servicePeriodStartsAt) return false;
+  const tariffSnapshot = invoice.tariffSnapshot ?? await readTariffSnapshotForPeriod(tx, invoice.tariffId);
+  await tx.update(saasBillingSubscriptions).set({
+    tariffId: invoice.tariffId, pendingTariffId: null, status: 'active', lifecycleState: 'active',
+    cancelledAt: null, currentPeriodStartsAt: invoice.servicePeriodStartsAt,
+    currentPeriodEndsAt: invoice.servicePeriodEndsAt, tariffSnapshot, updatedAt: new Date().toISOString(),
+  }).where(eq(saasBillingSubscriptions.id, subscription.id));
+  await tx.update(beOrganizations).set({ tariffId: invoice.tariffId }).where(eq(beOrganizations.id, organizationId));
+  return true;
+}
+
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
     async getOrganizationBillingOverview(organizationId) {
@@ -361,9 +383,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               .where(
                 and(
                   eq(saasBillingSubscriptions.organizationId, organizationId),
-                  eq(saasBillingSubscriptions.source, 'manual'),
+                  inArray(saasBillingSubscriptions.source, ['paid_subscription', 'manual']),
                 ),
               )
+              .orderBy(desc(saasBillingSubscriptions.source))
               .limit(1);
             return {
               organization,
@@ -381,6 +404,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             return { billingPeriod: tariff.billingPeriod as SaasBillingPeriod };
           },
           async setManualSaasBillingSubscription({ organizationId, tariffId, period, pendingTariffId = null }) {
+            const [effective] = await tx.select({ source: saasBillingSubscriptions.source }).from(saasBillingSubscriptions)
+              .where(and(eq(saasBillingSubscriptions.organizationId, organizationId), eq(saasBillingSubscriptions.source, 'paid_subscription'))).limit(1);
+            const source = effective?.source ?? 'manual';
             if (tariffId === null) {
               await tx
                 .update(saasBillingSubscriptions)
@@ -399,7 +425,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 .where(
                   and(
                     eq(saasBillingSubscriptions.organizationId, organizationId),
-                    eq(saasBillingSubscriptions.source, 'manual'),
+                    eq(saasBillingSubscriptions.source, source),
                   ),
                 );
               return;
@@ -415,7 +441,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 organizationId,
                 saasBillingAccountId: account.id,
                 tariffId,
-                source: 'manual',
+                source,
                 status: 'active',
                 lifecycleState: 'active',
                 currentPeriodStartsAt: period?.startsAt ?? null,
@@ -559,6 +585,37 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         })
         .returning({ id: saasBillingProviderEvents.id });
       return { created: Boolean(row) };
+    },
+
+    async captureSaasBillingPaymentSucceeded(input) {
+      return getDrizzle().transaction(async (tx) => {
+        const event = sanitizeSaasBillingProviderEventEnvelope(input.event);
+        await tx.insert(saasBillingProviderEvents).values({
+          organizationId: input.organizationId, saasBillingInvoiceId: input.saasBillingInvoiceId,
+          providerId: event.providerId, providerEventId: event.providerEventId, eventType: event.type,
+          rawPayload: event,
+        }).onConflictDoNothing({ target: [saasBillingProviderEvents.providerId, saasBillingProviderEvents.providerEventId] });
+        const [invoice] = await tx.select().from(saasBillingInvoices).where(and(
+          eq(saasBillingInvoices.id, input.saasBillingInvoiceId), eq(saasBillingInvoices.organizationId, input.organizationId),
+        )).limit(1).for('update');
+        if (!invoice || invoice.status === 'void' || invoice.status === 'failed') {
+          return { captured: false, duplicate: true };
+        }
+        const wasPaid = invoice.status === 'paid';
+        if (!wasPaid) {
+          await tx.update(saasBillingInvoices).set({ status: 'paid', paidAt: input.paidAt, updatedAt: new Date().toISOString() })
+            .where(eq(saasBillingInvoices.id, invoice.id));
+        }
+        if (input.savedPaymentMethodId) {
+          await tx.update(saasBillingSubscriptions).set({ savedPaymentMethodId: input.savedPaymentMethodId, updatedAt: new Date().toISOString() })
+            .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, input.organizationId)));
+        }
+        if (invoice.servicePeriodStartsAt <= input.paidAt) await promotePaidInvoice(tx, invoice, input.organizationId);
+        await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
+          eq(saasBillingProviderEvents.providerId, event.providerId), eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
+        ));
+        return { captured: !wasPaid, duplicate: wasPaid };
+      });
     },
 
     async findSaasBillingInvoiceByProviderRef({ providerId, providerInvoiceRef }) {
@@ -740,15 +797,21 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           })
           .returning({
             id: saasBillingSubscriptions.id,
+            tariffId: saasBillingSubscriptions.tariffId,
+            pendingTariffId: saasBillingSubscriptions.pendingTariffId,
             savedPaymentMethodId: saasBillingSubscriptions.savedPaymentMethodId,
             currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
           });
         if (!row) throw new Error('saas_billing_subscription_upsert_failed');
 
+        const targetTariffId = row.pendingTariffId ?? row.tariffId;
+        const [targetTariff] = await tx.select({ billingPeriod: saasTariffs.billingPeriod })
+          .from(saasTariffs).where(and(eq(saasTariffs.id, targetTariffId), eq(saasTariffs.isActive, true))).limit(1);
+        if (!targetTariff) throw new Error('saas_billing_tariff_not_billable');
         return {
           saasBillingSubscriptionId: row.id,
-          tariffId: tariff.id,
-          billingPeriod: tariff.billingPeriod as SaasBillingPeriod,
+          tariffId: targetTariffId,
+          billingPeriod: targetTariff.billingPeriod as SaasBillingPeriod,
           savedPaymentMethodId: row.savedPaymentMethodId,
           currentPeriodEndsAt: row.currentPeriodEndsAt,
         };
@@ -769,7 +832,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           autopayRevokedAt: saasBillingSubscriptions.autopayRevokedAt,
         })
         .from(saasBillingSubscriptions)
-        .innerJoin(saasTariffs, eq(saasTariffs.id, saasBillingSubscriptions.tariffId))
+        .innerJoin(saasTariffs, eq(saasTariffs.id, sql`coalesce(${saasBillingSubscriptions.pendingTariffId}, ${saasBillingSubscriptions.tariffId})`))
         .where(
           and(
             eq(saasBillingSubscriptions.source, 'paid_subscription'),
@@ -913,6 +976,23 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .update(beOrganizations)
           .set({ tariffId: input.tariffId })
           .where(eq(beOrganizations.id, input.organizationId));
+      });
+    },
+
+    async promoteDueSaasBillingPaidInvoice({ organizationId, saasBillingSubscriptionId, asOf }) {
+      return getDrizzle().transaction(async (tx) => {
+        const [subscription] = await tx.select().from(saasBillingSubscriptions).where(and(
+          eq(saasBillingSubscriptions.id, saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, organizationId),
+        )).limit(1).for('update');
+        if (!subscription?.currentPeriodEndsAt) return false;
+        const [invoice] = await tx.select().from(saasBillingInvoices).where(and(
+          eq(saasBillingInvoices.organizationId, organizationId),
+          eq(saasBillingInvoices.saasBillingSubscriptionId, saasBillingSubscriptionId),
+          eq(saasBillingInvoices.status, 'paid'),
+          eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
+          lte(saasBillingInvoices.servicePeriodStartsAt, asOf),
+        )).limit(1).for('update');
+        return invoice ? promotePaidInvoice(tx, invoice, organizationId) : false;
       });
     },
 

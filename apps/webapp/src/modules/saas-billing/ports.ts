@@ -335,6 +335,14 @@ export type SaasBillingRepositoryPort = {
     saasBillingInvoiceId: string | null;
     event: SaasBillingProviderEventEnvelope;
   }): Promise<{ created: boolean }>;
+  /** One durable success action: event, invoice CAS/replay, saved method and (when due) period promotion. */
+  captureSaasBillingPaymentSucceeded(input: {
+    organizationId: string;
+    saasBillingInvoiceId: string;
+    paidAt: string;
+    event: SaasBillingProviderEventEnvelope;
+    savedPaymentMethodId: string | null;
+  }): Promise<{ captured: boolean; duplicate: boolean }>;
   /** Unscoped lookup — the webhook does not know the organization until this resolves it. */
   findSaasBillingInvoiceByProviderRef(input: {
     providerId: string;
@@ -416,6 +424,12 @@ export type SaasBillingRepositoryPort = {
     tariffId: string;
     tariffSnapshot: Record<string, unknown> | null;
   }): Promise<void>;
+  /** Promotes one already-paid future invoice at its boundary; repeats are a no-op. */
+  promoteDueSaasBillingPaidInvoice(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    asOf: string;
+  }): Promise<boolean>;
 
   /**
    * К5 — the enumeration boundary: the only place cross-organization `saas_billing_subscriptions`

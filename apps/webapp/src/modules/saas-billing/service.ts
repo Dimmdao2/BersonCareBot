@@ -403,11 +403,18 @@ export function createSaasBillingService(dependencies: {
         const startsAt = now().toISOString();
         const period = input.tariffId
           ? {
-              startsAt,
-              endsAt: paidPeriodEndsAt(
-                startsAt,
-                (await transaction.requireActiveTariff(input.tariffId)).billingPeriod,
-              ),
+              ...(activePaidPeriod
+                ? {
+                    startsAt: state.manualSaasBillingSubscription?.currentPeriodStartsAt as string,
+                    endsAt: state.manualSaasBillingSubscription?.currentPeriodEndsAt as string,
+                  }
+                : {
+                    startsAt,
+                    endsAt: paidPeriodEndsAt(
+                      startsAt,
+                      (await transaction.requireActiveTariff(input.tariffId)).billingPeriod,
+                    ),
+                  }),
             }
           : null;
         await transaction.setManualSaasBillingSubscription({
@@ -493,6 +500,16 @@ export function createSaasBillingService(dependencies: {
       }> = [];
 
       for (const subscription of due) {
+        if (
+          await dependencies.repository.promoteDueSaasBillingPaidInvoice({
+            organizationId: subscription.organizationId,
+            saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
+            asOf,
+          })
+        ) {
+          alreadyInvoiced += 1;
+          continue;
+        }
         // §5a item 7.0 arithmetic: the new period starts exactly where the paid one ended, never
         // "now" — a late tick must not hand the clinic extra free days.
         const servicePeriodStartsAt = subscription.currentPeriodEndsAt;
@@ -707,9 +724,25 @@ export function createSaasBillingService(dependencies: {
         typeof input.verified.payload.currency === 'string'
           ? input.verified.payload.currency
           : null;
-      const { created } = await dependencies.repository.recordSaasBillingProviderEvent({
+      if (input.verified.eventType !== 'payment.succeeded') {
+        const { created } = await dependencies.repository.recordSaasBillingProviderEvent({
+          organizationId: input.organizationId,
+          saasBillingInvoiceId: input.saasBillingInvoiceId,
+          event: {
+            providerId: input.providerId,
+            providerEventId: input.verified.idempotencyKey,
+            type: input.verified.eventType,
+            amountMinor: input.verified.amountMinor ?? null,
+            currency: payloadCurrency,
+          },
+        });
+        return { captured: false, duplicate: !created };
+      }
+      return dependencies.repository.captureSaasBillingPaymentSucceeded({
         organizationId: input.organizationId,
         saasBillingInvoiceId: input.saasBillingInvoiceId,
+        paidAt: now().toISOString(),
+        savedPaymentMethodId: input.verified.savedPaymentMethodId ?? null,
         event: {
           providerId: input.providerId,
           providerEventId: input.verified.idempotencyKey,
@@ -718,36 +751,6 @@ export function createSaasBillingService(dependencies: {
           currency: payloadCurrency,
         },
       });
-      // Replay: the event row already exists — do not capture a second time.
-      if (!created) return { captured: false, duplicate: true };
-
-      if (input.verified.eventType !== 'payment.succeeded') {
-        return { captured: false, duplicate: false };
-      }
-      const paidInvoice = await dependencies.repository.markSaasBillingInvoicePaid({
-        saasBillingInvoiceId: input.saasBillingInvoiceId,
-        organizationId: input.organizationId,
-        paidAt: now().toISOString(),
-      });
-      // К4 — `null` means the invoice no longer matches a payable status: already `paid` (a replay
-      // that slipped past the event-id dedup above under a different provider event id), or `void`
-      // because a platform admin cancelled it. Either way this is a safe no-op, never a silent
-      // "cancelled invoice just got paid" — the event is acknowledged, no subscription period moves.
-      if (!paidInvoice) return { captured: false, duplicate: false };
-      // `markSaasBillingInvoicePaid` is a repository transaction: invoice CAS, period promotion,
-      // organization projection and snapshot move together. Do not split these writes here — a
-      // process failure between them would leave "paid" without the access it bought.
-      // К6 — the ONLY place a payment method gets saved: `payment.succeeded` is the first point the
-      // provider is trusted to say `payment_method.saved === true`, never the synchronous
-      // `createIntent` response (a redirect payment isn't actually paid yet at that point).
-      if (input.verified.savedPaymentMethodId) {
-        await dependencies.repository.saveSaasBillingSubscriptionPaymentMethod({
-          saasBillingSubscriptionId: paidInvoice.saasBillingSubscriptionId,
-          organizationId: input.organizationId,
-          savedPaymentMethodId: input.verified.savedPaymentMethodId,
-        });
-      }
-      return { captured: true, duplicate: false };
     },
 
     /**

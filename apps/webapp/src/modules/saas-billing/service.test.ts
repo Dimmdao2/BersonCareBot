@@ -283,6 +283,7 @@ describe('К5: повторный тик по тому же периоду не 
     const service = createSaasBillingService({
       repository: {
         listSaasBillingSubscriptionsDueForRenewal,
+        promoteDueSaasBillingPaidInvoice: async () => false,
         createSaasBillingRenewalInvoiceIfAbsent,
         attachSaasBillingInvoiceProviderIntent,
       } as unknown as SaasBillingRepositoryPort,
@@ -445,6 +446,26 @@ describe('Р-10/Р-14: future paid invoice waits for the paid boundary', () => {
 
     expect(futureInvoice.tariffId).toBe('tariff-next');
   });
+
+  it('promotes one already-paid future invoice exactly once at its boundary', async () => {
+    const { service, setNow } = paidPeriodScenario();
+    await seedCurrentPaidPeriod(service);
+    setNow('2026-07-15T00:00:00.000Z');
+    const futureInvoice = await service.createOwnTariffRenewalInvoice('org-paid-period');
+    await capturePaidInvoice(service, { invoiceId: futureInvoice.id, eventId: 'event-future-paid' });
+    setNow('2026-08-01T00:00:00.000Z');
+
+    await service.runDueSaasBillingRenewals();
+    const first = await service.getOrganizationBillingOverview('org-paid-period');
+    await service.runDueSaasBillingRenewals();
+    const second = await service.getOrganizationBillingOverview('org-paid-period');
+
+    expect(first.subscriptions.find((row) => row.source === 'paid_subscription')).toMatchObject({
+      currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+      currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+    });
+    expect(second.subscriptions).toEqual(first.subscriptions);
+  });
 });
 
 function assignmentTransactionForAcceptance(
@@ -562,12 +583,10 @@ describe('webhook replay completes one durable paid-period action', () => {
       });
     const service = createSaasBillingService({
       repository: {
-        recordSaasBillingProviderEvent: async () => {
-          if (eventRecorded) return { created: false };
+        captureSaasBillingPaymentSucceeded: async () => {
           eventRecorded = true;
-          return { created: true };
+          return markSaasBillingInvoicePaid({});
         },
-        markSaasBillingInvoicePaid,
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
       resolvePaymentProvider: () => ({}) as never,
@@ -603,13 +622,11 @@ describe('webhook replay completes one durable paid-period action', () => {
       });
     const service = createSaasBillingService({
       repository: {
-        recordSaasBillingProviderEvent: async () => {
-          if (eventRecorded) return { created: false };
+        captureSaasBillingPaymentSucceeded: async (input: { savedPaymentMethodId: string | null }) => {
           eventRecorded = true;
-          return { created: true };
+          await saveSaasBillingSubscriptionPaymentMethod({ savedPaymentMethodId: input.savedPaymentMethodId });
+          return { captured: true, duplicate: false };
         },
-        markSaasBillingInvoicePaid: async () => ({ ...invoice, status: 'paid' as const }),
-        saveSaasBillingSubscriptionPaymentMethod,
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
       resolvePaymentProvider: () => ({}) as never,
@@ -742,6 +759,7 @@ describe('К6: без действующего согласия списание
     const service = createSaasBillingService({
       repository: {
         listSaasBillingSubscriptionsDueForRenewal: async () => [dueSubscription],
+        promoteDueSaasBillingPaidInvoice: async () => false,
         createSaasBillingRenewalInvoiceIfAbsent,
         attachSaasBillingInvoiceProviderIntent,
         markSaasBillingInvoiceFailed,
@@ -802,6 +820,7 @@ describe('К6: повторный тик с активным автосписа�
     const service = createSaasBillingService({
       repository: {
         listSaasBillingSubscriptionsDueForRenewal: async () => [dueSubscription],
+        promoteDueSaasBillingPaidInvoice: async () => false,
         createSaasBillingRenewalInvoiceIfAbsent,
         attachSaasBillingInvoiceProviderIntent,
       } as unknown as SaasBillingRepositoryPort,
