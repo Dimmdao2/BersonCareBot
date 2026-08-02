@@ -170,7 +170,7 @@ logins above. `app_worker` is not an evidence actor or fallback capability.
 | --- | --- | --- |
 | S01 | **ACCEPTED AND INTEGRATED 02.08.** Product `86344858e`, independent report `79f3dd0b8`; after building the four workspace packages the same webapp typecheck passed. Merged into `wt/single-entry-integration` and migration `0304` applied on DEV through the unified `0300…0305` ledger. | Removed only `booking_branch_services`, `booking_branches`, `booking_services`, `booking_specialists`, `branches`, their FK/backrefs, `pgBranches` and three DI lines; regenerated grant SQL. |
 | S02 | **ACCEPTED AND INTEGRATED 02.08.** Product `ddab86eda`, audit `cfb813a96`, replay closure `f54468e67`, land `c6b844bbc`; disposable migration replay reached `count=307` twice. | Expanded seams/EXECUTE and operational ACLs in the 29+9 matrix; no final revoke/FORCE. |
-| S03 | S01 land plus one current board number. | Deterministic booking ownership backfill. |
+| S03 | **WIP 02.08.** Branch `wt/v9b-s03-booking-ownership`; product base `dd6360e0b`, oracle 7 added this session. Postgres suite 6/6 files 18/18 tests (7 migration oracles + 3 writer oracles); unit suite 162/162. Typecheck exit 0 (product code). DEV census: 673 rows all `zero_match` — migration aborts on current DEV (expected; NOT NULL and S05b unreachable until authorised reconcile). Independent audit and zero-unresolved reconcile remain before land. Journal entry `0309_v9b_booking_ownership_local` at idx 308 — re-index to 309 after 0308 saas-seat-billing merges. | Nullable `organization_id` on `patient_bookings` and `appointment_records`; deterministic backfill with five-reason abort (`zero_match`, `multiple_match`, `deleted_parent`, `user_mismatch`, `provider_mismatch`); writers thread org through `createPending` and all four native projection writes; staff-delete tombstone persists resolved org; in-memory org-mismatch guard. |
 | S04 | S02 seams exist; every named adoption test, including D1 writer test, green. | Caller adoption then one contract migration with final revokes. |
 | S05a | D1 exact capability green + S04 D1 direct grants revoked + direct-deny A1 green. | identity/preferences FORCE. |
 | S05b | S03 backfill zero-unresolved verifier + S04 booking callers green. | booking FORCE. |
@@ -193,6 +193,38 @@ any count is non-zero. No quarantine/audit relation is created; no `patient_book
 zero count. `canonicalCreate.ts` must resolve and write the canonical appointment's organization
 before a pending booking insert. `NOT NULL` and S05b are unreachable until an authorised reconcile
 shows every count zero.
+
+### S03 execution status — 2026-08-02
+
+Branch `wt/v9b-s03-booking-ownership`. Base WIP commit `dd6360e0b` (schema, migration, ports,
+writers, oracles 1–6). Oracle 7 (inspection: no DELETE/DROP/REVOKE/RLS/FORCE in 0309 SQL) added
+this session.
+
+**Test evidence:**
+- `bookingOwnershipMigration.postgres.integration.test.ts` — 7/7 oracles: (1) stamps exact
+  native+external-key matches, reaches NOT NULL, reruns idempotently; (2) zero_match rolls back;
+  (3) multiple_match; (4) deleted_parent; (5) user_mismatch; (6) provider_mismatch; (7) SQL
+  inspection confirms no destructive/RLS/FORCE/quarantine statements.
+- `bookingOwnershipWriters.postgres.integration.test.ts` — 3/3: createPending persists org, upsert
+  conflict rejects org change, staff-delete tombstone writes org.
+- Full postgres suite: 6/6 files, 18/18 tests. Migration runs to `count=309` in globalSetup.
+- Unit suite: 162/162. Typecheck: exit 0 (product code).
+
+**DEV census (read-only, 2026-08-02):**
+```
+-- classification query against DEV DATABASE_URL (sourced from apps/webapp/.env.dev)
+-- result: 673 rows total (263 patient_bookings + 410 appointment_records), all zero_match
+-- breakdown: 219 bookings NULL canonical_appointment_id; 44 canonical to deleted be_appointments;
+--   408 records non-native (no be: prefix); 2 native but orphaned parent
+```
+Migration would abort on current DEV with `zero_match=673` — expected per spec.
+
+**NOT done (pre-land gates):**
+- Independent adversarial audit of migration SQL and writer code.
+- Zero-unresolved reconcile: an authorised backfill pass on DEV/TEST showing every count zero.
+- S04 caller conversion (out of S03 scope).
+- Journal re-ordering: entry `0309_v9b_booking_ownership_local` is at idx 308; when
+  `wt/saas-seat-billing` (0308) merges first, update idx to 309 and `when` timestamp.
 
 ### Historical first-worker brief — S01, COMPLETED 02.08
 
