@@ -639,8 +639,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
         `operator_alert_fallback_email`. `page.tsx` теперь использует выделенный из существующего
         `adminSettingsData.ts` auth-only loader; общий загрузчик и его строгий technical gate сохранены.
         `pnpm --dir apps/webapp exec vitest run --project unit src/app/app/settings/adminSettingsData.unit.test.ts`
-        — 2 passed; `pnpm run typecheck`, scoped ESLint и `git diff --check` — exit 0. Живая проверка
-        исправленного общего DEV-экрана обязательна после audit и land.
+        — 2 passed; независимый аудит `cc50f7ecc` — PASS; полный CI
+        `/home/dev/brain/host-orch/run-tests.sh 'pnpm run ci'` — exit 0 / 390s. После land `2c0270cd3`
+        та же живая DEV-проверка вернула HTTP 200; экран содержит способы входа Apple, Google, MAX,
+        Telegram и Яндекс. TEST/PROD не трогались.
 
 - [ ] **D36 — тесты интегратора, блок И** (передано из #1081 целиком). И1: уровни 0-2, причём уровень 0
       переписывается против ПЛАНА, а не против кода. И2: уровень 2 закрывается числом, а не следующим
