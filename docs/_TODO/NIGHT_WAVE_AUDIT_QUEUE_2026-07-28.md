@@ -257,6 +257,12 @@ SECURITY DEFINER под миграцией 0270 была поймана лидо
 того, что правка ради зелени превращает проверку в декорацию. Это довод в пользу того, чтобы самотест был у
 каждого гейта, а не у некоторых.
 
+## 02.08 — Track D / #987: D5 scheduler reads canonical reminder rules
+
+| коммиты | клон | этап | аудит | вердикт |
+| --- | --- | --- | --- | --- |
+| product `66d218d2f` + independent audit `d68b0b617` | `trackd-d5-salvage` | #987 D5: scheduler читает `public.reminder_rules` | `audit-trackd-d5-salvage`, Claude reviewer, независимый auditor-live | **FAIL, ОДИН FIXER ПО СОХРАНЁННОМУ ORACLE:** behavior/schema kill-set `9/9`; fault injection удаления org-filter после усиления SQL-oracle убит `1/1`, непойманных `0`; disposable PostgreSQL подтвердил org/bot/disabled semantics и FK/history. Единственная находка: `reminderRulesD5Migration.postgres.integration.test.ts` вызывает `pg.Pool.query` напрямую и нарушает D18a DB-port gate. Fixer переводит только этот тест на существующий `getPool()`/`runWebappPgText`, затем повторяет сохранённые тесты и гейты; новый blind audit запрещён. Отчёт `docs/_TODO/runs/integrator-cleanup/D5_SCHEDULER_AUDIT_REPORT.md`; shared DEV live — после land. |
+
 ## 29.07 — уборка планов и задач (#1075, план `DOCS_PLAN_HYGIENE_2026-07-29.md`)
 
 Отдельная работа владельца, не часть ночной волны 28.07. Записывается сюда, потому что порт запуска
