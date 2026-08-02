@@ -39,6 +39,7 @@ describe('specialist task tariff UI', () => {
           },
         ]}
         todayIso="2026-08-02"
+        readable
       />,
     );
 
@@ -60,9 +61,11 @@ describe('specialist task tariff UI', () => {
       <PatientTabOverview
         userId="00000000-0000-4000-8000-000000003069"
         specialistTasksAvailable={false}
+        specialistTasksReadable
       />,
     );
 
+    expect(screen.getByText('Задачи')).toBeInTheDocument();
     expect(screen.queryByTitle('Добавить задачу')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Название задачи…')).not.toBeInTheDocument();
   });

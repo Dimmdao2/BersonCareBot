@@ -46,6 +46,7 @@ export function DoctorGlobalTasksSection({
   displayIana,
   className,
   available,
+  readable = available,
 }: {
   initialTasks: SpecialistTaskRow[];
   /**
@@ -59,6 +60,7 @@ export function DoctorGlobalTasksSection({
   displayIana?: string;
   className?: string;
   available: boolean;
+  readable?: boolean;
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [tasksTotal, setTasksTotal] = useState(initialTasksTotal ?? initialTasks.length);
@@ -99,7 +101,7 @@ export function DoctorGlobalTasksSection({
   const visibleTasks = sortedTasks.slice(0, overdueCount + NEAREST_UPCOMING_PREVIEW_LIMIT);
   const hasMore = tasksTotal > visibleTasks.length;
 
-  if (!available) return null;
+  if (!readable) return null;
 
   return (
     <DoctorSection id="doctor-today-global-tasks" className={cn('h-full gap-2', className)}>
@@ -107,9 +109,11 @@ export function DoctorGlobalTasksSection({
         <DoctorSectionTitle>Задачи</DoctorSectionTitle>
         {/* Owner punch-list item 1: top «всего» metric removed — it duplicated the bottom
             «Все задачи» entry point onto the same modal. */}
-        <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-          Новая
-        </Button>
+        {available ? (
+          <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+            Новая
+          </Button>
+        ) : null}
       </div>
       {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
       {tasks.length === 0 && !loadError ? (
@@ -125,6 +129,7 @@ export function DoctorGlobalTasksSection({
                 task={task}
                 busy={isPending}
                 displayIana={displayIana}
+                canMutate={available}
                 onComplete={handleComplete}
                 onEdit={(t) => {
                   setEditing(t);
@@ -161,6 +166,7 @@ export function DoctorGlobalTasksSection({
             task={task}
             busy={isPending}
             displayIana={displayIana}
+            canMutate={available}
             onComplete={(id) => {
               handleComplete(id);
               setTaskModalOpen(false);
@@ -196,14 +202,16 @@ export function DoctorGlobalTasksSection({
         }
       />
 
-      <SpecialistTaskFormDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        patientUserId=""
-        editing={null}
-        onSaved={reload}
-      />
-      {editing ? (
+      {available ? (
+        <SpecialistTaskFormDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          patientUserId=""
+          editing={null}
+          onSaved={reload}
+        />
+      ) : null}
+      {available && editing ? (
         <SpecialistTaskFormDialog
           open={editOpen}
           onOpenChange={setEditOpen}

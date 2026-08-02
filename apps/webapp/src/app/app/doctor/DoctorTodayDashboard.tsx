@@ -43,6 +43,7 @@ type Props = {
   adminHealthBanner?: AdminDoctorTodayHealthBanner;
   adminRegistrationFailureBanner?: AdminRegistrationFailureAttention;
   specialistTasksAvailable: boolean;
+  specialistTasksReadable: boolean;
   /**
    * Рабочие границы дня (§1.2, S4): вычислены на сервере через deriveWorkingBounds.
    * Прокидываются в мини-календарь как базовое окно рабочего дня.
@@ -69,6 +70,7 @@ export function DoctorTodayDashboard({
   adminRegistrationFailureBanner,
   todayWorkingBounds,
   specialistTasksAvailable,
+  specialistTasksReadable,
 }: Props) {
   // Вычисляем серверное время в бизнес-таймзоне для mini-calendar и карточки приёма
   const nowDt = DateTime.now().setZone(displayIana);
@@ -139,6 +141,7 @@ export function DoctorTodayDashboard({
             displayIana={displayIana}
             className="flex-1"
             available={specialistTasksAvailable}
+            readable={specialistTasksReadable}
           />
 
           {/* Configurable people list: exact on-support or recent-visit semantics. */}

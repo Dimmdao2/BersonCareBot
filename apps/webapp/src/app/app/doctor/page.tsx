@@ -6,7 +6,10 @@ import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalytics
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getOnlineIntakeService } from '@/app-layer/di/onlineIntakeDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { getMechanicMutationAvailability } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { loadAdminRegistrationFailureAttention } from '@/app-layer/product-analytics/loadAdminRegistrationFailureAttention';
 import { loadAdminDoctorTodayHealthBanner } from '@/modules/operator-health/adminDoctorTodayHealthBanner';
@@ -111,9 +114,12 @@ export default async function DoctorPage() {
     { organizationId: workspace.organizationId },
   );
   const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
-  const specialistTasksAvailable = (
-    await getMechanicMutationAvailability(workspace, 'specialist_tasks')
-  ).available;
+  const [specialistTasksAvailability, specialistTasksRead] = await Promise.all([
+    getMechanicMutationAvailability(workspace, 'specialist_tasks'),
+    requireEntitlementForReadAction(workspace, 'specialist_tasks'),
+  ]);
+  const specialistTasksAvailable = specialistTasksAvailability.available;
+  const specialistTasksReadable = specialistTasksRead.ok;
   const workspaceAudience = {
     includeTestAccounts: audience.includeTestAccounts,
     excludedUserIds: audience.excludedUserIds,
@@ -178,6 +184,7 @@ export default async function DoctorPage() {
         adminRegistrationFailureBanner={adminRegistrationFailureBanner}
         todayWorkingBounds={todayWorkingBounds}
         specialistTasksAvailable={specialistTasksAvailable}
+        specialistTasksReadable={specialistTasksReadable}
       />
     </DoctorAppShell>
   );

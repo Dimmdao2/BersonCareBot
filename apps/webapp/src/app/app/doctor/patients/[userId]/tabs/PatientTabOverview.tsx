@@ -554,6 +554,7 @@ type Props = {
     | import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy
     | null;
   specialistTasksAvailable: boolean;
+  specialistTasksReadable: boolean;
 };
 
 /** Derive SSR-seeded OverviewData fields from initial props (all client-fetch-only fields start at loading). */
@@ -655,6 +656,7 @@ export function PatientTabOverview({
   initialPackages,
   initialSupportEffectivePolicy,
   specialistTasksAvailable,
+  specialistTasksReadable,
 }: Props) {
   const [calView, setCalView] = useState<'month' | 'week'>('month');
   // Calendar month navigation — starts at current month, cannot go into future
@@ -827,7 +829,7 @@ export function PatientTabOverview({
             .catch(() => null);
 
     const fetchTasks =
-      !specialistTasksAvailable || (hasSsrData && ssrSeedRef.current === userId)
+      !specialistTasksReadable || (hasSsrData && ssrSeedRef.current === userId)
         ? Promise.resolve(null as TasksApiResponse | null)
         : fetch(`/api/doctor/clients/${userId}/tasks`, { credentials: 'include' })
             .then((r) => (r.ok ? (r.json() as Promise<TasksApiResponse>) : null))
@@ -1566,22 +1568,24 @@ export function PatientTabOverview({
         </div>
 
         {/* Задачи */}
-        {specialistTasksAvailable ? (
+        {specialistTasksReadable ? (
           <div className={doctorSectionCardClass}>
             <div className="flex items-center gap-2 mb-1">
               <span className={doctorSectionTitleClass}>Задачи</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                title="Добавить задачу"
-                onClick={() => {
-                  setAddingTask(true);
-                  setTaskTitle('');
-                }}
-                className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
-              >
-                +
-              </Button>
+              {specialistTasksAvailable ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Добавить задачу"
+                  onClick={() => {
+                    setAddingTask(true);
+                    setTaskTitle('');
+                  }}
+                  className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
+                >
+                  +
+                </Button>
+              ) : null}
             </div>
 
             {addingTask && (

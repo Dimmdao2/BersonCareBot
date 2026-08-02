@@ -47,9 +47,12 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const deps = buildAppDeps();
   const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
     .ok;
-  const specialistTasksAvailable = (
-    await getMechanicMutationAvailability(workspace, 'specialist_tasks')
-  ).available;
+  const [specialistTasksAvailability, specialistTasksRead] = await Promise.all([
+    getMechanicMutationAvailability(workspace, 'specialist_tasks'),
+    requireEntitlementForReadAction(workspace, 'specialist_tasks'),
+  ]);
+  const specialistTasksAvailable = specialistTasksAvailability.available;
+  const specialistTasksReadable = specialistTasksRead.ok;
 
   let detail;
   try {
@@ -162,6 +165,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
           initialTab="program"
           embeddedProgramContent={embeddedEditor}
           specialistTasksAvailable={specialistTasksAvailable}
+          specialistTasksReadable={specialistTasksReadable}
         />
       </section>
     </DoctorAppShell>
