@@ -6,6 +6,8 @@
 - `docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md`, Ш1/B2.
 - Accepted D30 product branch commit `316342d7b` in `wt/trackd-d30-specialist`.
 
+Источник оракула: `AGENTS.md` § «Миграции: индекс на горячую колонку — в том же PR» — «На уже большой — только `CREATE INDEX CONCURRENTLY` вне транзакции миграции (при раннере, оборачивающем всё в транзакцию — отдельный online-шаг)».
+
 Root acceptance proved that `apps/webapp/db/drizzle-migrations/0328_d30_specialist_task_delivery_queue_local.sql`
 contains `CREATE INDEX CONCURRENTLY`, while the installed `drizzle-orm` PostgreSQL dialect executes pending
 migrations inside `session.transaction(...)`. PostgreSQL rejects `CREATE INDEX CONCURRENTLY` in a transaction.
