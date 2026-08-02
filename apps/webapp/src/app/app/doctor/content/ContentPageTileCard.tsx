@@ -16,6 +16,7 @@ type Props = {
   /** When provided, card acts as a selector (master-detail layout). */
   onSelect?: (id: string) => void;
   isActive?: boolean;
+  canManageCms?: boolean;
 };
 
 /**
@@ -24,7 +25,13 @@ type Props = {
  * No viewsCount (no DB column). Rating placeholder reserved for Step 3.
  * DnD is disabled in tile mode — card is a pure link / selector.
  */
-export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props) {
+export function ContentPageTileCard({
+  page,
+  rating,
+  onSelect,
+  isActive,
+  canManageCms = true,
+}: Props) {
   const inner = (
     <Card
       size="sm"
@@ -73,7 +80,7 @@ export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props)
           onKeyDown={(e) => e.stopPropagation()}
           role="none"
         >
-          <ContentLifecycleDropdown page={page} />
+          {canManageCms ? <ContentLifecycleDropdown page={page} /> : null}
         </div>
       </CardContent>
     </Card>
@@ -94,6 +101,8 @@ export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props)
       </Button>
     );
   }
+
+  if (!canManageCms) return <div className="flex justify-center">{inner}</div>;
 
   return (
     <Link
