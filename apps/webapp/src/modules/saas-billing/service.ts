@@ -65,7 +65,6 @@ export function createSaasBillingService(dependencies: {
   resolvePaymentProvider: SaasBillingPaymentProviderResolver;
   /** Injected so the paid period a test asserts is the one it set, not the wall clock. */
   now?: () => Date;
-  listTariffs?: () => Promise<Array<{ id: string; name: string; isActive: boolean }>>;
   getTariffTransition?: (
     organizationId: string,
     tariffId: string,
@@ -701,13 +700,10 @@ export function createSaasBillingService(dependencies: {
     },
 
     async getOwnTariffChangeState(organizationId: string) {
-      if (!dependencies.listTariffs) throw new Error('saas_billing_tariff_change_unavailable');
       const overview = await dependencies.repository.getOrganizationBillingOverview(organizationId);
       const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
       return {
-        choices: (await dependencies.listTariffs())
-          .filter((tariff) => tariff.isActive)
-          .map((tariff) => ({ id: tariff.id, name: tariff.name })),
+        choices: await dependencies.repository.listActiveTariffChoices(),
         currentTariffId: subscription?.tariffId ?? null,
         pendingTariffId: subscription?.pendingTariffId ?? null,
         pendingEffectiveAt: subscription?.pendingTariffId ? subscription.currentPeriodEndsAt : null,

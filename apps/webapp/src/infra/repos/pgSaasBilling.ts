@@ -207,6 +207,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       };
     },
 
+    async listActiveTariffChoices() {
+      return getDrizzle()
+        .select({ id: saasTariffs.id, name: saasTariffs.name })
+        .from(saasTariffs)
+        .where(eq(saasTariffs.isActive, true))
+        .orderBy(saasTariffs.name);
+    },
+
     async listPlatformInvoices(filter): Promise<SaasBillingPlatformInvoiceRow[]> {
       const db = getDrizzle();
       const conds = [];
