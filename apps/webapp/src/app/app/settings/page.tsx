@@ -7,6 +7,7 @@ import {
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
@@ -130,7 +131,9 @@ export default async function SettingsPage({
           organizationId: workspace.organizationId,
         }),
         deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
-        deps.orgBranding.getManagementState(brandingCtx),
+        withDoctorWorkspacePrincipal(workspace, 'app.settings.org-branding.read', () =>
+          deps.orgBranding.getManagementState(brandingCtx),
+        ),
         workspace.canManageOrganization && deps.clinicDirectory
           ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
           : Promise.resolve(null),
