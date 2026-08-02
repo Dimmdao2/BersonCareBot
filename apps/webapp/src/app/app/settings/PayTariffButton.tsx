@@ -16,7 +16,10 @@ const ERROR_LABELS: Record<string, string> = {
   saas_billing_checkout_unavailable: 'Не удалось получить ссылку на оплату. Попробуйте ещё раз.',
   billing_admin_required: 'Оплату тарифа может запустить только владелец или администратор клиники.',
   saas_billing_tariff_downgrade_blocked: 'Понижение недоступно: сначала приведите клинику к новому тарифу.',
-  saas_billing_upgrade_charge_policy_unresolved: 'Повышение тарифа пока оформляет администратор платформы.',
+  saas_billing_tariff_upgrade_proration_unavailable:
+    'Повышение с разными валютами или периодами пока нельзя рассчитать автоматически.',
+  saas_billing_tariff_upgrade_not_more_expensive: 'Этот тариф не является повышением.',
+  saas_billing_upgrade_no_remaining_period: 'Оплаченный период уже завершился. Оформите следующий период.',
   saas_billing_no_active_paid_subscription: 'Для смены тарифа нужен действующий оплаченный период.',
 };
 
@@ -88,9 +91,10 @@ export function PayTariffButton({ tariffChange }: { tariffChange: ClinicTariffCh
         body: JSON.stringify({ tariffId: selectedTariffId }),
       });
       const body = (await response.json().catch(() => null)) as
-        | { ok?: boolean; error?: string; blocks?: Array<{ mechanic?: string }> }
+        | { ok?: boolean; error?: string; blocks?: Array<{ mechanic?: string }>; checkoutUrl?: string }
         | null;
       if (!body?.ok) setError(formatTariffChangeError(body));
+      else if (body.checkoutUrl) window.location.href = body.checkoutUrl;
       else setPendingTariffId(selectedTariffId === tariffChange.currentTariffId ? null : selectedTariffId);
     } catch {
       setError(formatError(undefined));
@@ -133,7 +137,9 @@ export function PayTariffButton({ tariffChange }: { tariffChange: ClinicTariffCh
         </SelectContent>
       </Select>
       <Button size="sm" variant="outline" onClick={changeTariff} disabled={pending || !selectedTariffId}>
-        {selectedTariffId === tariffChange.currentTariffId ? 'Отменить запланированную смену' : 'Запланировать смену'}
+        {selectedTariffId === tariffChange.currentTariffId
+          ? 'Отменить запланированную смену'
+          : 'Перейти на тариф'}
       </Button>
       {pendingTariffId && tariffChange.pendingEffectiveAt ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
