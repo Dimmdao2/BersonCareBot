@@ -652,7 +652,12 @@ describe('tariff and platform mutation gates', () => {
     vi.mocked(buildAppDeps).mockReturnValue({
       orgBranding: createOrgBrandingService({
         port: brandingPort,
-        isBrandingMechanicEnabled: async () => false,
+        resolveBrandingAccess: async () => ({
+          mechanic: 'branding',
+          state: 'disabled',
+          policySource: 'mechanic',
+          warning: null,
+        }),
       }),
     } as unknown as ReturnType<typeof buildAppDeps>);
 

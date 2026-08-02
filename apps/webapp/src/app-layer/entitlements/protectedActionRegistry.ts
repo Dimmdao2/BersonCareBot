@@ -847,7 +847,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
     method: 'action',
     authContext: 'requireOrgBrandingManagementContext',
     guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'deps.orgBranding.saveDraft/publishDraft (isBrandingMechanicEnabled)',
+    serviceBoundary: 'deps.orgBranding.saveDraft/publishDraft (resolveBrandingAccess)',
   },
   {
     id: 'exercise-catalog.save',

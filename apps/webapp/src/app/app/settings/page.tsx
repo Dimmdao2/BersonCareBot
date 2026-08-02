@@ -210,14 +210,16 @@ export default async function SettingsPage({
             </Link>
           </DoctorSection>
         ) : null}
-        <OrgBrandingSection
-          key={`${brandingState.brandingMechanicEnabled}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
-          brandingMechanicEnabled={brandingState.brandingMechanicEnabled}
-          coreDisplayName={brandingState.effective.core.displayName}
-          publishedDisplayName={publishedBrand?.displayName ?? null}
-          publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
-          publishedLogoUrl={publishedLogoUrl}
-        />
+        {brandingState.brandingVisible ? (
+          <OrgBrandingSection
+            key={`${brandingState.accessState}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
+            brandingMutationAvailable={brandingState.brandingMutationAvailable}
+            coreDisplayName={brandingState.effective.core.displayName}
+            publishedDisplayName={publishedBrand?.displayName ?? null}
+            publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
+            publishedLogoUrl={publishedLogoUrl}
+          />
+        ) : null}
         {slugState ? (
           <ClinicSlugSection initialState={slugState} appBaseUrl={env.APP_BASE_URL} />
         ) : null}
