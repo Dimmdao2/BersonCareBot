@@ -134,6 +134,89 @@ function ports(
 describe('D21 unified reminder dispatcher', () => {
   beforeEach(() => enqueue.mockClear());
 
+  it('plans one canonical occurrence for a platform-user rule without a bot identity', async () => {
+    const writes: DbWriteMutation[] = [];
+    const readPort: DbReadPort = {
+      readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
+        if (query.type === 'reminders.rules.enabled') {
+          return [
+            {
+              ...rule,
+              userId: null,
+              windowStartMinute: 960,
+              windowEndMinute: 960,
+            },
+          ] as T;
+        }
+        throw new Error(`unexpected read ${query.type}`);
+      },
+    };
+    const writePort: DbWritePort = {
+      async writeDb(mutation) {
+        writes.push(mutation);
+      },
+    };
+
+    const result = await handleReminders(
+      {
+        id: 'plan-d21-no-bot',
+        type: 'reminders.planDue',
+        mode: 'sync',
+        params: { nowIso: '2026-08-02T12:00:00.000Z' },
+      },
+      context(),
+      { readPort, writePort },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.values?.plannedOccurrenceUpserts).toBe(1);
+    expect(
+      writes.filter((mutation) => mutation.type === 'reminders.occurrence.upsertPlanned'),
+    ).toHaveLength(1);
+  });
+
+  it('does not suppress a user-selected occurrence through legacy quiet hours', async () => {
+    const writes: DbWriteMutation[] = [];
+    const readPort: DbReadPort = {
+      readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
+        if (query.type === 'reminders.rules.enabled') {
+          return [
+            {
+              ...rule,
+              userId: null,
+              windowStartMinute: 960,
+              windowEndMinute: 960,
+              quietHoursStartMinute: 900,
+              quietHoursEndMinute: 1000,
+            },
+          ] as T;
+        }
+        throw new Error(`unexpected read ${query.type}`);
+      },
+    };
+    const writePort: DbWritePort = {
+      async writeDb(mutation) {
+        writes.push(mutation);
+      },
+    };
+
+    const result = await handleReminders(
+      {
+        id: 'plan-d21-no-quiet-hours',
+        type: 'reminders.planDue',
+        mode: 'sync',
+        params: { nowIso: '2026-08-02T12:00:00.000Z' },
+      },
+      context(),
+      { readPort, writePort },
+    );
+
+    expect(result.values?.plannedOccurrenceUpserts).toBe(1);
+    expect(
+      writes.filter((mutation) => mutation.type === 'reminders.occurrence.upsertPlanned'),
+    ).toHaveLength(1);
+  });
+
   it('queues Web Push for a canonical rule whose user has no bot identity', async () => {
     const deps = ports([occurrence()]);
     const result = await handleReminders(action, context(), deps);

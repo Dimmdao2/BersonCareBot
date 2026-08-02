@@ -531,9 +531,17 @@ describe('D7 signed reminder callback capabilities', () => {
       [patientA],
     );
     expect(canonical.rows[0]).toMatchObject({ training_enabled: false, news_enabled: false });
-    expect(new Date(canonical.rows[0]?.muted_until ?? '').toISOString()).toBe(
-      '2026-08-03T00:00:00.000Z',
-    );
+    const mutedUntil = new Date(canonical.rows[0]?.muted_until ?? '');
+    expect(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).format(mutedUntil),
+    ).toBe('00:00');
+    expect(mutedUntil.getTime()).toBeGreaterThan(Date.now());
+    expect(mutedUntil.getTime() - Date.now()).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
     const dueWhileMuted = await run<{ due_now: boolean }>(
       `SELECT operational.status = 'planned'
            AND operational.planned_at <= statement_timestamp()

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DeliveryTargetsTenantDeniedError,
   getDeliveryTargetsForIntegrator,
   type DeliveryTargetsApiDeps,
 } from './deliveryTargetsApi';
@@ -152,5 +153,21 @@ describe('D21 platform-user delivery target resolution', () => {
         { channel: 'email', reason: 'disabled_by_user_global' },
       ]),
     );
+  });
+
+  it('refuses to resolve a platform user outside the signed organization', async () => {
+    const foreign = deps(true);
+    foreign.hasActivePatientEnrollment = async () => false;
+
+    await expect(
+      getDeliveryTargetsForIntegrator(
+        {
+          platformUserId: USER_ID,
+          organizationId: ORG_ID,
+          topic: 'appointment_reminders',
+        },
+        foreign,
+      ),
+    ).rejects.toBeInstanceOf(DeliveryTargetsTenantDeniedError);
   });
 });
