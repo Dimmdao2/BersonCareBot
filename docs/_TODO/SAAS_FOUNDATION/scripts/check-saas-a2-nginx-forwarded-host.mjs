@@ -199,6 +199,7 @@ function runSelfTest() {
 }`;
   assertYooKassaWebhookIngress(validConfig);
 
+  let rejectedCount = 0;
   const assertRejected = (config, label) => {
     let rejected = false;
     try {
@@ -207,20 +208,30 @@ function runSelfTest() {
       rejected = true;
     }
     assert(rejected, `self-test: ${label} was accepted`);
+    rejectedCount += 1;
   };
   assertRejected(validConfig.replace('allow 2a02:5180::/32;', ''), 'missing YooKassa network');
   assertRejected(
     validConfig.replace(YOOKASSA_LOCATION, 'location ~ ^/api/payments/ {'),
     'broad payments location',
   );
+  assertRejected(
+    validConfig.replace(
+      'proxy_set_header X-Real-IP $remote_addr;',
+      'proxy_set_header X-Real-IP $http_x_real_ip;',
+    ),
+    'client-controlled real IP header',
+  );
+  assertRejected(validConfig.replace('    deny all;\n    location ~', '    location ~'), 'missing vhost deny all');
+  return rejectedCount;
 }
 
 try {
   const options = parseArgs(process.argv.slice(2));
   if (options.selfTest) {
     assert(!options.nginxDump, '--self-test cannot be combined with --nginx-dump');
-    runSelfTest();
-    console.log('check-saas-a2-nginx-forwarded-host: self-test OK');
+    const rejectedCount = runSelfTest();
+    console.log(`check-saas-a2-nginx-forwarded-host: self-test OK (${rejectedCount}/4 faults rejected)`);
     process.exit(0);
   }
   assert(options.nginxDump, `--nginx-dump is required\n\n${usage()}`);
