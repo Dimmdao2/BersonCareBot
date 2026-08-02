@@ -16,6 +16,7 @@ type WarnLogger = {
 type SmscClientConfig = {
   apiKey?: string;
   getApiKey?: () => Promise<string>;
+  getRuntimeConfig?: () => Promise<{ enabled: boolean; apiKey: string; baseUrl: string }>;
   baseUrl?: string;
   timeoutMs?: number;
   log: WarnLogger;
@@ -31,7 +32,6 @@ type SmscResponse = {
 
 /** Создает рабочий клиент SMSC с HTTP-вызовом API провайдера. */
 export function createSmscClient(config: SmscClientConfig): SmsClient {
-  const baseUrl = config.baseUrl ?? 'https://smsc.ru/sys/send.php';
   const timeoutMs = config.timeoutMs ?? 10_000;
   const fetchImpl = config.fetchImpl ?? (fetch as unknown as typeof globalThis.fetch);
 
@@ -41,8 +41,10 @@ export function createSmscClient(config: SmscClientConfig): SmsClient {
         return { ok: false, error: 'SMSC_INVALID_INPUT' };
       }
 
-      const apiKey = config.getApiKey ? await config.getApiKey() : (config.apiKey ?? '');
-      if (!apiKey) {
+      const runtime = config.getRuntimeConfig ? await config.getRuntimeConfig() : null;
+      const apiKey = runtime?.apiKey ?? (config.getApiKey ? await config.getApiKey() : (config.apiKey ?? ''));
+      const baseUrl = runtime?.baseUrl ?? config.baseUrl ?? '';
+      if (!apiKey || !baseUrl || runtime?.enabled === false) {
         return { ok: false, error: 'smsc api key missing' };
       }
 
