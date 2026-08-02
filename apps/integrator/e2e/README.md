@@ -31,8 +31,8 @@
 - В webapp создать/обновить/удалить canonical booking через provider-neutral lifecycle flow.
 - Ожидание:
   - webapp отправил signed `POST /api/bersoncare/booking/lifecycle-event`,
-  - при `GOOGLE_CALENDAR_ENABLED=true` событие синхронизировано в Google Calendar (create/update/delete),
-  - при `GOOGLE_CALENDAR_ENABLED=false` внешних вызовов в Google нет.
+  - при включённых canonical DB-настройке и platform switch Google Calendar событие синхронизировано в Google Calendar (create/update/delete),
+  - при выключенном platform switch внешних вызовов в Google нет.
 
 ## 5) Retired Rubitime reverse API (выведено 2026-07-27)
 

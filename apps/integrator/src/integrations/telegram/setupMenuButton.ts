@@ -3,12 +3,10 @@
  * У пользователей — стандартная кнопка меню (без Web App). У админа — меню команд.
  */
 import { logger } from '../../infra/observability/logger.js';
-import { telegramConfig } from './config.js';
 import { getBotInstance } from './client.js';
 
 export async function setupTelegramMenuButton(): Promise<void> {
-  const adminChatId = telegramConfig.adminTelegramId;
-  const api = getBotInstance().api;
+  const api = (await getBotInstance()).api;
 
   try {
     await api.deleteMyCommands();
@@ -19,21 +17,6 @@ export async function setupTelegramMenuButton(): Promise<void> {
     await api.setChatMenuButton({ menu_button: { type: 'default' } });
     logger.info('Telegram: setChatMenuButton (default) ok');
 
-    await api.setMyCommands(
-      [
-        { command: 'admin_bookings', description: '📅 Активные записи' },
-        { command: 'admin_users', description: '👥 Пользователи' },
-        { command: 'unanswered', description: '❓ Неотвеченные вопросы' },
-      ],
-      { scope: { type: 'chat', chat_id: adminChatId } },
-    );
-    logger.info({ adminChatId }, 'Telegram: setMyCommands (admin) ok');
-
-    await api.setChatMenuButton({
-      chat_id: adminChatId,
-      menu_button: { type: 'commands' },
-    });
-    logger.info({ adminChatId }, 'Telegram: setChatMenuButton (admin) ok');
   } catch (err) {
     logger.warn({ err }, 'Telegram: setup menu button failed (non-fatal)');
   }

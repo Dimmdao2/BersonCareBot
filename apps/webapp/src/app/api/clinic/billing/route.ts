@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
+import { handleSeatOveragePurchase } from './seatOveragePurchase';
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
@@ -39,7 +40,10 @@ async function requireBillingManager() {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
   if (!gate.ok) return gate;
   if (gate.ctx.membershipRole !== 'owner' && gate.ctx.membershipRole !== 'admin') {
-    return { ok: false as const, response: NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 }) };
+    return {
+      ok: false as const,
+      response: NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 }),
+    };
   }
   return gate;
 }
@@ -53,22 +57,31 @@ function tariffChangeError(error: unknown) {
   ) {
     return NextResponse.json({ ok: false, error: message }, { status: 409 });
   }
-  return NextResponse.json({ ok: false, error: 'saas_billing_tariff_change_failed' }, { status: 500 });
+  return NextResponse.json(
+    { ok: false, error: 'saas_billing_tariff_change_failed' },
+    { status: 500 },
+  );
 }
 
 export async function PATCH(request: Request) {
   const gate = await requireBillingManager();
   if (!gate.ok) return gate.response;
   const parsed = tariffChangeSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
   try {
     await runWithDbClinicBillingPrincipal(
-      { organizationId: gate.ctx.organizationId, platformUserId: gate.ctx.session.user.userId, source: 'clinic-billing-tariff-change-schedule' },
-      () => buildAppDeps().saasBilling.scheduleOwnTariffChange({
+      {
         organizationId: gate.ctx.organizationId,
-        tariffId: parsed.data.tariffId,
-        actorId: gate.ctx.session.user.userId,
-      }),
+        platformUserId: gate.ctx.session.user.userId,
+        source: 'clinic-billing-tariff-change-schedule',
+      },
+      () =>
+        buildAppDeps().saasBilling.scheduleOwnTariffChange({
+          organizationId: gate.ctx.organizationId,
+          tariffId: parsed.data.tariffId,
+          actorId: gate.ctx.session.user.userId,
+        }),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -81,11 +94,16 @@ export async function DELETE() {
   if (!gate.ok) return gate.response;
   try {
     await runWithDbClinicBillingPrincipal(
-      { organizationId: gate.ctx.organizationId, platformUserId: gate.ctx.session.user.userId, source: 'clinic-billing-tariff-change-cancel' },
-      () => buildAppDeps().saasBilling.cancelOwnTariffChange({
+      {
         organizationId: gate.ctx.organizationId,
-        actorId: gate.ctx.session.user.userId,
-      }),
+        platformUserId: gate.ctx.session.user.userId,
+        source: 'clinic-billing-tariff-change-cancel',
+      },
+      () =>
+        buildAppDeps().saasBilling.cancelOwnTariffChange({
+          organizationId: gate.ctx.organizationId,
+          actorId: gate.ctx.session.user.userId,
+        }),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -124,47 +142,11 @@ export async function POST(request: Request) {
   };
   try {
     if (purchase.success) {
-      const result = await runWithDbClinicBillingPrincipal(principal, () =>
-        buildAppDeps().saasBilling.purchaseSeatOverage({
-          organizationId: gate.ctx.organizationId,
-          requestKey: purchase.data.requestKey,
-          confirmedAmountMinor: purchase.data.amountMinor,
-          confirmedCurrency: purchase.data.currency,
-        }),
+      return await handleSeatOveragePurchase(gate.ctx, purchase.data, (input) =>
+        runWithDbClinicBillingPrincipal(principal, () =>
+          buildAppDeps().saasBilling.purchaseSeatOverage(input),
+        ),
       );
-      if (result.outcome === 'seat_available') {
-        return NextResponse.json({ ok: true, outcome: 'seat_available' });
-      }
-      if (result.outcome === 'price_changed') {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'seat_overage_confirmation_required',
-            priceMinor: result.priceMinor,
-            currency: result.currency,
-          },
-          { status: 402 },
-        );
-      }
-      if (result.outcome === 'seat_overage_unavailable') {
-        return NextResponse.json(
-          { ok: false, error: 'saas_billing_seat_overage_unavailable' },
-          { status: 409 },
-        );
-      }
-      // outcome === 'checkout'
-      const seatInvoice = result.invoice;
-      if (!seatInvoice.providerCheckoutUrl) {
-        return NextResponse.json(
-          { ok: false, error: 'saas_billing_checkout_unavailable' },
-          { status: 502 },
-        );
-      }
-      return NextResponse.json({
-        ok: true,
-        checkoutUrl: seatInvoice.providerCheckoutUrl,
-        invoiceId: seatInvoice.id,
-      });
     }
     // Tariff renewal path
     const invoice = await runWithDbClinicBillingPrincipal(principal, () =>

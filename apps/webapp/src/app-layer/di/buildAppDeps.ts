@@ -293,8 +293,6 @@ import { createInMemoryTreatmentProgramPersistence } from '@/infra/repos/inMemor
 import { createPgTreatmentProgramTestAttemptsPort } from '@/infra/repos/pgTreatmentProgramTestAttempts';
 import { createPgProgramActionLogPort } from '@/infra/repos/pgProgramActionLog';
 import { createInMemoryProgramActionLogPort } from '@/infra/repos/inMemoryProgramActionLog';
-import { createPgDoctorProactiveInsightsPort } from '@/infra/repos/pgDoctorProactiveInsights';
-import { createInMemoryDoctorProactiveInsightsPort } from '@/infra/repos/inMemoryDoctorProactiveInsights';
 import { createPgProgramItemDiscussionPort } from '@/infra/repos/pgProgramItemDiscussion';
 import { createInMemoryProgramItemDiscussionPort } from '@/infra/repos/inMemoryProgramItemDiscussion';
 import { createPgPatientDiarySnapshotsPort } from '@/infra/repos/pgPatientDiarySnapshots';
@@ -359,7 +357,7 @@ import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitl
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
 import {
   createPlatformEntitlementsService,
-  isMechanicEnabled,
+  resolveMechanicAccess,
 } from '@/modules/org-entitlements/service';
 import { createPgOrgBrandingPort } from '@/infra/repos/pgOrgBranding';
 import { createInMemoryOrgBrandingPort } from '@/infra/repos/inMemoryOrgBranding';
@@ -577,8 +575,8 @@ const orgEntitlementsPort = !inMemoryRepos
  */
 const orgBrandingService = createOrgBrandingService({
   port: !inMemoryRepos ? createPgOrgBrandingPort() : createInMemoryOrgBrandingPort(),
-  isBrandingMechanicEnabled: (organizationId: string) =>
-    isMechanicEnabled(orgEntitlementsPort, organizationId, 'branding'),
+  resolveBrandingAccess: (organizationId: string) =>
+    resolveMechanicAccess(orgEntitlementsPort, organizationId, 'branding'),
 });
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
@@ -949,9 +947,6 @@ const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
 const programActionLogPort = !inMemoryRepos
   ? createPgProgramActionLogPort()
   : createInMemoryProgramActionLogPort();
-const doctorProactiveInsightsPort = !inMemoryRepos
-  ? createPgDoctorProactiveInsightsPort()
-  : createInMemoryDoctorProactiveInsightsPort();
 const programItemDiscussionPort = !inMemoryRepos
   ? createPgProgramItemDiscussionPort()
   : createInMemoryProgramItemDiscussionPort();
@@ -1810,7 +1805,6 @@ function _buildAppDeps() {
     warmupFeelingCompletion: warmupFeelingCompletionPort,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
-    doctorProactiveInsights: doctorProactiveInsightsPort,
     treatmentProgramPatientActions,
     programItemDiscussion: programItemDiscussionService,
     /** Журнал действий пациента по программе (дневник недели и др.). */

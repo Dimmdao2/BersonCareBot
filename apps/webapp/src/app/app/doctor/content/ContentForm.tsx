@@ -125,6 +125,10 @@ export function ContentForm({
   const [isPublishedValue, setIsPublishedValue] = useState(page?.isPublished ?? true);
   const [requiresAuthValue, setRequiresAuthValue] = useState(page?.requiresAuth ?? false);
   const [sectionValue, setSectionValue] = useState(defaultSectionSlugForSelect);
+  const contentMechanic =
+    sections.find((section) => section.slug === sectionValue)?.systemParentCode === 'warmups'
+      ? 'warmups'
+      : 'cms_pages';
   const [linkedCourseIdValue, setLinkedCourseIdValue] = useState(page?.linkedCourseId ?? '');
   const [legacyReplacementStarted, setLegacyReplacementStarted] = useState(false);
 
@@ -325,6 +329,7 @@ export function ContentForm({
 
           {/* Hidden page_id */}
           {page ? <input type="hidden" name="page_id" value={page.id} /> : null}
+          <input type="hidden" name="content_mechanic" value={contentMechanic} />
 
           {/* Заголовок */}
           <div className="flex flex-col gap-1.5">

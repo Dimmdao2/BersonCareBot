@@ -15,7 +15,6 @@ export function isTelegramCallbackDataWithinLimit(data: string): boolean {
 
 export type InlineKeyboardButton =
   | { text: string; url: string }
-  | { text: string; web_app: { url: string } }
   | { text: string; callback_data: string };
 
 /** Primary CTA label from webapp `reminder_intent`. */
@@ -24,29 +23,26 @@ export function reminderIntentPrimaryLabel(intent: string | null | undefined): s
   return 'Начать тренировку';
 }
 
-export type ReminderOpenLinkSpec = { kind: 'web_app'; url: string } | { kind: 'url'; url: string };
-
-function openButton(label: string, spec: ReminderOpenLinkSpec): InlineKeyboardButton {
-  if (spec.kind === 'web_app') return { text: label, web_app: { url: spec.url } };
-  return { text: label, url: spec.url };
+function openButton(label: string, url: string): InlineKeyboardButton {
+  return { text: label, url };
 }
 
 /** Exported for handlers that build follow-up keyboards (e.g. bot reminder ack rows). */
 export function reminderLinkKeyboardButton(
   label: string,
-  spec: ReminderOpenLinkSpec,
+  url: string,
 ): InlineKeyboardButton {
-  return openButton(label, spec);
+  return openButton(label, url);
 }
 
 export function buildReminderDispatchInlineKeyboard(params: {
   primaryLabel: string;
-  primary: ReminderOpenLinkSpec;
-  schedule: ReminderOpenLinkSpec;
+  primaryUrl: string;
+  scheduleUrl: string;
   occurrenceId: string;
 }): { inline_keyboard: InlineKeyboardButton[][] } {
-  const { primaryLabel, primary, schedule, occurrenceId } = params;
-  const rows: InlineKeyboardButton[][] = [[openButton(primaryLabel, primary)]];
+  const { primaryLabel, primaryUrl, scheduleUrl, occurrenceId } = params;
+  const rows: InlineKeyboardButton[][] = [[openButton(primaryLabel, primaryUrl)]];
 
   const snoozeMenuData = `rem_snooze_menu:${occurrenceId}`;
   const skipData = `rem_skip:${occurrenceId}`;
@@ -61,7 +57,7 @@ export function buildReminderDispatchInlineKeyboard(params: {
   }
   if (row2.length > 0) rows.push(row2);
 
-  const row3: InlineKeyboardButton[] = [openButton('Расписание', schedule)];
+  const row3: InlineKeyboardButton[] = [openButton('Расписание', scheduleUrl)];
   if (isTelegramCallbackDataWithinLimit(notifData)) {
     row3.push({ text: 'Настройки уведомлений', callback_data: notifData });
   }

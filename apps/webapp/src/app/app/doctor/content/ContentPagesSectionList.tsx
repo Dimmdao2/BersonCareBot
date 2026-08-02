@@ -86,6 +86,7 @@ function SortablePageRow({
   onToggleRequiresAuth,
   onSelectPage,
   isSelected,
+  canManageCms,
 }: {
   page: ContentPageListRow;
   rating?: ContentRatingSummary | null;
@@ -94,6 +95,7 @@ function SortablePageRow({
   /** When provided — title becomes a selection button instead of a navigation link. */
   onSelectPage?: (id: string) => void;
   isSelected?: boolean;
+  canManageCms: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: page.id,
@@ -114,7 +116,9 @@ function SortablePageRow({
           'border-primary/40 bg-primary/5 ring-1 ring-primary/30 ring-offset-1 ring-offset-background',
       )}
     >
-      <DragHandle listeners={listeners as never} attributes={attributes as never} />
+      {canManageCms ? (
+        <DragHandle listeners={listeners as never} attributes={attributes as never} />
+      ) : null}
       <div className="min-w-0 flex-1">
         {onSelectPage ? (
           <Button
@@ -125,34 +129,38 @@ function SortablePageRow({
           >
             {page.title}
           </Button>
-        ) : (
+        ) : canManageCms ? (
           <Link
             href={`/app/doctor/content/edit/${page.id}`}
             className="block truncate font-medium text-foreground hover:underline"
           >
             {page.title}
           </Link>
+        ) : (
+          <span className="block truncate font-medium text-foreground">{page.title}</span>
         )}
         <p className="truncate font-mono text-xs text-muted-foreground">{page.slug}</p>
       </div>
       <ContentRatingChip rating={rating} className="hidden shrink-0 sm:inline-flex" />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="size-9 shrink-0 rounded-full border border-border/80"
-        disabled={authPending}
-        title={page.requiresAuth ? 'Только для залогиненных' : 'Публичная страница'}
-        aria-label={page.requiresAuth ? 'Только для залогиненных' : 'Публичная страница'}
-        onClick={() => onToggleRequiresAuth(page.id, !page.requiresAuth)}
-      >
-        {page.requiresAuth ? (
-          <Shield className="size-4 text-amber-700 dark:text-amber-500" aria-hidden />
-        ) : (
-          <ShieldOff className="size-4 text-muted-foreground" aria-hidden />
-        )}
-      </Button>
-      <ContentLifecycleDropdown page={page} />
+      {canManageCms ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-9 shrink-0 rounded-full border border-border/80"
+          disabled={authPending}
+          title={page.requiresAuth ? 'Только для залогиненных' : 'Публичная страница'}
+          aria-label={page.requiresAuth ? 'Только для залогиненных' : 'Публичная страница'}
+          onClick={() => onToggleRequiresAuth(page.id, !page.requiresAuth)}
+        >
+          {page.requiresAuth ? (
+            <Shield className="size-4 text-amber-700 dark:text-amber-500" aria-hidden />
+          ) : (
+            <ShieldOff className="size-4 text-muted-foreground" aria-hidden />
+          )}
+        </Button>
+      ) : null}
+      {canManageCms ? <ContentLifecycleDropdown page={page} /> : null}
     </li>
   );
 }
@@ -177,6 +185,7 @@ export function ContentPagesSectionList({
   selectedPageId,
   onSelectPage,
   onCreatePage,
+  canManageCms = true,
 }: {
   sectionSlug: string;
   sectionTitle: string;
@@ -200,6 +209,7 @@ export function ContentPagesSectionList({
   onSelectPage?: (id: string) => void;
   /** Inline content-hub creation keeps a new material in the selected section. */
   onCreatePage?: (sectionSlug: string) => void;
+  canManageCms?: boolean;
 }) {
   const [items, setItems] = useState(initialPages);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -292,7 +302,7 @@ export function ContentPagesSectionList({
 
   // ── Shared header block ────────────────────────────────────────────────────
   const sectionManageRow =
-    !showSectionHeading && sectionSettingsHref ? (
+    !showSectionHeading && sectionSettingsHref && canManageCms ? (
       <div className="flex flex-wrap items-center justify-end gap-3">
         <Link
           href={sectionSettingsHref}
@@ -317,7 +327,7 @@ export function ContentPagesSectionList({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <h3 className={`m-0 ${doctorSectionTitleClass}`}>{sectionTitle}</h3>
-        {sectionSettingsHref ? (
+        {sectionSettingsHref && canManageCms ? (
           <Link
             href={sectionSettingsHref}
             className="shrink-0 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -327,7 +337,7 @@ export function ContentPagesSectionList({
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        {showInnerCreatePageLink ? (
+        {showInnerCreatePageLink && canManageCms ? (
           <Button
             type="button"
             variant="link"
@@ -337,7 +347,7 @@ export function ContentPagesSectionList({
             Создать страницу
           </Button>
         ) : null}
-        {allowDeleteSection ? (
+        {allowDeleteSection && canManageCms ? (
           <Button
             type="button"
             variant="link"
@@ -355,7 +365,7 @@ export function ContentPagesSectionList({
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-2">
-        {allowDeleteSection ? (
+        {allowDeleteSection && canManageCms ? (
           <SectionDeleteDialog
             showTriggerButton={false}
             open={deleteOpen}
@@ -376,7 +386,7 @@ export function ContentPagesSectionList({
   // ── Main render ─────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-2">
-      {allowDeleteSection ? (
+      {allowDeleteSection && canManageCms ? (
         <SectionDeleteDialog
           showTriggerButton={false}
           open={deleteOpen}
@@ -413,8 +423,9 @@ export function ContentPagesSectionList({
             <ContentPageTileCard
               page={p}
               rating={ratingsById?.[p.id]}
-              onSelect={onSelectPage}
+              onSelect={canManageCms ? onSelectPage : undefined}
               isActive={selectedPageId ? p.id === selectedPageId : undefined}
+              canManageCms={canManageCms}
             />
           )}
           containerClassName="flex-1 min-h-[200px]"
@@ -436,8 +447,9 @@ export function ContentPagesSectionList({
                   rating={ratingsById?.[p.id]}
                   authPending={authPending}
                   onToggleRequiresAuth={onToggleRequiresAuth}
-                  onSelectPage={onSelectPage}
+                  onSelectPage={canManageCms ? onSelectPage : undefined}
                   isSelected={selectedPageId ? p.id === selectedPageId : undefined}
+                  canManageCms={canManageCms}
                 />
               ))}
             </ul>

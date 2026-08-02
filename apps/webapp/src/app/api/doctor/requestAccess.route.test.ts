@@ -88,6 +88,12 @@ const fakeDeps = {
       policySource: 'system',
       warning: null,
     }),
+    resolveMechanicAccess: async (_organizationId: string, mechanic: string) => ({
+      mechanic,
+      state: 'full_access',
+      policySource: 'system',
+      warning: null,
+    }),
   },
 } as unknown as Pick<
   AppDeps,

@@ -1,7 +1,11 @@
 'use server';
 
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicSurfaceVisibility,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
+import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
@@ -27,8 +31,11 @@ export async function loadContentPageForInlineEdit(id: string): Promise<{
   linkedCourseId: string | null;
 } | null> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return null;
+  const [cmsVisibility, warmupsVisibility] = await Promise.all([
+    getMechanicSurfaceVisibility(workspace, 'cms_pages'),
+    getMechanicSurfaceVisibility(workspace, 'warmups'),
+  ]);
+  if (!cmsVisibility.directUrl && !warmupsVisibility.directUrl) return null;
   const deps = buildAppDeps();
   const page = await withDoctorWorkspacePrincipal(
     workspace,
@@ -36,6 +43,16 @@ export async function loadContentPageForInlineEdit(id: string): Promise<{
     () => deps.contentPages.getById(id),
   );
   if (!page) return null;
+  const section = await withDoctorWorkspacePrincipal(
+    workspace,
+    'doctor.content.inline-editor.section-read',
+    () => deps.contentSections.getBySlug(page.section),
+  );
+  const entitlement = await requireEntitlementForReadAction(
+    workspace,
+    contentMechanicForSection(section),
+  );
+  if (!entitlement.ok) return null;
   return {
     id: page.id,
     section: page.section,

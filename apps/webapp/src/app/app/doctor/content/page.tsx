@@ -2,9 +2,11 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
-  isMechanicIncluded,
+  getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
+import { isWarmupsContentSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { notFound } from 'next/navigation';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -15,15 +17,28 @@ import type { PublishedCourseOption } from './ContentForm';
 
 export default async function DoctorContentPage() {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) notFound();
+  const [cmsVisibility, warmupsVisibility, patientHomeTodayVisibility] = await Promise.all([
+    getMechanicSurfaceVisibility(workspace, 'cms_pages'),
+    getMechanicSurfaceVisibility(workspace, 'warmups'),
+    getMechanicSurfaceVisibility(workspace, 'patient_home_today'),
+  ]);
+  if (
+    !cmsVisibility.directUrl &&
+    !warmupsVisibility.directUrl &&
+    !patientHomeTodayVisibility.directUrl
+  ) {
+    notFound();
+  }
   const session = workspace.session;
   const deps = buildAppDeps();
-  const coursesEnabled = (await requireEntitlementForReadAction(workspace, 'courses')).ok;
-  const patientHomeTodayEnabled = (
-    await requireEntitlementForReadAction(workspace, 'patient_home_today')
-  ).ok;
-  const warmupsEnabled = await isMechanicIncluded(workspace, 'warmups');
+  const canManageCms = (await getMechanicMutationAvailability(workspace, 'cms_pages')).available;
+  const canManageWarmups = (
+    await getMechanicMutationAvailability(workspace, 'warmups')
+  ).available;
+  const coursesEnabled =
+    cmsVisibility.directUrl && (await requireEntitlementForReadAction(workspace, 'courses')).ok;
+  const patientHomeTodayEnabled = patientHomeTodayVisibility.directUrl;
+  const warmupsEnabled = warmupsVisibility.directUrl;
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
@@ -61,6 +76,12 @@ export default async function DoctorContentPage() {
   } catch (err) {
     loadError = logServerRuntimeError('app/doctor/content', err);
   }
+
+  sections = sections.filter((section) =>
+    isWarmupsContentSection(section) ? warmupsEnabled : cmsVisibility.directUrl,
+  );
+  const visibleSectionSlugs = new Set(sections.map((section) => section.slug));
+  pages = pages.filter((page) => visibleSectionSlugs.has(page.section));
 
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -101,6 +122,9 @@ export default async function DoctorContentPage() {
     <DoctorAppShell title="Контент" user={session.user}>
       <ContentHubShell
         sections={hubSections}
+        cmsEnabled={cmsVisibility.directUrl}
+        canManageCms={canManageCms}
+        canManageWarmups={canManageWarmups}
         patientHomeTodayEnabled={patientHomeTodayEnabled}
         warmupsEnabled={warmupsEnabled}
         fullSections={sections}

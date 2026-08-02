@@ -23,10 +23,23 @@ function promoDeps() {
 }
 
 describe('promo materialization entitlement', () => {
+  it('materializes promo for full access when no program exists', async () => {
+    const full = promoDeps();
+
+    await expect(
+      resolvePatientTreatmentProgramEntry(
+        full.deps,
+        'patient',
+        vi.fn().mockResolvedValue({ visible: true, canMaterialize: true }),
+      ),
+    ).resolves.toEqual({ kind: 'redirect', instanceId: 'promo-instance' });
+    expect(full.ensureDefaultPromoProgramForPatient).toHaveBeenCalledWith({ patientUserId: 'patient' });
+  });
+
   it('does not materialize promo from treatment, reminder or go entry when promo is off', async () => {
     const treatment = promoDeps();
     const active = promoDeps();
-    const denied = vi.fn().mockResolvedValue(false);
+    const denied = vi.fn().mockResolvedValue({ visible: false, canMaterialize: false });
 
     const [entry, activeId] = await Promise.all([
       resolvePatientTreatmentProgramEntry(treatment.deps, 'patient', denied),
@@ -39,7 +52,7 @@ describe('promo materialization entitlement', () => {
     expect(active.ensureDefaultPromoProgramForPatient).not.toHaveBeenCalled();
   });
 
-  it('keeps an already existing active promo instance readable when promo is off', async () => {
+  it('hides an already existing promo instance when promo is disabled', async () => {
     const existing = promoDeps();
     existing.deps.treatmentProgramInstance.listForPatient.mockResolvedValue([
       {
@@ -55,12 +68,66 @@ describe('promo materialization entitlement', () => {
         patientPlanLastOpenedAt: null,
       },
     ]);
-    const denied = vi.fn().mockResolvedValue(false);
+    const denied = vi.fn().mockResolvedValue({ visible: false, canMaterialize: false });
 
     await expect(
       resolveActiveTreatmentProgramInstanceId(existing.deps, 'patient', denied),
+    ).resolves.toBeNull();
+    expect(denied).toHaveBeenCalledTimes(1);
+    expect(existing.ensureDefaultPromoProgramForPatient).not.toHaveBeenCalled();
+  });
+
+  it('keeps an existing promo readable without materializing another one in read-only mode', async () => {
+    const existing = promoDeps();
+    existing.deps.treatmentProgramInstance.listForPatient.mockResolvedValue([
+      {
+        id: 'existing-promo',
+        patientUserId: 'patient',
+        templateId: 'promo-template',
+        assignedBy: null,
+        assignmentSource: 'promo',
+        title: 'Промо',
+        status: 'active',
+        createdAt: '2026-07-29T00:00:00.000Z',
+        updatedAt: '2026-07-30T00:00:00.000Z',
+        patientPlanLastOpenedAt: null,
+      },
+    ]);
+
+    await expect(
+      resolveActiveTreatmentProgramInstanceId(
+        existing.deps,
+        'patient',
+        vi.fn().mockResolvedValue({ visible: true, canMaterialize: false }),
+      ),
     ).resolves.toBe('existing-promo');
-    expect(denied).not.toHaveBeenCalled();
+    expect(existing.ensureDefaultPromoProgramForPatient).not.toHaveBeenCalled();
+  });
+
+  it('keeps an assigned program available while promo is disabled', async () => {
+    const existing = promoDeps();
+    existing.deps.treatmentProgramInstance.listForPatient.mockResolvedValue([
+      {
+        id: 'assigned-program',
+        patientUserId: 'patient',
+        templateId: 'assigned-template',
+        assignedBy: 'doctor',
+        assignmentSource: 'doctor',
+        title: 'Назначенная программа',
+        status: 'active',
+        createdAt: '2026-07-29T00:00:00.000Z',
+        updatedAt: '2026-07-30T00:00:00.000Z',
+        patientPlanLastOpenedAt: null,
+      },
+    ]);
+
+    await expect(
+      resolveActiveTreatmentProgramInstanceId(
+        existing.deps,
+        'patient',
+        vi.fn().mockResolvedValue({ visible: false, canMaterialize: false }),
+      ),
+    ).resolves.toBe('assigned-program');
     expect(existing.ensureDefaultPromoProgramForPatient).not.toHaveBeenCalled();
   });
 });

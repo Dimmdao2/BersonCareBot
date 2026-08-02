@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -26,6 +27,8 @@ export async function POST(request: Request) {
   if (!organizationId) {
     return NextResponse.json({ ok: false, error: 'catalog_package_not_found' }, { status: 404 });
   }
+  const entitlement = await requireEntitlementForMutation({ organizationId }, 'subscriptions');
+  if (!entitlement.ok) return entitlement.response;
   try {
     const pkg = await withExplicitOrganizationPrincipal(
       { organizationId, source: 'api/booking/memberships/purchase:POST' },

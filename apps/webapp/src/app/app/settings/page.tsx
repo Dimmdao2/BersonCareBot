@@ -3,10 +3,12 @@ import { redirect } from 'next/navigation';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
+  getMechanicMutationAvailability,
   isMechanicIncluded,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
@@ -130,7 +132,9 @@ export default async function SettingsPage({
           organizationId: workspace.organizationId,
         }),
         deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
-        deps.orgBranding.getManagementState(brandingCtx),
+        withDoctorWorkspacePrincipal(workspace, 'app.settings.org-branding.read', () =>
+          deps.orgBranding.getManagementState(brandingCtx),
+        ),
         workspace.canManageOrganization && deps.clinicDirectory
           ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
           : Promise.resolve(null),
@@ -210,14 +214,16 @@ export default async function SettingsPage({
             </Link>
           </DoctorSection>
         ) : null}
-        <OrgBrandingSection
-          key={`${brandingState.brandingMechanicEnabled}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
-          brandingMechanicEnabled={brandingState.brandingMechanicEnabled}
-          coreDisplayName={brandingState.effective.core.displayName}
-          publishedDisplayName={publishedBrand?.displayName ?? null}
-          publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
-          publishedLogoUrl={publishedLogoUrl}
-        />
+        {brandingState.brandingVisible ? (
+          <OrgBrandingSection
+            key={`${brandingState.accessState}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
+            brandingMutationAvailable={brandingState.brandingMutationAvailable}
+            coreDisplayName={brandingState.effective.core.displayName}
+            publishedDisplayName={publishedBrand?.displayName ?? null}
+            publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
+            publishedLogoUrl={publishedLogoUrl}
+          />
+        ) : null}
         {slugState ? (
           <ClinicSlugSection initialState={slugState} appBaseUrl={env.APP_BASE_URL} />
         ) : null}
@@ -265,10 +271,11 @@ export default async function SettingsPage({
     if (!teamEntitlement.ok) redirect(`${routePaths.settings}?tab=organization`);
 
     const deps = buildAppDeps();
-    const [members, invites, seats] = await Promise.all([
+    const [members, invites, seats, mutationAvailability] = await Promise.all([
       deps.organizationMembership.listOrganizationMembers(workspace.organizationId),
       deps.organizationInvites.listPending(workspace.organizationId),
       deps.clinicSeats.getSeatStatus(workspace.organizationId),
+      getMechanicMutationAvailability({ organizationId: workspace.organizationId }, 'clinic_team'),
     ]);
     return (
       <DoctorAppShell title="Команда" user={workspace.session.user}>
@@ -289,6 +296,7 @@ export default async function SettingsPage({
             expiresAt: invite.expiresAt,
           }))}
           seats={seats}
+          canMutateTeam={mutationAvailability.available}
         />
       </DoctorAppShell>
     );

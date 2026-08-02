@@ -12,7 +12,6 @@ import type { AnamnesisState, ClinicalState, Visit } from '@/modules/patient-cli
 import type { Comorbidity } from '@/modules/patient-comorbidities/ports';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
-import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
 import type { DoctorPatientProgramActivity } from '../loadDoctorPatientProgramActivity';
 import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
 import {
@@ -58,7 +57,6 @@ type Props = {
   initialVisits?: Visit[] | null;
   initialNotes?: DoctorNoteRow[] | null;
   initialTasks?: SpecialistTaskRow[] | null;
-  initialSignals?: ProactiveInsightRow[] | null;
   initialProgramActivity?: DoctorPatientProgramActivity | null;
   initialAppointments?: PatientAppointmentItem[] | null;
   initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
@@ -74,6 +72,10 @@ type Props = {
   initialSupplementaryContacts?: SupplementaryContact[] | null;
   /** SSR-provided patient packages for the Визиты tab (MembershipPanel) and Обзор tab. */
   initialPackages?: ApiPackage[] | null;
+  /** Whether subscriptions are visible for the doctor's organization. */
+  membershipsVisible?: boolean;
+  /** Read-only subscriptions retain clinical history but hide every mutation control. */
+  membershipMutationsAllowed?: boolean;
   /** SSR-provided payments summary for the Визиты tab (PaymentsPanel). */
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
   /** SSR-provided effective support policy for the Обзор tab (DoctorClientSupportPanel). */
@@ -85,6 +87,8 @@ type Props = {
   };
   /** Whether the viewer is an admin — gates the «Администрирование» section in PatientTabAccount. */
   isAdmin?: boolean;
+  specialistTasksAvailable: boolean;
+  specialistTasksReadable: boolean;
 };
 
 type TabId =
@@ -139,7 +143,6 @@ export function PatientCardClient({
   initialVisits,
   initialNotes,
   initialTasks,
-  initialSignals,
   initialProgramActivity,
   initialAppointments,
   initialProgramInstances,
@@ -149,10 +152,14 @@ export function PatientCardClient({
   initialFinancesData,
   initialSupplementaryContacts,
   initialPackages,
+  membershipsVisible = true,
+  membershipMutationsAllowed = true,
   initialPaymentsSummary,
   initialSupportEffectivePolicy,
   initialPortalState = { status: 'not_activated', inviteId: null, expiresAt: null },
   isAdmin = false,
+  specialistTasksAvailable,
+  specialistTasksReadable,
 }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
@@ -574,11 +581,13 @@ export function PatientCardClient({
           initialVisits={initialVisits}
           initialNotes={initialNotes}
           initialTasks={initialTasks}
-          initialSignals={initialSignals}
           initialProgramActivity={initialProgramActivity}
           initialAppointments={initialAppointments}
           initialPackages={initialPackages}
+          membershipsVisible={membershipsVisible}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
+          specialistTasksAvailable={specialistTasksAvailable}
+          specialistTasksReadable={specialistTasksReadable}
         />
       </div>
       <div className={cn(activeTab !== 'karta' && 'hidden')}>
@@ -626,6 +635,7 @@ export function PatientCardClient({
           }}
           initialAppointments={initialAppointments}
           initialPackages={initialPackages}
+          membershipsVisible={membershipsVisible}
           initialPaymentsSummary={initialPaymentsSummary}
         />
       </div>
@@ -656,6 +666,8 @@ export function PatientCardClient({
           userId={identity.userId}
           initialData={initialFinancesData}
           initialAppointments={initialAppointments}
+          membershipsVisible={membershipsVisible}
+          membershipMutationsAllowed={membershipMutationsAllowed}
         />
       </div>
     </div>

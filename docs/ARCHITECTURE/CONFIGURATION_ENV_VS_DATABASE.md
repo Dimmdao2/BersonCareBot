@@ -93,7 +93,7 @@ application audit.
 ## Интегратор (отдельное приложение)
 
 - Integrator читает bootstrap-инфраструктуру, process secrets и deployment identity из **своего** env (`apps/integrator`). `APP_BASE_URL` — обязательный URL. Операционные integration settings остаются DB-backed и читаются по требованию из `public.system_settings`.
-- **Google Calendar** — integrator `runtimeConfig.ts` читает настройки из канонической таблицы `public.system_settings` через общий public-accessor helper, с **пофайловым** слиянием с env: для каждого поля (`clientId`, `secret`, `redirectUri`, `calendarId`, `refreshToken`, `enabled`) используется значение из БД, если строка/флаг заданы; иначе — env. Так частично заполненная БД не затирает рабочий env пустыми полями. Слияние выполняется на каждый вызов без process cache.
+- **Google Calendar** — integrator `runtimeConfig.ts` читает настройки и платформенный switch только из канонической `public.system_settings` через общий public-accessor helper. Неполная, отсутствующая или недоступная DB-конфигурация даёт `enabled=false` и пустые credentials; env-подстановки нет. Чтение выполняется на каждый вызов без process cache.
 
 ### Одна БД, схемы `public` и `integrator` (актуально)
 

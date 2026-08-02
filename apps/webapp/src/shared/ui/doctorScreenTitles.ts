@@ -33,7 +33,6 @@ export function getDoctorScreenTitle(pathname: string): string {
     '/app/doctor/appointments': 'Записи',
     '/app/doctor/calendar': 'Календарь',
     '/app/doctor/messages': 'Сообщения',
-    '/app/doctor/online-intake': 'Онлайн-заявки',
     '/app/doctor/broadcasts': 'Рассылки',
     '/app/doctor/stats': 'По клиентам',
     '/app/doctor/material-ratings': 'По контенту',

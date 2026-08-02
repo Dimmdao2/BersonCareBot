@@ -21,8 +21,9 @@ export function DefaultPromoProgramClient(props: {
   initialTemplateId: string;
   templates: TemplateOption[];
   stats: { activePromo: number; completedPromo: number };
+  canMutate?: boolean;
 }) {
-  const { initialTemplateId, templates, stats } = props;
+  const { initialTemplateId, templates, stats, canMutate = true } = props;
   const router = useRouter();
   const initialSelect = initialTemplateId.trim() ? initialTemplateId.trim() : PROMO_TEMPLATE_NONE;
   const [selected, setSelected] = useState(initialSelect);
@@ -79,36 +80,38 @@ export function DefaultPromoProgramClient(props: {
 
   return (
     <div className="flex max-w-xl flex-col gap-6">
-      <div className="flex max-w-xl flex-col gap-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-          <Select value={selected} onValueChange={(v) => setSelected(v ?? PROMO_TEMPLATE_NONE)}>
-            <SelectTrigger className="w-full sm:flex-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={PROMO_TEMPLATE_NONE} label="Не задано">
-                Не задано
-              </SelectItem>
-              {templates.map((t) => (
-                <SelectItem key={t.id} value={t.id} label={t.title}>
-                  {t.title}
+      {canMutate ? (
+        <div className="flex max-w-xl flex-col gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+            <Select value={selected} onValueChange={(v) => setSelected(v ?? PROMO_TEMPLATE_NONE)}>
+              <SelectTrigger className="w-full sm:flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={PROMO_TEMPLATE_NONE} label="Не задано">
+                  Не задано
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={refreshing || !hasSavedPromoTemplate}
-            onClick={() => void onRefresh()}
-          >
-            {refreshing ? '…' : 'Обновить'}
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id} label={t.title}>
+                    {t.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={refreshing || !hasSavedPromoTemplate}
+              onClick={() => void onRefresh()}
+            >
+              {refreshing ? '…' : 'Обновить'}
+            </Button>
+          </div>
+          <Button type="button" disabled={saving} onClick={() => void onSave()}>
+            Сохранить
           </Button>
         </div>
-        <Button type="button" disabled={saving} onClick={() => void onSave()}>
-          Сохранить
-        </Button>
-      </div>
+      ) : null}
       <div className="border-t border-border pt-6">
         <h2 className={`mb-2 ${doctorSectionTitleClass}`}>Статистика (promo)</h2>
         <ul className="m-0 list-none space-y-1 p-0 text-sm text-muted-foreground">

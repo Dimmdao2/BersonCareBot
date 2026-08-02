@@ -28,6 +28,7 @@ type Props = Readonly<{
   endpoint: '/api/doctor/notification-templates' | '/api/admin/notification-templates';
   templates: ManagedNotifTemplateEntry[];
   presentation: ManagedNotifPresentationEntry;
+  brandingMutationAvailable: boolean;
 }>;
 
 const TEMPLATE_AUDIENCE_GROUPS: Array<{ audience: NotifTemplateAudience; title: string }> = [
@@ -61,7 +62,12 @@ function cloneChannels(channels: ManagedNotifTemplateChannels): ManagedNotifTemp
   };
 }
 
-export function NotificationTemplatesPageClient({ endpoint, templates, presentation }: Props) {
+export function NotificationTemplatesPageClient({
+  endpoint,
+  templates,
+  presentation,
+  brandingMutationAvailable,
+}: Props) {
   const initialChannels = useMemo(() => {
     const map: Record<string, ManagedNotifTemplateChannels> = {};
     for (const entry of templates)
@@ -268,6 +274,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
               onChange={(event) =>
                 setPresentationValue((current) => ({ ...current, signature: event.target.value }))
               }
+              disabled={!brandingMutationAvailable}
               maxLength={500}
             />
           </label>
@@ -278,6 +285,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
               onChange={(event) =>
                 setPresentationValue((current) => ({ ...current, contacts: event.target.value }))
               }
+              disabled={!brandingMutationAvailable}
               maxLength={500}
             />
           </label>
@@ -288,6 +296,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
             size="sm"
             variant={presentationValue.layout === 'neutral' ? 'default' : 'outline'}
             onClick={() => setPresentationValue((current) => ({ ...current, layout: 'neutral' }))}
+            disabled={!brandingMutationAvailable}
           >
             Нейтральное
           </Button>
@@ -298,6 +307,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
             onClick={() =>
               setPresentationValue((current) => ({ ...current, layout: 'organization' }))
             }
+            disabled={!brandingMutationAvailable}
           >
             Брендированное
           </Button>
@@ -305,7 +315,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
             type="button"
             size="sm"
             onClick={() => void savePresentation()}
-            disabled={savingKey === 'presentation'}
+            disabled={!brandingMutationAvailable || savingKey === 'presentation'}
           >
             {savingKey === 'presentation' ? 'Сохранение…' : 'Сохранить оформление'}
           </Button>
@@ -404,6 +414,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
                               onChange={(event) =>
                                 setTextField(key, selectedChannel, field, event.target.value)
                               }
+                              disabled={!brandingMutationAvailable}
                               rows={rows}
                               aria-label={`${notifTemplateTitle(entry.event, entry.audience)} — ${label}`}
                             />
@@ -419,6 +430,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
                                   }
                                   title={`{{${variable}}}`}
                                   className="rounded-md border border-border/60 bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                  disabled={!brandingMutationAvailable}
                                 >
                                   {NOTIF_VARIABLE_LABELS[variable] ?? variable}
                                 </Button>
@@ -444,7 +456,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
                             type="button"
                             size="sm"
                             onClick={() => void saveTemplate(entry)}
-                            disabled={savingKey === key}
+                            disabled={!brandingMutationAvailable || savingKey === key}
                           >
                             {savingKey === key ? 'Сохранение…' : 'Сохранить'}
                           </Button>

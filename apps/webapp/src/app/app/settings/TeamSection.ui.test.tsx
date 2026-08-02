@@ -34,7 +34,7 @@ describe('TeamSection seat configuration refusal', () => {
       } as unknown as OrgEntitlementsPort,
     }).getSeatStatus('11111111-1111-4111-8111-111111111111');
 
-    render(<TeamSection members={[]} invites={[]} seats={seats} />);
+    render(<TeamSection members={[]} invites={[]} seats={seats} canMutateTeam />);
 
     expect(
       screen.getByText(
@@ -50,9 +50,7 @@ describe('TeamSection seat configuration refusal', () => {
   it('adds only paid subscription allowance to the clinic seat projection', async () => {
     const seats = await createClinicSeatsService({
       membershipPort: {
-        listByOrganization: async () => [
-          { status: 'active', specialistId: 'specialist-1' },
-        ],
+        listByOrganization: async () => [{ status: 'active', specialistId: 'specialist-1' }],
       } as unknown as OrganizationMembershipPort,
       invitesPort: {
         countSeatReservationsByOrganization: async () => 0,
@@ -77,11 +75,7 @@ describe('TeamSection seat configuration refusal', () => {
 
 describe('TeamSection paid-seat return', () => {
   it('polls the scoped billing GET and replays the saved ordinary invite exactly once after paid', async () => {
-    window.history.replaceState(
-      {},
-      '',
-      '/app/settings?tab=team&seatPayment=seat-invoice-1',
-    );
+    window.history.replaceState({}, '', '/app/settings?tab=team&seatPayment=seat-invoice-1');
     sessionStorage.setItem(
       'clinic-seat-overage-invite',
       JSON.stringify({
@@ -93,10 +87,13 @@ describe('TeamSection paid-seat return', () => {
     );
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === '/api/clinic/billing') {
-        return new Response(JSON.stringify({
-          ok: true,
-          billing: { invoices: [{ id: 'seat-invoice-1', status: 'paid' }] },
-        }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            billing: { invoices: [{ id: 'seat-invoice-1', status: 'paid' }] },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
       }
       if (String(input) === '/api/clinic/invites' && init?.method === 'POST') {
         return new Response(JSON.stringify({ ok: true }), {
@@ -113,6 +110,7 @@ describe('TeamSection paid-seat return', () => {
         members={[]}
         invites={[]}
         seats={{ configured: true, used: 1, limit: 2, available: 1 }}
+        canMutateTeam
       />,
     );
 
@@ -132,25 +130,105 @@ describe('TeamSection paid-seat return', () => {
   });
 });
 
+describe('TeamSection read-only access', () => {
+  it('keeps invite and revoke controls available when team mutation is allowed', () => {
+    render(
+      <TeamSection
+        members={[]}
+        invites={[
+          {
+            id: 'invite-1',
+            invitedEmail: 'new-doctor@example.com',
+            invitedRole: 'doctor',
+            expiresAt: '2026-08-09T00:00:00.000Z',
+          },
+        ]}
+        seats={{ configured: true, used: 1, limit: 2, available: 1 }}
+        canMutateTeam
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Пригласить в команду' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Пригласить' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Отозвать' })).toBeInTheDocument();
+  });
+
+  it('keeps stored members and invites visible while removing every team mutation control', () => {
+    render(
+      <TeamSection
+        members={[
+          {
+            id: 'member-1',
+            displayName: 'Доктор',
+            role: 'doctor',
+            status: 'active',
+            seatConsuming: true,
+          },
+        ]}
+        invites={[
+          {
+            id: 'invite-1',
+            invitedEmail: 'new-doctor@example.com',
+            invitedRole: 'doctor',
+            expiresAt: '2026-08-09T00:00:00.000Z',
+          },
+        ]}
+        seats={{ configured: true, used: 1, limit: 2, available: 1 }}
+        canMutateTeam={false}
+      />,
+    );
+
+    expect(screen.getByText('Доктор')).toBeInTheDocument();
+    expect(screen.getByText('new-doctor@example.com')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Команда сейчас доступна только для просмотра по тарифу клиники.',
+    );
+    expect(screen.queryByRole('heading', { name: 'Пригласить в команду' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Пригласить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Отозвать' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Оплатить место' })).not.toBeInTheDocument();
+  });
+});
+
 describe('SaasBillingOverview paid-seat invoice', () => {
   it('shows a pending seat purpose, quantity and usable checkout link', () => {
-    render(<SaasBillingOverview billing={{
-      organizationId: 'org-1',
-      subscriptions: [],
-      providerEvents: [],
-      invoices: [{
-        id: 'seat-invoice', organizationId: 'org-1', saasBillingAccountId: 'account-1',
-        saasBillingSubscriptionId: 'subscription-1', tariffId: 'tariff-1', tariffName: 'Стандарт',
-        invoiceKind: 'seat_overage', additionalSeatQuantity: 1, description: null,
-        amountMinor: 15_000, currency: 'RUB', tariffBillingPeriod: 'month', tariffSnapshot: null,
-        servicePeriodStartsAt: '2026-08-01T00:00:00.000Z',
-        servicePeriodEndsAt: '2026-09-01T00:00:00.000Z', expiresAt: null, status: 'pending',
-        providerId: 'mock', providerInvoiceRef: 'provider-seat',
-        providerCheckoutUrl: 'https://pay.example/seat', providerIdempotencyKey: 'seat-key',
-        paidAt: null, createdAt: '2026-08-01T00:00:00.000Z',
-        updatedAt: '2026-08-01T00:00:00.000Z',
-      }],
-    }} />);
+    render(
+      <SaasBillingOverview
+        billing={{
+          organizationId: 'org-1',
+          subscriptions: [],
+          providerEvents: [],
+          invoices: [
+            {
+              id: 'seat-invoice',
+              organizationId: 'org-1',
+              saasBillingAccountId: 'account-1',
+              saasBillingSubscriptionId: 'subscription-1',
+              tariffId: 'tariff-1',
+              tariffName: 'Стандарт',
+              invoiceKind: 'seat_overage',
+              additionalSeatQuantity: 1,
+              description: null,
+              amountMinor: 15_000,
+              currency: 'RUB',
+              tariffBillingPeriod: 'month',
+              tariffSnapshot: null,
+              servicePeriodStartsAt: '2026-08-01T00:00:00.000Z',
+              servicePeriodEndsAt: '2026-09-01T00:00:00.000Z',
+              expiresAt: null,
+              status: 'pending',
+              providerId: 'mock',
+              providerInvoiceRef: 'provider-seat',
+              providerCheckoutUrl: 'https://pay.example/seat',
+              providerIdempotencyKey: 'seat-key',
+              paidAt: null,
+              createdAt: '2026-08-01T00:00:00.000Z',
+              updatedAt: '2026-08-01T00:00:00.000Z',
+            },
+          ],
+        }}
+      />,
+    );
 
     expect(screen.getByText('Дополнительные места')).toBeInTheDocument();
     expect(screen.getByText(/1 место/)).toBeInTheDocument();
