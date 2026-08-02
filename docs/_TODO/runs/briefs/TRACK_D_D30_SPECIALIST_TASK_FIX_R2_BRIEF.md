@@ -1,7 +1,8 @@
 # Track D D30-P1 — saved-oracle fixer R2: полная revision готового intent
 
-Роль: worker/fixer. Канон: `AGENTS.md` §5, §10, §24. Authority те же, что в
-`TRACK_D_D30_SPECIALIST_TASK_FIX_BRIEF.md`; продуктовый oracle — пункт «update/cancel/delete cannot deliver stale
+Роль: worker/fixer. Канон: `AGENTS.md` §5, §10, §24. Authority:
+`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` Р-D30/D30 и
+`docs/_TODO/runs/briefs/TRACK_D_D30_SPECIALIST_TASK_FIX_BRIEF.md`; продуктовый oracle — пункт «update/cancel/delete cannot deliver stale
 intent» и исходный audit `D30_SPECIALIST_TASK_INDEPENDENT_AUDIT_2026-08-03.md`. Предыдущий fix `6f9d09f39` не
 принят root.
 
