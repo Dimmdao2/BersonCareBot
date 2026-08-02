@@ -5,6 +5,7 @@
  */
 
 import { Suspense } from 'react';
+import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
 import { cn } from '@/lib/utils';
 import {
   patientHeroBookingSectionClass,
