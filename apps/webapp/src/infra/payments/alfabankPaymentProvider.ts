@@ -19,7 +19,7 @@
  * Can be overridden via providerConfig.gatewayUrl.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import { assertReceiptSupported, type PaymentProviderPort } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 
 const PROD_BASE = 'https://pay.alfabank.ru/payment/rest';
@@ -84,8 +84,10 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
       metadata,
       returnUrl,
       invoice,
+      receipt,
       providerConfig,
     }) {
+      assertReceiptSupported(receipt, 'alfabank');
       if (invoice) throw new Error('payment_provider_invoices_unsupported:alfabank');
       const { login, password, baseUrl } = requireAlfabankCredentials(providerConfig);
 
@@ -133,7 +135,8 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
       };
     },
 
-    async refund({ providerIntentRef, amountMinor, idempotencyKey, providerConfig }) {
+    async refund({ providerIntentRef, amountMinor, idempotencyKey, receipt, providerConfig }) {
+      assertReceiptSupported(receipt, 'alfabank');
       const { login, password, baseUrl } = requireAlfabankCredentials(providerConfig);
 
       const params: Record<string, string> = {

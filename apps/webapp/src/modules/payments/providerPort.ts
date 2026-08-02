@@ -12,6 +12,57 @@ export type PaymentProviderVerifyResult = {
 
 import type { PaymentProviderConfig } from './types';
 
+/** Fiscal data for one operation. Amounts are minor units until an adapter serializes them. */
+export type PaymentReceipt = {
+  customer: { email: string };
+  items: Array<{
+    description: string;
+    quantity: number;
+    amountMinor: number;
+    vatCode: string;
+    paymentSubject: 'service';
+    paymentMode: 'full_prepayment';
+    measure: 'piece';
+  }>;
+  /** Required only by some third-party cash-register configurations. */
+  taxSystemCode?: string;
+};
+
+/** An unfiscalized payment is worse than a loud failure. */
+export function assertReceiptSupported(
+  receipt: PaymentReceipt | undefined,
+  providerId: string,
+): void {
+  if (receipt) throw new Error(`payment_provider_receipt_unsupported:${providerId}`);
+}
+
+export function assertReceiptMatchesOperation(
+  receipt: PaymentReceipt,
+  amountMinor: number,
+  currency: string,
+): void {
+  if (!receipt.customer.email.trim() || !receipt.customer.email.includes('@')) {
+    throw new Error('payment_receipt_customer_email_invalid');
+  }
+  if (receipt.items.length === 0) throw new Error('payment_receipt_items_missing');
+  let itemsTotalMinor = 0;
+  for (const item of receipt.items) {
+    if (!item.description.trim()) throw new Error('payment_receipt_item_description_missing');
+    if (!Number.isSafeInteger(item.quantity) || item.quantity <= 0) {
+      throw new Error('payment_receipt_item_quantity_invalid');
+    }
+    if (!Number.isSafeInteger(item.amountMinor) || item.amountMinor <= 0) {
+      throw new Error('payment_receipt_item_amount_invalid');
+    }
+    if (!item.vatCode.trim()) throw new Error('payment_receipt_item_vat_code_missing');
+    itemsTotalMinor += item.quantity * item.amountMinor;
+  }
+  if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0 || itemsTotalMinor !== amountMinor) {
+    throw new Error('payment_receipt_total_mismatch');
+  }
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error('payment_receipt_currency_invalid');
+}
+
 /** К3 reconciliation — one payment as the provider itself reports it, not our journal's view of it. */
 export type PaymentProviderListedPayment = {
   providerPaymentRef: string;
@@ -53,6 +104,7 @@ export type PaymentProviderPort = {
      * through this one payment door; adapters without invoice support fail closed.
      */
     invoice?: { description: string; expiresAt: string };
+    receipt?: PaymentReceipt;
     metadata: Record<string, unknown>;
     providerConfig?: PaymentProviderConfig;
     /** К6 — ask the provider to keep this payment's method for a later off-session charge. Ignored together with `confirmation`/redirect once `paymentMethodId` is set. */
@@ -66,6 +118,8 @@ export type PaymentProviderPort = {
     amountMinor: number;
     currency: string;
     idempotencyKey: string;
+    /** Full refunds may omit it; a partial fiscal refund must provide a corrected receipt. */
+    receipt?: PaymentReceipt;
     providerConfig?: PaymentProviderConfig;
   }): Promise<{ providerRefundRef: string }>;
 

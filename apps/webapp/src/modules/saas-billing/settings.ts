@@ -15,6 +15,10 @@ export type SaasBillingPayeeRequisites = {
   bankAccount: string | null;
   taxRegime: string | null;
   vatRate: string | null;
+  /** YooKassa/FNS VAT code. `vatRate` remains a backward-compatible source for existing admin data. */
+  vatCode: string | null;
+  /** Conditional: external cash-register configurations can require it. */
+  taxSystemCode: string | null;
 };
 
 export type SaasBillingPaymentProviderSettings = {
@@ -80,6 +84,8 @@ function parsePayeeRequisites(raw: unknown): SaasBillingPayeeRequisites {
     bankAccount: nullableString(row.bankAccount),
     taxRegime: nullableString(row.taxRegime),
     vatRate: nullableString(row.vatRate),
+    vatCode: nullableString(row.vatCode) ?? nullableString(row.vatRate),
+    taxSystemCode: nullableString(row.taxSystemCode) ?? nullableString(row.taxRegime),
   };
 }
 
