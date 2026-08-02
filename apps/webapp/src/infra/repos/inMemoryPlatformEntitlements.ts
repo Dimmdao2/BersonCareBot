@@ -27,6 +27,7 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
           title: id,
           tariffId,
           manualTariffId: trial?.status === 'active' ? null : tariffId,
+          scheduledTariff: null,
           isActive: true,
           effectiveAccess: {
             lifecycle: 'active' as const,

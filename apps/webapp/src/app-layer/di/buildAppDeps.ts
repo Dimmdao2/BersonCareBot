@@ -739,6 +739,7 @@ const systemSettingsService = createSystemSettingsService(systemSettingsPort, {
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
 });
+let platformEntitlementsService!: ReturnType<typeof createPlatformEntitlementsService>;
 const saasBillingService = createSaasBillingService({
   repository: !inMemoryRepos
     ? createPgSaasBillingRepository()
@@ -750,8 +751,11 @@ const saasBillingService = createSaasBillingService({
         .then((row) => row?.valueJson ?? null),
   },
   resolvePaymentProvider: getPaymentProviderAdapter,
+  listTariffs: () => platformEntitlementsService.listTariffs(),
+  getTariffTransition: (organizationId, tariffId) =>
+    platformEntitlementsService.getTariffTransition(organizationId, tariffId),
 });
-const platformEntitlementsService = createPlatformEntitlementsService(
+platformEntitlementsService = createPlatformEntitlementsService(
   !inMemoryRepos
     ? createPgPlatformEntitlementsPort({
         assignManualTariff: saasBillingService.assignManualTariff,

@@ -14,7 +14,7 @@ import type { OrgMechanic } from '@/modules/org-entitlements/types';
 import type { OrgQuotaProjection } from '@/modules/org-entitlements/types';
 import type { SaasBillingOverview } from '@/modules/saas-billing/ports';
 import { SaasBillingOverview as SaasBillingOverviewSection } from '@/shared/ui/doctor/SaasBillingOverview';
-import { PayTariffButton } from './PayTariffButton';
+import { PayTariffButton, type ClinicTariffChangeState } from './PayTariffButton';
 import { AutopayToggleButton } from './AutopayToggleButton';
 
 export type BillingMechanicRow = {
@@ -53,6 +53,7 @@ type Props = {
   quotaUsage: Array<OrgQuotaProjection & { label: string }>;
   /** Real rows from `saas_billing_*`; empty arrays mean no billing data, never synthetic zeroes. */
   billing: SaasBillingOverview;
+  tariffChange: ClinicTariffChangeState;
 };
 
 /**
@@ -66,6 +67,7 @@ export function BillingSection({
   mechanics,
   quotaUsage,
   billing,
+  tariffChange,
 }: Props) {
   return (
     <>
@@ -80,7 +82,7 @@ export function BillingSection({
           </span>
         </div>
         <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
-        {tariffName !== null && <PayTariffButton />}
+        {tariffName !== null && <PayTariffButton tariffChange={tariffChange} />}
         {tariffName !== null && (
           <AutopayToggleButton
             subscription={
@@ -135,10 +137,6 @@ export function BillingSection({
             ))}
           </ul>
         </div>
-
-        <p className="text-xs text-muted-foreground">
-          Смена тарифа и подключение новых механик выполняется администратором платформы.
-        </p>
       </DoctorSection>
       <SaasBillingOverviewSection billing={billing} />
     </>

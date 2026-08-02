@@ -487,12 +487,15 @@ export class TariffDowngradeBlockedError extends Error {
  * An unset policy defaults to `block` (fail-closed), matching the rest of this module's rule that
  * an unconfigured numeric mechanic refuses growth rather than falling back to unlimited.
  */
-export function evaluateTariffDowngrade(params: {
+export function evaluateTariffTransition(params: {
   usage: Partial<Record<OrgMechanic, number>>;
-  currentTariff: Pick<Tariff, 'mechanics'>;
-  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies'>;
-}): TariffDowngradeBlock[] {
+  currentTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'includedSeats'>;
+  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies' | 'includedSeats'>;
+}): { blocks: TariffDowngradeBlock[]; appliesNextPeriod: boolean } {
   const blocks: TariffDowngradeBlock[] = [];
+  let appliesNextPeriod =
+    (params.targetTariff.includedSeats ?? Number.POSITIVE_INFINITY) <
+    (params.currentTariff.includedSeats ?? Number.POSITIVE_INFINITY);
   for (const mechanic of MECHANICS) {
     const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
     const policy = params.targetTariff.downgradePolicies[mechanic] ?? 'block';
@@ -500,6 +503,16 @@ export function evaluateTariffDowngrade(params: {
       const targetQuota = (params.targetTariff.quotas as Partial<Record<OrgMechanic, TariffQuota>>)[
         mechanic
       ];
+      const currentQuota = (params.currentTariff.quotas as Partial<Record<OrgMechanic, TariffQuota>>)[mechanic];
+      const currentLimit =
+        currentQuota?.kind === 'numeric' && currentQuota.limit !== null
+          ? currentQuota.limit
+          : Number.POSITIVE_INFINITY;
+      const targetLimit =
+        targetQuota?.kind === 'numeric' && targetQuota.limit !== null
+          ? targetQuota.limit
+          : Number.POSITIVE_INFINITY;
+      if (targetLimit < currentLimit) appliesNextPeriod = true;
       if (!targetQuota || targetQuota.kind === 'unlimited' || targetQuota.limit === null) continue;
       const used = params.usage[mechanic] ?? 0;
       if (used <= targetQuota.limit) continue;
@@ -508,16 +521,42 @@ export function evaluateTariffDowngrade(params: {
       const wasIncluded = params.currentTariff.mechanics[mechanic] === true;
       const willBeIncluded = params.targetTariff.mechanics[mechanic] === true;
       if (!wasIncluded || willBeIncluded) continue;
+      appliesNextPeriod = true;
       if (policy === 'block') blocks.push({ mechanic, reason: 'mechanic_removed' });
     }
   }
-  return blocks;
+  return { blocks, appliesNextPeriod };
+}
+
+/** Compatibility export for callers that only need blockers; transition classification lives above. */
+export function evaluateTariffDowngrade(params: {
+  usage: Partial<Record<OrgMechanic, number>>;
+  currentTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'includedSeats'>;
+  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies' | 'includedSeats'>;
+}): TariffDowngradeBlock[] {
+  return evaluateTariffTransition(params).blocks;
 }
 
 /** Dedicated application boundary for platform commercial operations. Routes must capability-gate before use. */
 export function createPlatformEntitlementsService(port: PlatformEntitlementsPort) {
   return {
     listTariffs: () => port.listTariffs(),
+    getTariffTransition: async (organizationId: string, tariffId: string) => {
+      const [organizations, tariffs, usage] = await Promise.all([
+        port.listOrganizations(), port.listTariffs(), port.getOrganizationMechanicUsage(organizationId),
+      ]);
+      const organization = organizations.find((entry) => entry.id === organizationId);
+      const currentTariff = organization?.tariffId
+        ? tariffs.find((entry) => entry.id === organization.tariffId) ?? null
+        : null;
+      const targetTariff = tariffs.find((entry) => entry.id === tariffId) ?? null;
+      if (!targetTariff) throw new Error('tariff_not_found');
+      return {
+        currentTariffId: currentTariff?.id ?? null,
+        targetTariffId: targetTariff.id,
+        ...(currentTariff ? evaluateTariffTransition({ usage, currentTariff, targetTariff }) : { blocks: [], appliesNextPeriod: false }),
+      };
+    },
     listOrganizations: () => port.listOrganizations(),
     getTrialPolicy: () => port.getTrialPolicy(),
     getRegistrationTariffPolicy: () => port.getRegistrationTariffPolicy(),
@@ -542,6 +581,8 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
       tariffId: string | null,
       audit: PlatformMutationAudit,
     ) => {
+      let currentTariff: Tariff | null = null;
+      let targetTariff: Tariff | null = null;
       if (tariffId) {
         const [organizations, tariffs, usage] = await Promise.all([
           port.listOrganizations(),
@@ -549,17 +590,22 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
           port.getOrganizationMechanicUsage(organizationId),
         ]);
         const organization = organizations.find((entry) => entry.id === organizationId);
-        const targetTariff = tariffs.find((entry) => entry.id === tariffId);
+        targetTariff = tariffs.find((entry) => entry.id === tariffId) ?? null;
         if (!targetTariff) throw new Error('tariff_not_found');
-        const currentTariff = organization?.tariffId
-          ? tariffs.find((entry) => entry.id === organization.tariffId)
+        currentTariff = organization?.tariffId
+          ? tariffs.find((entry) => entry.id === organization.tariffId) ?? null
           : null;
         if (currentTariff) {
-          const blocks = evaluateTariffDowngrade({ usage, currentTariff, targetTariff });
-          if (blocks.length > 0) throw new TariffDowngradeBlockedError(blocks);
+          const transition = evaluateTariffTransition({ usage, currentTariff, targetTariff });
+          if (transition.blocks.length > 0) throw new TariffDowngradeBlockedError(transition.blocks);
+          return port.assignTariff(organizationId, tariffId, audit, {
+            applyAtNextPeriod: transition.appliesNextPeriod,
+          });
         }
       }
-      return port.assignTariff(organizationId, tariffId, audit);
+      return port.assignTariff(organizationId, tariffId, audit, {
+        applyAtNextPeriod: false,
+      });
     },
     upsertOverride: (
       input: {

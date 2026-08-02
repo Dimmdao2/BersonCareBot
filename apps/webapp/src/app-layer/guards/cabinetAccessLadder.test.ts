@@ -67,6 +67,7 @@ const session = {
 
 const listCoursesForDoctor = vi.fn();
 const getOrganizationBillingOverview = vi.fn();
+const getOwnTariffChangeState = vi.fn();
 const createOwnTariffRenewalInvoice = vi.fn();
 
 /**
@@ -104,7 +105,7 @@ function withCabinet(cabinet: CabinetAccessResolution | Error): void {
       }),
     },
     courses: { listCoursesForDoctor },
-    saasBilling: { getOrganizationBillingOverview, createOwnTariffRenewalInvoice },
+    saasBilling: { getOrganizationBillingOverview, getOwnTariffChangeState, createOwnTariffRenewalInvoice },
   } as unknown as ReturnType<typeof buildAppDeps>);
 }
 
@@ -124,6 +125,7 @@ beforeEach(() => {
   vi.mocked(getCurrentSession).mockResolvedValue(session as never);
   listCoursesForDoctor.mockResolvedValue(EXISTING_COURSES);
   getOrganizationBillingOverview.mockResolvedValue(BILLING_OVERVIEW);
+  getOwnTariffChangeState.mockResolvedValue(null);
   createOwnTariffRenewalInvoice.mockResolvedValue({
     id: 'invoice-own-tariff-1',
     providerCheckoutUrl: 'https://billing.example.test/checkout-own-tariff-1',

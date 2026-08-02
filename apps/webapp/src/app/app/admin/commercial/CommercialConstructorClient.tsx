@@ -612,7 +612,9 @@ export function CommercialConstructorClient() {
   );
   const selectedManualTariffId = assignedTariffId === 'none' ? null : assignedTariffId;
   const manualAssignmentChanged = Boolean(
-    selectedOrganization && selectedManualTariffId !== selectedOrganization.manualTariffId,
+    selectedOrganization &&
+      (selectedManualTariffId !== selectedOrganization.manualTariffId ||
+        selectedOrganization.scheduledTariff !== null),
   );
   const assignmentEndsTrial = Boolean(
     selectedOrganization?.trial && selectedOrganization.trial.status !== 'ended',
@@ -1066,6 +1068,15 @@ export function CommercialConstructorClient() {
                   (item) => item.id === selectedOrganization.effectiveAccess.tariffId,
                 )?.name ?? 'не назначен'}
               </p>
+              {selectedOrganization.scheduledTariff ? (
+                <p>
+                  Новый тариф:{' '}
+                  {state.tariffs.find(
+                    (item) => item.id === selectedOrganization.scheduledTariff?.tariffId,
+                  )?.name ?? 'не найден'}{' '}
+                  вступит {new Date(selectedOrganization.scheduledTariff.effectiveAt).toLocaleString('ru-RU')}
+                </p>
+              ) : null}
               {selectedOrganization.trial ? (
                 <>
                   <p>Статус триала: {TRIAL_STATUS_LABELS[selectedOrganization.trial.status]}</p>

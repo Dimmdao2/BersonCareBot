@@ -64,6 +64,16 @@ export function createSaasBillingService(dependencies: {
   resolvePaymentProvider: SaasBillingPaymentProviderResolver;
   /** Injected so the paid period a test asserts is the one it set, not the wall clock. */
   now?: () => Date;
+  listTariffs?: () => Promise<Array<{ id: string; name: string; isActive: boolean }>>;
+  getTariffTransition?: (
+    organizationId: string,
+    tariffId: string,
+  ) => Promise<{
+    currentTariffId: string | null;
+    targetTariffId: string;
+    blocks: unknown[];
+    appliesNextPeriod: boolean;
+  }>;
 }) {
   const now = dependencies.now ?? (() => new Date());
   /** `providerId` picks a specific configured provider (e.g. the one named in a webhook URL); omitted, it's the global default. */
@@ -342,6 +352,9 @@ export function createSaasBillingService(dependencies: {
     assignManualTariff(input: {
       organizationId: string;
       tariffId: string | null;
+      /** A restrictive switch preserves the already paid access until `currentPeriodEndsAt`. */
+      applyAtNextPeriod?: boolean;
+      scheduleOnly?: boolean;
       audit: { actorId: string | null; reason: string };
     }) {
       return dependencies.repository.runManualAssignmentTransaction(async (transaction) => {
@@ -350,12 +363,53 @@ export function createSaasBillingService(dependencies: {
           state.manualSaasBillingSubscription?.status === 'active'
             ? state.manualSaasBillingSubscription.tariffId
             : null;
-        if (
-          input.tariffId === currentManualTariffId &&
-          (!state.activeTrial || input.tariffId === null)
-        ) {
+        const activePaidPeriod =
+          state.manualSaasBillingSubscription?.status === 'active' &&
+          state.manualSaasBillingSubscription.currentPeriodEndsAt !== null &&
+          new Date(state.manualSaasBillingSubscription.currentPeriodEndsAt).getTime() > now().getTime();
+        if (input.tariffId === currentManualTariffId && !state.activeTrial) {
+          if (state.manualSaasBillingSubscription?.pendingTariffId) {
+            await transaction.setManualSaasBillingSubscription({
+              organizationId: input.organizationId,
+              tariffId: currentManualTariffId,
+              period: activePaidPeriod
+                ? {
+                    startsAt: state.manualSaasBillingSubscription.currentPeriodStartsAt as string,
+                    endsAt: state.manualSaasBillingSubscription.currentPeriodEndsAt as string,
+                  }
+                : null,
+              pendingTariffId: null,
+              preservePeriodSnapshot: input.scheduleOnly,
+            });
+          }
           return;
         }
+
+        if (input.tariffId && input.applyAtNextPeriod && activePaidPeriod && currentManualTariffId) {
+          const currentSubscription = state.manualSaasBillingSubscription;
+          if (!currentSubscription) throw new Error('saas_billing_subscription_not_found');
+          await transaction.setManualSaasBillingSubscription({
+            organizationId: input.organizationId,
+            tariffId: currentManualTariffId,
+            period: {
+              startsAt: currentSubscription.currentPeriodStartsAt as string,
+              endsAt: currentSubscription.currentPeriodEndsAt as string,
+            },
+            pendingTariffId: input.tariffId,
+            preservePeriodSnapshot: input.scheduleOnly,
+          });
+          await transaction.appendManualAssignmentAudit({
+            ...input.audit,
+            action: 'saas_tariff_downgrade_scheduled',
+            targetId: input.organizationId,
+            organizationId: input.organizationId,
+            before: { organization: state.organization, saasBillingSubscription: state.manualSaasBillingSubscription },
+            after: { pendingTariffId: input.tariffId },
+          });
+          return;
+        }
+
+        if (input.scheduleOnly) throw new Error('saas_billing_no_active_paid_subscription');
 
         // §5a item 7.0 — assignment is what STARTS the organization's paid period. Before this the
         // subscription row carried no period at all, so "период кончился и не оплачен" was a state
@@ -364,17 +418,25 @@ export function createSaasBillingService(dependencies: {
         const startsAt = now().toISOString();
         const period = input.tariffId
           ? {
-              startsAt,
-              endsAt: paidPeriodEndsAt(
-                startsAt,
-                (await transaction.requireActiveTariff(input.tariffId)).billingPeriod,
-              ),
+              ...(activePaidPeriod
+                ? {
+                    startsAt: state.manualSaasBillingSubscription?.currentPeriodStartsAt as string,
+                    endsAt: state.manualSaasBillingSubscription?.currentPeriodEndsAt as string,
+                  }
+                : {
+                    startsAt,
+                    endsAt: paidPeriodEndsAt(
+                      startsAt,
+                      (await transaction.requireActiveTariff(input.tariffId)).billingPeriod,
+                    ),
+                  }),
             }
           : null;
         await transaction.setManualSaasBillingSubscription({
           organizationId: input.organizationId,
           tariffId: input.tariffId,
           period,
+          pendingTariffId: null,
         });
         const organization = await transaction.updateOrganizationTariffAssignment({
           organizationId: input.organizationId,
@@ -453,6 +515,16 @@ export function createSaasBillingService(dependencies: {
       }> = [];
 
       for (const subscription of due) {
+        if (
+          await dependencies.repository.promoteDueSaasBillingPaidInvoice({
+            organizationId: subscription.organizationId,
+            saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
+            asOf,
+          })
+        ) {
+          alreadyInvoiced += 1;
+          continue;
+        }
         // §5a item 7.0 arithmetic: the new period starts exactly where the paid one ended, never
         // "now" — a late tick must not hand the clinic extra free days.
         const servicePeriodStartsAt = subscription.currentPeriodEndsAt;
@@ -541,9 +613,15 @@ export function createSaasBillingService(dependencies: {
      * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
      */
     async createOwnTariffRenewalInvoice(organizationId: string) {
-      const { saasBillingSubscriptionId, billingPeriod, savedPaymentMethodId } =
+      const { saasBillingSubscriptionId, tariffId, billingPeriod, savedPaymentMethodId, currentPeriodEndsAt } =
         await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
-      const servicePeriodStartsAt = now().toISOString();
+      if (dependencies.getTariffTransition) {
+        const transition = await dependencies.getTariffTransition(organizationId, tariffId);
+        if (transition.blocks.length > 0) throw new Error('saas_billing_tariff_downgrade_blocked');
+      }
+      // A clinic can pay before expiry. The purchased next period begins at the paid boundary,
+      // never at the click time, otherwise an early renewal silently cuts off paid days.
+      const servicePeriodStartsAt = currentPeriodEndsAt ?? now().toISOString();
       const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
       // Deterministic, not `randomUUID()`: bucketed so a genuine repeat click (well under the
       // bucket width apart) hashes to the same key as the first call, while a real later renewal
@@ -564,6 +642,63 @@ export function createSaasBillingService(dependencies: {
           saasBillingSubscriptionId,
           idempotencyBucket,
         ])}`,
+      });
+    },
+
+    async getOwnTariffChangeState(organizationId: string) {
+      if (!dependencies.listTariffs) throw new Error('saas_billing_tariff_change_unavailable');
+      const overview = await dependencies.repository.getOrganizationBillingOverview(organizationId);
+      const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
+      return {
+        choices: (await dependencies.listTariffs())
+          .filter((tariff) => tariff.isActive)
+          .map((tariff) => ({ id: tariff.id, name: tariff.name })),
+        currentTariffId: subscription?.tariffId ?? null,
+        pendingTariffId: subscription?.pendingTariffId ?? null,
+        pendingEffectiveAt: subscription?.pendingTariffId ? subscription.currentPeriodEndsAt : null,
+      };
+    },
+
+    async scheduleOwnTariffChange(input: {
+      organizationId: string;
+      tariffId: string;
+      actorId: string | null;
+    }) {
+      if (!dependencies.getTariffTransition) throw new Error('saas_billing_tariff_change_unavailable');
+      const transition = await dependencies.getTariffTransition(input.organizationId, input.tariffId);
+      if (transition.currentTariffId === input.tariffId) {
+        await this.assignManualTariff({
+          organizationId: input.organizationId,
+          tariffId: input.tariffId,
+          applyAtNextPeriod: true,
+          scheduleOnly: true,
+          audit: { actorId: input.actorId, reason: 'clinic_tariff_change_cancelled' },
+        });
+        return;
+      }
+      if (!transition.appliesNextPeriod) {
+        throw new Error('saas_billing_upgrade_charge_policy_unresolved');
+      }
+      if (transition.blocks.length > 0) throw new Error('saas_billing_tariff_downgrade_blocked');
+      await this.assignManualTariff({
+        organizationId: input.organizationId,
+        tariffId: input.tariffId,
+        applyAtNextPeriod: true,
+        scheduleOnly: true,
+        audit: { actorId: input.actorId, reason: 'clinic_tariff_downgrade_scheduled' },
+      });
+    },
+
+    async cancelOwnTariffChange(input: { organizationId: string; actorId: string | null }) {
+      const overview = await dependencies.repository.getOrganizationBillingOverview(input.organizationId);
+      const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription');
+      if (!subscription) throw new Error('saas_billing_no_active_paid_subscription');
+      await this.assignManualTariff({
+        organizationId: input.organizationId,
+        tariffId: subscription.tariffId,
+        applyAtNextPeriod: true,
+        scheduleOnly: true,
+        audit: { actorId: input.actorId, reason: 'clinic_tariff_change_cancelled' },
       });
     },
 
@@ -665,9 +800,25 @@ export function createSaasBillingService(dependencies: {
         typeof input.verified.payload.currency === 'string'
           ? input.verified.payload.currency
           : null;
-      const { created } = await dependencies.repository.recordSaasBillingProviderEvent({
+      if (input.verified.eventType !== 'payment.succeeded') {
+        const { created } = await dependencies.repository.recordSaasBillingProviderEvent({
+          organizationId: input.organizationId,
+          saasBillingInvoiceId: input.saasBillingInvoiceId,
+          event: {
+            providerId: input.providerId,
+            providerEventId: input.verified.idempotencyKey,
+            type: input.verified.eventType,
+            amountMinor: input.verified.amountMinor ?? null,
+            currency: payloadCurrency,
+          },
+        });
+        return { captured: false, duplicate: !created };
+      }
+      return dependencies.repository.captureSaasBillingPaymentSucceeded({
         organizationId: input.organizationId,
         saasBillingInvoiceId: input.saasBillingInvoiceId,
+        paidAt: now().toISOString(),
+        savedPaymentMethodId: input.verified.savedPaymentMethodId ?? null,
         event: {
           providerId: input.providerId,
           providerEventId: input.verified.idempotencyKey,
@@ -676,42 +827,6 @@ export function createSaasBillingService(dependencies: {
           currency: payloadCurrency,
         },
       });
-      // Replay: the event row already exists — do not capture a second time.
-      if (!created) return { captured: false, duplicate: true };
-
-      if (input.verified.eventType !== 'payment.succeeded') {
-        return { captured: false, duplicate: false };
-      }
-      const paidInvoice = await dependencies.repository.markSaasBillingInvoicePaid({
-        saasBillingInvoiceId: input.saasBillingInvoiceId,
-        organizationId: input.organizationId,
-        paidAt: now().toISOString(),
-      });
-      // К4 — `null` means the invoice no longer matches a payable status: already `paid` (a replay
-      // that slipped past the event-id dedup above under a different provider event id), or `void`
-      // because a platform admin cancelled it. Either way this is a safe no-op, never a silent
-      // "cancelled invoice just got paid" — the event is acknowledged, no subscription period moves.
-      if (!paidInvoice) return { captured: false, duplicate: false };
-      // §5a К0 — extends exactly the subscription row the invoice was raised against, by id; a
-      // `manual` admin assignment lives under a different row (different `source`) and this update
-      // never addresses it, so it cannot be silently overwritten by this capture.
-      await dependencies.repository.activateSaasBillingSubscriptionPeriod({
-        organizationId: input.organizationId,
-        saasBillingSubscriptionId: paidInvoice.saasBillingSubscriptionId,
-        periodStartsAt: paidInvoice.servicePeriodStartsAt,
-        periodEndsAt: paidInvoice.servicePeriodEndsAt,
-      });
-      // К6 — the ONLY place a payment method gets saved: `payment.succeeded` is the first point the
-      // provider is trusted to say `payment_method.saved === true`, never the synchronous
-      // `createIntent` response (a redirect payment isn't actually paid yet at that point).
-      if (input.verified.savedPaymentMethodId) {
-        await dependencies.repository.saveSaasBillingSubscriptionPaymentMethod({
-          saasBillingSubscriptionId: paidInvoice.saasBillingSubscriptionId,
-          organizationId: input.organizationId,
-          savedPaymentMethodId: input.verified.savedPaymentMethodId,
-        });
-      }
-      return { captured: true, duplicate: false };
     },
 
     /**

@@ -89,6 +89,8 @@ export const saasBillingSubscriptions = pgTable(
     organizationId: uuid('organization_id').notNull(),
     saasBillingAccountId: uuid('saas_billing_account_id').notNull(),
     tariffId: uuid('tariff_id').notNull(),
+    /** Target selected for the next paid period; the current tariff remains effective until its end. */
+    pendingTariffId: uuid('pending_tariff_id'),
     source: text().$type<SaasBillingSource>().notNull(),
     status: text().$type<SaasBillingSubscriptionStatus>().notNull(),
     lifecycleState: text('lifecycle_state').$type<SaasBillingLifecycleState>().notNull(),
@@ -136,6 +138,7 @@ export const saasBillingSubscriptions = pgTable(
     unique('saas_billing_subscriptions_org_source_uidx').on(table.organizationId, table.source),
     unique('saas_billing_subscriptions_id_organization_uidx').on(table.id, table.organizationId),
     index('idx_saas_billing_subscriptions_org_status').on(table.organizationId, table.status),
+    index('idx_saas_billing_subscriptions_pending_tariff').on(table.pendingTariffId),
     index('idx_saas_billing_subscriptions_lifecycle').on(
       table.lifecycleState,
       table.graceEndsAt,
@@ -155,6 +158,11 @@ export const saasBillingSubscriptions = pgTable(
       columns: [table.tariffId],
       foreignColumns: [saasTariffs.id],
       name: 'saas_billing_subscriptions_tariff_id_fkey',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.pendingTariffId],
+      foreignColumns: [saasTariffs.id],
+      name: 'saas_billing_subscriptions_pending_tariff_id_fkey',
     }).onDelete('restrict'),
     check(
       'saas_billing_subscriptions_source_check',
@@ -200,6 +208,8 @@ export const saasBillingInvoices = pgTable(
     amountMinor: integer('amount_minor').notNull(),
     currency: text().notNull(),
     tariffBillingPeriod: text('tariff_billing_period').notNull(),
+    /** Immutable full tariff row bought by this invoice; legacy invoices legitimately have null. */
+    tariffSnapshot: jsonb('tariff_snapshot').$type<Record<string, unknown>>(),
     servicePeriodStartsAt: timestamp('service_period_starts_at', {
       withTimezone: true,
       mode: 'string',

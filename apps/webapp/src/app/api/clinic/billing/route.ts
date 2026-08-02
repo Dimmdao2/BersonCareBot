@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
@@ -10,7 +11,7 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 });
   }
   try {
-    const overview = await runWithDbClinicBillingPrincipal(
+    const billing = await runWithDbClinicBillingPrincipal(
       {
         organizationId: gate.ctx.organizationId,
         platformUserId: gate.ctx.session.user.userId,
@@ -18,14 +19,77 @@ export async function GET() {
       },
       () => buildAppDeps().saasBilling.getOrganizationBillingOverview(gate.ctx.organizationId),
     );
-    const billing = {
-      organizationId: overview.organizationId,
-      subscriptions: overview.subscriptions,
-      invoices: overview.invoices,
-    };
-    return NextResponse.json({ ok: true, billing });
+    const tariffChange = await runWithDbClinicBillingPrincipal(
+      {
+        organizationId: gate.ctx.organizationId,
+        platformUserId: gate.ctx.session.user.userId,
+        source: 'clinic-billing-tariff-change-read',
+      },
+      () => buildAppDeps().saasBilling.getOwnTariffChangeState(gate.ctx.organizationId),
+    );
+    return NextResponse.json({ ok: true, billing, tariffChange });
   } catch {
     return NextResponse.json({ ok: false, error: 'saas_billing_unavailable' }, { status: 500 });
+  }
+}
+
+const tariffChangeSchema = z.object({ tariffId: z.string().uuid() });
+
+async function requireBillingManager() {
+  const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
+  if (!gate.ok) return gate;
+  if (gate.ctx.membershipRole !== 'owner' && gate.ctx.membershipRole !== 'admin') {
+    return { ok: false as const, response: NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 }) };
+  }
+  return gate;
+}
+
+function tariffChangeError(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  if (
+    message === 'saas_billing_upgrade_charge_policy_unresolved' ||
+    message === 'saas_billing_tariff_downgrade_blocked' ||
+    message === 'saas_billing_no_active_paid_subscription'
+  ) {
+    return NextResponse.json({ ok: false, error: message }, { status: 409 });
+  }
+  return NextResponse.json({ ok: false, error: 'saas_billing_tariff_change_failed' }, { status: 500 });
+}
+
+export async function PATCH(request: Request) {
+  const gate = await requireBillingManager();
+  if (!gate.ok) return gate.response;
+  const parsed = tariffChangeSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
+  try {
+    await runWithDbClinicBillingPrincipal(
+      { organizationId: gate.ctx.organizationId, platformUserId: gate.ctx.session.user.userId, source: 'clinic-billing-tariff-change-schedule' },
+      () => buildAppDeps().saasBilling.scheduleOwnTariffChange({
+        organizationId: gate.ctx.organizationId,
+        tariffId: parsed.data.tariffId,
+        actorId: gate.ctx.session.user.userId,
+      }),
+    );
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return tariffChangeError(error);
+  }
+}
+
+export async function DELETE() {
+  const gate = await requireBillingManager();
+  if (!gate.ok) return gate.response;
+  try {
+    await runWithDbClinicBillingPrincipal(
+      { organizationId: gate.ctx.organizationId, platformUserId: gate.ctx.session.user.userId, source: 'clinic-billing-tariff-change-cancel' },
+      () => buildAppDeps().saasBilling.cancelOwnTariffChange({
+        organizationId: gate.ctx.organizationId,
+        actorId: gate.ctx.session.user.userId,
+      }),
+    );
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return tariffChangeError(error);
   }
 }
 
@@ -62,7 +126,6 @@ export async function POST() {
       invoiceId: invoice.id,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
     const message = error instanceof Error ? error.message : '';
     if (message === 'saas_billing_no_tariff_assigned') {
       return NextResponse.json(

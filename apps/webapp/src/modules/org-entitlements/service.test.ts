@@ -10,6 +10,7 @@ import {
   createPlatformEntitlementsService,
   entitlementsFromSnapshot,
   evaluateTariffDowngrade,
+  evaluateTariffTransition,
   fileStorageLimitFromSnapshot,
   resolveClinicSeatLimit,
   resolveOrgQuotaProjections,
@@ -754,6 +755,18 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
     ).toEqual([]);
   });
 
+  it('classifies unlimited to finite as next-period even when usage does not block it', () => {
+    const transition = evaluateTariffTransition({
+      usage: { patient_count: 1 },
+      currentTariff: baseTariff({ quotas: { patient_count: { kind: 'unlimited', limit: null, unit: 'items', warningAtPercent: null } } }),
+      targetTariff: baseTariff({
+        quotas: { patient_count: { kind: 'numeric', limit: 10, unit: 'items', warningAtPercent: null } },
+        downgradePolicies: { patient_count: 'freeze_growth' },
+      }),
+    });
+    expect(transition).toMatchObject({ blocks: [], appliesNextPeriod: true });
+  });
+
   function platformPortWithUsage(input: {
     organizationId: string;
     currentTariff: Tariff;
@@ -766,6 +779,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       title: 'org',
       tariffId: input.currentTariff.id,
       manualTariffId: input.currentTariff.id,
+      scheduledTariff: null,
       isActive: true,
       effectiveAccess: { lifecycle: 'active', tariffId: input.currentTariff.id, source: 'assignment' },
       overrides: [],

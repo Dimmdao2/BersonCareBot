@@ -1,8 +1,11 @@
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BillingSection } from './BillingSection';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 const emptyBilling = {
   organizationId: 'org',
@@ -10,8 +13,66 @@ const emptyBilling = {
   invoices: [],
   providerEvents: [],
 };
+const tariffChange = {
+  choices: [],
+  currentTariffId: null,
+  pendingTariffId: null,
+  pendingEffectiveAt: null,
+};
 
 describe('§5a stage 6.1 — clinic sees "used out of included" per number', () => {
+  it('sends PATCH to schedule the selected downgrade and DELETE to cancel it', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ ok: true }) })
+      .mockResolvedValueOnce({ json: async () => ({ ok: true }) });
+    vi.stubGlobal('fetch', fetch);
+    render(
+      <BillingSection
+        tariffName="Стандарт"
+        commercialStateLabel="Тариф активен."
+        mechanics={[]}
+        quotaUsage={[]}
+        billing={emptyBilling}
+        tariffChange={{
+          choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
+          currentTariffId: 'current',
+          pendingTariffId: 'small',
+          pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Запланировать смену' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ tariffId: 'small' }),
+    })));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Отменить' })).not.toBeDisabled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', { method: 'DELETE' }));
+  });
+
+  it('shows the scheduled tariff boundary and its cancel action', () => {
+    render(
+      <BillingSection
+        tariffName="Стандарт"
+        commercialStateLabel="Тариф активен."
+        mechanics={[]}
+        quotaUsage={[]}
+        billing={emptyBilling}
+        tariffChange={{
+          choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
+          currentTariffId: 'current',
+          pendingTariffId: 'small',
+          pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Новый тариф вступит 01.09.2026')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Отменить' })).toBeInTheDocument();
+  });
+
   it('renders each configured number with its usage and limit, and hides the section when there are none', () => {
     const { rerender } = render(
       <BillingSection
@@ -53,6 +114,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
           },
         ]}
         billing={emptyBilling}
+        tariffChange={tariffChange}
       />,
     );
 
@@ -70,6 +132,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         mechanics={[]}
         quotaUsage={[]}
         billing={emptyBilling}
+        tariffChange={tariffChange}
       />,
     );
 
