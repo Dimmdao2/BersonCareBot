@@ -205,9 +205,24 @@ BEGIN
     RAISE WARNING 'A-6 / #1007: public.clinical_test_measure_kinds does not exist on this database -- skipping the app_platform_settings SELECT/UPDATE grant.';
   ELSE
     GRANT SELECT, UPDATE ON TABLE public.clinical_test_measure_kinds TO app_platform_settings;
+    -- 0306 V9b catalog capabilities execute as app_owner. Rehydrate every base privilege used by
+    -- list/upsert/save after restores and overlay replay; tenant roles keep only their own surface.
+    GRANT SELECT, INSERT, UPDATE ON TABLE public.clinical_test_measure_kinds TO app_owner;
   END IF;
 END
 $c5a_clinical_test_measure_kinds_platform_grant$;
+
+-- 0306's public booking-city catalog capability is likewise app_owner-owned. This overlay is the
+-- fail-safe rehydration point, guarded for bounded scratch databases that omit the catalog table.
+DO $c5a_booking_cities_app_owner_grant$
+BEGIN
+  IF to_regclass('public.booking_cities') IS NULL THEN
+    RAISE WARNING '0306: public.booking_cities does not exist -- skipping the app_owner SELECT grant.';
+  ELSE
+    GRANT SELECT ON TABLE public.booking_cities TO app_owner;
+  END IF;
+END
+$c5a_booking_cities_app_owner_grant$;
 
 -- Phase 4 SaaS billing tables arrive in migration 0259. This overlay also runs against bounded
 -- scratch clusters that omit that migration, so the entire rehydration is explicitly guarded.
@@ -310,6 +325,23 @@ BEGIN
       relation_name
     );
   END LOOP;
+
+  -- 0310 keeps the frozen/live calculation private to app_owner capabilities and the deliberate
+  -- cross-organization platform role. Tenant and clinic-billing callers use only the signed-org
+  -- wrapper; replay this exact split after restores and overlay rehydration.
+  IF to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION app.saas_billing_effective_tariff(uuid, uuid) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION app.saas_billing_effective_tariff(uuid, uuid)
+      FROM app_staff, app_patient, app_clinic_billing;
+    GRANT EXECUTE ON FUNCTION app.saas_billing_effective_tariff(uuid, uuid)
+      TO app_platform_settings;
+  END IF;
+  IF to_regprocedure('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION app.saas_billing_effective_tariff_for_current_org(uuid, uuid)
+      FROM PUBLIC, app_platform_settings;
+    GRANT EXECUTE ON FUNCTION app.saas_billing_effective_tariff_for_current_org(uuid, uuid)
+      TO app_staff, app_patient, app_clinic_billing;
+  END IF;
 END
 $c5a_saas_billing_runtime$;
 -- Read-only booking configuration for the global-admin overview at /app/doctor/admin/booking.

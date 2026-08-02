@@ -474,6 +474,13 @@ GRANT USAGE ON SCHEMA integrator, public TO app_owner;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 GRANT SELECT ON TABLE integrator.user_reminder_rules, integrator.user_reminder_occurrences TO app_owner;
 GRANT SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents TO app_owner;
+DO $c4_email_send_cooldowns_app_owner_acl$
+BEGIN
+  IF to_regclass('public.email_send_cooldowns') IS NOT NULL THEN
+    GRANT SELECT, INSERT, UPDATE ON TABLE public.email_send_cooldowns TO app_owner;
+  END IF;
+END
+$c4_email_send_cooldowns_app_owner_acl$;
 GRANT UPDATE (alert_sent_at) ON TABLE public.operator_incidents TO app_owner;
 GRANT INSERT ON TABLE integrator.delivery_attempt_logs TO app_owner;
 GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
@@ -763,6 +770,21 @@ GRANT EXECUTE ON FUNCTION app.release_principal_context() TO
   app_operational_delivery_worker,
   app_operational_scheduler,
   app_operational_media_worker;
+
+-- 0306 creates these exact cooldown capabilities after some bounded scratch fixtures were written.
+-- Rehydrate them when present; absence remains valid only for a pre-0306 partial database.
+DO $c4_reminder_transactional_email_cooldown_acl$
+BEGIN
+  IF to_regprocedure('app.read_reminder_transactional_email_cooldown(uuid)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION app.read_reminder_transactional_email_cooldown(uuid)
+      TO app_operational_delivery_worker;
+  END IF;
+  IF to_regprocedure('app.record_reminder_transactional_email_cooldown(uuid)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION app.record_reminder_transactional_email_cooldown(uuid)
+      TO app_operational_delivery_worker;
+  END IF;
+END
+$c4_reminder_transactional_email_cooldown_acl$;
 GRANT USAGE ON SCHEMA app TO
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
   :"c4_scheduler_login_role", :"c4_media_worker_login_role";
@@ -886,6 +908,22 @@ SELECT 1 / (
     'app_operational_delivery_worker',
     'app.record_operator_delivery_attempt(text,text,text,integer,text)',
     'EXECUTE'
+  )
+  AND (
+    to_regprocedure('app.read_reminder_transactional_email_cooldown(uuid)') IS NULL
+    OR has_function_privilege(
+      'app_operational_delivery_worker',
+      to_regprocedure('app.read_reminder_transactional_email_cooldown(uuid)'),
+      'EXECUTE'
+    )
+  )
+  AND (
+    to_regprocedure('app.record_reminder_transactional_email_cooldown(uuid)') IS NULL
+    OR has_function_privilege(
+      'app_operational_delivery_worker',
+      to_regprocedure('app.record_reminder_transactional_email_cooldown(uuid)'),
+      'EXECUTE'
+    )
   )
   AND NOT has_function_privilege(
     'app_operational_diagnostic',
@@ -1011,7 +1049,7 @@ WITH managed(role_name) AS (VALUES
   CROSS JOIN LATERAL aclexplode(routine.proacl) acl
   JOIN pg_roles grantee ON grantee.oid = acl.grantee
   JOIN managed ON managed.role_name = grantee.rolname
-), expected(kind, identity, privilege_type, role_name, is_grantable) AS (VALUES
+), expected_base(kind, identity, privilege_type, role_name, is_grantable) AS (VALUES
   ('schema','app','USAGE',:'c4_diagnostic_login_role',false),
   ('schema','app','USAGE',:'c4_delivery_worker_login_role',false),
   ('schema','app','USAGE',:'c4_scheduler_login_role',false),
@@ -1057,6 +1095,16 @@ WITH managed(role_name) AS (VALUES
   ('function','app.is_staff()','EXECUTE','app_operational_media_worker',false),
   ('function','app.current_org_id()','EXECUTE','app_operational_media_worker',false),
   ('function','app.current_patient_user_id()','EXECUTE','app_operational_media_worker',false)
+), expected AS (
+  SELECT * FROM expected_base
+  UNION ALL
+  SELECT 'function', 'app.read_reminder_transactional_email_cooldown(uuid)', 'EXECUTE',
+    'app_operational_delivery_worker', false
+  WHERE to_regprocedure('app.read_reminder_transactional_email_cooldown(uuid)') IS NOT NULL
+  UNION ALL
+  SELECT 'function', 'app.record_reminder_transactional_email_cooldown(uuid)', 'EXECUTE',
+    'app_operational_delivery_worker', false
+  WHERE to_regprocedure('app.record_reminder_transactional_email_cooldown(uuid)') IS NOT NULL
 ), unexpected AS (SELECT * FROM actual EXCEPT SELECT * FROM expected),
 missing AS (SELECT * FROM expected EXCEPT SELECT * FROM actual)
 SELECT 1 / (
