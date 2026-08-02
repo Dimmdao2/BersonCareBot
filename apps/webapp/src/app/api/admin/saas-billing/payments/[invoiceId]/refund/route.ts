@@ -57,6 +57,11 @@ export async function POST(
         { ok: false, error: 'invoice_not_refundable', status: result.status },
         { status: 409 },
       );
+    case 'seat_overage_partial_refund_forbidden':
+      return NextResponse.json(
+        { ok: false, error: 'seat_overage_partial_refund_forbidden' },
+        { status: 422 },
+      );
     case 'amount_exceeds_remaining':
       return NextResponse.json(
         { ok: false, error: 'amount_exceeds_remaining', remainingMinor: result.remainingMinor },

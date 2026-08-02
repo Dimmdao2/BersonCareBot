@@ -24,6 +24,7 @@ import { routePaths } from '@/app-layer/routes/paths';
  * or is only seeing the resulting invoice later after an unattended autopay tick (К5).
  */
 const SAAS_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?tab=billing`;
+const SAAS_SEAT_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?tab=team`;
 
 /**
  * §5a/2.1c — INVARIANT OF THE TWO MONEY FLOWS. The path by which a clinic pays US for its tariff is
@@ -199,6 +200,8 @@ export function createSaasBillingService(dependencies: {
         expiresAt: input.expiresAt,
         providerId: provider.providerId,
         providerIdempotencyKey,
+        invoiceKind: 'tariff_period',
+        additionalSeatQuantity: 0,
       });
     // Repeat of an already-inserted request: the first call already raised the provider invoice and
     // attached its checkout link below — hand back that SAME invoice/link, not a second one.
@@ -226,6 +229,57 @@ export function createSaasBillingService(dependencies: {
       providerInvoiceRef: intent.providerIntentRef,
       providerCheckoutUrl: intent.checkoutUrl ?? null,
     });
+  }
+
+  async function purchaseSeatOverage(input: {
+    organizationId: string;
+    requestKey: string;
+    confirmedAmountMinor: number;
+    confirmedCurrency: string;
+  }) {
+    const subscription = await dependencies.repository.requireOwnTariffBillingSubscription(
+      input.organizationId,
+    );
+    const provider = await resolvePaymentProvider();
+    const periodStart = now().toISOString();
+    const result = await dependencies.repository.createSeatOverageInvoiceIfNeeded({
+      organizationId: input.organizationId,
+      saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
+      confirmedAmountMinor: input.confirmedAmountMinor,
+      confirmedCurrency: input.confirmedCurrency,
+      providerId: provider.providerId,
+      providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.requestKey}`,
+      servicePeriodStartsAt: periodStart,
+      servicePeriodEndsAt: paidPeriodEndsAt(periodStart, subscription.billingPeriod),
+    });
+    if (result.outcome !== 'invoice') return result;
+    if (result.invoice.providerCheckoutUrl) {
+      return { outcome: 'checkout' as const, invoice: result.invoice };
+    }
+
+    const returnUrl = new URL(SAAS_SEAT_BILLING_RETURN_URL);
+    returnUrl.searchParams.set('seatPayment', result.invoice.id);
+    const intent = await provider.adapter.createIntent({
+      amountMinor: result.invoice.amountMinor,
+      currency: result.invoice.currency,
+      idempotencyKey: result.invoice.providerIdempotencyKey,
+      payerRef: `organization:${input.organizationId}`,
+      purpose: 'saas_billing_seat_overage',
+      subjectRef: result.invoice.id,
+      returnUrl: returnUrl.toString(),
+      metadata: {
+        organizationId: input.organizationId,
+        saasBillingInvoiceId: result.invoice.id,
+        saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
+      },
+      providerConfig: provider.providerConfig,
+    });
+    const invoice = await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+      saasBillingInvoiceId: result.invoice.id,
+      providerInvoiceRef: intent.providerIntentRef,
+      providerCheckoutUrl: intent.checkoutUrl ?? null,
+    });
+    return { outcome: 'checkout' as const, invoice };
   }
 
   return {
@@ -467,6 +521,7 @@ export function createSaasBillingService(dependencies: {
     createRenewalSaasBillingInvoice,
 
     createManualSaasBillingInvoice,
+    purchaseSeatOverage,
 
     /** К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port doc. */
     cancelSaasBillingInvoice(input: {
@@ -845,6 +900,7 @@ export function createSaasBillingService(dependencies: {
     }): Promise<
       | { outcome: 'invoice_not_found' }
       | { outcome: 'invoice_not_refundable'; status: SaasBillingInvoiceStatus }
+      | { outcome: 'seat_overage_partial_refund_forbidden' }
       | { outcome: 'amount_exceeds_remaining'; remainingMinor: number }
       | { outcome: 'refunded'; refund: SaasBillingRefund; duplicate: boolean }
       | { outcome: 'provider_error' }

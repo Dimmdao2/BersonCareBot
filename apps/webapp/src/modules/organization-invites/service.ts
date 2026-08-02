@@ -33,7 +33,6 @@ export function createOrganizationInvitesService(deps: { invitesPort: Organizati
       email: string;
       role: OrganizationInviteRole;
       createdByPlatformUserId: string;
-      confirmedSeatOveragePriceMinor?: number;
     }): Promise<CreateOrganizationInviteResult & { token?: string }> {
       const invitedEmail = normalizeEmail(input.email);
       if (!invitedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) {
@@ -49,7 +48,6 @@ export function createOrganizationInvitesService(deps: { invitesPort: Organizati
         tokenHash: hashOrganizationInviteToken(token),
         expiresAt,
         createdByPlatformUserId: input.createdByPlatformUserId,
-        confirmedSeatOveragePriceMinor: input.confirmedSeatOveragePriceMinor,
       });
       if (!result.ok) return result;
       return { ...result, token };

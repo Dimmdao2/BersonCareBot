@@ -997,8 +997,33 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 #### Этап 5. Числа
 
-- [ ] **5.1** Места специалистов: база и цена за дополнительного; превышение разрешено и оплачивается; сумма к
-      подтверждению; выставление счёта — #1057.
+- [x] **5.1** ✅ **ЗАКРЫТО 02.08** (`wt/saas-seat-billing`): места специалистов реализованы через одну машину состояний
+      (`captureSaasBillingPaymentSucceeded` — единственная точка перевода). Миграция 0308: `paid_additional_seats`,
+      `invoice_kind`, `additional_seat_quantity`, частичный уникальный индекс period (только `tariff_period`), бэкфилл
+      легаси-счетов. Арифметика: `base + quantity × unit_price`, ошибка при отсутствии unit price с ненулевым
+      количеством. Ёмкость: `(override ?? includedSeats) + paidAdditionalSeats`; advisory lock на инвайт; replay
+      seat_overage не меняет подписку повторно; частичный возврат отклоняется до вызова провайдера; успешный полный
+      возврат декрементит `paidAdditionalSeats`. Путь: invite → 402 с ценой → `POST /api/clinic/billing` с
+      `purchase=seat_overage` → checkout → return URL → poll → replay invite. TeamSection держит сессию через
+      sessionStorage, SaasBillingOverview показывает вид/количество/ссылку Оплатить. `createReplacingPending`
+      переписан на Drizzle (нет raw SQL строк). Доказательства (02.08):
+      Первичный кандидат `2f91ad586` отклонён независимым аудитом `06527f952`: старый smoke вручную повторял SQL
+      product-портов и поймал только 2 из 8 обязательных fault-классов. Финальный проход удалил ручные копии
+      create/capture/renewal/refund: тот же disposable PostgreSQL 16 smoke теперь импортирует и вызывает реальные
+      `createPgOrganizationInvitesPort` и `createPgSaasBillingRepository`; `app.accept_org_invite` по-прежнему
+      берётся дословно из deploy-overlay. Доказательства на восстановленном дереве (02.08):
+      · `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/app/api/clinic/billing/route.route.test.ts src/app/api/clinic/invites/route.route.test.ts src/app/app/settings/TeamSection.ui.test.tsx src/app-layer/guards/cabinetAccessLadder.test.ts` — **5 файлов, 51/51**;
+      · `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` — **exit 0**, реальные Drizzle-пути
+      доказали backfill, first NULL-boundary capture + end trial, early boundary, seat replay/isolation,
+      pending/paid capacity, create/accept, renewal `10000 + 2×1500 = 13000`, full/partial refund и decisive lock;
+      · fault injection — **8/8 пойманы, 0 непойманных**: два исходных класса (price-based accept, unusable draft)
+      зафиксированы в `SAAS_SEAT_BILLING_0308_INDEPENDENT_AUDIT_2026-08-02.md`; повтор команды
+      `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` после каждой из шести прежних
+      непойманных мутаций (always-promote, pending omitted, paid allowance omitted, renewal seat component omitted,
+      advisory lock disabled, first NULL boundary rejected) дал **exit 1** на соответствующем product assertion;
+      · `pnpm --dir apps/webapp exec tsc --noEmit` — **exit 0**; scoped ESLint трёх финально изменённых файлов —
+      **exit 0**; migration freeze + journal sync + SaaS schema regression + raw-SQL gate + `git diff --check` —
+      **exit 0**. `0308` не применялась ни к DEV, ни к TEST; live TEST acceptance B0.3 не закрыта.
 - [x] **5.2** ✅ **ЗАКРЫТО 31.07** (`fa15dc5ac`): атомарная проверка в пишущей транзакции, архивирование освобождает место, ведение существующей карточки не блокируется. Доказательство гонки на настоящем PostgreSQL, проверено лидом поломкой.
       НЕ хардкодить — это значения владельца; на пределе просто не создаётся новое. Архивирование освобождает место (свойство механизма).
 - [x] **5.3** ✅ **ЗАКРЫТО 31.07** (`fa15dc5ac`): число филиалов по тому же образцу, деактивация освобождает место, доказательство гонки на настоящем PostgreSQL зелёное и краснеет при снятии решающей строки.

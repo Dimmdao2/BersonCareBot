@@ -241,6 +241,24 @@
       — 2 tests; `pnpm --dir apps/webapp typecheck`; scoped `pnpm --dir apps/webapp exec eslint src/app-layer/guards/requireEntitlement.ts src/modules/payments/service.ts src/modules/payments/service.test.ts src/app/api/admin/booking-engine/prepayment-policies/route.ts src/app/api/admin/booking-engine/prepayment-policies/route.route.test.ts src/app/app/settings/BookingPrepaymentSection.tsx src/app/app/settings/BookingPrepaymentSection.ui.test.tsx`; `git diff --check`.
       Fault injection: инверсия provider gate в PUT делает route test provider-unavailable красным (200 вместо 409), затем gate восстановлен._
 
+- [x] **B1.5 Первый тарифный платёж и оплаченные дополнительные места (#1057/#1069 §5.1).** Первый
+      `tariff_period` capture законно устанавливает период из NULL и завершает активный trial; ранний платёж
+      будущего периода ждёт точной границы. `seat_overage` capture/refund меняет только
+      `paid_additional_seats`, один раз, и не двигает тариф/статус/период/snapshot. Invite/accept/UI capacity =
+      `(override ?? includedSeats) + paidAdditionalSeats`; pending invoice места не даёт. Renewal сохраняет
+      количество и берёт `base + quantity × unit`; без unit price отказывает до PSP. Team/Billing переиспользуют
+      существующий billing route/overview и возвращают сохранённый invite после checkout; новая таблица/route/provider
+      не добавлены.
+      _Доказательство 02.08:_ первичный кандидат `2f91ad586` отклонён аудитом `06527f952`, потому что smoke
+      повторял product SQL вручную (2 caught / 6 uncaught). Исправленный
+      `check-c4a-843-clinic-invite-concurrency.mjs` на том же disposable PostgreSQL 16 вызывает реальные
+      `createPgOrganizationInvitesPort`/`createPgSaasBillingRepository`: команда
+      `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` — exit 0. Шесть прежних непойманных
+      мутаций теперь дают exit 1; вместе с двумя классами, уже пойманными аудитом, итог **8/8, uncaught 0**.
+      `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/app/api/clinic/billing/route.route.test.ts src/app/api/clinic/invites/route.route.test.ts src/app/app/settings/TeamSection.ui.test.tsx src/app-layer/guards/cabinetAccessLadder.test.ts` —
+      5 файлов, 51/51; webapp typecheck, scoped ESLint, migration/journal/schema/raw-SQL gates и diff-check — exit 0.
+      `0308` нигде не применялась; live TEST card→webhook acceptance остаётся открытой в B0.3.
+
 ---
 
 ### Phase 4 — достройка SaaS billing поверх существующих PSP (keyless-safe)
