@@ -110,7 +110,9 @@ BEGIN
     SELECT 1 FROM (
       VALUES
         ('public.be_organization_members'),
-        ('public.organization_member_invites')
+        ('public.organization_member_invites'),
+        ('public.org_enrollments'),
+        ('public.patient_files')
     ) AS expected(name)
     WHERE to_regclass(expected.name) IS NULL
   ) THEN
@@ -128,7 +130,11 @@ BEGIN
     CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(
       p_organization_id uuid
     )
-    RETURNS TABLE(clinic_team_used integer)
+    RETURNS TABLE(
+      clinic_team_used integer,
+      patient_count_used integer,
+      files_used bigint
+    )
     LANGUAGE sql
     STABLE
     SECURITY DEFINER
@@ -155,15 +161,30 @@ BEGIN
              AND invite.invited_role = 'doctor'
              AND membership.status = 'active'
              AND membership.specialist_id IS NULL)
-        )::int AS clinic_team_used
+        )::int AS clinic_team_used,
+        (SELECT count(*) FROM public.org_enrollments AS enrollment
+         WHERE enrollment.organization_id = p_organization_id
+           AND enrollment.status IN ('invited', 'active'))::int AS patient_count_used,
+        COALESCE(
+          (SELECT sum(file.size_bytes) FROM public.patient_files AS file
+           WHERE file.organization_id = p_organization_id),
+          0
+        )::bigint AS files_used
       WHERE p_organization_id IS NOT NULL
     $function$
   $quota_usage_function$;
 
   ALTER FUNCTION app.read_org_enforced_quota_usage(uuid) OWNER TO app_owner;
-  GRANT SELECT ON TABLE public.organization_member_invites TO app_owner;
+  GRANT SELECT ON TABLE
+    public.be_organization_members,
+    public.organization_member_invites,
+    public.org_enrollments,
+    public.patient_files
+  TO app_owner;
   REVOKE ALL PRIVILEGES ON TABLE
-    public.organization_member_invites
+    public.organization_member_invites,
+    public.org_enrollments,
+    public.patient_files
   FROM app_platform_settings;
   DROP POLICY IF EXISTS organization_member_invites_platform_quota_usage_select
     ON public.organization_member_invites;
