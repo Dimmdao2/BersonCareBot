@@ -27,6 +27,9 @@ const PASSWORD_BEARING_KEYS = new Set<string>(['smtp_outbound', 'operator_health
  */
 const SECRET_VALUE_KEYS = new Set<string>([
   'max_bot_api_key',
+  'max_webhook_secret',
+  'telegram_bot_token',
+  'telegram_webhook_secret',
   'yandex_oauth_client_secret',
   'vk_id_client_secret',
   'google_client_secret',
