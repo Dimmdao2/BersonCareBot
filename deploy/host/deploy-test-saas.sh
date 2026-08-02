@@ -1716,6 +1716,11 @@ WITH expected(relation_name) AS (
   UNION
   SELECT relation_name, 'app_clinic_billing', 'SELECT', false FROM relations
   UNION
+  SELECT relation_name, 'app_clinic_billing', privilege_type, false
+  FROM relations
+  CROSS JOIN unnest(ARRAY['INSERT', 'UPDATE']::text[]) AS privilege_type
+  WHERE relation_name <> 'saas_billing_provider_events'
+  UNION
   -- Migration 0286 grants this supporting read to its app_owner SECURITY DEFINER function.
   -- Earlier bounded scratch clusters can have the billing tables without that function.
   SELECT 'saas_billing_subscriptions', 'app_owner', 'SELECT', false
@@ -1760,7 +1765,7 @@ WITH expected(relation_name) AS (
     relations.relation_name,
     relations.relation_name || expected_policy.suffix AS policy_name,
     true AS permissive,
-    expected_policy.command,
+    expected_policy.command::\"char\",
     expected_policy.roles,
     expected_policy.using_expression,
     expected_policy.check_expression
@@ -1779,6 +1784,35 @@ WITH expected(relation_name) AS (
       ('_platform_insert', 'a'::\"char\", ARRAY[role_oids.platform_oid]::oid[], NULL::text, 'true'::text),
       ('_platform_update', 'w'::\"char\", ARRAY[role_oids.platform_oid]::oid[], 'true'::text, 'true'::text)
   ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
+  UNION ALL
+  SELECT
+    relations.relation_name,
+    relations.relation_name || expected_policy.suffix,
+    true,
+    expected_policy.command::\"char\",
+    expected_policy.roles,
+    expected_policy.using_expression,
+    expected_policy.check_expression
+  FROM relations
+  CROSS JOIN role_oids
+  CROSS JOIN LATERAL (
+    VALUES
+      (
+        '_clinic_billing_insert',
+        'a'::\"char\",
+        ARRAY[role_oids.clinic_billing_oid]::oid[],
+        NULL::text,
+        '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
+      ),
+      (
+        '_clinic_billing_update',
+        'w'::\"char\",
+        ARRAY[role_oids.clinic_billing_oid]::oid[],
+        '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+        '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
+      )
+  ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
+  WHERE relations.relation_name <> 'saas_billing_provider_events'
 ), actual_policy_inventory AS (
   SELECT
     relations.relation_name,
@@ -1837,7 +1871,8 @@ SELECT (
 ")"
   [ "$ok" = "true" ] || {
     echo "FATAL: SaaS billing foundation exact grants/RLS inventory did not take effect." >&2
-    echo "       Expected dedicated app_clinic_billing SELECT, the app_owner subscription read, no app_staff table ACL," >&2
+    echo "       Expected organization-scoped app_clinic_billing SELECT plus account/subscription/invoice INSERT+UPDATE," >&2
+    echo "       the app_owner subscription read, no app_staff table ACL," >&2
     echo "       platform SELECT/INSERT/UPDATE, exact policies," >&2
     echo "       signed-context install/current-org/release helpers, no additional policies," >&2
     echo "       and ENABLE+FORCE RLS on all four tables." >&2

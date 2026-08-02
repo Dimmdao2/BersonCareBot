@@ -753,7 +753,6 @@ const saasBillingService = createSaasBillingService({
         .then((row) => row?.valueJson ?? null),
   },
   resolvePaymentProvider: getPaymentProviderAdapter,
-  listTariffs: () => platformEntitlementsService.listTariffs(),
   getTariffTransition: (organizationId, tariffId) =>
     platformEntitlementsService.getTariffTransition(organizationId, tariffId),
 });

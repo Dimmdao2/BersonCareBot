@@ -66,6 +66,12 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       };
     },
 
+    async listActiveTariffChoices() {
+      return [...new Set([...organizationTariffs.values()].filter((id): id is string => id !== null))]
+        .sort()
+        .map((id) => ({ id, name: 'In-memory tariff' }));
+    },
+
     async listPlatformInvoices(filter) {
       const now = new Date().toISOString();
       return [...invoices.values()]

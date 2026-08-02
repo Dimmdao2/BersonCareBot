@@ -308,6 +308,8 @@ export type SaasBillingManualAssignmentTransactionPort = {
 
 export type SaasBillingRepositoryPort = {
   getOrganizationBillingOverview(organizationId: string): Promise<SaasBillingOverview>;
+  /** Active public tariff names available to the caller's own clinic billing screen. */
+  listActiveTariffChoices(): Promise<Array<{ id: string; name: string }>>;
   /** К1 — cross-org payments list for the platform cabinet. Never organization-scoped by design. */
   listPlatformInvoices(
     filter: SaasBillingPlatformInvoiceFilter,

@@ -46,6 +46,10 @@ REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides FRO
 GRANT SELECT ON TABLE public.saas_tariffs, public.saas_organization_trials,
   public.saas_org_entitlement_overrides TO app_staff;
 GRANT SELECT ON TABLE public.be_organizations TO app_staff;
+-- The clinic billing principal is a signed current-organization role. It needs the global tariff
+-- catalog and its own organization assignment to derive amounts; the policies below keep the
+-- organization read tenant-scoped and the catalog read-only.
+GRANT SELECT ON TABLE public.saas_tariffs, public.be_organizations TO app_clinic_billing;
 
 -- A-6 / #1007 (docs/_TODO/NIGHT_PLAN_2026-07-26.md): `clinical_test_measure_kinds` has no
 -- `organization_id` at all -- the owner's FINAL scope decision (2026-06-17,
@@ -235,6 +239,11 @@ DECLARE
     'saas_billing_invoices',
     'saas_billing_provider_events'
   ];
+  clinic_mutation_relation_names constant text[] := ARRAY[
+    'saas_billing_accounts',
+    'saas_billing_subscriptions',
+    'saas_billing_invoices'
+  ];
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -266,6 +275,12 @@ BEGIN
       'GRANT SELECT ON TABLE public.%I TO app_clinic_billing',
       relation_name
     );
+    IF relation_name = ANY(clinic_mutation_relation_names) THEN
+      EXECUTE format(
+        'GRANT INSERT, UPDATE ON TABLE public.%I TO app_clinic_billing',
+        relation_name
+      );
+    END IF;
     EXECUTE format(
       'GRANT SELECT, INSERT, UPDATE ON TABLE public.%I TO app_platform_settings',
       relation_name
@@ -294,6 +309,28 @@ BEGIN
       relation_name || '_clinic_billing_select',
       relation_name
     );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_clinic_billing_insert',
+      relation_name
+    );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_clinic_billing_update',
+      relation_name
+    );
+    IF relation_name = ANY(clinic_mutation_relation_names) THEN
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR INSERT TO app_clinic_billing WITH CHECK (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
+        relation_name || '_clinic_billing_insert',
+        relation_name
+      );
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR UPDATE TO app_clinic_billing USING (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()) WITH CHECK (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
+        relation_name || '_clinic_billing_update',
+        relation_name
+      );
+    END IF;
     EXECUTE format(
       'DROP POLICY IF EXISTS %I ON public.%I',
       relation_name || '_platform_select',
@@ -361,6 +398,9 @@ ALTER TABLE public.saas_tariffs FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS saas_tariffs_platform_operations ON public.saas_tariffs;
 CREATE POLICY saas_tariffs_platform_operations ON public.saas_tariffs
   FOR ALL TO app_platform_settings USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS saas_tariffs_clinic_billing_read ON public.saas_tariffs;
+CREATE POLICY saas_tariffs_clinic_billing_read ON public.saas_tariffs
+  FOR SELECT TO app_clinic_billing USING (true);
 
 ALTER TABLE public.saas_trial_policy ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_trial_policy FORCE ROW LEVEL SECURITY;
@@ -424,6 +464,15 @@ CREATE POLICY be_organizations_staff_current_org_read ON public.be_organizations
   USING (
     app.is_staff()
     AND app.current_org_id() IS NOT NULL
+    AND id = app.current_org_id()
+  );
+DROP POLICY IF EXISTS be_organizations_clinic_billing_current_org_read
+  ON public.be_organizations;
+CREATE POLICY be_organizations_clinic_billing_current_org_read
+  ON public.be_organizations
+  FOR SELECT TO app_clinic_billing
+  USING (
+    app.current_org_id() IS NOT NULL
     AND id = app.current_org_id()
   );
 
@@ -1020,6 +1069,11 @@ BEGIN
     UNION
     SELECT relation_name, 'app_clinic_billing', 'SELECT', false FROM relations
     UNION
+    SELECT relation_name, 'app_clinic_billing', privilege_type, false
+    FROM relations
+    CROSS JOIN unnest(ARRAY['INSERT', 'UPDATE']::text[]) AS privilege_type
+    WHERE relation_name <> 'saas_billing_provider_events'
+    UNION
     -- Migration 0286 grants this supporting read to its app_owner SECURITY DEFINER function.
     -- Earlier bounded scratch clusters can have the billing tables without that function.
     SELECT 'saas_billing_subscriptions', 'app_owner', 'SELECT', false
@@ -1064,7 +1118,7 @@ BEGIN
       relations.relation_name,
       relations.relation_name || expected_policy.suffix AS policy_name,
       true AS permissive,
-      expected_policy.command,
+      expected_policy.command::"char",
       expected_policy.roles,
       expected_policy.using_expression,
       expected_policy.check_expression
@@ -1083,6 +1137,35 @@ BEGIN
         ('_platform_insert', 'a'::"char", ARRAY[role_oids.platform_oid]::oid[], NULL::text, 'true'::text),
         ('_platform_update', 'w'::"char", ARRAY[role_oids.platform_oid]::oid[], 'true'::text, 'true'::text)
     ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
+    UNION ALL
+    SELECT
+      relations.relation_name,
+      relations.relation_name || expected_policy.suffix,
+      true,
+      expected_policy.command::"char",
+      expected_policy.roles,
+      expected_policy.using_expression,
+      expected_policy.check_expression
+    FROM relations
+    CROSS JOIN role_oids
+    CROSS JOIN LATERAL (
+      VALUES
+        (
+          '_clinic_billing_insert',
+          'a'::"char",
+          ARRAY[role_oids.clinic_billing_oid]::oid[],
+          NULL::text,
+          '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
+        ),
+        (
+          '_clinic_billing_update',
+          'w'::"char",
+          ARRAY[role_oids.clinic_billing_oid]::oid[],
+          '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+          '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
+        )
+    ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
+    WHERE relations.relation_name <> 'saas_billing_provider_events'
   ), actual_policy_inventory AS (
     SELECT
       relations.relation_name,
