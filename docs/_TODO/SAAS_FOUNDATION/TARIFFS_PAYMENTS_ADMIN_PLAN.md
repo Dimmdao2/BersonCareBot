@@ -862,6 +862,12 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 - [ ] **3.1** Все проверки состояния идут через один порт: обработчик спрашивает резолвер, а не проверяет флаги сам. У
       числовых механик проверка остаётся внутри пишущей транзакции под блокировкой (образец — места и файлы).
+      `clinic_team` §4: `TeamSection` получает разрешение на mutation через существующий resolver-backed
+      `getMechanicMutationAvailability`: в `read_only` остаются списки участников/ожидающих приглашений и видимый
+      отказ, а invite/revoke/seat-checkout controls не рендерятся; `disabled` по прежнему скрывает tab и отказывает
+      direct reads. POST invite, DELETE revoke и POST seat overage отказывают до port/payment вызова; bodyless
+      tariff renewal остаётся billing-recovery путём. Evidence: `TeamSection.ui.test.tsx`, clinic invite/member/
+      billing route tests и `requireEntitlementReadOnlyRefusesWrites.test.ts` (targeted suite, 02.08).
 - [x] **3.1a** ✅ ЗАКРЫТО 30.07 (`a2f973530`). Ранний `return { ok: true }` для чтения снят ещё коммитом лестницы
       `380b7aa39`; недоставало доказательства поведением — теперь есть: у клиники выключены курсы → пациентский
       список отдаёт 403 и обработчик не вызывается. Лид проверил снятием защиты: возврат ветки «read → ok» роняет

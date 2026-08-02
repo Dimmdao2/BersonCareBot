@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
+  getMechanicMutationAvailability,
   isMechanicIncluded,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
@@ -270,10 +271,11 @@ export default async function SettingsPage({
     if (!teamEntitlement.ok) redirect(`${routePaths.settings}?tab=organization`);
 
     const deps = buildAppDeps();
-    const [members, invites, seats] = await Promise.all([
+    const [members, invites, seats, mutationAvailability] = await Promise.all([
       deps.organizationMembership.listOrganizationMembers(workspace.organizationId),
       deps.organizationInvites.listPending(workspace.organizationId),
       deps.clinicSeats.getSeatStatus(workspace.organizationId),
+      getMechanicMutationAvailability({ organizationId: workspace.organizationId }, 'clinic_team'),
     ]);
     return (
       <DoctorAppShell title="Команда" user={workspace.session.user}>
@@ -294,6 +296,7 @@ export default async function SettingsPage({
             expiresAt: invite.expiresAt,
           }))}
           seats={seats}
+          canMutateTeam={mutationAvailability.available}
         />
       </DoctorAppShell>
     );
