@@ -48,27 +48,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await dispatchDueSpecialistTaskReminders(
-      {
-        specialistTasks: deps.specialistTasks,
-        topicChannelPrefs: deps.topicChannelPrefs,
-        channelPreferences: deps.channelPreferencesPort,
-        getChannelBindings: deps.loadPlatformUserChannelBindings,
-        getProfileEmail: async (platformUserId) => {
-          const fields = await deps.userProjection.getProfileEmailFields(platformUserId);
-          return fields?.email?.trim() || null;
-        },
-        getProfileEmailVerified: async (platformUserId) => {
-          const fields = await deps.userProjection.getProfileEmailFields(platformUserId);
-          return Boolean(fields?.emailVerifiedAt);
-        },
-        webPushSubscriptions: deps.webPushSubscriptions,
-        systemSettings: deps.systemSettings,
-        getReminderChannels: async () => [],
-        resolvePatientDisplayName: async (patientUserId) => {
-          const identity = await deps.doctorClientsPort.getClientIdentity(patientUserId);
-          return identity?.displayName?.trim() || null;
-        },
-      },
+      { specialistTasks: deps.specialistTasks },
       { limit },
     );
 

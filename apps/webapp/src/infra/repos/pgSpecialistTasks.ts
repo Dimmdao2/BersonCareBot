@@ -3,6 +3,7 @@ import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { specialistTasks } from '../../../db/schema/specialistTasks';
+import { createPgOutgoingDeliveryQueueWritePort } from './pgOutgoingDeliveryQueue';
 import type {
   CreateSpecialistTaskInput,
   SpecialistTasksPort,
@@ -13,6 +14,10 @@ import type {
   SpecialistTaskPatientSummary,
   SpecialistTaskRow,
 } from '@/modules/specialist-tasks/types';
+import type { ReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
+
+type ReminderPreparation = (task: SpecialistTaskRow) => Promise<ReadyOutgoingDelivery[]>;
+const queueWriter = createPgOutgoingDeliveryQueueWritePort();
 
 function mapRow(row: typeof specialistTasks.$inferSelect): SpecialistTaskRow {
   return {
@@ -48,7 +53,9 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   return principalOrganizationId ?? fallbackOrganizationId;
 }
 
-export function createPgSpecialistTasksPort(): SpecialistTasksPort {
+export function createPgSpecialistTasksPort(
+  prepareReminderDeliveries: ReminderPreparation = async () => [],
+): SpecialistTasksPort {
   return {
     async listForOwner({ ownerUserId, patientUserId, includeCompleted = false, limit }) {
       const db = getDrizzle();
@@ -107,7 +114,10 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
           .returning();
         const row = inserted[0];
         if (!row) throw new Error('specialist_tasks insert failed');
-        return mapRow(row);
+        const task = mapRow(row);
+        const deliveries = await prepareReminderDeliveries(task);
+        for (const delivery of deliveries) await queueWriter.enqueueReady(tx, delivery);
+        return task;
       });
     },
 
@@ -133,7 +143,20 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
           .set({ ...set, organizationId: currentWriteOrganizationId(existing.organizationId) })
           .where(and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)))
           .returning();
-        return updated[0] ? mapRow(updated[0]) : null;
+        const task = updated[0] ? mapRow(updated[0]) : null;
+        if (!task) return null;
+        const affectsIntent =
+          patch.title !== undefined || patch.dueAt !== undefined || patch.remindAt !== undefined;
+        if (affectsIntent) {
+          const deliveries = await prepareReminderDeliveries(task);
+          for (const delivery of deliveries) await queueWriter.enqueueReady(tx, delivery);
+          await queueWriter.terminalizeUnsentSpecialistTaskReminders(tx, {
+            taskId,
+            exceptEventIds: deliveries.map((delivery) => delivery.eventId),
+            reason: 'SPECIALIST_TASK_REMINDER_SUPERSEDED',
+          });
+        }
+        return task;
       });
     },
 
@@ -159,6 +182,10 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
             ),
           )
           .returning();
+        await queueWriter.terminalizeUnsentSpecialistTaskReminders(tx, {
+          taskId,
+          reason: 'SPECIALIST_TASK_REMINDER_CANCELLED',
+        });
         return updated[0] ? mapRow(updated[0]) : null;
       });
     },
@@ -170,6 +197,10 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
         });
         if (!existing) return false;
         currentWriteOrganizationId(existing.organizationId);
+        await queueWriter.terminalizeUnsentSpecialistTaskReminders(tx, {
+          taskId,
+          reason: 'SPECIALIST_TASK_REMINDER_DELETED',
+        });
         const deleted = await tx
           .delete(specialistTasks)
           .where(and(eq(specialistTasks.id, taskId), eq(specialistTasks.ownerUserId, ownerUserId)))
@@ -227,6 +258,27 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
           })
           .where(and(eq(specialistTasks.id, taskId), isNull(specialistTasks.reminderSentAt)));
       });
+    },
+
+    async enqueueDueReminders(nowIso, limit) {
+      const due = await this.listDueReminders(nowIso, limit);
+      let enqueued = 0;
+      for (const task of due) {
+        await runDrizzleMutationTransaction(async (tx) => {
+          const fresh = await tx.query.specialistTasks.findFirst({
+            where: and(
+              eq(specialistTasks.id, task.id),
+              isNull(specialistTasks.completedAt),
+              isNotNull(specialistTasks.remindAt),
+            ),
+          });
+          if (!fresh) return;
+          const deliveries = await prepareReminderDeliveries(mapRow(fresh));
+          for (const delivery of deliveries) await queueWriter.enqueueReady(tx, delivery);
+          enqueued += deliveries.length;
+        });
+      }
+      return { processed: due.length, enqueued };
     },
   };
 }

@@ -52,6 +52,11 @@ NODE
 missing=0
 for sql in "${MIG_DIR}"/*.sql; do
   base="$(basename "${sql}" .sql)"
+  # Parallel worktrees may carry one explicitly marked temporary high migration while the lead
+  # assigns the final number/journal position during merge. It is intentionally not runnable yet.
+  if [[ "${base}" == 9999_* ]] && head -n 1 "${sql}" | grep -q '^-- TEMPORARY HIGH LOCAL NUMBER'; then
+    continue
+  fi
   if ! grep -q "\"tag\": \"${base}\"" "${JOURNAL}"; then
     echo "check-drizzle-journal-sync: ${base}.sql not in _journal.json" >&2
     missing=1

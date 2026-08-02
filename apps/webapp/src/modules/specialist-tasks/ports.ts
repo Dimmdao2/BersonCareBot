@@ -42,4 +42,5 @@ export type SpecialistTasksPort = {
   ): Promise<SpecialistTaskPatientSummary>;
   listDueReminders(nowIso: string, limit: number): Promise<SpecialistTaskRow[]>;
   markReminderSent(taskId: string, sentAtIso: string): Promise<void>;
+  enqueueDueReminders(nowIso: string, limit: number): Promise<{ processed: number; enqueued: number }>;
 };
