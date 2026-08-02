@@ -251,6 +251,7 @@ import { inMemoryDoctorNotesPort } from '@/infra/repos/inMemoryDoctorNotes';
 import {
   createPgSystemSettingsPort,
   createPgSystemSettingsWriteUnitOfWork,
+  readSaasBillingPaymentProviderValue,
 } from '@/infra/repos/pgSystemSettings';
 import { inMemorySystemSettingsPort } from '@/infra/repos/inMemorySystemSettings';
 import { createSystemSettingsService } from '@/modules/system-settings/service';
@@ -748,9 +749,11 @@ const saasBillingService = createSaasBillingService({
   repository: saasBillingRepository,
   settings: {
     getSaasBillingPaymentProviderValue: () =>
-      systemSettingsService
-        .getSetting('saas_billing_payment_provider', 'admin')
-        .then((row) => row?.valueJson ?? null),
+      inMemoryRepos
+        ? systemSettingsService
+            .getSetting('saas_billing_payment_provider', 'admin')
+            .then((row) => row?.valueJson ?? null)
+        : readSaasBillingPaymentProviderValue(),
   },
   resolvePaymentProvider: getPaymentProviderAdapter,
   getTariffTransition: (organizationId, tariffId) =>

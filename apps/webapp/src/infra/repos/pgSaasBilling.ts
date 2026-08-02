@@ -1013,6 +1013,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (!targetTariff) throw new Error('saas_billing_tariff_not_billable');
         return {
           saasBillingSubscriptionId: row.id,
+          currentTariffId: row.tariffId,
           tariffId: targetTariffId,
           billingPeriod: targetTariff.billingPeriod as SaasBillingPeriod,
           savedPaymentMethodId: row.savedPaymentMethodId,
