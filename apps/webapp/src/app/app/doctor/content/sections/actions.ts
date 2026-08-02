@@ -60,7 +60,10 @@ export async function saveContentSection(
   if (!targetEntitlement.ok) {
     return {
       ok: false,
-      error: entitlementMutationRefusalMessage('изменить контент', targetEntitlement.reason),
+      error: entitlementMutationRefusalMessage(
+        targetMechanic === 'warmups' ? 'изменить контент разминок' : 'изменить контент',
+        targetEntitlement.reason,
+      ),
     };
   }
 
