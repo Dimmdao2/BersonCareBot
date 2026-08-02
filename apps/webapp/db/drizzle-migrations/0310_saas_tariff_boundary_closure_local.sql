@@ -1,4 +1,3 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0310 -- the lead confirms the final number at merge.
 -- #1069 TEST closure: keep one frozen/live tariff calculation, but stop exposing that unscoped
 -- implementation directly to tenant roles. The current-organization wrapper below is the only
 -- tenant-callable entry point. app.accept_org_invite() intentionally continues to call the
