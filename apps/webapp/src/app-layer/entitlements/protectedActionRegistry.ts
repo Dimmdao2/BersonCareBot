@@ -929,6 +929,12 @@ export const PROTECTED_ACTION_FAMILIES = [
  */
 export const PROTECTED_ACTION_EXEMPTIONS = [
   {
+    file: 'src/app/api/doctor/patients/[userId]/files/[fileId]/route.ts',
+    exportName: 'DELETE',
+    reason:
+      'storage recovery: authorized clinic deletion must remain available to free an exhausted files quota',
+  },
+  {
     file: 'src/app/app/patient/reminders/actions.ts',
     exportName: 'toggleReminderCategory',
     reason:

@@ -77,6 +77,7 @@ import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-t
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
+import { DELETE as deletePatientFile } from '@/app/api/doctor/patients/[userId]/files/[fileId]/route';
 import { PATCH as updatePromoProgram } from '@/app/api/doctor/treatment-program-promo/route';
 import { PATCH as updateAdminSetting } from '@/app/api/admin/settings/route';
 import { POST as updatePatientPromo } from '@/app/api/patient/treatment-program-promo/action/route';
@@ -566,6 +567,73 @@ describe('tariff and platform mutation gates', () => {
       error: 'file_storage_limit_not_configured',
     });
     expect(createFile).not.toHaveBeenCalled();
+  });
+
+  it('allows an authorized clinic to delete its patient file and release storage even when file mutations are otherwise denied', async () => {
+    const deleteFile = vi.fn().mockResolvedValue(true);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({ id: USER_ID, patientUserId: TARGET_ID }),
+        deleteFile,
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      deleted: true,
+      storageCleanupScheduled: true,
+    });
+    expect(deleteFile).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('does not expose patient-file deletion across organizations', async () => {
+    const deleteFile = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization: vi.fn().mockResolvedValue(null) },
+      patientFiles: { getFile: vi.fn(), deleteFile },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(404);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it('denies unauthenticated patient-file deletion before reading or deleting the file', async () => {
+    const getFile = vi.fn();
+    const deleteFile = vi.fn();
+    vi.mocked(requireDoctorWorkspaceApiContext).mockResolvedValue(denied);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
+      patientFiles: { getFile, deleteFile },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(getFile).not.toHaveBeenCalled();
+    expect(deleteFile).not.toHaveBeenCalled();
   });
 
   it('refuses file metadata creation visibly when the file storage quota is exhausted, without creating the patient folder', async () => {

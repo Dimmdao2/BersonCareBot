@@ -39,6 +39,14 @@ import {
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/doctor/primitives/dialog';
 
 // ---------------------------------------------------------------------------
 // Types — match API response
@@ -811,10 +819,12 @@ function FilePreviewPanel({
   file,
   userId,
   onLinked,
+  onDeleteRequested,
 }: {
   file: FileRecord | null;
   userId: string;
   onLinked?: (visitId: string) => void;
+  onDeleteRequested?: (file: FileRecord) => void;
 }) {
   if (!file) {
     return (
@@ -866,6 +876,14 @@ function FilePreviewPanel({
             fileId={file.id}
             onLinked={(visitId) => onLinked?.(visitId)}
           />
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => onDeleteRequested?.(file)}
+            className="h-auto px-2 py-1 text-xs"
+          >
+            Удалить
+          </Button>
         </div>
       </div>
 
@@ -945,6 +963,10 @@ export function PatientTabFiles({
   );
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [showUpload, setShowUpload] = useState(false);
+  const [filePendingDelete, setFilePendingDelete] = useState<FileRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletionNotice, setDeletionNotice] = useState<string | null>(null);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -998,6 +1020,37 @@ export function PatientTabFiles({
 
   function handleUploaded() {
     void loadFiles();
+  }
+
+  async function deleteSelectedFile() {
+    const file = filePendingDelete;
+    if (!file) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch(`/api/doctor/patients/${userId}/files/${file.id}`, {
+        method: 'DELETE',
+      });
+      const data = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+      } | null;
+      if (!response.ok || !data?.ok) {
+        setDeleteError(data?.error === 'not_found' ? 'Файл уже удалён или недоступен.' : 'Не удалось удалить файл.');
+        return;
+      }
+      setFiles((previous) => previous.filter((item) => item.id !== file.id));
+      setSelectedFileId((current) => {
+        if (current !== file.id) return current;
+        return files.find((item) => item.id !== file.id)?.id ?? null;
+      });
+      setFilePendingDelete(null);
+      setDeletionNotice('Файл удалён. Место в хранилище освобождено.');
+    } catch {
+      setDeleteError('Сетевая ошибка. Файл не удалён.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const leftPane = (
@@ -1088,12 +1141,58 @@ export function PatientTabFiles({
 
   const rightPane = (
     <CatalogRightPane contentClassName="px-0 py-0">
-      <FilePreviewPanel file={selectedFile} userId={userId} onLinked={handleLinked} />
+      <FilePreviewPanel
+        file={selectedFile}
+        userId={userId}
+        onLinked={handleLinked}
+        onDeleteRequested={(file) => {
+          setFilePendingDelete(file);
+          setDeleteError(null);
+        }}
+      />
     </CatalogRightPane>
   );
 
   return (
     <div className="flex flex-col gap-3">
+      <Dialog
+        open={filePendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) {
+            setFilePendingDelete(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <DialogContent showCloseButton={!deleting}>
+          <DialogHeader>
+            <DialogTitle>Удалить файл?</DialogTitle>
+            <DialogDescription>
+              Файл «{filePendingDelete?.fileName}» исчезнет из карты пациента, а удаление из
+              хранилища будет безопасно завершено в фоне.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleting}
+              onClick={() => setFilePendingDelete(null)}
+            >
+              Отмена
+            </Button>
+            <Button type="button" variant="destructive" disabled={deleting} onClick={() => void deleteSelectedFile()}>
+              {deleting ? 'Удаление…' : 'Удалить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {deletionNotice && (
+        <p role="status" className="px-0.5 text-sm text-emerald-700 dark:text-emerald-400">
+          {deletionNotice}
+        </p>
+      )}
       <CatalogSplitLayout
         left={leftPane}
         right={rightPane}
