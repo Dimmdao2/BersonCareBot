@@ -1310,15 +1310,41 @@ async function mergeExtendedUserOwnedData(
     duplicateId,
   ]);
 
+  // Migration 0200 dropped the single global `product_analytics_user_hourly_pkey` and replaced it
+  // with two partial unique indexes split on `organization_id` nullability (global vs per-org
+  // bucket). `ON CONFLICT ON CONSTRAINT` cannot target a partial index, and no single conflict
+  // target can match both partial predicates in one statement, so this merge runs once per branch.
+  // `organization_id` must be carried through explicitly -- omitting it (as the pre-0200 version of
+  // this INSERT did) silently drops every merged row's clinic association.
   await client.query(
     `INSERT INTO product_analytics_user_hourly (
-       bucket_hour, user_id, entry_channel, page_key,
+       organization_id, bucket_hour, user_id, entry_channel, page_key,
        app_opens, page_views, push_opens, active_minutes, last_seen_at, updated_at
      )
-     SELECT bucket_hour, $1::uuid, entry_channel, page_key,
+     SELECT organization_id, bucket_hour, $1::uuid, entry_channel, page_key,
             app_opens, page_views, push_opens, active_minutes, last_seen_at, updated_at
-     FROM product_analytics_user_hourly WHERE user_id = $2::uuid
-     ON CONFLICT ON CONSTRAINT product_analytics_user_hourly_pkey DO UPDATE SET
+     FROM product_analytics_user_hourly WHERE user_id = $2::uuid AND organization_id IS NULL
+     ON CONFLICT (bucket_hour, user_id, entry_channel, page_key) WHERE organization_id IS NULL
+     DO UPDATE SET
+       app_opens = product_analytics_user_hourly.app_opens + EXCLUDED.app_opens,
+       page_views = product_analytics_user_hourly.page_views + EXCLUDED.page_views,
+       push_opens = product_analytics_user_hourly.push_opens + EXCLUDED.push_opens,
+       active_minutes = product_analytics_user_hourly.active_minutes + EXCLUDED.active_minutes,
+       last_seen_at = GREATEST(product_analytics_user_hourly.last_seen_at, EXCLUDED.last_seen_at),
+       updated_at = GREATEST(product_analytics_user_hourly.updated_at, EXCLUDED.updated_at)`,
+    [targetId, duplicateId],
+  );
+  await client.query(
+    `INSERT INTO product_analytics_user_hourly (
+       organization_id, bucket_hour, user_id, entry_channel, page_key,
+       app_opens, page_views, push_opens, active_minutes, last_seen_at, updated_at
+     )
+     SELECT organization_id, bucket_hour, $1::uuid, entry_channel, page_key,
+            app_opens, page_views, push_opens, active_minutes, last_seen_at, updated_at
+     FROM product_analytics_user_hourly WHERE user_id = $2::uuid AND organization_id IS NOT NULL
+     ON CONFLICT (organization_id, bucket_hour, user_id, entry_channel, page_key)
+       WHERE organization_id IS NOT NULL
+     DO UPDATE SET
        app_opens = product_analytics_user_hourly.app_opens + EXCLUDED.app_opens,
        page_views = product_analytics_user_hourly.page_views + EXCLUDED.page_views,
        push_opens = product_analytics_user_hourly.push_opens + EXCLUDED.push_opens,
