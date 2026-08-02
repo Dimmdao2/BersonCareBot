@@ -15,13 +15,29 @@ const ERROR_LABELS: Record<string, string> = {
     'Оплата тарифа временно недоступна: платёжный магазин платформы не настроен.',
   saas_billing_checkout_unavailable: 'Не удалось получить ссылку на оплату. Попробуйте ещё раз.',
   billing_admin_required: 'Оплату тарифа может запустить только владелец или администратор клиники.',
-  saas_billing_tariff_downgrade_blocked: 'Понижение недоступно: сначала сократите используемые места, филиалы или пациентов.',
+  saas_billing_tariff_downgrade_blocked: 'Понижение недоступно: сначала приведите клинику к новому тарифу.',
   saas_billing_upgrade_charge_policy_unresolved: 'Повышение тарифа пока оформляет администратор платформы.',
   saas_billing_no_active_paid_subscription: 'Для смены тарифа нужен действующий оплаченный период.',
 };
 
 function formatError(code: string | undefined): string {
   return (code && ERROR_LABELS[code]) || 'Не удалось выставить счёт на оплату тарифа.';
+}
+
+const DOWNGRADE_BLOCK_LABELS: Record<string, string> = {
+  clinic_team: 'места специалистов',
+  branches: 'филиалы',
+  patient_count: 'пациенты',
+};
+
+function formatTariffChangeError(body: { error?: string; blocks?: Array<{ mechanic?: string }> } | null): string {
+  const labels = body?.blocks
+    ?.map((block) => (block.mechanic ? DOWNGRADE_BLOCK_LABELS[block.mechanic] : undefined))
+    .filter((label): label is string => Boolean(label));
+  if (body?.error === 'saas_billing_tariff_downgrade_blocked' && labels?.length) {
+    return `Понижение недоступно: освободите ${labels.join(', ')}.`;
+  }
+  return formatError(body?.error);
 }
 
 /** K0 — the one payment element on the tariff screen: issues a checkout link and hands the browser to it. */
@@ -71,8 +87,10 @@ export function PayTariffButton({ tariffChange }: { tariffChange: ClinicTariffCh
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ tariffId: selectedTariffId }),
       });
-      const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!body?.ok) setError(formatError(body?.error));
+      const body = (await response.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; blocks?: Array<{ mechanic?: string }> }
+        | null;
+      if (!body?.ok) setError(formatTariffChangeError(body));
       else setPendingTariffId(selectedTariffId === tariffChange.currentTariffId ? null : selectedTariffId);
     } catch {
       setError(formatError(undefined));

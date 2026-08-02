@@ -38,6 +38,8 @@ export type OrgEntitlementsPort = {
     mechanicAccessPolicies: MechanicAccessPolicyMap;
     includedSeats: number | null;
   } | null>;
+  /** Read-only tariff catalog lookup for the clinic's own billing transition. */
+  getActiveTariffById(tariffId: string): Promise<Tariff | null>;
   /** Per-org, per-mechanic overrides. May be empty. */
   listOverrides(
     organizationId: string,

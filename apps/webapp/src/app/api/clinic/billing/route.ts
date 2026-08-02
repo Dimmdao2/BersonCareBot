@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
+import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/service';
 import { handleSeatOveragePurchase } from './seatOveragePurchase';
 
 export async function GET() {
@@ -49,6 +50,12 @@ async function requireBillingManager() {
 }
 
 function tariffChangeError(error: unknown) {
+  if (error instanceof SaasBillingTariffDowngradeBlockedError) {
+    return NextResponse.json(
+      { ok: false, error: error.message, blocks: error.blocks },
+      { status: 409 },
+    );
+  }
   const message = error instanceof Error ? error.message : '';
   if (
     message === 'saas_billing_upgrade_charge_policy_unresolved' ||

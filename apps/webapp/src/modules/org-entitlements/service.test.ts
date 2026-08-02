@@ -12,6 +12,7 @@ import {
   evaluateTariffDowngrade,
   evaluateTariffTransition,
   fileStorageLimitFromSnapshot,
+  resolveOwnTariffTransition,
   resolveClinicSeatLimit,
   resolveOrgQuotaProjections,
   resolveOwnOrgQuotaProjections,
@@ -801,6 +802,64 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       }),
     });
     expect(transition).toMatchObject({ blocks: [], appliesNextPeriod: true });
+  });
+
+  it('self-service downgrade counts seats, branches and patients, but never blocks on stored file volume', async () => {
+    const currentTariff = baseTariff({ id: 'big', includedSeats: 5 });
+    const targetTariff = baseTariff({
+      id: 'small',
+      includedSeats: 1,
+      quotas: {
+        branches: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null },
+        patient_count: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: null },
+        files: { kind: 'numeric', limit: 100, unit: 'bytes', warningAtPercent: null },
+      },
+      downgradePolicies: { branches: 'block', patient_count: 'block', files: 'block' },
+    });
+    const port: OrgEntitlementsPort = {
+      resolveCabinetAccess: async () => ({ state: 'full_access', policySource: 'system', warning: null }),
+      resolveMechanicAccess: async (_organizationId, mechanic) => ({ mechanic, state: 'full_access', policySource: 'system', warning: null }),
+      getSnapshot: async () => ({ tariff: currentTariff, overrides: [], access: activeAccess }),
+      getTariffForOrg: async () => currentTariff,
+      getActiveTariffById: async (tariffId) => (tariffId === targetTariff.id ? targetTariff : null),
+      listOverrides: async () => [],
+      getEffectiveCommercialAccess: async () => activeAccess,
+      getEnforcedQuotaUsage: async () => ({}),
+      getOwnQuotaUsage: async () => ({ clinic_team: 2, branches: 3, patient_count: 4, files: 999 }),
+    };
+
+    await expect(resolveOwnTariffTransition(port, 'org', targetTariff.id)).resolves.toEqual({
+      currentTariffId: currentTariff.id,
+      targetTariffId: targetTariff.id,
+      appliesNextPeriod: true,
+      blocks: [
+        { mechanic: 'clinic_team', reason: 'quota_exceeded' },
+        { mechanic: 'patient_count', reason: 'quota_exceeded' },
+        { mechanic: 'branches', reason: 'quota_exceeded' },
+      ],
+    });
+  });
+
+  it('classifies a cheaper tariff as a next-period downgrade even when its entitlement shape is unchanged', async () => {
+    const currentTariff = baseTariff({ id: 'expensive', priceMinor: 20_000, currency: 'RUB' });
+    const targetTariff = baseTariff({ id: 'cheaper', priceMinor: 10_000, currency: 'RUB' });
+    const port: OrgEntitlementsPort = {
+      resolveCabinetAccess: async () => ({ state: 'full_access', policySource: 'system', warning: null }),
+      resolveMechanicAccess: async (_organizationId, mechanic) => ({ mechanic, state: 'full_access', policySource: 'system', warning: null }),
+      getSnapshot: async () => ({ tariff: currentTariff, overrides: [], access: activeAccess }),
+      getTariffForOrg: async () => currentTariff,
+      getActiveTariffById: async () => targetTariff,
+      listOverrides: async () => [],
+      getEffectiveCommercialAccess: async () => activeAccess,
+      getEnforcedQuotaUsage: async () => ({}),
+      getOwnQuotaUsage: async () => ({}),
+    };
+
+    await expect(resolveOwnTariffTransition(port, 'org', targetTariff.id)).resolves.toMatchObject({
+      currentTariffId: currentTariff.id,
+      targetTariffId: targetTariff.id,
+      appliesNextPeriod: true,
+    });
   });
 
   function platformPortWithUsage(input: {

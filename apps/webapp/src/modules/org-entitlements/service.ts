@@ -496,13 +496,47 @@ export class TariffDowngradeBlockedError extends Error {
  */
 export function evaluateTariffTransition(params: {
   usage: Partial<Record<OrgMechanic, number>>;
-  currentTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'includedSeats'>;
-  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies' | 'includedSeats'>;
+  currentTariff: Pick<
+    Tariff,
+    'mechanics' | 'quotas' | 'includedSeats' | 'priceMinor' | 'currency' | 'billingPeriod'
+  >;
+  targetTariff: Pick<
+    Tariff,
+    | 'mechanics'
+    | 'quotas'
+    | 'downgradePolicies'
+    | 'includedSeats'
+    | 'priceMinor'
+    | 'currency'
+    | 'billingPeriod'
+  >;
+  /** Self-service tariff changes only require cleanup of the three owner-named countable resources. */
+  blockableMechanics?: readonly OrgMechanic[];
 }): { blocks: TariffDowngradeBlock[]; appliesNextPeriod: boolean } {
   const blocks: TariffDowngradeBlock[] = [];
+  const blockableMechanics = params.blockableMechanics ?? MECHANICS;
+  // Price is authoritative only when the two stored prices describe the same currency and billing
+  // period. Comparing a monthly price with an annual one would invent a proration/normalization
+  // policy which the product has deliberately not defined.
+  const isCheaperForSamePeriod =
+    params.currentTariff.priceMinor !== null &&
+    params.targetTariff.priceMinor !== null &&
+    params.currentTariff.currency === params.targetTariff.currency &&
+    params.currentTariff.billingPeriod === params.targetTariff.billingPeriod &&
+    params.targetTariff.priceMinor < params.currentTariff.priceMinor;
   let appliesNextPeriod =
+    isCheaperForSamePeriod ||
     (params.targetTariff.includedSeats ?? Number.POSITIVE_INFINITY) <
-    (params.currentTariff.includedSeats ?? Number.POSITIVE_INFINITY);
+      (params.currentTariff.includedSeats ?? Number.POSITIVE_INFINITY);
+  const targetSeatLimit = params.targetTariff.includedSeats;
+  if (
+    targetSeatLimit !== null &&
+    params.usage.clinic_team !== undefined &&
+    params.usage.clinic_team > targetSeatLimit &&
+    blockableMechanics.includes('clinic_team')
+  ) {
+    blocks.push({ mechanic: 'clinic_team', reason: 'quota_exceeded' });
+  }
   for (const mechanic of MECHANICS) {
     const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
     const policy = params.targetTariff.downgradePolicies[mechanic] ?? 'block';
@@ -523,23 +557,70 @@ export function evaluateTariffTransition(params: {
       if (!targetQuota || targetQuota.kind === 'unlimited' || targetQuota.limit === null) continue;
       const used = params.usage[mechanic] ?? 0;
       if (used <= targetQuota.limit) continue;
-      if (policy === 'block') blocks.push({ mechanic, reason: 'quota_exceeded' });
+      if (policy === 'block' && blockableMechanics.includes(mechanic)) {
+        blocks.push({ mechanic, reason: 'quota_exceeded' });
+      }
     } else if (mechanicClass === 'возможность') {
       const wasIncluded = params.currentTariff.mechanics[mechanic] === true;
       const willBeIncluded = params.targetTariff.mechanics[mechanic] === true;
       if (!wasIncluded || willBeIncluded) continue;
       appliesNextPeriod = true;
-      if (policy === 'block') blocks.push({ mechanic, reason: 'mechanic_removed' });
+      if (policy === 'block' && blockableMechanics.includes(mechanic)) {
+        blocks.push({ mechanic, reason: 'mechanic_removed' });
+      }
     }
   }
   return { blocks, appliesNextPeriod };
 }
 
+/**
+ * Clinic billing uses the same transition evaluator as platform assignment, but its owner-approved
+ * cleanup gate is deliberately narrower: specialists, branches and patients. File overage is never
+ * a reason to refuse a downgrade; the existing file write door freezes only new upload growth.
+ */
+export async function resolveOwnTariffTransition(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+  tariffId: string,
+) {
+  const [snapshot, targetTariff, usage] = await Promise.all([
+    port.getSnapshot(organizationId),
+    port.getActiveTariffById(tariffId),
+    port.getOwnQuotaUsage(organizationId),
+  ]);
+  if (!targetTariff) throw new Error('tariff_not_found');
+  const currentTariff = snapshot.tariff;
+  return {
+    currentTariffId: currentTariff?.id ?? snapshot.access.tariffId,
+    targetTariffId: targetTariff.id,
+    ...(currentTariff
+      ? evaluateTariffTransition({
+          usage,
+          currentTariff,
+          targetTariff,
+          blockableMechanics: ['clinic_team', 'branches', 'patient_count'],
+        })
+      : { blocks: [], appliesNextPeriod: false }),
+  };
+}
+
 /** Compatibility export for callers that only need blockers; transition classification lives above. */
 export function evaluateTariffDowngrade(params: {
   usage: Partial<Record<OrgMechanic, number>>;
-  currentTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'includedSeats'>;
-  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies' | 'includedSeats'>;
+  currentTariff: Pick<
+    Tariff,
+    'mechanics' | 'quotas' | 'includedSeats' | 'priceMinor' | 'currency' | 'billingPeriod'
+  >;
+  targetTariff: Pick<
+    Tariff,
+    | 'mechanics'
+    | 'quotas'
+    | 'downgradePolicies'
+    | 'includedSeats'
+    | 'priceMinor'
+    | 'currency'
+    | 'billingPeriod'
+  >;
 }): TariffDowngradeBlock[] {
   return evaluateTariffTransition(params).blocks;
 }
