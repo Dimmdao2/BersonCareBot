@@ -1,6 +1,7 @@
 import type { SystemSettingsService } from './service';
 import type { SystemSetting } from './types';
 import { redactSaasBillingPaymentProviderValue } from '@/modules/saas-billing/settings';
+import { isSecretValueSettingKey } from './auditRedaction';
 
 export type WebPushVapidKeyPair = {
   publicKey: string;
@@ -90,8 +91,26 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         },
       };
     }
-    if (s.key === 'smsc_api_key') {
+    if (
+      s.key === 'smsc_api_key' ||
+      s.key === 'clinic_smsc_api_key' ||
+      s.key === 'clinic_telegram_bot_token' ||
+      s.key === 'clinic_max_bot_api_key'
+    ) {
       return { ...s, valueJson: { value: '[REDACTED]' } };
+    }
+    if (s.key === 'clinic_smtp_outbound') {
+      const value =
+        s.valueJson && typeof s.valueJson === 'object' && 'value' in s.valueJson
+          ? (s.valueJson as Record<string, unknown>).value
+          : null;
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const redacted = { ...(value as Record<string, unknown>) };
+        const hasStoredPassword =
+          typeof redacted.password === 'string' && redacted.password.trim().length > 0;
+        delete redacted.password;
+        return { ...s, valueJson: { value: { ...redacted, hasStoredPassword } } };
+      }
     }
     if (s.key === 'vk_id_client_secret') {
       const value =
@@ -114,6 +133,18 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         ...s,
         valueJson: {
           value: { hasStoredSecret: typeof value === 'string' && value.trim().length > 0 },
+        },
+      };
+    }
+    if (isSecretValueSettingKey(s.key)) {
+      const value =
+        s.valueJson !== null && typeof s.valueJson === 'object'
+          ? (s.valueJson as Record<string, unknown>).value
+          : null;
+      return {
+        ...s,
+        valueJson: {
+          value: typeof value === 'string' && value.trim().length > 0 ? '[REDACTED]' : '',
         },
       };
     }

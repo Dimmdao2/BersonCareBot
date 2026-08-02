@@ -1,9 +1,9 @@
 /**
- * Google Calendar runtime config: DB-backed (`public.system_settings`, admin scope)
- * with env fallback for backward compatibility during rollout. Reads on demand.
+ * Google Calendar runtime config: canonical DB-backed `public.system_settings` (admin scope).
+ * Reads on demand so an admin availability switch takes effect without a redeploy.
  */
 import { createDbPort } from '../../infra/db/client.js';
-import { googleCalendarConfig, type GoogleCalendarConfig } from './config.js';
+import type { GoogleCalendarConfig } from './config.js';
 import { logger } from '../../infra/observability/logger.js';
 import {
   listExactOrganizationIdsWithTruePublicSystemSetting,
@@ -25,13 +25,10 @@ async function readDbSetting(
 }
 
 /**
- * Platform OAuth identity keeps its bounded legacy env fallback. Clinic-owned connection
- * values are exact organization rows and never inherit an env or global setting.
+ * Clinic-owned connection values are exact organization rows. The platform OAuth identity
+ * is global, but every value remains canonical DB state; unavailable authority fails closed.
  */
-async function mergeConfigFromDbWithEnv(
-  env: GoogleCalendarConfig,
-  organizationId: string,
-): Promise<GoogleCalendarConfig> {
+async function readConfigFromDb(organizationId: string): Promise<GoogleCalendarConfig> {
   try {
     const db = createDbPort();
     const [
@@ -55,16 +52,23 @@ async function mergeConfigFromDbWithEnv(
       enabled:
         platformAvailable &&
         (enabledRaw !== null ? enabledRaw === 'true' || enabledRaw === '1' : false),
-      clientId: clientId ?? env.clientId,
-      clientSecret: clientSecret ?? env.clientSecret,
-      redirectUri: redirectUri ?? env.redirectUri,
-      // A clinic connection must never inherit either value from another clinic or legacy env.
+      clientId: clientId ?? '',
+      clientSecret: clientSecret ?? '',
+      redirectUri: redirectUri ?? '',
+      // A clinic connection must never inherit either value from another clinic.
       calendarId: calendarId ?? '',
       refreshToken: refreshToken ?? '',
     };
   } catch (err) {
     logger.warn({ err }, '[google-calendar] failed to read clinic config from DB');
-    return { ...env, enabled: false, calendarId: '', refreshToken: '' };
+    return {
+      enabled: false,
+      clientId: '',
+      clientSecret: '',
+      redirectUri: '',
+      calendarId: '',
+      refreshToken: '',
+    };
   }
 }
 
@@ -84,15 +88,19 @@ export async function listGoogleCalendarProbeOrganizationIds(): Promise<string[]
   }
 }
 
-/** @deprecated env fallback — use DB (system_settings admin) via webapp Settings UI */
-const envFallback = googleCalendarConfig;
-
 export async function getGoogleCalendarConfig(
   organizationId: string | null | undefined = null,
 ): Promise<GoogleCalendarConfig> {
   const normalizedOrganizationId = organizationId?.trim() ?? '';
   if (!normalizedOrganizationId) {
-    return { ...envFallback, enabled: false, calendarId: '', refreshToken: '' };
+    return {
+      enabled: false,
+      clientId: '',
+      clientSecret: '',
+      redirectUri: '',
+      calendarId: '',
+      refreshToken: '',
+    };
   }
-  return mergeConfigFromDbWithEnv(envFallback, normalizedOrganizationId);
+  return readConfigFromDb(normalizedOrganizationId);
 }

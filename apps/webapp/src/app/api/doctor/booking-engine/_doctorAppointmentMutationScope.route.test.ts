@@ -131,6 +131,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireDoctorBookingEngine.mockResolvedValue({ ok: true, ctx: context(false) });
   mocks.buildAppDeps.mockReturnValue({
+    orgEntitlements: {
+      resolveMechanicAccess: vi.fn().mockResolvedValue({
+        mechanic: 'subscriptions',
+        state: 'full_access',
+        policySource: 'system',
+        warning: null,
+      }),
+    },
     bookingAppointmentLifecycle: {
       staffCancel: mocks.staffCancel,
       staffMarkNoShow: mocks.staffMarkNoShow,
@@ -161,7 +169,7 @@ describe('doctor appointment mutation scope', () => {
       expect(response.status).toBe(404);
       await expect(response.json()).resolves.toEqual({ ok: false, error: 'not_found' });
     }
-    expect(mocks.buildAppDeps).not.toHaveBeenCalled();
+    expect(mocks.buildAppDeps).toHaveBeenCalledTimes(3);
     expect(mocks.staffPurgeCancelledAppointment).not.toHaveBeenCalled();
     expect(mocks.runPackageDetach).not.toHaveBeenCalled();
   });

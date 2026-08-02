@@ -95,5 +95,6 @@ export async function POST(request: Request) {
         ? getRedirectPathForRole(user.role)
         : '/app/account?tab=security',
     recoveryMode: result.recoveryMode,
+    role: user.role,
   });
 }

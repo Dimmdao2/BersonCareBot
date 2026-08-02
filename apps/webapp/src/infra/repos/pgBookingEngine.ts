@@ -6,7 +6,7 @@ import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
-import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
+import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 import {
   assertManualPatientCommandReplay,
   findManualPatientCommand,
@@ -603,17 +603,22 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       return runWebappTransaction(async (tx) => {
         // §5a stage 5.3: atomic branches quota, checked before the palette lock/count below —
         // deactivating a branch (isActive=false) frees its slot, so only active branches count.
-        await assertStockQuotaAvailable(tx, input.organizationId, 'branches', async () => {
-          const usage = await runWebappPgText<{ used_value: number }>(
-            `SELECT count(*)::int AS used_value
-             FROM be_branches
-             WHERE organization_id = $1
-               AND is_active = true`,
-            [input.organizationId],
-            tx,
-          );
-          return usage.rows[0]?.used_value ?? 0;
-        });
+        await transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'branches' },
+          (quota) =>
+            quota.assertStockAvailable(async () => {
+              const usage = await runWebappPgText<{ used_value: number }>(
+                `SELECT count(*)::int AS used_value
+                 FROM be_branches
+                 WHERE organization_id = $1
+                   AND is_active = true`,
+                [input.organizationId],
+                tx,
+              );
+              return usage.rows[0]?.used_value ?? 0;
+            }),
+        );
         await tx.execute(
           sql`SELECT pg_advisory_xact_lock(hashtextextended(${`booking-location-palette:${input.organizationId}`}, 0))`,
         );

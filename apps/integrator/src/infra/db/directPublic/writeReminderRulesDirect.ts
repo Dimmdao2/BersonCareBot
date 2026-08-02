@@ -13,8 +13,7 @@
  *    `writePort.ts`) only ever carried the narrow fingerprint field set (id/user/category/enabled/
  *    schedule/timezone/interval/window/daysMask/contentMode) — `linkedObjectType`, `linkedObjectId`,
  *    `customTitle`, `customText`, `scheduleData`, `reminderIntent`, `quietHoursStart/EndMinute` and
- *    `notificationTopicCode` were ALWAYS written to the integrator-local `user_reminder_rules` row
- *    (`upsertReminderRule`, `apps/integrator/src/infra/db/repos/reminders.ts`) but NEVER propagated to
+ *    `notificationTopicCode` were not carried by the retired projection and never reached
  *    `public.reminder_rules` — every bot/webhook-originated rule with a linked object (LFK complex,
  *    rehab program, custom text, etc.) landed in the webapp/patient-facing table missing those fields.
  *    This direct write carries the FULL field set (parity with `upsertReminderRule`'s own column list).

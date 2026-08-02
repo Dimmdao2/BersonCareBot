@@ -95,16 +95,16 @@ assert.equal(
         localFk: 'occurrence_id',
       },
       {
-        table: 'integrator.user_reminder_rules',
+        table: 'public.reminder_rules',
         alias: 'b4f_rule',
-        parentPk: 'id',
+        parentPk: 'integrator_rule_id',
         localFk: 'rule_id',
       },
     ],
-    terminalColumn: 'user_id',
+    terminalColumn: 'integrator_user_id',
     castType: 'bigint',
   }),
-  `(${integratorContext} IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "integrator"."user_reminder_rules" AS "b4f_rule" ON "b4f_rule"."id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."user_id" = ${integratorContext} ))`,
+  `(${integratorContext} IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "public"."reminder_rules" AS "b4f_rule" ON "b4f_rule"."integrator_rule_id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."integrator_user_id" = ${integratorContext} ))`,
   'chain patient predicate must nest joins from the policy row to the terminal identity column',
 );
 
@@ -181,8 +181,8 @@ assert.equal(evaluateBootstrapHybrid({ rowOrg: orgA, gucValue: '' }), false);
 assert.equal(quoteSqlIdentifier('organization_id'), '"organization_id"');
 assert.equal(quoteQualifiedName('public.patient_files'), '"public"."patient_files"');
 assert.equal(
-  renderPolicyTarget('integrator.user_reminder_rules'),
-  '"integrator"."user_reminder_rules"',
+  renderPolicyTarget('public.reminder_rules'),
+  '"public"."reminder_rules"',
 );
 assert.throws(
   () => quoteSqlIdentifier('organization_id; DROP TABLE patients'),

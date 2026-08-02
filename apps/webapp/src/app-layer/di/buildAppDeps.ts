@@ -251,6 +251,7 @@ import { inMemoryDoctorNotesPort } from '@/infra/repos/inMemoryDoctorNotes';
 import {
   createPgSystemSettingsPort,
   createPgSystemSettingsWriteUnitOfWork,
+  readSaasBillingPaymentProviderValue,
 } from '@/infra/repos/pgSystemSettings';
 import { inMemorySystemSettingsPort } from '@/infra/repos/inMemorySystemSettings';
 import { createSystemSettingsService } from '@/modules/system-settings/service';
@@ -292,8 +293,6 @@ import { createInMemoryTreatmentProgramPersistence } from '@/infra/repos/inMemor
 import { createPgTreatmentProgramTestAttemptsPort } from '@/infra/repos/pgTreatmentProgramTestAttempts';
 import { createPgProgramActionLogPort } from '@/infra/repos/pgProgramActionLog';
 import { createInMemoryProgramActionLogPort } from '@/infra/repos/inMemoryProgramActionLog';
-import { createPgDoctorProactiveInsightsPort } from '@/infra/repos/pgDoctorProactiveInsights';
-import { createInMemoryDoctorProactiveInsightsPort } from '@/infra/repos/inMemoryDoctorProactiveInsights';
 import { createPgProgramItemDiscussionPort } from '@/infra/repos/pgProgramItemDiscussion';
 import { createInMemoryProgramItemDiscussionPort } from '@/infra/repos/inMemoryProgramItemDiscussion';
 import { createPgPatientDiarySnapshotsPort } from '@/infra/repos/pgPatientDiarySnapshots';
@@ -355,7 +354,8 @@ import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitl
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
 import {
   createPlatformEntitlementsService,
-  isMechanicEnabled,
+  resolveMechanicAccess,
+  resolveOwnTariffTransition,
 } from '@/modules/org-entitlements/service';
 import { createPgOrgBrandingPort } from '@/infra/repos/pgOrgBranding';
 import { createInMemoryOrgBrandingPort } from '@/infra/repos/inMemoryOrgBranding';
@@ -573,8 +573,8 @@ const orgEntitlementsPort = !inMemoryRepos
  */
 const orgBrandingService = createOrgBrandingService({
   port: !inMemoryRepos ? createPgOrgBrandingPort() : createInMemoryOrgBrandingPort(),
-  isBrandingMechanicEnabled: (organizationId: string) =>
-    isMechanicEnabled(orgEntitlementsPort, organizationId, 'branding'),
+  resolveBrandingAccess: (organizationId: string) =>
+    resolveMechanicAccess(orgEntitlementsPort, organizationId, 'branding'),
 });
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
@@ -745,13 +745,15 @@ const saasBillingService = createSaasBillingService({
   repository: saasBillingRepository,
   settings: {
     getSaasBillingPaymentProviderValue: () =>
-      systemSettingsService
-        .getSetting('saas_billing_payment_provider', 'admin')
-        .then((row) => row?.valueJson ?? null),
+      inMemoryRepos
+        ? systemSettingsService
+            .getSetting('saas_billing_payment_provider', 'admin')
+            .then((row) => row?.valueJson ?? null)
+        : readSaasBillingPaymentProviderValue(),
   },
   resolvePaymentProvider: getPaymentProviderAdapter,
   getTariffTransition: (organizationId, tariffId) =>
-    platformEntitlementsService.getTariffTransition(organizationId, tariffId),
+    resolveOwnTariffTransition(orgEntitlementsPort, organizationId, tariffId),
 });
 platformEntitlementsService = createPlatformEntitlementsService(
   !inMemoryRepos
@@ -817,6 +819,13 @@ const paymentsService =
         ),
         captureUnitOfWork: createPgPaymentCaptureUnitOfWork(),
         bookingEngine: bookingEngineService,
+        canCreatePaymentIntent: async (organizationId) => {
+          const access = await orgEntitlementsPort.resolveMechanicAccess(
+            organizationId,
+            'payments',
+          );
+          return access.state === 'full_access' || access.state === 'grace';
+        },
         onPackagePaymentCaptured: membershipsService
           ? async ({ patientPackageId, paymentId, organizationId }) => {
               await membershipsService.activatePatientPackage(
@@ -939,9 +948,6 @@ const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
 const programActionLogPort = !inMemoryRepos
   ? createPgProgramActionLogPort()
   : createInMemoryProgramActionLogPort();
-const doctorProactiveInsightsPort = !inMemoryRepos
-  ? createPgDoctorProactiveInsightsPort()
-  : createInMemoryDoctorProactiveInsightsPort();
 const programItemDiscussionPort = !inMemoryRepos
   ? createPgProgramItemDiscussionPort()
   : createInMemoryProgramItemDiscussionPort();
@@ -1133,11 +1139,16 @@ patientBookingService = createPatientBookingService({
   appointmentLifecycle: bookingAppointmentLifecycleService,
   payments: paymentsService,
   canAcceptBookingPrepayment: async (organizationId) => {
-    const access = await orgEntitlementsPort.resolveMechanicAccess(
-      organizationId,
-      'booking_prepayment',
+    const [prepaymentAccess, paymentsAccess] = await Promise.all([
+      orgEntitlementsPort.resolveMechanicAccess(organizationId, 'booking_prepayment'),
+      orgEntitlementsPort.resolveMechanicAccess(organizationId, 'payments'),
+    ]);
+    return (
+      (prepaymentAccess.state === 'full_access' ||
+        prepaymentAccess.state === 'grace' ||
+        prepaymentAccess.state === 'read_only') &&
+      (paymentsAccess.state === 'full_access' || paymentsAccess.state === 'grace')
     );
-    return access.state === 'full_access' || access.state === 'grace';
   },
   memberships: membershipsServiceResolved,
   clientHistory: clientHistoryService,
@@ -1796,7 +1807,6 @@ function _buildAppDeps() {
     warmupFeelingCompletion: warmupFeelingCompletionPort,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
-    doctorProactiveInsights: doctorProactiveInsightsPort,
     treatmentProgramPatientActions,
     programItemDiscussion: programItemDiscussionService,
     /** Журнал действий пациента по программе (дневник недели и др.). */

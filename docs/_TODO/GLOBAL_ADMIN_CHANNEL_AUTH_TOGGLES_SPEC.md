@@ -125,8 +125,8 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
       `apps/integrator/src/kernel/domain/executor/executeActionHomeMiniAppRemoval.unit.test.ts`.
 - [x] Удалить Telegram/MAX mini-app entry points из booking-путей, сохранив bot callbacks записи,
       подготовки и адреса — `apps/integrator/src/kernel/domain/executor/executeActionBookingMiniAppRemoval.unit.test.ts`.
-- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из diary-путей, сохранив bot-сценарии дневника.
-- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из reminder-путей, сохранив bot-уведомления.
+- [-] ~~Удалить оставшиеся Telegram/MAX mini-app entry points из diary-путей, сохранив bot-сценарии дневника.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: отдельного mini-app дневника нет; дневник и его входы не удалять.
+- [x] Удалить оставшиеся Telegram/MAX mini-app entry points из reminder-путей, сохранив bot-уведомления. — реальные Telegram/MAX планы `menu.more` строят обычную `url`-кнопку; dispatch-клавиатура сохраняет canonical URL и `snooze`/`skip`/notification-settings callbacks без `web_app`/`open_app`: `apps/integrator/src/kernel/domain/executor/executeActionDiaryReminderMiniAppRemoval.unit.test.ts`. Проверка: `pnpm --dir apps/integrator exec vitest run src/kernel/domain/executor/executeActionDiaryReminderMiniAppRemoval.unit.test.ts src/kernel/domain/executor/handlers/reminders.skip.d21a.test.ts src/kernel/domain/executor/handlers/reminders.notifSettings.d22.test.ts` (10 passed, 2026-08-02).
 - [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
       Telegram/MAX mini-app launch buttons отсутствуют.
 
@@ -288,11 +288,22 @@ commit `53b93c41e`; точный grant-путь — `d3-4-bootstrap-base-login-r
 - landing ведёт отдельно специалиста и пациента; пациент также входит со страницы записи, public clinic page
   и из своего кабинета.
 
-- [ ] Реализовать role-specific login surfaces и перенаправлять неавторизованного с `/app/doctor/*`,
+Порядок сведения 02.08: авторизационная основа — `wt/role-login` (`fe911300a`), потому что она централизованно
+проводит выбранную дверь через пароль, passkey, OAuth state, сессию и безопасный возврат. Из
+`wt/role-login-surfaces` (`63807cc7b`) переносится только UI трёх дверей отдельным откатываемым коммитом. Её второй
+модуль определения роли, вторые redirect rules и дубли страниц не переносятся. Сначала принимается авторизационное
+поведение, затем UI-коммит; живой TEST проходит все три двери, сохранение `next` и вход пользователя не своей роли.
+
+- [x] Реализовать role-specific login surfaces и перенаправлять неавторизованного с `/app/doctor/*`,
       `/app/patient/*`, `/app/admin/*` на соответствующую дверь, исключив сами login routes из redirect rule.
-- [ ] Сохранить `next=` и все public pages под этими префиксами; public surface нельзя отправлять на login.
-- [ ] Авторизованного с чужой ролью вести в его собственный кабинет с отказом `app_access_denied=1`, а не на
-      экран входа.
+      Evidence: `apps/webapp/src/shared/ui/auth/RoleLoginPortalHeader.ui.test.tsx` and
+      `apps/webapp/src/proxy.route.test.ts`.
+- [x] Сохранить `next=` и все public pages под этими префиксами; public surface нельзя отправлять на login.
+      Evidence: `apps/webapp/src/modules/auth/redirectPolicy.unit.test.ts` and
+      `apps/webapp/src/proxy.route.test.ts`.
+- [x] Авторизованного с чужой ролью вести в его собственный кабинет с отказом `app_access_denied=1`, а не на
+      экран входа. Evidence: `apps/webapp/src/modules/auth/redirectPolicy.unit.test.ts` and
+      `apps/webapp/src/proxy.route.test.ts`.
 - [ ] Исследовать и зафиксировать текст для верных credentials на чужом portal. Предложение владельца —
       тот же текст, что для неверного пароля; не выдавать это за решение до завершения сравнения Epic, Doctolib,
       Zocdoc, Shopify, Atlassian и Salesforce.

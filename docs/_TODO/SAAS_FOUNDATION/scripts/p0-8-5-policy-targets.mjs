@@ -8,7 +8,6 @@ export const p085PolicyName = 'saas_org_dormant_p0_8_5';
 export const expectedP085IntegratorDirectUserBridgeTargets = Object.freeze([
   'integrator.contacts',
   'integrator.content_access_grants',
-  'integrator.user_reminder_rules',
 ]);
 
 export const expectedP085IntegratorIdentityBridgeTargets = Object.freeze([

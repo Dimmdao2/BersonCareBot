@@ -64,6 +64,7 @@ export function BookingPrepaymentSection() {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [policies, setPolicies] = useState<PolicyRow[]>([]);
   const [availability, setAvailability] = useState<PrepaymentAvailability | null>(null);
+  const [visible, setVisible] = useState<boolean | null>(null);
   const [serviceId, setServiceId] = useState('');
   const [onlineCategory, setOnlineCategory] =
     useState<(typeof ONLINE_CATEGORIES)[number]['value']>('general');
@@ -77,11 +78,18 @@ export function BookingPrepaymentSection() {
     try {
       const [svcJson, polJson] = await Promise.all([
         apiJson<{ ok?: boolean; services?: ServiceRow[] }>(SERVICES_API),
-        apiJson<{ ok?: boolean; policies?: PolicyRow[]; availability?: PrepaymentAvailability }>(
+        apiJson<{
+          ok?: boolean;
+          policies?: PolicyRow[];
+          availability?: PrepaymentAvailability;
+          visible?: boolean;
+        }>(
           POLICY_API,
         ),
       ]);
       if (svcJson.services) setServices(svcJson.services);
+      setVisible(polJson.visible !== false);
+      if (polJson.visible === false) return;
       if (polJson.availability) setAvailability(polJson.availability);
       if (polJson.policies) {
         setPolicies(
@@ -173,10 +181,16 @@ export function BookingPrepaymentSection() {
   }
 
   const canEnable = availability?.available ?? false;
+  const mutationsLockedByTariff =
+    availability?.reason === 'commercial_read_only' ||
+    availability?.reason === 'commercial_blocked' ||
+    availability?.reason === 'access_lifecycle_unconfigured';
   const availabilityMessage =
     availability && !availability.available && availability.reason
       ? AVAILABILITY_MESSAGES[availability.reason]
       : null;
+
+  if (visible !== true) return null;
 
   return (
     <Card>
@@ -256,6 +270,7 @@ export function BookingPrepaymentSection() {
           <Label>Режим</Label>
           <Select
             value={mode}
+            disabled={mutationsLockedByTariff}
             onValueChange={(v) => {
               if (canEnable || v === 'disabled') setMode(v as PolicyRow['mode']);
             }}
@@ -298,7 +313,10 @@ export function BookingPrepaymentSection() {
         <Button
           type="button"
           disabled={
-            pending || (scope === 'service' && !serviceId) || (mode !== 'disabled' && !canEnable)
+            pending ||
+            mutationsLockedByTariff ||
+            (scope === 'service' && !serviceId) ||
+            (mode !== 'disabled' && !canEnable)
           }
           onClick={save}
         >

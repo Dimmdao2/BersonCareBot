@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { emitPackageLinkedCalendarSync } from '@/app-layer/booking/emitPackageCalendarSync';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
@@ -12,6 +13,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function POST(_request: Request, context: RouteContext) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'subscriptions');
+  if (!entitlement.ok) return entitlement.response;
   const { id: patientPackageId } = await context.params;
   const deps = buildAppDeps();
   if (!deps.memberships) {

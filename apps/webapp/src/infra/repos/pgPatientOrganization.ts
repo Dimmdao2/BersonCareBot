@@ -17,7 +17,7 @@ import {
   ensureInvitedOrganizationClientRelationship,
   OrganizationClientRelationshipDeniedError,
 } from '@/infra/repos/pgPatientOrganizationEnrollment';
-import { StockQuotaReachedError } from '@/infra/repos/stockQuotaCheck';
+import { StockQuotaReachedError } from '@/infra/repos/transactionQuotaPort';
 import {
   assertManualPatientCommandReplay,
   findManualPatientCommand,

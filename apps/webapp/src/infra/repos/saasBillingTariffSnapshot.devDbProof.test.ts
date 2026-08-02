@@ -3,8 +3,8 @@
  * тарифа все настройки оплаченного тарифа фиксируются на оплаченный период для конкретной клиники.
  * Не важно что меняется после - клиника уже оплатила и пока оплата не закончилась - имеет доступ к
  * оплаченному». These hit the REAL, migrated `app.resolve_organization_mechanic_access` door
- * (migration 0295_tariff_paid_period_snapshot_local.sql) and the real `assertStockQuotaAvailable`
- * (`stockQuotaCheck.ts`), not a mock:
+ * (migration 0295_tariff_paid_period_snapshot_local.sql) and the real transaction quota port,
+ * not a mock:
  *
  *   1. editing the LIVE tariff mid-period does not take away what the clinic already paid for.
  *   2. round 2 (#1069 FAIL, migration 0296) — shrinking a LIVE tariff QUOTA mid-period does not
@@ -25,7 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
 import { getWebappSqlFromPgClient, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
-import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
+import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 
 const TARIFF = '7e510000-0000-4000-8000-0000002c1201';
 const ORG = '7e510000-0000-4000-8000-0000002c1202';
@@ -150,10 +150,12 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
     expect(await resolveCourses(db)).toMatchObject({ state: 'full_access', mutation_allowed: true });
   });
 
-  it('§2.12 round 2 — shrinking the LIVE tariff quota mid-period does not reach the frozen limit (stockQuotaCheck.ts)', async () => {
+  it('§2.12 round 2 — shrinking the LIVE tariff quota mid-period does not reach the frozen limit', async () => {
     // Frozen snapshot still says limit 10 — 9 used + 1 more fits.
     await expect(
-      assertStockQuotaAvailable(db, ORG, 'patient_count', async () => 9),
+      transactionQuotaPort.withinLock(db, { organizationId: ORG, mechanic: 'patient_count' }, (quota) =>
+        quota.assertStockAvailable(async () => 9),
+      ),
     ).resolves.toBeUndefined();
 
     await db.execute(
@@ -165,7 +167,9 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
     // Before the round-2 fix this read the LIVE tariff (limit 3) and threw here; the frozen
     // snapshot still says 10, so 9 used + 1 more still fits for the rest of the paid period.
     await expect(
-      assertStockQuotaAvailable(db, ORG, 'patient_count', async () => 9),
+      transactionQuotaPort.withinLock(db, { organizationId: ORG, mechanic: 'patient_count' }, (quota) =>
+        quota.assertStockAvailable(async () => 9),
+      ),
     ).resolves.toBeUndefined();
   });
 

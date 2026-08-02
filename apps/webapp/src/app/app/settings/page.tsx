@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { createHash } from 'node:crypto';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
+  getMechanicMutationAvailability,
   isMechanicIncluded,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
@@ -30,6 +33,7 @@ import { BillingSection, type BillingMechanicRow } from './BillingSection';
 import { describeCommercialAccessState } from './billingCommercialState';
 import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
 import { ClinicSlugSection } from './ClinicSlugSection';
+import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
 import { OrgBrandingSection } from './OrgBrandingSection';
 import { SettingsForm } from './SettingsForm';
 import { SettingsTabsNav } from './SettingsTabsNav';
@@ -38,6 +42,7 @@ import { TeamSection } from './TeamSection';
 import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { parsePlatformIntegrationAvailabilityEnvelope } from '@/modules/system-settings/platformIntegrationAvailability';
+import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
 
@@ -49,6 +54,16 @@ function valueOf<T>(valueJson: unknown, fallback: T): T {
     'value' in (valueJson as Record<string, unknown>)
     ? ((valueJson as Record<string, unknown>).value as T)
     : fallback;
+}
+
+function dedicatedBotWebhookPath(
+  channel: 'telegram' | 'max',
+  valueJson: unknown,
+): string | null {
+  const credential = String(valueOf(valueJson, '') ?? '').trim();
+  if (!credential) return null;
+  const fingerprint = createHash('sha256').update(credential).digest('hex');
+  return `/webhook/${channel}/dedicated/${fingerprint}`;
 }
 
 function parseTab(raw: string | string[] | undefined): LegacySettingsTab | null {
@@ -131,7 +146,9 @@ export default async function SettingsPage({
           organizationId: workspace.organizationId,
         }),
         deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
-        deps.orgBranding.getManagementState(brandingCtx),
+        withDoctorWorkspacePrincipal(workspace, 'app.settings.org-branding.read', () =>
+          deps.orgBranding.getManagementState(brandingCtx),
+        ),
         workspace.canManageOrganization && deps.clinicDirectory
           ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
           : Promise.resolve(null),
@@ -188,6 +205,34 @@ export default async function SettingsPage({
         ?.valueJson,
     );
     const externalCalendarEnabled = await isMechanicIncluded(workspace, 'external_calendar');
+    const clinicAdminSetting = (key: string) =>
+      clinicAdminSettings.find(
+        (setting) => setting.key === key && setting.organizationId === workspace.organizationId,
+      ) ?? null;
+    const clinicSmtp = smtpInnerFromValueJson(
+      clinicAdminSetting('clinic_smtp_outbound')?.valueJson,
+    );
+    const clinicDelivery = {
+      smtp: {
+        configured: clinicSmtp.success,
+        host: clinicSmtp.success ? clinicSmtp.data.host : '',
+        port: clinicSmtp.success ? String(clinicSmtp.data.port) : '587',
+        secure: clinicSmtp.success ? clinicSmtp.data.secure : false,
+        user: clinicSmtp.success ? clinicSmtp.data.user : '',
+        from: clinicSmtp.success ? clinicSmtp.data.from : '',
+      },
+      smsConfigured: clinicAdminSetting('clinic_smsc_api_key') !== null,
+      telegramConfigured: clinicAdminSetting('clinic_telegram_bot_token') !== null,
+      maxConfigured: clinicAdminSetting('clinic_max_bot_api_key') !== null,
+      telegramWebhookPath: dedicatedBotWebhookPath(
+        'telegram',
+        clinicAdminSetting('clinic_telegram_bot_token')?.valueJson,
+      ),
+      maxWebhookPath: dedicatedBotWebhookPath(
+        'max',
+        clinicAdminSetting('clinic_max_bot_api_key')?.valueJson,
+      ),
+    };
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
@@ -206,14 +251,16 @@ export default async function SettingsPage({
             </Link>
           </DoctorSection>
         ) : null}
-        <OrgBrandingSection
-          key={`${brandingState.brandingMechanicEnabled}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
-          brandingMechanicEnabled={brandingState.brandingMechanicEnabled}
-          coreDisplayName={brandingState.effective.core.displayName}
-          publishedDisplayName={publishedBrand?.displayName ?? null}
-          publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
-          publishedLogoUrl={publishedLogoUrl}
-        />
+        {brandingState.brandingVisible ? (
+          <OrgBrandingSection
+            key={`${brandingState.accessState}:${publishedBrand?.displayName ?? ''}:${publishedBrand?.logoMediaId ?? ''}`}
+            brandingMutationAvailable={brandingState.brandingMutationAvailable}
+            coreDisplayName={brandingState.effective.core.displayName}
+            publishedDisplayName={publishedBrand?.displayName ?? null}
+            publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
+            publishedLogoUrl={publishedLogoUrl}
+          />
+        ) : null}
         {slugState ? (
           <ClinicSlugSection initialState={slugState} appBaseUrl={env.APP_BASE_URL} />
         ) : null}
@@ -233,6 +280,7 @@ export default async function SettingsPage({
         {workspace.specialistId ? (
           <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
         ) : null}
+        <ClinicDeliveryChannelsSection initial={clinicDelivery} />
         {shouldShowGoogleCalendarSettings(
           integrationAvailability.integrations.google_calendar,
           externalCalendarEnabled,
@@ -253,10 +301,11 @@ export default async function SettingsPage({
     if (!teamEntitlement.ok) redirect(`${routePaths.settings}?tab=organization`);
 
     const deps = buildAppDeps();
-    const [members, invites, seats] = await Promise.all([
+    const [members, invites, seats, mutationAvailability] = await Promise.all([
       deps.organizationMembership.listOrganizationMembers(workspace.organizationId),
       deps.organizationInvites.listPending(workspace.organizationId),
       deps.clinicSeats.getSeatStatus(workspace.organizationId),
+      getMechanicMutationAvailability({ organizationId: workspace.organizationId }, 'clinic_team'),
     ]);
     return (
       <DoctorAppShell title="Команда" user={workspace.session.user}>
@@ -277,6 +326,7 @@ export default async function SettingsPage({
             expiresAt: invite.expiresAt,
           }))}
           seats={seats}
+          canMutateTeam={mutationAvailability.available}
         />
       </DoctorAppShell>
     );

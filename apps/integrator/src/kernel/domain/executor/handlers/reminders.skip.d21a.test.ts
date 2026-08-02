@@ -72,8 +72,7 @@ function skipPorts() {
       mutations.push(mutation);
     },
   };
-  const skipCalls: Array<{ integratorUserId: string; occurrenceId: string; reason: string | null }> =
-    [];
+  const skipCalls: Array<{ occurrenceId: string; reason: string | null }> = [];
   const remindersWebappWritesPort: RemindersWebappWritesPort = {
     postOccurrenceSnooze: async () => ({ ok: false, error: 'not used' }),
     postOccurrenceSkip: async (input) => {
@@ -96,10 +95,10 @@ describe('D21a: reminders.skip.applyPreset records skip in one step, no reason a
     const result = await handleReminders(skipAction(), skipCallbackContext(), deps);
 
     expect(result.status).toBe('success');
-    expect(deps.mutations.map((m) => m.type)).toEqual(['reminders.occurrence.markSkippedLocal']);
+    expect(deps.mutations).toEqual([]);
     expect(deps.mutations.some((m) => m.type === 'user.state.set')).toBe(false);
     expect(result.values?.conversationState).toBeUndefined();
-    expect(deps.skipCalls).toEqual([{ integratorUserId: userId, occurrenceId, reason: null }]);
+    expect(deps.skipCalls).toEqual([{ occurrenceId, reason: null }]);
     // Confirmation is sent in the same result — pressing skip is exactly one action, not a prompt.
     expect(result.intents?.some((i) => i.type === 'message.edit' || i.type === 'message.send')).toBe(
       true,
@@ -169,8 +168,7 @@ describe('D21a: skip guards occurrence ownership (D21A_AUDIT.md F5)', () => {
   it('refuses to skip an occurrence owned by a different user', async () => {
     const otherOwnerUserId = '77777777-7777-4777-8777-777777777777';
     const mutations: DbWriteMutation[] = [];
-    const skipCalls: Array<{ integratorUserId: string; occurrenceId: string; reason: string | null }> =
-      [];
+    const skipCalls: Array<{ occurrenceId: string; reason: string | null }> = [];
     const readPort: DbReadPort = {
       readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
         if (query.type === 'user.byIdentity') return { userId } as T;
@@ -218,8 +216,8 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
   function skipButtonCallbackData(): string {
     const { inline_keyboard } = buildReminderDispatchInlineKeyboard({
       primaryLabel: 'Начать тренировку',
-      primary: { kind: 'url', url: 'https://app.example.test/lfk' },
-      schedule: { kind: 'url', url: 'https://app.example.test/schedule' },
+      primaryUrl: 'https://app.example.test/lfk',
+      scheduleUrl: 'https://app.example.test/schedule',
       occurrenceId: routingOccurrenceId,
     });
     for (const row of inline_keyboard) {
@@ -233,8 +231,7 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
   function routingExecutorDeps(contentPort: ReturnType<typeof createContentPort>) {
     const templatePort = createTemplatePort({ contentPort });
     const mutations: DbWriteMutation[] = [];
-    const skipCalls: Array<{ integratorUserId: string; occurrenceId: string; reason: string | null }> =
-      [];
+    const skipCalls: Array<{ occurrenceId: string; reason: string | null }> = [];
     const readPort: DbReadPort = {
       readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
         if (query.type === 'user.byIdentity') return { userId: routingUserId } as T;
@@ -354,9 +351,9 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
       const result = await executeAction(action, domainCtx, deps);
 
       expect(result.status).toBe('success');
-      expect(deps.mutations.map((m) => m.type)).toEqual(['reminders.occurrence.markSkippedLocal']);
+      expect(deps.mutations).toEqual([]);
       expect(deps.skipCalls).toEqual([
-        { integratorUserId: routingUserId, occurrenceId: routingOccurrenceId, reason: null },
+        { occurrenceId: routingOccurrenceId, reason: null },
       ]);
     },
   );

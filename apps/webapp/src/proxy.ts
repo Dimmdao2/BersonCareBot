@@ -2,6 +2,15 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { BC_CORRELATION_ID_HEADER, resolveCorrelationId } from '@bersoncare/db-principal';
 import { applySessionRenewalToResponse } from '@/modules/auth/sessionCookie';
+import { decodeSessionCookie } from '@/modules/auth/sessionCookie';
+import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
+import {
+  getRoleLoginPath,
+  isRoleLoginPath,
+  portalForAppPath,
+  roleCanUsePortal,
+} from '@/modules/auth/roleLogin';
+import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
 import { doctorRouteRedirectResponse } from '@/middleware/doctorRouteRedirects';
 import {
   applyMessengerEntryPathCookies,
@@ -58,6 +67,28 @@ export function proxy(request: NextRequest) {
   }
 
   const pathname = request.nextUrl.pathname;
+  const portal = portalForAppPath(pathname);
+  if (portal && !isRoleLoginPath(pathname)) {
+    const session = decodeSessionCookie(request.cookies.get(SESSION_COOKIE_NAME)?.value ?? '');
+    if (!session) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = getRoleLoginPath(portal);
+      loginUrl.search = '';
+      loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
+      const response = NextResponse.redirect(loginUrl);
+      response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+      return response;
+    }
+    if (!roleCanUsePortal(session.user.role, portal)) {
+      const redirectUrl = request.nextUrl.clone();
+      const ownHub = new URL(buildOwnHubUrlWithAccessDeniedToast(session.user.role), request.url);
+      redirectUrl.pathname = ownHub.pathname;
+      redirectUrl.search = ownHub.search;
+      const response = NextResponse.redirect(redirectUrl);
+      response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+      return response;
+    }
+  }
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(BC_CORRELATION_ID_HEADER, correlationId);
   if (pathname.startsWith('/app/patient')) {

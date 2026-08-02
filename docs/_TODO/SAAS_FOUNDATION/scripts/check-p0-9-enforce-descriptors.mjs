@@ -154,7 +154,7 @@ assertIncludes(
 );
 assertIncludes(
   chainScopedSql,
-  '"user_id" = app.current_integrator_user_id()',
+  '"integrator_user_id" = app.current_integrator_user_id()',
   'P0.9 chain-owned enforce SQL must terminate on app.current_integrator_user_id(), not app.current_patient_user_id()',
 );
 assertNotIncludes(

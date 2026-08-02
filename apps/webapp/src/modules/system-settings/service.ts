@@ -119,6 +119,7 @@ async function mergeWebPushVapidPrivateRetain(
 
 async function mergeSmtpOutboundPasswordRetain(
   port: SystemSettingsPort,
+  key: 'smtp_outbound' | 'clinic_smtp_outbound',
   incoming: unknown,
   options: SystemSettingsReadOptions,
 ): Promise<{ value: unknown }> {
@@ -129,7 +130,7 @@ async function mergeSmtpOutboundPasswordRetain(
   const o = { ...(inner as Record<string, unknown>) };
   const pwdRaw = typeof o.password === 'string' ? o.password.trim() : '';
   if (pwdRaw === '') {
-    const prev = await port.getByKey('smtp_outbound', 'admin', options);
+    const prev = await port.getByKey(key, 'admin', options);
     let prevPwd = '';
     const prevVj = prev?.valueJson;
     if (
@@ -322,8 +323,8 @@ export function createSystemSettingsService(
       }
       return env;
     }
-    return key === 'smtp_outbound' && scope === 'admin'
-      ? mergeSmtpOutboundPasswordRetain(port, value, options)
+    return (key === 'smtp_outbound' || key === 'clinic_smtp_outbound') && scope === 'admin'
+      ? mergeSmtpOutboundPasswordRetain(port, key, value, options)
       : key === 'web_push_vapid' && scope === 'admin'
         ? mergeWebPushVapidPrivateRetain(port, value, options)
         : key === 'booking_payment_providers' && scope === 'admin'
