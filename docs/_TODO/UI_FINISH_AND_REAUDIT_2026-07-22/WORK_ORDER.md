@@ -391,25 +391,24 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       отдельно отнёс отсутствующее call-site покрытие к открытому D20 level 4 — это не откат D4.
 - [ ] **D5 — правила напоминаний.** `public.reminder_rules` — единственный бизнес-источник и для CRUD, и для
       чтения планировщиком.
-      **Порядок сведения 02.08:** основа — `wt/trackd-d5` (`570dba899`). Ветка обновляется от текущего `feat`,
-      проходит один независимый аудит именно чтения планировщиком, один fixer только при реальном finding и живую
-      проверку на DEV/TEST: созданное в веб-приложении правило действительно подхватывается планировщиком без чтения
-      `integrator.user_reminder_rules`. После доказательства D5 сразу сливается; галочка ставится тем же коммитом с
-      фактическим evidence.
+      **Сведение 02.08 выполнено:** ветка пересобрана как `wt/trackd-d5-salvage`, прошла один независимый аудит и
+      один fixer по сохранённому oracle, затем приземлена `e96ea7ef6`. Фактический DEV data cutover отдельно остаётся
+      открытым по CURRENT-блоку ниже; поэтому чекбокс D5 пока не закрыт.
       **Сделана write-сторона 2026-07-25** (`384e7ca29`): `reminder.rule.upserted` снят, `writePort.ts`
       (`reminders.rule.upsert`) пишет `public.reminder_rules` напрямую через
       `directPublic/writeReminderRulesDirect.ts` с полным паритетом полей (`linked_object_type/id`,
       `custom_title/text`, `schedule_data`, `reminder_intent`, `quiet_hours_*`, `notification_topic_code`) и
       правильным `organization_id`. Гранты по колонкам применены и проверены на TEST, изоляция арендаторов
       доказана живьём в откатываемых транзакциях.
-      **НЕ сделано — чтения планировщика:** `getEnabledReminderRules` (чтение `reminders.planDue`) по-прежнему
-      ходит в `integrator.user_reminder_rules`, и локальная запись туда сохранена, потому что
-      `user_reminder_occurrences.rule_id` имеет жёсткий FK `ON DELETE CASCADE`. Перевод требует миграции этого
-      FK — это машинерия жизненного цикла occurrence, то есть **D6**. Поэтому
-      `integrator.user_reminder_rules` ещё не классифицирована к удалению миграцией.
-      **Хвост, заведён отдельной задачей `task_53b67199`:** роль `app_patient`, под которой работает
-      `runWithIntegratorPrincipal`, вообще не имеет INSERT/UPDATE (и почти нигде SELECT) на таблицы схемы
-      `integrator` — значит локальные записи интегратора под настоящим запертым принципалом падают.
+      **CURRENT 03.08 — код принят, DEV data cutover не применился:** product `66d218d2f`, независимый аудит
+      `d68b0b617`, saved-oracle fix `dca053c14`, land `e96ea7ef6` перевели scheduler-read на
+      `public.reminder_rules`; disposable PostgreSQL доказал parity/FK/history. Но read-only сверка фактической DEV
+      history выявила, что SHA256 migration 0312 отсутствует в `drizzle.__drizzle_migrations`, хотя более поздние
+      migration применены через `when=1793539230026`; live FK всё ещё ссылается на
+      `integrator.user_reminder_rules(id) ON DELETE CASCADE`. Причина — 0312 поздно попала в journal с `when` ниже
+      уже применённого максимума и была молча пропущена Drizzle. Старую frozen 0312 не менять: D5 остаётся `[ ]`
+      до нового forward migration по `TRACK_D_D5_FORWARD_MIGRATION_REPAIR_BRIEF.md`, независимого acceptance,
+      land и DEV apply. `integrator.user_reminder_rules` до этого не удалять. PROD не затрагивался.
 - [x] **D6 — жизненный цикл напоминаний, доставка и гранты контента.** ✅ **ЗАКРЫТО 31.07** (`d2b206cb5`):
       история несостоявшихся occurrence больше не теряется — истечение «осиротевших» публикует то же
       идемпотентное событие завершения, миграция `0282` добирает потерянные строки (fail-closed без времени
