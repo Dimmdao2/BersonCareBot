@@ -6,6 +6,7 @@
 import {
   bigint,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -19,6 +20,7 @@ export const userReminderOccurrences = pgTable(
   {
     id: text().primaryKey().notNull(),
     ruleId: text('rule_id').notNull(),
+    platformUserId: uuid('platform_user_id').notNull(),
     occurrenceKey: text('occurrence_key').notNull(),
     plannedAt: timestamp('planned_at', { withTimezone: true, mode: 'string' }).notNull(),
     status: text().default('planned').notNull(),
@@ -28,6 +30,7 @@ export const userReminderOccurrences = pgTable(
     deliveryChannel: text('delivery_channel'),
     deliveryJobId: text('delivery_job_id'),
     errorCode: text('error_code'),
+    deliveryGeneration: integer('delivery_generation').notNull().default(0),
     organizationId: uuid('organization_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()

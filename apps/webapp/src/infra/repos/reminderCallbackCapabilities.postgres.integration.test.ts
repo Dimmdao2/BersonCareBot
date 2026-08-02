@@ -162,21 +162,24 @@ describe('D7 signed reminder callback capabilities', () => {
     );
     await run(
       `INSERT INTO public.reminder_occurrence_history (
-         integrator_occurrence_id, integrator_rule_id, integrator_user_id, organization_id, category, status, occurred_at
+         integrator_occurrence_id, integrator_rule_id, integrator_user_id, platform_user_id,
+         organization_id, category, status, occurred_at
        ) VALUES
-         ($1, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-02T09:00:00.000Z'),
-         ($5, $6, $7::bigint, $8::uuid, 'lfk', 'sent', '2026-08-02T09:10:00.000Z'),
-         ($9, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-02T09:20:00.000Z'),
-         ($10, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-02T09:30:00.000Z'),
-         ($11, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-03T09:40:00.000Z')`,
+         ($1, $2, $3::bigint, $4::uuid, $5::uuid, 'lfk', 'sent', '2026-08-02T09:00:00.000Z'),
+         ($6, $7, $8::bigint, $9::uuid, $10::uuid, 'lfk', 'sent', '2026-08-02T09:10:00.000Z'),
+         ($11, $2, $3::bigint, $4::uuid, $5::uuid, 'lfk', 'sent', '2026-08-02T09:20:00.000Z'),
+         ($12, $2, $3::bigint, $4::uuid, $5::uuid, 'lfk', 'sent', '2026-08-02T09:30:00.000Z'),
+         ($13, $2, $3::bigint, $4::uuid, $5::uuid, 'lfk', 'sent', '2026-08-03T09:40:00.000Z')`,
       [
         doneOccurrenceA,
         ruleA,
         userA,
+        patientA,
         orgA,
         doneOccurrenceB,
         ruleB,
         userB,
+        patientB,
         orgB,
         snoozeOccurrenceA,
         skipOccurrenceA,
@@ -185,22 +188,24 @@ describe('D7 signed reminder callback capabilities', () => {
     );
     await run(
       `INSERT INTO integrator.user_reminder_occurrences (
-         id, rule_id, occurrence_key, planned_at, status, sent_at, organization_id
+         id, rule_id, occurrence_key, planned_at, status, sent_at, organization_id, platform_user_id
        ) VALUES
-         ($1::text, $2::text, $3::text, '2026-08-02T09:00:00.000Z'::timestamptz, 'sent', '2026-08-02T09:00:00.000Z'::timestamptz, $4::uuid),
-         ($5::text, $6::text, $7::text, '2026-08-02T09:10:00.000Z'::timestamptz, 'sent', '2026-08-02T09:10:00.000Z'::timestamptz, $8::uuid),
-         ($9::text, $2::text, $10::text, '2026-08-02T09:20:00.000Z'::timestamptz, 'sent', '2026-08-02T09:20:00.000Z'::timestamptz, $4::uuid),
-         ($11::text, $2::text, $12::text, '2026-08-02T09:30:00.000Z'::timestamptz, 'sent', '2026-08-02T09:30:00.000Z'::timestamptz, $4::uuid),
-         ($13::text, $2::text, $14::text, statement_timestamp() - interval '1 minute', 'planned', NULL, $4::uuid)`,
+         ($1::text, $2::text, $3::text, '2026-08-02T09:00:00.000Z'::timestamptz, 'sent', '2026-08-02T09:00:00.000Z'::timestamptz, $4::uuid, $5::uuid),
+         ($6::text, $7::text, $8::text, '2026-08-02T09:10:00.000Z'::timestamptz, 'sent', '2026-08-02T09:10:00.000Z'::timestamptz, $9::uuid, $10::uuid),
+         ($11::text, $2::text, $12::text, '2026-08-02T09:20:00.000Z'::timestamptz, 'sent', '2026-08-02T09:20:00.000Z'::timestamptz, $4::uuid, $5::uuid),
+         ($13::text, $2::text, $14::text, '2026-08-02T09:30:00.000Z'::timestamptz, 'sent', '2026-08-02T09:30:00.000Z'::timestamptz, $4::uuid, $5::uuid),
+         ($15::text, $2::text, $16::text, statement_timestamp() - interval '1 minute', 'planned', NULL, $4::uuid, $5::uuid)`,
       [
         doneOccurrenceA,
         ruleA,
         `d7-key-done-a-${randomUUID()}`,
         orgA,
+        patientA,
         doneOccurrenceB,
         ruleB,
         `d7-key-done-b-${randomUUID()}`,
         orgB,
+        patientB,
         snoozeOccurrenceA,
         `d7-key-snooze-a-${randomUUID()}`,
         skipOccurrenceA,
@@ -383,7 +388,7 @@ describe('D7 signed reminder callback capabilities', () => {
        FROM integrator.user_reminder_occurrences WHERE id = $1::text`,
       [skipOccurrenceA],
     );
-    expect(operational.rows).toEqual([{ status: 'sent', due_now: false }]);
+    expect(operational.rows).toEqual([{ status: 'skipped', due_now: false }]);
   });
 
   it('atomically reschedules exactly the signed snoozed occurrence and never replays it', async () => {
@@ -402,12 +407,14 @@ describe('D7 signed reminder callback capabilities', () => {
       history_snoozed_until: string;
       operational_planned_at: string;
       operational_status: string;
+      delivery_generation: number;
       due_now: boolean;
     }>(
       `SELECT
          history.snoozed_until::text AS history_snoozed_until,
          operational.planned_at::text AS operational_planned_at,
          operational.status AS operational_status,
+         operational.delivery_generation,
          operational.status = 'planned'
            AND operational.planned_at <= statement_timestamp() AS due_now
        FROM public.reminder_occurrence_history AS history
@@ -420,6 +427,7 @@ describe('D7 signed reminder callback capabilities', () => {
       history_snoozed_until: snoozedUntil,
       operational_planned_at: snoozedUntil,
       operational_status: 'planned',
+      delivery_generation: 1,
       due_now: false,
     });
     await expect(journalCount(snoozeOccurrenceA, 'snoozed')).resolves.toBe(1);
@@ -453,12 +461,18 @@ describe('D7 signed reminder callback capabilities', () => {
     );
     expect(foreignOrganization.rows).toEqual([]);
     expect(foreignUser.rows).toEqual([]);
-    const unchanged = await run<{ planned_at: string; status: string }>(
-      `SELECT planned_at::text AS planned_at, status
+    const unchanged = await run<{
+      planned_at: string;
+      status: string;
+      delivery_generation: number;
+    }>(
+      `SELECT planned_at::text AS planned_at, status, delivery_generation
        FROM integrator.user_reminder_occurrences WHERE id = $1::text`,
       [snoozeOccurrenceA],
     );
-    expect(unchanged.rows).toEqual([{ planned_at: snoozedUntil, status: 'planned' }]);
+    expect(unchanged.rows).toEqual([
+      { planned_at: snoozedUntil, status: 'planned', delivery_generation: 1 },
+    ]);
   });
 
   it('leaves canonical snooze state absent when its exact operational occurrence is absent', async () => {
@@ -486,7 +500,7 @@ describe('D7 signed reminder callback capabilities', () => {
       { organizationId: orgA, integratorUserId: userA },
       async () => {
         const mute = await run<{ muted_until: string }>(
-          `SELECT * FROM app.patient_set_reminder_muted_until('2026-08-03T00:00:00.000Z'::timestamptz)`,
+          `SELECT * FROM app.patient_set_reminder_mute(NULL::integer, true)`,
         );
         const topic = await run<{ persisted: boolean }>(
           `SELECT persisted FROM app.patient_disable_reminder_messenger_topic($1::text, 'telegram'::text)`,
@@ -517,9 +531,17 @@ describe('D7 signed reminder callback capabilities', () => {
       [patientA],
     );
     expect(canonical.rows[0]).toMatchObject({ training_enabled: false, news_enabled: false });
-    expect(new Date(canonical.rows[0]?.muted_until ?? '').toISOString()).toBe(
-      '2026-08-03T00:00:00.000Z',
-    );
+    const mutedUntil = new Date(canonical.rows[0]?.muted_until ?? '');
+    expect(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).format(mutedUntil),
+    ).toBe('00:00');
+    expect(mutedUntil.getTime()).toBeGreaterThan(Date.now());
+    expect(mutedUntil.getTime() - Date.now()).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
     const dueWhileMuted = await run<{ due_now: boolean }>(
       `SELECT operational.status = 'planned'
            AND operational.planned_at <= statement_timestamp()
@@ -527,7 +549,7 @@ describe('D7 signed reminder callback capabilities', () => {
          AS due_now
        FROM integrator.user_reminder_occurrences AS operational
        INNER JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = operational.rule_id
-       INNER JOIN public.platform_users AS patient ON patient.integrator_user_id = rule.integrator_user_id
+       INNER JOIN public.platform_users AS patient ON patient.id = operational.platform_user_id
        WHERE operational.id = $1::text`,
       [muteOccurrenceA],
     );
@@ -553,7 +575,7 @@ describe('D7 signed reminder callback capabilities', () => {
        INNER JOIN pg_roles AS owner_role ON owner_role.oid = procedure.proowner
        WHERE namespace.nspname = 'app'
          AND procedure.proname IN (
-           'patient_snooze_reminder_occurrence', 'patient_done_reminder_occurrence', 'patient_set_reminder_muted_until',
+           'patient_snooze_reminder_occurrence', 'patient_done_reminder_occurrence', 'patient_set_reminder_mute',
            'patient_disable_reminder_messenger_topic', 'patient_reminder_notification_settings'
          )
        ORDER BY procedure.proname`,

@@ -7,7 +7,6 @@ API_ENV_FILE="${API_ENV_FILE:-/opt/env/bersoncarebot/api.prod}"
 WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-operational-runtime.sql"
-WEB_PUSH_OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-web-push-reminder-runtime.sql"
 PASSWORD_SETTER="$PROJECT_ROOT/deploy/host/set-postgres-role-password.mjs"
 TEST_BOOTSTRAP=0
 
@@ -123,7 +122,6 @@ fi
 [ -r "$WEBAPP_ENV_FILE" ] || { echo "FATAL: cannot read $WEBAPP_ENV_FILE" >&2; exit 1; }
 [ -r "$MEDIA_WORKER_ENV_FILE" ] || { echo "FATAL: cannot read $MEDIA_WORKER_ENV_FILE" >&2; exit 1; }
 [ -r "$OVERLAY" ] || { echo "FATAL: cannot read $OVERLAY" >&2; exit 1; }
-[ -r "$WEB_PUSH_OVERLAY" ] || { echo "FATAL: cannot read $WEB_PUSH_OVERLAY" >&2; exit 1; }
 [ -x "$PASSWORD_SETTER" ] || { echo "FATAL: cannot execute $PASSWORD_SETTER" >&2; exit 1; }
 
 # Reject any webapp/API/operator role reuse before CREATE/ALTER/password mutation.
@@ -150,19 +148,12 @@ scheduler_url="$DATABASE_URL_SCHEDULER"
 unset DATABASE_URL
 set -a
 # shellcheck disable=SC1090
-. "$WEBAPP_ENV_FILE"
-set +a
-: "${DATABASE_URL_WEB_PUSH_REMINDER:?missing DATABASE_URL_WEB_PUSH_REMINDER}"
-web_push_reminder_url="$DATABASE_URL_WEB_PUSH_REMINDER"
-unset DATABASE_URL
-set -a
-# shellcheck disable=SC1090
 . "$MEDIA_WORKER_ENV_FILE"
 set +a
 : "${DATABASE_URL:?missing media-worker DATABASE_URL}"
 media_url="$DATABASE_URL"
 
-urls=("$diagnostic_url" "$delivery_url" "$scheduler_url" "$media_url" "$web_push_reminder_url")
+urls=("$diagnostic_url" "$delivery_url" "$scheduler_url" "$media_url")
 roles=()
 passwords=()
 database=""
@@ -191,8 +182,8 @@ for url in "${urls[@]}"; do
   passwords+=("$password")
 done
 [ "$TEST_BOOTSTRAP" != "1" ] || validate_test_database "$database"
-[ "$(printf '%s\n' "${roles[@]}" | sort -u | wc -l)" -eq 5 ] || {
-  echo "FATAL: five operational URLs must use five distinct roles" >&2
+[ "$(printf '%s\n' "${roles[@]}" | sort -u | wc -l)" -eq 4 ] || {
+  echo "FATAL: four operational URLs must use four distinct roles" >&2
   exit 1
 }
 
@@ -209,7 +200,7 @@ SQL
   printf '%s' "$password" |
     sudo -u postgres node "$PASSWORD_SETTER" "$database" "$role"
 done
-unset password passwords urls diagnostic_url delivery_url scheduler_url media_url web_push_reminder_url endpoint DATABASE_URL
+unset password passwords urls diagnostic_url delivery_url scheduler_url media_url endpoint DATABASE_URL
 
 sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
   -v c4_diagnostic_login_role="${roles[0]}" \
@@ -217,10 +208,6 @@ sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
   -v c4_scheduler_login_role="${roles[2]}" \
   -v c4_media_worker_login_role="${roles[3]}" \
   -f - < "$OVERLAY"
-
-sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
-  -v c4_web_push_reminder_login_role="${roles[4]}" \
-  -f - < "$WEB_PUSH_OVERLAY"
 
 API_ENV_FILE="$API_ENV_FILE" WEBAPP_ENV_FILE="$WEBAPP_ENV_FILE" MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV_FILE" \
   bash "$PROJECT_ROOT/deploy/host/assert-c4-operational-runtime-ready.sh"

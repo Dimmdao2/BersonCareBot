@@ -168,16 +168,16 @@ webapp/integrator credential запрещено. Пользователю **`dep
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 
-Первичное создание/нормализация пяти operational login и применение C4 grants выполняются отдельно от обычного
+Первичное создание/нормализация четырёх operational login и применение C4 grants выполняются отдельно от обычного
 deploy, **от root/DB-admin**, после наличия актуальной схемы и root-owned env-файлов:
 
 One-time PROD порядок (без фиксации значений секретов в репозитории):
 
-1. root/DB-admin создаёт пять отдельных PostgreSQL LOGIN/паролей и записывает полные connection URL в защищённые
+1. root/DB-admin создаёт четыре отдельных PostgreSQL LOGIN/пароля и записывает полные connection URL в защищённые
    файлы: `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`, `DATABASE_URL_SCHEDULER` — в `api.prod`;
-   media operational `DATABASE_URL` — в `media-worker.prod`; `DATABASE_URL_WEB_PUSH_REMINDER` — в `webapp.prod`.
+   media operational `DATABASE_URL` — в `media-worker.prod`.
 2. root запускает единственный штатный entrypoint ниже. Он сверяет раздельность URL, создаёт/нормализует роли,
-   передаёт пароли в PostgreSQL без вывода, применяет оба C4 overlay и сам запускает readiness пяти login.
+   передаёт пароли в PostgreSQL без вывода, применяет C4 overlay и сам запускает readiness четырёх login.
 3. Повторный запуск этой команды является явной операцией re-provision/rotation и повторно устанавливает пароли из
    защищённых URL. Обычный `deploy-prod.sh` эту команду и password setter не вызывает, PROD-env не переписывает и
    только fail-closed проверяет уже подготовленный C4-контракт перед рестартом.
@@ -197,8 +197,8 @@ MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test \
 bash /opt/projects/bersoncarebot-test/deploy/host/provision-c4-operational-runtime.sh --bootstrap-test-env
 ```
 
-Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL,
-добавляет пятый `DATABASE_URL_WEB_PUSH_REMINDER` в `webapp.test` и принудительно закрепляет там
+Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL
+и принудительно закрепляет в `webapp.test`
 `ALLOW_DEV_AUTH_BYPASS=false` (TEST работает как production-сборка; dev-bypass разрешён только локальному DEV),
 переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
 и нормализует три TEST-env как `root:deploy 0640`. Уже созданные URL при повторном запуске сохраняются; значения
@@ -207,7 +207,7 @@ Bootstrap дополнительно требует точный канонич�
 PROD checkout, dev-home или другого/stale каталога блокируется до чтения и изменения env/БД.
 Перед любым bootstrap wrapper запускает `bootstrap-c4-test-env.mjs --check`: обязательны только исходные
 `api.test`/`webapp.test`; отсутствующий `media-worker.test` допустим и детерминированно строится в памяти. Этот режим
-ничего не пишет. После per-file update общий C2 preflight уже требует и проверяет полный набор всех пяти URL.
+ничего не пишет. После per-file update общий C2 preflight уже требует и проверяет полный набор всех четырёх operational URL.
 
 Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
 повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из
@@ -218,8 +218,8 @@ PROD checkout, dev-home или другого/stale каталога блоки�
 duration, parameter, error-context и optional pgAudit logging, а driver/server diagnostics закрыты общей ошибкой без секрета.
 PTY/non-TTY, повторная ротация и отсутствие утечки проверяются disposable-скриптом
 `deploy/host/smoke-set-postgres-role-password.sh`. Затем provision применяет
-`deploy/postgres/c4-operational-runtime.sql` и `c4-web-push-reminder-runtime.sql` локально через системного `postgres`
-и запускает readiness всех пяти различных login. Обычный
+`deploy/postgres/c4-operational-runtime.sql` локально через системного `postgres`
+и запускает readiness всех четырёх различных login. Обычный
 `deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4
 контракт перед рестартом сервисов.
 
@@ -427,22 +427,6 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Напоминания о задачах специалиста (фаза 2C):** после миграции **`0102_specialist_tasks.sql`** — `POST /api/internal/specialist-task-reminders/tick` с тем же Bearer: due-задачи (`remind_at`, не выполнена, без `reminder_sent_at`), доставка по каналам из doctor-scope **`doctor_specialist_task_reminder_channels`** в `/app/settings`. Рекомендуется cron на loopback **каждые 5–15 минут**, параметр **`?limit=`** (по умолчанию 50, cap 100). Ответ JSON: `processed`, `sent`, `errors`.
 
-**Web Push-only напоминания (без бота):** после миграции `0075_webapp_reminder_occurrences.sql` — `POST /api/internal/reminders/web-push-only/tick` с тем же Bearer: планирует due-слоты в **`webapp_reminder_occurrences`** для правил `reminder_rules` с `integrator_user_id IS NULL` и отправляет Web Push через те же настройки каналов/тем, что M2M `notify-channels`. Рекомендуется cron на loopback **каждую минуту** (или чаще при высокой нагрузке), параметр **`?limit=`** (по умолчанию 50, cap 100). Ответ JSON: `rulesFound`, `plannedUpserts` (алиас **`planned`**), `dueClaimed`, `sent`, **`skipped`**, `skippedNoSubscription`, `skippedNoTopic`, `failed`.
-
-**Post-deploy checklist (Web Push-only reminders):**
-
-1. Применить миграции webapp (в т.ч. **`0075_webapp_reminder_occurrences`**) — `pnpm --filter @bersoncare/webapp run db:migrate` или принятый на хосте способ (`deploy-prod.sh` делает это автоматически); убедиться, что таблица `webapp_reminder_occurrences` существует.
-2. **Обязательно** установить именованную задачу только через cronport: `sudo /opt/projects/bersoncarebot/deploy/host/web-push-only-reminder-cron.sh install-prod`. Скрипт идемпотентно регистрирует минутный запуск и не раскрывает секрет в crontab. Напрямую редактировать `crontab` или `/etc/cron.d` запрещено.
-3. Smoke (один вызов, секрет не логировать):
-   ```bash
-   set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-   curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
-     "http://127.0.0.1:6200/api/internal/reminders/web-push-only/tick?limit=50"
-   ```
-   Ожидается `{"ok":true,"rulesFound":…,"plannedUpserts":…,"sent":…,…}`. При due-слоте проверить строки в `webapp_reminder_occurrences` и `notification_delivery_attempts` для `platform_user_id` пациента.
-
-Канонический режим — одна именованная cronport-задача каждую минуту с `limit=50`; повторный запуск защищён `flock`. Изменять расписание нужно через `cronport`, а не вторым параллельным cron.
-
 **Known limitations / runtime requirements:** HEIC/HEIF (`image/heic`, `image/heif`) теперь обрабатываются через `ffmpeg`, а при ошибке декодирования есть fallback через `ImageMagick` (`magick`/`convert`). На проде обязателен системный ffmpeg: `apt install ffmpeg` + `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`; иначе `@ffmpeg-installer` может давать `SIGSEGV` на видео. Для fallback HEIC установите `imagemagick` и при необходимости задайте `MAGICK_PATH=/usr/bin/magick` (или `/usr/bin/convert`). Скачивание HEIC во временный файл перед `magick` ограничено HTTP timeout 120 c; по timeout задача уходит в retry/backoff (не в immediate `skipped`).
 
 **Рекомендация nginx:** ограничить префикс `/api/internal/` только loopback, чтобы endpoint не был доступен из интернета по Bearer (дополнительно к длинному секрету):
@@ -469,7 +453,6 @@ location /api/internal/ {
 - миграция `060_media_files_status_retry.sql` применена (запись в `webapp_schema_migrations`), колонки/constraint/index присутствуют;
 - ручной вызов purge c Bearer на loopback возвращает `{"ok":true,...}`;
 - cron файл `/etc/cron.d/bersoncarebot-media-purge` установлен (каждую минуту, loopback URL);
-- cronport-задача **`bersoncarebot-prod-web-push-only-reminders`** установлена (каждую минуту, loopback `reminders/web-push-only/tick`).
 
 Пример cron (актуальный формат):
 
@@ -546,13 +529,6 @@ CRON_TZ=Europe/Moscow
 
 ```cron
 */10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/specialist-task-reminders/tick?limit=50" >/dev/null'
-```
-
-**Обязательная** host-задача Web Push-only напоминаний устанавливается только через cronport-обёртку (от root, после deploy и при наличии `INTERNAL_JOB_SECRET` в `webapp.prod`):
-
-```bash
-sudo /opt/projects/bersoncarebot/deploy/host/web-push-only-reminder-cron.sh install-prod
-/opt/projects/bersoncarebot/deploy/host/web-push-only-reminder-cron.sh status
 ```
 
 **Проверка MinIO (ops):** скрипт [`check-s3.ts`](../apps/integrator/src/infra/scripts/check-s3.ts) — из **корня репозитория** с `pnpm exec tsx ...`, переменные `S3_*` в корневом `.env` должны совпадать по смыслу с именами бакетов в `webapp.prod` (не обязателен для runtime webapp).
@@ -646,7 +622,7 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
-**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention`, `POST /api/internal/product-analytics/retention`, `POST /api/internal/media-transcode/reconcile`, `POST /api/internal/system-health-guard/tick`, `POST /api/internal/specialist-task-reminders/tick`, `POST /api/internal/reminders/web-push-only/tick`, `POST /api/internal/saas-billing/renewal/tick`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
+**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention`, `POST /api/internal/product-analytics/retention`, `POST /api/internal/media-transcode/reconcile`, `POST /api/internal/system-health-guard/tick`, `POST /api/internal/specialist-task-reminders/tick`, `POST /api/internal/saas-billing/renewal/tick`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
 
 **Auth (webapp):** Yandex OAuth и Telegram Login Widget **не** требуют новых ключей в `webapp.prod` — клиент OAuth и имя бота для виджета задаются в **`system_settings`** (admin scope) в БД webapp; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`. Секреты в env-файлы деплоя не добавлять.
 
@@ -784,21 +760,16 @@ Hard wrapper останавливает writers, восстанавливает 
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
 fail-closed до restore, если защищённый TEST-only data fixture packet не готов.
 После миграций, установки protected-principal helpers и базового FORCE finalizer общая closure сама вызывает канонический C4 TEST-bootstrap:
-после read-only source preflight атомарно заменяет каждый затронутый env-файл и добавляет/сохраняет пять отдельных
+после read-only source preflight атомарно заменяет каждый затронутый env-файл и добавляет/сохраняет четыре отдельных
 local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capability/
-discovery-definer роли, применяет оба C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
-До рестарта отдельно проверяется, что systemd webapp читает точный `webapp.test` и в нём доступен
-`DATABASE_URL_WEB_PUSH_REMINDER`. Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
+discovery-definer роли, применяет C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
+Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
 сохраняются для безопасного повторного запуска. `DONE` допустим только после FIO reconciliation; отсутствие
 защищённого manifest или несовпадение SHA-256 останавливает прогон до restore.
-Fresh wrapper намеренно не ставит cron и не вызывает live tick:
-`web-push-only-reminder-cron.sh install-test` разрешён только отдельным шагом после успешного полного fresh rehearsal.
 Безопасная локальная репетиция точного C4-сегмента wrapper (не читает и не меняет host env, БД, systemd или cron):
 `bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`.
-Readiness выполняет не только разрешённые операции: все четыре соседних capability обязаны получить отказ на
-Web Push surface, Web Push capability — на scheduler/delivery/media/business surfaces; base login не читает таблицы
-напрямую. Точный `operator_job_status` ключ `reminders.web_push_only.tick` проверяется write/read внутри rollback,
-чужие строки невидимы/не обновляются, другой ключ и DELETE обязаны завершиться отказом.
+Readiness выполняет разрешённые операции и cross-contour negative probes для четырёх operational capability;
+каждый base login остаётся отделён от соседних scheduler, delivery, diagnostic и media surfaces.
 Legacy product-smoke fixture `/run/bersoncarebot/saas-smoke.fixture`, сохранённые сессии/refs и их credential
 convergence/mint выведены из deploy решением владельца 30.07.2026. Отсутствие временного файла в `/run` не блокирует
 сборку, миграции, security closure или запуск TEST. Продуктовые проверки выполняются отдельными целевыми тестами.
@@ -1014,11 +985,10 @@ sudo systemctl reload nginx
 
 ### Host scheduled jobs (production)
 
-Все изменения расписания выполняются через `node /home/dev/brain/tools/cronport.mjs`; сырой `crontab` и `/etc/cron.d` не используются. Web Push-задача управляется репозиторной обёрткой.
+Все изменения расписания выполняются через `node /home/dev/brain/tools/cronport.mjs`; сырой `crontab` и `/etc/cron.d` не используются.
 
 | Именованная задача                                                | Обязательность                                      | Назначение                                                                                                                              |
 | ----------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **`bersoncarebot-prod-web-push-only-reminders`**                  | **обязательна** после deploy                        | `POST /api/internal/reminders/web-push-only/tick` каждую минуту — Web Push для `reminder_rules` без бота (`integrator_user_id IS NULL`) |
 | **`bersoncarebot-specialist-task-reminders`** (имя на усмотрение) | **рекомендуется** после миграции `0102`             | `POST /api/internal/specialist-task-reminders/tick` каждые 5–15 мин — напоминания врачу по `specialist_tasks`                           |
 | `bersoncarebot-media-purge`                                       | обязателен (медиа CMS)                              | purge очереди удаления `media-pending-delete`                                                                                           |
 | `bersoncarebot-media-multipart` (имя на усмотрение)               | рекомендуется                                       | multipart cleanup                                                                                                                       |
@@ -1026,17 +996,6 @@ sudo systemctl reload nginx
 | `bersoncarebot-product-analytics-retention`                       | рекомендуется                                       | `POST /api/internal/product-analytics/retention` (weekly)                                                                               |
 | `bersoncarebot-saas-billing-renewal` (имя на усмотрение)          | рекомендуется после К5                              | `POST /api/internal/saas-billing/renewal/tick` ежечасно — счёт продления тарифа истёкшим `saas_billing_subscriptions`                   |
 | прочие                                                            | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, reconcile HLS, health-guard и т.д.                                                                                              |
-
-Проверка обязательного webpush-cron:
-
-```bash
-/opt/projects/bersoncarebot/deploy/host/web-push-only-reminder-cron.sh status
-set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-[ -n "$INTERNAL_JOB_SECRET" ] && curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
-  "http://127.0.0.1:6200/api/internal/reminders/web-push-only/tick?limit=1" | head -c 200 && echo
-```
-
-Полные примеры строк cron и smoke — в разделе **Nginx → Webapp** («Web Push-only напоминания», блоки cron).
 
 **Наблюдаемость в админке:** после каждого успешного/ошибочного вызова internal job (и backup-скриптов) в **`public.operator_job_status`** пишется tick. Сводка — **`GET /api/admin/system-health`** → поле **`cronJobs`**, UI **`/app/doctor/system-health`** → «Cron-задачи хоста». Канон ключей: **`apps/webapp/src/modules/operator-health/cronJobRegistry.ts`**. Smoke после deploy:
 

@@ -57,7 +57,6 @@ export type DbOperationalRuntimeRole =
   | 'app_operational_delivery_worker'
   | 'app_operational_media_worker'
   | 'app_operational_scheduler'
-  | 'app_operational_web_push_reminder'
   | 'app_config_reader';
 
 export type DbPrincipalKind =
@@ -207,9 +206,6 @@ export async function setDbOperationalRuntimeRole(
       break;
     case 'app_operational_scheduler':
       statement = 'SET ROLE app_operational_scheduler';
-      break;
-    case 'app_operational_web_push_reminder':
-      statement = 'SET ROLE app_operational_web_push_reminder';
       break;
     case 'app_config_reader':
       statement = 'SET ROLE app_config_reader';

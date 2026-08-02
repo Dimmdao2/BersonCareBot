@@ -30,6 +30,7 @@ export type DbReadQueryType =
   | 'reminders.rules.forUser'
   | 'reminders.rule.forUserAndCategory'
   | 'reminders.rules.enabled'
+  | 'reminders.rule.byId'
   | 'reminders.occurrences.forRuleRange'
   | 'reminders.occurrences.due'
   | 'reminders.occurrence.ownerUserId'
@@ -400,23 +401,6 @@ export type WebappEventsPort = {
     status?: string;
     replay?: boolean;
   }>;
-  /**
-   * Fan-out напоминания в Web Push + email на webapp (POST /api/integrator/patient-reminders/notify-channels).
-   * Тело — уже сериализованный JSON (подпись `timestamp.body`, см. verifyIntegratorSignature в webapp).
-   */
-  notifyPatientReminderChannels?(input: { body: string; idempotencyKey: string }): Promise<{
-    ok: boolean;
-    status: number;
-    error?: string;
-    webPushDelivered?: number;
-    webPushErrors?: number;
-    webPushDeactivated?: number;
-    emailOk?: boolean;
-    emailSkipped?: string;
-    skipped?: string;
-    selectedChannels?: string[];
-    skippedChannels?: Array<{ channel: string; reason: string }>;
-  }>;
   /** Web Push для записи на приём / рассылок (POST /api/integrator/patient-notifications/web-push). */
   notifyPatientWebPush?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;
@@ -493,6 +477,12 @@ export type DeliveryTargetsPort = {
     integratorUserId?: string;
     organizationId?: string;
   }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
+  getTargetsByPlatformUser?(params: {
+    platformUserId: string;
+    topic: string;
+    integratorUserId?: string;
+    organizationId: string;
+  }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
 };
 
 // --- Stage 7: Reminders product reads (webapp projection) ---
@@ -541,8 +531,9 @@ export type RemindersWebappWritesPort = {
     | { ok: false; error: string }
   >;
   postReminderMuteUntil(input: {
-    mutedUntilIso: string | null;
-  }): Promise<{ ok: true } | { ok: false; error: string }>;
+    minutes: number | null;
+    untilTomorrow: boolean;
+  }): Promise<{ ok: true; mutedUntil: string } | { ok: false; error: string }>;
   /** Turn off reminder delivery in Telegram/MAX for occurrence's topic (`user_notification_topic_channels`). */
   postMessengerTopicDisable(input: {
     occurrenceId: string;

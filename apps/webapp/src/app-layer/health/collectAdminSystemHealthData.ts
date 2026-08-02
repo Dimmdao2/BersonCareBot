@@ -12,8 +12,6 @@ import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
   OPERATOR_OUTBOUND_PROBE_JOB_KEY,
-  OPERATOR_REMINDERS_JOB_FAMILY,
-  OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
 import {
   buildIntegrationsHealthSnapshot,
@@ -21,7 +19,6 @@ import {
   type IntegrationsHealthSnapshot,
 } from '@/modules/operator-health/integrationHealthSnapshot';
 import { readProbeConsecutiveFailRuns } from '@/modules/operator-health/probeOutboundMeta';
-import { classifyWebPushOnlyReminderTickSystemHealthStatus } from '@/modules/operator-health/adminHealthThresholds';
 import { proxyIntegratorProjectionHealth } from '@/app-layer/health/proxyIntegratorProjectionHealth';
 import type {
   IntegratorPushOutboxHealthSnapshot,
@@ -271,11 +268,6 @@ export type SystemHealthResponse = {
   remindersPipeline: RemindersPipelineHealthPayload;
   /** Web Push: VAPID + активные подписки `user_web_push_subscriptions` (без агрегатов provider в БД). */
   webPush: WebPushHealthPayload;
-  /** Cron `POST /api/internal/reminders/web-push-only/tick` (`operator_job_status`). */
-  webPushOnlyReminderTick: {
-    status: 'ok' | 'degraded' | 'error' | 'no_data';
-    lastTick: OperatorJobStatusTickPayload | null;
-  };
   /** Фактические попытки доставки по каналам (`notification_delivery_attempts`), 24 ч. */
   notificationDelivery: NotificationDeliveryHealthPayload;
   /** Host cron / internal periodic jobs (`operator_job_status` + backup tiers). */
@@ -304,7 +296,6 @@ export type SystemHealthResponse = {
       integratorPushOutbox: { status: string; durationMs: number; errorCode?: string };
       remindersPipeline: { status: string; durationMs: number; errorCode?: string };
       webPush: { status: string; durationMs: number; errorCode?: string };
-      webPushOnlyReminderTick: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery: { status: string; durationMs: number; errorCode?: string };
       cronJobs: { status: string; durationMs: number; errorCode?: string };
       saasIsolation: { status: string; durationMs: number; errorCode?: string };
@@ -468,9 +459,7 @@ export function computeMediaPreviewStatus(
   return 'ok';
 }
 
-async function probeMediaPreview(
-  snapshot: CuratedSystemHealthSnapshot,
-): Promise<
+async function probeMediaPreview(snapshot: CuratedSystemHealthSnapshot): Promise<
   ProbeResult<{
     status: MediaPreviewStatus;
     stalePendingCount: number;
@@ -817,7 +806,6 @@ function logProbe(
     | 'integrator_push_outbox'
     | 'reminders_pipeline'
     | 'web_push'
-    | 'web_push_only_reminder_tick'
     | 'notification_delivery'
     | 'cron_jobs'
     | 'saas_isolation',
@@ -1174,40 +1162,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     : { ok: false as const, errorCode: curatedResult.errorCode };
   const webPushDurationMs = curatedResult.durationMs;
 
-  const webPushTickJob = curatedSnapshot
-    ? findCuratedJob(
-        curatedSnapshot,
-        OPERATOR_REMINDERS_JOB_FAMILY,
-        OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
-      )
-    : undefined;
-  const webPushOnlyReminderTickResult: ProbeResult<{
-    status: 'ok' | 'degraded' | 'error' | 'no_data';
-    lastTick: OperatorJobStatusTickPayload | null;
-  }> = curatedSnapshot
-    ? {
-        ok: true,
-        durationMs: curatedResult.durationMs,
-        value: {
-          status: classifyWebPushOnlyReminderTickSystemHealthStatus({
-            lastStatus: webPushTickJob?.lastStatus ?? null,
-            lastSuccessAt: webPushTickJob?.lastSuccessAt ?? null,
-            lastFailureAt: webPushTickJob?.lastFailureAt ?? null,
-            metaJson: webPushTickJob?.safeMeta ?? {},
-          }),
-          lastTick: webPushTickJob ? curatedJobToTickPayload(webPushTickJob) : null,
-        },
-      }
-    : {
-        ok: false,
-        status: curatedFailureStatus,
-        errorCode: curatedFailureCode,
-        durationMs: curatedResult.durationMs,
-      };
-  const webPushOnlyReminderTickPayload = webPushOnlyReminderTickResult.ok
-    ? webPushOnlyReminderTickResult.value
-    : { status: 'error' as const, lastTick: null };
-
   const cronJobsStartedAt = Date.now();
   let cronJobsPayload: CronJobsHealthPayload = { status: 'no_data', jobs: [] };
   try {
@@ -1311,7 +1265,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     integratorPushOutbox: integratorPushOutboxPayload,
     remindersPipeline: remindersPipelinePayload,
     webPush: webPushPayload,
-    webPushOnlyReminderTick: webPushOnlyReminderTickPayload,
     notificationDelivery: notificationDeliveryPayload,
     cronJobs: cronJobsPayload,
     probeOutbound: { consecutiveFailRuns: probeOutboundConsecutiveFailRuns },
@@ -1402,15 +1355,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           durationMs: webPushDurationMs,
           ...(!webPushResult.ok ? { errorCode: webPushResult.errorCode } : {}),
         },
-        webPushOnlyReminderTick: {
-          status: webPushOnlyReminderTickResult.ok
-            ? webPushOnlyReminderTickPayload.status
-            : webPushOnlyReminderTickResult.status,
-          durationMs: webPushOnlyReminderTickResult.durationMs,
-          ...(!webPushOnlyReminderTickResult.ok
-            ? { errorCode: webPushOnlyReminderTickResult.errorCode }
-            : {}),
-        },
         notificationDelivery: {
           status: notificationDeliveryResult.ok ? notificationDeliveryPayload.status : 'error',
           durationMs: notificationDeliveryDurationMs,
@@ -1466,11 +1410,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           errorCode: webPushResult.errorCode,
           durationMs: webPushDurationMs,
         },
-  );
-  logProbe(
-    'web_push_only_reminder_tick',
-    webPushOnlyReminderTickResult,
-    webPushOnlyReminderTickPayload.status,
   );
   logProbe(
     'cron_jobs',

@@ -1421,6 +1421,7 @@ function _buildAppDeps() {
       patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
       Promise.resolve(false),
     findPlatformUserByIntegratorId: userProjectionPort.findByIntegratorId,
+    getChannelBindings: loadPlatformUserChannelBindings,
   };
   return {
     auth: {
@@ -1706,6 +1707,7 @@ function _buildAppDeps() {
         phone?: string;
         telegramId?: string;
         maxId?: string;
+        platformUserId?: string;
         topic?: string;
         integratorUserId?: string;
       }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),

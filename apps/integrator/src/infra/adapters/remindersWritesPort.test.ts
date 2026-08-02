@@ -4,10 +4,7 @@ import { createRemindersWritesPort } from './remindersWritesPort.js';
 
 function dbWithRows(...responses: Array<DbQueryResult<unknown>>): DbPort {
   return {
-    query: async function query<T>(
-      _sql: string,
-      _params?: unknown[],
-    ): Promise<DbQueryResult<T>> {
+    query: async function query<T>(_sql: string, _params?: unknown[]): Promise<DbQueryResult<T>> {
       return (responses.shift() ?? { rows: [] }) as DbQueryResult<T>;
     },
     tx: async (fn) => fn(dbWithRows()),
@@ -24,7 +21,9 @@ describe('D7 reminder callback capability adapter', () => {
       db: dbWithRows({ rows: [{ snoozed_until: '2026-08-02T10:20:00.000Z' }] }),
     });
 
-    await expect(port.postOccurrenceSnooze({ occurrenceId: 'occ-1', minutes: 20 })).resolves.toEqual({
+    await expect(
+      port.postOccurrenceSnooze({ occurrenceId: 'occ-1', minutes: 20 }),
+    ).resolves.toEqual({
       ok: true,
       snoozedUntil: '2026-08-02T10:20:00.000Z',
     });
@@ -36,10 +35,12 @@ describe('D7 reminder callback capability adapter', () => {
       db: dbWithRows({ rows: [{ skipped_at: '2026-08-02T10:00:00.000Z' }] }),
     });
 
-    await expect(port.postOccurrenceSkip({ occurrenceId: 'occ-1', reason: null })).resolves.toEqual({
-      ok: true,
-      skippedAt: '2026-08-02T10:00:00.000Z',
-    });
+    await expect(port.postOccurrenceSkip({ occurrenceId: 'occ-1', reason: null })).resolves.toEqual(
+      {
+        ok: true,
+        skippedAt: '2026-08-02T10:00:00.000Z',
+      },
+    );
   });
 
   it('preserves the ready done aggregate used by legacy Telegram and MAX callbacks', async () => {
@@ -71,7 +72,7 @@ describe('D7 reminder callback capability adapter', () => {
     const port = createRemindersWritesPort({ db: dbWithRows({ rows: [] }) });
 
     await expect(
-      port.postReminderMuteUntil({ mutedUntilIso: '2026-08-03T00:00:00.000Z' }),
+      port.postReminderMuteUntil({ minutes: null, untilTomorrow: true }),
     ).resolves.toEqual({ ok: false, error: 'not_found' });
   });
 

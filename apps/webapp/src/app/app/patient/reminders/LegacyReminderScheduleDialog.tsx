@@ -33,7 +33,6 @@ import {
   DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE,
   DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE,
 } from '@/modules/reminders/reminderFormDefaults';
-import { validateQuietHoursPair } from '@/modules/reminders/quietHours';
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
@@ -42,8 +41,6 @@ import {
 import {
   minutesToTimeInput,
   timeInputToMinutes,
-  parseQuietStartMinute,
-  parseQuietEndMinute,
 } from '@/modules/reminders/reminderTimeInputs';
 import { ReminderScheduleForm } from '@/modules/reminders/components/ReminderScheduleForm';
 import { patchPatientReminderScheduleBundle } from '@/app/app/patient/reminders/actions';
@@ -105,8 +102,6 @@ export function LegacyReminderScheduleDialog({
     ...DEFAULT_REHAB_DAILY_SLOTS.timesLocal,
   ]);
   const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>('weekdays');
-  const [quietStart, setQuietStart] = useState('');
-  const [quietEnd, setQuietEnd] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
@@ -141,13 +136,6 @@ export function LegacyReminderScheduleDialog({
       setSlotTimeRows([DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME]);
       setSlotsDayFilter('weekdays');
     }
-    if (json.quietHoursStartMinute != null && json.quietHoursEndMinute != null) {
-      setQuietStart(minutesToTimeInput(json.quietHoursStartMinute));
-      setQuietEnd(minutesToTimeInput(json.quietHoursEndMinute));
-    } else {
-      setQuietStart('');
-      setQuietEnd('');
-    }
   }, [open, rule]);
 
   const previewText = useMemo(() => {
@@ -156,19 +144,17 @@ export function LegacyReminderScheduleDialog({
       .map((c, i) => (c === '1' ? WEEKDAY_LABELS[i] : null))
       .filter(Boolean)
       .join(', ');
-    const quietBit =
-      quietStart.trim() && quietEnd.trim() ? ` Тихие часы: ${quietStart}–${quietEnd}.` : '';
     if (scheduleMode === 'slots_v1') {
       const lines = dedupeSortTimes(slotTimeRows.map((s) => s.trim()).filter(Boolean));
       if (slotsDayFilter === 'weekdays') {
-        return `Напоминания: ${lines.join(', ') || '—'}. Дни: Пн–Пт.${quietBit}`;
+        return `Напоминания: ${lines.join(', ') || '—'}. Дни: Пн–Пт.`;
       }
-      return `Напоминания: ${lines.join(', ') || '—'}. Дни: ${daysOn || 'не выбраны'}.${quietBit}`;
+      return `Напоминания: ${lines.join(', ') || '—'}. Дни: ${daysOn || 'не выбраны'}.`;
     }
     const ws = timeInputToMinutes(startTime);
     const we = timeInputToMinutes(endTime);
     if (ws == null || we == null) return 'Проверьте время.';
-    return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || 'не выбраны'}.${quietBit}`;
+    return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || 'не выбраны'}.`;
   }, [
     scheduleMode,
     slotTimeRows,
@@ -177,8 +163,6 @@ export function LegacyReminderScheduleDialog({
     endTime,
     intervalMinutes,
     daysMask,
-    quietStart,
-    quietEnd,
   ]);
 
   const scheduleFieldInvalid = useMemo(() => scheduleInvalidFromError(error), [error]);
@@ -202,31 +186,6 @@ export function LegacyReminderScheduleDialog({
       setError('Выберите хотя бы один день недели.');
       scrollToError();
       return;
-    }
-
-    let quietHoursStartMinute: number | null = null;
-    let quietHoursEndMinute: number | null = null;
-    const hasQuiet = quietStart.trim().length > 0 || quietEnd.trim().length > 0;
-    if (hasQuiet) {
-      const qs = parseQuietStartMinute(quietStart);
-      const qe = parseQuietEndMinute(quietEnd);
-      if (qs === null || qe === null) {
-        setError('Тихие часы: укажите начало и конец (ЧЧ:ММ) или очистите оба поля.');
-        scrollToError();
-        return;
-      }
-      const qv = validateQuietHoursPair(qs, qe);
-      if (qv) {
-        setError(
-          qv === 'validation_error: quiet hours both or none'
-            ? 'Задайте оба времени тихих часов.'
-            : qv,
-        );
-        scrollToError();
-        return;
-      }
-      quietHoursStartMinute = qs;
-      quietHoursEndMinute = qe;
     }
 
     let schedule: Record<string, unknown>;
@@ -261,8 +220,6 @@ export function LegacyReminderScheduleDialog({
         windowStartMinute: ws,
         windowEndMinute: we,
         daysMask,
-        quietHoursStartMinute,
-        quietHoursEndMinute,
       };
     } else {
       const rawTimes = dedupeSortTimes(slotTimeRows.map((s) => s.trim()).filter(Boolean));
@@ -288,8 +245,6 @@ export function LegacyReminderScheduleDialog({
         windowEndMinute: 1440,
         daysMask,
         scheduleData: norm.data,
-        quietHoursStartMinute,
-        quietHoursEndMinute,
       };
     }
 
@@ -334,10 +289,6 @@ export function LegacyReminderScheduleDialog({
         setSlotTimeRows={setSlotTimeRows}
         slotsDayFilter={slotsDayFilter}
         setSlotsDayFilter={setSlotsDayFilter}
-        quietStart={quietStart}
-        setQuietStart={setQuietStart}
-        quietEnd={quietEnd}
-        setQuietEnd={setQuietEnd}
         previewBadgeLabel={categoryLabel}
         previewText={previewText}
         error={error}

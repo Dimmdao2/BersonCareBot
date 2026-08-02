@@ -92,6 +92,7 @@ export const orgEnrollments = pgTable('org_enrollments', {
 export const reminderRules = pgTable('reminder_rules', {
   integratorRuleId: text('integrator_rule_id').primaryKey().notNull(),
   organizationId: uuid('organization_id'),
+  platformUserId: uuid('platform_user_id'),
   integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
   category: text().notNull(),
   isEnabled: boolean('is_enabled').notNull(),

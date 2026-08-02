@@ -76,7 +76,6 @@ INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-confi
 INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS=deploy/postgres/integrator-login-public-identity-grants.sql
 E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
-C4_WEB_PUSH_REMINDER_RUNTIME=deploy/postgres/c4-web-push-reminder-runtime.sql
 C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
@@ -558,26 +557,22 @@ bootstrap_and_provision_c4_operational_runtime(){
     WEBAPP_ENV_FILE="$WEBAPP_ENV" \
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
     bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env
-  echo "   C4 operational bootstrap/provision: OK (five isolated TEST contours)"
+  echo "   C4 operational bootstrap/provision: OK (four isolated TEST contours)"
 }
 
 reapply_c4_operational_runtime_overlays(){
-  local diagnostic_role delivery_worker_role scheduler_role media_worker_role web_push_reminder_role
+  local diagnostic_role delivery_worker_role scheduler_role media_worker_role
   diagnostic_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DIAGNOSTIC)"
   delivery_worker_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DELIVERY_WORKER)"
   scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
   media_worker_role="$(discover_media_worker_runtime_role)"
-  web_push_reminder_role="$(discover_database_role_from_env_key "webapp.test" "$WEBAPP_ENV" DATABASE_URL_WEB_PUSH_REMINDER)"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v c4_diagnostic_login_role="$diagnostic_role" \
     -v c4_delivery_worker_login_role="$delivery_worker_role" \
     -v c4_scheduler_login_role="$scheduler_role" \
     -v c4_media_worker_login_role="$media_worker_role" \
     -f "$DEPLOY_REPO/$C4_OPERATIONAL_RUNTIME"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-    -v c4_web_push_reminder_login_role="$web_push_reminder_role" \
-    -f "$DEPLOY_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME"
-  echo "   C4 operational runtime overlays: OK (five isolated contours)"
+  echo "   C4 operational runtime overlays: OK (four isolated contours)"
 }
 
 assert_c4_operational_runtime_ready(){
@@ -586,7 +581,7 @@ assert_c4_operational_runtime_ready(){
     WEBAPP_ENV_FILE="$WEBAPP_ENV" \
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
     bash "$DEPLOY_REPO/$C4_OPERATIONAL_READINESS"
-  echo "   C4 operational runtime readiness: OK (five distinct URLs; positive + cross-contour negatives)"
+  echo "   C4 operational runtime readiness: OK (four distinct URLs; positive + cross-contour negatives)"
 }
 
 discover_webapp_staff_runtime_role(){
@@ -838,7 +833,7 @@ run_deploy_repo_with_test_db_owner_role(){
   grant_migrator_owner_membership "$MIGRATOR_ROLE"
   set +e
   sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
-    unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF DATABASE_URL_WEB_PUSH_REMINDER && \
+    unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF && \
     export DB_PRINCIPAL_CONTEXT_MODE=legacy-guc PGOPTIONS='-c role=$DBROLE' && \
     $deploy_command"
   command_status=$?
@@ -859,7 +854,7 @@ run_deploy_repo_with_test_db_owner_bypass(){
   sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
   set +e
   sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
-    unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF DATABASE_URL_WEB_PUSH_REMINDER && \
+    unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF && \
     export DB_PRINCIPAL_CONTEXT_MODE=legacy-guc PGOPTIONS='-c role=$DBROLE' && \
     $deploy_command"
   command_status=$?
@@ -2146,21 +2141,6 @@ install_and_assert_media_worker_test_unit(){
     "$effective_user" "$effective_group"
 }
 
-assert_webapp_test_operational_env_available(){
-  local effective_environment_files
-  sudo -u deploy test -r "$WEBAPP_ENV" || {
-    echo "FATAL: deploy cannot read $WEBAPP_ENV before webapp TEST restart" >&2
-    exit 1
-  }
-  sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && : \"\${DATABASE_URL_WEB_PUSH_REMINDER:?missing DATABASE_URL_WEB_PUSH_REMINDER}\""
-  effective_environment_files="$(systemctl show bersoncarebot-webapp-test.service -p EnvironmentFiles --value)"
-  printf '%s\n' "$effective_environment_files" | grep -Fxq "$WEBAPP_ENV (ignore_errors=no)" || {
-    echo "FATAL: webapp TEST unit does not load exact required env $WEBAPP_ENV" >&2
-    exit 1
-  }
-  echo "   webapp TEST unit operational env: OK (DATABASE_URL_WEB_PUSH_REMINDER available)"
-}
-
 assert_webapp_test_staff_security_keyring_available(){
   sudo -u deploy test -r "$WEBAPP_ENV" || {
     echo "FATAL: deploy cannot read $WEBAPP_ENV before staff-security keyring preflight" >&2
@@ -2370,7 +2350,6 @@ run_strict_post_migration_closure(){
 
   log "strict closure: restart locked TEST units"
   install_and_assert_media_worker_test_unit
-  assert_webapp_test_operational_env_available
   mark_e1_runtime_coverage_start
   for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
   sleep 4
@@ -2420,7 +2399,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
-    "$C4_OPERATIONAL_RUNTIME" "$C4_WEB_PUSH_REMINDER_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
+    "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
     "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
@@ -2596,7 +2575,6 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 [ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_RUNTIME"; exit 1; }
-[ -r "$SRC_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_PROVISIONER"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_READINESS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_READINESS"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER"; exit 1; }

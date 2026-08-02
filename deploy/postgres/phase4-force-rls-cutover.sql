@@ -231,7 +231,6 @@ VALUES
   ('"public"."treatment_program_template_stage_groups"'),
   ('"public"."treatment_program_template_stage_items"'),
   ('"public"."treatment_program_template_stages"'),
-  ('"public"."webapp_reminder_occurrences"'),
   ('"integrator"."contacts"'),
   ('"integrator"."content_access_grants"'),
   ('"integrator"."conversation_messages"'),

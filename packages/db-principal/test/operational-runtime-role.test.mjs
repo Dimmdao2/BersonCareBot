@@ -25,7 +25,6 @@ test('sets each supported operational runtime role with fixed SQL', async () => 
     'app_operational_delivery_worker',
     'app_operational_media_worker',
     'app_operational_scheduler',
-    'app_operational_web_push_reminder',
     'app_config_reader',
   ]) {
     await setDbOperationalRuntimeRole(client, role);
@@ -36,7 +35,6 @@ test('sets each supported operational runtime role with fixed SQL', async () => 
     'SET ROLE app_operational_delivery_worker',
     'SET ROLE app_operational_media_worker',
     'SET ROLE app_operational_scheduler',
-    'SET ROLE app_operational_web_push_reminder',
     'SET ROLE app_config_reader',
   ]);
 });

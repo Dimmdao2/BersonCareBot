@@ -16,7 +16,10 @@ export type ReminderContentMode = 'none' | 'random_from_collection' | 'fixed_ite
 
 export type ReminderRuleRecord = {
   id: string;
-  userId: string;
+  /** Bot-domain identity. Null for a platform user who has not linked Telegram/MAX. */
+  userId: string | null;
+  /** Canonical identity used by every reminder channel. */
+  platformUserId?: string;
   category: ReminderCategory;
   isEnabled: boolean;
   scheduleType: string;
@@ -72,10 +75,12 @@ export type ReminderOccurrenceRecord = {
   createdAt?: string;
   updatedAt?: string;
   organizationId?: string | null;
+  platformUserId: string;
+  deliveryGeneration: number;
 };
 
 export type DueReminderOccurrence = ReminderOccurrenceRecord & {
-  userId: string;
+  userId: string | null;
   category: ReminderCategory;
   timezone: string;
   channelId: string;

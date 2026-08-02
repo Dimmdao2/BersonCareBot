@@ -1346,22 +1346,6 @@ async function mergeExtendedUserOwnedData(
   );
 
   await client.query(
-    `DELETE FROM webapp_reminder_occurrences d
-     WHERE d.platform_user_id = $2::uuid
-       AND EXISTS (
-         SELECT 1 FROM webapp_reminder_occurrences t
-         WHERE t.platform_user_id = $1::uuid
-          AND t.integrator_rule_id = d.integrator_rule_id
-          AND t.occurrence_key = d.occurrence_key
-       )`,
-    [targetId, duplicateId],
-  );
-  await client.query(
-    `UPDATE webapp_reminder_occurrences SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
-  );
-
-  await client.query(
     `DELETE FROM user_web_push_subscriptions d
      WHERE d.user_id = $2::uuid
        AND EXISTS (

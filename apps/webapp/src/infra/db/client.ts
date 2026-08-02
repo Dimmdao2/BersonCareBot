@@ -17,7 +17,6 @@ import {
 
 export const DATABASE_URL_STAFF_ENV = 'DATABASE_URL_STAFF';
 export const DATABASE_URL_NONSTAFF_ENV = 'DATABASE_URL_NONSTAFF';
-export const DATABASE_URL_WEB_PUSH_REMINDER_ENV = 'DATABASE_URL_WEB_PUSH_REMINDER';
 export const DATABASE_URL_CONFIG_READER_ENV = 'DATABASE_URL_CONFIG_READER';
 
 let pool: Pool | null = null;
@@ -27,7 +26,6 @@ type WebappRuntimeDatabaseEnv = {
   DATABASE_URL?: string;
   DATABASE_URL_STAFF?: string;
   DATABASE_URL_NONSTAFF?: string;
-  DATABASE_URL_WEB_PUSH_REMINDER?: string;
 };
 
 function trimOptionalEnv(value: string | undefined): string {
@@ -40,9 +38,8 @@ export function resolveWebappPoolProviderConfig(
   const legacyConnectionString = trimOptionalEnv(input.DATABASE_URL);
   const staffConnectionString = trimOptionalEnv(input.DATABASE_URL_STAFF);
   const nonstaffConnectionString = trimOptionalEnv(input.DATABASE_URL_NONSTAFF);
-  const webPushReminderConnectionString = trimOptionalEnv(input.DATABASE_URL_WEB_PUSH_REMINDER);
 
-  if (!staffConnectionString && !nonstaffConnectionString && !webPushReminderConnectionString) {
+  if (!staffConnectionString && !nonstaffConnectionString) {
     if (!legacyConnectionString) {
       throw new Error('DATABASE_URL is not set');
     }
@@ -61,7 +58,6 @@ export function resolveWebappPoolProviderConfig(
     connectionString: legacyConnectionString || undefined,
     staffConnectionString: resolvedStaffConnectionString,
     nonstaffConnectionString: resolvedNonstaffConnectionString,
-    ...(webPushReminderConnectionString ? { webPushReminderConnectionString } : {}),
   };
 }
 
@@ -70,7 +66,6 @@ function readWebappRuntimeDatabaseEnv(): WebappRuntimeDatabaseEnv {
     DATABASE_URL: env.DATABASE_URL || process.env.DATABASE_URL,
     DATABASE_URL_STAFF: process.env[DATABASE_URL_STAFF_ENV],
     DATABASE_URL_NONSTAFF: process.env[DATABASE_URL_NONSTAFF_ENV],
-    DATABASE_URL_WEB_PUSH_REMINDER: process.env[DATABASE_URL_WEB_PUSH_REMINDER_ENV],
   };
 }
 

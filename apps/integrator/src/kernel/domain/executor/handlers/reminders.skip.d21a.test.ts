@@ -85,7 +85,16 @@ function skipPorts() {
     getNotificationSettings: async () => ({ ok: false, error: 'not used' }),
     toggleNotificationTopic: async () => ({ ok: false, error: 'not used' }),
   };
-  return { mutations, readPort, writePort, remindersWebappWritesPort, skipCalls };
+  return {
+    mutations,
+    readPort,
+    writePort,
+    remindersWebappWritesPort,
+    skipCalls,
+    templatePort: {
+      renderTemplate: async () => ({ text: 'ready canonical copy' }),
+    },
+  };
 }
 
 describe('D21a: reminders.skip.applyPreset records skip in one step, no reason asked', () => {
@@ -100,9 +109,9 @@ describe('D21a: reminders.skip.applyPreset records skip in one step, no reason a
     expect(result.values?.conversationState).toBeUndefined();
     expect(deps.skipCalls).toEqual([{ occurrenceId, reason: null }]);
     // Confirmation is sent in the same result — pressing skip is exactly one action, not a prompt.
-    expect(result.intents?.some((i) => i.type === 'message.edit' || i.type === 'message.send')).toBe(
-      true,
-    );
+    expect(
+      result.intents?.some((i) => i.type === 'message.edit' || i.type === 'message.send'),
+    ).toBe(true);
   });
 });
 
@@ -290,7 +299,11 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
         const update = fromMax({
           update_type: 'message_callback',
           timestamp: 0,
-          callback: { callback_id: 'cbq-routing-max-1', payload: callbackData, user: { user_id: 8001 } },
+          callback: {
+            callback_id: 'cbq-routing-max-1',
+            payload: callbackData,
+            user: { user_id: 8001 },
+          },
           message: { recipient: { chat_id: 8001 }, body: { mid: 'mid-routing-max-1' } },
         });
         if (!update) throw new Error('max callback fixture failed to normalize');
@@ -310,7 +323,9 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
   it.each(channels)(
     '$source: pressing "Пропущу" reaches the handler with no reason code and no wait-for-reason state',
     async ({ buildIncomingEvent }) => {
-      const contentPort = createContentPort({ rootDir: path.resolve(process.cwd(), 'src/content') });
+      const contentPort = createContentPort({
+        rootDir: path.resolve(process.cwd(), 'src/content'),
+      });
       // linkedPhone: true — bypass buildLinkedPhoneCallbackGatePlan (out of D21a scope, see resolver.ts);
       // without it every unauthenticated callback gets rerouted to the "share your phone" gate plan.
       const base: BaseContext = { actor: { isAdmin: false }, identityLinks: [], linkedPhone: true };
@@ -352,9 +367,7 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
 
       expect(result.status).toBe('success');
       expect(deps.mutations).toEqual([]);
-      expect(deps.skipCalls).toEqual([
-        { occurrenceId: routingOccurrenceId, reason: null },
-      ]);
+      expect(deps.skipCalls).toEqual([{ occurrenceId: routingOccurrenceId, reason: null }]);
     },
   );
 });

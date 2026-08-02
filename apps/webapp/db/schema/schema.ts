@@ -616,7 +616,8 @@ export const reminderDeliveryEvents = pgTable(
     integratorOccurrenceId: text('integrator_occurrence_id').notNull(),
     integratorRuleId: text('integrator_rule_id').notNull(),
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }).notNull(),
+    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
+    platformUserId: uuid('platform_user_id'),
     channel: text().notNull(),
     status: text().notNull(),
     errorCode: text('error_code'),

@@ -10,7 +10,6 @@ import {
   OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
   OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
-  OPERATOR_REMINDERS_JOB_FAMILY,
   OPERATOR_SAAS_BILLING_JOB_FAMILY,
   OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,
   OPERATOR_SPECIALIST_TASKS_JOB_FAMILY,
@@ -19,7 +18,6 @@ import {
   OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
   OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY,
   OPERATOR_OUTBOUND_PROBE_JOB_KEY,
-  OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
 
 export type CronJobRegistryKind = 'internal_http' | 'backup_shell';
@@ -43,16 +41,6 @@ export type CronJobRegistryEntry = {
 
 /** Канонический список host cron / internal jobs для «Здоровье системы». */
 export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
-  {
-    id: 'webpush_reminders',
-    jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
-    jobKey: OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
-    label: 'Web Push напоминания',
-    scheduleHint: 'каждую минуту',
-    staleAfterSec: 5 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/reminders/web-push-only/tick',
-  },
   {
     id: 'media_purge',
     jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
