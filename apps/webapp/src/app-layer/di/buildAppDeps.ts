@@ -359,6 +359,7 @@ import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPl
 import {
   createPlatformEntitlementsService,
   isMechanicEnabled,
+  resolveOwnTariffTransition,
 } from '@/modules/org-entitlements/service';
 import { createPgOrgBrandingPort } from '@/infra/repos/pgOrgBranding';
 import { createInMemoryOrgBrandingPort } from '@/infra/repos/inMemoryOrgBranding';
@@ -754,7 +755,7 @@ const saasBillingService = createSaasBillingService({
   },
   resolvePaymentProvider: getPaymentProviderAdapter,
   getTariffTransition: (organizationId, tariffId) =>
-    platformEntitlementsService.getTariffTransition(organizationId, tariffId),
+    resolveOwnTariffTransition(orgEntitlementsPort, organizationId, tariffId),
 });
 platformEntitlementsService = createPlatformEntitlementsService(
   !inMemoryRepos

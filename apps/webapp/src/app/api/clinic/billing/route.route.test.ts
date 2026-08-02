@@ -14,6 +14,7 @@ vi.mock('@bersoncare/db-principal', () => ({
 }));
 
 import { DELETE, GET, PATCH, POST } from './route';
+import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/service';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const tariffId = '22222222-2222-4222-8222-222222222222';
@@ -54,14 +55,20 @@ describe('/api/clinic/billing tariff change', () => {
   });
 
   it('schedules through the service and exposes a blocker before any payment path', async () => {
-    scheduleOwnTariffChange.mockRejectedValue(new Error('saas_billing_tariff_downgrade_blocked'));
+    scheduleOwnTariffChange.mockRejectedValue(
+      new SaasBillingTariffDowngradeBlockedError([{ mechanic: 'branches', reason: 'quota_exceeded' }]),
+    );
 
     const response = await PATCH(new Request('http://test/api/clinic/billing', {
       method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tariffId }),
     }));
 
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({ ok: false, error: 'saas_billing_tariff_downgrade_blocked' });
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_tariff_downgrade_blocked',
+      blocks: [{ mechanic: 'branches', reason: 'quota_exceeded' }],
+    });
   });
 
   it('cancels the pending change without creating an invoice', async () => {

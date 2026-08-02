@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
+import type { TariffDowngradeBlock } from '@/modules/org-entitlements/service';
 import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingInvoiceStatus,
@@ -59,6 +60,13 @@ function deriveSaasBillingIdempotencyKey(parts: ReadonlyArray<string | number>):
  */
 const SAAS_TARIFF_RENEWAL_IDEMPOTENCY_BUCKET_MS = 10 * 60 * 1000;
 
+/** Structured refusal for the clinic UI; the schedule has no side effect when this is thrown. */
+export class SaasBillingTariffDowngradeBlockedError extends Error {
+  constructor(readonly blocks: TariffDowngradeBlock[]) {
+    super('saas_billing_tariff_downgrade_blocked');
+  }
+}
+
 export function createSaasBillingService(dependencies: {
   repository: SaasBillingRepositoryPort;
   settings: SaasBillingSettingsReadPort;
@@ -71,7 +79,7 @@ export function createSaasBillingService(dependencies: {
   ) => Promise<{
     currentTariffId: string | null;
     targetTariffId: string;
-    blocks: unknown[];
+    blocks: TariffDowngradeBlock[];
     appliesNextPeriod: boolean;
   }>;
 }) {
@@ -434,6 +442,14 @@ export function createSaasBillingService(dependencies: {
               pendingTariffId: null,
               preservePeriodSnapshot: input.scheduleOnly,
             });
+            await transaction.appendManualAssignmentAudit({
+              ...input.audit,
+              action: 'saas_tariff_change_cancelled',
+              targetId: input.organizationId,
+              organizationId: input.organizationId,
+              before: { organization: state.organization, saasBillingSubscription: state.manualSaasBillingSubscription },
+              after: { pendingTariffId: null },
+            });
           }
           return;
         }
@@ -730,7 +746,9 @@ export function createSaasBillingService(dependencies: {
       if (!transition.appliesNextPeriod) {
         throw new Error('saas_billing_upgrade_charge_policy_unresolved');
       }
-      if (transition.blocks.length > 0) throw new Error('saas_billing_tariff_downgrade_blocked');
+      if (transition.blocks.length > 0) {
+        throw new SaasBillingTariffDowngradeBlockedError(transition.blocks);
+      }
       await this.assignManualTariff({
         organizationId: input.organizationId,
         tariffId: input.tariffId,

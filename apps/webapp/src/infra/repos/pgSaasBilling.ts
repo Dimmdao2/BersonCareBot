@@ -152,6 +152,22 @@ async function promotePaidInvoice(
     currentPeriodEndsAt: invoice.servicePeriodEndsAt, tariffSnapshot, updatedAt: new Date().toISOString(),
   }).where(eq(saasBillingSubscriptions.id, subscription.id));
   await tx.update(beOrganizations).set({ tariffId: invoice.tariffId }).where(eq(beOrganizations.id, organizationId));
+  if (subscription.pendingTariffId !== null) {
+    await tx.insert(adminAuditLog).values({
+      organizationId,
+      actorId: null,
+      action: 'saas_tariff_change_activated',
+      targetId: subscription.id,
+      details: {
+        previousTariffId: subscription.tariffId,
+        tariffId: invoice.tariffId,
+        pendingTariffId: subscription.pendingTariffId,
+        servicePeriodStartsAt: invoice.servicePeriodStartsAt,
+        servicePeriodEndsAt: invoice.servicePeriodEndsAt,
+      },
+      status: 'ok',
+    });
+  }
   // A first real tariff payment replaces any active trial in the same transaction as the period;
   // otherwise a paid clinic could later be treated as still trial-bound.
   if (subscription.currentPeriodEndsAt === null) {

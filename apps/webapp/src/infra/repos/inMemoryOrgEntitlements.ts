@@ -18,6 +18,9 @@ export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
     async getTariffForOrg() {
       return null;
     },
+    async getActiveTariffById() {
+      return null;
+    },
     async listOverrides() {
       return [];
     },
