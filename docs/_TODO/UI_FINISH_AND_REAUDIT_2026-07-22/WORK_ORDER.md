@@ -627,6 +627,12 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
         (2 files, 11 passed); `pnpm --dir apps/integrator typecheck`; scoped `eslint`; `git diff --check`;
         `rg -n 'process\\.env\\.(TELEGRAM_|MAX_|SMSC_)' apps/integrator/src --glob '!**/*.test.ts' --glob '!**/*.spec.ts'`
         (no output). Telegram long-polling transport ownership remains documented deployment bootstrap only.
+        Fixer `b7236c67c` + deploy pin `b1dd99145` + principal correction `11b1111fa`; full CI
+        `/home/dev/brain/host-orch/run-tests.sh 'pnpm run ci'` — exit 0 / 378s. TEST deploy
+        `bash deploy/host/deploy-test.sh wt/trackd-d38-integrations` — exit 0, log
+        `/home/dev/.local/state/bersoncarebot/deploy-logs/deploy-test-20260802T140603Z-924877.log`.
+        Живой admin API: login/admin mode 200, изменение настройки увидено интегратором и исходное значение
+        восстановлено (`changedObserved=true`, `restoredObserved=true`).
 
 - [ ] **D36 — тесты интегратора, блок И** (передано из #1081 целиком). И1: уровни 0-2, причём уровень 0
       переписывается против ПЛАНА, а не против кода. И2: уровень 2 закрывается числом, а не следующим
