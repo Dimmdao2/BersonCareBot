@@ -5,6 +5,9 @@
 Read `AGENTS.md` §5/§10/§24, `docs/_TODO/SINGLE_ENTRY_CLEANUP_2026-08-01.md` and
 `docs/_TODO/runs/testsuite-v2/RAW_SQL_TEXT_CENSUS.md` before editing.
 
+Источник оракула: `docs/_TODO/runs/testsuite-v2/RAW_SQL_TEXT_CENSUS.md` §Authority — «the target is typed
+Drizzle builders/schema (`select`/`insert`/`update`/`delete`, with `sql` only for PostgreSQL primitives)».
+
 Human path: `/book/[slug]` resolves the requested clinic, public booking creates a phone challenge, and confirmation
 consumes that OTP. If hand-numbered `$1..$n` text drifts from its arguments or SECURITY DEFINER signature, the
 patient cannot open the intended clinic or confirm the booking. Convert this one path to the existing typed SQL
