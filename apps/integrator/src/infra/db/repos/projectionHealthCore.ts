@@ -1,3 +1,5 @@
+import { sql, type SQL } from 'drizzle-orm';
+
 export type ProjectionHealthSnapshot = {
   pendingCount: number;
   deadCount: number;
@@ -14,26 +16,23 @@ export type ProjectionHealthSnapshot = {
 };
 
 export type ProjectionHealthQueryable = {
-  query<T = unknown>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
+  execute(fragment: SQL): Promise<{ rows: Record<string, unknown>[] }>;
 };
 
 export const DEFAULT_PROJECTION_HEALTH_RETRY_THRESHOLD = 3;
 
+function executeRows<T>(
+  db: ProjectionHealthQueryable,
+  fragment: SQL,
+): Promise<{ rows: T[] }> {
+  return db.execute(fragment) as Promise<{ rows: T[] }>;
+}
+
 /**
  * Single runtime source of projection_outbox health metrics.
  *
- * Kept as parameterized SQL — НЕ ПОТОМУ, ЧТО ПЕРЕВОД НЕВОЗМОЖЕН. Прежняя редакция этого
- * комментария утверждала, что перевод втянет `config/env.ts` и потребует `APP_BASE_URL`,
- * которых у деплой-гейта нет. Слепой аудит D18 (01.08) это опроверг прогоном: тот же мост
- * `integratorSqlFromPgText`, которым в этом же коммите закрыли `saasIsolationTelemetry.ts`,
- * выполняет запрос к `integrator.projection_outbox` на голом пуле, ни разу не импортировав
- * `config/env.ts`.
- *
- * Настоящая цена перевода — сменить форму `ProjectionHealthQueryable` и
- * `createProjectionHealthPoolProvider` с `query(text, params)` на `execute(fragment)`.
- * Для HTTP-пути это даром (`getIntegratorDrizzleSession` уже есть), для CLI-скрипта
- * `infra/scripts/projection-health.ts` — реальная правка его контракта. Файл остаётся в
- * манифесте `check-no-new-raw-sql.mjs` как ОТЛОЖЕННАЯ работа, а не как невозможная.
+ * All statements are parameterized Drizzle fragments and execute through the caller's DB
+ * adapter. This keeps the runtime repository and the deploy CLI on the same DB boundary.
  */
 export async function readProjectionHealthSnapshot(
   db: ProjectionHealthQueryable,
@@ -41,34 +40,33 @@ export async function readProjectionHealthSnapshot(
 ): Promise<ProjectionHealthSnapshot> {
   const threshold = options?.retryThreshold ?? DEFAULT_PROJECTION_HEALTH_RETRY_THRESHOLD;
   const [countsRes, oldestRes, distRes, lastSuccessRes, overThresholdRes] = await Promise.all([
-    db.query<{ status: string; cnt: string }>(
-      `SELECT status, count(*)::text AS cnt
-       FROM integrator.projection_outbox
-       WHERE status IN ('pending', 'processing', 'dead', 'cancelled')
-       GROUP BY status`,
-    ),
-    db.query<{ next_try_at: string | null }>(
-      `SELECT min(next_try_at)::text AS next_try_at
-       FROM integrator.projection_outbox
-       WHERE status = 'pending'`,
-    ),
-    db.query<{ attempts_done: number; cnt: string }>(
-      `SELECT attempts_done, count(*)::text AS cnt
-       FROM integrator.projection_outbox
-       WHERE status IN ('pending', 'processing')
-       GROUP BY attempts_done`,
-    ),
-    db.query<{ last_success: string | null }>(
-      `SELECT max(updated_at)::text AS last_success
-       FROM integrator.projection_outbox
-       WHERE status = 'done'`,
-    ),
-    db.query<{ cnt: string }>(
-      `SELECT count(*)::text AS cnt
-       FROM integrator.projection_outbox
-       WHERE status IN ('pending', 'processing') AND attempts_done >= $1`,
-      [threshold],
-    ),
+    executeRows<{ status: string; cnt: string }>(db, sql`
+      SELECT status, count(*)::text AS cnt
+      FROM integrator.projection_outbox
+      WHERE status IN ('pending', 'processing', 'dead', 'cancelled')
+      GROUP BY status
+    `),
+    executeRows<{ next_try_at: string | null }>(db, sql`
+      SELECT min(next_try_at)::text AS next_try_at
+      FROM integrator.projection_outbox
+      WHERE status = 'pending'
+    `),
+    executeRows<{ attempts_done: number; cnt: string }>(db, sql`
+      SELECT attempts_done, count(*)::text AS cnt
+      FROM integrator.projection_outbox
+      WHERE status IN ('pending', 'processing')
+      GROUP BY attempts_done
+    `),
+    executeRows<{ last_success: string | null }>(db, sql`
+      SELECT max(updated_at)::text AS last_success
+      FROM integrator.projection_outbox
+      WHERE status = 'done'
+    `),
+    executeRows<{ cnt: string }>(db, sql`
+      SELECT count(*)::text AS cnt
+      FROM integrator.projection_outbox
+      WHERE status IN ('pending', 'processing') AND attempts_done >= ${threshold}
+    `),
   ]);
 
   let pendingCount = 0;

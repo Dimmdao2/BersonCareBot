@@ -9,62 +9,35 @@ import ts from 'typescript';
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const scanRoots = ['apps/integrator/src', 'apps/media-worker/src', 'apps/webapp/src'];
 
-// Каталог самого порта. Сырой драйвер обязан жить ЗДЕСЬ и больше нигде: транзакция
-// (BEGIN/COMMIT), установка принципала, маршрутизация пулов, мост `$n` → drizzle и загрузочная
-// проба — это и есть порт, а не долг. Всё, что вне этих каталогов и не тест, обязано ходить через
-// него. Владелец 01.08: «сырого sql и запросов мимо порта не должно остаться вообще».
+// Named low-level DB boundaries. These are the only production locations permitted to execute
+// driver queries: pool/client checkout, transaction control, Drizzle bridges, and the migrator.
+// This is intentionally structural, not a debt allowlist: adding a repository or runtime file
+// here is not an option.
 const portDirs = ['apps/webapp/src/infra/db/'];
-
-// media-worker — плоское приложение, каталога `infra/db` у него нет: порт — вот эти три файла
-// (мост `sql`→текст+параметры, BEGIN/COMMIT и установка принципала на пуле — ровно то, что у
-// вебаппа лежит в `infra/db`). Это НЕ список долга: сюда нельзя дописать файл, чтобы «разрешить
-// себе» сырой запрос, — эти три и есть сам порт.
+const migrationExecutors = new Set(['apps/integrator/src/infra/db/migrate.ts']);
 const portFiles = new Set([
+  'apps/integrator/src/infra/db/client.ts',
+  'apps/integrator/src/infra/db/integratorPoolProvider.ts',
+  'apps/integrator/src/infra/db/runIntegratorSql.ts',
+  'apps/integrator/src/infra/db/withClient.ts',
   'apps/media-worker/src/poolProvider.ts',
   'apps/media-worker/src/runMediaWorkerSql.ts',
   'apps/media-worker/src/withClient.ts',
 ]);
 
 function isInsidePort(fileName) {
-  return portDirs.some((dir) => fileName.startsWith(dir)) || portFiles.has(fileName);
+  return (
+    migrationExecutors.has(fileName) ||
+    portDirs.some((dir) => fileName.startsWith(dir)) ||
+    portFiles.has(fileName)
+  );
 }
 
-// Frozen D18a inventory of every existing raw .query() call. Do not add entries:
-// a newly added call must use the application's Drizzle port instead. D18c removes
-// entries as the legacy calls are converted. Keep each app's entries sorted.
-const rawSqlQueryManifest = {
-  integrator: new Set([
-    'apps/integrator/src/infra/db/client.ts',
-    'apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.rls.integration.test.ts',
-    'apps/integrator/src/infra/db/integratorPoolProvider.ts',
-    'apps/integrator/src/infra/db/migrate.ts',
-    'apps/integrator/src/infra/db/repos/projectionHealthCore.ts',
-    'apps/integrator/src/infra/db/runIntegratorSql.ts',
-    'apps/integrator/src/infra/db/withClient.ts',
-  ]),
-  webapp: new Set([
-    'apps/webapp/src/infra/adminAuditLog.devDb.integration.test.ts',
-    'apps/webapp/src/infra/platformUserFullPurge.devDb.integration.test.ts',
-    'apps/webapp/src/infra/platformUserMergePreview.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/orgBrandRevisionGuard.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgAuthRateLimitEvents.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgBookingScheduling.deactivateWorkingHours.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgBookingScheduling.readChokepoint.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgDoctorClients.appointmentJoin.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgDoctorClients.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgDoctorPhase13d.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgEmailChallengeAtomicAttempts.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgOtpDecayingLockoutAtomicEscalation.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgPatientBookings.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgPhase14DCommsTail.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgPhoneChallengeAtomicAttempts.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgPlatformUserMerge.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgProgramItemDiscussion.doctorComments.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgSupportCommunication.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgUserProjection.devDb.integration.test.ts',
-  ]),
-};
+// Real PostgreSQL harnesses remain a separate test-only category. They cannot authorize a
+// production call site and are never counted as production raw-SQL debt.
+function isTestOnlyDbHarness(fileName) {
+  return /\.(?:devDb|rls|postgres)\.integration\.test\.[cm]?tsx?$/.test(fileName);
+}
 
 function listSourceFiles(dir) {
   const files = [];
@@ -150,6 +123,15 @@ function makeIsQueryMember(queryLiteralAliases) {
   };
 }
 
+function isLikelyDbReceiver(node) {
+  const expression = unwrapExpression(node);
+  if (ts.isIdentifier(expression)) return /(db|pool|client|connection)/i.test(expression.text);
+  if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+    return isLikelyDbReceiver(expression.expression);
+  }
+  return false;
+}
+
 // Resolve aliases to a fixed point so `const other = query` is guarded too. This
 // deliberately tracks only values proven to originate at `.query`, not arbitrary
 // identifier calls such as a product search helper named `query`. `seedAliases` lets
@@ -223,9 +205,20 @@ function computeQueryCallLines(sourceFile, isQueryMember, queryAliases) {
   const visit = (node) => {
     if (ts.isCallExpression(node)) {
       const expression = unwrapExpression(node.expression);
+      const isDynamicMemberCall =
+        ts.isElementAccessExpression(expression) &&
+        expression.argumentExpression &&
+        isLikelyDbReceiver(expression.expression) &&
+        !ts.isStringLiteral(expression.argumentExpression) &&
+        !ts.isNoSubstitutionTemplateLiteral(expression.argumentExpression) &&
+        !(
+          ts.isIdentifier(expression.argumentExpression) &&
+          isQueryMember(expression)
+        );
       if (
         isQueryMember(expression) ||
-        (ts.isIdentifier(expression) && queryAliases.has(expression.text))
+        (ts.isIdentifier(expression) && queryAliases.has(expression.text)) ||
+        isDynamicMemberCall
       ) {
         lines.add(sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1);
       }
@@ -361,35 +354,30 @@ function rawSqlQueryLines(fileName, source) {
   return analyzeProject(new Map([[fileName, source]])).get(fileName);
 }
 
-function offendersFromLines(fileName, lines, allowedFiles) {
-  if (lines.length === 0 || allowedFiles.has(fileName) || isInsidePort(fileName)) return [];
+function classifyFile(fileName) {
+  if (migrationExecutors.has(fileName)) return 'migration/deploy SQL executor';
+  if (isInsidePort(fileName)) return 'low-level DB port';
+  if (isTestOnlyDbHarness(fileName)) return 'test-only PostgreSQL harness';
+  return 'production debt';
+}
+
+function offendersFromLines(fileName, lines) {
+  if (lines.length === 0 || classifyFile(fileName) !== 'production debt') return [];
   return [`${fileName}:${lines.join(',')}`];
 }
 
-function rawSqlOffenders(fileName, source, allowedFiles) {
-  return offendersFromLines(fileName, rawSqlQueryLines(fileName, source), allowedFiles);
+function rawSqlOffenders(fileName, source) {
+  return offendersFromLines(fileName, rawSqlQueryLines(fileName, source));
 }
 
-function staleDebtEntries(manifest, liveDebt) {
-  return Object.entries(manifest).flatMap(([app, files]) =>
-    [...files]
-      .filter((file) => !liveDebt[app].has(file))
-      .map((file) => `${file} (remove its cleaned entry)`),
-  );
-}
-
-function printViolation(offenders, staleDebt) {
-  console.error('check-no-new-raw-sql: raw SQL debt manifest violation.');
+function printViolation(offenders) {
+  console.error('check-no-new-raw-sql: raw SQL boundary violation.');
   if (offenders.length > 0) {
-    console.error('New raw .query(...) SQL outside the frozen D18c debt list:');
+    console.error('Raw .query(...) or dynamic-member query bypass outside named DB boundaries:');
     for (const offender of offenders) console.error(`  - ${offender}`);
     console.error(
-      "Use the owning application's Drizzle port/parameterized sql`...`.execute() path; do not add files to this list.",
+      "Use the owning application's Drizzle port/parameterized sql`...`.execute() path; do not add an allowlist entry.",
     );
-  }
-  if (staleDebt.length > 0) {
-    console.error('Debt-list entries without a live raw .query(...) SQL call:');
-    for (const stale of staleDebt) console.error(`  - ${stale}`);
   }
 }
 
@@ -409,15 +397,16 @@ function runSelfTest() {
     ['string concatenation', "pool.query('SELECT ' + column + ' FROM users');\n"],
     ['destructuring alias', "const { query } = pool;\nquery('SELECT 1');\n"],
     ['constant computed member name', "const method = 'query';\npool[method]('SELECT 1');\n"],
+    ['optional member', "pool?.query('SELECT 1');\n"],
+    ['dynamic computed member name', "const method = process.env.DB_METHOD;\npool[method]('SELECT 1');\n"],
   ];
   const rejectedFixtures = fixtures.map(([label, source], index) => {
     const file = `apps/integrator/src/rawSqlD18aFixture${index}.ts`;
-    return { label, offenders: rawSqlOffenders(file, source, new Set()) };
+    return { label, offenders: rawSqlOffenders(file, source) };
   });
   const drizzleExecute = rawSqlOffenders(
     'apps/integrator/src/drizzleD18aFixture.ts',
     'db.execute(sql`SELECT 1`);\n',
-    new Set(),
   );
 
   const relativeHelperFile = 'apps/integrator/src/rawSqlD18aRelativeHelperFixture.ts';
@@ -439,28 +428,11 @@ function runSelfTest() {
   const relativeConsumerOffenders = offendersFromLines(
     relativeConsumerFile,
     relativeProjectLines.get(relativeConsumerFile),
-    new Set(),
   );
-
-  const manifestFile = [...rawSqlQueryManifest.integrator].find(
-    (file) => rawSqlQueryLines(file, readFileSync(join(repoRoot, file), 'utf8')).length > 0,
-  );
-  const manifestWithoutLiveEntry = new Set(
-    [...rawSqlQueryManifest.integrator].filter((file) => file !== manifestFile),
-  );
-  const manifestDeletionOffenders = manifestFile
-    ? rawSqlOffenders(
-        manifestFile,
-        readFileSync(join(repoRoot, manifestFile), 'utf8'),
-        manifestWithoutLiveEntry,
-      )
-    : [];
   if (
     rejectedFixtures.some(({ offenders }) => offenders.length === 0) ||
     drizzleExecute.length !== 0 ||
-    relativeConsumerOffenders.length === 0 ||
-    !manifestFile ||
-    manifestDeletionOffenders.length !== 1
+    relativeConsumerOffenders.length === 0
   ) {
     throw new Error('check-no-new-raw-sql self-test failed');
   }
@@ -471,9 +443,6 @@ function runSelfTest() {
   console.log('  - Drizzle execute: allowed');
   console.log(
     `  - relative-helper export called by consumer: rejected (${relativeConsumerOffenders.join(', ')})`,
-  );
-  console.log(
-    `  - removed live manifest entry: rejected (${manifestDeletionOffenders.join(', ')})`,
   );
   console.log('check-no-new-raw-sql: self-test OK.');
 }
@@ -486,7 +455,11 @@ if (process.argv.includes('--self-test')) {
 const fileSources = new Map();
 const appOfFile = new Map();
 for (const root of scanRoots) {
-  const app = root.includes('/integrator/') ? 'integrator' : 'webapp';
+  const app = root.includes('/integrator/')
+    ? 'integrator'
+    : root.includes('/media-worker/')
+      ? 'media-worker'
+      : 'webapp';
   for (const abs of listSourceFiles(join(repoRoot, root))) {
     const rel = relative(repoRoot, abs).replaceAll('\\', '/');
     fileSources.set(rel, readFileSync(abs, 'utf8'));
@@ -495,22 +468,32 @@ for (const root of scanRoots) {
 }
 
 const offenders = [];
-const liveDebt = { integrator: new Set(), webapp: new Set() };
 const linesByFile = analyzeProject(fileSources);
+const census = [];
 for (const [rel, lines] of linesByFile) {
   if (lines.length === 0) continue;
-  const app = appOfFile.get(rel);
-  if (rawSqlQueryManifest[app].has(rel)) liveDebt[app].add(rel);
-  else offenders.push(...offendersFromLines(rel, lines, rawSqlQueryManifest[app]));
+  census.push({ app: appOfFile.get(rel), file: rel, lines, classification: classifyFile(rel) });
+  offenders.push(...offendersFromLines(rel, lines));
 }
 
-const staleDebt = staleDebtEntries(rawSqlQueryManifest, liveDebt);
+if (process.argv.includes('--census')) {
+  for (const { app, file, lines, classification } of census) {
+    console.log(`${app}\t${classification}\t${file}:${lines.join(',')}`);
+  }
+}
 
-if (offenders.length > 0 || staleDebt.length > 0) {
-  printViolation(offenders, staleDebt);
+if (offenders.length > 0) {
+  printViolation(offenders);
   process.exit(1);
 }
 
+const counts = census.reduce((out, item) => {
+  const key = `${item.app} ${item.classification}`;
+  out.set(key, (out.get(key) ?? 0) + 1);
+  return out;
+}, new Map());
 console.log(
-  `check-no-new-raw-sql: OK (integrator manifest files: ${rawSqlQueryManifest.integrator.size}; webapp manifest files: ${rawSqlQueryManifest.webapp.size})`,
+  `check-no-new-raw-sql: OK (${[...counts]
+    .map(([key, count]) => `${key}: ${count}`)
+    .join('; ')}; production debt: 0)`,
 );
