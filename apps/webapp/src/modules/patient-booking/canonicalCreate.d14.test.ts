@@ -11,6 +11,7 @@ import type { CreatePatientBookingInput, PatientBookingRecord } from './types';
 function fakeRecord(overrides: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
     id: 'booking-1',
+    organizationId: 'org-1',
     userId: 'user-1',
     bookingType: 'online',
     city: null,

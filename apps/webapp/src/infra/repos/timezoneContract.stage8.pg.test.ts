@@ -25,9 +25,13 @@ describe('Stage 8 timezone contract (webapp PG repos)', () => {
   });
 
   it('S8.T02: appointment_records — upsertRecordFromProjection binds record_at ($3) to canonical ISO', async () => {
-    queryMock.mockResolvedValue({ rows: [] });
+    queryMock.mockResolvedValue({
+      rows: [{ organization_id: '00000000-0000-4000-8000-000000000001' }],
+    });
     const port = createPgAppointmentProjectionPort();
     await port.upsertRecordFromProjection({
+      organizationId: '00000000-0000-4000-8000-000000000001',
+      platformUserId: null,
       integratorRecordId: 'stage8-contract-moscow',
       phoneNormalized: '+79990001122',
       recordAt: STAGE8_EXPECTED_MOSCOW_UTC_ISO,
@@ -75,6 +79,7 @@ describe('Stage 8 timezone contract (webapp PG repos)', () => {
         ],
       });
     await pgPatientBookingsPort.createPending({
+      organizationId: '00000000-0000-4000-8000-000000000001',
       userId: 'u-stage8',
       bookingType: 'in_person',
       city: 'moscow',

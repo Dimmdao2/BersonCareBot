@@ -21,6 +21,8 @@ function basePayloadJson(
   return {
     source: 'native',
     appointment_id: appt.id,
+    platform_user_id: appt.platformUserId,
+    specialist_id: appt.specialistId,
     contact_name: input.contactName,
     service_title: input.serviceTitle,
     branch_title: input.branchTitle,
@@ -35,6 +37,8 @@ export async function projectCanonicalAppointmentForDoctor(
   input: ProjectionContactFields,
 ): Promise<void> {
   await projection.upsertRecordFromProjection({
+    organizationId: appt.organizationId,
+    platformUserId: appt.platformUserId,
     integratorRecordId: nativeIntegratorRecordId(appt.id),
     phoneNormalized: input.phoneNormalized,
     recordAt: appt.startAt,
@@ -52,6 +56,8 @@ export async function projectCanonicalAppointmentRescheduled(
   input: ProjectionContactFields,
 ): Promise<void> {
   await projection.upsertRecordFromProjection({
+    organizationId: appt.organizationId,
+    platformUserId: appt.platformUserId,
     integratorRecordId: nativeIntegratorRecordId(appt.id),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,
@@ -69,6 +75,8 @@ export async function projectCanonicalAppointmentCancelled(
   input: ProjectionContactFields,
 ): Promise<void> {
   await projection.upsertRecordFromProjection({
+    organizationId: appt.organizationId,
+    platformUserId: appt.platformUserId,
     integratorRecordId: nativeIntegratorRecordId(appt.id),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,
@@ -88,6 +96,8 @@ export async function projectCanonicalAppointmentNoShow(
   // No-show is treated as a cancelled status in the projection layer.
   // lastEvent distinguishes it for downstream consumers (e.g. analytics).
   await projection.upsertRecordFromProjection({
+    organizationId: appt.organizationId,
+    platformUserId: appt.platformUserId,
     integratorRecordId: nativeIntegratorRecordId(appt.id),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,

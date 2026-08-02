@@ -32,6 +32,8 @@ export type BookingSlotsQuery =
 /** Doctor cabinet compatibility projection. */
 export type AppointmentProjectionPort = {
   upsertRecordFromProjection(params: {
+    organizationId: string;
+    platformUserId: string | null;
     integratorRecordId: string;
     phoneNormalized: string | null;
     recordAt: string | null;
@@ -45,6 +47,7 @@ export type AppointmentProjectionPort = {
 
 /** Flat row written by `createPending` (service maps from API + catalog). */
 export type CreatePendingPatientBookingInput = {
+  organizationId: string;
   userId: string;
   bookingType: BookingType;
   city: string | null;

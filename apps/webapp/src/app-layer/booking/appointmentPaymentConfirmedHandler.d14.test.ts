@@ -15,6 +15,7 @@ import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 function fakeRecord(): PatientBookingRecord {
   return {
     id: 'booking-1',
+    organizationId: 'org-1',
     userId: 'user-1',
     bookingType: 'in_person',
     city: null,

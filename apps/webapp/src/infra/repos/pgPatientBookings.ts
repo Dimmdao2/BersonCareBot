@@ -14,6 +14,7 @@ import type {
 
 type Row = {
   id: string;
+  organization_id: string | null;
   platform_user_id: string | null;
   booking_type: string;
   city: string | null;
@@ -48,6 +49,7 @@ type Row = {
 function mapRow(row: Row): PatientBookingRecord {
   return {
     id: row.id,
+    organizationId: row.organization_id,
     userId: row.platform_user_id ?? null,
     bookingType: row.booking_type as PatientBookingRecord['bookingType'],
     city: row.city,
@@ -122,6 +124,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       `UPDATE patient_bookings
        SET status = 'failed_sync', updated_at = now()
        WHERE status = 'creating'
+         AND organization_id = $4::uuid
          AND canonical_appointment_id IS NULL
          AND (
            (
@@ -130,7 +133,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
            )
            OR created_at < now() - interval '15 minutes'
          )`,
-      [input.userId, input.slotStart, input.slotEnd],
+      [input.userId, input.slotStart, input.slotEnd, input.organizationId],
     );
     // Stale cancel in-flight rows must not block rebooking.
     await runWebappPgText(
@@ -163,14 +166,14 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
           LIMIT 1
        )
        INSERT INTO patient_bookings (
-         id, platform_user_id, booking_type, city, category, slot_start, slot_end, status,
+         id, organization_id, platform_user_id, booking_type, city, category, slot_start, slot_end, status,
          contact_phone, contact_email, contact_name,
          branch_id, service_id, branch_service_id,
          city_code_snapshot, branch_title_snapshot, service_title_snapshot,
          duration_minutes_snapshot, price_minor_snapshot
        )
        SELECT
-         $1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, 'creating',
+         $1, $19::uuid, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, 'creating',
          $8, $9, $10,
          $11, $12, $13,
          $14, $15, $16,
@@ -196,6 +199,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
         input.serviceTitleSnapshot,
         input.durationMinutesSnapshot,
         input.priceMinorSnapshot,
+        input.organizationId,
       ],
     );
     const row = result.rows[0];

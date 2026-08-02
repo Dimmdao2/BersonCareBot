@@ -27,7 +27,10 @@ export async function staffPurgeCancelledAppointment(input: {
   }
 
   const purge = () =>
-    input.deps.appointmentProjection!.softDeleteByCanonicalAppointmentId(input.appointmentId);
+    input.deps.appointmentProjection!.softDeleteByCanonicalAppointmentId(
+      input.appointmentId,
+      appointment.organizationId,
+    );
   const purged = input.runLocalPurge ? await input.runLocalPurge(purge) : await purge();
   if (!purged) {
     return { ok: false, error: 'not_found' };

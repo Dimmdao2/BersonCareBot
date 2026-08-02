@@ -10,6 +10,7 @@ const purgedPatientBookingKeys = new Set<string>();
 const recordsByIntegratorId = new Map<
   string,
   {
+    organizationId: string;
     integratorRecordId: string;
     phoneNormalized: string | null;
     recordAt: string | null;
@@ -26,6 +27,7 @@ const recordsByIntegratorId = new Map<
 function toRow(
   key: string,
   v: {
+    organizationId: string;
     integratorRecordId: string;
     phoneNormalized: string | null;
     recordAt: string | null;
@@ -40,6 +42,7 @@ function toRow(
 ): AppointmentRecordRow {
   return {
     id: key,
+    organizationId: v.organizationId,
     integratorRecordId: v.integratorRecordId,
     phoneNormalized: v.phoneNormalized,
     recordAt: v.recordAt,
@@ -57,7 +60,11 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
   async upsertRecordFromProjection(params) {
     const now = new Date().toISOString();
     const existing = recordsByIntegratorId.get(params.integratorRecordId);
+    if (existing && existing.organizationId !== params.organizationId) {
+      throw new Error('appointment_projection_organization_mismatch');
+    }
     recordsByIntegratorId.set(params.integratorRecordId, {
+      organizationId: params.organizationId,
       integratorRecordId: params.integratorRecordId,
       phoneNormalized: params.phoneNormalized ?? null,
       recordAt: params.recordAt ?? null,
@@ -122,6 +129,7 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
   ): Promise<boolean> {
     const v = recordsByIntegratorId.get(integratorRecordId);
     if (!v) return false;
+    if (opts?.organizationId && opts.organizationId !== v.organizationId) return false;
     const now = new Date().toISOString();
     if (!v.deletedAt) {
       recordsByIntegratorId.set(integratorRecordId, { ...v, deletedAt: now, updatedAt: now });
@@ -135,17 +143,22 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
     return true;
   },
 
-  async softDeleteByCanonicalAppointmentId(appointmentId: string): Promise<boolean> {
+  async softDeleteByCanonicalAppointmentId(
+    appointmentId: string,
+    organizationId: string,
+  ): Promise<boolean> {
     const primaryId = nativeIntegratorRecordId(appointmentId);
     const ok = await inMemoryAppointmentProjectionPort.softDeleteByIntegratorId(primaryId, {
       canonicalAppointmentId: appointmentId,
       purgePatientBookings: true,
       cancelReason: 'staff_delete',
+      organizationId,
     });
     if (ok) return true;
     const now = new Date().toISOString();
     const tombstoneId = nativeIntegratorRecordId(appointmentId);
     recordsByIntegratorId.set(tombstoneId, {
+      organizationId,
       integratorRecordId: tombstoneId,
       phoneNormalized: null,
       recordAt: null,
