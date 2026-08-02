@@ -289,6 +289,20 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       return row;
     },
 
+    async claimSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      const current = invoices.get(saasBillingInvoiceId);
+      if (!current || current.status !== 'draft' || current.providerInvoiceRef !== null) return false;
+      invoices.set(current.id, { ...current, status: 'pending' });
+      return true;
+    },
+
+    async releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      const current = invoices.get(saasBillingInvoiceId);
+      if (current?.status === 'pending' && current.providerInvoiceRef === null) {
+        invoices.set(current.id, { ...current, status: 'draft' });
+      }
+    },
+
     async recordSaasBillingProviderEvent(input) {
       const key = `${input.event.providerId}:${input.event.providerEventId}`;
       if (events.has(key)) return { created: false };
