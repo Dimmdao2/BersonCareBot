@@ -6,6 +6,7 @@ vi.mock('../../shared/devDeliveryRedirect.js', () => ({
 
 import { createDefaultDispatchPort } from './dispatchPort.js';
 import type { DbWritePort, DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
+import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
 
 function messageSendIntent(): OutgoingIntent {
   return {
@@ -25,6 +26,18 @@ function messageSendIntent(): OutgoingIntent {
   } as unknown as OutgoingIntent;
 }
 
+function essentialMessageSendIntent(): OutgoingIntent {
+  return {
+    ...messageSendIntent(),
+    meta: {
+      ...messageSendIntent().meta,
+      eventId: 'otp:clinic-essential',
+      outboundMessageClass: 'auth_code',
+      outboundCapability: 'auth_code',
+    },
+  } as OutgoingIntent;
+}
+
 function clinicRequiredIntent(channel: 'telegram' | 'max' | 'smsc' | 'email'): OutgoingIntent {
   return {
     ...messageSendIntent(),
@@ -35,6 +48,19 @@ function clinicRequiredIntent(channel: 'telegram' | 'max' | 'smsc' | 'email'): O
       delivery: { channels: [channel], senderScope: 'clinic_required' },
     },
   } as unknown as OutgoingIntent;
+}
+
+function queuedClinicBroadcastIntent(): OutgoingIntent {
+  const intent = clinicRequiredIntent('telegram');
+  return {
+    ...intent,
+    meta: {
+      eventId: 'broadcast:audit:patient:tg',
+      occurredAt: '2026-08-02T00:00:00.000Z',
+      source: 'telegram',
+      userId: 'patient-1',
+    },
+  } as OutgoingIntent;
 }
 
 describe('D20 item 17: a failed delivery-attempt audit write must not cause a duplicate send', () => {
@@ -120,7 +146,7 @@ describe('clinic-owned delivery routing', () => {
       }),
     });
 
-    await expect(port.dispatchOutgoing(messageSendIntent())).resolves.toEqual({
+    await expect(port.dispatchOutgoing(essentialMessageSendIntent())).resolves.toEqual({
       telegramMessageId: 7,
     });
     expect(send).toHaveBeenCalledTimes(2);
@@ -130,5 +156,59 @@ describe('clinic-owned delivery routing', () => {
     expect(
       (send.mock.calls[1]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
     ).not.toHaveProperty('clinicCredential');
+  });
+
+  it('blocks a globally disabled channel before clinic credential resolution or provider send', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const resolveClinicDeliveryCredential = vi.fn(async () => ({
+      channel: 'telegram' as const,
+      botToken: 'clinic-a-token',
+    }));
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      isPlatformIntegrationEnabled: async () => false,
+      resolveClinicDeliveryCredential,
+    });
+
+    await expect(port.dispatchOutgoing(essentialMessageSendIntent())).rejects.toThrow(
+      'PLATFORM_INTEGRATION_DISABLED:telegram',
+    );
+    expect(resolveClinicDeliveryCredential).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('keeps platform-system delivery on the platform sender even inside an organization context', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const resolveClinicDeliveryCredential = vi.fn(async () => ({
+      channel: 'telegram' as const,
+      botToken: 'clinic-a-token',
+    }));
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential,
+    });
+
+    await runWithOrganizationPrincipal('11111111-1111-4111-8111-111111111111', () =>
+      port.dispatchOutgoing(messageSendIntent()),
+    );
+
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).not.toHaveProperty('clinicCredential');
+  });
+
+  it('accepts the clinic-required messenger broadcast intent produced by the delivery queue', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'telegram',
+        botToken: 'clinic-a-token',
+      }),
+    });
+
+    await expect(port.dispatchOutgoing(queuedClinicBroadcastIntent())).resolves.toEqual({});
+    expect(send).toHaveBeenCalledOnce();
   });
 });
