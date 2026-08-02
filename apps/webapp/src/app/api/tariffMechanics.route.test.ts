@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  requireEntitlementForRead: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   requireEntitlementForMutationAction: vi.fn(),
   entitlementMutationRefusalMessage: (action: string) =>
@@ -58,7 +59,10 @@ vi.mock('@/app/api/booking/bookingTenant', () => ({
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForRead,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import {
   requireClinicManagementApiContext,
@@ -77,7 +81,10 @@ import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-t
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
-import { PATCH as updatePromoProgram } from '@/app/api/doctor/treatment-program-promo/route';
+import {
+  GET as getPromoProgram,
+  PATCH as updatePromoProgram,
+} from '@/app/api/doctor/treatment-program-promo/route';
 import { PATCH as updateAdminSetting } from '@/app/api/admin/settings/route';
 import { POST as updatePatientPromo } from '@/app/api/patient/treatment-program-promo/action/route';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
@@ -143,6 +150,7 @@ beforeEach(() => {
   vi.mocked(getCurrentSession).mockResolvedValue(null);
   vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
   vi.mocked(requireOrganizationManagementContext).mockResolvedValue(workspace as never);
+  vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
     ok: true,
@@ -176,6 +184,13 @@ afterEach(() => {
 });
 
 describe('tariff and platform mutation gates', () => {
+  it('refuses reading promo configuration when promo is disabled', async () => {
+    const response = await getPromoProgram();
+
+    expect(response.status).toBe(403);
+    expect(requireEntitlementForRead).toHaveBeenCalledWith(workspace, 'promo');
+  });
+
   it('refuses course creation when courses are not included in the tariff', async () => {
     const response = await createCourse(
       request('https://app.example.test/api/doctor/courses', {

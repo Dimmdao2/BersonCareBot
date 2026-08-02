@@ -968,7 +968,15 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       брендирование (включает свои шаблоны уведомлений) · свой домен — привести к порту и к лестнице.
 - [ ] **4.8** Рассылки — после появления модели каналов клиники в соседнем потоке (#1071), по их контракту.
 - [ ] **4.9** Три механики владельца («Сегодня», разминки, промо) — выключены у всех, включаются ему существующим
-      исключением организации, и подчиняются лестнице как все.
+      исключением организации, и подчиняются лестнице как все. — ПРОМО ДОКАЗАНО: один `getMechanicSurfaceVisibility`
+      определяет doctor page/menu и patient surfaces; disabled скрывает existing promo из списка, legacy/deep links,
+      direct detail/item pages и doctor GET, read_only оставляет статистику/существующий инстанс без save/refresh,
+      full_access сохраняет materialization. Evidence: `promoMaterializationGate.ts`,
+      `patientTreatmentProgramEntry.ts`, `treatment-program-promo/{page.tsx,route.ts}`; выполнены
+      `pnpm --dir apps/webapp exec vitest run --project=fast src/modules/treatment-program/patientTreatmentProgramEntry.test.ts`
+      (5 tests), `--project=route src/app/api/tariffMechanics.route.test.ts` (21 tests),
+      `--project=ui src/app/api/tariffMechanicsRefusals.ui.test.tsx` (11 tests), `pnpm --dir apps/webapp typecheck`,
+      `pnpm --dir apps/webapp lint`, `git diff --check`.
 
 #### Этап 4a. Добор по находкам двойного аудита плана (Sol + Opus, 30.07)
 
