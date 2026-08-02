@@ -449,24 +449,39 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       «И облачную кассу будем подключать» → на уточнение «поле `receipt` в платеже» — **«делай конечно как надо.
       чеки и касса будут»**. Разведка с источниками:
       [`CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md`](./CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md).
-      Форма правки — **одно необязательное поле `receipt?` в параметрах `createIntent` и `refund`**
+      Форма правки — **одно типизированное поле `receipt?` в параметрах `createIntent`; refund — union: полный без
+      receipt, частичный с обязательным receipt**
       ([`modules/payments/providerPort.ts:12-18`](../../../apps/webapp/src/modules/payments/providerPort.ts)),
       подмешиваемое в тело запроса ЮKassa, когда оно есть
       ([`infra/payments/yookassaPaymentProvider.ts:79-87`](../../../apps/webapp/src/infra/payments/yookassaPaymentProvider.ts)).
-      Не форк адаптера, не второй провайдер; `mock` поле игнорирует. `PaymentProviderConfig` не меняется — чек это
-      данные платежа, а не учётка провайдера.
+      Не форк адаптера, не второй провайдер. Адаптер без поддержки переданного чека обязан отказать, а не молча
+      проигнорировать его. `PaymentProviderConfig` не меняется — чек это данные операции, а не учётка провайдера.
       Состав: `customer.email` (обязателен — ЮKassa доставляет чеки только письмом), `items[]` с `description`,
       `quantity`, `amount`, `vat_code`, `payment_subject: "service"`, `payment_mode: "full_prepayment"`,
-      и `tax_system_code`.
-      **`vat_code` и `tax_system_code` — НАСТРОЙКИ кабинета глобального админа, не константы** (правило
+      `measure: "piece"`; сумма позиций равна сумме операции. `tax_system_code` — условное поле только для той
+      сторонней кассы/конфигурации, которая его требует; сервис «Чеки от ЮKassa» поле игнорирует.
+      **`vat_code`, а при действительно требующей его сторонней кассе и `tax_system_code`, — НАСТРОЙКИ кабинета
+      глобального админа, не константы** (правило
       [`OWNER_PRODUCT_RULES.md` §19](../../ARCHITECTURE/OWNER_PRODUCT_RULES.md)); доказательство обязательности:
       с 01.01.2026 `4`=20 % соседствует с `11`=22 % и `12`=22/122 — захардкоженная ставка неверна уже сегодня.
       **Порядок обязателен: СНАЧАЛА поле в коде, ПОТОМ тумблер кассы в кабинете ЮKassa.** Как только фискализация
       включена, ЮKassa отклоняет создание платежа без `receipt` (`INVALID_REQUEST`, параметр `receipt`) — то есть
       включение кассы без этой правки ломает ВСЕ платежи.
-      Сама касса подключается в кабинете ЮKassa (Настройки → Онлайн-касса), НЕ у нас; выбор «Чеки от ЮKassa» или
-      партнёрской кассы на код не влияет и решается владельцем позже.
-      — НЕ СДЕЛАНО: `grep -rn "receipt\|vat_code\|tax_system_code\|fiscal" apps/webapp/src` — 0 совпадений.
+      Сама касса подключается в кабинете ЮKassa (Настройки → Онлайн-касса), НЕ у нас. Выбор «Чеки от ЮKassa» или
+      партнёрской кассы влияет на обязательность `tax_system_code` и на способ TEST-приёмки, поэтому фиксируется до
+      включения кассы, но общий receipt contract/порт остаётся один.
+      Полный возврат отправляется без `receipt`: ЮKassa строит чек возврата из исходного платежа. Частичный возврат
+      обязан передать receipt с суммой позиций ровно на сумму возврата; исходный email/VAT/описание для этого надо
+      хранить снимком, а не пересчитывать из изменившихся настроек.
+      — **НЕ СДЕЛАНО, перемерено 02.08:**
+      `rg -n "vat_code|tax_system_code|receipt_registration|fiscalization" apps/webapp/src | wc -l` → `0`.
+      Официальные источники: [OpenAPI](https://yookassa.ru/developers/api/yookassa-openapi-specification.yaml),
+      [платежи с чеками](https://yookassa.ru/developers/payment-acceptance/receipts/54fz/yoomoney/payments),
+      [возвраты](https://yookassa.ru/developers/payment-acceptance/receipts/54fz/yoomoney/refunds),
+      [приёмка](https://yookassa.ru/developers/payment-acceptance/receipts/54fz/yoomoney/basics).
+      Ограничение доказательства: TEST-магазин проверяет receipt только для режима сторонней кассы; настоящая
+      приёмка «Чеков от ЮKassa» требует минимального платежа в реальном магазине и полного возврата после проверки
+      обоих чеков. Это не разрешает трогать PROD без отдельной команды владельца.
 
 **Проверка:** state-machine + idempotency тесты; подписанный webhook success/replay/forgery/amount-mismatch;
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
