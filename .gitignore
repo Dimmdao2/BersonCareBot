@@ -54,6 +54,7 @@ _old/logs/
 
 # Transient working files (DB dumps, import CSVs with PII, audit logs) — never commit
 .tmp/
+runs/stryker-calib/
 
 # Git
 .git/
