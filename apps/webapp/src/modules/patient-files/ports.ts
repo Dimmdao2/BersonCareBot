@@ -56,6 +56,8 @@ export interface PatientFilesPort {
   ): Promise<PatientFileRecord | null>;
   linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null>;
   renameFile(id: string, fileName: string): Promise<PatientFileRecord | null>;
+  /** Removes the canonical row and stages its object for the shared retrying media purge. */
+  deleteFile(id: string): Promise<boolean>;
   /** Current total bytes stored for the organization; mirrors the `files` quota's live SUM in `createFile`. */
   getStorageUsedBytes(): Promise<number>;
 }

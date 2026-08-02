@@ -13,7 +13,11 @@
  */
 
 /** Envelope-shaped settings whose `value.password` must never be copied into the audit trail. */
-const PASSWORD_BEARING_KEYS = new Set<string>(['smtp_outbound', 'operator_health_imap']);
+const PASSWORD_BEARING_KEYS = new Set<string>([
+  'smtp_outbound',
+  'clinic_smtp_outbound',
+  'operator_health_imap',
+]);
 
 /**
  * Settings whose ENTIRE value is a credential — a bare string, not an envelope with a `password`
@@ -27,12 +31,18 @@ const PASSWORD_BEARING_KEYS = new Set<string>(['smtp_outbound', 'operator_health
  */
 const SECRET_VALUE_KEYS = new Set<string>([
   'max_bot_api_key',
+  'max_webhook_secret',
+  'telegram_bot_token',
+  'telegram_webhook_secret',
   'yandex_oauth_client_secret',
   'vk_id_client_secret',
   'google_client_secret',
   'google_refresh_token',
   'apple_oauth_private_key',
   'smsc_api_key',
+  'clinic_smsc_api_key',
+  'clinic_telegram_bot_token',
+  'clinic_max_bot_api_key',
   'auth_altcha_hmac_secret',
 ]);
 

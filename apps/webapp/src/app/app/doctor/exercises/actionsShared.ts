@@ -1,5 +1,4 @@
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { webappReposAreInMemory } from '@/config/env';
@@ -120,8 +119,6 @@ export async function bulkCreateExercisesFromMediaCore(
   items: BulkCreateExercisesFromMediaItem[],
 ): Promise<BulkCreateExercisesFromMediaResult> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
-  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
   const userId = workspace.session.user.userId;
 
   const deduped: BulkCreateExercisesFromMediaItem[] = [];
@@ -246,8 +243,6 @@ export async function bulkCreateExercisesFromMediaCore(
 
 export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveExerciseResult> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
-  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
   const deps = buildAppDeps();
   const loadRefItems = await deps.references.listActiveItemsByCategoryCode(
     EXERCISE_LOAD_TYPE_CATEGORY_CODE,
@@ -344,8 +339,6 @@ export async function archiveDoctorExerciseCore(
   formData: FormData,
 ): Promise<ArchiveDoctorExerciseCoreResult> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
-  if (!entitlement.ok) return { kind: 'invalid', error: entitlement.reason };
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указано упражнение' };
@@ -384,8 +377,6 @@ export async function unarchiveDoctorExerciseCore(
   formData: FormData,
 ): Promise<UnarchiveDoctorExerciseCoreResult> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'exercise_catalog');
-  if (!entitlement.ok) return { kind: 'invalid', error: entitlement.reason };
   const idRaw = formData.get('id');
   const id = typeof idRaw === 'string' ? idRaw.trim() : '';
   if (!id) return { kind: 'invalid', error: 'Не указано упражнение' };

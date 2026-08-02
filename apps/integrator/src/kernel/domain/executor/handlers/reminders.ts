@@ -44,11 +44,7 @@ import {
   reminderIntentPrimaryLabel,
   reminderLinkKeyboardButton,
 } from '../../reminders/reminderInlineKeyboard.js';
-import type {
-  InlineKeyboardButton,
-  ReminderOpenLinkSpec,
-} from '../../reminders/reminderInlineKeyboard.js';
-import { buildExerciseReminderWebAppUrls } from '../../reminders/reminderMessengerWebAppUrls.js';
+import type { InlineKeyboardButton } from '../../reminders/reminderInlineKeyboard.js';
 import { maxBindingRecipient } from '../../../../integrations/max/maxRecipient.js';
 import { env } from '../../../../config/env.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
@@ -675,23 +671,10 @@ export async function handleReminders(
         } else {
           reminderTitle = 'Напоминание';
         }
-        const webUrls = await buildExerciseReminderWebAppUrls({
-          channel,
-          chatId,
-          externalId,
-          integratorUserId: occ.userId,
-          reminderTargetUrl: openUrl,
-        });
-        const primarySpec: ReminderOpenLinkSpec = webUrls
-          ? { kind: 'web_app', url: webUrls.primaryWebAppUrl }
-          : { kind: 'url', url: openUrl };
-        const scheduleSpec: ReminderOpenLinkSpec = webUrls
-          ? { kind: 'web_app', url: webUrls.scheduleWebAppUrl }
-          : { kind: 'url', url: remindersEditUrl ?? openUrl };
         const replyMarkup = buildReminderDispatchInlineKeyboard({
           primaryLabel: reminderIntentPrimaryLabel(rule?.reminderIntent ?? null),
-          primary: primarySpec,
-          schedule: scheduleSpec,
+          primaryUrl: openUrl,
+          scheduleUrl: remindersEditUrl ?? openUrl,
           occurrenceId: occ.id,
         });
 
@@ -803,22 +786,24 @@ export async function handleReminders(
         error: 'reminders.snooze.callback: forbidden',
       };
     }
-    let plannedUntil = new Date(Date.now() + minutes * 60_000).toISOString();
-    if (deps.remindersWebappWritesPort) {
-      const w = await deps.remindersWebappWritesPort.postOccurrenceSnooze({
-        integratorUserId: userId,
-        occurrenceId,
-        minutes,
-      });
-      if (w.ok) plannedUntil = w.snoozedUntil;
+    if (!deps.remindersWebappWritesPort) {
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.snooze.callback: no remindersWebappWritesPort',
+      };
     }
-    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [
-      {
-        type: 'reminders.occurrence.reschedulePlanned',
-        params: { occurrenceId, plannedAt: plannedUntil },
-      },
-    ];
-    await persistWrites(deps.writePort, writes);
+    const w = await deps.remindersWebappWritesPort.postOccurrenceSnooze({
+      occurrenceId,
+      minutes,
+    });
+    if (!w.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.snooze.callback: ${w.error}`,
+      };
+    }
     const tplSource = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
       ? (
@@ -849,7 +834,7 @@ export async function handleReminders(
       text: ack,
       channel: src,
     });
-    return { actionId: action.id, status: 'success', writes, intents };
+    return { actionId: action.id, status: 'success', intents };
   }
 
   if (action.type === 'reminders.skip.applyPreset') {
@@ -880,17 +865,24 @@ export async function handleReminders(
       };
     }
 
-    if (deps.remindersWebappWritesPort) {
-      await deps.remindersWebappWritesPort.postOccurrenceSkip({
-        integratorUserId: userId,
-        occurrenceId,
-        reason: null,
-      });
+    if (!deps.remindersWebappWritesPort) {
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.skip.applyPreset: no remindersWebappWritesPort',
+      };
     }
-    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [
-      { type: 'reminders.occurrence.markSkippedLocal', params: { occurrenceId } },
-    ];
-    await persistWrites(deps.writePort, writes);
+    const web = await deps.remindersWebappWritesPort.postOccurrenceSkip({
+      occurrenceId,
+      reason: null,
+    });
+    if (!web.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.skip.applyPreset: ${web.error}`,
+      };
+    }
     const tplSaved = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
       ? (
@@ -916,7 +908,6 @@ export async function handleReminders(
     return {
       actionId: action.id,
       status: 'success',
-      writes,
       intents,
     };
   }
@@ -952,7 +943,6 @@ export async function handleReminders(
       };
     }
     const web = await deps.remindersWebappWritesPort.postOccurrenceDone({
-      integratorUserId: userId,
       occurrenceId,
     });
     if (!web.ok) {
@@ -1074,11 +1064,20 @@ export async function handleReminders(
       templateVars = { minutes: String(minutesRounded) };
     }
 
-    if (deps.remindersWebappWritesPort) {
-      await deps.remindersWebappWritesPort.postReminderMuteUntil({
-        integratorUserId: userId,
-        mutedUntilIso,
-      });
+    if (!deps.remindersWebappWritesPort) {
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.mute.callback: no remindersWebappWritesPort',
+      };
+    }
+    const mute = await deps.remindersWebappWritesPort.postReminderMuteUntil({ mutedUntilIso });
+    if (!mute.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.mute.callback: ${mute.error}`,
+      };
     }
     const tplMs = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
@@ -1152,7 +1151,6 @@ export async function handleReminders(
     }
 
     const web = await deps.remindersWebappWritesPort.postMessengerTopicDisable({
-      integratorUserId: userId,
       occurrenceId,
       messengerChannel,
     });
@@ -1169,52 +1167,21 @@ export async function handleReminders(
     const callbackQueryId =
       asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
 
-    const identities = await deps.readPort.readDb<Array<{ resource: string; externalId: string }>>({
-      type: 'identities.allByUserId',
-      params: { userId },
-    });
-    const maxIdentity = Array.isArray(identities)
-      ? identities.find((i) => i.resource === 'max' && i.externalId.trim().length > 0)
-      : undefined;
-
-    let maxExternal = maxIdentity?.externalId.trim() ?? '';
-    if (messengerChannel === 'max' && !maxExternal) {
-      maxExternal = channelUserId;
-    }
-
-    const webUrls = await buildExerciseReminderWebAppUrls({
-      channel: messengerChannel,
-      chatId,
-      externalId: messengerChannel === 'max' ? maxExternal : String(chatId),
-      integratorUserId: userId,
-      reminderTargetUrl: '/app/patient',
-    });
-
-    let profileSpec: ReminderOpenLinkSpec;
-    let mobileSpec: ReminderOpenLinkSpec;
-    if (webUrls) {
-      profileSpec = { kind: 'web_app', url: webUrls.profileChannelsWebAppUrl };
-      mobileSpec = { kind: 'web_app', url: webUrls.mobileAppWebAppUrl };
-    } else {
-      const baseHttpRaw = trimTrailingSlash(env.APP_BASE_URL);
-      if (baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')) {
-        profileSpec = {
-          kind: 'url',
-          url: `${baseHttpRaw}/app/patient/profile#patient-profile-notifications`,
-        };
-        mobileSpec = { kind: 'url', url: `${baseHttpRaw}/app/patient` };
-      } else {
-        profileSpec = { kind: 'url', url: '/app/patient/profile#patient-profile-notifications' };
-        mobileSpec = { kind: 'url', url: '/app/patient' };
-      }
-    }
+    const baseHttpRaw = trimTrailingSlash(env.APP_BASE_URL);
+    const appBaseUrl = baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')
+      ? baseHttpRaw
+      : '';
+    const profileUrl = appBaseUrl
+      ? `${appBaseUrl}/app/patient/profile#patient-profile-notifications`
+      : '/app/patient/profile#patient-profile-notifications';
+    const mobileUrl = appBaseUrl ? `${appBaseUrl}/app/patient` : '/app/patient';
 
     const ackText = web.paragraphs.map((p) => escapeReminderHtml(p)).join('\n\n');
 
     const followUpKb: InlineKeyboardButton[][] = [
       [
-        reminderLinkKeyboardButton('Настроить каналы уведомлений', profileSpec),
-        reminderLinkKeyboardButton('Установить мобильное приложение', mobileSpec),
+        reminderLinkKeyboardButton('Настроить каналы уведомлений', profileUrl),
+        reminderLinkKeyboardButton('Установить мобильное приложение', mobileUrl),
       ],
     ];
 
@@ -1338,7 +1305,6 @@ export async function handleReminders(
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
-      integratorUserId: userId,
       messengerChannel,
     });
     const topics = settingsResult.ok ? settingsResult.topics : [];
@@ -1421,13 +1387,18 @@ export async function handleReminders(
       };
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
-    await deps.remindersWebappWritesPort.toggleNotificationTopic({
-      integratorUserId: userId,
+    const toggle = await deps.remindersWebappWritesPort.toggleNotificationTopic({
       topicCode,
       messengerChannel,
     });
+    if (!toggle.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.notifSettings.toggle.callback: ${toggle.error}`,
+      };
+    }
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
-      integratorUserId: userId,
       messengerChannel,
     });
     const topics = settingsResult.ok ? settingsResult.topics : [];

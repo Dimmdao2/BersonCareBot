@@ -102,7 +102,7 @@ function assertScratchSqlCreatesRepresentativeRows(sql) {
     'public.system_settings',
     'integrator.users',
     'integrator.content_access_grants',
-    'integrator.user_reminder_rules',
+    'public.reminder_rules',
     'integrator.user_reminder_occurrences',
     'integrator.user_reminder_delivery_logs',
   ]) {

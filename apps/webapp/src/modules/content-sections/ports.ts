@@ -2,6 +2,7 @@ import type { ContentSectionKind, SystemParentCode } from './types';
 
 export type ContentSectionRow = {
   id: string;
+  organizationId: string | null;
   slug: string;
   title: string;
   description: string;
@@ -35,7 +36,7 @@ export type ContentSectionsListFilter = {
 /** Create/update payload: `kind` / `systemParentCode` default to article + null when omitted. */
 export type ContentSectionUpsertInput = Omit<
   ContentSectionRow,
-  'id' | 'kind' | 'systemParentCode'
+  'id' | 'organizationId' | 'kind' | 'systemParentCode'
 > & {
   id?: string;
   kind?: ContentSectionKind;

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import { requireEntitlementForMutationPage } from '@/app-layer/guards/requireEntitlement';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
@@ -19,7 +19,7 @@ function isLessonSection(section: string): boolean {
 
 export default async function DoctorCourseEditPage(props: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
-  await requireEntitlementForPage({ organizationId: workspace.organizationId }, 'courses');
+  await requireEntitlementForMutationPage({ organizationId: workspace.organizationId }, 'courses');
   const { id } = await props.params;
   if (!z.string().uuid().safeParse(id).success) {
     notFound();

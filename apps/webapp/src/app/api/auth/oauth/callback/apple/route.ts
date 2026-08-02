@@ -171,6 +171,8 @@ export async function POST(request: Request) {
     displayNameHint: displayName?.trim() || email || claims.sub,
     authMethod: 'apple_oauth',
     userByPhone: deps.userByPhone,
+    next: verified.next,
+    roleLoginPortal: verified.roleLoginPortal,
   });
 
   if (!done.ok) {

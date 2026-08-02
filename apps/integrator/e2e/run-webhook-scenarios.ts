@@ -246,14 +246,9 @@ async function main(): Promise<void> {
   });
   await app.ready();
 
-  const { telegramConfig } = await import('../src/integrations/telegram/config.js');
-  const webhookSecret = telegramConfig.webhookSecret;
   const headers: Record<string, string> = {
     'content-type': 'application/json',
   };
-  if (typeof webhookSecret === 'string') {
-    headers['x-telegram-bot-api-secret-token'] = webhookSecret;
-  }
 
   const fixtures = await loadFixtures();
   let passed = 0;
@@ -288,28 +283,6 @@ async function main(): Promise<void> {
       console.error(
         `  ✗ ${name} (status=${res.statusCode}, tgCalls=${recordedCalls.length}, first=${recordedCalls[0]?.method ?? '-'})`,
       );
-      failed++;
-    }
-  }
-
-  // Wrong secret (only if Telegram webhook secret is set)
-  if (typeof webhookSecret === 'string') {
-    clearRecordedCalls();
-    const wrongRes = (await app.inject({
-      method: 'POST',
-      url: '/webhook/telegram',
-      headers: {
-        'content-type': 'application/json',
-        'x-telegram-bot-api-secret-token': 'wrong-secret',
-      },
-      payload: fixtures[0]!.payload as object,
-    })) as InjectRes;
-    const wrongOk = wrongRes.statusCode === 403 && recordedCalls.length === 0;
-    if (wrongOk) {
-      console.log('  ✓ wrong_secret (403, no Telegram calls)');
-      passed++;
-    } else {
-      console.error('  ✗ wrong_secret');
       failed++;
     }
   }

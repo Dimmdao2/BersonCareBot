@@ -1,7 +1,7 @@
 /**
  * Legacy URL `/app/patient/treatment/promo` — сразу открывает материализованную программу (без виртуального списка).
  */
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   getOptionalPatientSession,
@@ -11,6 +11,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { resolvePlanStartLessonPathForPatient } from '@/app/app/patient/go/resolvePatientReminderGoTargets';
+import { resolvePromoAccessForPatient } from '@/app-layer/treatment-program/promoMaterializationGate';
 
 export default async function PatientTreatmentPromoDefaultPage() {
   const session = await getOptionalPatientSession();
@@ -40,5 +41,10 @@ export default async function PatientTreatmentPromoDefaultPage() {
   }
 
   const deps = buildAppDeps();
+  const promoAccess = await resolvePromoAccessForPatient(
+    { patientOrganization: deps.patientOrganization },
+    session.user.userId,
+  );
+  if (!promoAccess.visible) notFound();
   redirect(await resolvePlanStartLessonPathForPatient(deps, session.user.userId));
 }

@@ -68,7 +68,8 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
 
 const DEFAULT_SECTION: SetupSectionId = 'calendar';
 
-function resolveSectionId(raw: string | undefined): SetupSectionId {
+function resolveSectionId(raw: string | undefined, paymentsVisible: boolean): SetupSectionId {
+  if (raw === 'payments' && !paymentsVisible) return DEFAULT_SECTION;
   if (SETUP_SECTIONS.some((s) => s.id === raw)) return raw as SetupSectionId;
   return DEFAULT_SECTION;
 }
@@ -87,7 +88,7 @@ type PaymentSettingsState =
       providersJson: ReturnType<typeof parseBookingPaymentSettingsValue>;
     };
 
-function BookingPaymentsSectionLoader() {
+function BookingPaymentsSectionLoader({ readOnly }: { readOnly: boolean }) {
   const [state, setState] = useState<PaymentSettingsState>({ phase: 'loading' });
   const [, startTransition] = useTransition();
 
@@ -135,6 +136,7 @@ function BookingPaymentsSectionLoader() {
     <BookingPaymentsSection
       paymentEnabled={state.paymentEnabled}
       providersJson={state.providersJson}
+      readOnly={readOnly}
     />
   );
 }
@@ -870,10 +872,10 @@ function SectionForm() {
   );
 }
 
-function SectionPayments() {
+function SectionPayments({ readOnly }: { readOnly: boolean }) {
   return (
     <div className={BOOKING_CARD_GRID_CLASS}>
-      <BookingPaymentsSectionLoader />
+      <BookingPaymentsSectionLoader readOnly={readOnly} />
       <BookingPrepaymentSection />
     </div>
   );
@@ -896,10 +898,19 @@ function SectionNotifications() {
  * Clinic-management only: навигация доступна owner/admin своей организации.
  * Под-навигация секций по deep-link `section` ↔ scheduleTabRegistry deepLinkKeys: ["section"].
  */
-export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleTabProps) {
+export function ScheduleSetupTab({
+  deepLinkParams,
+  onDeepLinkChange,
+  paymentsVisible = true,
+  paymentsReadOnly = false,
+}: ScheduleTabProps) {
   const [activeSection, setActiveSectionState] = useState<SetupSectionId>(() =>
-    resolveSectionId(deepLinkParams.section),
+    resolveSectionId(deepLinkParams.section, paymentsVisible),
   );
+
+  const visibleSections = paymentsVisible
+    ? SETUP_SECTIONS
+    : SETUP_SECTIONS.filter((section) => section.id !== 'payments');
 
   const setActiveSection = useCallback(
     (id: SetupSectionId) => {
@@ -917,7 +928,7 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
         aria-label="Разделы настройки записи"
         data-testid="setup-subnav"
       >
-        {SETUP_SECTIONS.map((sec) => (
+        {visibleSections.map((sec) => (
           <Button
             key={sec.id}
             type="button"
@@ -938,7 +949,9 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
         {activeSection === 'services' && <SectionServices />}
         {activeSection === 'specialists' && <SectionSpecialists />}
         {activeSection === 'form' && <SectionForm />}
-        {activeSection === 'payments' && <SectionPayments />}
+        {activeSection === 'payments' && paymentsVisible && (
+          <SectionPayments readOnly={paymentsReadOnly} />
+        )}
         {activeSection === 'rules' && <SectionRules />}
         {activeSection === 'notifications' && <SectionNotifications />}
         {activeSection === 'packages' && <SectionPackages />}

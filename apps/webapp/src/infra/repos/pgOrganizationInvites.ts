@@ -1,6 +1,7 @@
-import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 import type {
   AcceptOrganizationInviteResult,
   CreateOrganizationInviteResult,
@@ -11,8 +12,6 @@ import type {
 } from '@/modules/organization-invites/ports';
 import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
-import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
-import { saasOrgEntitlementOverrides } from '../../../db/schema/saasEntitlements';
 import { platformUsers } from '../../../db/schema/schema';
 import {
   ORGANIZATION_INVITE_ROLES,
@@ -112,15 +111,11 @@ const inviteSelectSql = `
 export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
   return {
     async createReplacingPending(input): Promise<CreateOrganizationInviteResult> {
-      return getDrizzle().transaction(async (tx) => {
-        // C4A correction: lock the whole organization (not organizationId+email) so that
-        // concurrent invite-create calls for *different* emails in the same organization also
-        // serialize, not just resends of the same email. This is the atomicity boundary the seat
-        // capacity check below relies on — without it, two different-email requests could both
-        // observe the last free seat and both insert.
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${'clinic_invite_seats:' + input.organizationId}, 0))`,
-        );
+      return getDrizzle().transaction((tx) =>
+        transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'clinic_team' },
+          async (quota) => {
         const [activeMember] = await tx
           .select({ id: beOrganizationMembers.id })
           .from(platformUsers)
@@ -144,118 +139,24 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
         }
 
         if (input.invitedRole === 'doctor') {
-          // Atomic, race-safe seat capacity check — the authoritative enforcement (the JS-level
-          // clinicSeats.assertSeatAvailableForInvite pre-check is best-effort UX only). Mirrors
-          // resolveClinicSeatLimit's override > tariff precedence.
-          // `clinic_team` is numeric, so the legacy boolean map cannot switch this limit off.
-          // This is duplicated in SQL because it must run inside this same lock+transaction.
+          // The authoritative capacity decision stays inside this organization's advisory-locked
+          // transaction. The shared quota port uses the same effective tariff / active override
+          // resolver as stock writers; route-level checks remain intentionally absent.
           // `i.invited_email <> $2` excludes this email's own prior pending reservation: a
           // same-email replacement at the limit does not add a reservation, so it must not be
           // counted against itself.
-          // §5a item 5.1 — `additional_seat_price_minor`/`currency` come from the tariff alone
-          // (never the per-org seat-limit override, which only ever moves the FREE included count):
-          // a NULL price keeps §5.2's hard block; a configured price is returned to the separate
-          // billing confirmation path. Capacity changes only after capture persists paid allowance.
-          // §2.12 — the current-org wrapper binds this tenant read to the signed clinic, then uses
-          // the same frozen/live switch as every other reader of tariff content.
-          const tariffResult = await tx.execute(sql`
-            SELECT
-              tariff.included_seats,
-              tariff.additional_seat_price_minor,
-              tariff.currency
-            FROM public.be_organizations AS organization
-            LEFT JOIN LATERAL app.saas_billing_effective_tariff_for_current_org(
-              organization.id,
-              organization.tariff_id
-            ) AS tariff ON true
-            WHERE organization.id = ${input.organizationId}::uuid
-          `);
-          const tariff = tariffResult.rows[0] as
-            | {
-                included_seats: number | null;
-                additional_seat_price_minor: number | null;
-                currency: string | null;
-              }
-            | undefined;
-          // A Drizzle transaction owns one node-postgres client. Keep these reads sequential:
-          // concurrent client.query calls are deprecated by pg and will be rejected in pg 9.
-          const [override] = await tx
-            .select({ value: saasOrgEntitlementOverrides.seatLimitOverride })
-            .from(saasOrgEntitlementOverrides)
-            .where(
-              and(
-                eq(saasOrgEntitlementOverrides.organizationId, input.organizationId),
-                eq(saasOrgEntitlementOverrides.mechanic, 'clinic_team'),
-              ),
-            )
-            .limit(1);
-          const [subscription] = await tx
-            .select({ value: saasBillingSubscriptions.paidAdditionalSeats })
-            .from(saasBillingSubscriptions)
-            .where(
-              and(
-                eq(saasBillingSubscriptions.organizationId, input.organizationId),
-                eq(saasBillingSubscriptions.source, 'paid_subscription'),
-              ),
-            )
-            .limit(1);
-          const [activeSeats] = await tx
-            .select({ value: sql<number>`count(*)::int` })
-            .from(beOrganizationMembers)
-            .where(
-              and(
-                eq(beOrganizationMembers.organizationId, input.organizationId),
-                eq(beOrganizationMembers.status, 'active'),
-                isNotNull(beOrganizationMembers.specialistId),
-              ),
-            );
-          const [pendingInvites] = await tx
-            .select({ value: sql<number>`count(*)::int` })
-            .from(organizationMemberInvites)
-            .where(
-              and(
-                eq(organizationMemberInvites.organizationId, input.organizationId),
-                eq(organizationMemberInvites.invitedRole, 'doctor'),
-                eq(organizationMemberInvites.status, 'pending'),
-                gt(organizationMemberInvites.expiresAt, sql`now()`),
-                ne(organizationMemberInvites.invitedEmail, input.invitedEmail),
-              ),
-            );
-          const [acceptedInvites] = await tx
-            .select({ value: sql<number>`count(*)::int` })
-            .from(organizationMemberInvites)
-            .innerJoin(
-              beOrganizationMembers,
-              eq(beOrganizationMembers.id, organizationMemberInvites.acceptedMembershipId),
-            )
-            .where(
-              and(
-                eq(organizationMemberInvites.organizationId, input.organizationId),
-                eq(organizationMemberInvites.invitedRole, 'doctor'),
-                eq(organizationMemberInvites.status, 'accepted'),
-                eq(beOrganizationMembers.status, 'active'),
-                isNull(beOrganizationMembers.specialistId),
-              ),
-            );
-          const includedSeats = override?.value ?? tariff?.included_seats ?? null;
-          const limitValue = includedSeats === null
-            ? null
-            : includedSeats + (subscription?.value ?? 0);
-          const usedValue =
-            (activeSeats?.value ?? 0) +
-            (pendingInvites?.value ?? 0) +
-            (acceptedInvites?.value ?? 0);
-          if (limitValue === null || limitValue === undefined || usedValue >= limitValue) {
-            const overagePriceMinor = tariff?.additional_seat_price_minor ?? null;
-            const overageCurrency = tariff?.currency ?? null;
-            if (overagePriceMinor === null || overageCurrency === null) {
+          const decision = await quota.resolveClinicTeamAvailability({
+            excludedPendingEmail: input.invitedEmail,
+          });
+          if (!decision.allowed) {
+            if (decision.code === 'seat_limit_reached') {
               return { ok: false, code: 'seat_limit_reached' };
             }
             return {
               ok: false,
               code: 'seat_overage_confirmation_required',
-              priceMinor: overagePriceMinor,
-              currency: overageCurrency,
+              priceMinor: decision.priceMinor,
+              currency: decision.currency,
             };
           }
         }
@@ -297,7 +198,9 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
             organizationTitle: organization?.title ?? null,
           },
         };
-      });
+          },
+        ),
+      );
     },
 
     async listPendingByOrganization(organizationId) {

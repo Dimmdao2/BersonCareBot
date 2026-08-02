@@ -57,13 +57,17 @@ export const MECHANIC_REGISTRY = {
   exercise_packages: { class: 'возможность', label: 'Пакеты упражнений', quotaEnforcement: 'declared_no_enforcement' },
   courses: { class: 'возможность', label: 'Курсы', quotaEnforcement: 'declared_no_enforcement' },
   cms_pages: { class: 'возможность', label: 'Страницы CMS', quotaEnforcement: 'declared_no_enforcement' },
-  // Checked via assertStockQuotaAvailable in pgPatientFiles.createFile under an org advisory
+  // Checked via transactionQuotaPort in pgPatientFiles.createFile under an org advisory
   // lock, not by a database trigger — see check-storage-quota-race.mjs for the race proof.
   files: { class: 'объём', label: 'Файлы пациентов', quotaEnforcement: 'application_transaction_snapshot', quotaUnit: 'bytes' },
   patient_card: { class: 'никогда', label: 'Карточка пациента', quotaEnforcement: 'declared_no_enforcement' },
   subscriptions: { class: 'возможность', label: 'Абонементы пациентов', quotaEnforcement: 'declared_no_enforcement' },
   payments: { class: 'возможность', label: 'Оплата записи', quotaEnforcement: 'declared_no_enforcement' },
   mailings: { class: 'возможность', label: 'Рассылки', quotaEnforcement: 'declared_no_enforcement' },
+  clinic_smtp: { class: 'возможность', label: 'Собственный SMTP', quotaEnforcement: 'declared_no_enforcement' },
+  clinic_sms: { class: 'возможность', label: 'Собственный SMS-канал', quotaEnforcement: 'declared_no_enforcement' },
+  clinic_telegram_bot: { class: 'возможность', label: 'Собственный Telegram-бот', quotaEnforcement: 'declared_no_enforcement' },
+  clinic_max_bot: { class: 'возможность', label: 'Собственный MAX-бот', quotaEnforcement: 'declared_no_enforcement' },
   patient_app: { class: 'никогда', label: 'Приложение пациента', quotaEnforcement: 'declared_no_enforcement' },
   patient_app_paid_subscription: { class: 'возможность', label: 'Платная подписка пациента', quotaEnforcement: 'declared_no_enforcement' },
   branding: { class: 'возможность', label: 'Брендирование', quotaEnforcement: 'declared_no_enforcement' },
@@ -76,8 +80,6 @@ export const MECHANIC_REGISTRY = {
   // Owner 31.07 (#1069): "дневники у пациентов не отбираем" — the mechanic has no toggle at all,
   // same class as patient_card/patient_app. See QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md §31.07.
   patient_diaries: { class: 'никогда', label: 'Дневники пациента', quotaEnforcement: 'declared_no_enforcement' },
-  clinical_tests: { class: 'возможность', label: 'Клинические тесты и наборы', quotaEnforcement: 'declared_no_enforcement' },
-  online_intake: { class: 'возможность', label: 'Онлайн-анкета', quotaEnforcement: 'declared_no_enforcement' },
   doctor_statistics: { class: 'возможность', label: 'Статистика кабинета', quotaEnforcement: 'declared_no_enforcement' },
   specialist_tasks: { class: 'возможность', label: 'Задачи специалиста', quotaEnforcement: 'declared_no_enforcement' },
   booking_prepayment: { class: 'возможность', label: 'Предоплата при записи', quotaEnforcement: 'declared_no_enforcement' },

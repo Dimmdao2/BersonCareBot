@@ -1,5 +1,4 @@
-import type { PaymentProviderPort } from '@/modules/payments/providerPort';
-import type { PaymentReceipt } from '@/modules/payments/providerPort';
+import type { PaymentProviderPort, PaymentReceipt } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import type { OrgCommercialLifecycleState } from '@/modules/org-entitlements/types';
 import type { SaasBillingPeriod } from './paidPeriod';
@@ -332,7 +331,10 @@ export type SaasBillingRepositoryPort = {
    * К4 round 2 — idempotent by construction, same shape as
    * {@link createSaasBillingRenewalInvoiceIfAbsent}: a second call under the same
    * `(providerId, providerIdempotencyKey)` returns the invoice already raised (`created: false`)
-   * instead of a duplicate row. Callers must skip the provider charge when `created` is `false`.
+   * instead of a duplicate row. For the tariff-renewal-only caller, an older empty draft with the
+   * same subscription period is also returned before inserting, preserving its provider key. A
+   * draft still needs to be claimed before its first or retried provider call; see
+   * `claimSaasBillingInvoiceProviderIntent`.
    */
   createSaasBillingInvoice(input: {
     organizationId: string;
@@ -352,6 +354,10 @@ export type SaasBillingRepositoryPort = {
     saasBillingInvoiceId: string;
     receipt: PaymentReceipt;
   }): Promise<SaasBillingInvoice>;
+  /** Atomically reserves a draft for one provider call. A false result means another call owns it. */
+  claimSaasBillingInvoiceProviderIntent(saasBillingInvoiceId: string): Promise<boolean>;
+  /** Releases an unlinked reservation after the provider call fails, making the same key retryable. */
+  releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId: string): Promise<void>;
   recordSaasBillingProviderEvent(input: {
     organizationId: string;
     saasBillingInvoiceId: string | null;
@@ -554,6 +560,17 @@ export type SaasBillingRepositoryPort = {
     saasBillingInvoiceId: string;
     organizationId: string;
   }): Promise<SaasBillingInvoice | null>;
+  /**
+   * К6 — reopens only a provider-rejected tariff invoice for the existing clinic checkout flow.
+   * The period row is retained (so a retry cannot create a second period); the new deterministic
+   * provider key makes a fresh manual checkout possible after an off-session attempt was canceled.
+   */
+  prepareSaasBillingFailedInvoiceForManualCheckout(input: {
+    saasBillingInvoiceId: string;
+    organizationId: string;
+    providerId: string;
+    providerIdempotencyKey: string;
+  }): Promise<SaasBillingInvoice>;
 };
 
 export type SaasBillingSettingsReadPort = {

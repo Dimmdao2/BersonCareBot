@@ -6,7 +6,7 @@ reminders	public	reminder_journal	SCOPED	webapp	canonical_business_history	keep	
 reminders	public	reminder_occurrence_history	SCOPED	webapp	public_read_model	keep	admin stats/history use it	avoid using as dispatch owner
 reminders	public	reminder_delivery_events	SCOPED	webapp	public_telemetry_projection	retain_until_metrics_migration	admin health/stats references	consider telemetry consolidation later
 reminders	public	webapp_reminder_occurrences	SCOPED	webapp	public_dispatch_state	keep	Web Push-only dispatch uses it	add retention policy if needed
-reminders	integrator	user_reminder_rules	SCOPED	integrator	live_dispatch_mirror	keep	scheduler reads enabled rules	design dispatch-from-public before removal
+reminders	integrator	user_reminder_rules	LEGACY	integrator	retired_rule_mirror	retain_until_tool_retirement	one-shot backfill/reconcile tools still name it	remove those tools, then prove zero consumers before drop
 reminders	integrator	user_reminder_occurrences	SCOPED	integrator	live_dispatch_state	keep	scheduler/worker plan and update rows	derive org context in T0.4
 reminders	integrator	user_reminder_delivery_logs	SCOPED	integrator	live_delivery_state	keep	worker writes and public projection consumes	retention after metrics migration
 rubitime	public	be_appointments	SCOPED	webapp	canonical_booking_data	keep	none	canonical parity gate

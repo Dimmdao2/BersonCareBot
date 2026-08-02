@@ -55,6 +55,14 @@ export default async function PatientSectionPage({ params }: Props) {
     redirect(routePaths.patientGoDailyWarmup);
   }
 
+  if (section.organizationId) {
+    const entitlement = await requireEntitlementForReadAction(
+      { organizationId: section.organizationId },
+      'cms_pages',
+    );
+    if (!entitlement.ok) notFound();
+  }
+
   const allSectionPages = await deps.contentPages.listBySection(canonicalSlug, {
     viewAuthOnlyPages: true,
   });

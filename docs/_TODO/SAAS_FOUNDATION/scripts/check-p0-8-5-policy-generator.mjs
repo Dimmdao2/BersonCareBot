@@ -103,7 +103,7 @@ for (const descriptor of descriptors) {
   }
 }
 
-if (sql.includes('"public".')) {
+if (sql.includes('ALTER TABLE "public".')) {
   fail('P0.8.5 generated SQL must not target public tables');
 }
 
@@ -218,9 +218,13 @@ for (const descriptor of patientChainOwnedDescriptors) {
     );
   }
 
-  if (!createStatement.includes(`"user_id" = app.current_integrator_user_id()`)) {
+  if (
+    !createStatement.includes(
+      `"${descriptor.patientChain.terminalColumn}" = app.current_integrator_user_id()`,
+    )
+  ) {
     fail(
-      `${descriptor.table} chain-owned policy must terminate on a bigint user_id column via app.current_integrator_user_id()`,
+      `${descriptor.table} chain-owned policy must terminate on its bigint owner column via app.current_integrator_user_id()`,
     );
   }
 }

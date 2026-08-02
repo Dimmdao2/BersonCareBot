@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server';
 import { describe, expect, it } from 'vitest';
 import { proxy } from '@/proxy';
+import { encodeSessionCookie } from '@/modules/auth/sessionCookie';
+import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
+import type { AppSession, UserRole } from '@/shared/types/session';
 
-function unsafeRequest(
-  pathname: string,
-  headers: Record<string, string> = {},
-): NextRequest {
+function unsafeRequest(pathname: string, headers: Record<string, string> = {}): NextRequest {
   return new NextRequest(`https://app.example.test${pathname}`, {
     method: 'POST',
     headers: {
@@ -14,6 +14,25 @@ function unsafeRequest(
       ...headers,
     },
   });
+}
+
+function appRequest(pathname: string, role?: UserRole): NextRequest {
+  const headers: Record<string, string> = { host: 'app.example.test' };
+  if (role) {
+    const now = Math.floor(Date.now() / 1000);
+    const session: AppSession = {
+      user: {
+        userId: `test-${role}`,
+        role,
+        displayName: role,
+        bindings: {},
+      },
+      issuedAt: now,
+      expiresAt: now + 3600,
+    };
+    headers.cookie = `${SESSION_COOKIE_NAME}=${encodeSessionCookie(session)}`;
+  }
+  return new NextRequest(`https://app.example.test${pathname}`, { headers });
 }
 
 describe('HTTP CSRF origin boundary', () => {
@@ -43,9 +62,7 @@ describe('HTTP CSRF origin boundary', () => {
       },
     ],
   ])('rejects %s on a normal browser mutation', async (_case, headers) => {
-    const response = proxy(
-      unsafeRequest('/api/account/security/password/change', headers),
-    );
+    const response = proxy(unsafeRequest('/api/account/security/password/change', headers));
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
@@ -71,5 +88,41 @@ describe('HTTP CSRF origin boundary', () => {
 
     expect(exemptResponse.status).not.toBe(403);
     expect(nearMatchResponse.status).toBe(403);
+  });
+});
+
+describe('role-specific protected app doors', () => {
+  it.each([
+    [
+      '/app/doctor/patients?tab=active',
+      '/app/doctor/login?next=%2Fapp%2Fdoctor%2Fpatients%3Ftab%3Dactive',
+    ],
+    ['/app/patient/profile', '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile'],
+    ['/app/admin/system-health', '/app/admin/login?next=%2Fapp%2Fadmin%2Fsystem-health'],
+  ])('keeps %s on its matching login door with next=', (path, expectedPath) => {
+    const response = proxy(appRequest(path));
+
+    expect(response.headers.get('location')).toBe(`https://app.example.test${expectedPath}`);
+  });
+
+  it('does not redirect a role login route or a public booking route', () => {
+    expect(
+      proxy(appRequest('/app/doctor/login?next=%2Fapp%2Fdoctor%2Fpatients')).headers.get(
+        'location',
+      ),
+    ).toBeNull();
+    expect(proxy(appRequest('/book/clinic-a')).headers.get('location')).toBeNull();
+  });
+
+  it('sends an authenticated user at the wrong portal to their own cabinet with denial feedback', () => {
+    const response = proxy(appRequest('/app/doctor/patients', 'client'));
+
+    expect(response.headers.get('location')).toBe(
+      'https://app.example.test/app/patient?app_access_denied=1',
+    );
+  });
+
+  it('does not interrupt an authenticated user at their own portal', () => {
+    expect(proxy(appRequest('/app/doctor/patients', 'doctor')).headers.get('location')).toBeNull();
   });
 });

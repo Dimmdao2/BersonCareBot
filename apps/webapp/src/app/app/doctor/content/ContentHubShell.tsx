@@ -40,6 +40,9 @@ export type ContentHubSection = {
 
 export type ContentHubShellProps = {
   sections: ContentHubSection[];
+  cmsEnabled?: boolean;
+  canManageCms: boolean;
+  canManageWarmups?: boolean;
   patientHomeTodayEnabled: boolean;
   warmupsEnabled: boolean;
   /** Full ContentSectionRow[] needed by ContentForm's section select. */
@@ -72,6 +75,8 @@ function SystemFolderPane({
   selectedPageId,
   onSelectPage,
   onCreatePage,
+  canManageCms,
+  canAttachSections,
 }: {
   folderCode: SystemParentCode;
   sections: ContentHubSection[];
@@ -80,6 +85,8 @@ function SystemFolderPane({
   selectedPageId: string | null;
   onSelectPage: (id: string) => void;
   onCreatePage: (sectionSlug: string) => void;
+  canManageCms: boolean;
+  canAttachSections: boolean;
 }) {
   const label = SYSTEM_FOLDER_LABELS[folderCode] ?? folderCode;
   const childSections = useMemo(
@@ -103,7 +110,9 @@ function SystemFolderPane({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="m-0 text-base font-semibold">{label}</h2>
       <div className="ml-auto flex flex-wrap items-center gap-1.5">
-        <AttachExistingSectionsModal folderCode={folderCode} freeSections={freeSections} />
+        {canAttachSections ? (
+          <AttachExistingSectionsModal folderCode={folderCode} freeSections={freeSections} />
+        ) : null}
       </div>
     </div>
   );
@@ -135,12 +144,17 @@ function SystemFolderPane({
               initialPages={rows}
               ratingsById={ratingsById}
               newPageSystemParentCode={folderCode}
-              sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
-              allowDeleteSection={!isSectionSlugProtectedFromDelete(sec.slug)}
+              sectionSettingsHref={
+                canManageCms
+                  ? `/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`
+                  : undefined
+              }
+              allowDeleteSection={canManageCms && !isSectionSlugProtectedFromDelete(sec.slug)}
               pagesInSectionCount={rows.length}
               selectedPageId={selectedPageId}
-              onSelectPage={onSelectPage}
-              onCreatePage={onCreatePage}
+              onSelectPage={canManageCms ? onSelectPage : undefined}
+              onCreatePage={canManageCms ? onCreatePage : undefined}
+              canManageCms={canManageCms}
             />
           );
         })}
@@ -162,6 +176,7 @@ function ArticleSectionPane({
   selectedPageId,
   onSelectPage,
   onCreatePage,
+  canManageCms,
 }: {
   sectionSlug: string;
   sectionTitle: string;
@@ -171,6 +186,7 @@ function ArticleSectionPane({
   selectedPageId: string | null;
   onSelectPage: (id: string) => void;
   onCreatePage: (sectionSlug: string) => void;
+  canManageCms: boolean;
 }) {
   const sec = sections.find((s) => s.slug === sectionSlug);
   const pages = pagesBySectionSlug[sectionSlug] ?? [];
@@ -181,9 +197,16 @@ function ArticleSectionPane({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="m-0 text-base font-semibold">{sectionTitle}</h2>
-        <Button type="button" variant="default" size="sm" onClick={() => onCreatePage(sectionSlug)}>
-          Создать страницу
-        </Button>
+        {canManageCms ? (
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={() => onCreatePage(sectionSlug)}
+          >
+            Создать страницу
+          </Button>
+        ) : null}
       </div>
       <ContentPagesSectionList
         sectionSlug={sectionSlug}
@@ -192,12 +215,17 @@ function ArticleSectionPane({
         ratingsById={ratingsById}
         showSectionHeading={false}
         newPageSystemParentCode={newPageSystemParentCode}
-        sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sectionSlug)}`}
-        allowDeleteSection={!isSectionSlugProtectedFromDelete(sectionSlug)}
+        sectionSettingsHref={
+          canManageCms
+            ? `/app/doctor/content/sections/edit/${encodeURIComponent(sectionSlug)}`
+            : undefined
+        }
+        allowDeleteSection={canManageCms && !isSectionSlugProtectedFromDelete(sectionSlug)}
         pagesInSectionCount={pages.length}
         selectedPageId={selectedPageId}
-        onSelectPage={onSelectPage}
-        onCreatePage={onCreatePage}
+        onSelectPage={canManageCms ? onSelectPage : undefined}
+        onCreatePage={canManageCms ? onCreatePage : undefined}
+        canManageCms={canManageCms}
       />
     </div>
   );
@@ -245,6 +273,9 @@ function computeCountsByPaneKey(
  */
 export function ContentHubShell({
   sections,
+  cmsEnabled = true,
+  canManageCms,
+  canManageWarmups = canManageCms,
   patientHomeTodayEnabled,
   warmupsEnabled,
   fullSections,
@@ -280,6 +311,8 @@ export function ContentHubShell({
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2">
         <ContentNav
           articleSections={articleSectionEntries}
+          cmsEnabled={cmsEnabled}
+          canManageCms={canManageCms}
           patientHomeTodayEnabled={patientHomeTodayEnabled}
           warmupsEnabled={warmupsEnabled}
           activePaneKey={activePaneKey}
@@ -313,9 +346,12 @@ export function ContentHubShell({
     }
 
     if (isSystemParentCode(activePaneKey)) {
+      const canManageFolder = activePaneKey === 'warmups' ? canManageWarmups : canManageCms;
       return (
         <SystemFolderPane
           folderCode={activePaneKey}
+          canManageCms={canManageFolder}
+          canAttachSections={canManageCms}
           sections={sections}
           pagesBySectionSlug={pagesBySectionSlug}
           ratingsById={ratingsById}
@@ -341,6 +377,7 @@ export function ContentHubShell({
         <ArticleSectionPane
           sectionSlug={slug}
           sectionTitle={sec.title}
+          canManageCms={canManageCms}
           sections={sections}
           pagesBySectionSlug={pagesBySectionSlug}
           ratingsById={ratingsById}

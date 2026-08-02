@@ -27,6 +27,7 @@ type DoctorWorkspaceShellProps = {
   coursesEnabled?: boolean;
   promoEnabled?: boolean;
   cmsEnabled?: boolean;
+  patientHomeTodayEnabled?: boolean;
   /** Disable tenant-only background badge requests on global operator surfaces. */
   enableTenantRuntime?: boolean;
   /**
@@ -63,6 +64,7 @@ export function DoctorWorkspaceShell({
   coursesEnabled = false,
   promoEnabled = false,
   cmsEnabled = false,
+  patientHomeTodayEnabled = false,
   enableTenantRuntime = true,
   brand,
   menuKind = 'doctor',
@@ -88,6 +90,7 @@ export function DoctorWorkspaceShell({
     coursesEnabled,
     promoEnabled,
     cmsEnabled,
+    patientHomeTodayEnabled,
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes('clinical.workspace');

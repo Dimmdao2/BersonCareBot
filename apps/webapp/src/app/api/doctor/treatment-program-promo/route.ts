@@ -9,6 +9,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import {
   entitlementMutationRefusalResponse,
+  requireEntitlementForRead,
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
 import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/systemSettingsOrgContextResponse';
@@ -26,6 +27,8 @@ const patchBodySchema = z.object({
 export async function GET() {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForRead(gate.ctx, 'promo');
+  if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();
   const [templateId, activePromo, completedPromo] = await Promise.all([

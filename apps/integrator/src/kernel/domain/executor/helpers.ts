@@ -40,7 +40,7 @@ export type ExecutorDeps = {
   contentCatalogPort?: ContentCatalogPort | null;
   protectedAccessPort?: ProtectedAccessPort | null;
   /** When true, attach main reply keyboard (from replyMenu.json) to user `message.send` / `message.compose` only if `ctx.base.linkedPhone === true`. */
-  sendMenuOnButtonPress?: boolean;
+  isTelegramMenuOnButtonPress?: () => Promise<boolean>;
   contentPort?: ContentPort;
   /** Policy for support relay message types. When set, relay checks allowed types and uses copyMessage where applicable. */
   supportRelayPolicy?: SupportRelayPolicy | null;
@@ -50,7 +50,7 @@ export type ExecutorDeps = {
   webappEventsPort?: WebappEventsPort;
   /** Optional: resolve delivery targets by phone/channel for multi-channel booking fan-out. */
   deliveryTargetsPort?: DeliveryTargetsPort;
-  /** Optional: webapp journal + occurrence_history for reminder snooze/skip from bot callbacks. */
+  /** Optional: ready reminder-action capabilities from the webapp public schema. */
   remindersWebappWritesPort?: RemindersWebappWritesPort;
 };
 

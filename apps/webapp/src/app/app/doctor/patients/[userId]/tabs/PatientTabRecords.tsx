@@ -214,6 +214,7 @@ type Props = {
   initialAppointments?: PatientAppointmentItem[] | null;
   /** SSR-provided patient packages. When present, skips the MembershipPanel client fetch. */
   initialPackages?: ApiPackage[] | null;
+  membershipsVisible?: boolean;
   /** SSR-provided payments summary. When present, skips the PaymentsPanel initial fetch. */
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
 };
@@ -224,6 +225,7 @@ export function PatientTabRecords({
   onCreateVisitFromAppointment,
   initialAppointments,
   initialPackages,
+  membershipsVisible = true,
   initialPaymentsSummary,
 }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
@@ -566,14 +568,16 @@ export function PatientTabRecords({
           </div>
 
           {/* Абонемент */}
-          <MembershipPanel
-            userId={userId}
-            initialPackages={initialPackages}
-            highlightedPackageId={highlightedPackageId}
-            onToggleHighlight={(packageId) => {
-              setHighlightedPackageId((current) => (current === packageId ? null : packageId));
-            }}
-          />
+          {membershipsVisible ? (
+            <MembershipPanel
+              userId={userId}
+              initialPackages={initialPackages}
+              highlightedPackageId={highlightedPackageId}
+              onToggleHighlight={(packageId) => {
+                setHighlightedPackageId((current) => (current === packageId ? null : packageId));
+              }}
+            />
+          ) : null}
         </div>
       </div>
 

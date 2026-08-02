@@ -17,6 +17,8 @@ import type { MessengerSurfaceHint } from '@/shared/lib/platform';
 import type { PrefetchedPublicAuthConfig } from '@/shared/ui/patient/auth/AuthFlowV2';
 import type { UnauthenticatedAppEntryClassification } from '@/modules/auth/appEntryClassification';
 import { CLIENT_BOOT_ACTIVE_CONTENT_ID } from '@/modules/auth/clientBootWatchdog';
+import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
+import { RoleLoginPortalHeader } from '@/shared/ui/auth/RoleLoginPortalHeader';
 
 type AppEntryLoginContentProps = {
   allowDevBypass: boolean;
@@ -31,6 +33,8 @@ type AppEntryLoginContentProps = {
   entryClassification: UnauthenticatedAppEntryClassification;
   /** Канон `/app/tg` или `/app/max`: не подменять miniapp полноценным веб-входом. */
   routeBoundMiniappEntry?: boolean;
+  /** A role-specific browser door; the auth mechanics remain shared. */
+  roleLoginPortal?: RoleLoginPortal | null;
 };
 
 export function AppEntryLoginContent({
@@ -41,10 +45,12 @@ export function AppEntryLoginContent({
   serverMessengerSurface,
   entryClassification,
   routeBoundMiniappEntry = false,
+  roleLoginPortal = null,
 }: AppEntryLoginContentProps) {
   return (
     <div id={CLIENT_BOOT_ACTIVE_CONTENT_ID}>
       <div id="app-entry-content" className="flex flex-col gap-6">
+        {roleLoginPortal ? <RoleLoginPortalHeader portal={roleLoginPortal} /> : null}
         {allowDevBypass ? (
           <div
             id="app-entry-dev-bypass-panel"
@@ -107,6 +113,7 @@ export function AppEntryLoginContent({
           serverMessengerSurface={serverMessengerSurface ?? null}
           entryClassification={entryClassification}
           routeBoundMiniappEntry={routeBoundMiniappEntry}
+          roleLoginPortal={roleLoginPortal}
         />
       </Suspense>
       <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />

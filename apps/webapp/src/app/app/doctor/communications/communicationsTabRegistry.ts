@@ -3,7 +3,7 @@ import type { CommunicationsTabId } from './doctorCommunicationsTabs';
 
 /** Стандартные пропы, которые шелл передаёт каждому компоненту-табу. */
 export type CommunicationsTabProps = {
-  /** URL-параметры, специфичные для этого таба (напр. { id: "req-123" } для intake). */
+  /** URL-параметры, специфичные для этого таба. */
   deepLinkParams: Record<string, string>;
   /** Вызывается табом при изменении deep-link параметра. null — удалить из URL. */
   onDeepLinkChange: (key: string, value: string | null) => void;
@@ -13,6 +13,8 @@ export type CommunicationsTabProps = {
   isActive?: boolean;
   /** IANA timezone name for display (e.g. "Europe/Moscow"). Threaded from server page. */
   displayIana?: string;
+  /** Whether the clinic tariff permits creating or sending a new mailing. */
+  mailingsMutationAvailable?: boolean;
 };
 
 export type CommunicationsTabRegistryEntry = {
@@ -32,19 +34,12 @@ export const COMMUNICATIONS_TAB_REGISTRY: CommunicationsTabRegistryEntry[] = [
     id: 'chats',
     loader: () => import('./tabs/ChatsTab').then((m) => ({ default: m.ChatsTab })),
     // #812: ?chatId= selects the conversation (DoctorSupportInbox onSelectedConversationChange).
-    // NOT "id" — the shell copies a URL key into EVERY tab declaring it, and "id" is intake's key;
-    // sharing it leaks the conversationId into intake as a request-id (stray 404 fetch).
     deepLinkKeys: ['chatId'],
   },
   {
     id: 'comments',
     loader: () => import('./tabs/CommentsTab').then((m) => ({ default: m.CommentsTab })),
     deepLinkKeys: [],
-  },
-  {
-    id: 'intake',
-    loader: () => import('./tabs/IntakeTab').then((m) => ({ default: m.IntakeTab })),
-    deepLinkKeys: ['id'],
   },
   {
     id: 'broadcasts',

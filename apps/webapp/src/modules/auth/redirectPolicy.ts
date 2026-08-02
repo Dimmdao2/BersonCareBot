@@ -4,14 +4,20 @@
  */
 import type { UserRole } from '@/shared/types/session';
 import { routePaths } from '@/app-layer/routes/paths';
+import {
+  isSafeRolePortalNext,
+  roleCanUsePortal,
+  type RoleLoginPortal,
+} from '@/modules/auth/roleLogin';
 
 const SAFE_NEXT_PREFIX = '/app/patient';
 const SAFE_NEXT_EXCLUDE = '/app/patient/bind-phone';
 const SAFE_STAFF_FIRST_RUN_FALLBACK = '/app/account?tab=security';
 
-/** Путь для редиректа по роли (doctor и admin ведут в один workspace). */
+/** Путь для редиректа по роли в собственный кабинет. */
 export function getRedirectPathForRole(role: UserRole): string {
-  if (role === 'doctor' || role === 'admin') return routePaths.doctor;
+  if (role === 'admin') return routePaths.admin;
+  if (role === 'doctor') return routePaths.doctor;
   return routePaths.patient;
 }
 
@@ -31,7 +37,14 @@ export function getPostAuthRedirectTarget(
   role: UserRole,
   nextParam: string | null,
   fallbackRedirectTo?: string | null,
+  portal?: RoleLoginPortal | null,
 ): string {
+  if (portal) {
+    if (!roleCanUsePortal(role, portal)) {
+      return `${getRedirectPathForRole(role)}?app_access_denied=1`;
+    }
+    if (isSafeRolePortalNext(nextParam, portal)) return nextParam;
+  }
   if (role !== 'client') {
     return fallbackRedirectTo === SAFE_STAFF_FIRST_RUN_FALLBACK
       ? SAFE_STAFF_FIRST_RUN_FALLBACK

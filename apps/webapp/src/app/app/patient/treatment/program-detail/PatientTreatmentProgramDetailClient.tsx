@@ -18,7 +18,6 @@ import {
   resolvePatientProgramControlRemainderDaysForPatientUi,
   expectedStageControlDeadlineIsoForPatientUi,
 } from '@/modules/treatment-program/stage-semantics';
-import { patientPersonalProgramCtaShouldRenderOnPlanScreen } from '@/modules/treatment-program/patientPersonalProgramCtaEligible';
 import { resolveProgramTabStageForPatientDetail } from '@/modules/treatment-program/resolveProgramTabStageForPatientDetail';
 import {
   normalizeChecklistCountMap,
@@ -45,7 +44,6 @@ import { PatientPlanTabStrip } from '@/app/app/patient/treatment/program-detail/
 import { PatientPlanTabPanels } from '@/app/app/patient/treatment/program-detail/PatientPlanTabPanels';
 import type { PatientPlanTodayRemindersCardProps } from '@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard';
 import { PatientPlanTodayRemindersCard } from '@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard';
-import { PatientPlanPersonalProgramCtaCard } from '@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard';
 import { PatientPlanSupportCard } from '@/app/app/patient/treatment/program-detail/PatientPlanSupportCard';
 
 export function PatientTreatmentProgramDetailClient(props: {
@@ -317,11 +315,6 @@ export function PatientTreatmentProgramDetailClient(props: {
           programEvents={programEvents}
           passedStages={passedStages}
         />
-        {patientPersonalProgramCtaShouldRenderOnPlanScreen(detail) ? (
-          <div className="mt-4">
-            <PatientPlanPersonalProgramCtaCard />
-          </div>
-        ) : null}
       </div>
     );
   }
@@ -382,11 +375,6 @@ export function PatientTreatmentProgramDetailClient(props: {
         programMediaInteraction={programMediaInteraction}
       />
 
-      {patientPersonalProgramCtaShouldRenderOnPlanScreen(detail) ? (
-        <div className="mt-4">
-          <PatientPlanPersonalProgramCtaCard />
-        </div>
-      ) : null}
     </div>
   );
 }
