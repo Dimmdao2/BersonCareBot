@@ -654,7 +654,7 @@
             [
               {
                 "textTemplateKey": "max:bookingMenu.my",
-                "webAppUrlFact": "links.webappCabinetUrl"
+                "callbackData": "bookings.show"
               }
             ],
             [
@@ -666,7 +666,7 @@
             [
               {
                 "textTemplateKey": "max:bookingsScreen.address",
-                "webAppUrlFact": "links.webappAddressUrl"
+                "callbackData": "info.address"
               }
             ]
           ]
@@ -761,7 +761,7 @@
             [
               {
                 "textTemplateKey": "max:bookingMenu.my",
-                "webAppUrlFact": "links.webappCabinetUrl"
+                "callbackData": "bookings.show"
               }
             ],
             [
@@ -773,7 +773,7 @@
             [
               {
                 "textTemplateKey": "max:bookingsScreen.address",
-                "webAppUrlFact": "links.webappAddressUrl"
+                "callbackData": "info.address"
               }
             ]
           ]
@@ -873,7 +873,7 @@
             [
               {
                 "textTemplateKey": "max:bookingMenu.my",
-                "webAppUrlFact": "links.webappCabinetUrl"
+                "callbackData": "bookings.show"
               }
             ],
             [
@@ -885,7 +885,7 @@
             [
               {
                 "textTemplateKey": "max:bookingsScreen.address",
-                "webAppUrlFact": "links.webappAddressUrl"
+                "callbackData": "info.address"
               }
             ]
           ]

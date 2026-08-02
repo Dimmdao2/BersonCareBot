@@ -123,8 +123,10 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
 - [x] Удалить главный/home mini-app launch из Telegram/MAX menu, reply-menu, content-сценариев и post-bind меню,
       сохранив booking-действие и обычную browser-auth ссылку —
       `apps/integrator/src/kernel/domain/executor/executeActionHomeMiniAppRemoval.unit.test.ts`.
-- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из booking/diary/reminder-путей, сохранив ботов для
-      кодов аутентификации и уведомлений.
+- [x] Удалить Telegram/MAX mini-app entry points из booking-путей, сохранив bot callbacks записи,
+      подготовки и адреса — `apps/integrator/src/kernel/domain/executor/executeActionBookingMiniAppRemoval.unit.test.ts`.
+- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из diary-путей, сохранив bot-сценарии дневника.
+- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из reminder-путей, сохранив bot-уведомления.
 - [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
       Telegram/MAX mini-app launch buttons отсутствуют.
 
