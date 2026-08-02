@@ -10,6 +10,9 @@ repeatable ingress invariant; inspect the rendered nginx and add only the smalle
 Human consequence: a test-card payment can reach YooKassa, but its real callback is rejected by TEST nginx, so the
 invoice/order remains pending and B0.3 cannot be accepted end-to-end.
 
+Источник оракула: `docs/_TODO/SAAS_FOUNDATION/SAAS_BILLING_PLAN.md` B0.3 — «тестовой картой, от корзины до
+захвата, с подтверждением по вебхуку».
+
 Official source for sender networks and HTTPS/443 requirement:
 <https://yookassa.ru/developers/using-api/webhooks?banner_recipes=1&projectId=1152>.
 
@@ -65,4 +68,3 @@ sender address. Do not allow a broader `/api/payments/` prefix, other provider i
   `bash deploy/host/apply-test-nginx-webapp.sh --dry-run`; dry-run is read-only.
 - Run `git diff --check` and relevant scoped lint/tests if another file changes.
 - Commit only explicit task files with a message naming B0.3/#1057. Report exact commands/output, SHA and limits.
-
