@@ -24,6 +24,7 @@ const doneOccurrenceA = `d7-done-a-${randomUUID()}`;
 const doneOccurrenceB = `d7-done-b-${randomUUID()}`;
 const snoozeOccurrenceA = `d7-snooze-a-${randomUUID()}`;
 const skipOccurrenceA = `d7-skip-a-${randomUUID()}`;
+const muteOccurrenceA = `d7-mute-a-${randomUUID()}`;
 
 const fixtureTables = [
   'public.be_organizations',
@@ -175,6 +176,32 @@ describe('D7 signed reminder callback capabilities', () => {
         skipOccurrenceA,
       ],
     );
+    await run(
+      `INSERT INTO integrator.user_reminder_occurrences (
+         id, rule_id, occurrence_key, planned_at, status, sent_at, organization_id
+       ) VALUES
+         ($1::text, $2::text, $3::text, '2026-08-02T09:00:00.000Z'::timestamptz, 'sent', '2026-08-02T09:00:00.000Z'::timestamptz, $4::uuid),
+         ($5::text, $6::text, $7::text, '2026-08-02T09:10:00.000Z'::timestamptz, 'sent', '2026-08-02T09:10:00.000Z'::timestamptz, $8::uuid),
+         ($9::text, $2::text, $10::text, '2026-08-02T09:20:00.000Z'::timestamptz, 'sent', '2026-08-02T09:20:00.000Z'::timestamptz, $4::uuid),
+         ($11::text, $2::text, $12::text, '2026-08-02T09:30:00.000Z'::timestamptz, 'sent', '2026-08-02T09:30:00.000Z'::timestamptz, $4::uuid),
+         ($13::text, $2::text, $14::text, statement_timestamp() - interval '1 minute', 'planned', NULL, $4::uuid)`,
+      [
+        doneOccurrenceA,
+        ruleA,
+        `d7-key-done-a-${randomUUID()}`,
+        orgA,
+        doneOccurrenceB,
+        ruleB,
+        `d7-key-done-b-${randomUUID()}`,
+        orgB,
+        snoozeOccurrenceA,
+        `d7-key-snooze-a-${randomUUID()}`,
+        skipOccurrenceA,
+        `d7-key-skip-a-${randomUUID()}`,
+        muteOccurrenceA,
+        `d7-key-mute-a-${randomUUID()}`,
+      ],
+    );
     const existingTimezone = await run<{ audience: string; value_json: unknown }>(
       `SELECT audience, value_json FROM public.app_runtime_settings
        WHERE key = 'app_display_timezone' AND scope = 'admin' AND organization_id IS NULL`,
@@ -195,6 +222,9 @@ describe('D7 signed reminder callback capabilities', () => {
     await run('RESET ROLE');
     await setFixtureRls(false);
     await run('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
+    await run('DELETE FROM integrator.user_reminder_occurrences WHERE id = ANY($1::text[])', [
+      [doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA, muteOccurrenceA],
+    ]);
     await run('DELETE FROM public.reminder_journal WHERE occurrence_id = ANY($1::text[])', [
       [doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA],
     ]);
@@ -310,16 +340,19 @@ describe('D7 signed reminder callback capabilities', () => {
       }),
     );
     await expect(journalCount(doneOccurrenceA, 'done')).resolves.toBe(1);
+    const operational = await run<{ status: string; due_now: boolean }>(
+      `SELECT status,
+         status = 'planned' AND planned_at <= statement_timestamp() AS due_now
+       FROM integrator.user_reminder_occurrences WHERE id = $1::text`,
+      [doneOccurrenceA],
+    );
+    expect(operational.rows).toEqual([{ status: 'sent', due_now: false }]);
   });
 
-  it('changes only the exact-org occurrence for snooze and skip', async () => {
+  it('changes only the exact-org occurrence for skip', async () => {
     const changed = await withSignedIntegratorPrincipal(
       { organizationId: orgA, integratorUserId: userA },
       async () => {
-        const snooze = await run<{ snoozed_until: string }>(
-          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
-          [snoozeOccurrenceA],
-        );
         const skip = await run<{ skipped_at: string }>(
           `SELECT * FROM app.patient_skip_reminder_occurrence(NULL::uuid, $1::text, NULL::text)`,
           [skipOccurrenceA],
@@ -328,15 +361,95 @@ describe('D7 signed reminder callback capabilities', () => {
           `SELECT * FROM app.patient_skip_reminder_occurrence(NULL::uuid, $1::text, NULL::text)`,
           [doneOccurrenceB],
         );
-        return { snooze, skip, foreign };
+        return { skip, foreign };
       },
     );
-    expect(changed.snooze.rows).toHaveLength(1);
     expect(changed.skip.rows).toHaveLength(1);
     expect(changed.foreign.rows).toEqual([]);
-    await expect(journalCount(snoozeOccurrenceA, 'snoozed')).resolves.toBe(1);
     await expect(journalCount(skipOccurrenceA, 'skipped')).resolves.toBe(1);
     await expect(journalCount(doneOccurrenceB, 'skipped')).resolves.toBe(0);
+    const operational = await run<{ status: string; due_now: boolean }>(
+      `SELECT status,
+         status = 'planned' AND planned_at <= statement_timestamp() AS due_now
+       FROM integrator.user_reminder_occurrences WHERE id = $1::text`,
+      [skipOccurrenceA],
+    );
+    expect(operational.rows).toEqual([{ status: 'sent', due_now: false }]);
+  });
+
+  it('atomically reschedules exactly the signed snoozed occurrence and never replays it', async () => {
+    const first = await withSignedIntegratorPrincipal(
+      { organizationId: orgA, integratorUserId: userA },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [snoozeOccurrenceA],
+        ),
+    );
+    const snoozedUntil = first.rows[0]?.snoozed_until;
+    expect(snoozedUntil).toBeTruthy();
+
+    const changed = await run<{
+      history_snoozed_until: string;
+      operational_planned_at: string;
+      operational_status: string;
+      due_now: boolean;
+    }>(
+      `SELECT
+         history.snoozed_until::text AS history_snoozed_until,
+         operational.planned_at::text AS operational_planned_at,
+         operational.status AS operational_status,
+         operational.status = 'planned'
+           AND operational.planned_at <= statement_timestamp() AS due_now
+       FROM public.reminder_occurrence_history AS history
+       INNER JOIN integrator.user_reminder_occurrences AS operational
+         ON operational.id = history.integrator_occurrence_id
+       WHERE history.integrator_occurrence_id = $1::text`,
+      [snoozeOccurrenceA],
+    );
+    expect(changed.rows[0]).toMatchObject({
+      history_snoozed_until: snoozedUntil,
+      operational_planned_at: snoozedUntil,
+      operational_status: 'planned',
+      due_now: false,
+    });
+    await expect(journalCount(snoozeOccurrenceA, 'snoozed')).resolves.toBe(1);
+
+    const replay = await withSignedIntegratorPrincipal(
+      { organizationId: orgA, integratorUserId: userA },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [snoozeOccurrenceA],
+        ),
+    );
+    expect(replay.rows).toEqual([{ snoozed_until: snoozedUntil }]);
+    await expect(journalCount(snoozeOccurrenceA, 'snoozed')).resolves.toBe(1);
+
+    const foreignOrganization = await withSignedIntegratorPrincipal(
+      { organizationId: orgB, integratorUserId: userA },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [snoozeOccurrenceA],
+        ),
+    );
+    const foreignUser = await withSignedIntegratorPrincipal(
+      { organizationId: orgA, integratorUserId: userB },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [snoozeOccurrenceA],
+        ),
+    );
+    expect(foreignOrganization.rows).toEqual([]);
+    expect(foreignUser.rows).toEqual([]);
+    const unchanged = await run<{ planned_at: string; status: string }>(
+      `SELECT planned_at::text AS planned_at, status
+       FROM integrator.user_reminder_occurrences WHERE id = $1::text`,
+      [snoozeOccurrenceA],
+    );
+    expect(unchanged.rows).toEqual([{ planned_at: snoozedUntil, status: 'planned' }]);
   });
 
   it('persists mute and channel-topic settings through canonical public state', async () => {
@@ -378,6 +491,18 @@ describe('D7 signed reminder callback capabilities', () => {
     expect(new Date(canonical.rows[0]?.muted_until ?? '').toISOString()).toBe(
       '2026-08-03T00:00:00.000Z',
     );
+    const dueWhileMuted = await run<{ due_now: boolean }>(
+      `SELECT operational.status = 'planned'
+           AND operational.planned_at <= statement_timestamp()
+           AND (patient.reminder_muted_until IS NULL OR patient.reminder_muted_until <= statement_timestamp())
+         AS due_now
+       FROM integrator.user_reminder_occurrences AS operational
+       INNER JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = operational.rule_id
+       INNER JOIN public.platform_users AS patient ON patient.integrator_user_id = rule.integrator_user_id
+       WHERE operational.id = $1::text`,
+      [muteOccurrenceA],
+    );
+    expect(dueWhileMuted.rows).toEqual([{ due_now: false }]);
   });
 
   it('exposes only SECURITY DEFINER capabilities to app_patient, not PUBLIC', async () => {
