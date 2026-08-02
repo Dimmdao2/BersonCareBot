@@ -2,16 +2,17 @@
  * DB implementation for the public email-OTP login flow port.
  * Satisfies EmailOtpPublicDbPort from modules/auth/emailOtpPublicPort.ts.
  */
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import type { EmailOtpPublicDbPort } from '@/modules/auth/emailOtpPublicPort';
 
 export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
   return {
     async findOrCreatePublicEmailUser(emailNorm) {
-      const result = await runWebappPgText<{ user_id: string; was_created: boolean }>(
-        `SELECT user_id::text, was_created
-         FROM app.email_otp_public_find_or_create_user($1)`,
-        [emailNorm],
+      const result = await runWebappSql<{ user_id: string; was_created: boolean }>(
+        getWebappSqlDb(),
+        sql`SELECT user_id::text, was_created
+            FROM app.email_otp_public_find_or_create_user(${emailNorm})`,
       );
       const row = result.rows[0];
       if (!row) throw new Error('email_otp_public_find_or_create_user_failed');
@@ -19,24 +20,24 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
     },
 
     async findPublicEmailUser(emailNorm) {
-      const result = await runWebappPgText<{ user_id: string }>(
-        `SELECT user_id::text
-         FROM app.email_otp_public_find_user_by_email($1)`,
-        [emailNorm],
+      const result = await runWebappSql<{ user_id: string }>(
+        getWebappSqlDb(),
+        sql`SELECT user_id::text
+            FROM app.email_otp_public_find_user_by_email(${emailNorm})`,
       );
       const row = result.rows[0];
       return row ? { userId: row.user_id } : null;
     },
 
     async registerPublicEmailPatient(input) {
-      const result = await runWebappPgText<{
+      const result = await runWebappSql<{
         ok: boolean;
         user_id: string | null;
         was_created: boolean;
       }>(
-        `SELECT ok, user_id::text AS user_id, was_created
-         FROM app.email_otp_public_register_patient($1, $2, $3, $4)`,
-        [input.emailNormalized, input.lastName, input.firstName, input.patronymic],
+        getWebappSqlDb(),
+        sql`SELECT ok, user_id::text AS user_id, was_created
+            FROM app.email_otp_public_register_patient(${input.emailNormalized}, ${input.lastName}, ${input.firstName}, ${input.patronymic})`,
       );
       const row = result.rows[0];
       if (!row) throw new Error('email_otp_public_register_patient_failed');
@@ -45,15 +46,15 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
     },
 
     async consumeLatestEmailChallenge(emailNorm, codeHash) {
-      const result = await runWebappPgText<{
+      const result = await runWebappSql<{
         ok: boolean;
         code: 'invalid_code' | 'expired_code' | 'too_many_attempts' | 'email_conflict' | null;
         user_id: string | null;
         retry_after_seconds: number | null;
       }>(
-        `SELECT ok, code, user_id::text AS user_id, retry_after_seconds
-         FROM app.email_otp_public_consume_latest_challenge($1, $2)`,
-        [emailNorm, codeHash],
+        getWebappSqlDb(),
+        sql`SELECT ok, code, user_id::text AS user_id, retry_after_seconds
+            FROM app.email_otp_public_consume_latest_challenge(${emailNorm}, ${codeHash})`,
       );
       const row = result.rows[0];
       if (!row) throw new Error('email_otp_public_consume_latest_challenge_failed');
@@ -68,10 +69,10 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
 
     async findEmailSendCooldownByEmail(emailNorm) {
       // Pick the most recent cooldown for this email regardless of which user_id owns it.
-      const r = await runWebappPgText<{ last_sent_at: Date | string }>(
-        `SELECT last_sent_at
-         FROM app.email_otp_public_find_email_send_cooldown_by_email($1)`,
-        [emailNorm],
+      const r = await runWebappSql<{ last_sent_at: Date | string }>(
+        getWebappSqlDb(),
+        sql`SELECT last_sent_at
+            FROM app.email_otp_public_find_email_send_cooldown_by_email(${emailNorm})`,
       );
       const raw = r.rows[0]?.last_sent_at;
       if (!raw) return null;
