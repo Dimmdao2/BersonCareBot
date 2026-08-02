@@ -1095,7 +1095,26 @@ WITH required(tbl, priv) AS (
     -- and update only the snooze/skip columns on the matched reminder occurrence. platform_users
     -- SELECT is already required above.
     ('public.reminder_occurrence_history', 'SELECT'),
+    ('public.reminder_occurrence_history', 'INSERT'),
     ('public.reminder_occurrence_history', 'UPDATE'),
+    -- 0314/0316/0322 reminder callbacks, mute/settings and dedicated clinic-bot resolution.
+    -- The patient capabilities receive EXECUTE only; app_owner owns the reviewed definers.
+    ('public.reminder_rules', 'SELECT'),
+    ('public.reminder_journal', 'SELECT'),
+    ('public.reminder_journal', 'INSERT'),
+    ('public.user_notification_topic_channels', 'SELECT'),
+    ('public.user_notification_topic_channels', 'INSERT'),
+    ('public.user_notification_topic_channels', 'UPDATE'),
+    ('public.user_channel_preferences', 'SELECT'),
+    ('public.user_channel_bindings', 'SELECT'),
+    ('public.user_web_push_subscriptions', 'SELECT'),
+    ('public.clinic_dedicated_bot_bindings', 'SELECT'),
+    ('public.clinic_dedicated_bot_bindings', 'INSERT'),
+    ('public.clinic_dedicated_bot_bindings', 'UPDATE'),
+    ('public.clinic_dedicated_bot_bindings', 'DELETE'),
+    ('integrator.user_reminder_occurrences', 'SELECT'),
+    ('integrator.user_reminder_occurrences', 'UPDATE'),
+    ('integrator.user_reminder_occurrences', 'DELETE'),
     -- 0256 staff-security self password action: the body reads user_id for its exact self-principal
     -- predicate and updates only that credentials row. Runtime callers retain no direct table grant.
     ('public.user_password_credentials', 'SELECT'),
@@ -1388,7 +1407,12 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # only public.system_settings through a fixed Telegram/MAX/SMSC key allowlist; app_owner SELECT on
   # that table is already pinned in the required-grant set above. The integrator runtime login gets
   # EXECUTE only and retains no direct system_settings table access.
-  local expected_secdef_count=136
+  # 136 -> 144 (2026-08-03, #987 D7/D21 + #1071): migrations 0314, 0316 and 0322 add eight reviewed
+  # app_owner SECURITY DEFINER functions: four patient reminder completion/mute/channel-settings
+  # capabilities, two dedicated clinic-bot binding/resolution functions, pending-occurrence cancel,
+  # and the unified mute action. Their exact table grants are pinned above. C4 reapplies the one
+  # previously missing capability grant: DELETE on integrator.user_reminder_occurrences.
+  local expected_secdef_count=144
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
