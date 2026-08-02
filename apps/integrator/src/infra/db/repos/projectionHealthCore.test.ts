@@ -1,8 +1,12 @@
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import {
   isProjectionHealthDegraded,
   readProjectionHealthSnapshot,
 } from './projectionHealthCore.js';
+
+const pgDialect = new PgDialect();
 
 function snapshotExecutor() {
   return {
@@ -49,5 +53,17 @@ describe('projection health snapshot', () => {
     expect(
       isProjectionHealthDegraded(snapshot, { allowDeadCount: 1, allowRetriesOverThreshold: 3 }),
     ).toBe(false);
+  });
+
+  it('binds a non-default retry threshold into the over-threshold query', async () => {
+    const db = snapshotExecutor();
+
+    await readProjectionHealthSnapshot(db, { retryThreshold: 4 });
+
+    const overThresholdFragment = db.execute.mock.calls[4]?.[0];
+    expect(overThresholdFragment).toBeDefined();
+    const compiled = pgDialect.sqlToQuery(overThresholdFragment as SQL);
+    expect(compiled.sql).toContain('attempts_done >= $1');
+    expect(compiled.params).toEqual([4]);
   });
 });

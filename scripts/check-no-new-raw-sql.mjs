@@ -13,7 +13,6 @@ const scanRoots = ['apps/integrator/src', 'apps/media-worker/src', 'apps/webapp/
 // driver queries: pool/client checkout, transaction control, Drizzle bridges, and the migrator.
 // This is intentionally structural, not a debt allowlist: adding a repository or runtime file
 // here is not an option.
-const portDirs = ['apps/webapp/src/infra/db/'];
 const migrationExecutors = new Set(['apps/integrator/src/infra/db/migrate.ts']);
 const portFiles = new Set([
   'apps/integrator/src/infra/db/client.ts',
@@ -23,12 +22,25 @@ const portFiles = new Set([
   'apps/media-worker/src/poolProvider.ts',
   'apps/media-worker/src/runMediaWorkerSql.ts',
   'apps/media-worker/src/withClient.ts',
+  'apps/webapp/src/infra/db/bootProbe.ts',
+  'apps/webapp/src/infra/db/client.ts',
+  'apps/webapp/src/infra/db/configReaderPoolProvider.ts',
+  'apps/webapp/src/infra/db/drizzleMutationTx.ts',
+  'apps/webapp/src/infra/db/drizzleSqlDebugText.ts',
+  'apps/webapp/src/infra/db/integratorPurgePoolProvider.ts',
+  'apps/webapp/src/infra/db/pgAdvisoryLock.ts',
+  'apps/webapp/src/infra/db/runWebappSql.ts',
+  'apps/webapp/src/infra/db/saasIsolationDbFailureReporting.ts',
+  'apps/webapp/src/infra/db/saasIsolationOperationContext.ts',
+  'apps/webapp/src/infra/db/saasIsolationTelemetry.ts',
+  'apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts',
+  'apps/webapp/src/infra/db/webappPoolProvider.ts',
+  'apps/webapp/src/infra/db/withClient.ts',
 ]);
 
 function isInsidePort(fileName) {
   return (
     migrationExecutors.has(fileName) ||
-    portDirs.some((dir) => fileName.startsWith(dir)) ||
     portFiles.has(fileName)
   );
 }
@@ -408,6 +420,10 @@ function runSelfTest() {
     'apps/integrator/src/drizzleD18aFixture.ts',
     'db.execute(sql`SELECT 1`);\n',
   );
+  const arbitraryWebappDbFile = rawSqlOffenders(
+    'apps/webapp/src/infra/db/rawSqlD18cBoundaryFixture.ts',
+    "pool.query('SELECT 1');\n",
+  );
 
   const relativeHelperFile = 'apps/integrator/src/rawSqlD18aRelativeHelperFixture.ts';
   const relativeConsumerFile = 'apps/integrator/src/rawSqlD18aRelativeConsumerFixture.ts';
@@ -432,6 +448,7 @@ function runSelfTest() {
   if (
     rejectedFixtures.some(({ offenders }) => offenders.length === 0) ||
     drizzleExecute.length !== 0 ||
+    arbitraryWebappDbFile.length === 0 ||
     relativeConsumerOffenders.length === 0
   ) {
     throw new Error('check-no-new-raw-sql self-test failed');
@@ -441,6 +458,9 @@ function runSelfTest() {
     console.log(`  - ${label}: rejected (${offenders.join(', ')})`);
   }
   console.log('  - Drizzle execute: allowed');
+  console.log(
+    `  - arbitrary webapp infra/db file: rejected (${arbitraryWebappDbFile.join(', ')})`,
+  );
   console.log(
     `  - relative-helper export called by consumer: rejected (${relativeConsumerOffenders.join(', ')})`,
   );
