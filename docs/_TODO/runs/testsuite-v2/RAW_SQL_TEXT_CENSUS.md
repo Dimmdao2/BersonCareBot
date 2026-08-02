@@ -60,6 +60,15 @@ invocation: it declares the bridge but does not call itself. The old literal-onl
 measurement (`runWebappPgText\(`) is deliberately not a denominator: it yields
 44 files / 155 calls and misses generic calls.
 
+### 2026-08-02 public-booking entry slice evidence
+
+`pgClinicDirectory.ts` and `pgPublicBookingOtp.ts` now use `runWebappSql` with
+tagged Drizzle `sql` fragments for the five public-booking entry calls. A one-time
+`PgDialect().sqlToQuery()` inspection compiled each fragment and compared
+whitespace-normalized SQL and exact parameter order/values to its prior `$1..$n`
+query: all five matched. The canonical AST command above, run after this slice,
+returned `{ candidateFiles: 73, invocationFiles: 72, semanticCalls: 523 }`.
+
 Legend: **TL** = `TRANSLATE_LIVE`; **WO** = `WAIT_OVERLAP`; **DO** =
 `DELETE_BY_OWNER_STAGE`; **EX** = `LOW_LEVEL_EXEMPT`. A split is shown as
 `TL n + WO n`; every call is assigned once. No `EX` exists: a function, lock,
