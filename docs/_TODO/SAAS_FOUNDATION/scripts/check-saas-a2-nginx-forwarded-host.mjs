@@ -91,7 +91,7 @@ function extractServerBlocks(configText) {
 
 function extractLocationBlocks(configText) {
   const blocks = [];
-  const pattern = /(^|\s)location\s+[^\{]+\{/g;
+  const pattern = /(^|\s)location\s+[^{]+{/g;
   let match;
   while ((match = pattern.exec(configText)) !== null) {
     const keywordStart = match.index + match[1].length;
