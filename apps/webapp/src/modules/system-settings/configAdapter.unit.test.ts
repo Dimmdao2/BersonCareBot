@@ -1,20 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
+import { bindConfigAdapterPort } from './configAdapterPort';
 
 const readAdminSystemSettingString = vi.fn();
 const readExactOrganizationAdminSystemSettingString = vi.fn();
 const readPublicAuthChannelConfigured = vi.fn();
 const getEffective = vi.fn();
-
-vi.mock('@/infra/repos/pgSystemSettings', () => ({
-  readAdminSystemSettingString,
-  readExactOrganizationAdminSystemSettingString,
-  readPublicAuthChannelConfigured,
-}));
-
-vi.mock('@/infra/repos/pgAppRuntimeSettings', () => ({
-  createPgAppRuntimeSettingsPort: () => ({ getEffective }),
-}));
+const getSnapshotRows = vi.fn();
+const upsert = vi.fn();
 
 const {
   getConfigValue,
@@ -25,6 +18,13 @@ const {
   invalidateConfigCache,
   invalidateConfigKey,
 } = await import('./configAdapter');
+
+bindConfigAdapterPort({
+  runtimeSettings: { getEffective, getSnapshotRows, upsert },
+  readAdminSystemSettingString,
+  readExactOrganizationAdminSystemSettingString,
+  readPublicAuthChannelConfigured,
+});
 
 describe('configAdapter DB-only legacy reads', () => {
   beforeEach(() => {
