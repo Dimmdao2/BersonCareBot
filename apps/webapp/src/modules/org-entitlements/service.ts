@@ -482,7 +482,7 @@ export class TariffDowngradeBlockedError extends Error {
  * §5a stage 4b.3/4b.4 — the "ручка 2" evaluator. ONE generic pass over every mechanic; which
  * mechanics block a transition is a data lookup (`downgradePolicies`), never a per-mechanic
  * branch. `freeze_growth` and `disable_immediately` need no code here at all: the existing
- * quota check (`assertStockQuotaAvailable`) and mechanic resolver already produce that behaviour
+ * quota check (`transactionQuotaPort`) and mechanic resolver already produce that behaviour
  * the moment the new tariff is assigned — this function only ever decides what to REFUSE.
  * An unset policy defaults to `block` (fail-closed), matching the rest of this module's rule that
  * an unconfigured numeric mechanic refuses growth rather than falling back to unlimited.
