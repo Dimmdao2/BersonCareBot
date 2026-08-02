@@ -426,6 +426,8 @@ export type SaasBillingRepositoryPort = {
    */
   requireOwnTariffBillingSubscription(organizationId: string): Promise<{
     saasBillingSubscriptionId: string;
+    /** Tariff currently assigned to the paid subscription; may differ from a scheduled next tariff. */
+    currentTariffId: string;
     tariffId: string;
     billingPeriod: SaasBillingPeriod;
     /** Existing paid period is the renewal anchor; `null` only before the first payment. */

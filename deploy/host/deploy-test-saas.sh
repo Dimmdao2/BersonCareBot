@@ -1386,8 +1386,9 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # both are net zero here.
   # TEST measured 135 = baseline 123 + 1 frozen/live implementation + 2 dead 0296 trigger
   # functions + 3 public config accessors + 6 V9b capabilities. Migration 0310 removes the two dead
-  # functions and adds one current-org wrapper: 135 - 2 + 1 = 134.
-  local expected_secdef_count=134
+  # functions and adds one current-org wrapper: 135 - 2 + 1 = 134. Migration 0318 adds one
+  # fixed-key SaaS payment-provider capability without granting system_settings table access.
+  local expected_secdef_count=135
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
