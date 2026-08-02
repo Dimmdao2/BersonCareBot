@@ -160,6 +160,9 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   if (input.systemAccessPolicy) assertAccessPolicy(input.systemAccessPolicy);
   const mechanicAccessPolicies = {} as Tariff['mechanicAccessPolicies'];
   for (const [mechanic, policy] of Object.entries(input.mechanicAccessPolicies)) {
+    // Owner 02.08: clinical tests are built into treatment programs, not a tariff mechanism.
+    // Old tariff JSON may still carry this retired configuration key; ignore it on resave.
+    if (mechanic === 'clinical_tests') continue;
     assertMechanic(mechanic);
     if (!policy) continue;
     assertAccessPolicy(policy);
@@ -169,7 +172,10 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
     mechanicAccessPolicies[mechanic] = policy;
   }
   const mechanics: Record<string, boolean> = {};
-  for (const mechanic of Object.keys(input.mechanics)) assertMechanic(mechanic);
+  for (const mechanic of Object.keys(input.mechanics)) {
+    if (mechanic === 'clinical_tests') continue;
+    assertMechanic(mechanic);
+  }
   for (const mechanic of MECHANICS) {
     if (MECHANIC_REGISTRY[mechanic].class === 'возможность') {
       mechanics[mechanic] = input.mechanics[mechanic] === true;
@@ -177,6 +183,7 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   }
   const downgradePolicies: DowngradePolicyMap = {};
   for (const [mechanic, value] of Object.entries(input.downgradePolicies)) {
+    if (mechanic === 'clinical_tests') continue;
     assertMechanic(mechanic);
     if (!value) continue;
     assertDowngradePolicy(mechanic, value);
