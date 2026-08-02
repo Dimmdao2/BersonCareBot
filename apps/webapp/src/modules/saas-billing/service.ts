@@ -49,16 +49,6 @@ function deriveSaasBillingIdempotencyKey(parts: ReadonlyArray<string | number>):
   return createHash('sha256').update(parts.map(String).join(' ')).digest('hex');
 }
 
-/**
- * К0's "pay for our own tariff" click carries no distinguishing content of its own (no amount, no
- * description — those are server-resolved from the tariff) — unlike К4's manual-invoice form, there
- * is nothing but `organizationId` to hash. Bucketing the clock into a coarse window lets a genuine
- * double-click / page-reload-resubmit (always well under a minute apart) collapse onto the same key,
- * while a real later renewal (at minimum a full billing day away, per `saasTariffs.billingPeriod`)
- * lands in a different bucket and is free to create its own invoice.
- */
-const SAAS_TARIFF_RENEWAL_IDEMPOTENCY_BUCKET_MS = 10 * 60 * 1000;
-
 export function createSaasBillingService(dependencies: {
   repository: SaasBillingRepositoryPort;
   settings: SaasBillingSettingsReadPort;
@@ -715,12 +705,9 @@ export function createSaasBillingService(dependencies: {
       // never at the click time, otherwise an early renewal silently cuts off paid days.
       const servicePeriodStartsAt = currentPeriodEndsAt ?? now().toISOString();
       const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
-      // Deterministic, not `randomUUID()`: bucketed so a genuine repeat click (well under the
-      // bucket width apart) hashes to the same key as the first call, while a real later renewal
-      // (at least a full billing day away) lands in a new bucket and gets its own invoice.
-      const idempotencyBucket = Math.floor(
-        now().getTime() / SAAS_TARIFF_RENEWAL_IDEMPOTENCY_BUCKET_MS,
-      );
+      // The tariff period itself is the request identity. Time spent on the same checkout must not
+      // mint another logical invoice key; a later period has different service boundaries and so
+      // naturally receives a different key.
       return createRenewalSaasBillingInvoice({
         organizationId,
         saasBillingSubscriptionId,
@@ -732,7 +719,8 @@ export function createSaasBillingService(dependencies: {
         providerIdempotencyKey: `saas_tariff_renewal:${deriveSaasBillingIdempotencyKey([
           organizationId,
           saasBillingSubscriptionId,
-          idempotencyBucket,
+          servicePeriodStartsAt,
+          servicePeriodEndsAt,
         ])}`,
       });
     },

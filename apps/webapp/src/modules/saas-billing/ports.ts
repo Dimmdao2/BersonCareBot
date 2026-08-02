@@ -329,8 +329,10 @@ export type SaasBillingRepositoryPort = {
    * К4 round 2 — idempotent by construction, same shape as
    * {@link createSaasBillingRenewalInvoiceIfAbsent}: a second call under the same
    * `(providerId, providerIdempotencyKey)` returns the invoice already raised (`created: false`)
-   * instead of a duplicate row. A draft still needs to be claimed before its first or retried
-   * provider call; see `claimSaasBillingInvoiceProviderIntent`.
+   * instead of a duplicate row. For the tariff-renewal-only caller, an older empty draft with the
+   * same subscription period is also returned before inserting, preserving its provider key. A
+   * draft still needs to be claimed before its first or retried provider call; see
+   * `claimSaasBillingInvoiceProviderIntent`.
    */
   createSaasBillingInvoice(input: {
     organizationId: string;
