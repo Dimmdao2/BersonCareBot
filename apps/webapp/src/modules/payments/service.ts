@@ -68,6 +68,8 @@ export function createPaymentsService(deps: {
     platformUserId: string | null;
     organizationId: string;
   }) => Promise<void>;
+  /** Canonical tariff decision for creating new patient payment intents. Existing intents remain readable/capturable. */
+  canCreatePaymentIntent?: (organizationId: string) => Promise<boolean>;
   syncServicePrepaymentApplicable?: (serviceId: string, applicable: boolean) => Promise<void>;
 }) {
   async function loadSettings(organizationId?: string): Promise<BookingPaymentSettings> {
@@ -383,6 +385,9 @@ export function createPaymentsService(deps: {
         input.idempotencyKey,
       );
       if (existing) return existing;
+      if (!((await deps.canCreatePaymentIntent?.(input.organizationId)) ?? true)) {
+        throw new Error('payments_disabled');
+      }
 
       const created = await adapter.createIntent({
         amountMinor: input.amountMinor,
@@ -444,6 +449,9 @@ export function createPaymentsService(deps: {
         input.idempotencyKey,
       );
       if (existing) return existing;
+      if (!((await deps.canCreatePaymentIntent?.(input.organizationId)) ?? true)) {
+        throw new Error('payments_disabled');
+      }
 
       const productRef = `patient_package:${input.patientPackageId}`;
       const created = await adapter.createIntent({

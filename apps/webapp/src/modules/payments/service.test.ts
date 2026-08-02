@@ -3,6 +3,14 @@ import { createPaymentsService } from './service';
 import type { PaymentsPort } from './ports';
 import type { BookingPaymentSettings, PaymentIntentRecord } from './types';
 
+const providerAdapter = vi.hoisted(() => ({
+  createIntent: vi.fn(),
+}));
+
+vi.mock('@/infra/payments/paymentProviderRegistry', () => ({
+  getPaymentProviderAdapter: vi.fn(() => providerAdapter),
+}));
+
 const intent: PaymentIntentRecord = {
   id: 'intent-1',
   organizationId: 'org-1',
@@ -123,5 +131,91 @@ describe('B1.3 — prepayment provider availability', () => {
         returnUrl: 'https://example.test/pay',
       }),
     ).rejects.toThrow('payment_provider_unavailable');
+  });
+});
+
+describe('payments tariff mechanic', () => {
+  it('keeps an existing payment intent available after payment acceptance is disabled', async () => {
+    const payments = createPaymentsService({
+      port: {
+        findIntentByIdempotency: vi.fn(async () => intent),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [
+            {
+              id: 'yookassa',
+              label: 'YooKassa',
+              enabled: true,
+              apiKey: 'api-key',
+              shopId: 'shop-1',
+            },
+          ],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      canCreatePaymentIntent: async () => false,
+    });
+
+    await expect(
+      payments.createAppointmentPaymentIntent({
+        organizationId: 'org-1',
+        appointmentId: 'appointment-1',
+        platformUserId: 'user-1',
+        amountMinor: 10_000,
+        currency: 'RUB',
+        idempotencyKey: 'key-1',
+        returnUrl: 'https://app.example.test/return',
+      }),
+    ).resolves.toBe(intent);
+  });
+
+  it('refuses a direct new patient-payment request before the provider can create an intent', async () => {
+    const port = {
+      findIntentByIdempotency: vi.fn(async () => null),
+    } as unknown as PaymentsPort;
+    const payments = createPaymentsService({
+      port,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [
+            {
+              id: 'yookassa',
+              label: 'YooKassa',
+              enabled: true,
+              apiKey: 'api-key',
+              shopId: 'shop-1',
+            },
+          ],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      canCreatePaymentIntent: async () => false,
+    });
+
+    await expect(
+      payments.createAppointmentPaymentIntent({
+        organizationId: 'org-1',
+        appointmentId: 'appointment-1',
+        platformUserId: 'user-1',
+        amountMinor: 10_000,
+        currency: 'RUB',
+        idempotencyKey: 'appointment-1:prepayment',
+        returnUrl: 'https://app.example.test/return',
+      }),
+    ).rejects.toThrow('payments_disabled');
+    expect(providerAdapter.createIntent).not.toHaveBeenCalled();
   });
 });

@@ -827,6 +827,13 @@ const paymentsService =
         ),
         captureUnitOfWork: createPgPaymentCaptureUnitOfWork(),
         bookingEngine: bookingEngineService,
+        canCreatePaymentIntent: async (organizationId) => {
+          const access = await orgEntitlementsPort.resolveMechanicAccess(
+            organizationId,
+            'payments',
+          );
+          return access.state === 'full_access' || access.state === 'grace';
+        },
         onPackagePaymentCaptured: membershipsService
           ? async ({ patientPackageId, paymentId, organizationId }) => {
               await membershipsService.activatePatientPackage(
@@ -1143,11 +1150,14 @@ patientBookingService = createPatientBookingService({
   appointmentLifecycle: bookingAppointmentLifecycleService,
   payments: paymentsService,
   canAcceptBookingPrepayment: async (organizationId) => {
-    const access = await orgEntitlementsPort.resolveMechanicAccess(
-      organizationId,
-      'booking_prepayment',
+    const [prepaymentAccess, paymentsAccess] = await Promise.all([
+      orgEntitlementsPort.resolveMechanicAccess(organizationId, 'booking_prepayment'),
+      orgEntitlementsPort.resolveMechanicAccess(organizationId, 'payments'),
+    ]);
+    return (
+      (prepaymentAccess.state === 'full_access' || prepaymentAccess.state === 'grace') &&
+      (paymentsAccess.state === 'full_access' || paymentsAccess.state === 'grace')
     );
-    return access.state === 'full_access' || access.state === 'grace';
   },
   memberships: membershipsServiceResolved,
   clientHistory: clientHistoryService,

@@ -33,13 +33,18 @@ type ProviderRow = {
 
 type Props = {
   paymentEnabled: boolean;
+  readOnly?: boolean;
   providersJson: {
     defaultProviderId: string;
     providers: ProviderRow[];
   };
 };
 
-export function BookingPaymentsSection({ paymentEnabled: initialEnabled, providersJson }: Props) {
+export function BookingPaymentsSection({
+  paymentEnabled: initialEnabled,
+  providersJson,
+  readOnly = false,
+}: Props) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [providers, setProviders] = useState<ProviderRow[]>(providersJson.providers);
   const [defaultProviderId, setDefaultProviderId] = useState(
@@ -56,6 +61,7 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
   const [pending, startTransition] = useTransition();
 
   function save() {
+    if (readOnly) return;
     setError(null);
     startTransition(async () => {
       const okEnabled = await patchAdminSetting('booking_payment_enabled', enabled);
@@ -83,209 +89,218 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
         <CardTitle className="text-base">Платежи записи</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <LabeledSwitch
-          label="Включить оплату записи"
-          checked={enabled}
-          onCheckedChange={setEnabled}
-        />
-        <div className="space-y-2">
-          <Label>Провайдер по умолчанию</Label>
-          <Select value={defaultProviderId} onValueChange={(v) => v && setDefaultProviderId(v)}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {providers.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {providers.map((p) => (
-          <div key={p.id} className="space-y-2 rounded-md border p-3">
-            <LabeledSwitch
-              label={p.label}
-              checked={p.enabled}
-              onCheckedChange={(checked) =>
-                setProviders((prev) =>
-                  prev.map((x) => (x.id === p.id ? { ...x, enabled: checked } : x)),
-                )
-              }
-            />
-
-            {/* yookassa */}
-            {p.id === 'yookassa' ? (
-              <>
-                <div className="space-y-1">
-                  <Label>Webhook Secret</Label>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    placeholder="Webhook secret"
-                    value={webhookSecrets[p.id] ?? ''}
-                    onChange={(e) =>
-                      setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Shop ID</Label>
-                  <Input
-                    placeholder="Shop ID"
-                    value={shopIds[p.id] ?? p.shopId ?? ''}
-                    onChange={(e) => setShopIds((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Секретный ключ API</Label>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    placeholder="Секретный ключ API"
-                    value={apiKeys[p.id] ?? ''}
-                    onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                  />
-                </div>
-              </>
-            ) : null}
-
-            {/* tinkoff */}
-            {p.id === 'tinkoff' ? (
-              <>
-                <div className="space-y-1">
-                  <Label>Terminal Key</Label>
-                  <Input
-                    placeholder="Terminal Key"
-                    value={terminalKeys[p.id] ?? p.terminalKey ?? ''}
-                    onChange={(e) =>
-                      setTerminalKeys((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Секретный пароль</Label>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    placeholder="Секретный пароль"
-                    value={apiKeys[p.id] ?? ''}
-                    onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Webhook Secret</Label>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    placeholder="Webhook secret"
-                    value={webhookSecrets[p.id] ?? ''}
-                    onChange={(e) =>
-                      setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                  />
-                </div>
-              </>
-            ) : null}
-
-            {/* alfabank */}
-            {p.id === 'alfabank' ? (
-              <>
-                <div className="space-y-1">
-                  <Label>Логин мерчанта</Label>
-                  <Input
-                    placeholder="Логин мерчанта"
-                    value={merchantLogins[p.id] ?? p.merchantLogin ?? ''}
-                    onChange={(e) =>
-                      setMerchantLogins((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Shop ID</Label>
-                  <Input
-                    placeholder="Shop ID"
-                    value={shopIds[p.id] ?? p.shopId ?? ''}
-                    onChange={(e) => setShopIds((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Пароль мерчанта</Label>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    placeholder="Пароль мерчанта"
-                    value={apiKeys[p.id] ?? ''}
-                    onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Webhook Secret</Label>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    placeholder="Webhook secret"
-                    value={webhookSecrets[p.id] ?? ''}
-                    onChange={(e) =>
-                      setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>URL шлюза (необязательно)</Label>
-                  <Input
-                    placeholder="https://... (необязательно)"
-                    value={gatewayUrls[p.id] ?? p.gatewayUrl ?? ''}
-                    onChange={(e) =>
-                      setGatewayUrls((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                  />
-                </div>
-              </>
-            ) : null}
-
-            {/* cloudpayments */}
-            {p.id === 'cloudpayments' ? (
-              <>
-                <div className="space-y-1">
-                  <Label>Public ID</Label>
-                  <Input
-                    placeholder="Public ID"
-                    value={publicIds[p.id] ?? p.publicId ?? ''}
-                    onChange={(e) => setPublicIds((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>API Secret</Label>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    placeholder="API Secret"
-                    value={apiKeys[p.id] ?? ''}
-                    onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Webhook Secret</Label>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    placeholder="Webhook secret"
-                    value={webhookSecrets[p.id] ?? ''}
-                    onChange={(e) =>
-                      setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                  />
-                </div>
-              </>
-            ) : null}
+        {readOnly ? (
+          <p className="text-sm text-muted-foreground">
+            Настройки приёма оплат доступны только для просмотра по текущему тарифу.
+          </p>
+        ) : null}
+        <fieldset disabled={readOnly} className="space-y-4">
+          <LabeledSwitch
+            label="Включить оплату записи"
+            checked={enabled}
+            onCheckedChange={setEnabled}
+          />
+          <div className="space-y-2">
+            <Label>Провайдер по умолчанию</Label>
+            <Select value={defaultProviderId} onValueChange={(v) => v && setDefaultProviderId(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        ))}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="button" disabled={pending} onClick={save}>
-          Сохранить
-        </Button>
+          {providers.map((p) => (
+            <div key={p.id} className="space-y-2 rounded-md border p-3">
+              <LabeledSwitch
+                label={p.label}
+                checked={p.enabled}
+                onCheckedChange={(checked) =>
+                  setProviders((prev) =>
+                    prev.map((x) => (x.id === p.id ? { ...x, enabled: checked } : x)),
+                  )
+                }
+              />
+
+              {/* yookassa */}
+              {p.id === 'yookassa' ? (
+                <>
+                  <div className="space-y-1">
+                    <Label>Webhook Secret</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="Webhook secret"
+                      value={webhookSecrets[p.id] ?? ''}
+                      onChange={(e) =>
+                        setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Shop ID</Label>
+                    <Input
+                      placeholder="Shop ID"
+                      value={shopIds[p.id] ?? p.shopId ?? ''}
+                      onChange={(e) => setShopIds((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Секретный ключ API</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="Секретный ключ API"
+                      value={apiKeys[p.id] ?? ''}
+                      onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                  </div>
+                </>
+              ) : null}
+
+              {/* tinkoff */}
+              {p.id === 'tinkoff' ? (
+                <>
+                  <div className="space-y-1">
+                    <Label>Terminal Key</Label>
+                    <Input
+                      placeholder="Terminal Key"
+                      value={terminalKeys[p.id] ?? p.terminalKey ?? ''}
+                      onChange={(e) =>
+                        setTerminalKeys((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Секретный пароль</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="Секретный пароль"
+                      value={apiKeys[p.id] ?? ''}
+                      onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Webhook Secret</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="Webhook secret"
+                      value={webhookSecrets[p.id] ?? ''}
+                      onChange={(e) =>
+                        setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                    />
+                  </div>
+                </>
+              ) : null}
+
+              {/* alfabank */}
+              {p.id === 'alfabank' ? (
+                <>
+                  <div className="space-y-1">
+                    <Label>Логин мерчанта</Label>
+                    <Input
+                      placeholder="Логин мерчанта"
+                      value={merchantLogins[p.id] ?? p.merchantLogin ?? ''}
+                      onChange={(e) =>
+                        setMerchantLogins((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Shop ID</Label>
+                    <Input
+                      placeholder="Shop ID"
+                      value={shopIds[p.id] ?? p.shopId ?? ''}
+                      onChange={(e) => setShopIds((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Пароль мерчанта</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="Пароль мерчанта"
+                      value={apiKeys[p.id] ?? ''}
+                      onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Webhook Secret</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="Webhook secret"
+                      value={webhookSecrets[p.id] ?? ''}
+                      onChange={(e) =>
+                        setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>URL шлюза (необязательно)</Label>
+                    <Input
+                      placeholder="https://... (необязательно)"
+                      value={gatewayUrls[p.id] ?? p.gatewayUrl ?? ''}
+                      onChange={(e) =>
+                        setGatewayUrls((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                    />
+                  </div>
+                </>
+              ) : null}
+
+              {/* cloudpayments */}
+              {p.id === 'cloudpayments' ? (
+                <>
+                  <div className="space-y-1">
+                    <Label>Public ID</Label>
+                    <Input
+                      placeholder="Public ID"
+                      value={publicIds[p.id] ?? p.publicId ?? ''}
+                      onChange={(e) =>
+                        setPublicIds((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>API Secret</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="API Secret"
+                      value={apiKeys[p.id] ?? ''}
+                      onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Webhook Secret</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="Webhook secret"
+                      value={webhookSecrets[p.id] ?? ''}
+                      onChange={(e) =>
+                        setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))
+                      }
+                    />
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ))}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <Button type="button" disabled={pending || readOnly} onClick={save}>
+            Сохранить
+          </Button>
+        </fieldset>
       </CardContent>
     </Card>
   );
