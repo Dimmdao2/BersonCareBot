@@ -15,17 +15,15 @@ import type { TodayProactiveInsightItem } from './mapProactiveInsightsForToday';
 import { markDoctorProgramDiscussionRead } from './doctorProgramDiscussionMarkRead';
 import type { TodayExerciseCommentAttentionItem } from './loadDoctorExerciseCommentAttention';
 import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
-import type { TodayIntakeItem, TodayUnreadConversationItem } from './loadDoctorTodayDashboard';
+import type { TodayUnreadConversationItem } from './loadDoctorTodayDashboard';
 
 export type DoctorTodayAttentionKind =
-  | 'intake'
   | 'messages'
   | 'pendingTests'
   | 'proactive'
   | 'exerciseComments';
 
 const TITLES: Record<DoctorTodayAttentionKind, string> = {
-  intake: 'Онлайн-заявки',
   messages: 'Сообщения',
   pendingTests: 'Тесты к проверке',
   proactive: 'Сигналы пациентов',
@@ -33,7 +31,6 @@ const TITLES: Record<DoctorTodayAttentionKind, string> = {
 };
 
 const EMPTY_MESSAGES: Record<DoctorTodayAttentionKind, string> = {
-  intake: 'Новых заявок нет',
   messages: 'Непрочитанных сообщений нет',
   pendingTests: 'Нет тестов, ожидающих оценки',
   proactive: 'Нет сигналов по самочувствию и активности программы',
@@ -44,7 +41,6 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   kind: DoctorTodayAttentionKind | null;
-  newIntakeRequests: TodayIntakeItem[];
   unreadConversations: TodayUnreadConversationItem[];
   unreadTotal: number;
   pendingProgramTests: TodayPendingProgramTestItem[];
@@ -296,7 +292,6 @@ export function DoctorTodayAttentionDialog({
   open,
   onOpenChange,
   kind,
-  newIntakeRequests,
   unreadConversations,
   unreadTotal,
   pendingProgramTests,
@@ -314,41 +309,6 @@ export function DoctorTodayAttentionDialog({
   return (
     <DoctorModal open={open} onClose={() => onOpenChange(false)} title={title} size="lg">
       <div className="max-h-[65vh] overflow-y-auto pr-1">
-        {kind === 'intake' ? (
-          <>
-            {newIntakeRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.intake}</p>
-            ) : (
-              <ul className="m-0 list-none space-y-2 p-0">
-                {newIntakeRequests.map((r) => (
-                  <li key={r.id} className={doctorSectionItemClass}>
-                    <p className="font-medium text-foreground">{r.patientName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Тел.: {r.patientPhone}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {r.typeLabel} · {r.createdAtLabel}
-                    </p>
-                    {r.summaryPreview ? (
-                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-muted-foreground">
-                        {r.summaryPreview}
-                      </p>
-                    ) : null}
-                    <p className="mt-2">
-                      <Link href={r.href} className={doctorInlineLinkClass}>
-                        Открыть заявку
-                      </Link>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-3">
-              <Link href="/app/doctor/online-intake" className={`${doctorInlineLinkClass} text-sm`}>
-                Открыть все заявки
-              </Link>
-            </p>
-          </>
-        ) : null}
-
         {kind === 'messages' ? (
           <>
             {unreadTotal > 0 ? (

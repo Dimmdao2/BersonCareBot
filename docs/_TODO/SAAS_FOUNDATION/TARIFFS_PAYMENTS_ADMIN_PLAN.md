@@ -955,7 +955,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 > **⚠️ УТОЧНЕНО 08-01 (`wt/tariff-plan-triage`), не переводить чекбоксы ниже в `[x]` без точечной проверки.**
 > Независимая проверка кода нашла, что write-путь для большинства этих механик УЖЕ гейтится в
 > `protectedActionRegistry.ts` (коммиты `4d299dc4f`/`6143c7082`/`97847e21f`/`c74fb385d`, все под #1069, 30.07):
-> `clinical_tests` — 9 записей (`route.ts:86`), `online_intake` — 4, `specialist_tasks` — 5, `booking_prepayment` —
+> `clinical_tests` — 9 записей (`route.ts:86`), `online_intake` — 4 (исторический срез до отмены 4.2), `specialist_tasks` — 5, `booking_prepayment` —
 > 1, `branding` — 1, `patient_home_today` («Сегодня» из 4.9) — 2, `courses`/`cms_pages`/`mailings`/`subscriptions` —
 > давно закрыты этапом 2. Единственная механика, у которой поверхности записи по-прежнему честно нет —
 > `custom_domain` (`DECLARED_NO_SURFACE`). Это значит: часть работы «спросить резолвер на путях записи» по многим
@@ -965,7 +965,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 > нуля — заново гейтить write-путь не нужно, он уже есть.
 
 - [-] ~~**4.1** Клинические тесты и наборы; при выключении системные группы тестов исчезают и из программы лечения.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: «Клинические тесты будут частью программы. Они просто есть в принципе. Просто убери это в интерфейсе, убери из списка настраиваемых механик». Проверка этого commit: `pnpm --dir apps/webapp exec vitest --run --reporter=verbose src/app/api/doctor/clinicalTestsBuiltInProgram.route.test.ts src/app/api/admin/commercial/route.route.test.ts src/app/app/admin/commercial/CommercialConstructorClient.ui.test.tsx src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 4 файла / 16 тестов green; `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts`.
-- [ ] **4.2** Онлайн-анкета.
+- [-] ~~**4.2** Онлайн-анкета.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: недостроенную отдельную форму и ведущие в неё кнопки удалить; не перенаправлять их в обычную запись. Существующая запись остаётся отдельным неизменённым путём. Исторические строки `online_intake_*` остаются в БД до отдельного решения о сроке хранения.
 - [ ] **4.3** Задачи специалиста.
 - [ ] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две.
 - [ ] **4.5** Проактивные подсказки.

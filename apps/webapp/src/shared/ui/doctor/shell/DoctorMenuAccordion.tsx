@@ -30,7 +30,6 @@ import { createPortal } from 'react-dom';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import { useDoctorRegistrationSystemFailureCount } from '@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount';
-import { useDoctorOnlineIntakeNewCount } from '@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount';
 import { useDoctorPendingProgramTestsCount } from '@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount';
 import { useDoctorProactiveInsightsCount } from '@/modules/doctor-proactive-insights/hooks/useDoctorProactiveInsightsCount';
 import { useDoctorSupportUnreadCount } from '@/shared/hooks/useSupportUnreadPolling';
@@ -53,7 +52,6 @@ export function formatNavBadgeCount(n: number): string | null {
 }
 
 function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): string {
-  if (badgeKey === 'onlineIntakeNew') return `Новых заявок: ${formatted}`;
   if (badgeKey === 'registrationSystemFailures') return `Сбоев регистрации: ${formatted}`;
   if (badgeKey === 'pendingProgramTests') return `К проверке: ${formatted}`;
   if (badgeKey === 'todayAttention') return `Требует внимания: ${formatted}`;
@@ -63,7 +61,6 @@ function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): st
 
 function linkAriaLabelWhenBadged(item: DoctorMenuLinkItem, formatted: string): string | undefined {
   if (!item.badgeKey || !formatted) return undefined;
-  if (item.badgeKey === 'onlineIntakeNew') return `${item.label}. Новых заявок: ${formatted}.`;
   if (item.badgeKey === 'registrationSystemFailures')
     return `${item.label}. Сбоев регистрации: ${formatted}.`;
   if (item.badgeKey === 'pendingProgramTests') return `${item.label}. К проверке: ${formatted}.`;
@@ -507,7 +504,6 @@ export function DoctorMenuAccordion({
   );
 
   const messagesUnread = useDoctorSupportUnreadCount();
-  const onlineIntakeNew = useDoctorOnlineIntakeNewCount(enableBadgePolling);
   const pendingProgramTests = useDoctorPendingProgramTestsCount(enableBadgePolling);
   const proactiveInsights = useDoctorProactiveInsightsCount(enableBadgePolling);
   const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(
@@ -517,15 +513,13 @@ export function DoctorMenuAccordion({
   const badgeCounts = useMemo(
     () =>
       ({
-        onlineIntakeNew,
         messagesUnread,
         registrationSystemFailures,
         pendingProgramTests,
         todayAttention: pendingProgramTests + proactiveInsights,
-        communicationsTotal: onlineIntakeNew + messagesUnread,
+        communicationsTotal: messagesUnread,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
     [
-      onlineIntakeNew,
       messagesUnread,
       registrationSystemFailures,
       pendingProgramTests,

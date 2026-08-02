@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe('commercial constructor access ladder', () => {
-  it('does not render the retired clinical-tests tariff control from legacy API data', async () => {
+  it('does not render retired tariff controls from legacy API data', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -24,11 +24,11 @@ describe('commercial constructor access ladder', () => {
               priceMinor: null,
               currency: null,
               billingPeriod: 'month',
-              mechanics: { booking: true, clinical_tests: false },
+              mechanics: { booking: true, clinical_tests: false, online_intake: false },
               quotas: {},
               systemAccessPolicy: null,
-              mechanicAccessPolicies: { clinical_tests: null },
-              downgradePolicies: { clinical_tests: 'block' },
+              mechanicAccessPolicies: { clinical_tests: null, online_intake: null },
+              downgradePolicies: { clinical_tests: 'block', online_intake: 'block' },
               includedSeats: 1,
               additionalSeatPriceMinor: null,
               isActive: true,
@@ -47,6 +47,7 @@ describe('commercial constructor access ladder', () => {
 
     await screen.findByText('Legacy tariff');
     expect(screen.queryByText('Клинические тесты и наборы')).not.toBeInTheDocument();
+    expect(screen.queryByText('Онлайн-анкета')).not.toBeInTheDocument();
   });
 
   it('starts unconfigured and exposes the owner fields in product language', async () => {
