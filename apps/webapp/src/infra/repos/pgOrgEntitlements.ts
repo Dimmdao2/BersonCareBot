@@ -60,6 +60,20 @@ type CabinetAccessRow = {
   warning: CabinetAccessResolution['warning'];
 };
 
+type EnforcedQuotaUsageRow = {
+  clinic_team_used: number | string;
+  patient_count_used: number | string;
+  files_used: number | string;
+};
+
+function numericQuotaUsage(value: number | string | undefined, field: string): number {
+  const parsed = Number(value ?? 0);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`invalid_enforced_quota_usage_${field}`);
+  }
+  return parsed;
+}
+
 function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntitlementSnapshot {
   const first = rows[0];
   if (!first) throw new Error('patient_entitlement_context_denied');
@@ -304,11 +318,9 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       // §5a stage 6.2 (platform report): `be_branches` already carries a direct
       // `app_platform_settings` SELECT policy (`be_branches_platform_operations_select` in
       // c5a-platform-operations-runtime.sql), so branches usage needs no SECURITY DEFINER hop.
-      // `patient_count`/`files` have no equivalent cross-org platform grant yet and are
-      // deliberately left out here rather than silently reported as zero.
       const [enforcedUsage, [branchesRow]] = await Promise.all([
-        runWebappPgText<{ clinic_team_used: number }>(
-          `SELECT clinic_team_used
+        runWebappPgText<EnforcedQuotaUsageRow>(
+          `SELECT clinic_team_used, patient_count_used, files_used
            FROM app.read_org_enforced_quota_usage($1::uuid)`,
           [organizationId],
         ),
@@ -321,7 +333,9 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       ]);
       const usage = enforcedUsage.rows[0];
       return {
-        clinic_team: usage?.clinic_team_used ?? 0,
+        clinic_team: numericQuotaUsage(usage?.clinic_team_used, 'clinic_team'),
+        patient_count: numericQuotaUsage(usage?.patient_count_used, 'patient_count'),
+        files: numericQuotaUsage(usage?.files_used, 'files'),
         branches: Number(branchesRow?.value ?? 0),
       };
     },
