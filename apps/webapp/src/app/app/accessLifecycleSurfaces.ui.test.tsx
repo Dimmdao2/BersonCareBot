@@ -1,7 +1,11 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import type { OrgEntitlementSnapshot, OrgMechanic } from '@/modules/org-entitlements/types';
+import type {
+  MechanicAccessState,
+  OrgEntitlementSnapshot,
+  OrgMechanic,
+} from '@/modules/org-entitlements/types';
 
 const fakes = vi.hoisted(() => ({
   requireOrganizationWorkspaceContext: vi.fn(),
@@ -118,6 +122,7 @@ let PatientCoursesPage: typeof import('./patient/courses/page').default;
 let DoctorContentPage: typeof import('./doctor/content/page').default;
 let coursesIncluded = true;
 let coursesReadOnly = false;
+let coursesAccessState: MechanicAccessState | null = null;
 let cmsIncluded = true;
 let warmupsIncluded = true;
 
@@ -177,6 +182,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-07-30T12:00:00.000Z'));
   coursesIncluded = true;
   coursesReadOnly = false;
+  coursesAccessState = null;
   cmsIncluded = true;
   warmupsIncluded = true;
   const session = {
@@ -201,7 +207,12 @@ beforeEach(() => {
       return included
         ? {
             mechanic,
-            state: coursesReadOnly && mechanic === 'courses' ? ('read_only' as const) : ('grace' as const),
+            state:
+              mechanic === 'courses' && coursesAccessState !== null
+                ? coursesAccessState
+                : coursesReadOnly && mechanic === 'courses'
+                  ? ('read_only' as const)
+                  : ('grace' as const),
             policySource: 'system' as const,
             warning: {
               until: '2026-08-01T00:00:00.000Z',
@@ -350,6 +361,47 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
     expect(screen.getByText('Существующий курс')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Новый курс' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Существующий курс' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the course list and both editor entry points usable at full access', async () => {
+    coursesAccessState = 'full_access';
+    const courseId = '33333333-3333-4333-8333-333333333333';
+    fakes.buildAppDeps().courses.listCoursesForDoctor.mockResolvedValue([
+      {
+        id: courseId,
+        title: 'Существующий курс',
+        status: 'published',
+        updatedAt: '2026-07-30T12:00:00.000Z',
+      },
+    ]);
+    fakes.buildAppDeps().courses.getCourseForDoctor = vi.fn().mockResolvedValue({
+      id: courseId,
+      title: 'Существующий курс',
+    });
+    fakes.buildAppDeps().courses.getCourseUsage = vi.fn().mockResolvedValue(null);
+    fakes.buildAppDeps().treatmentProgram = {
+      listTemplates: vi.fn().mockResolvedValue([]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    fakes.buildAppDeps().contentPages = {
+      listAll: vi.fn().mockResolvedValue([]),
+      getById: vi.fn().mockResolvedValue(null),
+    };
+
+    render(await DoctorCoursesPage({}));
+
+    expect(screen.getByRole('link', { name: 'Новый курс' })).toHaveAttribute(
+      'href',
+      '/app/doctor/courses/new',
+    );
+    expect(screen.getByRole('link', { name: 'Существующий курс' })).toHaveAttribute(
+      'href',
+      `/app/doctor/courses/${courseId}`,
+    );
+    await expect(
+      DoctorCoursesNewPage({ searchParams: Promise.resolve({}) }),
+    ).resolves.toBeDefined();
+    await expect(DoctorCourseEditPage({ params: Promise.resolve({ id: courseId }) })).resolves.toBeDefined();
   });
 
   it('does not render direct course create or edit URLs when courses are read-only', async () => {
