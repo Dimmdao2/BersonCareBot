@@ -30,7 +30,7 @@
     "test:webapp:postgres": "pnpm --dir apps/webapp test:postgres",
     "test:media-worker": "pnpm --dir apps/media-worker test",
     "test:e2e": "pnpm --dir apps/integrator test:e2e",
-    "lint": "eslint . && node scripts/check-db-chokepoint.mjs && node scripts/check-no-new-raw-sql.mjs && node scripts/check-test-runner-visibility.mjs && pnpm --dir apps/webapp run lint",
+    "lint": "eslint . && node scripts/check-db-chokepoint.mjs && node scripts/check-no-new-raw-sql.mjs && node scripts/check-queue-port-boundary.mjs && node scripts/check-test-runner-visibility.mjs && pnpm --dir apps/webapp run lint",
     "lint:fix": "eslint . --fix && pnpm --dir apps/webapp run lint --fix",
     "typecheck": "pnpm --dir packages/operator-db-schema run build && pnpm --dir packages/db-principal run build && pnpm --dir packages/platform-merge run build && pnpm --dir packages/error-tracking run build && pnpm -r --parallel run typecheck",
     "prove:error-tracking-load": "pnpm --dir packages/error-tracking run build && pnpm --dir apps/integrator run build && node --expose-gc scripts/prove-error-tracking-load.mjs",
