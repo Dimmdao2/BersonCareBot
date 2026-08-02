@@ -65,7 +65,7 @@ BEGIN
     v_occurrence_id := queue_payload ->> 'occurrenceId';
     SELECT occurrence.organization_id, rule.organization_id INTO occurrence_org, rule_org
     FROM integrator.user_reminder_occurrences AS occurrence
-    LEFT JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    LEFT JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
     WHERE occurrence.id = v_occurrence_id;
     IF NOT FOUND THEN
       RETURN QUERY SELECT queue_kind, NULL::uuid, 'occurrence_not_found'::text;

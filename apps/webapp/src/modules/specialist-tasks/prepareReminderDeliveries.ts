@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { ReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import {
   resolveSpecialistTaskReminderChannelsForUser,
@@ -18,7 +19,11 @@ function reminderText(task: SpecialistTaskRow, patientName: string | null): stri
 }
 
 function eventId(task: SpecialistTaskRow, channel: ReadyOutgoingDelivery['channel']): string {
-  return `specialist-task:${task.id}:${encodeURIComponent(task.remindAt ?? '')}:${channel}`;
+  const contentRevision = createHash('sha256')
+    .update(JSON.stringify([task.title, task.description]))
+    .digest('hex')
+    .slice(0, 16);
+  return `specialist-task:${task.id}:${encodeURIComponent(task.remindAt ?? '')}:${contentRevision}:${channel}`;
 }
 
 /** Webapp resolves all recipients, channels, text and absolute due time before durable enqueue. */

@@ -25,10 +25,15 @@ describe('D30 schedulerDecisionGuard', () => {
   });
 
   it.each([
-    ['scheduled_literal', 'const offset = 15; const job = { offsetMinutes: offset };'],
-    ['russian_message', "const job = { text: 'Напоминание: приём' };"],
+    ['scheduled_literal', 'const offsetMinutes = 15; const job = { offsetMs: offsetMinutes * 60 * 1000 };'],
+    ['scheduled_literal', 'let offsetMs = 900000; ({ offsetMs: offsetMs });'],
+    ['scheduled_literal', 'const offsetMs = 900000; const job = { offsetMs };'],
+    ['scheduled_literal', 'const offsetMs = 900000; const job = {}; job.offsetMs = offsetMs;'],
+    ['scheduled_literal', "const key = 'offsetMs'; const job = {}; job[key] = 900000;"],
+    ['russian_message', "const job = { text: 'Напомина' + 'ние: приём' };"],
     ['business_branch', "if (rule.reminderKind === 'visit') send();"],
-    ['decision_table_read', "const query = sql`select * from public.system_settings`;"],
+    ['business_branch', "if (['visit', 'followup'].includes(rule.reminderKind)) send();"],
+    ['decision_table_read', "const query = db.raw`select * from public.system_settings`;"],
   ] as const)('rejects %s self-test fixture', (kind, fixture) => {
     expect(findSchedulerDecisionViolations('fixture.ts', fixture)).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind })]),
@@ -40,6 +45,13 @@ describe('D30 schedulerDecisionGuard', () => {
       const retry = { maxAttempts: 6, backoffSeconds: 60 };
       const text = row.text;
       const offset = policy.offsetMinutes;
+    `)).toEqual([]);
+  });
+
+  it('keeps the documented imported re-export boundary explicit', () => {
+    expect(findSchedulerDecisionViolations('fixture.ts', `
+      import { MESSAGE_TEXT } from '../shared/message.js';
+      const job = { text: MESSAGE_TEXT };
     `)).toEqual([]);
   });
 });

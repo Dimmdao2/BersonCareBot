@@ -146,7 +146,10 @@ export function createPgSpecialistTasksPort(
         const task = updated[0] ? mapRow(updated[0]) : null;
         if (!task) return null;
         const affectsIntent =
-          patch.title !== undefined || patch.dueAt !== undefined || patch.remindAt !== undefined;
+          patch.title !== undefined ||
+          patch.description !== undefined ||
+          patch.dueAt !== undefined ||
+          patch.remindAt !== undefined;
         if (affectsIntent) {
           const deliveries = await prepareReminderDeliveries(task);
           for (const delivery of deliveries) await queueWriter.enqueueReady(tx, delivery);

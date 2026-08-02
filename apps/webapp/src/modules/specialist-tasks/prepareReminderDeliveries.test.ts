@@ -38,7 +38,9 @@ describe('specialist-task ready delivery producer', () => {
           organizationId: task.organizationId,
           channel: 'telegram',
           nextRetryAt: task.remindAt,
-          eventId: `specialist-task:${task.id}:${encodeURIComponent(task.remindAt)}:telegram`,
+          eventId: expect.stringMatching(
+            new RegExp(`^specialist-task:${task.id}:${encodeURIComponent(task.remindAt ?? '')}:[0-9a-f]{16}:telegram$`),
+          ),
           intent: expect.objectContaining({
             payload: expect.objectContaining({ recipient: { chatId: '12345' } }),
           }),
@@ -59,5 +61,37 @@ describe('specialist-task ready delivery producer', () => {
       {} as never,
     );
     expect(deliveries).toEqual([]);
+  });
+
+  it('keeps retries idempotent but versions title and description changes at the same due time', async () => {
+    const deps = {
+      topicChannelPrefs: { listByUserId: async () => [] },
+      channelPreferences: { getPreferences: async () => [] },
+      webPushSubscriptions: { hasAnyForUserId: async () => false },
+      systemSettings: { getSetting: async () => ({ valueJson: { channels: ['telegram'] } }) },
+      getChannelBindings: async () => ({ telegramId: '12345' }),
+      getProfileEmail: async () => null,
+      getProfileEmailVerified: async () => false,
+      resolvePatientDisplayName: async () => 'Пациент',
+    } as never;
+
+    const first = await prepareSpecialistTaskReminderDeliveries(task, deps);
+    const repeated = await prepareSpecialistTaskReminderDeliveries(task, deps);
+    const titleChanged = await prepareSpecialistTaskReminderDeliveries(
+      { ...task, title: 'Новый заголовок' },
+      deps,
+    );
+    const descriptionChanged = await prepareSpecialistTaskReminderDeliveries(
+      { ...task, description: 'Новое описание' },
+      deps,
+    );
+
+    expect(repeated.map((delivery) => delivery.eventId)).toEqual(first.map((delivery) => delivery.eventId));
+    expect(titleChanged.map((delivery) => delivery.eventId)).not.toEqual(
+      first.map((delivery) => delivery.eventId),
+    );
+    expect(descriptionChanged.map((delivery) => delivery.eventId)).not.toEqual(
+      first.map((delivery) => delivery.eventId),
+    );
   });
 });
