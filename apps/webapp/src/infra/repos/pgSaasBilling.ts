@@ -13,6 +13,7 @@ import type {
 } from '@/modules/saas-billing/ports';
 import type { SaasBillingPeriod } from '@/modules/saas-billing/paidPeriod';
 import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
+import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { beOrganizations } from '../../../db/schema/bookingEngine';
 import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 import {
@@ -175,6 +176,14 @@ async function promotePaidInvoice(
 
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
+    async getSaasBillingAccountBillingEmail(organizationId) {
+      const [account] = await getDrizzle()
+        .select({ billingEmail: saasBillingAccounts.billingEmail })
+        .from(saasBillingAccounts)
+        .where(eq(saasBillingAccounts.organizationId, organizationId))
+        .limit(1);
+      return account?.billingEmail?.trim() || null;
+    },
     async getOrganizationBillingOverview(organizationId) {
       const db = getDrizzle();
       const [subscriptionRows, invoiceRows, providerEvents] = await Promise.all([
@@ -649,6 +658,25 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           providerInvoiceRef: input.providerInvoiceRef,
           providerCheckoutUrl: input.providerCheckoutUrl,
           status: 'pending',
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))
+        .returning();
+      if (!row) throw new Error('saas_billing_invoice_not_found');
+      return toSaasBillingInvoice(row);
+    },
+
+    async attachSaasBillingInvoiceReceiptSnapshot(input) {
+      const [current] = await getDrizzle()
+        .select({ tariffSnapshot: saasBillingInvoices.tariffSnapshot })
+        .from(saasBillingInvoices)
+        .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))
+        .limit(1);
+      if (!current) throw new Error('saas_billing_invoice_not_found');
+      const [row] = await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({
+          tariffSnapshot: withReceiptSnapshot(current.tariffSnapshot, input.receipt),
           updatedAt: new Date().toISOString(),
         })
         .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))

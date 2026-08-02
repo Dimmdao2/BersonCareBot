@@ -1,5 +1,9 @@
 import type { PaymentProviderConfig } from '@/modules/payments/types';
-import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import {
+  assertReceiptMatchesOperation,
+  type PaymentProviderPort,
+  type PaymentReceipt,
+} from '@/modules/payments/providerPort';
 import { fetchWithTimeout, PAYMENT_PROVIDER_FETCH_TIMEOUT_MS } from '@/shared/lib/externalFetch';
 import { createHash } from 'node:crypto';
 import { BlockList } from 'node:net';
@@ -16,6 +20,22 @@ function requireYookassaCredentials(config?: PaymentProviderConfig): {
 
 function basicAuth(shopId: string, secretKey: string): string {
   return `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}`;
+}
+
+function toYookassaReceipt(receipt: PaymentReceipt, currency: string) {
+  return {
+    customer: { email: receipt.customer.email.trim() },
+    items: receipt.items.map((item) => ({
+      description: item.description,
+      quantity: item.quantity.toFixed(3),
+      amount: { value: (item.amountMinor / 100).toFixed(2), currency },
+      vat_code: item.vatCode,
+      payment_subject: item.paymentSubject,
+      payment_mode: item.paymentMode,
+      measure: item.measure,
+    })),
+    ...(receipt.taxSystemCode ? { tax_system_code: receipt.taxSystemCode } : {}),
+  };
 }
 
 const YOOKASSA_IDEMPOTENCE_KEY_MAX_LENGTH = 64;
@@ -190,6 +210,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       metadata,
       returnUrl,
       invoice,
+      receipt,
       providerConfig,
       savePaymentMethod,
       paymentMethodId,
@@ -198,6 +219,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       const value = (amountMinor / 100).toFixed(2);
       const yookassaIdempotenceKey = toYookassaIdempotenceKey(idempotencyKey);
       const paymentMetadata = { ...metadata, idempotencyKey, payerRef, purpose, subjectRef };
+      if (receipt) assertReceiptMatchesOperation(receipt, amountMinor, currency);
 
       if (invoice) {
         const body = await fetchWithTimeout(
@@ -216,6 +238,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
                 confirmation: { type: 'redirect', return_url: returnUrl },
                 description: invoice.description,
                 metadata: paymentMetadata,
+                ...(receipt ? { receipt: toYookassaReceipt(receipt, currency) } : {}),
               },
               cart: [{ description: invoice.description, price: { value, currency }, quantity: 1 }],
               delivery_method_data: { type: 'self' },
@@ -250,6 +273,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             capture: true,
             payment_method_id: paymentMethodId,
             metadata: paymentMetadata,
+            ...(receipt ? { receipt: toYookassaReceipt(receipt, currency) } : {}),
           }
         : {
             amount: { value, currency },
@@ -257,6 +281,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             confirmation: { type: 'redirect', return_url: returnUrl },
             ...(savePaymentMethod ? { save_payment_method: true } : {}),
             metadata: paymentMetadata,
+            ...(receipt ? { receipt: toYookassaReceipt(receipt, currency) } : {}),
           };
 
       const body = await fetchWithTimeout(
@@ -298,10 +323,18 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       };
     },
 
-    async refund({ providerIntentRef, amountMinor, currency, idempotencyKey, providerConfig }) {
+    async refund({
+      providerIntentRef,
+      amountMinor,
+      currency,
+      idempotencyKey,
+      receipt,
+      providerConfig,
+    }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
       const yookassaIdempotenceKey = toYookassaIdempotenceKey(idempotencyKey);
+      if (receipt) assertReceiptMatchesOperation(receipt, amountMinor, currency);
       const body = await fetchWithTimeout(
         'https://api.yookassa.ru/v3/refunds',
         {
@@ -314,6 +347,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           body: JSON.stringify({
             payment_id: providerIntentRef,
             amount: { value, currency },
+            ...(receipt ? { receipt: toYookassaReceipt(receipt, currency) } : {}),
           }),
         },
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
@@ -417,6 +451,5 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       }
       return { items, truncated };
     },
-
   };
 }

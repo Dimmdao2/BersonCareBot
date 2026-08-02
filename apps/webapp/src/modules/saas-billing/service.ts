@@ -16,6 +16,7 @@ import type {
 import { paidPeriodEndsAt } from './paidPeriod';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
+import { buildPartialRefundReceipt, buildSaasBillingReceipt } from './fiscalReceipt';
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 
@@ -104,6 +105,34 @@ export function createSaasBillingService(dependencies: {
       providerId: providerConfig.id,
       providerConfig,
       adapter,
+      payeeRequisites: settings.payeeRequisites,
+    };
+  }
+
+  /** Fiscal fields are opt-in, but a partially configured receipt must fail locally, not at the PSP. */
+  async function attachFiscalReceiptIfConfigured(
+    invoice: Awaited<
+      ReturnType<typeof dependencies.repository.createSaasBillingInvoice>
+    >['invoice'],
+    payeeRequisites: ResolvedSaasBillingPaymentProvider['payeeRequisites'],
+  ) {
+    const fiscalReceiptConfigured = Boolean(
+      payeeRequisites.vatCode || payeeRequisites.taxSystemCode,
+    );
+    if (!fiscalReceiptConfigured) return { invoice, receipt: undefined };
+    if (!payeeRequisites.vatCode) {
+      throw new Error('saas_billing_receipt_vat_code_missing');
+    }
+    const billingEmail = await dependencies.repository.getSaasBillingAccountBillingEmail(
+      invoice.organizationId,
+    );
+    const receipt = buildSaasBillingReceipt(invoice, billingEmail, payeeRequisites);
+    return {
+      invoice: await dependencies.repository.attachSaasBillingInvoiceReceiptSnapshot({
+        saasBillingInvoiceId: invoice.id,
+        receipt,
+      }),
+      receipt,
     };
   }
 
@@ -160,10 +189,14 @@ export function createSaasBillingService(dependencies: {
       (created || checkoutInvoice.status === 'draft');
     if (!claimed) return checkoutInvoice;
     try {
+      const fiscalized = await attachFiscalReceiptIfConfigured(
+        checkoutInvoice,
+        provider.payeeRequisites,
+      );
       const intent = await provider.adapter.createIntent({
-        amountMinor: checkoutInvoice.amountMinor,
-        currency: checkoutInvoice.currency,
-        idempotencyKey: checkoutInvoice.providerIdempotencyKey,
+        amountMinor: fiscalized.invoice.amountMinor,
+        currency: fiscalized.invoice.currency,
+        idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
         payerRef: `organization:${checkoutInvoice.organizationId}`,
         purpose: 'saas_billing_tariff_renewal',
         subjectRef: checkoutInvoice.id,
@@ -175,6 +208,7 @@ export function createSaasBillingService(dependencies: {
         },
         providerConfig: provider.providerConfig,
         savePaymentMethod: input.savePaymentMethod,
+        receipt: fiscalized.receipt,
       });
       return await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
         saasBillingInvoiceId: checkoutInvoice.id,
@@ -256,10 +290,11 @@ export function createSaasBillingService(dependencies: {
     if (!claimed) return invoice;
 
     try {
+      const fiscalized = await attachFiscalReceiptIfConfigured(invoice, provider.payeeRequisites);
       const intent = await provider.adapter.createIntent({
-      amountMinor: invoice.amountMinor,
-      currency: invoice.currency,
-      idempotencyKey: invoice.providerIdempotencyKey,
+      amountMinor: fiscalized.invoice.amountMinor,
+      currency: fiscalized.invoice.currency,
+      idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
       payerRef: `organization:${invoice.organizationId}`,
       purpose: 'saas_billing_tariff_renewal',
       subjectRef: invoice.id,
@@ -271,6 +306,7 @@ export function createSaasBillingService(dependencies: {
         saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
       },
       providerConfig: provider.providerConfig,
+      receipt: fiscalized.receipt,
       });
 
       return await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
@@ -312,10 +348,14 @@ export function createSaasBillingService(dependencies: {
 
     const returnUrl = new URL(SAAS_SEAT_BILLING_RETURN_URL);
     returnUrl.searchParams.set('seatPayment', result.invoice.id);
+    const fiscalized = await attachFiscalReceiptIfConfigured(
+      result.invoice,
+      provider.payeeRequisites,
+    );
     const intent = await provider.adapter.createIntent({
-      amountMinor: result.invoice.amountMinor,
-      currency: result.invoice.currency,
-      idempotencyKey: result.invoice.providerIdempotencyKey,
+      amountMinor: fiscalized.invoice.amountMinor,
+      currency: fiscalized.invoice.currency,
+      idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
       payerRef: `organization:${input.organizationId}`,
       purpose: 'saas_billing_seat_overage',
       subjectRef: result.invoice.id,
@@ -326,6 +366,7 @@ export function createSaasBillingService(dependencies: {
         saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
       },
       providerConfig: provider.providerConfig,
+      receipt: fiscalized.receipt,
     });
     const invoice = await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
       saasBillingInvoiceId: result.invoice.id,
@@ -685,10 +726,14 @@ export function createSaasBillingService(dependencies: {
             continue;
           }
           invoiceIdForFailureReport = invoice.id;
+          const fiscalized = await attachFiscalReceiptIfConfigured(
+            invoice,
+            provider.payeeRequisites,
+          );
           const intent = await provider.adapter.createIntent({
-            amountMinor: invoice.amountMinor,
-            currency: invoice.currency,
-            idempotencyKey: invoice.providerIdempotencyKey,
+            amountMinor: fiscalized.invoice.amountMinor,
+            currency: fiscalized.invoice.currency,
+            idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
             payerRef: `organization:${invoice.organizationId}`,
             purpose: 'saas_billing_tariff_renewal',
             subjectRef: invoice.id,
@@ -700,6 +745,7 @@ export function createSaasBillingService(dependencies: {
             },
             providerConfig: provider.providerConfig,
             paymentMethodId: autopayActive ? (subscription.savedPaymentMethodId ?? undefined) : undefined,
+            receipt: fiscalized.receipt,
           });
           await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
             saasBillingInvoiceId: invoice.id,
@@ -1021,12 +1067,17 @@ export function createSaasBillingService(dependencies: {
       }
       try {
         const provider = await resolvePaymentProvider(invoice.providerId);
+        const receipt =
+          input.amountMinor < invoice.amountMinor
+            ? buildPartialRefundReceipt(invoice, input.amountMinor)
+            : undefined;
         const result = await provider.adapter.refund({
           providerIntentRef: invoice.providerInvoiceRef,
           amountMinor: input.amountMinor,
           currency: invoice.currency,
           idempotencyKey: providerIdempotencyKey,
           providerConfig: provider.providerConfig,
+          receipt,
         });
         const attached = await dependencies.repository.attachSaasBillingRefundProviderRef({
           saasBillingRefundId: refund.id,

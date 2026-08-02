@@ -105,6 +105,115 @@ describe('SaaS billing payment provider availability', () => {
   });
 });
 
+describe('Fiscalized SaaS refunds', () => {
+  const fiscalizedInvoice: SaasBillingInvoice = {
+    ...invoice,
+    amountMinor: 10_000,
+    providerInvoiceRef: 'provider-payment-1',
+    status: 'paid',
+    tariffSnapshot: {
+      __bersoncare_fiscal_receipt: {
+        customer: { email: 'payer@example.test' },
+        items: [
+          {
+            description: 'Стандарт: август',
+            quantity: 1,
+            amountMinor: 10_000,
+            vatCode: '11',
+            paymentSubject: 'service',
+            paymentMode: 'full_prepayment',
+            measure: 'piece',
+          },
+        ],
+        taxSystemCode: '2',
+      },
+    },
+  };
+
+  function refundService(amountMinor: number) {
+    const providerRefund = vi.fn(async (params: Parameters<PaymentProviderPort['refund']>[0]) => {
+      if (params.receipt === undefined) throw new Error('receipt_was_silently_dropped');
+      return { providerRefundRef: 'provider-refund-1' };
+    });
+    const attachSaasBillingRefundProviderRef = vi.fn(async () => ({
+      id: 'refund-1',
+      organizationId: 'org-1',
+      saasBillingInvoiceId: fiscalizedInvoice.id,
+      amountMinor,
+      currency: 'RUB',
+      status: 'pending' as const,
+      providerId: 'yookassa',
+      providerRefundRef: 'provider-refund-1',
+      providerIdempotencyKey: 'refund-key',
+      confirmedAt: null,
+      createdAt: '2026-08-02T00:00:00.000Z',
+      updatedAt: '2026-08-02T00:00:00.000Z',
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        reserveSaasBillingRefund: async () => ({
+          outcome: 'reserved' as const,
+          refund: { id: 'refund-1' },
+          invoice: fiscalizedInvoice,
+        }),
+        attachSaasBillingRefundProviderRef,
+        markSaasBillingRefundFailed: vi.fn(),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ refund: providerRefund }) as never,
+    });
+    return { service, providerRefund };
+  }
+
+  it('requires the original receipt snapshot for a partial refund and sends corrected totals', async () => {
+    const { service, providerRefund } = refundService(2_500);
+
+    await expect(
+      service.refundSaasBillingInvoice({
+        saasBillingInvoiceId: fiscalizedInvoice.id,
+        amountMinor: 2_500,
+        requestKey: 'partial',
+        actorId: 'admin',
+        reason: 'partial',
+      }),
+    ).resolves.toMatchObject({ outcome: 'refunded', duplicate: false });
+
+    expect(providerRefund).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: { email: 'payer@example.test' },
+          items: [expect.objectContaining({ amountMinor: 2_500, quantity: 1, vatCode: '11' })],
+        }),
+      }),
+    );
+  });
+
+  it('omits receipt for a full refund', async () => {
+    const { service, providerRefund } = refundService(10_000);
+    providerRefund.mockImplementationOnce(
+      async (params: Parameters<PaymentProviderPort['refund']>[0]) => {
+        expect(params.receipt).toBeUndefined();
+        return { providerRefundRef: 'provider-refund-1' };
+      },
+    );
+
+    await expect(
+      service.refundSaasBillingInvoice({
+        saasBillingInvoiceId: fiscalizedInvoice.id,
+        amountMinor: 10_000,
+        requestKey: 'full',
+        actorId: 'admin',
+        reason: 'full',
+      }),
+    ).resolves.toMatchObject({ outcome: 'refunded', duplicate: false });
+  });
+});
+
 describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', () => {
   function scheduledService(blocks: TariffDowngradeBlock[] = []) {
     const setManualSaasBillingSubscription = vi.fn(async () => {});
@@ -315,6 +424,84 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
 
     expect(createIntent).toHaveBeenCalledTimes(1);
     expect(result.providerCheckoutUrl).toBe('https://billing.example.test/checkout-1');
+  });
+
+  it('carries global payee settings and the billing contact into a persisted YooKassa receipt', async () => {
+    const createIntent = vi.fn(async () => ({ providerIntentRef: 'provider-intent-1' }));
+    const attachSaasBillingInvoiceReceiptSnapshot = vi.fn(async ({ receipt }) => ({
+      ...invoice,
+      tariffSnapshot: { __bersoncare_fiscal_receipt: receipt },
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        createSaasBillingInvoice: async () => ({ invoice, created: true }),
+        getSaasBillingAccountBillingEmail: async () => 'payer@example.test',
+        attachSaasBillingInvoiceReceiptSnapshot,
+        attachSaasBillingInvoiceProviderIntent: async () => invoice,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'yookassa',
+          providers: [{ id: 'yookassa', label: 'YooKassa', enabled: true }],
+          payeeRequisites: { vatCode: '11', taxSystemCode: '2' },
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+    });
+
+    await service.createRenewalSaasBillingInvoice({
+      organizationId: 'org-1',
+      saasBillingSubscriptionId: 'subscription-1',
+      servicePeriodStartsAt: invoice.servicePeriodStartsAt,
+      servicePeriodEndsAt: invoice.servicePeriodEndsAt,
+      providerIdempotencyKey: invoice.providerIdempotencyKey,
+    });
+
+    expect(attachSaasBillingInvoiceReceiptSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({ customer: { email: 'payer@example.test' } }),
+      }),
+    );
+    expect(createIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: { email: 'payer@example.test' },
+          taxSystemCode: '2',
+          items: [expect.objectContaining({ amountMinor: invoice.amountMinor, vatCode: '11' })],
+        }),
+      }),
+    );
+  });
+
+  it('refuses a fiscally configured YooKassa payment with no VAT code before the provider call', async () => {
+    const createIntent = vi.fn(async () => ({ providerIntentRef: 'provider-intent-1' }));
+    const service = createSaasBillingService({
+      repository: {
+        createSaasBillingInvoice: async () => ({ invoice, created: true }),
+        getSaasBillingAccountBillingEmail: async () => 'payer@example.test',
+        attachSaasBillingInvoiceReceiptSnapshot: async () => invoice,
+        attachSaasBillingInvoiceProviderIntent: async () => invoice,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'yookassa',
+          providers: [{ id: 'yookassa', label: 'YooKassa', enabled: true }],
+          payeeRequisites: { taxSystemCode: '2' },
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+    });
+
+    await expect(
+      service.createRenewalSaasBillingInvoice({
+        organizationId: 'org-1',
+        saasBillingSubscriptionId: 'subscription-1',
+        servicePeriodStartsAt: invoice.servicePeriodStartsAt,
+        servicePeriodEndsAt: invoice.servicePeriodEndsAt,
+        providerIdempotencyKey: invoice.providerIdempotencyKey,
+      }),
+    ).rejects.toThrow('saas_billing_receipt_vat_code_missing');
+    expect(createIntent).not.toHaveBeenCalled();
   });
 });
 

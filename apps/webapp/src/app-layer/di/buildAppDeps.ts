@@ -1151,7 +1151,9 @@ patientBookingService = createPatientBookingService({
       orgEntitlementsPort.resolveMechanicAccess(organizationId, 'payments'),
     ]);
     return (
-      (prepaymentAccess.state === 'full_access' || prepaymentAccess.state === 'grace') &&
+      (prepaymentAccess.state === 'full_access' ||
+        prepaymentAccess.state === 'grace' ||
+        prepaymentAccess.state === 'read_only') &&
       (paymentsAccess.state === 'full_access' || paymentsAccess.state === 'grace')
     );
   },

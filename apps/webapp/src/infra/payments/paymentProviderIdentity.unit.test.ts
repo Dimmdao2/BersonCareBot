@@ -16,11 +16,10 @@ type RequiredPaymentDoorFields =
   | 'purpose'
   | 'subjectRef'
   | 'returnUrl';
-type RequiredFieldsStayRequired = PaymentDoorInput extends Required<
-  Pick<PaymentDoorInput, RequiredPaymentDoorFields>
->
-  ? true
-  : false;
+type RequiredFieldsStayRequired =
+  PaymentDoorInput extends Required<Pick<PaymentDoorInput, RequiredPaymentDoorFields>>
+    ? true
+    : false;
 
 const requiredFieldsStayRequired: RequiredFieldsStayRequired = true;
 void requiredFieldsStayRequired;
@@ -34,6 +33,22 @@ const paymentInput = {
   subjectRef: 'saas-invoice-b1-1',
   returnUrl: 'https://app.example.test/app/clinic/billing',
   metadata: { description: 'Тариф клиники' },
+};
+
+const fiscalReceipt = {
+  customer: { email: 'billing@example.test' },
+  items: [
+    {
+      description: 'Тариф клиники',
+      quantity: 1,
+      amountMinor: 12_345,
+      vatCode: '11',
+      paymentSubject: 'service' as const,
+      paymentMode: 'full_prepayment' as const,
+      measure: 'piece' as const,
+    },
+  ],
+  taxSystemCode: '2',
 };
 
 const providerConfigs = {
@@ -202,6 +217,83 @@ describe('B1.1: required payment-door values reach provider requests', () => {
       return_url: paymentInput.returnUrl,
     });
     expectIdentity(body.metadata as Record<string, unknown>);
+  });
+
+  it('serializes a supplied receipt for YooKassa payment, invoice and partial refund', async () => {
+    const captured = captureProviderRequests();
+    const provider = createYookassaPaymentProvider();
+
+    await provider.createIntent({
+      ...paymentInput,
+      receipt: fiscalReceipt,
+      providerConfig: providerConfigs.yookassa,
+    });
+    await provider.createIntent({
+      ...paymentInput,
+      invoice: { description: 'Ручной счёт SaaS', expiresAt: '2026-08-05T12:00:00.000Z' },
+      receipt: fiscalReceipt,
+      providerConfig: providerConfigs.yookassa,
+    });
+    await provider.refund({
+      providerIntentRef: 'payment-1',
+      amountMinor: 12_345,
+      currency: 'RUB',
+      idempotencyKey: 'refund-1',
+      receipt: fiscalReceipt,
+      providerConfig: providerConfigs.yookassa,
+    });
+
+    const expected = {
+      customer: { email: 'billing@example.test' },
+      items: [
+        {
+          description: 'Тариф клиники',
+          quantity: '1.000',
+          amount: { value: '123.45', currency: 'RUB' },
+          vat_code: '11',
+          payment_subject: 'service',
+          payment_mode: 'full_prepayment',
+          measure: 'piece',
+        },
+      ],
+      tax_system_code: '2',
+    };
+    expect(captured[0]!.body.receipt).toEqual(expected);
+    expect((captured[1]!.body.payment_data as Record<string, unknown>).receipt).toEqual(expected);
+    expect(captured[2]!.body.receipt).toEqual(expected);
+  });
+
+  it('refuses a supplied receipt before an adapter without fiscal support can send it', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(
+      createTinkoffPaymentProvider().createIntent({
+        ...paymentInput,
+        receipt: fiscalReceipt,
+        providerConfig: providerConfigs.tinkoff,
+      }),
+    ).rejects.toThrow('payment_provider_receipt_unsupported:tinkoff');
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('refuses a YooKassa receipt whose line total differs from the operation before HTTP', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(
+      createYookassaPaymentProvider().createIntent({
+        ...paymentInput,
+        receipt: {
+          ...fiscalReceipt,
+          items: [{ ...fiscalReceipt.items[0]!, amountMinor: paymentInput.amountMinor - 1 }],
+        },
+        providerConfig: providerConfigs.yookassa,
+      }),
+    ).rejects.toThrow('payment_receipt_total_mismatch');
+
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('sends the same required values inside the real YooKassa invoice payment payload', async () => {

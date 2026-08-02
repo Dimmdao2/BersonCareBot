@@ -149,6 +149,35 @@ describe('D14, часть 5: booking.created отправляет doctorNotify/d
 });
 
 describe('§5a/2.1c: booking prepayment is patient money, not the clinic tariff payment', () => {
+  it('keeps an existing prepayment for a public booking while the clinic is read-only', async () => {
+    const resolvePrepayment = vi.fn(async () => ({
+      required: true,
+      amountMinor: 5_000,
+      currency: 'RUB',
+    }));
+    const createAppointmentPaymentIntent = vi.fn();
+    const deps = buildDeps(async () => undefined, {
+      payments: {
+        resolvePrepayment,
+        createAppointmentPaymentIntent,
+      } as unknown as CanonicalBookingDeps['payments'],
+      canAcceptBookingPrepayment: async () => true,
+    });
+    const bookingsPort = deps.bookingsPort as unknown as {
+      markAwaitingPayment: ReturnType<typeof vi.fn>;
+    };
+    bookingsPort.markAwaitingPayment = vi.fn(async () => fakeRecord({ status: 'awaiting_payment' }));
+
+    const result = await createBookingOnCanonicalEngine(deps, {
+      ...createInput,
+      bookingChannel: 'public_widget',
+    });
+
+    expect(result.status).toBe('awaiting_payment');
+    expect(resolvePrepayment).toHaveBeenCalledOnce();
+    expect(createAppointmentPaymentIntent).toHaveBeenCalledOnce();
+  });
+
   it('confirms the booking without requesting or accepting prepayment when the mechanic is disabled', async () => {
     const resolvePrepayment = vi.fn(async () => ({
       required: true,
