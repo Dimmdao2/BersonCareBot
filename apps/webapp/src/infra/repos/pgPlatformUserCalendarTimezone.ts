@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { platformUsers } from '../../../db/schema/schema';
-import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb } from '@/infra/db/runWebappSql';
 
 export async function getPlatformUserCalendarTimezone(userId: string): Promise<string | null> {
   const rows = await getWebappSqlDb()
@@ -15,8 +15,8 @@ export async function setPlatformUserCalendarTimezone(
   userId: string,
   timezone: string,
 ): Promise<void> {
-  await runWebappPgText(
-    `UPDATE platform_users SET calendar_timezone = $2, updated_at = now() WHERE id = $1::uuid`,
-    [userId, timezone],
-  );
+  await getWebappSqlDb()
+    .update(platformUsers)
+    .set({ calendarTimezone: timezone, updatedAt: sql`now()` })
+    .where(eq(platformUsers.id, userId));
 }
