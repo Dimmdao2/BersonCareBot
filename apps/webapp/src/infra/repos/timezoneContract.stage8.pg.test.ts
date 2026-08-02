@@ -25,7 +25,9 @@ describe('Stage 8 timezone contract (webapp PG repos)', () => {
   });
 
   it('S8.T02: appointment_records — upsertRecordFromProjection binds record_at ($3) to canonical ISO', async () => {
-    queryMock.mockResolvedValue({ rows: [] });
+    queryMock.mockResolvedValue({
+      rows: [{ organization_id: '00000000-0000-4000-8000-000000000001' }],
+    });
     const port = createPgAppointmentProjectionPort();
     await port.upsertRecordFromProjection({
       organizationId: '00000000-0000-4000-8000-000000000001',
