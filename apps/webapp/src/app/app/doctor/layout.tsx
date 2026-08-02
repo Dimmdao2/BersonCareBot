@@ -5,12 +5,14 @@
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import '../../styles/doctor.css';
 import {
   entitlementGraceWarningMessages,
   getMechanicSurfaceVisibility,
 } from '@/app-layer/guards/requireEntitlement';
 import { cabinetGraceWarningMessages } from '@/app-layer/guards/cabinetAccessGate';
+import { accessNotificationBillingVariables } from '@/modules/org-entitlements/accessNotifications';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import {
@@ -96,6 +98,17 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       // open, so the only thing left to show is the `терпение` countdown for the cabinet itself.
       deps.orgEntitlements.resolveCabinetAccess(workspaceAccess.organizationId).catch(() => null),
     ]);
+  // The workspace guard installs the ordinary staff principal. Billing tables require the narrower
+  // own-clinic billing principal, and this role switch must not overlap the entitlement reads above.
+  // Unavailable billing data still degrades to the owner's visible placeholders below.
+  const billingOverview = await runWithDbClinicBillingPrincipal(
+    {
+      organizationId: workspaceAccess.organizationId,
+      platformUserId: session.user.userId,
+      source: 'doctor-layout-billing-warning-read',
+    },
+    () => deps.saasBilling.getOrganizationBillingOverview(workspaceAccess.organizationId),
+  ).catch(() => null);
   const tariffName = entitlementSnapshot?.tariff?.name ?? null;
   const coursesEnabled = coursesVisibility.specialistNavigation;
   const promoEnabled = promoVisibility.specialistNavigation;
@@ -111,11 +124,19 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   // One system-level ladder produces the same text for every mechanic it covers, so identical
   // lines are collapsed — the owner wrote one notification, he sees it once.
   const accessWarnings = [
-    ...(cabinetAccess?.warning ? cabinetGraceWarningMessages(cabinetAccess.warning, accessNotificationVariables) : []),
+    ...(cabinetAccess?.warning
+      ? cabinetGraceWarningMessages(cabinetAccess.warning, {
+          ...accessNotificationVariables,
+          ...accessNotificationBillingVariables(cabinetAccess.warning, billingOverview),
+        })
+      : []),
     ...new Set(
       [coursesVisibility, promoVisibility, cmsVisibility].flatMap((visibility) =>
         visibility.warning
-          ? entitlementGraceWarningMessages(visibility.warning, accessNotificationVariables)
+          ? entitlementGraceWarningMessages(visibility.warning, {
+              ...accessNotificationVariables,
+              ...accessNotificationBillingVariables(visibility.warning, billingOverview),
+            })
           : [],
       ),
     ),
