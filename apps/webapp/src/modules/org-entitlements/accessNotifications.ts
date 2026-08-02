@@ -7,13 +7,52 @@
  * variables in this file: the templates come from the tariff, the variables come from the caller's
  * data map, and adding a new variable never touches this code.
  */
+import type { SaasBillingInvoiceReadRow } from '@/modules/saas-billing/ports';
 import type {
   AccessNotificationCondition,
   AccessNotificationRule,
+  MechanicAccessWarning,
   AccessPeriodSource,
 } from './types';
 
 const DAY_MS = 86_400_000;
+type BillingInvoiceForAccessNotification = Pick<
+  SaasBillingInvoiceReadRow,
+  'amountMinor' | 'invoiceKind' | 'servicePeriodStartsAt' | 'status'
+>;
+
+/**
+ * Supplies payment-specific variables from the already-raised renewal invoice.  The invoice is
+ * the billing fact for the next period: unlike the live tariff it has the exact amount and dates
+ * that this organization will be charged.  A missing invoice deliberately supplies nothing, so
+ * the owner's placeholder remains visible instead of borrowing a current tariff price.
+ */
+export function accessNotificationBillingVariables(
+  warning: Pick<MechanicAccessWarning, 'periodSource' | 'periodEndsAt'>,
+  billing: { invoices: readonly BillingInvoiceForAccessNotification[] } | null,
+): Readonly<Record<string, string>> {
+  if (warning.periodSource !== 'paid_period' || !billing) return {};
+
+  const renewalInvoice = billing.invoices.find(
+    (invoice) =>
+      invoice.invoiceKind === 'tariff_period' &&
+      invoice.servicePeriodStartsAt === warning.periodEndsAt &&
+      invoice.status !== 'void',
+  );
+  if (!renewalInvoice) return {};
+
+  return {
+    сумма: new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(
+      renewalInvoice.amountMinor / 100,
+    ),
+    дата_начала_периода_автооплаты: new Intl.DateTimeFormat('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(new Date(renewalInvoice.servicePeriodStartsAt)),
+  };
+}
 
 /**
  * §5a item 7.0 — the owner's notification conditions are «успешная оплата» and «ошибка оплаты», and

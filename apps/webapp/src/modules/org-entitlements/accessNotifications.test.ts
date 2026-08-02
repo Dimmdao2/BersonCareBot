@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accessNotificationBillingVariables,
   accessNotificationVariables,
   dueAccessNotifications,
   renderAccessNotification,
 } from './accessNotifications';
-import type { AccessNotificationRule } from './types';
+import type { AccessNotificationRule, MechanicAccessWarning } from './types';
 
 /**
  * §5a items 2.6 / 2.6a — уведомления лестницы. Each test names the breakage it catches; the
@@ -40,6 +41,59 @@ describe('access ladder notifications', () => {
       }),
     ).toBe('01.09.2026');
     expect(accessNotificationVariables('{{тариф}} и {{сумма}}')).toEqual(['тариф', 'сумма']);
+  });
+
+  // Breakage: the warning reads a live tariff or invents a value when billing has no invoice for
+  // the next period. The renewal invoice is the immutable billing fact for this organization.
+  it('renders amount and autopay-period start from the organization renewal invoice only', () => {
+    const warning: Pick<MechanicAccessWarning, 'periodSource' | 'periodEndsAt' | 'notifications'> = {
+      periodSource: 'paid_period',
+      periodEndsAt: '2026-09-01T00:00:00.000Z',
+      notifications: [
+        {
+          offsetDays: 0,
+          condition: 'payment_failed',
+          template: 'Следующая оплата {{сумма}} с {{дата_начала_периода_автооплаты}}.',
+        },
+      ],
+    };
+    const variables = accessNotificationBillingVariables(warning, {
+      invoices: [
+        {
+          invoiceKind: 'tariff_period',
+          amountMinor: 490_000,
+          servicePeriodStartsAt: '2026-09-01T00:00:00.000Z',
+          status: 'pending',
+        },
+      ],
+    });
+
+    expect(
+      renderAccessNotification(warning.notifications[0]!.template, variables),
+    ).toBe('Следующая оплата 4 900 с 01.09.2026.');
+  });
+
+  // The same renderer must leave the owner's placeholders visible when the organization does not
+  // have a renewal invoice. A live tariff price is not a substitute: an already-paid period is frozen.
+  it('does not invent amount or autopay date without the matching renewal invoice', () => {
+    const warning: Pick<MechanicAccessWarning, 'periodSource' | 'periodEndsAt'> = {
+      periodSource: 'paid_period',
+      periodEndsAt: '2026-09-01T00:00:00.000Z',
+    };
+    const variables = accessNotificationBillingVariables(warning, {
+      invoices: [
+        {
+          invoiceKind: 'tariff_period',
+          amountMinor: 990_000,
+          servicePeriodStartsAt: '2026-10-01T00:00:00.000Z',
+          status: 'pending',
+        },
+      ],
+    });
+
+    expect(
+      renderAccessNotification('Следующая оплата {{сумма}} с {{дата_начала_периода_автооплаты}}.', variables),
+    ).toBe('Следующая оплата {{сумма}} с {{дата_начала_периода_автооплаты}}.');
   });
 
   const periodEndsAt = '2026-07-29T00:00:00.000Z';
