@@ -101,4 +101,16 @@ describe('configAdapter DB-only legacy reads', () => {
       phones: ['+79990000000'],
     });
   });
+
+  it.each([
+    ['missing value', () => readAdminSystemSettingString.mockResolvedValueOnce(null)],
+    ['database error', () => readAdminSystemSettingString.mockRejectedValueOnce(new Error('db unavailable'))],
+    ['malformed JSON', () => readAdminSystemSettingString.mockResolvedValueOnce('{not-json')],
+  ])('fails closed for structured server configuration with %s', async (_caseName, arrange) => {
+    arrange();
+
+    await expect(
+      getServerConfigStructuredValue('test_account_identifiers'),
+    ).rejects.toBeInstanceOf(RuntimeSettingUnavailableError);
+  });
 });
