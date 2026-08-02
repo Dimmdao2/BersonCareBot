@@ -7,11 +7,13 @@ import {
   runWithOrganizationPrincipal,
 } from '../../principal/organizationPrincipal.js';
 
-export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max' | 'web_push';
+export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max' | 'web_push' | 'email';
 
 const MESSENGER_CHANNELS: IntegratorNotificationDeliveryChannel[] = ['telegram', 'max'];
 
-function isMessengerChannel(channel: string): channel is IntegratorNotificationDeliveryChannel {
+function isMessengerChannel(
+  channel: string,
+): channel is Extract<IntegratorNotificationDeliveryChannel, 'telegram' | 'max'> {
   return (MESSENGER_CHANNELS as readonly string[]).includes(channel);
 }
 

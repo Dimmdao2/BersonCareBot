@@ -15,6 +15,7 @@ import {
 import {
   getDueReminderOccurrences,
   getEnabledReminderRules,
+  getReminderRuleById,
   getReminderOccurrencesForRuleRange,
   getReminderOccurrenceOwnerUserId,
   getStaleReminderMessengerMessageIdForResend,
@@ -160,6 +161,11 @@ export function createDbReadPort(
         }
         case 'reminders.rules.enabled':
           return (await getEnabledReminderRules(db)) as T;
+        case 'reminders.rule.byId': {
+          const ruleId = asNonEmptyString(query.params.ruleId);
+          if (!ruleId) return null as T;
+          return (await getReminderRuleById(db, ruleId)) as T;
+        }
         case 'reminders.occurrences.forRuleRange': {
           const ruleId = asNonEmptyString(query.params.ruleId);
           const fromIso = asNonEmptyString(query.params.fromIso);

@@ -1432,13 +1432,4 @@ CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history" FO
 CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))));
 \endif
 
--- public.webapp_reminder_occurrences (saas_org_dormant_p0_8_4)
-ALTER TABLE "public"."webapp_reminder_occurrences" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_4" ON "public"."webapp_reminder_occurrences";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_4" ON "public"."webapp_reminder_occurrences" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_4" ON "public"."webapp_reminder_occurrences" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))));
-\endif
-
 COMMIT;

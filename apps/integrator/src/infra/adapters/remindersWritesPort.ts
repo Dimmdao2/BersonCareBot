@@ -83,9 +83,10 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         const result = await runIntegratorSql<{ muted_until: string | null }>(
           db,
           sql`SELECT muted_until::text
-              FROM app.patient_set_reminder_muted_until(${input.mutedUntilIso}::timestamptz)`,
+              FROM app.patient_set_reminder_mute(${input.minutes}::integer, ${input.untilTomorrow})`,
         );
-        return result.rows.length > 0 ? { ok: true } : { ok: false, error: 'not_found' };
+        const mutedUntil = result.rows[0]?.muted_until;
+        return mutedUntil ? { ok: true, mutedUntil } : { ok: false, error: 'not_found' };
       } catch (error) {
         return failure(error);
       }
@@ -120,20 +121,18 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
               FROM app.patient_reminder_notification_settings(${input.messengerChannel}::text, NULL::text)`,
         );
         const topics = Array.isArray(result.rows[0]?.topics)
-          ? result.rows[0]!.topics
-              .filter(
-                (topic): topic is { code: string; title: string; isEnabled: boolean } =>
-                  typeof topic === 'object' &&
-                  topic !== null &&
-                  typeof (topic as Record<string, unknown>).code === 'string' &&
-                  typeof (topic as Record<string, unknown>).title === 'string' &&
-                  typeof (topic as Record<string, unknown>).isEnabled === 'boolean',
-              )
-              .map((topic) => ({
-                code: topic.code,
-                title: topic.title,
-                isEnabled: topic.isEnabled,
-              }))
+          ? result.rows[0]!.topics.filter(
+              (topic): topic is { code: string; title: string; isEnabled: boolean } =>
+                typeof topic === 'object' &&
+                topic !== null &&
+                typeof (topic as Record<string, unknown>).code === 'string' &&
+                typeof (topic as Record<string, unknown>).title === 'string' &&
+                typeof (topic as Record<string, unknown>).isEnabled === 'boolean',
+            ).map((topic) => ({
+              code: topic.code,
+              title: topic.title,
+              isEnabled: topic.isEnabled,
+            }))
           : [];
         return result.rows[0] ? { ok: true, topics } : { ok: false, error: 'not_found' };
       } catch (error) {

@@ -40,7 +40,12 @@ import {
   type DoctorBroadcastMenuWorkerDeps,
 } from './doctorBroadcastIntentMenu.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../db/repos/notificationDeliveryAttempts.js';
-import { resolveReminderOccurrenceOrganizationId } from '../../db/repos/reminders.js';
+import {
+  getReminderDeliveryGateDecision,
+  isReminderTransactionalEmailRateLimited,
+  recordReminderTransactionalEmailSent,
+  resolveReminderOccurrenceOrganizationId,
+} from '../../db/repos/reminders.js';
 import { resolveBroadcastAuditOrganizationId } from '../../db/repos/broadcastAudit.js';
 import {
   clearUserChannelBotBlocked,
@@ -373,10 +378,8 @@ async function finalizeOutgoingDeliveryDead(
               payloadJson: { chatId: externalId, text },
             },
           });
-          await writePort.writeDb({
-            type: 'reminders.occurrence.markFailed',
-            params: { occurrenceId, channel, errorCode: 'DELIVERY_DEAD' },
-          });
+          // A dead provider leg must not poison sibling channels of this occurrence/generation.
+          // Per-channel failure evidence lives in the delivery log and queue row.
         });
       } catch (err) {
         if (isMissingReminderOccurrenceFk(err)) {
@@ -392,7 +395,7 @@ async function finalizeOutgoingDeliveryDead(
   }
 }
 
-async function recordMessengerQueueDeliveryAttempt(
+async function recordQueueDeliveryAttempt(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
   intent: OutgoingIntent,
@@ -403,11 +406,17 @@ async function recordMessengerQueueDeliveryAttempt(
     providerStatusCode?: number;
   },
 ): Promise<void> {
-  if (row.channel !== 'telegram' && row.channel !== 'max') return;
+  if (row.kind !== 'reminder_dispatch' && row.channel !== 'telegram' && row.channel !== 'max')
+    return;
+  if (!['telegram', 'max', 'web_push', 'email'].includes(row.channel)) return;
   const p = row.payloadJson;
   const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : undefined;
   const externalId = typeof p.externalId === 'string' ? p.externalId : undefined;
   const integratorUserId = typeof intent.meta.userId === 'string' ? intent.meta.userId : undefined;
+  const platformUserId =
+    typeof p.platformUserId === 'string' && p.platformUserId.trim().length > 0
+      ? p.platformUserId.trim()
+      : undefined;
   const topicCode = typeof p.topicCode === 'string' ? p.topicCode : undefined;
   const broadcastAuditId =
     typeof row.payloadJson.broadcastAuditId === 'string' &&
@@ -424,9 +433,10 @@ async function recordMessengerQueueDeliveryAttempt(
         : null;
   await recordNotificationDeliveryAttemptBestEffort(db, {
     ...(integratorUserId !== undefined ? { integratorUserId } : {}),
+    ...(platformUserId !== undefined ? { userId: platformUserId } : {}),
     ...(topicCode !== undefined ? { topicCode } : {}),
     intentType: row.kind === 'reminder_dispatch' ? 'reminder_dispatch' : row.kind,
-    channel: row.channel,
+    channel: row.channel as 'telegram' | 'max' | 'web_push' | 'email',
     status: params.status,
     ...(params.reason !== undefined ? { reason: params.reason } : {}),
     ...(params.providerStatusCode !== undefined
@@ -455,7 +465,7 @@ async function finalizeRecipientBlockedBotDelivery(
     channel: row.channel,
     externalId: resolveExternalIdForBotBlockedMarker(row, intent),
   });
-  await recordMessengerQueueDeliveryAttempt(db, row, intent, {
+  await recordQueueDeliveryAttempt(db, row, intent, {
     status: 'skipped',
     reason: 'recipient_blocked_bot',
     errorMessage: safeError,
@@ -507,10 +517,7 @@ async function finalizeRecipientBlockedBotDelivery(
               payloadJson: { chatId: externalId, text },
             },
           });
-          await writePort.writeDb({
-            type: 'reminders.occurrence.markSkippedLocal',
-            params: { occurrenceId },
-          });
+          // Recipient blocking is channel-local; another selected channel may still deliver.
         });
       } catch (err) {
         if (isMissingReminderOccurrenceFk(err)) {
@@ -532,6 +539,7 @@ async function handleDispatchFailure(
   err: unknown,
   writePort: DbWritePort,
   intent?: OutgoingIntent,
+  failureEvidence?: { reason?: string; providerStatusCode?: number },
 ): Promise<void> {
   if (
     row.kind !== 'operator_alert' &&
@@ -558,12 +566,15 @@ async function handleDispatchFailure(
     if (
       row.kind !== 'operator_alert' &&
       intent &&
-      (row.channel === 'telegram' || row.channel === 'max')
+      (row.kind === 'reminder_dispatch' || row.channel === 'telegram' || row.channel === 'max')
     ) {
-      await recordMessengerQueueDeliveryAttempt(db, row, intent, {
+      await recordQueueDeliveryAttempt(db, row, intent, {
         status: 'failed',
-        reason: retryable ? 'delivery_dead' : 'provider_error',
+        reason: failureEvidence?.reason ?? (retryable ? 'delivery_dead' : 'provider_error'),
         errorMessage: safe,
+        ...(failureEvidence?.providerStatusCode !== undefined
+          ? { providerStatusCode: failureEvidence.providerStatusCode }
+          : {}),
       });
     }
     await finalizeOutgoingDeliveryDead(db, row, safe, writePort);
@@ -634,7 +645,7 @@ export async function processOutgoingDeliveryRow(
   if (row.kind === INBOUND_REPLY_QUEUE_KIND) {
     try {
       await dispatchOutgoing(intent);
-      await recordMessengerQueueDeliveryAttempt(db, row, intent, { status: 'success' });
+      await recordQueueDeliveryAttempt(db, row, intent, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
       await queueMarkSent(db, row.id);
     } catch (err) {
@@ -652,16 +663,48 @@ export async function processOutgoingDeliveryRow(
     const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : null;
     const channel = typeof p.channel === 'string' ? p.channel : null;
     const deliveryLogId = typeof p.deliveryLogId === 'string' ? p.deliveryLogId : null;
+    const generation =
+      typeof p.deliveryGeneration === 'number' && Number.isInteger(p.deliveryGeneration)
+        ? p.deliveryGeneration
+        : null;
+    const topicCode = typeof p.topicCode === 'string' && p.topicCode.trim() ? p.topicCode : null;
     const externalId = typeof p.externalId === 'string' ? p.externalId : '';
     const text = typeof p.logText === 'string' ? p.logText : '';
-    if (!occurrenceId || !channel || !deliveryLogId) {
+    if (!occurrenceId || !channel || !deliveryLogId || generation === null || generation < 0) {
       await queueMarkDead(db, row.id, 'MISSING_REMINDER_FIELDS');
       return;
     }
-    const occStatus = await readReminderOccurrenceStatus(db, occurrenceId);
-    if (occStatus === 'sent' || occStatus === 'skipped' || occStatus === 'failed') {
+    const gate = await getReminderDeliveryGateDecision(db, {
+      occurrenceId,
+      generation,
+      channel,
+      topicCode,
+    });
+    if (!gate.allowed) {
+      await recordQueueDeliveryAttempt(db, row, intent, {
+        status: 'skipped',
+        reason: gate.reason,
+      });
       await queueMarkSent(db, row.id);
       return;
+    }
+    const platformUserId =
+      typeof p.platformUserId === 'string' && p.platformUserId.trim().length > 0
+        ? p.platformUserId.trim()
+        : null;
+    if (channel === 'email') {
+      if (!platformUserId) {
+        await queueMarkDead(db, row.id, 'MISSING_REMINDER_PLATFORM_USER');
+        return;
+      }
+      if (await isReminderTransactionalEmailRateLimited(db, platformUserId)) {
+        await recordQueueDeliveryAttempt(db, row, intent, {
+          status: 'skipped',
+          reason: 'rate_limited',
+        });
+        await queueMarkSent(db, row.id);
+        return;
+      }
     }
     try {
       const sendPayload = intent.payload as { recipient?: { chatId?: unknown } };
@@ -725,6 +768,49 @@ export async function processOutgoingDeliveryRow(
       }
 
       const sendResult = await dispatchOutgoing(intent);
+      if (channel === 'web_push') {
+        const outcome = sendResult.webPushOutcome;
+        if (!outcome || outcome.status === 'failed') {
+          const reason = (outcome?.reason ?? 'no_provider_outcome')
+            .replace(/[^a-z0-9_:-]/gi, '_')
+            .slice(0, 80);
+          const providerCode = outcome?.providerErrorCode
+            ?.replace(/[^a-z0-9_:-]/gi, '_')
+            .slice(0, 80);
+          const statusCode = outcome?.providerStatusCode;
+          const error = new Error(
+            `WEB_PUSH_OUTCOME_FAILED:${reason}${providerCode ? `:${providerCode}` : ''}${statusCode !== undefined ? `:${statusCode}` : ''}`,
+          );
+          await handleDispatchFailure(db, row, error, writePort, intent, {
+            reason,
+            ...(statusCode !== undefined ? { providerStatusCode: statusCode } : {}),
+          });
+          return;
+        }
+        if (outcome.status === 'skipped') {
+          await recordQueueDeliveryAttempt(db, row, intent, {
+            status: 'skipped',
+            reason: outcome.reason ?? 'provider_skipped',
+            ...(outcome.providerStatusCode !== undefined
+              ? { providerStatusCode: outcome.providerStatusCode }
+              : {}),
+          });
+          await queueMarkSent(db, row.id);
+          return;
+        }
+      }
+      if (channel === 'email' && platformUserId) {
+        try {
+          await recordReminderTransactionalEmailSent(db, platformUserId);
+        } catch (error) {
+          // The provider already accepted the email. Never retry the delivery merely because
+          // best-effort cooldown evidence could not be advanced.
+          logger.warn(
+            { error, occurrenceId, platformUserId },
+            'reminder_email_cooldown_record_failed_after_delivery',
+          );
+        }
+      }
       const telegramMessageId =
         channel === 'telegram' && typeof sendResult?.telegramMessageId === 'number'
           ? sendResult.telegramMessageId
@@ -758,7 +844,7 @@ export async function processOutgoingDeliveryRow(
           params: { occurrenceId, channel },
         });
       });
-      await recordMessengerQueueDeliveryAttempt(db, row, intent, { status: 'success' });
+      await recordQueueDeliveryAttempt(db, row, intent, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
       await queueMarkSent(db, row.id);
     } catch (err) {
@@ -793,7 +879,7 @@ export async function processOutgoingDeliveryRow(
             })
           : intent;
       await dispatchOutgoing(toSend);
-      await recordMessengerQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
+      await recordQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, toSend);
       await queueMarkSent(db, row.id);
       await runWithBroadcastAuditOrganization(db, broadcastAuditId, (targetDb) =>

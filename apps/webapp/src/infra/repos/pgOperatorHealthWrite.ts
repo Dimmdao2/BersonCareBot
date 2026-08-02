@@ -9,8 +9,6 @@ import {
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
-  OPERATOR_REMINDERS_JOB_FAMILY,
-  OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
 import {
   CRITICAL_ALERT_CADENCE_INTEGRATION,
@@ -136,28 +134,6 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       error: input.error,
       metaJson: {},
       clearMetaOnFailure: true,
-    });
-  },
-
-  async recordWebPushOnlyReminderTickSuccess(input) {
-    await upsertOperatorJobSuccess({
-      jobKey: OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
-      jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
-      startedAtIso: input.startedAtIso,
-      durationMs: input.durationMs,
-      metaJson: input.metaJson,
-    });
-  },
-
-  async recordWebPushOnlyReminderTickFailure(input) {
-    await upsertOperatorJobFailure({
-      jobKey: OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
-      jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
-      startedAtIso: input.startedAtIso,
-      durationMs: input.durationMs,
-      error: input.error,
-      metaJson: input.metaJson,
-      clearMetaOnFailure: false,
     });
   },
 

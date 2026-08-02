@@ -12,10 +12,11 @@ export async function GET(request: Request) {
   const phone = url.searchParams.get('phone')?.trim();
   const telegramId = url.searchParams.get('telegramId')?.trim();
   const maxId = url.searchParams.get('maxId')?.trim();
+  const platformUserId = url.searchParams.get('platformUserId')?.trim();
   const organizationId = url.searchParams.get('organizationId')?.trim();
-  if (!phone && !telegramId && !maxId) {
+  if (!phone && !telegramId && !maxId && !platformUserId) {
     return NextResponse.json(
-      { ok: false, error: 'one of phone, telegramId, maxId is required' },
+      { ok: false, error: 'one of phone, telegramId, maxId, platformUserId is required' },
       { status: 400 },
     );
   }
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
       ...(phone ? { phone } : {}),
       ...(telegramId ? { telegramId } : {}),
       ...(maxId ? { maxId } : {}),
+      ...(platformUserId ? { platformUserId } : {}),
       ...(topic ? { topic } : {}),
       ...(integratorUserId ? { integratorUserId } : {}),
     });
@@ -59,6 +61,7 @@ export async function GET(request: Request) {
       ok: true,
       channelBindings: result.channelBindings,
       ...(result.resolution ? { resolution: result.resolution } : {}),
+      ...(result.emailRecipient ? { emailRecipient: result.emailRecipient } : {}),
     },
     { status: 200 },
   );

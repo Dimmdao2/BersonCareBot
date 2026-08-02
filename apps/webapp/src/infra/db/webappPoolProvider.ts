@@ -7,8 +7,6 @@ import {
   clearDbPrincipalFromConnection,
   type DbPrincipal,
   getCurrentDbPrincipal,
-  resetDbOperationalRuntimeRole,
-  setDbOperationalRuntimeRole,
 } from '@bersoncare/db-principal';
 import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
 import { classifyPostgresIsolationDenial } from '@/infra/db/saasIsolationDbFailureReporting';
@@ -22,13 +20,10 @@ type WebappPoolProviderConfig = {
   connectionString?: string;
   staffConnectionString?: string;
   nonstaffConnectionString?: string;
-  webPushReminderConnectionString?: string;
   poolFactory?: (config: PoolConfig) => Pool;
 };
 
-type WebappRuntimePoolKind = 'staff' | 'nonstaff' | 'web-push-reminder';
-
-export const WEB_PUSH_REMINDER_INFRA_SOURCE = 'api/internal/reminders/web-push-only/tick:POST';
+type WebappRuntimePoolKind = 'staff' | 'nonstaff';
 
 export type WebappPoolRoutingMetrics = {
   staffSelections: number;
@@ -36,7 +31,6 @@ export type WebappPoolRoutingMetrics = {
   missingPrincipalSelections: number;
   bootstrapSelections: number;
   infraSelections: number;
-  webPushReminderSelections: number;
 };
 
 const poolRoutingMetrics = new WeakMap<Pool, WebappPoolRoutingMetrics>();
@@ -59,83 +53,6 @@ function createWebappPool(
   installPrincipalAwarePoolQuery(pool, metrics);
   poolRoutingMetrics.set(pool, metrics);
   return pool;
-}
-
-function isWebPushReminderInfraPrincipal(): boolean {
-  const principal = getCurrentDbPrincipal();
-  return principal?.kind === 'infra' && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE;
-}
-
-function createWebPushReminderPool(
-  connectionString: string,
-  poolFactory: (config: PoolConfig) => Pool,
-): Pool {
-  const rawPool = poolFactory({ connectionString, max: 2 });
-  const connect = async (): Promise<PoolClient> => {
-    if (!isWebPushReminderInfraPrincipal()) {
-      throw new Error(
-        'Web Push reminder operational DB pool requires the exact infra principal source',
-      );
-    }
-    const principal = getCurrentDbPrincipal();
-    const client = await rawPool.connect();
-    try {
-      await setDbOperationalRuntimeRole(client, 'app_operational_web_push_reminder');
-      await client.query("SELECT set_config('app.org', $1, false)", [
-        principal?.kind === 'infra' ? (principal.organizationId ?? '') : '',
-      ]);
-    } catch (error) {
-      client.release(
-        error instanceof Error ? error : new Error('Web Push reminder DB setup failed'),
-      );
-      throw error;
-    }
-    let released = false;
-    return new Proxy(client, {
-      get(target, prop, receiver): unknown {
-        if (prop === 'release') {
-          return async (error?: Error): Promise<void> => {
-            if (released) return;
-            released = true;
-            let cleanupError = error;
-            try {
-              await target.query("SELECT set_config('app.org', '', false)");
-              await resetDbOperationalRuntimeRole(target);
-            } catch (err) {
-              cleanupError =
-                err instanceof Error ? err : new Error('Web Push reminder DB cleanup failed');
-            } finally {
-              target.release(cleanupError);
-            }
-            if (!error && cleanupError) throw cleanupError;
-          };
-        }
-        const value = Reflect.get(target, prop, receiver);
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    }) as PoolClient;
-  };
-  const query = async (
-    ...args: Parameters<Pool['query']>
-  ): Promise<Awaited<ReturnType<Pool['query']>>> => {
-    const client = await connect();
-    try {
-      const bound = client.query.bind(client) as unknown as (
-        ...inner: Parameters<Pool['query']>
-      ) => ReturnType<Pool['query']>;
-      return await bound(...args);
-    } finally {
-      await client.release();
-    }
-  };
-  return new Proxy(rawPool, {
-    get(target, prop, receiver): unknown {
-      if (prop === 'connect') return connect;
-      if (prop === 'query') return query;
-      const value = Reflect.get(target, prop, receiver);
-      return typeof value === 'function' ? value.bind(target) : value;
-    },
-  }) as Pool;
 }
 
 function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
@@ -280,20 +197,10 @@ function assertRoutedWebappPoolCheckoutAllowed(
 function createRoutedWebappPool(input: {
   staffPool: Pool;
   nonstaffPool: Pool;
-  webPushReminderPool?: Pool;
   metrics: WebappPoolRoutingMetrics;
 }): Pool {
   let routedPool: Pool;
   const selectPool = (principal: DbPrincipal | undefined): Pool => {
-    if (principal?.kind === 'infra' && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE) {
-      if (!input.webPushReminderPool) {
-        throw new Error(
-          'DATABASE_URL_WEB_PUSH_REMINDER is required for the Web Push reminder infra principal',
-        );
-      }
-      input.metrics.webPushReminderSelections += 1;
-      return input.webPushReminderPool;
-    }
     assertRoutedWebappPoolCheckoutAllowed(principal, input.metrics);
     return choosePoolKindForPrincipal(principal, input.metrics) === 'staff'
       ? input.staffPool
@@ -309,11 +216,7 @@ function createRoutedWebappPool(input: {
     return selectPool(principalSnapshot).query(...args);
   };
   const routedEnd = async (): Promise<void> => {
-    await Promise.all([
-      input.staffPool.end(),
-      input.nonstaffPool.end(),
-      input.webPushReminderPool?.end(),
-    ]);
+    await Promise.all([input.staffPool.end(), input.nonstaffPool.end()]);
   };
 
   routedPool = new Proxy(input.nonstaffPool, {
@@ -363,7 +266,6 @@ function createEmptyRoutingMetrics(): WebappPoolRoutingMetrics {
     missingPrincipalSelections: 0,
     bootstrapSelections: 0,
     infraSelections: 0,
-    webPushReminderSelections: 0,
   };
 }
 
@@ -372,9 +274,8 @@ export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool
   const singleConnectionString = config.connectionString?.trim();
   const staffConnectionString = config.staffConnectionString?.trim();
   const nonstaffConnectionString = config.nonstaffConnectionString?.trim();
-  const webPushReminderConnectionString = config.webPushReminderConnectionString?.trim();
 
-  if (!staffConnectionString && !nonstaffConnectionString && !webPushReminderConnectionString) {
+  if (!staffConnectionString && !nonstaffConnectionString) {
     if (!singleConnectionString) {
       throw new Error('Webapp database connection string is not set');
     }
@@ -389,24 +290,13 @@ export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool
     );
   }
 
-  if (
-    resolvedStaffConnectionString === resolvedNonstaffConnectionString &&
-    !webPushReminderConnectionString
-  ) {
+  if (resolvedStaffConnectionString === resolvedNonstaffConnectionString) {
     return createWebappPool(resolvedStaffConnectionString, 5, poolFactory);
   }
 
   return createRoutedWebappPool({
     staffPool: createWebappPool(resolvedStaffConnectionString, 3, poolFactory),
     nonstaffPool: createWebappPool(resolvedNonstaffConnectionString, 2, poolFactory),
-    ...(webPushReminderConnectionString
-      ? {
-          webPushReminderPool: createWebPushReminderPool(
-            webPushReminderConnectionString,
-            poolFactory,
-          ),
-        }
-      : {}),
     metrics: createEmptyRoutingMetrics(),
   });
 }

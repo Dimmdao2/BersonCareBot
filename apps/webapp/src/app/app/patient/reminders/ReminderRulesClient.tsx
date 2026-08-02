@@ -66,18 +66,10 @@ function formatScheduleSummary(rule: ReminderRule): string {
           : df === 'every_n_days'
             ? 'по графику «раз в N дней»'
             : '';
-    const q =
-      rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
-        ? ` Тихие часы: ${formatReminderMinuteOfDayToHhMm(rule.quietHoursStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.quietHoursEndMinute)}.`
-        : '';
-    return `Слоты: ${times}${dayHint ? `. ${dayHint}` : ''}.${q}`;
+    return `Слоты: ${times}${dayHint ? `. ${dayHint}` : ''}.`;
   }
-  const q =
-    rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
-      ? ` Тихие часы: ${formatReminderMinuteOfDayToHhMm(rule.quietHoursStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.quietHoursEndMinute)}.`
-      : '';
   const interval = clampIntervalMinutes(rule.intervalMinutes ?? 60);
-  return `${formatReminderMinuteOfDayToHhMm(rule.windowStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.windowEndMinute)}, каждые ${interval} мин.${q}`;
+  return `${formatReminderMinuteOfDayToHhMm(rule.windowStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.windowEndMinute)}, каждые ${interval} мин.`;
 }
 
 function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {

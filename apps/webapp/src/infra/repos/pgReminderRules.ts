@@ -15,7 +15,6 @@ import type {
   ReminderUpdateSchedule,
 } from '@/modules/reminders/types';
 import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
-import { cancelWebPushOnlyPendingOccurrencesForRule } from '@/infra/repos/pgWebPushOnlyReminders';
 import { DEFAULT_REHAB_DAILY_SLOTS } from '@/modules/reminders/scheduleSlots';
 import { notificationTopicCodeFromReminderRule } from '@/modules/reminders/notificationTopicCode';
 
@@ -431,7 +430,10 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
     },
 
     async cancelWebPushPendingOccurrences(ruleIntegratorId) {
-      await cancelWebPushOnlyPendingOccurrencesForRule(ruleIntegratorId);
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`SELECT app.patient_cancel_pending_reminder_occurrences(${ruleIntegratorId})`,
+      );
     },
   };
 }

@@ -26,7 +26,6 @@ const OPERATIONAL_KEYS = [
   ['DATABASE_URL_SCHEDULER', 'bcb_test_operational_scheduler_login'],
 ];
 const MEDIA_ROLE = 'bcb_test_operational_media_login';
-const WEB_PUSH_REMINDER_ROLE = 'bcb_test_operational_web_push_reminder_login';
 const MEDIA_COPY_KEYS = [
   'DB_PRINCIPAL_CONTEXT_MODE',
   'DB_PRINCIPAL_SIGNING_SECRET',
@@ -156,13 +155,7 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   for (const [key, role] of OPERATIONAL_KEYS) {
     apiAdditions.set(key, api.get(key) || makeUrl(baseUrl, role));
   }
-  const webappAdditions = new Map([
-    ['ALLOW_DEV_AUTH_BYPASS', 'false'],
-    [
-      'DATABASE_URL_WEB_PUSH_REMINDER',
-      webapp.get('DATABASE_URL_WEB_PUSH_REMINDER') || makeUrl(baseUrl, WEB_PUSH_REMINDER_ROLE),
-    ],
-  ]);
+  const webappAdditions = new Map([['ALLOW_DEV_AUTH_BYPASS', 'false']]);
 
   let mediaText;
   if (mediaExists) {
@@ -287,11 +280,6 @@ function selfTest() {
     const firstWebapp = parseEnv(readFileSync(webapp, 'utf8'), 'webapp.test');
     if (firstWebapp.get('ALLOW_DEV_AUTH_BYPASS') !== 'false') {
       fail('self-test did not disable dev auth bypass in webapp.test');
-    }
-    if (
-      new URL(firstWebapp.get('DATABASE_URL_WEB_PUSH_REMINDER')).username !== WEB_PUSH_REMINDER_ROLE
-    ) {
-      fail('self-test wrong Web Push reminder role');
     }
     bootstrap({
       apiPath: api,

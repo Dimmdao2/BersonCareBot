@@ -1,7 +1,6 @@
 import { DateTime } from 'luxon';
 import type { ReminderLinkedObjectType, ReminderRule } from '@/modules/reminders/types';
 import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
-import { isMinuteOfDayInQuietHours } from '@/modules/reminders/quietHours';
 import { isWarmupsContentSectionReminderRule } from '@/modules/reminders/warmupsReminderRuleMatch';
 
 /** Rules that participate in home «next reminder» + daily planned counts. */
@@ -94,8 +93,6 @@ function countIntervalWindowOccurrencesInRange(
     const weekdayIdx = day.weekday - 1;
     if (mask[weekdayIdx] !== '1') continue;
     for (let m = winStart; m <= winEnd; m += intervalMin) {
-      if (isMinuteOfDayInQuietHours(m, rule.quietHoursStartMinute, rule.quietHoursEndMinute))
-        continue;
       const slot = day.set({
         hour: Math.floor(m / 60),
         minute: m % 60,
@@ -123,11 +120,6 @@ function countSlotsV1OccurrencesInRange(
     for (const tl of data.timesLocal) {
       const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === 'string' ? tl : '');
       if (minuteOfDay === null) continue;
-      if (
-        isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)
-      ) {
-        continue;
-      }
       const slot = day.set({
         hour: Math.floor(minuteOfDay / 60),
         minute: minuteOfDay % 60,
@@ -234,11 +226,6 @@ function computeNextSlotsV1OccurrenceUtc(
     for (const tl of sortedTimes) {
       const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === 'string' ? tl : '');
       if (minuteOfDay === null) continue;
-      if (
-        isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)
-      ) {
-        continue;
-      }
       const slot = day.set({
         hour: Math.floor(minuteOfDay / 60),
         minute: minuteOfDay % 60,
@@ -284,8 +271,6 @@ export function computeNextOccurrenceUtcForRule(
     if (mask[weekdayIdx] !== '1') continue;
 
     for (let m = winStart; m <= winEnd; m += intervalMin) {
-      if (isMinuteOfDayInQuietHours(m, rule.quietHoursStartMinute, rule.quietHoursEndMinute))
-        continue;
       const hour = Math.floor(m / 60);
       const minute = m % 60;
       const slot = day.set({ hour, minute, second: 0, millisecond: 0 });

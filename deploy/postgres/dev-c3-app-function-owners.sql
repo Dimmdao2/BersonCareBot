@@ -29,9 +29,9 @@
 -- Required: run as the `postgres` superuser against the `bcb_webapp_dev` database, after
 -- dev-c0-runtime-logins.sql, dev-c1-bootstrap-schema-app-grants.sql, and the earlier p0-5b/p2-b/
 -- specialist-owner-provisioning/saas-isolation-telemetry/saas-system-health-diagnostics/
--- c4-web-push-reminder-runtime/c5a-platform-operations-runtime overlays that create the target
+-- c5a-platform-operations-runtime overlays that create the target
 -- roles (app_owner, saas_telemetry_owner, saas_system_health_owner, app_platform_settings,
--- app_web_push_reminder_discovery_definer) and the functions themselves.
+-- app_clinic_billing) and the functions themselves.
 --
 -- Table/EXECUTE grants below are the narrow, per-function closure a static read of each function's
 -- body requires (same failure mode dev-c1 hit with app.is_staff() -- a correctly-owned SECURITY
@@ -65,9 +65,8 @@ BEGIN
     AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'saas_telemetry_owner')
     AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'saas_system_health_owner')
     AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_platform_settings')
-    AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web_push_reminder_discovery_definer')
   ) THEN
-    RAISE EXCEPTION 'DEV C3: one of the five target owner roles is missing -- run the overlay that creates it first (see header comment)';
+    RAISE EXCEPTION 'DEV C3: one of the four target owner roles is missing -- run the overlay that creates it first (see header comment)';
   END IF;
 END
 $guard$;
@@ -81,7 +80,6 @@ WITH targets(signature, required_owner) AS (
     ('app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)', 'app_owner'),
     ('app.is_current_patient_test_account()', 'app_owner'),
     ('app.list_scheduler_reminder_organization_ids()', 'app_owner'),
-    ('app.list_web_push_reminder_organization_ids(timestamptz)', 'app_web_push_reminder_discovery_definer'),
     ('app.mark_operator_incident_alert_sent(uuid)', 'app_owner'),
     ('app.operator_incident_alert_already_sent(uuid)', 'app_owner'),
     ('app.read_curated_playback_health()', 'saas_system_health_owner'),
@@ -130,7 +128,6 @@ WITH targets(signature, required_owner) AS (
     ('app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)', 'app_owner'),
     ('app.is_current_patient_test_account()', 'app_owner'),
     ('app.list_scheduler_reminder_organization_ids()', 'app_owner'),
-    ('app.list_web_push_reminder_organization_ids(timestamptz)', 'app_web_push_reminder_discovery_definer'),
     ('app.mark_operator_incident_alert_sent(uuid)', 'app_owner'),
     ('app.operator_incident_alert_already_sent(uuid)', 'app_owner'),
     ('app.read_curated_playback_health()', 'saas_system_health_owner'),
@@ -235,9 +232,6 @@ GRANT INSERT ON TABLE public.saas_organization_trials TO app_platform_settings; 
 GRANT SELECT ON TABLE public.saas_trial_policy TO app_platform_settings; -- start_provisioned_organization_trial
 GRANT SELECT ON TABLE public.saas_registration_tariff_policy TO app_platform_settings; -- start_provisioned_organization_trial
 
--- app_web_push_reminder_discovery_definer (web-push reminder discovery accessor):
-GRANT SELECT ON TABLE public.reminder_rules TO app_web_push_reminder_discovery_definer; -- list_web_push_reminder_organization_ids
-
 -- 3. EXECUTE grants for cross-function calls inside the realigned bodies: a SECURITY DEFINER
 --    function calling another app.* function needs EXECUTE on that callee under its OWN (new)
 --    owner, independent of table grants.
@@ -257,7 +251,6 @@ BEGIN
       ('app.increment_media_playback_resolution_stat(uuid,uuid,text,boolean)', 'app_owner'),
       ('app.is_current_patient_test_account()', 'app_owner'),
       ('app.list_scheduler_reminder_organization_ids()', 'app_owner'),
-      ('app.list_web_push_reminder_organization_ids(timestamptz)', 'app_web_push_reminder_discovery_definer'),
       ('app.mark_operator_incident_alert_sent(uuid)', 'app_owner'),
       ('app.operator_incident_alert_already_sent(uuid)', 'app_owner'),
       ('app.read_curated_playback_health()', 'saas_system_health_owner'),

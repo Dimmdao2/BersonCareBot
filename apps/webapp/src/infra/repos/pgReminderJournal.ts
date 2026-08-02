@@ -133,106 +133,34 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
       return row ? parseInt(row.cnt, 10) : 0;
     },
 
-    async recordDone(platformUserId, integratorOccurrenceId, displayTimeZone) {
+    async recordDone(_platformUserId, integratorOccurrenceId, _displayTimeZone) {
       try {
         return await runWebappTransaction(async (tx) => {
-          const own = await runWebappSql<{
-            rule_pk: string;
-            integrator_user_id: string;
-            occurred_at: string;
+          const result = await runWebappSql<{
+            done_at: string;
+            first_done_for_occurrence: boolean;
+            day_done_count: number;
+            day_sent_total: number;
+            day_fully_done: boolean;
           }>(
             tx,
-            sql`SELECT rr.id AS rule_pk,
-                  roh.integrator_user_id::text AS integrator_user_id,
-                  roh.occurred_at::text AS occurred_at
-           FROM reminder_occurrence_history roh
-           INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
-           INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-           WHERE roh.integrator_occurrence_id = ${integratorOccurrenceId} AND pu.id = ${platformUserId}::uuid`,
+            sql`SELECT done_at::text, first_done_for_occurrence, day_done_count,
+                       day_sent_total, day_fully_done
+                FROM app.patient_done_reminder_occurrence(${integratorOccurrenceId}::text)`,
           );
-          if (own.rows.length === 0) {
+          const row = result.rows[0];
+          if (!row) {
             tx.rollback();
             return { ok: false, error: 'not_found' } as const;
           }
-          const {
-            rule_pk: rulePk,
-            integrator_user_id: integratorUserId,
-            occurred_at: occurredAt,
-          } = own.rows[0]!;
-          const ins = await runWebappSql<{ created_at: string }>(
-            tx,
-            sql`INSERT INTO reminder_journal (rule_id, occurrence_id, action)
-           SELECT ${rulePk}::uuid, ${integratorOccurrenceId}, 'done'
-           WHERE NOT EXISTS (
-             SELECT 1 FROM reminder_journal
-             WHERE occurrence_id = ${integratorOccurrenceId} AND action = 'done'
-           )
-           RETURNING created_at::text`,
-          );
-          const firstDoneForOccurrence = (ins.rowCount ?? 0) > 0;
-          let doneAt: string | undefined;
-          if (!firstDoneForOccurrence) {
-            const existing = await runWebappSql<{ created_at: string }>(
-              tx,
-              sql`SELECT created_at::text FROM reminder_journal
-             WHERE occurrence_id = ${integratorOccurrenceId} AND action = 'done'
-             ORDER BY created_at DESC LIMIT 1`,
-            );
-            doneAt = existing.rows[0]?.created_at;
-            if (!doneAt) {
-              tx.rollback();
-              return { ok: false, error: 'conflict' } as const;
-            }
-          } else {
-            doneAt = ins.rows[0]?.created_at;
-            if (!doneAt) {
-              tx.rollback();
-              return { ok: false, error: 'not_found' } as const;
-            }
-          }
-
-          const stats = await runWebappSql<{ day_sent_total: number; day_done_count: number }>(
-            tx,
-            sql`WITH day_ctx AS (
-             SELECT (${occurredAt}::timestamptz AT TIME ZONE ${displayTimeZone}::text)::date AS local_day,
-                    ${integratorUserId}::bigint AS iu
-           )
-           SELECT
-             (
-               SELECT COUNT(*)::int
-               FROM reminder_occurrence_history roh
-               CROSS JOIN day_ctx d
-               WHERE roh.integrator_user_id = d.iu
-                 AND roh.status = 'sent'
-                 AND (roh.occurred_at AT TIME ZONE ${displayTimeZone}::text)::date = d.local_day
-             ) AS day_sent_total,
-             (
-               SELECT COUNT(*)::int
-               FROM reminder_occurrence_history roh
-               INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-               INNER JOIN reminder_journal rj
-                 ON rj.rule_id = rr.id
-                 AND rj.occurrence_id = roh.integrator_occurrence_id
-                 AND rj.action = 'done'
-               CROSS JOIN day_ctx d
-               WHERE roh.integrator_user_id = d.iu
-                 AND roh.status = 'sent'
-                 AND (roh.occurred_at AT TIME ZONE ${displayTimeZone}::text)::date = d.local_day
-             ) AS day_done_count`,
-          );
-          const daySentTotal = Number(stats.rows[0]?.day_sent_total ?? 0);
-          const dayDoneCount = Number(stats.rows[0]?.day_done_count ?? 0);
-          const dayFullyDone =
-            firstDoneForOccurrence && daySentTotal > 0 && dayDoneCount === daySentTotal;
-
           return {
             ok: true,
             occurrenceId: integratorOccurrenceId,
-            doneAt: doneAt!,
-            firstDoneForOccurrence,
-            dayDoneCount,
-            daySentTotal,
-            dayFullyDone,
+            doneAt: row.done_at,
+            firstDoneForOccurrence: row.first_done_for_occurrence,
+            dayDoneCount: Number(row.day_done_count),
+            daySentTotal: Number(row.day_sent_total),
+            dayFullyDone: row.day_fully_done,
           };
         });
       } catch (err) {
@@ -244,27 +172,6 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
     async recordSnooze(platformUserId, integratorOccurrenceId, minutes) {
       try {
         return await runWebappTransaction(async (tx) => {
-          const own = await runWebappSql<{
-            rule_pk: string;
-            snoozed_until: string | null;
-            skipped_at: string | null;
-          }>(
-            tx,
-            sql`SELECT rr.id AS rule_pk, roh.snoozed_until, roh.skipped_at
-           FROM reminder_occurrence_history roh
-           INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
-           INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-           WHERE roh.integrator_occurrence_id = ${integratorOccurrenceId} AND pu.id = ${platformUserId}::uuid`,
-          );
-          if (own.rows.length === 0) {
-            tx.rollback();
-            return { ok: false, error: 'not_found' } as const;
-          }
-          const rulePk = own.rows[0]!.rule_pk;
-          if (own.rows[0]!.skipped_at) {
-            tx.rollback();
-            return { ok: false, error: 'not_found' } as const;
-          }
           const snoozeAction = await runWebappSql<{ snoozed_until: string }>(
             tx,
             sql`SELECT snoozed_until::text
@@ -280,16 +187,6 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
             return { ok: false, error: 'not_found' } as const;
           }
 
-          await runWebappSql(
-            tx,
-            sql`INSERT INTO reminder_journal (rule_id, occurrence_id, action, snooze_until)
-           SELECT ${rulePk}::uuid, ${integratorOccurrenceId}, 'snoozed', ${snoozedUntil}::timestamptz
-           WHERE NOT EXISTS (
-             SELECT 1 FROM reminder_journal
-             WHERE occurrence_id = ${integratorOccurrenceId} AND action = 'snoozed' AND snooze_until = ${snoozedUntil}::timestamptz
-           )`,
-          );
-
           return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil };
         });
       } catch (err) {
@@ -298,29 +195,16 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
       }
     },
 
-    async recordSkip(platformUserId, integratorOccurrenceId, reason) {
+    async recordSkip(platformUserId, integratorOccurrenceId, _reason) {
       try {
         return await runWebappTransaction(async (tx) => {
-          const own = await runWebappSql<{ rule_pk: string }>(
-            tx,
-            sql`SELECT rr.id AS rule_pk
-           FROM reminder_occurrence_history roh
-           INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
-           INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-           WHERE roh.integrator_occurrence_id = ${integratorOccurrenceId} AND pu.id = ${platformUserId}::uuid`,
-          );
-          if (own.rows.length === 0) {
-            tx.rollback();
-            return { ok: false, error: 'not_found' } as const;
-          }
-          const rulePk = own.rows[0]!.rule_pk;
           const skipAction = await runWebappSql<{ skipped_at: string }>(
             tx,
             sql`SELECT skipped_at::text
                 FROM app.patient_skip_reminder_occurrence(
                   ${platformUserId}::uuid,
                   ${integratorOccurrenceId}::text,
-                  ${reason}::text
+                  NULL::text
                 )`,
           );
           const skippedAt = skipAction.rows[0]?.skipped_at;
@@ -328,16 +212,6 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
             tx.rollback();
             return { ok: false, error: 'not_found' } as const;
           }
-
-          await runWebappSql(
-            tx,
-            sql`INSERT INTO reminder_journal (rule_id, occurrence_id, action, skip_reason)
-           SELECT ${rulePk}::uuid, ${integratorOccurrenceId}, 'skipped', ${reason}
-           WHERE NOT EXISTS (
-             SELECT 1 FROM reminder_journal
-             WHERE occurrence_id = ${integratorOccurrenceId} AND action = 'skipped'
-           )`,
-          );
 
           return { ok: true, occurrenceId: integratorOccurrenceId, skippedAt };
         });

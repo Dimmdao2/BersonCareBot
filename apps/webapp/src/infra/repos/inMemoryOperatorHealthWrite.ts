@@ -53,18 +53,9 @@ export const mediaTranscodeReconcileWriteLog: Array<
   ({ kind: 'success' } & SuccessCall) | ({ kind: 'failure' } & FailureCall)
 > = [];
 
-export const webPushOnlyReminderTickWriteLog: Array<
-  | ({ kind: 'success' } & SuccessCall)
-  | ({ kind: 'failure' } & FailureCall & { metaJson: Record<string, unknown> })
-> = [];
-
 export function resetMediaTranscodeReconcileWriteLog(): void {
   mediaTranscodeReconcileWriteLog.length = 0;
   reconcileSuccessThrowsForTests = undefined;
-}
-
-export function resetWebPushOnlyReminderTickWriteLog(): void {
-  webPushOnlyReminderTickWriteLog.length = 0;
 }
 
 export const operatorJobTickWriteLog: Array<
@@ -121,24 +112,6 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
       error: input.error,
     });
   },
-  async recordWebPushOnlyReminderTickSuccess(input) {
-    webPushOnlyReminderTickWriteLog.push({
-      kind: 'success',
-      startedAtIso: input.startedAtIso,
-      durationMs: input.durationMs,
-      metaJson: input.metaJson,
-    });
-  },
-  async recordWebPushOnlyReminderTickFailure(input) {
-    webPushOnlyReminderTickWriteLog.push({
-      kind: 'failure',
-      startedAtIso: input.startedAtIso,
-      durationMs: input.durationMs,
-      error: input.error,
-      metaJson: input.metaJson,
-    });
-  },
-
   async resolveAllOpenIncidents() {
     return { resolved: 0 };
   },

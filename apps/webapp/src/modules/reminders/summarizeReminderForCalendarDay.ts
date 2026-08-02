@@ -3,7 +3,6 @@ import { clampIntervalMinutes } from '@/modules/reminders/reminderIntervalBounds
 import { formatReminderMinuteOfDayToHhMm } from '@/modules/reminders/reminderScheduleFormat';
 import type { ReminderRule } from '@/modules/reminders/types';
 import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
-import { isMinuteOfDayInQuietHours } from '@/modules/reminders/quietHours';
 
 /** Same weekday index as Luxon: Mon=0 … Sun=6 (Luxon weekday 1..7 → minus 1). */
 function weekdayIndex0FromLuxonWeekday(weekday: number): number {
@@ -67,8 +66,6 @@ export type SummarizeReminderInput = Pick<
   | 'windowStartMinute'
   | 'windowEndMinute'
   | 'timezone'
-  | 'quietHoursStartMinute'
-  | 'quietHoursEndMinute'
 >;
 
 function parseHhMmToMinuteOfDay(s: string): number | null {
@@ -185,8 +182,6 @@ export function formatPlanReminderTodayLine(
       if (typeof tl !== 'string' || !tl.trim()) continue;
       const mod = parseHhMmToMinuteOfDay(tl);
       if (mod == null) continue;
-      if (isMinuteOfDayInQuietHours(mod, rule.quietHoursStartMinute, rule.quietHoursEndMinute))
-        continue;
       const label = formatReminderMinuteOfDayToHhMm(mod);
       plannedLabels.push(label);
       const slot = dayStart.set({
@@ -223,8 +218,6 @@ export function formatPlanReminderTodayLine(
   const plannedLabels: string[] = [];
   const remainingLabels: string[] = [];
   for (let m = ws; m <= we; m += interval) {
-    if (isMinuteOfDayInQuietHours(m, rule.quietHoursStartMinute, rule.quietHoursEndMinute))
-      continue;
     const label = formatReminderMinuteOfDayToHhMm(m);
     plannedLabels.push(label);
     const slot = dayStart.set({
