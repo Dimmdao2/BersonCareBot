@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
+import { handleSeatOveragePurchase } from './seatOveragePurchase';
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
@@ -142,49 +142,11 @@ export async function POST(request: Request) {
   };
   try {
     if (purchase.success) {
-      const entitlement = await requireEntitlementForMutation(gate.ctx, 'clinic_team');
-      if (!entitlement.ok) return entitlement.response;
-      const result = await runWithDbClinicBillingPrincipal(principal, () =>
-        buildAppDeps().saasBilling.purchaseSeatOverage({
-          organizationId: gate.ctx.organizationId,
-          requestKey: purchase.data.requestKey,
-          confirmedAmountMinor: purchase.data.amountMinor,
-          confirmedCurrency: purchase.data.currency,
-        }),
+      return await handleSeatOveragePurchase(gate.ctx, purchase.data, (input) =>
+        runWithDbClinicBillingPrincipal(principal, () =>
+          buildAppDeps().saasBilling.purchaseSeatOverage(input),
+        ),
       );
-      if (result.outcome === 'seat_available') {
-        return NextResponse.json({ ok: true, outcome: 'seat_available' });
-      }
-      if (result.outcome === 'price_changed') {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'seat_overage_confirmation_required',
-            priceMinor: result.priceMinor,
-            currency: result.currency,
-          },
-          { status: 402 },
-        );
-      }
-      if (result.outcome === 'seat_overage_unavailable') {
-        return NextResponse.json(
-          { ok: false, error: 'saas_billing_seat_overage_unavailable' },
-          { status: 409 },
-        );
-      }
-      // outcome === 'checkout'
-      const seatInvoice = result.invoice;
-      if (!seatInvoice.providerCheckoutUrl) {
-        return NextResponse.json(
-          { ok: false, error: 'saas_billing_checkout_unavailable' },
-          { status: 502 },
-        );
-      }
-      return NextResponse.json({
-        ok: true,
-        checkoutUrl: seatInvoice.providerCheckoutUrl,
-        invoiceId: seatInvoice.id,
-      });
     }
     // Tariff renewal path
     const invoice = await runWithDbClinicBillingPrincipal(principal, () =>
