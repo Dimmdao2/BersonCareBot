@@ -4,7 +4,7 @@ import {
   type BookingLifecycleNotificationsSettings,
 } from '@/modules/booking-notifications/settings';
 import type { BookingSyncPort, PatientBookingsPort } from '@/modules/patient-booking/ports';
-import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
+import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import { buildPatientPaymentCapturedMessageText } from '@/modules/patient-booking/patientMessageText';
 import { buildDoctorPaymentCapturedMessageText } from '@/modules/patient-booking/doctorMessageText';
 import { resolveBookingCalendarSyncFields } from '@/modules/patient-booking/bookingCalendarSyncFields';
@@ -23,7 +23,6 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
   >;
   bookingEngine: Pick<BookingEnginePort, 'getAppointment'>;
   loadNotificationSettings: () => Promise<BookingLifecycleNotificationsSettings>;
-  loadReminderPlan: (organizationId: string) => Promise<AppointmentReminderPlan>;
   bookingSync: Pick<BookingSyncPort, 'emitBookingEvent'>;
 }) {
   return async (input: AppointmentPaymentConfirmedInput): Promise<void> => {
@@ -44,7 +43,7 @@ export function createAppointmentPaymentConfirmedHandler(deps: {
       notificationSettings,
     );
     if (!paymentNotify.notifyPatient && !paymentNotify.notifyStaff) return;
-    const reminderPlan = await deps.loadReminderPlan(appointment.organizationId);
+    const reminderPlan = appointmentReminderPlanForPreset(appointment.appointmentReminderPresetId);
     const timeZone = await getAppDisplayTimeZone();
 
     await deps.bookingSync.emitBookingEvent({

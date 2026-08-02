@@ -4,6 +4,7 @@ const fakes = vi.hoisted(() => ({
   requireAdminBookingEngine: vi.fn(),
   buildAppDeps: vi.fn(),
   createBookingSyncPort: vi.fn(),
+  getSpecialistAppointmentReminderSettings: vi.fn(),
 }));
 
 vi.mock('../../_requireAdminBookingEngine', () => ({
@@ -33,15 +34,13 @@ import { POST } from './route';
  */
 describe('admin booking-engine manual-create: reminderPlan в событии', () => {
   let captured: Array<Record<string, unknown>>;
-  let settingsRows: Record<string, unknown>;
-
   beforeEach(() => {
     vi.clearAllMocks();
     captured = [];
-    settingsRows = {
-      doctor_appointment_reminder_enabled: { valueJson: true },
-      doctor_appointment_reminder_offsets_minutes: { valueJson: [30, 120] },
-    };
+    fakes.getSpecialistAppointmentReminderSettings.mockResolvedValue({
+      allowedPresetIds: ['day_before'],
+      defaultPresetId: 'day_before',
+    });
 
     fakes.requireAdminBookingEngine.mockResolvedValue({
       ok: true,
@@ -49,6 +48,8 @@ describe('admin booking-engine manual-create: reminderPlan в событии', (
         organizationId: 'org-1',
         session: { user: { userId: 'user-admin-1' } },
         service: {
+          getSpecialistAppointmentReminderSettings:
+            fakes.getSpecialistAppointmentReminderSettings,
           createAppointment: vi.fn(async (input: Record<string, unknown>) => ({
             id: 'appt-1',
             organizationId: input.organizationId,
@@ -56,6 +57,9 @@ describe('admin booking-engine manual-create: reminderPlan в событии', (
             endAt: input.endAt,
             platformUserId: input.platformUserId ?? null,
             phoneNormalized: input.phoneNormalized ?? null,
+            appointmentReminderAllowedPresetIds:
+              input.appointmentReminderAllowedPresetIds ?? [],
+            appointmentReminderPresetId: input.appointmentReminderPresetId ?? null,
             attributionJson: {},
           })),
         },
@@ -65,9 +69,6 @@ describe('admin booking-engine manual-create: reminderPlan в событии', (
     fakes.buildAppDeps.mockReturnValue({
       bookingScheduling: null,
       patientBooking: { getBookingByCanonicalAppointment: async () => null },
-      systemSettings: {
-        getSetting: vi.fn(async (key: string) => settingsRows[key] ?? null),
-      },
     });
 
     fakes.createBookingSyncPort.mockReturnValue({
@@ -77,7 +78,7 @@ describe('admin booking-engine manual-create: reminderPlan в событии', (
     });
   });
 
-  it('несёт план напоминаний, построенный из настроек клиники', async () => {
+  it('несёт план напоминаний из snapshot выбранного специалиста', async () => {
     const response = await POST(
       new Request('http://127.0.0.1/api/admin/booking-engine/appointments/manual', {
         method: 'POST',
@@ -92,7 +93,7 @@ describe('admin booking-engine manual-create: reminderPlan в событии', (
     );
 
     expect(response.status).toBe(200);
-    expect(captured[0]!.reminderPlan).toEqual({ enabled: true, offsetsMinutes: [30, 120] });
+    expect(captured[0]!.reminderPlan).toEqual({ enabled: true, offsetsMinutes: [1440] });
   });
 
   it('регрессия: если reminderPlan пропадёт из события, тест краснеет', async () => {

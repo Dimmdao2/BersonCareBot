@@ -1,3 +1,5 @@
+import type { AppointmentReminderPresetId } from '@/modules/booking-notifications/appointmentReminderPresets';
+
 export const APPOINTMENT_STATUSES = [
   'created',
   'awaiting_payment',
@@ -52,6 +54,8 @@ export type BeSpecialist = {
   organizationId: string;
   fullName: string;
   description: string | null;
+  appointmentReminderAllowedPresetIds: AppointmentReminderPresetId[];
+  appointmentReminderDefaultPresetId: AppointmentReminderPresetId | null;
   isActive: boolean;
   sortOrder: number;
 };
@@ -115,6 +119,9 @@ export type BeAppointment = {
   packageUsageRef: string | null;
   phoneNormalized: string | null;
   attributionJson: Record<string, unknown>;
+  appointmentReminderAllowedPresetIds: AppointmentReminderPresetId[];
+  appointmentReminderPresetId: AppointmentReminderPresetId | null;
+  appointmentReminderSelectionSource: 'specialist_default' | 'patient';
 };
 
 export type CreateAppointmentInput = {
@@ -137,6 +144,9 @@ export type CreateAppointmentInput = {
   phoneNormalized?: string | null;
   actorId?: string | null;
   attributionJson?: Record<string, unknown>;
+  appointmentReminderAllowedPresetIds?: AppointmentReminderPresetId[];
+  appointmentReminderPresetId?: AppointmentReminderPresetId | null;
+  appointmentReminderSelectionSource?: 'specialist_default' | 'patient';
 };
 
 type CreateManualPatientIdentityInput = {

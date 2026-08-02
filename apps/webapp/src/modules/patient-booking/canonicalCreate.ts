@@ -33,7 +33,7 @@ import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from './bookingLifecycleNotifications';
-import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
+import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
 import { buildPatientCreatedMessageText } from './patientMessageText';
 import { buildDoctorCreatedMessageText } from './doctorMessageText';
@@ -81,7 +81,6 @@ export type CanonicalBookingDeps = {
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
-  getAppointmentReminderPlan?: (organizationId: string) => Promise<AppointmentReminderPlan>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
 };
@@ -342,6 +341,12 @@ export async function createBookingOnCanonicalEngine(
     prepayQuote?.required === true &&
     (prepayQuote.amountMinor ?? 0) > 0;
   const initialAppointmentStatus = needsPrepayment ? 'awaiting_payment' : 'confirmed';
+  const specialistReminderSettings = canonicalSpecialistId
+    ? await deps.bookingEngine.getSpecialistAppointmentReminderSettings({
+        organizationId: orgId,
+        specialistId: canonicalSpecialistId,
+      })
+    : null;
 
   const phoneNormalized =
     normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
@@ -372,6 +377,9 @@ export async function createBookingOnCanonicalEngine(
             ...(createInput.attribution ?? {}),
             ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
           },
+          appointmentReminderAllowedPresetIds:
+            specialistReminderSettings?.allowedPresetIds ?? [],
+          appointmentReminderPresetId: specialistReminderSettings?.defaultPresetId ?? null,
         };
       },
     );
@@ -534,7 +542,6 @@ export async function createBookingOnCanonicalEngine(
       (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
     );
     if (createNotify.notifyPatient || createNotify.notifyStaff) {
-      const reminderPlan = await deps.getAppointmentReminderPlan?.(orgId);
       const timeZone = (await deps.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
       await Promise.all(
         appointments.map((item, index) => {
@@ -558,7 +565,7 @@ export async function createBookingOnCanonicalEngine(
               cityCodeSnapshot: row.cityCodeSnapshot,
               serviceTitleSnapshot: row.serviceTitleSnapshot,
               canonicalAppointmentId: item.id,
-              ...(reminderPlan ? { reminderPlan } : {}),
+              reminderPlan: appointmentReminderPlanForPreset(item.appointmentReminderPresetId),
               cancelPendingReminders: true,
               patientMessageText: buildPatientCreatedMessageText(
                 {

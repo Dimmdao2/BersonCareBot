@@ -60,7 +60,6 @@ describe('D14(3): booking.payment_captured шлёт patientMessageText', () => {
         getAppointment: vi.fn(async () => ({ organizationId: 'org-1' }) as never),
       },
       loadNotificationSettings: vi.fn(async () => null as never),
-      loadReminderPlan: vi.fn(async () => ({ enabled: true, offsetsMinutes: [] })),
       bookingSync: {
         emitBookingEvent: vi.fn(async (evt) => {
           captured.push((evt as { payload: Record<string, unknown> }).payload);
@@ -90,7 +89,6 @@ describe('D14, часть 5: booking.payment_captured шлёт doctorNotify/doct
         getAppointment: vi.fn(async () => ({ organizationId: 'org-1' }) as never),
       },
       loadNotificationSettings: vi.fn(async () => null as never),
-      loadReminderPlan: vi.fn(async () => ({ enabled: true, offsetsMinutes: [] })),
       bookingSync: {
         emitBookingEvent: vi.fn(async (evt) => {
           captured.push((evt as { payload: Record<string, unknown> }).payload);

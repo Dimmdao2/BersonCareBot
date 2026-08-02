@@ -3,6 +3,7 @@ import { sql as drizzleSql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { assertValidAppointmentStatusTransition } from '@/modules/booking-engine/appointmentStatusFsm';
 import type { BeAppointment } from '@/modules/booking-engine/types';
+import { normalizeAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
 import type {
   AppointmentCancellationRecord,
   AppointmentLifecyclePort,
@@ -22,6 +23,10 @@ import {
 } from '../../../db/schema/bookingEngine';
 
 function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment {
+  const reminderSettings = normalizeAppointmentReminderSettings({
+    allowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
+    defaultPresetId: row.appointmentReminderPresetId ?? null,
+  });
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -41,6 +46,10 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     packageUsageRef: row.packageUsageRef ?? null,
     phoneNormalized: row.phoneNormalized ?? null,
     attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
+    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
+    appointmentReminderPresetId: reminderSettings.defaultPresetId,
+    appointmentReminderSelectionSource:
+      row.appointmentReminderSelectionSource === 'patient' ? 'patient' : 'specialist_default',
   };
 }
 

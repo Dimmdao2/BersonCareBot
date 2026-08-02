@@ -77,7 +77,8 @@ export type BookingSyncPort = {
       | 'booking.deleted'
       | 'booking.payment_captured'
       | 'booking.package_linked'
-      | 'booking.package_unlinked';
+      | 'booking.package_unlinked'
+      | 'booking.reminder_updated';
     idempotencyKey: string;
     payload: {
       organizationId?: string;
