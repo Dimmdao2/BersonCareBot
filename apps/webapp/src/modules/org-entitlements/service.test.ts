@@ -840,6 +840,28 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
     });
   });
 
+  it('classifies a cheaper tariff as a next-period downgrade even when its entitlement shape is unchanged', async () => {
+    const currentTariff = baseTariff({ id: 'expensive', priceMinor: 20_000, currency: 'RUB' });
+    const targetTariff = baseTariff({ id: 'cheaper', priceMinor: 10_000, currency: 'RUB' });
+    const port: OrgEntitlementsPort = {
+      resolveCabinetAccess: async () => ({ state: 'full_access', policySource: 'system', warning: null }),
+      resolveMechanicAccess: async (_organizationId, mechanic) => ({ mechanic, state: 'full_access', policySource: 'system', warning: null }),
+      getSnapshot: async () => ({ tariff: currentTariff, overrides: [], access: activeAccess }),
+      getTariffForOrg: async () => currentTariff,
+      getActiveTariffById: async () => targetTariff,
+      listOverrides: async () => [],
+      getEffectiveCommercialAccess: async () => activeAccess,
+      getEnforcedQuotaUsage: async () => ({}),
+      getOwnQuotaUsage: async () => ({}),
+    };
+
+    await expect(resolveOwnTariffTransition(port, 'org', targetTariff.id)).resolves.toMatchObject({
+      currentTariffId: currentTariff.id,
+      targetTariffId: targetTariff.id,
+      appliesNextPeriod: true,
+    });
+  });
+
   function platformPortWithUsage(input: {
     organizationId: string;
     currentTariff: Tariff;

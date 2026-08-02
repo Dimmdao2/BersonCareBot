@@ -435,6 +435,53 @@ describe('К5: повторный тик по тому же периоду не 
     expect(createIntent).toHaveBeenCalledTimes(1);
     expect(attachSaasBillingInvoiceProviderIntent).toHaveBeenCalledTimes(1);
   });
+
+  it('rechecks a pending downgrade before the background renewal creates its invoice', async () => {
+    const createSaasBillingRenewalInvoiceIfAbsent = vi.fn(async (input) => ({
+      invoice: { ...invoice, providerIdempotencyKey: input.providerIdempotencyKey },
+      created: true,
+    }));
+    const createIntent = vi.fn(async () => ({ providerIntentRef: 'provider-intent', checkoutUrl: null }));
+    const getTariffTransition = vi.fn(async () => ({
+      currentTariffId: 'tariff-current',
+      targetTariffId: 'tariff-small',
+      appliesNextPeriod: true,
+      blocks: [{ mechanic: 'patient_count' as const, reason: 'quota_exceeded' as const }],
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        listSaasBillingSubscriptionsDueForRenewal: async () => [{
+          saasBillingSubscriptionId: 'subscription-1',
+          organizationId: 'org-1',
+          tariffId: 'tariff-small',
+          pendingTariffId: 'tariff-small',
+          billingPeriod: 'month' as const,
+          currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+          savedPaymentMethodId: 'pm-1',
+          autopayConsentedAt: '2026-07-01T00:00:00.000Z',
+          autopayRevokedAt: null,
+        }],
+        promoteDueSaasBillingPaidInvoice: async () => false,
+        createSaasBillingRenewalInvoiceIfAbsent,
+        attachSaasBillingInvoiceProviderIntent: async (input) => ({ ...invoice, ...input }),
+        markSaasBillingInvoiceFailed: async () => null,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      getTariffTransition,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+
+    await expect(service.runDueSaasBillingRenewals()).resolves.toMatchObject({
+      dueCount: 1,
+      created: 0,
+      failed: 1,
+      errors: [{ error: 'saas_billing_tariff_downgrade_blocked' }],
+    });
+    expect(getTariffTransition).toHaveBeenCalledWith('org-1', 'tariff-small');
+    expect(createSaasBillingRenewalInvoiceIfAbsent).not.toHaveBeenCalled();
+    expect(createIntent).not.toHaveBeenCalled();
+  });
 });
 
 describe('К0: early renewal does not cut the paid period short', () => {
