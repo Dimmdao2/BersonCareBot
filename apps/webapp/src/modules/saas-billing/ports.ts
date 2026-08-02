@@ -359,7 +359,10 @@ export type SaasBillingRepositoryPort = {
     asOf: string;
     providerId: string;
     providerIdempotencyKey: string;
-  }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
+  }): Promise<
+    | { outcome: 'checkout'; invoice: SaasBillingInvoice; created: boolean }
+    | { outcome: 'scheduled' }
+  >;
   attachSaasBillingInvoiceProviderIntent(input: {
     saasBillingInvoiceId: string;
     providerInvoiceRef: string;

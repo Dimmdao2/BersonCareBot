@@ -12,6 +12,34 @@ import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/
 
 const OPEN_REFUND_STATUSES: SaasBillingRefund['status'][] = ['pending', 'succeeded'];
 
+function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
+  priceMinor: number;
+  currency: string;
+  billingPeriod: 'day' | 'month' | 'year';
+} {
+  const priceMinor = snapshot?.price_minor;
+  const currency = snapshot?.currency;
+  const billingPeriod = snapshot?.billing_period;
+  if (
+    !Number.isSafeInteger(priceMinor) ||
+    typeof currency !== 'string' ||
+    !/^[A-Z]{3}$/.test(currency) ||
+    (billingPeriod !== 'day' && billingPeriod !== 'month' && billingPeriod !== 'year')
+  ) {
+    throw new Error('saas_billing_paid_period_snapshot_missing');
+  }
+  return { priceMinor, currency, billingPeriod };
+}
+
+function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown> | null): number | null {
+  const additionalSeatPriceMinor = snapshot?.additional_seat_price_minor;
+  if (additionalSeatPriceMinor === null || additionalSeatPriceMinor === undefined) return null;
+  if (!Number.isSafeInteger(additionalSeatPriceMinor) || additionalSeatPriceMinor < 0) {
+    throw new Error('saas_billing_paid_period_snapshot_missing');
+  }
+  return additionalSeatPriceMinor;
+}
+
 /** Key = `${organizationId}::${source}` — mirrors the real `(organization_id, source)` unique index,
  *  so `manual` and `paid_subscription` rows for the same org never collide in this fake. */
 function subscriptionKey(
@@ -354,19 +382,17 @@ export function createInMemorySaasBillingRepository(
           invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
           (invoice.status === 'draft' || invoice.status === 'pending'),
       );
-      if (openInvoice) return { invoice: openInvoice, created: false };
-      const currentTariff = tariffs.get(subscription.tariffId);
+      if (openInvoice) return { outcome: 'checkout' as const, invoice: openInvoice, created: false };
+      const currentTariff = paidPeriodSnapshotPrice(subscription.tariffSnapshot);
       const targetTariff = tariffs.get(input.targetTariffId);
-      if (!currentTariff || !targetTariff) throw new Error('saas_billing_tariff_not_billable');
+      if (!targetTariff) throw new Error('saas_billing_tariff_not_billable');
       if (
         currentTariff.currency !== targetTariff.currency ||
         currentTariff.billingPeriod !== targetTariff.billingPeriod
       ) {
         throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
       }
-      if (targetTariff.priceMinor <= currentTariff.priceMinor) {
-        throw new Error('saas_billing_tariff_upgrade_not_more_expensive');
-      }
+      if (targetTariff.priceMinor <= currentTariff.priceMinor) return { outcome: 'scheduled' };
       const amountMinor = proratedTariffUpgradeAmountMinor({
         currentPriceMinor: currentTariff.priceMinor,
         targetPriceMinor: targetTariff.priceMinor,
@@ -399,7 +425,7 @@ export function createInMemorySaasBillingRepository(
         providerIdempotencyKey: input.providerIdempotencyKey,
       };
       rows.set(key, subscription);
-      return insertInvoiceIdempotent(invoice);
+      return { outcome: 'checkout' as const, ...insertInvoiceIdempotent(invoice) };
     },
 
     async attachSaasBillingInvoiceReceiptSnapshot({ saasBillingInvoiceId, receipt }) {
@@ -498,8 +524,34 @@ export function createInMemorySaasBillingRepository(
       }
       if (
         current.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
-        current.status !== 'paid'
+        current.status !== 'paid' &&
+        current.servicePeriodEndsAt === subscription.currentPeriodEndsAt
       ) {
+        const targetTariff = paidPeriodSnapshotPrice(current.tariffSnapshot);
+        const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(current.tariffSnapshot);
+        if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
+          throw new Error('saas_billing_additional_seat_price_missing');
+        }
+        for (const invoice of invoices.values()) {
+          if (
+            invoice.saasBillingSubscriptionId === subscription.id &&
+            invoice.invoiceKind === 'tariff_period' &&
+            invoice.description === null &&
+            invoice.status === 'paid' &&
+            invoice.servicePeriodStartsAt === subscription.currentPeriodEndsAt
+          ) {
+            invoices.set(invoice.id, {
+              ...invoice,
+              tariffId: current.tariffId,
+              tariffName: current.tariffName,
+              amountMinor:
+                targetTariff.priceMinor + subscription.paidAdditionalSeats * (additionalSeatPriceMinor ?? 0),
+              currency: targetTariff.currency,
+              tariffBillingPeriod: targetTariff.billingPeriod,
+              tariffSnapshot: current.tariffSnapshot,
+            });
+          }
+        }
         rows.set(subscriptionKeyValue, {
           ...subscription,
           tariffId: current.tariffId,

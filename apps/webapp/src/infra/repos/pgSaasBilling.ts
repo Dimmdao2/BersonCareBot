@@ -195,6 +195,15 @@ function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
   return { priceMinor, currency, billingPeriod };
 }
 
+function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown> | null): number | null {
+  const additionalSeatPriceMinor = snapshot?.additional_seat_price_minor;
+  if (additionalSeatPriceMinor === null || additionalSeatPriceMinor === undefined) return null;
+  if (!Number.isSafeInteger(additionalSeatPriceMinor) || additionalSeatPriceMinor < 0) {
+    throw new Error('saas_billing_paid_period_snapshot_missing');
+  }
+  return additionalSeatPriceMinor;
+}
+
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
     async getSaasBillingAccountBillingEmail(organizationId) {
@@ -711,7 +720,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           )
           .orderBy(desc(saasBillingInvoices.createdAt))
           .limit(1);
-        if (openInvoice) return { invoice: toSaasBillingInvoice(openInvoice), created: false };
+        if (openInvoice) {
+          return { outcome: 'checkout', invoice: toSaasBillingInvoice(openInvoice), created: false };
+        }
 
         const [targetTariff] = await tx
           .select({
@@ -734,9 +745,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         ) {
           throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
         }
-        if (targetTariff.priceMinor <= currentTariff.priceMinor) {
-          throw new Error('saas_billing_tariff_upgrade_not_more_expensive');
-        }
+        if (targetTariff.priceMinor <= currentTariff.priceMinor) return { outcome: 'scheduled' };
         const amountMinor = proratedTariffUpgradeAmountMinor({
           currentPriceMinor: currentTariff.priceMinor,
           targetPriceMinor: targetTariff.priceMinor,
@@ -746,7 +755,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         });
         if (amountMinor === 0) throw new Error('saas_billing_upgrade_no_remaining_period');
 
-        return insertSaasBillingInvoiceIdempotent(tx, {
+        const result = await insertSaasBillingInvoiceIdempotent(tx, {
           organizationId: subscription.organizationId,
           saasBillingAccountId: subscription.saasBillingAccountId,
           saasBillingSubscriptionId: subscription.id,
@@ -765,6 +774,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,
         });
+        return { outcome: 'checkout' as const, ...result };
       });
     },
 
@@ -895,9 +905,39 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               updatedAt: new Date().toISOString(),
             }).where(eq(saasBillingSubscriptions.id, subscription.id));
           }
-        } else if (invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION && !wasPaid) {
+        } else if (
+          invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
+          !wasPaid &&
+          invoice.servicePeriodEndsAt === subscription.currentPeriodEndsAt
+        ) {
           const tariffSnapshot =
             invoice.tariffSnapshot ?? (await readTariffSnapshotForPeriod(tx, invoice.tariffId));
+          const targetTariff = paidPeriodSnapshotPrice(tariffSnapshot);
+          const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(tariffSnapshot);
+          if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
+            throw new Error('saas_billing_additional_seat_price_missing');
+          }
+          await tx
+            .update(saasBillingInvoices)
+            .set({
+              tariffId: invoice.tariffId,
+              tariffName: invoice.tariffName,
+              amountMinor:
+                targetTariff.priceMinor + subscription.paidAdditionalSeats * (additionalSeatPriceMinor ?? 0),
+              currency: targetTariff.currency,
+              tariffBillingPeriod: targetTariff.billingPeriod,
+              tariffSnapshot,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(
+              and(
+                eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
+                eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
+                eq(saasBillingInvoices.description, null),
+                eq(saasBillingInvoices.status, 'paid'),
+                eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
+              ),
+            );
           await tx
             .update(saasBillingSubscriptions)
             .set({

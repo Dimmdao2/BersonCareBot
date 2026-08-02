@@ -71,6 +71,8 @@ export function createSaasBillingService(dependencies: {
     targetTariffId: string;
     blocks: TariffDowngradeBlock[];
     appliesNextPeriod: boolean;
+    /** A live-price comparison is only a hint; the billing repository reclassifies against the paid snapshot. */
+    priceAppliesNextPeriod?: true;
   }>;
 }) {
   const now = dependencies.now ?? (() => new Date());
@@ -228,7 +230,7 @@ export function createSaasBillingService(dependencies: {
     currentPeriodStartsAt: string;
   }) {
     const provider = await resolvePaymentProvider();
-    const { invoice, created } = await dependencies.repository.createProratedTariffUpgradeInvoice({
+    const result = await dependencies.repository.createProratedTariffUpgradeInvoice({
       organizationId: input.organizationId,
       saasBillingSubscriptionId: input.saasBillingSubscriptionId,
       targetTariffId: input.targetTariffId,
@@ -241,6 +243,8 @@ export function createSaasBillingService(dependencies: {
         input.currentPeriodStartsAt,
       ])}`,
     });
+    if (result.outcome === 'scheduled') return null;
+    const { invoice, created } = result;
     if (!created && invoice.providerCheckoutUrl) return invoice;
     let checkoutInvoice = invoice;
     if (!created && invoice.status === 'failed') {
@@ -925,7 +929,7 @@ export function createSaasBillingService(dependencies: {
         });
         return { outcome: 'cancelled' as const };
       }
-      if (!transition.appliesNextPeriod) {
+      if (!transition.appliesNextPeriod || transition.priceAppliesNextPeriod) {
         const subscription = await dependencies.repository.requireOwnTariffBillingSubscription(
           input.organizationId,
         );
@@ -938,7 +942,9 @@ export function createSaasBillingService(dependencies: {
           targetTariffId: transition.targetTariffId,
           currentPeriodStartsAt: subscription.currentPeriodStartsAt,
         });
-        return { outcome: 'checkout' as const, invoice };
+        if (invoice) {
+          return { outcome: 'checkout' as const, invoice };
+        }
       }
       if (transition.blocks.length > 0) {
         throw new SaasBillingTariffDowngradeBlockedError(transition.blocks);
