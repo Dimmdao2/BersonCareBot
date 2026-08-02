@@ -273,6 +273,25 @@ if (process.argv.includes('--self-test')) {
   if (unappliedForward.missing.join(',') !== '0001_old,0002_forward') {
     throw new Error('migration ledger self-test accepted an unapplied forward reconciliation');
   }
+  for (const invalidReconciliations of [
+    [{ sourceTag: '9999_unknown', forwardTag: '0002_forward' }],
+    [{ sourceTag: '0002_forward', forwardTag: '0001_old' }],
+    [
+      { sourceTag: '0001_old', forwardTag: '0002_forward' },
+      { sourceTag: '0001_old', forwardTag: '0003_new' },
+    ],
+  ]) {
+    try {
+      inspectMigrationLedgerCompleteness({
+        ...ledgerFixture,
+        ledgerHashes: new Set(['forward-current', 'new-current']),
+        reconciliations: invalidReconciliations,
+      });
+      throw new Error('migration ledger self-test accepted an invalid reconciliation marker');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
+    }
+  }
   console.log('run-webapp-drizzle-migrate diagnostic self-test: OK');
   process.exit(0);
 }
@@ -308,7 +327,11 @@ try {
   );
 } catch (error) {
   exitCode = 1;
-  console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries));
+  if (error instanceof Error && error.message.startsWith('migration_ledger_incomplete ')) {
+    console.error(`[migrate] ${error.message}`);
+  } else {
+    console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries));
+  }
   console.error('[migrate] Drizzle migration failed; raw SQL and parameters suppressed');
 } finally {
   await pool.end();
