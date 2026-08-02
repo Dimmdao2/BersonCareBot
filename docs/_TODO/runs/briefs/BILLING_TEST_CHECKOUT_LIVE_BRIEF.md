@@ -1,0 +1,32 @@
+# Billing TEST checkout — auditor-live brief
+
+## Authority
+
+- `AGENTS.md`, особенно §1/§1a, §9–10 и §24.
+- `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+- `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`.
+- `deploy/HOST_DEPLOY_README.md`.
+- `docs/_TODO/SAAS_FOUNDATION/SAAS_BILLING_PLAN.md`, B0.3 и Phase 4.
+
+## Единственный путь человека
+
+Настоящий владелец или администратор TEST-клиники открывает «Тариф и биллинг», нажимает «Оплатить тариф», получает
+ссылку тестового магазина ЮKassa, оплачивает тестовой картой, а настоящий публичный webhook переводит именно его
+счёт в paid и открывает оплаченный период. Возврат браузера сам по себе денег не подтверждает.
+
+## Scope и порядок
+
+- Сначала доказать, что TEST развёрнут на текущем принятом `feat`; не деплоить и не мигрировать одновременно с
+  другим writer. PROD запрещён.
+- Использовать существующие TEST-роли и DB-backed provider settings; секреты не печатать и не копировать в brief,
+  логи или отчёт.
+- Проверить GET billing overview → POST checkout → provider page/test card → public webhook → повторный GET.
+- Проверить, что blocked/read-only клиника всё равно может оплатить тариф.
+- Не считать unit/in-process тест живой приёмкой и не имитировать webhook вручную.
+
+## Результат
+
+- PASS только при доказанном полном пути человека и provider-side `test=true`.
+- При FAIL назвать первый конкретный разрыв и доказательство; не расширять scope и не исправлять продукт в
+  auditor-live проходе.
+- Не создавать постоянных тестов или документов сверх одного краткого audit artifact, если он нужен launcher.
