@@ -1193,7 +1193,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       результатом; canonical `patient_files` удаляется атомарно со staging объекта в существующий retrying S3 purge,
       включая legacy-строки без media-связи. Удаление из медиатеки также удаляет связанный canonical row. Доказательство:
       `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/patients/'[userId]'/tabs/PatientTabFiles.ui.test.tsx src/app/api/tariffMechanics.route.test.ts src/infra/repos/inMemoryPatientFiles.test.ts src/infra/repos/s3MediaStorage.lifecycle.unit.test.ts src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 44 passed (same commit).
-- [ ] **5.6** Правила смены тарифа (см. Р-14): повышение сразу; понижение с начала следующего расчётного периода и только после
+- [x] **5.6** Правила смены тарифа (см. Р-14): повышение сразу; понижение с начала следующего расчётного периода и только после
       уборки (освободить места, заархивировать лишнее).
       **РЕШЕНИЕ ВЛАДЕЛЬЦА 03.08 — денежная формула повышения:** клиника доплачивает разницу между новым и текущим
       тарифом пропорционально оставшемуся времени уже оплаченного периода; после подтверждения доплаты новый тариф
@@ -1206,6 +1206,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       специалистов, филиалы, пациенты.
       ⚠️ Предусловие остаётся прежним (5.5): пока нет штатного способа убрать файл, заморозка станет тупиком —
       предел объёма не раздаётся. Исследование запущено (`docs/_TODO/runs/tariff/FILES_DELETION_RESEARCH_BRIEF.md`).
+      Доказательство: immediate upgrade создаёт один server-derived счёт в minor units с округлением вверх,
+      capture один раз меняет tariff/snapshot без сдвига периода; `pnpm --dir apps/webapp test -- src/modules/saas-billing/proration.test.ts src/modules/saas-billing/service.test.ts src/app/api/clinic/billing/route.route.test.ts src/app/app/settings/PayTariffButton.ui.test.tsx src/app/app/settings/BillingSection.ui.test.tsx`, `pnpm --dir apps/webapp typecheck`, scoped ESLint и `git diff --check` — зелёные (тот же commit).
 - [x] **5.7** ✅ **ЗАКРЫТО 31.07**: три исполняемых доказательства на настоящем одноразовом PostgreSQL 16 — `check-patient-count-quota-race.mjs`, `check-branches-quota-race.mjs`, `check-storage-quota-race.mjs`. Лид проверил разом: снятие решающей строки `used + increment > quota.limit` роняет ВСЕ ТРИ, откат — все три зелёные.
       одновременных попыток на последний слот проходит одна, пересчёт под принципалом.
 - [ ] **5.8** Контракт деплоя для каждой новой функции и триггера: права под исполняющей ролью; при появлении

@@ -7,6 +7,8 @@ import type {
   SaasBillingSubscription,
 } from '@/modules/saas-billing/ports';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
+import { proratedTariffUpgradeAmountMinor } from '@/modules/saas-billing/proration';
+import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 
 const OPEN_REFUND_STATUSES: SaasBillingRefund['status'][] = ['pending', 'succeeded'];
 
@@ -19,12 +21,23 @@ function subscriptionKey(
   return `${organizationId}::${source}`;
 }
 
-export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort {
+export function createInMemorySaasBillingRepository(
+  input: {
+    tariffs?: Array<{
+      id: string;
+      name: string;
+      priceMinor: number;
+      currency: string;
+      billingPeriod: 'day' | 'month' | 'year';
+    }>;
+  } = {},
+): SaasBillingRepositoryPort {
   const rows = new Map<string, SaasBillingSubscription>();
   const organizationTariffs = new Map<string, string | null>();
   const invoices = new Map<string, SaasBillingInvoice>();
   const events = new Map<string, SaasBillingProviderEventReadRow>();
   const refunds = new Map<string, SaasBillingRefund>();
+  const tariffs = new Map((input.tariffs ?? []).map((tariff) => [tariff.id, tariff]));
 
   /** К4 round 2 — same shared point as `insertSaasBillingInvoiceIdempotent` in the pg repository:
    *  a second call under the same `(providerId, providerIdempotencyKey)` returns the invoice
@@ -73,10 +86,13 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
 
     async listActiveTariffChoices() {
       return [
-        ...new Set([...organizationTariffs.values()].filter((id): id is string => id !== null)),
+        ...new Set([
+          ...tariffs.keys(),
+          ...organizationTariffs.values().filter((id): id is string => id !== null),
+        ]),
       ]
         .sort()
-        .map((id) => ({ id, name: 'In-memory tariff' }));
+        .map((id) => ({ id, name: tariffs.get(id)?.name ?? 'In-memory tariff' }));
     },
 
     async listPlatformInvoices(filter) {
@@ -229,6 +245,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             return;
           }
           const current = rows.get(key);
+          const tariff = tariffs.get(tariffId);
           rows.set(key, {
             id: current?.id ?? crypto.randomUUID(),
             organizationId,
@@ -247,6 +264,14 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             currentPeriodEndsAt: period?.endsAt ?? null,
             graceEndsAt: null,
             readOnlyEndsAt: null,
+            tariffSnapshot: period && tariff
+              ? {
+                  id: tariff.id,
+                  price_minor: tariff.priceMinor,
+                  currency: tariff.currency,
+                  billing_period: tariff.billingPeriod,
+                }
+              : null,
             paidAdditionalSeats: 0,
           });
         },
@@ -280,20 +305,28 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
+      const tariff = tariffs.get(authority.pendingTariffId ?? authority.tariffId);
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
         saasBillingAccountId: authority.saasBillingAccountId,
         saasBillingSubscriptionId: authority.id,
         tariffId: authority.pendingTariffId ?? authority.tariffId,
-        tariffName: 'In-memory tariff',
+        tariffName: tariff?.name ?? 'In-memory tariff',
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
         description: null,
-        amountMinor: 0,
-        currency: 'RUB',
-        tariffBillingPeriod: 'month',
-        tariffSnapshot: null,
+        amountMinor: tariff?.priceMinor ?? 0,
+        currency: tariff?.currency ?? 'RUB',
+        tariffBillingPeriod: tariff?.billingPeriod ?? 'month',
+        tariffSnapshot: tariff
+          ? {
+              id: tariff.id,
+              price_minor: tariff.priceMinor,
+              currency: tariff.currency,
+              billing_period: tariff.billingPeriod,
+            }
+          : null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
         expiresAt: null,
@@ -304,6 +337,69 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         providerIdempotencyKey: input.providerIdempotencyKey,
       };
       return insertInvoiceIdempotent(row);
+    },
+
+    async createProratedTariffUpgradeInvoice(input) {
+      const entry = [...rows.entries()].find(
+        ([, row]) => row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
+      );
+      if (!entry) throw new Error('saas_billing_subscription_not_found');
+      const [key, subscription] = entry;
+      if (!subscription.currentPeriodStartsAt || !subscription.currentPeriodEndsAt) {
+        throw new Error('saas_billing_no_active_paid_subscription');
+      }
+      const openInvoice = [...invoices.values()].find(
+        (invoice) =>
+          invoice.saasBillingSubscriptionId === subscription.id &&
+          invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
+          (invoice.status === 'draft' || invoice.status === 'pending'),
+      );
+      if (openInvoice) return { invoice: openInvoice, created: false };
+      const currentTariff = tariffs.get(subscription.tariffId);
+      const targetTariff = tariffs.get(input.targetTariffId);
+      if (!currentTariff || !targetTariff) throw new Error('saas_billing_tariff_not_billable');
+      if (
+        currentTariff.currency !== targetTariff.currency ||
+        currentTariff.billingPeriod !== targetTariff.billingPeriod
+      ) {
+        throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
+      }
+      if (targetTariff.priceMinor <= currentTariff.priceMinor) {
+        throw new Error('saas_billing_tariff_upgrade_not_more_expensive');
+      }
+      const amountMinor = proratedTariffUpgradeAmountMinor({
+        currentPriceMinor: currentTariff.priceMinor,
+        targetPriceMinor: targetTariff.priceMinor,
+        periodStartsAt: subscription.currentPeriodStartsAt,
+        periodEndsAt: subscription.currentPeriodEndsAt,
+        asOf: input.asOf,
+      });
+      if (amountMinor === 0) throw new Error('saas_billing_upgrade_no_remaining_period');
+      const invoice: SaasBillingInvoice = {
+        id: crypto.randomUUID(),
+        organizationId: subscription.organizationId,
+        saasBillingAccountId: subscription.saasBillingAccountId,
+        saasBillingSubscriptionId: subscription.id,
+        tariffId: targetTariff.id,
+        tariffName: targetTariff.name,
+        invoiceKind: 'tariff_period',
+        additionalSeatQuantity: 0,
+        description: SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION,
+        amountMinor,
+        currency: targetTariff.currency,
+        tariffBillingPeriod: targetTariff.billingPeriod,
+        tariffSnapshot: { id: targetTariff.id, price_minor: targetTariff.priceMinor, currency: targetTariff.currency, billing_period: targetTariff.billingPeriod },
+        servicePeriodStartsAt: input.asOf,
+        servicePeriodEndsAt: subscription.currentPeriodEndsAt,
+        expiresAt: null,
+        status: 'draft',
+        providerId: input.providerId,
+        providerInvoiceRef: null,
+        providerCheckoutUrl: null,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+      };
+      rows.set(key, subscription);
+      return insertInvoiceIdempotent(invoice);
     },
 
     async attachSaasBillingInvoiceReceiptSnapshot({ saasBillingInvoiceId, receipt }) {
@@ -400,6 +496,20 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           paidAdditionalSeats: subscription.paidAdditionalSeats + current.additionalSeatQuantity,
         });
       }
+      if (
+        current.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
+        current.status !== 'paid'
+      ) {
+        rows.set(subscriptionKeyValue, {
+          ...subscription,
+          tariffId: current.tariffId,
+          pendingTariffId: null,
+          tariffSnapshot: current.tariffSnapshot,
+          status: 'active',
+          lifecycleState: 'active',
+        });
+        organizationTariffs.set(input.organizationId, current.tariffId);
+      }
       const due =
         current.invoiceKind === 'tariff_period' &&
         current.servicePeriodStartsAt <= input.paidAt &&
@@ -416,6 +526,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           lifecycleState: 'active',
           currentPeriodStartsAt: current.servicePeriodStartsAt,
           currentPeriodEndsAt: current.servicePeriodEndsAt,
+          tariffSnapshot: current.tariffSnapshot,
         });
         organizationTariffs.set(input.organizationId, current.tariffId);
       }
@@ -435,13 +546,14 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
+      const tariff = tariffs.get(authority.pendingTariffId ?? authority.tariffId);
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
         saasBillingAccountId: authority.saasBillingAccountId,
         saasBillingSubscriptionId: authority.id,
         tariffId: authority.tariffId,
-        tariffName: 'In-memory tariff',
+        tariffName: tariff?.name ?? 'In-memory tariff',
         invoiceKind: input.invoiceKind,
         additionalSeatQuantity: input.additionalSeatQuantity,
         description: input.description,
@@ -534,17 +646,20 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         currentPeriodEndsAt: current?.currentPeriodEndsAt ?? null,
         graceEndsAt: current?.graceEndsAt ?? null,
         readOnlyEndsAt: current?.readOnlyEndsAt ?? null,
+        tariffSnapshot: current?.tariffSnapshot ?? null,
         paidAdditionalSeats: current?.paidAdditionalSeats ?? 0,
       };
       rows.set(key, row);
+      const tariff = tariffs.get(tariffId);
       return {
         saasBillingSubscriptionId: row.id,
         currentTariffId: row.tariffId,
         tariffId,
-        billingPeriod: 'month' as const,
+        billingPeriod: tariff?.billingPeriod ?? 'month',
         savedPaymentMethodId: row.savedPaymentMethodId,
         additionalSeatPriceMinor: null,
-        currency: 'RUB',
+        currency: tariff?.currency ?? 'RUB',
+        currentPeriodStartsAt: row.currentPeriodStartsAt,
         currentPeriodEndsAt: row.currentPeriodEndsAt,
       };
     },
@@ -598,10 +713,17 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: authority.paidAdditionalSeats,
         description: null,
-        amountMinor: 0,
-        currency: 'RUB',
-        tariffBillingPeriod: 'month',
-        tariffSnapshot: null,
+        amountMinor: tariff?.priceMinor ?? 0,
+        currency: tariff?.currency ?? 'RUB',
+        tariffBillingPeriod: tariff?.billingPeriod ?? 'month',
+        tariffSnapshot: tariff
+          ? {
+              id: tariff.id,
+              price_minor: tariff.priceMinor,
+              currency: tariff.currency,
+              billing_period: tariff.billingPeriod,
+            }
+          : null,
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
         expiresAt: null,

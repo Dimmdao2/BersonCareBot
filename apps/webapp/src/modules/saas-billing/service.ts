@@ -221,6 +221,75 @@ export function createSaasBillingService(dependencies: {
     }
   }
 
+  async function createProratedTariffUpgradeCheckout(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    targetTariffId: string;
+    currentPeriodStartsAt: string;
+  }) {
+    const provider = await resolvePaymentProvider();
+    const { invoice, created } = await dependencies.repository.createProratedTariffUpgradeInvoice({
+      organizationId: input.organizationId,
+      saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+      targetTariffId: input.targetTariffId,
+      asOf: now().toISOString(),
+      providerId: provider.providerId,
+      providerIdempotencyKey: `saas_tariff_upgrade:${deriveSaasBillingIdempotencyKey([
+        input.organizationId,
+        input.saasBillingSubscriptionId,
+        input.targetTariffId,
+        input.currentPeriodStartsAt,
+      ])}`,
+    });
+    if (!created && invoice.providerCheckoutUrl) return invoice;
+    let checkoutInvoice = invoice;
+    if (!created && invoice.status === 'failed') {
+      checkoutInvoice = await dependencies.repository.prepareSaasBillingFailedInvoiceForManualCheckout({
+        saasBillingInvoiceId: invoice.id,
+        organizationId: input.organizationId,
+        providerId: provider.providerId,
+        providerIdempotencyKey: `saas_tariff_upgrade_retry:${deriveSaasBillingIdempotencyKey([
+          invoice.id,
+          invoice.providerIdempotencyKey,
+        ])}`,
+      });
+    }
+    const claimed =
+      (await dependencies.repository.claimSaasBillingInvoiceProviderIntent?.(checkoutInvoice.id)) ??
+      (created || checkoutInvoice.status === 'draft');
+    if (!claimed) return checkoutInvoice;
+    try {
+      const fiscalized = await attachFiscalReceiptIfConfigured(
+        checkoutInvoice,
+        provider.payeeRequisites,
+      );
+      const intent = await provider.adapter.createIntent({
+        amountMinor: fiscalized.invoice.amountMinor,
+        currency: fiscalized.invoice.currency,
+        idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
+        payerRef: `organization:${checkoutInvoice.organizationId}`,
+        purpose: 'saas_billing_tariff_renewal',
+        subjectRef: checkoutInvoice.id,
+        returnUrl: SAAS_BILLING_RETURN_URL,
+        metadata: {
+          organizationId: checkoutInvoice.organizationId,
+          saasBillingInvoiceId: checkoutInvoice.id,
+          saasBillingSubscriptionId: checkoutInvoice.saasBillingSubscriptionId,
+        },
+        providerConfig: provider.providerConfig,
+        receipt: fiscalized.receipt,
+      });
+      return await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+        saasBillingInvoiceId: checkoutInvoice.id,
+        providerInvoiceRef: intent.providerIntentRef,
+        providerCheckoutUrl: intent.checkoutUrl ?? null,
+      });
+    } catch (error) {
+      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.(checkoutInvoice.id);
+      throw error;
+    }
+  }
+
   /**
    * К4 — platform-admin-issued invoice for the organization's OWN currently assigned tariff. The
    * invoice format is an adapter detail behind `createIntent`, never a second payment entrance.
@@ -854,10 +923,22 @@ export function createSaasBillingService(dependencies: {
           scheduleOnly: true,
           audit: { actorId: input.actorId, reason: 'clinic_tariff_change_cancelled' },
         });
-        return;
+        return { outcome: 'cancelled' as const };
       }
       if (!transition.appliesNextPeriod) {
-        throw new Error('saas_billing_upgrade_charge_policy_unresolved');
+        const subscription = await dependencies.repository.requireOwnTariffBillingSubscription(
+          input.organizationId,
+        );
+        if (!subscription.currentPeriodStartsAt || !subscription.currentPeriodEndsAt) {
+          throw new Error('saas_billing_no_active_paid_subscription');
+        }
+        const invoice = await createProratedTariffUpgradeCheckout({
+          organizationId: input.organizationId,
+          saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
+          targetTariffId: transition.targetTariffId,
+          currentPeriodStartsAt: subscription.currentPeriodStartsAt,
+        });
+        return { outcome: 'checkout' as const, invoice };
       }
       if (transition.blocks.length > 0) {
         throw new SaasBillingTariffDowngradeBlockedError(transition.blocks);
@@ -869,6 +950,7 @@ export function createSaasBillingService(dependencies: {
         scheduleOnly: true,
         audit: { actorId: input.actorId, reason: 'clinic_tariff_downgrade_scheduled' },
       });
+      return { outcome: 'scheduled' as const };
     },
 
     async cancelOwnTariffChange(input: { organizationId: string; actorId: string | null }) {

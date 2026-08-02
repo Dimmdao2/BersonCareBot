@@ -12,6 +12,8 @@ import type {
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
 import type { SaasBillingPeriod } from '@/modules/saas-billing/paidPeriod';
+import { proratedTariffUpgradeAmountMinor } from '@/modules/saas-billing/proration';
+import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { beOrganizations } from '../../../db/schema/bookingEngine';
@@ -172,6 +174,25 @@ async function promotePaidInvoice(
       .where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, 'active')));
   }
   return true;
+}
+
+function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
+  priceMinor: number;
+  currency: string;
+  billingPeriod: string;
+} {
+  const priceMinor = snapshot?.price_minor;
+  const currency = snapshot?.currency;
+  const billingPeriod = snapshot?.billing_period;
+  if (
+    !Number.isSafeInteger(priceMinor) ||
+    typeof currency !== 'string' ||
+    !/^[A-Z]{3}$/.test(currency) ||
+    (billingPeriod !== 'day' && billingPeriod !== 'month' && billingPeriod !== 'year')
+  ) {
+    throw new Error('saas_billing_paid_period_snapshot_missing');
+  }
+  return { priceMinor, currency, billingPeriod };
 }
 
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
@@ -651,6 +672,102 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       });
     },
 
+    async createProratedTariffUpgradeInvoice(input) {
+      return getDrizzle().transaction(async (tx) => {
+        const [subscription] = await tx
+          .select({
+            id: saasBillingSubscriptions.id,
+            organizationId: saasBillingSubscriptions.organizationId,
+            saasBillingAccountId: saasBillingSubscriptions.saasBillingAccountId,
+            tariffId: saasBillingSubscriptions.tariffId,
+            currentPeriodStartsAt: saasBillingSubscriptions.currentPeriodStartsAt,
+            currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
+            tariffSnapshot: saasBillingSubscriptions.tariffSnapshot,
+          })
+          .from(saasBillingSubscriptions)
+          .where(
+            and(
+              eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
+              eq(saasBillingSubscriptions.organizationId, input.organizationId),
+              eq(saasBillingSubscriptions.source, 'paid_subscription'),
+            ),
+          )
+          .limit(1)
+          .for('update');
+        if (!subscription) throw new Error('saas_billing_subscription_not_found');
+        if (!subscription.currentPeriodStartsAt || !subscription.currentPeriodEndsAt) {
+          throw new Error('saas_billing_no_active_paid_subscription');
+        }
+
+        const [openInvoice] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
+              eq(saasBillingInvoices.description, SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION),
+              inArray(saasBillingInvoices.status, ['draft', 'pending']),
+            ),
+          )
+          .orderBy(desc(saasBillingInvoices.createdAt))
+          .limit(1);
+        if (openInvoice) return { invoice: toSaasBillingInvoice(openInvoice), created: false };
+
+        const [targetTariff] = await tx
+          .select({
+            id: saasTariffs.id,
+            name: saasTariffs.name,
+            priceMinor: saasTariffs.priceMinor,
+            currency: saasTariffs.currency,
+            billingPeriod: saasTariffs.billingPeriod,
+          })
+          .from(saasTariffs)
+          .where(and(eq(saasTariffs.id, input.targetTariffId), eq(saasTariffs.isActive, true)))
+          .limit(1);
+        if (!targetTariff || targetTariff.priceMinor === null || targetTariff.currency === null) {
+          throw new Error('saas_billing_tariff_not_billable');
+        }
+        const currentTariff = paidPeriodSnapshotPrice(subscription.tariffSnapshot);
+        if (
+          currentTariff.currency !== targetTariff.currency ||
+          currentTariff.billingPeriod !== targetTariff.billingPeriod
+        ) {
+          throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
+        }
+        if (targetTariff.priceMinor <= currentTariff.priceMinor) {
+          throw new Error('saas_billing_tariff_upgrade_not_more_expensive');
+        }
+        const amountMinor = proratedTariffUpgradeAmountMinor({
+          currentPriceMinor: currentTariff.priceMinor,
+          targetPriceMinor: targetTariff.priceMinor,
+          periodStartsAt: subscription.currentPeriodStartsAt,
+          periodEndsAt: subscription.currentPeriodEndsAt,
+          asOf: input.asOf,
+        });
+        if (amountMinor === 0) throw new Error('saas_billing_upgrade_no_remaining_period');
+
+        return insertSaasBillingInvoiceIdempotent(tx, {
+          organizationId: subscription.organizationId,
+          saasBillingAccountId: subscription.saasBillingAccountId,
+          saasBillingSubscriptionId: subscription.id,
+          tariffId: targetTariff.id,
+          tariffName: targetTariff.name,
+          invoiceKind: 'tariff_period',
+          additionalSeatQuantity: 0,
+          description: SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION,
+          amountMinor,
+          currency: targetTariff.currency,
+          tariffBillingPeriod: targetTariff.billingPeriod,
+          tariffSnapshot: await readTariffSnapshotForPeriod(tx, targetTariff.id),
+          servicePeriodStartsAt: input.asOf,
+          servicePeriodEndsAt: subscription.currentPeriodEndsAt,
+          status: 'draft',
+          providerId: input.providerId,
+          providerIdempotencyKey: input.providerIdempotencyKey,
+        });
+      });
+    },
+
     async attachSaasBillingInvoiceProviderIntent(input) {
       const [row] = await getDrizzle()
         .update(saasBillingInvoices)
@@ -778,6 +895,24 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               updatedAt: new Date().toISOString(),
             }).where(eq(saasBillingSubscriptions.id, subscription.id));
           }
+        } else if (invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION && !wasPaid) {
+          const tariffSnapshot =
+            invoice.tariffSnapshot ?? (await readTariffSnapshotForPeriod(tx, invoice.tariffId));
+          await tx
+            .update(saasBillingSubscriptions)
+            .set({
+              tariffId: invoice.tariffId,
+              pendingTariffId: null,
+              tariffSnapshot,
+              status: 'active',
+              lifecycleState: 'active',
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(saasBillingSubscriptions.id, subscription.id));
+          await tx
+            .update(beOrganizations)
+            .set({ tariffId: invoice.tariffId })
+            .where(eq(beOrganizations.id, input.organizationId));
         } else if (invoice.servicePeriodStartsAt <= input.paidAt) {
           await promotePaidInvoice(tx, invoice, input.organizationId);
         }
@@ -1035,6 +1170,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             pendingTariffId: saasBillingSubscriptions.pendingTariffId,
             savedPaymentMethodId: saasBillingSubscriptions.savedPaymentMethodId,
             currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
+            currentPeriodStartsAt: saasBillingSubscriptions.currentPeriodStartsAt,
           });
         if (!row) throw new Error('saas_billing_subscription_upsert_failed');
 
@@ -1055,6 +1191,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           additionalSeatPriceMinor: targetTariff.additionalSeatPriceMinor,
           currency: targetTariff.currency,
           currentPeriodEndsAt: row.currentPeriodEndsAt,
+          currentPeriodStartsAt: row.currentPeriodStartsAt,
         };
       });
     },
