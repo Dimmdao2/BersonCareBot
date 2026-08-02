@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { createHash } from 'node:crypto';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
@@ -50,6 +51,16 @@ function valueOf<T>(valueJson: unknown, fallback: T): T {
     'value' in (valueJson as Record<string, unknown>)
     ? ((valueJson as Record<string, unknown>).value as T)
     : fallback;
+}
+
+function dedicatedBotWebhookPath(
+  channel: 'telegram' | 'max',
+  valueJson: unknown,
+): string | null {
+  const credential = String(valueOf(valueJson, '') ?? '').trim();
+  if (!credential) return null;
+  const fingerprint = createHash('sha256').update(credential).digest('hex');
+  return `/webhook/${channel}/dedicated/${fingerprint}`;
 }
 
 function parseTab(raw: string | string[] | undefined): LegacySettingsTab | null {
@@ -213,6 +224,14 @@ export default async function SettingsPage({
       smsConfigured: clinicAdminSetting('clinic_smsc_api_key') !== null,
       telegramConfigured: clinicAdminSetting('clinic_telegram_bot_token') !== null,
       maxConfigured: clinicAdminSetting('clinic_max_bot_api_key') !== null,
+      telegramWebhookPath: dedicatedBotWebhookPath(
+        'telegram',
+        clinicAdminSetting('clinic_telegram_bot_token')?.valueJson,
+      ),
+      maxWebhookPath: dedicatedBotWebhookPath(
+        'max',
+        clinicAdminSetting('clinic_max_bot_api_key')?.valueJson,
+      ),
     };
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>

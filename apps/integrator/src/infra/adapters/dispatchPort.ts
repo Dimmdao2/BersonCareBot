@@ -41,9 +41,17 @@ type DeliveryPayload = {
   };
 } & Record<string, unknown>;
 
-type ClinicSenderScope = 'clinic_required' | 'clinic_preferred';
+type ClinicSenderScope = 'clinic_required' | 'clinic_preferred' | 'platform_required';
 
 function clinicSenderScope(intent: OutgoingIntent): ClinicSenderScope {
+  // Platform/system traffic must never borrow a clinic credential merely because the request
+  // happens to run under an organization principal.
+  if (
+    intent.meta.outboundMessageClass === 'operator_security' &&
+    intent.meta.outboundCapability === 'operator_alert'
+  ) {
+    return 'platform_required';
+  }
   if (intent.type !== 'message.send') return 'clinic_preferred';
   const scope = (intent.payload as DeliveryPayload).delivery?.senderScope;
   return scope === 'clinic_required' ? 'clinic_required' : 'clinic_preferred';
@@ -376,7 +384,7 @@ export function createDefaultDispatchPort(deps: {
         const clinicChannel = asClinicDeliveryChannel(channel);
         const senderScope = clinicSenderScope(intentForChannel);
         const clinicCredential =
-          clinicChannel && deps.resolveClinicDeliveryCredential
+          senderScope !== 'platform_required' && clinicChannel && deps.resolveClinicDeliveryCredential
             ? await deps.resolveClinicDeliveryCredential(clinicChannel)
             : null;
         if (senderScope === 'clinic_required' && !clinicCredential) {

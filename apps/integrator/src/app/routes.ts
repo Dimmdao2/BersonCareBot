@@ -17,6 +17,7 @@ import {
   resolveActiveOrganizationIdForMessengerIdentity,
   resolveDeploymentSingleActiveOrganizationId,
 } from '../infra/db/repos/channelUsers.js';
+import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
 import { env, integratorWebhookSecret } from '../config/env.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
@@ -89,6 +90,22 @@ function createResolveOrganizationIdForIntegratorUserId(): (
   };
 }
 
+function createResolveDedicatedClinicBotOrganization(
+  channel: 'telegram' | 'max',
+): (credentialFingerprint: string) => Promise<string | null> {
+  return async (credentialFingerprint) => {
+    try {
+      const db = createDbPort();
+      return await runWithBootstrapPrincipal({ source: `${channel}-dedicated-webhook:pre-routing` }, () =>
+        resolveDedicatedClinicBotOrganization(db, channel, credentialFingerprint),
+      );
+    } catch (error) {
+      reportIntegratorIsolationFailure(error);
+      return null;
+    }
+  };
+}
+
 /**
  * T0.4 channel-binding fallback: the deployment's single organization, used when a messenger
  * identity has no per-user org context yet (first contact, not yet enrolled). See
@@ -118,6 +135,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const resolveOrganizationIdForMessengerIdentity =
     createResolveOrganizationIdForMessengerIdentity();
   const resolveOrganizationIdForIntegratorUserId = createResolveOrganizationIdForIntegratorUserId();
+  const resolveDedicatedTelegramBotOrganization = createResolveDedicatedClinicBotOrganization('telegram');
+  const resolveDedicatedMaxBotOrganization = createResolveDedicatedClinicBotOrganization('max');
   const resolveDeploymentOrganizationId = createResolveDeploymentOrganizationId();
   const authChannelPolicyDb = createDbPort();
   const authChannelPolicy = (channel: 'email' | 'sms' | 'telegram' | 'max') =>
@@ -237,9 +256,9 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     eventGateway: deps.eventGateway,
     resolveIntegratorUserIdForMessenger,
     resolveOrganizationIdForMessengerIdentity,
-    resolveDeploymentOrganizationId,
     getAppBaseUrl: getAppBaseUrlForWebhooks,
     resolveMessengerStaffAdmin,
+    resolveDedicatedClinicBotOrganization: resolveDedicatedTelegramBotOrganization,
   };
   if (telegramConfig.botToken) {
     if (telegramConfig.mode === 'long_polling') {
@@ -259,9 +278,9 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         eventGateway: deps.eventGateway,
         resolveIntegratorUserIdForMessenger,
         resolveOrganizationIdForMessengerIdentity,
-        resolveDeploymentOrganizationId,
         getAppBaseUrl: getAppBaseUrlForWebhooks,
         resolveMessengerStaffAdmin,
+        resolveDedicatedClinicBotOrganization: resolveDedicatedMaxBotOrganization,
       });
     });
   }

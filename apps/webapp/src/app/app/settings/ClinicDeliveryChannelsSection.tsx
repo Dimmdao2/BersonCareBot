@@ -19,6 +19,8 @@ type ClinicDeliveryChannelsSectionProps = {
     smsConfigured: boolean;
     telegramConfigured: boolean;
     maxConfigured: boolean;
+    telegramWebhookPath: string | null;
+    maxWebhookPath: string | null;
   };
 };
 
@@ -35,11 +37,13 @@ function SecretChannel({
   description,
   settingKey,
   configured,
+  webhookPath,
 }: {
   title: string;
   description: string;
   settingKey: 'clinic_smsc_api_key' | 'clinic_telegram_bot_token' | 'clinic_max_bot_api_key';
   configured: boolean;
+  webhookPath?: string | null;
 }) {
   const [value, setValue] = useState('');
   const [saved, setSaved] = useState(configured);
@@ -79,6 +83,11 @@ function SecretChannel({
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">{saved ? 'Подключён' : 'Не подключён'}</p>
+      {webhookPath ? (
+        <p className="break-all text-xs text-muted-foreground">
+          Endpoint webhook: <code>{webhookPath}</code>
+        </p>
+      ) : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </section>
   );
@@ -180,15 +189,17 @@ export function ClinicDeliveryChannelsSection({ initial }: ClinicDeliveryChannel
         />
         <SecretChannel
           title="Telegram-бот"
-          description="Токен dedicated bot клиники. Inbound webhook/binding остаётся отдельным этапом S6.5."
+          description="Токен dedicated bot клиники. Укажите endpoint ниже при регистрации webhook у Telegram."
           settingKey="clinic_telegram_bot_token"
           configured={initial.telegramConfigured}
+          webhookPath={initial.telegramWebhookPath}
         />
         <SecretChannel
           title="MAX-бот"
-          description="API-ключ dedicated bot клиники. Inbound webhook/binding остаётся отдельным этапом S6.5."
+          description="API-ключ dedicated bot клиники. Укажите endpoint ниже при регистрации webhook у MAX."
           settingKey="clinic_max_bot_api_key"
           configured={initial.maxConfigured}
+          webhookPath={initial.maxWebhookPath}
         />
       </CardContent>
     </Card>

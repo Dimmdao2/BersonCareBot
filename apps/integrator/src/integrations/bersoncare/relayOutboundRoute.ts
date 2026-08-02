@@ -76,11 +76,24 @@ function verifySignature(
 }
 
 function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
+  // The signed relay is a trusted producer. Its public body cannot nominate a policy marker:
+  // normal product notices are essential, whereas an explicitly clinic-required send is a
+  // clinic-owned broadcast and must fail closed at the sender boundary.
+  const outboundPolicy = parsed.senderScope === 'clinic_required'
+    ? {
+        outboundMessageClass: 'broadcast_event' as const,
+        outboundCapability: 'clinic_delivery' as const,
+      }
+    : {
+        outboundMessageClass: 'routine_product' as const,
+        outboundCapability: 'essential_delivery' as const,
+      };
   const meta = {
     eventId: parsed.messageId,
     occurredAt: new Date().toISOString(),
     source: parsed.channel,
     correlationId: parsed.idempotencyKey,
+    ...outboundPolicy,
   };
 
   if (parsed.channel === 'telegram' || parsed.channel === 'max') {

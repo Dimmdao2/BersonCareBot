@@ -94,6 +94,8 @@ export type MessengerWebappEntryIdentityDeps = {
    * `resolveDeploymentSingleActiveOrganizationId` in `infra/db/repos/channelUsers.ts`.
    */
   resolveDeploymentOrganizationId?: () => Promise<string | null>;
+  /** Dedicated webhook path resolves the actual bot instance to one clinic, never a default org. */
+  resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
 };
 
 export type TelegramRoutesRegistrar = (

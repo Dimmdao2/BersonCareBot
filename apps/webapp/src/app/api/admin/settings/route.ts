@@ -63,6 +63,10 @@ import {
 import { redactAdminSettingsForClient } from '@/modules/system-settings/webPushVapidRuntime';
 import { normalizePatientDefaultPromoTreatmentProgramTemplatePatch } from '@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate';
 import { normalizeDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
+import {
+  parsePlatformIntegrationAvailabilityEnvelope,
+  type PlatformIntegrationId,
+} from '@/modules/system-settings/platformIntegrationAvailability';
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -251,6 +255,28 @@ const CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS = new Map<
     { mechanic: 'clinic_max_bot', action: 'настроить собственного MAX-бота' },
   ],
 ]);
+
+const CLINIC_DELIVERY_SETTING_INTEGRATIONS = new Map<string, PlatformIntegrationId>([
+  ['clinic_smtp_outbound', 'email'],
+  ['clinic_smsc_api_key', 'smsc'],
+  ['clinic_telegram_bot_token', 'telegram'],
+  ['clinic_max_bot_api_key', 'max'],
+]);
+
+async function isClinicDeliveryIntegrationEnabled(
+  getSetting: ReturnType<typeof buildAppDeps>['systemSettings']['getSetting'],
+  integration: PlatformIntegrationId,
+): Promise<boolean> {
+  try {
+    const setting = await getSetting('platform_integration_availability', 'admin', {
+      organizationId: null,
+    });
+    return parsePlatformIntegrationAvailabilityEnvelope(setting?.valueJson).integrations[integration];
+  } catch {
+    // An unreadable global switch is not permission to configure a tenant sender.
+    return false;
+  }
+}
 
 const PATIENT_HOME_TODAY_ENTITLEMENT_SETTING_KEYS = new Set([
   'patient_home_daily_practice_target',
@@ -496,6 +522,7 @@ export async function PATCH(request: Request) {
       { status: 403 },
     );
   }
+  const deps = buildAppDeps();
   if (PAYMENT_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === 'clinic') {
     const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, 'payments');
     if (!entitlement.ok) return entitlement.response;
@@ -525,6 +552,13 @@ export async function PATCH(request: Request) {
       return entitlementMutationRefusalResponse(
         clinicDeliveryEntitlement.mechanic,
         clinicDeliveryEntitlement.action,
+      );
+    }
+    const integration = CLINIC_DELIVERY_SETTING_INTEGRATIONS.get(parsed.data.key)!;
+    if (!(await isClinicDeliveryIntegrationEnabled(deps.systemSettings.getSetting, integration))) {
+      return NextResponse.json(
+        { ok: false, error: 'integration_disabled', integration },
+        { status: 403 },
       );
     }
   }
@@ -567,7 +601,6 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const deps = buildAppDeps();
   const settingScope = settingScopeForKey(parsed.data.key);
 
   let normalizedValue = normalizeValueJson(parsed.data.value);

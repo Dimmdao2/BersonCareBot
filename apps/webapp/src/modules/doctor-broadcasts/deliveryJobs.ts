@@ -128,6 +128,10 @@ function buildMessageSendIntent(input: {
       source,
       userId: input.clientUserId,
       correlationId: `doctor-broadcast:${input.eventId.slice(0, 80)}`,
+      // This queue producer is the trusted clinic-owned broadcast path. The central egress
+      // policy accepts this marker only together with clinic_required below.
+      outboundMessageClass: 'broadcast_event',
+      outboundCapability: 'clinic_delivery',
     },
     payload: {
       recipient: input.recipient,

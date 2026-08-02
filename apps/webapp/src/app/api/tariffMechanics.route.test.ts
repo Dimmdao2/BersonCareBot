@@ -491,7 +491,29 @@ describe('tariff and platform mutation gates', () => {
 
   it('writes a clinic delivery credential only to the authenticated clinic organization and redacts the response', async () => {
     vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
-    const getSetting = vi.fn().mockResolvedValue(null);
+    const getSetting = vi.fn().mockImplementation(async (key: string) =>
+      key === 'platform_integration_availability'
+        ? {
+            key,
+            scope: 'admin',
+            organizationId: null,
+            valueJson: {
+              value: {
+                version: 1,
+                integrations: {
+                  telegram: true,
+                  max: true,
+                  email: true,
+                  smsc: true,
+                  web_push: true,
+                  google_calendar: true,
+                  yandex_calendar: false,
+                },
+              },
+            },
+          }
+        : null,
+    );
     const updateSetting = vi.fn().mockResolvedValue({
       key: 'clinic_telegram_bot_token',
       scope: 'admin',

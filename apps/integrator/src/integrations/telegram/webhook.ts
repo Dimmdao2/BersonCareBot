@@ -155,13 +155,8 @@ export type TelegramWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
-  /**
-   * T0.4 channel-binding fallback: resolves the deployment's single organization when the
-   * messenger identity has no per-user org context yet (first-contact, not yet enrolled). The
-   * tenant boundary is the inbound channel/bot, not the user's enrollment state — see
-   * `resolveDeploymentSingleActiveOrganizationId` for the architecture rationale/limits.
-   */
-  resolveDeploymentOrganizationId?: () => Promise<string | null>;
+  /** Exact dedicated bot-instance binding; never falls back to enrollment/default organization. */
+  resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
 };
 
 function getSourceTelegramExternalId(body: TelegramWebhookBodyValidated): string | null {
@@ -183,27 +178,14 @@ async function resolveTelegramOrganizationId(
       );
       if (perUserOrg) return perUserOrg;
     } catch {
-      // fall through to channel-binding fallback below
+      // No enrollment/default fallback: a dedicated bot is resolved by its endpoint binding.
     }
   }
-  if (!deps.resolveDeploymentOrganizationId) return null;
-  try {
-    const deploymentOrg = await deps.resolveDeploymentOrganizationId();
-    if (deploymentOrg) {
-      reqLogger.info(
-        { source: 'telegram' },
-        'telegram webhook: no per-user org context, using deployment channel-binding fallback',
-      );
-      return deploymentOrg;
-    }
-    reqLogger.warn(
-      { source: 'telegram' },
-      'telegram webhook: no organization resolvable for this channel (unbound/misconfigured deployment)',
-    );
-    return null;
-  } catch {
-    return null;
-  }
+  reqLogger.warn(
+    { source: 'telegram' },
+    'telegram webhook: no exact organization context for inbound bot message',
+  );
+  return null;
 }
 
 async function resolveTelegramIntegratorUserId(
@@ -296,7 +278,12 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
 export async function processTelegramUpdate(
   body: TelegramWebhookBodyValidated,
   deps: TelegramWebhookDeps,
-  ctx: { correlationId: string; eventId: string; logger: ReturnType<typeof getRequestLogger> },
+  ctx: {
+    correlationId: string;
+    eventId: string;
+    logger: ReturnType<typeof getRequestLogger>;
+    dedicatedOrganizationId?: string;
+  },
 ): Promise<{ status: 'ok' | 'ignored' | 'rejected'; reason?: string }> {
   const { correlationId, eventId, logger: reqLogger } = ctx;
 
@@ -351,7 +338,8 @@ export async function processTelegramUpdate(
         deps.getAppBaseUrl,
         deps.resolveMessengerStaffAdmin,
       ),
-      organizationId: await resolveTelegramOrganizationId(body, deps, reqLogger),
+      organizationId:
+        ctx.dedicatedOrganizationId ?? (await resolveTelegramOrganizationId(body, deps, reqLogger)),
       integratorUserId: await resolveTelegramIntegratorUserId(body, deps),
     }),
   );
@@ -489,4 +477,44 @@ export async function registerTelegramWebhookRoutes(
       return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });
+
+  app.post<{ Params: { credentialFingerprint: string } }>(
+    '/webhook/telegram/dedicated/:credentialFingerprint',
+    async (request, reply) => {
+      const correlationId = request.id;
+      const eventId = newEventId('incoming');
+      const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
+      const fingerprint = request.params.credentialFingerprint;
+      const organizationId = await deps.resolveDedicatedClinicBotOrganization?.(fingerprint);
+      if (!organizationId) {
+        reqLogger.warn({ source: 'telegram' }, 'telegram dedicated webhook: unknown bot binding');
+        recordTelegramWebhookOutcome({
+          source: 'telegram',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_auth_failed',
+          detail: 'unknown dedicated bot binding',
+        });
+        return reply.code(200).send({ ok: false, error: 'Unknown bot' });
+      }
+      const parseResult = parseWebhookBody(request.body);
+      if (!parseResult.success) {
+        recordTelegramWebhookOutcome({
+          source: 'telegram',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_parse_failed',
+          detail: 'body validation failed',
+        });
+        return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
+      }
+      const outcome = await processTelegramUpdate(parseResult.data, deps, {
+        correlationId,
+        eventId,
+        logger: reqLogger,
+        dedicatedOrganizationId: organizationId,
+      });
+      return reply.code(200).send({ ok: outcome.status !== 'rejected' });
+    },
+  );
 }

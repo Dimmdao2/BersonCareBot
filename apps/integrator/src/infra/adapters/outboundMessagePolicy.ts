@@ -59,6 +59,8 @@ export function assertOutboundMessagePolicy(intent: OutgoingIntent): string {
     hasMarker(intent, 'broadcast_event', 'app_push') ||
     hasMarker(intent, 'account_service', 'app_push') ||
     hasMarker(intent, 'operator_security', 'app_push') ||
+    hasMarker(intent, 'routine_product', 'essential_delivery') ||
+    hasMarker(intent, 'broadcast_event', 'clinic_delivery') ||
     hasMarker(intent, 'operator_security', 'operator_alert');
   if (!hasRecognizedMarker) {
     throw new OutboundMessagePolicyError('missing_or_invalid_marker');
@@ -77,10 +79,21 @@ export function assertOutboundMessagePolicy(intent: OutgoingIntent): string {
     ) {
       return channel;
     }
+    if (
+      hasMarker(intent, 'routine_product', 'essential_delivery') ||
+      hasMarker(intent, 'broadcast_event', 'clinic_delivery')
+    ) {
+      return channel;
+    }
     throw new OutboundMessagePolicyError('capability_not_allowed_for_channel');
   }
   if (channel === 'email' || channel === 'smsc') {
-    if (hasMarker(intent, 'auth_code', 'auth_code')) return channel;
+    if (
+      hasMarker(intent, 'auth_code', 'auth_code') ||
+      hasMarker(intent, 'routine_product', 'essential_delivery') ||
+      hasMarker(intent, 'broadcast_event', 'clinic_delivery')
+    )
+      return channel;
     throw new OutboundMessagePolicyError('capability_not_allowed_for_channel');
   }
   if (

@@ -28,9 +28,14 @@ describe('clinic-owned doctor broadcast delivery jobs', () => {
 
       expect(job).toBeDefined();
       const intent = job?.payloadJson.intent as {
+        meta?: Record<string, unknown>;
         payload?: { delivery?: Record<string, unknown> };
       };
       expect(intent.payload?.delivery).toMatchObject({ senderScope: 'clinic_required' });
+      expect(intent.meta).toMatchObject({
+        outboundMessageClass: 'broadcast_event',
+        outboundCapability: 'clinic_delivery',
+      });
     },
   );
 });

@@ -41,7 +41,12 @@ function essentialMessageSendIntent(): OutgoingIntent {
 function clinicRequiredIntent(channel: 'telegram' | 'max' | 'smsc' | 'email'): OutgoingIntent {
   return {
     ...messageSendIntent(),
-    meta: { ...messageSendIntent().meta, source: channel === 'smsc' ? 'sms' : channel },
+    meta: {
+      ...messageSendIntent().meta,
+      source: channel === 'smsc' ? 'sms' : channel,
+      outboundMessageClass: 'broadcast_event',
+      outboundCapability: 'clinic_delivery',
+    },
     payload: {
       recipient: { chatId: 123 },
       message: { text: 'hello' },
@@ -59,6 +64,8 @@ function queuedClinicBroadcastIntent(): OutgoingIntent {
       occurredAt: '2026-08-02T00:00:00.000Z',
       source: 'telegram',
       userId: 'patient-1',
+      outboundMessageClass: 'broadcast_event',
+      outboundCapability: 'clinic_delivery',
     },
   } as OutgoingIntent;
 }

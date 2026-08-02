@@ -2185,6 +2185,13 @@
       "when": 1793539230012,
       "tag": "0311_clinic_billing_live_payment_path_local",
       "breakpoints": true
+    },
+    {
+      "idx": 312,
+      "version": "7",
+      "when": 1793539230016,
+      "tag": "0316_clinic_dedicated_bot_bindings_local",
+      "breakpoints": true
     }
   ]
 }
