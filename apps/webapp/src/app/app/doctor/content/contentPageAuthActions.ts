@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { revalidatePatientContentPaths } from '@/app-layer/content/revalidatePatientContentPaths';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
@@ -19,7 +22,12 @@ export async function setContentPageRequiresAuth(
 ): Promise<ContentPageAuthState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const pageId = id?.trim();
   if (!pageId) return { ok: false, error: 'Нет id' };
 

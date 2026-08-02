@@ -6,12 +6,11 @@ import { revalidatePatientContentPaths } from '@/app-layer/content/revalidatePat
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
+  entitlementMutationRefusalMessage,
   requireEntitlementForReadAction,
   requireEntitlementForMutationAction,
 } from '@/app-layer/guards/requireEntitlement';
-import {
-  contentMechanicForSection,
-} from '@/app-layer/content/warmupsContentMutationGuard';
+import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
 
@@ -26,13 +25,17 @@ export async function saveContentPage(
 
   const section = (formData.get('section') as string)?.trim() || '';
   const slug = (formData.get('slug') as string)?.trim() || '';
-  const intendedMechanic =
-    formData.get('content_mechanic') === 'warmups' ? 'warmups' : 'cms_pages';
+  const intendedMechanic = formData.get('content_mechanic') === 'warmups' ? 'warmups' : 'cms_pages';
   const intendedEntitlement = await requireEntitlementForMutationAction(
     workspace,
     intendedMechanic,
   );
-  if (!intendedEntitlement.ok) return { ok: false, error: intendedEntitlement.reason };
+  if (!intendedEntitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', intendedEntitlement.reason),
+    };
+  }
 
   const sectionRow = await deps.contentSections.getBySlug(section);
   if (!sectionRow) {
@@ -41,7 +44,12 @@ export async function saveContentPage(
   const targetMechanic = contentMechanicForSection(sectionRow);
   if (targetMechanic !== intendedMechanic) {
     const targetEntitlement = await requireEntitlementForMutationAction(workspace, targetMechanic);
-    if (!targetEntitlement.ok) return { ok: false, error: targetEntitlement.reason };
+    if (!targetEntitlement.ok) {
+      return {
+        ok: false,
+        error: entitlementMutationRefusalMessage('изменить контент', targetEntitlement.reason),
+      };
+    }
   }
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return { ok: false, error: 'Slug: только латиница, цифры и дефис' };
@@ -130,7 +138,12 @@ export async function saveContentPage(
         workspace,
         existingMechanic,
       );
-      if (!existingEntitlement.ok) return { ok: false, error: existingEntitlement.reason };
+      if (!existingEntitlement.ok) {
+        return {
+          ok: false,
+          error: entitlementMutationRefusalMessage('изменить контент', existingEntitlement.reason),
+        };
+      }
     }
     const dup = allPages.find(
       (p) => p.section === section && p.slug === slug && p.id !== editingId,

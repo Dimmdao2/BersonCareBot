@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 import {
   contentMechanicForSection,
   isWarmupsContentSection,
@@ -54,7 +57,12 @@ export async function saveContentSection(
 
   const targetMechanic = contentMechanicForSection(parsedPlacement);
   const targetEntitlement = await requireEntitlementForMutationAction(workspace, targetMechanic);
-  if (!targetEntitlement.ok) return { ok: false, error: targetEntitlement.reason };
+  if (!targetEntitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', targetEntitlement.reason),
+    };
+  }
 
   if (!slug || !title) {
     return { ok: false, error: 'Заполните slug и заголовок' };
@@ -114,7 +122,12 @@ export async function saveContentSection(
       workspace,
       existingMechanic,
     );
-    if (!existingEntitlement.ok) return { ok: false, error: existingEntitlement.reason };
+    if (!existingEntitlement.ok) {
+      return {
+        ok: false,
+        error: entitlementMutationRefusalMessage('изменить контент', existingEntitlement.reason),
+      };
+    }
   }
 
   try {
@@ -156,7 +169,12 @@ export async function attachArticleSectionToSystemFolder(
 ): Promise<AttachArticleSectionToFolderState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const deps = buildAppDeps();
 
   const slug = ((formData.get('section_slug') as string) ?? '').trim();
@@ -226,7 +244,12 @@ export async function renameContentSectionSlug(
 ): Promise<RenameContentSectionSlugState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const deps = buildAppDeps();
 
   if (formData.get('confirm_rename') !== 'on') {
@@ -277,7 +300,12 @@ export async function deleteContentSection(
 ): Promise<DeleteContentSectionState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const deps = buildAppDeps();
 
   if (formData.get('confirm_delete') !== 'on') {

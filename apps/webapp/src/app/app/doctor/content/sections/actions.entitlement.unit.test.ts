@@ -6,10 +6,8 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: vi.fn(),
 }));
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
-  withDoctorWorkspacePrincipal: async (
-    _workspace: unknown,
-    callback: () => Promise<unknown>,
-  ) => callback(),
+  withDoctorWorkspacePrincipal: async (_workspace: unknown, callback: () => Promise<unknown>) =>
+    callback(),
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -58,7 +56,8 @@ describe('saveContentSection entitlement boundary', () => {
 
     await expect(saveContentSection(null, formData())).resolves.toEqual({
       ok: false,
-      error: 'commercial_read_only',
+      error:
+        'Невозможно изменить контент: раздел сейчас доступен только для просмотра по тарифу клиники.',
     });
     expect(getBySlug).not.toHaveBeenCalled();
   });
@@ -82,7 +81,8 @@ describe('saveContentSection entitlement boundary', () => {
 
     await expect(saveContentPage(null, pageFormData())).resolves.toEqual({
       ok: false,
-      error: 'commercial_read_only',
+      error:
+        'Невозможно изменить контент: раздел сейчас доступен только для просмотра по тарифу клиники.',
     });
     expect(getBySlug).not.toHaveBeenCalled();
     expect(listAll).not.toHaveBeenCalled();
