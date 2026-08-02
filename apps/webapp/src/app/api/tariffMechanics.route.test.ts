@@ -597,6 +597,76 @@ describe('tariff and platform mutation gates', () => {
     expect(deleteFile).toHaveBeenCalledWith(USER_ID);
   });
 
+  it('does not stage deletion when a linked media file is used and the doctor has not confirmed the consequence', async () => {
+    const deleteFile = vi.fn();
+    const usage = [{ pageId: USER_ID, pageSlug: 'patient-guide', field: 'body_md' as const }];
+    const findUsage = vi.fn().mockResolvedValue(usage);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({
+          id: USER_ID,
+          patientUserId: TARGET_ID,
+          mediaFileId: ORG_ID,
+        }),
+        deleteFile,
+      },
+      media: { findUsage },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'media_in_use', usage });
+    expect(findUsage).toHaveBeenCalledWith(ORG_ID);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it('deletes a used linked media file only after the doctor explicitly confirms the consequence', async () => {
+    const deleteFile = vi.fn().mockResolvedValue(true);
+    const findUsage = vi
+      .fn()
+      .mockResolvedValue([
+        { pageId: USER_ID, pageSlug: 'patient-guide', field: 'body_md' as const },
+      ]);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({
+          id: USER_ID,
+          patientUserId: TARGET_ID,
+          mediaFileId: ORG_ID,
+        }),
+        deleteFile,
+      },
+      media: { findUsage },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request(
+        'https://app.example.test/api/doctor/patients/' +
+          TARGET_ID +
+          '/files/' +
+          USER_ID +
+          '?confirmUsed=true',
+        { method: 'DELETE' },
+      ),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(deleteFile).toHaveBeenCalledWith(USER_ID);
+  });
+
   it('does not expose patient-file deletion across organizations', async () => {
     const deleteFile = vi.fn();
     vi.mocked(buildAppDeps).mockReturnValue({
@@ -625,9 +695,12 @@ describe('tariff and platform mutation gates', () => {
     } as unknown as ReturnType<typeof buildAppDeps>);
 
     const response = await deletePatientFile(
-      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
-        method: 'DELETE',
-      }),
+      new Request(
+        'https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID,
+        {
+          method: 'DELETE',
+        },
+      ),
       { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
     );
 

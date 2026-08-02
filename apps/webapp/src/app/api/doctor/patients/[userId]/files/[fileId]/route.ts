@@ -74,7 +74,7 @@ export async function GET(
  * the canonical row in the same transaction that stages durable S3 cleanup for retry.
  */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ userId: string; fileId: string }> },
 ) {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -101,6 +101,17 @@ export async function DELETE(
   );
   if (!file || file.patientUserId !== identity.userId) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+
+  const confirmUsed = new URL(request.url).searchParams.get('confirmUsed') === 'true';
+  const mediaFileId = file.mediaFileId;
+  if (mediaFileId) {
+    const usage = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.media.findUsage(mediaFileId),
+    );
+    if (usage.length > 0 && !confirmUsed) {
+      return NextResponse.json({ ok: false, error: 'media_in_use', usage }, { status: 409 });
+    }
   }
 
   const deleted = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.files.delete', () =>

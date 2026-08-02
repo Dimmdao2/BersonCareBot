@@ -164,4 +164,50 @@ describe('patient file deletion UI', () => {
     expect(await screen.findByText('Не удалось удалить файл.')).toBeInTheDocument();
     expect(screen.getByText('Удалить файл?')).toBeInTheDocument();
   });
+
+  it('requires a second explicit confirmation before deleting a file used by materials', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            ok: false,
+            error: 'media_in_use',
+            usage: [{ pageId: 'page', pageSlug: 'guide', field: 'body_md' }],
+          },
+          409,
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    render(<PatientTabFiles userId={patientId} initialFiles={[storedFile]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' }).at(-1)!);
+
+    expect(await screen.findByText('Файл используется в материалах')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Найдено использований: 1. После удаления связанные материалы перестанут показывать этот файл.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Файл удалён. Место в хранилище освобождено.'),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить несмотря на использование' }));
+
+    expect(
+      await screen.findByText('Файл удалён. Место в хранилище освобождено.'),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `/api/doctor/patients/${patientId}/files/${pendingFileId}`,
+      { method: 'DELETE' },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `/api/doctor/patients/${patientId}/files/${pendingFileId}?confirmUsed=true`,
+      { method: 'DELETE' },
+    );
+  });
 });

@@ -966,6 +966,7 @@ export function PatientTabFiles({
   const [filePendingDelete, setFilePendingDelete] = useState<FileRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteUsageCount, setDeleteUsageCount] = useState(0);
   const [deletionNotice, setDeletionNotice] = useState<string | null>(null);
 
   const loadFiles = useCallback(async () => {
@@ -1022,21 +1023,35 @@ export function PatientTabFiles({
     void loadFiles();
   }
 
-  async function deleteSelectedFile() {
+  async function deleteSelectedFile(confirmUsed = false) {
     const file = filePendingDelete;
     if (!file) return;
     setDeleting(true);
     setDeleteError(null);
     try {
-      const response = await fetch(`/api/doctor/patients/${userId}/files/${file.id}`, {
-        method: 'DELETE',
-      });
+      const confirmUsedQuery = confirmUsed ? '?confirmUsed=true' : '';
+      const response = await fetch(
+        `/api/doctor/patients/${userId}/files/${file.id}${confirmUsedQuery}`,
+        {
+          method: 'DELETE',
+        },
+      );
       const data = (await response.json().catch(() => null)) as {
         ok?: boolean;
         error?: string;
+        usage?: unknown[];
       } | null;
       if (!response.ok || !data?.ok) {
-        setDeleteError(data?.error === 'not_found' ? 'Файл уже удалён или недоступен.' : 'Не удалось удалить файл.');
+        if (response.status === 409 && data?.error === 'media_in_use') {
+          setDeleteUsageCount(Math.max(1, Array.isArray(data.usage) ? data.usage.length : 1));
+          setDeleteError(null);
+          return;
+        }
+        setDeleteError(
+          data?.error === 'not_found'
+            ? 'Файл уже удалён или недоступен.'
+            : 'Не удалось удалить файл.',
+        );
         return;
       }
       setFiles((previous) => previous.filter((item) => item.id !== file.id));
@@ -1045,6 +1060,7 @@ export function PatientTabFiles({
         return files.find((item) => item.id !== file.id)?.id ?? null;
       });
       setFilePendingDelete(null);
+      setDeleteUsageCount(0);
       setDeletionNotice('Файл удалён. Место в хранилище освобождено.');
     } catch {
       setDeleteError('Сетевая ошибка. Файл не удалён.');
@@ -1148,6 +1164,7 @@ export function PatientTabFiles({
         onDeleteRequested={(file) => {
           setFilePendingDelete(file);
           setDeleteError(null);
+          setDeleteUsageCount(0);
         }}
       />
     </CatalogRightPane>
@@ -1161,15 +1178,19 @@ export function PatientTabFiles({
           if (!open && !deleting) {
             setFilePendingDelete(null);
             setDeleteError(null);
+            setDeleteUsageCount(0);
           }
         }}
       >
         <DialogContent showCloseButton={!deleting}>
           <DialogHeader>
-            <DialogTitle>Удалить файл?</DialogTitle>
+            <DialogTitle>
+              {deleteUsageCount > 0 ? 'Файл используется в материалах' : 'Удалить файл?'}
+            </DialogTitle>
             <DialogDescription>
-              Файл «{filePendingDelete?.fileName}» исчезнет из карты пациента, а удаление из
-              хранилища будет безопасно завершено в фоне.
+              {deleteUsageCount > 0
+                ? `Найдено использований: ${deleteUsageCount}. После удаления связанные материалы перестанут показывать этот файл.`
+                : `Файл «${filePendingDelete?.fileName ?? ''}» исчезнет из карты пациента, а удаление из хранилища будет безопасно завершено в фоне.`}
             </DialogDescription>
           </DialogHeader>
           {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
@@ -1178,12 +1199,24 @@ export function PatientTabFiles({
               type="button"
               variant="outline"
               disabled={deleting}
-              onClick={() => setFilePendingDelete(null)}
+              onClick={() => {
+                setFilePendingDelete(null);
+                setDeleteUsageCount(0);
+              }}
             >
               Отмена
             </Button>
-            <Button type="button" variant="destructive" disabled={deleting} onClick={() => void deleteSelectedFile()}>
-              {deleting ? 'Удаление…' : 'Удалить'}
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => void deleteSelectedFile(deleteUsageCount > 0)}
+            >
+              {deleting
+                ? 'Удаление…'
+                : deleteUsageCount > 0
+                  ? 'Удалить несмотря на использование'
+                  : 'Удалить'}
             </Button>
           </DialogFooter>
         </DialogContent>
