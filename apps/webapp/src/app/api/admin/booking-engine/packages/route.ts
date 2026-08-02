@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  requireEntitlementForMutation,
+  requireEntitlementForRead,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
@@ -25,6 +29,8 @@ const upsertSchema = z.object({
 export async function GET() {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForRead(gate.ctx, 'subscriptions');
+  if (!entitlement.ok) return entitlement.response;
   const deps = buildAppDeps();
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
@@ -36,6 +42,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'subscriptions');
+  if (!entitlement.ok) return entitlement.response;
   const parsed = upsertSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });

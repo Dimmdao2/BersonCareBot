@@ -6,9 +6,12 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
+} from '@/app-layer/guards/requireEntitlement';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import {
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -40,6 +43,10 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const workspace = await requireDoctorWorkspaceContext();
   const session = workspace.session;
   const deps = buildAppDeps();
+  const membershipAccess = await getMechanicSurfaceVisibility(workspace, 'subscriptions');
+  const membershipMutation = membershipAccess.specialistNavigation
+    ? await getMechanicMutationAvailability(workspace, 'subscriptions')
+    : { available: false as const };
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     workspace.organizationId,
@@ -281,6 +288,8 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialFinancesData={initialFinancesData}
           initialSupplementaryContacts={initialSupplementaryContacts}
           initialPackages={initialPackagesForTabs}
+          membershipsVisible
+          membershipMutationsAllowed={membershipMutation.available}
           initialPaymentsSummary={initialPaymentsSummary}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
           initialPortalState={portalState}

@@ -1078,6 +1078,10 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       src/app/app/accessLifecycleSurfaces.ui.test.tsx` (10/10) и `pnpm --dir apps/webapp exec vitest --run
       --project=fast src/app-layer/guards/requireEntitlementReadOnlyRefusesWrites.test.ts` (7/7); при временном
       снятии ветки `read_only` упали 2 UI- и 5 write-сценариев.
+      — Абонементы: кандидат `wt/subscriptions-entitlement-visibility` проводит `subscriptions` через видимость
+      карточки пациента у врача и раздел пациента, прямые read/write API; `read_only` сохраняет чтение и убирает
+      package mutations, `disabled` скрывает обе поверхности. Галочка остаётся открытой до независимой приёмки и
+      живой проверки, что уже купленный абонемент продолжает работать.
 - [ ] **4.8** Рассылки — после появления модели каналов клиники в соседнем потоке (#1071), по их контракту.
 - [ ] **4.9** Три механики владельца («Сегодня», разминки, промо) — выключены у всех, включаются ему существующим
       исключением организации, и подчиняются лестнице как все. — ПРОМО ДОКАЗАНО: один `getMechanicSurfaceVisibility`
