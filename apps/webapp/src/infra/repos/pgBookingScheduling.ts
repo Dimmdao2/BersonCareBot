@@ -2,7 +2,7 @@ import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from 'drizzle-or
 import type { BreakInterval } from '@/modules/booking-scheduling/ports';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
-import { readAdminSystemSettingInnerValue } from '@/infra/repos/pgSystemSettings';
+import { getServerRuntimeInteger } from '@/modules/system-settings/configAdapter';
 import {
   beAppointments,
   beBranches,
@@ -420,28 +420,12 @@ export function createPgBookingSchedulingPort(
       });
     },
 
-    async getMinNoticeHours(_organizationId) {
-      const inner = await readAdminSystemSettingInnerValue('booking_min_notice_hours');
-      const n =
-        typeof inner === 'number' && Number.isFinite(inner)
-          ? inner
-          : typeof inner === 'string' && /^\d+$/.test(inner.trim())
-            ? Number.parseInt(inner.trim(), 10)
-            : 0;
-      return Math.max(0, Math.min(168, Math.round(n)));
+    async getMinNoticeHours(organizationId) {
+      return getServerRuntimeInteger('booking_min_notice_hours', organizationId);
     },
 
     async getMaxConsecutiveSlotHours(organizationId) {
-      const inner = await readAdminSystemSettingInnerValue('booking_max_consecutive_slot_hours', {
-        organizationId,
-      });
-      const n =
-        typeof inner === 'number' && Number.isFinite(inner)
-          ? inner
-          : typeof inner === 'string' && /^\d+(?:\.\d+)?$/.test(inner.trim())
-            ? Number.parseFloat(inner.trim())
-            : 3;
-      return Math.max(1, Math.min(24, n));
+      return getServerRuntimeInteger('booking_max_consecutive_slot_hours', organizationId);
     },
 
     async listScheduleBlocks({

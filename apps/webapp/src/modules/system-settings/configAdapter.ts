@@ -91,8 +91,28 @@ export function getServerRuntimeBool(key: ServerRuntimeBooleanKey): Promise<bool
   return safeRuntimeConfig.getServerBoolean(key);
 }
 
-export function getServerRuntimeInteger(key: ServerRuntimeIntegerKey): Promise<number> {
-  return safeRuntimeConfig.getServerInteger(key);
+export function getServerRuntimeInteger(
+  key: ServerRuntimeIntegerKey,
+  organizationId: string | null = null,
+): Promise<number> {
+  return safeRuntimeConfig.getServerInteger(key, organizationId);
+}
+
+export type ServerConfigStructuredKey = 'test_account_identifiers';
+
+/**
+ * Required structured server configuration. It shares the DB-only cache and failure semantics of
+ * `getConfigValue`; malformed JSON is unavailable, never an implicit empty configuration.
+ */
+export async function getServerConfigStructuredValue(
+  key: ServerConfigStructuredKey,
+): Promise<unknown> {
+  const value = await getConfigValue(key);
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    throw new RuntimeSettingUnavailableError(key);
+  }
 }
 
 /**

@@ -77,12 +77,16 @@
       `infra/db/writePort.ts`), это воркстрим интегратора. Из пяти очередей в вебаппе только перекодировка
       медиа, и обходов там нет. Пункт попал сюда механически: перепись чокпойнтов шла по всему репозиторию,
       а строки перенесены в план без разбора, чей это код.
-- [ ] **Ч4. Настройки: три файла читают базу мимо общего читателя.** Канонический читатель
+- [x] **Ч4. Настройки: три файла читают базу мимо общего читателя.** Канонический читатель
       `modules/system-settings/configAdapter.ts` (кэш → база → значение из конфигурации), у него 36
       потребителей. Мимо ходят `infra/repos/pgBookingEngine.ts`, `pgBookingScheduling.ts`,
       `pgProductAnalytics.ts` — читают базу напрямую, без кэша и без запасного значения. Последствие:
       обходящий код видит не то же, что остальное приложение, а при недоступности базы — ничего.
       Готово = три файла переведены на общего читателя.
+      **Закрыто 02.08:** product `b398fe178`, independent audit `0c597e8ec` /
+      `ch4-settings-reader-audit-r1`; четыре прямых чтения в трёх repos → 0, per-org лимиты используют
+      canonical runtime reader, default organization и structured analytics config fail closed. Focused 19/19,
+      scoped ESLint/typecheck/raw-SQL/diff green; fault injection на `0`, organization id и malformed JSON красный.
 - [ ] **Ч4б. Квоты: дубль логики в SQL — инженерный этап, не owner-gate.** Резолвер прав один
       (`modules/org-entitlements/service.ts`), но проверка квоты В МОМЕНТ ЗАПИСИ продублирована в SQL
       (`infra/repos/stockQuotaCheck.ts` + инлайн в `pgOrganizationInvites.ts`), и в комментариях кода это
