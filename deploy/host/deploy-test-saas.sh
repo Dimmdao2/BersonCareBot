@@ -1342,9 +1342,9 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # Воркер квот этот счётчик не обновил — поймано лидом до выката; без правки деплой упал бы FATAL
   # посреди закрытия, как 24.07.
   # 109 -> 110 (2026-07-28, #1069 correction): C5A adds
-  # app.read_org_enforced_quota_usage(uuid), a count-only seam over courses, memberships and
-  # organization_member_invites. The reviewed app_owner SELECT grants are pinned above; the
-  # platform role receives EXECUTE only and cannot read course content, invite email or token_hash.
+  # app.read_org_enforced_quota_usage(uuid), a count-only seam over clinic-team memberships,
+  # patient enrollments and patient-file bytes. The reviewed app_owner SELECT grants are pinned
+  # above; the platform role receives EXECUTE only and cannot read invite, enrollment or file rows.
   # 110 -> 115 (2026-07-30, #1065): migration 0274 adds the atomic password-login admission and
   # ALTCHA accessors and moves the password self-service writers behind app_owner. Their exact
   # protection-table DML grants are pinned above; app_patient/app_staff retain no direct table ACL.

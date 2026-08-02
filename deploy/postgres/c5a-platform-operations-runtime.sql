@@ -741,6 +741,15 @@ WITH expected(relation_name) AS (
     COALESCE(relations.relacl, acldefault('r', relations.relowner))
   ) AS privilege
   WHERE privilege.grantee = 'app_platform_settings'::regrole
+), actual_column_acl AS (
+  SELECT relations.relation_name, attribute.attname, privilege.privilege_type, privilege.is_grantable
+  FROM relations
+  JOIN pg_attribute AS attribute
+    ON attribute.attrelid = relations.oid
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+  CROSS JOIN LATERAL aclexplode(attribute.attacl) AS privilege
+  WHERE privilege.grantee = 'app_platform_settings'::regrole
 ), actual_policy AS (
   SELECT
     relations.relation_name,
@@ -758,6 +767,7 @@ SELECT (
   (SELECT count(*) FROM relations) = 3
   AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
   AND NOT EXISTS (SELECT 1 FROM actual_acl)
+  AND NOT EXISTS (SELECT 1 FROM actual_column_acl)
   AND NOT EXISTS (SELECT 1 FROM actual_policy)
   AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
   AND has_table_privilege('app_owner', 'public.organization_member_invites', 'SELECT')
