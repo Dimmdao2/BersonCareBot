@@ -2199,6 +2199,13 @@
       "when": 1793539230020,
       "tag": "0319_integrator_provider_runtime_config_capability_local",
       "breakpoints": true
+    },
+    {
+      "idx": 314,
+      "version": "7",
+      "when": 1793539230021,
+      "tag": "0320_tariff_policy_live_progression_local",
+      "breakpoints": true
     }
   ]
 }
