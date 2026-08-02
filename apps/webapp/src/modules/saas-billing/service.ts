@@ -128,11 +128,13 @@ export function createSaasBillingService(dependencies: {
       providerIdempotencyKey: input.providerIdempotencyKey,
       providerId: provider.providerId,
     });
-    // Repeat of an already-inserted request (same idempotency key): the first call already ran the
-    // provider intent and attached its checkout link below — return that invoice as-is rather than
-    // charging the provider a second time for the same click.
-    if (!created) return invoice;
-    const intent = await provider.adapter.createIntent({
+    if (!created && invoice.providerCheckoutUrl) return invoice;
+    const claimed =
+      (await dependencies.repository.claimSaasBillingInvoiceProviderIntent?.(invoice.id)) ??
+      (created || invoice.status === 'draft');
+    if (!claimed) return invoice;
+    try {
+      const intent = await provider.adapter.createIntent({
       amountMinor: invoice.amountMinor,
       currency: invoice.currency,
       idempotencyKey: invoice.providerIdempotencyKey,
@@ -147,12 +149,16 @@ export function createSaasBillingService(dependencies: {
       },
       providerConfig: provider.providerConfig,
       savePaymentMethod: input.savePaymentMethod,
-    });
-    return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
-      saasBillingInvoiceId: invoice.id,
-      providerInvoiceRef: intent.providerIntentRef,
-      providerCheckoutUrl: intent.checkoutUrl ?? null,
-    });
+      });
+      return await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+        saasBillingInvoiceId: invoice.id,
+        providerInvoiceRef: intent.providerIntentRef,
+        providerCheckoutUrl: intent.checkoutUrl ?? null,
+      });
+    } catch (error) {
+      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.(invoice.id);
+      throw error;
+    }
   }
 
   /**
@@ -217,11 +223,14 @@ export function createSaasBillingService(dependencies: {
         invoiceKind: 'tariff_period',
         additionalSeatQuantity: 0,
       });
-    // Repeat of an already-inserted request: the first call already raised the provider invoice and
-    // attached its checkout link below — hand back that SAME invoice/link, not a second one.
-    if (!wasCreated) return invoice;
+    if (!wasCreated && invoice.providerCheckoutUrl) return invoice;
+    const claimed =
+      (await dependencies.repository.claimSaasBillingInvoiceProviderIntent?.(invoice.id)) ??
+      (wasCreated || invoice.status === 'draft');
+    if (!claimed) return invoice;
 
-    const intent = await provider.adapter.createIntent({
+    try {
+      const intent = await provider.adapter.createIntent({
       amountMinor: invoice.amountMinor,
       currency: invoice.currency,
       idempotencyKey: invoice.providerIdempotencyKey,
@@ -236,13 +245,17 @@ export function createSaasBillingService(dependencies: {
         saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
       },
       providerConfig: provider.providerConfig,
-    });
+      });
 
-    return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
-      saasBillingInvoiceId: invoice.id,
-      providerInvoiceRef: intent.providerIntentRef,
-      providerCheckoutUrl: intent.checkoutUrl ?? null,
-    });
+      return await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
+        saasBillingInvoiceId: invoice.id,
+        providerInvoiceRef: intent.providerIntentRef,
+        providerCheckoutUrl: intent.checkoutUrl ?? null,
+      });
+    } catch (error) {
+      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.(invoice.id);
+      throw error;
+    }
   }
 
   async function purchaseSeatOverage(input: {
