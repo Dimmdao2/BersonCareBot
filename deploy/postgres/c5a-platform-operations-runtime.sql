@@ -498,18 +498,26 @@ BEGIN
     RAISE EXCEPTION 'provisioned_owner_organization_required';
   END IF;
 
-  -- §5a item 2.6a -- the registration-tariff setting, independent of the trial policy below. A
-  -- missing row, a NULL tariff_id, or a since-archived tariff all collapse to the same NULL here:
-  -- "no starting tariff configured" is a legal admin choice, not a lookup failure.
+  -- §5a item 2.6a -- the registration-tariff setting is independent of the trial policy below.
+  -- A missing row or NULL tariff_id is a legal owner choice: the clinic picks a tariff later. A
+  -- non-NULL reference must resolve to an active tariff; silently treating a broken setting as
+  -- NULL would create an organization without the tariff the owner configured.
   SELECT reg.tariff_id
   INTO v_registration_tariff_id
   FROM public.saas_registration_tariff_policy AS reg
-  INNER JOIN public.saas_tariffs AS tariff
-    ON tariff.id = reg.tariff_id
-   AND tariff.is_active
   WHERE reg.key = 'global'
   LIMIT 1
   FOR UPDATE OF reg;
+
+  IF FOUND AND v_registration_tariff_id IS NOT NULL THEN
+    PERFORM 1
+    FROM public.saas_tariffs AS tariff
+    WHERE tariff.id = v_registration_tariff_id
+      AND tariff.is_active;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'registration_tariff_policy_tariff_invalid';
+    END IF;
+  END IF;
 
   SELECT policy.*
   INTO v_policy

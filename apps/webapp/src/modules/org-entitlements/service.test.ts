@@ -34,6 +34,7 @@ import {
 } from '@/modules/org-entitlements/types';
 
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
+import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -47,6 +48,38 @@ const activeAccess = {
   tariffId: 'tariff',
   source: 'assignment' as const,
 };
+
+describe('registration tariff policy archive wall', () => {
+  const tariffInput: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'> = {
+    name: 'Registration tariff',
+    description: '',
+    priceMinor: null,
+    currency: null,
+    billingPeriod: 'month',
+    mechanics: {},
+    quotas: {},
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {},
+    downgradePolicies: {},
+    includedSeats: 1,
+    additionalSeatPriceMinor: null,
+    isActive: true,
+  };
+
+  it('refuses both admin deactivation paths while the registration tariff policy is non-empty', async () => {
+    const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    const audit = { actorId: 'admin', reason: 'registration policy wall' };
+    const tariff = await service.createTariff(tariffInput, audit);
+    await service.setRegistrationTariffPolicy({ tariffId: tariff.id }, audit);
+
+    await expect(service.archiveTariff(tariff.id, audit)).rejects.toThrow(
+      'tariff_used_by_registration_tariff_policy',
+    );
+    await expect(service.updateTariff(tariff.id, { ...tariffInput, isActive: false }, audit)).rejects.toThrow(
+      'tariff_used_by_registration_tariff_policy',
+    );
+  });
+});
 
 const unconfiguredPolicies = {
   systemAccessPolicy: null,

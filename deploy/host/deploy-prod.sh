@@ -7,6 +7,7 @@ WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.prod
 MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.prod
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
+C5A_PLATFORM_OPERATIONS_RUNTIME=deploy/postgres/c5a-platform-operations-runtime.sql
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
 SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql
@@ -107,6 +108,7 @@ require_file "${MEDIA_WORKER_ENV_FILE}" "Media-worker environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
 require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_RUNTIME}" "C4 operational runtime contract"
 require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}" "C4 operational readiness probe"
+require_file "${PROJECT_ROOT}/${C5A_PLATFORM_OPERATIONS_RUNTIME}" "C5A platform operations runtime overlay"
 require_file "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}" "Specialist owner provisioning overlay"
 require_file "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}" "Reference catalog RLS overlay"
 require_file "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}" "Patient-visible catalog RLS overlay"
@@ -175,6 +177,7 @@ pnpm --dir apps/webapp run migrate
 # provisioning function in the same post-migration order as the SaaS TEST wrapper so a newly
 # created organization receives its catalog snapshot in the organization-creation transaction.
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}"
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${C5A_PLATFORM_OPERATIONS_RUNTIME}"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"

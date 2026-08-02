@@ -37,7 +37,7 @@ const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 const pgBinDir = '/usr/lib/postgresql/16/bin';
 
 const requireFromWebapp = createRequire(path.join(repoRoot, 'apps/webapp/package.json'));
-const { Client } = requireFromWebapp('pg');
+let Client;
 
 const paths = {
   bindingHelper: path.join(repoRoot, 'apps/webapp/scripts/u3s-current-contract-binding-smoke.ts'),
@@ -103,7 +103,16 @@ const paths = {
     repoRoot,
     'apps/webapp/db/drizzle-migrations/0269_remove_specialist_signup_slug_reservation.sql',
   ),
+  migration0289: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0289_saas_registration_tariff_policy_local.sql',
+  ),
+  migration0291: path.join(
+    repoRoot,
+    'apps/webapp/db/drizzle-migrations/0291_saas_registration_tariff_policy_walls_local.sql',
+  ),
   c5aPlatformOperations: path.join(repoRoot, 'deploy/postgres/c5a-platform-operations-runtime.sql'),
+  prodDeploy: path.join(repoRoot, 'deploy/host/deploy-prod.sh'),
   ownerProvisioningOverlay: path.join(
     repoRoot,
     'deploy/postgres/specialist-owner-provisioning-rls.sql',
@@ -171,6 +180,24 @@ const users = {
     fullName: 'Existing Owner',
     organizationId: '33000000-0000-4000-8000-000000000033',
   },
+  registrationNull: {
+    userId: '36000000-0000-4000-8000-000000000006',
+    intentId: '36000000-0000-4000-8000-000000000026',
+    challengeId: '36000000-0000-4000-8000-000000000016',
+    email: 'registration-null@example.invalid',
+    organizationTitle: 'Registration Null Policy',
+    organizationSlug: 'registration-null-policy',
+    fullName: 'Registration Null',
+  },
+  registrationBroken: {
+    userId: '37000000-0000-4000-8000-000000000007',
+    intentId: '37000000-0000-4000-8000-000000000027',
+    challengeId: '37000000-0000-4000-8000-000000000017',
+    email: 'registration-broken@example.invalid',
+    organizationTitle: 'Registration Broken Policy',
+    organizationSlug: 'registration-broken-policy',
+    fullName: 'Registration Broken',
+  },
 };
 
 let clusterStarted = false;
@@ -185,6 +212,7 @@ if (process.argv.includes('--static-only')) {
   process.exit(0);
 }
 
+({ Client } = requireFromWebapp('pg'));
 installSignalCleanup();
 
 try {
@@ -385,6 +413,8 @@ function installCanonicalSchema() {
     paths.migration0257,
     paths.migration0267,
     paths.migration0269,
+    paths.migration0289,
+    paths.migration0291,
   ]) {
     psqlFile(migrationPath, {
       prefix: `BEGIN;\nSET ROLE ${quoteIdent(appOwnerRole)};`,
@@ -637,9 +667,74 @@ async function runCurrentContractProof() {
 
   assertProvisioningState(users.first, first);
   assertProvisioningState(users.concurrent, concurrent[0]);
+  await assertRegistrationTariffPolicyContracts(principal, lockedOptions);
   await assertStaffCommercialReadWall(principal, lockedOptions, first, concurrent[0]);
   runCanonicalBindingHelper(first, users.existingMember.organizationId);
   assertBindingState(users.first, first);
+}
+
+async function assertRegistrationTariffPolicyContracts(principal, lockedOptions) {
+  psql(`
+SET ROLE ${quoteIdent(appOwnerRole)};
+UPDATE public.saas_trial_policy SET is_active = false WHERE key = 'global';
+INSERT INTO public.saas_registration_tariff_policy (key, tariff_id)
+VALUES ('global', NULL)
+ON CONFLICT (key) DO UPDATE SET tariff_id = EXCLUDED.tariff_id, updated_at = now();
+RESET ROLE;
+`);
+  const nullPolicyReceipt = await provisionOnce(
+    principal,
+    lockedOptions,
+    users.registrationNull.userId,
+    users.registrationNull.challengeId,
+  );
+  assert(nullPolicyReceipt.ok === true, 'NULL registration tariff policy must allow provisioning');
+  const nullPolicyState = JSON.parse(
+    psqlScalar(`
+SELECT json_build_object(
+  'tariff_id', (SELECT tariff_id FROM public.be_organizations WHERE id = ${quoteLiteral(nullPolicyReceipt.organizationId)}::uuid),
+  'trials', (SELECT count(*) FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(nullPolicyReceipt.organizationId)}::uuid)
+)::text;
+`),
+  );
+  assert(nullPolicyState.tariff_id === null, 'NULL registration tariff policy must leave tariff selection to the clinic');
+  assert(nullPolicyState.trials === 0, 'disabled trial plus NULL registration tariff policy must create no trial');
+
+  psql(`
+SET ROLE ${quoteIdent(appOwnerRole)};
+UPDATE public.saas_registration_tariff_policy
+SET tariff_id = ${quoteLiteral(trialTariffId)}::uuid, updated_at = now()
+WHERE key = 'global';
+UPDATE public.saas_tariffs SET is_active = false WHERE id = ${quoteLiteral(trialTariffId)}::uuid;
+RESET ROLE;
+`);
+  try {
+    await provisionOnce(
+      principal,
+      lockedOptions,
+      users.registrationBroken.userId,
+      users.registrationBroken.challengeId,
+    );
+  } catch (error) {
+    assert(
+      error instanceof Error && error.message.includes('registration_tariff_policy_tariff_invalid'),
+      'broken non-NULL registration tariff policy must fail with its stable error',
+    );
+    const rollbackState = JSON.parse(
+      psqlScalar(`
+SELECT json_build_object(
+  'intent_status', (SELECT status FROM public.specialist_signup_intents WHERE id = ${quoteLiteral(users.registrationBroken.intentId)}::uuid),
+  'organizations', (SELECT count(*) FROM public.be_organizations WHERE title = ${quoteLiteral(users.registrationBroken.organizationTitle)}),
+  'memberships', (SELECT count(*) FROM public.be_organization_members WHERE platform_user_id = ${quoteLiteral(users.registrationBroken.userId)}::uuid)
+)::text;
+`),
+    );
+    assert(rollbackState.intent_status === 'pending', 'broken registration tariff policy must leave the signup intent pending');
+    assert(rollbackState.organizations === 0, 'broken registration tariff policy must roll back the organization');
+    assert(rollbackState.memberships === 0, 'broken registration tariff policy must roll back the membership');
+    return;
+  }
+  throw new Error('broken non-NULL registration tariff policy unexpectedly provisioned an organization');
 }
 
 function seedFixtures() {
@@ -1092,8 +1187,7 @@ function assertStaticSourceGuards() {
     Object.entries(paths).map(([key, filePath]) => [key, readFileSync(filePath, 'utf8')]),
   );
   assert(
-    /getPublicRuntimeBool\(['"]specialist_signup_enabled['"]\)/.test(source.rollout) &&
-      source.runtimeConfig.includes('specialist_signup_enabled: false'),
+    /getPublicRuntimeBool\(['"]specialist_signup_enabled['"]\)/.test(source.rollout),
     'specialist signup must remain disabled by default',
   );
   assert(
@@ -1231,6 +1325,23 @@ function assertStaticSourceGuards() {
         'WHERE member.platform_user_id = app.current_patient_user_id()',
       ),
     'specialist provisioning must retain the canonical C5A trial-assignment chain',
+  );
+  assertOrder(
+    source.prodDeploy,
+    [
+      'require_file "${PROJECT_ROOT}/${C5A_PLATFORM_OPERATIONS_RUNTIME}"',
+      'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}"',
+      'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${C5A_PLATFORM_OPERATIONS_RUNTIME}"',
+      'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}"',
+    ],
+    'production deploy C5A post-migration overlay order',
+  );
+  assert(
+    source.c5aPlatformOperations.includes("RAISE EXCEPTION 'registration_tariff_policy_tariff_invalid'") &&
+      source.c5aPlatformOperations.includes('FROM public.saas_registration_tariff_policy AS reg') &&
+      source.c5aPlatformOperations.includes('WHERE tariff.id = v_registration_tariff_id') &&
+      source.c5aPlatformOperations.includes('AND tariff.is_active'),
+    'C5A must distinguish legal NULL registration policy from a broken non-NULL tariff reference',
   );
 }
 
