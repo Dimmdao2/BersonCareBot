@@ -18,6 +18,36 @@ describe('specialist task tariff UI', () => {
     expect(screen.queryByText('Нет открытых задач')).not.toBeInTheDocument();
   });
 
+  it('keeps existing Today tasks readable, but removes their mutation controls, in read-only mode', () => {
+    render(
+      <DoctorGlobalTasksSection
+        available={false}
+        initialTasks={[
+          {
+            id: '00000000-0000-4000-8000-000000004069',
+            ownerUserId: '00000000-0000-4000-8000-000000002069',
+            patientUserId: null,
+            title: 'Позвонить пациенту',
+            description: null,
+            dueAt: null,
+            remindAt: null,
+            reminderSentAt: null,
+            isImportant: false,
+            completedAt: null,
+            createdAt: '2026-08-02T00:00:00.000Z',
+            updatedAt: '2026-08-02T00:00:00.000Z',
+          },
+        ]}
+        todayIso="2026-08-02"
+      />,
+    );
+
+    expect(screen.getByText('Позвонить пациенту')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Новая' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Выполнить' })).not.toBeInTheDocument();
+  });
+
   it('removes the patient-card task editor when specialist tasks are unavailable', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
