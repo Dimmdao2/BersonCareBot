@@ -44,3 +44,15 @@
 
 Не трогать CMS, тарифы, billing, booking, clinic channels, общий `feat`, общий dev-server, внешние каналы,
 TEST/PROD и deploy. Не закрывать D7/D21 и не менять taskdb — это делает оркестратор после аудита и live evidence.
+
+## Evidence (02.08, worker)
+
+- `0321_reminder_callback_operational_occurrence` заменяет только snooze capability: в одной
+  security-definer транзакции она сохраняет canonical history/journal и переносит exact-org
+  `integrator.user_reminder_occurrences` в `planned` на возвращённый канонический срок. Повтор
+  возвращает первоначальный срок без новой записи и без нового расчёта; table grants для runtime не добавлены.
+- Disposable PostgreSQL acceptance расширен на snooze exact-org/user denial, replay, operational due semantics;
+  `done`/`skip` закреплены как уже недоступные due-reader после отправки, mute — как блокирующий due-reader.
+- Выполнены: `git diff --check`; `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`; `bash apps/webapp/scripts/check-legacy-migrations-frozen.sh`.
+- Не выполнены в этом worktree из-за отсутствующего `node_modules`: PostgreSQL/Vitest acceptance,
+  integrator/webapp typecheck и `check-no-new-raw-sql` (Node не находит `vitest`/`typescript`).

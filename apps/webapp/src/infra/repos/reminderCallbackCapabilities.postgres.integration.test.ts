@@ -24,6 +24,8 @@ const doneOccurrenceA = `d7-done-a-${randomUUID()}`;
 const doneOccurrenceB = `d7-done-b-${randomUUID()}`;
 const snoozeOccurrenceA = `d7-snooze-a-${randomUUID()}`;
 const skipOccurrenceA = `d7-skip-a-${randomUUID()}`;
+const muteOccurrenceA = `d7-mute-a-${randomUUID()}`;
+const rollbackOccurrenceA = `d7-rollback-a-${randomUUID()}`;
 
 const fixtureTables = [
   'public.be_organizations',
@@ -32,6 +34,7 @@ const fixtureTables = [
   'public.reminder_occurrence_history',
   'public.reminder_journal',
   'public.app_runtime_settings',
+  'integrator.user_reminder_occurrences',
 ] as const;
 
 function errorMessages(error: unknown): string {
@@ -43,8 +46,8 @@ describe('D7 signed reminder callback capabilities', () => {
   const pool = getPool();
   let client: PoolClient;
   let signingSecret: string;
-  let originalSigningSecret: string | null;
-  let originalTimezoneSetting: { audience: string; value_json: unknown } | null;
+  let originalSigningSecret: string | null = null;
+  let originalTimezoneSetting: { audience: string; value_json: unknown } | null = null;
 
   async function run<T = unknown>(queryText: string, values: readonly unknown[] = []) {
     return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
@@ -141,7 +144,10 @@ describe('D7 signed reminder callback capabilities', () => {
     );
     await run(
       `INSERT INTO public.org_enrollments (organization_id, platform_user_id, status)
-       VALUES ($1::uuid, $2::uuid, 'active'), ($3::uuid, $4::uuid, 'active')`,
+       VALUES
+         ($1::uuid, $2::uuid, 'active'),
+         ($3::uuid, $2::uuid, 'active'),
+         ($3::uuid, $4::uuid, 'active')`,
       [orgA, patientA, orgB, patientB],
     );
     await run(
@@ -152,7 +158,7 @@ describe('D7 signed reminder callback capabilities', () => {
        ) VALUES
          ($1, $2::uuid, $3::bigint, $4::uuid, 'lfk', true, 'interval_window', 'Europe/Moscow', 60, 480, 1320, '1111111', 'none', 'training_reminders'),
          ($5, $6::uuid, $7::bigint, $8::uuid, 'lfk', true, 'interval_window', 'Europe/Moscow', 60, 480, 1320, '1111111', 'none', 'training_reminders')`,
-      [ruleA, patientA, userA, orgA, ruleB, patientA, userA, orgB],
+      [ruleA, patientA, userA, orgA, ruleB, patientB, userB, orgB],
     );
     await run(
       `INSERT INTO public.reminder_occurrence_history (
@@ -161,7 +167,8 @@ describe('D7 signed reminder callback capabilities', () => {
          ($1, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-02T09:00:00.000Z'),
          ($5, $6, $7::bigint, $8::uuid, 'lfk', 'sent', '2026-08-02T09:10:00.000Z'),
          ($9, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-02T09:20:00.000Z'),
-         ($10, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-02T09:30:00.000Z')`,
+         ($10, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-02T09:30:00.000Z'),
+         ($11, $2, $3::bigint, $4::uuid, 'lfk', 'sent', '2026-08-03T09:40:00.000Z')`,
       [
         doneOccurrenceA,
         ruleA,
@@ -169,10 +176,37 @@ describe('D7 signed reminder callback capabilities', () => {
         orgA,
         doneOccurrenceB,
         ruleB,
-        userA,
+        userB,
         orgB,
         snoozeOccurrenceA,
         skipOccurrenceA,
+        rollbackOccurrenceA,
+      ],
+    );
+    await run(
+      `INSERT INTO integrator.user_reminder_occurrences (
+         id, rule_id, occurrence_key, planned_at, status, sent_at, organization_id
+       ) VALUES
+         ($1::text, $2::text, $3::text, '2026-08-02T09:00:00.000Z'::timestamptz, 'sent', '2026-08-02T09:00:00.000Z'::timestamptz, $4::uuid),
+         ($5::text, $6::text, $7::text, '2026-08-02T09:10:00.000Z'::timestamptz, 'sent', '2026-08-02T09:10:00.000Z'::timestamptz, $8::uuid),
+         ($9::text, $2::text, $10::text, '2026-08-02T09:20:00.000Z'::timestamptz, 'sent', '2026-08-02T09:20:00.000Z'::timestamptz, $4::uuid),
+         ($11::text, $2::text, $12::text, '2026-08-02T09:30:00.000Z'::timestamptz, 'sent', '2026-08-02T09:30:00.000Z'::timestamptz, $4::uuid),
+         ($13::text, $2::text, $14::text, statement_timestamp() - interval '1 minute', 'planned', NULL, $4::uuid)`,
+      [
+        doneOccurrenceA,
+        ruleA,
+        `d7-key-done-a-${randomUUID()}`,
+        orgA,
+        doneOccurrenceB,
+        ruleB,
+        `d7-key-done-b-${randomUUID()}`,
+        orgB,
+        snoozeOccurrenceA,
+        `d7-key-snooze-a-${randomUUID()}`,
+        skipOccurrenceA,
+        `d7-key-skip-a-${randomUUID()}`,
+        muteOccurrenceA,
+        `d7-key-mute-a-${randomUUID()}`,
       ],
     );
     const existingTimezone = await run<{ audience: string; value_json: unknown }>(
@@ -187,20 +221,25 @@ describe('D7 signed reminder callback capabilities', () => {
     );
     await run('ALTER TABLE public.be_organizations ENABLE TRIGGER USER');
     // The private migration harness deliberately does not apply the host-owned P2-B runtime ACL
-    // script. Keep fixture tables RLS-disabled while exercising the capability's own exact-org
-    // predicates; grants and SECURITY DEFINER are asserted independently below.
+    // or C4 schema ACL. Keep fixture tables RLS-disabled while exercising the capability's own
+    // exact-org predicates, and supply only C4's app_owner schema usage; table grants and
+    // SECURITY DEFINER remain assertions below.
+    await run('GRANT USAGE ON SCHEMA integrator TO app_owner');
   });
 
   afterAll(async () => {
     await run('RESET ROLE');
     await setFixtureRls(false);
     await run('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
+    await run('DELETE FROM integrator.user_reminder_occurrences WHERE id = ANY($1::text[])', [
+      [doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA, muteOccurrenceA],
+    ]);
     await run('DELETE FROM public.reminder_journal WHERE occurrence_id = ANY($1::text[])', [
       [doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA],
     ]);
     await run(
       'DELETE FROM public.reminder_occurrence_history WHERE integrator_occurrence_id = ANY($1::text[])',
-      [[doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA]],
+      [[doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA, rollbackOccurrenceA]],
     );
     await run('DELETE FROM public.reminder_rules WHERE integrator_rule_id = ANY($1::text[])', [
       [ruleA, ruleB],
@@ -310,16 +349,19 @@ describe('D7 signed reminder callback capabilities', () => {
       }),
     );
     await expect(journalCount(doneOccurrenceA, 'done')).resolves.toBe(1);
+    const operational = await run<{ status: string; due_now: boolean }>(
+      `SELECT status,
+         status = 'planned' AND planned_at <= statement_timestamp() AS due_now
+       FROM integrator.user_reminder_occurrences WHERE id = $1::text`,
+      [doneOccurrenceA],
+    );
+    expect(operational.rows).toEqual([{ status: 'sent', due_now: false }]);
   });
 
-  it('changes only the exact-org occurrence for snooze and skip', async () => {
+  it('changes only the exact-org occurrence for skip', async () => {
     const changed = await withSignedIntegratorPrincipal(
       { organizationId: orgA, integratorUserId: userA },
       async () => {
-        const snooze = await run<{ snoozed_until: string }>(
-          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
-          [snoozeOccurrenceA],
-        );
         const skip = await run<{ skipped_at: string }>(
           `SELECT * FROM app.patient_skip_reminder_occurrence(NULL::uuid, $1::text, NULL::text)`,
           [skipOccurrenceA],
@@ -328,15 +370,115 @@ describe('D7 signed reminder callback capabilities', () => {
           `SELECT * FROM app.patient_skip_reminder_occurrence(NULL::uuid, $1::text, NULL::text)`,
           [doneOccurrenceB],
         );
-        return { snooze, skip, foreign };
+        return { skip, foreign };
       },
     );
-    expect(changed.snooze.rows).toHaveLength(1);
     expect(changed.skip.rows).toHaveLength(1);
     expect(changed.foreign.rows).toEqual([]);
-    await expect(journalCount(snoozeOccurrenceA, 'snoozed')).resolves.toBe(1);
     await expect(journalCount(skipOccurrenceA, 'skipped')).resolves.toBe(1);
     await expect(journalCount(doneOccurrenceB, 'skipped')).resolves.toBe(0);
+    const operational = await run<{ status: string; due_now: boolean }>(
+      `SELECT status,
+         status = 'planned' AND planned_at <= statement_timestamp() AS due_now
+       FROM integrator.user_reminder_occurrences WHERE id = $1::text`,
+      [skipOccurrenceA],
+    );
+    expect(operational.rows).toEqual([{ status: 'sent', due_now: false }]);
+  });
+
+  it('atomically reschedules exactly the signed snoozed occurrence and never replays it', async () => {
+    const first = await withSignedIntegratorPrincipal(
+      { organizationId: orgA, integratorUserId: userA },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [snoozeOccurrenceA],
+        ),
+    );
+    const snoozedUntil = first.rows[0]?.snoozed_until;
+    expect(snoozedUntil).toBeTruthy();
+
+    const changed = await run<{
+      history_snoozed_until: string;
+      operational_planned_at: string;
+      operational_status: string;
+      due_now: boolean;
+    }>(
+      `SELECT
+         history.snoozed_until::text AS history_snoozed_until,
+         operational.planned_at::text AS operational_planned_at,
+         operational.status AS operational_status,
+         operational.status = 'planned'
+           AND operational.planned_at <= statement_timestamp() AS due_now
+       FROM public.reminder_occurrence_history AS history
+       INNER JOIN integrator.user_reminder_occurrences AS operational
+         ON operational.id = history.integrator_occurrence_id
+       WHERE history.integrator_occurrence_id = $1::text`,
+      [snoozeOccurrenceA],
+    );
+    expect(changed.rows[0]).toMatchObject({
+      history_snoozed_until: snoozedUntil,
+      operational_planned_at: snoozedUntil,
+      operational_status: 'planned',
+      due_now: false,
+    });
+    await expect(journalCount(snoozeOccurrenceA, 'snoozed')).resolves.toBe(1);
+
+    const replay = await withSignedIntegratorPrincipal(
+      { organizationId: orgA, integratorUserId: userA },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [snoozeOccurrenceA],
+        ),
+    );
+    expect(replay.rows).toEqual([{ snoozed_until: snoozedUntil }]);
+    await expect(journalCount(snoozeOccurrenceA, 'snoozed')).resolves.toBe(1);
+
+    const foreignOrganization = await withSignedIntegratorPrincipal(
+      { organizationId: orgB, integratorUserId: userA },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [snoozeOccurrenceA],
+        ),
+    );
+    const foreignUser = await withSignedIntegratorPrincipal(
+      { organizationId: orgA, integratorUserId: userB },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [snoozeOccurrenceA],
+        ),
+    );
+    expect(foreignOrganization.rows).toEqual([]);
+    expect(foreignUser.rows).toEqual([]);
+    const unchanged = await run<{ planned_at: string; status: string }>(
+      `SELECT planned_at::text AS planned_at, status
+       FROM integrator.user_reminder_occurrences WHERE id = $1::text`,
+      [snoozeOccurrenceA],
+    );
+    expect(unchanged.rows).toEqual([{ planned_at: snoozedUntil, status: 'planned' }]);
+  });
+
+  it('leaves canonical snooze state absent when its exact operational occurrence is absent', async () => {
+    const result = await withSignedIntegratorPrincipal(
+      { organizationId: orgA, integratorUserId: userA },
+      () =>
+        run<{ snoozed_until: string }>(
+          `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
+          [rollbackOccurrenceA],
+        ),
+    );
+    expect(result.rows).toEqual([]);
+    const canonical = await run<{ snoozed_until: string | null }>(
+      `SELECT snoozed_until::text AS snoozed_until
+       FROM public.reminder_occurrence_history
+       WHERE integrator_occurrence_id = $1::text`,
+      [rollbackOccurrenceA],
+    );
+    expect(canonical.rows).toEqual([{ snoozed_until: null }]);
+    await expect(journalCount(rollbackOccurrenceA, 'snoozed')).resolves.toBe(0);
   });
 
   it('persists mute and channel-topic settings through canonical public state', async () => {
@@ -378,9 +520,21 @@ describe('D7 signed reminder callback capabilities', () => {
     expect(new Date(canonical.rows[0]?.muted_until ?? '').toISOString()).toBe(
       '2026-08-03T00:00:00.000Z',
     );
+    const dueWhileMuted = await run<{ due_now: boolean }>(
+      `SELECT operational.status = 'planned'
+           AND operational.planned_at <= statement_timestamp()
+           AND (patient.reminder_muted_until IS NULL OR patient.reminder_muted_until <= statement_timestamp())
+         AS due_now
+       FROM integrator.user_reminder_occurrences AS operational
+       INNER JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = operational.rule_id
+       INNER JOIN public.platform_users AS patient ON patient.integrator_user_id = rule.integrator_user_id
+       WHERE operational.id = $1::text`,
+      [muteOccurrenceA],
+    );
+    expect(dueWhileMuted.rows).toEqual([{ due_now: false }]);
   });
 
-  it('exposes only SECURITY DEFINER capabilities to app_patient, not PUBLIC', async () => {
+  it('exposes only SECURITY DEFINER capabilities to app_patient, not PUBLIC or operational tables', async () => {
     const functions = await run<{
       name: string;
       security_definer: boolean;
@@ -399,12 +553,12 @@ describe('D7 signed reminder callback capabilities', () => {
        INNER JOIN pg_roles AS owner_role ON owner_role.oid = procedure.proowner
        WHERE namespace.nspname = 'app'
          AND procedure.proname IN (
-           'patient_done_reminder_occurrence', 'patient_set_reminder_muted_until',
+           'patient_snooze_reminder_occurrence', 'patient_done_reminder_occurrence', 'patient_set_reminder_muted_until',
            'patient_disable_reminder_messenger_topic', 'patient_reminder_notification_settings'
          )
        ORDER BY procedure.proname`,
     );
-    expect(functions.rows).toHaveLength(4);
+    expect(functions.rows).toHaveLength(5);
     for (const row of functions.rows) {
       expect(row).toMatchObject({
         security_definer: true,
@@ -413,5 +567,37 @@ describe('D7 signed reminder callback capabilities', () => {
         public_execute: false,
       });
     }
+    const tableGrants = await run<{
+      patient_select: boolean;
+      patient_insert: boolean;
+      patient_update: boolean;
+      patient_delete: boolean;
+      public_select: boolean;
+      public_insert: boolean;
+      public_update: boolean;
+      public_delete: boolean;
+    }>(
+      `SELECT
+         has_table_privilege('app_patient', 'integrator.user_reminder_occurrences', 'SELECT') AS patient_select,
+         has_table_privilege('app_patient', 'integrator.user_reminder_occurrences', 'INSERT') AS patient_insert,
+         has_table_privilege('app_patient', 'integrator.user_reminder_occurrences', 'UPDATE') AS patient_update,
+         has_table_privilege('app_patient', 'integrator.user_reminder_occurrences', 'DELETE') AS patient_delete,
+         has_table_privilege('public', 'integrator.user_reminder_occurrences', 'SELECT') AS public_select,
+         has_table_privilege('public', 'integrator.user_reminder_occurrences', 'INSERT') AS public_insert,
+         has_table_privilege('public', 'integrator.user_reminder_occurrences', 'UPDATE') AS public_update,
+         has_table_privilege('public', 'integrator.user_reminder_occurrences', 'DELETE') AS public_delete`,
+    );
+    expect(tableGrants.rows).toEqual([
+      {
+        patient_select: false,
+        patient_insert: false,
+        patient_update: false,
+        patient_delete: false,
+        public_select: false,
+        public_insert: false,
+        public_update: false,
+        public_delete: false,
+      },
+    ]);
   });
 });

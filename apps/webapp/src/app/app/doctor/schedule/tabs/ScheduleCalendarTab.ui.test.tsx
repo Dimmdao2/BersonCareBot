@@ -49,6 +49,64 @@ afterEach(() => {
 });
 
 describe('ScheduleCalendarTab scope requests', () => {
+  it('hides clinic booking statistics and does not load their API when doctor_statistics is blocked', async () => {
+    const requestedUrls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        requestedUrls.push(url);
+        if (url === '/api/doctor/settings') {
+          return { ok: true, json: async () => ({ ok: true, settings: [] }) } as Response;
+        }
+        if (url.startsWith('/api/doctor/booking-engine/calendar?')) {
+          return {
+            ok: true,
+            text: async () =>
+              JSON.stringify({
+                ok: true,
+                view: 'week',
+                anchorDate: '2026-07-30',
+                timeZone: 'Europe/Moscow',
+                events: [],
+                filters: { specialists: [], branches: [], rooms: [], services: [] },
+                readSource: 'canonical',
+                showWorkingHours: true,
+                workingBounds: null,
+                resolvedScope: {
+                  scope: 'clinic',
+                  specialistId: null,
+                  ownSpecialistId: OWN_ID,
+                  canManageAllSpecialists: true,
+                  specialists: [],
+                },
+              }),
+          } as Response;
+        }
+        return { ok: true, json: async () => ({ ok: true, window: null }) } as Response;
+      }),
+    );
+
+    render(
+      <ScheduleCalendarTab
+        deepLinkParams={{ view: 'weekgrid', date: '2026-07-30' }}
+        onDeepLinkChange={vi.fn()}
+        isActive={false}
+        initialTimeZone="Europe/Moscow"
+        doctorStatisticsEnabled={false}
+        scheduleScopeBootstrap={{
+          ownSpecialistId: OWN_ID,
+          canManageAllSpecialists: true,
+          specialists: [{ id: OWN_ID, displayLabel: 'Свой специалист' }],
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(requestedUrls.some((url) => url.includes('/calendar?'))).toBe(true));
+    expect(screen.queryByTestId('cal-kpi-row')).not.toBeInTheDocument();
+    expect(requestedUrls.some((url) => url.includes('/schedule-kpis?'))).toBe(false);
+  });
+
   it('sends the same trusted specialist scope to calendar, KPI, and nearest-window', async () => {
     const requestedUrls: string[] = [];
     vi.stubGlobal(
@@ -107,6 +165,7 @@ describe('ScheduleCalendarTab scope requests', () => {
         onDeepLinkChange={vi.fn()}
         isActive={false}
         initialTimeZone="Europe/Moscow"
+        doctorStatisticsEnabled
         scheduleScopeBootstrap={{
           ownSpecialistId: OWN_ID,
           canManageAllSpecialists: true,
@@ -203,6 +262,7 @@ describe('ScheduleCalendarTab scope requests', () => {
         onDeepLinkChange={vi.fn()}
         isActive={false}
         initialTimeZone="Europe/Moscow"
+        doctorStatisticsEnabled
         scheduleScopeBootstrap={{
           ownSpecialistId: OWN_ID,
           canManageAllSpecialists: true,

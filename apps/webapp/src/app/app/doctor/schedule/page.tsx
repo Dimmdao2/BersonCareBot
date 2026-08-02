@@ -41,7 +41,10 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
     selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
   };
-  const directory = await deps.doctorWorkspace.listDirectory(directoryContext);
+  const [directory, doctorStatisticsVisibility] = await Promise.all([
+    deps.doctorWorkspace.listDirectory(directoryContext),
+    getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
+  ]);
   const scheduleScopeBootstrap = {
     ownSpecialistId: resolveActiveOwnSpecialistId(workspace.specialistId, directory.specialists),
     canManageAllSpecialists: workspace.canManageAllSpecialists,
@@ -58,6 +61,7 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
       paymentsVisible={paymentsVisibility.specialistNavigation}
       paymentsReadOnly={!paymentsMutation.available}
       scheduleScopeBootstrap={scheduleScopeBootstrap}
+      doctorStatisticsEnabled={doctorStatisticsVisibility.specialistNavigation}
     />
   );
 }
