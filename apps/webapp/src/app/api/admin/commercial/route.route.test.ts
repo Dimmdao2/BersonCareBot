@@ -144,4 +144,47 @@ describe('/api/admin/commercial tariff persistence', () => {
       branding: brandingPolicy,
     });
   });
+
+  it('accepts legacy clinical_tests JSON but never serializes it as a configurable tariff mechanic', async () => {
+    const response = await POST(
+      new Request('http://127.0.0.1/api/admin/commercial', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_tariff',
+          reason: 'legacy clinical-test compatibility',
+          tariff: {
+            name: 'Legacy clinical tests',
+            description: '',
+            priceMinor: null,
+            currency: null,
+            billingPeriod: 'month',
+            mechanics: { branding: true, clinical_tests: false },
+            quotas: {},
+            systemAccessPolicy: null,
+            mechanicAccessPolicies: { clinical_tests: brandingPolicy },
+            downgradePolicies: { clinical_tests: 'block' },
+            includedSeats: 1,
+            additionalSeatPriceMinor: null,
+            isActive: true,
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const readResponse = await GET();
+    const readBody = (await readResponse.json()) as {
+      tariffs: Array<{
+        mechanics: Record<string, boolean>;
+        mechanicAccessPolicies: Record<string, unknown>;
+        downgradePolicies: Record<string, unknown>;
+      }>;
+    };
+    const tariff = readBody.tariffs[0]!;
+
+    expect(tariff.mechanics).not.toHaveProperty('clinical_tests');
+    expect(tariff.mechanicAccessPolicies).not.toHaveProperty('clinical_tests');
+    expect(tariff.downgradePolicies).not.toHaveProperty('clinical_tests');
+  });
 });

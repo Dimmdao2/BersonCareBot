@@ -958,7 +958,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 > снятием защиты. Следующий воркер должен по каждому пункту подтвердить именно вторую половину, а не начинать с
 > нуля — заново гейтить write-путь не нужно, он уже есть.
 
-- [ ] **4.1** Клинические тесты и наборы; при выключении системные группы тестов исчезают и из программы лечения.
+- [-] ~~**4.1** Клинические тесты и наборы; при выключении системные группы тестов исчезают и из программы лечения.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: «Клинические тесты будут частью программы. Они просто есть в принципе. Просто убери это в интерфейсе, убери из списка настраиваемых механик». Проверка этого commit: `pnpm --dir apps/webapp exec vitest --run --reporter=verbose src/app/api/doctor/clinicalTestsBuiltInProgram.route.test.ts src/app/api/admin/commercial/route.route.test.ts src/app/app/admin/commercial/CommercialConstructorClient.ui.test.tsx src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 4 файла / 16 тестов green; `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts`.
 - [ ] **4.2** Онлайн-анкета.
 - [ ] **4.3** Задачи специалиста.
 - [ ] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две.
