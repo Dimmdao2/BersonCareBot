@@ -5,6 +5,9 @@
 Read `AGENTS.md` §1/§4a/§5/§10b/§24, then
 `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a stage 6.2 and the current implementation below.
 
+Источник оракула: `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a stage 6.2 — «отчёт по всем
+организациям — кто за пределом и кто на какой ступени».
+
 Owner-plan requirement: the platform clinic report shows who is over a configured quota and on which access rung.
 The existing implementation already shows `clinic_team` and `branches`, but deliberately omits `patient_count` and
 `files` because the platform principal must not receive cross-clinic row access.
