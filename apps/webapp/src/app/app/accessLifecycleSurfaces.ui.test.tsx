@@ -252,6 +252,7 @@ beforeEach(() => {
     },
     systemSettings: { listSettingsByScope: async () => [] },
     orgBranding: { resolveEffectiveOrgBranding: async () => null },
+    saasBilling: { getOrganizationBillingOverview: async () => ({ invoices: [] }) },
     patientOrganization: {},
     courses: { listCoursesForDoctor: vi.fn() },
   });

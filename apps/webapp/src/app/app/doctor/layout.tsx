@@ -11,6 +11,7 @@ import {
   getMechanicSurfaceVisibility,
 } from '@/app-layer/guards/requireEntitlement';
 import { cabinetGraceWarningMessages } from '@/app-layer/guards/cabinetAccessGate';
+import { accessNotificationBillingVariables } from '@/modules/org-entitlements/accessNotifications';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import {
@@ -78,7 +79,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
-  const [coursesVisibility, promoVisibility, cmsVisibility, entitlementSnapshot, cabinetAccess] =
+  const [coursesVisibility, promoVisibility, cmsVisibility, entitlementSnapshot, cabinetAccess, billingOverview] =
     await Promise.all([
       getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
       getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
@@ -87,6 +88,10 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       // The cabinet is its own ladder subject (§5a/2.1a). Reaching this layout already means entry is
       // open, so the only thing left to show is the `терпение` countdown for the cabinet itself.
       deps.orgEntitlements.resolveCabinetAccess(workspaceAccess.organizationId).catch(() => null),
+      // The same organization-scoped overview powers the billing screen. It is the only source for
+      // an upcoming renewal's exact invoice amount and period start; unavailable data stays visible
+      // as the owner's placeholder rather than being guessed from the live tariff.
+      deps.saasBilling.getOrganizationBillingOverview(workspaceAccess.organizationId).catch(() => null),
     ]);
   const tariffName = entitlementSnapshot?.tariff?.name ?? null;
   const coursesEnabled = coursesVisibility.specialistNavigation;
@@ -102,11 +107,19 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   // One system-level ladder produces the same text for every mechanic it covers, so identical
   // lines are collapsed — the owner wrote one notification, he sees it once.
   const accessWarnings = [
-    ...(cabinetAccess?.warning ? cabinetGraceWarningMessages(cabinetAccess.warning, accessNotificationVariables) : []),
+    ...(cabinetAccess?.warning
+      ? cabinetGraceWarningMessages(cabinetAccess.warning, {
+          ...accessNotificationVariables,
+          ...accessNotificationBillingVariables(cabinetAccess.warning, billingOverview),
+        })
+      : []),
     ...new Set(
       [coursesVisibility, promoVisibility, cmsVisibility].flatMap((visibility) =>
         visibility.warning
-          ? entitlementGraceWarningMessages(visibility.warning, accessNotificationVariables)
+          ? entitlementGraceWarningMessages(visibility.warning, {
+              ...accessNotificationVariables,
+              ...accessNotificationBillingVariables(visibility.warning, billingOverview),
+            })
           : [],
       ),
     ),
