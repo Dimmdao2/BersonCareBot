@@ -11,6 +11,13 @@ const parsed = z
     HOST: z.string().default('127.0.0.1'),
     PORT: z.coerce.number().default(3000),
     LOG_LEVEL: z.string().default('info'),
+    /** Deployment ownership only: selects inbound transport, never provider credentials or policy. */
+    TELEGRAM_MODE: z.enum(['webhook', 'long_polling']).optional().default('webhook'),
+    /** Cutover-only deployment switch; never an admin-editable integration setting. */
+    TELEGRAM_DELETE_WEBHOOK_ON_START: z
+      .string()
+      .optional()
+      .transform((value) => /^(1|true|yes)$/i.test((value ?? '').trim())),
 
     DATABASE_URL: z.string().min(1),
     APP_BASE_URL: z
