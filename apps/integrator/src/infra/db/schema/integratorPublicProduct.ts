@@ -7,7 +7,9 @@
  */
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   bigserial,
+  boolean,
   check,
   index,
   integer,
@@ -81,4 +83,34 @@ export const orgEnrollments = pgTable('org_enrollments', {
   platformUserId: uuid('platform_user_id').notNull(),
   organizationId: uuid('organization_id').notNull(),
   status: text().notNull(),
+});
+
+/**
+ * Canonical reminder business rules owned by webapp. Integrator owns only occurrence/delivery
+ * mechanics, keyed by this table's stable `integrator_rule_id`.
+ */
+export const reminderRules = pgTable('reminder_rules', {
+  integratorRuleId: text('integrator_rule_id').primaryKey().notNull(),
+  organizationId: uuid('organization_id'),
+  integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
+  category: text().notNull(),
+  isEnabled: boolean('is_enabled').notNull(),
+  scheduleType: text('schedule_type').notNull(),
+  timezone: text().notNull(),
+  intervalMinutes: integer('interval_minutes').notNull(),
+  windowStartMinute: integer('window_start_minute').notNull(),
+  windowEndMinute: integer('window_end_minute').notNull(),
+  daysMask: text('days_mask').notNull(),
+  contentMode: text('content_mode').notNull(),
+  linkedObjectType: text('linked_object_type'),
+  linkedObjectId: text('linked_object_id'),
+  customTitle: text('custom_title'),
+  customText: text('custom_text'),
+  scheduleData: jsonb('schedule_data'),
+  reminderIntent: text('reminder_intent'),
+  quietHoursStartMinute: integer('quiet_hours_start_minute'),
+  quietHoursEndMinute: integer('quiet_hours_end_minute'),
+  notificationTopicCode: text('notification_topic_code'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
 });

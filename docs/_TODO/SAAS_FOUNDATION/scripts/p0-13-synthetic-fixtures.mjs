@@ -471,7 +471,6 @@ export function renderP013SyntheticFixtureCompatSchemaSql() {
 DROP TABLE IF EXISTS
   integrator.user_reminder_delivery_logs,
   integrator.user_reminder_occurrences,
-  integrator.user_reminder_rules,
   integrator.content_access_grants,
   integrator.users,
   public.notification_delivery_attempts,
@@ -484,7 +483,8 @@ DROP TABLE IF EXISTS
   public.be_organization_members,
   public.system_settings,
   public.be_organizations,
-  public.platform_users
+  public.platform_users,
+  public.reminder_rules
 CASCADE;
 
 CREATE TABLE public.platform_users (
@@ -594,9 +594,9 @@ CREATE TABLE integrator.content_access_grants (
   organization_id uuid
 );
 
-CREATE TABLE integrator.user_reminder_rules (
-  id text PRIMARY KEY,
-  user_id bigint NOT NULL REFERENCES integrator.users(id) ON DELETE CASCADE,
+CREATE TABLE public.reminder_rules (
+  integrator_rule_id text PRIMARY KEY,
+  integrator_user_id bigint NOT NULL,
   category text NOT NULL,
   is_enabled boolean NOT NULL DEFAULT true,
   schedule_type text NOT NULL DEFAULT 'interval_window',
@@ -611,7 +611,7 @@ CREATE TABLE integrator.user_reminder_rules (
 
 CREATE TABLE integrator.user_reminder_occurrences (
   id text PRIMARY KEY,
-  rule_id text NOT NULL REFERENCES integrator.user_reminder_rules(id) ON DELETE CASCADE,
+  rule_id text NOT NULL REFERENCES public.reminder_rules(integrator_rule_id) ON DELETE RESTRICT,
   occurrence_key text NOT NULL UNIQUE,
   planned_at timestamptz NOT NULL,
   status text NOT NULL DEFAULT 'planned',
@@ -776,9 +776,9 @@ ON CONFLICT (id) DO UPDATE
       expires_at = EXCLUDED.expires_at,
       organization_id = EXCLUDED.organization_id;
 
-INSERT INTO integrator.user_reminder_rules (
-  id,
-  user_id,
+INSERT INTO public.reminder_rules (
+  integrator_rule_id,
+  integrator_user_id,
   category,
   is_enabled,
   interval_minutes,
@@ -789,8 +789,8 @@ INSERT INTO integrator.user_reminder_rules (
 VALUES
   ('p0-13-rule-a1', ${syntheticIntegratorUserIds.patientA1}, 'p0_13_fixture_a1', true, 60, 0, 1440, '${syntheticFixtureIds.orgA}'::uuid),
   ('p0-13-rule-b1', ${syntheticIntegratorUserIds.patientB1}, 'p0_13_fixture_b1', true, 60, 0, 1440, '${syntheticFixtureIds.orgB}'::uuid)
-ON CONFLICT (id) DO UPDATE
-  SET user_id = EXCLUDED.user_id,
+ON CONFLICT (integrator_rule_id) DO UPDATE
+  SET integrator_user_id = EXCLUDED.integrator_user_id,
       category = EXCLUDED.category,
       is_enabled = EXCLUDED.is_enabled,
       interval_minutes = EXCLUDED.interval_minutes,
