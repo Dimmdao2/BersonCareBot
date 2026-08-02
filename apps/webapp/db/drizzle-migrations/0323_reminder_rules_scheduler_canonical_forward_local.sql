@@ -223,39 +223,26 @@ SET search_path = pg_catalog
 AS $function$
 BEGIN
   IF EXISTS (
-    SELECT 1
-    FROM integrator.user_reminder_occurrences occurrence
-    JOIN public.reminder_rules rule ON rule.integrator_rule_id = occurrence.rule_id
-    WHERE occurrence.status IN ('planned', 'queued')
-      AND occurrence.organization_id IS NOT NULL
-      AND occurrence.organization_id <> rule.organization_id
-  ) THEN
-    RAISE EXCEPTION 'scheduler reminder work contains conflicting organization ownership' USING ERRCODE = '23514';
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM public.reminder_rules rule
+    SELECT 1 FROM public.reminder_rules AS rule
     WHERE rule.is_enabled = true
-      AND rule.integrator_user_id IS NOT NULL
+      AND rule.platform_user_id IS NOT NULL
       AND rule.organization_id IS NULL
-  ) OR EXISTS (
-    SELECT 1 FROM integrator.user_reminder_occurrences occurrence
-    LEFT JOIN public.reminder_rules rule ON rule.integrator_rule_id = occurrence.rule_id
-    WHERE occurrence.status IN ('planned', 'queued')
-      AND COALESCE(occurrence.organization_id, rule.organization_id) IS NULL
   ) THEN
-    RAISE EXCEPTION 'scheduler reminder work contains rows without organization ownership' USING ERRCODE = '23514';
+    RAISE EXCEPTION 'scheduler reminder work contains rows without organization ownership'
+      USING ERRCODE = '23514';
   END IF;
   RETURN QUERY
-  SELECT candidate.organization_id FROM (
+  SELECT candidate.organization_id
+  FROM (
     SELECT rule.organization_id
-    FROM public.reminder_rules rule
+    FROM public.reminder_rules AS rule
     WHERE rule.is_enabled = true
-      AND rule.integrator_user_id IS NOT NULL
+      AND rule.platform_user_id IS NOT NULL
       AND rule.organization_id IS NOT NULL
     UNION
     SELECT COALESCE(occurrence.organization_id, rule.organization_id)
-    FROM integrator.user_reminder_occurrences occurrence
-    LEFT JOIN public.reminder_rules rule ON rule.integrator_rule_id = occurrence.rule_id
+    FROM integrator.user_reminder_occurrences AS occurrence
+    LEFT JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
     WHERE occurrence.status IN ('planned', 'queued')
       AND COALESCE(occurrence.organization_id, rule.organization_id) IS NOT NULL
   ) AS candidate
