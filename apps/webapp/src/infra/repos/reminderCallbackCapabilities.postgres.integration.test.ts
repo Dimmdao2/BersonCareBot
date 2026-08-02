@@ -1,6 +1,8 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import pg from 'pg';
+import type { PoolClient } from 'pg';
+import { getPool } from '@/infra/db/client';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
 
 type DoneRow = {
   done_at: string;
@@ -32,24 +34,33 @@ const fixtureTables = [
   'public.app_runtime_settings',
 ] as const;
 
+function errorMessages(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  return `${error.message} ${error.cause === undefined ? '' : errorMessages(error.cause)}`;
+}
+
 describe('D7 signed reminder callback capabilities', () => {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
-  let client: pg.PoolClient;
+  const pool = getPool();
+  let client: PoolClient;
   let signingSecret: string;
   let originalSigningSecret: string | null;
   let originalTimezoneSetting: { audience: string; value_json: unknown } | null;
 
+  async function run<T = unknown>(queryText: string, values: readonly unknown[] = []) {
+    return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
+  }
+
   async function setFixtureRls(enabled: boolean): Promise<void> {
     for (const table of fixtureTables) {
-      await client.query(`ALTER TABLE ${table} ${enabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY`);
+      await run(`ALTER TABLE ${table} ${enabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY`);
     }
   }
 
   async function releaseSignedPrincipal(): Promise<void> {
     try {
-      await client.query('SELECT app.release_principal_context()');
+      await run('SELECT app.release_principal_context()');
     } finally {
-      await client.query('RESET ROLE');
+      await run('RESET ROLE');
     }
   }
 
@@ -57,9 +68,9 @@ describe('D7 signed reminder callback capabilities', () => {
     input: { organizationId: string; integratorUserId: number },
     operation: () => Promise<T>,
   ): Promise<T> {
-    await client.query('SET ROLE app_patient');
+    await run('SET ROLE app_patient');
     try {
-      const backend = await client.query<{ backend_pid: number }>('SELECT pg_backend_pid() AS backend_pid');
+      const backend = await run<{ backend_pid: number }>('SELECT pg_backend_pid() AS backend_pid');
       const backendPid = backend.rows[0]?.backend_pid;
       if (!backendPid) throw new Error('missing backend pid for signed principal');
       const nonce = `d7-${randomUUID()}`;
@@ -74,7 +85,7 @@ describe('D7 signed reminder callback capabilities', () => {
         String(input.integratorUserId),
       ].join('|');
       const signature = createHmac('sha256', signingSecret).update(canonical).digest('hex');
-      await client.query(
+      await run(
         `SELECT app.install_signed_context(
            $1::text, $2::integer, $3::bigint, $4::uuid, NULL::uuid, $5::bigint, $6::text
          )`,
@@ -87,7 +98,7 @@ describe('D7 signed reminder callback capabilities', () => {
   }
 
   async function journalCount(occurrenceId: string, action: string): Promise<number> {
-    const result = await client.query<{ count: string }>(
+    const result = await run<{ count: string }>(
       `SELECT count(*)::text AS count
        FROM public.reminder_journal
        WHERE occurrence_id = $1 AND action = $2`,
@@ -98,17 +109,17 @@ describe('D7 signed reminder callback capabilities', () => {
 
   beforeAll(async () => {
     client = await pool.connect();
-    const database = await client.query<{ name: string }>('SELECT current_database() AS name');
+    const database = await run<{ name: string }>('SELECT current_database() AS name');
     expect(database.rows[0]?.name).toMatch(/^pbt_/);
 
     await setFixtureRls(false);
-    await client.query('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
-    const secret = await client.query<{ secret: string }>(
+    await run('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
+    const secret = await run<{ secret: string }>(
       'SELECT secret FROM app.context_signing_secrets WHERE id = true',
     );
     originalSigningSecret = secret.rows[0]?.secret ?? null;
     const disposableSigningSecret = 'd7-disposable-signed-principal-secret-0123456789';
-    const installedSecret = await client.query<{ secret: string }>(
+    const installedSecret = await run<{ secret: string }>(
       `INSERT INTO app.context_signing_secrets (id, secret)
        VALUES (true, $1)
        ON CONFLICT (id) DO UPDATE SET secret = EXCLUDED.secret
@@ -118,22 +129,22 @@ describe('D7 signed reminder callback capabilities', () => {
     signingSecret = installedSecret.rows[0]?.secret ?? '';
     expect(signingSecret.length).toBeGreaterThanOrEqual(32);
 
-    await client.query(
+    await run(
       `INSERT INTO public.be_organizations (id, title)
        VALUES ($1::uuid, 'D7 A'), ($2::uuid, 'D7 B')`,
       [orgA, orgB],
     );
-    await client.query(
+    await run(
       `INSERT INTO public.platform_users (id, integrator_user_id, display_name)
        VALUES ($1::uuid, $2::bigint, 'D7 actor A'), ($3::uuid, $4::bigint, 'D7 actor B')`,
       [patientA, userA, patientB, userB],
     );
-    await client.query(
+    await run(
       `INSERT INTO public.org_enrollments (organization_id, platform_user_id, status)
        VALUES ($1::uuid, $2::uuid, 'active'), ($3::uuid, $4::uuid, 'active')`,
       [orgA, patientA, orgB, patientB],
     );
-    await client.query(
+    await run(
       `INSERT INTO public.reminder_rules (
          integrator_rule_id, platform_user_id, integrator_user_id, organization_id, category, is_enabled,
          schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute, days_mask,
@@ -143,7 +154,7 @@ describe('D7 signed reminder callback capabilities', () => {
          ($5, $6::uuid, $7::bigint, $8::uuid, 'lfk', true, 'interval_window', 'Europe/Moscow', 60, 480, 1320, '1111111', 'none', 'training_reminders')`,
       [ruleA, patientA, userA, orgA, ruleB, patientA, userA, orgB],
     );
-    await client.query(
+    await run(
       `INSERT INTO public.reminder_occurrence_history (
          integrator_occurrence_id, integrator_rule_id, integrator_user_id, organization_id, category, status, occurred_at
        ) VALUES
@@ -164,84 +175,89 @@ describe('D7 signed reminder callback capabilities', () => {
         skipOccurrenceA,
       ],
     );
-    const existingTimezone = await client.query<{ audience: string; value_json: unknown }>(
+    const existingTimezone = await run<{ audience: string; value_json: unknown }>(
       `SELECT audience, value_json FROM public.app_runtime_settings
        WHERE key = 'app_display_timezone' AND scope = 'admin' AND organization_id IS NULL`,
     );
     originalTimezoneSetting = existingTimezone.rows[0] ?? null;
-    await client.query(
+    await run(
       `UPDATE public.app_runtime_settings
        SET audience = 'server', value_json = '{"value":"Europe/Moscow"}'::jsonb
        WHERE key = 'app_display_timezone' AND scope = 'admin' AND organization_id IS NULL`,
     );
-    await client.query('ALTER TABLE public.be_organizations ENABLE TRIGGER USER');
+    await run('ALTER TABLE public.be_organizations ENABLE TRIGGER USER');
     // The private migration harness deliberately does not apply the host-owned P2-B runtime ACL
     // script. Keep fixture tables RLS-disabled while exercising the capability's own exact-org
     // predicates; grants and SECURITY DEFINER are asserted independently below.
   });
 
   afterAll(async () => {
-    await client.query('RESET ROLE');
+    await run('RESET ROLE');
     await setFixtureRls(false);
-    await client.query('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
-    await client.query('DELETE FROM public.reminder_journal WHERE occurrence_id = ANY($1::text[])', [
+    await run('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
+    await run('DELETE FROM public.reminder_journal WHERE occurrence_id = ANY($1::text[])', [
       [doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA],
     ]);
-    await client.query('DELETE FROM public.reminder_occurrence_history WHERE integrator_occurrence_id = ANY($1::text[])', [
-      [doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA],
-    ]);
-    await client.query('DELETE FROM public.reminder_rules WHERE integrator_rule_id = ANY($1::text[])', [
+    await run(
+      'DELETE FROM public.reminder_occurrence_history WHERE integrator_occurrence_id = ANY($1::text[])',
+      [[doneOccurrenceA, doneOccurrenceB, snoozeOccurrenceA, skipOccurrenceA]],
+    );
+    await run('DELETE FROM public.reminder_rules WHERE integrator_rule_id = ANY($1::text[])', [
       [ruleA, ruleB],
     ]);
-    await client.query('DELETE FROM public.org_enrollments WHERE platform_user_id = ANY($1::uuid[])', [
+    await run('DELETE FROM public.org_enrollments WHERE platform_user_id = ANY($1::uuid[])', [
       [patientA, patientB],
     ]);
-    await client.query('DELETE FROM public.platform_users WHERE id = ANY($1::uuid[])', [[patientA, patientB]]);
-    await client.query('DELETE FROM public.be_organizations WHERE id = ANY($1::uuid[])', [[orgA, orgB]]);
+    await run('DELETE FROM public.platform_users WHERE id = ANY($1::uuid[])', [
+      [patientA, patientB],
+    ]);
+    await run('DELETE FROM public.be_organizations WHERE id = ANY($1::uuid[])', [[orgA, orgB]]);
     if (originalSigningSecret === null) {
-      await client.query('DELETE FROM app.context_signing_secrets WHERE id = true');
+      await run('DELETE FROM app.context_signing_secrets WHERE id = true');
     } else {
-      await client.query('UPDATE app.context_signing_secrets SET secret = $1 WHERE id = true', [
+      await run('UPDATE app.context_signing_secrets SET secret = $1 WHERE id = true', [
         originalSigningSecret,
       ]);
     }
     if (originalTimezoneSetting !== null) {
-      await client.query(
+      await run(
         `UPDATE public.app_runtime_settings
          SET audience = $1, value_json = $2::jsonb
          WHERE key = 'app_display_timezone' AND scope = 'admin' AND organization_id IS NULL`,
         [originalTimezoneSetting.audience, JSON.stringify(originalTimezoneSetting.value_json)],
       );
     }
-    await client.query('ALTER TABLE public.be_organizations ENABLE TRIGGER USER');
+    await run('ALTER TABLE public.be_organizations ENABLE TRIGGER USER');
     await setFixtureRls(true);
     client.release();
     await pool.end();
   });
 
   it('rejects invalid and expired signed callback contexts before canonical state changes', async () => {
-    await client.query('SET ROLE app_patient');
+    await run('SET ROLE app_patient');
     try {
-      const backend = await client.query<{ backend_pid: number }>('SELECT pg_backend_pid() AS backend_pid');
+      const backend = await run<{ backend_pid: number }>('SELECT pg_backend_pid() AS backend_pid');
       const backendPid = backend.rows[0]?.backend_pid;
       if (!backendPid) throw new Error('missing backend pid for invalid signature probe');
-      await expect(
-        client.query(
-          `SELECT app.install_signed_context(
+      const invalidSignature = run(
+        `SELECT app.install_signed_context(
              'd7-invalid-signature'::text, $1::integer, $2::bigint, $3::uuid, NULL::uuid, $4::bigint, repeat('0', 64)
            )`,
-          [backendPid, Math.floor(Date.now() / 1000) + 60, orgA, userA],
-        ),
-      ).rejects.toThrow(/bad_signature/);
-      await expect(
-        client.query(
-          `SELECT app.install_signed_context(
+        [backendPid, Math.floor(Date.now() / 1000) + 60, orgA, userA],
+      );
+      await expect(invalidSignature).rejects.toSatisfy((error: unknown) =>
+        /bad_signature/.test(errorMessages(error)),
+      );
+      const expiredContext = run(
+        `SELECT app.install_signed_context(
              'd7-expired-context'::text, $1::integer, $2::bigint, $3::uuid, NULL::uuid, $4::bigint, repeat('0', 64)
            )`,
-          [backendPid, Math.floor(Date.now() / 1000) - 1, orgA, userA],
-        ),
-      ).rejects.toThrow(/expired_context/);
-      const denied = await client.query<DoneRow>(
+        [backendPid, Math.floor(Date.now() / 1000) - 1, orgA, userA],
+      );
+      await expect(expiredContext).rejects.toSatisfy((error: unknown) =>
+        /expired_context/.test(errorMessages(error)),
+      );
+      const denied = await run<DoneRow>(
         'SELECT * FROM app.patient_done_reminder_occurrence($1::text)',
         [doneOccurrenceA],
       );
@@ -255,7 +271,10 @@ describe('D7 signed reminder callback capabilities', () => {
   it('fails closed for an actor/org mismatch without changing the foreign occurrence', async () => {
     const result = await withSignedIntegratorPrincipal(
       { organizationId: orgB, integratorUserId: userA },
-      () => client.query<DoneRow>('SELECT * FROM app.patient_done_reminder_occurrence($1::text)', [doneOccurrenceB]),
+      () =>
+        run<DoneRow>('SELECT * FROM app.patient_done_reminder_occurrence($1::text)', [
+          doneOccurrenceB,
+        ]),
     );
     expect(result.rows).toEqual([]);
     await expect(journalCount(doneOccurrenceB, 'done')).resolves.toBe(0);
@@ -264,17 +283,31 @@ describe('D7 signed reminder callback capabilities', () => {
   it('writes canonical done history exactly once and returns a safe repeat result', async () => {
     const first = await withSignedIntegratorPrincipal(
       { organizationId: orgA, integratorUserId: userA },
-      () => client.query<DoneRow>('SELECT * FROM app.patient_done_reminder_occurrence($1::text)', [doneOccurrenceA]),
+      () =>
+        run<DoneRow>('SELECT * FROM app.patient_done_reminder_occurrence($1::text)', [
+          doneOccurrenceA,
+        ]),
     );
     expect(first.rows[0]).toEqual(
-      expect.objectContaining({ first_done_for_occurrence: true, day_sent_total: 3, day_done_count: 1 }),
+      expect.objectContaining({
+        first_done_for_occurrence: true,
+        day_sent_total: 3,
+        day_done_count: 1,
+      }),
     );
     const replay = await withSignedIntegratorPrincipal(
       { organizationId: orgA, integratorUserId: userA },
-      () => client.query<DoneRow>('SELECT * FROM app.patient_done_reminder_occurrence($1::text)', [doneOccurrenceA]),
+      () =>
+        run<DoneRow>('SELECT * FROM app.patient_done_reminder_occurrence($1::text)', [
+          doneOccurrenceA,
+        ]),
     );
     expect(replay.rows[0]).toEqual(
-      expect.objectContaining({ first_done_for_occurrence: false, day_sent_total: 3, day_done_count: 1 }),
+      expect.objectContaining({
+        first_done_for_occurrence: false,
+        day_sent_total: 3,
+        day_done_count: 1,
+      }),
     );
     await expect(journalCount(doneOccurrenceA, 'done')).resolves.toBe(1);
   });
@@ -283,15 +316,15 @@ describe('D7 signed reminder callback capabilities', () => {
     const changed = await withSignedIntegratorPrincipal(
       { organizationId: orgA, integratorUserId: userA },
       async () => {
-        const snooze = await client.query<{ snoozed_until: string }>(
+        const snooze = await run<{ snoozed_until: string }>(
           `SELECT * FROM app.patient_snooze_reminder_occurrence(NULL::uuid, $1::text, 20::integer)`,
           [snoozeOccurrenceA],
         );
-        const skip = await client.query<{ skipped_at: string }>(
+        const skip = await run<{ skipped_at: string }>(
           `SELECT * FROM app.patient_skip_reminder_occurrence(NULL::uuid, $1::text, NULL::text)`,
           [skipOccurrenceA],
         );
-        const foreign = await client.query<{ skipped_at: string }>(
+        const foreign = await run<{ skipped_at: string }>(
           `SELECT * FROM app.patient_skip_reminder_occurrence(NULL::uuid, $1::text, NULL::text)`,
           [doneOccurrenceB],
         );
@@ -310,14 +343,14 @@ describe('D7 signed reminder callback capabilities', () => {
     const result = await withSignedIntegratorPrincipal(
       { organizationId: orgA, integratorUserId: userA },
       async () => {
-        const mute = await client.query<{ muted_until: string }>(
+        const mute = await run<{ muted_until: string }>(
           `SELECT * FROM app.patient_set_reminder_muted_until('2026-08-03T00:00:00.000Z'::timestamptz)`,
         );
-        const topic = await client.query<{ persisted: boolean }>(
+        const topic = await run<{ persisted: boolean }>(
           `SELECT persisted FROM app.patient_disable_reminder_messenger_topic($1::text, 'telegram'::text)`,
           [doneOccurrenceA],
         );
-        const toggle = await client.query<{ new_state: boolean }>(
+        const toggle = await run<{ new_state: boolean }>(
           `SELECT new_state FROM app.patient_reminder_notification_settings('telegram'::text, 'patient_news'::text)`,
         );
         return { mute, topic, toggle };
@@ -326,7 +359,7 @@ describe('D7 signed reminder callback capabilities', () => {
     expect(result.mute.rows).toHaveLength(1);
     expect(result.topic.rows).toEqual([{ persisted: true }]);
     expect(result.toggle.rows).toEqual([{ new_state: false }]);
-    const canonical = await client.query<{
+    const canonical = await run<{
       muted_until: string;
       training_enabled: boolean;
       news_enabled: boolean;
@@ -348,7 +381,7 @@ describe('D7 signed reminder callback capabilities', () => {
   });
 
   it('exposes only SECURITY DEFINER capabilities to app_patient, not PUBLIC', async () => {
-    const functions = await client.query<{
+    const functions = await run<{
       name: string;
       security_definer: boolean;
       owner: string;
@@ -373,7 +406,12 @@ describe('D7 signed reminder callback capabilities', () => {
     );
     expect(functions.rows).toHaveLength(4);
     for (const row of functions.rows) {
-      expect(row).toMatchObject({ security_definer: true, owner: 'app_owner', patient_execute: true, public_execute: false });
+      expect(row).toMatchObject({
+        security_definer: true,
+        owner: 'app_owner',
+        patient_execute: true,
+        public_execute: false,
+      });
     }
   });
 });
