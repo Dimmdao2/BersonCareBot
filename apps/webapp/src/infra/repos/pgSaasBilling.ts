@@ -1439,5 +1439,40 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .returning();
       return row ? toSaasBillingInvoice(row) : null;
     },
+
+    async prepareSaasBillingFailedInvoiceForManualCheckout(input) {
+      const [reopened] = await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({
+          status: 'draft',
+          providerId: input.providerId,
+          providerIdempotencyKey: input.providerIdempotencyKey,
+          providerInvoiceRef: null,
+          providerCheckoutUrl: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, input.saasBillingInvoiceId),
+            eq(saasBillingInvoices.organizationId, input.organizationId),
+            eq(saasBillingInvoices.status, 'failed'),
+          ),
+        )
+        .returning();
+      if (reopened) return toSaasBillingInvoice(reopened);
+
+      const [current] = await getDrizzle()
+        .select()
+        .from(saasBillingInvoices)
+        .where(
+          and(
+            eq(saasBillingInvoices.id, input.saasBillingInvoiceId),
+            eq(saasBillingInvoices.organizationId, input.organizationId),
+          ),
+        )
+        .limit(1);
+      if (!current) throw new Error('saas_billing_invoice_not_found');
+      return toSaasBillingInvoice(current);
+    },
   };
 }

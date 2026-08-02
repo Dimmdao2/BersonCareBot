@@ -734,5 +734,23 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       invoices.set(row.id, row);
       return row;
     },
+
+    async prepareSaasBillingFailedInvoiceForManualCheckout(input) {
+      const current = invoices.get(input.saasBillingInvoiceId);
+      if (!current || current.organizationId !== input.organizationId) {
+        throw new Error('saas_billing_invoice_not_found');
+      }
+      if (current.status !== 'failed') return current;
+      const row: SaasBillingInvoice = {
+        ...current,
+        status: 'draft',
+        providerId: input.providerId,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+        providerInvoiceRef: null,
+        providerCheckoutUrl: null,
+      };
+      invoices.set(row.id, row);
+      return row;
+    },
   };
 }
