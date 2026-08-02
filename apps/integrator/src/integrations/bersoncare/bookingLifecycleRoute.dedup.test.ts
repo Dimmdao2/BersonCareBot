@@ -6,6 +6,9 @@ const { enqueueMessageRetryJob, cancelPendingBookingReminderJobsByBookingId } = 
 }));
 
 vi.mock('../../infra/db/client.js', () => ({ createDbPort: vi.fn(() => ({})) }));
+vi.mock('../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js', () => ({
+  loadAdminMessengerIdLists: vi.fn(async () => ({ telegram: ['777'], max: [] })),
+}));
 vi.mock('../../infra/db/repos/jobQueue.js', () => ({
   cancelPendingBookingReminderJobsByBookingId,
   enqueueMessageRetryJob,

@@ -8,7 +8,6 @@ import {
 import { integrationRegistry } from '../integrations/registry.js';
 import { buildDeps, type BuildDepsInput } from './di.js';
 import { registerRoutes } from './routes.js';
-import { telegramConfig } from '../integrations/telegram/config.js';
 import { isRecognizedSaasIsolationFailure } from '@bersoncare/db-principal';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { captureUnexpectedIntegratorHttpError } from '../infra/observability/errorTracking.js';
@@ -42,11 +41,6 @@ export async function buildApp(input?: BuildDepsInput) {
       })),
     },
     'integration registry loaded',
-  );
-
-  app.log.info(
-    { sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress },
-    'Telegram: sendMenuOnButtonPress (reply keyboard attached to message.send when true)',
   );
 
   return app;

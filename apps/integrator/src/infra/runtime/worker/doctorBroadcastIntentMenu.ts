@@ -30,7 +30,7 @@ import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQu
 export type DoctorBroadcastMenuWorkerDeps = {
   templatePort: TemplatePort;
   contentPort: ContentPort;
-  sendMenuOnButtonPress: boolean;
+  isTelegramMenuOnButtonPress: () => Promise<boolean>;
 };
 
 async function resolveLinkedPhoneForPlatformUser(
@@ -220,7 +220,7 @@ export async function enrichDoctorBroadcastIntentIfNeeded(input: {
   let nextPayload: Record<string, unknown> = { ...payload };
 
   if (
-    menu.sendMenuOnButtonPress === true &&
+    (await menu.isTelegramMenuOnButtonPress()) === true &&
     linkedPhone &&
     row.channel === 'telegram' &&
     !nextPayload.replyMarkup

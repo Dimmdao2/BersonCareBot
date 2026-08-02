@@ -11,6 +11,17 @@ export type PublicSystemSettingsReadOptions = {
   organizationId?: string | null;
 };
 
+export type IntegratorProviderRuntimeSettingKey =
+  | 'telegram_bot_token'
+  | 'telegram_webhook_secret'
+  | 'telegram_send_menu_on_button_press'
+  | 'max_bot_api_key'
+  | 'max_webhook_secret'
+  | 'max_api_base_url'
+  | 'smsc_enabled'
+  | 'smsc_api_key'
+  | 'smsc_base_url';
+
 export const publicSystemSettingScopeSchema = z.enum(['global', 'doctor', 'admin']);
 
 /** Wrapper shape stored in the `value_json` column. */
@@ -91,6 +102,22 @@ export async function fetchPublicSystemSettingValueJson(
   const row = res.rows[0];
   if (!row) return null;
   return row.value_json;
+}
+
+/**
+ * Global provider configuration through the DB-owned fixed allowlist capability.
+ * The integrator runtime login receives EXECUTE on the function, never table SELECT.
+ */
+export async function fetchIntegratorProviderRuntimeSettingValueJson(
+  db: DbPort,
+  key: IntegratorProviderRuntimeSettingKey,
+): Promise<unknown | null> {
+  const result = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT app.read_integrator_provider_runtime_setting(${key}) AS value_json`,
+  );
+  const row = result.rows[0];
+  return row?.value_json ?? null;
 }
 
 export async function readPublicSystemSettingString(
