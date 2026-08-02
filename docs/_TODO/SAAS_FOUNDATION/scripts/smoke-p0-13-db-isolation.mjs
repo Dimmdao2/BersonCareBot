@@ -95,7 +95,7 @@ GRANT SELECT ON
   public.notification_delivery_attempts,
   public.system_settings,
   integrator.content_access_grants,
-  integrator.user_reminder_rules,
+  public.reminder_rules,
   integrator.user_reminder_occurrences,
   integrator.user_reminder_delivery_logs,
   p0_13_isolation.infra_rows,
@@ -206,9 +206,9 @@ CREATE POLICY p0_13_2_user_reminder_delivery_logs ON integrator.user_reminder_de
     AND EXISTS (
       SELECT 1
       FROM integrator.user_reminder_occurrences occurrence
-      JOIN integrator.user_reminder_rules rule ON rule.id = occurrence.rule_id
+      JOIN public.reminder_rules rule ON rule.integrator_rule_id = occurrence.rule_id
       WHERE occurrence.id = user_reminder_delivery_logs.occurrence_id
-        AND rule.user_id = NULLIF(current_setting('app.integrator_user_id', true), '')::bigint
+        AND rule.integrator_user_id = NULLIF(current_setting('app.integrator_user_id', true), '')::bigint
     )
   );
 

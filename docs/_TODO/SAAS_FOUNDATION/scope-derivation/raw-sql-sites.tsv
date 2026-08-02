@@ -121,7 +121,7 @@ apps/integrator/src/infra/db/repos/channelUsers.ts	integrator	infra/db/repos	db.
 apps/integrator/src/infra/db/repos/idempotencyKeys.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	—
 apps/integrator/src/infra/db/repos/integrationDataQualityIncidents.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	—
 apps/integrator/src/infra/db/repos/mergeIntegratorConversationToPlatform.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	integrator.conversations
-apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts	integrator	infra/db/repos	runIntegratorSql+db.query	WRITE	CENTRAL	integrator.user_reminder_rules
+apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts	public	infra/db/repos	runIntegratorSql	WRITE	CENTRAL	public.reminder_rules
 apps/integrator/src/infra/db/repos/messageThreads.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	integrator.conversations,integrator.message_drafts,integrator.user_questions
 apps/integrator/src/infra/db/repos/messengerPhoneBindAudit.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	—
 apps/integrator/src/infra/db/repos/notificationDeliveryAttempts.ts	integrator	infra/db/repos	db.query	WRITE	CENTRAL	public.notification_delivery_attempts
