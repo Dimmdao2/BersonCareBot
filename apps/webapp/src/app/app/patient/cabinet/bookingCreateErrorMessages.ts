@@ -39,6 +39,9 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
   if (code === 'booking_phone_trust_required') {
     return 'Для записи нужен номер, подтверждённый в приложении (SMS или мессенджер). Сейчас откроется экран привязки.';
   }
+  if (code === 'payment_provider_unavailable' || code === 'payments_disabled') {
+    return 'Онлайн-оплата в клинике сейчас недоступна. Обратитесь в клинику.';
+  }
   if (code === 'unauthorized' || code === 'forbidden') {
     return 'Нет доступа. Войдите в аккаунт и попробуйте снова.';
   }
