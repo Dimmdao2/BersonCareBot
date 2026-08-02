@@ -11,9 +11,11 @@ Authority: Р-D30 in `WORK_ORDER.md`, `TRACK_D_D30_SPECIALIST_TASK_SCHEDULING_BR
 2. `schedulerDecisionGuard` now detects the saved arithmetic, `let`/alias, Russian concatenation,
    dot/bracket assignment, `.includes()` and non-`sql` tagged-template fixtures. Its intentional imported
    re-export boundary remains explicit and unchanged.
-3. Specialist-task event IDs include a deterministic title/description revision. An edit at the same
-   `remind_at` therefore enqueues the replacement intent and terminalizes the old `processing` row through the
-   existing single queue port; repeated producer/tick calls for unchanged content retain the same event ID.
+3. Specialist-task event IDs now include a deterministic revision of the complete materialized provider `meta`
+   (without `eventId`/`occurredAt`) and `payload`. A `dueAt`, recipient binding/email, channel payload, subject,
+   URL or other delivered-value change at the same `remind_at` therefore enqueues the replacement intent and
+   terminalizes the old `processing` row through the existing single queue port. A byte-identical replay keeps
+   its ID. `description` is intentionally not revisioned because it is not materialized in this reminder payload.
 4. `prepareReminderDeliveries.test.ts` no longer passes nullable `remindAt` to `encodeURIComponent`.
 
 ## Validation
@@ -21,8 +23,14 @@ Authority: Р-D30 in `WORK_ORDER.md`, `TRACK_D_D30_SPECIALIST_TASK_SCHEDULING_BR
 - `cd apps/integrator && node_modules/.bin/vitest run src/infra/runtime/scheduler/schedulerDecisionGuard.test.ts` — PASS, `12` tests.
 - `cd apps/integrator && node_modules/.bin/vitest run src/infra/runtime/worker/outgoingDeliveryWorker.scope.test.ts` — PASS, `9` tests.
 - `cd apps/integrator && node_modules/.bin/vitest run src/infra/runtime/scheduler/ src/infra/runtime/worker/ src/infra/db/repos/outgoingDeliveryQueue` — PASS, `51` tests (`3` skipped).
-- `cd apps/webapp && node_modules/.bin/vitest run src/modules/specialist-tasks/` — PASS, `3` tests.
-- Disposable PostgreSQL 16 (`initdb -A trust`, unix-socket only) — PASS: canonical `public.reminder_rules` scope resolves tenant; an old `processing` payload becomes `dead` while the same-due replacement remains `pending`. The audit-only script was removed after the run; no DEV/TEST/PROD database was used.
+- `pnpm --dir apps/webapp exec vitest run src/modules/specialist-tasks/` — PASS, `3` tests. The new red-first
+  assertion failed before the R2 implementation: a `dueAt` change at the same `remindAt` kept the old event ID.
+  It now proves due-date, Telegram binding, and email recipient revisions, unchanged replay, and unchanged
+  non-materialized `description`.
+- Disposable PostgreSQL 16 (`initdb -A trust --no-locale --encoding=UTF8`, unix-socket only) — PASS: a real
+  `createPgSpecialistTasksPort` write was claimed as `processing`; real `update(..., { dueAt })` changed the
+  event ID, made the old row `dead`, and left the replacement `pending` with the new due-date payload. The
+  audit-only script was removed after the run; no DEV/TEST/PROD database was used.
 - `cd apps/integrator && node_modules/.bin/tsc --noEmit`; `cd apps/webapp && node_modules/.bin/tsc --noEmit` — PASS.
 - Scoped ESLint for the D30 integrator and webapp source sets — PASS.
 - `cd apps/integrator && node ../../scripts/check-queue-port-boundary.mjs` — PASS.
@@ -31,3 +39,23 @@ Authority: Р-D30 in `WORK_ORDER.md`, `TRACK_D_D30_SPECIALIST_TASK_SCHEDULING_BR
 
 `9999` remains outside the Drizzle journal; final migration number, journal entry and removal of the temporary
 journal-sync exception remain land-time work for root against current `feat`.
+
+## R2 command record
+
+```bash
+pnpm --dir apps/webapp exec vitest run src/modules/specialist-tasks/
+pnpm --dir apps/webapp exec tsc --noEmit
+pnpm --dir apps/integrator exec tsc --noEmit
+pnpm --dir apps/webapp exec eslint src/modules/specialist-tasks/prepareReminderDeliveries.ts src/modules/specialist-tasks/prepareReminderDeliveries.test.ts
+cd apps/integrator && pnpm exec eslint src/infra/db/repos/outgoingDeliveryQueue.ts src/infra/delivery/deliveryContract.ts src/infra/runtime/scheduler/schedulerDecisionGuard.ts src/infra/runtime/scheduler/schedulerDecisionGuard.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.scope.test.ts src/infra/runtime/worker/outgoingDeliveryWorker.ts
+cd apps/integrator && node ../../scripts/check-queue-port-boundary.mjs
+cd apps/integrator && pnpm run check:d30-scheduler-lock-concurrency
+cd apps/integrator && pnpm run check:d30-outgoing-delivery-claim-concurrency
+cd apps/webapp && bash scripts/check-drizzle-journal-sync.sh
+cd apps/webapp && node ../../scripts/check-no-new-raw-sql.mjs
+git diff --check
+```
+
+The disposable-race invocation used `NODE_ENV=test USE_REAL_DATABASE=1` and a private PostgreSQL socket URL in
+both `DATABASE_URL` and `D30_DISPOSABLE_DATABASE_URL`; the temporary TS harness was deleted immediately after
+the PASS.

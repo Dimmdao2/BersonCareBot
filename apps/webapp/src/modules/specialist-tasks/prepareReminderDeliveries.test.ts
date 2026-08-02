@@ -63,34 +63,50 @@ describe('specialist-task ready delivery producer', () => {
     expect(deliveries).toEqual([]);
   });
 
-  it('keeps retries idempotent but versions title and description changes at the same due time', async () => {
-    const deps = {
+  it('versions every materialized ready payload but keeps an unchanged replay idempotent', async () => {
+    const makeDeps = (input?: { telegramId?: string; email?: string }) => ({
       topicChannelPrefs: { listByUserId: async () => [] },
       channelPreferences: { getPreferences: async () => [] },
       webPushSubscriptions: { hasAnyForUserId: async () => false },
-      systemSettings: { getSetting: async () => ({ valueJson: { channels: ['telegram'] } }) },
-      getChannelBindings: async () => ({ telegramId: '12345' }),
-      getProfileEmail: async () => null,
-      getProfileEmailVerified: async () => false,
+      systemSettings: { getSetting: async () => ({ valueJson: { channels: ['telegram', 'email'] } }) },
+      getChannelBindings: async () => ({ telegramId: input?.telegramId ?? '12345' }),
+      getProfileEmail: async () => input?.email ?? null,
+      getProfileEmailVerified: async () => Boolean(input?.email),
       resolvePatientDisplayName: async () => 'Пациент',
-    } as never;
+    }) as never;
 
+    const eventIdFor = (
+      deliveries: Awaited<ReturnType<typeof prepareSpecialistTaskReminderDeliveries>>,
+      channel: 'telegram' | 'email',
+    ) => deliveries.find((delivery) => delivery.channel === channel)?.eventId;
+
+    const deps = makeDeps({ email: 'doctor@example.test' });
     const first = await prepareSpecialistTaskReminderDeliveries(task, deps);
     const repeated = await prepareSpecialistTaskReminderDeliveries(task, deps);
-    const titleChanged = await prepareSpecialistTaskReminderDeliveries(
-      { ...task, title: 'Новый заголовок' },
+    const dueAtChanged = await prepareSpecialistTaskReminderDeliveries(
+      { ...task, dueAt: '2026-08-05T10:00:00.000Z' },
       deps,
     );
-    const descriptionChanged = await prepareSpecialistTaskReminderDeliveries(
-      { ...task, description: 'Новое описание' },
+    const telegramRecipientChanged = await prepareSpecialistTaskReminderDeliveries(
+      task,
+      makeDeps({ email: 'doctor@example.test', telegramId: '67890' }),
+    );
+    const emailRecipientChanged = await prepareSpecialistTaskReminderDeliveries(
+      task,
+      makeDeps({ email: 'other-doctor@example.test' }),
+    );
+    const descriptionOnlyChanged = await prepareSpecialistTaskReminderDeliveries(
+      { ...task, description: 'Не попадает в payload напоминания' },
       deps,
     );
 
     expect(repeated.map((delivery) => delivery.eventId)).toEqual(first.map((delivery) => delivery.eventId));
-    expect(titleChanged.map((delivery) => delivery.eventId)).not.toEqual(
-      first.map((delivery) => delivery.eventId),
+    expect(eventIdFor(dueAtChanged, 'telegram')).not.toBe(eventIdFor(first, 'telegram'));
+    expect(eventIdFor(telegramRecipientChanged, 'telegram')).not.toBe(
+      eventIdFor(first, 'telegram'),
     );
-    expect(descriptionChanged.map((delivery) => delivery.eventId)).not.toEqual(
+    expect(eventIdFor(emailRecipientChanged, 'email')).not.toBe(eventIdFor(first, 'email'));
+    expect(descriptionOnlyChanged.map((delivery) => delivery.eventId)).toEqual(
       first.map((delivery) => delivery.eventId),
     );
   });
