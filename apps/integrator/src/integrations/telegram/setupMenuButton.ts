@@ -6,9 +6,8 @@ import { logger } from '../../infra/observability/logger.js';
 import { getBotInstance } from './client.js';
 
 export async function setupTelegramMenuButton(): Promise<void> {
-  const api = (await getBotInstance()).api;
-
   try {
+    const api = (await getBotInstance()).api;
     await api.deleteMyCommands();
     await api.deleteMyCommands({ scope: { type: 'all_private_chats' } });
     await api.setMyCommands([]);
