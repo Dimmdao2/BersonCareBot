@@ -2,7 +2,10 @@ import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   parsePatientHomeCmsReturnQuery,
@@ -31,6 +34,7 @@ export default async function DoctorContentNewPage({
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
   if (!entitlement.ok) notFound();
+  if (!(await getMechanicMutationAvailability(workspace, 'cms_pages')).available) notFound();
   const session = workspace.session;
   const sp = await searchParams;
   const patientHomeContext: PatientHomeCmsReturnQuery | null = parsePatientHomeCmsReturnQuery({

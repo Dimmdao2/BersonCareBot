@@ -2,6 +2,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
+  getMechanicMutationAvailability,
   isMechanicIncluded,
   requireEntitlementForMutationAction,
   requireEntitlementForReadAction,
@@ -20,6 +21,7 @@ export default async function DoctorContentPage() {
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();
+  const canManageCms = (await getMechanicMutationAvailability(workspace, 'cms_pages')).available;
   const coursesEnabled = (await requireEntitlementForReadAction(workspace, 'courses')).ok;
   const patientHomeTodayEnabled = (
     await requireEntitlementForMutationAction(workspace, 'patient_home_today')
@@ -102,6 +104,7 @@ export default async function DoctorContentPage() {
     <DoctorAppShell title="Контент" user={session.user}>
       <ContentHubShell
         sections={hubSections}
+        canManageCms={canManageCms}
         patientHomeTodayEnabled={patientHomeTodayEnabled}
         warmupsEnabled={warmupsEnabled}
         fullSections={sections}

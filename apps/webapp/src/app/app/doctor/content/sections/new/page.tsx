@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import {
   parsePatientHomeCmsReturnQuery,
   type PatientHomeCmsReturnQuery,
@@ -28,6 +31,7 @@ export default async function DoctorContentSectionNewPage({ searchParams }: Page
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
   if (!entitlement.ok) notFound();
+  if (!(await getMechanicMutationAvailability(workspace, 'cms_pages')).available) notFound();
   const session = workspace.session;
   const sp = searchParams ? await searchParams : {};
   const patientHomeContext: PatientHomeCmsReturnQuery | null = parsePatientHomeCmsReturnQuery({

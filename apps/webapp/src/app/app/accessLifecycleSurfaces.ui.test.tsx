@@ -85,12 +85,8 @@ vi.mock('./patient/home/PatientHomeToday', () => ({
     warmupsOrganizationId: string | null;
   }) => (
     <div>
-      <div data-testid="patient-home-courses-organization">
-        {coursesOrganizationId ?? 'hidden'}
-      </div>
-      <div data-testid="patient-home-warmups-organization">
-        {warmupsOrganizationId ?? 'hidden'}
-      </div>
+      <div data-testid="patient-home-courses-organization">{coursesOrganizationId ?? 'hidden'}</div>
+      <div data-testid="patient-home-warmups-organization">{warmupsOrganizationId ?? 'hidden'}</div>
     </div>
   ),
 }));
@@ -99,8 +95,12 @@ let DoctorSectionLayout: typeof import('./doctor/layout').default;
 let PatientHomePage: typeof import('./patient/page').default;
 let DoctorCoursesPage: typeof import('./doctor/courses/page').default;
 let DoctorContentPage: typeof import('./doctor/content/page').default;
+let DoctorContentNewPage: typeof import('./doctor/content/new/page').default;
+let DoctorContentEditPage: typeof import('./doctor/content/edit/[id]/page').default;
+let DoctorContentSectionNewPage: typeof import('./doctor/content/sections/new/page').default;
+let DoctorContentSectionEditPage: typeof import('./doctor/content/sections/edit/[slug]/page').default;
 let coursesIncluded = true;
-let cmsIncluded = true;
+let cmsAccessState: 'grace' | 'read_only' | 'disabled' = 'grace';
 let warmupsIncluded = true;
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
@@ -139,11 +139,19 @@ beforeAll(async () => {
     { default: PatientHomePage },
     { default: DoctorCoursesPage },
     { default: DoctorContentPage },
+    { default: DoctorContentNewPage },
+    { default: DoctorContentEditPage },
+    { default: DoctorContentSectionNewPage },
+    { default: DoctorContentSectionEditPage },
   ] = await Promise.all([
     import('./doctor/layout'),
     import('./patient/page'),
     import('./doctor/courses/page'),
     import('./doctor/content/page'),
+    import('./doctor/content/new/page'),
+    import('./doctor/content/edit/[id]/page'),
+    import('./doctor/content/sections/new/page'),
+    import('./doctor/content/sections/edit/[slug]/page'),
   ]);
 });
 
@@ -152,7 +160,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-07-30T12:00:00.000Z'));
   coursesIncluded = true;
-  cmsIncluded = true;
+  cmsAccessState = 'grace';
   warmupsIncluded = true;
   const session = {
     adminMode: false,
@@ -167,16 +175,20 @@ beforeEach(() => {
       warning: null,
     }),
     resolveMechanicAccess: async (_organizationId: string, mechanic: OrgMechanic) => {
-      const included =
+      const state =
         mechanic === 'cms_pages'
-          ? cmsIncluded
+          ? cmsAccessState
           : mechanic === 'warmups'
             ? warmupsIncluded
-            : coursesIncluded;
-      return included
+              ? 'grace'
+              : 'disabled'
+            : coursesIncluded
+              ? 'grace'
+              : 'disabled';
+      return state !== 'disabled'
         ? {
             mechanic,
-            state: 'grace' as const,
+            state,
             policySource: 'system' as const,
             warning: {
               until: '2026-08-01T00:00:00.000Z',
@@ -300,7 +312,7 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
   });
 
   it('hides the specialist content navigation through the shared visibility adapter', async () => {
-    cmsIncluded = false;
+    cmsAccessState = 'disabled';
 
     render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
 
@@ -316,8 +328,23 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
   });
 
   it('does not render a direct specialist content URL through the shared visibility adapter', async () => {
-    cmsIncluded = false;
+    cmsAccessState = 'disabled';
 
     await expect(DoctorContentPage()).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('does not open CMS mutation pages during the read-only ladder step', async () => {
+    cmsAccessState = 'read_only';
+
+    await expect(DoctorContentNewPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      'NEXT_NOT_FOUND',
+    );
+    await expect(
+      DoctorContentEditPage({ params: Promise.resolve({ id: 'page-id' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(DoctorContentSectionNewPage({})).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(
+      DoctorContentSectionEditPage({ params: Promise.resolve({ slug: 'articles' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
   });
 });

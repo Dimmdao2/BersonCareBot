@@ -34,6 +34,7 @@ export type ContentNavSectionEntry = {
 
 export type ContentNavProps = {
   articleSections: ContentNavSectionEntry[];
+  canManageCms?: boolean;
   patientHomeTodayEnabled: boolean;
   warmupsEnabled: boolean;
   activePaneKey: ContentNavPaneKey;
@@ -154,6 +155,7 @@ type SectionVisState = { slug: string; title: string; isVisible: boolean };
  */
 export function ContentNav({
   articleSections,
+  canManageCms = true,
   patientHomeTodayEnabled,
   warmupsEnabled,
   activePaneKey,
@@ -243,15 +245,17 @@ export function ContentNav({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Статьи и страницы
         </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-6 px-2 text-xs"
-          onClick={onCreateSection}
-        >
-          + Раздел
-        </Button>
+        {canManageCms ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={onCreateSection}
+          >
+            + Раздел
+          </Button>
+        ) : null}
       </div>
 
       {userSections.length === 0 ? (
@@ -265,12 +269,14 @@ export function ContentNav({
             count={countsByPaneKey[`section:${s.slug}`]}
             onClick={() => onPaneChange(`section:${s.slug}`)}
             trailingSlot={
-              <SectionVisibilityToggle
-                slug={s.slug}
-                isVisible={s.isVisible}
-                onToggle={handleVisibilityToggle}
-                disabled={isPending}
-              />
+              canManageCms ? (
+                <SectionVisibilityToggle
+                  slug={s.slug}
+                  isVisible={s.isVisible}
+                  onToggle={handleVisibilityToggle}
+                  disabled={isPending}
+                />
+              ) : undefined
             }
           />
         ))
