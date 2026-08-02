@@ -1471,6 +1471,10 @@ describe('Р-14: immediate paid upgrade', () => {
 
   it('charges the next full period at the new price when an old-tariff renewal was paid early', async () => {
     let clock = new Date('2026-08-01T00:00:00.000Z');
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.subjectRef}`,
+      checkoutUrl: `https://pay.example/${input.subjectRef}`,
+    }));
     const repository = createInMemorySaasBillingRepository({
       tariffs: [
         { id: 'basic', name: 'Базовый', priceMinor: 10_000, currency: 'RUB', billingPeriod: 'month' },
@@ -1480,12 +1484,7 @@ describe('Р-14: immediate paid upgrade', () => {
     const service = createSaasBillingService({
       repository,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
-      resolvePaymentProvider: () => ({
-        createIntent: async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
-          providerIntentRef: `provider-${input.subjectRef}`,
-          checkoutUrl: `https://pay.example/${input.subjectRef}`,
-        }),
-      }) as never,
+      resolvePaymentProvider: () => ({ createIntent }) as never,
       now: () => clock,
       getTariffTransition: async () => ({
         currentTariffId: 'basic',
@@ -1524,19 +1523,25 @@ describe('Р-14: immediate paid upgrade', () => {
       actorId: 'owner',
     });
     if (upgrade.outcome !== 'checkout') throw new Error('checkout expected');
+    expect(upgrade.invoice).toMatchObject({
+      amountMinor: 15_000,
+      tariffSnapshot: { upgrade_future_period_adjustment_minor: 10_000 },
+    });
     await capture(upgrade.invoice, 'capture-upgrade');
 
     clock = new Date('2026-09-01T00:00:00.000Z');
     await service.runDueSaasBillingRenewals();
     const overview = await service.getOrganizationBillingOverview('org-early-renewal-upgrade');
-    const nextPeriodPaidMinor = overview.invoices
-      .filter((invoice) =>
-        invoice.status === 'paid'
-        && invoice.servicePeriodStartsAt === '2026-09-01T00:00:00.000Z'
-        && invoice.servicePeriodEndsAt === '2026-10-01T00:00:00.000Z')
-      .reduce((sum, invoice) => sum + invoice.amountMinor, 0);
-
-    expect(nextPeriodPaidMinor).toBe(20_000);
+    expect(overview.invoices.find((invoice) => invoice.id === earlyRenewal.id)).toMatchObject({
+      amountMinor: 10_000,
+      tariffId: 'pro',
+      tariffSnapshot: { id: 'pro' },
+    });
+    expect(createIntent.mock.calls.map(([input]) => input.amountMinor)).toEqual([
+      10_000,
+      10_000,
+      15_000,
+    ]);
     expect(overview.subscriptions.find((row) => row.source === 'paid_subscription')).toMatchObject({
       tariffId: 'pro',
       tariffSnapshot: { id: 'pro' },

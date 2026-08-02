@@ -697,6 +697,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             currentPeriodStartsAt: saasBillingSubscriptions.currentPeriodStartsAt,
             currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
             tariffSnapshot: saasBillingSubscriptions.tariffSnapshot,
+            paidAdditionalSeats: saasBillingSubscriptions.paidAdditionalSeats,
           })
           .from(saasBillingSubscriptions)
           .where(
@@ -736,6 +737,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             priceMinor: saasTariffs.priceMinor,
             currency: saasTariffs.currency,
             billingPeriod: saasTariffs.billingPeriod,
+            additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor,
           })
           .from(saasTariffs)
           .where(and(eq(saasTariffs.id, input.targetTariffId), eq(saasTariffs.isActive, true)))
@@ -751,14 +753,52 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
         }
         if (targetTariff.priceMinor <= currentTariff.priceMinor) return { outcome: 'scheduled' };
-        const amountMinor = proratedTariffUpgradeAmountMinor({
+        const currentPeriodAdjustmentMinor = proratedTariffUpgradeAmountMinor({
           currentPriceMinor: currentTariff.priceMinor,
           targetPriceMinor: targetTariff.priceMinor,
           periodStartsAt: subscription.currentPeriodStartsAt,
           periodEndsAt: subscription.currentPeriodEndsAt,
           asOf: input.asOf,
         });
-        if (amountMinor === 0) throw new Error('saas_billing_upgrade_no_remaining_period');
+        if (currentPeriodAdjustmentMinor === 0) {
+          throw new Error('saas_billing_upgrade_no_remaining_period');
+        }
+        if (subscription.paidAdditionalSeats > 0 && targetTariff.additionalSeatPriceMinor === null) {
+          throw new Error('saas_billing_additional_seat_price_missing');
+        }
+        const [paidFuturePeriod] = await tx
+          .select({
+            amountMinor: saasBillingInvoices.amountMinor,
+            currency: saasBillingInvoices.currency,
+            tariffBillingPeriod: saasBillingInvoices.tariffBillingPeriod,
+          })
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
+              eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
+              isNull(saasBillingInvoices.description),
+              eq(saasBillingInvoices.status, 'paid'),
+              eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
+            ),
+          )
+          .limit(1);
+        const targetFuturePeriodAmountMinor =
+          targetTariff.priceMinor +
+          subscription.paidAdditionalSeats * (targetTariff.additionalSeatPriceMinor ?? 0);
+        if (
+          paidFuturePeriod &&
+          (paidFuturePeriod.currency !== targetTariff.currency ||
+            paidFuturePeriod.tariffBillingPeriod !== targetTariff.billingPeriod ||
+            paidFuturePeriod.amountMinor > targetFuturePeriodAmountMinor)
+        ) {
+          throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
+        }
+        const futurePeriodAdjustmentMinor = paidFuturePeriod
+          ? targetFuturePeriodAmountMinor - paidFuturePeriod.amountMinor
+          : 0;
+        const amountMinor = currentPeriodAdjustmentMinor + futurePeriodAdjustmentMinor;
+        const targetTariffSnapshot = await readTariffSnapshotForPeriod(tx, targetTariff.id);
 
         const result = await insertSaasBillingInvoiceIdempotent(tx, {
           organizationId: subscription.organizationId,
@@ -772,7 +812,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           amountMinor,
           currency: targetTariff.currency,
           tariffBillingPeriod: targetTariff.billingPeriod,
-          tariffSnapshot: await readTariffSnapshotForPeriod(tx, targetTariff.id),
+          tariffSnapshot: {
+            ...targetTariffSnapshot,
+            upgrade_future_period_adjustment_minor: futurePeriodAdjustmentMinor,
+          },
           servicePeriodStartsAt: input.asOf,
           servicePeriodEndsAt: subscription.currentPeriodEndsAt,
           status: 'draft',
@@ -927,8 +970,6 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             .set({
               tariffId: invoice.tariffId,
               tariffName: invoice.tariffName,
-              amountMinor:
-                targetTariff.priceMinor + subscription.paidAdditionalSeats * (additionalSeatPriceMinor ?? 0),
               currency: targetTariff.currency,
               tariffBillingPeriod: targetTariff.billingPeriod,
               tariffSnapshot,

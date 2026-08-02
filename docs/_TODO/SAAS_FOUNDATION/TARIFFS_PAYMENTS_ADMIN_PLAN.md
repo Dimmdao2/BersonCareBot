@@ -1206,8 +1206,13 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       специалистов, филиалы, пациенты.
       ⚠️ Предусловие остаётся прежним (5.5): пока нет штатного способа убрать файл, заморозка станет тупиком —
       предел объёма не раздаётся. Исследование запущено (`docs/_TODO/runs/tariff/FILES_DELETION_RESEARCH_BRIEF.md`).
-      Доказательство fixer `314eed328`: сохранённый oracle покрывает сравнение с ценой оплаченного snapshot,
-      раннее оплаченное следующее продление и поздний capture старого периода; `pnpm --dir apps/webapp exec vitest run --project fast src/modules/saas-billing/service.test.ts` — 41 passed. Полный targeted набор audit report, typecheck, scoped ESLint и `git diff --check` — зелёные.
+      Доказательство финального денежного пути: сохранённый oracle покрывает сравнение с ценой оплаченного snapshot,
+      поздний capture старого периода и раннее оплаченное следующее продление. В последнем случае уже оплаченная
+      сумма счёта остаётся неизменной, недостающая часть следующего полного периода входит в реальный provider
+      checkout повышения и сохраняется отдельным компонентом snapshot; после capture меняется только тариф будущего
+      счёта. `pnpm --dir apps/webapp exec vitest run --project fast src/modules/saas-billing/service.test.ts
+      src/modules/saas-billing/proration.test.ts` — 2 файла / 44 теста; route/webhook/UI — 4 файла / 26 тестов;
+      `pnpm --dir apps/webapp typecheck`, scoped ESLint и `git diff --check` — зелёные.
 - [x] **5.7** ✅ **ЗАКРЫТО 31.07**: три исполняемых доказательства на настоящем одноразовом PostgreSQL 16 — `check-patient-count-quota-race.mjs`, `check-branches-quota-race.mjs`, `check-storage-quota-race.mjs`. Лид проверил разом: снятие решающей строки `used + increment > quota.limit` роняет ВСЕ ТРИ, откат — все три зелёные.
       одновременных попыток на последний слот проходит одна, пересчёт под принципалом.
 - [ ] **5.8** Контракт деплоя для каждой новой функции и триггера: права под исполняющей ролью; при появлении

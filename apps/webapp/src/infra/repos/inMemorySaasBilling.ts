@@ -62,6 +62,7 @@ export function createInMemorySaasBillingRepository(
       priceMinor: number;
       currency: string;
       billingPeriod: 'day' | 'month' | 'year';
+      additionalSeatPriceMinor?: number | null;
     }>;
   } = {},
 ): SaasBillingRepositoryPort {
@@ -398,14 +399,43 @@ export function createInMemorySaasBillingRepository(
         throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
       }
       if (targetTariff.priceMinor <= currentTariff.priceMinor) return { outcome: 'scheduled' };
-      const amountMinor = proratedTariffUpgradeAmountMinor({
+      const currentPeriodAdjustmentMinor = proratedTariffUpgradeAmountMinor({
         currentPriceMinor: currentTariff.priceMinor,
         targetPriceMinor: targetTariff.priceMinor,
         periodStartsAt: subscription.currentPeriodStartsAt,
         periodEndsAt: subscription.currentPeriodEndsAt,
         asOf: input.asOf,
       });
-      if (amountMinor === 0) throw new Error('saas_billing_upgrade_no_remaining_period');
+      if (currentPeriodAdjustmentMinor === 0) {
+        throw new Error('saas_billing_upgrade_no_remaining_period');
+      }
+      const paidFuturePeriod = [...invoices.values()].find(
+        (invoice) =>
+          invoice.saasBillingSubscriptionId === subscription.id &&
+          invoice.invoiceKind === 'tariff_period' &&
+          invoice.description === null &&
+          invoice.status === 'paid' &&
+          invoice.servicePeriodStartsAt === subscription.currentPeriodEndsAt,
+      );
+      const targetAdditionalSeatPriceMinor = targetTariff.additionalSeatPriceMinor ?? null;
+      if (subscription.paidAdditionalSeats > 0 && targetAdditionalSeatPriceMinor === null) {
+        throw new Error('saas_billing_additional_seat_price_missing');
+      }
+      const targetFuturePeriodAmountMinor =
+        targetTariff.priceMinor +
+        subscription.paidAdditionalSeats * (targetAdditionalSeatPriceMinor ?? 0);
+      if (
+        paidFuturePeriod &&
+        (paidFuturePeriod.currency !== targetTariff.currency ||
+          paidFuturePeriod.tariffBillingPeriod !== targetTariff.billingPeriod ||
+          paidFuturePeriod.amountMinor > targetFuturePeriodAmountMinor)
+      ) {
+        throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
+      }
+      const futurePeriodAdjustmentMinor = paidFuturePeriod
+        ? targetFuturePeriodAmountMinor - paidFuturePeriod.amountMinor
+        : 0;
+      const amountMinor = currentPeriodAdjustmentMinor + futurePeriodAdjustmentMinor;
       const invoice: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: subscription.organizationId,
@@ -419,7 +449,14 @@ export function createInMemorySaasBillingRepository(
         amountMinor,
         currency: targetTariff.currency,
         tariffBillingPeriod: targetTariff.billingPeriod,
-        tariffSnapshot: { id: targetTariff.id, price_minor: targetTariff.priceMinor, currency: targetTariff.currency, billing_period: targetTariff.billingPeriod },
+        tariffSnapshot: {
+          id: targetTariff.id,
+          price_minor: targetTariff.priceMinor,
+          currency: targetTariff.currency,
+          billing_period: targetTariff.billingPeriod,
+          additional_seat_price_minor: targetAdditionalSeatPriceMinor,
+          upgrade_future_period_adjustment_minor: futurePeriodAdjustmentMinor,
+        },
         servicePeriodStartsAt: input.asOf,
         servicePeriodEndsAt: subscription.currentPeriodEndsAt,
         expiresAt: null,
@@ -549,8 +586,6 @@ export function createInMemorySaasBillingRepository(
               ...invoice,
               tariffId: current.tariffId,
               tariffName: current.tariffName,
-              amountMinor:
-                targetTariff.priceMinor + subscription.paidAdditionalSeats * (additionalSeatPriceMinor ?? 0),
               currency: targetTariff.currency,
               tariffBillingPeriod: targetTariff.billingPeriod,
               tariffSnapshot: current.tariffSnapshot,
