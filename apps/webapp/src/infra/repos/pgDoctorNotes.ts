@@ -1,7 +1,8 @@
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { and, desc, eq } from 'drizzle-orm';
 import { doctorNotes } from '../../../db/schema/schema';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb } from '@/infra/db/runWebappSql';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { DoctorNoteRow, DoctorNotesPort } from '@/modules/doctor-notes/ports';
 
@@ -24,31 +25,18 @@ function currentWriteOrganizationId(): string | null {
 export function createPgDoctorNotesPort(): DoctorNotesPort {
   return {
     async listForUser(userId: string): Promise<DoctorNoteRow[]> {
-      const r = await runWebappPgText<{
-        id: string;
-        organization_id: string | null;
-        user_id: string;
-        author_id: string;
-        text: string;
-        created_at: Date;
-        updated_at: Date;
-      }>(
-        `SELECT id, organization_id, user_id, author_id, text, created_at, updated_at
-         FROM doctor_notes
-         WHERE user_id = $1
-           AND ($2::uuid IS NULL OR organization_id = $2::uuid)
-         ORDER BY created_at DESC`,
-        [userId, getCurrentDbPrincipalOrganizationId()],
-      );
-      return r.rows.map((row) => ({
-        id: row.id,
-        organizationId: row.organization_id,
-        userId: row.user_id,
-        authorId: row.author_id,
-        text: row.text,
-        createdAt: toIsoStringSafe(row.created_at),
-        updatedAt: toIsoStringSafe(row.updated_at),
-      }));
+      const organizationId = getCurrentDbPrincipalOrganizationId();
+      const rows = await getWebappSqlDb()
+        .select()
+        .from(doctorNotes)
+        .where(
+          and(
+            eq(doctorNotes.userId, userId),
+            organizationId ? eq(doctorNotes.organizationId, organizationId) : undefined,
+          ),
+        )
+        .orderBy(desc(doctorNotes.createdAt));
+      return rows.map(mapRow);
     },
 
     async create(params: {

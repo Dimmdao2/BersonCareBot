@@ -1,5 +1,5 @@
 /**
- * Config adapter: dual-read — DB (system_settings) → env fallback.
+ * Config adapter: DB-only reads from system_settings.
  * In-memory TTL cache (60 sec) per key.
  * Used for non-secret runtime config: URLs, flags, IDs.
  * Integration secrets (OAuth client secret и т.д.) хранятся в `system_settings` (admin), см. `integrationRuntime`.
@@ -8,8 +8,7 @@
 import {
   readAdminSystemSettingString,
   readExactOrganizationAdminSystemSettingString,
-  readIsSmtpOutboundConfigured,
-  readPublicConfigBoolean,
+  readPublicAuthChannelConfigured,
 } from '@/infra/repos/pgSystemSettings';
 import { createPgAppRuntimeSettingsPort } from '@/infra/repos/pgAppRuntimeSettings';
 import {
@@ -23,13 +22,42 @@ import {
   type ServerRuntimeIntegerKey,
   type ServerRuntimeTokenListKey,
 } from './runtimeConfig';
+import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
+import type { PublicAuthChannelCapability } from './ports';
 
 const TTL_MS = 60_000;
 
 type CacheEntry = {
+  settingKey: string;
   value: string;
   fetchedAt: number;
 };
+
+type CacheIdentity =
+  | { kind: 'global'; settingKey: string }
+  | { kind: 'exact-organization'; settingKey: string; organizationId: string }
+  | {
+      kind: 'auth-channel-configured';
+      settingKey: string;
+      channel: PublicAuthChannelCapability;
+    };
+
+function configCacheKey(identity: CacheIdentity): string {
+  if (identity.kind === 'global') return identity.settingKey;
+  if (identity.kind === 'auth-channel-configured') {
+    return `__auth_channel_configured_accessor__:${identity.channel}`;
+  }
+  return `exact-org:${identity.organizationId}:${identity.settingKey}`;
+}
+
+function readCached(identity: CacheIdentity, now: number): string | null {
+  const cached = cache.get(configCacheKey(identity));
+  return cached && now - cached.fetchedAt < TTL_MS ? cached.value : null;
+}
+
+function writeCached(identity: CacheIdentity, value: string, fetchedAt: number): void {
+  cache.set(configCacheKey(identity), { settingKey: identity.settingKey, value, fetchedAt });
+}
 
 const cache = new Map<string, CacheEntry>();
 const safeRuntimeConfig = createRuntimeConfigProvider(createPgAppRuntimeSettingsPort());
@@ -63,26 +91,28 @@ export function getServerRuntimeBool(key: ServerRuntimeBooleanKey): Promise<bool
   return safeRuntimeConfig.getServerBoolean(key);
 }
 
-export function getServerRuntimeInteger(key: ServerRuntimeIntegerKey): Promise<number> {
-  return safeRuntimeConfig.getServerInteger(key);
+export function getServerRuntimeInteger(
+  key: ServerRuntimeIntegerKey,
+  organizationId: string | null = null,
+): Promise<number> {
+  return safeRuntimeConfig.getServerInteger(key, organizationId);
 }
 
-export function getServerRuntimeTokenList(
-  key: ServerRuntimeTokenListKey,
-  envFallback: string,
-): Promise<string> {
-  const cacheKey = `server-token-list:${key}`;
-  const now = Date.now();
-  const cached = cache.get(cacheKey);
-  if (cached && now - cached.fetchedAt < TTL_MS) {
-    return Promise.resolve(cached.value);
+export type ServerConfigStructuredKey = 'test_account_identifiers';
+
+/**
+ * Required structured server configuration. It shares the DB-only cache and failure semantics of
+ * `getConfigValue`; malformed JSON is unavailable, never an implicit empty configuration.
+ */
+export async function getServerConfigStructuredValue(
+  key: ServerConfigStructuredKey,
+): Promise<unknown> {
+  const value = await getConfigValue(key);
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    throw new RuntimeSettingUnavailableError(key);
   }
-  return safeRuntimeConfig
-    .getServerTokenList(key, envFallback, 'auth_role_config')
-    .then((value) => {
-      cache.set(cacheKey, { value, fetchedAt: Date.now() });
-      return value;
-    });
 }
 
 /**
@@ -100,10 +130,8 @@ export function invalidateConfigCache(): void {
 
 /** Invalidate a single key from cache. */
 export function invalidateConfigKey(key: string): void {
-  cache.delete(key);
-  cache.delete(`server-token-list:${key}`);
-  if (key === 'smtp_outbound') {
-    cache.delete(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY);
+  for (const [cacheKey, entry] of cache) {
+    if (entry.settingKey === key) cache.delete(cacheKey);
   }
 }
 
@@ -113,24 +141,15 @@ export function invalidateConfigKey(key: string): void {
  * request gets on `system_settings` — a 42501 from the bare nonstaff login role — and caching it
  * poisoned the key for every consumer in the process for the whole TTL. They are now distinct.
  */
-type SettingReadOutcome = { read: true; value: string | null } | { read: false };
+type SettingReadOutcome =
+  | { read: true; value: string | null }
+  | { read: false; cause: unknown };
 
 async function fetchFromDb(key: string): Promise<SettingReadOutcome> {
   try {
     return { read: true, value: await readAdminSystemSettingString(key) };
-  } catch {
-    return { read: false };
-  }
-}
-
-async function fetchFromDbForOrganization(
-  key: string,
-  organizationId: string,
-): Promise<SettingReadOutcome> {
-  try {
-    return { read: true, value: await readAdminSystemSettingString(key, { organizationId }) };
-  } catch {
-    return { read: false };
+  } catch (cause) {
+    return { read: false, cause };
   }
 }
 
@@ -143,155 +162,88 @@ async function fetchExactOrganizationValue(
       read: true,
       value: await readExactOrganizationAdminSystemSettingString(key, organizationId),
     };
-  } catch {
-    return { read: false };
+  } catch (cause) {
+    return { read: false, cause };
   }
 }
 
-async function fetchPublicConfigBoolFromDb(key: string): Promise<boolean | null> {
-  try {
-    return await readPublicConfigBoolean(key);
-  } catch {
-    return null;
-  }
-}
-
-async function fetchIsSmtpOutboundConfiguredFromDb(): Promise<boolean | null> {
-  try {
-    return await readIsSmtpOutboundConfigured();
-  } catch {
-    return null;
-  }
+function requireReadValue(key: string, outcome: SettingReadOutcome): string {
+  if (!outcome.read) throw new RuntimeSettingUnavailableError(key, outcome.cause);
+  if (outcome.value === null) throw new RuntimeSettingUnavailableError(key);
+  return outcome.value;
 }
 
 /**
- * Get a runtime config value.
- * Order: in-memory cache → system_settings DB → envFallback.
- *
- * A read that FAILED is not an answer: the caller still gets its fallback for this one call, but
- * nothing is written to the cache, so the next caller — which may hold a principal that is allowed
- * to read the table — asks the database again instead of inheriting a stranger's denial.
- *
- * @param key   The system_settings key (must be in ALLOWED_KEYS).
- * @param envFallback  The env-sourced fallback value.
+ * Get a required runtime config value from `system_settings`.
+ * A failed read or missing row is not an answer and is never cached.
  */
-export async function getConfigValue(key: string, envFallback: string): Promise<string> {
+export async function getConfigValue(key: string): Promise<string> {
   const now = Date.now();
-  const cached = cache.get(key);
-  if (cached && now - cached.fetchedAt < TTL_MS) {
-    return cached.value;
-  }
+  const identity = { kind: 'global', settingKey: key } as const;
+  const cached = readCached(identity, now);
+  if (cached !== null) return cached;
 
   const outcome = await fetchFromDb(key);
-  if (!outcome.read) return envFallback;
-
-  const resolved = outcome.value ?? envFallback;
-  cache.set(key, { value: resolved, fetchedAt: now });
-  return resolved;
-}
-
-/**
- * Organization-specific setting read. The cache identity includes the clinic so a credential
- * lookup can never reuse a value resolved for another organization.
- */
-export async function getOrganizationConfigValue(
-  key: string,
-  organizationId: string,
-  envFallback: string,
-): Promise<string> {
-  const normalizedOrganizationId = organizationId.trim();
-  if (!normalizedOrganizationId) return envFallback;
-  const cacheKey = `org:${normalizedOrganizationId}:${key}`;
-  const now = Date.now();
-  const cached = cache.get(cacheKey);
-  if (cached && now - cached.fetchedAt < TTL_MS) return cached.value;
-
-  const outcome = await fetchFromDbForOrganization(key, normalizedOrganizationId);
-  if (!outcome.read) return envFallback;
-  const resolved = outcome.value ?? envFallback;
-  cache.set(cacheKey, { value: resolved, fetchedAt: now });
-  return resolved;
+  const value = requireReadValue(key, outcome);
+  writeCached(identity, value, now);
+  return value;
 }
 
 /** Exact clinic row, intentionally without global fallback for connection credentials. */
 export async function getExactOrganizationConfigValue(
   key: string,
   organizationId: string,
-  envFallback: string,
 ): Promise<string> {
   const normalizedOrganizationId = organizationId.trim();
-  if (!normalizedOrganizationId) return envFallback;
-  const cacheKey = `exact-org:${normalizedOrganizationId}:${key}`;
+  if (!normalizedOrganizationId) throw new RuntimeSettingUnavailableError(key);
+  const identity = {
+    kind: 'exact-organization',
+    settingKey: key,
+    organizationId: normalizedOrganizationId,
+  } as const;
   const now = Date.now();
-  const cached = cache.get(cacheKey);
-  if (cached && now - cached.fetchedAt < TTL_MS) return cached.value;
+  const cached = readCached(identity, now);
+  if (cached !== null) return cached;
   const outcome = await fetchExactOrganizationValue(key, normalizedOrganizationId);
-  if (!outcome.read) return envFallback;
-  const resolved = outcome.value ?? envFallback;
-  cache.set(cacheKey, { value: resolved, fetchedAt: now });
-  return resolved;
+  const value = requireReadValue(key, outcome);
+  writeCached(identity, value, now);
+  return value;
 }
 
 /**
  * Get a boolean config value (DB stores "true"/"false" or boolean).
  */
-export async function getConfigBool(key: string, envFallback: boolean): Promise<boolean> {
-  const val = await getConfigValue(key, envFallback ? 'true' : 'false');
-  return val === 'true' || val === '1';
+export async function getConfigBool(key: string): Promise<boolean> {
+  const value = (await getConfigValue(key)).trim().toLowerCase();
+  if (value === 'true' || value === '1') return true;
+  if (value === 'false' || value === '0') return false;
+  throw new RuntimeSettingUnavailableError(key);
 }
 
 /**
- * Legacy public/pre-session boolean read through its whitelisted SECURITY DEFINER accessor.
- * New public reads use the typed app_runtime_settings projection helpers above.
+ * Required public capability read for an unauthenticated login request. Each accessor returns only
+ * a derived boolean; a DB/accessor failure still propagates and must fail the request.
  */
-export async function getPublicConfigBool(key: string, envFallback: boolean): Promise<boolean> {
-  const dbValue = await fetchPublicConfigBoolFromDb(key);
-  if (dbValue !== null) {
-    const now = Date.now();
-    cache.set(key, { value: dbValue ? 'true' : 'false', fetchedAt: now });
-    return dbValue;
-  }
-  return envFallback;
-}
-
-const SMTP_OUTBOUND_CONFIGURED_CACHE_KEY = '__smtp_outbound_configured_accessor__';
-
-/**
- * Whether outbound SMTP is configured, via the whitelisted boolean-only SECURITY DEFINER accessor
- * `app.is_smtp_outbound_configured()` (migration 0240) — never returns the credential itself.
- * Available to every DB role the public login screen runs as, including the unauthenticated
- * bootstrap pool that has no table SELECT on `system_settings`. Returns `null` (never throws) on any
- * accessor error, including the function being absent on an older DB, so the caller
- * (authChannelPolicy.ts:isSmtpConfigured) can degrade to its own fallback rather than 500.
- */
-export async function getIsSmtpOutboundConfiguredOrNull(): Promise<boolean | null> {
+export async function getPublicAuthChannelConfigured(
+  channel: PublicAuthChannelCapability,
+): Promise<boolean> {
+  const settingKey =
+    channel === 'email'
+      ? 'smtp_outbound'
+      : channel === 'sms'
+        ? 'smsc_api_key'
+        : channel === 'telegram'
+          ? 'telegram_login_bot_username'
+          : 'max_bot_api_key';
+  const identity = {
+    kind: 'auth-channel-configured',
+    settingKey,
+    channel,
+  } as const satisfies CacheIdentity;
   const now = Date.now();
-  const cached = cache.get(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY);
-  if (cached && now - cached.fetchedAt < TTL_MS) {
-    return cached.value === 'true';
-  }
-  const dbValue = await fetchIsSmtpOutboundConfiguredFromDb();
-  if (dbValue !== null) {
-    cache.set(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY, {
-      value: dbValue ? 'true' : 'false',
-      fetchedAt: now,
-    });
-  }
+  const cached = readCached(identity, now);
+  if (cached !== null) return cached === 'true';
+  const dbValue = await readPublicAuthChannelConfigured(channel);
+  writeCached(identity, dbValue ? 'true' : 'false', now);
   return dbValue;
-}
-
-/**
- * Integer from `system_settings` with bounds. Non-numeric or out-of-range → `defaultValue`.
- */
-export async function getConfigPositiveInt(
-  key: string,
-  defaultValue: number,
-  opts: { min: number; max: number },
-): Promise<number> {
-  const raw = await getConfigValue(key, String(defaultValue));
-  const n = Number.parseInt(String(raw).trim(), 10);
-  if (!Number.isFinite(n) || n < 1) {
-    return defaultValue;
-  }
-  return Math.min(opts.max, Math.max(opts.min, n));
 }

@@ -4,6 +4,7 @@ import { createMediaWorkerPoolProvider } from './poolProvider.js';
 import { createS3Client } from './s3.js';
 import { runMediaWorkerTick } from './workerTick.js';
 import { createMediaWorkerIsolationReporter } from './saasIsolationTelemetry.js';
+import { runMediaWorkerClientPgText } from './runMediaWorkerSql.js';
 import { startMediaWorkerTransaction } from './withClient.js';
 import {
   captureMediaWorkerLoopError,
@@ -23,9 +24,13 @@ async function main() {
   await runMediaWorkerStartupGate(pool, async () => {
     const tx = await startMediaWorkerTransaction(pool);
     try {
-      await tx.client.query('SELECT 1 FROM public.media_transcode_jobs WHERE false');
-      await tx.client.query('SELECT 1 FROM public.media_files WHERE false');
-      await tx.client.query(
+      await runMediaWorkerClientPgText(
+        tx.client,
+        'SELECT 1 FROM public.media_transcode_jobs WHERE false',
+      );
+      await runMediaWorkerClientPgText(tx.client, 'SELECT 1 FROM public.media_files WHERE false');
+      await runMediaWorkerClientPgText(
+        tx.client,
         "SELECT app.read_media_worker_runtime_setting('video_hls_pipeline_enabled')",
       );
       await tx.rollback();

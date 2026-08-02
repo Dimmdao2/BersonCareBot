@@ -10,6 +10,7 @@ import type {
   MediaUsageRef,
   MediaUsageSummary,
 } from './types';
+import type { ReceivedUpload } from './uploadValidation';
 
 export type UploadMediaParams = {
   /** File content. */
@@ -18,6 +19,8 @@ export type UploadMediaParams = {
   filename: string;
   /** MIME type (e.g. "image/jpeg", "audio/mpeg", "video/mp4"). */
   mimeType: string;
+  /** Branded result of the received-object door; raw request metadata cannot mark media ready. */
+  received: ReceivedUpload;
   /** Optional owner for access control. */
   userId?: string | null;
   /** Library folder (`null` = root). Omit for legacy behavior (root). */

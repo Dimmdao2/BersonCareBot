@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const fakes = vi.hoisted(() => ({
   isOAuthProviderEnabled: vi.fn<(provider: 'google' | 'yandex' | 'apple') => Promise<boolean>>(),
   isIndependentAuthMethodEnabled: vi.fn<() => Promise<boolean>>(),
-  getLoginAlternativesPublicConfig: vi.fn(),
+  getAnonymousLoginAlternativesPublicConfig: vi.fn(),
   getSpecialistSignupEnabled: vi.fn<() => Promise<boolean>>(),
   getLegacyPublicRuntimeBool: vi.fn<() => Promise<boolean>>(),
 }));
@@ -13,7 +13,7 @@ vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isIndependentAuthMethodEnabled: fakes.isIndependentAuthMethodEnabled,
 }));
 vi.mock('@/modules/auth/loginAlternativesConfig', () => ({
-  getLoginAlternativesPublicConfig: fakes.getLoginAlternativesPublicConfig,
+  getAnonymousLoginAlternativesPublicConfig: fakes.getAnonymousLoginAlternativesPublicConfig,
 }));
 vi.mock('@/modules/auth/specialistSignupRollout', () => ({
   getSpecialistSignupEnabled: fakes.getSpecialistSignupEnabled,
@@ -28,7 +28,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   fakes.isOAuthProviderEnabled.mockResolvedValue(true);
   fakes.isIndependentAuthMethodEnabled.mockResolvedValue(true);
-  fakes.getLoginAlternativesPublicConfig.mockResolvedValue({
+  fakes.getAnonymousLoginAlternativesPublicConfig.mockResolvedValue({
     telegramBotUsername: null,
     maxBotOpenUrl: null,
     vkWebLoginUrl: null,

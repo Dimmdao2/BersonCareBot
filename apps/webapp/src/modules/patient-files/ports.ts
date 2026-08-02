@@ -1,3 +1,5 @@
+import type { ReceivedUpload } from '@/modules/media/uploadValidation';
+
 /**
  * Patient Files module — ports (interfaces only; no DB/infra imports).
  * Single source of truth for a patient's files (standalone + linked from visits).
@@ -47,6 +49,11 @@ export interface PatientFilesPort {
   listFiles(patientUserId: string, category?: PatientFileCategory): Promise<PatientFileRecord[]>;
   getFile(id: string): Promise<PatientFileRecord | null>;
   createFile(params: CreatePatientFileParams): Promise<PatientFileRecord>;
+  /** Atomically consumes actual received bytes and exposes the pending file. */
+  confirmFileUpload(
+    mediaFileId: string,
+    received: ReceivedUpload,
+  ): Promise<PatientFileRecord | null>;
   linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null>;
   renameFile(id: string, fileName: string): Promise<PatientFileRecord | null>;
   /** Current total bytes stored for the organization; mirrors the `files` quota's live SUM in `createFile`. */

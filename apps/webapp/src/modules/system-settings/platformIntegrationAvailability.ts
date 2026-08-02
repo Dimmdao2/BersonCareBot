@@ -1,3 +1,5 @@
+import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
+
 export const PLATFORM_INTEGRATION_IDS = [
   'telegram',
   'max',
@@ -91,25 +93,6 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
   },
 ] as const;
 
-/**
- * Compatibility defaults are deliberately explicit. Existing wired adapters
- * remain available when the row is first introduced; the declared-only Yandex
- * Calendar adapter stays unavailable until its sync mechanic is delivered.
- */
-export const DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY: PlatformIntegrationAvailability =
-  Object.freeze({
-    version: 1,
-    integrations: Object.freeze({
-      telegram: true,
-      max: true,
-      email: true,
-      smsc: true,
-      web_push: true,
-      google_calendar: true,
-      yandex_calendar: false,
-    }),
-  });
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -142,9 +125,12 @@ export function normalizePlatformIntegrationAvailability(
 export function parsePlatformIntegrationAvailabilityEnvelope(
   envelope: unknown,
 ): PlatformIntegrationAvailability {
-  if (!isRecord(envelope)) return DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY;
-  return (
-    normalizePlatformIntegrationAvailability(envelope.value) ??
-    DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY
-  );
+  if (!isRecord(envelope)) {
+    throw new RuntimeSettingUnavailableError('platform_integration_availability');
+  }
+  const value = normalizePlatformIntegrationAvailability(envelope.value);
+  if (value === null) {
+    throw new RuntimeSettingUnavailableError('platform_integration_availability');
+  }
+  return value;
 }

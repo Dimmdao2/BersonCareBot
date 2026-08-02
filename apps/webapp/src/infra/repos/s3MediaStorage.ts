@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { and, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, lte, notExists, sql, type SQL } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { getPool } from '@/infra/db/client';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { startPoolTransaction, withPoolTransaction } from '@/infra/db/withClient';
 import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from '@/infra/db/pgAdvisoryLock';
 import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
@@ -27,6 +29,7 @@ import {
   s3PutObjectBody,
 } from '@/infra/s3/client';
 import type { MediaStoragePort } from '@/modules/media/ports';
+import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 import type {
   MediaListParams,
@@ -47,7 +50,9 @@ import {
   resolvePosterPurgeListPrefix,
 } from '@/shared/lib/hlsStorageLayout';
 import { pgRuSubstringSearchPattern } from '@/shared/lib/ruSearchNormalize';
-import { mediaFiles } from '../../../db/schema/schema';
+import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
+import { patientFiles } from '../../../db/schema/patientFiles';
+import { MULTIPART_SESSION_TTL_MS } from '@/modules/media/multipartConstants';
 import {
   mediaReadableStatusPredicate,
   mediaReadableStatusPredicateM,
@@ -111,6 +116,7 @@ function mapVideoHlsColumns(row: {
 export function createS3MediaStoragePort(): MediaStoragePort {
   return {
     async upload(params) {
+      assertReceivedUpload(params.received);
       const body =
         params.body instanceof ArrayBuffer ? params.body : new Uint8Array(params.body).buffer;
       if (body.byteLength > MAX_MEDIA_BYTES) {
@@ -120,17 +126,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         throw new Error('media_upload_empty');
       }
 
-      const idRow = await runWebappSql<{ id: string }>(
-        getWebappSqlDb(),
-        sql`SELECT gen_random_uuid()::text AS id`,
-      );
-      const id = idRow.rows[0]?.id;
-      if (!id) throw new Error('media_upload_id');
-
+      const id = randomUUID();
       const key = s3ObjectKey(id, params.filename);
-      const buf = Buffer.from(body);
-      await s3PutObjectBody(key, buf, params.mimeType);
-
       const folderId = params.folderId ?? null;
       const organizationId = currentPrincipalOrganizationId();
       await getWebappSqlDb()
@@ -142,11 +139,29 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           s3Key: key,
           mimeType: params.mimeType,
           sizeBytes: body.byteLength,
-          status: 'ready',
+          status: 'pending',
           uploadedBy: params.userId ?? null,
           folderId,
           organizationId,
         });
+
+      const buf = Buffer.from(body);
+      await s3PutObjectBody(key, buf, params.mimeType);
+
+      const ready = await getWebappSqlDb()
+        .update(mediaFiles)
+        .set({ status: 'ready' })
+        .where(
+          and(
+            eq(mediaFiles.id, id),
+            eq(mediaFiles.organizationId, organizationId),
+            eq(mediaFiles.status, 'pending'),
+          ),
+        )
+        .returning({ id: mediaFiles.id });
+      if (ready.length !== 1) {
+        throw new Error('media_upload_commit_failed');
+      }
 
       const now = new Date().toISOString();
       const record: MediaRecord = {
@@ -644,6 +659,7 @@ export async function getMediaRowForConfirm(
   s3_key: string | null;
   status: string;
   mime_type: string;
+  original_name: string;
   usage_purpose: string | null;
   size_bytes: number | null;
 } | null> {
@@ -652,11 +668,12 @@ export async function getMediaRowForConfirm(
     s3_key: string | null;
     status: string;
     mime_type: string;
+    original_name: string;
     usage_purpose: string | null;
     size_bytes: string | null;
   }>(
     getWebappSqlDb(),
-    sql`SELECT s3_key, status, mime_type, usage_purpose, size_bytes::text
+    sql`SELECT s3_key, status, mime_type, original_name, usage_purpose, size_bytes::text
      FROM media_files
      WHERE id = ${mediaId}::uuid
        AND organization_id = ${organizationId}::uuid
@@ -669,12 +686,18 @@ export async function getMediaRowForConfirm(
     s3_key: row.s3_key,
     status: row.status,
     mime_type: row.mime_type,
+    original_name: row.original_name,
     usage_purpose: row.usage_purpose,
     size_bytes: sizeRaw != null && Number.isFinite(sizeRaw) ? sizeRaw : null,
   };
 }
 
-export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
+/** Only the received-object door may transition a pending row to ready. */
+export async function confirmMediaFileReady(
+  mediaId: string,
+  received: ReceivedUpload,
+): Promise<boolean> {
+  assertReceivedUpload(received);
   const organizationId = currentPrincipalOrganizationId();
   const rows = await getWebappSqlDb()
     .update(mediaFiles)
@@ -691,7 +714,11 @@ export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
 }
 
 /** Confirm patient program submission upload (must have usage_purpose set at presign). */
-export async function confirmProgramSubmissionMediaFileReady(mediaId: string): Promise<boolean> {
+export async function confirmProgramSubmissionMediaFileReady(
+  mediaId: string,
+  received: ReceivedUpload,
+): Promise<boolean> {
+  assertReceivedUpload(received);
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql(
     getWebappSqlDb(),
@@ -864,6 +891,83 @@ export async function deletePendingMediaFileById(mediaId: string): Promise<boole
     )
     .returning({ id: mediaFiles.id });
   return rows.length > 0;
+}
+
+/**
+ * The common terminal-upload transition. A durable media lifecycle record is retained for
+ * S3-first purge/retry; linked pending patient-file metadata is removed in the same transaction
+ * so the nullable FK cannot later surface it as a legacy file.
+ */
+export async function stagePendingMediaAbort(mediaId: string): Promise<boolean> {
+  const organizationId = currentPrincipalOrganizationId();
+  return runDrizzleMutationTransaction(async (tx) => {
+    const staged = await tx
+      .update(mediaFiles)
+      .set({ status: 'pending_delete' })
+      .where(
+        and(
+          eq(mediaFiles.id, mediaId),
+          eq(mediaFiles.organizationId, organizationId),
+          eq(mediaFiles.status, 'pending'),
+        ),
+      )
+      .returning({ id: mediaFiles.id });
+    if (staged.length === 0) return false;
+
+    await tx
+      .delete(patientFiles)
+      .where(
+        and(eq(patientFiles.mediaFileId, mediaId), eq(patientFiles.organizationId, organizationId)),
+      );
+    return true;
+  });
+}
+
+/**
+ * Claims abandoned direct-to-S3 uploads before the existing pending-delete batch runs.
+ * Multipart-backed rows are deliberately left to their session lifecycle, even after the TTL.
+ */
+export async function stageStaleSinglePutMediaForPurge(limit: number): Promise<number> {
+  const take = Math.max(1, Math.min(50, limit));
+  const cutoff = new Date(Date.now() - MULTIPART_SESSION_TTL_MS).toISOString();
+
+  return runDrizzleMutationTransaction(async (tx) => {
+    const sessionExists = () =>
+      tx
+        .select({ id: mediaUploadSessions.id })
+        .from(mediaUploadSessions)
+        .where(eq(mediaUploadSessions.mediaId, mediaFiles.id));
+    const candidates = await tx
+      .select({ id: mediaFiles.id })
+      .from(mediaFiles)
+      .where(
+        and(
+          eq(mediaFiles.status, 'pending'),
+          lte(mediaFiles.createdAt, cutoff),
+          notExists(sessionExists()),
+        ),
+      )
+      .orderBy(asc(mediaFiles.createdAt))
+      .limit(take);
+
+    let staged = 0;
+    for (const candidate of candidates) {
+      const changed = await tx
+        .update(mediaFiles)
+        .set({ status: 'pending_delete' })
+        .where(
+          and(
+            eq(mediaFiles.id, candidate.id),
+            eq(mediaFiles.status, 'pending'),
+            lte(mediaFiles.createdAt, cutoff),
+            notExists(sessionExists()),
+          ),
+        )
+        .returning({ id: mediaFiles.id });
+      staged += changed.length;
+    }
+    return staged;
+  });
 }
 
 export type MediaDeleteErrorRow = {
@@ -1129,6 +1233,7 @@ export async function purgePendingMediaDeleteBatch(
 ): Promise<PurgePendingMediaDeleteBatchResult> {
   const pool = getPool();
   const take = Math.max(1, Math.min(50, limit));
+  await stageStaleSinglePutMediaForPurge(take);
   let removed = 0;
   let errors = 0;
 

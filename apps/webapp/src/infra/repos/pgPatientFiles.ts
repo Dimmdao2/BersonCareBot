@@ -3,7 +3,7 @@
  * Uses Drizzle ORM; no business logic here.
  */
 
-import { and, eq, asc, sql } from 'drizzle-orm';
+import { and, eq, asc, isNull, or, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -13,6 +13,7 @@ import type {
   PatientFileRecord,
   PatientFilesPort,
 } from '@/modules/patient-files/ports';
+import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { mediaFiles } from '../../../db/schema/schema';
@@ -50,7 +51,13 @@ async function countStorageUsedBytes(
   const [usage] = await db
     .select({ usedBytes: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
     .from(patientFiles)
-    .where(eq(patientFiles.organizationId, organizationId));
+    .leftJoin(mediaFiles, eq(patientFiles.mediaFileId, mediaFiles.id))
+    .where(
+      and(
+        eq(patientFiles.organizationId, organizationId),
+        or(isNull(patientFiles.mediaFileId), eq(mediaFiles.status, 'ready')),
+      ),
+    );
   return Number(usage?.usedBytes ?? 0);
 }
 
@@ -84,11 +91,14 @@ export function createPgPatientFilesPort(): PatientFilesPort {
         conditions.push(eq(patientFiles.category, category));
       }
       const rows = await db
-        .select()
+        .select({ file: patientFiles, mediaStatus: mediaFiles.status })
         .from(patientFiles)
+        .leftJoin(mediaFiles, eq(patientFiles.mediaFileId, mediaFiles.id))
         .where(and(...conditions))
         .orderBy(asc(patientFiles.createdAt));
-      return rows.map(mapRow);
+      return rows
+        .filter((row) => !row.file.mediaFileId || row.mediaStatus === 'ready')
+        .map((row) => mapRow(row.file));
     },
 
     async getFile(id: string): Promise<PatientFileRecord | null> {
@@ -105,16 +115,8 @@ export function createPgPatientFilesPort(): PatientFilesPort {
     async createFile(params: CreatePatientFileParams): Promise<PatientFileRecord> {
       const organizationId = currentWriteOrganizationId();
       const inserted = await runDrizzleMutationTransaction(async (tx) => {
-        // Both the recount and insert are serialized by organization, so two uploads cannot each
-        // consume the same final bytes. `files` usage is a live SUM, not a stored counter, so a
-        // deleted row already shrinks it for the next check — no separate release step needed.
-        await assertStockQuotaAvailable(
-          tx,
-          organizationId,
-          'files',
-          () => countStorageUsedBytes(tx, organizationId),
-          params.sizeBytes,
-        );
+        // A pending row is deliberately outside the quota and list projection. The received-door
+        // below charges the actual bytes atomically with its ready transition.
         // When a folderId is provided, co-create a media_files entry so the upload
         // appears in the patient's «Пациенты» media library folder (PFI-ST-04).
         let mediaFileId: string | null = null;
@@ -131,7 +133,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
               sizeBytes: params.sizeBytes,
               uploadedBy: params.uploadedByUserId,
               folderId: params.folderId,
-              status: 'ready',
+              status: 'pending',
               previewStatus: 'pending',
             })
             .returning({ id: mediaFiles.id });
@@ -156,6 +158,65 @@ export function createPgPatientFilesPort(): PatientFilesPort {
       const row = inserted[0];
       if (!row) throw new Error('patient_files insert failed');
       return mapRow(row);
+    },
+
+    async confirmFileUpload(
+      mediaFileId: string,
+      received: ReceivedUpload,
+    ): Promise<PatientFileRecord | null> {
+      assertReceivedUpload(received);
+      const organizationId = currentPrincipalOrganizationId();
+      const rows = await runDrizzleMutationTransaction(async (tx) => {
+        const [existing] = await tx
+          .select({ file: patientFiles, mediaStatus: mediaFiles.status })
+          .from(patientFiles)
+          .innerJoin(mediaFiles, eq(patientFiles.mediaFileId, mediaFiles.id))
+          .where(
+            and(
+              eq(patientFiles.mediaFileId, mediaFileId),
+              eq(patientFiles.organizationId, organizationId),
+              eq(mediaFiles.organizationId, organizationId),
+            ),
+          )
+          .limit(1);
+        if (!existing || existing.mediaStatus !== 'pending') return [];
+        if (
+          existing.file.mimeType !== received.intent.mimeType ||
+          Number(existing.file.sizeBytes) !== received.intent.sizeBytes
+        ) {
+          return [];
+        }
+        await assertStockQuotaAvailable(
+          tx,
+          organizationId,
+          'files',
+          () => countStorageUsedBytes(tx, organizationId),
+          received.intent.sizeBytes,
+        );
+        const [ready] = await tx
+          .update(mediaFiles)
+          .set({ status: 'ready' })
+          .where(
+            and(
+              eq(mediaFiles.id, mediaFileId),
+              eq(mediaFiles.organizationId, organizationId),
+              eq(mediaFiles.status, 'pending'),
+            ),
+          )
+          .returning({ id: mediaFiles.id });
+        if (!ready) return [];
+        return tx
+          .update(patientFiles)
+          .set({ sizeBytes: received.intent.sizeBytes })
+          .where(
+            and(
+              eq(patientFiles.mediaFileId, mediaFileId),
+              eq(patientFiles.organizationId, organizationId),
+            ),
+          )
+          .returning();
+      });
+      return rows[0] ? mapRow(rows[0]) : null;
     },
 
     async linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null> {

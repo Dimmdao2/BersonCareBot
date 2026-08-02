@@ -50,12 +50,12 @@ export async function POST(request: Request) {
   // INFRA: reconcile sweeps legacy video rows across organizations to enqueue missing HLS jobs.
   enterWithDbInfraPrincipal({ source: 'api/internal/media-transcode/reconcile:POST' });
 
-  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled', false);
+  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled');
   if (!pipelineOn) {
     return NextResponse.json({ ok: false, error: 'pipeline_disabled' }, { status: 503 });
   }
 
-  const reconcileOn = await getConfigBool('video_hls_reconcile_enabled', false);
+  const reconcileOn = await getConfigBool('video_hls_reconcile_enabled');
   if (!reconcileOn) {
     return NextResponse.json({ ok: false, error: 'reconcile_disabled' }, { status: 503 });
   }

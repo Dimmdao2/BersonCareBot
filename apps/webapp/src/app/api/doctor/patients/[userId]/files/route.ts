@@ -8,7 +8,6 @@
  *   // TODO(upload): large file multipart support if needed.
  */
 
-import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
@@ -17,7 +16,9 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveFileStorageLimit } from '@/modules/org-entitlements/service';
 import { env, isS3MediaEnabled } from '@/config/env';
-import { presignGetUrl, presignPutUrl } from '@/app-layer/media/s3Client';
+import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { prepareMediaUpload, presignPreparedUpload } from '@/app-layer/media/mediaUploadAdapter';
+import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import type { PatientFileCategory } from '@/modules/patient-files/ports';
 import { PATIENT_FILE_CATEGORIES } from '@/modules/patient-files/ports';
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
@@ -37,17 +38,6 @@ const createBodySchema = z.object({
   mimeType: z.string().min(1).max(127),
   sizeBytes: z.number().int().positive(),
 });
-
-function sanitizeFilename(name: string): string {
-  const base = name.replace(/\.\./g, '').replace(/\s+/g, '_').slice(0, 200);
-  const cleaned = base.replace(/[^a-zA-Z0-9._\-]/g, '_');
-  return cleaned.length > 0 ? cleaned : 'file';
-}
-
-function patientFileS3Key(fileId: string, fileName: string): string {
-  const safe = sanitizeFilename(fileName);
-  return `patient-files/${fileId}/${safe}`;
-}
 
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -126,9 +116,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   }
 
   const { category, fileName, mimeType, sizeBytes } = parsed.data;
-  const fileId = randomUUID();
-  const s3Key = patientFileS3Key(fileId, fileName);
-  const s3Bucket = env.S3_PRIVATE_BUCKET ?? 'bersonservices-private';
+  const prepared = prepareMediaUpload({
+    filename: fileName,
+    mimeType,
+    sizeBytes,
+    policyId: 'patient-file',
+    namespace: 'patient-files',
+  });
+  if (!prepared.ok) {
+    const rejection = uploadValidationResponse(prepared);
+    return NextResponse.json(rejection.body, { status: rejection.status });
+  }
+  const upload = prepared.value;
 
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
@@ -161,12 +160,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     const usedBytes = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.patientFiles.getStorageUsedBytes(),
     );
-    if (usedBytes + sizeBytes > storageLimitBytes) {
+    if (usedBytes + upload.intent.sizeBytes > storageLimitBytes) {
       return NextResponse.json({ ok: false, error: 'file_storage_limit_reached' }, { status: 403 });
     }
   }
 
-  // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
+  if (!isS3MediaEnabled(env)) {
+    return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
+  }
+
+  let uploadUrl: string;
+  try {
+    uploadUrl = await presignPreparedUpload(upload);
+  } catch {
+    return NextResponse.json({ ok: false, error: 'presign_failed' }, { status: 500 });
+  }
+
+  // Get/create the patient's «Пациенты»/<ФИО> media library folder after all no-side-effect gates.
   const patientFolder = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     pgEnsureClientPatientFolder(patientUserId),
   );
@@ -178,10 +188,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
         patientUserId,
         category,
         fileName,
-        s3Key,
-        s3Bucket,
-        mimeType,
-        sizeBytes,
+        s3Key: upload.key,
+        s3Bucket: upload.bucket,
+        mimeType: upload.intent.mimeType,
+        sizeBytes: upload.intent.sizeBytes,
         uploadedByUserId: gate.ctx.session.user.userId,
         folderId: patientFolder.id,
       }),
@@ -193,15 +203,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     throw error;
   }
 
-  // TODO(upload): return presigned PUT URL for direct browser upload when S3 is available.
-  let uploadUrl: string | null = null;
-  if (isS3MediaEnabled(env)) {
-    try {
-      uploadUrl = await presignPutUrl(s3Key, mimeType);
-    } catch {
-      // Non-fatal: metadata saved; client can retry presign.
-    }
-  }
-
+  // The row stays pending and absent from list/quota until PUT + confirm validate the stored object.
   return NextResponse.json({ ok: true, file, uploadUrl }, { status: 201 });
 }

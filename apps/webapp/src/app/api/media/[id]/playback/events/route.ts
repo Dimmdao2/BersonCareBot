@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getCurrentSession } from '@/modules/auth/service';
-import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';
-import { assertMediaPlaybackAccess } from '@/modules/media/assertMediaPlaybackAccess';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   requireDoctorWorkspaceApiContext,
@@ -9,7 +7,7 @@ import {
 } from '@/app-layer/guards/requireRole';
 import { canAccessDoctor } from '@/modules/roles/service';
 import type { AppSession } from '@/shared/types/session';
-import { resolvePlatformLfkMediaAccess } from '@/app-layer/media/resolvePlatformLfkMediaAccess';
+import { authorizeMediaDelivery } from '@/app-layer/media/authorizeMediaDelivery';
 import {
   recordPlaybackClientEvent,
   type PlaybackClientDelivery,
@@ -48,7 +46,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const initialSession = await getCurrentSession();
-  if (!assertMediaPlaybackAccess(initialSession)) {
+  if (!initialSession) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
@@ -65,22 +63,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'invalid_event_class' }, { status: 400 });
     }
 
-    let allowPlatformBase = false;
-    let accessRow = await getMediaAccessRow(id);
-    if (!accessRow) {
-      allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
-      if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+    const access = await authorizeMediaDelivery(id, session);
+    if (!access.ok && access.reason === 'not_found') {
+      return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
-    if (!accessRow) return NextResponse.json({ error: 'not found' }, { status: 404 });
-    if (
-      !assertMediaPlaybackAccess(session, {
-        usagePurpose: accessRow.usage_purpose,
-        uploadedBy: accessRow.uploaded_by,
-      })
-    ) {
+    if (!access.ok) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
-    if (accessRow.usage_purpose === 'program_item_submission') {
+    if (access.row.usage_purpose === 'program_item_submission') {
       return NextResponse.json({ ok: true, skipped: true });
     }
 

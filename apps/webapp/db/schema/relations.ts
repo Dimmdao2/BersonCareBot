@@ -31,8 +31,6 @@ import {
   symptomEntries,
   symptomTrackings,
   contentAccessGrantsWebapp,
-  branches,
-  appointmentRecords,
   emailChallenges,
   userPins,
   channelLinkSecrets,
@@ -52,11 +50,6 @@ import {
   lfkComplexExercises,
   mediaFolders,
   mediaFiles,
-  bookingCities,
-  bookingBranches,
-  bookingSpecialists,
-  bookingBranchServices,
-  bookingServices,
   onlineIntakeRequests,
   patientBookings,
   onlineIntakeAnswers,
@@ -268,17 +261,6 @@ export const contentAccessGrantsWebappRelations = relations(
     }),
   }),
 );
-
-export const appointmentRecordsRelations = relations(appointmentRecords, ({ one }) => ({
-  branch: one(branches, {
-    fields: [appointmentRecords.branchId],
-    references: [branches.id],
-  }),
-}));
-
-export const branchesRelations = relations(branches, ({ many }) => ({
-  appointmentRecords: many(appointmentRecords),
-}));
 
 export const emailChallengesRelations = relations(emailChallenges, ({ one }) => ({
   platformUser: one(platformUsers, {
@@ -504,49 +486,6 @@ export const mediaFoldersRelations = relations(mediaFolders, ({ one, many }) => 
   }),
 }));
 
-export const bookingBranchesRelations = relations(bookingBranches, ({ one, many }) => ({
-  bookingCity: one(bookingCities, {
-    fields: [bookingBranches.cityId],
-    references: [bookingCities.id],
-  }),
-  bookingSpecialists: many(bookingSpecialists),
-  bookingBranchServices: many(bookingBranchServices),
-  patientBookings: many(patientBookings),
-}));
-
-export const bookingCitiesRelations = relations(bookingCities, ({ many }) => ({
-  bookingBranches: many(bookingBranches),
-}));
-
-export const bookingSpecialistsRelations = relations(bookingSpecialists, ({ one, many }) => ({
-  bookingBranch: one(bookingBranches, {
-    fields: [bookingSpecialists.branchId],
-    references: [bookingBranches.id],
-  }),
-  bookingBranchServices: many(bookingBranchServices),
-}));
-
-export const bookingBranchServicesRelations = relations(bookingBranchServices, ({ one, many }) => ({
-  bookingBranch: one(bookingBranches, {
-    fields: [bookingBranchServices.branchId],
-    references: [bookingBranches.id],
-  }),
-  bookingService: one(bookingServices, {
-    fields: [bookingBranchServices.serviceId],
-    references: [bookingServices.id],
-  }),
-  bookingSpecialist: one(bookingSpecialists, {
-    fields: [bookingBranchServices.specialistId],
-    references: [bookingSpecialists.id],
-  }),
-  patientBookings: many(patientBookings),
-}));
-
-export const bookingServicesRelations = relations(bookingServices, ({ many }) => ({
-  bookingBranchServices: many(bookingBranchServices),
-  patientBookings: many(patientBookings),
-}));
-
 export const onlineIntakeRequestsRelations = relations(onlineIntakeRequests, ({ one, many }) => ({
   platformUser: one(platformUsers, {
     fields: [onlineIntakeRequests.userId],
@@ -558,21 +497,9 @@ export const onlineIntakeRequestsRelations = relations(onlineIntakeRequests, ({ 
 }));
 
 export const patientBookingsRelations = relations(patientBookings, ({ one }) => ({
-  bookingBranch: one(bookingBranches, {
-    fields: [patientBookings.branchId],
-    references: [bookingBranches.id],
-  }),
-  bookingBranchService: one(bookingBranchServices, {
-    fields: [patientBookings.branchServiceId],
-    references: [bookingBranchServices.id],
-  }),
   platformUser: one(platformUsers, {
     fields: [patientBookings.platformUserId],
     references: [platformUsers.id],
-  }),
-  bookingService: one(bookingServices, {
-    fields: [patientBookings.serviceId],
-    references: [bookingServices.id],
   }),
 }));
 

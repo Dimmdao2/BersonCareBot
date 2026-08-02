@@ -3,7 +3,7 @@ import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutationTx';
 import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
-import { readAdminSystemSettingString } from '@/infra/repos/pgSystemSettings';
+import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
 import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
@@ -480,8 +480,7 @@ function isCommandPrimaryKeyConflict(error: unknown): boolean {
 export function createPgBookingEnginePort(): BookingEngineCorePort {
   return {
     async getDefaultOrganizationId() {
-      const fromSettings = await readAdminSystemSettingString('booking_default_organization_id');
-      return fromSettings && fromSettings.length > 0 ? fromSettings : BE_DEFAULT_ORGANIZATION_ID;
+      return getConfigValue('booking_default_organization_id');
     },
 
     async getOrganization(id) {

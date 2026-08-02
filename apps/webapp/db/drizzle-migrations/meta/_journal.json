@@ -2101,6 +2101,55 @@
       "when": 1793539230000,
       "tag": "0299_reference_catalog_seed_owner_local",
       "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1793539230001,
+      "tag": "0300_runtime_settings_values_live_in_db",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1793539230002,
+      "tag": "0301_legacy_runtime_settings_values_live_in_db",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1793539230003,
+      "tag": "0302_public_auth_channel_configured_accessors",
+      "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1793539230004,
+      "tag": "0303_remove_platform_staff_2fa_enforcement",
+      "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1793539230005,
+      "tag": "0304_retire_legacy_booking_projections_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1793539230006,
+      "tag": "0305_tariff_snapshot_access_doors_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1793539230007,
+      "tag": "0306_v9b_capability_seams_local",
+      "breakpoints": true
     }
   ]
 }

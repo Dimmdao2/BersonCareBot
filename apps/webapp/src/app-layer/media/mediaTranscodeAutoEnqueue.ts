@@ -10,8 +10,8 @@ import { getConfigBool } from '@/modules/system-settings/configAdapter';
  * Идемпотентность: `enqueueMediaTranscodeJob` (одна активная job на media).
  */
 export async function maybeAutoEnqueueVideoTranscodeAfterUpload(mediaId: string): Promise<void> {
-  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled', false);
-  const autoOn = await getConfigBool('video_hls_new_uploads_auto_transcode', false);
+  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled');
+  const autoOn = await getConfigBool('video_hls_new_uploads_auto_transcode');
   if (!pipelineOn || !autoOn) {
     return;
   }

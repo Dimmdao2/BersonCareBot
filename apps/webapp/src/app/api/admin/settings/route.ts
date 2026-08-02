@@ -168,6 +168,7 @@ const ADMIN_SCOPE_KEYS = [
   'operator_alert_fallback_email',
   'operator_health_probe_config',
   'operator_health_projection_thresholds',
+  'operator_heartbeat_config',
 ] as const;
 
 const DOCTOR_SCOPE_KEYS = [

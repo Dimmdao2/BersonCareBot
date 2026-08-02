@@ -26,25 +26,20 @@ function clip(s: string, max: number): string {
 }
 
 async function loadConfig(): Promise<OperatorHealthAlertConfig> {
-  try {
-    const [operatorRaw, legacyRaw] = await Promise.all([
-      getConfigValue(OPERATOR_HEALTH_ALERT_CONFIG_KEY, ''),
-      getConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY, ''),
-    ]);
-    const parseJson = (raw: string): unknown | null => {
-      const t = raw.trim();
-      if (!t) return null;
-      try {
-        return JSON.parse(t) as unknown;
-      } catch {
-        return null;
-      }
-    };
-    return mergeOperatorHealthAlertConfigFromLegacy(parseJson(operatorRaw), parseJson(legacyRaw));
-  } catch (err) {
-    logger.warn({ err }, '[operator_alert] load config failed, using defaults');
-    return mergeOperatorHealthAlertConfigFromLegacy(null, null);
-  }
+  const [operatorRaw, legacyRaw] = await Promise.all([
+    getConfigValue(OPERATOR_HEALTH_ALERT_CONFIG_KEY),
+    getConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY),
+  ]);
+  const parseJson = (raw: string): unknown | null => {
+    const t = raw.trim();
+    if (!t) return null;
+    try {
+      return JSON.parse(t) as unknown;
+    } catch {
+      return null;
+    }
+  };
+  return mergeOperatorHealthAlertConfigFromLegacy(parseJson(operatorRaw), parseJson(legacyRaw));
 }
 
 /**

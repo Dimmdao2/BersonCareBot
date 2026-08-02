@@ -247,6 +247,27 @@ export async function s3GetObjectBody(key: string): Promise<Buffer | null> {
   return got.ok ? got.buf : null;
 }
 
+/** Read only the leading bytes needed to validate an uploaded object's file signature. */
+export async function s3GetObjectPrefix(
+  key: string,
+  maxBytes: number = 512,
+): Promise<Buffer | null> {
+  const client = getS3Client();
+  try {
+    const out = await client.send(
+      new GetObjectCommand({
+        Bucket: privateBucket(),
+        Key: key,
+        Range: `bytes=0-${Math.max(0, maxBytes - 1)}`,
+      }),
+    );
+    if (!out.Body) return null;
+    return Buffer.from(await out.Body.transformToByteArray());
+  } catch {
+    return null;
+  }
+}
+
 /** Classify S3 GetObject failures for HLS proxy / streaming (typed reasons for metrics). */
 export function classifyS3GetObjectFailure(err: unknown): S3GetObjectStreamFailureReason {
   if (typeof err === 'object' && err !== null && 'name' in err) {

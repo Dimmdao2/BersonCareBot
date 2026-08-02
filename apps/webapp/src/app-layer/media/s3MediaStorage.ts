@@ -2,6 +2,7 @@ export {
   confirmMediaFileReady,
   confirmProgramSubmissionMediaFileReady,
   deletePendingMediaFileById,
+  stagePendingMediaAbort,
   getMediaAccessRow,
   getMediaRowForPlayback,
   getMediaPreviewS3KeyForRedirect,
@@ -16,3 +17,4 @@ export {
   listMediaDeleteErrors,
   purgePendingMediaDeleteBatch,
 } from '@/infra/repos/s3MediaStorage';
+export type { MediaAccessRow } from '@/infra/repos/s3MediaStorage';

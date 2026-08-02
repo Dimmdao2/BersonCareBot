@@ -1,25 +1,27 @@
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { eq, sql } from 'drizzle-orm';
+import { platformUsers } from '../../../db/schema/schema';
+import { getWebappSqlDb } from '@/infra/db/runWebappSql';
 import type { DevBypassPlatformUserPhonePort } from '@/modules/auth/devBypassPlatformUserPhonePort';
 
 export async function applyDevBypassClientPhoneInDb(userId: string, phone: string): Promise<void> {
-  await runWebappPgText(
-    `UPDATE platform_users
-     SET phone_normalized = $1,
-         patient_phone_trust_at = COALESCE(patient_phone_trust_at, now()),
-         updated_at = now()
-     WHERE id = $2::uuid`,
-    [phone, userId],
-  );
+  await getWebappSqlDb()
+    .update(platformUsers)
+    .set({
+      phoneNormalized: phone,
+      patientPhoneTrustAt: sql`COALESCE(${platformUsers.patientPhoneTrustAt}, now())`,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(platformUsers.id, userId));
 }
 
 export async function applyDevBypassStaffPhoneInDb(userId: string, phone: string): Promise<void> {
-  await runWebappPgText(
-    `UPDATE platform_users
-     SET phone_normalized = $1,
-         updated_at = now()
-     WHERE id = $2::uuid`,
-    [phone, userId],
-  );
+  await getWebappSqlDb()
+    .update(platformUsers)
+    .set({
+      phoneNormalized: phone,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(platformUsers.id, userId));
 }
 
 export const pgDevBypassPlatformUserPhonePort: DevBypassPlatformUserPhonePort = {

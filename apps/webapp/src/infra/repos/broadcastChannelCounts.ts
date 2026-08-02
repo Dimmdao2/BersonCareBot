@@ -4,9 +4,14 @@
  * Wave 3 phase 15G — migrated from pool.query to Drizzle db.execute(sql).
  * Этап 4a (2026-06-13) — добавлены реальные счётчики telegram/max/push/email.
  */
-import { sql } from 'drizzle-orm';
+import { and, count, countDistinct, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb } from '@/infra/db/runWebappSql';
+import {
+  platformUsers,
+  userChannelBindings,
+  userWebPushSubscriptions,
+} from '../../../db/schema/schema';
 import type {
   BroadcastChannelCounts,
   BroadcastChannelCountsPort,
@@ -69,35 +74,56 @@ export function createPgBroadcastChannelCountsPort(): BroadcastChannelCountsPort
       if (userIds.length === 0) {
         return { bot_message: 0, telegram: 0, max: 0, sms: 0, push: 0, email: 0 };
       }
+      const db = getWebappSqlDb();
       const ids = [...userIds];
       const [tgResult, maxResult, smsResult, pushResult, emailResult] = await Promise.all([
-        runWebappPgText<{ cnt: string }>(
-          `SELECT COUNT(DISTINCT user_id)::text AS cnt FROM user_channel_bindings WHERE channel_code = 'telegram' AND user_id = ANY($1::uuid[])`,
-          [ids],
-        ),
-        runWebappPgText<{ cnt: string }>(
-          `SELECT COUNT(DISTINCT user_id)::text AS cnt FROM user_channel_bindings WHERE channel_code = 'max' AND user_id = ANY($1::uuid[])`,
-          [ids],
-        ),
-        runWebappPgText<{ cnt: string }>(
-          `SELECT COUNT(*)::text AS cnt FROM platform_users WHERE id = ANY($1::uuid[]) AND phone_normalized IS NOT NULL AND merged_into_id IS NULL`,
-          [ids],
-        ),
-        runWebappPgText<{ cnt: string }>(
-          `SELECT COUNT(DISTINCT user_id)::text AS cnt FROM user_web_push_subscriptions WHERE user_id = ANY($1::uuid[])`,
-          [ids],
-        ),
-        runWebappPgText<{ cnt: string }>(
-          `SELECT COUNT(*)::text AS cnt FROM platform_users WHERE id = ANY($1::uuid[]) AND email_verified_at IS NOT NULL AND email_normalized IS NOT NULL AND merged_into_id IS NULL`,
-          [ids],
-        ),
+        db
+          .select({ cnt: countDistinct(userChannelBindings.userId) })
+          .from(userChannelBindings)
+          .where(
+            and(
+              eq(userChannelBindings.channelCode, 'telegram'),
+              inArray(userChannelBindings.userId, ids),
+            ),
+          ),
+        db
+          .select({ cnt: countDistinct(userChannelBindings.userId) })
+          .from(userChannelBindings)
+          .where(
+            and(eq(userChannelBindings.channelCode, 'max'), inArray(userChannelBindings.userId, ids)),
+          ),
+        db
+          .select({ cnt: count() })
+          .from(platformUsers)
+          .where(
+            and(
+              inArray(platformUsers.id, ids),
+              isNotNull(platformUsers.phoneNormalized),
+              isNull(platformUsers.mergedIntoId),
+            ),
+          ),
+        db
+          .select({ cnt: countDistinct(userWebPushSubscriptions.userId) })
+          .from(userWebPushSubscriptions)
+          .where(inArray(userWebPushSubscriptions.userId, ids)),
+        db
+          .select({ cnt: count() })
+          .from(platformUsers)
+          .where(
+            and(
+              inArray(platformUsers.id, ids),
+              isNotNull(platformUsers.emailVerifiedAt),
+              isNotNull(platformUsers.emailNormalized),
+              isNull(platformUsers.mergedIntoId),
+            ),
+          ),
       ]);
 
-      const telegram = parse(tgResult);
-      const max = parse(maxResult);
-      const sms = parse(smsResult);
-      const push = parse(pushResult);
-      const email = parse(emailResult);
+      const telegram = Number(tgResult[0]?.cnt ?? 0);
+      const max = Number(maxResult[0]?.cnt ?? 0);
+      const sms = Number(smsResult[0]?.cnt ?? 0);
+      const push = Number(pushResult[0]?.cnt ?? 0);
+      const email = Number(emailResult[0]?.cnt ?? 0);
 
       return { bot_message: telegram, telegram, max, sms, push, email };
     },

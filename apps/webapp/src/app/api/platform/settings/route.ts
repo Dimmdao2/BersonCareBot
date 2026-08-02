@@ -11,9 +11,9 @@ import {
   normalizeBookingLocationPalette,
 } from '@/modules/booking-engine/locationPalette';
 import {
-  getAuthChannelPolicyDetail,
   getOAuthProviderPolicyDetail,
 } from '@/modules/auth/authChannelPolicy';
+import { getAuthChannelPolicyDetail } from '@/modules/auth/authChannelPolicyAdmin';
 import { normalizePlatformIntegrationAvailability } from '@/modules/system-settings/platformIntegrationAvailability';
 
 /**
@@ -36,7 +36,6 @@ const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   'auth_oauth_apple_enabled',
   'auth_passkey_enabled',
   'auth_pin_enabled',
-  'auth_2fa_enabled',
   // admin_emails deliberately NOT here: the field was removed 2026-07-27 — it wrote a setting that the
   // global-admin login never read (elevation comes from PLATFORM_OWNER_IDENTITY), so it looked like a
   // security lever and was not one.

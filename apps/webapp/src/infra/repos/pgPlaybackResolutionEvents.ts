@@ -1,4 +1,5 @@
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
 
 export async function insertPlaybackResolutionEvent(input: {
   userId: string;
@@ -6,8 +7,8 @@ export async function insertPlaybackResolutionEvent(input: {
   delivery: 'hls' | 'mp4' | 'file';
   fallbackUsed: boolean;
 }): Promise<void> {
-  await runWebappPgText(
-    'SELECT app.record_media_playback_resolution_event($1::uuid, $2::uuid, $3, $4)',
-    [input.userId, input.mediaId, input.delivery, input.fallbackUsed],
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`SELECT app.record_media_playback_resolution_event(${input.userId}::uuid, ${input.mediaId}::uuid, ${input.delivery}, ${input.fallbackUsed})`,
   );
 }

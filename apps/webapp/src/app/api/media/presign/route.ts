@@ -1,18 +1,18 @@
-import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import { pgFolderExists } from '@/app-layer/media/mediaFoldersRepo';
 import { pgValidateUserAssignableMediaFolder } from '@/app-layer/media/clientMediaFolders';
-import {
-  deletePendingMediaFileById,
-  insertPendingMediaFileTx,
-} from '@/app-layer/media/s3MediaStorage';
+import { insertPendingMediaFileTx } from '@/app-layer/media/s3MediaStorage';
 import { getPool } from '@/app-layer/db/client';
 import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
-import { presignPutUrl, s3ObjectKey } from '@/app-layer/media/s3Client';
-import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
+import {
+  abortPendingMediaUpload,
+  prepareMediaUpload,
+  presignPreparedUpload,
+} from '@/app-layer/media/mediaUploadAdapter';
+import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
@@ -44,16 +44,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
-  const mime = parsed.data.mimeType.toLowerCase();
-  if (!ALLOWED_MEDIA_MIME.has(mime)) {
-    return NextResponse.json({ ok: false, error: 'mime_not_allowed', mime }, { status: 415 });
+  const prepared = prepareMediaUpload({
+    filename: parsed.data.filename,
+    mimeType: parsed.data.mimeType,
+    sizeBytes: parsed.data.size,
+    policyId: 'cms',
+  });
+  if (!prepared.ok) {
+    const rejection = uploadValidationResponse(prepared);
+    return NextResponse.json(rejection.body, { status: rejection.status });
   }
-  if (parsed.data.size > MAX_MEDIA_BYTES) {
-    return NextResponse.json(
-      { ok: false, error: 'file_too_large', maxBytes: MAX_MEDIA_BYTES },
-      { status: 413 },
-    );
-  }
+  const upload = prepared.value;
 
   let folderId: string | null = null;
   if (parsed.data.folderId !== undefined && parsed.data.folderId !== null) {
@@ -69,8 +70,8 @@ export async function POST(request: Request) {
     folderId = parsed.data.folderId;
   }
 
-  const mediaId = randomUUID();
-  const key = s3ObjectKey(mediaId, parsed.data.filename);
+  const mediaId = upload.id;
+  const key = upload.key;
   const readUrl = `/api/media/${mediaId}`;
 
   try {
@@ -80,14 +81,14 @@ export async function POST(request: Request) {
           id: mediaId,
           filename: parsed.data.filename,
           key,
-          mimeType: mime,
-          sizeBytes: parsed.data.size,
+          mimeType: upload.intent.mimeType,
+          sizeBytes: upload.intent.sizeBytes,
           userId: session.user.userId,
           folderId,
         });
       }),
     );
-    const uploadUrl = await presignPutUrl(key, mime);
+    const uploadUrl = await presignPreparedUpload(upload);
     return NextResponse.json({
       ok: true as const,
       mediaId,
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
       readUrl,
     });
   } catch (e) {
-    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(mediaId)).catch(
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(mediaId)).catch(
       () => {
         /* best-effort rollback */
       },

@@ -2,6 +2,7 @@ import {
   PROACTIVE_INSIGHT_KINDS,
   type ProactiveInsightKind,
 } from '@/modules/doctor-proactive-insights/types';
+import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 
 export const DOCTOR_TODAY_PREFERENCES_KEY = 'doctor_today_preferences' as const;
 
@@ -12,11 +13,6 @@ export type DoctorTodayPreferences = Readonly<{
   visibleProactiveInsightKinds: readonly ProactiveInsightKind[];
   peopleListMode: DoctorTodayPeopleListMode;
 }>;
-
-export const DEFAULT_DOCTOR_TODAY_PREFERENCES: DoctorTodayPreferences = Object.freeze({
-  visibleProactiveInsightKinds: Object.freeze([...PROACTIVE_INSIGHT_KINDS]),
-  peopleListMode: 'on_support',
-});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -48,8 +44,12 @@ export function normalizeDoctorTodayPreferences(value: unknown): DoctorTodayPref
   };
 }
 
-/** Reads the canonical `{ value: ... }` system_settings envelope with a fail-safe default. */
+/** A missing or malformed DB row is not a product preference. */
 export function parseDoctorTodayPreferences(valueJson: unknown): DoctorTodayPreferences {
-  if (!isRecord(valueJson) || !('value' in valueJson)) return DEFAULT_DOCTOR_TODAY_PREFERENCES;
-  return normalizeDoctorTodayPreferences(valueJson.value) ?? DEFAULT_DOCTOR_TODAY_PREFERENCES;
+  if (!isRecord(valueJson) || !('value' in valueJson)) {
+    throw new RuntimeSettingUnavailableError(DOCTOR_TODAY_PREFERENCES_KEY);
+  }
+  const value = normalizeDoctorTodayPreferences(valueJson.value);
+  if (value === null) throw new RuntimeSettingUnavailableError(DOCTOR_TODAY_PREFERENCES_KEY);
+  return value;
 }

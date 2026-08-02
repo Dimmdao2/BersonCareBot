@@ -140,7 +140,7 @@ async function main(): Promise<void> {
     1_000_000,
   );
 
-  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled', false);
+  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled');
   if (!pipelineOn && dryRun) {
     console.warn(
       '[warn] video_hls_pipeline_enabled is false — dry-run still lists candidates; worker will idle until enabled.',

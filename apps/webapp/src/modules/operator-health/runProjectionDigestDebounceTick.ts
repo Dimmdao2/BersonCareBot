@@ -18,7 +18,7 @@ export type ProjectionDigestDebounceFlags = {
 export async function runProjectionDigestDebounceTick(params: {
   operatorHealthRead: OperatorHealthReadPort;
   operatorHealthWrite: OperatorHealthWritePort;
-  getConfigValue: (key: string, fallback: string) => Promise<string>;
+  getConfigValue: (key: string) => Promise<string>;
   fetchSignal: () => Promise<ProjectionDigestSignalInput>;
   nowMs?: number;
 }): Promise<ProjectionDigestDebounceFlags> {

@@ -9,6 +9,7 @@ import type {
   PatientFilesPort,
   CreatePatientFileParams,
 } from './ports';
+import type { ReceivedUpload } from '@/modules/media/uploadValidation';
 
 export type PatientFilesServiceDeps = {
   patientFilesPort: PatientFilesPort;
@@ -29,6 +30,10 @@ export function createPatientFilesService({ patientFilesPort }: PatientFilesServ
 
     async createFile(params: CreatePatientFileParams): Promise<PatientFileRecord> {
       return patientFilesPort.createFile(params);
+    },
+
+    async confirmFileUpload(mediaFileId: string, received: ReceivedUpload) {
+      return patientFilesPort.confirmFileUpload(mediaFileId, received);
     },
 
     async linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null> {

@@ -216,13 +216,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     'structured',
     '{"version":1,"integrations":{"telegram":true,"max":true,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}',
   ),
-  /**
-   * Global admin switch: when true, staff (global-admin + specialists) must complete TOTP
-   * enrollment/verification to keep using protected staff surfaces (owner ruling 2026-07-24).
-   * Server-only audience — enforcement reads happen in `app-layer/guards/requireRole.ts`, never
-   * the browser. Default false preserves today's per-user opt-in behavior until an admin opts in.
-   */
-  auth_2fa_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   patient_program_discussion_doctor_reply_from_log_enabled: runtime(
     'admin',
     'global',
@@ -521,6 +514,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   admin_emails: restricted('admin', 'global', 'string_list'),
   doctor_phones: restricted('admin', 'global', 'string_list'),
   allowed_phones: restricted('admin', 'global', 'string_list'),
+  operator_heartbeat_config: restricted('admin', 'global', 'structured', 'absent'),
 } as const satisfies Record<string, SystemSettingDefinition>;
 
 export type SystemSettingKey = keyof typeof SYSTEM_SETTING_REGISTRY;
