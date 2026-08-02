@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiJson } from '@/shared/lib/apiJson';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -41,6 +41,33 @@ const INVITE_ERROR_MESSAGES: Record<string, string> = {
   already_member: 'Этот email уже участвует в организации.',
   invalid_email: 'Некорректный email',
 };
+
+const SEAT_OVERAGE_INVITE_STORAGE_KEY = 'clinic-seat-overage-invite';
+
+type StoredSeatOverageInvite = {
+  email: string;
+  role: OrganizationInviteRole;
+  requestKey: string;
+  invoiceId?: string;
+};
+
+function readStoredSeatOverageInvite(): StoredSeatOverageInvite | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(SEAT_OVERAGE_INVITE_STORAGE_KEY) ?? 'null') as unknown;
+    if (!value || typeof value !== 'object') return null;
+    const candidate = value as Partial<StoredSeatOverageInvite>;
+    if (
+      typeof candidate.email !== 'string' ||
+      (candidate.role !== 'doctor' && candidate.role !== 'admin') ||
+      typeof candidate.requestKey !== 'string'
+    ) {
+      return null;
+    }
+    return candidate as StoredSeatOverageInvite;
+  } catch {
+    return null;
+  }
+}
 
 function formatSeatOveragePrice(priceMinor: number, currency: string): string {
   try {
@@ -91,18 +118,18 @@ export function TeamSection({ members, invites, seats }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
-  // §5a item 5.1 — set only by a `seat_overage_confirmation_required` response; the clinic sees
-  // the price and must resubmit with it echoed back before the seat is created and billed.
   const [seatOverageConfirm, setSeatOverageConfirm] = useState<{
     priceMinor: number;
     currency: string;
+    requestKey: string;
   } | null>(null);
+  const resumedSeatPayment = useRef(false);
 
   const seatsExhaustedForDoctor = !seats.configured || seats.available === 0;
 
   // Bypasses the shared `apiJson` helper (which only surfaces the error string) because this call
   // needs the full error body — `priceMinor`/`currency` — to show the overage confirmation dialog.
-  async function submitInvite(confirmedSeatOveragePriceMinor?: number) {
+  async function submitInvite() {
     setInviteError(null);
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
@@ -117,9 +144,6 @@ export function TeamSection({ members, invites, seats }: Props) {
         body: JSON.stringify({
           email: trimmedEmail,
           role,
-          ...(confirmedSeatOveragePriceMinor !== undefined
-            ? { confirmedSeatOveragePriceMinor }
-            : {}),
         }),
       });
       const body = (await res.json().catch(() => null)) as
@@ -133,7 +157,11 @@ export function TeamSection({ members, invites, seats }: Props) {
           typeof body.priceMinor === 'number' &&
           typeof body.currency === 'string'
         ) {
-          setSeatOverageConfirm({ priceMinor: body.priceMinor, currency: body.currency });
+          setSeatOverageConfirm({
+            priceMinor: body.priceMinor,
+            currency: body.currency,
+            requestKey: seatOverageConfirm?.requestKey ?? crypto.randomUUID(),
+          });
           return;
         }
         const code = body?.ok === false ? body.error : 'error';
@@ -159,6 +187,105 @@ export function TeamSection({ members, invites, seats }: Props) {
       setRevokingId(null);
     }
   }
+
+  async function purchaseSeatOverage() {
+    if (!seatOverageConfirm) return;
+    const stored: StoredSeatOverageInvite = {
+      email: email.trim(),
+      role,
+      requestKey: seatOverageConfirm.requestKey,
+    };
+    sessionStorage.setItem(SEAT_OVERAGE_INVITE_STORAGE_KEY, JSON.stringify(stored));
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/clinic/billing', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          purchase: 'seat_overage',
+          requestKey: stored.requestKey,
+          amountMinor: seatOverageConfirm.priceMinor,
+          currency: seatOverageConfirm.currency,
+        }),
+      });
+      const body = await response.json().catch(() => null) as
+        | { ok: true; outcome?: 'seat_available'; checkoutUrl?: string; invoiceId?: string }
+        | { ok: false; error: string; priceMinor?: number; currency?: string }
+        | null;
+      if (body?.ok && body.outcome === 'seat_available') {
+        sessionStorage.removeItem(SEAT_OVERAGE_INVITE_STORAGE_KEY);
+        setSeatOverageConfirm(null);
+        await submitInvite();
+        return;
+      }
+      if (body?.ok && body.checkoutUrl && body.invoiceId) {
+        sessionStorage.setItem(
+          SEAT_OVERAGE_INVITE_STORAGE_KEY,
+          JSON.stringify({ ...stored, invoiceId: body.invoiceId }),
+        );
+        window.location.assign(body.checkoutUrl);
+        return;
+      }
+      if (
+        body?.ok === false &&
+        body.error === 'seat_overage_confirmation_required' &&
+        typeof body.priceMinor === 'number' &&
+        typeof body.currency === 'string'
+      ) {
+        setSeatOverageConfirm({
+          priceMinor: body.priceMinor,
+          currency: body.currency,
+          requestKey: stored.requestKey,
+        });
+        return;
+      }
+      setInviteError('Не удалось создать оплату дополнительного места');
+    } catch {
+      setInviteError('Не удалось создать оплату дополнительного места');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (resumedSeatPayment.current) return;
+    const invoiceId = new URLSearchParams(window.location.search).get('seatPayment');
+    const stored = readStoredSeatOverageInvite();
+    if (!invoiceId || !stored || stored.invoiceId !== invoiceId) return;
+    resumedSeatPayment.current = true;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      try {
+        const response = await fetch('/api/clinic/billing');
+        const body = await response.json().catch(() => null) as
+          | { ok: true; billing: { invoices: Array<{ id: string; status: string }> } }
+          | null;
+        const invoice = body?.ok
+          ? body.billing.invoices.find((candidate) => candidate.id === invoiceId)
+          : null;
+        if (invoice?.status === 'paid') {
+          sessionStorage.removeItem(SEAT_OVERAGE_INVITE_STORAGE_KEY);
+          await fetch('/api/clinic/invites', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: stored.email, role: stored.role }),
+          });
+          if (!cancelled) router.refresh();
+          return;
+        }
+      } catch {
+        // A transient read failure is retried while the return page remains open.
+      }
+      if (!cancelled) timer = setTimeout(() => void poll(), 1500);
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [router]);
 
   return (
     <>
@@ -240,16 +367,16 @@ export function TeamSection({ members, invites, seats }: Props) {
                 <strong>
                   {formatSeatOveragePrice(seatOverageConfirm.priceMinor, seatOverageConfirm.currency)}
                 </strong>
-                . Подтвердите — место будет создано и клинике выставлен счёт.
+                . После оплаты приглашение будет отправлено автоматически.
               </p>
               <div className="flex gap-2">
                 <Button
                   type="button"
                   size="sm"
                   disabled={submitting}
-                  onClick={() => void submitInvite(seatOverageConfirm.priceMinor)}
+                  onClick={() => void purchaseSeatOverage()}
                 >
-                  {submitting ? 'Отправка…' : 'Подтвердить и пригласить'}
+                  Оплатить место
                 </Button>
                 <Button
                   type="button"

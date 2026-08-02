@@ -86,6 +86,8 @@ function formatDate(value: string): string {
 const REFUND_ERROR_LABELS: Record<string, string> = {
   invoice_not_found: 'Платёж не найден.',
   invoice_not_refundable: 'Возврат недоступен: платёж ещё не оплачен.',
+  seat_overage_partial_refund_forbidden:
+    'Дополнительное место можно вернуть только полной суммой.',
   amount_exceeds_remaining: 'Сумма превышает остаток по платежу.',
   provider_error: 'Провайдер не принял возврат. Попробуйте ещё раз.',
   invalid_refund_request: 'Некорректная сумма возврата.',
@@ -250,18 +252,18 @@ function PlatformPaymentsSummarySection({
 
       <div>
         <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
-          Разрез по тарифам
+          Разрез по покупкам
         </div>
         {!breakdown || breakdown.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Оплаченных счетов за период нет — разрез по тарифам пуст.
+            Оплаченных счетов за период нет — разрез по покупкам пуст.
           </p>
         ) : (
           <div className="overflow-x-auto rounded-md border border-border/60">
             <table className="w-full min-w-[480px] text-left text-sm">
               <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Тариф</th>
+                  <th className="px-3 py-2 font-medium">Покупка</th>
                   <th className="px-3 py-2 font-medium">Период подписки</th>
                   <th className="px-3 py-2 font-medium">Оплат</th>
                   <th className="px-3 py-2 font-medium">Сумма</th>
@@ -270,10 +272,12 @@ function PlatformPaymentsSummarySection({
               <tbody>
                 {breakdown.map((row) => (
                   <tr
-                    key={`${row.tariffId}:${row.tariffBillingPeriod}:${row.currency}`}
+                    key={`${row.invoiceKind}:${row.tariffId}:${row.tariffBillingPeriod}:${row.currency}`}
                     className="border-t border-border/50"
                   >
-                    <td className="px-3 py-2">{row.tariffName}</td>
+                    <td className="px-3 py-2">
+                      {row.invoiceKind === 'seat_overage' ? 'Дополнительные места' : row.tariffName}
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {BILLING_PERIOD_LABELS[row.tariffBillingPeriod]}
                     </td>

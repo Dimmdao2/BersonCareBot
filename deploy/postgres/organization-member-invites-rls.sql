@@ -307,9 +307,11 @@ BEGIN
        WHERE eo.organization_id = v_invite.organization_id AND eo.mechanic = 'clinic_team'),
       (SELECT t.included_seats
        FROM public.be_organizations AS o
-       JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
+       JOIN LATERAL app.saas_billing_effective_tariff(o.id, o.tariff_id) AS t ON true
        WHERE o.id = v_invite.organization_id)
-    ) INTO v_seat_limit;
+    ) + COALESCE((SELECT s.paid_additional_seats FROM public.saas_billing_subscriptions AS s
+      WHERE s.organization_id = v_invite.organization_id AND s.source = 'paid_subscription'), 0)
+    INTO v_seat_limit;
 
     SELECT
       (SELECT COUNT(*) FROM public.be_organization_members AS m
@@ -326,23 +328,8 @@ BEGIN
     INTO v_seat_used;
 
     IF v_seat_limit IS NULL OR v_seat_used >= v_seat_limit THEN
-      -- §5a item 5.1 — a tariff with a configured additional_seat_price_minor allows this
-      -- specific reservation through even past v_seat_limit: it was already confirmed and priced
-      -- at CREATE time (pgOrganizationInvites.createReplacingPending performed the same check
-      -- against the SAME price column before this invite row could exist), so re-blocking it here
-      -- would silently take back an already-paid-for seat. Re-read against the CURRENT tariff, not
-      -- a value cached on the invite, same fail-closed-on-change posture as v_clinic_team_enabled
-      -- above. NULL (overage not allowed by this tariff) falls through to the unchanged hard block.
-      SELECT t.additional_seat_price_minor
-      INTO v_seat_overage_price_minor
-      FROM public.be_organizations AS o
-      JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
-      WHERE o.id = v_invite.organization_id;
-
-      IF v_seat_overage_price_minor IS NULL THEN
-        RETURN QUERY SELECT false, 'seat_limit_reached'::text, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text;
-        RETURN;
-      END IF;
+      RETURN QUERY SELECT false, 'seat_limit_reached'::text, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text;
+      RETURN;
     END IF;
   END IF;
 

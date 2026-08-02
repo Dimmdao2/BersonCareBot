@@ -40,13 +40,23 @@ export function createClinicSeatsService(deps: {
   membershipPort: OrganizationMembershipPort;
   invitesPort: OrganizationInvitesPort;
   orgEntitlementsPort: OrgEntitlementsPort;
+  billingPort?: {
+    getOrganizationBillingOverview(organizationId: string): Promise<{
+      subscriptions: Array<{ source: string; paidAdditionalSeats: number }>;
+    }>;
+  };
 }) {
   async function getSeatStatus(organizationId: string): Promise<ClinicSeatStatus> {
-    const [members, inviteSeatReservations, limit] = await Promise.all([
+    const [members, inviteSeatReservations, baseLimit, billing] = await Promise.all([
       deps.membershipPort.listByOrganization(organizationId),
       deps.invitesPort.countSeatReservationsByOrganization(organizationId),
       resolveClinicSeatLimit(deps.orgEntitlementsPort, organizationId),
+      deps.billingPort?.getOrganizationBillingOverview(organizationId) ?? Promise.resolve(null),
     ]);
+    const paidAdditionalSeats = billing?.subscriptions.find(
+      (subscription) => subscription.source === 'paid_subscription',
+    )?.paidAdditionalSeats ?? 0;
+    const limit = baseLimit === null ? null : baseLimit + paidAdditionalSeats;
     const activeSeatConsumers = members.filter(isSeatConsumingMember).length;
     const used = activeSeatConsumers + inviteSeatReservations;
     if (limit === null) {

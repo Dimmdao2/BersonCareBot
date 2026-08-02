@@ -99,20 +99,76 @@ export async function DELETE() {
  * so it must never itself be gated by the state it exists to fix (§5a/2.1c, enforced structurally by
  * `modules/saas-billing/service.test.ts`).
  */
-export async function POST() {
+const purchaseSchema = z.object({
+  purchase: z.literal('seat_overage'),
+  requestKey: z.string().min(1).max(200),
+  amountMinor: z.number().int().nonnegative(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+});
+
+export async function POST(request: Request) {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
   if (!gate.ok) return gate.response;
   if (gate.ctx.membershipRole !== 'owner' && gate.ctx.membershipRole !== 'admin') {
     return NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 });
   }
+  const body = await request.json().catch(() => null);
+  const purchase = purchaseSchema.safeParse(body);
+  if (body !== null && !purchase.success) {
+    return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
+  }
+  const principal = {
+    organizationId: gate.ctx.organizationId,
+    platformUserId: gate.ctx.session.user.userId,
+    source: 'clinic-billing-invoice' as const,
+  };
   try {
-    const invoice = await runWithDbClinicBillingPrincipal(
-      {
-        organizationId: gate.ctx.organizationId,
-        platformUserId: gate.ctx.session.user.userId,
-        source: 'clinic-billing-invoice',
-      },
-      () => buildAppDeps().saasBilling.createOwnTariffRenewalInvoice(gate.ctx.organizationId),
+    if (purchase.success) {
+      const result = await runWithDbClinicBillingPrincipal(principal, () =>
+        buildAppDeps().saasBilling.purchaseSeatOverage({
+          organizationId: gate.ctx.organizationId,
+          requestKey: purchase.data.requestKey,
+          confirmedAmountMinor: purchase.data.amountMinor,
+          confirmedCurrency: purchase.data.currency,
+        }),
+      );
+      if (result.outcome === 'seat_available') {
+        return NextResponse.json({ ok: true, outcome: 'seat_available' });
+      }
+      if (result.outcome === 'price_changed') {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'seat_overage_confirmation_required',
+            priceMinor: result.priceMinor,
+            currency: result.currency,
+          },
+          { status: 402 },
+        );
+      }
+      if (result.outcome === 'seat_overage_unavailable') {
+        return NextResponse.json(
+          { ok: false, error: 'saas_billing_seat_overage_unavailable' },
+          { status: 409 },
+        );
+      }
+      // outcome === 'checkout'
+      const seatInvoice = result.invoice;
+      if (!seatInvoice.providerCheckoutUrl) {
+        return NextResponse.json(
+          { ok: false, error: 'saas_billing_checkout_unavailable' },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        checkoutUrl: seatInvoice.providerCheckoutUrl,
+        invoiceId: seatInvoice.id,
+      });
+    }
+    // Tariff renewal path
+    const invoice = await runWithDbClinicBillingPrincipal(principal, () =>
+      buildAppDeps().saasBilling.createOwnTariffRenewalInvoice(gate.ctx.organizationId),
     );
     if (!invoice.providerCheckoutUrl) {
       return NextResponse.json(
