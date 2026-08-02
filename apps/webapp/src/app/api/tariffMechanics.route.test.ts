@@ -12,6 +12,7 @@ vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForRead: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   requireEntitlementForMutationAction: vi.fn(),
+  requireEntitlementForReadAction: vi.fn(),
   entitlementMutationRefusalMessage: (action: string) =>
     'Невозможно ' +
     action +
@@ -117,10 +118,15 @@ import { saveOrgBranding } from '@/app/app/settings/brandingActions';
 import { createOrgBrandingService } from '@/modules/org-branding/service';
 import {
   archiveDoctorExerciseCore,
-  bulkCreateExercisesFromMediaCore,
   saveDoctorExerciseCore,
   unarchiveDoctorExerciseCore,
 } from '@/app/app/doctor/exercises/actionsShared';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { createLfkExercisesService } from '@/modules/lfk-exercises/service';
+import type { Exercise } from '@/modules/lfk-exercises/types';
+import { createLfkTemplatesService } from '@/modules/lfk-templates/service';
+import type { Template } from '@/modules/lfk-templates/types';
+import { persistLfkTemplateDraft } from '@/app/app/doctor/lfk-templates/actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -887,15 +893,17 @@ describe('tariff and platform mutation gates', () => {
     expect(brandingPort.publishDraft).not.toHaveBeenCalled();
   });
 
-  it('refuses every exercise-catalog write while it is not included in the tariff', async () => {
+  it('keeps clinic-owned exercise creation, editing, and archiving available while the platform library is disabled', async () => {
     const lfkExercises = {
-      createExercise: vi.fn(),
-      updateExercise: vi.fn(),
-      archiveExercise: vi.fn(),
-      unarchiveExercise: vi.fn(),
+      createExercise: vi.fn().mockResolvedValue({ id: 'created-exercise' }),
+      getExercise: vi.fn().mockResolvedValue({ id: TARGET_ID, isArchived: false }),
+      updateExercise: vi.fn().mockResolvedValue({ id: TARGET_ID }),
+      archiveExercise: vi.fn().mockResolvedValue(undefined),
+      unarchiveExercise: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(buildAppDeps).mockReturnValue({
       lfkExercises,
+      references: { listActiveItemsByCategoryCode: vi.fn().mockResolvedValue([]) },
     } as unknown as ReturnType<typeof buildAppDeps>);
     vi.mocked(requireEntitlementForMutationAction).mockResolvedValue({
       ok: false,
@@ -905,25 +913,134 @@ describe('tariff and platform mutation gates', () => {
 
     const exerciseForm = new FormData();
     exerciseForm.set('title', 'Наклоны');
+    const updateForm = new FormData();
+    updateForm.set('id', TARGET_ID);
+    updateForm.set('title', 'Наклоны с поворотом');
     const archiveForm = new FormData();
     archiveForm.set('id', TARGET_ID);
 
-    const [saveResult, archiveResult, unarchiveResult, bulkResult] = await Promise.all([
+    const [createResult, updateResult, archiveResult, unarchiveResult] = await Promise.all([
       saveDoctorExerciseCore(exerciseForm),
+      saveDoctorExerciseCore(updateForm),
       archiveDoctorExerciseCore(archiveForm),
       unarchiveDoctorExerciseCore(archiveForm),
-      bulkCreateExercisesFromMediaCore([
-        { title: 'Присед', mediaUrl: '/api/media/photo.jpg', mediaType: 'image' },
-      ]),
     ]);
 
-    expect(saveResult).toMatchObject({ ok: false, error: 'entitlement_required' });
-    expect(archiveResult).toMatchObject({ kind: 'invalid', error: 'entitlement_required' });
-    expect(unarchiveResult).toMatchObject({ kind: 'invalid', error: 'entitlement_required' });
-    expect(bulkResult).toMatchObject({ ok: false, error: 'entitlement_required' });
-    expect(lfkExercises.createExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.updateExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.archiveExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.unarchiveExercise).not.toHaveBeenCalled();
+    expect(createResult).toMatchObject({ ok: true, exerciseId: 'created-exercise', wasUpdate: false });
+    expect(updateResult).toMatchObject({ ok: true, exerciseId: TARGET_ID, wasUpdate: true });
+    expect(archiveResult).toMatchObject({ kind: 'archived', id: TARGET_ID });
+    expect(unarchiveResult).toMatchObject({ kind: 'unarchived', id: TARGET_ID });
+    expect(lfkExercises.createExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.updateExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.archiveExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.unarchiveExercise).toHaveBeenCalledOnce();
+    expect(requireEntitlementForMutationAction).not.toHaveBeenCalledWith(
+      workspace,
+      'exercise_catalog',
+    );
+  });
+
+  it('never mutates a platform-owned exercise through the real service, even though the tariff mutation gate no longer runs', async () => {
+    const PLATFORM_EXERCISE_ID = 'platform-exercise-id';
+    const platformExercise: Exercise = {
+      id: PLATFORM_EXERCISE_ID,
+      ownerKind: 'platform',
+      catalogScope: 'catalog',
+      title: 'Platform squat',
+      description: null,
+      regionRefId: null,
+      regionRefIds: [],
+      loadType: null,
+      difficulty1_10: null,
+      contraindications: null,
+      tags: null,
+      isArchived: false,
+      createdBy: null,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      media: [],
+    };
+    // Mirrors the real repo's `organization_id = ORG_ID_EXPR` scoping (pgLfkExercises.ts):
+    // reads only see a platform row when explicitly requested, writes never touch it.
+    const fakePort = {
+      list: vi.fn().mockResolvedValue([]),
+      listTitlesByIds: vi.fn().mockResolvedValue(new Map()),
+      getById: vi.fn(async (id: string, options?: { includePlatformBase?: boolean }) => {
+        if (id !== PLATFORM_EXERCISE_ID) return null;
+        return options?.includePlatformBase ? platformExercise : null;
+      }),
+      create: vi.fn(),
+      update: vi.fn(async () => null),
+      archive: vi.fn(async () => false),
+      unarchive: vi.fn(async () => false),
+      getExerciseUsageSummary: vi.fn(),
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      lfkExercises: createLfkExercisesService(fakePort),
+      references: { listActiveItemsByCategoryCode: vi.fn().mockResolvedValue([]) },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const updateForm = new FormData();
+    updateForm.set('id', PLATFORM_EXERCISE_ID);
+    updateForm.set('title', 'Hijacked title');
+    const archiveForm = new FormData();
+    archiveForm.set('id', PLATFORM_EXERCISE_ID);
+
+    const [updateResult, archiveResult, unarchiveResult] = await Promise.all([
+      saveDoctorExerciseCore(updateForm),
+      archiveDoctorExerciseCore(archiveForm),
+      unarchiveDoctorExerciseCore(archiveForm),
+    ]);
+
+    expect(updateResult).toMatchObject({ ok: false, error: 'Упражнение не найдено' });
+    expect(archiveResult).toMatchObject({ kind: 'invalid' });
+    expect(unarchiveResult).toMatchObject({ kind: 'invalid' });
+    expect(fakePort.update).not.toHaveBeenCalled();
+    expect(fakePort.archive).not.toHaveBeenCalled();
+    expect(fakePort.unarchive).not.toHaveBeenCalled();
+  });
+
+  it('never mutates a platform-owned LFK complex template through the real service, even though the tariff mutation gate no longer runs', async () => {
+    const PLATFORM_TEMPLATE_ID = 'platform-template-id';
+    const platformTemplate: Template = {
+      id: PLATFORM_TEMPLATE_ID,
+      ownerKind: 'platform',
+      title: 'Platform complex',
+      description: null,
+      status: 'published',
+      createdBy: null,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      exercises: [],
+    };
+    // Mirrors the real repo's `organization_id = ORG_ID_EXPR` scoping (pgLfkTemplates.ts):
+    // reads only see a platform row when explicitly requested, writes never touch it.
+    const fakePort = {
+      list: vi.fn().mockResolvedValue([]),
+      getById: vi.fn(async (id: string, options?: { includePlatformBase?: boolean }) => {
+        if (id !== PLATFORM_TEMPLATE_ID) return null;
+        return options?.includePlatformBase ? platformTemplate : null;
+      }),
+      create: vi.fn(),
+      update: vi.fn(async () => null),
+      updateExercises: vi.fn(),
+      setStatus: vi.fn(async () => null),
+      getTemplateUsageSummary: vi.fn(),
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      lfkTemplates: createLfkTemplatesService(fakePort),
+    } as unknown as ReturnType<typeof buildAppDeps>);
+    vi.mocked(requireEntitlementForReadAction).mockResolvedValue({ ok: true } as never);
+
+    const result = await persistLfkTemplateDraft({
+      templateId: PLATFORM_TEMPLATE_ID,
+      title: 'Hijacked complex',
+      description: null,
+      exercises: [],
+    });
+
+    expect(result).toMatchObject({ ok: false, error: 'Шаблон не найден' });
+    expect(fakePort.update).not.toHaveBeenCalled();
+    expect(fakePort.updateExercises).not.toHaveBeenCalled();
   });
 });

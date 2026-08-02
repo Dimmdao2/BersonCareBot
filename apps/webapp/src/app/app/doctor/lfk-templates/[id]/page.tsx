@@ -14,9 +14,13 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
   const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();
-  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
-    .ok;
-  const template = await deps.lfkTemplates.getTemplate(id, { includePlatformBase });
+  const [includePlatformPackages, includePlatformExercises] = await Promise.all([
+    requireEntitlementForReadAction(workspace, 'exercise_packages'),
+    requireEntitlementForReadAction(workspace, 'exercise_catalog'),
+  ]);
+  const template = await deps.lfkTemplates.getTemplate(id, {
+    includePlatformBase: includePlatformPackages.ok,
+  });
   if (!template) {
     notFound();
   }
@@ -25,7 +29,10 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
     template.ownerKind === 'organization'
       ? deps.lfkTemplates.getTemplateUsage(template.id)
       : Promise.resolve(undefined),
-    deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
+    deps.lfkExercises.listExercises({
+      includeArchived: false,
+      includePlatformBase: includePlatformExercises.ok,
+    }),
   ]);
   const exerciseCatalog = exercises.map((e) => ({
     id: e.id,

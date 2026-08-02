@@ -211,6 +211,8 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
         setErrorMsg(
           err instanceof Error && err.message === BROADCAST_DELIVERY_CAP_EXCEEDED_CODE
             ? 'Слишком много сообщений в одной рассылке. Уменьшите аудиторию или каналы.'
+            : err instanceof Error && err.message.startsWith('Невозможно ')
+              ? err.message
             : 'Ошибка при отправке рассылки. Попробуйте ещё раз.',
         );
       }
@@ -263,6 +265,13 @@ export function BroadcastForm({ onBroadcastSent, prefill }: Props) {
       });
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 2500);
+    } catch (err) {
+      setStage('error');
+      setErrorMsg(
+        err instanceof Error && err.message.startsWith('Невозможно ')
+          ? err.message
+          : 'Не удалось сохранить черновик рассылки. Попробуйте ещё раз.',
+      );
     } finally {
       setDraftSaving(false);
     }

@@ -294,11 +294,16 @@ commit `53b93c41e`; точный grant-путь — `d3-4-bootstrap-base-login-r
 модуль определения роли, вторые redirect rules и дубли страниц не переносятся. Сначала принимается авторизационное
 поведение, затем UI-коммит; живой TEST проходит все три двери, сохранение `next` и вход пользователя не своей роли.
 
-- [ ] Реализовать role-specific login surfaces и перенаправлять неавторизованного с `/app/doctor/*`,
+- [x] Реализовать role-specific login surfaces и перенаправлять неавторизованного с `/app/doctor/*`,
       `/app/patient/*`, `/app/admin/*` на соответствующую дверь, исключив сами login routes из redirect rule.
-- [ ] Сохранить `next=` и все public pages под этими префиксами; public surface нельзя отправлять на login.
-- [ ] Авторизованного с чужой ролью вести в его собственный кабинет с отказом `app_access_denied=1`, а не на
-      экран входа.
+      Evidence: `apps/webapp/src/shared/ui/auth/RoleLoginPortalHeader.ui.test.tsx` and
+      `apps/webapp/src/proxy.route.test.ts`.
+- [x] Сохранить `next=` и все public pages под этими префиксами; public surface нельзя отправлять на login.
+      Evidence: `apps/webapp/src/modules/auth/redirectPolicy.unit.test.ts` and
+      `apps/webapp/src/proxy.route.test.ts`.
+- [x] Авторизованного с чужой ролью вести в его собственный кабинет с отказом `app_access_denied=1`, а не на
+      экран входа. Evidence: `apps/webapp/src/modules/auth/redirectPolicy.unit.test.ts` and
+      `apps/webapp/src/proxy.route.test.ts`.
 - [ ] Исследовать и зафиксировать текст для верных credentials на чужом portal. Предложение владельца —
       тот же текст, что для неверного пароля; не выдавать это за решение до завершения сравнения Epic, Doctolib,
       Zocdoc, Shopify, Atlassian и Salesforce.

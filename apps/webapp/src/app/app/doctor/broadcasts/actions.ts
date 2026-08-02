@@ -3,7 +3,10 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorAccess, requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import type {
@@ -77,6 +80,10 @@ export async function executeBroadcastAction(
   command: Omit<BroadcastCommand, 'actorId'>,
 ): Promise<{ auditEntry: BroadcastAuditEntry }> {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'mailings');
+  if (!entitlement.ok) {
+    throw new Error(entitlementMutationRefusalMessage('отправить рассылку', entitlement.reason));
+  }
   await assertClinicBroadcastChannels(workspace, command.channels);
   const deps = buildAppDeps();
   const result = await deps.doctorBroadcasts.execute(
@@ -86,10 +93,6 @@ export async function executeBroadcastAction(
     },
     {
       organizationId: workspace.organizationId,
-      reserveAudienceGrowth: async (audienceSize) => {
-        const entitlement = await requireEntitlementForMutationAction(workspace, 'mailings');
-        if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
-      },
       runDeliveryCommit: (fn) =>
         withDoctorWorkspacePrincipal(workspace, 'doctor.broadcasts.execute', fn),
     },
@@ -163,7 +166,9 @@ export async function loadDraftAction(): Promise<BroadcastDraft | null> {
 export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'mailings');
-  if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
+  if (!entitlement.ok) {
+    throw new Error(entitlementMutationRefusalMessage('сохранить черновик рассылки', entitlement.reason));
+  }
   const parsed = draftSchema.safeParse(draft);
   if (!parsed.success) {
     throw new Error('draft_validation_error');
