@@ -22,7 +22,7 @@ vi.mock('@bersoncare/db-principal', () => ({
     callback(),
 }));
 
-function buildService() {
+function buildService(webhookSecret: string | null = 'unused-webhook-secret-9021') {
   return createSaasBillingService({
     repository: createInMemorySaasBillingRepository(),
     settings: {
@@ -33,7 +33,7 @@ function buildService() {
             id: 'yookassa',
             label: 'ЮKassa',
             enabled: true,
-            webhookSecret: 'unused-webhook-secret-9021',
+            ...(webhookSecret === null ? {} : { webhookSecret }),
             shopId: SHOP_ID,
             apiKey: API_KEY,
           },
@@ -170,8 +170,8 @@ function webhookRequest(bodyText: string, realIp: string = ALLOWED_IP): Request 
   });
 }
 
-function invoke(request: Request) {
-  return receiveSaasWebhook(request, { params: Promise.resolve({ provider: 'yookassa' }) });
+function invoke(request: Request, provider = 'yookassa') {
+  return receiveSaasWebhook(request, { params: Promise.resolve({ provider }) });
 }
 
 async function invoiceStatus(service: ReturnType<typeof buildService>) {
@@ -194,6 +194,35 @@ describe('POST /api/payments/saas-webhook/[provider]', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  // Отказ 0/5: без секрета нельзя проверять webhook — запрос не должен доходить до провайдера или capture.
+  it('rejects a configured provider without webhookSecret before provider fetch or capture', async () => {
+    service = buildService(null);
+    fakes.buildAppDeps.mockReturnValue({ saasBilling: service });
+    const captureSpy = vi.spyOn(service, 'captureSaasBillingProviderWebhookEvent');
+
+    const response = await invoke(webhookRequest(yookassaWebhookBody(YOOKASSA_PAYMENT_ID)));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'webhook_secret_missing' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(captureSpy).not.toHaveBeenCalled();
+  });
+
+  // Отказ 0a/5: неизвестный сегмент URL не выбирает adapter и не может провести платёж.
+  it('rejects an unknown provider path before provider fetch or capture', async () => {
+    const captureSpy = vi.spyOn(service, 'captureSaasBillingProviderWebhookEvent');
+
+    const response = await invoke(
+      webhookRequest(yookassaWebhookBody(YOOKASSA_PAYMENT_ID)),
+      'provider-not-configured',
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'payment_provider_unavailable' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(captureSpy).not.toHaveBeenCalled();
   });
 
   it('captures the clinic tariff payment on a valid succeeded event', async () => {
