@@ -49,16 +49,10 @@ describe('createPgReminderJournalPort (pg SQL)', () => {
 
   it('recordSnooze routes the write through the patient action accessor', async () => {
     const snoozedUntil = '2026-06-05T12:00:00.000Z';
-    runWebappSqlMock
-      .mockResolvedValueOnce({
-        rows: [{ rule_pk: 'rule-pk', snoozed_until: null, skipped_at: null }],
-        rowCount: 1,
-      })
-      .mockResolvedValueOnce({
-        rows: [{ snoozed_until: snoozedUntil }],
-        rowCount: 1,
-      })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    runWebappSqlMock.mockResolvedValueOnce({
+      rows: [{ snoozed_until: snoozedUntil }],
+      rowCount: 1,
+    });
     const port = createPgReminderJournalPort();
     const result = await port.recordSnooze('platform-user-1', 'occ-1', 15);
     expect(result).toEqual({
@@ -67,8 +61,8 @@ describe('createPgReminderJournalPort (pg SQL)', () => {
       snoozedUntil,
     });
     expect(rollbackMock).not.toHaveBeenCalled();
-    expect(approxSqlAt(1)).toContain('app.patient_snooze_reminder_occurrence');
-    expect(approxSqlAt(1)).not.toMatch(/\bUPDATE\s+(?:public\.)?reminder_occurrence_history\b/i);
+    expect(approxSqlAt(0)).toContain('app.patient_snooze_reminder_occurrence');
+    expect(approxSqlAt(0)).not.toMatch(/\bUPDATE\s+(?:public\.)?reminder_occurrence_history\b/i);
   });
 
   it('recordDone returns not_found and rolls back when occurrence is not owned', async () => {
@@ -80,39 +74,30 @@ describe('createPgReminderJournalPort (pg SQL)', () => {
 
   it('recordDone treats duplicate done journal as idempotent (reuses existing created_at)', async () => {
     const doneAt = '2026-06-05T10:00:00.000Z';
-    runWebappSqlMock
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            rule_pk: 'rule-pk',
-            integrator_user_id: '99',
-            occurred_at: '2026-06-05T08:00:00.000Z',
-          },
-        ],
-        rowCount: 1,
-      })
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [{ created_at: doneAt }], rowCount: 1 })
-      .mockResolvedValueOnce({
-        rows: [{ day_sent_total: 1, day_done_count: 1 }],
-        rowCount: 1,
-      });
+    runWebappSqlMock.mockResolvedValueOnce({
+      rows: [
+        {
+          done_at: doneAt,
+          first_done_for_occurrence: false,
+          day_sent_total: 1,
+          day_done_count: 1,
+          day_fully_done: false,
+        },
+      ],
+      rowCount: 1,
+    });
     const port = createPgReminderJournalPort();
     const result = await port.recordDone('platform-user-1', 'occ-dup', 'Europe/Moscow');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.firstDoneForOccurrence).toBe(false);
     expect(result.doneAt).toBe(doneAt);
-    expect(approxSqlAt(1)).toContain('WHERE NOT EXISTS');
-    expect(approxSqlAt(2)).toContain("action = 'done'");
+    expect(approxSqlAt(0)).toContain('app.patient_done_reminder_occurrence');
   });
 
   it('recordSkip returns ok with skippedAt when UPDATE succeeds', async () => {
     const skippedAt = '2026-06-05T11:00:00.000Z';
-    runWebappSqlMock
-      .mockResolvedValueOnce({ rows: [{ rule_pk: 'rule-pk' }], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [{ skipped_at: skippedAt }], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [{ skipped_at: skippedAt }], rowCount: 1 });
     const port = createPgReminderJournalPort();
     const result = await port.recordSkip('platform-user-1', 'occ-skip', 'busy');
     expect(result).toEqual({
@@ -120,25 +105,17 @@ describe('createPgReminderJournalPort (pg SQL)', () => {
       occurrenceId: 'occ-skip',
       skippedAt,
     });
-    expect(approxSqlAt(1)).toContain('app.patient_skip_reminder_occurrence');
-    expect(approxSqlAt(1)).not.toMatch(/\bUPDATE\s+(?:public\.)?reminder_occurrence_history\b/i);
-    expect(approxSqlAt(2)).toContain("action = 'skipped'");
-    expect(approxSqlAt(2)).toContain('WHERE NOT EXISTS');
+    expect(approxSqlAt(0)).toContain('app.patient_skip_reminder_occurrence');
+    expect(approxSqlAt(0)).toContain('NULL');
+    expect(approxSqlAt(0)).not.toMatch(/\bUPDATE\s+(?:public\.)?reminder_occurrence_history\b/i);
   });
 
   it('never issues a raw reminder_occurrence_history UPDATE for patient snooze or skip', async () => {
     const snoozedUntil = '2026-06-05T12:00:00.000Z';
     const skippedAt = '2026-06-05T13:00:00.000Z';
     runWebappSqlMock
-      .mockResolvedValueOnce({
-        rows: [{ rule_pk: 'rule-pk', snoozed_until: null, skipped_at: null }],
-        rowCount: 1,
-      })
       .mockResolvedValueOnce({ rows: [{ snoozed_until: snoozedUntil }], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [{ rule_pk: 'rule-pk' }], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [{ skipped_at: skippedAt }], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+      .mockResolvedValueOnce({ rows: [{ skipped_at: skippedAt }], rowCount: 1 });
 
     const port = createPgReminderJournalPort();
     await expect(port.recordSnooze('platform-user-1', 'occ-snooze', 30)).resolves.toEqual({
@@ -159,9 +136,7 @@ describe('createPgReminderJournalPort (pg SQL)', () => {
   });
 
   it('recordSkip rolls back when UPDATE returns no skipped_at', async () => {
-    runWebappSqlMock
-      .mockResolvedValueOnce({ rows: [{ rule_pk: 'rule-pk' }], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     const port = createPgReminderJournalPort();
     const result = await port.recordSkip('platform-user-1', 'occ-bad', 'busy');
     expect(result).toEqual({ ok: false, error: 'not_found' });

@@ -36,6 +36,7 @@ export type ResolvedNotificationChannelsPayload = {
 
 export type DeliveryTargetsFetchResult = {
   channelBindings: Record<string, string>;
+  emailRecipient?: string;
   tenantDenied?: boolean;
   resolution?: ResolvedNotificationChannelsPayload;
 };

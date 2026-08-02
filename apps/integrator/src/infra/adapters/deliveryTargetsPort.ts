@@ -43,6 +43,7 @@ async function fetchDeliveryTargets(
       ok?: boolean;
       channelBindings?: Record<string, string>;
       resolution?: DeliveryTargetsFetchResult['resolution'];
+      emailRecipient?: string;
     };
     if (res.status === 403) return { channelBindings: {}, tenantDenied: true };
     if (!res.ok || data.ok !== true) return null;
@@ -51,6 +52,9 @@ async function fetchDeliveryTargets(
     return {
       channelBindings,
       ...(data.resolution ? { resolution: data.resolution } : {}),
+      ...(typeof data.emailRecipient === 'string' && data.emailRecipient.trim()
+        ? { emailRecipient: data.emailRecipient.trim() }
+        : {}),
     };
   } catch {
     return null;
@@ -95,6 +99,17 @@ export function createDeliveryTargetsPort(deps: {
         return fetchDeliveryTargets(getAppBaseUrl, q({ maxId: params.maxId.trim() }));
       }
       return null;
+    },
+    async getTargetsByPlatformUser(params): Promise<DeliveryTargetsFetchResult | null> {
+      if (!params.platformUserId.trim() || !params.topic.trim() || !params.organizationId.trim()) {
+        return null;
+      }
+      return fetchDeliveryTargets(getAppBaseUrl, {
+        platformUserId: params.platformUserId.trim(),
+        topic: params.topic.trim(),
+        organizationId: params.organizationId.trim(),
+        ...(params.integratorUserId ? { integratorUserId: params.integratorUserId } : {}),
+      });
     },
   };
 }

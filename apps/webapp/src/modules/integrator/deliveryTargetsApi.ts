@@ -26,6 +26,7 @@ export type DeliveryTargetsApiParams = {
   phone?: string;
   telegramId?: string;
   maxId?: string;
+  platformUserId?: string;
   /** When set, uses unified channel resolver (topic matrix + mute gate). */
   topic?: string;
   integratorUserId?: string;
@@ -34,6 +35,7 @@ export type DeliveryTargetsApiParams = {
 export type DeliveryTargetsApiResult = {
   channelBindings: ChannelBindings;
   resolution?: ResolvedNotificationChannels;
+  emailRecipient?: string;
 };
 
 export class DeliveryTargetsTenantDeniedError extends Error {
@@ -61,6 +63,7 @@ export type DeliveryTargetsApiDeps = {
   findPlatformUserByIntegratorId: (
     integratorUserId: string,
   ) => Promise<{ platformUserId: string } | null>;
+  getChannelBindings: (platformUserId: string) => Promise<ChannelBindings>;
 };
 
 async function resolveUser(
@@ -68,6 +71,11 @@ async function resolveUser(
   deps: DeliveryTargetsApiDeps,
 ): Promise<{ userId: string; bindings: ChannelBindings } | null> {
   const { userByPhonePort, identityResolutionPort } = deps;
+
+  if (params.platformUserId?.trim()) {
+    const userId = params.platformUserId.trim();
+    return { userId, bindings: await deps.getChannelBindings(userId) };
+  }
 
   if (params.phone && params.phone.trim().length > 0) {
     const normalized = normalizeRuPhoneE164(params.phone.trim());
@@ -152,9 +160,16 @@ export async function getDeliveryTargetsForIntegrator(
       availability,
       integratorUserId: params.integratorUserId,
     });
+    const resolution = result.resolution;
     return {
       channelBindings: result.channelBindings,
-      resolution: result.resolution,
+      ...(resolution ? { resolution } : {}),
+      ...(resolution?.selectedChannels.includes('email')
+        ? {
+            emailRecipient:
+              (await deps.getProfileEmailFields(user.userId)).email?.trim() || undefined,
+          }
+        : {}),
     };
   }
 

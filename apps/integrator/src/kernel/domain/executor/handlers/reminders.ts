@@ -5,6 +5,7 @@ import type {
   DomainContext,
 } from '../../../contracts/index.js';
 import type { DueReminderOccurrence, ReminderRuleRecord } from '../../../contracts/reminders.js';
+import type { DeliveryTargetsFetchResult } from '../../../contracts/notificationChannels.js';
 import type { ExecutorDeps } from '../helpers.js';
 import {
   asNumber,
@@ -19,7 +20,6 @@ import {
 } from '../helpers.js';
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { DateTime } from 'luxon';
 import { createDbPort } from '../../../../infra/db/client.js';
 import { runIntegratorSql } from '../../../../infra/db/runIntegratorSql.js';
 import { enqueueOutgoingDeliveryIfAbsent } from '../../../../infra/db/repos/outgoingDeliveryQueue.js';
@@ -29,14 +29,12 @@ import {
 } from '../../../../infra/db/repos/notificationDeliveryAttempts.js';
 import { DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS } from '../../../../infra/delivery/deliveryContract.js';
 import { logger } from '../../../../infra/observability/logger.js';
-import { getAppDisplayTimezone } from '../../../../config/appTimezone.js';
 import { planDueReminderOccurrences } from '../../reminders/policy.js';
 import {
   buildPatientReminderDeepLink,
   reminderDispatchUsesIntentOpenTarget,
 } from '../../reminders/buildPatientReminderDeepLink.js';
 import { reminderOccurrenceTopicCode } from '../../reminders/reminderNotificationTopicCode.js';
-import { REMINDER_DISPATCH_NOTIFY_LOG_EVENT } from '../../reminders/reminderDispatchNotifyLogEvents.js';
 import {
   buildReminderDispatchInlineKeyboard,
   buildReminderSnoozeMenuInlineKeyboard,
@@ -361,8 +359,13 @@ export async function handleReminders(
       }
       addWriteToOrganizationBucket(writeBuckets, occurrenceOrganizationId, markQueuedWrite);
 
-      const ruleMap = await rulesForUser(occ.userId, occurrenceOrganizationId);
-      const rule = ruleMap.get(occ.ruleId);
+      const rule =
+        (occ.userId
+          ? (await rulesForUser(occ.userId, occurrenceOrganizationId)).get(occ.ruleId)
+          : await deps.readPort.readDb<ReminderRuleRecord | null>({
+              type: 'reminders.rule.byId',
+              params: { ruleId: occ.ruleId },
+            })) ?? undefined;
       const categoryKey = REMINDER_BY_CATEGORY[occ.category] ?? 'telegram:reminder.exercise';
       const categoryTemplateId = categoryKey.replace(/^telegram:/, '').replace(/^max:/, '');
       const linkedTitle = await resolveLinkedTitle(rule);
@@ -374,9 +377,7 @@ export async function handleReminders(
         titleMode = { kind: 'fixed', title: linkedTitle };
       } else if (deps.templatePort) {
         titleMode = { kind: 'template' };
-      } else {
-        titleMode = { kind: 'fixed', title: 'Напоминание' };
-      }
+      } else throw new Error(`reminders.dispatchDue copy unavailable for ${occ.id}`);
       const reminderBodyRaw = rule?.customText?.trim() ?? '';
       const reminderBody = reminderBodyRaw ? escapeReminderHtml(reminderBodyRaw) : '';
       const computedOpen = buildPatientReminderDeepLink({
@@ -411,10 +412,12 @@ export async function handleReminders(
       }
 
       type ChannelIdentity = { resource: string; externalId: string; chatId: number };
-      const allIdentities = await deps.readPort.readDb<ChannelIdentity[]>({
-        type: 'identities.allByUserId',
-        params: { userId: occ.userId },
-      });
+      const allIdentities = occ.userId
+        ? await deps.readPort.readDb<ChannelIdentity[]>({
+            type: 'identities.allByUserId',
+            params: { userId: occ.userId },
+          })
+        : [];
 
       const channelsToSend: Array<{
         channel: 'telegram' | 'max';
@@ -442,31 +445,17 @@ export async function handleReminders(
 
       const topicCode = reminderOccurrenceTopicCode(rule, occ.category);
       let sendChannels = channelsToSend;
-      let deliveryTargetsFetched:
-        | Awaited<
-            ReturnType<
-              NonNullable<ExecutorDeps['deliveryTargetsPort']>['getTargetsByChannelBinding']
-            >
-          >
-        | undefined;
-      if (topicCode && deps.deliveryTargetsPort) {
-        const tg = channelsToSend.find((c) => c.channel === 'telegram');
-        const maxCh = channelsToSend.find((c) => c.channel === 'max');
-        const bindingParams: {
-          telegramId?: string;
-          maxId?: string;
-          topic: string;
-          integratorUserId: string;
-          organizationId: string;
-        } = {
+      let deliveryTargetsFetched: DeliveryTargetsFetchResult | null | undefined;
+      if (topicCode) {
+        if (!deps.deliveryTargetsPort?.getTargetsByPlatformUser) {
+          throw new Error(`reminders.dispatchDue delivery target port unavailable for ${occ.id}`);
+        }
+        deliveryTargetsFetched = await deps.deliveryTargetsPort.getTargetsByPlatformUser({
+          platformUserId: occ.platformUserId,
           topic: topicCode,
-          integratorUserId: occ.userId,
+          ...(occ.userId ? { integratorUserId: occ.userId } : {}),
           organizationId: occurrenceOrganizationId,
-        };
-        if (tg && tg.chatId > 0) bindingParams.telegramId = String(tg.chatId);
-        if (maxCh?.externalId) bindingParams.maxId = maxCh.externalId;
-        deliveryTargetsFetched =
-          await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
+        });
         const fetched = deliveryTargetsFetched;
         if (!fetched) {
           throw new Error(
@@ -513,7 +502,9 @@ export async function handleReminders(
         }
       }
 
-      if (topicCode) {
+      const selectedChannels = new Set(deliveryTargetsFetched?.resolution?.selectedChannels ?? []);
+
+      if (topicCode && occ.userId) {
         const resolutionSkipped = deliveryTargetsFetched?.resolution?.skippedChannels ?? [];
         const alreadySkipped = new Set<string>();
         if (resolutionSkipped.length > 0) {
@@ -538,123 +529,6 @@ export async function handleReminders(
         });
       }
 
-      const idempotencyKey = `prn:${occ.id}:channels`;
-      if (!topicCode) {
-        logger.info(
-          {
-            event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.skipped,
-            reason: 'no_topic_code',
-            occurrenceId: occ.id,
-            integratorUserId: occ.userId,
-            category: occ.category,
-          },
-          'reminders.dispatchDue: notify-channels skipped (no topic)',
-        );
-      } else if (!deps.webappEventsPort?.notifyPatientReminderChannels) {
-        logger.info(
-          {
-            event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.skipped,
-            reason: 'webapp_events_port_missing',
-            occurrenceId: occ.id,
-            integratorUserId: occ.userId,
-            topicCode,
-            idempotencyKey,
-          },
-          'reminders.dispatchDue: notify-channels skipped (port missing)',
-        );
-      } else {
-        let notifyTitle: string;
-        if (titleMode.kind === 'fixed') {
-          notifyTitle = titleMode.title;
-        } else if (deps.templatePort) {
-          notifyTitle = (
-            await deps.templatePort.renderTemplate({
-              source: 'telegram',
-              templateId: categoryTemplateId,
-              vars: {},
-              audience: 'user',
-            })
-          ).text.trim();
-        } else {
-          notifyTitle = 'Напоминание';
-        }
-        const notifyPayload = {
-          organizationId: occurrenceOrganizationId,
-          integratorUserId: occ.userId,
-          occurrenceId: occ.id,
-          topicCode,
-          title: notifyTitle,
-          bodyText: reminderBodyRaw.trim().slice(0, 4000),
-          openUrl,
-          linkedObjectType: rule?.linkedObjectType ?? null,
-          linkedObjectId: rule?.linkedObjectId ?? null,
-          reminderIntent: rule?.reminderIntent ?? null,
-          occurrenceCategory: occ.category,
-          customTitle: rule?.customTitle?.trim() || null,
-        };
-        const body = JSON.stringify(notifyPayload);
-        logger.info(
-          {
-            event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.start,
-            occurrenceId: occ.id,
-            integratorUserId: occ.userId,
-            topicCode,
-            idempotencyKey,
-          },
-          'reminders.dispatchDue: notify-channels start',
-        );
-        try {
-          const r = await deps.webappEventsPort.notifyPatientReminderChannels({
-            body,
-            idempotencyKey,
-          });
-          logger.info(
-            {
-              event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.result,
-              occurrenceId: occ.id,
-              integratorUserId: occ.userId,
-              topicCode,
-              ok: r.ok,
-              status: r.status,
-              error: r.error,
-              webPushDelivered: r.webPushDelivered,
-              webPushErrors: r.webPushErrors,
-              webPushDeactivated: r.webPushDeactivated,
-              emailOk: r.emailOk,
-              emailSkipped: r.emailSkipped,
-              skipped: r.skipped,
-              selectedChannels: r.selectedChannels,
-              skippedChannels: r.skippedChannels,
-            },
-            'reminders.dispatchDue: notify-channels result',
-          );
-          if (!r.ok) {
-            logger.warn(
-              {
-                metric: 'webapp_prn_failed',
-                occurrenceId: occ.id,
-                integratorUserId: occ.userId,
-                status: r.status,
-                error: r.error,
-              },
-              'reminders.dispatchDue: webapp notify-channels failed',
-            );
-          }
-        } catch (err) {
-          logger.warn(
-            {
-              event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.result,
-              occurrenceId: occ.id,
-              integratorUserId: occ.userId,
-              topicCode,
-              ok: false,
-              error: err instanceof Error ? err.message : String(err),
-            },
-            'reminders.dispatchDue: webapp notify-channels threw',
-          );
-        }
-      }
-
       for (const { channel, chatId, externalId } of sendChannels) {
         let reminderTitle: string;
         if (titleMode.kind === 'fixed') {
@@ -668,9 +542,7 @@ export async function handleReminders(
               audience: 'user',
             })
           ).text.trim();
-        } else {
-          reminderTitle = 'Напоминание';
-        }
+        } else throw new Error(`reminders.dispatchDue copy unavailable for ${occ.id}`);
         const replyMarkup = buildReminderDispatchInlineKeyboard({
           primaryLabel: reminderIntentPrimaryLabel(rule?.reminderIntent ?? null),
           primaryUrl: openUrl,
@@ -691,14 +563,15 @@ export async function handleReminders(
               })
             ).text
           : `${escapeReminderHtml(reminderTitle)}${reminderBody ? `\n\n${reminderBody}` : ''}`;
-        const deliveryLogId = `rdl:${occ.id}:${channel}`;
+        const deliveryLogId = `rdl:${occ.id}:g${occ.deliveryGeneration}:${channel}`;
+        const eventId = `rem:${occ.id}:g${occ.deliveryGeneration}:${channel}`.slice(0, 240);
         const intent = {
           type: 'message.send' as const,
           meta: {
-            eventId: `${ctx.event.meta.eventId}:reminder:${occ.id}:${channel}`,
+            eventId,
             occurredAt: dueNowIso,
             source: channel,
-            userId: occ.userId,
+            ...(occ.userId ? { userId: occ.userId } : {}),
           },
           payload: {
             recipient: channel === 'max' ? maxBindingRecipient(externalId, chatId) : { chatId },
@@ -708,7 +581,6 @@ export async function handleReminders(
             delivery: { channels: [channel], maxAttempts: 1 },
           },
         };
-        const eventId = `rem:${occ.id}:${channel}`.slice(0, 240);
         let deleteBeforeSendMessageId: string | undefined;
         const stale = await deps.readPort.readDb<string | null>({
           type: 'reminders.delivery.staleMessengerMessage',
@@ -722,6 +594,7 @@ export async function handleReminders(
           channel,
           payloadJson: {
             occurrenceId: occ.id,
+            deliveryGeneration: occ.deliveryGeneration,
             topicCode,
             channel,
             deliveryLogId,
@@ -729,6 +602,118 @@ export async function handleReminders(
             logText: text,
             intent,
             ...(deleteBeforeSendMessageId !== undefined ? { deleteBeforeSendMessageId } : {}),
+          },
+        });
+      }
+
+      if (selectedChannels.has('web_push') && topicCode) {
+        const webPushTitle =
+          titleMode.kind === 'fixed'
+            ? titleMode.title
+            : deps.templatePort
+              ? (
+                  await deps.templatePort.renderTemplate({
+                    source: 'telegram',
+                    templateId: categoryTemplateId,
+                    vars: {},
+                    audience: 'user',
+                  })
+                ).text.trim()
+              : null;
+        if (!webPushTitle) {
+          throw new Error(`reminders.dispatchDue web push copy unavailable for ${occ.id}`);
+        }
+        const channel = 'web_push';
+        const deliveryLogId = `rdl:${occ.id}:g${occ.deliveryGeneration}:${channel}`;
+        const eventId = `rem:${occ.id}:g${occ.deliveryGeneration}:${channel}`.slice(0, 240);
+        const pushBody = reminderBodyRaw.trim() || webPushTitle;
+        pendingEnqueues.push({
+          eventId,
+          channel,
+          payloadJson: {
+            occurrenceId: occ.id,
+            deliveryGeneration: occ.deliveryGeneration,
+            topicCode,
+            channel,
+            deliveryLogId,
+            externalId: occ.platformUserId,
+            logText: pushBody,
+            intent: {
+              type: 'message.send',
+              meta: {
+                eventId,
+                occurredAt: dueNowIso,
+                source: channel,
+                ...(occ.userId ? { userId: occ.userId } : {}),
+              },
+              payload: {
+                recipient: { pushUserId: occ.platformUserId },
+                message: { text: pushBody },
+                title: webPushTitle,
+                url: openUrl,
+                pushExtras: {
+                  tag: `reminder:${occ.id}:g${occ.deliveryGeneration}`,
+                  topicCode,
+                  intentType: 'patient_reminder',
+                  occurrenceId: occ.id,
+                },
+                delivery: { channels: [channel], maxAttempts: 1 },
+              },
+            },
+          },
+        });
+      }
+
+      const emailRecipient = deliveryTargetsFetched?.emailRecipient?.trim() || null;
+      if (selectedChannels.has('email') && emailRecipient && topicCode) {
+        const channel = 'email';
+        const emailTitle =
+          titleMode.kind === 'fixed'
+            ? titleMode.title
+            : deps.templatePort
+              ? (
+                  await deps.templatePort.renderTemplate({
+                    source: 'telegram',
+                    templateId: categoryTemplateId,
+                    vars: {},
+                    audience: 'user',
+                  })
+                ).text.trim()
+              : null;
+        if (!emailTitle) {
+          throw new Error(`reminders.dispatchDue email copy unavailable for ${occ.id}`);
+        }
+        const deliveryLogId = `rdl:${occ.id}:g${occ.deliveryGeneration}:${channel}`;
+        const eventId = `rem:${occ.id}:g${occ.deliveryGeneration}:${channel}`.slice(0, 240);
+        const emailText = `${reminderBodyRaw.trim() || emailTitle}\n\n${openUrl}`.slice(0, 8000);
+        pendingEnqueues.push({
+          eventId,
+          channel,
+          payloadJson: {
+            occurrenceId: occ.id,
+            deliveryGeneration: occ.deliveryGeneration,
+            topicCode,
+            channel,
+            deliveryLogId,
+            platformUserId: occ.platformUserId,
+            externalId: emailRecipient,
+            logText: emailText,
+            intent: {
+              type: 'message.send',
+              meta: {
+                eventId,
+                occurredAt: dueNowIso,
+                source: channel,
+                ...(occ.userId ? { userId: occ.userId } : {}),
+              },
+              payload: {
+                recipient: { email: emailRecipient },
+                message: { text: emailText },
+                subject: emailTitle.slice(0, 200),
+                url: openUrl,
+                delivery: { channels: [channel], maxAttempts: 1 },
+              },
+            },
           },
         });
       }
@@ -805,16 +790,21 @@ export async function handleReminders(
       };
     }
     const tplSource = resource === 'max' ? 'max' : 'telegram';
-    const ack = deps.templatePort
-      ? (
-          await deps.templatePort.renderTemplate({
-            source: tplSource,
-            templateId: 'reminder.snoozeAck',
-            vars: { minutes: String(minutes) },
-            audience: 'user',
-          })
-        ).text
-      : `Ок, напомню позже через ${minutes} мин.`;
+    if (!deps.templatePort) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.snooze.callback: copy unavailable',
+      };
+    }
+    const ack = (
+      await deps.templatePort.renderTemplate({
+        source: tplSource,
+        templateId: 'reminder.snoozeAck',
+        vars: { minutes: String(minutes) },
+        audience: 'user',
+      })
+    ).text;
     const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
     const src = resource === 'max' ? 'max' : 'telegram';
     if (chatId === null) {
@@ -884,16 +874,21 @@ export async function handleReminders(
       };
     }
     const tplSaved = resource === 'max' ? 'max' : 'telegram';
-    const ack = deps.templatePort
-      ? (
-          await deps.templatePort.renderTemplate({
-            source: tplSaved,
-            templateId: 'reminder.skip.saved',
-            vars: {},
-            audience: 'user',
-          })
-        ).text
-      : 'Все ок, один пропуск — не проблема. Сделаешь, когда сможешь 👌';
+    if (!deps.templatePort) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.skip.applyPreset: copy unavailable',
+      };
+    }
+    const ack = (
+      await deps.templatePort.renderTemplate({
+        source: tplSaved,
+        templateId: 'reminder.skip.saved',
+        vars: {},
+        audience: 'user',
+      })
+    ).text;
     const src = resource === 'max' ? 'max' : 'telegram';
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
     const callbackQueryId =
@@ -981,16 +976,21 @@ export async function handleReminders(
     }
     if (web.firstDoneForOccurrence && web.dayFullyDone && web.daySentTotal > 0) {
       const vars = { done: String(web.dayDoneCount), total: String(web.daySentTotal) };
-      const celebration = deps.templatePort
-        ? (
-            await deps.templatePort.renderTemplate({
-              source: tplSrc,
-              templateId: 'reminder.dayAllDone',
-              vars,
-              audience: 'user',
-            })
-          ).text
-        : `Супер! Сегодня вы выполнили ${vars.done} из ${vars.total} запланированных активностей!\n\nПродолжайте делать разминки и упражнения, и ваше здоровье скажет вам спасибо!`;
+      if (!deps.templatePort) {
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'reminders.done.callback: copy unavailable',
+        };
+      }
+      const celebration = (
+        await deps.templatePort.renderTemplate({
+          source: tplSrc,
+          templateId: 'reminder.dayAllDone',
+          vars,
+          audience: 'user',
+        })
+      ).text;
       intents.push({
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
@@ -1033,18 +1033,11 @@ export async function handleReminders(
       return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: no user' };
     }
 
-    let mutedUntilIso: string;
     let templateId: 'reminder.mute.saved' | 'reminder.mute.savedTomorrow' = 'reminder.mute.saved';
     let templateVars: Record<string, string> = {};
+    let minutes: number | null = null;
 
     if (mutePreset === 'tomorrow') {
-      const dbPort = createDbPort();
-      const appTz = await getAppDisplayTimezone(
-        deps.dispatchPort ? { db: dbPort, dispatchPort: deps.dispatchPort } : { db: dbPort },
-      );
-      mutedUntilIso =
-        DateTime.now().setZone(appTz).plus({ days: 1 }).startOf('day').toUTC().toISO() ??
-        new Date().toISOString();
       templateId = 'reminder.mute.savedTomorrow';
     } else {
       const minutesRounded = Math.round(minutesParsed);
@@ -1060,7 +1053,7 @@ export async function handleReminders(
           error: 'reminders.mute.callback: bad minutes',
         };
       }
-      mutedUntilIso = new Date(Date.now() + minutesRounded * 60_000).toISOString();
+      minutes = minutesRounded;
       templateVars = { minutes: String(minutesRounded) };
     }
 
@@ -1071,7 +1064,10 @@ export async function handleReminders(
         error: 'reminders.mute.callback: no remindersWebappWritesPort',
       };
     }
-    const mute = await deps.remindersWebappWritesPort.postReminderMuteUntil({ mutedUntilIso });
+    const mute = await deps.remindersWebappWritesPort.postReminderMuteUntil({
+      minutes,
+      untilTomorrow: mutePreset === 'tomorrow',
+    });
     if (!mute.ok) {
       return {
         actionId: action.id,
@@ -1080,18 +1076,21 @@ export async function handleReminders(
       };
     }
     const tplMs = resource === 'max' ? 'max' : 'telegram';
-    const ack = deps.templatePort
-      ? (
-          await deps.templatePort.renderTemplate({
-            source: tplMs,
-            templateId,
-            vars: templateVars,
-            audience: 'user',
-          })
-        ).text
-      : mutePreset === 'tomorrow'
-        ? 'Не вопрос, без напоминаний до завтра.'
-        : `Не вопрос, замолкаю на ${templateVars.minutes ?? '?'} мин.`;
+    if (!deps.templatePort) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.mute.callback: copy unavailable',
+      };
+    }
+    const ack = (
+      await deps.templatePort.renderTemplate({
+        source: tplMs,
+        templateId,
+        vars: templateVars,
+        audience: 'user',
+      })
+    ).text;
     const src = resource === 'max' ? 'max' : 'telegram';
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
     const callbackQueryId =
@@ -1168,9 +1167,8 @@ export async function handleReminders(
       asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
 
     const baseHttpRaw = trimTrailingSlash(env.APP_BASE_URL);
-    const appBaseUrl = baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')
-      ? baseHttpRaw
-      : '';
+    const appBaseUrl =
+      baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://') ? baseHttpRaw : '';
     const profileUrl = appBaseUrl
       ? `${appBaseUrl}/app/patient/profile#patient-profile-notifications`
       : '/app/patient/profile#patient-profile-notifications';

@@ -14,6 +14,7 @@ function canonicalRuleRow() {
   return {
     id: 'rule-canonical-1',
     user_id: 123,
+    platform_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     category: 'lfk',
     is_enabled: true,
     schedule_type: 'interval_window',
@@ -45,7 +46,7 @@ describe('D5 canonical scheduler rule read', () => {
     );
   });
 
-  it('returns a bot-linked rule from the canonical public-table Drizzle model for its principal', async () => {
+  it('returns a platform-user rule from the canonical public-table Drizzle model for its principal', async () => {
     let capturedCondition: SQL | undefined;
     const from = vi.fn(() => ({
       where: vi.fn((condition: SQL) => {
@@ -82,7 +83,7 @@ describe('D5 canonical scheduler rule read', () => {
     expect(capturedCondition).toBeDefined();
     const compiled = pgDialect.sqlToQuery(capturedCondition as SQL);
     expect(compiled.sql).toContain('is_enabled');
-    expect(compiled.sql).toContain('integrator_user_id');
+    expect(compiled.sql).toContain('platform_user_id');
     expect(compiled.sql).toContain('organization_id');
     expect(compiled.params).toContain(organizationId);
     expect(compiled.params).not.toContain(foreignOrganizationId);
