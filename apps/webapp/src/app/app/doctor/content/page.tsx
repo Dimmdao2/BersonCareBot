@@ -4,7 +4,6 @@ import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
   getMechanicMutationAvailability,
   getMechanicSurfaceVisibility,
-  requireEntitlementForMutationAction,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { isWarmupsContentSection } from '@/app-layer/content/warmupsContentMutationGuard';
@@ -18,11 +17,18 @@ import type { PublishedCourseOption } from './ContentForm';
 
 export default async function DoctorContentPage() {
   const workspace = await requireDoctorWorkspaceContext();
-  const [cmsVisibility, warmupsVisibility] = await Promise.all([
+  const [cmsVisibility, warmupsVisibility, patientHomeTodayVisibility] = await Promise.all([
     getMechanicSurfaceVisibility(workspace, 'cms_pages'),
     getMechanicSurfaceVisibility(workspace, 'warmups'),
+    getMechanicSurfaceVisibility(workspace, 'patient_home_today'),
   ]);
-  if (!cmsVisibility.directUrl && !warmupsVisibility.directUrl) notFound();
+  if (
+    !cmsVisibility.directUrl &&
+    !warmupsVisibility.directUrl &&
+    !patientHomeTodayVisibility.directUrl
+  ) {
+    notFound();
+  }
   const session = workspace.session;
   const deps = buildAppDeps();
   const canManageCms = (await getMechanicMutationAvailability(workspace, 'cms_pages')).available;
@@ -31,9 +37,7 @@ export default async function DoctorContentPage() {
   ).available;
   const coursesEnabled =
     cmsVisibility.directUrl && (await requireEntitlementForReadAction(workspace, 'courses')).ok;
-  const patientHomeTodayEnabled =
-    cmsVisibility.directUrl &&
-    (await requireEntitlementForMutationAction(workspace, 'patient_home_today')).ok;
+  const patientHomeTodayEnabled = patientHomeTodayVisibility.directUrl;
   const warmupsEnabled = warmupsVisibility.directUrl;
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];

@@ -400,7 +400,6 @@ describe('tariff and platform mutation gates', () => {
       vi.mocked(requireEntitlementForMutationAction)
         .mockReset()
         .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({
           ok: false,
           reason: 'entitlement_required',
@@ -536,7 +535,6 @@ describe('tariff and platform mutation gates', () => {
 
   it('refuses creating a CMS section in the warmups cluster', async () => {
     vi.mocked(requireEntitlementForMutationAction)
-      .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({
         ok: false,
         reason: 'entitlement_required',
