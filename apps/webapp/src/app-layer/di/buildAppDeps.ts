@@ -359,7 +359,7 @@ import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitl
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
 import {
   createPlatformEntitlementsService,
-  isMechanicEnabled,
+  resolveMechanicAccess,
 } from '@/modules/org-entitlements/service';
 import { createPgOrgBrandingPort } from '@/infra/repos/pgOrgBranding';
 import { createInMemoryOrgBrandingPort } from '@/infra/repos/inMemoryOrgBranding';
@@ -577,8 +577,8 @@ const orgEntitlementsPort = !inMemoryRepos
  */
 const orgBrandingService = createOrgBrandingService({
   port: !inMemoryRepos ? createPgOrgBrandingPort() : createInMemoryOrgBrandingPort(),
-  isBrandingMechanicEnabled: (organizationId: string) =>
-    isMechanicEnabled(orgEntitlementsPort, organizationId, 'branding'),
+  resolveBrandingAccess: (organizationId: string) =>
+    resolveMechanicAccess(orgEntitlementsPort, organizationId, 'branding'),
 });
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })

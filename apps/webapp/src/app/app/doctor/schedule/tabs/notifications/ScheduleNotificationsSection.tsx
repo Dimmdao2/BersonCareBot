@@ -15,6 +15,7 @@ type State =
       phase: 'ready';
       templates: ManagedNotifTemplateEntry[];
       presentation: ManagedNotifPresentationEntry;
+      brandingMutationAvailable: boolean;
     };
 
 type Props = Readonly<{
@@ -34,12 +35,24 @@ export function ScheduleNotificationsSection({
         ok?: boolean;
         templates?: ManagedNotifTemplateEntry[];
         presentation?: ManagedNotifPresentationEntry;
+        brandingMutationAvailable?: boolean;
       } | null;
-      if (!res.ok || !json?.ok || !json.templates || !json.presentation) {
+      if (
+        !res.ok ||
+        !json?.ok ||
+        !json.templates ||
+        !json.presentation ||
+        typeof json.brandingMutationAvailable !== 'boolean'
+      ) {
         setState({ phase: 'error', message: 'Не удалось загрузить шаблоны уведомлений' });
         return;
       }
-      setState({ phase: 'ready', templates: json.templates, presentation: json.presentation });
+      setState({
+        phase: 'ready',
+        templates: json.templates,
+        presentation: json.presentation,
+        brandingMutationAvailable: json.brandingMutationAvailable,
+      });
     });
   }, [endpoint]);
 
@@ -65,6 +78,7 @@ export function ScheduleNotificationsSection({
       endpoint={endpoint}
       templates={state.templates}
       presentation={state.presentation}
+      brandingMutationAvailable={state.brandingMutationAvailable}
     />
   );
 }
