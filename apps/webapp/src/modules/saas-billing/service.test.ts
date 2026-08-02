@@ -563,6 +563,146 @@ describe('Р-10/Р-14: future paid invoice waits for the paid boundary', () => {
   });
 });
 
+describe('§5.1 paid additional-seat state machine', () => {
+  it('retries an existing draft with the same provider key instead of returning an unusable draft', async () => {
+    const draft: SaasBillingInvoice = {
+      ...invoice,
+      id: 'seat-draft',
+      invoiceKind: 'seat_overage',
+      additionalSeatQuantity: 1,
+      amountMinor: 15_000,
+      providerIdempotencyKey: 'saas_seat_overage:org-1:stable-key',
+      status: 'draft',
+    };
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'provider-seat-1',
+      checkoutUrl: 'https://pay.example/seat-1',
+    }));
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async () => ({
+      ...draft,
+      providerInvoiceRef: 'provider-seat-1',
+      providerCheckoutUrl: 'https://pay.example/seat-1',
+      status: 'pending' as const,
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          currentPeriodEndsAt: null,
+          savedPaymentMethodId: null,
+          additionalSeatPriceMinor: 15_000,
+          currency: 'RUB',
+        }),
+        createSeatOverageInvoiceIfNeeded: async () => ({
+          outcome: 'invoice' as const,
+          invoice: draft,
+          created: false,
+        }),
+        attachSaasBillingInvoiceProviderIntent,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+
+    const result = await service.purchaseSeatOverage({
+      organizationId: 'org-1',
+      requestKey: 'stable-key',
+      confirmedAmountMinor: 15_000,
+      confirmedCurrency: 'RUB',
+    });
+
+    expect(result).toMatchObject({ outcome: 'checkout', invoice: { id: 'seat-draft' } });
+    expect(createIntent).toHaveBeenCalledOnce();
+    expect(createIntent).toHaveBeenCalledWith(expect.objectContaining({
+      idempotencyKey: 'saas_seat_overage:org-1:stable-key',
+      purpose: 'saas_billing_seat_overage',
+      returnUrl: expect.stringContaining('/app/settings?tab=team&seatPayment=seat-draft'),
+    }));
+  });
+
+  it('adds allowance once while preserving tariff state, even under a different-event replay', async () => {
+    const repository = createInMemorySaasBillingRepository();
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({
+        createIntent: async () => ({
+          providerIntentRef: 'provider-seat',
+          checkoutUrl: 'https://pay.example/seat',
+        }),
+      }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-seat',
+      tariffId: 'tariff-seat',
+      audit: { actorId: 'admin', reason: 'seed' },
+    });
+    const purchase = await service.purchaseSeatOverage({
+      organizationId: 'org-seat',
+      requestKey: 'request-1',
+      confirmedAmountMinor: 15_000,
+      confirmedCurrency: 'RUB',
+    });
+    if (purchase.outcome !== 'checkout') throw new Error('expected seat checkout');
+    const before = (await service.getOrganizationBillingOverview('org-seat')).subscriptions.find(
+      (row) => row.source === 'paid_subscription',
+    );
+
+    for (const eventId of ['seat-event-1', 'seat-event-2']) {
+      await service.captureSaasBillingProviderWebhookEvent({
+        organizationId: 'org-seat',
+        saasBillingInvoiceId: purchase.invoice.id,
+        providerId: 'mock',
+        verified: {
+          idempotencyKey: eventId,
+          eventType: 'payment.succeeded',
+          amountMinor: 15_000,
+          payload: { currency: 'RUB' },
+        },
+      });
+    }
+
+    const after = (await service.getOrganizationBillingOverview('org-seat')).subscriptions.find(
+      (row) => row.source === 'paid_subscription',
+    );
+    expect(after).toMatchObject({
+      paidAdditionalSeats: 1,
+      tariffId: before?.tariffId,
+      pendingTariffId: before?.pendingTariffId,
+      status: before?.status,
+      lifecycleState: before?.lifecycleState,
+      currentPeriodStartsAt: before?.currentPeriodStartsAt,
+      currentPeriodEndsAt: before?.currentPeriodEndsAt,
+    });
+  });
+
+  it('rejects a partial seat refund before resolving or calling the provider', async () => {
+    const resolvePaymentProvider = vi.fn();
+    const service = createSaasBillingService({
+      repository: {
+        reserveSaasBillingRefund: async () => ({
+          outcome: 'seat_overage_partial_refund_forbidden' as const,
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider,
+    });
+
+    await expect(service.refundSaasBillingInvoice({
+      saasBillingInvoiceId: 'seat-invoice',
+      amountMinor: 1,
+      requestKey: 'refund-key',
+      actorId: 'admin',
+      reason: 'partial',
+    })).resolves.toEqual({ outcome: 'seat_overage_partial_refund_forbidden' });
+    expect(resolvePaymentProvider).not.toHaveBeenCalled();
+  });
+});
+
 function assignmentTransactionForAcceptance(
   billingPeriod: 'day' | 'month' | 'year',
   current: {

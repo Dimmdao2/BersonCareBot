@@ -1,5 +1,6 @@
+import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
-import { CLINIC_SEAT_USAGE_SQL } from '@/infra/repos/seatUsageSql';
 import type {
   AcceptOrganizationInviteResult,
   CreateOrganizationInviteResult,
@@ -8,6 +9,11 @@ import type {
   OrganizationInviteStatus,
   OrganizationInvitesPort,
 } from '@/modules/organization-invites/ports';
+import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
+import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
+import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
+import { saasOrgEntitlementOverrides } from '../../../db/schema/saasEntitlements';
+import { platformUsers } from '../../../db/schema/schema';
 import {
   ORGANIZATION_INVITE_ROLES,
   ORGANIZATION_INVITE_STATUSES,
@@ -106,31 +112,34 @@ const inviteSelectSql = `
 export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
   return {
     async createReplacingPending(input): Promise<CreateOrganizationInviteResult> {
-      return runWebappTransaction(async (tx) => {
+      return getDrizzle().transaction(async (tx) => {
         // C4A correction: lock the whole organization (not organizationId+email) so that
         // concurrent invite-create calls for *different* emails in the same organization also
         // serialize, not just resends of the same email. This is the atomicity boundary the seat
         // capacity check below relies on — without it, two different-email requests could both
         // observe the last free seat and both insert.
-        await runWebappPgText(
-          `SELECT pg_advisory_xact_lock(hashtextextended('clinic_invite_seats:' || $1::text, 0))`,
-          [input.organizationId],
-          tx,
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${'clinic_invite_seats:' + input.organizationId}, 0))`,
         );
-        const activeMember = await runWebappPgText<{ id: string }>(
-          `SELECT m.id::text
-           FROM platform_users u
-           JOIN be_organization_members m
-             ON m.platform_user_id = u.id
-            AND m.organization_id = $1
-            AND m.status = 'active'
-           WHERE u.email_normalized = $2
-             AND u.merged_into_id IS NULL
-           LIMIT 1`,
-          [input.organizationId, input.invitedEmail],
-          tx,
-        );
-        if (activeMember.rows[0]) {
+        const [activeMember] = await tx
+          .select({ id: beOrganizationMembers.id })
+          .from(platformUsers)
+          .innerJoin(
+            beOrganizationMembers,
+            and(
+              eq(beOrganizationMembers.platformUserId, platformUsers.id),
+              eq(beOrganizationMembers.organizationId, input.organizationId),
+              eq(beOrganizationMembers.status, 'active'),
+            ),
+          )
+          .where(
+            and(
+              eq(platformUsers.emailNormalized, input.invitedEmail),
+              isNull(platformUsers.mergedIntoId),
+            ),
+          )
+          .limit(1);
+        if (activeMember) {
           return { ok: false, code: 'already_member' };
         }
 
@@ -145,44 +154,102 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           // counted against itself.
           // §5a item 5.1 — `additional_seat_price_minor`/`currency` come from the tariff alone
           // (never the per-org seat-limit override, which only ever moves the FREE included count):
-          // a NULL price keeps §5.2's hard block; a configured price allows this call through once
-          // `input.confirmedSeatOveragePriceMinor` matches it exactly.
+          // a NULL price keeps §5.2's hard block; a configured price is returned to the separate
+          // billing confirmation path. Capacity changes only after capture persists paid allowance.
           // §2.12 — `effective_tariff` reads through `app.saas_billing_effective_tariff`, the same
           // frozen/live switch every other reader of tariff content goes through: a live paid period
           // holds included_seats/overage price to what was configured at payment time.
-          const capacity = await runWebappPgText<{
-            limit_value: number | null;
-            used_value: number;
-            overage_price_minor: number | null;
-            overage_currency: string | null;
-          }>(
-            `WITH effective_tariff AS (
-               SELECT t.included_seats, t.additional_seat_price_minor, t.currency
-               FROM be_organizations o
-               LEFT JOIN LATERAL app.saas_billing_effective_tariff(o.id, o.tariff_id) AS t ON true
-               WHERE o.id = $1
-             ), seat_limit AS (
-               SELECT COALESCE(
-                   (SELECT eo.seat_limit_override FROM saas_org_entitlement_overrides eo
-                    WHERE eo.organization_id = $1 AND eo.mechanic = 'clinic_team'),
-                   (SELECT included_seats FROM effective_tariff)
-                 ) + COALESCE((SELECT s.paid_additional_seats FROM saas_billing_subscriptions s
-                    WHERE s.organization_id = $1 AND s.source = 'paid_subscription'), 0) AS value
-             )
-             SELECT
-               (SELECT value FROM seat_limit)::int AS limit_value,
-               ${CLINIC_SEAT_USAGE_SQL} AS used_value,
-               (SELECT additional_seat_price_minor FROM effective_tariff) AS overage_price_minor,
-               (SELECT currency FROM effective_tariff) AS overage_currency`,
-            [input.organizationId, input.invitedEmail],
-            tx,
-          );
-          const row = capacity.rows[0];
-          const limitValue = row?.limit_value;
-          const usedValue = row?.used_value ?? 0;
+          const tariffResult = await tx.execute(sql`
+            SELECT
+              tariff.included_seats,
+              tariff.additional_seat_price_minor,
+              tariff.currency
+            FROM public.be_organizations AS organization
+            LEFT JOIN LATERAL app.saas_billing_effective_tariff(
+              organization.id,
+              organization.tariff_id
+            ) AS tariff ON true
+            WHERE organization.id = ${input.organizationId}::uuid
+          `);
+          const tariff = tariffResult.rows[0] as
+            | {
+                included_seats: number | null;
+                additional_seat_price_minor: number | null;
+                currency: string | null;
+              }
+            | undefined;
+          const [[override], [subscription], [activeSeats], [pendingInvites], [acceptedInvites]] =
+            await Promise.all([
+              tx
+                .select({ value: saasOrgEntitlementOverrides.seatLimitOverride })
+                .from(saasOrgEntitlementOverrides)
+                .where(
+                  and(
+                    eq(saasOrgEntitlementOverrides.organizationId, input.organizationId),
+                    eq(saasOrgEntitlementOverrides.mechanic, 'clinic_team'),
+                  ),
+                )
+                .limit(1),
+              tx
+                .select({ value: saasBillingSubscriptions.paidAdditionalSeats })
+                .from(saasBillingSubscriptions)
+                .where(
+                  and(
+                    eq(saasBillingSubscriptions.organizationId, input.organizationId),
+                    eq(saasBillingSubscriptions.source, 'paid_subscription'),
+                  ),
+                )
+                .limit(1),
+              tx
+                .select({ value: sql<number>`count(*)::int` })
+                .from(beOrganizationMembers)
+                .where(
+                  and(
+                    eq(beOrganizationMembers.organizationId, input.organizationId),
+                    eq(beOrganizationMembers.status, 'active'),
+                    isNotNull(beOrganizationMembers.specialistId),
+                  ),
+                ),
+              tx
+                .select({ value: sql<number>`count(*)::int` })
+                .from(organizationMemberInvites)
+                .where(
+                  and(
+                    eq(organizationMemberInvites.organizationId, input.organizationId),
+                    eq(organizationMemberInvites.invitedRole, 'doctor'),
+                    eq(organizationMemberInvites.status, 'pending'),
+                    gt(organizationMemberInvites.expiresAt, sql`now()`),
+                    ne(organizationMemberInvites.invitedEmail, input.invitedEmail),
+                  ),
+                ),
+              tx
+                .select({ value: sql<number>`count(*)::int` })
+                .from(organizationMemberInvites)
+                .innerJoin(
+                  beOrganizationMembers,
+                  eq(beOrganizationMembers.id, organizationMemberInvites.acceptedMembershipId),
+                )
+                .where(
+                  and(
+                    eq(organizationMemberInvites.organizationId, input.organizationId),
+                    eq(organizationMemberInvites.invitedRole, 'doctor'),
+                    eq(organizationMemberInvites.status, 'accepted'),
+                    eq(beOrganizationMembers.status, 'active'),
+                    isNull(beOrganizationMembers.specialistId),
+                  ),
+                ),
+            ]);
+          const includedSeats = override?.value ?? tariff?.included_seats ?? null;
+          const limitValue = includedSeats === null
+            ? null
+            : includedSeats + (subscription?.value ?? 0);
+          const usedValue =
+            (activeSeats?.value ?? 0) +
+            (pendingInvites?.value ?? 0) +
+            (acceptedInvites?.value ?? 0);
           if (limitValue === null || limitValue === undefined || usedValue >= limitValue) {
-            const overagePriceMinor = row?.overage_price_minor ?? null;
-            const overageCurrency = row?.overage_currency ?? null;
+            const overagePriceMinor = tariff?.additional_seat_price_minor ?? null;
+            const overageCurrency = tariff?.currency ?? null;
             if (overagePriceMinor === null || overageCurrency === null) {
               return { ok: false, code: 'seat_limit_reached' };
             }
@@ -195,73 +262,43 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           }
         }
 
-        await runWebappPgText(
-          `UPDATE organization_member_invites
-           SET status = 'revoked'
-           WHERE organization_id = $1
-             AND invited_email = $2
-             AND status = 'pending'`,
-          [input.organizationId, input.invitedEmail],
-          tx,
-        );
+        await tx
+          .update(organizationMemberInvites)
+          .set({ status: 'revoked' })
+          .where(
+            and(
+              eq(organizationMemberInvites.organizationId, input.organizationId),
+              eq(organizationMemberInvites.invitedEmail, input.invitedEmail),
+              eq(organizationMemberInvites.status, 'pending'),
+            ),
+          );
 
-        const inserted = await runWebappPgText<InviteRow>(
-          // NOTE: select FROM the data-modifying CTE (`i`), NOT a fresh scan of
-          // organization_member_invites — a re-scan of the same table inside a
-          // data-modifying CTE does not see the just-inserted row (Postgres CTE
-          // snapshot semantics), which silently returned 0 rows. Joining be_organizations
-          // (a different table) is fine.
-          `WITH i AS (
-             INSERT INTO organization_member_invites (
-               organization_id,
-               invited_email,
-               invited_role,
-               token_hash,
-               expires_at,
-               created_by_platform_user_id
-             )
-             VALUES ($1, $2, $3, $4, $5::timestamptz, $6)
-             RETURNING
-               id,
-               organization_id,
-               invited_email,
-               invited_role,
-               status,
-               expires_at,
-               created_by_platform_user_id,
-               accepted_by_platform_user_id,
-               accepted_membership_id,
-               created_at,
-               accepted_at
-           )
-           SELECT
-             i.id::text,
-             i.organization_id::text,
-             i.invited_email,
-             i.invited_role,
-             i.status,
-             i.expires_at::text,
-             i.created_by_platform_user_id::text,
-             i.accepted_by_platform_user_id::text,
-             i.accepted_membership_id::text,
-             i.created_at::text,
-             i.accepted_at::text,
-             o.title AS organization_title
-           FROM i
-           LEFT JOIN be_organizations o ON o.id = i.organization_id`,
-          [
-            input.organizationId,
-            input.invitedEmail,
-            input.invitedRole,
-            input.tokenHash,
-            input.expiresAt,
-            input.createdByPlatformUserId,
-          ],
-          tx,
-        );
-        const invite = inserted.rows[0];
+        const [invite] = await tx
+          .insert(organizationMemberInvites)
+          .values({
+            organizationId: input.organizationId,
+            invitedEmail: input.invitedEmail,
+            invitedRole: input.invitedRole,
+            tokenHash: input.tokenHash,
+            expiresAt: input.expiresAt,
+            createdByPlatformUserId: input.createdByPlatformUserId,
+          })
+          .returning();
         if (!invite) throw new Error('organization_invite_insert_failed');
-        return { ok: true, invite: mapInvite(invite) };
+        const [organization] = await tx
+          .select({ title: beOrganizations.title })
+          .from(beOrganizations)
+          .where(eq(beOrganizations.id, input.organizationId))
+          .limit(1);
+        return {
+          ok: true,
+          invite: {
+            ...invite,
+            invitedRole: parseInviteRole(invite.invitedRole),
+            status: parseInviteStatus(invite.status),
+            organizationTitle: organization?.title ?? null,
+          },
+        };
       });
     },
 

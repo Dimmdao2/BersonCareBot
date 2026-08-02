@@ -114,8 +114,11 @@ export async function POST(request: Request) {
   }
   const body = await request.json().catch(() => null);
   const purchase = purchaseSchema.safeParse(body);
+  if (body !== null && !purchase.success) {
+    return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
+  }
   try {
-    const invoice = await runWithDbClinicBillingPrincipal(
+    const result = await runWithDbClinicBillingPrincipal(
       {
         organizationId: gate.ctx.organizationId,
         platformUserId: gate.ctx.session.user.userId,
@@ -125,6 +128,29 @@ export async function POST(request: Request) {
         ? buildAppDeps().saasBilling.purchaseSeatOverage({ organizationId: gate.ctx.organizationId, requestKey: purchase.data.requestKey, confirmedAmountMinor: purchase.data.amountMinor, confirmedCurrency: purchase.data.currency })
         : buildAppDeps().saasBilling.createOwnTariffRenewalInvoice(gate.ctx.organizationId),
     );
+    if (purchase.success && 'outcome' in result) {
+      if (result.outcome === 'seat_available') {
+        return NextResponse.json({ ok: true, outcome: 'seat_available' });
+      }
+      if (result.outcome === 'price_changed') {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'seat_overage_confirmation_required',
+            priceMinor: result.priceMinor,
+            currency: result.currency,
+          },
+          { status: 402 },
+        );
+      }
+      if (result.outcome === 'seat_overage_unavailable') {
+        return NextResponse.json(
+          { ok: false, error: 'saas_billing_seat_overage_unavailable' },
+          { status: 409 },
+        );
+      }
+    }
+    const invoice = purchase.success && 'invoice' in result ? result.invoice : result;
     if (!invoice.providerCheckoutUrl) {
       return NextResponse.json(
         { ok: false, error: 'saas_billing_checkout_unavailable' },
@@ -138,10 +164,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
-    if (message === 'saas_billing_seat_overage_price_changed') {
-      return NextResponse.json({ ok: false, error: message }, { status: 402 });
-    }
-    if (message === 'saas_billing_no_tariff_assigned' || message === 'saas_billing_seat_overage_unavailable') {
+    if (message === 'saas_billing_no_tariff_assigned') {
       return NextResponse.json(
         { ok: false, error: 'saas_billing_no_tariff_assigned' },
         { status: 409 },

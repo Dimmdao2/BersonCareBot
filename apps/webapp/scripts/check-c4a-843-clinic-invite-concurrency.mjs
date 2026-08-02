@@ -16,10 +16,9 @@
  * transaction lives in apps/webapp/src/infra/repos/pgOrganizationInvites.ts, gated behind the
  * webapp's `@/config/env` bootstrap, which loads dotenv application env files as a side effect of
  * import — importing it here would risk exactly the "never read application env" violation this
- * proof must avoid). Instead, this script extracts the literal SQL text of each statement
- * `createReplacingPending` issues (verbatim, via string-slicing — not retyped) and replays them in
- * the same order/parameters through a private `pg` client. The control-flow glue (if/else between
- * statements) is hand-written but mirrors the source function 1:1 and is checked by --self-test.
+ * proof must avoid). The create transaction is now a Drizzle application port. This smoke
+ * source-gates its decisive transaction/lock/capacity markers, then runs the same SQL semantics in
+ * the disposable cluster. Removing the production lock or paid allowance fails before scenarios.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
@@ -66,14 +65,48 @@ export function extractCreateReplacingPendingSqlFragments(repoSource, clinicSeat
   if (start < 0 || end < 0)
     fail('could not locate createReplacingPending in pgOrganizationInvites.ts');
   const slice = stripLineComments(repoSource.slice(start, end));
-  const fragments = [...slice.matchAll(/`([^`]*)`/gs)].map((m) => m[1]);
-  if (fragments.length !== 5) {
-    fail(
-      `expected exactly 5 extracted SQL fragments in createReplacingPending, found ${fragments.length}`,
-    );
+  for (const marker of [
+    'getDrizzle().transaction',
+    'pg_advisory_xact_lock',
+    'saasBillingSubscriptions.paidAdditionalSeats',
+    "code: 'seat_overage_confirmation_required'",
+    '.insert(organizationMemberInvites)',
+  ]) {
+    if (!slice.includes(marker)) fail(`createReplacingPending lost required Drizzle marker: ${marker}`);
   }
-  const [lockSql, activeMemberSql, capacityTemplate, revokeSql, insertSql] = fragments;
-  const capacitySql = capacityTemplate.replace('${CLINIC_SEAT_USAGE_SQL}', clinicSeatUsageSql);
+  const lockSql = `SELECT pg_advisory_xact_lock(hashtextextended('clinic_invite_seats:' || $1::text, 0))`;
+  const activeMemberSql = `SELECT m.id::text
+    FROM platform_users u
+    JOIN be_organization_members m ON m.platform_user_id = u.id
+      AND m.organization_id = $1 AND m.status = 'active'
+    WHERE u.email_normalized = $2 AND u.merged_into_id IS NULL LIMIT 1`;
+  const capacitySql = `WITH effective_tariff AS (
+      SELECT t.included_seats, t.additional_seat_price_minor, t.currency
+      FROM be_organizations o
+      LEFT JOIN LATERAL app.saas_billing_effective_tariff(o.id, o.tariff_id) AS t ON true
+      WHERE o.id = $1
+    ), seat_limit AS (
+      SELECT COALESCE(
+        (SELECT eo.seat_limit_override FROM saas_org_entitlement_overrides eo
+         WHERE eo.organization_id = $1 AND eo.mechanic = 'clinic_team'),
+        (SELECT included_seats FROM effective_tariff)
+      ) + COALESCE((SELECT s.paid_additional_seats FROM saas_billing_subscriptions s
+        WHERE s.organization_id = $1 AND s.source = 'paid_subscription'), 0) AS value
+    )
+    SELECT (SELECT value FROM seat_limit)::int AS limit_value,
+      ${clinicSeatUsageSql} AS used_value,
+      (SELECT additional_seat_price_minor FROM effective_tariff) AS overage_price_minor,
+      (SELECT currency FROM effective_tariff) AS overage_currency`;
+  const revokeSql = `UPDATE organization_member_invites SET status = 'revoked'
+    WHERE organization_id = $1 AND invited_email = $2 AND status = 'pending'`;
+  const insertSql = `WITH i AS (
+      INSERT INTO organization_member_invites (
+        organization_id, invited_email, invited_role, token_hash, expires_at,
+        created_by_platform_user_id
+      ) VALUES ($1, $2, $3, $4, $5::timestamptz, $6)
+      RETURNING *
+    ) SELECT i.*, o.title AS organization_title FROM i
+      LEFT JOIN be_organizations o ON o.id = i.organization_id`;
   return { lockSql, activeMemberSql, capacitySql, revokeSql, insertSql };
 }
 
@@ -90,6 +123,28 @@ export function extractCountSeatReservationsSql(repoSource) {
     );
   }
   return fragments[0];
+}
+
+function assertBillingSourceContracts(source) {
+  for (const marker of [
+    "invoice.invoiceKind === 'seat_overage'",
+    'paidAdditionalSeats: sql`${saasBillingSubscriptions.paidAdditionalSeats} +',
+    'authority.amountMinor + authority.paidAdditionalSeats *',
+    'authority.amountMinor + additionalSeatQuantity *',
+    'subscription.currentPeriodEndsAt === null',
+    "eq(saasBillingInvoices.invoiceKind, 'tariff_period')",
+    'saas_billing_seat_overage_partial_refund_forbidden',
+  ]) {
+    if (!source.includes(marker)) fail(`billing state machine lost required marker: ${marker}`);
+  }
+  const captureStart = source.indexOf('async captureSaasBillingPaymentSucceeded');
+  const captureEnd = source.indexOf('async findSaasBillingInvoiceByProviderRef', captureStart);
+  const capture = source.slice(captureStart, captureEnd);
+  const subscriptionLock = capture.indexOf('.from(saasBillingSubscriptions)');
+  const invoiceLock = capture.indexOf('.from(saasBillingInvoices)', subscriptionLock);
+  if (captureStart < 0 || captureEnd < 0 || subscriptionLock < 0 || invoiceLock < subscriptionLock) {
+    fail('capture no longer resolves locks in subscription -> invoice order');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -164,8 +219,71 @@ async function installMinimalSyntheticSchema() {
 
       CREATE TABLE public.saas_tariffs (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL DEFAULT 'Tariff',
         mechanics jsonb NOT NULL DEFAULT '{}'::jsonb,
-        included_seats integer
+        included_seats integer,
+        price_minor integer,
+        additional_seat_price_minor integer,
+        currency text,
+        billing_period text NOT NULL DEFAULT 'month'
+      );
+
+      CREATE TABLE public.saas_billing_subscriptions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL,
+        saas_billing_account_id uuid NOT NULL DEFAULT gen_random_uuid(),
+        tariff_id uuid NOT NULL,
+        pending_tariff_id uuid,
+        source text NOT NULL,
+        status text NOT NULL DEFAULT 'pending_payment',
+        lifecycle_state text NOT NULL DEFAULT 'pending_payment',
+        current_period_starts_at timestamptz,
+        current_period_ends_at timestamptz,
+        tariff_snapshot jsonb,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (organization_id, source)
+      );
+
+      CREATE TABLE public.saas_billing_invoices (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL,
+        saas_billing_account_id uuid NOT NULL DEFAULT gen_random_uuid(),
+        saas_billing_subscription_id uuid NOT NULL,
+        tariff_id uuid NOT NULL,
+        tariff_name text NOT NULL DEFAULT 'Tariff',
+        description text,
+        amount_minor integer NOT NULL,
+        currency text NOT NULL,
+        tariff_billing_period text NOT NULL DEFAULT 'month',
+        tariff_snapshot jsonb,
+        service_period_starts_at timestamptz NOT NULL,
+        service_period_ends_at timestamptz NOT NULL,
+        status text NOT NULL DEFAULT 'draft',
+        provider_id text NOT NULL,
+        provider_invoice_ref text,
+        provider_checkout_url text,
+        provider_idempotency_key text NOT NULL,
+        paid_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT saas_billing_invoices_period_uidx UNIQUE
+          (saas_billing_subscription_id, service_period_starts_at, service_period_ends_at),
+        UNIQUE (provider_id, provider_idempotency_key)
+      );
+
+      CREATE TABLE public.saas_organization_trials (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL,
+        status text NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE TABLE public.saas_billing_refunds (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        saas_billing_invoice_id uuid NOT NULL,
+        amount_minor integer NOT NULL,
+        status text NOT NULL,
+        provider_idempotency_key text NOT NULL UNIQUE
       );
 
       CREATE TABLE public.saas_org_entitlement_overrides (
@@ -217,7 +335,61 @@ async function installMinimalSyntheticSchema() {
       );
 
       INSERT INTO public.platform_users (id, display_name) VALUES ('${ACTOR}', 'Actor');
+
+      INSERT INTO public.saas_tariffs (
+        id, included_seats, price_minor, additional_seat_price_minor, currency
+      ) VALUES ('50000000-0000-4000-8000-0000000000f1', 1, 10000, 1500, 'RUB');
+      INSERT INTO public.be_organizations (id, title, tariff_id)
+      VALUES ('20000000-0000-4000-8000-0000000000f1', 'Legacy clinic',
+        '50000000-0000-4000-8000-0000000000f1');
+      INSERT INTO public.saas_billing_subscriptions (
+        id, organization_id, tariff_id, source
+      ) VALUES ('60000000-0000-4000-8000-0000000000f1',
+        '20000000-0000-4000-8000-0000000000f1',
+        '50000000-0000-4000-8000-0000000000f1', 'paid_subscription');
+      INSERT INTO public.saas_billing_invoices (
+        organization_id, saas_billing_subscription_id, tariff_id, description, amount_minor,
+        currency, service_period_starts_at, service_period_ends_at, status, provider_id,
+        provider_idempotency_key
+      ) VALUES (
+        '20000000-0000-4000-8000-0000000000f1',
+        '60000000-0000-4000-8000-0000000000f1',
+        '50000000-0000-4000-8000-0000000000f1',
+        'Дополнительное место специалиста сверх тарифа — legacy', 1500, 'RUB',
+        '2026-06-01', '2026-07-01', 'paid', 'legacy', 'legacy-seat'
+      );
+
+      CREATE OR REPLACE FUNCTION app.saas_billing_effective_tariff(uuid, uuid)
+      RETURNS SETOF public.saas_tariffs
+      LANGUAGE sql STABLE
+      AS $$ SELECT * FROM public.saas_tariffs WHERE id = $2 $$;
     `);
+
+    const migrationSource = readFileSync(
+      path.join(root, 'apps/webapp/db/drizzle-migrations/0308_saas_paid_seat_billing_local.sql'),
+      'utf8',
+    );
+    for (const statement of migrationSource.split('--> statement-breakpoint')) {
+      if (statement.trim()) await client.query(statement);
+    }
+    const migrated = await client.query(`
+      SELECT i.invoice_kind, i.additional_seat_quantity, s.paid_additional_seats,
+        (SELECT column_default FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'saas_billing_invoices'
+           AND column_name = 'invoice_kind') AS invoice_kind_default
+      FROM public.saas_billing_invoices i
+      JOIN public.saas_billing_subscriptions s ON s.id = i.saas_billing_subscription_id
+      WHERE i.provider_idempotency_key = 'legacy-seat'
+    `);
+    const migratedRow = migrated.rows[0];
+    if (
+      migratedRow?.invoice_kind !== 'seat_overage' ||
+      migratedRow?.additional_seat_quantity !== 1 ||
+      migratedRow?.paid_additional_seats !== 1 ||
+      migratedRow?.invoice_kind_default !== null
+    ) {
+      fail('0308 legacy paid-seat backfill/default removal did not match the exact prefix contract');
+    }
 
     const overlaySource = readFileSync(
       path.join(root, 'deploy/postgres/organization-member-invites-rls.sql'),
@@ -287,9 +459,19 @@ async function createReplacingPendingProof(client, input) {
       input.invitedEmail,
     ]);
     const row = capacity.rows[0];
-    const limitValue = row?.limit_value ?? 0;
+    const limitValue = row?.limit_value ?? null;
     const usedValue = row?.used_value ?? 0;
-    if (usedValue >= limitValue) return { ok: false, code: 'seat_limit_reached' };
+    if (limitValue === null || usedValue >= limitValue) {
+      if (row?.overage_price_minor !== null && row?.overage_currency !== null) {
+        return {
+          ok: false,
+          code: 'seat_overage_confirmation_required',
+          priceMinor: row.overage_price_minor,
+          currency: row.overage_currency,
+        };
+      }
+      return { ok: false, code: 'seat_limit_reached' };
+    }
   }
 
   await client.query(CREATE_SQL.revokeSql, [input.organizationId, input.invitedEmail]);
@@ -345,6 +527,144 @@ async function pendingDoctorInviteCount(organizationId) {
     );
     return result.rows[0]?.c ?? 0;
   });
+}
+
+async function captureBillingInvoice(client, invoiceId, paidAt) {
+  await client.query('BEGIN');
+  try {
+    const identity = await client.query(
+      `SELECT saas_billing_subscription_id FROM public.saas_billing_invoices WHERE id = $1`,
+      [invoiceId],
+    );
+    const subscriptionId = identity.rows[0]?.saas_billing_subscription_id;
+    if (!subscriptionId) fail('capture invoice identity missing');
+    const subscriptionResult = await client.query(
+      `SELECT * FROM public.saas_billing_subscriptions WHERE id = $1 FOR UPDATE`,
+      [subscriptionId],
+    );
+    const invoiceResult = await client.query(
+      `SELECT * FROM public.saas_billing_invoices WHERE id = $1 FOR UPDATE`,
+      [invoiceId],
+    );
+    const subscription = subscriptionResult.rows[0];
+    const invoice = invoiceResult.rows[0];
+    const wasPaid = invoice.status === 'paid';
+    if (!wasPaid) {
+      await client.query(
+        `UPDATE public.saas_billing_invoices SET status = 'paid', paid_at = $2 WHERE id = $1`,
+        [invoiceId, paidAt],
+      );
+    }
+    if (invoice.invoice_kind === 'seat_overage') {
+      if (!wasPaid) {
+        await client.query(
+          `UPDATE public.saas_billing_subscriptions
+           SET paid_additional_seats = paid_additional_seats + $2 WHERE id = $1`,
+          [subscriptionId, invoice.additional_seat_quantity],
+        );
+      }
+    } else if (
+      new Date(invoice.service_period_starts_at) <= new Date(paidAt) &&
+      ((subscription.current_period_ends_at === null &&
+        invoice.tariff_id === (subscription.pending_tariff_id ?? subscription.tariff_id)) ||
+        subscription.current_period_ends_at?.toISOString() ===
+          invoice.service_period_starts_at.toISOString())
+    ) {
+      await client.query(
+        `UPDATE public.saas_billing_subscriptions SET
+           tariff_id = $2, pending_tariff_id = NULL, status = 'active', lifecycle_state = 'active',
+           current_period_starts_at = $3, current_period_ends_at = $4,
+           tariff_snapshot = COALESCE($5::jsonb, tariff_snapshot)
+         WHERE id = $1`,
+        [
+          subscriptionId,
+          invoice.tariff_id,
+          invoice.service_period_starts_at,
+          invoice.service_period_ends_at,
+          invoice.tariff_snapshot,
+        ],
+      );
+      await client.query(`UPDATE public.be_organizations SET tariff_id = $2 WHERE id = $1`, [
+        invoice.organization_id,
+        invoice.tariff_id,
+      ]);
+      if (subscription.current_period_ends_at === null) {
+        await client.query(
+          `UPDATE public.saas_organization_trials SET status = 'ended'
+           WHERE organization_id = $1 AND status = 'active'`,
+          [invoice.organization_id],
+        );
+      }
+    }
+    await client.query('COMMIT');
+    return !wasPaid;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  }
+}
+
+async function calculateRenewalQuote(client, subscriptionId) {
+  const result = await client.query(
+    `SELECT t.price_minor, t.additional_seat_price_minor, s.paid_additional_seats
+     FROM public.saas_billing_subscriptions s
+     JOIN public.saas_tariffs t ON t.id = COALESCE(s.pending_tariff_id, s.tariff_id)
+     WHERE s.id = $1`,
+    [subscriptionId],
+  );
+  const row = result.rows[0];
+  if (!row || row.price_minor === null) throw new Error('tariff_not_billable');
+  if (row.paid_additional_seats > 0 && row.additional_seat_price_minor === null) {
+    throw new Error('saas_billing_additional_seat_price_missing');
+  }
+  return {
+    amountMinor: row.price_minor + row.paid_additional_seats * (row.additional_seat_price_minor ?? 0),
+    additionalSeatQuantity: row.paid_additional_seats,
+  };
+}
+
+async function applySeatRefundSucceeded(client, invoiceId, amountMinor, eventKey) {
+  await client.query('BEGIN');
+  try {
+    const identity = await client.query(
+      `SELECT saas_billing_subscription_id FROM public.saas_billing_invoices WHERE id = $1`,
+      [invoiceId],
+    );
+    const subscriptionId = identity.rows[0]?.saas_billing_subscription_id;
+    if (!subscriptionId) fail('refund invoice identity missing');
+    await client.query(
+      `SELECT id FROM public.saas_billing_subscriptions WHERE id = $1 FOR UPDATE`,
+      [subscriptionId],
+    );
+    const invoiceResult = await client.query(
+      `SELECT * FROM public.saas_billing_invoices WHERE id = $1 FOR UPDATE`,
+      [invoiceId],
+    );
+    const invoice = invoiceResult.rows[0];
+    if (invoice.invoice_kind !== 'seat_overage' || amountMinor !== invoice.amount_minor) {
+      throw new Error('saas_billing_seat_overage_partial_refund_forbidden');
+    }
+    const inserted = await client.query(
+      `INSERT INTO public.saas_billing_refunds
+       (saas_billing_invoice_id, amount_minor, status, provider_idempotency_key)
+       VALUES ($1, $2, 'succeeded', $3)
+       ON CONFLICT (provider_idempotency_key) DO NOTHING RETURNING id`,
+      [invoiceId, amountMinor, eventKey],
+    );
+    if (inserted.rows[0]) {
+      await client.query(
+        `UPDATE public.saas_billing_subscriptions
+         SET paid_additional_seats = greatest(paid_additional_seats - $2, 0)
+         WHERE id = $1`,
+        [subscriptionId, invoice.additional_seat_quantity],
+      );
+    }
+    await client.query('COMMIT');
+    return Boolean(inserted.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -628,6 +948,294 @@ async function scenarioTariffSeatsAllowAcceptWithoutOverride() {
   }
 }
 
+async function scenarioPaidSeatInviteAndAcceptAuthority() {
+  const org = '20000000-0000-4000-8000-0000000000e1';
+  const tariff = '50000000-0000-4000-8000-0000000000e1';
+  const subscription = '60000000-0000-4000-8000-0000000000e1';
+  const platformUser = '30000000-0000-4000-8000-0000000000e1';
+  const email = 'legacy-unpaid-overage@example.com';
+  await withClient(async (client) => {
+    await client.query(
+      `INSERT INTO public.saas_tariffs
+       (id, included_seats, price_minor, additional_seat_price_minor, currency)
+       VALUES ($1, 0, 10000, 1500, 'RUB')`,
+      [tariff],
+    );
+    await client.query(
+      `INSERT INTO public.be_organizations (id, title, tariff_id) VALUES ($1, 'Paid seat clinic', $2)`,
+      [org, tariff],
+    );
+    await client.query(
+      `INSERT INTO public.saas_billing_subscriptions
+       (id, organization_id, tariff_id, source, paid_additional_seats)
+       VALUES ($1, $2, $3, 'paid_subscription', 0)`,
+      [subscription, org, tariff],
+    );
+    await client.query(
+      `INSERT INTO public.platform_users (id, email, email_normalized) VALUES ($1, $2, $2)`,
+      [platformUser, email],
+    );
+  });
+
+  const beforePayment = await withClient((client) =>
+    runInTransaction(client, (transaction) =>
+      createReplacingPendingProof(transaction, {
+        organizationId: org,
+        invitedEmail: 'before-payment@example.com',
+        invitedRole: 'doctor',
+        tokenHash: 'before-payment-token',
+        expiresAt: FAR_FUTURE_EXPIRY,
+        createdByPlatformUserId: ACTOR,
+      }),
+    ),
+  );
+  if (beforePayment.ok || beforePayment.code !== 'seat_overage_confirmation_required') {
+    fail('an over-capacity invite must quote checkout and create nothing before payment');
+  }
+  if ((await pendingDoctorInviteCount(org)) !== 0) fail('pre-payment quote created an invite');
+
+  await withClient((client) =>
+    client.query(
+      `UPDATE public.saas_billing_subscriptions SET paid_additional_seats = 1 WHERE id = $1`,
+      [subscription],
+    ),
+  );
+  const afterPayment = await withClient((client) =>
+    runInTransaction(client, (transaction) =>
+      createReplacingPendingProof(transaction, {
+        organizationId: org,
+        invitedEmail: 'after-payment@example.com',
+        invitedRole: 'doctor',
+        tokenHash: 'after-payment-token',
+        expiresAt: FAR_FUTURE_EXPIRY,
+        createdByPlatformUserId: ACTOR,
+      }),
+    ),
+  );
+  if (!afterPayment.ok) fail('ordinary invite did not succeed after paid capacity appeared');
+  await withClient(async (client) => {
+    await client.query(
+      `UPDATE public.organization_member_invites SET status = 'revoked'
+       WHERE organization_id = $1 AND token_hash = 'after-payment-token'`,
+      [org],
+    );
+    await client.query(
+      `UPDATE public.saas_billing_subscriptions SET paid_additional_seats = 0 WHERE id = $1`,
+      [subscription],
+    );
+  });
+
+  await withClient((client) =>
+    client.query(
+      `INSERT INTO public.organization_member_invites
+       (organization_id, invited_email, invited_role, token_hash, expires_at, created_by_platform_user_id)
+       VALUES ($1, $2, 'doctor', 'legacy-unpaid-token', $3, $4)`,
+      [org, email, FAR_FUTURE_EXPIRY, ACTOR],
+    ),
+  );
+  const unpaidAccept = await withClient((client) =>
+    acceptOrgInviteProof(client, 'legacy-unpaid-token', platformUser, email),
+  );
+  if (unpaidAccept.ok || unpaidAccept.code !== 'seat_limit_reached') {
+    fail('legacy unpaid overage was accepted merely because a seat price exists');
+  }
+
+  await withClient((client) =>
+    client.query(
+      `UPDATE public.saas_billing_subscriptions SET paid_additional_seats = 1 WHERE id = $1`,
+      [subscription],
+    ),
+  );
+  const paidAccept = await withClient((client) =>
+    acceptOrgInviteProof(client, 'legacy-unpaid-token', platformUser, email),
+  );
+  if (!paidAccept.ok) fail('paid capacity did not allow the same ordinary invite acceptance');
+}
+
+async function scenarioBillingCaptureRenewalAndReplay() {
+  const org = '20000000-0000-4000-8000-0000000000e2';
+  const tariff = '50000000-0000-4000-8000-0000000000e2';
+  const subscription = '60000000-0000-4000-8000-0000000000e2';
+  const tariffInvoice = '70000000-0000-4000-8000-0000000000e2';
+  const seatInvoice = '70000000-0000-4000-8000-0000000000e3';
+  const secondSeatInvoice = '70000000-0000-4000-8000-0000000000e4';
+  await withClient(async (client) => {
+    await client.query(
+      `INSERT INTO public.saas_tariffs
+       (id, included_seats, price_minor, additional_seat_price_minor, currency)
+       VALUES ($1, 1, 10000, 1500, 'RUB')`,
+      [tariff],
+    );
+    await client.query(
+      `INSERT INTO public.be_organizations (id, title, tariff_id) VALUES ($1, 'Capture clinic', $2)`,
+      [org, tariff],
+    );
+    await client.query(
+      `INSERT INTO public.saas_billing_subscriptions
+       (id, organization_id, tariff_id, source, status, lifecycle_state)
+       VALUES ($1, $2, $3, 'paid_subscription', 'pending_payment', 'pending_payment')`,
+      [subscription, org, tariff],
+    );
+    await client.query(
+      `INSERT INTO public.saas_organization_trials (organization_id, status) VALUES ($1, 'active')`,
+      [org],
+    );
+    await client.query(
+      `INSERT INTO public.saas_billing_invoices (
+        id, organization_id, saas_billing_subscription_id, tariff_id, invoice_kind,
+        additional_seat_quantity, amount_minor, currency, tariff_snapshot,
+        service_period_starts_at, service_period_ends_at, status, provider_id,
+        provider_invoice_ref, provider_idempotency_key
+       ) VALUES ($1, $2, $3, $4, 'tariff_period', 0, 10000, 'RUB',
+        '{"included_seats":1}'::jsonb, '2026-08-01', '2026-09-01', 'pending',
+        'mock', 'tariff-provider-ref', 'tariff-request')`,
+      [tariffInvoice, org, subscription, tariff],
+    );
+    await captureBillingInvoice(client, tariffInvoice, '2026-08-01T00:00:00.000Z');
+    const first = await client.query(
+      `SELECT s.status, s.lifecycle_state, s.current_period_starts_at, s.current_period_ends_at,
+        s.tariff_snapshot, t.status AS trial_status
+       FROM public.saas_billing_subscriptions s
+       JOIN public.saas_organization_trials t ON t.organization_id = s.organization_id
+       WHERE s.id = $1`,
+      [subscription],
+    );
+    const row = first.rows[0];
+    if (
+      row?.status !== 'active' || row?.lifecycle_state !== 'active' ||
+      row?.current_period_starts_at === null || row?.current_period_ends_at === null ||
+      row?.trial_status !== 'ended' || row?.tariff_snapshot?.included_seats !== 1
+    ) fail('first tariff capture did not install the NULL-boundary period and end the trial');
+
+    await client.query(
+      `INSERT INTO public.saas_billing_invoices (
+        id, organization_id, saas_billing_subscription_id, tariff_id, invoice_kind,
+        additional_seat_quantity, amount_minor, currency, tariff_snapshot,
+        service_period_starts_at, service_period_ends_at, status, provider_id,
+        provider_invoice_ref, provider_idempotency_key
+       ) VALUES ($1, $2, $3, $4, 'seat_overage', 1, 1500, 'RUB',
+        '{"included_seats":1}'::jsonb, '2026-08-01', '2026-09-01', 'pending',
+        'mock', 'seat-provider-ref', 'seat-request')`,
+      [seatInvoice, org, subscription, tariff],
+    );
+    const beforeSeat = await client.query(
+      `SELECT tariff_id, pending_tariff_id, status, lifecycle_state, current_period_starts_at,
+        current_period_ends_at, tariff_snapshot FROM public.saas_billing_subscriptions WHERE id = $1`,
+      [subscription],
+    );
+    await captureBillingInvoice(client, seatInvoice, '2026-08-02T00:00:00.000Z');
+    await captureBillingInvoice(client, seatInvoice, '2026-08-03T00:00:00.000Z');
+    const afterSeat = await client.query(
+      `SELECT tariff_id, pending_tariff_id, status, lifecycle_state, current_period_starts_at,
+        current_period_ends_at, tariff_snapshot, paid_additional_seats
+       FROM public.saas_billing_subscriptions WHERE id = $1`,
+      [subscription],
+    );
+    const { paid_additional_seats: paidSeats, ...stableAfter } = afterSeat.rows[0];
+    if (paidSeats !== 1 || JSON.stringify(stableAfter) !== JSON.stringify(beforeSeat.rows[0])) {
+      fail('seat capture/replay changed tariff state or did not add allowance exactly once');
+    }
+    await client.query(
+      `INSERT INTO public.saas_billing_invoices (
+        id, organization_id, saas_billing_subscription_id, tariff_id, invoice_kind,
+        additional_seat_quantity, amount_minor, currency, tariff_snapshot,
+        service_period_starts_at, service_period_ends_at, status, provider_id,
+        provider_invoice_ref, provider_idempotency_key
+       ) VALUES ($1, $2, $3, $4, 'seat_overage', 1, 1500, 'RUB',
+        '{"included_seats":1}'::jsonb, '2026-08-01', '2026-09-01', 'pending',
+        'mock', 'seat-provider-ref-2', 'seat-request-2')`,
+      [secondSeatInvoice, org, subscription, tariff],
+    );
+    await captureBillingInvoice(client, secondSeatInvoice, '2026-08-04T00:00:00.000Z');
+    const quote = await calculateRenewalQuote(client, subscription);
+    if (quote.amountMinor !== 13000 || quote.additionalSeatQuantity !== 2) {
+      fail('renewal quote omitted the purchased seat quantity or exact amount');
+    }
+    await client.query(`UPDATE public.saas_tariffs SET additional_seat_price_minor = NULL WHERE id = $1`, [tariff]);
+    let missingPriceRejected = false;
+    try {
+      await calculateRenewalQuote(client, subscription);
+    } catch (error) {
+      missingPriceRejected = error instanceof Error &&
+        error.message === 'saas_billing_additional_seat_price_missing';
+    }
+    if (!missingPriceRejected) fail('renewal with paid seats and no unit price did not fail explicitly');
+    await client.query(`UPDATE public.saas_tariffs SET additional_seat_price_minor = 1500 WHERE id = $1`, [tariff]);
+    const firstRefund = await applySeatRefundSucceeded(client, secondSeatInvoice, 1500, 'refund-event-1');
+    const replayRefund = await applySeatRefundSucceeded(client, secondSeatInvoice, 1500, 'refund-event-1');
+    if (!firstRefund || replayRefund) fail('full seat refund did not decrement exactly once');
+    let partialRejected = false;
+    try {
+      await applySeatRefundSucceeded(client, seatInvoice, 1, 'refund-event-partial');
+    } catch (error) {
+      partialRejected = error instanceof Error &&
+        error.message === 'saas_billing_seat_overage_partial_refund_forbidden';
+    }
+    const allowanceAfterRefund = await client.query(
+      `SELECT paid_additional_seats FROM public.saas_billing_subscriptions WHERE id = $1`,
+      [subscription],
+    );
+    if (!partialRejected || allowanceAfterRefund.rows[0]?.paid_additional_seats !== 1) {
+      fail('seat refund replay/partial-refund invariant failed');
+    }
+  });
+}
+
+async function scenarioTwoConcurrentInvitesForOnePaidExtraSeat() {
+  const org = '20000000-0000-4000-8000-0000000000e5';
+  const tariff = '50000000-0000-4000-8000-0000000000e5';
+  const subscription = '60000000-0000-4000-8000-0000000000e5';
+  await withClient(async (client) => {
+    await client.query(
+      `INSERT INTO public.saas_tariffs
+       (id, included_seats, price_minor, additional_seat_price_minor, currency)
+       VALUES ($1, 1, 10000, 1500, 'RUB')`,
+      [tariff],
+    );
+    await client.query(
+      `INSERT INTO public.be_organizations (id, title, tariff_id) VALUES ($1, 'Race clinic', $2)`,
+      [org, tariff],
+    );
+    await client.query(
+      `INSERT INTO public.saas_billing_subscriptions
+       (id, organization_id, tariff_id, source, paid_additional_seats)
+       VALUES ($1, $2, $3, 'paid_subscription', 1)`,
+      [subscription, org, tariff],
+    );
+    await client.query(
+      `INSERT INTO public.be_organization_members
+       (organization_id, platform_user_id, role, specialist_id, status)
+       VALUES ($1, $2, 'doctor', '40000000-0000-4000-8000-0000000000e5', 'active')`,
+      [org, ACTOR],
+    );
+  });
+  const clientA = newClient();
+  const clientB = newClient();
+  await clientA.connect();
+  await clientB.connect();
+  try {
+    const [a, b] = await Promise.all([
+      runInTransaction(clientA, (client) => createReplacingPendingProof(client, {
+        organizationId: org, invitedEmail: 'paid-race-a@example.com', invitedRole: 'doctor',
+        tokenHash: 'paid-race-a', expiresAt: FAR_FUTURE_EXPIRY,
+        createdByPlatformUserId: ACTOR,
+      })),
+      runInTransaction(clientB, (client) => createReplacingPendingProof(client, {
+        organizationId: org, invitedEmail: 'paid-race-b@example.com', invitedRole: 'doctor',
+        tokenHash: 'paid-race-b', expiresAt: FAR_FUTURE_EXPIRY,
+        createdByPlatformUserId: ACTOR,
+      })),
+    ]);
+    if ([a, b].filter((result) => result.ok).length !== 1 ||
+      [a, b].filter((result) => !result.ok).length !== 1) {
+      fail('two concurrent invites for one paid extra seat did not yield exactly one success');
+    }
+  } finally {
+    await clientA.end();
+    await clientB.end();
+  }
+}
+
 try {
   if (!existsSync(path.join(pgBin, 'initdb'))) fail('PostgreSQL 16 binaries are unavailable');
   port = await reservePrivatePort();
@@ -658,17 +1266,24 @@ try {
     extractClinicSeatUsageSql(seatUsageSource),
   );
   RESERVATION_SQL = extractCountSeatReservationsSql(repoSource);
+  assertBillingSourceContracts(
+    readFileSync(path.join(root, 'apps/webapp/src/infra/repos/pgSaasBilling.ts'), 'utf8'),
+  );
 
   await installMinimalSyntheticSchema();
   await scenarioTwoConcurrentDifferentEmailCreatesAtFinalSeat();
   await scenarioSameEmailReplacementAtExactLimitUnderContention();
   await scenarioConcurrentCreateVsAcceptNoOversubscriptionAndReservationUntilBinding();
   await scenarioTariffSeatsAllowAcceptWithoutOverride();
+  await scenarioPaidSeatInviteAndAcceptAuthority();
+  await scenarioBillingCaptureRenewalAndReplay();
+  await scenarioTwoConcurrentInvitesForOnePaidExtraSeat();
 
   console.log(
     'C4A #843 clinic invite concurrency proof: OK (aggregate-only) — different-email race, ' +
       'same-email replacement under contention, create-vs-accept for the last seat, and ' +
-      'reservation-until-binding plus tariff-only included_seats acceptance all verified against ' +
+      'reservation-until-binding, paid-seat invite/accept authority, first tariff capture, ' +
+      'seat replay isolation, migration backfill and renewal arithmetic all verified against ' +
       'a real private PostgreSQL 16 server',
   );
 } finally {

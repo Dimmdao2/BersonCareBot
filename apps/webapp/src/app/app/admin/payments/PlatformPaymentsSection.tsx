@@ -86,6 +86,8 @@ function formatDate(value: string): string {
 const REFUND_ERROR_LABELS: Record<string, string> = {
   invoice_not_found: 'Платёж не найден.',
   invoice_not_refundable: 'Возврат недоступен: платёж ещё не оплачен.',
+  seat_overage_partial_refund_forbidden:
+    'Дополнительное место можно вернуть только полной суммой.',
   amount_exceeds_remaining: 'Сумма превышает остаток по платежу.',
   provider_error: 'Провайдер не принял возврат. Попробуйте ещё раз.',
   invalid_refund_request: 'Некорректная сумма возврата.',

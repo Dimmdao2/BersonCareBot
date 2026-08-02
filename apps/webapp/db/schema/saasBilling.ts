@@ -254,8 +254,7 @@ export const saasBillingInvoices = pgTable(
       .where(sql`${table.invoiceKind} = 'tariff_period'`),
     uniqueIndex('saas_billing_invoices_provider_ref_uidx')
       .on(table.providerId, table.providerInvoiceRef)
-      .where(sql`${table.providerInvoiceRef} IS NOT NULL`)
-      ,
+      .where(sql`${table.providerInvoiceRef} IS NOT NULL`),
     index('idx_saas_billing_invoices_org_created').on(table.organizationId, table.createdAt),
     index('idx_saas_billing_invoices_status_created').on(table.status, table.createdAt),
     foreignKey({

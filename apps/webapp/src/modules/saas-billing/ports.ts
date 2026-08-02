@@ -160,9 +160,8 @@ export type SaasBillingPlatformSummary = {
 };
 
 /**
- * К3 item 2 — "вид покупки" for the platform surface is the tariff and its billing period (clinics
- * have no other kind of purchase). Built only from `paid` invoices: a purchase is something that
- * actually happened, not something pending or failed.
+ * К3 item 2 — paid money split by invoice purpose, tariff and billing period. Draft/pending/failed
+ * invoices are not purchases and therefore do not enter this breakdown.
  */
 export type SaasBillingPlatformBreakdownRow = {
   invoiceKind: SaasBillingInvoiceKind;
@@ -173,6 +172,12 @@ export type SaasBillingPlatformBreakdownRow = {
   count: number;
   amountMinor: number;
 };
+
+export type SaasBillingSeatOverageInvoiceResult =
+  | { outcome: 'seat_available' }
+  | { outcome: 'seat_overage_unavailable' }
+  | { outcome: 'price_changed'; priceMinor: number; currency: string }
+  | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
 
 export type SaasBillingReconciliationDiscrepancy =
   | {
@@ -356,16 +361,6 @@ export type SaasBillingRepositoryPort = {
     providerInvoiceRef: string;
   }): Promise<SaasBillingInvoice | null>;
   /**
-   * `null` when the row no longer matches a payable status (already `paid`, or `void` from a К4
-   * cancellation) — the CAS is what makes "отменённый счёт нельзя оплатить" hold even against a
-   * webhook that arrives after the cancel, instead of silently resurrecting a cancelled invoice.
-   */
-  markSaasBillingInvoicePaid(input: {
-    saasBillingInvoiceId: string;
-    organizationId: string;
-    paidAt: string;
-  }): Promise<SaasBillingInvoice | null>;
-  /**
    * К4 — a platform-admin-issued invoice for the organization's OWN currently assigned tariff
    * (same subscription row `requireOwnTariffBillingSubscription` resolves), with an admin-chosen
    * amount/description/expiry instead of the tariff's list price. `tariffName`/`tariffBillingPeriod`
@@ -386,9 +381,26 @@ export type SaasBillingRepositoryPort = {
     expiresAt: string;
     providerId: string;
     providerIdempotencyKey: string;
-    invoiceKind?: SaasBillingInvoiceKind;
-    additionalSeatQuantity?: number;
+    invoiceKind: SaasBillingInvoiceKind;
+    additionalSeatQuantity: number;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
+
+  /**
+   * Re-checks current usage, effective included/override capacity, paid allowance and effective
+   * unit price under the clinic billing principal while holding the same organization lock as
+   * invite creation. A same-key draft is returned before the capacity check so a failed PSP call
+   * remains retryable with the original provider idempotency key.
+   */
+  createSeatOverageInvoiceIfNeeded(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    confirmedAmountMinor: number;
+    confirmedCurrency: string;
+    providerId: string;
+    providerIdempotencyKey: string;
+    servicePeriodStartsAt: string;
+    servicePeriodEndsAt: string;
+  }): Promise<SaasBillingSeatOverageInvoiceResult>;
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by
    * invoice id alone, not organization-scoped (see `reserveSaasBillingRefund`). Only `draft`/
@@ -421,20 +433,6 @@ export type SaasBillingRepositoryPort = {
     additionalSeatPriceMinor: number | null;
     currency: string | null;
   }>;
-  /**
-   * §5a item К0 — a captured payment extends the ONE subscription row the paid invoice was raised
-   * against (identified by id, never by organization+source), so a `paid_subscription` capture can
-   * never reach and silently overwrite a `manual` admin assignment.
-   */
-  activateSaasBillingSubscriptionPeriod(input: {
-    organizationId: string;
-    saasBillingSubscriptionId: string;
-    periodStartsAt: string;
-    periodEndsAt: string;
-    /** The paid invoice, not the mutable live tariff table, authorizes the new period. */
-    tariffId: string;
-    tariffSnapshot: Record<string, unknown> | null;
-  }): Promise<void>;
   /** Promotes one already-paid future invoice at its boundary; repeats are a no-op. */
   promoteDueSaasBillingPaidInvoice(input: {
     organizationId: string;
@@ -482,6 +480,7 @@ export type SaasBillingRepositoryPort = {
   }): Promise<
     | { outcome: 'invoice_not_found' }
     | { outcome: 'invoice_not_refundable'; status: SaasBillingInvoiceStatus }
+    | { outcome: 'seat_overage_partial_refund_forbidden' }
     | { outcome: 'amount_exceeds_remaining'; remainingMinor: number }
     | { outcome: 'duplicate'; refund: SaasBillingRefund }
     | { outcome: 'reserved'; refund: SaasBillingRefund; invoice: SaasBillingInvoice }
@@ -526,7 +525,7 @@ export type SaasBillingRepositoryPort = {
   /**
    * К6 — called only from the webhook capture path, once `payment.succeeded` reports a
    * `payment_method` the provider actually saved. Addresses the subscription by id, same authority
-   * discipline as `activateSaasBillingSubscriptionPeriod`.
+   * discipline as the capture state machine.
    */
   saveSaasBillingSubscriptionPaymentMethod(input: {
     saasBillingSubscriptionId: string;
@@ -534,7 +533,7 @@ export type SaasBillingRepositoryPort = {
     savedPaymentMethodId: string;
   }): Promise<void>;
   /**
-   * К6 — CAS from `draft`/`pending` to `failed`, mirroring `markSaasBillingInvoicePaid`'s shape:
+   * К6 — CAS from `draft`/`pending` to `failed`, mirroring capture's invoice-state CAS:
    * an off-session charge attempt that the provider rejected (synchronously, or already resolved by
    * the time this runs) must show up as a failure the clinic can see and act on, not stay `draft`
    * forever.
