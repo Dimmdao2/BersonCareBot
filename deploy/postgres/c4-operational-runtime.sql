@@ -1086,6 +1086,7 @@ WITH managed(role_name) AS (VALUES
   ('table','integrator.idempotency_keys','INSERT','app_operational_scheduler',false),
   ('table','integrator.idempotency_keys','UPDATE','app_operational_scheduler',false),
   ('table','integrator.idempotency_keys','DELETE','app_operational_scheduler',false),
+  ('table','public.reminder_rules','SELECT','app_operational_scheduler',false),
   ('function','app.release_principal_context()','EXECUTE','app_operational_scheduler',false),
   ('function','app.list_scheduler_reminder_organization_ids()','EXECUTE','app_operational_scheduler',false),
   ('schema','app','USAGE','app_operational_media_worker',false),
