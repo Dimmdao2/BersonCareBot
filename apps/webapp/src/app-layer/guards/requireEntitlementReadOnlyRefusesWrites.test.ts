@@ -16,9 +16,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: vi.fn(),
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
-  withDoctorWorkspacePrincipal: vi.fn(
-    <T>(_ctx: unknown, _source: string, fn: () => T): T => fn(),
-  ),
+  withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, _source: string, fn: () => T): T => fn()),
 }));
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: vi.fn(<T>(...args: unknown[]): T => (args.at(-1) as () => T)()),
@@ -34,6 +32,7 @@ import {
   requireDoctorWorkspaceContext,
 } from '@/app-layer/guards/requireRole';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
+import { DELETE as revokeClinicInvite } from '@/app/api/clinic/invites/[id]/route';
 import { POST as createClinicInvite } from '@/app/api/clinic/invites/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { togglePatientHomeBlockVisibility } from '@/app/app/settings/patient-home/actions';
@@ -120,6 +119,28 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
     expect(createInvitePort).not.toHaveBeenCalled();
   });
 
+  it('refuses clinic-team invite revocation and never calls the write port', async () => {
+    const revokeInvitePort = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: readOnlyOrgEntitlementsPort('read_only'),
+      organizationInvites: { revokeInvite: revokeInvitePort },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await revokeClinicInvite(
+      new Request(
+        'https://app.example.test/api/clinic/invites/33333333-3333-4333-8333-333333333333',
+        {
+          method: 'DELETE',
+        },
+      ),
+      { params: Promise.resolve({ id: '33333333-3333-4333-8333-333333333333' }) },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
+    expect(revokeInvitePort).not.toHaveBeenCalled();
+  });
+
   it('refuses connecting an external calendar and never reaches the OAuth config', async () => {
     vi.mocked(buildAppDeps).mockReturnValue({
       orgEntitlements: readOnlyOrgEntitlementsPort('read_only'),
@@ -149,24 +170,24 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
     expect(setBlockVisibilityPort).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['full_access' as const],
-    ['grace' as const],
-  ])('does NOT block course creation for control state %s (sanity: the refusal is state-specific)', async (state) => {
-    const createCoursePort = vi.fn().mockResolvedValue({ id: 'course-1' });
-    vi.mocked(buildAppDeps).mockReturnValue({
-      orgEntitlements: readOnlyOrgEntitlementsPort(state),
-      courses: { createCourse: createCoursePort },
-    } as unknown as ReturnType<typeof buildAppDeps>);
+  it.each([['full_access' as const], ['grace' as const]])(
+    'does NOT block course creation for control state %s (sanity: the refusal is state-specific)',
+    async (state) => {
+      const createCoursePort = vi.fn().mockResolvedValue({ id: 'course-1' });
+      vi.mocked(buildAppDeps).mockReturnValue({
+        orgEntitlements: readOnlyOrgEntitlementsPort(state),
+        courses: { createCourse: createCoursePort },
+      } as unknown as ReturnType<typeof buildAppDeps>);
 
-    const response = await createCourse(
-      request('https://app.example.test/api/doctor/courses', {
-        title: 'Курс',
-        programTemplateId: '33333333-3333-4333-8333-333333333333',
-      }),
-    );
+      const response = await createCourse(
+        request('https://app.example.test/api/doctor/courses', {
+          title: 'Курс',
+          programTemplateId: '33333333-3333-4333-8333-333333333333',
+        }),
+      );
 
-    expect(response.status).toBe(200);
-    expect(createCoursePort).toHaveBeenCalledTimes(1);
-  });
+      expect(response.status).toBe(200);
+      expect(createCoursePort).toHaveBeenCalledTimes(1);
+    },
+  );
 });

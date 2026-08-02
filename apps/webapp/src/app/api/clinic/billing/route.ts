@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 
 export async function GET() {
@@ -39,7 +40,10 @@ async function requireBillingManager() {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
   if (!gate.ok) return gate;
   if (gate.ctx.membershipRole !== 'owner' && gate.ctx.membershipRole !== 'admin') {
-    return { ok: false as const, response: NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 }) };
+    return {
+      ok: false as const,
+      response: NextResponse.json({ ok: false, error: 'billing_admin_required' }, { status: 403 }),
+    };
   }
   return gate;
 }
@@ -53,22 +57,31 @@ function tariffChangeError(error: unknown) {
   ) {
     return NextResponse.json({ ok: false, error: message }, { status: 409 });
   }
-  return NextResponse.json({ ok: false, error: 'saas_billing_tariff_change_failed' }, { status: 500 });
+  return NextResponse.json(
+    { ok: false, error: 'saas_billing_tariff_change_failed' },
+    { status: 500 },
+  );
 }
 
 export async function PATCH(request: Request) {
   const gate = await requireBillingManager();
   if (!gate.ok) return gate.response;
   const parsed = tariffChangeSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
   try {
     await runWithDbClinicBillingPrincipal(
-      { organizationId: gate.ctx.organizationId, platformUserId: gate.ctx.session.user.userId, source: 'clinic-billing-tariff-change-schedule' },
-      () => buildAppDeps().saasBilling.scheduleOwnTariffChange({
+      {
         organizationId: gate.ctx.organizationId,
-        tariffId: parsed.data.tariffId,
-        actorId: gate.ctx.session.user.userId,
-      }),
+        platformUserId: gate.ctx.session.user.userId,
+        source: 'clinic-billing-tariff-change-schedule',
+      },
+      () =>
+        buildAppDeps().saasBilling.scheduleOwnTariffChange({
+          organizationId: gate.ctx.organizationId,
+          tariffId: parsed.data.tariffId,
+          actorId: gate.ctx.session.user.userId,
+        }),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -81,11 +94,16 @@ export async function DELETE() {
   if (!gate.ok) return gate.response;
   try {
     await runWithDbClinicBillingPrincipal(
-      { organizationId: gate.ctx.organizationId, platformUserId: gate.ctx.session.user.userId, source: 'clinic-billing-tariff-change-cancel' },
-      () => buildAppDeps().saasBilling.cancelOwnTariffChange({
+      {
         organizationId: gate.ctx.organizationId,
-        actorId: gate.ctx.session.user.userId,
-      }),
+        platformUserId: gate.ctx.session.user.userId,
+        source: 'clinic-billing-tariff-change-cancel',
+      },
+      () =>
+        buildAppDeps().saasBilling.cancelOwnTariffChange({
+          organizationId: gate.ctx.organizationId,
+          actorId: gate.ctx.session.user.userId,
+        }),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -124,6 +142,8 @@ export async function POST(request: Request) {
   };
   try {
     if (purchase.success) {
+      const entitlement = await requireEntitlementForMutation(gate.ctx, 'clinic_team');
+      if (!entitlement.ok) return entitlement.response;
       const result = await runWithDbClinicBillingPrincipal(principal, () =>
         buildAppDeps().saasBilling.purchaseSeatOverage({
           organizationId: gate.ctx.organizationId,

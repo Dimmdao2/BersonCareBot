@@ -829,6 +829,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.organizationInvites.revokeInvite',
   },
   {
+    id: 'clinic-team.seat-overage.purchase',
+    mechanic: 'clinic_team',
+    file: 'src/app/api/clinic/billing/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requireClinicManagementApiContext',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'deps.saasBilling.purchaseSeatOverage',
+  },
+  {
     id: 'clinic-team.members.list',
     mechanic: 'clinic_team',
     file: 'src/app/api/clinic/members/route.ts',
@@ -928,6 +938,21 @@ export const PROTECTED_ACTION_FAMILIES = [
  * guarantee, not an attempt to infer arbitrary future business semantics.
  */
 export const PROTECTED_ACTION_EXEMPTIONS = [
+  {
+    file: 'src/app/api/clinic/billing/route.ts',
+    exportName: 'GET',
+    reason: 'clinic billing read remains available for tariff recovery',
+  },
+  {
+    file: 'src/app/api/clinic/billing/route.ts',
+    exportName: 'PATCH',
+    reason: 'clinic tariff change remains available for tariff recovery',
+  },
+  {
+    file: 'src/app/api/clinic/billing/route.ts',
+    exportName: 'DELETE',
+    reason: 'clinic tariff-change cancellation remains available for tariff recovery',
+  },
   {
     file: 'src/app/app/patient/reminders/actions.ts',
     exportName: 'toggleReminderCategory',
@@ -1113,7 +1138,8 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
   {
     file: 'src/app/api/integrator/events/route.ts',
     exportName: 'POST',
-    reason: 'critical mechanic (patient_diaries) — never tariff-gated; diary write handlers live in handleIntegratorEvent',
+    reason:
+      'critical mechanic (patient_diaries) — never tariff-gated; diary write handlers live in handleIntegratorEvent',
   },
   {
     file: 'src/app/api/doctor/patients/[userId]/files/[fileId]/route.ts',
@@ -1206,7 +1232,8 @@ export const DECLARED_NO_SURFACE = {
   // "дневники у пациентов не отбираем"). No PROTECTED_ACTION_MAPPINGS row for either can ever be
   // correct, so this is the accurate DoD, not a placeholder — running the full coverage check for
   // the first time (this stage) surfaced them as `unregistered mechanic surface` findings.
-  patient_card: 'critical mechanic (class "никогда") — never tariff-gated, by design, no write gate',
+  patient_card:
+    'critical mechanic (class "никогда") — never tariff-gated, by design, no write gate',
   patient_diaries:
     'critical mechanic (class "никогда") — owner 31.07 "дневники у пациентов не отбираем", never tariff-gated',
 } as const satisfies Partial<Record<OrgMechanic, string>>;
