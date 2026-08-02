@@ -37,7 +37,7 @@ const invoice: SaasBillingInvoice = {
 
 describe('SaaS billing payment provider availability', () => {
   it('names a configured but unsupported provider as unavailable before an invoice is created', async () => {
-    const createSaasBillingInvoice = vi.fn();
+    const createSaasBillingInvoice = vi.fn(async () => ({ invoice, created: true }));
     const service = createSaasBillingService({
       repository: {
         requireOwnTariffBillingSubscription: async () => ({
@@ -62,6 +62,36 @@ describe('SaaS billing payment provider availability', () => {
 
     await expect(service.createOwnTariffRenewalInvoice('org-1')).rejects.toThrow(
       'saas_billing_payment_provider_unavailable:mock',
+    );
+    expect(createSaasBillingInvoice).not.toHaveBeenCalled();
+  });
+
+  it('does not relabel a different provider-registry failure as unavailable', async () => {
+    const createSaasBillingInvoice = vi.fn();
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          savedPaymentMethodId: null,
+          currentPeriodEndsAt: null,
+        }),
+        createSaasBillingInvoice,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true }],
+        }),
+      },
+      resolvePaymentProvider: () => {
+        throw new Error('payment_registry_corrupted');
+      },
+    });
+
+    await expect(service.createOwnTariffRenewalInvoice('org-1')).rejects.toThrow(
+      'payment_registry_corrupted',
     );
     expect(createSaasBillingInvoice).not.toHaveBeenCalled();
   });
