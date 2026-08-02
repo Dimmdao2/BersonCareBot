@@ -4,6 +4,7 @@ import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 const readAdminSystemSettingString = vi.fn();
 const readExactOrganizationAdminSystemSettingString = vi.fn();
 const readPublicAuthChannelConfigured = vi.fn();
+const getEffective = vi.fn();
 
 vi.mock('@/infra/repos/pgSystemSettings', () => ({
   readAdminSystemSettingString,
@@ -12,11 +13,13 @@ vi.mock('@/infra/repos/pgSystemSettings', () => ({
 }));
 
 vi.mock('@/infra/repos/pgAppRuntimeSettings', () => ({
-  createPgAppRuntimeSettingsPort: () => ({ getEffective: vi.fn() }),
+  createPgAppRuntimeSettingsPort: () => ({ getEffective }),
 }));
 
 const {
   getConfigValue,
+  getServerRuntimeInteger,
+  getServerConfigStructuredValue,
   getExactOrganizationConfigValue,
   getPublicAuthChannelConfigured,
   invalidateConfigCache,
@@ -74,5 +77,28 @@ describe('configAdapter DB-only legacy reads', () => {
     readPublicAuthChannelConfigured.mockRejectedValueOnce(new Error('database unavailable'));
 
     await expect(getPublicAuthChannelConfigured('sms')).rejects.toThrow('database unavailable');
+  });
+
+  it('reads a zero min notice from the requested organization runtime setting', async () => {
+    getEffective.mockResolvedValueOnce({ valueJson: { value: 0 } });
+
+    await expect(
+      getServerRuntimeInteger('booking_min_notice_hours', 'clinic-1'),
+    ).resolves.toBe(0);
+    expect(getEffective).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'booking_min_notice_hours',
+        organizationId: 'clinic-1',
+        allowedAudiences: ['server'],
+      }),
+    );
+  });
+
+  it('parses structured server configuration without substituting an empty value', async () => {
+    readAdminSystemSettingString.mockResolvedValueOnce('{"phones":["+79990000000"]}');
+
+    await expect(getServerConfigStructuredValue('test_account_identifiers')).resolves.toEqual({
+      phones: ['+79990000000'],
+    });
   });
 });
