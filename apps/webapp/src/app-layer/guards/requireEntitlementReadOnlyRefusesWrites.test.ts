@@ -34,6 +34,7 @@ import {
   requireDoctorWorkspaceContext,
 } from '@/app-layer/guards/requireRole';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
+import { PATCH as updateCourse } from '@/app/api/doctor/courses/[id]/route';
 import { POST as createClinicInvite } from '@/app/api/clinic/invites/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { togglePatientHomeBlockVisibility } from '@/app/app/settings/patient-home/actions';
@@ -95,6 +96,25 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
     expect(createCoursePort).not.toHaveBeenCalled();
+  });
+
+  it('refuses direct course updates before they reach the write port', async () => {
+    const updateCoursePort = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: readOnlyOrgEntitlementsPort('read_only'),
+      courses: { updateCourse: updateCoursePort },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateCourse(
+      request('https://app.example.test/api/doctor/courses/33333333-3333-4333-8333-333333333333', {
+        status: 'archived',
+      }),
+      { params: Promise.resolve({ id: '33333333-3333-4333-8333-333333333333' }) },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
+    expect(updateCoursePort).not.toHaveBeenCalled();
   });
 
   it('refuses clinic-team invite creation and never calls the write port', async () => {
