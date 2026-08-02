@@ -5,9 +5,9 @@
 `docs/_TODO/runs/briefs/TRACK_D_D21_UNIFIED_REMINDER_OCCURRENCE_BRIEF.md` и единственный независимый аудит
 `docs/_TODO/runs/integrator-cleanup/D21_UNIFIED_OCCURRENCE_INDEPENDENT_AUDIT_2026-08-03.md`.
 
-## Источник оракула
+## Источник оракула: `WORK_ORDER.md` Р-D21 — «Тихих часов нет. Человек сам ставит удобное ему время»
 
-`WORK_ORDER.md` Р-D21: «**Тихих часов нет. Человек сам ставит удобное ему время**»; накопленные расписания
+Накопленные расписания
 переносятся как есть, все каналы используют одну canonical occurrence, а действия пациента меняют её каноническое
 состояние. Сохранённые acceptance-тесты аудита являются единственным fix-gate; новый blind audit не запускать.
 
