@@ -18,7 +18,7 @@
  * a "Pay by link" approach. We expose the `checkoutUrl` from Pay by Link endpoint.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import { assertReceiptSupported, type PaymentProviderPort } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 
 const CLOUDPAYMENTS_API_BASE = 'https://api.cloudpayments.ru';
@@ -88,8 +88,10 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
       metadata,
       returnUrl,
       invoice,
+      receipt,
       providerConfig,
     }) {
+      assertReceiptSupported(receipt, 'cloudpayments');
       if (invoice) throw new Error('payment_provider_invoices_unsupported:cloudpayments');
       const { publicId, apiSecret } = requireCloudpaymentsCredentials(providerConfig);
       const amount = amountMinor / 100; // CloudPayments uses rubles (float string)
@@ -146,7 +148,8 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
       };
     },
 
-    async refund({ providerIntentRef, amountMinor, idempotencyKey, providerConfig }) {
+    async refund({ providerIntentRef, amountMinor, idempotencyKey, receipt, providerConfig }) {
+      assertReceiptSupported(receipt, 'cloudpayments');
       const { publicId, apiSecret } = requireCloudpaymentsCredentials(providerConfig);
       const amount = amountMinor / 100;
 

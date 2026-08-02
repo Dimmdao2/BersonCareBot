@@ -9,6 +9,7 @@ import type {
   SaasBillingManualAssignmentTransactionPort,
   SaasBillingRepositoryPort,
 } from './ports';
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
 
 const invoice: SaasBillingInvoice = {
@@ -103,28 +104,152 @@ describe('SaaS billing payment provider availability', () => {
   });
 });
 
+describe('Fiscalized SaaS refunds', () => {
+  const fiscalizedInvoice: SaasBillingInvoice = {
+    ...invoice,
+    amountMinor: 10_000,
+    providerInvoiceRef: 'provider-payment-1',
+    status: 'paid',
+    tariffSnapshot: {
+      __bersoncare_fiscal_receipt: {
+        customer: { email: 'payer@example.test' },
+        items: [
+          {
+            description: 'Стандарт: август',
+            quantity: 1,
+            amountMinor: 10_000,
+            vatCode: '11',
+            paymentSubject: 'service',
+            paymentMode: 'full_prepayment',
+            measure: 'piece',
+          },
+        ],
+        taxSystemCode: '2',
+      },
+    },
+  };
+
+  function refundService(amountMinor: number) {
+    const providerRefund = vi.fn(async (params: Parameters<PaymentProviderPort['refund']>[0]) => {
+      if (params.receipt === undefined) throw new Error('receipt_was_silently_dropped');
+      return { providerRefundRef: 'provider-refund-1' };
+    });
+    const attachSaasBillingRefundProviderRef = vi.fn(async () => ({
+      id: 'refund-1',
+      organizationId: 'org-1',
+      saasBillingInvoiceId: fiscalizedInvoice.id,
+      amountMinor,
+      currency: 'RUB',
+      status: 'pending' as const,
+      providerId: 'yookassa',
+      providerRefundRef: 'provider-refund-1',
+      providerIdempotencyKey: 'refund-key',
+      confirmedAt: null,
+      createdAt: '2026-08-02T00:00:00.000Z',
+      updatedAt: '2026-08-02T00:00:00.000Z',
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        reserveSaasBillingRefund: async () => ({
+          outcome: 'reserved' as const,
+          refund: { id: 'refund-1' },
+          invoice: fiscalizedInvoice,
+        }),
+        attachSaasBillingRefundProviderRef,
+        markSaasBillingRefundFailed: vi.fn(),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ refund: providerRefund }) as never,
+    });
+    return { service, providerRefund };
+  }
+
+  it('requires the original receipt snapshot for a partial refund and sends corrected totals', async () => {
+    const { service, providerRefund } = refundService(2_500);
+
+    await expect(
+      service.refundSaasBillingInvoice({
+        saasBillingInvoiceId: fiscalizedInvoice.id,
+        amountMinor: 2_500,
+        requestKey: 'partial',
+        actorId: 'admin',
+        reason: 'partial',
+      }),
+    ).resolves.toMatchObject({ outcome: 'refunded', duplicate: false });
+
+    expect(providerRefund).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: { email: 'payer@example.test' },
+          items: [expect.objectContaining({ amountMinor: 2_500, quantity: 1, vatCode: '11' })],
+        }),
+      }),
+    );
+  });
+
+  it('omits receipt for a full refund', async () => {
+    const { service, providerRefund } = refundService(10_000);
+    providerRefund.mockImplementationOnce(
+      async (params: Parameters<PaymentProviderPort['refund']>[0]) => {
+        expect(params.receipt).toBeUndefined();
+        return { providerRefundRef: 'provider-refund-1' };
+      },
+    );
+
+    await expect(
+      service.refundSaasBillingInvoice({
+        saasBillingInvoiceId: fiscalizedInvoice.id,
+        amountMinor: 10_000,
+        requestKey: 'full',
+        actorId: 'admin',
+        reason: 'full',
+      }),
+    ).resolves.toMatchObject({ outcome: 'refunded', duplicate: false });
+  });
+});
+
 describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', () => {
   function scheduledService(blocks: unknown[] = []) {
     const setManualSaasBillingSubscription = vi.fn(async () => {});
     const createIntent = vi.fn();
     const service = createSaasBillingService({
       repository: {
-        runManualAssignmentTransaction: (work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<unknown>) => work({
-          loadManualAssignmentState: async () => ({
-            organization: { tariffId: 'tariff-current' }, activeTrial: null,
-            manualSaasBillingSubscription: {
-              id: 'subscription', tariffId: 'tariff-current', status: 'active',
-              currentPeriodStartsAt: '2026-08-01T00:00:00.000Z', currentPeriodEndsAt: '2026-09-01T00:00:00.000Z', pendingTariffId: null,
-            },
+        runManualAssignmentTransaction: (
+          work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<unknown>,
+        ) =>
+          work({
+            loadManualAssignmentState: async () => ({
+              organization: { tariffId: 'tariff-current' },
+              activeTrial: null,
+              manualSaasBillingSubscription: {
+                id: 'subscription',
+                tariffId: 'tariff-current',
+                status: 'active',
+                currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+                currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+                pendingTariffId: null,
+              },
+            }),
+            requireActiveTariff: async () => ({ billingPeriod: 'month' as const }),
+            setManualSaasBillingSubscription,
+            updateOrganizationTariffAssignment: vi.fn(),
+            endActiveTrial: vi.fn(),
+            appendManualAssignmentAudit: vi.fn(),
           }),
-          requireActiveTariff: async () => ({ billingPeriod: 'month' as const }),
-          setManualSaasBillingSubscription,
-          updateOrganizationTariffAssignment: vi.fn(), endActiveTrial: vi.fn(), appendManualAssignmentAudit: vi.fn(),
-        }),
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
       resolvePaymentProvider: () => ({ createIntent }) as never,
-      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-small', blocks, appliesNextPeriod: true }),
+      getTariffTransition: async () => ({
+        currentTariffId: 'tariff-current',
+        targetTariffId: 'tariff-small',
+        blocks,
+        appliesNextPeriod: true,
+      }),
       now: () => new Date('2026-08-15T00:00:00.000Z'),
     });
     return { service, setManualSaasBillingSubscription, createIntent };
@@ -133,21 +258,35 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
   it('schedules a restrictive target without changing the paid dates or creating a provider intent', async () => {
     const { service, setManualSaasBillingSubscription, createIntent } = scheduledService();
 
-    await service.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-small', actorId: 'actor' });
+    await service.scheduleOwnTariffChange({
+      organizationId: 'org',
+      tariffId: 'tariff-small',
+      actorId: 'actor',
+    });
 
-    expect(setManualSaasBillingSubscription).toHaveBeenCalledWith(expect.objectContaining({
-      tariffId: 'tariff-current', pendingTariffId: 'tariff-small',
-      preservePeriodSnapshot: true,
-      period: { startsAt: '2026-08-01T00:00:00.000Z', endsAt: '2026-09-01T00:00:00.000Z' },
-    }));
+    expect(setManualSaasBillingSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tariffId: 'tariff-current',
+        pendingTariffId: 'tariff-small',
+        preservePeriodSnapshot: true,
+        period: { startsAt: '2026-08-01T00:00:00.000Z', endsAt: '2026-09-01T00:00:00.000Z' },
+      }),
+    );
     expect(createIntent).not.toHaveBeenCalled();
   });
 
   it('refuses a blocked downgrade before any provider call', async () => {
-    const { service, setManualSaasBillingSubscription, createIntent } = scheduledService([{ mechanic: 'patient_count' }]);
+    const { service, setManualSaasBillingSubscription, createIntent } = scheduledService([
+      { mechanic: 'patient_count' },
+    ]);
 
-    await expect(service.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-small', actorId: 'actor' }))
-      .rejects.toThrow('saas_billing_tariff_downgrade_blocked');
+    await expect(
+      service.scheduleOwnTariffChange({
+        organizationId: 'org',
+        tariffId: 'tariff-small',
+        actorId: 'actor',
+      }),
+    ).rejects.toThrow('saas_billing_tariff_downgrade_blocked');
     expect(setManualSaasBillingSubscription).not.toHaveBeenCalled();
     expect(createIntent).not.toHaveBeenCalled();
   });
@@ -158,11 +297,21 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
       repository: {} as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
       resolvePaymentProvider: () => ({ createIntent }) as never,
-      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-big', blocks: [], appliesNextPeriod: false }),
+      getTariffTransition: async () => ({
+        currentTariffId: 'tariff-current',
+        targetTariffId: 'tariff-big',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
     });
 
-    await expect(upgradeService.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-big', actorId: 'actor' }))
-      .rejects.toThrow('saas_billing_upgrade_charge_policy_unresolved');
+    await expect(
+      upgradeService.scheduleOwnTariffChange({
+        organizationId: 'org',
+        tariffId: 'tariff-big',
+        actorId: 'actor',
+      }),
+    ).rejects.toThrow('saas_billing_upgrade_charge_policy_unresolved');
     expect(setManualSaasBillingSubscription).not.toHaveBeenCalled();
     expect(createIntent).not.toHaveBeenCalled();
   });
@@ -172,17 +321,27 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
     const service = createSaasBillingService({
       repository: {
         requireOwnTariffBillingSubscription: async () => ({
-          saasBillingSubscriptionId: 'subscription', tariffId: 'tariff-small', billingPeriod: 'month' as const,
+          saasBillingSubscriptionId: 'subscription',
+          tariffId: 'tariff-small',
+          billingPeriod: 'month' as const,
           currentTariffId: 'tariff-current',
-          savedPaymentMethodId: null, currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+          savedPaymentMethodId: null,
+          currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
         }),
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
       resolvePaymentProvider: () => ({ createIntent }) as never,
-      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-small', blocks: [{ mechanic: 'patient_count' }], appliesNextPeriod: true }),
+      getTariffTransition: async () => ({
+        currentTariffId: 'tariff-current',
+        targetTariffId: 'tariff-small',
+        blocks: [{ mechanic: 'patient_count' }],
+        appliesNextPeriod: true,
+      }),
     });
 
-    await expect(service.createOwnTariffRenewalInvoice('org')).rejects.toThrow('saas_billing_tariff_downgrade_blocked');
+    await expect(service.createOwnTariffRenewalInvoice('org')).rejects.toThrow(
+      'saas_billing_tariff_downgrade_blocked',
+    );
     expect(createIntent).not.toHaveBeenCalled();
   });
 });
@@ -232,8 +391,10 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
       }
     }
 
-    expect(offenders, `own-tariff payment reached the access ladder: ${offenders.join(', ')}`)
-      .toEqual([]);
+    expect(
+      offenders,
+      `own-tariff payment reached the access ladder: ${offenders.join(', ')}`,
+    ).toEqual([]);
   });
 
   it('creates a checkout for the clinic tariff', async () => {
@@ -266,6 +427,53 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
 
     expect(createIntent).toHaveBeenCalledTimes(1);
     expect(result.providerCheckoutUrl).toBe('https://billing.example.test/checkout-1');
+  });
+
+  it('carries global payee settings and the billing contact into a persisted YooKassa receipt', async () => {
+    const createIntent = vi.fn(async () => ({ providerIntentRef: 'provider-intent-1' }));
+    const attachSaasBillingInvoiceReceiptSnapshot = vi.fn(async ({ receipt }) => ({
+      ...invoice,
+      tariffSnapshot: { __bersoncare_fiscal_receipt: receipt },
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        createSaasBillingInvoice: async () => ({ invoice, created: true }),
+        getSaasBillingAccountBillingEmail: async () => 'payer@example.test',
+        attachSaasBillingInvoiceReceiptSnapshot,
+        attachSaasBillingInvoiceProviderIntent: async () => invoice,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'yookassa',
+          providers: [{ id: 'yookassa', label: 'YooKassa', enabled: true }],
+          payeeRequisites: { vatCode: '11', taxSystemCode: '2' },
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+    });
+
+    await service.createRenewalSaasBillingInvoice({
+      organizationId: 'org-1',
+      saasBillingSubscriptionId: 'subscription-1',
+      servicePeriodStartsAt: invoice.servicePeriodStartsAt,
+      servicePeriodEndsAt: invoice.servicePeriodEndsAt,
+      providerIdempotencyKey: invoice.providerIdempotencyKey,
+    });
+
+    expect(attachSaasBillingInvoiceReceiptSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({ customer: { email: 'payer@example.test' } }),
+      }),
+    );
+    expect(createIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: { email: 'payer@example.test' },
+          taxSystemCode: '2',
+          items: [expect.objectContaining({ amountMinor: invoice.amountMinor, vatCode: '11' })],
+        }),
+      }),
+    );
   });
 });
 
@@ -341,7 +549,10 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
         audit: { actorId: 'operator-1', reason: 'проверка' },
       });
 
-      expect(setManualSaasBillingSubscription, `billingPeriod=${billingPeriod}`).toHaveBeenCalledWith({
+      expect(
+        setManualSaasBillingSubscription,
+        `billingPeriod=${billingPeriod}`,
+      ).toHaveBeenCalledWith({
         organizationId: 'org-1',
         tariffId: 'tariff-1',
         period: { startsAt: '2026-07-31T09:00:00.000Z', endsAt },
@@ -421,18 +632,29 @@ describe('К5: повторный тик по тому же периоду не 
       const key = `${input.saasBillingSubscriptionId}:${input.servicePeriodStartsAt}:${input.servicePeriodEndsAt}`;
       if (raisedForPeriod.has(key)) {
         return {
-          invoice: { ...invoice, id: 'invoice-existing', providerIdempotencyKey: input.providerIdempotencyKey },
+          invoice: {
+            ...invoice,
+            id: 'invoice-existing',
+            providerIdempotencyKey: input.providerIdempotencyKey,
+          },
           created: false,
         };
       }
       raisedForPeriod.add(key);
       return {
-        invoice: { ...invoice, id: 'invoice-new', providerIdempotencyKey: input.providerIdempotencyKey },
+        invoice: {
+          ...invoice,
+          id: 'invoice-new',
+          providerIdempotencyKey: input.providerIdempotencyKey,
+        },
         created: true,
       };
     });
     const listSaasBillingSubscriptionsDueForRenewal = vi.fn(async () => [dueSubscription]);
-    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({ ...invoice, ...input }));
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({
+      ...invoice,
+      ...input,
+    }));
     const createIntent = vi.fn(async () => ({
       providerIntentRef: 'provider-intent-renewal-1',
       checkoutUrl: null,
@@ -477,7 +699,8 @@ describe('К0: early renewal does not cut the paid period short', () => {
         attachSaasBillingInvoiceProviderIntent,
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
-      resolvePaymentProvider: () => ({ createIntent: async () => ({ providerIntentRef: 'intent' }) }) as never,
+      resolvePaymentProvider: () =>
+        ({ createIntent: async () => ({ providerIntentRef: 'intent' }) }) as never,
       now: () => new Date('2026-08-02T00:00:00.000Z'),
     });
 
@@ -610,7 +833,10 @@ describe('Р-10/Р-14: future paid invoice waits for the paid boundary', () => {
     await seedCurrentPaidPeriod(service);
     setNow('2026-07-15T00:00:00.000Z');
     const futureInvoice = await service.createOwnTariffRenewalInvoice('org-paid-period');
-    await capturePaidInvoice(service, { invoiceId: futureInvoice.id, eventId: 'event-future-paid' });
+    await capturePaidInvoice(service, {
+      invoiceId: futureInvoice.id,
+      eventId: 'event-future-paid',
+    });
     setNow('2026-08-01T00:00:00.000Z');
 
     await service.runDueSaasBillingRenewals();
@@ -685,11 +911,13 @@ describe('§5.1 paid additional-seat state machine', () => {
 
     expect(result).toMatchObject({ outcome: 'checkout', invoice: { id: 'seat-draft' } });
     expect(createIntent).toHaveBeenCalledOnce();
-    expect(createIntent).toHaveBeenCalledWith(expect.objectContaining({
-      idempotencyKey: 'saas_seat_overage:org-1:stable-key',
-      purpose: 'saas_billing_seat_overage',
-      returnUrl: expect.stringContaining('/app/settings?tab=team&seatPayment=seat-draft'),
-    }));
+    expect(createIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: 'saas_seat_overage:org-1:stable-key',
+        purpose: 'saas_billing_seat_overage',
+        returnUrl: expect.stringContaining('/app/settings?tab=team&seatPayment=seat-draft'),
+      }),
+    );
   });
 
   it('adds allowance once while preserving tariff state, even under a different-event replay', async () => {
@@ -697,12 +925,13 @@ describe('§5.1 paid additional-seat state machine', () => {
     const service = createSaasBillingService({
       repository,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
-      resolvePaymentProvider: () => ({
-        createIntent: async () => ({
-          providerIntentRef: 'provider-seat',
-          checkoutUrl: 'https://pay.example/seat',
-        }),
-      }) as never,
+      resolvePaymentProvider: () =>
+        ({
+          createIntent: async () => ({
+            providerIntentRef: 'provider-seat',
+            checkoutUrl: 'https://pay.example/seat',
+          }),
+        }) as never,
       now: () => new Date('2026-08-02T00:00:00.000Z'),
     });
     await service.assignManualTariff({
@@ -761,13 +990,15 @@ describe('§5.1 paid additional-seat state machine', () => {
       resolvePaymentProvider,
     });
 
-    await expect(service.refundSaasBillingInvoice({
-      saasBillingInvoiceId: 'seat-invoice',
-      amountMinor: 1,
-      requestKey: 'refund-key',
-      actorId: 'admin',
-      reason: 'partial',
-    })).resolves.toEqual({ outcome: 'seat_overage_partial_refund_forbidden' });
+    await expect(
+      service.refundSaasBillingInvoice({
+        saasBillingInvoiceId: 'seat-invoice',
+        amountMinor: 1,
+        requestKey: 'refund-key',
+        actorId: 'admin',
+        reason: 'partial',
+      }),
+    ).resolves.toEqual({ outcome: 'seat_overage_partial_refund_forbidden' });
     expect(resolvePaymentProvider).not.toHaveBeenCalled();
   });
 });
@@ -926,9 +1157,13 @@ describe('webhook replay completes one durable paid-period action', () => {
       });
     const service = createSaasBillingService({
       repository: {
-        captureSaasBillingPaymentSucceeded: async (input: { savedPaymentMethodId: string | null }) => {
+        captureSaasBillingPaymentSucceeded: async (input: {
+          savedPaymentMethodId: string | null;
+        }) => {
           eventRecorded = true;
-          await saveSaasBillingSubscriptionPaymentMethod({ savedPaymentMethodId: input.savedPaymentMethodId });
+          await saveSaasBillingSubscriptionPaymentMethod({
+            savedPaymentMethodId: input.savedPaymentMethodId,
+          });
           return { captured: true, duplicate: false };
         },
       } as unknown as SaasBillingRepositoryPort,
@@ -985,7 +1220,14 @@ describe('К4 round 2: повторное «Выставить счёт» не �
         getSaasBillingPaymentProviderValue: async () => ({
           defaultProviderId: 'mock',
           providers: [
-            { id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' },
+            {
+              id: 'mock',
+              label: 'Mock',
+              enabled: true,
+              webhookSecret: 'unused',
+              shopId: 's',
+              apiKey: 'k',
+            },
           ],
         }),
       },
@@ -1050,10 +1292,17 @@ describe('К6: без действующего согласия списание
       autopayRevokedAt: '2026-07-15T00:00:00.000Z',
     };
     const createSaasBillingRenewalInvoiceIfAbsent = vi.fn(async (input) => ({
-      invoice: { ...invoice, id: 'invoice-new', providerIdempotencyKey: input.providerIdempotencyKey },
+      invoice: {
+        ...invoice,
+        id: 'invoice-new',
+        providerIdempotencyKey: input.providerIdempotencyKey,
+      },
       created: true,
     }));
-    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({ ...invoice, ...input }));
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({
+      ...invoice,
+      ...input,
+    }));
     const createIntent = vi.fn(async (_input: { paymentMethodId?: string }) => ({
       providerIntentRef: 'provider-intent-1',
       checkoutUrl: 'https://yookassa.example.test/checkout-1',
@@ -1105,17 +1354,28 @@ describe('К6: повторный тик с активным автосписа�
       const key = `${input.saasBillingSubscriptionId}:${input.servicePeriodStartsAt}:${input.servicePeriodEndsAt}`;
       if (raisedForPeriod.has(key)) {
         return {
-          invoice: { ...invoice, id: 'invoice-existing', providerIdempotencyKey: input.providerIdempotencyKey },
+          invoice: {
+            ...invoice,
+            id: 'invoice-existing',
+            providerIdempotencyKey: input.providerIdempotencyKey,
+          },
           created: false,
         };
       }
       raisedForPeriod.add(key);
       return {
-        invoice: { ...invoice, id: 'invoice-new', providerIdempotencyKey: input.providerIdempotencyKey },
+        invoice: {
+          ...invoice,
+          id: 'invoice-new',
+          providerIdempotencyKey: input.providerIdempotencyKey,
+        },
         created: true,
       };
     });
-    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({ ...invoice, ...input }));
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => ({
+      ...invoice,
+      ...input,
+    }));
     const createIntent = vi.fn(async (_input: { paymentMethodId?: string }) => ({
       providerIntentRef: 'provider-intent-autopay-1',
       checkoutUrl: undefined,

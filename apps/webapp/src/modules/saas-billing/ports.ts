@@ -1,4 +1,5 @@
 import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import type { PaymentReceipt } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import type { OrgCommercialLifecycleState } from '@/modules/org-entitlements/types';
 import type { SaasBillingPeriod } from './paidPeriod';
@@ -307,6 +308,8 @@ export type SaasBillingManualAssignmentTransactionPort = {
 };
 
 export type SaasBillingRepositoryPort = {
+  /** Billing-account contact is the payer email sent to the fiscal receipt. */
+  getSaasBillingAccountBillingEmail(organizationId: string): Promise<string | null>;
   getOrganizationBillingOverview(organizationId: string): Promise<SaasBillingOverview>;
   /** Active public tariff names available to the caller's own clinic billing screen. */
   listActiveTariffChoices(): Promise<Array<{ id: string; name: string }>>;
@@ -343,6 +346,11 @@ export type SaasBillingRepositoryPort = {
     saasBillingInvoiceId: string;
     providerInvoiceRef: string;
     providerCheckoutUrl: string | null;
+  }): Promise<SaasBillingInvoice>;
+  /** Existing invoice JSON snapshot keeps fiscal refund data without a second settings entity. */
+  attachSaasBillingInvoiceReceiptSnapshot(input: {
+    saasBillingInvoiceId: string;
+    receipt: PaymentReceipt;
   }): Promise<SaasBillingInvoice>;
   recordSaasBillingProviderEvent(input: {
     organizationId: string;
@@ -558,4 +566,5 @@ export type ResolvedSaasBillingPaymentProvider = {
   providerId: string;
   providerConfig: PaymentProviderConfig;
   adapter: PaymentProviderPort;
+  payeeRequisites: import('./settings').SaasBillingPayeeRequisites;
 };

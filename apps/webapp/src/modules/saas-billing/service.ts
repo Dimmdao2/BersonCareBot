@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
-import type { PaymentProviderPort, PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
+import type {
+  PaymentProviderPort,
+  PaymentProviderVerifyResult,
+} from '@/modules/payments/providerPort';
 import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingInvoiceStatus,
@@ -15,6 +18,7 @@ import type {
 import { paidPeriodEndsAt } from './paidPeriod';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
+import { buildPartialRefundReceipt, buildSaasBillingReceipt } from './fiscalReceipt';
 import { env } from '@/config/env';
 import { routePaths } from '@/app-layer/routes/paths';
 
@@ -107,6 +111,28 @@ export function createSaasBillingService(dependencies: {
       providerId: providerConfig.id,
       providerConfig,
       adapter,
+      payeeRequisites: settings.payeeRequisites,
+    };
+  }
+
+  /** A configured VAT code is the explicit signal that this merchant must send fiscal receipts. */
+  async function attachFiscalReceiptIfConfigured(
+    invoice: Awaited<
+      ReturnType<typeof dependencies.repository.createSaasBillingInvoice>
+    >['invoice'],
+    payeeRequisites: ResolvedSaasBillingPaymentProvider['payeeRequisites'],
+  ) {
+    if (!payeeRequisites.vatCode) return { invoice, receipt: undefined };
+    const billingEmail = await dependencies.repository.getSaasBillingAccountBillingEmail(
+      invoice.organizationId,
+    );
+    const receipt = buildSaasBillingReceipt(invoice, billingEmail, payeeRequisites);
+    return {
+      invoice: await dependencies.repository.attachSaasBillingInvoiceReceiptSnapshot({
+        saasBillingInvoiceId: invoice.id,
+        receipt,
+      }),
+      receipt,
     };
   }
 
@@ -132,10 +158,11 @@ export function createSaasBillingService(dependencies: {
     // provider intent and attached its checkout link below — return that invoice as-is rather than
     // charging the provider a second time for the same click.
     if (!created) return invoice;
+    const fiscalized = await attachFiscalReceiptIfConfigured(invoice, provider.payeeRequisites);
     const intent = await provider.adapter.createIntent({
-      amountMinor: invoice.amountMinor,
-      currency: invoice.currency,
-      idempotencyKey: invoice.providerIdempotencyKey,
+      amountMinor: fiscalized.invoice.amountMinor,
+      currency: fiscalized.invoice.currency,
+      idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
       payerRef: `organization:${invoice.organizationId}`,
       purpose: 'saas_billing_tariff_renewal',
       subjectRef: invoice.id,
@@ -147,6 +174,7 @@ export function createSaasBillingService(dependencies: {
       },
       providerConfig: provider.providerConfig,
       savePaymentMethod: input.savePaymentMethod,
+      receipt: fiscalized.receipt,
     });
     return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
       saasBillingInvoiceId: invoice.id,
@@ -221,10 +249,11 @@ export function createSaasBillingService(dependencies: {
     // attached its checkout link below — hand back that SAME invoice/link, not a second one.
     if (!wasCreated) return invoice;
 
+    const fiscalized = await attachFiscalReceiptIfConfigured(invoice, provider.payeeRequisites);
     const intent = await provider.adapter.createIntent({
-      amountMinor: invoice.amountMinor,
-      currency: invoice.currency,
-      idempotencyKey: invoice.providerIdempotencyKey,
+      amountMinor: fiscalized.invoice.amountMinor,
+      currency: fiscalized.invoice.currency,
+      idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
       payerRef: `organization:${invoice.organizationId}`,
       purpose: 'saas_billing_tariff_renewal',
       subjectRef: invoice.id,
@@ -236,6 +265,7 @@ export function createSaasBillingService(dependencies: {
         saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
       },
       providerConfig: provider.providerConfig,
+      receipt: fiscalized.receipt,
     });
 
     return dependencies.repository.attachSaasBillingInvoiceProviderIntent({
@@ -273,10 +303,14 @@ export function createSaasBillingService(dependencies: {
 
     const returnUrl = new URL(SAAS_SEAT_BILLING_RETURN_URL);
     returnUrl.searchParams.set('seatPayment', result.invoice.id);
+    const fiscalized = await attachFiscalReceiptIfConfigured(
+      result.invoice,
+      provider.payeeRequisites,
+    );
     const intent = await provider.adapter.createIntent({
-      amountMinor: result.invoice.amountMinor,
-      currency: result.invoice.currency,
-      idempotencyKey: result.invoice.providerIdempotencyKey,
+      amountMinor: fiscalized.invoice.amountMinor,
+      currency: fiscalized.invoice.currency,
+      idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
       payerRef: `organization:${input.organizationId}`,
       purpose: 'saas_billing_seat_overage',
       subjectRef: result.invoice.id,
@@ -287,6 +321,7 @@ export function createSaasBillingService(dependencies: {
         saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
       },
       providerConfig: provider.providerConfig,
+      receipt: fiscalized.receipt,
     });
     const invoice = await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
       saasBillingInvoiceId: result.invoice.id,
@@ -434,7 +469,8 @@ export function createSaasBillingService(dependencies: {
         const activePaidPeriod =
           state.manualSaasBillingSubscription?.status === 'active' &&
           state.manualSaasBillingSubscription.currentPeriodEndsAt !== null &&
-          new Date(state.manualSaasBillingSubscription.currentPeriodEndsAt).getTime() > now().getTime();
+          new Date(state.manualSaasBillingSubscription.currentPeriodEndsAt).getTime() >
+            now().getTime();
         if (input.tariffId === currentManualTariffId && !state.activeTrial) {
           if (state.manualSaasBillingSubscription?.pendingTariffId) {
             await transaction.setManualSaasBillingSubscription({
@@ -453,7 +489,12 @@ export function createSaasBillingService(dependencies: {
           return;
         }
 
-        if (input.tariffId && input.applyAtNextPeriod && activePaidPeriod && currentManualTariffId) {
+        if (
+          input.tariffId &&
+          input.applyAtNextPeriod &&
+          activePaidPeriod &&
+          currentManualTariffId
+        ) {
           const currentSubscription = state.manualSaasBillingSubscription;
           if (!currentSubscription) throw new Error('saas_billing_subscription_not_found');
           await transaction.setManualSaasBillingSubscription({
@@ -471,7 +512,10 @@ export function createSaasBillingService(dependencies: {
             action: 'saas_tariff_downgrade_scheduled',
             targetId: input.organizationId,
             organizationId: input.organizationId,
-            before: { organization: state.organization, saasBillingSubscription: state.manualSaasBillingSubscription },
+            before: {
+              organization: state.organization,
+              saasBillingSubscription: state.manualSaasBillingSubscription,
+            },
             after: { pendingTariffId: input.tariffId },
           });
           return;
@@ -559,9 +603,7 @@ export function createSaasBillingService(dependencies: {
      * (`saas_billing_invoices_period_uidx`) instead of raising a second invoice or charging the
      * provider twice.
      */
-    async runDueSaasBillingRenewals(
-      input: { limit?: number } = {},
-    ): Promise<{
+    async runDueSaasBillingRenewals(input: { limit?: number } = {}): Promise<{
       dueCount: number;
       created: number;
       alreadyInvoiced: number;
@@ -626,10 +668,14 @@ export function createSaasBillingService(dependencies: {
             continue;
           }
           invoiceIdForFailureReport = invoice.id;
+          const fiscalized = await attachFiscalReceiptIfConfigured(
+            invoice,
+            provider.payeeRequisites,
+          );
           const intent = await provider.adapter.createIntent({
-            amountMinor: invoice.amountMinor,
-            currency: invoice.currency,
-            idempotencyKey: invoice.providerIdempotencyKey,
+            amountMinor: fiscalized.invoice.amountMinor,
+            currency: fiscalized.invoice.currency,
+            idempotencyKey: fiscalized.invoice.providerIdempotencyKey,
             payerRef: `organization:${invoice.organizationId}`,
             purpose: 'saas_billing_tariff_renewal',
             subjectRef: invoice.id,
@@ -640,7 +686,10 @@ export function createSaasBillingService(dependencies: {
               saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
             },
             providerConfig: provider.providerConfig,
-            paymentMethodId: autopayActive ? (subscription.savedPaymentMethodId ?? undefined) : undefined,
+            paymentMethodId: autopayActive
+              ? (subscription.savedPaymentMethodId ?? undefined)
+              : undefined,
+            receipt: fiscalized.receipt,
           });
           await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
             saasBillingInvoiceId: invoice.id,
@@ -726,7 +775,8 @@ export function createSaasBillingService(dependencies: {
 
     async getOwnTariffChangeState(organizationId: string) {
       const overview = await dependencies.repository.getOrganizationBillingOverview(organizationId);
-      const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
+      const subscription =
+        overview.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
       return {
         choices: await dependencies.repository.listActiveTariffChoices(),
         currentTariffId: subscription?.tariffId ?? null,
@@ -740,8 +790,12 @@ export function createSaasBillingService(dependencies: {
       tariffId: string;
       actorId: string | null;
     }) {
-      if (!dependencies.getTariffTransition) throw new Error('saas_billing_tariff_change_unavailable');
-      const transition = await dependencies.getTariffTransition(input.organizationId, input.tariffId);
+      if (!dependencies.getTariffTransition)
+        throw new Error('saas_billing_tariff_change_unavailable');
+      const transition = await dependencies.getTariffTransition(
+        input.organizationId,
+        input.tariffId,
+      );
       if (transition.currentTariffId === input.tariffId) {
         await this.assignManualTariff({
           organizationId: input.organizationId,
@@ -766,7 +820,9 @@ export function createSaasBillingService(dependencies: {
     },
 
     async cancelOwnTariffChange(input: { organizationId: string; actorId: string | null }) {
-      const overview = await dependencies.repository.getOrganizationBillingOverview(input.organizationId);
+      const overview = await dependencies.repository.getOrganizationBillingOverview(
+        input.organizationId,
+      );
       const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription');
       if (!subscription) throw new Error('saas_billing_no_active_paid_subscription');
       await this.assignManualTariff({
@@ -951,12 +1007,17 @@ export function createSaasBillingService(dependencies: {
       }
       try {
         const provider = await resolvePaymentProvider(invoice.providerId);
+        const receipt =
+          input.amountMinor < invoice.amountMinor
+            ? buildPartialRefundReceipt(invoice, input.amountMinor)
+            : undefined;
         const result = await provider.adapter.refund({
           providerIntentRef: invoice.providerInvoiceRef,
           amountMinor: input.amountMinor,
           currency: invoice.currency,
           idempotencyKey: providerIdempotencyKey,
           providerConfig: provider.providerConfig,
+          receipt,
         });
         const attached = await dependencies.repository.attachSaasBillingRefundProviderRef({
           saasBillingRefundId: refund.id,

@@ -12,7 +12,7 @@
  * Auth: Basic (TerminalKey:SecretKey) via ShopId/ApiKey convention.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
-import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import { assertReceiptSupported, type PaymentProviderPort } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import { fetchWithTimeout, PAYMENT_PROVIDER_FETCH_TIMEOUT_MS } from '@/shared/lib/externalFetch';
 
@@ -81,8 +81,10 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       metadata,
       returnUrl,
       invoice,
+      receipt,
       providerConfig,
     }) {
+      assertReceiptSupported(receipt, 'tinkoff');
       if (invoice) throw new Error('payment_provider_invoices_unsupported:tinkoff');
       if (currency !== 'RUB') throw new Error('tinkoff_currency_unsupported');
       const { terminalKey, password } = requireTinkoffCredentials(providerConfig);
@@ -132,7 +134,8 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       };
     },
 
-    async refund({ providerIntentRef, amountMinor, idempotencyKey, providerConfig }) {
+    async refund({ providerIntentRef, amountMinor, idempotencyKey, receipt, providerConfig }) {
+      assertReceiptSupported(receipt, 'tinkoff');
       const { terminalKey, password } = requireTinkoffCredentials(providerConfig);
 
       const params: Record<string, unknown> = {
