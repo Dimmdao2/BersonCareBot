@@ -140,21 +140,6 @@ function parseSlotsV1Data(raw: unknown): SlotsV1Data | null {
   return raw as SlotsV1Data;
 }
 
-function isMinuteOfDayInQuietHours(
-  minuteOfDay: number,
-  quietStart: number | null | undefined,
-  quietEnd: number | null | undefined,
-): boolean {
-  if (quietStart == null || quietEnd == null) return false;
-  const s = quietStart;
-  const e = quietEnd;
-  if (s === e) return false;
-  if (s < e) {
-    return minuteOfDay >= s && minuteOfDay < e;
-  }
-  return minuteOfDay >= s || minuteOfDay < e;
-}
-
 function parseHhMmToMinuteOfDay(s: string): number | null {
   const t = s.trim();
   const m = /^(\d{1,2}):(\d{2})$/.exec(t);
@@ -212,11 +197,6 @@ function planSlotsV1DueOccurrences(
   for (const tl of data.timesLocal) {
     const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === 'string' ? tl : '');
     if (minuteOfDay === null) continue;
-    if (
-      isMinuteOfDayInQuietHours(minuteOfDay, rule.quietHoursStartMinute, rule.quietHoursEndMinute)
-    ) {
-      continue;
-    }
     const slotUtc = zonedLocalDateTimeToUtc({
       year: zonedNow.year,
       month: zonedNow.month,
@@ -253,9 +233,6 @@ export function planDueReminderOccurrences(
     minute <= rule.windowEndMinute;
     minute += Math.max(1, rule.intervalMinutes)
   ) {
-    if (isMinuteOfDayInQuietHours(minute, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) {
-      continue;
-    }
     const slotUtc = zonedLocalDateTimeToUtc({
       year: zonedNow.year,
       month: zonedNow.month,

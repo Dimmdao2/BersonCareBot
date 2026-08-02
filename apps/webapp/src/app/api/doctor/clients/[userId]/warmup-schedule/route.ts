@@ -138,8 +138,6 @@ export async function PATCH(req: Request, context: { params: Promise<{ userId: s
         windowEndMinute: warmupRule.windowEndMinute,
         daysMask: warmupRule.daysMask,
         scheduleData,
-        quietHoursStartMinute: warmupRule.quietHoursStartMinute,
-        quietHoursEndMinute: warmupRule.quietHoursEndMinute,
       },
     }),
   );

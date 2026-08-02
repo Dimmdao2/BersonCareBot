@@ -17,7 +17,6 @@ import {
   SLOTS_V1_DB_PLACEHOLDER,
   normalizeSlotsV1ScheduleData,
 } from './scheduleSlots';
-import { validateQuietHoursPair } from './quietHours';
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
@@ -60,7 +59,7 @@ export type UpdateRuleData = Partial<ReminderUpdateSchedule> & {
   enabled?: boolean;
   customTitle?: string | null;
   customText?: string | null;
-  /** Full schedule + quiet replacement (preferred). */
+  /** Full schedule replacement (preferred). */
   schedule?: {
     scheduleType: 'interval_window' | 'slots_v1';
     intervalMinutes: number;
@@ -68,8 +67,6 @@ export type UpdateRuleData = Partial<ReminderUpdateSchedule> & {
     windowEndMinute: number;
     daysMask: string;
     scheduleData?: SlotsV1ScheduleData | null;
-    quietHoursStartMinute?: number | null;
-    quietHoursEndMinute?: number | null;
   };
 };
 
@@ -212,12 +209,6 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
 
       if (data.schedule) {
         scheduleChanged = true;
-        const qErr = validateQuietHoursPair(
-          data.schedule.quietHoursStartMinute,
-          data.schedule.quietHoursEndMinute,
-        );
-        if (qErr) return { ok: false, error: qErr };
-
         if (data.schedule.scheduleType === 'slots_v1') {
           const raw = data.schedule.scheduleData;
           if (!raw) return { ok: false, error: 'validation_error: scheduleData' };
@@ -230,8 +221,8 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
             windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
             daysMask: data.schedule.daysMask,
             scheduleData: norm.data as unknown as Record<string, unknown>,
-            quietHoursStartMinute: data.schedule.quietHoursStartMinute ?? null,
-            quietHoursEndMinute: data.schedule.quietHoursEndMinute ?? null,
+            quietHoursStartMinute: null,
+            quietHoursEndMinute: null,
           });
         } else {
           const sched: ReminderUpdateSchedule = {
@@ -249,8 +240,8 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
             windowEndMinute: sched.windowEndMinute,
             daysMask: sched.daysMask,
             scheduleData: null,
-            quietHoursStartMinute: data.schedule.quietHoursStartMinute ?? null,
-            quietHoursEndMinute: data.schedule.quietHoursEndMinute ?? null,
+            quietHoursStartMinute: null,
+            quietHoursEndMinute: null,
           });
         }
       } else if (hasPartialScheduleChange) {
@@ -318,17 +309,12 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         enabled?: boolean;
         scheduleType?: 'interval_window' | 'slots_v1';
         scheduleData?: SlotsV1ScheduleData | null;
-        quietHoursStartMinute?: number | null;
-        quietHoursEndMinute?: number | null;
       },
     ): Promise<ServiceResult<ReminderRule>> {
       const err = validateLinkedFields(params.linkedObjectType, params.linkedObjectId, null, null);
       if (err) return { ok: false, error: err };
 
       const scheduleType = params.scheduleType ?? 'interval_window';
-      const qErr = validateQuietHoursPair(params.quietHoursStartMinute, params.quietHoursEndMinute);
-      if (qErr) return { ok: false, error: qErr };
-
       const integratorUserId = await port.resolveIntegratorUserId(platformUserId);
       const hasWebPush = await hasNotificationChannel(platformUserId);
       // Allow creation if has bot linking OR has web push subscription
@@ -366,8 +352,8 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           scheduleType: 'slots_v1',
           scheduleData: norm.data,
           reminderIntent,
-          quietHoursStartMinute: params.quietHoursStartMinute ?? null,
-          quietHoursEndMinute: params.quietHoursEndMinute ?? null,
+          quietHoursStartMinute: null,
+          quietHoursEndMinute: null,
         });
         const syncOk = await tryNotifyIntegrator(rule);
         return {
@@ -392,8 +378,8 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         scheduleType: 'interval_window',
         scheduleData: null,
         reminderIntent,
-        quietHoursStartMinute: params.quietHoursStartMinute ?? null,
-        quietHoursEndMinute: params.quietHoursEndMinute ?? null,
+        quietHoursStartMinute: null,
+        quietHoursEndMinute: null,
       });
       const syncOk = await tryNotifyIntegrator(rule);
       return {

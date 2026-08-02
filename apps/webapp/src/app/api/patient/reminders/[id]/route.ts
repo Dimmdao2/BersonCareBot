@@ -10,29 +10,6 @@ import { reminderRuleToPatientJson } from '../reminderPatientJson';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
 
-function parseQuietFromSchedule(
-  schedule: Record<string, unknown>,
-):
-  | { ok: true; quietHoursStartMinute?: number | null; quietHoursEndMinute?: number | null }
-  | { ok: false } {
-  const hasS = Object.prototype.hasOwnProperty.call(schedule, 'quietHoursStartMinute');
-  const hasE = Object.prototype.hasOwnProperty.call(schedule, 'quietHoursEndMinute');
-  if (!hasS && !hasE) return { ok: true };
-  const qs = schedule.quietHoursStartMinute;
-  const qe = schedule.quietHoursEndMinute;
-  if (qs === null && qe === null)
-    return { ok: true, quietHoursStartMinute: null, quietHoursEndMinute: null };
-  if (
-    typeof qs === 'number' &&
-    Number.isInteger(qs) &&
-    typeof qe === 'number' &&
-    Number.isInteger(qe)
-  ) {
-    return { ok: true, quietHoursStartMinute: qs, quietHoursEndMinute: qe };
-  }
-  return { ok: false };
-}
-
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientReminders });
   if (!gate.ok) return gate.response;
@@ -65,10 +42,6 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
       if (typeof daysMask !== 'string' || !/^[01]{7}$/.test(daysMask)) {
         return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
       }
-      const quietParsed = parseQuietFromSchedule(s);
-      if (!quietParsed.ok) {
-        return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
-      }
       if (s.scheduleType === 'slots_v1') {
         const sd = s.scheduleData;
         if (sd != null && typeof sd !== 'object') {
@@ -81,8 +54,6 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
           windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
           daysMask,
           scheduleData: sd === undefined || sd === null ? undefined : (sd as SlotsV1ScheduleData),
-          quietHoursStartMinute: quietParsed.quietHoursStartMinute ?? null,
-          quietHoursEndMinute: quietParsed.quietHoursEndMinute ?? null,
         };
       } else {
         const intervalMinutes = s.intervalMinutes;
@@ -101,8 +72,6 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
           windowStartMinute,
           windowEndMinute,
           daysMask,
-          quietHoursStartMinute: quietParsed.quietHoursStartMinute ?? null,
-          quietHoursEndMinute: quietParsed.quietHoursEndMinute ?? null,
         };
       }
     } else {

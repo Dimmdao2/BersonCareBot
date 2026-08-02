@@ -52,10 +52,6 @@ export type ReminderScheduleFormProps = {
   setSlotTimeRows: Dispatch<SetStateAction<string[]>>;
   slotsDayFilter: ReminderDayFilter;
   setSlotsDayFilter: (f: ReminderDayFilter) => void;
-  quietStart: string;
-  setQuietStart: (s: string) => void;
-  quietEnd: string;
-  setQuietEnd: (s: string) => void;
   previewBadgeLabel: string;
   previewText: string;
   error: string | null;
@@ -82,10 +78,6 @@ export function ReminderScheduleForm({
   setSlotTimeRows,
   slotsDayFilter,
   setSlotsDayFilter,
-  quietStart: _quietStart,
-  setQuietStart: _setQuietStart,
-  quietEnd: _quietEnd,
-  setQuietEnd: _setQuietEnd,
   previewBadgeLabel,
   previewText,
   error,
@@ -94,7 +86,6 @@ export function ReminderScheduleForm({
 }: ReminderScheduleFormProps) {
   const fi: ReminderScheduleFieldInvalid = {
     daysMask: fieldInvalid?.daysMask ?? false,
-    quietHours: fieldInvalid?.quietHours ?? false,
     intervalWindow: fieldInvalid?.intervalWindow ?? false,
     slotTimes: fieldInvalid?.slotTimes ?? false,
   };

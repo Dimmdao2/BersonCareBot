@@ -24,29 +24,6 @@ const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
   'treatment_program_item',
 ]);
 
-function parseQuietFromSchedule(
-  schedule: Record<string, unknown>,
-):
-  | { ok: true; quietHoursStartMinute?: number | null; quietHoursEndMinute?: number | null }
-  | { ok: false } {
-  const hasS = Object.prototype.hasOwnProperty.call(schedule, 'quietHoursStartMinute');
-  const hasE = Object.prototype.hasOwnProperty.call(schedule, 'quietHoursEndMinute');
-  if (!hasS && !hasE) return { ok: true };
-  const qs = schedule.quietHoursStartMinute;
-  const qe = schedule.quietHoursEndMinute;
-  if (qs === null && qe === null)
-    return { ok: true, quietHoursStartMinute: null, quietHoursEndMinute: null };
-  if (
-    typeof qs === 'number' &&
-    Number.isInteger(qs) &&
-    typeof qe === 'number' &&
-    Number.isInteger(qe)
-  ) {
-    return { ok: true, quietHoursStartMinute: qs, quietHoursEndMinute: qe };
-  }
-  return { ok: false };
-}
-
 export async function POST(req: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientReminders });
   if (!gate.ok) return gate.response;
@@ -81,11 +58,6 @@ export async function POST(req: Request) {
 
   const daysMask = schedule.daysMask;
   if (typeof daysMask !== 'string' || !/^[01]{7}$/.test(daysMask)) {
-    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
-  }
-
-  const quietParsed = parseQuietFromSchedule(schedule);
-  if (!quietParsed.ok) {
     return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
@@ -196,8 +168,6 @@ export async function POST(req: Request) {
     enabled,
     scheduleType,
     scheduleData: scheduleType === 'slots_v1' ? scheduleData : null,
-    quietHoursStartMinute: quietParsed.quietHoursStartMinute ?? null,
-    quietHoursEndMinute: quietParsed.quietHoursEndMinute ?? null,
   });
   if (!res.ok) {
     const status = res.error === 'not_found' ? 404 : 400;

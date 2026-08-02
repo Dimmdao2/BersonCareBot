@@ -89,7 +89,25 @@ WHERE legacy.status IN ('planned', 'queued')
   AND legacy.planned_at >= statement_timestamp() - interval '3 minutes'
   AND rule.platform_user_id = legacy.platform_user_id
   AND rule.organization_id = legacy.organization_id
-ON CONFLICT DO NOTHING;
+ON CONFLICT (occurrence_key) DO UPDATE
+SET rule_id = EXCLUDED.rule_id,
+    planned_at = EXCLUDED.planned_at,
+    status = EXCLUDED.status,
+    queued_at = NULL,
+    sent_at = EXCLUDED.sent_at,
+    failed_at = EXCLUDED.failed_at,
+    delivery_channel = NULL,
+    delivery_job_id = NULL,
+    error_code = EXCLUDED.error_code,
+    organization_id = EXCLUDED.organization_id,
+    platform_user_id = EXCLUDED.platform_user_id,
+    delivery_generation = CASE
+      WHEN user_reminder_occurrences.status IN ('planned', 'queued')
+        AND user_reminder_occurrences.planned_at = EXCLUDED.planned_at
+      THEN user_reminder_occurrences.delivery_generation
+      ELSE user_reminder_occurrences.delivery_generation + 1
+    END,
+    updated_at = EXCLUDED.updated_at;
 
 DO $d21_pending_webpush_parity$
 DECLARE
@@ -115,8 +133,11 @@ BEGIN
     AND legacy.planned_at >= statement_timestamp() - interval '3 minutes'
     AND rule.platform_user_id = legacy.platform_user_id
     AND rule.organization_id = legacy.organization_id
+    AND occurrence.rule_id = legacy.integrator_rule_id
+    AND occurrence.organization_id = legacy.organization_id
     AND occurrence.platform_user_id = legacy.platform_user_id
-    AND occurrence.delivery_generation = 0;
+    AND occurrence.status = legacy.status
+    AND occurrence.planned_at = legacy.planned_at;
 
   IF legacy_pending <> unified_pending THEN
     RAISE EXCEPTION
@@ -134,6 +155,14 @@ COMMENT ON COLUMN integrator.user_reminder_occurrences.delivery_generation IS
 
 ALTER TABLE public.reminder_occurrence_history
   ADD COLUMN IF NOT EXISTS platform_user_id uuid;
+
+DO $d21_reminder_history_owner_grants$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner') THEN
+    GRANT INSERT ON TABLE public.reminder_occurrence_history TO app_owner;
+  END IF;
+END
+$d21_reminder_history_owner_grants$;
 
 UPDATE public.reminder_occurrence_history AS history
 SET platform_user_id = rule.platform_user_id
@@ -384,11 +413,11 @@ BEGIN
   WHERE operational.id = p_integrator_occurrence_id
   ON CONFLICT (integrator_occurrence_id) DO NOTHING;
 
-  UPDATE public.reminder_occurrence_history
-  SET skipped_at = COALESCE(skipped_at, statement_timestamp()), skip_reason = NULL
-  WHERE integrator_occurrence_id = p_integrator_occurrence_id
-    AND platform_user_id = v_platform_user_id
-  RETURNING public.reminder_occurrence_history.skipped_at INTO skipped_at;
+  UPDATE public.reminder_occurrence_history AS history
+  SET skipped_at = COALESCE(history.skipped_at, statement_timestamp()), skip_reason = NULL
+  WHERE history.integrator_occurrence_id = p_integrator_occurrence_id
+    AND history.platform_user_id = v_platform_user_id
+  RETURNING history.skipped_at INTO skipped_at;
   IF skipped_at IS NULL THEN RETURN; END IF;
 
   INSERT INTO public.reminder_journal
