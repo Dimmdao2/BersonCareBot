@@ -4,6 +4,7 @@ import type { MechanicAccessResolution } from '../org-entitlements/types';
 import type { OrgBrandRevision, OrgBrandingPort } from './ports';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
+const secondOrganizationId = '55555555-5555-4555-8555-555555555555';
 const actorPlatformUserId = '22222222-2222-4222-8222-222222222222';
 const logoMediaId = '33333333-3333-4333-8333-333333333333';
 
@@ -43,6 +44,31 @@ function brandingPort(): OrgBrandingPort {
 }
 
 describe('organization branding entitlement ladder', () => {
+  it('keeps an active clinic able to save and publish its own brand revision', async () => {
+    const port = brandingPort();
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+    const ctx = {
+      organizationId,
+      actorPlatformUserId,
+      hasOrganizationManagementCapability: true as const,
+    };
+
+    await expect(
+      service.saveDraft(ctx, { displayName: 'Новый бренд', logoMediaId: null }),
+    ).resolves.toEqual({ ok: true, draft: published });
+    await expect(service.publishDraft(ctx)).resolves.toEqual({ ok: true, published });
+    expect(port.saveDraft).toHaveBeenCalledWith({
+      organizationId,
+      actorPlatformUserId,
+      displayName: 'Новый бренд',
+      logoMediaId: null,
+    });
+    expect(port.publishDraft).toHaveBeenCalledWith({ organizationId, actorPlatformUserId });
+  });
+
   it('returns platform presentation to a patient/public consumer while disabled, then restores the retained brand after re-enable', async () => {
     let currentAccess = access('disabled');
     const service = createOrgBrandingService({
@@ -103,5 +129,39 @@ describe('organization branding entitlement ladder', () => {
       service.saveDraft(ctx, { displayName: 'Новый бренд', logoMediaId: null }),
     ).resolves.toEqual({ ok: false, code: 'commercial_read_only' });
     expect(port.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('resolves each organization from its own trusted identifier without substituting another clinic brand', async () => {
+    const secondPublished: OrgBrandRevision = {
+      ...published,
+      id: '66666666-6666-4666-8666-666666666666',
+      organizationId: secondOrganizationId,
+      displayName: 'Бренд второй клиники',
+    };
+    const port: OrgBrandingPort = {
+      getCoreContext: vi.fn(async (id) => ({
+        organizationId: id,
+        displayName: id === organizationId ? 'Первая клиника' : 'Вторая клиника',
+        isActive: true,
+      })),
+      getPublishedRevision: vi.fn(async (id) =>
+        id === organizationId ? published : secondPublished,
+      ),
+      getDraftRevision: vi.fn(async () => null),
+      saveDraft: vi.fn(async () => published),
+      publishDraft: vi.fn(async () => published),
+      unpublish: vi.fn(async () => true),
+    };
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+
+    await expect(service.resolveEffectiveOrgBranding(organizationId)).resolves.toMatchObject({
+      effectiveDisplayName: 'Бренд клиники',
+    });
+    await expect(service.resolveEffectiveOrgBranding(secondOrganizationId)).resolves.toMatchObject({
+      effectiveDisplayName: 'Бренд второй клиники',
+    });
   });
 });

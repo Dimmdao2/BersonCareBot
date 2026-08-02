@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  requireEntitlementForRead: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   requireEntitlementForMutationAction: vi.fn(),
   entitlementMutationRefusalMessage: (action: string) =>
@@ -58,7 +59,10 @@ vi.mock('@/app/api/booking/bookingTenant', () => ({
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  requireEntitlementForRead,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import {
   requireClinicManagementApiContext,
@@ -73,7 +77,10 @@ import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookin
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { PATCH as updateWarmupSchedule } from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
-import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-templates/route';
+import {
+  GET as getNotificationTemplates,
+  PUT as saveNotificationTemplate,
+} from '@/app/api/doctor/notification-templates/route';
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
@@ -144,13 +151,19 @@ beforeEach(() => {
   vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
   vi.mocked(requireOrganizationManagementContext).mockResolvedValue(workspace as never);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
+  vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
     ok: true,
     organizationId: ORG_ID,
   });
   vi.mocked(buildAppDeps).mockReturnValue({
     courses: { createCourse: vi.fn() },
-    notifTemplates: { saveManagedTemplate: vi.fn(), saveManagedPresentation: vi.fn() },
+    notifTemplates: {
+      getManagedTemplates: vi.fn(),
+      getManagedPresentation: vi.fn(),
+      saveManagedTemplate: vi.fn(),
+      saveManagedPresentation: vi.fn(),
+    },
     systemSettings: { getSetting: vi.fn().mockResolvedValue({ valueJson: { value: false } }) },
     contentSections: { getBySlug: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
     doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
@@ -205,6 +218,14 @@ describe('tariff and platform mutation gates', () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it('does not expose clinic notification-template controls when branding is disabled', async () => {
+    const response = await getNotificationTemplates();
+
+    expect(response.status).toBe(403);
+    expect(buildAppDeps().notifTemplates.getManagedTemplates).not.toHaveBeenCalled();
+    expect(buildAppDeps().notifTemplates.getManagedPresentation).not.toHaveBeenCalled();
   });
 
   it('refuses external-calendar connection visibly when it is not included in the tariff', async () => {
