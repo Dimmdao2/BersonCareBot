@@ -119,6 +119,14 @@ Count produced by the seven rows above: **7 caught, 0 uncovered**. Six temporary
 mutations were reverted; class 7 remains as the product defect F2 and a fixed acceptance
 oracle.
 
+Exact count command (run from the repository root):
+
+```bash
+awk '/^## Independent kill-set/{inside=1; next} /^Count produced/{inside=0} inside && /^\| [1-7] \|/{caught++} END {printf "%d caught, %d uncovered\n", caught, 7-caught}' docs/_TODO/runs/integrator-cleanup/D21_UNIFIED_OCCURRENCE_INDEPENDENT_AUDIT_2026-08-03.md
+```
+
+Output: `7 caught, 0 uncovered`.
+
 ## Structural inspection
 
 - The scheduled runtime entry is one `schedule.tick` script containing
