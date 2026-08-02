@@ -350,6 +350,19 @@ export const SYSTEM_SETTING_REGISTRY = {
   patient_home_mood_icons: runtime('admin', 'per_org', 'authenticated_client', 'structured', '[]'),
   notifications_topics: runtime('admin', 'per_org', 'authenticated_client', 'structured', '[]'),
   smtp_outbound: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+  /** Clinic-owned SMTP is used first for essential delivery and exclusively for clinic mailings. */
+  clinic_smtp_outbound: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
+  /** Dedicated outbound SMSC credential. The platform credential remains an essential-delivery fallback. */
+  clinic_smsc_api_key: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
+  /** Dedicated clinic bots are outbound credentials; inbound binding/webhook routing remains S6.5. */
+  clinic_telegram_bot_token: restricted(
+    'admin',
+    'per_org',
+    'secret_envelope',
+    'absent',
+    'redacted',
+  ),
+  clinic_max_bot_api_key: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
   operator_health_imap: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
   web_push_vapid: restricted(
     'admin',
@@ -444,13 +457,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   ),
   vk_id_application_id: restricted('admin', 'global', 'secret_envelope'),
   vk_id_client_secret: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
-  auth_altcha_hmac_secret: restricted(
-    'admin',
-    'global',
-    'secret_envelope',
-    'absent',
-    'redacted',
-  ),
+  auth_altcha_hmac_secret: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
   vk_id_redirect_uri: restricted('admin', 'global', 'url'),
   google_client_id: restricted('admin', 'global', 'secret_envelope'),
   google_client_secret: restricted('admin', 'global', 'secret_envelope'),

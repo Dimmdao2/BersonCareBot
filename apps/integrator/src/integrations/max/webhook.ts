@@ -39,13 +39,9 @@ export type MaxWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
-  /**
-   * T0.4 channel-binding fallback: resolves the deployment's single organization when the
-   * messenger identity has no per-user org context yet (first-contact, not yet enrolled). The
-   * tenant boundary is the inbound channel/bot, not the user's enrollment state — see
-   * `resolveDeploymentSingleActiveOrganizationId` for the architecture rationale/limits.
-   */
-  resolveDeploymentOrganizationId?: () => Promise<string | null>;
+  /** Exact dedicated bot-instance binding; never falls back to enrollment/default organization. */
+  resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
+  resolveDedicatedClinicBotApiKey?: (organizationId: string) => Promise<string | null>;
 };
 
 function getSourceMaxExternalId(data: MaxUpdateValidated): string | null {
@@ -64,27 +60,14 @@ async function resolveMaxOrganizationId(
       const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'max');
       if (perUserOrg) return perUserOrg;
     } catch {
-      // fall through to channel-binding fallback below
+      // No enrollment/default fallback: a dedicated bot is resolved by its endpoint binding.
     }
   }
-  if (!deps.resolveDeploymentOrganizationId) return null;
-  try {
-    const deploymentOrg = await deps.resolveDeploymentOrganizationId();
-    if (deploymentOrg) {
-      reqLogger.info(
-        { source: 'max' },
-        'max webhook: no per-user org context, using deployment channel-binding fallback',
-      );
-      return deploymentOrg;
-    }
-    reqLogger.warn(
-      { source: 'max' },
-      'max webhook: no organization resolvable for this channel (unbound/misconfigured deployment)',
-    );
-    return null;
-  } catch {
-    return null;
-  }
+  reqLogger.warn(
+    { source: 'max' },
+    'max webhook: no exact organization context for inbound bot message',
+  );
+  return null;
 }
 
 async function resolveMaxIntegratorUserId(
@@ -364,4 +347,72 @@ export async function registerMaxWebhookRoutes(
       return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });
+
+  app.post<{ Params: { credentialFingerprint: string } }>(
+    '/webhook/max/dedicated/:credentialFingerprint',
+    async (request, reply) => {
+      const correlationId = request.id;
+      const eventId = newEventId('incoming');
+      const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
+      const fingerprint = request.params.credentialFingerprint;
+      const organizationId = await deps.resolveDedicatedClinicBotOrganization?.(fingerprint);
+      if (!organizationId) {
+        reqLogger.warn({ source: 'max' }, 'max dedicated webhook: unknown bot binding');
+        recordMaxWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_auth_failed',
+          detail: 'unknown dedicated bot binding',
+        });
+        return reply.code(200).send({ ok: false, error: 'Unknown bot' });
+      }
+      const parseResult = parseMaxUpdate(request.body);
+      if (!parseResult.success) {
+        recordMaxWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_parse_failed',
+          detail: 'body validation failed',
+        });
+        return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
+      }
+      const data = parseResult.data;
+      const clinicApiKey = await deps.resolveDedicatedClinicBotApiKey?.(organizationId);
+      const incoming = fromMax(data, clinicApiKey ?? undefined);
+      if (!incoming) return reply.code(200).send({ ok: true });
+      const preRouting = await runWithDbBootstrapPrincipal(
+        { source: 'max-dedicated-webhook:pre-routing' },
+        async () => ({
+          facts: await buildMaxFacts(
+            data,
+            deps.resolveIntegratorUserIdForMessenger,
+            deps.getAppBaseUrl,
+            deps.resolveMessengerStaffAdmin,
+          ),
+          integratorUserId: await resolveMaxIntegratorUserId(data, deps),
+        }),
+      );
+      const event = maxIncomingToEvent({ incoming, correlationId, eventId, facts: preRouting.facts });
+      const result = preRouting.integratorUserId
+        ? await runWithIntegratorPrincipal(
+            { organizationId, integratorUserId: preRouting.integratorUserId, source: 'max-dedicated-webhook' },
+            () => deps.eventGateway.handleIncomingEvent(event),
+          )
+        : await runWithOrganizationPrincipal(organizationId, () => deps.eventGateway.handleIncomingEvent(event));
+      if (result.status === 'rejected') {
+        recordMaxWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_dispatch_failed',
+          detail: result.reason,
+        });
+        return reply.code(200).send({ ok: false, error: 'Processing failed' });
+      }
+      recordMaxWebhookOutcome({ source: 'max', processedOk: true, httpStatusReturned: 200 });
+      return reply.code(200).send({ ok: true });
+    },
+  );
 }

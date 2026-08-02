@@ -17,11 +17,16 @@ import {
   resolveActiveOrganizationIdForMessengerIdentity,
   resolveDeploymentSingleActiveOrganizationId,
 } from '../infra/db/repos/channelUsers.js';
+import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
+import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
 import { env, integratorWebhookSecret } from '../config/env.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
 import type { OutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
-import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
+import {
+  runWithBootstrapPrincipal,
+  runWithOrganizationPrincipal,
+} from '../infra/principal/organizationPrincipal.js';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
@@ -88,6 +93,34 @@ function createResolveOrganizationIdForIntegratorUserId(): (
   };
 }
 
+function createResolveDedicatedClinicBotOrganization(
+  channel: 'telegram' | 'max',
+): (credentialFingerprint: string) => Promise<string | null> {
+  return async (credentialFingerprint) => {
+    try {
+      const db = createDbPort();
+      return await runWithBootstrapPrincipal({ source: `${channel}-dedicated-webhook:pre-routing` }, () =>
+        resolveDedicatedClinicBotOrganization(db, channel, credentialFingerprint),
+      );
+    } catch (error) {
+      reportIntegratorIsolationFailure(error);
+      return null;
+    }
+  };
+}
+
+function createResolveDedicatedClinicMaxApiKey(): (
+  organizationId: string,
+) => Promise<string | null> {
+  const db = createDbPort();
+  const resolveCredential = createClinicDeliveryCredentialResolver(db);
+  return async (organizationId) =>
+    runWithOrganizationPrincipal(organizationId, async () => {
+      const credential = await resolveCredential('max');
+      return credential?.channel === 'max' ? credential.apiKey : null;
+    });
+}
+
 /**
  * T0.4 channel-binding fallback: the deployment's single organization, used when a messenger
  * identity has no per-user org context yet (first contact, not yet enrolled). See
@@ -117,6 +150,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const resolveOrganizationIdForMessengerIdentity =
     createResolveOrganizationIdForMessengerIdentity();
   const resolveOrganizationIdForIntegratorUserId = createResolveOrganizationIdForIntegratorUserId();
+  const resolveDedicatedTelegramBotOrganization = createResolveDedicatedClinicBotOrganization('telegram');
+  const resolveDedicatedMaxBotOrganization = createResolveDedicatedClinicBotOrganization('max');
   const resolveDeploymentOrganizationId = createResolveDeploymentOrganizationId();
   const authChannelPolicyDb = createDbPort();
   const authChannelPolicy = (channel: 'email' | 'sms' | 'telegram' | 'max') =>
@@ -235,9 +270,9 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     eventGateway: deps.eventGateway,
     resolveIntegratorUserIdForMessenger,
     resolveOrganizationIdForMessengerIdentity,
-    resolveDeploymentOrganizationId,
     getAppBaseUrl: getAppBaseUrlForWebhooks,
     resolveMessengerStaffAdmin,
+    resolveDedicatedClinicBotOrganization: resolveDedicatedTelegramBotOrganization,
   };
   if (env.TELEGRAM_MODE === 'long_polling') {
     // RU-isolated host: Telegram cannot reach us inbound — pull updates via
@@ -254,9 +289,10 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         eventGateway: deps.eventGateway,
         resolveIntegratorUserIdForMessenger,
         resolveOrganizationIdForMessengerIdentity,
-        resolveDeploymentOrganizationId,
         getAppBaseUrl: getAppBaseUrlForWebhooks,
         resolveMessengerStaffAdmin,
+        resolveDedicatedClinicBotOrganization: resolveDedicatedMaxBotOrganization,
+        resolveDedicatedClinicBotApiKey: createResolveDedicatedClinicMaxApiKey(),
       });
     });
   }

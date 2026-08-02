@@ -1,10 +1,20 @@
 import { createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DispatchPort, IdempotencyPort, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DeliveryAdapter,
+  DispatchPort,
+  IdempotencyPort,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import type { RecordOperatorFailureIncidentInput } from '../../infra/operatorIncident/reportOperatorFailure.js';
 import { OutboundMessagePolicyError } from '../../infra/adapters/outboundMessagePolicy.js';
+import { createDefaultDispatchPort } from '../../infra/adapters/dispatchPort.js';
 import { registerBersoncareRelayOutboundRoute } from './relayOutboundRoute.js';
+
+vi.mock('../../shared/devDeliveryRedirect.js', () => ({
+  isDevRedirectActive: () => false,
+}));
 
 /** Simulates the store `createPostgresIdempotencyPort` backs onto: a table row, not process memory. */
 function fakePersistentIdempotencyPort(): IdempotencyPort {
@@ -46,6 +56,7 @@ type RelayPayload = {
   text: string;
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
+  senderScope?: 'clinic_required';
 };
 
 function relayPayload(overrides: Partial<RelayPayload> = {}): RelayPayload {
@@ -116,6 +127,88 @@ afterEach(async () => {
 });
 
 describe('POST /api/bersoncare/relay-outbound', () => {
+  it('preserves clinic-required sender scope for an exact organization relay', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const app = await buildApp(dispatchOutgoing);
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'telegram',
+        recipient: '12345',
+        senderScope: 'clinic_required',
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(dispatchOutgoing).toHaveBeenCalledOnce();
+    expect(
+      (dispatchOutgoing.mock.calls[0]?.[0].payload as { delivery?: unknown }).delivery,
+    ).toEqual({ channels: ['telegram'], senderScope: 'clinic_required' });
+  });
+
+  it('delivers an essential notification through the real dispatch policy and platform fallback', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: [adapter],
+      resolveClinicDeliveryCredential: async () => null,
+    });
+    const app = await buildApp(dispatchPort.dispatchOutgoing);
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'email',
+        recipient: 'patient@example.test',
+        text: 'New appointment',
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('delivers a clinic-required email broadcast through the exact clinic sender', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: [adapter],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'email',
+        smtp: {
+          configured: true,
+          smtpHost: 'smtp.clinic.test',
+          smtpPort: 587,
+          smtpSecure: false,
+          smtpUser: 'clinic',
+          smtpPass: 'secret',
+          fromAddress: 'clinic@example.test',
+        },
+      }),
+    });
+    const app = await buildApp(dispatchPort.dispatchOutgoing);
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'email',
+        recipient: 'patient@example.test',
+        text: 'Clinic mailing',
+        senderScope: 'clinic_required',
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery?: Record<string, unknown> }).delivery,
+    ).toMatchObject({ clinicCredential: { channel: 'email' } });
+  });
+
   it('rejects missing, invalid, and stale authentication without dispatching', async () => {
     const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
     const app = await buildApp(dispatchOutgoing);

@@ -47,7 +47,7 @@ import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
-import { getMaxRuntimeConfig, getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import { getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
 import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
 import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
@@ -65,6 +65,7 @@ import { createWebPushAccessPort } from '../infra/adapters/webPushAccessPort.js'
 import type { WebPushAccessPort } from '../kernel/contracts/index.js';
 import { createWebPushDeliveryAdapter } from '../integrations/web-push/deliveryAdapter.js';
 import { isPlatformIntegrationAvailable } from '../infra/db/platformIntegrationAvailability.js';
+import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -90,6 +91,10 @@ export type MessengerWebappEntryIdentityDeps = {
    * `resolveDeploymentSingleActiveOrganizationId` in `infra/db/repos/channelUsers.ts`.
    */
   resolveDeploymentOrganizationId?: () => Promise<string | null>;
+  /** Dedicated webhook path resolves the actual bot instance to one clinic, never a default org. */
+  resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
+  /** MAX contact verification uses the exact clinic bot credential after organization binding. */
+  resolveDedicatedClinicBotApiKey?: (organizationId: string) => Promise<string | null>;
 };
 
 export type TelegramRoutesRegistrar = (
@@ -221,7 +226,21 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const adapters = [
     createTelegramDeliveryAdapter(),
-    createSmscDeliveryAdapter({ smsClient }),
+    createSmscDeliveryAdapter({
+      smsClient,
+      createClinicSmsClient: (apiKey) =>
+        createSmscClient({
+          getRuntimeConfig: async () => {
+            const runtime = await getSmscRuntimeConfig();
+            return {
+              enabled: Boolean(runtime.baseUrl),
+              apiKey,
+              baseUrl: runtime.baseUrl,
+            };
+          },
+          log: logger,
+        }),
+    }),
     createMaxDeliveryAdapter(),
     createEmailDeliveryAdapter({ getDb: () => dbPort }),
     createWebPushDeliveryAdapter({ webPushAccessPort }),
@@ -233,13 +252,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       adapters,
       readPort: dbReadPort,
       writePort: input.dispatchAttemptWritePort ?? dbWritePort,
-      isPlatformIntegrationEnabled: async (integrationId: DispatchPlatformIntegrationId) => {
-        if (!(await isPlatformIntegrationAvailable(dbPort, integrationId))) return false;
-        if (integrationId === 'telegram') return (await getTelegramRuntimeConfig()).enabled;
-        if (integrationId === 'max') return (await getMaxRuntimeConfig()).enabled;
-        if (integrationId === 'smsc') return (await getSmscRuntimeConfig()).enabled;
-        return true;
-      },
+      isPlatformIntegrationEnabled: (integrationId: DispatchPlatformIntegrationId) =>
+        isPlatformIntegrationAvailable(dbPort, integrationId),
+      resolveClinicDeliveryCredential: createClinicDeliveryCredentialResolver(dbPort),
     });
 
   dispatchPortRef.current = dispatchPort;

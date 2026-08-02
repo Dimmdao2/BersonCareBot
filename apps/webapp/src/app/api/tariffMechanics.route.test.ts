@@ -514,6 +514,167 @@ describe('tariff and platform mutation gates', () => {
     },
   );
 
+  it.each([
+    ['clinic_smtp_outbound', 'clinic_smtp'],
+    ['clinic_smsc_api_key', 'clinic_sms'],
+    ['clinic_telegram_bot_token', 'clinic_telegram_bot'],
+    ['clinic_max_bot_api_key', 'clinic_max_bot'],
+  ] as const)(
+    'refuses clinic delivery setting %s without its independent %s entitlement',
+    async (key, mechanic) => {
+      const response = await updateAdminSetting(
+        request('https://app.example.test/api/admin/settings', {
+          key,
+          value:
+            key === 'clinic_smtp_outbound'
+              ? {
+                  host: 'smtp.clinic.test',
+                  port: 587,
+                  secure: false,
+                  user: 'clinic',
+                  password: 'secret',
+                  from: 'clinic@example.test',
+                }
+              : 'secret',
+        }),
+      );
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'entitlement_required',
+        mechanic,
+      });
+      expect(requireEntitlementForMutation).toHaveBeenCalledWith(workspace, mechanic);
+    },
+  );
+
+  it('writes a clinic delivery credential only to the authenticated clinic organization and redacts the response', async () => {
+    vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
+    const getSetting = vi.fn().mockImplementation(async (key: string) =>
+      key === 'platform_integration_availability'
+        ? {
+            key,
+            scope: 'admin',
+            organizationId: null,
+            valueJson: {
+              value: {
+                version: 1,
+                integrations: {
+                  telegram: true,
+                  max: true,
+                  email: true,
+                  smsc: true,
+                  web_push: true,
+                  google_calendar: true,
+                  yandex_calendar: false,
+                },
+              },
+            },
+          }
+        : null,
+    );
+    const updateSetting = vi.fn().mockResolvedValue({
+      key: 'clinic_telegram_bot_token',
+      scope: 'admin',
+      organizationId: ORG_ID,
+      valueJson: { value: 'secret-token' },
+      updatedAt: '2026-08-02T00:00:00.000Z',
+      updatedBy: USER_ID,
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      systemSettings: { getSetting, updateSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'clinic_telegram_bot_token',
+        value: 'secret-token',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateSetting).toHaveBeenCalledWith(
+      'clinic_telegram_bot_token',
+      'admin',
+      { value: 'secret-token' },
+      USER_ID,
+      { organizationId: ORG_ID },
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      setting: {
+        organizationId: ORG_ID,
+        valueJson: { value: '[REDACTED]' },
+      },
+    });
+  });
+
+  it('does not reach a clinic settings write when clinic-management authorization is denied', async () => {
+    vi.mocked(requireClinicManagementApiContext).mockResolvedValue(denied);
+    const updateSetting = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      systemSettings: { updateSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'clinic_telegram_bot_token',
+        value: 'secret-token',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('does not configure a clinic channel while the platform integration is globally disabled', async () => {
+    vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
+    const getSetting = vi.fn().mockImplementation(async (key: string) =>
+      key === 'platform_integration_availability'
+        ? {
+            key,
+            scope: 'admin',
+            organizationId: null,
+            valueJson: {
+              value: {
+                version: 1,
+                integrations: {
+                  telegram: false,
+                  max: true,
+                  email: true,
+                  smsc: true,
+                  web_push: true,
+                  google_calendar: true,
+                  yandex_calendar: false,
+                },
+              },
+            },
+          }
+        : null,
+    );
+    const updateSetting = vi.fn().mockResolvedValue({
+      key: 'clinic_telegram_bot_token',
+      scope: 'admin',
+      organizationId: ORG_ID,
+      valueJson: { value: 'secret-token' },
+      updatedAt: '2026-08-02T00:00:00.000Z',
+      updatedBy: USER_ID,
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      systemSettings: { getSetting, updateSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'clinic_telegram_bot_token',
+        value: 'secret-token',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'integration_disabled' });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
   it('checks both Today and warmups before changing shared warmup settings', async () => {
     vi.mocked(requireEntitlementForMutation)
       .mockResolvedValueOnce({ ok: true })
