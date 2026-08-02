@@ -333,6 +333,309 @@ describe('К0: early renewal does not cut the paid period short', () => {
   });
 });
 
+function paidPeriodScenario() {
+  let clock = new Date('2026-07-01T00:00:00.000Z');
+  const repository = createInMemorySaasBillingRepository();
+  const createIntent = vi.fn(async () => ({
+    providerIntentRef: `intent-${createIntent.mock.calls.length}`,
+    checkoutUrl: `https://billing.example.test/${createIntent.mock.calls.length}`,
+  }));
+  const service = createSaasBillingService({
+    repository,
+    settings: {
+      getSaasBillingPaymentProviderValue: async () => ({
+        defaultProviderId: 'mock',
+        providers: [
+          {
+            id: 'mock',
+            label: 'Mock',
+            enabled: true,
+            webhookSecret: 'unused',
+            shopId: 'shop',
+            apiKey: 'key',
+          },
+        ],
+      }),
+    },
+    resolvePaymentProvider: () => ({ createIntent }) as never,
+    now: () => clock,
+  });
+  return {
+    service,
+    setNow(iso: string) {
+      clock = new Date(iso);
+    },
+  };
+}
+
+async function capturePaidInvoice(
+  service: ReturnType<typeof createSaasBillingService>,
+  input: { invoiceId: string; eventId: string; savedPaymentMethodId?: string },
+) {
+  return service.captureSaasBillingProviderWebhookEvent({
+    organizationId: 'org-paid-period',
+    saasBillingInvoiceId: input.invoiceId,
+    providerId: 'mock',
+    verified: {
+      idempotencyKey: input.eventId,
+      eventType: 'payment.succeeded',
+      amountMinor: 0,
+      payload: { currency: 'RUB' },
+      ...(input.savedPaymentMethodId ? { savedPaymentMethodId: input.savedPaymentMethodId } : {}),
+    },
+  });
+}
+
+async function seedCurrentPaidPeriod(
+  service: ReturnType<typeof createSaasBillingService>,
+): Promise<SaasBillingInvoice> {
+  await service.assignManualTariff({
+    organizationId: 'org-paid-period',
+    tariffId: 'tariff-current',
+    audit: { actorId: 'platform-admin', reason: 'test seed' },
+  });
+  const invoice = await service.createOwnTariffRenewalInvoice('org-paid-period');
+  await capturePaidInvoice(service, { invoiceId: invoice.id, eventId: 'event-first-period' });
+  return invoice;
+}
+
+describe('Р-10/Р-14: future paid invoice waits for the paid boundary', () => {
+  it('records an early renewal as paid without replacing the current period dates before its start', async () => {
+    const { service, setNow } = paidPeriodScenario();
+    await seedCurrentPaidPeriod(service);
+    const before = (
+      await service.getOrganizationBillingOverview('org-paid-period')
+    ).subscriptions.find((row) => row.source === 'paid_subscription');
+    expect(before).toMatchObject({
+      currentPeriodStartsAt: '2026-07-01T00:00:00.000Z',
+      currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+    });
+
+    setNow('2026-07-15T00:00:00.000Z');
+    const futureInvoice = await service.createOwnTariffRenewalInvoice('org-paid-period');
+    expect(futureInvoice).toMatchObject({
+      servicePeriodStartsAt: '2026-08-01T00:00:00.000Z',
+      servicePeriodEndsAt: '2026-09-01T00:00:00.000Z',
+    });
+    await capturePaidInvoice(service, {
+      invoiceId: futureInvoice.id,
+      eventId: 'event-early-renewal',
+    });
+
+    const after = await service.getOrganizationBillingOverview('org-paid-period');
+    expect(after.invoices.find((row) => row.id === futureInvoice.id)?.status).toBe('paid');
+    expect(after.subscriptions.find((row) => row.source === 'paid_subscription')).toMatchObject({
+      currentPeriodStartsAt: before?.currentPeriodStartsAt,
+      currentPeriodEndsAt: before?.currentPeriodEndsAt,
+    });
+  });
+
+  it('an early renewal after a scheduled downgrade buys the pending target, not the current tariff', async () => {
+    const { service, setNow } = paidPeriodScenario();
+    await seedCurrentPaidPeriod(service);
+    setNow('2026-07-15T00:00:00.000Z');
+    await service.assignManualTariff({
+      organizationId: 'org-paid-period',
+      tariffId: 'tariff-next',
+      applyAtNextPeriod: true,
+      audit: { actorId: 'platform-admin', reason: 'scheduled downgrade' },
+    });
+
+    const futureInvoice = await service.createOwnTariffRenewalInvoice('org-paid-period');
+
+    expect(futureInvoice.tariffId).toBe('tariff-next');
+  });
+});
+
+function assignmentTransactionForAcceptance(
+  billingPeriod: 'day' | 'month' | 'year',
+  current: {
+    id: string;
+    tariffId: string;
+    status: 'active';
+    currentPeriodStartsAt: string | null;
+    currentPeriodEndsAt: string | null;
+    pendingTariffId: string | null;
+  },
+) {
+  const setManualSaasBillingSubscription = vi.fn(async () => {});
+  const transaction = {
+    loadManualAssignmentState: async () => ({
+      organization: { tariffId: current.tariffId },
+      activeTrial: null,
+      manualSaasBillingSubscription: current,
+    }),
+    requireActiveTariff: async () => ({ billingPeriod }),
+    setManualSaasBillingSubscription,
+    updateOrganizationTariffAssignment: async (input: { tariffId: string | null }) => ({
+      tariffId: input.tariffId,
+    }),
+    endActiveTrial: async () => null,
+    appendManualAssignmentAudit: async () => {},
+  };
+  const service = createSaasBillingService({
+    repository: {
+      runManualAssignmentTransaction: (work: (input: typeof transaction) => Promise<unknown>) =>
+        work(transaction),
+    } as unknown as SaasBillingRepositoryPort,
+    settings: { getSaasBillingPaymentProviderValue: async () => null },
+    resolvePaymentProvider: () => ({}) as never,
+    now: () => new Date('2026-07-15T00:00:00.000Z'),
+  });
+  return { service, setManualSaasBillingSubscription };
+}
+
+describe('Р-14: manual platform assignment preserves the paid boundary', () => {
+  it('applies an upgrade snapshot now but keeps the existing paid start/end dates', async () => {
+    const existingPeriod = {
+      startsAt: '2026-07-01T09:00:00.000Z',
+      endsAt: '2026-08-01T09:00:00.000Z',
+    };
+    const { service, setManualSaasBillingSubscription } = assignmentTransactionForAcceptance(
+      'month',
+      {
+        id: 'subscription-1',
+        tariffId: 'tariff-basic',
+        status: 'active',
+        currentPeriodStartsAt: existingPeriod.startsAt,
+        currentPeriodEndsAt: existingPeriod.endsAt,
+        pendingTariffId: null,
+      },
+    );
+
+    await service.assignManualTariff({
+      organizationId: 'org-1',
+      tariffId: 'tariff-upgrade',
+      audit: { actorId: 'platform-admin', reason: 'manual upgrade' },
+    });
+
+    expect(setManualSaasBillingSubscription).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      tariffId: 'tariff-upgrade',
+      period: existingPeriod,
+      pendingTariffId: null,
+    });
+  });
+
+  it('assigning the current tariff cancels an already scheduled downgrade', async () => {
+    const existingPeriod = {
+      startsAt: '2026-07-01T09:00:00.000Z',
+      endsAt: '2026-08-01T09:00:00.000Z',
+    };
+    const { service, setManualSaasBillingSubscription } = assignmentTransactionForAcceptance(
+      'month',
+      {
+        id: 'subscription-1',
+        tariffId: 'tariff-current',
+        status: 'active',
+        currentPeriodStartsAt: existingPeriod.startsAt,
+        currentPeriodEndsAt: existingPeriod.endsAt,
+        pendingTariffId: 'tariff-next',
+      },
+    );
+
+    await service.assignManualTariff({
+      organizationId: 'org-1',
+      tariffId: 'tariff-current',
+      audit: { actorId: 'platform-admin', reason: 'cancel downgrade' },
+    });
+
+    expect(setManualSaasBillingSubscription).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      tariffId: 'tariff-current',
+      period: existingPeriod,
+      pendingTariffId: null,
+    });
+  });
+});
+
+describe('webhook replay completes one durable paid-period action', () => {
+  it('retries the invoice action when the process fails after event dedupe', async () => {
+    let eventRecorded = false;
+    let invoiceStatus: SaasBillingInvoice['status'] = 'pending';
+    const markSaasBillingInvoicePaid = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('fault_after_event_dedupe'))
+      .mockImplementationOnce(async () => {
+        invoiceStatus = 'paid';
+        return { ...invoice, status: 'paid' as const };
+      });
+    const service = createSaasBillingService({
+      repository: {
+        recordSaasBillingProviderEvent: async () => {
+          if (eventRecorded) return { created: false };
+          eventRecorded = true;
+          return { created: true };
+        },
+        markSaasBillingInvoicePaid,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({}) as never,
+    });
+    const input = {
+      organizationId: 'org-1',
+      saasBillingInvoiceId: invoice.id,
+      providerId: 'mock',
+      verified: {
+        idempotencyKey: 'event-retry',
+        eventType: 'payment.succeeded',
+        payload: { currency: 'RUB' },
+      },
+    };
+
+    await expect(service.captureSaasBillingProviderWebhookEvent(input)).rejects.toThrow(
+      'fault_after_event_dedupe',
+    );
+    await service.captureSaasBillingProviderWebhookEvent(input);
+
+    expect(invoiceStatus).toBe('paid');
+    expect(markSaasBillingInvoicePaid).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not lose the saved payment method when the process fails after invoice CAS', async () => {
+    let eventRecorded = false;
+    let savedPaymentMethodId: string | null = null;
+    const saveSaasBillingSubscriptionPaymentMethod = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('fault_after_invoice_cas'))
+      .mockImplementationOnce(async (input: { savedPaymentMethodId: string }) => {
+        savedPaymentMethodId = input.savedPaymentMethodId;
+      });
+    const service = createSaasBillingService({
+      repository: {
+        recordSaasBillingProviderEvent: async () => {
+          if (eventRecorded) return { created: false };
+          eventRecorded = true;
+          return { created: true };
+        },
+        markSaasBillingInvoicePaid: async () => ({ ...invoice, status: 'paid' as const }),
+        saveSaasBillingSubscriptionPaymentMethod,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({}) as never,
+    });
+    const input = {
+      organizationId: 'org-1',
+      saasBillingInvoiceId: invoice.id,
+      providerId: 'mock',
+      verified: {
+        idempotencyKey: 'event-save-method-retry',
+        eventType: 'payment.succeeded',
+        payload: { currency: 'RUB' },
+        savedPaymentMethodId: 'pm-saved',
+      },
+    };
+
+    await expect(service.captureSaasBillingProviderWebhookEvent(input)).rejects.toThrow(
+      'fault_after_invoice_cas',
+    );
+    await service.captureSaasBillingProviderWebhookEvent(input);
+
+    expect(savedPaymentMethodId).toBe('pm-saved');
+    expect(saveSaasBillingSubscriptionPaymentMethod).toHaveBeenCalledTimes(2);
+  });
+});
+
 // К4 round 2 — the bug the blind audit reproduced 100% of the time: two identical
 // `createManualSaasBillingInvoice` calls each minted their OWN `providerIdempotencyKey` via
 // `randomUUID()` and their OWN `servicePeriodStartsAt` via `now()`, so neither of the two unique
