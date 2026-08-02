@@ -1,4 +1,5 @@
 -- TEMPORARY LOCAL MIGRATION NUMBER 0326
+-- RECONCILES-MIGRATION-HASH: 0305_tariff_snapshot_access_doors_local
 -- #1069 §2.13: restore the paid-period frozen/live tariff switch lost when 0297
 -- removed the four legacy access states. Recreate only the three access readers in their post-0297
 -- form: legacy-state removal, signatures, owners, grants, and quota logic remain unchanged.

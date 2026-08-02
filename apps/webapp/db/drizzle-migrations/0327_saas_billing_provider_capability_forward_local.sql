@@ -1,4 +1,5 @@
 -- TEMPORARY LOCAL MIGRATION NUMBER 0327
+-- RECONCILES-MIGRATION-HASH: 0318_saas_billing_provider_capability_local
 -- #1057: clinic billing and the public SaaS webhook need the platform payment-provider
 -- configuration, but neither caller may read the credential-bearing system_settings table.
 -- Expose exactly one fixed-key capability; do not accept a caller-controlled key.

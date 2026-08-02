@@ -1,4 +1,6 @@
 -- TEMPORARY LOCAL MIGRATION NUMBER 0325
+-- RECONCILES-MIGRATION-HASH: 0298_drop_booking_product_catalog_local
+-- RECONCILES-MIGRATION-HASH: 0304_retire_legacy_booking_projections_local
 -- Forward-only idempotent cleanup of the accepted 0298 product catalog removal
 -- and 0304 legacy booking-projection retirement. Canonical booking be_* tables are not touched.
 

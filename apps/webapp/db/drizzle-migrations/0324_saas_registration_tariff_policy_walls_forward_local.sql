@@ -1,4 +1,5 @@
 -- TEMPORARY LOCAL MIGRATION NUMBER 0324
+-- RECONCILES-MIGRATION-HASH: 0291_saas_registration_tariff_policy_walls_local
 -- TEMPORARY LOCAL MIGRATION NUMBER 0291 -- the lead assigns the final number at merge.
 -- 0289 created saas_registration_tariff_policy with no walls at all -- the audit gate
 -- (tiers-218.tsv grounding, P0.10) caught it as "IN CODE, NO TIER". Give it the same wall
