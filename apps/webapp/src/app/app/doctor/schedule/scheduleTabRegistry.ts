@@ -16,6 +16,8 @@ export type ScheduleTabProps = {
   initialTimeZone?: string;
   /** Server-resolved role/specialist capabilities shared by calendar/KPI/create. */
   scheduleScopeBootstrap?: DoctorScheduleScopeBootstrap;
+  /** The single doctor_statistics mechanic controls clinic statistics and booking attribution. */
+  doctorStatisticsEnabled: boolean;
 };
 
 export type ScheduleTabRegistryEntry = {

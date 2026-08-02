@@ -861,6 +861,7 @@ export function ScheduleCalendarTab({
   isActive,
   initialTimeZone,
   scheduleScopeBootstrap,
+  doctorStatisticsEnabled,
 }: ScheduleTabProps) {
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -1059,8 +1060,8 @@ export function ScheduleCalendarTab({
 
   const loadKpis = useCallback(
     (v: CalV26View, anchor: string) => {
-      // KPI скрыт в day
-      if (v === 'day') return;
+      // KPI are a doctor_statistics surface and are also hidden in the day view.
+      if (!doctorStatisticsEnabled || v === 'day') return;
 
       const { from, to } = visibleRange(v, anchor, timeZone);
       setKpisLoading(true);
@@ -1085,7 +1086,7 @@ export function ScheduleCalendarTab({
           setKpisLoading(false);
         });
     },
-    [branchId, serviceId, timeZone, scheduleScope],
+    [branchId, doctorStatisticsEnabled, serviceId, timeZone, scheduleScope],
   );
 
   // Parallel load: feed + kpis
@@ -1577,7 +1578,7 @@ export function ScheduleCalendarTab({
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const showKpi = view !== 'day';
+  const showKpi = doctorStatisticsEnabled && view !== 'day';
 
   // visibleRange for list mode
   const listRange = useMemo(

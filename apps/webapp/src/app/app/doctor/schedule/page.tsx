@@ -1,4 +1,5 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
@@ -33,7 +34,10 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
     selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
   };
-  const directory = await deps.doctorWorkspace.listDirectory(directoryContext);
+  const [directory, doctorStatisticsVisibility] = await Promise.all([
+    deps.doctorWorkspace.listDirectory(directoryContext),
+    getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
+  ]);
   const scheduleScopeBootstrap = {
     ownSpecialistId: resolveActiveOwnSpecialistId(
       workspace.specialistId,
@@ -51,6 +55,7 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
       initialTab={initialTab}
       initialTimeZone={initialTimeZone}
       scheduleScopeBootstrap={scheduleScopeBootstrap}
+      doctorStatisticsEnabled={doctorStatisticsVisibility.specialistNavigation}
     />
   );
 }

@@ -945,6 +945,14 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 - [ ] **4.2** Онлайн-анкета.
 - [ ] **4.3** Задачи специалиста.
 - [ ] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две.
+      Частично закрыт реальный clinic-разрыв: `doctor_statistics` скрывает KPI записей в
+      `/app/doctor/schedule` и блок «Источники публичных записей» в его настройках, не гейтит
+      публичную запись и не меняет attribution. Dedicated clinic route `/app/doctor/analytics` и
+      patient-facing surface этой механики отсутствуют (одноимённые analytics-файлы принадлежат
+      platform operator); до появления такого пути полный пункт не закрыт. Evidence: schedule
+      page/shell → `getMechanicSurfaceVisibility(..., 'doctor_statistics')`; behavior tests
+      `ScheduleCalendarTab.ui.test.tsx` и `BookingPublicAttributionSection.ui.test.tsx`; временное снятие
+      KPI visibility guard красит первый тест.
 - [ ] **4.5** Проактивные подсказки.
 - [ ] **4.6** Предоплата при записи; правила отмены не трогать.
 - [ ] **4.7** Курсы · CMS · каталог и пакеты упражнений · абонементы · приём оплат · платная подписка пациента ·

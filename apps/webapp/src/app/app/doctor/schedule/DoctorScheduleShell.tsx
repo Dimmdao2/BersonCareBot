@@ -98,6 +98,8 @@ export type DoctorScheduleShellProps = {
   initialTimeZone?: string;
   /** Server-resolved schedule permissions and active specialists. */
   scheduleScopeBootstrap: DoctorScheduleScopeBootstrap;
+  /** Server-resolved visibility of clinic statistics and booking attribution. */
+  doctorStatisticsEnabled: boolean;
 };
 
 /**
@@ -117,6 +119,7 @@ export function DoctorScheduleShell({
   initialTab,
   initialTimeZone,
   scheduleScopeBootstrap,
+  doctorStatisticsEnabled,
 }: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
     if (initialTab) return initialTab;
@@ -236,6 +239,7 @@ export function DoctorScheduleShell({
               isActive={tabId === activeTab}
               initialTimeZone={initialTimeZone}
               scheduleScopeBootstrap={scheduleScopeBootstrap}
+              doctorStatisticsEnabled={doctorStatisticsEnabled}
             />
           </div>
         );

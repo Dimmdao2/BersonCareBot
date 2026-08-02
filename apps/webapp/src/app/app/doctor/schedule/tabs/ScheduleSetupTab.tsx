@@ -858,13 +858,15 @@ function SectionSpecialists() {
   return <BookingSoloSpecialistsSection />;
 }
 
-function SectionForm() {
+function SectionForm({
+  doctorStatisticsEnabled,
+}: Pick<ScheduleTabProps, 'doctorStatisticsEnabled'>) {
   return (
     <div className="flex flex-col gap-3">
       <BookingSoloFormFieldsSection />
       <div className={BOOKING_CARD_GRID_CLASS}>
         <BookingPublicWidgetSection />
-        <BookingPublicAttributionSection />
+        <BookingPublicAttributionSection visible={doctorStatisticsEnabled} />
       </div>
     </div>
   );
@@ -896,7 +898,11 @@ function SectionNotifications() {
  * Clinic-management only: навигация доступна owner/admin своей организации.
  * Под-навигация секций по deep-link `section` ↔ scheduleTabRegistry deepLinkKeys: ["section"].
  */
-export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleTabProps) {
+export function ScheduleSetupTab({
+  deepLinkParams,
+  onDeepLinkChange,
+  doctorStatisticsEnabled,
+}: ScheduleTabProps) {
   const [activeSection, setActiveSectionState] = useState<SetupSectionId>(() =>
     resolveSectionId(deepLinkParams.section),
   );
@@ -937,7 +943,9 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
         {activeSection === 'locations' && <SectionLocations />}
         {activeSection === 'services' && <SectionServices />}
         {activeSection === 'specialists' && <SectionSpecialists />}
-        {activeSection === 'form' && <SectionForm />}
+        {activeSection === 'form' && (
+          <SectionForm doctorStatisticsEnabled={doctorStatisticsEnabled} />
+        )}
         {activeSection === 'payments' && <SectionPayments />}
         {activeSection === 'rules' && <SectionRules />}
         {activeSection === 'notifications' && <SectionNotifications />}
