@@ -22,6 +22,7 @@ import {
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
+import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage';
 import { ChannelPicker } from '@/shared/ui/patient/auth/ChannelPicker';
 import {
@@ -235,6 +236,7 @@ type AuthFlowV2Props = {
   initialDevView?: 'registration';
   /** Пользователь начал интерактивный вход (OAuth / телефон / код) — не перехватывать UI поздним initData. */
   onInteractiveLoginEngaged?: () => void;
+  roleLoginPortal?: RoleLoginPortal | null;
 };
 
 export function AuthFlowV2({
@@ -244,6 +246,7 @@ export function AuthFlowV2({
   prefetchedAuthConfig,
   initialDevView,
   onInteractiveLoginEngaged,
+  roleLoginPortal = null,
 }: AuthFlowV2Props) {
   const router = useRouter();
   const engageInteractive = useCallback(() => {
@@ -467,6 +470,8 @@ export function AuthFlowV2({
         body: JSON.stringify({
           provider,
           browserCalendarIana: getBrowserCalendarIanaForAuth(),
+          ...(roleLoginPortal ? { roleLoginPortal } : {}),
+          ...(roleLoginPortal && nextParam ? { next: nextParam } : {}),
         }),
       });
       if (!oauthResult.ok) {
@@ -803,6 +808,7 @@ export function AuthFlowV2({
       const verifyResult = await fetchJsonSafe<{
         ok?: boolean;
         redirectTo?: string;
+        role?: 'client' | 'doctor' | 'admin';
         factorRequired?: boolean;
         message?: string;
       }>('/api/auth/passkey/login/verify', {
@@ -849,6 +855,7 @@ export function AuthFlowV2({
       const loginResult = await fetchJsonSafe<{
         ok?: boolean;
         redirectTo?: string;
+        role?: 'client' | 'doctor' | 'admin';
         factorRequired?: boolean;
         error?: string;
         message?: string;
@@ -874,7 +881,7 @@ export function AuthFlowV2({
       }
       if (data.ok && data.redirectTo) {
         setEmailLoginPassword('');
-        redirectOk(data.redirectTo);
+        redirectOk(data.redirectTo, data.role);
         return;
       }
       if (res.status === 409 || data.error === 'email_not_verified') {
@@ -906,18 +913,20 @@ export function AuthFlowV2({
     if (!value) return toast.error('Введите код');
     setLoading(true);
     try {
-      const result = await fetchJsonSafe<{ ok?: boolean; redirectTo?: string; error?: string }>(
-        '/api/auth/email-password/login/factor',
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(staffFactorUseRecovery ? { recoveryCode: value } : { code: value }),
-        },
-      );
+      const result = await fetchJsonSafe<{
+        ok?: boolean;
+        redirectTo?: string;
+        role?: 'client' | 'doctor' | 'admin';
+        error?: string;
+      }>('/api/auth/email-password/login/factor', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(staffFactorUseRecovery ? { recoveryCode: value } : { code: value }),
+      });
       if (!result.ok) return toast.error(AUTH_NETWORK_ERROR_MESSAGE);
       if (result.data.ok && result.data.redirectTo) {
         setStaffFactorCode('');
-        redirectOk(result.data.redirectTo, 'doctor');
+        redirectOk(result.data.redirectTo, result.data.role);
         return;
       }
       toast.error(staffSecurityErrorText(result.data.error, 'login_factor'));
@@ -1091,7 +1100,12 @@ export function AuthFlowV2({
   const redirectOk = (redirectTo: string, role?: 'client' | 'doctor' | 'admin') => {
     clearAuthFlowPending();
     markFreshLoginAfterAuth();
-    const target = getPostAuthRedirectTarget(role ?? 'client', nextParam, redirectTo);
+    const target = getPostAuthRedirectTarget(
+      role ?? 'client',
+      nextParam,
+      redirectTo,
+      roleLoginPortal,
+    );
     router.replace(target);
   };
 

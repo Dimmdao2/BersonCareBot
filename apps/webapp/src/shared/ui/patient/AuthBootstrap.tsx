@@ -46,6 +46,7 @@ import {
   readTelegramInitDataForAuth,
 } from '@/shared/lib/messengerMiniApp';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
+import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 import { PLATFORM_COOKIE_NAME, readMessengerSurfaceCookie } from '@/shared/lib/platform';
 import { FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY } from '@/modules/auth/otpChannelUi';
 import {
@@ -79,6 +80,7 @@ type AuthBootstrapProps = {
   entryClassification: UnauthenticatedAppEntryClassification;
   /** Явные entry `/app/tg` и `/app/max` — без интерактивного «веб-сайта» вместо miniapp. */
   routeBoundMiniappEntry?: boolean;
+  roleLoginPortal?: RoleLoginPortal | null;
 };
 
 const TOKEN_FALLBACK_MS = 1100;
@@ -151,6 +153,7 @@ export function AuthBootstrap({
   serverMessengerSurface = null,
   entryClassification,
   routeBoundMiniappEntry = false,
+  roleLoginPortal = null,
 }: AuthBootstrapProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -578,7 +581,12 @@ export function AuthBootstrap({
             return;
           }
           const role = payload.role ?? 'client';
-          const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
+          const target = getPostAuthRedirectTarget(
+            role,
+            nextParam,
+            payload.redirectTo,
+            roleLoginPortal,
+          );
           router.replace(target);
         })
         .catch((e) => {
@@ -729,7 +737,12 @@ export function AuthBootstrap({
             return;
           }
           const role = payload.role ?? 'client';
-          const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
+          const target = getPostAuthRedirectTarget(
+            role,
+            nextParam,
+            payload.redirectTo,
+            roleLoginPortal,
+          );
           router.replace(target);
         })
         .catch((e) => {
@@ -1006,6 +1019,7 @@ export function AuthBootstrap({
     effectiveEntryClassification,
     isMessengerMiniAppEntry,
     routeBoundMiniappEntry,
+    roleLoginPortal,
     searchParams,
     authChannelPolicy.telegram,
     authChannelPolicy.max,
@@ -1075,6 +1089,7 @@ export function AuthBootstrap({
           prefetchedAuthConfig={prefetchedAuth}
           initialDevView={initialSpecialistSignupView}
           onInteractiveLoginEngaged={handleInteractiveEngaged}
+          roleLoginPortal={roleLoginPortal}
         />
       </>
     );

@@ -159,5 +159,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     redirectTo: getRedirectPathForRole(sessionUser.role),
+    role: authenticatedUser.role,
   });
 }
