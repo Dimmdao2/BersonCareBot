@@ -93,7 +93,14 @@ describe('/api/clinic/billing tariff change', () => {
       new Request('http://test/api/clinic/billing', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tariffId }),
+        body: JSON.stringify({
+          tariffId,
+          organizationId: 'attacker-org',
+          amountMinor: 1,
+          currency: 'USD',
+          periodStartsAt: '2099-01-01T00:00:00.000Z',
+          periodEndsAt: '2099-01-02T00:00:00.000Z',
+        }),
       }),
     );
 
@@ -101,6 +108,11 @@ describe('/api/clinic/billing tariff change', () => {
       ok: true,
       invoiceId: 'upgrade-invoice',
       checkoutUrl: 'https://pay.example/upgrade',
+    });
+    expect(scheduleOwnTariffChange).toHaveBeenCalledWith({
+      organizationId,
+      tariffId,
+      actorId: 'actor',
     });
   });
 
