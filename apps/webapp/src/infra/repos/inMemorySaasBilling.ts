@@ -471,6 +471,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       rows.set(key, row);
       return {
         saasBillingSubscriptionId: row.id,
+        currentTariffId: row.tariffId,
         tariffId,
           billingPeriod: 'month' as const,
           savedPaymentMethodId: row.savedPaymentMethodId,

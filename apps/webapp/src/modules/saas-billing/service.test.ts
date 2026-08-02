@@ -38,10 +38,14 @@ const invoice: SaasBillingInvoice = {
 describe('SaaS billing payment provider availability', () => {
   it('names a configured but unsupported provider as unavailable before an invoice is created', async () => {
     const createSaasBillingInvoice = vi.fn(async () => ({ invoice, created: true }));
+    const getTariffTransition = vi.fn(async () => {
+      throw new Error('platform_operations_principal_required');
+    });
     const service = createSaasBillingService({
       repository: {
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
           tariffId: 'tariff-1',
           billingPeriod: 'month' as const,
           savedPaymentMethodId: null,
@@ -58,11 +62,13 @@ describe('SaaS billing payment provider availability', () => {
       resolvePaymentProvider: () => {
         throw new Error('unsupported_payment_provider:mock');
       },
+      getTariffTransition,
     });
 
     await expect(service.createOwnTariffRenewalInvoice('org-1')).rejects.toThrow(
       'saas_billing_payment_provider_unavailable:mock',
     );
+    expect(getTariffTransition).not.toHaveBeenCalled();
     expect(createSaasBillingInvoice).not.toHaveBeenCalled();
   });
 
@@ -167,6 +173,7 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
       repository: {
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription', tariffId: 'tariff-small', billingPeriod: 'month' as const,
+          currentTariffId: 'tariff-current',
           savedPaymentMethodId: null, currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
         }),
       } as unknown as SaasBillingRepositoryPort,

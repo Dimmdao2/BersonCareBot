@@ -682,9 +682,19 @@ export function createSaasBillingService(dependencies: {
      * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
      */
     async createOwnTariffRenewalInvoice(organizationId: string) {
-      const { saasBillingSubscriptionId, tariffId, billingPeriod, savedPaymentMethodId, currentPeriodEndsAt } =
-        await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
-      if (dependencies.getTariffTransition) {
+      const {
+        saasBillingSubscriptionId,
+        currentTariffId,
+        tariffId,
+        billingPeriod,
+        savedPaymentMethodId,
+        currentPeriodEndsAt,
+      } = await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
+      // A normal renewal pays the tariff already assigned to this clinic.  Its route runs under
+      // the clinic-billing principal and must not enter the platform-only transition port.  A
+      // scheduled next tariff is different: retain the downgrade recheck before selling that
+      // next period.
+      if (dependencies.getTariffTransition && currentTariffId !== tariffId) {
         const transition = await dependencies.getTariffTransition(organizationId, tariffId);
         if (transition.blocks.length > 0) throw new Error('saas_billing_tariff_downgrade_blocked');
       }
