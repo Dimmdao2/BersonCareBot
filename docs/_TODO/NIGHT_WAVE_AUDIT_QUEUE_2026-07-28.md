@@ -33,7 +33,8 @@
 | `0312` | Track D / #987 D5 | `wt/trackd-d5` / `/home/dev/dev-projects/bcb-wt-trackd-d5` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: перевести scheduler-read на канонический `public.reminder_rules`, безопасно re-key/backfill occurrence FK без потери истории и снять legacy local write/table только после parity evidence. |
 | `0313` | clinic-owned Google Calendar / #1071 §12.3 | `wt/clinic-calendar` / `/home/dev/dev-projects/bcb-wt-clinic-calendar` | ПЕРЕБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: предыдущий §12.6 доказан без миграции; перенести Google Calendar credentials и connection state с платформенного singleton на exact clinic organization, сохранив global enablement gate и существующий sync path. |
 | `0314` | Track D / #987 D7 | `wt/trackd-d7` / `/home/dev/dev-projects/bcb-wt-trackd-d7` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: capability-функции и webapp-owned validated contract для reminder done/mute/messenger-topic/notification-settings; snooze/skip подключаются к существующим public capability, integrator остаётся исполнителем callback UX. |
-| `0315`+ | свободно | — | следующий берущий начинает отсюда |
+| `0315` | tariff downgrade / #1069 §5.6 | `wt/tariff-downgrade` / `/home/dev/dev-projects/bcb-wt-tariff-downgrade` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: повышение сразу; понижение с нового периода после уборки счётных сущностей, но file overage только замораживает новые uploads и не блокирует переход. Сначала соединить уже существующий `scheduleOwnTariffChange`, не строить второй scheduler. |
+| `0316`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Текущий режим 02.08:** оркестратор один. Stateful workstreams остаются в отдельных worktree, но единый
 migration ledger `0300…0305` собран в `wt/single-entry-integration`; новые номера по-прежнему бронируются здесь
