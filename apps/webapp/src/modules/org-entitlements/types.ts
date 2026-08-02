@@ -76,7 +76,6 @@ export const MECHANIC_REGISTRY = {
   // Owner 31.07 (#1069): "дневники у пациентов не отбираем" — the mechanic has no toggle at all,
   // same class as patient_card/patient_app. See QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md §31.07.
   patient_diaries: { class: 'никогда', label: 'Дневники пациента', quotaEnforcement: 'declared_no_enforcement' },
-  online_intake: { class: 'возможность', label: 'Онлайн-анкета', quotaEnforcement: 'declared_no_enforcement' },
   doctor_statistics: { class: 'возможность', label: 'Статистика кабинета', quotaEnforcement: 'declared_no_enforcement' },
   specialist_tasks: { class: 'возможность', label: 'Задачи специалиста', quotaEnforcement: 'declared_no_enforcement' },
   booking_prepayment: { class: 'возможность', label: 'Предоплата при записи', quotaEnforcement: 'declared_no_enforcement' },

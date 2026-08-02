@@ -119,11 +119,9 @@ export function DoctorTodayDashboard({
       <div id="doctor-today-two-panes" className="grid gap-3 md:grid-cols-2 md:items-start">
         {/* ───── Левое полотно: входящий рабочий поток ───── */}
         <div id="doctor-today-left-pane" className="flex flex-col gap-3">
-          {/* 4 компактных KPI: Сообщения, Комментарии, Заявки, Тесты */}
+          {/* Компактные KPI входящего рабочего потока. */}
           <DoctorTodayLeftKpiRow
-            intakeCount={data.newIntakeRequests.length}
             pendingTestsTotal={data.pendingProgramTestsTotal}
-            newIntakeRequests={data.newIntakeRequests}
             unreadConversations={data.unreadConversations}
             unreadTotal={data.unreadTotal}
             pendingProgramTests={data.pendingProgramTests}
