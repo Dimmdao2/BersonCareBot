@@ -633,6 +633,14 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
         `/home/dev/.local/state/bersoncarebot/deploy-logs/deploy-test-20260802T140603Z-924877.log`.
         Живой admin API: login/admin mode 200, изменение настройки увидено интегратором и исходное значение
         восстановлено (`changedObserved=true`, `restoredObserved=true`).
+      - [x] D38/4 экран «Авторизация» загружает только свои настройки: живой DEV-путь до исправления
+        `curl -sS -b /tmp/bcb-d38-admin.cookies -o /tmp/bcb-d38-auth-page.html -w 'page_status=%{http_code}' http://127.0.0.1:5200/app/admin/auth`
+        вернул `page_status=500` из-за отсутствующей несвязанной настройки
+        `operator_alert_fallback_email`. `page.tsx` теперь использует выделенный из существующего
+        `adminSettingsData.ts` auth-only loader; общий загрузчик и его строгий technical gate сохранены.
+        `pnpm --dir apps/webapp exec vitest run --project unit src/app/app/settings/adminSettingsData.unit.test.ts`
+        — 2 passed; `pnpm run typecheck`, scoped ESLint и `git diff --check` — exit 0. Живая проверка
+        исправленного общего DEV-экрана обязательна после audit и land.
 
 - [ ] **D36 — тесты интегратора, блок И** (передано из #1081 целиком). И1: уровни 0-2, причём уровень 0
       переписывается против ПЛАНА, а не против кода. И2: уровень 2 закрывается числом, а не следующим
