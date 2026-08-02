@@ -156,7 +156,10 @@ _РЕШЕНИЕ ВЛАДЕЛЬЦА 01.08, дословно: «счета в те
       через provider port. `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts`
       — 30/30: #1057 также возвращает исторический пустой `tariff_period`-draft по точной подписке и
       границам периода, сохраняет его provider key и получает checkout после legacy bucket. Повтор
-      YooKassa на common DEV остаётся отдельной приёмкой лида.
+      YooKassa принят на common DEV 02.08 после merge `47e4fb35f`: `POST /api/clinic/billing` от
+      `dev:clinic-admin` вернул HTTP 200, тот же invoice `d15495be-c8cc-4c6d-98f1-a0efb9227076` и checkout URL;
+      последующий `GET /api/clinic/billing` показал у этого pending-счёта непустые provider id, provider ref,
+      checkout URL и сохранённый idempotency key.
 
 ### К5. Счёт автоматически
 
