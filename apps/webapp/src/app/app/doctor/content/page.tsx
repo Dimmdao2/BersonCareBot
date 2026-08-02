@@ -3,7 +3,6 @@ import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
   isMechanicIncluded,
-  requireEntitlementForMutationAction,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
@@ -22,7 +21,7 @@ export default async function DoctorContentPage() {
   const deps = buildAppDeps();
   const coursesEnabled = (await requireEntitlementForReadAction(workspace, 'courses')).ok;
   const patientHomeTodayEnabled = (
-    await requireEntitlementForMutationAction(workspace, 'patient_home_today')
+    await requireEntitlementForReadAction(workspace, 'patient_home_today')
   ).ok;
   const warmupsEnabled = await isMechanicIncluded(workspace, 'warmups');
 

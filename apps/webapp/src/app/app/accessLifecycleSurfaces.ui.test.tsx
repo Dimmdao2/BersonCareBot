@@ -72,6 +72,13 @@ vi.mock('@/shared/ui/patient/PatientAppShell', () => ({
 vi.mock('@/shared/ui/patient/LegalFooterLinks', () => ({
   LegalFooterLinks: () => null,
 }));
+vi.mock('./doctor/content/ContentHubShell', () => ({
+  ContentHubShell: ({ patientHomeTodayEnabled }: { patientHomeTodayEnabled: boolean }) => (
+    <div data-testid="doctor-patient-home-navigation">
+      {patientHomeTodayEnabled ? 'visible' : 'hidden'}
+    </div>
+  ),
+}));
 vi.mock('./patient/home/PatientHomeGreeting', () => ({
   greetingPrefixFromHour: () => 'Здравствуйте',
   PatientHomeGreetingMobileHeader: () => null,
@@ -85,12 +92,8 @@ vi.mock('./patient/home/PatientHomeToday', () => ({
     warmupsOrganizationId: string | null;
   }) => (
     <div>
-      <div data-testid="patient-home-courses-organization">
-        {coursesOrganizationId ?? 'hidden'}
-      </div>
-      <div data-testid="patient-home-warmups-organization">
-        {warmupsOrganizationId ?? 'hidden'}
-      </div>
+      <div data-testid="patient-home-courses-organization">{coursesOrganizationId ?? 'hidden'}</div>
+      <div data-testid="patient-home-warmups-organization">{warmupsOrganizationId ?? 'hidden'}</div>
     </div>
   ),
 }));
@@ -102,6 +105,7 @@ let DoctorContentPage: typeof import('./doctor/content/page').default;
 let coursesIncluded = true;
 let cmsIncluded = true;
 let warmupsIncluded = true;
+let patientHomeTodayState: 'grace' | 'read_only' | 'disabled' = 'grace';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const userId = '22222222-2222-4222-8222-222222222222';
@@ -154,6 +158,7 @@ beforeEach(() => {
   coursesIncluded = true;
   cmsIncluded = true;
   warmupsIncluded = true;
+  patientHomeTodayState = 'grace';
   const session = {
     adminMode: false,
     user: { userId, role: 'doctor', displayName: 'Врач' },
@@ -167,6 +172,21 @@ beforeEach(() => {
       warning: null,
     }),
     resolveMechanicAccess: async (_organizationId: string, mechanic: OrgMechanic) => {
+      if (mechanic === 'patient_home_today') {
+        return patientHomeTodayState === 'disabled'
+          ? {
+              mechanic,
+              state: 'disabled' as const,
+              policySource: 'unconfigured' as const,
+              warning: null,
+            }
+          : {
+              mechanic,
+              state: patientHomeTodayState,
+              policySource: 'system' as const,
+              warning: null,
+            };
+      }
       const included =
         mechanic === 'cms_pages'
           ? cmsIncluded
@@ -254,6 +274,9 @@ beforeEach(() => {
     orgBranding: { resolveEffectiveOrgBranding: async () => null },
     patientOrganization: {},
     courses: { listCoursesForDoctor: vi.fn() },
+    contentPages: { listAll: async () => [] },
+    contentSections: { listAll: async () => [] },
+    materialRating: { listDoctorAggregates: async () => new Map() },
   });
 });
 
@@ -313,6 +336,20 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
     render(await PatientHomePage());
 
     expect(screen.getByTestId('patient-home-warmups-organization')).toHaveTextContent('hidden');
+  });
+
+  it('keeps the doctor Today navigation visible while the mechanic is read-only', async () => {
+    patientHomeTodayState = 'read_only';
+
+    render(await DoctorContentPage());
+
+    expect(screen.getByTestId('doctor-patient-home-navigation')).toHaveTextContent('visible');
+  });
+
+  it('refuses the patient Today direct URL when the mechanic is disabled', async () => {
+    patientHomeTodayState = 'disabled';
+
+    await expect(PatientHomePage()).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
   it('does not render a direct specialist content URL through the shared visibility adapter', async () => {
