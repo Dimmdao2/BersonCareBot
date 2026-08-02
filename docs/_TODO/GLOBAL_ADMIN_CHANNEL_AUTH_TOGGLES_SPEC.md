@@ -125,7 +125,7 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
       `apps/integrator/src/kernel/domain/executor/executeActionHomeMiniAppRemoval.unit.test.ts`.
 - [x] Удалить Telegram/MAX mini-app entry points из booking-путей, сохранив bot callbacks записи,
       подготовки и адреса — `apps/integrator/src/kernel/domain/executor/executeActionBookingMiniAppRemoval.unit.test.ts`.
-- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из diary-путей, сохранив bot-сценарии дневника.
+- [-] ~~Удалить оставшиеся Telegram/MAX mini-app entry points из diary-путей, сохранив bot-сценарии дневника.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: отдельного mini-app дневника нет; дневник и его входы не удалять.
 - [x] Удалить оставшиеся Telegram/MAX mini-app entry points из reminder-путей, сохранив bot-уведомления. — реальные Telegram/MAX планы `menu.more` строят обычную `url`-кнопку; dispatch-клавиатура сохраняет canonical URL и `snooze`/`skip`/notification-settings callbacks без `web_app`/`open_app`: `apps/integrator/src/kernel/domain/executor/executeActionDiaryReminderMiniAppRemoval.unit.test.ts`. Проверка: `pnpm --dir apps/integrator exec vitest run src/kernel/domain/executor/executeActionDiaryReminderMiniAppRemoval.unit.test.ts src/kernel/domain/executor/handlers/reminders.skip.d21a.test.ts src/kernel/domain/executor/handlers/reminders.notifSettings.d22.test.ts` (10 passed, 2026-08-02).
 - [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
       Telegram/MAX mini-app launch buttons отсутствуют.
