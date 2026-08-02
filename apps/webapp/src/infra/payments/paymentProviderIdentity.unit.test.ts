@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAlfabankPaymentProvider } from './alfabankPaymentProvider';
 import { createCloudpaymentsPaymentProvider } from './cloudpaymentsPaymentProvider';
@@ -6,7 +7,7 @@ import { createYookassaPaymentProvider } from './yookassaPaymentProvider';
 import type { PaymentProviderPort } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 
-type CapturedRequest = { url: string; body: Record<string, unknown> };
+type CapturedRequest = { url: string; body: Record<string, unknown>; headers: Headers };
 type PaymentDoorInput = Parameters<PaymentProviderPort['createIntent']>[0];
 type RequiredPaymentDoorFields =
   | 'amountMinor'
@@ -75,7 +76,7 @@ function captureProviderRequests() {
       const body = bodyText.startsWith('{')
         ? (JSON.parse(bodyText) as Record<string, unknown>)
         : Object.fromEntries(new URLSearchParams(bodyText));
-      captured.push({ url, body });
+      captured.push({ url, body, headers: new Headers(init?.headers) });
       if (url.includes('alfabank')) {
         return Response.json({ orderId: 'alfa-1', formUrl: 'https://pay.example.test/alfa' });
       }
@@ -221,5 +222,81 @@ describe('B1.1: required payment-door values reach provider requests', () => {
       return_url: paymentInput.returnUrl,
     });
     expectIdentity(paymentData.metadata as Record<string, unknown>);
+  });
+});
+
+describe('B0.3: YooKassa Idempotence-Key HTTP boundary', () => {
+  const longIdempotencyKey =
+    'renewal:organization-12345678:subscription-12345678:invoice-12345678:attempt-12345678';
+
+  function expectedYookassaHeader(idempotencyKey: string): string {
+    return createHash('sha256').update(idempotencyKey).digest('hex');
+  }
+
+  it('keeps a valid payment key byte-for-byte unchanged', async () => {
+    const captured = captureProviderRequests();
+
+    await createYookassaPaymentProvider().createIntent({
+      ...paymentInput,
+      providerConfig: providerConfigs.yookassa,
+    });
+
+    expect(captured[0]!.headers.get('Idempotence-Key')).toBe(paymentInput.idempotencyKey);
+  });
+
+  it('normalizes a long payment key deterministically without changing its body', async () => {
+    const captured = captureProviderRequests();
+    const provider = createYookassaPaymentProvider();
+    const input = {
+      ...paymentInput,
+      idempotencyKey: longIdempotencyKey,
+      providerConfig: providerConfigs.yookassa,
+    };
+
+    await provider.createIntent(input);
+    await provider.createIntent(input);
+    await provider.createIntent({ ...input, idempotencyKey: `${longIdempotencyKey}:changed` });
+
+    const expectedHeader = expectedYookassaHeader(longIdempotencyKey);
+    expect(expectedHeader).toHaveLength(64);
+    expect(captured[0]!.headers.get('Idempotence-Key')).toBe(expectedHeader);
+    expect(captured[1]!.headers.get('Idempotence-Key')).toBe(expectedHeader);
+    expect(captured[0]!.body).toEqual(captured[1]!.body);
+    expect(captured[2]!.headers.get('Idempotence-Key')).toBe(
+      expectedYookassaHeader(`${longIdempotencyKey}:changed`),
+    );
+    expect(captured[2]!.headers.get('Idempotence-Key')).not.toBe(expectedHeader);
+  });
+
+  it('normalizes a long YooKassa invoice key only in its HTTP header', async () => {
+    const captured = captureProviderRequests();
+
+    await createYookassaPaymentProvider().createIntent({
+      ...paymentInput,
+      idempotencyKey: longIdempotencyKey,
+      invoice: { description: 'Ручной счёт SaaS', expiresAt: '2026-08-05T12:00:00.000Z' },
+      providerConfig: providerConfigs.yookassa,
+    });
+
+    expect(captured[0]!.headers.get('Idempotence-Key')).toBe(
+      expectedYookassaHeader(longIdempotencyKey),
+    );
+    expect(captured[0]!.body.metadata).toMatchObject({ idempotencyKey: longIdempotencyKey });
+  });
+
+  it('normalizes a long YooKassa refund key only in its HTTP header', async () => {
+    const captured = captureProviderRequests();
+
+    await createYookassaPaymentProvider().refund({
+      providerIntentRef: 'yookassa-payment-1',
+      amountMinor: paymentInput.amountMinor,
+      currency: paymentInput.currency,
+      idempotencyKey: longIdempotencyKey,
+      providerConfig: providerConfigs.yookassa,
+    });
+
+    expect(captured[0]!.headers.get('Idempotence-Key')).toBe(
+      expectedYookassaHeader(longIdempotencyKey),
+    );
   });
 });

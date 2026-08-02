@@ -1,6 +1,7 @@
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import type { PaymentProviderPort } from '@/modules/payments/providerPort';
 import { fetchWithTimeout, PAYMENT_PROVIDER_FETCH_TIMEOUT_MS } from '@/shared/lib/externalFetch';
+import { createHash } from 'node:crypto';
 import { BlockList } from 'node:net';
 
 function requireYookassaCredentials(config?: PaymentProviderConfig): {
@@ -15,6 +16,14 @@ function requireYookassaCredentials(config?: PaymentProviderConfig): {
 
 function basicAuth(shopId: string, secretKey: string): string {
   return `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}`;
+}
+
+const YOOKASSA_IDEMPOTENCE_KEY_MAX_LENGTH = 64;
+
+/** YooKassa limits the outgoing Idempotence-Key header to 64 characters. */
+function toYookassaIdempotenceKey(idempotencyKey: string): string {
+  if (idempotencyKey.length <= YOOKASSA_IDEMPOTENCE_KEY_MAX_LENGTH) return idempotencyKey;
+  return createHash('sha256').update(idempotencyKey).digest('hex');
 }
 
 /**
@@ -187,6 +196,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
     }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
+      const yookassaIdempotenceKey = toYookassaIdempotenceKey(idempotencyKey);
       const paymentMetadata = { ...metadata, idempotencyKey, payerRef, purpose, subjectRef };
 
       if (invoice) {
@@ -197,7 +207,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
             headers: {
               'Content-Type': 'application/json',
               Authorization: basicAuth(shopId, secretKey),
-              'Idempotence-Key': idempotencyKey,
+              'Idempotence-Key': yookassaIdempotenceKey,
             },
             body: JSON.stringify({
               payment_data: {
@@ -256,7 +266,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           headers: {
             'Content-Type': 'application/json',
             Authorization: basicAuth(shopId, secretKey),
-            'Idempotence-Key': idempotencyKey,
+            'Idempotence-Key': yookassaIdempotenceKey,
           },
           body: JSON.stringify(requestBody),
         },
@@ -291,6 +301,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
     async refund({ providerIntentRef, amountMinor, currency, idempotencyKey, providerConfig }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
+      const yookassaIdempotenceKey = toYookassaIdempotenceKey(idempotencyKey);
       const body = await fetchWithTimeout(
         'https://api.yookassa.ru/v3/refunds',
         {
@@ -298,7 +309,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           headers: {
             'Content-Type': 'application/json',
             Authorization: basicAuth(shopId, secretKey),
-            'Idempotence-Key': idempotencyKey,
+            'Idempotence-Key': yookassaIdempotenceKey,
           },
           body: JSON.stringify({
             payment_id: providerIntentRef,
