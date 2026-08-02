@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
@@ -13,12 +12,6 @@ import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 const bodySchema = z.object({
   email: z.string().email(),
   role: z.enum(['admin', 'doctor']),
-  /**
-   * §5a item 5.1 — echoes the price a prior `seat_overage_confirmation_required` response showed
-   * the clinic. Never trusted as the charged amount by itself: createReplacingPending re-resolves
-   * the tariff's current price server-side and only proceeds when this matches it exactly.
-   */
-  confirmedSeatOveragePriceMinor: z.number().int().nonnegative().optional(),
 });
 
 function buildInviteUrl(baseUrl: string, token: string): string {
@@ -27,21 +20,6 @@ function buildInviteUrl(baseUrl: string, token: string): string {
   return url.toString();
 }
 
-/**
- * §5a item 5.1 — pinned to a UTC day boundary, not `Date.now()` verbatim: `createManualSaasBillingInvoice`
- * derives its idempotency key from (organizationId, amountMinor, currency, description, expiresAt), so a
- * genuine repeat submit of the SAME confirmation (a double-click, a retried request) must hash to the
- * SAME key to collapse onto one invoice — see the "no second invoice" requirement in the plan. A later,
- * separate overage seat lands on the next call with either a different email (different description) or a
- * different day (different deadline), so it still gets its own invoice.
- */
-const SEAT_OVERAGE_INVOICE_GRACE_DAYS = 3;
-function seatOverageInvoiceExpiresAt(): string {
-  const deadline = new Date();
-  deadline.setUTCDate(deadline.getUTCDate() + SEAT_OVERAGE_INVOICE_GRACE_DAYS);
-  deadline.setUTCHours(23, 59, 59, 999);
-  return deadline.toISOString();
-}
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext();
@@ -79,7 +57,6 @@ export async function POST(request: Request) {
     email: parsed.data.email,
     role: parsed.data.role,
     createdByPlatformUserId: gate.ctx.session.user.userId,
-    confirmedSeatOveragePriceMinor: parsed.data.confirmedSeatOveragePriceMinor,
   });
   if (!result.ok) {
     // §5a item 5.1 — this org is at its tariff's base and the tariff allows paid overage: the
@@ -98,36 +75,6 @@ export async function POST(request: Request) {
   const token = result.token;
   if (!token) {
     return jsonError('server_error', {}, { status: 500 });
-  }
-
-  // §5a item 5.1 — the invite (and the seat it reserves) is already committed by this point; the
-  // invoice is raised existing #1057 mechanism, best-effort. A provider that can't raise it right
-  // now (e.g. invoices disabled on the test PSP shop) must not take the already-granted seat back
-  // — createManualSaasBillingInvoice writes its journal row before the provider call, so the
-  // charge is still visible in the platform payments journal even when this catch fires.
-  const seatOverage = result.seatOverage;
-  let seatOverageInvoiceRaised = false;
-  if (seatOverage) {
-    try {
-      await runWithDbClinicBillingPrincipal(
-        {
-          organizationId: gate.ctx.organizationId,
-          platformUserId: gate.ctx.session.user.userId,
-          source: 'clinic-seat-overage-invoice',
-        },
-        () =>
-          deps.saasBilling.createManualSaasBillingInvoice({
-            organizationId: gate.ctx.organizationId,
-            amountMinor: seatOverage.priceMinor,
-            currency: seatOverage.currency,
-            description: `Дополнительное место специалиста сверх тарифа — ${result.invite.invitedEmail}`,
-            expiresAt: seatOverageInvoiceExpiresAt(),
-          }),
-      );
-      seatOverageInvoiceRaised = true;
-    } catch {
-      seatOverageInvoiceRaised = false;
-    }
   }
 
   // Preview links are a non-production delivery aid. Never let a dev-auth flag reclassify a
@@ -158,15 +105,6 @@ export async function POST(request: Request) {
     inviteId: result.invite.id,
     expiresAt: result.invite.expiresAt,
     emailDelivered: emailResult.ok,
-    ...(seatOverage
-      ? {
-          seatOverage: {
-            priceMinor: seatOverage.priceMinor,
-            currency: seatOverage.currency,
-            invoiceRaised: seatOverageInvoiceRaised,
-          },
-        }
-      : {}),
     ...(mayExposeInviteUrl ? { inviteUrl } : {}),
   });
 }

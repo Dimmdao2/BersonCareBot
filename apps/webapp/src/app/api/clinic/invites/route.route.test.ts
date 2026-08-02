@@ -76,10 +76,8 @@ function postRequest(body: unknown): Request {
 }
 
 /**
- * §5a item 5.1 — the one test this feature earns per AGENTS.md §10a: the sum shown to the clinic
- * for confirmation (`seat_overage_confirmation_required.priceMinor`) must be the exact sum the
- * resulting invoice is raised for. A silent drift here means the clinic pays a different amount
- * than what it agreed to — expensive and, short of reading the provider dashboard, unnoticed.
+ * A full clinic must not create an invite merely because it has seen a price: checkout and trusted
+ * capture are the only capacity-changing path.
  */
 describe('POST /api/clinic/invites — §5a item 5.1 seat overage confirmation', () => {
   beforeEach(() => {
@@ -93,7 +91,7 @@ describe('POST /api/clinic/invites — §5a item 5.1 seat overage confirmation',
     });
   });
 
-  it('quotes a price without creating anything, then invoices exactly that price once confirmed', async () => {
+  it('quotes a price without creating an invite or a manual invoice', async () => {
     const priceMinor = 150_00;
     const currency = 'RUB';
     const createInvite = vi
@@ -105,18 +103,6 @@ describe('POST /api/clinic/invites — §5a item 5.1 seat overage confirmation',
         priceMinor,
         currency,
       })
-      // Second call: same price echoed back — now allowed through.
-      .mockResolvedValueOnce({
-        ok: true,
-        token: 'tok',
-        invite: {
-          id: 'invite-1',
-          invitedEmail: 'new-doctor@example.com',
-          organizationTitle: 'Clinic',
-          expiresAt: '2026-08-08T00:00:00.000Z',
-        },
-        seatOverage: { priceMinor, currency },
-      });
     const createManualSaasBillingInvoice = vi.fn().mockResolvedValue({ id: 'invoice-1' });
     fakes.buildAppDeps.mockReturnValue({
       orgEntitlements: activeEntitlement,
@@ -130,22 +116,7 @@ describe('POST /api/clinic/invites — §5a item 5.1 seat overage confirmation',
     expect(quotedBody.priceMinor).toBe(priceMinor);
     expect(createManualSaasBillingInvoice).not.toHaveBeenCalled();
 
-    const confirmed = await POST(
-      postRequest({
-        email: 'new-doctor@example.com',
-        role: 'doctor',
-        confirmedSeatOveragePriceMinor: quotedBody.priceMinor,
-      }),
-    );
-    expect(confirmed.status).toBe(200);
-
-    expect(createManualSaasBillingInvoice).toHaveBeenCalledTimes(1);
-    const invoiceCall = createManualSaasBillingInvoice.mock.calls[0][0] as {
-      amountMinor: number;
-      currency: string;
-    };
-    // The exact assertion this test exists for: quoted price === invoiced price.
-    expect(invoiceCall.amountMinor).toBe(quotedBody.priceMinor);
-    expect(invoiceCall.currency).toBe(quotedBody.currency);
+    expect(createInvite).toHaveBeenCalledTimes(1);
+    expect(createManualSaasBillingInvoice).not.toHaveBeenCalled();
   });
 });

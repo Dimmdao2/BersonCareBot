@@ -2,7 +2,7 @@
  * POST /api/admin/saas-billing/payments/[invoiceId]/cancel — К4: cancel a manual invoice from the
  * platform cabinet. Honest state machine: only a `draft`/`pending` invoice can be cancelled — an
  * already-`paid` invoice cannot, and the reverse (a cancelled invoice being paid by a late webhook)
- * is closed on the capture side (`markSaasBillingInvoicePaid`'s status CAS). Same platform-only gate
+ * is closed on the capture side (the invoice-status CAS). Same platform-only gate
  * as the rest of the payments cabinet — see `docs/_TODO/SAAS_FOUNDATION/PAYMENTS_CABINET_PLAN.md` К4.
  */
 import { NextResponse } from 'next/server';

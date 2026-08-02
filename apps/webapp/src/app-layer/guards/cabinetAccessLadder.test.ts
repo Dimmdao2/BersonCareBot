@@ -337,7 +337,7 @@ describe('§5a/2.1c: организация в блоке открывает С�
   it('счёт на оплату своего тарифа выставляется даже в конечном состоянии «блок»', async () => {
     withCabinet(cabinetAt('disabled'));
 
-    const response = await payOwnBilling();
+    const response = await payOwnBilling(new Request('http://test/api/clinic/billing', { method: 'POST' }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({

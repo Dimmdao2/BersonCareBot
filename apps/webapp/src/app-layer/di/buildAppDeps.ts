@@ -604,6 +604,9 @@ const organizationInvitesPort = !inMemoryRepos
 const organizationInvitesService = createOrganizationInvitesService({
   invitesPort: organizationInvitesPort,
 });
+const saasBillingRepository = !inMemoryRepos
+  ? createPgSaasBillingRepository()
+  : createInMemorySaasBillingRepository();
 const patientInvitesPort = !inMemoryRepos
   ? createPgPatientInvitesPort()
   : createInMemoryPatientInvitesPort();
@@ -615,6 +618,7 @@ const clinicSeatsService = createClinicSeatsService({
   membershipPort: organizationMembershipPort,
   invitesPort: organizationInvitesPort,
   orgEntitlementsPort,
+  billingPort: saasBillingRepository,
 });
 const clinicDirectoryService = !inMemoryRepos
   ? createClinicDirectoryService(createPgClinicDirectoryPort())
@@ -741,9 +745,7 @@ const systemSettingsService = createSystemSettingsService(systemSettingsPort, {
 });
 let platformEntitlementsService!: ReturnType<typeof createPlatformEntitlementsService>;
 const saasBillingService = createSaasBillingService({
-  repository: !inMemoryRepos
-    ? createPgSaasBillingRepository()
-    : createInMemorySaasBillingRepository(),
+  repository: saasBillingRepository,
   settings: {
     getSaasBillingPaymentProviderValue: () =>
       systemSettingsService
