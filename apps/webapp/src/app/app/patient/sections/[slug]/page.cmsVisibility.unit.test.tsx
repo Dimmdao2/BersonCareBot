@@ -56,6 +56,7 @@ describe('GET /app/patient/sections/[slug] — cms_pages mechanic gate', () => {
         getBySlug: async () => ({
           slug: 'articles',
           title: 'Статьи',
+          isVisible: true,
           requiresAuth: false,
           systemParentCode: null,
           organizationId,
