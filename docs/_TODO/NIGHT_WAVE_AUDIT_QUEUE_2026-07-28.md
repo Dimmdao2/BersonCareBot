@@ -32,7 +32,8 @@
 | `0311` | SaaS billing live TEST | `wt/billing-live-test` / `/home/dev/dev-projects/bcb-wt-billing-live-test` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: живой TEST путь доказал два runtime-разрыва — clinic billing не может прочитать собственный `be_organizations.tariff_id`, а список тарифов ошибочно требует platform principal. Узкая коррекция clinic-billing ACL/RLS и tenant-safe tariff choices; затем реальный YooKassa checkout → webhook → capture → refund. |
 | `0312` | Track D / #987 D5 | `wt/trackd-d5` / `/home/dev/dev-projects/bcb-wt-trackd-d5` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: перевести scheduler-read на канонический `public.reminder_rules`, безопасно re-key/backfill occurrence FK без потери истории и снять legacy local write/table только после parity evidence. |
 | `0313` | clinic-owned Google Calendar / #1071 §12.3 | `wt/clinic-calendar` / `/home/dev/dev-projects/bcb-wt-clinic-calendar` | ПЕРЕБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: предыдущий §12.6 доказан без миграции; перенести Google Calendar credentials и connection state с платформенного singleton на exact clinic organization, сохранив global enablement gate и существующий sync path. |
-| `0314`+ | свободно | — | следующий берущий начинает отсюда |
+| `0314` | Track D / #987 D7 | `wt/trackd-d7` / `/home/dev/dev-projects/bcb-wt-trackd-d7` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: capability-функции и webapp-owned validated contract для reminder done/mute/messenger-topic/notification-settings; snooze/skip подключаются к существующим public capability, integrator остаётся исполнителем callback UX. |
+| `0315`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Текущий режим 02.08:** оркестратор один. Stateful workstreams остаются в отдельных worktree, но единый
 migration ledger `0300…0305` собран в `wt/single-entry-integration`; новые номера по-прежнему бронируются здесь
