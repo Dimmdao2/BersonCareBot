@@ -60,6 +60,10 @@ export async function buildLinksFromBody(
   const displayName = from ? joinDisplayName(from) : undefined;
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
   const links: Record<string, unknown> = {};
+  const appBase = (appBaseUrl ?? env.APP_BASE_URL).trim().replace(/\/+$/, '');
+  if (appBase.startsWith('http://') || appBase.startsWith('https://')) {
+    links.remindersUrl = `${appBase}/app/patient/reminders`;
+  }
   if (typeof chatId === 'number') {
     let integratorUserId: string | undefined;
     try {
@@ -82,7 +86,6 @@ export async function buildLinksFromBody(
       links.webappEntryUrl = baseWebappUrl;
       const enc = (p: string) => encodeURIComponent(p);
       links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
-      links.webappRemindersUrl = `${baseWebappUrl}&next=${enc('/app/patient/reminders')}`;
       links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
       links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
       links.bookingUrl = links.webappCabinetUrl;

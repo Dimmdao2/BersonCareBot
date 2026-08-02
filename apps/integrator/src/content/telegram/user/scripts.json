@@ -1267,7 +1267,7 @@
         "mode": "async",
         "params": {
           "_when": {
-            "path": "facts.links.webappRemindersUrl",
+            "path": "facts.links.remindersUrl",
             "truthy": true
           },
           "recipient": {
@@ -1285,7 +1285,7 @@
             [
               {
                 "textTemplateKey": "telegram:menu.webapp.openButton",
-                "webAppUrlFact": "links.webappRemindersUrl"
+                "urlFact": "links.remindersUrl"
               }
             ]
           ]
@@ -1296,7 +1296,7 @@
         "mode": "async",
         "params": {
           "_when": {
-            "path": "facts.links.webappRemindersUrl",
+            "path": "facts.links.remindersUrl",
             "truthy": false
           },
           "recipient": {
