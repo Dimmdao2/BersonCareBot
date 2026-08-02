@@ -1,4 +1,3 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0307
 -- #1057 #1069: a paid period keeps its effective tariff. Downgrades name only the next tariff;
 -- invoices freeze the whole tariff row that was offered, so a later live-tariff edit cannot alter
 -- what a webhook activates.
