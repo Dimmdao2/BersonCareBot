@@ -194,12 +194,35 @@ cd apps/webapp && pnpm exec vitest run src/infra/repos/pgDoctorClients.devDb.int
       `pnpm run test:webapp:postgres` отдельно от fast Vitest shards. Exact commands, current migration tail,
       counts and red fault evidence — `runs/testsuite-v2/DISPOSABLE_POSTGRES_PRODUCT_PILOT_REPORT.md`.
 
-- [ ] **Б2. Ворота G0/0175 + генератор эталона — узкий поток (владелец согласовал 01.08).** Прежняя активная
+- [x] **Б2. Ворота G0/0175 + генератор эталона — узкий поток (владелец согласовал 01.08).** Прежняя активная
       запись «харнесс не собирает шаблон, блок В стартовать не на чем» ложна: current A0 package проходит
       `pnpm run check:saas-a0-greenfield-baseline`, а harness применяет актуальный pending Drizzle tail в private
       clone. Работа Б2 остаётся отдельной: генератор/эталон должен сохранять fail-closed strictness для своего
       authority, но не блокирует этот один product pilot. Бриф:
       `runs/testsuite-v2/B2B_ETALON_GENERATOR_BRIEF.md`. Привилегированный шаг — за лидом.
+      **Закрыто 01.08, приземлено `29f31f262` (цепочка `c402f29a8` → `46a88ff51` → слепой аудит FAIL
+      `3658752a1`/`6e853ea20` не убито 6/28 → фикс `1480bb9d4`).** Генератор научен четырём deploy-script
+      ролям (`app_platform_settings`, `app_operational_web_push_reminder`,
+      `app_web_push_reminder_discovery_definer`, `app_clinic_billing`) со ссылкой на `CREATE ROLE`-миграцию у
+      каждой; `phone_literal_forbidden` сужен до repo-wide плейсхолдера `+70000000000` (арбитражная проверка:
+      любой другой телефон по-прежнему красит гейт); `environment_identifier_forbidden` — верное срабатывание
+      не ослаблено, а устранено в корне: TEST-фикстуры вынесены из боевого оверлея
+      (`test-saas-isolation-telemetry-fixtures.sql`, подключён только `deploy-test-saas.sh`), фикстурные функции
+      удалены из `bcb_webapp_dev`. Эталон обновлён привилегированным `refresh-a0-greenfield-baseline.mjs`
+      (шаг лида), `drizzle_historical_hash_drift:0175` снят.
+      **Независимо перепроверено в этой сессии (02.08, без доверия к отчёту):** (1) `pnpm run
+      check:saas-a0-greenfield-baseline` → 8 pass / 0 fail на чистом дереве; (2) поломка-арбитраж —
+      дозаписана строка в `apps/webapp/db/drizzle-migrations/0322_...sql`, гейт немедленно дал
+      `refresh_source_worktree_dirty`, откат `git checkout --` вернул PASS — гейт М2-класса подтверждён живым
+      прогоном, не текстом отчёта; (3) прямой `SELECT count(*) FROM pg_proc WHERE proname IN
+      ('set_saas_isolation_test_scenario','read_saas_isolation_test_scenario_fixture_counts')` на
+      `bcb_webapp_dev` → `0` (функций больше нет); (4) `deploy/host/deploy-prod.sh` — `0` упоминаний
+      фикстурного файла/функций.
+      **Не входит в это закрытие (открытый вопрос владельцу, не работа):** блинд-аудит `3658752a1` отдельно
+      отметил, что механической проверки самого разреза «боевой API / TEST-фикстуры» нет — если фикстурную
+      функцию вернуть в боевой оверлей или подключить фикстурный файл к `deploy-prod.sh`, ни один сегодняшний
+      гейт этого не поймает. Пункт `3658752a1` в очереди аудита прямо называет это отдельным вопросом, а не
+      самозаведённой работой — оставлено как есть, решение за владельцем.
 - [ ] **Б3. Ревизия 22 неисполняемых файлов живой БД** — не отдельной уборкой, а как посевной материал матрицы:
       каждый webapp-файл либо переносится на общий clone-harness Б1, либо удаляется с названной причиной; RLS-only
       проверки переводятся в A1. Заранее известно, что часть
