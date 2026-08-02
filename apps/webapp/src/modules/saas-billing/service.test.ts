@@ -9,6 +9,7 @@ import type {
   SaasBillingManualAssignmentTransactionPort,
   SaasBillingRepositoryPort,
 } from './ports';
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
 
 const invoice: SaasBillingInvoice = {
@@ -1180,7 +1181,7 @@ describe('К6: неудачное автосписание возвращает 
       };
       return currentInvoice;
     });
-    const createIntent = vi.fn(async () => ({
+    const createIntent = vi.fn(async (_input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
       providerIntentRef: 'manual-checkout-1',
       checkoutUrl: 'https://yookassa.example.test/manual-checkout-1',
     }));
