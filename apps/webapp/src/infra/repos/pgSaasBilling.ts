@@ -812,56 +812,55 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           | undefined;
         if (!tariff) return { outcome: 'seat_overage_unavailable' as const };
 
-        const [[override], [activeSeats], [pendingInvites], [acceptedUnboundInvites]] =
-          await Promise.all([
-            tx
-              .select({ seatLimitOverride: saasOrgEntitlementOverrides.seatLimitOverride })
-              .from(saasOrgEntitlementOverrides)
-              .where(
-                and(
-                  eq(saasOrgEntitlementOverrides.organizationId, input.organizationId),
-                  eq(saasOrgEntitlementOverrides.mechanic, 'clinic_team'),
-                ),
-              )
-              .limit(1),
-            tx
-              .select({ value: sql<number>`count(*)::int` })
-              .from(beOrganizationMembers)
-              .where(
-                and(
-                  eq(beOrganizationMembers.organizationId, input.organizationId),
-                  eq(beOrganizationMembers.status, 'active'),
-                  isNotNull(beOrganizationMembers.specialistId),
-                ),
-              ),
-            tx
-              .select({ value: sql<number>`count(*)::int` })
-              .from(organizationMemberInvites)
-              .where(
-                and(
-                  eq(organizationMemberInvites.organizationId, input.organizationId),
-                  eq(organizationMemberInvites.status, 'pending'),
-                  eq(organizationMemberInvites.invitedRole, 'doctor'),
-                  gt(organizationMemberInvites.expiresAt, sql`now()`),
-                ),
-              ),
-            tx
-              .select({ value: sql<number>`count(*)::int` })
-              .from(organizationMemberInvites)
-              .innerJoin(
-                beOrganizationMembers,
-                eq(beOrganizationMembers.id, organizationMemberInvites.acceptedMembershipId),
-              )
-              .where(
-                and(
-                  eq(organizationMemberInvites.organizationId, input.organizationId),
-                  eq(organizationMemberInvites.status, 'accepted'),
-                  eq(organizationMemberInvites.invitedRole, 'doctor'),
-                  eq(beOrganizationMembers.status, 'active'),
-                  isNull(beOrganizationMembers.specialistId),
-                ),
-              ),
-          ]);
+        // One Drizzle transaction owns one node-postgres client; pg 9 removes support for
+        // overlapping client.query calls, so keep capacity reads sequential under the org lock.
+        const [override] = await tx
+          .select({ seatLimitOverride: saasOrgEntitlementOverrides.seatLimitOverride })
+          .from(saasOrgEntitlementOverrides)
+          .where(
+            and(
+              eq(saasOrgEntitlementOverrides.organizationId, input.organizationId),
+              eq(saasOrgEntitlementOverrides.mechanic, 'clinic_team'),
+            ),
+          )
+          .limit(1);
+        const [activeSeats] = await tx
+          .select({ value: sql<number>`count(*)::int` })
+          .from(beOrganizationMembers)
+          .where(
+            and(
+              eq(beOrganizationMembers.organizationId, input.organizationId),
+              eq(beOrganizationMembers.status, 'active'),
+              isNotNull(beOrganizationMembers.specialistId),
+            ),
+          );
+        const [pendingInvites] = await tx
+          .select({ value: sql<number>`count(*)::int` })
+          .from(organizationMemberInvites)
+          .where(
+            and(
+              eq(organizationMemberInvites.organizationId, input.organizationId),
+              eq(organizationMemberInvites.status, 'pending'),
+              eq(organizationMemberInvites.invitedRole, 'doctor'),
+              gt(organizationMemberInvites.expiresAt, sql`now()`),
+            ),
+          );
+        const [acceptedUnboundInvites] = await tx
+          .select({ value: sql<number>`count(*)::int` })
+          .from(organizationMemberInvites)
+          .innerJoin(
+            beOrganizationMembers,
+            eq(beOrganizationMembers.id, organizationMemberInvites.acceptedMembershipId),
+          )
+          .where(
+            and(
+              eq(organizationMemberInvites.organizationId, input.organizationId),
+              eq(organizationMemberInvites.status, 'accepted'),
+              eq(organizationMemberInvites.invitedRole, 'doctor'),
+              eq(beOrganizationMembers.status, 'active'),
+              isNull(beOrganizationMembers.specialistId),
+            ),
+          );
         const baseCapacity = override?.seatLimitOverride ?? tariff.included_seats;
         if (baseCapacity === null) return { outcome: 'seat_overage_unavailable' as const };
         const capacity = baseCapacity + subscription.paidAdditionalSeats;

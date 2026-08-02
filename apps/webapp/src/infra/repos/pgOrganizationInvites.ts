@@ -178,67 +178,66 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
                 currency: string | null;
               }
             | undefined;
-          const [[override], [subscription], [activeSeats], [pendingInvites], [acceptedInvites]] =
-            await Promise.all([
-              tx
-                .select({ value: saasOrgEntitlementOverrides.seatLimitOverride })
-                .from(saasOrgEntitlementOverrides)
-                .where(
-                  and(
-                    eq(saasOrgEntitlementOverrides.organizationId, input.organizationId),
-                    eq(saasOrgEntitlementOverrides.mechanic, 'clinic_team'),
-                  ),
-                )
-                .limit(1),
-              tx
-                .select({ value: saasBillingSubscriptions.paidAdditionalSeats })
-                .from(saasBillingSubscriptions)
-                .where(
-                  and(
-                    eq(saasBillingSubscriptions.organizationId, input.organizationId),
-                    eq(saasBillingSubscriptions.source, 'paid_subscription'),
-                  ),
-                )
-                .limit(1),
-              tx
-                .select({ value: sql<number>`count(*)::int` })
-                .from(beOrganizationMembers)
-                .where(
-                  and(
-                    eq(beOrganizationMembers.organizationId, input.organizationId),
-                    eq(beOrganizationMembers.status, 'active'),
-                    isNotNull(beOrganizationMembers.specialistId),
-                  ),
-                ),
-              tx
-                .select({ value: sql<number>`count(*)::int` })
-                .from(organizationMemberInvites)
-                .where(
-                  and(
-                    eq(organizationMemberInvites.organizationId, input.organizationId),
-                    eq(organizationMemberInvites.invitedRole, 'doctor'),
-                    eq(organizationMemberInvites.status, 'pending'),
-                    gt(organizationMemberInvites.expiresAt, sql`now()`),
-                    ne(organizationMemberInvites.invitedEmail, input.invitedEmail),
-                  ),
-                ),
-              tx
-                .select({ value: sql<number>`count(*)::int` })
-                .from(organizationMemberInvites)
-                .innerJoin(
-                  beOrganizationMembers,
-                  eq(beOrganizationMembers.id, organizationMemberInvites.acceptedMembershipId),
-                )
-                .where(
-                  and(
-                    eq(organizationMemberInvites.organizationId, input.organizationId),
-                    eq(organizationMemberInvites.invitedRole, 'doctor'),
-                    eq(organizationMemberInvites.status, 'accepted'),
-                    eq(beOrganizationMembers.status, 'active'),
-                    isNull(beOrganizationMembers.specialistId),
-                  ),
-                ),
-            ]);
+          // A Drizzle transaction owns one node-postgres client. Keep these reads sequential:
+          // concurrent client.query calls are deprecated by pg and will be rejected in pg 9.
+          const [override] = await tx
+            .select({ value: saasOrgEntitlementOverrides.seatLimitOverride })
+            .from(saasOrgEntitlementOverrides)
+            .where(
+              and(
+                eq(saasOrgEntitlementOverrides.organizationId, input.organizationId),
+                eq(saasOrgEntitlementOverrides.mechanic, 'clinic_team'),
+              ),
+            )
+            .limit(1);
+          const [subscription] = await tx
+            .select({ value: saasBillingSubscriptions.paidAdditionalSeats })
+            .from(saasBillingSubscriptions)
+            .where(
+              and(
+                eq(saasBillingSubscriptions.organizationId, input.organizationId),
+                eq(saasBillingSubscriptions.source, 'paid_subscription'),
+              ),
+            )
+            .limit(1);
+          const [activeSeats] = await tx
+            .select({ value: sql<number>`count(*)::int` })
+            .from(beOrganizationMembers)
+            .where(
+              and(
+                eq(beOrganizationMembers.organizationId, input.organizationId),
+                eq(beOrganizationMembers.status, 'active'),
+                isNotNull(beOrganizationMembers.specialistId),
+              ),
+            );
+          const [pendingInvites] = await tx
+            .select({ value: sql<number>`count(*)::int` })
+            .from(organizationMemberInvites)
+            .where(
+              and(
+                eq(organizationMemberInvites.organizationId, input.organizationId),
+                eq(organizationMemberInvites.invitedRole, 'doctor'),
+                eq(organizationMemberInvites.status, 'pending'),
+                gt(organizationMemberInvites.expiresAt, sql`now()`),
+                ne(organizationMemberInvites.invitedEmail, input.invitedEmail),
+              ),
+            );
+          const [acceptedInvites] = await tx
+            .select({ value: sql<number>`count(*)::int` })
+            .from(organizationMemberInvites)
+            .innerJoin(
+              beOrganizationMembers,
+              eq(beOrganizationMembers.id, organizationMemberInvites.acceptedMembershipId),
+            )
+            .where(
+              and(
+                eq(organizationMemberInvites.organizationId, input.organizationId),
+                eq(organizationMemberInvites.invitedRole, 'doctor'),
+                eq(organizationMemberInvites.status, 'accepted'),
+                eq(beOrganizationMembers.status, 'active'),
+                isNull(beOrganizationMembers.specialistId),
+              ),
+            );
           const includedSeats = override?.value ?? tariff?.included_seats ?? null;
           const limitValue = includedSeats === null
             ? null
