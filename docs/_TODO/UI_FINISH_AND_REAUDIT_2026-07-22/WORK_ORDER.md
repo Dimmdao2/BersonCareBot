@@ -619,6 +619,13 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       путь. Исходов three, а не два: «прочитали значение», «не смогли прочитать» и «этому вызывающему не
       положено читать» — последнее есть ОТВЕТ «не показывай», а не сбой. Для интегратора это фоновая
       доставка без принципала. И не строить гейт на импорты: граница уже стоит у данных.
+      - [x] D38/3 integrator availability: `isPlatformIntegrationAvailable` preserves canonical `false` and
+        read/ACL failures; `createDefaultDispatchPort` reaches no adapter for disabled, missing, malformed or
+        permission-denied authority (`apps/integrator/src/infra/db/platformIntegrationAvailability.test.ts`).
+        Google Calendar no longer substitutes env values (`runtimeConfig.ts`). Evidence 2026-08-02:
+        `pnpm --dir apps/integrator exec vitest run src/infra/db/platformIntegrationAvailability.test.ts`
+        (5 passed); `pnpm --dir apps/integrator typecheck`; scoped `eslint`; `git diff --check`. Fault injection
+        `return true` in the reader made the canonical-false and no-adapter assertions red before restoration.
 
 - [ ] **D36 — тесты интегратора, блок И** (передано из #1081 целиком). И1: уровни 0-2, причём уровень 0
       переписывается против ПЛАНА, а не против кода. И2: уровень 2 закрывается числом, а не следующим
