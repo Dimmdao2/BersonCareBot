@@ -218,8 +218,8 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
   function skipButtonCallbackData(): string {
     const { inline_keyboard } = buildReminderDispatchInlineKeyboard({
       primaryLabel: 'Начать тренировку',
-      primary: { kind: 'url', url: 'https://app.example.test/lfk' },
-      schedule: { kind: 'url', url: 'https://app.example.test/schedule' },
+      primaryUrl: 'https://app.example.test/lfk',
+      scheduleUrl: 'https://app.example.test/schedule',
       occurrenceId: routingOccurrenceId,
     });
     for (const row of inline_keyboard) {
