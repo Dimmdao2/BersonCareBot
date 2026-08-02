@@ -33,4 +33,87 @@ describe('signed legacy diary events (critical mechanic, never gated)', () => {
       symptomTitle: 'Боль',
     });
   });
+
+  it('writes the reminder projection through its module-owned port', async () => {
+    const upsertRuleFromProjection = vi.fn().mockResolvedValue(undefined);
+
+    const result = await handleIntegratorEvent(
+      {
+        eventType: 'reminder.rule.upserted',
+        payload: {
+          integratorRuleId: 'rule-77',
+          integratorUserId: '44',
+          category: 'appointment',
+          isEnabled: true,
+          scheduleType: 'interval_window',
+          timezone: 'Europe/Moscow',
+          intervalMinutes: 90,
+          windowStartMinute: 480,
+          windowEndMinute: 1080,
+          daysMask: '1111111',
+          contentMode: 'default',
+          updatedAt: '2026-08-03T00:00:00.000Z',
+        },
+      },
+      {
+        diaries: {},
+        reminderProjection: { upsertRuleFromProjection },
+      } as unknown as IntegratorEventsDeps,
+    );
+
+    expect(result).toEqual({ accepted: true });
+    expect(upsertRuleFromProjection).toHaveBeenCalledWith({
+      integratorRuleId: 'rule-77',
+      integratorUserId: '44',
+      category: 'appointment',
+      isEnabled: true,
+      scheduleType: 'interval_window',
+      timezone: 'Europe/Moscow',
+      intervalMinutes: 90,
+      windowStartMinute: 480,
+      windowEndMinute: 1080,
+      daysMask: '1111111',
+      contentMode: 'default',
+      updatedAt: '2026-08-03T00:00:00.000Z',
+    });
+  });
+
+  it('writes a support delivery attempt through its module-owned port', async () => {
+    const appendDeliveryEventFromProjection = vi.fn().mockResolvedValue(undefined);
+
+    const result = await handleIntegratorEvent(
+      {
+        eventType: 'support.delivery.attempt.logged',
+        payload: {
+          organizationId: 'clinic-77',
+          intentEventId: 'intent-99',
+          correlationId: 'corr-100',
+          channelCode: 'telegram',
+          status: 'failed',
+          attempt: 2,
+          reason: 'timeout',
+          payloadJson: { retry: true },
+          occurredAt: '2026-08-03T00:00:00.000Z',
+        },
+      },
+      {
+        diaries: {},
+        supportCommunication: { appendDeliveryEventFromProjection },
+      } as unknown as IntegratorEventsDeps,
+    );
+
+    expect(result).toEqual({ accepted: true });
+    expect(appendDeliveryEventFromProjection).toHaveBeenCalledWith({
+      organizationId: 'clinic-77',
+      conversationMessageId: null,
+      integratorIntentEventId: 'intent-99',
+      correlationId: 'corr-100',
+      channelCode: 'telegram',
+      status: 'failed',
+      attempt: 2,
+      reason: 'timeout',
+      payloadJson: { retry: true },
+      occurredAt: '2026-08-03T00:00:00.000Z',
+    });
+  });
 });

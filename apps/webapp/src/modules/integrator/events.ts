@@ -3,8 +3,8 @@
  * Parsed body shape per contracts/integrator-events-body.json.
  * Deps are injected by the route; this module must not import buildAppDeps.
  */
-import type { ReminderProjectionPort } from '@/infra/repos/pgReminderProjection';
-import type { SupportCommunicationPort } from '@/infra/repos/pgSupportCommunication';
+import type { ReminderProjectionPort } from '@/modules/reminders/projectionPort';
+import type { SupportCommunicationPort } from '@/modules/messaging/ports';
 import {
   MergeConflictError,
   MergeDependentConflictError,

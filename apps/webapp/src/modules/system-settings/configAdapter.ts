@@ -6,12 +6,6 @@
  */
 
 import {
-  readAdminSystemSettingString,
-  readExactOrganizationAdminSystemSettingString,
-  readPublicAuthChannelConfigured,
-} from '@/infra/repos/pgSystemSettings';
-import { createPgAppRuntimeSettingsPort } from '@/infra/repos/pgAppRuntimeSettings';
-import {
   createRuntimeConfigProvider,
   type AuthenticatedRuntimeBooleanKey,
   type AuthenticatedRuntimeStringKey,
@@ -24,6 +18,7 @@ import {
 } from './runtimeConfig';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 import type { PublicAuthChannelCapability } from './ports';
+import { requireConfigAdapterPort } from './configAdapterPort';
 
 const TTL_MS = 60_000;
 
@@ -60,42 +55,44 @@ function writeCached(identity: CacheIdentity, value: string, fetchedAt: number):
 }
 
 const cache = new Map<string, CacheEntry>();
-const safeRuntimeConfig = createRuntimeConfigProvider(createPgAppRuntimeSettingsPort());
+function runtimeConfigProvider() {
+  return createRuntimeConfigProvider(requireConfigAdapterPort().runtimeSettings);
+}
 
 export function getPublicRuntimeBool(
   key: PublicRuntimeBooleanKey,
   operationFamily: RuntimeConfigOperationFamily = 'public_auth_config',
 ): Promise<boolean> {
-  return safeRuntimeConfig.getPublicBoolean(key, operationFamily);
+  return runtimeConfigProvider().getPublicBoolean(key, operationFamily);
 }
 
 export function getPublicRuntimeValue(
   key: PublicRuntimeStringKey,
   operationFamily: RuntimeConfigOperationFamily = 'public_auth_config',
 ): Promise<string> {
-  return safeRuntimeConfig.getPublicString(key, operationFamily);
+  return runtimeConfigProvider().getPublicString(key, operationFamily);
 }
 
 export function getPatientRuntimeBool(key: AuthenticatedRuntimeBooleanKey): Promise<boolean> {
-  return safeRuntimeConfig.getAuthenticatedBoolean(key);
+  return runtimeConfigProvider().getAuthenticatedBoolean(key);
 }
 
 export function getPatientRuntimeValue(
   key: AuthenticatedRuntimeStringKey,
   organizationId: string | null = null,
 ): Promise<string> {
-  return safeRuntimeConfig.getAuthenticatedString(key, organizationId);
+  return runtimeConfigProvider().getAuthenticatedString(key, organizationId);
 }
 
 export function getServerRuntimeBool(key: ServerRuntimeBooleanKey): Promise<boolean> {
-  return safeRuntimeConfig.getServerBoolean(key);
+  return runtimeConfigProvider().getServerBoolean(key);
 }
 
 export function getServerRuntimeInteger(
   key: ServerRuntimeIntegerKey,
   organizationId: string | null = null,
 ): Promise<number> {
-  return safeRuntimeConfig.getServerInteger(key, organizationId);
+  return runtimeConfigProvider().getServerInteger(key, organizationId);
 }
 
 export type ServerConfigStructuredKey = 'test_account_identifiers';
@@ -120,7 +117,7 @@ export async function getServerConfigStructuredValue(
  * the 60-second compatibility cache and has no environment fallback.
  */
 export function getFreshServerRuntimeTokenList(key: ServerRuntimeTokenListKey): Promise<string> {
-  return safeRuntimeConfig.getServerTokenListStrict(key, 'auth_role_config');
+  return runtimeConfigProvider().getServerTokenListStrict(key, 'auth_role_config');
 }
 
 /** Invalidate all cached entries (call after PATCH /api/admin/settings). */
@@ -147,7 +144,7 @@ type SettingReadOutcome =
 
 async function fetchFromDb(key: string): Promise<SettingReadOutcome> {
   try {
-    return { read: true, value: await readAdminSystemSettingString(key) };
+    return { read: true, value: await requireConfigAdapterPort().readAdminSystemSettingString(key) };
   } catch (cause) {
     return { read: false, cause };
   }
@@ -160,7 +157,10 @@ async function fetchExactOrganizationValue(
   try {
     return {
       read: true,
-      value: await readExactOrganizationAdminSystemSettingString(key, organizationId),
+      value: await requireConfigAdapterPort().readExactOrganizationAdminSystemSettingString(
+        key,
+        organizationId,
+      ),
     };
   } catch (cause) {
     return { read: false, cause };
@@ -243,7 +243,7 @@ export async function getPublicAuthChannelConfigured(
   const now = Date.now();
   const cached = readCached(identity, now);
   if (cached !== null) return cached === 'true';
-  const dbValue = await readPublicAuthChannelConfigured(channel);
+  const dbValue = await requireConfigAdapterPort().readPublicAuthChannelConfigured(channel);
   writeCached(identity, dbValue ? 'true' : 'false', now);
   return dbValue;
 }

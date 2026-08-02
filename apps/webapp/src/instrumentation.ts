@@ -43,6 +43,11 @@ export async function register(): Promise<void> {
   // Node-only transitive deps (dotenv, pg, Sentry) — from the Edge compilation.
   // See https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation#specifying-the-runtime
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { ensureAuthModulePortsBound } = await import('@/app-layer/di/bindAuthModulePorts');
+    ensureAuthModulePortsBound();
+    const { ensureSystemSettingsConfigAdapterBound } =
+      await import('@/app-layer/di/bindSystemSettingsConfigAdapter');
+    ensureSystemSettingsConfigAdapterBound();
     const errorTracking = await import('@/app-layer/observability/errorTracking');
     await errorTracking.initWebappErrorTracking();
     captureNodeRequestError = errorTracking.captureWebappRequestError;
