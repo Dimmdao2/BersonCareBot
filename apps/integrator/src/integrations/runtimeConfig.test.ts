@@ -7,8 +7,13 @@ type SettingValues = Record<string, unknown>;
 
 function dbFor(values: SettingValues, failure?: Error): DbPort {
   return {
-    query: vi.fn((_: string, params: unknown[] = []) => {
+    query: vi.fn((query: string, params: unknown[] = []) => {
       if (failure) return Promise.reject(failure);
+      // Mirrors the locked TEST login: direct credential-table reads are denied, while the
+      // fixed-key SECURITY DEFINER capability is executable.
+      if (/\bpublic\.system_settings\b/i.test(query)) {
+        return Promise.reject(new Error('permission denied for table system_settings'));
+      }
       const key = String(params[0] ?? '');
       const value = values[key];
       return Promise.resolve({ rows: value === undefined ? [] : [{ value_json: { value } }] });
