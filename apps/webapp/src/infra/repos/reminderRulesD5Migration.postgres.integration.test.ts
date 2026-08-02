@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import pg from 'pg';
+import { getPool } from '@/infra/db/client';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 type PreservedHistoryRow = { count: string; delivery_count: string };
 
@@ -10,23 +11,22 @@ describe('D5 canonical reminder-rule migration', () => {
   const occurrenceId = `d5-occurrence-${randomUUID()}`;
   const deliveryId = `d5-delivery-${randomUUID()}`;
   const occurrenceKey = `d5-key-${randomUUID()}`;
-  let pool: pg.Pool;
+  const pool = getPool();
 
   beforeAll(async () => {
-    pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
-    await pool.query(
-        'ALTER TABLE public.be_organizations DISABLE ROW LEVEL SECURITY; ' +
+    await runWebappPgText(
+      'ALTER TABLE public.be_organizations DISABLE ROW LEVEL SECURITY; ' +
         'ALTER TABLE public.be_organizations DISABLE TRIGGER USER; ' +
         'ALTER TABLE public.reminder_rules DISABLE ROW LEVEL SECURITY; ' +
         'ALTER TABLE integrator.user_reminder_occurrences DISABLE ROW LEVEL SECURITY; ' +
         'ALTER TABLE integrator.user_reminder_delivery_logs DISABLE ROW LEVEL SECURITY;',
     );
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO public.be_organizations (id, title)
        VALUES ($1::uuid, 'D5 disposable migration fixture')`,
       [organizationId],
     );
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO public.reminder_rules (
          integrator_rule_id, integrator_user_id, organization_id, category, is_enabled,
          schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
@@ -37,13 +37,13 @@ describe('D5 canonical reminder-rule migration', () => {
        )`,
       [ruleId, organizationId],
     );
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO integrator.user_reminder_occurrences (
          id, rule_id, occurrence_key, planned_at, status, organization_id
        ) VALUES ($1, $2, $3, now(), 'sent', $4::uuid)`,
       [occurrenceId, ruleId, occurrenceKey, organizationId],
     );
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO integrator.user_reminder_delivery_logs (
          id, occurrence_id, channel, status, organization_id
        ) VALUES ($1, $2, 'telegram', 'sent', $3::uuid)`,
@@ -52,11 +52,11 @@ describe('D5 canonical reminder-rule migration', () => {
   });
 
   afterAll(async () => {
-    await pool.query('DELETE FROM integrator.user_reminder_delivery_logs WHERE id = $1', [deliveryId]);
-    await pool.query('DELETE FROM integrator.user_reminder_occurrences WHERE id = $1', [occurrenceId]);
-    await pool.query('DELETE FROM public.reminder_rules WHERE integrator_rule_id = $1', [ruleId]);
-    await pool.query('DELETE FROM public.be_organizations WHERE id = $1::uuid', [organizationId]);
-    await pool.query(
+    await runWebappPgText('DELETE FROM integrator.user_reminder_delivery_logs WHERE id = $1', [deliveryId]);
+    await runWebappPgText('DELETE FROM integrator.user_reminder_occurrences WHERE id = $1', [occurrenceId]);
+    await runWebappPgText('DELETE FROM public.reminder_rules WHERE integrator_rule_id = $1', [ruleId]);
+    await runWebappPgText('DELETE FROM public.be_organizations WHERE id = $1::uuid', [organizationId]);
+    await runWebappPgText(
       'ALTER TABLE public.be_organizations ENABLE ROW LEVEL SECURITY; ' +
         'ALTER TABLE public.be_organizations ENABLE TRIGGER USER; ' +
         'ALTER TABLE public.reminder_rules ENABLE ROW LEVEL SECURITY; ' +
@@ -67,7 +67,7 @@ describe('D5 canonical reminder-rule migration', () => {
   });
 
   it('uses public.reminder_rules as the occurrence parent, preserves delivery history, and fails closed on parent deletion', async () => {
-    const occurrenceParent = await pool.query<{ parent: string; definition: string }>(
+    const occurrenceParent = await runWebappPgText<{ parent: string; definition: string }>(
       `SELECT confrelid::regclass::text AS parent, pg_get_constraintdef(oid) AS definition
        FROM pg_constraint
        WHERE conrelid = 'integrator.user_reminder_occurrences'::regclass
@@ -80,16 +80,16 @@ describe('D5 canonical reminder-rule migration', () => {
       }),
     );
 
-    const schedulerOrganizations = await pool.query<{ organization_id: string }>(
+    const schedulerOrganizations = await runWebappPgText<{ organization_id: string }>(
       'SELECT app.list_scheduler_reminder_organization_ids()::text AS organization_id',
     );
     expect(schedulerOrganizations.rows.map((row) => row.organization_id)).toContain(organizationId);
 
     await expect(
-      pool.query('DELETE FROM public.reminder_rules WHERE integrator_rule_id = $1', [ruleId]),
-    ).rejects.toMatchObject({ code: '23503' });
+      runWebappPgText('DELETE FROM public.reminder_rules WHERE integrator_rule_id = $1', [ruleId]),
+    ).rejects.toMatchObject({ cause: { code: '23503' } });
 
-    const preserved = await pool.query<PreservedHistoryRow>(
+    const preserved = await runWebappPgText<PreservedHistoryRow>(
       `SELECT
          (SELECT count(*)::text FROM integrator.user_reminder_occurrences WHERE id = $1) AS count,
          (SELECT count(*)::text FROM integrator.user_reminder_delivery_logs WHERE id = $2) AS delivery_count`,
