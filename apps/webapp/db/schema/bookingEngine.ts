@@ -184,6 +184,11 @@ export const beSpecialists = pgTable(
     organizationId: uuid('organization_id').notNull(),
     fullName: text('full_name').notNull(),
     description: text(),
+    appointmentReminderAllowedPresetIds: jsonb('appointment_reminder_allowed_preset_ids')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    appointmentReminderDefaultPresetId: text('appointment_reminder_default_preset_id'),
     isActive: boolean('is_active').default(true).notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -539,6 +544,14 @@ export const beAppointments = pgTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'::jsonb`),
+    appointmentReminderAllowedPresetIds: jsonb('appointment_reminder_allowed_preset_ids')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    appointmentReminderPresetId: text('appointment_reminder_preset_id'),
+    appointmentReminderSelectionSource: text('appointment_reminder_selection_source')
+      .notNull()
+      .default('specialist_default'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -603,6 +616,10 @@ export const beAppointments = pgTable(
     ])`,
     ),
     check('be_appointments_status_check', appointmentStatusCheckSql),
+    check(
+      'be_appointments_reminder_selection_source_check',
+      sql`appointment_reminder_selection_source = ANY (ARRAY['specialist_default'::text, 'patient'::text])`,
+    ),
   ],
 );
 

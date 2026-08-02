@@ -51,6 +51,28 @@ export function createBookingEngineService(
   dependencies: BookingEngineServiceDependencies = {},
 ) {
   const engine: BookingEnginePort = {
+    async getSpecialistAppointmentReminderSettings(input) {
+      assertUuid(input.organizationId, 'organizationId');
+      assertUuid(input.specialistId, 'specialistId');
+      return port.getSpecialistAppointmentReminderSettings(input);
+    },
+
+    async updateSpecialistAppointmentReminderSettings(input) {
+      assertUuid(input.organizationId, 'organizationId');
+      assertUuid(input.specialistId, 'specialistId');
+      return port.updateSpecialistAppointmentReminderSettings(input);
+    },
+
+    async setPatientAppointmentReminderPreset(input) {
+      assertUuid(input.appointmentId, 'appointmentId');
+      return port.setPatientAppointmentReminderPreset(input);
+    },
+
+    async getPatientAppointmentReminderPreference(appointmentId) {
+      assertUuid(appointmentId, 'appointmentId');
+      return port.getPatientAppointmentReminderPreference(appointmentId);
+    },
+
     async getAppointment(id) {
       assertUuid(id);
       return port.getAppointment(id);

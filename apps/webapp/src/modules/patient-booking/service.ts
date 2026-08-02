@@ -37,7 +37,7 @@ import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import type { PatientBookingRecord } from './types';
 import { prepaymentContextFromBooking } from '@/modules/payments/prepaymentContextFromBooking';
 import type { BeAppointment } from '@/modules/booking-engine/types';
-import type { AppointmentReminderPlan } from '@/modules/booking-notifications/settings';
+import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import {
   buildPatientCancelledMessageText,
   buildPatientRescheduledMessageText,
@@ -150,7 +150,6 @@ export function createPatientBookingService(input: {
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
-  getAppointmentReminderPlan?: (organizationId: string) => Promise<AppointmentReminderPlan>;
   /** D14(3): часовой пояс организации для текста пациентского сообщения. Отсутствие — DEFAULT_APP_DISPLAY_TIMEZONE. */
   getAppDisplayTimeZone?: () => Promise<string>;
   slotsTtlMs?: number;
@@ -189,7 +188,6 @@ export function createPatientBookingService(input: {
           getPlatformUserIdentityContacts: input.getPlatformUserIdentityContacts,
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
-          getAppointmentReminderPlan: input.getAppointmentReminderPlan,
           getAppDisplayTimeZone: input.getAppDisplayTimeZone,
         }
       : null;
@@ -518,7 +516,8 @@ export function createPatientBookingService(input: {
         (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
       );
       try {
-        const reminderPlan = await input.getAppointmentReminderPlan?.(orgId);
+        const appointment = await loadCanonicalAppointment(input.bookingEngine, row.canonicalAppointmentId);
+        const reminderPlan = appointmentReminderPlanForPreset(appointment.appointmentReminderPresetId);
         const timeZone = (await input.getAppDisplayTimeZone?.()) ?? DEFAULT_APP_DISPLAY_TIMEZONE;
         await input.syncPort.emitBookingEvent({
           eventType: 'booking.rescheduled',
@@ -538,7 +537,7 @@ export function createPatientBookingService(input: {
             cityCodeSnapshot: row.cityCodeSnapshot,
             serviceTitleSnapshot: row.serviceTitleSnapshot,
             canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
-            ...(reminderPlan ? { reminderPlan } : {}),
+            reminderPlan,
             cancelPendingReminders: true,
             patientPushVariant: 'rescheduled',
             patientMessageText: buildPatientRescheduledMessageText(
