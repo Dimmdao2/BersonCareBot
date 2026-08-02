@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import type {
   DbPort,
   DueReminderOccurrence,
@@ -11,8 +11,8 @@ import {
   contentAccessGrants,
   userReminderDeliveryLogs,
   userReminderOccurrences,
-  userReminderRules,
 } from '../schema/integratorDomainRepos.js';
+import { reminderRules } from '../schema/integratorPublicProduct.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   getCurrentOrganizationPrincipalId,
@@ -27,15 +27,10 @@ function organizationIdForIntegratorUserSql(integratorUserId: string | number) {
       SELECT (array_agg(DISTINCT active_user_orgs.organization_id))[1]
       FROM public.platform_users platform_user
       INNER JOIN (
-        SELECT platform_user_id, organization_id
-        FROM public.org_enrollments
-        WHERE status = 'active'
+        SELECT platform_user_id, organization_id FROM public.org_enrollments WHERE status = 'active'
         UNION
-        SELECT platform_user_id, organization_id
-        FROM public.be_organization_members
-        WHERE status = 'active'
-      ) active_user_orgs
-        ON active_user_orgs.platform_user_id = platform_user.id
+        SELECT platform_user_id, organization_id FROM public.be_organization_members WHERE status = 'active'
+      ) active_user_orgs ON active_user_orgs.platform_user_id = platform_user.id
       WHERE platform_user.integrator_user_id = ${String(integratorUserId)}::bigint
       HAVING count(DISTINCT active_user_orgs.organization_id) = 1
     )
@@ -137,30 +132,29 @@ function normalizeOccurrenceRow(row: {
 }
 
 const ruleSelectShape = {
-  id: userReminderRules.id,
-  user_id: userReminderRules.userId,
-  category: userReminderRules.category,
-  is_enabled: userReminderRules.isEnabled,
-  schedule_type: userReminderRules.scheduleType,
-  timezone: userReminderRules.timezone,
-  interval_minutes: userReminderRules.intervalMinutes,
-  window_start_minute: userReminderRules.windowStartMinute,
-  window_end_minute: userReminderRules.windowEndMinute,
-  days_mask: userReminderRules.daysMask,
-  content_mode: userReminderRules.contentMode,
-  linked_object_type: userReminderRules.linkedObjectType,
-  linked_object_id: userReminderRules.linkedObjectId,
-  custom_title: userReminderRules.customTitle,
-  custom_text: userReminderRules.customText,
-  deep_link: userReminderRules.deepLink,
-  schedule_data: userReminderRules.scheduleData,
-  reminder_intent: userReminderRules.reminderIntent,
-  quiet_hours_start_minute: userReminderRules.quietHoursStartMinute,
-  quiet_hours_end_minute: userReminderRules.quietHoursEndMinute,
-  notification_topic_code: userReminderRules.notificationTopicCode,
-  organization_id: userReminderRules.organizationId,
-  created_at: userReminderRules.createdAt,
-  updated_at: userReminderRules.updatedAt,
+  id: reminderRules.integratorRuleId,
+  user_id: reminderRules.integratorUserId,
+  category: reminderRules.category,
+  is_enabled: reminderRules.isEnabled,
+  schedule_type: reminderRules.scheduleType,
+  timezone: reminderRules.timezone,
+  interval_minutes: reminderRules.intervalMinutes,
+  window_start_minute: reminderRules.windowStartMinute,
+  window_end_minute: reminderRules.windowEndMinute,
+  days_mask: reminderRules.daysMask,
+  content_mode: reminderRules.contentMode,
+  linked_object_type: reminderRules.linkedObjectType,
+  linked_object_id: reminderRules.linkedObjectId,
+  custom_title: reminderRules.customTitle,
+  custom_text: reminderRules.customText,
+  schedule_data: reminderRules.scheduleData,
+  reminder_intent: reminderRules.reminderIntent,
+  quiet_hours_start_minute: reminderRules.quietHoursStartMinute,
+  quiet_hours_end_minute: reminderRules.quietHoursEndMinute,
+  notification_topic_code: reminderRules.notificationTopicCode,
+  organization_id: reminderRules.organizationId,
+  created_at: reminderRules.createdAt,
+  updated_at: reminderRules.updatedAt,
 };
 
 const occurrenceSelectShape = {
@@ -187,9 +181,9 @@ export async function getReminderRulesForUser(
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select(ruleSelectShape)
-    .from(userReminderRules)
-    .where(eq(userReminderRules.userId, Number(userId)))
-    .orderBy(asc(userReminderRules.category));
+    .from(reminderRules)
+    .where(eq(reminderRules.integratorUserId, Number(userId)))
+    .orderBy(asc(reminderRules.category));
   return rows.map((r) => normalizeRuleRow(r as Parameters<typeof normalizeRuleRow>[0]));
 }
 
@@ -201,9 +195,12 @@ export async function getReminderRuleForUserAndCategory(
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select(ruleSelectShape)
-    .from(userReminderRules)
+    .from(reminderRules)
     .where(
-      and(eq(userReminderRules.userId, Number(userId)), eq(userReminderRules.category, category)),
+      and(
+        eq(reminderRules.integratorUserId, Number(userId)),
+        eq(reminderRules.category, category),
+      ),
     )
     .limit(1);
   const row = rows[0] as Parameters<typeof normalizeRuleRow>[0] | undefined;
@@ -211,12 +208,22 @@ export async function getReminderRuleForUserAndCategory(
 }
 
 export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleRecord[]> {
+  const organizationId = getCurrentOrganizationPrincipalId();
+  if (!organizationId) {
+    throw new Error('reminders.rules.enabled requires an exact organization principal');
+  }
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select(ruleSelectShape)
-    .from(userReminderRules)
-    .where(eq(userReminderRules.isEnabled, true))
-    .orderBy(desc(userReminderRules.updatedAt));
+    .from(reminderRules)
+    .where(
+      and(
+        eq(reminderRules.isEnabled, true),
+        isNotNull(reminderRules.integratorUserId),
+        eq(reminderRules.organizationId, organizationId),
+      ),
+    )
+    .orderBy(desc(reminderRules.updatedAt));
   return rows.map((r) => normalizeRuleRow(r as Parameters<typeof normalizeRuleRow>[0]));
 }
 
@@ -269,14 +276,14 @@ export async function getDueReminderOccurrences(
        COALESCE(o.organization_id, r.organization_id)::text AS organization_id,
        o.created_at::text,
        o.updated_at::text,
-       r.user_id,
+       r.integrator_user_id AS user_id,
        r.category,
        r.timezone,
        COALESCE(i.external_id::text, '') AS channel_id
      FROM user_reminder_occurrences o
-     JOIN user_reminder_rules r ON r.id = o.rule_id
-     LEFT JOIN identities i ON i.user_id = r.user_id AND i.resource = 'telegram'
-     LEFT JOIN public.platform_users pu ON pu.integrator_user_id = r.user_id
+     JOIN public.reminder_rules r ON r.integrator_rule_id = o.rule_id
+     LEFT JOIN identities i ON i.user_id = r.integrator_user_id AND i.resource = 'telegram'
+     LEFT JOIN public.platform_users pu ON pu.integrator_user_id = r.integrator_user_id
      WHERE o.status = 'planned'
        AND o.planned_at <= ${nowIso}::timestamptz
        AND r.is_enabled = true
@@ -321,88 +328,6 @@ export async function getDueReminderOccurrences(
   });
 }
 
-/** Upserts rule by `id` (webapp integrator_rule_id PK); returns DB `updated_at`. */
-export async function upsertReminderRule(db: DbPort, input: ReminderRuleRecord): Promise<string> {
-  const d = getIntegratorDrizzleSession(db);
-  const scheduleJson =
-    input.scheduleData !== undefined && input.scheduleData !== null
-      ? (input.scheduleData as Record<string, unknown>)
-      : null;
-
-  let notificationTopicForSql: string | null;
-  if (Object.prototype.hasOwnProperty.call(input, 'notificationTopicCode')) {
-    const v = input.notificationTopicCode;
-    notificationTopicForSql =
-      v === null || v === undefined ? null : typeof v === 'string' ? v.trim() || null : null;
-  } else {
-    const prev = await d
-      .select({ notification_topic_code: userReminderRules.notificationTopicCode })
-      .from(userReminderRules)
-      .where(eq(userReminderRules.id, input.id))
-      .limit(1);
-    notificationTopicForSql = prev[0]?.notification_topic_code ?? null;
-  }
-
-  const organizationIdExpression = organizationIdForIntegratorUserSql(input.userId);
-  const rows = await d
-    .insert(userReminderRules)
-    .values({
-      id: input.id,
-      userId: Number(input.userId),
-      category: input.category,
-      isEnabled: input.isEnabled,
-      scheduleType: input.scheduleType,
-      timezone: input.timezone,
-      intervalMinutes: input.intervalMinutes,
-      windowStartMinute: input.windowStartMinute,
-      windowEndMinute: input.windowEndMinute,
-      daysMask: input.daysMask,
-      contentMode: input.contentMode,
-      linkedObjectType: input.linkedObjectType ?? null,
-      linkedObjectId: input.linkedObjectId ?? null,
-      customTitle: input.customTitle ?? null,
-      customText: input.customText ?? null,
-      deepLink: input.deepLink ?? null,
-      scheduleData: scheduleJson,
-      reminderIntent: input.reminderIntent ?? null,
-      quietHoursStartMinute: input.quietHoursStartMinute ?? null,
-      quietHoursEndMinute: input.quietHoursEndMinute ?? null,
-      notificationTopicCode: notificationTopicForSql,
-      organizationId: organizationIdExpression,
-      createdAt: sql`now()`,
-      updatedAt: sql`now()`,
-    })
-    .onConflictDoUpdate({
-      target: userReminderRules.id,
-      set: {
-        userId: Number(input.userId),
-        category: input.category,
-        isEnabled: input.isEnabled,
-        scheduleType: input.scheduleType,
-        timezone: input.timezone,
-        intervalMinutes: input.intervalMinutes,
-        windowStartMinute: input.windowStartMinute,
-        windowEndMinute: input.windowEndMinute,
-        daysMask: input.daysMask,
-        contentMode: input.contentMode,
-        linkedObjectType: input.linkedObjectType ?? null,
-        linkedObjectId: input.linkedObjectId ?? null,
-        customTitle: input.customTitle ?? null,
-        customText: input.customText ?? null,
-        deepLink: input.deepLink ?? null,
-        scheduleData: scheduleJson,
-        reminderIntent: input.reminderIntent ?? null,
-        quietHoursStartMinute: input.quietHoursStartMinute ?? null,
-        quietHoursEndMinute: input.quietHoursEndMinute ?? null,
-        notificationTopicCode: notificationTopicForSql,
-        organizationId: sql`COALESCE(${organizationIdExpression}, ${userReminderRules.organizationId})`,
-        updatedAt: sql`now()`,
-      },
-    })
-    .returning({ updated_at: userReminderRules.updatedAt });
-  return rows[0]?.updated_at ?? new Date().toISOString();
-}
-
 export async function cancelPendingReminderOccurrencesForRule(
   db: DbPort,
   ruleId: string,
@@ -439,7 +364,7 @@ export async function expireOrphanedPendingReminderOccurrences(
     sql`
       SELECT DISTINCT COALESCE(o.organization_id, r.organization_id)::text AS organization_id
       FROM user_reminder_occurrences o
-      LEFT JOIN user_reminder_rules r ON r.id = o.rule_id
+      LEFT JOIN public.reminder_rules r ON r.integrator_rule_id = o.rule_id
       WHERE o.status IN ('planned', 'queued')
         AND o.planned_at < ${nowIso}::timestamptz - interval '3 minutes'
         AND COALESCE(o.organization_id, r.organization_id) IS NOT NULL
@@ -459,8 +384,8 @@ export async function expireOrphanedPendingReminderOccurrences(
                 failed_at = now(),
                 error_code = 'orphaned_past_slot',
                 updated_at = now()
-            FROM user_reminder_rules AS r
-            WHERE r.id = o.rule_id
+            FROM public.reminder_rules AS r
+            WHERE r.integrator_rule_id = o.rule_id
               AND o.status IN ('planned', 'queued')
               AND o.planned_at < ${nowIso}::timestamptz - interval '3 minutes'
               AND COALESCE(o.organization_id, r.organization_id) = ${row.organization_id}::uuid
@@ -490,8 +415,8 @@ export async function resolveReminderRuleOrganizationId(
     db,
     sql`
       SELECT organization_id::text AS organization_id
-      FROM user_reminder_rules
-      WHERE id = ${ruleId}
+      FROM public.reminder_rules
+      WHERE integrator_rule_id = ${ruleId}
       LIMIT 1
     `,
   );
@@ -510,7 +435,7 @@ export async function resolveReminderOccurrenceOrganizationId(
     sql`
       SELECT COALESCE(o.organization_id, r.organization_id)::text AS organization_id
       FROM user_reminder_occurrences o
-      INNER JOIN user_reminder_rules r ON r.id = o.rule_id
+      INNER JOIN public.reminder_rules r ON r.integrator_rule_id = o.rule_id
       WHERE o.id = ${occurrenceId}
       LIMIT 1
     `,
@@ -534,7 +459,7 @@ export async function upsertReminderOccurrencePlanned(
       occurrenceKey: input.occurrenceKey,
       plannedAt: input.plannedAt,
       status: 'planned',
-      organizationId: sql`(SELECT organization_id FROM user_reminder_rules WHERE id = ${input.ruleId} LIMIT 1)`,
+      organizationId: sql`(SELECT organization_id FROM public.reminder_rules WHERE integrator_rule_id = ${input.ruleId} LIMIT 1)`,
       createdAt: sql`now()`,
       updatedAt: sql`now()`,
     })
@@ -640,8 +565,8 @@ export async function getReminderOccurrenceContextForProjection(
   const rows = await d
     .select({
       rule_id: userReminderOccurrences.ruleId,
-      user_id: sql<string>`${userReminderRules.userId}::text`,
-      category: userReminderRules.category,
+      user_id: sql<string>`${reminderRules.integratorUserId}::text`,
+      category: reminderRules.category,
       status: userReminderOccurrences.status,
       sent_at: userReminderOccurrences.sentAt,
       failed_at: userReminderOccurrences.failedAt,
@@ -649,7 +574,10 @@ export async function getReminderOccurrenceContextForProjection(
       error_code: userReminderOccurrences.errorCode,
     })
     .from(userReminderOccurrences)
-    .innerJoin(userReminderRules, eq(userReminderRules.id, userReminderOccurrences.ruleId))
+    .innerJoin(
+      reminderRules,
+      eq(reminderRules.integratorRuleId, userReminderOccurrences.ruleId),
+    )
     .where(eq(userReminderOccurrences.id, occurrenceId))
     .limit(1);
   const row = rows[0];
@@ -705,9 +633,12 @@ export async function getReminderOccurrenceOwnerUserId(
 ): Promise<string | null> {
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
-    .select({ user_id: sql<string>`${userReminderRules.userId}::text` })
+    .select({ user_id: sql<string>`${reminderRules.integratorUserId}::text` })
     .from(userReminderOccurrences)
-    .innerJoin(userReminderRules, eq(userReminderRules.id, userReminderOccurrences.ruleId))
+    .innerJoin(
+      reminderRules,
+      eq(reminderRules.integratorRuleId, userReminderOccurrences.ruleId),
+    )
     .where(eq(userReminderOccurrences.id, occurrenceId))
     .limit(1);
   const id = rows[0]?.user_id;

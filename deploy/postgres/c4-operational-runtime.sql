@@ -167,7 +167,7 @@ REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
   :"c4_scheduler_login_role", :"c4_media_worker_login_role";
 REVOKE ALL ON TABLE integrator.projection_outbox, integrator.message_retry_jobs,
-  integrator.idempotency_keys, integrator.user_reminder_rules, integrator.user_reminder_occurrences,
+  integrator.idempotency_keys, integrator.user_reminder_occurrences,
   public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents,
   public.media_transcode_jobs, public.media_files, public.app_runtime_settings FROM
   app_operational_diagnostic, app_operational_delivery_worker,
@@ -184,7 +184,7 @@ DROP FUNCTION IF EXISTS app.resolve_outgoing_delivery_scope(uuid);
 DROP FUNCTION IF EXISTS app.operator_incident_alert_already_sent(uuid);
 DROP FUNCTION IF EXISTS app.mark_operator_incident_alert_sent(uuid);
 DROP FUNCTION IF EXISTS app.record_operator_delivery_attempt(text, text, text, integer, text);
-REVOKE SELECT ON TABLE integrator.user_reminder_rules, integrator.user_reminder_occurrences FROM app_owner;
+REVOKE SELECT ON TABLE integrator.user_reminder_occurrences, public.reminder_rules FROM app_owner;
 REVOKE SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents FROM app_owner;
 REVOKE UPDATE (alert_sent_at) ON TABLE public.operator_incidents FROM app_owner;
 REVOKE INSERT ON TABLE integrator.delivery_attempt_logs FROM app_owner;
@@ -420,8 +420,8 @@ GRANT app_operational_scheduler TO :"c4_scheduler_login_role" WITH INHERIT FALSE
 GRANT app_operational_media_worker TO :"c4_media_worker_login_role" WITH INHERIT FALSE, SET TRUE;
 
 REVOKE ALL ON TABLE integrator.projection_outbox, integrator.message_retry_jobs,
-  integrator.idempotency_keys, integrator.user_reminder_rules,
-  integrator.user_reminder_occurrences, public.outgoing_delivery_queue,
+  integrator.idempotency_keys, integrator.user_reminder_occurrences, public.reminder_rules,
+  public.outgoing_delivery_queue,
   public.broadcast_audit, public.operator_incidents, public.media_transcode_jobs,
   public.media_files, public.app_runtime_settings FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
@@ -442,7 +442,8 @@ GRANT USAGE ON SCHEMA integrator TO
   app_operational_scheduler;
 GRANT USAGE ON SCHEMA public TO
   app_operational_delivery_worker,
-  app_operational_media_worker;
+  app_operational_media_worker,
+  app_operational_scheduler;
 
 REVOKE ALL ON TABLE integrator.projection_outbox FROM
   app_operational_diagnostic, app_operational_delivery_worker,
@@ -459,7 +460,7 @@ REVOKE ALL ON TABLE public.outgoing_delivery_queue FROM
 REVOKE ALL ON TABLE public.media_transcode_jobs, public.media_files, public.app_runtime_settings FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
-REVOKE ALL ON TABLE integrator.user_reminder_rules, integrator.user_reminder_occurrences,
+REVOKE ALL ON TABLE integrator.user_reminder_occurrences, public.reminder_rules,
   public.broadcast_audit, public.operator_incidents FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
@@ -469,10 +470,11 @@ GRANT SELECT, UPDATE ON TABLE integrator.projection_outbox TO app_operational_de
 GRANT SELECT, UPDATE ON TABLE integrator.message_retry_jobs TO app_operational_delivery_worker;
 GRANT SELECT, UPDATE ON TABLE public.outgoing_delivery_queue TO app_operational_delivery_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE integrator.idempotency_keys TO app_operational_scheduler;
+GRANT SELECT ON TABLE public.reminder_rules TO app_operational_scheduler;
 GRANT SELECT, UPDATE ON TABLE public.media_transcode_jobs, public.media_files TO app_operational_media_worker;
 GRANT USAGE ON SCHEMA integrator, public TO app_owner;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
-GRANT SELECT ON TABLE integrator.user_reminder_rules, integrator.user_reminder_occurrences TO app_owner;
+GRANT SELECT ON TABLE public.reminder_rules, integrator.user_reminder_occurrences TO app_owner;
 GRANT SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents TO app_owner;
 DO $c4_email_send_cooldowns_app_owner_acl$
 BEGIN
@@ -537,7 +539,7 @@ BEGIN
     SELECT occurrence.organization_id, rule.organization_id
     INTO occurrence_org, rule_org
     FROM integrator.user_reminder_occurrences AS occurrence
-    LEFT JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    LEFT JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
     WHERE occurrence.id = v_occurrence_id;
     IF NOT FOUND THEN
       RETURN QUERY SELECT queue_kind, NULL::uuid, 'occurrence_not_found'::text;
@@ -689,7 +691,7 @@ BEGIN
   IF EXISTS (
     SELECT 1
     FROM integrator.user_reminder_occurrences AS occurrence
-    JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
     WHERE occurrence.status IN ('planned', 'queued')
       AND occurrence.organization_id IS NOT NULL
       AND rule.organization_id IS NOT NULL
@@ -701,13 +703,14 @@ BEGIN
 
   IF EXISTS (
     SELECT 1
-    FROM integrator.user_reminder_rules AS rule
+    FROM public.reminder_rules AS rule
     WHERE rule.is_enabled = true
+      AND rule.integrator_user_id IS NOT NULL
       AND rule.organization_id IS NULL
   ) OR EXISTS (
     SELECT 1
     FROM integrator.user_reminder_occurrences AS occurrence
-    LEFT JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    LEFT JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
     WHERE occurrence.status IN ('planned', 'queued')
       AND COALESCE(occurrence.organization_id, rule.organization_id) IS NULL
   ) THEN
@@ -719,13 +722,14 @@ BEGIN
   SELECT candidate.organization_id
   FROM (
     SELECT rule.organization_id
-    FROM integrator.user_reminder_rules AS rule
+    FROM public.reminder_rules AS rule
     WHERE rule.is_enabled = true
+      AND rule.integrator_user_id IS NOT NULL
       AND rule.organization_id IS NOT NULL
     UNION
     SELECT COALESCE(occurrence.organization_id, rule.organization_id) AS organization_id
     FROM integrator.user_reminder_occurrences AS occurrence
-    LEFT JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    LEFT JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
     WHERE occurrence.status IN ('planned', 'queued')
       AND COALESCE(occurrence.organization_id, rule.organization_id) IS NOT NULL
   ) AS candidate
@@ -840,8 +844,8 @@ SELECT 1 / (
     JOIN pg_roles login ON login.rolname = expected.login_name
     CROSS JOIN LATERAL (VALUES
       ('integrator.projection_outbox'), ('integrator.message_retry_jobs'),
-      ('integrator.idempotency_keys'), ('integrator.user_reminder_rules'),
-      ('integrator.user_reminder_occurrences'), ('public.outgoing_delivery_queue'),
+      ('integrator.idempotency_keys'), ('integrator.user_reminder_occurrences'),
+      ('public.reminder_rules'), ('public.outgoing_delivery_queue'),
       ('public.broadcast_audit'), ('public.operator_incidents'),
       ('public.media_transcode_jobs'), ('public.media_files'), ('public.app_runtime_settings')
     ) target(relation_name)
