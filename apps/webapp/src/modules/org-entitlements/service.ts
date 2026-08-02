@@ -589,9 +589,14 @@ export async function resolveOwnTariffTransition(
     port.getOwnQuotaUsage(organizationId),
   ]);
   if (!targetTariff) throw new Error('tariff_not_found');
-  const currentTariff = snapshot.tariff;
+  const currentTariffId = snapshot.tariff?.id ?? snapshot.access.tariffId;
+  const currentTariff = currentTariffId
+    ? currentTariffId === targetTariff.id
+      ? targetTariff
+      : await port.getActiveTariffById(currentTariffId)
+    : null;
   return {
-    currentTariffId: currentTariff?.id ?? snapshot.access.tariffId,
+    currentTariffId,
     targetTariffId: targetTariff.id,
     ...(currentTariff
       ? evaluateTariffTransition({

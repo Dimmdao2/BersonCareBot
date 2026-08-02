@@ -153,7 +153,9 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
   });
 
   it('refuses a blocked downgrade before any provider call', async () => {
-    const { service, setManualSaasBillingSubscription, createIntent } = scheduledService([{ mechanic: 'patient_count' }]);
+    const { service, setManualSaasBillingSubscription, createIntent } = scheduledService([
+      { mechanic: 'patient_count', reason: 'quota_exceeded' },
+    ]);
 
     await expect(service.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-small', actorId: 'actor' }))
       .rejects.toBeInstanceOf(SaasBillingTariffDowngradeBlockedError);
@@ -226,7 +228,7 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
       resolvePaymentProvider: () => ({ createIntent }) as never,
-      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-small', blocks: [{ mechanic: 'patient_count' }], appliesNextPeriod: true }),
+      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-small', blocks: [{ mechanic: 'patient_count', reason: 'quota_exceeded' }], appliesNextPeriod: true }),
     });
 
     await expect(service.createOwnTariffRenewalInvoice('org')).rejects.toThrow('saas_billing_tariff_downgrade_blocked');
@@ -533,7 +535,7 @@ describe('К5: повторный тик по тому же периоду не 
         }],
         promoteDueSaasBillingPaidInvoice: async () => false,
         createSaasBillingRenewalInvoiceIfAbsent,
-        attachSaasBillingInvoiceProviderIntent: async (input) => ({ ...invoice, ...input }),
+        attachSaasBillingInvoiceProviderIntent: async (input: Parameters<SaasBillingRepositoryPort['attachSaasBillingInvoiceProviderIntent']>[0]) => ({ ...invoice, ...input }),
         markSaasBillingInvoiceFailed: async () => null,
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
