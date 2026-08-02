@@ -45,13 +45,15 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
     getCurrentDbPrincipalMock.mockReturnValue(null);
   });
 
-  it('reports specialist-seat and branch usage only, never a courses count (courses is a toggle, not a quota)', async () => {
-    runWebappPgTextMock.mockResolvedValue({ rows: [{ clinic_team_used: 3 }] });
+  it('reports platform quota usage from the reviewed accessor, never a courses count (courses is a toggle, not a quota)', async () => {
+    runWebappPgTextMock.mockResolvedValue({
+      rows: [{ clinic_team_used: 3, patient_count_used: 7, files_used: '12345' }],
+    });
     getDrizzleMock.mockReturnValue(stubSequentialDrizzleSelects([[{ value: 2 }]]));
 
     await expect(
       createPgOrgEntitlementsPort().getEnforcedQuotaUsage('11111111-1111-4111-8111-111111111111'),
-    ).resolves.toEqual({ clinic_team: 3, branches: 2 });
+    ).resolves.toEqual({ clinic_team: 3, patient_count: 7, files: 12345, branches: 2 });
   });
 
   it('§5a stage 6.1 — sums the three-part seat formula and reports every quota number for the caller\'s own organization', async () => {

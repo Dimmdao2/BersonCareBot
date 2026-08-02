@@ -110,7 +110,9 @@ BEGIN
     SELECT 1 FROM (
       VALUES
         ('public.be_organization_members'),
-        ('public.organization_member_invites')
+        ('public.organization_member_invites'),
+        ('public.org_enrollments'),
+        ('public.patient_files')
     ) AS expected(name)
     WHERE to_regclass(expected.name) IS NULL
   ) THEN
@@ -128,7 +130,11 @@ BEGIN
     CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(
       p_organization_id uuid
     )
-    RETURNS TABLE(clinic_team_used integer)
+    RETURNS TABLE(
+      clinic_team_used integer,
+      patient_count_used integer,
+      files_used bigint
+    )
     LANGUAGE sql
     STABLE
     SECURITY DEFINER
@@ -155,15 +161,30 @@ BEGIN
              AND invite.invited_role = 'doctor'
              AND membership.status = 'active'
              AND membership.specialist_id IS NULL)
-        )::int AS clinic_team_used
+        )::int AS clinic_team_used,
+        (SELECT count(*) FROM public.org_enrollments AS enrollment
+         WHERE enrollment.organization_id = p_organization_id
+           AND enrollment.status IN ('invited', 'active'))::int AS patient_count_used,
+        COALESCE(
+          (SELECT sum(file.size_bytes) FROM public.patient_files AS file
+           WHERE file.organization_id = p_organization_id),
+          0
+        )::bigint AS files_used
       WHERE p_organization_id IS NOT NULL
     $function$
   $quota_usage_function$;
 
   ALTER FUNCTION app.read_org_enforced_quota_usage(uuid) OWNER TO app_owner;
-  GRANT SELECT ON TABLE public.organization_member_invites TO app_owner;
+  GRANT SELECT ON TABLE
+    public.be_organization_members,
+    public.organization_member_invites,
+    public.org_enrollments,
+    public.patient_files
+  TO app_owner;
   REVOKE ALL PRIVILEGES ON TABLE
-    public.organization_member_invites
+    public.organization_member_invites,
+    public.org_enrollments,
+    public.patient_files
   FROM app_platform_settings;
   DROP POLICY IF EXISTS organization_member_invites_platform_quota_usage_select
     ON public.organization_member_invites;
@@ -680,21 +701,27 @@ SELECT 1 / (
   AND NOT has_column_privilege('app_platform_settings', 'public.be_organizations', 'is_active', 'UPDATE')
 )::int AS c5a_platform_operations_exact_role_wall;
 
--- §10.1 exact platform usage wall: the storefront gets EXECUTE on the count-only seat accessor and
--- no direct privilege or policy on invite rows. Courses/CMS pages are toggle-only mechanics now
--- (migration 0277) -- there is no course-row count or cms_pages_snapshot_usage accessor to guard.
+-- §10.1 exact platform usage wall: the storefront gets EXECUTE on the count-only usage accessor
+-- and no direct privilege or policy on its sensitive source rows. Courses/CMS pages are toggle-only
+-- mechanics now (migration 0277) -- there is no course-row count or cms_pages_snapshot_usage accessor
+-- to guard.
 DO $c5a_platform_enforced_quota_usage_exact_wall$
 DECLARE
   inventory_ok boolean;
 BEGIN
   IF to_regclass('public.organization_member_invites') IS NULL
+     OR to_regclass('public.org_enrollments') IS NULL
+     OR to_regclass('public.patient_files') IS NULL
      OR to_regprocedure('app.read_org_enforced_quota_usage(uuid)') IS NULL THEN
     RAISE WARNING '§10.1: enforced quota usage prerequisites are incomplete -- skipping the guarded exact wall.';
     RETURN;
   END IF;
 
 WITH expected(relation_name) AS (
-  VALUES ('organization_member_invites')
+  VALUES
+    ('organization_member_invites'),
+    ('org_enrollments'),
+    ('patient_files')
 ), relations AS (
   SELECT
     expected.relation_name,
@@ -714,6 +741,15 @@ WITH expected(relation_name) AS (
     COALESCE(relations.relacl, acldefault('r', relations.relowner))
   ) AS privilege
   WHERE privilege.grantee = 'app_platform_settings'::regrole
+), actual_column_acl AS (
+  SELECT relations.relation_name, attribute.attname, privilege.privilege_type, privilege.is_grantable
+  FROM relations
+  JOIN pg_attribute AS attribute
+    ON attribute.attrelid = relations.oid
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+  CROSS JOIN LATERAL aclexplode(attribute.attacl) AS privilege
+  WHERE privilege.grantee = 'app_platform_settings'::regrole
 ), actual_policy AS (
   SELECT
     relations.relation_name,
@@ -728,12 +764,15 @@ WITH expected(relation_name) AS (
   WHERE 'app_platform_settings'::regrole = ANY(policy.polroles)
 )
 SELECT (
-  (SELECT count(*) FROM relations) = 1
+  (SELECT count(*) FROM relations) = 3
   AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
   AND NOT EXISTS (SELECT 1 FROM actual_acl)
+  AND NOT EXISTS (SELECT 1 FROM actual_column_acl)
   AND NOT EXISTS (SELECT 1 FROM actual_policy)
   AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
   AND has_table_privilege('app_owner', 'public.organization_member_invites', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.org_enrollments', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.patient_files', 'SELECT')
   AND has_function_privilege(
     'app_platform_settings',
     'app.read_org_enforced_quota_usage(uuid)',

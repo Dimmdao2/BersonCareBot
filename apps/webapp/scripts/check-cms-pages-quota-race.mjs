@@ -173,6 +173,16 @@ async function installSchema() {
         expires_at timestamptz NOT NULL,
         accepted_membership_id uuid
       );
+      CREATE TABLE public.org_enrollments (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL,
+        status text NOT NULL
+      );
+      CREATE TABLE public.patient_files (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id uuid NOT NULL,
+        size_bytes bigint NOT NULL
+      );
       GRANT SELECT ON TABLE
         public.be_organizations,
         public.saas_tariffs,
@@ -181,7 +191,9 @@ async function installSchema() {
         public.content_pages,
         public.courses,
         public.be_organization_members,
-        public.organization_member_invites
+        public.organization_member_invites,
+        public.org_enrollments,
+        public.patient_files
       TO app_owner;
       GRANT UPDATE (updated_at) ON TABLE public.be_organizations TO app_owner;
       INSERT INTO public.saas_tariffs (id, quotas) VALUES (
@@ -211,6 +223,7 @@ async function installSchema() {
 async function proveCountOnlyQuotaUsage() {
   await withClient(async (connection) => {
     const organizationId = '20000000-0000-4000-8000-000000000001';
+    const otherOrganizationId = '20000000-0000-4000-8000-000000000002';
     const acceptedMembershipId = '30000000-0000-4000-8000-000000000002';
     await connection.query('INSERT INTO public.courses (organization_id) VALUES ($1), ($1)', [
       organizationId,
@@ -223,6 +236,20 @@ async function proveCountOnlyQuotaUsage() {
           '40000000-0000-4000-8000-000000000001'),
          ($2, $1, 'active', NULL)`,
       [organizationId, acceptedMembershipId],
+    );
+    await connection.query(
+      `INSERT INTO public.org_enrollments (organization_id, status)
+       VALUES
+         ($1, 'invited'),
+         ($1, 'active'),
+         ($1, 'archived'),
+         ($2, 'active')`,
+      [organizationId, otherOrganizationId],
+    );
+    await connection.query(
+      `INSERT INTO public.patient_files (organization_id, size_bytes)
+       VALUES ($1, 400), ($1, 600), ($2, 9000)`,
+      [organizationId, otherOrganizationId],
     );
     await connection.query(
       `INSERT INTO public.organization_member_invites
@@ -239,20 +266,59 @@ async function proveCountOnlyQuotaUsage() {
       [organizationId],
     );
     await connection.query('RESET ROLE');
-    if (usage.rows[0]?.courses_used !== 2 || usage.rows[0]?.clinic_team_used !== 3) {
+    if (
+      usage.rows[0]?.clinic_team_used !== 3 ||
+      usage.rows[0]?.patient_count_used !== 2 ||
+      usage.rows[0]?.files_used !== '1000'
+    ) {
       fail(`count-only quota accessor returned ${JSON.stringify(usage.rows[0])}`);
+    }
+    await connection.query('SET ROLE app_platform_settings');
+    const emptyUsage = await connection.query(
+      'SELECT * FROM app.read_org_enforced_quota_usage($1::uuid)',
+      ['20000000-0000-4000-8000-000000000003'],
+    );
+    await connection.query('RESET ROLE');
+    if (
+      emptyUsage.rows[0]?.clinic_team_used !== 0 ||
+      emptyUsage.rows[0]?.patient_count_used !== 0 ||
+      emptyUsage.rows[0]?.files_used !== '0'
+    ) {
+      fail(`empty count-only quota accessor returned ${JSON.stringify(emptyUsage.rows[0])}`);
     }
     const privileges = await connection.query(`
       SELECT
         has_table_privilege(
-          'app_platform_settings', 'public.courses', 'SELECT'
-        ) AS courses_select,
-        has_table_privilege(
           'app_platform_settings', 'public.organization_member_invites', 'SELECT'
-        ) AS invites_select
+        ) AS invites_select,
+        has_table_privilege(
+          'app_platform_settings', 'public.org_enrollments', 'SELECT'
+        ) AS enrollments_select,
+        has_table_privilege(
+          'app_platform_settings', 'public.patient_files', 'SELECT'
+        ) AS patient_files_select
     `);
-    if (privileges.rows[0]?.courses_select || privileges.rows[0]?.invites_select) {
-      fail('platform role retained direct course/invite SELECT beside the count-only accessor');
+    if (
+      privileges.rows[0]?.invites_select ||
+      privileges.rows[0]?.enrollments_select ||
+      privileges.rows[0]?.patient_files_select
+    ) {
+      fail('platform role retained direct sensitive row SELECT beside the count-only accessor');
+    }
+    for (const relation of [
+      'organization_member_invites',
+      'org_enrollments',
+      'patient_files',
+    ]) {
+      await connection.query('SET ROLE app_platform_settings');
+      try {
+        await connection.query(`SELECT 1 FROM public.${relation} LIMIT 1`);
+        fail(`platform role read ${relation} directly beside the count-only accessor`);
+      } catch (error) {
+        if (!(error instanceof Error) || !('code' in error) || error.code !== '42501') throw error;
+      } finally {
+        await connection.query('RESET ROLE');
+      }
     }
   });
 }
