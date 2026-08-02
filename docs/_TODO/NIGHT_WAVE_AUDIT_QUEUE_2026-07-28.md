@@ -26,7 +26,8 @@
 | `0305` | тарифы | product `b3df61d01` + audit `d51bab97d`, land `c6b844bbc` | ЗАНЯТО, принято, применено на DEV и приземлено: frozen paid-period tariff восстановлен во всех трёх access doors; oracle 3/3 PASS |
 | `0306` | single-entry В9б | product `ddab86eda` + audit `cfb813a96` + replay `f54468e67`, land `c6b844bbc` | ЗАНЯТО, принято и приземлено: S02 expand-only capability seams/EXECUTE/operational ACL; 38/38 disposition, disposable replay `count=307` дважды PASS; без revoke/FORCE |
 | `0307` | тарифы и оплата | product `696467697` + fixes `c23aa19aa`/`3aa5152c8` + audit `5b375142d`, CI fixes `36f2b31e9`/`6b22351da`, land `144b30e7c` | ЗАНЯТО, принято, приземлено и применено на DEV: смена тарифа сохраняет оплаченный период, restrictive downgrade планируется на renewal и отменяется; self-service upgrade fail-closed до решения денежной формулы; SQL body/journal после аудита не менялись |
-| `0308`+ | свободно | — | следующий берущий начинает отсюда |
+| `0308` | SaaS billing | `wt/saas-seat-billing` | ЗАБРОНИРОВАНО 02.08 до создания файла: первый оплаченный период + payment-gated дополнительные места, invoice kind/seat quantity и renewal snapshot; окончательный номер присваивает lead при land |
+| `0309`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Текущий режим 02.08:** оркестратор один. Stateful workstreams остаются в отдельных worktree, но единый
 migration ledger `0300…0305` собран в `wt/single-entry-integration`; новые номера по-прежнему бронируются здесь
