@@ -559,6 +559,26 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     async createSaasBillingInvoice(input) {
       return getDrizzle().transaction(async (tx) => {
+        // #1057 — K0 originally derived the provider key from a short clock bucket. A historical
+        // empty renewal draft can therefore have a different key even though it is the same
+        // subscription period. The period is authoritative for this renewal path; manual invoices
+        // (description + expiry) and seat overage invoices do not participate in this lookup.
+        const [existingRenewal] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.saasBillingSubscriptionId, input.saasBillingSubscriptionId),
+              eq(saasBillingInvoices.servicePeriodStartsAt, input.servicePeriodStartsAt),
+              eq(saasBillingInvoices.servicePeriodEndsAt, input.servicePeriodEndsAt),
+              eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
+              isNull(saasBillingInvoices.description),
+              isNull(saasBillingInvoices.expiresAt),
+            ),
+          )
+          .limit(1);
+        if (existingRenewal) return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
+
         const [authority] = await tx
           .select({
             organizationId: saasBillingSubscriptions.organizationId,

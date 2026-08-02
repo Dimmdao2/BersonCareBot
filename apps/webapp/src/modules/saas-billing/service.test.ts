@@ -492,6 +492,88 @@ describe('К0: early renewal does not cut the paid period short', () => {
   });
 });
 
+describe('К4/#1057: повтор периода использует старый пустой черновик', () => {
+  it('после смены legacy bucket возвращает тот же счёт и отправляет в provider его сохранённый ключ', async () => {
+    let clock = new Date('2026-07-01T00:00:00.000Z');
+    const repository = createInMemorySaasBillingRepository();
+    const createSaasBillingInvoice = repository.createSaasBillingInvoice.bind(repository);
+    let legacyProviderIdempotencyKey: string | null = null;
+    vi.spyOn(repository, 'createSaasBillingInvoice').mockImplementation((input) =>
+      createSaasBillingInvoice({
+        ...input,
+        providerIdempotencyKey: legacyProviderIdempotencyKey ?? input.providerIdempotencyKey,
+      }),
+    );
+    const createIntent = vi.fn(async () => {
+      if (createIntent.mock.calls.length === 2) {
+        throw new Error('provider_temporarily_unavailable');
+      }
+      return {
+        providerIntentRef: `provider-period-${createIntent.mock.calls.length}`,
+        checkoutUrl: `https://pay.example/period-${createIntent.mock.calls.length}`,
+      };
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => clock,
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-period-retry',
+      tariffId: 'tariff-period-retry',
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+
+    const firstPeriod = await service.createOwnTariffRenewalInvoice('org-period-retry');
+    await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-period-retry',
+      saasBillingInvoiceId: firstPeriod.id,
+      providerId: 'mock',
+      verified: {
+        idempotencyKey: 'event-period-retry-first',
+        eventType: 'payment.succeeded',
+        amountMinor: 0,
+        payload: { currency: 'RUB' },
+      },
+    });
+
+    clock = new Date('2026-07-15T00:00:00.000Z');
+    legacyProviderIdempotencyKey = 'saas_tariff_renewal:legacy-clock-bucket';
+    await expect(service.createOwnTariffRenewalInvoice('org-period-retry')).rejects.toThrow(
+      'provider_temporarily_unavailable',
+    );
+    const legacyDraft = (await repository.getOrganizationBillingOverview('org-period-retry')).invoices.find(
+      (row) => row.status === 'draft',
+    );
+    if (!legacyDraft) throw new Error('test_seed_legacy_tariff_period_draft_missing');
+
+    clock = new Date('2026-07-16T00:00:00.000Z');
+    legacyProviderIdempotencyKey = null;
+    const retried = await service.createOwnTariffRenewalInvoice('org-period-retry');
+
+    expect(retried).toMatchObject({
+      id: legacyDraft.id,
+      organizationId: legacyDraft.organizationId,
+      saasBillingSubscriptionId: legacyDraft.saasBillingSubscriptionId,
+      amountMinor: legacyDraft.amountMinor,
+      currency: legacyDraft.currency,
+      providerCheckoutUrl: 'https://pay.example/period-3',
+      providerIdempotencyKey: 'saas_tariff_renewal:legacy-clock-bucket',
+    });
+    expect(createIntent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ idempotencyKey: legacyDraft.providerIdempotencyKey }),
+    );
+    expect(createIntent).toHaveBeenCalledTimes(3);
+    expect((await repository.getOrganizationBillingOverview('org-period-retry')).invoices).toHaveLength(2);
+  });
+});
+
 function paidPeriodScenario() {
   let clock = new Date('2026-07-01T00:00:00.000Z');
   const repository = createInMemorySaasBillingRepository();
