@@ -20,7 +20,6 @@ const TABLES: Array<{ schema: string; table: string }> = [
   { schema: 'public', table: 'reminder_rules' },
   { schema: 'public', table: 'reminder_occurrence_history' },
   { schema: 'public', table: 'reminder_delivery_events' },
-  { schema: 'public', table: 'webapp_reminder_occurrences' },
   { schema: 'integrator', table: 'user_reminder_rules' },
   { schema: 'integrator', table: 'user_reminder_occurrences' },
   { schema: 'integrator', table: 'user_reminder_delivery_logs' },

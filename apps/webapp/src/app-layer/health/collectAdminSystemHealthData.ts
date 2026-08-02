@@ -806,7 +806,6 @@ function logProbe(
     | 'integrator_push_outbox'
     | 'reminders_pipeline'
     | 'web_push'
-    | 'web_push_only_reminder_tick'
     | 'notification_delivery'
     | 'cron_jobs'
     | 'saas_isolation',
