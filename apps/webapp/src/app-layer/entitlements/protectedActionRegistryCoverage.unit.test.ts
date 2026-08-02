@@ -33,9 +33,9 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
     expect(DECLARED_NO_SURFACE).toHaveProperty('exercise_catalog');
     expect(DECLARED_NO_SURFACE).toHaveProperty('exercise_packages');
     expect(PROTECTED_ACTION_MAPPINGS.some((mapping) => mapping.id === 'branding.save')).toBe(true);
-    expect(
-      PROTECTED_ACTION_MAPPINGS.some((mapping) => mapping.id === 'exercise-catalog.save'),
-    ).toBe(false);
+    expect(PROTECTED_ACTION_MAPPINGS.map((mapping) => mapping.id)).not.toContain(
+      'exercise-catalog.save',
+    );
   });
 
   it('drops the struck-out "proactive insights" mechanic from the registry entirely', () => {
