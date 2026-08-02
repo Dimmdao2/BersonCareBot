@@ -1029,6 +1029,74 @@ describe('К4 round 2: повторное «Выставить счёт» не �
   });
 });
 
+// К4's provider-failure regression: the durable idempotency row is intentionally written before
+// YooKassa is called. Without releasing that unlinked draft, a retry of the exact same operator
+// request only returns the empty row and the clinic never receives a payment link.
+describe('К4: черновик после сбоя провайдера можно повторить тем же запросом', () => {
+  const request = {
+    organizationId: 'org-k4-retry',
+    amountMinor: 5_000,
+    currency: 'RUB',
+    description: 'Счёт за тариф',
+    expiresAt: '2026-08-05T00:00:00.000Z',
+  };
+
+  async function createService(createIntent: ReturnType<typeof vi.fn>) {
+    const repository = createInMemorySaasBillingRepository();
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+    await service.assignManualTariff({
+      organizationId: request.organizationId,
+      tariffId: 'tariff-k4-retry',
+      audit: { actorId: 'operator-k4-retry', reason: 'test seed' },
+    });
+    return { repository, service };
+  }
+
+  it('после отказа повтор тем же ключом снова вызывает провайдера и возвращает ссылку', async () => {
+    const createIntent = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('provider_temporarily_unavailable'))
+      .mockResolvedValueOnce({ providerIntentRef: 'provider-retry-1', checkoutUrl: 'https://pay.example/retry-1' });
+    const { repository, service } = await createService(createIntent);
+
+    await expect(service.createManualSaasBillingInvoice(request)).rejects.toThrow(
+      'provider_temporarily_unavailable',
+    );
+    const retried = await service.createManualSaasBillingInvoice({ ...request });
+
+    expect(retried.providerCheckoutUrl).toBe('https://pay.example/retry-1');
+    expect(createIntent).toHaveBeenCalledTimes(2);
+    expect((await repository.getOrganizationBillingOverview(request.organizationId)).invoices).toHaveLength(1);
+  });
+
+  it('гонка одного запроса резервирует один вызов провайдера и один счёт', async () => {
+    let resolveIntent: ((value: { providerIntentRef: string; checkoutUrl: string }) => void) | undefined;
+    const createIntent = vi.fn(
+      () => new Promise<{ providerIntentRef: string; checkoutUrl: string }>((resolve) => { resolveIntent = resolve; }),
+    );
+    const { repository, service } = await createService(createIntent);
+
+    const first = service.createManualSaasBillingInvoice(request);
+    const second = service.createManualSaasBillingInvoice({ ...request });
+    await vi.waitFor(() => expect(createIntent).toHaveBeenCalledOnce());
+    resolveIntent?.({ providerIntentRef: 'provider-race-1', checkoutUrl: 'https://pay.example/race-1' });
+    await Promise.all([first, second]);
+
+    expect(createIntent).toHaveBeenCalledOnce();
+    expect((await repository.getOrganizationBillingOverview(request.organizationId)).invoices).toHaveLength(1);
+  });
+});
+
 // К6 — the money-safety invariant: a revoked (or never-granted) consent must win even when a saved
 // payment method is still sitting on the row (revoke never clears it, by design — see
 // `revokeSaasBillingAutopayConsent`). Without this gate, `savedPaymentMethodId` alone would let the

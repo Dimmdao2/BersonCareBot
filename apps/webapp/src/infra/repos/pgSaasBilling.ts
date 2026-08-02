@@ -625,6 +625,34 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       return toSaasBillingInvoice(row);
     },
 
+    async claimSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      const [row] = await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({ status: 'pending', updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.status, 'draft'),
+            isNull(saasBillingInvoices.providerInvoiceRef),
+          ),
+        )
+        .returning({ id: saasBillingInvoices.id });
+      return Boolean(row);
+    },
+
+    async releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({ status: 'draft', updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.status, 'pending'),
+            isNull(saasBillingInvoices.providerInvoiceRef),
+          ),
+        );
+    },
+
     async recordSaasBillingProviderEvent(input) {
       const event = sanitizeSaasBillingProviderEventEnvelope(input.event);
       const [row] = await getDrizzle()
