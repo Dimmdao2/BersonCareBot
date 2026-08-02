@@ -64,6 +64,16 @@ export function createSaasBillingService(dependencies: {
   resolvePaymentProvider: SaasBillingPaymentProviderResolver;
   /** Injected so the paid period a test asserts is the one it set, not the wall clock. */
   now?: () => Date;
+  listTariffs?: () => Promise<Array<{ id: string; name: string; isActive: boolean }>>;
+  getTariffTransition?: (
+    organizationId: string,
+    tariffId: string,
+  ) => Promise<{
+    currentTariffId: string | null;
+    targetTariffId: string;
+    blocks: unknown[];
+    appliesNextPeriod: boolean;
+  }>;
 }) {
   const now = dependencies.now ?? (() => new Date());
   /** `providerId` picks a specific configured provider (e.g. the one named in a webhook URL); omitted, it's the global default. */
@@ -344,6 +354,7 @@ export function createSaasBillingService(dependencies: {
       tariffId: string | null;
       /** A restrictive switch preserves the already paid access until `currentPeriodEndsAt`. */
       applyAtNextPeriod?: boolean;
+      scheduleOnly?: boolean;
       audit: { actorId: string | null; reason: string };
     }) {
       return dependencies.repository.runManualAssignmentTransaction(async (transaction) => {
@@ -368,6 +379,7 @@ export function createSaasBillingService(dependencies: {
                   }
                 : null,
               pendingTariffId: null,
+              preservePeriodSnapshot: input.scheduleOnly,
             });
           }
           return;
@@ -384,6 +396,7 @@ export function createSaasBillingService(dependencies: {
               endsAt: currentSubscription.currentPeriodEndsAt as string,
             },
             pendingTariffId: input.tariffId,
+            preservePeriodSnapshot: input.scheduleOnly,
           });
           await transaction.appendManualAssignmentAudit({
             ...input.audit,
@@ -395,6 +408,8 @@ export function createSaasBillingService(dependencies: {
           });
           return;
         }
+
+        if (input.scheduleOnly) throw new Error('saas_billing_no_active_paid_subscription');
 
         // §5a item 7.0 — assignment is what STARTS the organization's paid period. Before this the
         // subscription row carried no period at all, so "период кончился и не оплачен" was a state
@@ -598,8 +613,12 @@ export function createSaasBillingService(dependencies: {
      * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
      */
     async createOwnTariffRenewalInvoice(organizationId: string) {
-      const { saasBillingSubscriptionId, billingPeriod, savedPaymentMethodId, currentPeriodEndsAt } =
+      const { saasBillingSubscriptionId, tariffId, billingPeriod, savedPaymentMethodId, currentPeriodEndsAt } =
         await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
+      if (dependencies.getTariffTransition) {
+        const transition = await dependencies.getTariffTransition(organizationId, tariffId);
+        if (transition.blocks.length > 0) throw new Error('saas_billing_tariff_downgrade_blocked');
+      }
       // A clinic can pay before expiry. The purchased next period begins at the paid boundary,
       // never at the click time, otherwise an early renewal silently cuts off paid days.
       const servicePeriodStartsAt = currentPeriodEndsAt ?? now().toISOString();
@@ -623,6 +642,63 @@ export function createSaasBillingService(dependencies: {
           saasBillingSubscriptionId,
           idempotencyBucket,
         ])}`,
+      });
+    },
+
+    async getOwnTariffChangeState(organizationId: string) {
+      if (!dependencies.listTariffs) throw new Error('saas_billing_tariff_change_unavailable');
+      const overview = await dependencies.repository.getOrganizationBillingOverview(organizationId);
+      const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
+      return {
+        choices: (await dependencies.listTariffs())
+          .filter((tariff) => tariff.isActive)
+          .map((tariff) => ({ id: tariff.id, name: tariff.name })),
+        currentTariffId: subscription?.tariffId ?? null,
+        pendingTariffId: subscription?.pendingTariffId ?? null,
+        pendingEffectiveAt: subscription?.pendingTariffId ? subscription.currentPeriodEndsAt : null,
+      };
+    },
+
+    async scheduleOwnTariffChange(input: {
+      organizationId: string;
+      tariffId: string;
+      actorId: string | null;
+    }) {
+      if (!dependencies.getTariffTransition) throw new Error('saas_billing_tariff_change_unavailable');
+      const transition = await dependencies.getTariffTransition(input.organizationId, input.tariffId);
+      if (transition.currentTariffId === input.tariffId) {
+        await this.assignManualTariff({
+          organizationId: input.organizationId,
+          tariffId: input.tariffId,
+          applyAtNextPeriod: true,
+          scheduleOnly: true,
+          audit: { actorId: input.actorId, reason: 'clinic_tariff_change_cancelled' },
+        });
+        return;
+      }
+      if (!transition.appliesNextPeriod) {
+        throw new Error('saas_billing_upgrade_charge_policy_unresolved');
+      }
+      if (transition.blocks.length > 0) throw new Error('saas_billing_tariff_downgrade_blocked');
+      await this.assignManualTariff({
+        organizationId: input.organizationId,
+        tariffId: input.tariffId,
+        applyAtNextPeriod: true,
+        scheduleOnly: true,
+        audit: { actorId: input.actorId, reason: 'clinic_tariff_downgrade_scheduled' },
+      });
+    },
+
+    async cancelOwnTariffChange(input: { organizationId: string; actorId: string | null }) {
+      const overview = await dependencies.repository.getOrganizationBillingOverview(input.organizationId);
+      const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription');
+      if (!subscription) throw new Error('saas_billing_no_active_paid_subscription');
+      await this.assignManualTariff({
+        organizationId: input.organizationId,
+        tariffId: subscription.tariffId,
+        applyAtNextPeriod: true,
+        scheduleOnly: true,
+        audit: { actorId: input.actorId, reason: 'clinic_tariff_change_cancelled' },
       });
     },
 

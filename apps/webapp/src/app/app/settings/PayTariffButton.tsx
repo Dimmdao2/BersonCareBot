@@ -2,6 +2,12 @@
 
 import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/shared/ui/doctor/primitives/select';
 
 const ERROR_LABELS: Record<string, string> = {
   saas_billing_no_tariff_assigned: 'Тариф ещё не назначен — обратитесь к администратору платформы.',
@@ -9,6 +15,9 @@ const ERROR_LABELS: Record<string, string> = {
     'Оплата тарифа временно недоступна: платёжный магазин платформы не настроен.',
   saas_billing_checkout_unavailable: 'Не удалось получить ссылку на оплату. Попробуйте ещё раз.',
   billing_admin_required: 'Оплату тарифа может запустить только владелец или администратор клиники.',
+  saas_billing_tariff_downgrade_blocked: 'Понижение недоступно: сначала сократите используемые места, филиалы или пациентов.',
+  saas_billing_upgrade_charge_policy_unresolved: 'Повышение тарифа пока оформляет администратор платформы.',
+  saas_billing_no_active_paid_subscription: 'Для смены тарифа нужен действующий оплаченный период.',
 };
 
 function formatError(code: string | undefined): string {
@@ -16,9 +25,20 @@ function formatError(code: string | undefined): string {
 }
 
 /** K0 — the one payment element on the tariff screen: issues a checkout link and hands the browser to it. */
-export function PayTariffButton() {
+export type ClinicTariffChangeState = {
+  choices: Array<{ id: string; name: string }>;
+  currentTariffId: string | null;
+  pendingTariffId: string | null;
+  pendingEffectiveAt: string | null;
+};
+
+export function PayTariffButton({ tariffChange }: { tariffChange: ClinicTariffChangeState }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTariffId, setSelectedTariffId] = useState(
+    tariffChange.pendingTariffId ?? tariffChange.currentTariffId ?? '',
+  );
+  const [pendingTariffId, setPendingTariffId] = useState(tariffChange.pendingTariffId);
 
   async function handlePay() {
     setPending(true);
@@ -41,8 +61,68 @@ export function PayTariffButton() {
     }
   }
 
+  async function changeTariff() {
+    if (!selectedTariffId) return;
+    setPending(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/clinic/billing', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tariffId: selectedTariffId }),
+      });
+      const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!body?.ok) setError(formatError(body?.error));
+      else setPendingTariffId(selectedTariffId === tariffChange.currentTariffId ? null : selectedTariffId);
+    } catch {
+      setError(formatError(undefined));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function cancelChange() {
+    setPending(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/clinic/billing', { method: 'DELETE' });
+      const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!body?.ok) setError(formatError(body?.error));
+      else {
+        setPendingTariffId(null);
+        setSelectedTariffId(tariffChange.currentTariffId ?? '');
+      }
+    } catch {
+      setError(formatError(undefined));
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <div className="space-y-1.5">
+      <Select value={selectedTariffId} onValueChange={(value) => setSelectedTariffId(value ?? '')}>
+        <SelectTrigger
+          className="w-full"
+          displayLabel={tariffChange.choices.find((choice) => choice.id === selectedTariffId)?.name}
+        />
+        <SelectContent>
+          {tariffChange.choices.map((choice) => (
+            <SelectItem key={choice.id} value={choice.id} label={choice.name}>
+              {choice.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button size="sm" variant="outline" onClick={changeTariff} disabled={pending || !selectedTariffId}>
+        {selectedTariffId === tariffChange.currentTariffId ? 'Отменить запланированную смену' : 'Запланировать смену'}
+      </Button>
+      {pendingTariffId && tariffChange.pendingEffectiveAt ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Новый тариф вступит {new Date(tariffChange.pendingEffectiveAt).toLocaleDateString('ru-RU')}</span>
+          <Button size="sm" variant="ghost" onClick={cancelChange} disabled={pending}>Отменить</Button>
+        </div>
+      ) : null}
       <Button size="sm" onClick={handlePay} disabled={pending}>
         {pending ? 'Готовим ссылку на оплату…' : 'Оплатить тариф'}
       </Button>

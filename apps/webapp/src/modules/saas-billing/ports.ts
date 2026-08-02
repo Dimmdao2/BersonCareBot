@@ -277,6 +277,8 @@ export type SaasBillingManualAssignmentTransactionPort = {
     /** §5a item 7.0 — the paid period this assignment grants; `null` only when unassigning. */
     period: { startsAt: string; endsAt: string } | null;
     pendingTariffId?: string | null;
+    /** Scheduling/cancelling must not replace the snapshot frozen for the current paid period. */
+    preservePeriodSnapshot?: boolean;
   }): Promise<void>;
   updateOrganizationTariffAssignment(input: {
     organizationId: string;

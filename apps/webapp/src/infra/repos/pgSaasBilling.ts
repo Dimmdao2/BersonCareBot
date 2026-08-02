@@ -403,9 +403,26 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             if (!tariff) throw new Error('active_tariff_not_found');
             return { billingPeriod: tariff.billingPeriod as SaasBillingPeriod };
           },
-          async setManualSaasBillingSubscription({ organizationId, tariffId, period, pendingTariffId = null }) {
-            const [effective] = await tx.select({ source: saasBillingSubscriptions.source }).from(saasBillingSubscriptions)
-              .where(and(eq(saasBillingSubscriptions.organizationId, organizationId), eq(saasBillingSubscriptions.source, 'paid_subscription'))).limit(1);
+          async setManualSaasBillingSubscription({
+            organizationId,
+            tariffId,
+            period,
+            pendingTariffId = null,
+            preservePeriodSnapshot = false,
+          }) {
+            const [effective] = await tx
+              .select({
+                source: saasBillingSubscriptions.source,
+                tariffSnapshot: saasBillingSubscriptions.tariffSnapshot,
+              })
+              .from(saasBillingSubscriptions)
+              .where(
+                and(
+                  eq(saasBillingSubscriptions.organizationId, organizationId),
+                  eq(saasBillingSubscriptions.source, 'paid_subscription'),
+                ),
+              )
+              .limit(1);
             const source = effective?.source ?? 'manual';
             if (tariffId === null) {
               await tx
@@ -434,7 +451,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             // §2.12 — a manual platform-admin assignment always opens a paid period exactly like a
             // real payment (§5a item 7.0 already treats the two identically for the ladder anchor),
             // so it freezes the tariff's content the same way: taken now, kept until this period ends.
-            const tariffSnapshot = period ? await readTariffSnapshotForPeriod(tx, tariffId) : null;
+            const tariffSnapshot = period
+              ? (preservePeriodSnapshot ? effective?.tariffSnapshot : null) ??
+                (await readTariffSnapshotForPeriod(tx, tariffId))
+              : null;
             const [row] = await tx
               .insert(saasBillingSubscriptions)
               .values({

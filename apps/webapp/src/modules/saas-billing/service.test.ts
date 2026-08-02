@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 import { createSaasBillingService } from './service';
-import type { SaasBillingInvoice, SaasBillingRepositoryPort } from './ports';
+import type {
+  SaasBillingInvoice,
+  SaasBillingManualAssignmentTransactionPort,
+  SaasBillingRepositoryPort,
+} from './ports';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
 
 const invoice: SaasBillingInvoice = {
@@ -28,6 +32,89 @@ const invoice: SaasBillingInvoice = {
   providerCheckoutUrl: null,
   providerIdempotencyKey: 'renewal-1',
 };
+
+describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', () => {
+  function scheduledService(blocks: unknown[] = []) {
+    const setManualSaasBillingSubscription = vi.fn(async () => {});
+    const createIntent = vi.fn();
+    const service = createSaasBillingService({
+      repository: {
+        runManualAssignmentTransaction: (work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<unknown>) => work({
+          loadManualAssignmentState: async () => ({
+            organization: { tariffId: 'tariff-current' }, activeTrial: null,
+            manualSaasBillingSubscription: {
+              id: 'subscription', tariffId: 'tariff-current', status: 'active',
+              currentPeriodStartsAt: '2026-08-01T00:00:00.000Z', currentPeriodEndsAt: '2026-09-01T00:00:00.000Z', pendingTariffId: null,
+            },
+          }),
+          requireActiveTariff: async () => ({ billingPeriod: 'month' as const }),
+          setManualSaasBillingSubscription,
+          updateOrganizationTariffAssignment: vi.fn(), endActiveTrial: vi.fn(), appendManualAssignmentAudit: vi.fn(),
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-small', blocks, appliesNextPeriod: true }),
+      now: () => new Date('2026-08-15T00:00:00.000Z'),
+    });
+    return { service, setManualSaasBillingSubscription, createIntent };
+  }
+
+  it('schedules a restrictive target without changing the paid dates or creating a provider intent', async () => {
+    const { service, setManualSaasBillingSubscription, createIntent } = scheduledService();
+
+    await service.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-small', actorId: 'actor' });
+
+    expect(setManualSaasBillingSubscription).toHaveBeenCalledWith(expect.objectContaining({
+      tariffId: 'tariff-current', pendingTariffId: 'tariff-small',
+      preservePeriodSnapshot: true,
+      period: { startsAt: '2026-08-01T00:00:00.000Z', endsAt: '2026-09-01T00:00:00.000Z' },
+    }));
+    expect(createIntent).not.toHaveBeenCalled();
+  });
+
+  it('refuses a blocked downgrade before any provider call', async () => {
+    const { service, setManualSaasBillingSubscription, createIntent } = scheduledService([{ mechanic: 'patient_count' }]);
+
+    await expect(service.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-small', actorId: 'actor' }))
+      .rejects.toThrow('saas_billing_tariff_downgrade_blocked');
+    expect(setManualSaasBillingSubscription).not.toHaveBeenCalled();
+    expect(createIntent).not.toHaveBeenCalled();
+  });
+
+  it('refuses a self-service upgrade until the charge policy is decided', async () => {
+    const { setManualSaasBillingSubscription, createIntent } = scheduledService();
+    const upgradeService = createSaasBillingService({
+      repository: {} as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-big', blocks: [], appliesNextPeriod: false }),
+    });
+
+    await expect(upgradeService.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-big', actorId: 'actor' }))
+      .rejects.toThrow('saas_billing_upgrade_charge_policy_unresolved');
+    expect(setManualSaasBillingSubscription).not.toHaveBeenCalled();
+    expect(createIntent).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the same transition before issuing a renewal intent', async () => {
+    const createIntent = vi.fn();
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription', tariffId: 'tariff-small', billingPeriod: 'month' as const,
+          savedPaymentMethodId: null, currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+        }),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-small', blocks: [{ mechanic: 'patient_count' }], appliesNextPeriod: true }),
+    });
+
+    await expect(service.createOwnTariffRenewalInvoice('org')).rejects.toThrow('saas_billing_tariff_downgrade_blocked');
+    expect(createIntent).not.toHaveBeenCalled();
+  });
+});
 
 // §5a/2.1c — the path by which a clinic pays US must be untouched by the access ladder in every
 // state, including the terminal cabinet block; otherwise the block cannot be lifted by paying and

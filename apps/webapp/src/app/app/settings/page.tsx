@@ -310,6 +310,14 @@ export default async function SettingsPage({
     },
     () => deps.saasBilling.getOrganizationBillingOverview(workspace.organizationId),
   );
+  const tariffChange = await runWithDbClinicBillingPrincipal(
+    {
+      organizationId: workspace.organizationId,
+      platformUserId: workspace.session.user.userId,
+      source: 'clinic-billing-settings-tariff-change-read',
+    },
+    () => deps.saasBilling.getOwnTariffChangeState(workspace.organizationId),
+  );
   const entitlements = entitlementsFromSnapshot(snapshot);
   const mechanicRows: BillingMechanicRow[] = MECHANICS.map((mechanic) => ({
     mechanic,
@@ -332,6 +340,7 @@ export default async function SettingsPage({
         mechanics={mechanicRows}
         quotaUsage={quotaUsage}
         billing={billing}
+        tariffChange={tariffChange}
       />
     </DoctorAppShell>
   );
