@@ -102,10 +102,6 @@ function isDeliveryRoute(rel) {
   return rel.startsWith(deliveryRouteRoot) && rel.endsWith('/route.ts');
 }
 
-function isMediaModule(rel) {
-  return rel.startsWith(mediaModuleRoot);
-}
-
 function isHttpRoute(rel) {
   return rel.startsWith(`${routeRoot}/`) && rel.endsWith('/route.ts');
 }
