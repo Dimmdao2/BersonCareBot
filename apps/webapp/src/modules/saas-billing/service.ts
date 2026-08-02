@@ -109,14 +109,20 @@ export function createSaasBillingService(dependencies: {
     };
   }
 
-  /** A configured VAT code is the explicit signal that this merchant must send fiscal receipts. */
+  /** Fiscal fields are opt-in, but a partially configured receipt must fail locally, not at the PSP. */
   async function attachFiscalReceiptIfConfigured(
     invoice: Awaited<
       ReturnType<typeof dependencies.repository.createSaasBillingInvoice>
     >['invoice'],
     payeeRequisites: ResolvedSaasBillingPaymentProvider['payeeRequisites'],
   ) {
-    if (!payeeRequisites.vatCode) return { invoice, receipt: undefined };
+    const fiscalReceiptConfigured = Boolean(
+      payeeRequisites.vatCode || payeeRequisites.taxSystemCode,
+    );
+    if (!fiscalReceiptConfigured) return { invoice, receipt: undefined };
+    if (!payeeRequisites.vatCode) {
+      throw new Error('saas_billing_receipt_vat_code_missing');
+    }
     const billingEmail = await dependencies.repository.getSaasBillingAccountBillingEmail(
       invoice.organizationId,
     );
