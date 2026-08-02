@@ -1,10 +1,14 @@
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
 import { reminderRules } from '../schema/integratorPublicProduct.js';
 import { getEnabledReminderRules } from './reminders.js';
 
+const pgDialect = new PgDialect();
 const organizationId = '11111111-1111-4111-8111-111111111111';
+const foreignOrganizationId = '22222222-2222-4222-8222-222222222222';
 
 function canonicalRuleRow() {
   return {
@@ -42,10 +46,14 @@ describe('D5 canonical scheduler rule read', () => {
   });
 
   it('returns a bot-linked rule from the canonical public-table Drizzle model for its principal', async () => {
+    let capturedCondition: SQL | undefined;
     const from = vi.fn(() => ({
-      where: vi.fn(() => ({
-        orderBy: vi.fn(async () => [canonicalRuleRow()]),
-      })),
+      where: vi.fn((condition: SQL) => {
+        capturedCondition = condition;
+        return {
+          orderBy: vi.fn(async () => [canonicalRuleRow()]),
+        };
+      }),
     }));
     const db = {
       integratorDrizzle: {
@@ -66,5 +74,17 @@ describe('D5 canonical scheduler rule read', () => {
         reminderIntent: 'exercises',
       }),
     ]);
+
+    // D5 kill-set: the compiled WHERE clause is the only thing standing between one
+    // organization's scheduler tick and another organization's reminder-rule content. A mock
+    // that accepts any predicate would stay green even if this filter were deleted -- assert on
+    // the actual compiled SQL/params instead of just that `where` was called.
+    expect(capturedCondition).toBeDefined();
+    const compiled = pgDialect.sqlToQuery(capturedCondition as SQL);
+    expect(compiled.sql).toContain('is_enabled');
+    expect(compiled.sql).toContain('integrator_user_id');
+    expect(compiled.sql).toContain('organization_id');
+    expect(compiled.params).toContain(organizationId);
+    expect(compiled.params).not.toContain(foreignOrganizationId);
   });
 });
