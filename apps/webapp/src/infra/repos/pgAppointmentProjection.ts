@@ -340,7 +340,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           if (!row) {
             throw new AppointmentProjectionRecordNotFoundError();
           }
-          if (organizationId && row.organization_id !== organizationId) {
+          if (organizationId && row.organization_id && row.organization_id !== organizationId) {
             throw new AppointmentProjectionOrganizationMismatchError();
           }
 

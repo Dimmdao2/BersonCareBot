@@ -220,12 +220,11 @@ rows without an immutable tenant key. All 440 exact-parent rows are stamped; the
 historical rows remain NULL. See `V9B_S03_DEV_BOOKING_OWNERSHIP_CENSUS_AUDIT.md`.
 
 **NOT done (pre-land gates):**
-- Independent adversarial audit of migration SQL and writer code.
+- Independent audit **FAIL** at `e24e021f4`: REG-1 made a NULL-org legacy projection record impossible for an admin to soft-delete, and Appendix A supplied the missing B2/D4 acceptance oracles. Bounded fix-round restores that Appendix A file verbatim and permits this pre-S03 legacy delete only when the stored org is NULL; two non-NULL differing organizations still refuse. Evidence: `pnpm --dir apps/webapp test:postgres` → 7 files / 21 tests green, migration replay `count=310`. No DEV/TEST apply, land, or S04/S05 enforcement is claimed.
 - S04/S05 adoption, revoke and enforcement (out of S03 scope); historical NULL rows are not
   reconciled by inference.
 - S04 caller conversion (out of S03 scope).
-- Journal re-ordering: entry `0309_v9b_booking_ownership_local` is at idx 308; when
-  `wt/saas-seat-billing` (0308) merges first, update idx to 309 and `when` timestamp.
+- Journal re-ordering is not pending: `0309_v9b_booking_ownership_local` is already idx 309.
 
 ### Historical first-worker brief — S01, COMPLETED 02.08
 
