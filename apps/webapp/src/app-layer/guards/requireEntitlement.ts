@@ -33,8 +33,20 @@ export type EntitlementDenialReason =
  * Callers supply the concrete action so the UI never has to turn a swallowed 403
  * into an unexplained disabled control.
  */
-export function entitlementMutationRefusalMessage(action: string): string {
-  return `Невозможно ${action}: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.`;
+export function entitlementMutationRefusalMessage(
+  action: string,
+  reason: EntitlementDenialReason = 'entitlement_required',
+): string {
+  switch (reason) {
+    case 'commercial_read_only':
+      return `Невозможно ${action}: раздел сейчас доступен только для просмотра по тарифу клиники.`;
+    case 'commercial_blocked':
+      return `Невозможно ${action}: доступ к этому разделу временно приостановлен по тарифу клиники.`;
+    case 'access_lifecycle_unconfigured':
+      return `Невозможно ${action}: для этого раздела не настроены условия доступа в тарифе клиники.`;
+    case 'entitlement_required':
+      return `Невозможно ${action}: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.`;
+  }
 }
 
 export function entitlementMutationRefusalResponse(
@@ -182,7 +194,15 @@ export async function requireEntitlementForRead(
   if (!decision.ok) {
     return {
       ok: false,
-      response: NextResponse.json({ ok: false, error: decision.reason, mechanic }, { status: 403 }),
+      response: NextResponse.json(
+        {
+          ok: false,
+          error: decision.reason,
+          mechanic,
+          message: entitlementMutationRefusalMessage('выполнить действие', decision.reason),
+        },
+        { status: 403 },
+      ),
     };
   }
   return decision;

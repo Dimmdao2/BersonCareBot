@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import {
   parsePatientHomeCmsReturnQuery,
   type PatientHomeCmsReturnQuery,
@@ -26,8 +29,6 @@ function normalizeSuggestedSlug(raw: string | string[] | undefined): string | un
 
 export default async function DoctorContentSectionNewPage({ searchParams }: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) notFound();
   const session = workspace.session;
   const sp = searchParams ? await searchParams : {};
   const patientHomeContext: PatientHomeCmsReturnQuery | null = parsePatientHomeCmsReturnQuery({
@@ -41,6 +42,10 @@ export default async function DoctorContentSectionNewPage({ searchParams }: Page
     normalizeSuggestedSlug(sp.suggestedSlug);
   const rawParent = pick(sp, 'systemParentCode')?.trim().toLowerCase() ?? '';
   const initialSystemParentCode = isSystemParentCode(rawParent) ? rawParent : null;
+  const mechanic = initialSystemParentCode === 'warmups' ? 'warmups' : 'cms_pages';
+  const entitlement = await requireEntitlementForReadAction(workspace, mechanic);
+  if (!entitlement.ok) notFound();
+  if (!(await getMechanicMutationAvailability(workspace, mechanic)).available) notFound();
 
   return (
     <DoctorAppShell

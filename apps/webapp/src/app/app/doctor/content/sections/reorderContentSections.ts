@@ -2,7 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
@@ -17,7 +20,12 @@ export async function reorderContentSections(
 ): Promise<ReorderContentSectionsState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   if (!Array.isArray(orderedSlugs) || orderedSlugs.length === 0) {
     return { ok: false, error: 'Пустой порядок' };
   }
