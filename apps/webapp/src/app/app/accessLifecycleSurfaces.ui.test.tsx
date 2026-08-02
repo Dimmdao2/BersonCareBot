@@ -22,6 +22,12 @@ const fakes = vi.hoisted(() => ({
   resolvePatientEnrollmentOrganizationId: vi.fn(),
   withPatientOrganizationPrincipal: vi.fn(),
   withDoctorWorkspacePrincipal: vi.fn(),
+  runWithDbClinicBillingPrincipal: vi.fn(),
+}));
+
+vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@bersoncare/db-principal')>()),
+  runWithDbClinicBillingPrincipal: fakes.runWithDbClinicBillingPrincipal,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -327,6 +333,9 @@ beforeEach(() => {
   fakes.withDoctorWorkspacePrincipal.mockImplementation(
     async (_context: unknown, _source: string, callback: () => Promise<unknown>) => callback(),
   );
+  fakes.runWithDbClinicBillingPrincipal.mockImplementation(
+    async (_principal: unknown, callback: () => Promise<unknown>) => callback(),
+  );
   fakes.getAppDisplayTimeZone.mockResolvedValue('UTC');
   fakes.buildAppDeps.mockReturnValue({
     orgEntitlements,
@@ -360,6 +369,14 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
   it("renders the owner's due notification texts in the clinic shell, and only those", async () => {
     render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
 
+    expect(fakes.runWithDbClinicBillingPrincipal).toHaveBeenCalledWith(
+      {
+        organizationId,
+        platformUserId: userId,
+        source: 'doctor-layout-billing-warning-read',
+      },
+      expect.any(Function),
+    );
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('Тариф Тариф с лестницей не оплачен. Клиника Клиника.');
     expect(alert).not.toHaveTextContent('Скоро только чтение.');

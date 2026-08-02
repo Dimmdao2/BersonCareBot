@@ -5,6 +5,7 @@
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import '../../styles/doctor.css';
 import {
   entitlementGraceWarningMessages,
@@ -86,7 +87,6 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     patientHomeTodayVisibility,
     entitlementSnapshot,
     cabinetAccess,
-    billingOverview,
   ] =
     await Promise.all([
       getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
@@ -97,11 +97,18 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       // The cabinet is its own ladder subject (§5a/2.1a). Reaching this layout already means entry is
       // open, so the only thing left to show is the `терпение` countdown for the cabinet itself.
       deps.orgEntitlements.resolveCabinetAccess(workspaceAccess.organizationId).catch(() => null),
-      // The same organization-scoped overview powers the billing screen. It is the only source for
-      // an upcoming renewal's exact invoice amount and period start; unavailable data stays visible
-      // as the owner's placeholder rather than being guessed from the live tariff.
-      deps.saasBilling.getOrganizationBillingOverview(workspaceAccess.organizationId).catch(() => null),
     ]);
+  // The workspace guard installs the ordinary staff principal. Billing tables require the narrower
+  // own-clinic billing principal, and this role switch must not overlap the entitlement reads above.
+  // Unavailable billing data still degrades to the owner's visible placeholders below.
+  const billingOverview = await runWithDbClinicBillingPrincipal(
+    {
+      organizationId: workspaceAccess.organizationId,
+      platformUserId: session.user.userId,
+      source: 'doctor-layout-billing-warning-read',
+    },
+    () => deps.saasBilling.getOrganizationBillingOverview(workspaceAccess.organizationId),
+  ).catch(() => null);
   const tariffName = entitlementSnapshot?.tariff?.name ?? null;
   const coursesEnabled = coursesVisibility.specialistNavigation;
   const promoEnabled = promoVisibility.specialistNavigation;
