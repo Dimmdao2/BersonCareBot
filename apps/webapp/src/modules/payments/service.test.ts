@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPaymentsService } from './service';
 import type { PaymentsPort } from './ports';
 import type { BookingPaymentSettings, PaymentIntentRecord } from './types';
@@ -10,6 +10,10 @@ const providerAdapter = vi.hoisted(() => ({
 vi.mock('@/infra/payments/paymentProviderRegistry', () => ({
   getPaymentProviderAdapter: vi.fn(() => providerAdapter),
 }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 const intent: PaymentIntentRecord = {
   id: 'intent-1',
@@ -217,5 +221,103 @@ describe('payments tariff mechanic', () => {
       }),
     ).rejects.toThrow('payments_disabled');
     expect(providerAdapter.createIntent).not.toHaveBeenCalled();
+  });
+
+  it('refuses a new package-payment intent before the provider can create it', async () => {
+    const payments = createPaymentsService({
+      port: {
+        findIntentByIdempotency: vi.fn(async () => null),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [
+            {
+              id: 'yookassa',
+              label: 'YooKassa',
+              enabled: true,
+              apiKey: 'api-key',
+              shopId: 'shop-1',
+            },
+          ],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      canCreatePaymentIntent: async () => false,
+    });
+
+    await expect(
+      payments.createPackagePaymentIntent({
+        organizationId: 'org-1',
+        platformUserId: 'user-1',
+        patientPackageId: 'patient-package-1',
+        amountMinor: 10_000,
+        currency: 'RUB',
+        idempotencyKey: 'package:patient-package-1:offer',
+        returnUrl: 'https://app.example.test/return',
+      }),
+    ).rejects.toThrow('payments_disabled');
+    expect(providerAdapter.createIntent).not.toHaveBeenCalled();
+  });
+
+  it('creates a new payment intent when the tariff allows payment acceptance', async () => {
+    const createdIntent = {
+      providerIntentRef: 'yk-created-1',
+      checkoutUrl: 'https://yookassa.ru/checkout/created-1',
+    };
+    providerAdapter.createIntent.mockResolvedValue(createdIntent);
+    const createPaymentIntent = vi.fn(async () => intent);
+    const payments = createPaymentsService({
+      port: {
+        findIntentByIdempotency: vi.fn(async () => null),
+        createPaymentIntent,
+        appendHistoryEvent: vi.fn(async () => undefined),
+      } as unknown as PaymentsPort,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [
+            {
+              id: 'yookassa',
+              label: 'YooKassa',
+              enabled: true,
+              apiKey: 'api-key',
+              shopId: 'shop-1',
+            },
+          ],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: null,
+      canCreatePaymentIntent: async () => true,
+    });
+
+    await expect(
+      payments.createAppointmentPaymentIntent({
+        organizationId: 'org-1',
+        appointmentId: 'appointment-1',
+        platformUserId: 'user-1',
+        amountMinor: 10_000,
+        currency: 'RUB',
+        idempotencyKey: 'appointment-1:prepayment',
+        returnUrl: 'https://app.example.test/return',
+      }),
+    ).resolves.toBe(intent);
+    expect(providerAdapter.createIntent).toHaveBeenCalledOnce();
+    expect(createPaymentIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        providerIntentRef: createdIntent.providerIntentRef,
+      }),
+    );
   });
 });
