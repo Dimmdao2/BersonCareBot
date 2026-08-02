@@ -33,9 +33,11 @@ GRANT USAGE ON SCHEMA public, app TO app_clinic_billing;
 
 DO $c5a_saas_provider_capability$
 BEGIN
-  REVOKE SELECT ON TABLE public.system_settings FROM app_clinic_billing;
-  DROP POLICY IF EXISTS system_settings_clinic_billing_global_read
-    ON public.system_settings;
+  IF to_regclass('public.system_settings') IS NOT NULL THEN
+    REVOKE SELECT ON TABLE public.system_settings FROM app_clinic_billing;
+    DROP POLICY IF EXISTS system_settings_clinic_billing_global_read
+      ON public.system_settings;
+  END IF;
 
   IF to_regprocedure('app.read_saas_billing_payment_provider()') IS NOT NULL THEN
     ALTER FUNCTION app.read_saas_billing_payment_provider() OWNER TO app_owner;
