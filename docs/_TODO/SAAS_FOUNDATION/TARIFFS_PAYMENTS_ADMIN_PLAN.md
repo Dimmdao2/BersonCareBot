@@ -504,9 +504,9 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       — ЧАСТИЧНО: unauthenticated/wrong-role 403 покрыт тестом (`api/admin/commercial/route.test.ts:49-54`,
       mocked-guard unit test, не живой E2E). Forged webhook/amount-mismatch/replay/mechanic-OFF-during-subscription —
       не применимы, пока saas-webhook и подписка не существуют.
-- [ ] Полный regression sweep: existing org сохраняют compatibility access до owner-approved mapping; после
-      отдельного mapping apply ни одна организация не теряет доступ вопреки preview.
-      — НЕ СДЕЛАНО: mapping/dry-run инструмент из Phase 3 п.8 не существует, sweep нечего проверять.
+- [-] ~~Полный regression sweep: existing org сохраняют compatibility access до owner-approved mapping; после
+      отдельного mapping apply ни одна организация не теряет доступ вопреки preview.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
+      01.08 решением Р-12: compatibility behavior и owner-approved mapping удалены из целевой модели.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`».
 - Один финальный `pnpm install --frozen-lockfile && pnpm run ci` после всех фаз — не гонять full CI после
       каждого шага.
@@ -732,8 +732,10 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       политики без потери накопленного и без мгновенного блока (образец — Stripe, где правка настроек влияет на будущие
       попытки). Тест: организация в терпении при удлинении терпения не блокируется, при укорочении не выкидывается
       задним числом.
-- [ ] **2.11** Журнал правок политики: кто, когда, что было, что стало — по обоим предметам лестницы (кабинет и каждая
-      механика). Без него нельзя будет объяснить клинике, почему она получила блок.
+- [x] **2.11** Журнал правок политики: кто, когда, что было, что стало — по обоим предметам лестницы (кабинет и каждая
+      механика). Без него нельзя будет объяснить клинике, почему она получила блок. — ГОТОВО `f64b6e539`,
+      независимый live-audit на четырёх правках PASS: `admin_audit_log` хранит immutable before/after, API
+      `tariff-policy-history` отделяет кабинет от механик и не показывает ценовую правку как policy-шум.
 
 - [x] 🔴 **2.13 ЧЕТЫРЁХ СОСТОЯНИЙ ДОСТУПА НЕ СУЩЕСТВУЕТ — ВЫРЕЗАТЬ.** ✅ **ЗАКРЫТО 02.08.** Решения **Р-12** (основное), **Р-5** и **Р-6** реестра §5а-0. Дословные формулировки — там.
       «Совместимость это бред - вырезай нахуй полностью», «клиника зарегистрирована, триал ей положен, но
