@@ -1,4 +1,3 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0308 -- the lead assigns the final number at merge.
 -- #1057 #1069: paid additional specialist seats are a separate purchase, never a tariff period.
 ALTER TABLE public.saas_billing_subscriptions
   ADD COLUMN paid_additional_seats integer NOT NULL DEFAULT 0;
