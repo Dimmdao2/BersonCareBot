@@ -34,7 +34,8 @@
 | `0313` | clinic-owned Google Calendar / #1071 §12.3 | `wt/clinic-calendar` / `/home/dev/dev-projects/bcb-wt-clinic-calendar` | ПЕРЕБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: предыдущий §12.6 доказан без миграции; перенести Google Calendar credentials и connection state с платформенного singleton на exact clinic organization, сохранив global enablement gate и существующий sync path. |
 | `0314` | Track D / #987 D7 | `wt/trackd-d7` / `/home/dev/dev-projects/bcb-wt-trackd-d7` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: capability-функции и webapp-owned validated contract для reminder done/mute/messenger-topic/notification-settings; snooze/skip подключаются к существующим public capability, integrator остаётся исполнителем callback UX. |
 | `0315` | tariff downgrade / #1069 §5.6 | `wt/tariff-downgrade` / `/home/dev/dev-projects/bcb-wt-tariff-downgrade` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: повышение сразу; понижение с нового периода после уборки счётных сущностей, но file overage только замораживает новые uploads и не блокирует переход. Сначала соединить уже существующий `scheduleOwnTariffChange`, не строить второй scheduler. |
-| `0316`+ | свободно | — | следующий берущий начинает отсюда |
+| `0316` | clinic-owned Telegram/MAX inbound / #1071 §12.6 fixer | `wt/clinic-channels` / `/home/dev/dev-projects/bcb-wt-clinic-channels` | ЗАБРОНИРОВАНО 02.08 ДО СОЗДАНИЯ ФАЙЛА: один fixer по audit F01–F05; exact dedicated bot→organization binding и fail-closed inbound routing без single-active/default organization. Использовать только если существующий per-org settings contract не может нести binding без DDL. |
+| `0317`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Текущий режим 02.08:** оркестратор один. Stateful workstreams остаются в отдельных worktree, но единый
 migration ledger `0300…0305` собран в `wt/single-entry-integration`; новые номера по-прежнему бронируются здесь
