@@ -1,4 +1,3 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0305
 -- #1069 §2.13: restore the paid-period frozen/live tariff switch lost when 0297
 -- removed the four legacy access states. Recreate only the three access readers in their post-0297
 -- form: legacy-state removal, signatures, owners, grants, and quota logic remain unchanged.

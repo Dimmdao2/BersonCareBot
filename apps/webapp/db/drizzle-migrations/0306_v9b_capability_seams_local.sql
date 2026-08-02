@@ -1,4 +1,3 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0306
 -- #1081 V9b S02: expand-only capability seams before S04 caller adoption and direct-grant contract.
 -- This migration intentionally adds no table-grant REVOKE, RLS policy, ENABLE/FORCE RLS, or caller change.
 
