@@ -14,6 +14,7 @@ import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { z } from 'zod';
 import { createVerifiedPublicBooking } from '@/app-layer/booking/createVerifiedPublicBooking';
+import { identifyPublicBookingPayer } from '@/app-layer/booking/identifyPublicBookingPayer';
 import {
   isPublicBookingConfirmRateLimited,
   PUBLIC_BOOKING_CONFIRM_RATE_LIMIT_SEC,
@@ -100,6 +101,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    const payer = await identifyPublicBookingPayer(deps, {
+      kind: 'sms',
+      contactPhone: consumed.verified.intent.contactPhone,
+      contactName: consumed.verified.intent.contactName,
+    });
+    if (!payer.ok) {
+      return jsonError(payer.error, {}, { status: payer.error === 'invalid_phone' ? 400 : 503 });
+    }
+    const sessionUser = await deps.userByPhone.findByUserId(payer.platformUserId);
+    if (!sessionUser) return jsonError('user_resolve_failed', {}, { status: 503 });
+    await deps.auth.setSessionFromUser(sessionUser);
     const booking = await withExplicitOrganizationPrincipal(
       {
         organizationId: consumed.verified.intent.organizationId,
@@ -109,16 +121,14 @@ export async function POST(request: Request) {
         createVerifiedPublicBooking(
           deps,
           consumed.verified.intent,
-          // An e-mail-delivered code proves the e-mail, never the phone (#1005). The decision lives in
-          // `channelProvesPhoneControl`; this call site only carries its answer.
-          consumed.verified.phoneProven,
+          payer.platformUserId,
         ),
     );
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {
-      const paymentStatus = await deps.patientBooking.getBookingPaymentStatusForContact(
+      const paymentStatus = await deps.patientBooking.getBookingPaymentStatus(
         booking.id,
-        consumed.verified.intent.contactPhone,
+        payer.platformUserId,
       );
       checkoutUrl = paymentStatus.ok ? (paymentStatus.summary?.intent?.checkoutUrl ?? null) : null;
     }

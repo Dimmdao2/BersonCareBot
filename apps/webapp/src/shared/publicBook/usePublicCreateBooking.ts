@@ -13,6 +13,7 @@ type CreateBookingInput = {
   selection: BookingSelection;
   slot: BookingSlot;
   contactName: string;
+  contactFio?: { lastName: string; firstName: string; patronymic?: string };
   contactPhone: string;
   contactEmail?: string;
   formAnswers?: FormAnswer[];
@@ -25,10 +26,10 @@ type CreateBookingInput = {
  * request and never sees the prompt.
  */
 export type PublicBookingVerificationPrompt = {
+  proofMethod: 'sms' | 'email';
   challengeId: string;
   expiresInSeconds: number;
-  /** Where the code went, for the on-screen copy. */
-  contactPhone: string;
+  contact: string;
 };
 
 export function usePublicCreateBooking() {
@@ -36,12 +37,13 @@ export function usePublicCreateBooking() {
   const [error, setError] = useState<string | null>(null);
   const [verificationPrompt, setVerificationPrompt] =
     useState<PublicBookingVerificationPrompt | null>(null);
+  const [proofMethod, setProofMethod] = useState<'sms' | 'email'>('sms');
+  const [pendingInput, setPendingInput] = useState<CreateBookingInput | null>(null);
 
-  async function createBooking(input: CreateBookingInput): Promise<PatientBookingRecord | false> {
-    setSubmitting(true);
-    setError(null);
-    setVerificationPrompt(null);
-    try {
+  async function submitCreate(
+    input: CreateBookingInput,
+    selectedProofMethod: 'sms' | 'email',
+  ): Promise<PatientBookingRecord | false> {
       const attribution: BookingAttribution = readStoredPublicBookingAttribution();
       const body =
         input.selection.type === 'online'
@@ -53,6 +55,7 @@ export function usePublicCreateBooking() {
               contactName: input.contactName,
               contactPhone: input.contactPhone,
               contactEmail: input.contactEmail,
+              proofMethod: selectedProofMethod,
               formAnswers: input.formAnswers,
               attribution,
             }
@@ -68,6 +71,7 @@ export function usePublicCreateBooking() {
                 contactName: input.contactName,
                 contactPhone: input.contactPhone,
                 contactEmail: input.contactEmail,
+                proofMethod: selectedProofMethod,
                 formAnswers: input.formAnswers,
                 attribution,
               };
@@ -85,11 +89,12 @@ export function usePublicCreateBooking() {
         booking?: PatientBookingRecord;
         verification?: { challengeId: string; expiresInSeconds: number };
       };
-      if (res.ok && json.ok === true && json.verification) {
+      if (res.ok && json.ok === true && json.verification && selectedProofMethod === 'sms') {
         setVerificationPrompt({
+          proofMethod: 'sms',
           challengeId: json.verification.challengeId,
           expiresInSeconds: json.verification.expiresInSeconds,
-          contactPhone: input.contactPhone,
+          contact: input.contactPhone,
         });
         return false;
       }
@@ -104,6 +109,45 @@ export function usePublicCreateBooking() {
         return false;
       }
       return json.booking;
+  }
+
+  async function createBooking(input: CreateBookingInput): Promise<PatientBookingRecord | false> {
+    setSubmitting(true);
+    setError(null);
+    setVerificationPrompt(null);
+    setPendingInput(input);
+    try {
+      if (proofMethod === 'email') {
+        const email = input.contactEmail?.trim();
+        if (!email || !input.contactFio) {
+          setError('Введите email для подтверждения.');
+          return false;
+        }
+        const registration = await fetch('/api/auth/email-otp/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, ...input.contactFio }),
+        });
+        let res = registration;
+        let json = (await registration.json().catch(() => ({}))) as {
+          ok?: boolean; challengeId?: string; error?: string;
+        };
+        if (json.error === 'duplicate_email') {
+          res = await fetch('/api/auth/email-otp/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          json = (await res.json().catch(() => ({}))) as typeof json;
+        }
+        if (!res.ok || json.ok !== true || !json.challengeId) {
+          setError(json.error === 'rate_limited' ? 'Слишком много попыток. Попробуйте позже.' : 'Не удалось отправить код подтверждения.');
+          return false;
+        }
+        setVerificationPrompt({ proofMethod: 'email', challengeId: json.challengeId, expiresInSeconds: 600, contact: email });
+        return false;
+      }
+      return await submitCreate(input, 'sms');
     } catch {
       setError('Ошибка сети при создании записи');
       return false;
@@ -118,16 +162,29 @@ export function usePublicCreateBooking() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/booking/public/create/confirm', {
+      const res = await fetch(
+        prompt.proofMethod === 'email'
+          ? '/api/auth/email-otp/confirm'
+          : '/api/booking/public/create/confirm',
+        {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ challengeId: prompt.challengeId, code: code.trim() }),
-      });
+        body: JSON.stringify(
+          prompt.proofMethod === 'email'
+            ? { email: prompt.contact, code: code.trim() }
+            : { challengeId: prompt.challengeId, code: code.trim() },
+        ),
+      },
+      );
       const json = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
         booking?: PatientBookingRecord;
       };
+      if (prompt.proofMethod === 'email' && res.ok && json.ok === true && pendingInput) {
+        setVerificationPrompt(null);
+        return await submitCreate(pendingInput, 'email');
+      }
       if (!res.ok || json.ok !== true || !json.booking) {
         if (json.error === 'verification_failed') {
           // Deliberately one message: the server does not distinguish wrong from expired from
@@ -162,5 +219,7 @@ export function usePublicCreateBooking() {
     verificationPrompt,
     confirmVerification,
     cancelVerification,
+    proofMethod,
+    setProofMethod,
   };
 }

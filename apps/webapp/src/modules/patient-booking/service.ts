@@ -277,18 +277,6 @@ export function createPatientBookingService(input: {
       });
     },
 
-    async getBookingPaymentStatusForContact(bookingId: string, contactPhone: string) {
-      const row = await input.bookingsPort.getById(bookingId);
-      if (!row) return { ok: false as const, error: 'not_found' as const };
-      const normalized = normalizeRuPhoneE164(contactPhone) ?? contactPhone.trim();
-      const rowPhone = normalizeRuPhoneE164(row.contactPhone) ?? row.contactPhone.trim();
-      if (normalized !== rowPhone) return { ok: false as const, error: 'forbidden' as const };
-      return loadBookingPaymentStatus(row, {
-        bookingEngine: input.bookingEngine ?? null,
-        payments: input.payments ?? null,
-      });
-    },
-
     async getBookingByCanonicalAppointment(canonicalAppointmentId: string) {
       return input.bookingsPort.getByCanonicalAppointmentId(canonicalAppointmentId);
     },
