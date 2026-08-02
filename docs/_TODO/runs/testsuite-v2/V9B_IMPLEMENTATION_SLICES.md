@@ -170,8 +170,8 @@ logins above. `app_worker` is not an evidence actor or fallback capability.
 | --- | --- | --- |
 | S01 | **ACCEPTED AND INTEGRATED 02.08.** Product `86344858e`, independent report `79f3dd0b8`; after building the four workspace packages the same webapp typecheck passed. Merged into `wt/single-entry-integration` and migration `0304` applied on DEV through the unified `0300…0305` ledger. | Removed only `booking_branch_services`, `booking_branches`, `booking_services`, `booking_specialists`, `branches`, their FK/backrefs, `pgBranches` and three DI lines; regenerated grant SQL. |
 | S02 | **ACCEPTED AND INTEGRATED 02.08.** Product `ddab86eda`, audit `cfb813a96`, replay closure `f54468e67`, land `c6b844bbc`; disposable migration replay reached `count=307` twice. | Expanded seams/EXECUTE and operational ACLs in the 29+9 matrix; no final revoke/FORCE. |
-| S03 | **WIP 02.08.** Branch `wt/v9b-s03-booking-ownership`; product base `dd6360e0b`. Forbidden destructive/RLS statements are a one-time diff inspection, not a permanent source-text test (AGENTS.md §24.4). DEV census: 440 exact canonical parents (343 live, 97 soft-deleted) stamp deterministically; 233 historical rows have no immutable tenant key and remain NULL. Independent audit remains before land. Journal entry `0309_v9b_booking_ownership_local` is idx 309. | Nullable `organization_id` on `patient_bookings` and `appointment_records`; deterministic stamp for exact live/soft-deleted parents, NULL preservation for zero-match history, and transactional abort for ambiguity/mapping-org contradiction, user mismatch, or provider mismatch; writers thread org through `createPending` and all four native projection writes; staff-delete tombstone persists resolved org; existing patient reader provides self-only NULL-org history without canonical navigation. |
-| S04 | S02 seams exist; every named adoption test, including D1 writer test, green. | Caller adoption then one contract migration with final revokes. |
+| S03 | **ACCEPTED, INTEGRATED AND APPLIED TO DEV 02.08.** Product `ff803c1e9`, independent FAIL `e24e021f4`, bounded fix `f536539d1`, CI fixture correction `96a93da8d`, land `7e8cd2c0b`. Final full CI: `pnpm install --frozen-lockfile && pnpm run ci` → exit 0 / 450s; PostgreSQL oracle 7 files / 21 tests. DEV migration used `migrate-dev.sh --preflight` then `--execute`; read-only postcheck: journal 0309 exactly once, both columns nullable, 440 exact-parent rows stamped and 233 historical rows NULL. | Nullable `organization_id` on `patient_bookings` and `appointment_records`; deterministic stamp for exact live/soft-deleted parents, NULL preservation for zero-match history, and transactional abort for ambiguity/mapping-org contradiction, user mismatch, or provider mismatch; writers thread org through `createPending` and all four native projection writes; staff-delete tombstone persists resolved org; existing patient reader provides self-only NULL-org history without canonical navigation. |
+| S04 | **NOT READY: прежняя предпосылка «S02 seams exist» ложна.** Точный замер 02.08: матрицы требуют 29+9 поверхностей, а landed `0306` создаёт 6 functions и 2 operational table surfaces; public idempotency, D1/bootstrap membership, booking/appointment exact paths и часть operator writes не имеют заявленных seams. Сначала исправить decomposition и выполнить недостающий expand без revoke. Contract не снимает tenant table ACL раньше соответствующих S05 policies/grants. | Семейства caller adoption после дополнительного expand; capability/global/bare-login contract отдельно от tenant-table ACL, которые закрываются атомарно со своими S05 policies. |
 | S05a | D1 exact capability green + S04 D1 direct grants revoked + direct-deny A1 green. | identity/preferences FORCE. |
 | S05b | S04 booking callers green; policy distinguishes staff non-NULL org scope, patient self-read, and non-NULL writes. | booking FORCE. |
 | S05c | membership/analytics exact seams and A1 direct-deny green. | membership/analytics FORCE. |
@@ -183,7 +183,8 @@ logins above. `app_worker` is not an evidence actor or fallback capability.
 The bounded S02 artifact `0306_v9b_capability_seams_local.sql` and
 `V9B_S02_CAPABILITY_SEAMS_REPORT.md` passed independent 38/38 inspection and clean disposable replay
 (`ddab86eda` + `cfb813a96` + `f54468e67`) and landed through `c6b844bbc`. It remains expand-only: no caller
-adoption, direct-table revoke, RLS/FORCE, or D1 writer change is claimed here. The next slice is S03.
+adoption, direct-table revoke, RLS/FORCE, or D1 writer change is claimed here. S03 is now integrated below;
+before S04 caller adoption, the missing expand seams named in the S04 row must be added.
 
 S03 backfill is transactional and deterministic. It stamps only exact canonical matches, including
 soft-deleted canonical parents, and keeps both new `organization_id` columns nullable. A
@@ -201,9 +202,9 @@ a non-NULL org, patient access is self-read, and INSERT/UPDATE/DELETE require no
 
 ### S03 execution status — 2026-08-02
 
-Branch `wt/v9b-s03-booking-ownership`. Base WIP commit `dd6360e0b` (schema, migration, ports,
-writers and behavior oracles). Absence of DELETE/DROP/REVOKE/RLS/FORCE in 0309 is verified by
-one-time diff inspection; a permanent source-text oracle is intentionally not retained.
+Accepted chain: product `ff803c1e9`, audit `e24e021f4`, fix `f536539d1`, CI compatibility
+`96a93da8d`, land `7e8cd2c0b`. Absence of DELETE/DROP/REVOKE/RLS/FORCE in 0309 was verified by
+one-time diff inspection; a permanent source-text oracle was intentionally not retained.
 
 **Test evidence:**
 - `bookingOwnershipMigration.postgres.integration.test.ts` — behavior oracles stamp exact live and
@@ -211,16 +212,16 @@ one-time diff inspection; a permanent source-text oracle is intentionally not re
   rerun idempotently, and prove self-only NULL-org history at the existing reader seam.
 - `bookingOwnershipWriters.postgres.integration.test.ts` — 3/3: createPending persists org, upsert
   conflict rejects org change, staff-delete tombstone writes org.
-- Full disposable PostgreSQL suite: 6/6 files, 17/17 tests; migration replay reached `count=310`.
-  No DEV/TEST migration was applied.
+- Full disposable PostgreSQL suite after audit handoff: 7/7 files, 21/21 tests; migration replay reached
+  `count=310`. Final repo CI on the landed candidate passed in 450s.
 
 **DEV census (read-only, 2026-08-02):** 27 live + 17 soft-deleted exact parents in
 `patient_bookings`, 316 live + 80 soft-deleted exact parents in `appointment_records`, and 233
 rows without an immutable tenant key. All 440 exact-parent rows are stamped; the 233 unresolved
 historical rows remain NULL. See `V9B_S03_DEV_BOOKING_OWNERSHIP_CENSUS_AUDIT.md`.
 
-**NOT done (pre-land gates):**
-- Independent audit **FAIL** at `e24e021f4`: REG-1 made a NULL-org legacy projection record impossible for an admin to soft-delete, and Appendix A supplied the missing B2/D4 acceptance oracles. Bounded fix-round restores that Appendix A file verbatim and permits this pre-S03 legacy delete only when the stored org is NULL; two non-NULL differing organizations still refuse. Evidence: `pnpm --dir apps/webapp test:postgres` → 7 files / 21 tests green, migration replay `count=310`. No DEV/TEST apply, land, or S04/S05 enforcement is claimed.
+**Outcome and remaining later slices:**
+- Independent audit **FAIL** at `e24e021f4`: REG-1 made a NULL-org legacy projection record impossible for an admin to soft-delete, and Appendix A supplied the missing B2/D4 acceptance oracles. Bounded fix `f536539d1` restores that Appendix A file verbatim and permits this pre-S03 legacy delete only when the stored org is NULL; two non-NULL differing organizations still refuse. Land `7e8cd2c0b`; DEV read-only postcheck after canonical migrate returned `appointment_records|396|14` and `patient_bookings|44|219`, exactly 440 stamped / 233 NULL.
 - S04/S05 adoption, revoke and enforcement (out of S03 scope); historical NULL rows are not
   reconciled by inference.
 - S04 caller conversion (out of S03 scope).
