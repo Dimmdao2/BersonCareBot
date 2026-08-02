@@ -1,4 +1,7 @@
-# Track D D30-P1 — независимый аудит specialist-task scheduled delivery
+# Тест или взгляд: Track D D30-P1 specialist-task scheduled delivery
+
+Смешанный один pass: транзакционность, идемпотентность, stale-intent и retry/dead проверяются тестом/fault injection;
+границы queue port, tenant scope и migration-gate — чтением полного diff плюс структурными gate-проверками.
 
 Канон: `AGENTS.md` §5, §10, §24;
 `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` Р-D30; worker brief
