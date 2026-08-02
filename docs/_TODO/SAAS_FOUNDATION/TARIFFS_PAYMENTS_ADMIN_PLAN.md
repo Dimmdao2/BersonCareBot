@@ -862,6 +862,12 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 - [ ] **3.1** Все проверки состояния идут через один порт: обработчик спрашивает резолвер, а не проверяет флаги сам. У
       числовых механик проверка остаётся внутри пишущей транзакции под блокировкой (образец — места и файлы).
+      `clinic_team` §4: `TeamSection` получает разрешение на mutation через существующий resolver-backed
+      `getMechanicMutationAvailability`: в `read_only` остаются списки участников/ожидающих приглашений и видимый
+      отказ, а invite/revoke/seat-checkout controls не рендерятся; `disabled` по прежнему скрывает tab и отказывает
+      direct reads. POST invite, DELETE revoke и POST seat overage отказывают до port/payment вызова; bodyless
+      tariff renewal остаётся billing-recovery путём. Evidence: `TeamSection.ui.test.tsx`, clinic invite/member/
+      billing route tests и `requireEntitlementReadOnlyRefusesWrites.test.ts` (targeted suite, 02.08).
 - [x] **3.1a** ✅ ЗАКРЫТО 30.07 (`a2f973530`). Ранний `return { ok: true }` для чтения снят ещё коммитом лестницы
       `380b7aa39`; недоставало доказательства поведением — теперь есть: у клиники выключены курсы → пациентский
       список отдаёт 403 и обработчик не вызывается. Лид проверил снятием защиты: возврат ветки «read → ok» роняет
@@ -958,7 +964,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 > снятием защиты. Следующий воркер должен по каждому пункту подтвердить именно вторую половину, а не начинать с
 > нуля — заново гейтить write-путь не нужно, он уже есть.
 
-- [ ] **4.1** Клинические тесты и наборы; при выключении системные группы тестов исчезают и из программы лечения.
+- [-] ~~**4.1** Клинические тесты и наборы; при выключении системные группы тестов исчезают и из программы лечения.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: «Клинические тесты будут частью программы. Они просто есть в принципе. Просто убери это в интерфейсе, убери из списка настраиваемых механик». Проверка этого commit: `pnpm --dir apps/webapp exec vitest --run --reporter=verbose src/app/api/doctor/clinicalTestsBuiltInProgram.route.test.ts src/app/api/admin/commercial/route.route.test.ts src/app/app/admin/commercial/CommercialConstructorClient.ui.test.tsx src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 4 файла / 16 тестов green; `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts`.
 - [ ] **4.2** Онлайн-анкета.
 - [ ] **4.3** Задачи специалиста.
 - [ ] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две.
@@ -980,9 +986,24 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       run --project=ui src/shared/ui/patient/organization/PatientOrganizationContext.ui.test.tsx`
       (1 passed). Целевые поломки «disabled применяет retained brand» и «read_only пропускает save»
       обе делают unit-тест красным.
+      **Курсы — ГОТОВО:** `read_only` оставляет врачебный список и пациентское чтение, но убирает создание и
+      переход к редактору; прямые URL создания/редактирования завершаются тем же `notFound`, а POST/PATCH до
+      write-порта отказывают `commercial_read_only`. `disabled` скрывает навигацию и прямое пациентское чтение,
+      не удаляя курсы или записи. Доказательство: `pnpm --dir apps/webapp exec vitest --run --project=ui
+      src/app/app/accessLifecycleSurfaces.ui.test.tsx` (10/10) и `pnpm --dir apps/webapp exec vitest --run
+      --project=fast src/app-layer/guards/requireEntitlementReadOnlyRefusesWrites.test.ts` (7/7); при временном
+      снятии ветки `read_only` упали 2 UI- и 5 write-сценариев.
 - [ ] **4.8** Рассылки — после появления модели каналов клиники в соседнем потоке (#1071), по их контракту.
 - [ ] **4.9** Три механики владельца («Сегодня», разминки, промо) — выключены у всех, включаются ему существующим
-      исключением организации, и подчиняются лестнице как все.
+      исключением организации, и подчиняются лестнице как все. — ПРОМО ДОКАЗАНО: один `getMechanicSurfaceVisibility`
+      определяет doctor page/menu и patient surfaces; disabled скрывает existing promo из списка, legacy/deep links,
+      direct detail/item pages и doctor GET, read_only оставляет статистику/существующий инстанс без save/refresh,
+      full_access сохраняет materialization. Evidence: `promoMaterializationGate.ts`,
+      `patientTreatmentProgramEntry.ts`, `treatment-program-promo/{page.tsx,route.ts}`; выполнены
+      `pnpm --dir apps/webapp exec vitest run --project=fast src/modules/treatment-program/patientTreatmentProgramEntry.test.ts`
+      (5 tests), `--project=route src/app/api/tariffMechanics.route.test.ts` (21 tests),
+      `--project=ui src/app/api/tariffMechanicsRefusals.ui.test.tsx` (11 tests), `pnpm --dir apps/webapp typecheck`,
+      `pnpm --dir apps/webapp lint`, `git diff --check`.
 
 #### Этап 4a. Добор по находкам двойного аудита плана (Sol + Opus, 30.07)
 

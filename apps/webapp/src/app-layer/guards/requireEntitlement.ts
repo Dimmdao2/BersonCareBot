@@ -238,3 +238,15 @@ export async function requireEntitlementForPage(
 ): Promise<void> {
   if (!(await getMechanicSurfaceVisibility(ctx, mechanic)).directUrl) notFound();
 }
+
+/**
+ * RSC editor/create adapter: a read-only mechanic remains readable through its list/card
+ * surfaces, while URLs whose sole purpose is mutation fail closed with the same visible
+ * outcome as a disabled direct page.
+ */
+export async function requireEntitlementForMutationPage(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<void> {
+  if (!(await getMechanicMutationAvailability(ctx, mechanic)).available) notFound();
+}

@@ -437,96 +437,6 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.systemSettings.updateSetting',
   },
   {
-    id: 'clinical-tests.api.create',
-    mechanic: 'clinical_tests',
-    file: 'src/app/api/doctor/clinical-tests/route.ts',
-    exportName: 'POST',
-    method: 'POST',
-    authContext: 'requireDoctorWorkspaceApiContext',
-    guard: 'requireEntitlementForMutation',
-    serviceBoundary: 'deps.clinicalTests.createClinicalTest',
-  },
-  {
-    id: 'clinical-tests.api.update',
-    mechanic: 'clinical_tests',
-    file: 'src/app/api/doctor/clinical-tests/[id]/route.ts',
-    exportName: 'PATCH',
-    method: 'PATCH',
-    authContext: 'requireDoctorWorkspaceApiContext',
-    guard: 'requireEntitlementForMutation',
-    serviceBoundary: 'deps.clinicalTests.updateClinicalTest',
-  },
-  {
-    id: 'clinical-tests.api.archive',
-    mechanic: 'clinical_tests',
-    file: 'src/app/api/doctor/clinical-tests/[id]/route.ts',
-    exportName: 'DELETE',
-    method: 'DELETE',
-    authContext: 'requireDoctorWorkspaceApiContext',
-    guard: 'requireEntitlementForMutation',
-    serviceBoundary: 'deps.clinicalTests.archiveClinicalTest',
-  },
-  {
-    id: 'clinical-tests.action.save',
-    mechanic: 'clinical_tests',
-    file: 'src/app/app/doctor/clinical-tests/actions.ts',
-    exportName: 'saveClinicalTest',
-    method: 'action',
-    authContext: 'actionsShared.requireDoctorAccess',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'saveClinicalTestCore',
-  },
-  {
-    id: 'clinical-tests.action.archive',
-    mechanic: 'clinical_tests',
-    file: 'src/app/app/doctor/clinical-tests/actions.ts',
-    exportName: 'archiveClinicalTest',
-    method: 'action',
-    authContext: 'actionsShared.requireDoctorAccess',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'archiveClinicalTestCore',
-  },
-  {
-    id: 'clinical-tests.action.unarchive',
-    mechanic: 'clinical_tests',
-    file: 'src/app/app/doctor/clinical-tests/actions.ts',
-    exportName: 'unarchiveClinicalTest',
-    method: 'action',
-    authContext: 'actionsShared.requireDoctorAccess',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'unarchiveClinicalTestCore',
-  },
-  {
-    id: 'clinical-tests.inline.save',
-    mechanic: 'clinical_tests',
-    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
-    exportName: 'saveClinicalTestInline',
-    method: 'action',
-    authContext: 'actionsShared.requireDoctorAccess',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'saveClinicalTestCore',
-  },
-  {
-    id: 'clinical-tests.inline.archive',
-    mechanic: 'clinical_tests',
-    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
-    exportName: 'archiveClinicalTestInline',
-    method: 'action',
-    authContext: 'actionsShared.requireDoctorAccess',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'archiveClinicalTestCore',
-  },
-  {
-    id: 'clinical-tests.inline.unarchive',
-    mechanic: 'clinical_tests',
-    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
-    exportName: 'unarchiveClinicalTestInline',
-    method: 'action',
-    authContext: 'actionsShared.requireDoctorAccess',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'unarchiveClinicalTestCore',
-  },
-  {
     id: 'online-intake.patient.lfk.create',
     mechanic: 'online_intake',
     file: 'src/app/api/patient/online-intake/lfk/route.ts',
@@ -829,6 +739,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.organizationInvites.revokeInvite',
   },
   {
+    id: 'clinic-team.seat-overage.purchase',
+    mechanic: 'clinic_team',
+    file: 'src/app/api/clinic/billing/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requireClinicManagementApiContext',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'deps.saasBilling.purchaseSeatOverage',
+  },
+  {
     id: 'clinic-team.members.list',
     mechanic: 'clinic_team',
     file: 'src/app/api/clinic/members/route.ts',
@@ -958,6 +878,21 @@ export const PROTECTED_ACTION_FAMILIES = [
  * guarantee, not an attempt to infer arbitrary future business semantics.
  */
 export const PROTECTED_ACTION_EXEMPTIONS = [
+  {
+    file: 'src/app/api/clinic/billing/route.ts',
+    exportName: 'GET',
+    reason: 'clinic billing read remains available for tariff recovery',
+  },
+  {
+    file: 'src/app/api/clinic/billing/route.ts',
+    exportName: 'PATCH',
+    reason: 'clinic tariff change remains available for tariff recovery',
+  },
+  {
+    file: 'src/app/api/clinic/billing/route.ts',
+    exportName: 'DELETE',
+    reason: 'clinic tariff-change cancellation remains available for tariff recovery',
+  },
   {
     file: 'src/app/app/patient/reminders/actions.ts',
     exportName: 'toggleReminderCategory',
@@ -1143,7 +1078,8 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
   {
     file: 'src/app/api/integrator/events/route.ts',
     exportName: 'POST',
-    reason: 'critical mechanic (patient_diaries) — never tariff-gated; diary write handlers live in handleIntegratorEvent',
+    reason:
+      'critical mechanic (patient_diaries) — never tariff-gated; diary write handlers live in handleIntegratorEvent',
   },
   {
     file: 'src/app/api/doctor/patients/[userId]/files/[fileId]/route.ts',
@@ -1161,14 +1097,89 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     reason: 'read route',
   },
   {
+    file: 'src/app/api/doctor/clinical-tests/route.ts',
+    exportName: 'POST',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
+  },
+  {
     file: 'src/app/api/doctor/clinical-tests/[id]/route.ts',
     exportName: 'GET',
     reason: 'read route',
   },
   {
+    file: 'src/app/api/doctor/clinical-tests/[id]/route.ts',
+    exportName: 'PATCH',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/clinical-tests/[id]/route.ts',
+    exportName: 'DELETE',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/test-sets/route.ts',
+    exportName: 'GET',
+    reason: 'read route',
+  },
+  {
+    file: 'src/app/api/doctor/test-sets/route.ts',
+    exportName: 'POST',
+    reason: 'clinical-test sets are built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/test-sets/[id]/route.ts',
+    exportName: 'GET',
+    reason: 'read route',
+  },
+  {
+    file: 'src/app/api/doctor/test-sets/[id]/route.ts',
+    exportName: 'PATCH',
+    reason: 'clinical-test sets are built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/test-sets/[id]/route.ts',
+    exportName: 'DELETE',
+    reason: 'clinical-test sets are built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/api/doctor/test-sets/[id]/items/route.ts',
+    exportName: 'PUT',
+    reason: 'clinical-test set membership is built into treatment programs — never tariff-gated',
+  },
+  {
     file: 'src/app/app/doctor/clinical-tests/actions.ts',
     exportName: 'fetchDoctorClinicalTestUsageSnapshot',
     reason: 'read action',
+  },
+  {
+    file: 'src/app/app/doctor/clinical-tests/actions.ts',
+    exportName: 'saveClinicalTest',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/app/doctor/clinical-tests/actions.ts',
+    exportName: 'archiveClinicalTest',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/app/doctor/clinical-tests/actions.ts',
+    exportName: 'unarchiveClinicalTest',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
+    exportName: 'saveClinicalTestInline',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
+    exportName: 'archiveClinicalTestInline',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
+  },
+  {
+    file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
+    exportName: 'unarchiveClinicalTestInline',
+    reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
   },
   {
     file: 'src/app/api/doctor/tasks/route.ts',
@@ -1236,7 +1247,8 @@ export const DECLARED_NO_SURFACE = {
   // "дневники у пациентов не отбираем"). No PROTECTED_ACTION_MAPPINGS row for either can ever be
   // correct, so this is the accurate DoD, not a placeholder — running the full coverage check for
   // the first time (this stage) surfaced them as `unregistered mechanic surface` findings.
-  patient_card: 'critical mechanic (class "никогда") — never tariff-gated, by design, no write gate',
+  patient_card:
+    'critical mechanic (class "никогда") — never tariff-gated, by design, no write gate',
   patient_diaries:
     'critical mechanic (class "никогда") — owner 31.07 "дневники у пациентов не отбираем", never tariff-gated',
 } as const satisfies Partial<Record<OrgMechanic, string>>;

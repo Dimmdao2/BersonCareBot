@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
+import { env } from '../../config/env.js';
 import {
   runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
@@ -122,6 +123,11 @@ export async function buildMaxLinks(
   } catch {
     integratorUserId = undefined;
   }
+  const appBase = (appBaseUrl ?? env.APP_BASE_URL).trim().replace(/\/+$/, '');
+  const remindersUrl =
+    appBase.startsWith('http://') || appBase.startsWith('https://')
+      ? `${appBase}/app/patient/reminders`
+      : undefined;
   const webappEntryUrl = buildWebappEntryUrlForMax(
     {
       maxId: String(maxId),
@@ -130,14 +136,14 @@ export async function buildMaxLinks(
     },
     appBaseUrl,
   );
-  if (!webappEntryUrl) return {};
+  if (!webappEntryUrl) return remindersUrl ? { links: { remindersUrl } } : {};
   const baseWebappUrl = webappEntryUrl;
   const enc = (p: string) => encodeURIComponent(p);
   return {
     links: {
       webappEntryUrl: baseWebappUrl,
       webappHomeUrl: `${baseWebappUrl}&next=${enc('/app/patient')}`,
-      webappRemindersUrl: `${baseWebappUrl}&next=${enc('/app/patient/reminders')}`,
+      ...(remindersUrl ? { remindersUrl } : {}),
       webappCabinetUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,
       webappAddressUrl: `${baseWebappUrl}&next=${enc('/app/patient/address')}`,
       bookingUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,

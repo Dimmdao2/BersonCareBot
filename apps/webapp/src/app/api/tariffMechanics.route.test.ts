@@ -86,7 +86,10 @@ import {
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
-import { PATCH as updatePromoProgram } from '@/app/api/doctor/treatment-program-promo/route';
+import {
+  GET as getPromoProgram,
+  PATCH as updatePromoProgram,
+} from '@/app/api/doctor/treatment-program-promo/route';
 import { PATCH as updateAdminSetting } from '@/app/api/admin/settings/route';
 import { POST as updatePatientPromo } from '@/app/api/patient/treatment-program-promo/action/route';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
@@ -152,6 +155,7 @@ beforeEach(() => {
   vi.mocked(getCurrentSession).mockResolvedValue(null);
   vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
   vi.mocked(requireOrganizationManagementContext).mockResolvedValue(workspace as never);
+  vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
   vi.mocked(getMechanicMutationAvailability).mockResolvedValue({ available: true });
@@ -192,6 +196,13 @@ afterEach(() => {
 });
 
 describe('tariff and platform mutation gates', () => {
+  it('refuses reading promo configuration when promo is disabled', async () => {
+    const response = await getPromoProgram();
+
+    expect(response.status).toBe(403);
+    expect(requireEntitlementForRead).toHaveBeenCalledWith(workspace, 'promo');
+  });
+
   it('refuses course creation when courses are not included in the tariff', async () => {
     const response = await createCourse(
       request('https://app.example.test/api/doctor/courses', {

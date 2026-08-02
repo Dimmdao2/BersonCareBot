@@ -390,6 +390,22 @@ describe('tariff refusal UI', () => {
     await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(2));
   });
 
+  it('keeps promo statistics readable but hides mutation controls in read-only mode', () => {
+    render(
+      <DefaultPromoProgramClient
+        initialTemplateId="22222222-2222-4222-8222-222222222222"
+        templates={[{ id: '22222222-2222-4222-8222-222222222222', title: 'Промо' }]}
+        stats={{ activePromo: 3, completedPromo: 5 }}
+        canMutate={false}
+      />,
+    );
+
+    expect(screen.getByText('Активных экземпляров: 3')).toBeInTheDocument();
+    expect(screen.getByText('Завершённых экземпляров: 5')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Обновить' })).not.toBeInTheDocument();
+  });
+
   it('shows returned errors in every Today settings panel', async () => {
     const cases = [
       {

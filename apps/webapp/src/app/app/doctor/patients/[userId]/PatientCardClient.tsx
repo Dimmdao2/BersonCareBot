@@ -85,6 +85,8 @@ type Props = {
   };
   /** Whether the viewer is an admin — gates the «Администрирование» section in PatientTabAccount. */
   isAdmin?: boolean;
+  specialistTasksAvailable: boolean;
+  specialistTasksReadable: boolean;
 };
 
 type TabId =
@@ -153,6 +155,8 @@ export function PatientCardClient({
   initialSupportEffectivePolicy,
   initialPortalState = { status: 'not_activated', inviteId: null, expiresAt: null },
   isAdmin = false,
+  specialistTasksAvailable,
+  specialistTasksReadable,
 }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
@@ -579,6 +583,8 @@ export function PatientCardClient({
           initialAppointments={initialAppointments}
           initialPackages={initialPackages}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
+          specialistTasksAvailable={specialistTasksAvailable}
+          specialistTasksReadable={specialistTasksReadable}
         />
       </div>
       <div className={cn(activeTab !== 'karta' && 'hidden')}>

@@ -53,7 +53,9 @@ type StoredSeatOverageInvite = {
 
 function readStoredSeatOverageInvite(): StoredSeatOverageInvite | null {
   try {
-    const value = JSON.parse(sessionStorage.getItem(SEAT_OVERAGE_INVITE_STORAGE_KEY) ?? 'null') as unknown;
+    const value = JSON.parse(
+      sessionStorage.getItem(SEAT_OVERAGE_INVITE_STORAGE_KEY) ?? 'null',
+    ) as unknown;
     if (!value || typeof value !== 'object') return null;
     const candidate = value as Partial<StoredSeatOverageInvite>;
     if (
@@ -102,6 +104,7 @@ type Props = {
   members: TeamMemberRow[];
   invites: TeamInviteRow[];
   seats: TeamSeatStatus;
+  canMutateTeam: boolean;
 };
 
 function formatSeatStatus(seats: TeamSeatStatus): string {
@@ -111,7 +114,7 @@ function formatSeatStatus(seats: TeamSeatStatus): string {
   return `Занято мест: ${seats.used} из ${seats.limit}`;
 }
 
-export function TeamSection({ members, invites, seats }: Props) {
+export function TeamSection({ members, invites, seats, canMutateTeam }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<OrganizationInviteRole>('doctor');
@@ -208,7 +211,7 @@ export function TeamSection({ members, invites, seats }: Props) {
           currency: seatOverageConfirm.currency,
         }),
       });
-      const body = await response.json().catch(() => null) as
+      const body = (await response.json().catch(() => null)) as
         | { ok: true; outcome?: 'seat_available'; checkoutUrl?: string; invoiceId?: string }
         | { ok: false; error: string; priceMinor?: number; currency?: string }
         | null;
@@ -248,6 +251,7 @@ export function TeamSection({ members, invites, seats }: Props) {
   }
 
   useEffect(() => {
+    if (!canMutateTeam) return;
     if (resumedSeatPayment.current) return;
     const invoiceId = new URLSearchParams(window.location.search).get('seatPayment');
     const stored = readStoredSeatOverageInvite();
@@ -259,9 +263,10 @@ export function TeamSection({ members, invites, seats }: Props) {
     const poll = async () => {
       try {
         const response = await fetch('/api/clinic/billing');
-        const body = await response.json().catch(() => null) as
-          | { ok: true; billing: { invoices: Array<{ id: string; status: string }> } }
-          | null;
+        const body = (await response.json().catch(() => null)) as {
+          ok: true;
+          billing: { invoices: Array<{ id: string; status: string }> };
+        } | null;
         const invoice = body?.ok
           ? body.billing.invoices.find((candidate) => candidate.id === invoiceId)
           : null;
@@ -285,7 +290,7 @@ export function TeamSection({ members, invites, seats }: Props) {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [router]);
+  }, [canMutateTeam, router]);
 
   return (
     <>
@@ -294,6 +299,11 @@ export function TeamSection({ members, invites, seats }: Props) {
           <DoctorSectionTitle>Команда</DoctorSectionTitle>
         </DoctorSectionHeader>
         <p className="text-muted-foreground text-sm">{formatSeatStatus(seats)}</p>
+        {!canMutateTeam ? (
+          <p className="text-muted-foreground text-sm" role="status">
+            Команда сейчас доступна только для просмотра по тарифу клиники.
+          </p>
+        ) : null}
         {members.length === 0 ? (
           <DoctorEmptyState>В организации пока нет участников.</DoctorEmptyState>
         ) : (
@@ -318,91 +328,96 @@ export function TeamSection({ members, invites, seats }: Props) {
         )}
       </DoctorSection>
 
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Пригласить в команду</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <div className="flex max-w-md flex-col gap-3">
-          <Input
-            type="email"
-            autoComplete="email"
-            placeholder="email@example.com"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setSeatOverageConfirm(null);
-            }}
-            disabled={submitting}
-          />
-          <Select
-            value={role}
-            onValueChange={(value) => {
-              setRole(value as OrganizationInviteRole);
-              setSeatOverageConfirm(null);
-            }}
-          >
-            <SelectTrigger disabled={submitting}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="doctor">Врач</SelectItem>
-              <SelectItem value="admin">Администратор</SelectItem>
-            </SelectContent>
-          </Select>
-          {role === 'doctor' && !seats.configured ? (
-            <p className="text-destructive text-sm" role="alert">
-              Нельзя пригласить специалиста: укажите число мест специалистов в тарифе или в
-              исключении организации.
-            </p>
-          ) : role === 'doctor' && seatsExhaustedForDoctor && !seatOverageConfirm ? (
-            <p className="text-muted-foreground text-xs">
-              Все места специалистов по тарифу заняты. Если тариф допускает место сверх базы,
-              будет предложено подтвердить его стоимость; иначе приглашение будет отклонено.
-            </p>
-          ) : null}
-          {seatOverageConfirm ? (
-            <div className="border-amber-500 bg-amber-50 space-y-2 rounded-md border p-3 text-sm">
-              <p>
-                Все места по тарифу заняты. Дополнительное место специалиста стоит{' '}
-                <strong>
-                  {formatSeatOveragePrice(seatOverageConfirm.priceMinor, seatOverageConfirm.currency)}
-                </strong>
-                . После оплаты приглашение будет отправлено автоматически.
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={submitting}
-                  onClick={() => void purchaseSeatOverage()}
-                >
-                  Оплатить место
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={submitting}
-                  onClick={() => setSeatOverageConfirm(null)}
-                >
-                  Отмена
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          {inviteError ? <p className="text-destructive text-sm">{inviteError}</p> : null}
-          {seatOverageConfirm ? null : (
-            <Button
-              type="button"
-              size="sm"
-              disabled={submitting || (role === 'doctor' && !seats.configured)}
-              onClick={() => void submitInvite()}
+      {canMutateTeam ? (
+        <DoctorSection>
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Пригласить в команду</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          <div className="flex max-w-md flex-col gap-3">
+            <Input
+              type="email"
+              autoComplete="email"
+              placeholder="email@example.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setSeatOverageConfirm(null);
+              }}
+              disabled={submitting}
+            />
+            <Select
+              value={role}
+              onValueChange={(value) => {
+                setRole(value as OrganizationInviteRole);
+                setSeatOverageConfirm(null);
+              }}
             >
-              {submitting ? 'Отправка…' : 'Пригласить'}
-            </Button>
-          )}
-        </div>
-      </DoctorSection>
+              <SelectTrigger disabled={submitting}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doctor">Врач</SelectItem>
+                <SelectItem value="admin">Администратор</SelectItem>
+              </SelectContent>
+            </Select>
+            {role === 'doctor' && !seats.configured ? (
+              <p className="text-destructive text-sm" role="alert">
+                Нельзя пригласить специалиста: укажите число мест специалистов в тарифе или в
+                исключении организации.
+              </p>
+            ) : role === 'doctor' && seatsExhaustedForDoctor && !seatOverageConfirm ? (
+              <p className="text-muted-foreground text-xs">
+                Все места специалистов по тарифу заняты. Если тариф допускает место сверх базы,
+                будет предложено подтвердить его стоимость; иначе приглашение будет отклонено.
+              </p>
+            ) : null}
+            {seatOverageConfirm ? (
+              <div className="border-amber-500 bg-amber-50 space-y-2 rounded-md border p-3 text-sm">
+                <p>
+                  Все места по тарифу заняты. Дополнительное место специалиста стоит{' '}
+                  <strong>
+                    {formatSeatOveragePrice(
+                      seatOverageConfirm.priceMinor,
+                      seatOverageConfirm.currency,
+                    )}
+                  </strong>
+                  . После оплаты приглашение будет отправлено автоматически.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => void purchaseSeatOverage()}
+                  >
+                    Оплатить место
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => setSeatOverageConfirm(null)}
+                  >
+                    Отмена
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            {inviteError ? <p className="text-destructive text-sm">{inviteError}</p> : null}
+            {seatOverageConfirm ? null : (
+              <Button
+                type="button"
+                size="sm"
+                disabled={submitting || (role === 'doctor' && !seats.configured)}
+                onClick={() => void submitInvite()}
+              >
+                {submitting ? 'Отправка…' : 'Пригласить'}
+              </Button>
+            )}
+          </div>
+        </DoctorSection>
+      ) : null}
 
       <DoctorSection>
         <DoctorSectionHeader>
@@ -425,15 +440,17 @@ export function TeamSection({ members, invites, seats }: Props) {
                     {ROLE_LABELS[invite.invitedRole] ?? invite.invitedRole}
                   </span>
                 </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={revokingId === invite.id}
-                  onClick={() => void revokeInvite(invite.id)}
-                >
-                  Отозвать
-                </Button>
+                {canMutateTeam ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={revokingId === invite.id}
+                    onClick={() => void revokeInvite(invite.id)}
+                  >
+                    Отозвать
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
