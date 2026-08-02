@@ -26,12 +26,11 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-// Both doors were last redefined by 0297 (#1069 §2.13 — commercial_access_state removed, the
-// eternal-full-access branch collapsed to the paid-period/lifecycle check alone), so the proof
-// must extract the CURRENT bodies from there, not from the superseded 0278/0283/0284/0285/0286.
+// Both doors were last redefined by 0305. The proof must extract those CURRENT bodies, not a
+// superseded migration, otherwise a green private-cluster run would not cover live tariff edits.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0297_commercial_access_state_removal_local.sql',
+  'apps/webapp/db/drizzle-migrations/0305_tariff_snapshot_access_doors_local.sql',
 );
 const cabinetMigrationPath = mechanicMigrationPath;
 const mechanicRegistryPath = path.join(
@@ -166,6 +165,13 @@ function schemaSql(functionSource, cabinetSource) {
       mechanic_access_policies jsonb NOT NULL DEFAULT '{}'::jsonb,
       included_seats integer
     );
+    CREATE TABLE public.admin_audit_log (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      action text NOT NULL,
+      target_id text,
+      details jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
     CREATE TABLE public.saas_organization_trials (
       id uuid PRIMARY KEY,
       organization_id uuid NOT NULL,
@@ -197,10 +203,26 @@ function schemaSql(functionSource, cabinetSource) {
     GRANT SELECT ON TABLE
       public.be_organizations,
       public.saas_tariffs,
+      public.admin_audit_log,
       public.saas_organization_trials,
       public.saas_org_entitlement_overrides,
       public.saas_billing_subscriptions
     TO app_owner;
+    ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.admin_audit_log FORCE ROW LEVEL SECURITY;
+    CREATE POLICY admin_audit_log_access_policy_history_select ON public.admin_audit_log
+      FOR SELECT TO app_owner
+      USING (action = 'saas_tariff_update' AND target_id IS NOT NULL);
+
+    -- The access doors call this existing paid-period switch. This private ladder proof has no
+    -- paid-period snapshot fixture, so it deliberately supplies its live-row branch only; the
+    -- snapshot switch itself is covered by saasBillingTariffSnapshot.devDbProof.test.ts.
+    CREATE FUNCTION app.saas_billing_effective_tariff(p_organization_id uuid, p_tariff_id uuid)
+    RETURNS SETOF public.saas_tariffs
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $$
+      SELECT * FROM public.saas_tariffs WHERE id = p_tariff_id;
+    $$;
+    ALTER FUNCTION app.saas_billing_effective_tariff(uuid, uuid) OWNER TO app_owner;
 
     ${functionSource}
     ALTER FUNCTION app.resolve_organization_mechanic_access(uuid, text) OWNER TO app_owner;
@@ -243,6 +265,46 @@ async function setPolicies(connection, { systemAccessPolicy, mechanicAccessPolic
       systemAccessPolicy ? JSON.stringify(systemAccessPolicy) : null,
       JSON.stringify(mechanicAccessPolicies ?? {}),
       TARIFF_ID,
+    ],
+  );
+}
+
+async function clearPolicyHistory(connection) {
+  await connection.query(
+    `DELETE FROM public.admin_audit_log
+     WHERE action = 'saas_tariff_update' AND target_id = $1`,
+    [TARIFF_ID],
+  );
+}
+
+/** Same before/after shape that pgPlatformEntitlements.appendAudit persists for a tariff edit. */
+async function editPolicies(connection, { systemAccessPolicy, mechanicAccessPolicies }) {
+  const beforeResult = await connection.query(
+    `SELECT system_access_policy, mechanic_access_policies
+     FROM public.saas_tariffs WHERE id = $1`,
+    [TARIFF_ID],
+  );
+  const before = beforeResult.rows[0];
+  if (!before) fail('policy edit fixture tariff is missing');
+  await setPolicies(connection, { systemAccessPolicy, mechanicAccessPolicies });
+  await connection.query(
+    `INSERT INTO public.admin_audit_log (action, target_id, details)
+     VALUES ('saas_tariff_update', $1, jsonb_build_object(
+       'before', jsonb_build_object(
+         'systemAccessPolicy', $2::jsonb,
+         'mechanicAccessPolicies', $3::jsonb
+       ),
+       'after', jsonb_build_object(
+         'systemAccessPolicy', $4::jsonb,
+         'mechanicAccessPolicies', $5::jsonb
+       )
+     ))`,
+    [
+      TARIFF_ID,
+      JSON.stringify(before.system_access_policy),
+      JSON.stringify(before.mechanic_access_policies),
+      JSON.stringify(systemAccessPolicy),
+      JSON.stringify(mechanicAccessPolicies ?? {}),
     ],
   );
 }
@@ -328,6 +390,7 @@ const MECHANIC_POLICY = {
 
 /** Proof 1: dates drive the ladder, not "now". */
 async function proveTransitionsByDate(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: null,
     mechanicAccessPolicies: { courses: MECHANIC_POLICY },
@@ -380,6 +443,7 @@ async function proveTransitionsByDate(connection) {
 
 /** Proof 2: policy is DATA — the same function, different tariff row, different outcome. */
 async function provePolicyIsData(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: null,
     mechanicAccessPolicies: { courses: MECHANIC_POLICY },
@@ -403,8 +467,62 @@ async function provePolicyIsData(connection) {
   }
 }
 
+/**
+ * §5a 2.9/2.10 — the resolver reads the live tariff on its next question, but uses the immutable
+ * edit record to retain a stage that was already running. This covers both ladder subjects:
+ * mechanic-level extension while in grace, then system-policy shortening while in read-only.
+ */
+async function proveLivePolicyChangesAreProspective(connection) {
+  await clearPolicyHistory(connection);
+  await setPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {
+      courses: { graceDays: 3, readOnlyDays: 2, notifications: [], terminalState: 'disabled' },
+    },
+  });
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-2 days' });
+  const beforeExtension = await resolveAs(connection, ORG_ID, 'courses');
+  if (beforeExtension.state !== 'grace') {
+    fail(`2 days into 3-day grace expected grace before extension, got ${beforeExtension.state}`);
+  }
+  await editPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {
+      courses: { graceDays: 5, readOnlyDays: 2, notifications: [], terminalState: 'disabled' },
+    },
+  });
+  const afterExtension = await resolveAs(connection, ORG_ID, 'courses');
+  if (afterExtension.state !== 'grace') {
+    fail(`extending an in-progress grace must keep it in grace, got ${afterExtension.state}`);
+  }
+  const extendedUntil = Date.parse(afterExtension.warning?.until ?? '');
+  if (!Number.isFinite(extendedUntil) || extendedUntil < Date.now() + 2 * 86_400_000) {
+    fail(`the extended grace deadline must come from the live tariff, got ${JSON.stringify(afterExtension.warning)}`);
+  }
+
+  await clearPolicyHistory(connection);
+  await setPolicies(connection, {
+    systemAccessPolicy: { graceDays: 2, readOnlyDays: 5, notifications: [], terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
+  });
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3 days' });
+  const beforeShortening = await resolveCabinetAs(connection, ORG_ID);
+  if (beforeShortening.state !== 'read_only') {
+    fail(`3 days into 2+5 days expected cabinet read_only before shortening, got ${beforeShortening.state}`);
+  }
+  await editPolicies(connection, {
+    systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
+  });
+  const afterShortening = await resolveCabinetAs(connection, ORG_ID);
+  if (afterShortening.state !== 'read_only') {
+    fail(`shortening must not retroactively eject an in-progress read-only cabinet, got ${afterShortening.state}`);
+  }
+}
+
 /** Proof 3: mechanic-level policy beats system-level; unset mechanics fall back to system. */
 async function proveMechanicOverridesSystem(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
@@ -442,6 +560,7 @@ async function proveMechanicOverridesSystem(connection) {
 
 /** Proof 4: a critical (никогда-class) mechanic stays full_access under any policy or date. */
 async function proveCriticalMechanicNeverDegrades(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
@@ -463,6 +582,7 @@ async function proveCriticalMechanicNeverDegrades(connection) {
 
 /** Proof 5 / §5a 2.1b: every tariff mechanic, without an owner-defined critical class, degrades. */
 async function proveNoAgentMechanicExclusions(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
@@ -488,6 +608,7 @@ async function proveNoAgentMechanicExclusions(connection) {
 
 /** Proof 6 / §5a 2.1a: cabinet is a separate subject with all three configured stages. */
 async function proveCabinetTransitionsAndDataRestoration(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: {
       graceDays: 5,
@@ -549,6 +670,7 @@ async function proveCabinetTransitionsAndDataRestoration(connection) {
  * assigned-tariff branch returned full access forever no matter how the owner configured the ladder.
  */
 async function provePaidPeriodDrivesTheLadder(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: null,
     mechanicAccessPolicies: { courses: MECHANIC_POLICY },
@@ -599,6 +721,7 @@ async function provePaidPeriodDrivesTheLadder(connection) {
 
 /** Proof 8 / §5a item 7.0: the CABINET door sees non-payment as well — both doors, not one. */
 async function provePaidPeriodDrivesTheCabinet(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: {
       graceDays: 5,
@@ -658,6 +781,34 @@ const REGRESSIONS = [
       ),
   },
   {
+    label: 'retroactive block restored — a live shortening ejects an in-progress mechanic stage',
+    proof: async (connection) => {
+      await clearPolicyHistory(connection);
+      await setPolicies(connection, {
+        systemAccessPolicy: null,
+        mechanicAccessPolicies: {
+          courses: { graceDays: 2, readOnlyDays: 5, notifications: [], terminalState: 'disabled' },
+        },
+      });
+      await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3 days' });
+      await editPolicies(connection, {
+        systemAccessPolicy: null,
+        mechanicAccessPolicies: {
+          courses: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
+        },
+      });
+      const access = await resolveAs(connection, ORG_ID, 'courses');
+      if (access.state !== 'read_only') {
+        fail(`prospective shortening expected read_only, got ${access.state}`);
+      }
+    },
+    breakSource: (source) =>
+      source.replaceAll(
+        'previous_policy ->>',
+        "(CASE WHEN previous_policy IS NOT NULL THEN '{}'::jsonb ELSE '{}'::jsonb END) ->>",
+      ),
+  },
+  {
     label: 'critical mechanic hardcode removed — patient_card would degrade like any other mechanic',
     proof: proveCriticalMechanicNeverDegrades,
     breakSource: (source) =>
@@ -672,9 +823,7 @@ const REGRESSIONS = [
     breakSource: (source) =>
       source.replace(
         `WHEN degradation_started_at IS NOT NULL
-          AND (policy ->> 'graceDays')::integer > 0
-          AND v_now < degradation_started_at
-            + make_interval(days => (policy ->> 'graceDays')::integer)
+          AND v_now < included.grace_ends_at
           THEN 'grace'`,
         `WHEN false THEN 'grace'`,
       ),
@@ -804,6 +953,8 @@ try {
     console.log('  proof OK: transitions follow degradation date (full_access -> grace -> read_only -> terminal)');
     await provePolicyIsData(connection);
     console.log('  proof OK: editing the tariff row changes behaviour with zero code change');
+    await proveLivePolicyChangesAreProspective(connection);
+    console.log('  proof OK: live policy extension and shortening preserve elapsed ladder progress (§5a 2.9/2.10)');
     await proveMechanicOverridesSystem(connection);
     console.log('  proof OK: mechanic-level policy overrides system-level policy');
     await proveCriticalMechanicNeverDegrades(connection);

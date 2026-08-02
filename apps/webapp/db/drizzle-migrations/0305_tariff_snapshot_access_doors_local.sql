@@ -2,6 +2,17 @@
 -- removed the four legacy access states. Recreate only the three access readers in their post-0297
 -- form: legacy-state removal, signatures, owners, grants, and quota logic remain unchanged.
 
+-- §5a 2.9/2.10: both access doors execute as app_owner, while the immutable tariff edit journal is
+-- FORCE RLS. This is intentionally narrower than the platform operations policy: the definer can
+-- read only tariff update rows with a target, never arbitrary audit history, and tenant roles gain
+-- no direct table privilege.
+GRANT SELECT ON TABLE public.admin_audit_log TO app_owner;
+DROP POLICY IF EXISTS admin_audit_log_access_policy_history_select ON public.admin_audit_log;
+CREATE POLICY admin_audit_log_access_policy_history_select ON public.admin_audit_log
+  FOR SELECT TO app_owner
+  USING (action = 'saas_tariff_update' AND target_id IS NOT NULL);
+--> statement-breakpoint
+
 -- 1. Patient projection: drop the raw column from the read and collapse the four-state branch to
 --    the two real sources — an active trial, or a plain assignment.
 CREATE OR REPLACE FUNCTION app.read_current_patient_organization_entitlements()
@@ -229,9 +240,68 @@ BEGIN
        entitlement_override.expires_at IS NULL
        OR entitlement_override.expires_at > v_now
      )
-  ), included AS (
+  ), policy_history AS (
+    -- §5a 2.9/2.10: tariff edits are live once a paid period has ended, but an edit must not
+    -- retroactively erase a stage already earned by the organization. The tariff audit already
+    -- keeps the exact before/after row and edit time, so it is the data boundary without a second
+    -- per-organization snapshot. Only changes after this organization's degradation anchor matter.
+    SELECT
+      audit.created_at,
+      CASE
+        WHEN (audit.details -> 'before' -> 'mechanicAccessPolicies') ? p_mechanic
+          THEN audit.details -> 'before' -> 'mechanicAccessPolicies' -> p_mechanic
+        ELSE audit.details -> 'before' -> 'systemAccessPolicy'
+      END AS previous_policy
+    FROM public.admin_audit_log AS audit
+    WHERE audit.action = 'saas_tariff_update'
+      AND audit.target_id = (SELECT resolved_tariff_id::text FROM snapshot)
+      AND audit.created_at > (SELECT degradation_started_at FROM snapshot)
+  ), policy_timing AS (
     SELECT
       snapshot.*,
+      CASE
+        WHEN degradation_started_at IS NULL OR policy IS NULL THEN NULL
+        ELSE GREATEST(
+          degradation_started_at
+            + make_interval(days => (policy ->> 'graceDays')::integer),
+          COALESCE(
+            (
+              SELECT max(
+                degradation_started_at
+                  + make_interval(days => (previous_policy ->> 'graceDays')::integer)
+              )
+              FROM policy_history
+            ),
+            '-infinity'::timestamptz
+          )
+        )
+      END AS grace_ends_at
+    FROM snapshot
+  ), policy_schedule AS (
+    SELECT
+      policy_timing.*,
+      CASE
+        WHEN policy_timing.grace_ends_at IS NULL OR policy IS NULL THEN NULL
+        ELSE GREATEST(
+          policy_timing.grace_ends_at
+            + make_interval(days => (policy ->> 'readOnlyDays')::integer),
+          COALESCE(
+            (
+              SELECT max(
+                policy_timing.grace_ends_at
+                  + make_interval(days => (previous_policy ->> 'readOnlyDays')::integer)
+              )
+              FROM policy_history
+              WHERE policy_history.created_at >= policy_timing.grace_ends_at
+            ),
+            '-infinity'::timestamptz
+          )
+        )
+      END AS read_only_ends_at
+    FROM policy_timing
+  ), included AS (
+    SELECT
+      policy_schedule.*,
       CASE
         WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN true
         WHEN override_mechanic IS NOT NULL THEN override_enabled
@@ -243,7 +313,7 @@ BEGIN
           THEN quotas ? p_mechanic
         ELSE COALESCE((mechanics ->> p_mechanic)::boolean, false)
       END AS mechanic_included
-    FROM snapshot
+    FROM policy_schedule
   ), resolved AS (
     SELECT
       included.*,
@@ -262,26 +332,16 @@ BEGIN
         WHEN degradation_started_at IS NULL AND lifecycle = 'active' THEN 'full_access'
         WHEN policy IS NULL THEN 'unconfigured'
         WHEN degradation_started_at IS NOT NULL
-          AND (policy ->> 'graceDays')::integer > 0
-          AND v_now < degradation_started_at
-            + make_interval(days => (policy ->> 'graceDays')::integer)
+          AND v_now < included.grace_ends_at
           THEN 'grace'
         WHEN degradation_started_at IS NOT NULL
-          AND (policy ->> 'readOnlyDays')::integer > 0
-          AND v_now < degradation_started_at
-            + make_interval(days => (policy ->> 'graceDays')::integer)
-            + make_interval(days => (policy ->> 'readOnlyDays')::integer)
+          AND v_now < included.read_only_ends_at
           THEN 'read_only'
         WHEN degradation_started_at IS NOT NULL THEN policy ->> 'terminalState'
         WHEN lifecycle = 'read_only' THEN 'read_only'
         WHEN lifecycle = 'blocked' THEN policy ->> 'terminalState'
         ELSE 'unconfigured'
-      END AS resolved_state,
-      CASE
-        WHEN degradation_started_at IS NULL THEN NULL
-        ELSE degradation_started_at
-          + make_interval(days => (policy ->> 'graceDays')::integer)
-      END AS grace_ends_at
+      END AS resolved_state
     FROM included
   )
   SELECT
@@ -297,7 +357,7 @@ BEGIN
     END,
     CASE
       WHEN resolved_state = 'grace' THEN jsonb_build_object(
-        'until', grace_ends_at,
+        'until', resolved.grace_ends_at,
         'periodEndsAt', degradation_started_at,
         'periodSource', period_source,
         'notifications', COALESCE(policy -> 'notifications', '[]'::jsonb),
@@ -403,9 +463,62 @@ BEGIN
       tariff.system_access_policy AS policy
     FROM effective
     LEFT JOIN LATERAL app.saas_billing_effective_tariff(p_organization_id, effective.tariff_id) AS tariff ON true
-  ), resolved AS (
+  ), policy_history AS (
+    -- §5a 2.9/2.10: the immutable tariff audit supplies the prior system-policy deadline, so a
+    -- live shortening cannot eject a clinic from an already-running stage retroactively.
+    SELECT
+      audit.created_at,
+      audit.details -> 'before' -> 'systemAccessPolicy' AS previous_policy
+    FROM public.admin_audit_log AS audit
+    WHERE audit.action = 'saas_tariff_update'
+      AND audit.target_id = (SELECT resolved_tariff_id::text FROM snapshot)
+      AND audit.created_at > (SELECT degradation_started_at FROM snapshot)
+  ), policy_timing AS (
     SELECT
       snapshot.*,
+      CASE
+        WHEN degradation_started_at IS NULL OR policy IS NULL THEN NULL
+        ELSE GREATEST(
+          degradation_started_at
+            + make_interval(days => (policy ->> 'graceDays')::integer),
+          COALESCE(
+            (
+              SELECT max(
+                degradation_started_at
+                  + make_interval(days => (previous_policy ->> 'graceDays')::integer)
+              )
+              FROM policy_history
+            ),
+            '-infinity'::timestamptz
+          )
+        )
+      END AS grace_ends_at
+    FROM snapshot
+  ), policy_schedule AS (
+    SELECT
+      policy_timing.*,
+      CASE
+        WHEN policy_timing.grace_ends_at IS NULL OR policy IS NULL THEN NULL
+        ELSE GREATEST(
+          policy_timing.grace_ends_at
+            + make_interval(days => (policy ->> 'readOnlyDays')::integer),
+          COALESCE(
+            (
+              SELECT max(
+                policy_timing.grace_ends_at
+                  + make_interval(days => (previous_policy ->> 'readOnlyDays')::integer)
+              )
+              FROM policy_history
+              WHERE policy_history.created_at >= policy_timing.grace_ends_at
+            ),
+            '-infinity'::timestamptz
+          )
+        )
+      END AS read_only_ends_at
+    FROM policy_timing
+  ), resolved AS (
+    SELECT
+      policy_schedule.*,
       CASE
         WHEN degradation_started_at IS NOT NULL AND v_now < degradation_started_at
           THEN 'full_access'
@@ -415,34 +528,24 @@ BEGIN
           AND resolved_tariff_id IS NOT NULL AND lifecycle = 'active' THEN 'full_access'
         WHEN policy IS NULL THEN 'unconfigured'
         WHEN degradation_started_at IS NOT NULL
-          AND (policy ->> 'graceDays')::integer > 0
-          AND v_now < degradation_started_at
-            + make_interval(days => (policy ->> 'graceDays')::integer)
+          AND v_now < policy_schedule.grace_ends_at
           THEN 'grace'
         WHEN degradation_started_at IS NOT NULL
-          AND (policy ->> 'readOnlyDays')::integer > 0
-          AND v_now < degradation_started_at
-            + make_interval(days => (policy ->> 'graceDays')::integer)
-            + make_interval(days => (policy ->> 'readOnlyDays')::integer)
+          AND v_now < policy_schedule.read_only_ends_at
           THEN 'read_only'
         WHEN degradation_started_at IS NOT NULL THEN policy ->> 'terminalState'
         WHEN lifecycle = 'read_only' THEN 'read_only'
         WHEN lifecycle = 'blocked' THEN policy ->> 'terminalState'
         ELSE 'unconfigured'
-      END AS resolved_state,
-      CASE
-        WHEN degradation_started_at IS NULL THEN NULL
-        ELSE degradation_started_at
-          + make_interval(days => (policy ->> 'graceDays')::integer)
-      END AS grace_ends_at
-    FROM snapshot
+      END AS resolved_state
+    FROM policy_schedule
   )
   SELECT
     resolved_state,
     CASE WHEN policy IS NULL THEN 'unconfigured' ELSE 'system' END,
     CASE
       WHEN resolved_state = 'grace' THEN jsonb_build_object(
-        'until', grace_ends_at,
+        'until', resolved.grace_ends_at,
         'periodEndsAt', degradation_started_at,
         'periodSource', period_source,
         'notifications', COALESCE(policy -> 'notifications', '[]'::jsonb),
