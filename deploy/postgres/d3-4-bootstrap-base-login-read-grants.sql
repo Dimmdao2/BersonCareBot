@@ -878,7 +878,6 @@ WITH RECURSIVE bootstrap_role AS (
   WHERE procedure.oid IN (
     'app.read_public_runtime_setting(text,text)'::regprocedure,
     'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
-    'app.read_saas_billing_payment_provider()'::regprocedure,
     'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
     'app.resolve_public_organization_slug(text)'::regprocedure,
     'app.resolve_public_organization_by_slug(text)'::regprocedure,
