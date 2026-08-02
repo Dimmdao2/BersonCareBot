@@ -10,7 +10,6 @@ import type {
   IncomingMessageUpdate,
   IncomingUpdate,
 } from '../../kernel/domain/types.js';
-import { telegramConfig } from './config.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
 export const MENU_MY_BOOKINGS = 'menu_my_bookings';
@@ -295,15 +294,6 @@ export function fromTelegram(
       contact && typeof contact.phone_number === 'string'
         ? normalizeTelegramContactPhone(contact.phone_number)
         : null;
-    const reqLogger = context.reqLogger;
-    const adminTelegramId = telegramConfig.adminTelegramId;
-    if (reqLogger) {
-      reqLogger.info({ adminTelegramId }, '[telegram][mapIn] admin chat diagnostics');
-      reqLogger.info(
-        { chatId: adminTelegramId, text: msg.text ?? '' },
-        '[telegram][mapIn] adminForward will be set',
-      );
-    }
     const replyToRaw = (msg as { reply_to_message?: { message_id?: number } }).reply_to_message;
     const replyToMessageId =
       replyToRaw && typeof replyToRaw.message_id === 'number' ? replyToRaw.message_id : undefined;
@@ -326,7 +316,6 @@ export function fromTelegram(
       ...(typeof msg.from?.last_name === 'string' && { channelLastName: msg.from.last_name }),
       userRow,
       userState: typeof userState === 'string' ? userState : '',
-      adminForward: { chatId: adminTelegramId, text: msg.text ?? '' },
     };
     return update;
   }

@@ -141,7 +141,7 @@ async function startWorker(): Promise<void> {
             doctorBroadcastMenu: {
               templatePort: deps.templatePort,
               contentPort: deps.contentPort,
-              sendMenuOnButtonPress: deps.sendMenuOnButtonPress,
+              isTelegramMenuOnButtonPress: deps.isTelegramMenuOnButtonPress,
             },
           });
         } catch (err) {
