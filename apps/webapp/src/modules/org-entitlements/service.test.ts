@@ -154,6 +154,9 @@ function snapshotPort(): OrgEntitlementsPort {
     async getTariffForOrg() {
       return null;
     },
+    async getActiveTariffById() {
+      return null;
+    },
     async listOverrides() {
       return [];
     },
@@ -304,6 +307,7 @@ describe('org entitlement mechanic classes', () => {
         access: activeAccess,
       }),
       getTariffForOrg: async () => storedTariff,
+      getActiveTariffById: async () => null,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({ files: 0, clinic_team: 0 }),
@@ -355,6 +359,7 @@ describe('org entitlement mechanic classes', () => {
       }),
       getSnapshot: async () => snapshot,
       getTariffForOrg: async () => snapshot.tariff,
+      getActiveTariffById: async () => null,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({ files: 0 }),
@@ -492,6 +497,7 @@ describe('org entitlement mechanic classes', () => {
       }),
       getSnapshot: async () => snapshot,
       getTariffForOrg: async () => snapshot.tariff,
+      getActiveTariffById: async () => null,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({ files: 1000, patient_count: 25, branches: 1 }),
@@ -810,7 +816,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       id: 'small',
       includedSeats: 1,
       quotas: {
-        branches: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null },
+        branches: { kind: 'numeric', limit: 1, unit: 'items' },
         patient_count: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: null },
         files: { kind: 'numeric', limit: 100, unit: 'bytes', warningAtPercent: null },
       },
@@ -821,7 +827,12 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       resolveMechanicAccess: async (_organizationId, mechanic) => ({ mechanic, state: 'full_access', policySource: 'system', warning: null }),
       getSnapshot: async () => ({ tariff: currentTariff, overrides: [], access: activeAccess }),
       getTariffForOrg: async () => currentTariff,
-      getActiveTariffById: async (tariffId) => (tariffId === targetTariff.id ? targetTariff : null),
+      getActiveTariffById: async (tariffId) =>
+        tariffId === targetTariff.id
+          ? targetTariff
+          : tariffId === currentTariff.id
+            ? currentTariff
+            : null,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({}),
@@ -848,7 +859,12 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       resolveMechanicAccess: async (_organizationId, mechanic) => ({ mechanic, state: 'full_access', policySource: 'system', warning: null }),
       getSnapshot: async () => ({ tariff: currentTariff, overrides: [], access: activeAccess }),
       getTariffForOrg: async () => currentTariff,
-      getActiveTariffById: async () => targetTariff,
+      getActiveTariffById: async (tariffId) =>
+        tariffId === targetTariff.id
+          ? targetTariff
+          : tariffId === currentTariff.id
+            ? currentTariff
+            : null,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({}),
@@ -1297,6 +1313,7 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
         access: activeAccess,
       }),
       getTariffForOrg: async () => candidateTariff,
+      getActiveTariffById: async () => null,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({ patient_count: usage }),
