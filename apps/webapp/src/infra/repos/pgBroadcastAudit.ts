@@ -1,10 +1,11 @@
 /**
- * Wave 3 phase 14D — domain SQL via `runWebappPgText`.
+ * Typed Drizzle implementation of the live broadcast audit port.
  */
-import { runWebappPgText } from '@/infra/db/runWebappSql';
-import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { desc } from 'drizzle-orm';
+import { getWebappSqlDb } from '@/infra/db/runWebappSql';
 import type { BroadcastAuditEntry, BroadcastAuditPort } from '@/modules/doctor-broadcasts/ports';
 import { normalizeBroadcastChannels } from '@/modules/doctor-broadcasts/broadcastChannels';
+import { broadcastAudit } from '../../../db/schema/schema';
 
 function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
   const rawChannels = row.channels;
@@ -33,37 +34,33 @@ function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
 export function createPgBroadcastAuditPort(): BroadcastAuditPort {
   return {
     async append(entry): Promise<BroadcastAuditEntry> {
-      const r = await runWebappPgText<Record<string, unknown>>(
-        `INSERT INTO broadcast_audit (
-           actor_id, category, audience_filter, message_title, message_body, channels,
-           preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count, blocked_recipient_count
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-         RETURNING id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count, blocked_recipient_count`,
-        [
-          entry.actorId,
-          entry.category,
-          entry.audienceFilter,
-          entry.messageTitle,
-          entry.messageBody ?? '',
-          entry.channels,
-          entry.previewOnly,
-          entry.audienceSize,
-          entry.deliveryJobsTotal ?? 0,
-          entry.attachMenuAfterSend,
-          entry.sentCount,
-          entry.errorCount,
-          entry.blockedRecipientCount ?? 0,
-        ],
-      );
-      return mapRow(r.rows[0]!);
+      const [row] = await getWebappSqlDb()
+        .insert(broadcastAudit)
+        .values({
+          actorId: entry.actorId,
+          category: entry.category,
+          audienceFilter: entry.audienceFilter,
+          messageTitle: entry.messageTitle,
+          messageBody: entry.messageBody ?? '',
+          channels: entry.channels,
+          previewOnly: entry.previewOnly,
+          audienceSize: entry.audienceSize,
+          deliveryJobsTotal: entry.deliveryJobsTotal ?? 0,
+          attachMenuAfterSend: entry.attachMenuAfterSend,
+          sentCount: entry.sentCount,
+          errorCount: entry.errorCount,
+          blockedRecipientCount: entry.blockedRecipientCount ?? 0,
+        })
+        .returning();
+      return mapRow(row as Record<string, unknown>);
     },
     async list(limit = 50): Promise<BroadcastAuditEntry[]> {
-      const r = await runWebappPgText<Record<string, unknown>>(
-        `SELECT id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count, blocked_recipient_count
-         FROM broadcast_audit ORDER BY executed_at DESC LIMIT $1`,
-        [limit],
-      );
-      return r.rows.map((row) => mapRow(row));
+      const rows = await getWebappSqlDb()
+        .select()
+        .from(broadcastAudit)
+        .orderBy(desc(broadcastAudit.executedAt))
+        .limit(limit);
+      return rows.map((row) => mapRow(row as Record<string, unknown>));
     },
   };
 }
