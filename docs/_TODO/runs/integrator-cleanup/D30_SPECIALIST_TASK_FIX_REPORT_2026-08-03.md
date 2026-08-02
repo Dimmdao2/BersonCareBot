@@ -37,8 +37,10 @@ Authority: Р-D30 in `WORK_ORDER.md`, `TRACK_D_D30_SPECIALIST_TASK_SCHEDULING_BR
 - `cd apps/integrator && pnpm run check:d30-scheduler-lock-concurrency`; `cd apps/integrator && pnpm run check:d30-outgoing-delivery-claim-concurrency` — PASS.
 - `cd apps/webapp && bash scripts/check-drizzle-journal-sync.sh`; `cd apps/webapp && node ../../scripts/check-no-new-raw-sql.mjs`; `git diff --check` — PASS.
 
-`9999` remains outside the Drizzle journal; final migration number, journal entry and removal of the temporary
-journal-sync exception remain land-time work for root against current `feat`.
+At land, root synchronized the accepted branch with current `feat`, renamed the temporary migration to
+`0328_d30_specialist_task_delivery_queue_local.sql`, appended journal `idx=326` / `when=1793539230032`, and
+removed the temporary `9999` journal-sync exception. DEV application and live delivery proof remain required
+after the preceding `0323` repair succeeds; TEST/PROD are not part of this D30 application.
 
 ## R2 command record
 

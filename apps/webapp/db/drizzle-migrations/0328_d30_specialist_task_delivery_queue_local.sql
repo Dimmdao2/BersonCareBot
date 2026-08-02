@@ -1,4 +1,4 @@
--- TEMPORARY HIGH LOCAL NUMBER — final journal entry is assigned when Track D merges into feat.
+-- D30 Ш1/B2 final migration number assigned at Track D land.
 -- D30 Ш1/B2: new tenant-owned intents carry their scope; legacy rows retain resolver compatibility.
 ALTER TABLE public.outgoing_delivery_queue
   ADD COLUMN IF NOT EXISTS organization_id uuid;
