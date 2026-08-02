@@ -946,7 +946,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 - [ ] **4.3** Задачи специалиста.
 - [ ] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две.
 - [ ] **4.5** Проактивные подсказки.
-- [ ] **4.6** Предоплата при записи; правила отмены не трогать.
+- [x] **4.6** Предоплата при записи; правила отмены не трогать. — `booking_prepayment` остаётся единственной записью `booking-prepayment.policy.upsert` в protected-action registry; disabled/unconfigured скрывает clinic settings и отказывает PUT до `upsertPrepaymentPolicy`, read_only сохраняет существующую public prepayment, disabled создаёт обычную confirmed booking без intent. Evidence 2026-08-02: `pnpm --dir apps/webapp exec vitest run --project=route src/app/api/admin/booking-engine/prepayment-policies/route.route.test.ts` (7 passed); `pnpm --dir apps/webapp exec vitest run --project=ui src/app/app/settings/BookingPrepaymentSection.ui.test.tsx` (4 passed); `pnpm --dir apps/webapp exec vitest run --project=fast src/modules/patient-booking/canonicalCreate.d14.test.ts` (5 passed); `pnpm --dir apps/webapp exec vitest run --project=unit src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` (8 passed); `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp lint`; `git diff --check`.
 - [ ] **4.7** Курсы · CMS · каталог и пакеты упражнений · абонементы · приём оплат · платная подписка пациента ·
       брендирование (включает свои шаблоны уведомлений) · свой домен — привести к порту и к лестнице.
 - [ ] **4.8** Рассылки — после появления модели каналов клиники в соседнем потоке (#1071), по их контракту.

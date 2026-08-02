@@ -1144,7 +1144,12 @@ patientBookingService = createPatientBookingService({
       organizationId,
       'booking_prepayment',
     );
-    return access.state === 'full_access' || access.state === 'grace';
+    // The commercial read-only step freezes clinic configuration only. A patient who reaches
+    // public booking still gets the clinic's already configured prepayment, just like every
+    // other patient-side surface in the lifecycle ladder.
+    return (
+      access.state === 'full_access' || access.state === 'grace' || access.state === 'read_only'
+    );
   },
   memberships: membershipsServiceResolved,
   clientHistory: clientHistoryService,

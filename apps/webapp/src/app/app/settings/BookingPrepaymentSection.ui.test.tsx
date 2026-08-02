@@ -48,6 +48,24 @@ async function chooseService() {
 }
 
 describe('B1.3 prepayment settings', () => {
+  it('does not render the prepayment settings when the mechanic is off', async () => {
+    fakes.apiJson.mockImplementation((url: string) => {
+      if (url.includes('/services')) return Promise.resolve({ ok: true, services: [] });
+      return Promise.resolve({
+        ok: true,
+        policies: [],
+        availability: { available: false, reason: 'entitlement_required' },
+        visible: false,
+      });
+    });
+
+    render(<BookingPrepaymentSection />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Предоплата')).not.toBeInTheDocument();
+    });
+  });
+
   it('shows the provider reason and blocks saving an already active policy', async () => {
     render(<BookingPrepaymentSection />);
 
