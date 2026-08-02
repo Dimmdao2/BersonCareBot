@@ -210,6 +210,8 @@ SELECT format('REVOKE EXECUTE ON FUNCTION app.is_telegram_login_configured() FRO
 WHERE to_regprocedure('app.is_telegram_login_configured()') IS NOT NULL \gexec
 SELECT format('REVOKE EXECUTE ON FUNCTION app.is_max_bot_configured() FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.is_max_bot_configured()') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.read_saas_billing_payment_provider() FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.read_saas_billing_payment_provider()') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.current_patient_has_password_credentials() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) FROM :"d3_4_bootstrap_base_role";
@@ -610,6 +612,10 @@ SELECT format('GRANT EXECUTE ON FUNCTION app.is_telegram_login_configured() TO %
 WHERE to_regprocedure('app.is_telegram_login_configured()') IS NOT NULL \gexec
 SELECT format('GRANT EXECUTE ON FUNCTION app.is_max_bot_configured() TO %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.is_max_bot_configured()') IS NOT NULL \gexec
+-- SaaS webhook bootstrap needs the exact platform provider credentials to verify the callback.
+-- The fixed-key function exposes no arbitrary setting selector and no table grant.
+SELECT format('GRANT EXECUTE ON FUNCTION app.read_saas_billing_payment_provider() TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.read_saas_billing_payment_provider()') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.current_patient_has_password_credentials() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) TO :"d3_4_bootstrap_base_role";
@@ -872,6 +878,7 @@ WITH RECURSIVE bootstrap_role AS (
   WHERE procedure.oid IN (
     'app.read_public_runtime_setting(text,text)'::regprocedure,
     'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
+    'app.read_saas_billing_payment_provider()'::regprocedure,
     'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
     'app.resolve_public_organization_slug(text)'::regprocedure,
     'app.resolve_public_organization_by_slug(text)'::regprocedure,
@@ -932,6 +939,11 @@ SELECT 1 / (
   AND has_function_privilege(
     :'d3_4_bootstrap_base_role',
     'app.read_webapp_server_runtime_setting(text,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'d3_4_bootstrap_base_role',
+    'app.read_saas_billing_payment_provider()',
     'EXECUTE'
   )
   AND has_function_privilege(
