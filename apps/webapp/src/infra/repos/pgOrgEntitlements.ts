@@ -184,20 +184,25 @@ type EffectiveTariffRow = {
 };
 
 /**
- * §2.12 — the ONE call every reader of tariff content goes through: `app.saas_billing_effective_tariff`
- * (migration 0295) returns the frozen snapshot while a paid period for this exact org+tariff is live,
- * and the live `saas_tariffs` row otherwise. This mirrors the same function the SQL doors
- * (`app.resolve_organization_mechanic_access` et al.) already call — the frozen/live switch is not
- * reimplemented here, only invoked.
+ * §2.12 — the tenant-callable `app.saas_billing_effective_tariff_for_current_org` first binds this
+ * read to the signed organization, then delegates to the ONE frozen/live switch from migration
+ * 0295. This mirrors the SQL doors without reimplementing the frozen/live decision.
  */
 async function readEffectiveTariff(
   tx: Transaction,
   organizationId: string,
   tariffId: string,
 ): Promise<EffectiveTariffRow | null> {
+  const tariffFunction =
+    getCurrentDbPrincipal()?.kind === 'platform'
+      ? sql`app.saas_billing_effective_tariff`
+      : sql`app.saas_billing_effective_tariff_for_current_org`;
   const result = await tx.execute(sql`
     SELECT id, name, mechanics, quotas, system_access_policy, mechanic_access_policies, included_seats
-    FROM app.saas_billing_effective_tariff(${organizationId}::uuid, ${tariffId}::uuid)
+    FROM ${tariffFunction}(
+      ${organizationId}::uuid,
+      ${tariffId}::uuid
+    )
   `);
   return (result.rows[0] as EffectiveTariffRow | undefined) ?? null;
 }

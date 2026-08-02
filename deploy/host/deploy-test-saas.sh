@@ -1038,6 +1038,18 @@ WITH required(tbl, priv) AS (
     ('public.saas_tariffs', 'SELECT'),
     ('public.saas_org_entitlement_overrides', 'SELECT'),
     ('public.saas_organization_trials', 'SELECT'),
+    -- 0295/0302/0306 app_owner capabilities added after the 123-function baseline. Each row below
+    -- comes directly from a live function body; ON CONFLICT writes require both INSERT and UPDATE.
+    ('public.saas_billing_subscriptions', 'SELECT'),
+    ('public.system_settings', 'SELECT'),
+    ('public.app_runtime_settings', 'SELECT'),
+    ('public.booking_cities', 'SELECT'),
+    ('public.clinical_test_measure_kinds', 'SELECT'),
+    ('public.clinical_test_measure_kinds', 'INSERT'),
+    ('public.clinical_test_measure_kinds', 'UPDATE'),
+    ('public.email_send_cooldowns', 'SELECT'),
+    ('public.email_send_cooldowns', 'INSERT'),
+    ('public.email_send_cooldowns', 'UPDATE'),
     -- C5A count-only quota storefront accessor: app_owner reads reservations, while the platform
     -- role receives only EXECUTE and no course/invite row ACL.
     ('public.organization_member_invites', 'SELECT'),
@@ -1372,7 +1384,10 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # Migration 0285 drops and recreates app.read_current_patient_organization_entitlements() (its
   # return columns changed), and C5A does the same for app.read_org_enforced_quota_usage(uuid) —
   # both are net zero here.
-  local expected_secdef_count=123
+  # TEST measured 135 = baseline 123 + 1 frozen/live implementation + 2 dead 0296 trigger
+  # functions + 3 public config accessors + 6 V9b capabilities. Migration 0310 removes the two dead
+  # functions and adds one current-org wrapper: 135 - 2 + 1 = 134.
+  local expected_secdef_count=134
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1382,6 +1397,57 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     echo "       A new app_owner SECURITY DEFINER function was added without review -- check its body for" >&2
     echo "       every table it reads/writes, add the matching GRANT next to that table's canonical" >&2
     echo "       reapplied overlay, extend the required-grant set above, and only then bump this constant." >&2
+    exit 1
+  }
+
+  local tariff_boundary_acl_ok
+  tariff_boundary_acl_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH targets(signature, expected_grantee) AS (
+  VALUES
+    ('app.saas_billing_effective_tariff(uuid,uuid)', 'app_owner'),
+    ('app.saas_billing_effective_tariff(uuid,uuid)', 'app_platform_settings'),
+    ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'app_owner'),
+    ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'app_staff'),
+    ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'app_patient'),
+    ('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)', 'app_clinic_billing')
+), actual AS (
+  SELECT routine.oid::regprocedure::text AS signature,
+    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee
+  FROM pg_proc AS routine
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(routine.proacl, acldefault('f', routine.proowner))
+  ) AS privilege
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+  WHERE routine.oid IN (
+    to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)'),
+    to_regprocedure('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)')
+  )
+    AND privilege.privilege_type = 'EXECUTE'
+), expected AS (
+  SELECT signature, expected_grantee AS grantee FROM targets
+)
+SELECT (
+  to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('app.enforce_courses_snapshot_quota()') IS NULL
+  AND to_regprocedure('app.enforce_cms_pages_snapshot_quota()') IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_proc AS routine
+    WHERE routine.oid IN (
+      to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)'),
+      to_regprocedure('app.saas_billing_effective_tariff_for_current_org(uuid,uuid)')
+    )
+      AND (pg_get_userbyid(routine.proowner) <> 'app_owner' OR NOT routine.prosecdef)
+  )
+  AND NOT EXISTS (
+    (SELECT * FROM actual EXCEPT SELECT * FROM expected)
+    UNION ALL
+    (SELECT * FROM expected EXCEPT SELECT * FROM actual)
+  )
+)::text;
+")"
+  [ "$tariff_boundary_acl_ok" = "true" ] || {
+    echo "FATAL: frozen/live tariff implementation or current-org wrapper ACL is not exact." >&2
     exit 1
   }
 

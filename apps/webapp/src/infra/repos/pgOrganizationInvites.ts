@@ -156,16 +156,15 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           // (never the per-org seat-limit override, which only ever moves the FREE included count):
           // a NULL price keeps §5.2's hard block; a configured price is returned to the separate
           // billing confirmation path. Capacity changes only after capture persists paid allowance.
-          // §2.12 — `effective_tariff` reads through `app.saas_billing_effective_tariff`, the same
-          // frozen/live switch every other reader of tariff content goes through: a live paid period
-          // holds included_seats/overage price to what was configured at payment time.
+          // §2.12 — the current-org wrapper binds this tenant read to the signed clinic, then uses
+          // the same frozen/live switch as every other reader of tariff content.
           const tariffResult = await tx.execute(sql`
             SELECT
               tariff.included_seats,
               tariff.additional_seat_price_minor,
               tariff.currency
             FROM public.be_organizations AS organization
-            LEFT JOIN LATERAL app.saas_billing_effective_tariff(
+            LEFT JOIN LATERAL app.saas_billing_effective_tariff_for_current_org(
               organization.id,
               organization.tariff_id
             ) AS tariff ON true

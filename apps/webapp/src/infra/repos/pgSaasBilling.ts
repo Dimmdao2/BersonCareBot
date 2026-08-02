@@ -793,7 +793,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             tariff.billing_period,
             to_jsonb(tariff) AS tariff_snapshot
           FROM public.be_organizations AS organization
-          JOIN LATERAL app.saas_billing_effective_tariff(
+          JOIN LATERAL app.saas_billing_effective_tariff_for_current_org(
             organization.id,
             organization.tariff_id
           ) AS tariff ON true
