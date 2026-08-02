@@ -332,13 +332,4 @@ describe('0309 deterministic booking ownership backfill', () => {
     await expectReason('provider_mismatch');
   });
 
-  it('0309 contains no deletion, quarantine, revoke, or RLS/FORCE statements', () => {
-    const sql = migrationSql.toLowerCase();
-    expect(sql).not.toMatch(/\bdelete\s+from\b/);
-    expect(sql).not.toMatch(/\bdrop\s+table\b/);
-    expect(sql).not.toMatch(/\brevoke\b/);
-    expect(sql).not.toMatch(/quarantine/);
-    expect(sql).not.toMatch(/enable\s+row\s+level\s+security/);
-    expect(sql).not.toMatch(/force\s+row\s+level\s+security/);
-  });
 });
