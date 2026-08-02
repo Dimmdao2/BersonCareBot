@@ -1082,6 +1082,7 @@ WITH managed(role_name) AS (VALUES
   ('function','app.record_operator_delivery_attempt(text,text,text,integer,text)','EXECUTE','app_operational_delivery_worker',false),
   ('schema','app','USAGE','app_operational_scheduler',false),
   ('schema','integrator','USAGE','app_operational_scheduler',false),
+  ('schema','public','USAGE','app_operational_scheduler',false),
   ('table','integrator.idempotency_keys','SELECT','app_operational_scheduler',false),
   ('table','integrator.idempotency_keys','INSERT','app_operational_scheduler',false),
   ('table','integrator.idempotency_keys','UPDATE','app_operational_scheduler',false),
