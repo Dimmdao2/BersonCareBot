@@ -743,10 +743,18 @@ community-лицензия).
 - [x] **12.5** Яндекс-календарь как объявленная, но не реализованная запись.
       Доказательство: `apps/webapp/src/modules/system-settings/platformIntegrationAvailability.ts:84` (`declared`);
       `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/platformIntegrationAvailability.test.ts` — PASS.
-- [ ] **12.6** Добавить собственные каналы клиники по §30.1: SMTP, SMS и dedicated Telegram/MAX bots; массовые
+- [x] **12.6** Добавить собственные каналы клиники по §30.1: SMTP, SMS и dedicated Telegram/MAX bots; массовые
       рассылки и bot-support обязаны fail closed без собственного канала, essential delivery использует
       клиниковый канал с платформенным fallback. Свести с S6.5 и тарифным планом до реализации, не создавать
       вторую конкурирующую модель channel binding.
+      Доказательство: `0316_clinic_dedicated_bot_bindings_local.sql` атомарно выводит unique
+      bot-fingerprint→organization binding из существующего org-scoped credential; dedicated webhook отвергает
+      unknown/mismatch до event gateway, не использует single-active fallback. `pnpm --dir apps/webapp exec
+      vitest run --project=route src/app/api/tariffMechanics.route.test.ts` — PASS (27); `pnpm --dir
+      apps/integrator exec vitest run src/infra/adapters/dispatchPort.test.ts
+      src/integrations/bersoncare/relayOutboundRoute.route.test.ts
+      src/integrations/telegram/dedicatedWebhook.route.test.ts
+      src/integrations/max/dedicatedWebhook.route.test.ts` — PASS (20).
 - [ ] **12.7** Защитить credentials клиники настоящим authenticated encryption, а не текущим
       `valueContract='secret_envelope'`, который классифицирует и редактирует JSON, но не шифрует его.
       До реализации утвердить key custody/rotation/recovery и threat model из `CRYPTO-01` C0/C1/C4.

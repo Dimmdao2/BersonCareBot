@@ -241,7 +241,6 @@ VALUES
   ('"integrator"."user_questions"'),
   ('"integrator"."user_reminder_delivery_logs"'),
   ('"integrator"."user_reminder_occurrences"'),
-  ('"integrator"."user_reminder_rules"'),
   ('"public"."platform_user_contacts"'),
   ('"public"."system_settings"'),
   ('"public"."user_phone_history"'),

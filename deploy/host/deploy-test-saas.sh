@@ -1386,8 +1386,14 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # both are net zero here.
   # TEST measured 135 = baseline 123 + 1 frozen/live implementation + 2 dead 0296 trigger
   # functions + 3 public config accessors + 6 V9b capabilities. Migration 0310 removes the two dead
-  # functions and adds one current-org wrapper: 135 - 2 + 1 = 134.
-  local expected_secdef_count=134
+  # functions and adds one current-org wrapper: 135 - 2 + 1 = 134. Migration 0318 adds one
+  # fixed-key SaaS payment-provider capability without granting system_settings table access.
+  # 135 -> 136 (2026-08-02, #987 D38): migration 0319 adds exactly one reviewed app_owner
+  # SECURITY DEFINER capability, app.read_integrator_provider_runtime_setting(text). Its body reads
+  # only public.system_settings through a fixed Telegram/MAX/SMSC key allowlist; app_owner SELECT on
+  # that table is already pinned in the required-grant set above. The integrator runtime login gets
+  # EXECUTE only and retains no direct system_settings table access.
+  local expected_secdef_count=136
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

@@ -20,18 +20,6 @@ export function doctorRouteRedirectResponse(request: NextRequest): NextResponse 
 
   // ── 308 redirects: old URLs → new aggregate URLs ──────────────────────────
 
-  // /app/doctor/online-intake/:requestId → /app/doctor/communications?tab=intake&id=:requestId
-  const intakeDetail = pathname.match(/^\/app\/doctor\/online-intake\/([^/]+)$/);
-  if (intakeDetail) {
-    const id = intakeDetail[1];
-    const url = request.nextUrl.clone();
-    url.pathname = '/app/doctor/communications';
-    url.search = '';
-    url.searchParams.set('tab', 'intake');
-    if (id) url.searchParams.set('id', id);
-    return NextResponse.redirect(url, 308);
-  }
-
   const legacyRedirects: Record<string, string> = {
     // PLAT-01…09 slices 1-4 (2026-07-26) moved these out of the clinical/doctor URL space into a
     // new `/app/platform/*` shell, one exact-path entry at a time (like /app/doctor/clients below),
@@ -86,7 +74,6 @@ export function doctorRouteRedirectResponse(request: NextRequest): NextResponse 
     // Old /clients/ client-card list → new /patients/ card list (old client card removed).
     '/app/doctor/clients': '/app/doctor/patients',
     '/app/doctor/messages': '/app/doctor/communications?tab=chats',
-    '/app/doctor/online-intake': '/app/doctor/communications?tab=intake',
     '/app/doctor/comments': '/app/doctor/communications?tab=comments',
     '/app/doctor/broadcasts/archive': '/app/doctor/communications?tab=broadcasts&archive=1',
     '/app/doctor/broadcasts': '/app/doctor/communications?tab=broadcasts',

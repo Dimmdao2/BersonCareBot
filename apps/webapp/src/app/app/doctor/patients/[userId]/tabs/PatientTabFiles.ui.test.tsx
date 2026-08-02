@@ -4,6 +4,21 @@ import { PatientTabFiles } from './PatientTabFiles';
 
 const patientId = '22222222-2222-4222-8222-222222222222';
 const pendingFileId = '66666666-6666-4666-8666-666666666666';
+const storedFile = {
+  id: pendingFileId,
+  patientUserId: patientId,
+  category: 'анализ' as const,
+  fileName: 'result.pdf',
+  s3Key: 'patient-files/result.pdf',
+  s3Bucket: 'private',
+  mimeType: 'application/pdf',
+  sizeBytes: 1024,
+  visitId: null,
+  mediaFileId: '77777777-7777-4777-8777-777777777777',
+  uploadedByUserId: '88888888-8888-4888-8888-888888888888',
+  createdAt: '2026-08-01T10:00:00.000Z',
+  previewUrl: null,
+};
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -121,5 +136,78 @@ describe('patient files two-stage upload UI', () => {
       `/api/doctor/patients/${patientId}/files/${pendingFileId}/confirm`,
     );
     expect(fetchMock.mock.calls[3]?.[0]).toBe(`/api/doctor/patients/${patientId}/files`);
+  });
+});
+
+describe('patient file deletion UI', () => {
+  it('removes the file and visibly confirms that storage was released', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+    render(<PatientTabFiles userId={patientId} initialFiles={[storedFile]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    expect(await screen.findByText('Удалить файл?')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' }).at(-1)!);
+
+    expect(await screen.findByText('Файл удалён. Место в хранилище освобождено.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(`/api/doctor/patients/${patientId}/files/${pendingFileId}`, {
+      method: 'DELETE',
+    });
+  });
+
+  it('keeps the confirmation open and shows a deletion error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: false }, 500));
+    render(<PatientTabFiles userId={patientId} initialFiles={[storedFile]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' }).at(-1)!);
+
+    expect(await screen.findByText('Не удалось удалить файл.')).toBeInTheDocument();
+    expect(screen.getByText('Удалить файл?')).toBeInTheDocument();
+  });
+
+  it('requires a second explicit confirmation before deleting a file used by materials', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            ok: false,
+            error: 'media_in_use',
+            usage: [{ pageId: 'page', pageSlug: 'guide', field: 'body_md' }],
+          },
+          409,
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    render(<PatientTabFiles userId={patientId} initialFiles={[storedFile]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' }).at(-1)!);
+
+    expect(await screen.findByText('Файл используется в материалах')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Найдено использований: 1. После удаления связанные материалы перестанут показывать этот файл.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Файл удалён. Место в хранилище освобождено.'),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить несмотря на использование' }));
+
+    expect(
+      await screen.findByText('Файл удалён. Место в хранилище освобождено.'),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `/api/doctor/patients/${patientId}/files/${pendingFileId}`,
+      { method: 'DELETE' },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `/api/doctor/patients/${patientId}/files/${pendingFileId}?confirmUsed=true`,
+      { method: 'DELETE' },
+    );
   });
 });

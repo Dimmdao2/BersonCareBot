@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { env } from '@/config/env';
+import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 
 const VERSION = 'v1';
 
@@ -35,6 +36,8 @@ type Payload = {
   nonce?: string;
   tz?: string;
   org?: string;
+  next?: string;
+  portal?: RoleLoginPortal;
 };
 
 function signPayload(payload: Payload): string {
@@ -52,7 +55,12 @@ function signPayload(payload: Payload): string {
 export function createSignedOAuthState(
   purpose: OAuthStatePurpose,
   ttlSeconds: number,
-  options?: { browserCalendarIana?: string | null; organizationId?: string | null },
+  options?: {
+    browserCalendarIana?: string | null;
+    organizationId?: string | null;
+    next?: string | null;
+    roleLoginPortal?: RoleLoginPortal | null;
+  },
 ): string {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const payload: Payload = { p: purpose, exp, n: randomUUID() };
@@ -69,13 +77,22 @@ export function createSignedOAuthState(
   ) {
     payload.org = organizationId;
   }
+  const next = options?.next?.trim();
+  if (next && next.length <= 2048 && options?.roleLoginPortal) {
+    payload.next = next;
+    payload.portal = options.roleLoginPortal;
+  }
   return signPayload(payload);
 }
 
 /** Apple: `state` + отдельный `nonce` для authorize и проверки в `id_token`. */
 export function createAppleSignedOAuthState(
   ttlSeconds: number,
-  options?: { browserCalendarIana?: string | null },
+  options?: {
+    browserCalendarIana?: string | null;
+    next?: string | null;
+    roleLoginPortal?: RoleLoginPortal | null;
+  },
 ): { state: string; nonce: string } {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const nonce = randomUUID();
@@ -83,6 +100,11 @@ export function createAppleSignedOAuthState(
   const rawTz = options?.browserCalendarIana?.trim();
   if (rawTz && rawTz.length <= 120) {
     payload.tz = rawTz;
+  }
+  const next = options?.next?.trim();
+  if (next && next.length <= 2048 && options?.roleLoginPortal) {
+    payload.next = next;
+    payload.portal = options.roleLoginPortal;
   }
   return { state: signPayload(payload), nonce };
 }
@@ -92,6 +114,8 @@ export type VerifiedOAuthState = {
   nonce?: string;
   browserCalendarIana?: string;
   organizationId?: string;
+  next?: string;
+  roleLoginPortal?: RoleLoginPortal;
 };
 
 function verifyTokenInternal(
@@ -127,7 +151,7 @@ function verifyTokenInternal(
     return null;
   }
 
-  const { p, exp, n, nonce, tz, org } = payloadRaw as Record<string, unknown>;
+  const { p, exp, n, nonce, tz, org, next, portal } = payloadRaw as Record<string, unknown>;
   if (p !== expectedPurpose || typeof exp !== 'number' || typeof n !== 'string' || !n) {
     return null;
   }
@@ -153,6 +177,12 @@ function verifyTokenInternal(
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(org))
   )
     return null;
+  if (
+    (next !== undefined && (typeof next !== 'string' || next.length > 2048)) ||
+    (portal !== undefined && portal !== 'doctor' && portal !== 'patient' && portal !== 'admin') ||
+    (next === undefined) !== (portal === undefined)
+  )
+    return null;
 
   const out: VerifiedOAuthState = { attemptId: n };
   if (typeof nonce === 'string') out.nonce = nonce;
@@ -160,6 +190,13 @@ function verifyTokenInternal(
     out.browserCalendarIana = tz.trim();
   }
   if (typeof org === 'string') out.organizationId = org;
+  if (
+    typeof next === 'string' &&
+    (portal === 'doctor' || portal === 'patient' || portal === 'admin')
+  ) {
+    out.next = next;
+    out.roleLoginPortal = portal;
+  }
   return out;
 }
 

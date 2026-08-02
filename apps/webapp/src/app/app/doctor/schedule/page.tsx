@@ -1,5 +1,8 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
@@ -18,6 +21,10 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
   const deps = buildAppDeps();
 
   const initialTab = scheduleTabFromQuery(params.tab ?? null);
+  const [paymentsVisibility, paymentsMutation] = await Promise.all([
+    getMechanicSurfaceVisibility(workspace, 'payments'),
+    getMechanicMutationAvailability(workspace, 'payments'),
+  ]);
   const appDisplayTimeZone = await getAppDisplayTimeZone();
   const initialTimeZone = await getDoctorEffectiveCalendarIana(
     workspace.session.user.userId,
@@ -39,10 +46,7 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     getMechanicSurfaceVisibility(workspace, 'doctor_statistics'),
   ]);
   const scheduleScopeBootstrap = {
-    ownSpecialistId: resolveActiveOwnSpecialistId(
-      workspace.specialistId,
-      directory.specialists,
-    ),
+    ownSpecialistId: resolveActiveOwnSpecialistId(workspace.specialistId, directory.specialists),
     canManageAllSpecialists: workspace.canManageAllSpecialists,
     specialists: directory.specialists.map((specialist) => ({
       id: specialist.id,
@@ -54,6 +58,8 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     <DoctorScheduleShell
       initialTab={initialTab}
       initialTimeZone={initialTimeZone}
+      paymentsVisible={paymentsVisibility.specialistNavigation}
+      paymentsReadOnly={!paymentsMutation.available}
       scheduleScopeBootstrap={scheduleScopeBootstrap}
       doctorStatisticsEnabled={doctorStatisticsVisibility.specialistNavigation}
     />

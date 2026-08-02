@@ -69,7 +69,7 @@ function emptyResolved(): ResolvedSmtpOutboundConfig {
   };
 }
 
-function parseSmtpOutboundValueJson(valueJson: unknown): ResolvedSmtpOutboundConfig | null {
+export function parseSmtpOutboundValueJson(valueJson: unknown): ResolvedSmtpOutboundConfig | null {
   return parseSystemSettingInnerWithSchema(valueJson, smtpOutboundInnerReadSchema);
 }
 

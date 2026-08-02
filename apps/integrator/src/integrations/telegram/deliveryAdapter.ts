@@ -21,7 +21,7 @@ type DeliveryPayload = {
   replyMarkup?: unknown;
   parse_mode?: 'HTML' | 'Markdown';
   imageUrl?: unknown;
-  delivery?: { channels?: unknown };
+  delivery?: { channels?: unknown; clinicCredential?: { channel?: unknown; botToken?: unknown } };
 } & Record<string, unknown>;
 
 function asNonEmptyString(value: unknown): string | null {
@@ -95,7 +95,8 @@ async function withTelegramBlockedDetection<T>(fn: () => Promise<T>): Promise<T>
 
 export function createTelegramDeliveryAdapter(): DeliveryAdapter {
   let messagingPort: ReturnType<typeof createMessagingPort> | null = null;
-  const getMessagingPort = (): ReturnType<typeof createMessagingPort> => {
+  const getMessagingPort = (botToken?: string): ReturnType<typeof createMessagingPort> => {
+    if (botToken) return createMessagingPort(botToken);
     if (!messagingPort) messagingPort = createMessagingPort();
     return messagingPort;
   };
@@ -122,6 +123,12 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
     },
     async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
       const payload = intent.payload as DeliveryPayload;
+      const clinicBotToken =
+        payload.delivery?.clinicCredential?.channel === 'telegram' &&
+        typeof payload.delivery.clinicCredential.botToken === 'string' &&
+        payload.delivery.clinicCredential.botToken.trim()
+          ? payload.delivery.clinicCredential.botToken.trim()
+          : undefined;
       const rawChatId = payload.recipient?.chatId;
       const messageId = payload.messageId;
       const text = asNonEmptyString(payload.message?.text);
@@ -146,7 +153,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           return typeof midRaw === 'number' && Number.isFinite(midRaw) ? midRaw : undefined;
         };
         const sendPlainText = async (): Promise<DeliverySendResult> => {
-          const sent = await getMessagingPort().sendMessage({
+          const sent = await getMessagingPort(clinicBotToken).sendMessage({
             chat_id: chatId,
             text,
             reply_markup: replyMarkup as never,
@@ -161,7 +168,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           const TELEGRAM_CAPTION_MAX = 1024;
           return withTelegramBlockedDetection(async () => {
             try {
-              const sentPhoto = await getMessagingPort().sendPhoto({
+              const sentPhoto = await getMessagingPort(clinicBotToken).sendPhoto({
                 chat_id: chatId,
                 photo: imageUrl,
                 ...(text.length <= TELEGRAM_CAPTION_MAX ? { caption: text } : {}),
@@ -169,7 +176,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
                 ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
               });
               if (text.length > TELEGRAM_CAPTION_MAX) {
-                await getMessagingPort().sendMessage({
+                await getMessagingPort(clinicBotToken).sendMessage({
                   chat_id: chatId,
                   text,
                   ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
@@ -205,7 +212,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           throw err;
         }
         await withTelegramBlockedDetection(() =>
-          getMessagingPort().copyMessage({
+          getMessagingPort(clinicBotToken).copyMessage({
             chat_id: chatId,
             from_chat_id: fromChatId,
             message_id: msgId,
@@ -229,7 +236,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           throw err;
         }
         await withTelegramBlockedDetection(() =>
-          getMessagingPort().editMessageText({
+          getMessagingPort(clinicBotToken).editMessageText({
             chat_id: chatId,
             message_id: numMessageId,
             text,
@@ -255,7 +262,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           throw err;
         }
         await withTelegramBlockedDetection(() =>
-          getMessagingPort().editMessageReplyMarkup({
+          getMessagingPort(clinicBotToken).editMessageReplyMarkup({
             chat_id: chatId,
             message_id: numMessageId,
             reply_markup: replyMarkup as never,
@@ -278,7 +285,10 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           throw err;
         }
         await withTelegramBlockedDetection(() =>
-          getMessagingPort().deleteMessage({ chat_id: chatId, message_id: numMessageId }),
+          getMessagingPort(clinicBotToken).deleteMessage({
+            chat_id: chatId,
+            message_id: numMessageId,
+          }),
         );
         return {};
       }
@@ -291,7 +301,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       }
       const toast = asNonEmptyString(payload.text);
       await withTelegramBlockedDetection(() =>
-        getMessagingPort().answerCallbackQuery({
+        getMessagingPort(clinicBotToken).answerCallbackQuery({
           callback_query_id: callbackQueryId,
           ...(toast ? { text: toast } : {}),
           ...(payload.show_alert === true ? { show_alert: true } : {}),

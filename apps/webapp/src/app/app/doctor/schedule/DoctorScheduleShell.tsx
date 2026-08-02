@@ -96,6 +96,9 @@ export type DoctorScheduleShellProps = {
   initialTab?: ScheduleTabId;
   /** IANA-таймзона из system_settings (от серверной страницы). */
   initialTimeZone?: string;
+  /** Tariff-backed visibility and mutability for payment-acceptance controls. */
+  paymentsVisible: boolean;
+  paymentsReadOnly: boolean;
   /** Server-resolved schedule permissions and active specialists. */
   scheduleScopeBootstrap: DoctorScheduleScopeBootstrap;
   /** Server-resolved visibility of clinic statistics and booking attribution. */
@@ -118,6 +121,8 @@ export type DoctorScheduleShellProps = {
 export function DoctorScheduleShell({
   initialTab,
   initialTimeZone,
+  paymentsVisible,
+  paymentsReadOnly,
   scheduleScopeBootstrap,
   doctorStatisticsEnabled,
 }: DoctorScheduleShellProps) {
@@ -238,6 +243,8 @@ export function DoctorScheduleShell({
               initialData={undefined}
               isActive={tabId === activeTab}
               initialTimeZone={initialTimeZone}
+              paymentsVisible={paymentsVisible}
+              paymentsReadOnly={paymentsReadOnly}
               scheduleScopeBootstrap={scheduleScopeBootstrap}
               doctorStatisticsEnabled={doctorStatisticsEnabled}
             />

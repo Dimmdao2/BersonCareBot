@@ -5,7 +5,10 @@ import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { cn } from '@/lib/utils';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
@@ -17,6 +20,7 @@ export default async function DoctorContentSectionsPage() {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
   if (!entitlement.ok) notFound();
+  const canManageCms = (await getMechanicMutationAvailability(workspace, 'cms_pages')).available;
   const session = workspace.session;
   const deps = buildAppDeps();
 
@@ -62,12 +66,14 @@ export default async function DoctorContentSectionsPage() {
       <DoctorPageHeader
         title="Разделы контента"
         info={
-          <Link
-            href="/app/doctor/content/sections/new"
-            className={cn(buttonVariants({ size: 'sm' }))}
-          >
-            Создать раздел
-          </Link>
+          canManageCms ? (
+            <Link
+              href="/app/doctor/content/sections/new"
+              className={cn(buttonVariants({ size: 'sm' }))}
+            >
+              Создать раздел
+            </Link>
+          ) : undefined
         }
       />
       <DoctorSection id="doctor-content-sections-section">
@@ -78,7 +84,10 @@ export default async function DoctorContentSectionsPage() {
           />
         ) : null}
         <div id="doctor-content-sections-list">
-          <ContentSectionsListClient initialSections={initialSections} />
+          <ContentSectionsListClient
+            initialSections={initialSections}
+            canManageCms={canManageCms}
+          />
         </div>
       </DoctorSection>
     </DoctorAppShell>

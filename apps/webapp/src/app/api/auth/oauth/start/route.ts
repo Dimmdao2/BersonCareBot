@@ -34,12 +34,15 @@ import {
 } from '@/modules/auth/oauthStartRateLimit';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { isSafeRolePortalNext } from '@/modules/auth/roleLogin';
 
 const OAUTH_STATE_TTL_SECONDS = 600;
 
 const bodySchema = z.object({
   provider: z.enum(['yandex', 'google', 'apple']),
   browserCalendarIana: z.string().max(120).optional(),
+  next: z.string().max(2048).optional(),
+  roleLoginPortal: z.enum(['doctor', 'patient', 'admin']).optional(),
 });
 
 const GOOGLE_LOGIN_SCOPES = ['openid', 'email', 'profile'].join(' ');
@@ -126,8 +129,14 @@ export async function POST(request: Request) {
     return jsonError('invalid_body', { message: 'Укажите провайдера' }, { status: 400 });
   }
 
-  const { provider, browserCalendarIana } = parsed.data;
-  const tzOpt = { browserCalendarIana: browserCalendarIana?.trim() || null };
+  const { provider, browserCalendarIana, next, roleLoginPortal } = parsed.data;
+  const safeNext =
+    roleLoginPortal && isSafeRolePortalNext(next ?? null, roleLoginPortal) ? next : null;
+  const tzOpt = {
+    browserCalendarIana: browserCalendarIana?.trim() || null,
+    next: safeNext,
+    roleLoginPortal: safeNext ? roleLoginPortal : null,
+  };
 
   if (provider === 'yandex') {
     const [yandexOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([

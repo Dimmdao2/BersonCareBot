@@ -43,6 +43,8 @@ type RelayOutboundBaseParams<C extends string> = {
    * Имя файла .ics вложения (по умолчанию `bersoncare-booking.ics`).
    */
   icsFilename?: string;
+  /** Clinic-required traffic never falls back to the platform sender. */
+  senderScope?: 'clinic_required';
 };
 
 export type RelayOutboundParams<C extends string = string> = RelayOutboundBaseParams<C> &
@@ -157,6 +159,9 @@ export async function relayOutbound<C extends string>(
   }
   if (params.icsFilename) {
     bodyObj.icsFilename = params.icsFilename;
+  }
+  if (params.senderScope) {
+    bodyObj.senderScope = params.senderScope;
   }
   const rawBody = JSON.stringify(bodyObj);
 

@@ -44,7 +44,6 @@ import {
   rescheduleReminderOccurrencePlanned,
   cancelPendingReminderOccurrencesForRule,
   upsertReminderOccurrencePlanned,
-  upsertReminderRule,
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
@@ -1199,47 +1198,10 @@ export function createDbWritePort(
           const notificationTopicCodeRaw = notificationTopicCodeProvided
             ? asNullableString(mutation.params.notificationTopicCode)
             : undefined;
-          let canonicalUserId = userId;
-          await db.tx(async (txDb) => {
-            canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
-            await cancelPendingReminderOccurrencesForRule(txDb, id);
-            // D5 note: `integrator.user_reminder_rules` is retained UNCHANGED here — NOT a duplicate
-            // business projection but genuine local state `user_reminder_occurrences.rule_id` has a hard
-            // FK to (`ON DELETE CASCADE`), so occurrence planning/dispatch (Track D D6/D7) still requires
-            // every rule id to exist here. Classified for migration-backed removal only once D6 migrates
-            // that FK and the scheduler's `getEnabledReminderRules` read off `public.reminder_rules`
-            // instead — out of D5's scope (see WORK_ORDER Track D5 report).
-            await upsertReminderRule(txDb, {
-              id,
-              userId: canonicalUserId,
-              category: category as never,
-              isEnabled,
-              scheduleType,
-              timezone,
-              intervalMinutes,
-              windowStartMinute,
-              windowEndMinute,
-              daysMask,
-              contentMode: contentMode as never,
-              linkedObjectType,
-              linkedObjectId,
-              customTitle,
-              customText,
-              deepLink: asNullableString(mutation.params.deepLink),
-              reminderIntent,
-              quietHoursStartMinute,
-              quietHoursEndMinute,
-              ...(typeof mutation.params.scheduleData !== 'undefined'
-                ? { scheduleData: mutation.params.scheduleData }
-                : {}),
-            });
-          });
-          // D5: replaces the `reminder.rule.upserted` HTTP projection fanout. Runs in its OWN transaction
-          // AFTER the integrator-local `user_reminder_rules` row above has already committed — see
-          // writeReminderRulesDirect.ts header ("DURABILITY"): this domain never had a fail-closed-no-write
-          // case before D5, so EVERY failure (platform-user unresolved, org unresolved/ambiguous, or any
-          // other unexpected error) falls back to the SAME durable outbox the retired projection used —
-          // never a silent drop.
+          const canonicalUserId = await resolveCanonicalIntegratorUserId(db, userId);
+          // D5 canonical write: the scheduler reads this same public row. Pending occurrences are
+          // cancelled only after the canonical update commits, so an outbox fallback never removes
+          // an existing schedule before its replacement is durable.
           const fallbackKeyPayload = buildReminderRuleUpsertKeyPayload({
             integratorRuleId: id,
             integratorUserId: canonicalUserId,
@@ -1278,6 +1240,7 @@ export function createDbWritePort(
                 notificationTopicCode: notificationTopicCodeRaw,
               }),
             );
+            await cancelPendingReminderOccurrencesForRule(db, id);
           } catch (err) {
             const fallbackUpdatedAt = new Date().toISOString();
             await enqueueProjectionEvent(db, {

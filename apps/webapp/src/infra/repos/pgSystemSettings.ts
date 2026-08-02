@@ -176,6 +176,19 @@ export async function readPublicConfigBoolean(key: string): Promise<boolean | nu
 }
 
 /**
+ * Fixed-key credential capability for the platform SaaS payment provider (migration 0318).
+ * Clinic billing and the bootstrap webhook can execute this function without receiving SELECT on
+ * the shared credential table or a caller-controlled setting key.
+ */
+export async function readSaasBillingPaymentProviderValue(): Promise<unknown | null> {
+  const result = await runWebappSql<{ value_json: unknown | null }>(
+    getWebappSqlDb(),
+    sql`SELECT app.read_saas_billing_payment_provider() AS value_json`,
+  );
+  return result.rows[0]?.value_json ?? null;
+}
+
+/**
  * Boolean-only "is outbound SMTP configured?" read via `app.is_smtp_outbound_configured()`
  * (migration 0240) — never returns host/user/password/from, only their presence. Available to the
  * unauthenticated bootstrap login pool, unlike a direct `SELECT ... FROM system_settings`, which

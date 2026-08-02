@@ -31,9 +31,16 @@ type Props = {
   apiBase: string;
   onError?: (code: string) => void;
   onChanged?: () => void;
+  mutationsAllowed?: boolean;
 };
 
-export function PatientPackageSessionsList({ packageId, apiBase, onError, onChanged }: Props) {
+export function PatientPackageSessionsList({
+  packageId,
+  apiBase,
+  onError,
+  onChanged,
+  mutationsAllowed = true,
+}: Props) {
   // Default to true so doctors immediately see past visits available for manual consume.
   const [includePast, setIncludePast] = useState(true);
   const [sessions, setSessions] = useState<PatientPackageSessionRow[]>([]);
@@ -193,7 +200,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
                 ) : null}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {s.actions.canUnlinkReserve ? (
+                {mutationsAllowed && s.actions.canUnlinkReserve ? (
                   <Button
                     type="button"
                     size="sm"
@@ -204,7 +211,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
                     Отвязать
                   </Button>
                 ) : null}
-                {s.actions.canRefundConsumed ? (
+                {mutationsAllowed && s.actions.canRefundConsumed ? (
                   <Button
                     type="button"
                     size="sm"
@@ -215,7 +222,7 @@ export function PatientPackageSessionsList({ packageId, apiBase, onError, onChan
                     Вернуть сеанс
                   </Button>
                 ) : null}
-                {s.actions.canManualConsume ? (
+                {mutationsAllowed && s.actions.canManualConsume ? (
                   <Button
                     type="button"
                     size="sm"

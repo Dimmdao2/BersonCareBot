@@ -29,6 +29,7 @@ import {
   resolvePatientOrganizationRequestContext,
   stampPatientOrganizationRequestContext,
 } from '@/app-layer/patient-organization/requestContext';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { PatientOrganizationRecoveryScreen } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
@@ -112,6 +113,24 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       source: 'app.patient.layout',
     });
     const patientOrganizationId = patientContext.organizationId;
+    // The resolver receives only the enrollment-selected organization inside the patient principal;
+    // it never accepts a client-controlled organization or brand. When branding is disabled it
+    // returns the core title, which is the existing platform/default presentation of this context bar.
+    const effectiveBranding = await withPatientOrganizationPrincipal(
+      {
+        organizationId: patientOrganizationId,
+        platformUserId: session.user.userId,
+        source: 'app.patient.layout.org-branding',
+      },
+      () => deps.orgBranding.resolveEffectiveOrgBranding(patientOrganizationId),
+    ).catch(() => null);
+    const patientBrandingContext = {
+      ...patientContext,
+      organization: {
+        ...patientContext.organization,
+        title: effectiveBranding?.effectiveDisplayName ?? patientContext.organization.title,
+      },
+    };
     if (!patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {
       let cabinetBlocked = true;
       try {
@@ -164,7 +183,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
 
       return (
         <PatientClientLayout
-          organizationContext={patientContext}
+          organizationContext={patientBrandingContext}
           authChannelPolicy={authChannelPolicy}
         >
           <PatientMaintenanceScreen
@@ -179,7 +198,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     }
     return (
       <PatientClientLayout
-        organizationContext={patientContext}
+        organizationContext={patientBrandingContext}
         rememberOrganizationOnMount={patientContext.selectedBy === 'only_active'}
         authChannelPolicy={authChannelPolicy}
       >

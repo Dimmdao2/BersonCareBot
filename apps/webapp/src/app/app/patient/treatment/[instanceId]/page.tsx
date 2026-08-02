@@ -21,6 +21,7 @@ import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimez
 import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
 import { formatExercisesTodayTrainingStatus } from '@/modules/reminders/summarizeReminderForCalendarDay';
 import { loadPatientProgramInteractionBundle } from '@/app/app/patient/treatment/loadPatientProgramInteractionBundle';
+import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
 
 type Props = {
   params: Promise<{ instanceId: string }>;
@@ -89,6 +90,10 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
 
   const organizationId = detail.organizationId?.trim();
   if (!organizationId) notFound();
+  if (detail.assignmentSource === 'promo') {
+    const promoVisibility = await getMechanicSurfaceVisibility({ organizationId }, 'promo');
+    if (!promoVisibility.directUrl) notFound();
+  }
 
   const [
     initialTestResults,

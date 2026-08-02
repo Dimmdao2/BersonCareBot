@@ -69,7 +69,6 @@ import {
   conversationMessages,
   userQuestions,
   questionMessages,
-  userReminderRules,
   userReminderOccurrences,
   userReminderDeliveryLogs,
   contentAccessGrants,
@@ -537,6 +536,7 @@ export const reminderRulesRelations = relations(reminderRules, ({ one, many }) =
     references: [platformUsers.id],
   }),
   reminderJournals: many(reminderJournal),
+  userReminderOccurrences: many(userReminderOccurrences),
 }));
 
 export const reminderJournalRelations = relations(reminderJournal, ({ one }) => ({
@@ -597,7 +597,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   users: many(users, {
     relationName: 'users_mergedIntoUserId_users_id',
   }),
-  userReminderRules: many(userReminderRules),
   contentAccessGrants: many(contentAccessGrants),
 }));
 
@@ -650,20 +649,12 @@ export const questionMessagesRelations = relations(questionMessages, ({ one }) =
   }),
 }));
 
-export const userReminderRulesRelations = relations(userReminderRules, ({ one, many }) => ({
-  user: one(users, {
-    fields: [userReminderRules.userId],
-    references: [users.id],
-  }),
-  userReminderOccurrences: many(userReminderOccurrences),
-}));
-
 export const userReminderOccurrencesRelations = relations(
   userReminderOccurrences,
   ({ one, many }) => ({
-    userReminderRule: one(userReminderRules, {
+    reminderRule: one(reminderRules, {
       fields: [userReminderOccurrences.ruleId],
-      references: [userReminderRules.id],
+      references: [reminderRules.integratorRuleId],
     }),
     userReminderDeliveryLogs: many(userReminderDeliveryLogs),
   }),

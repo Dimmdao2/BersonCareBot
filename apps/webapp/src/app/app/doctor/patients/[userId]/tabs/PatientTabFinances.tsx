@@ -165,6 +165,8 @@ type Props = {
   initialData?: FinancesInitialData | null;
   /** Same patient appointment list already loaded for the Records tab. */
   initialAppointments?: PatientAppointmentItem[] | null;
+  membershipsVisible?: boolean;
+  membershipMutationsAllowed?: boolean;
 };
 
 function formatAppointmentOption(item: PatientAppointmentItem): { id: string; label: string } {
@@ -185,7 +187,13 @@ function formatAppointmentOption(item: PatientAppointmentItem): { id: string; la
   };
 }
 
-export function PatientTabFinances({ userId, initialData, initialAppointments }: Props) {
+export function PatientTabFinances({
+  userId,
+  initialData,
+  initialAppointments,
+  membershipsVisible = true,
+  membershipMutationsAllowed = true,
+}: Props) {
   const appointments = useMemo(
     () => (initialAppointments ?? []).map(formatAppointmentOption),
     [initialAppointments],
@@ -376,14 +384,18 @@ export function PatientTabFinances({ userId, initialData, initialAppointments }:
       {/* ================================================================
           SECTION 2 — Абонементы
       ================================================================ */}
-      <div className={doctorSectionCardClass}>
-        <p className={doctorSectionTitleClass}>Абонементы</p>
-        <DoctorClientMembershipsPanel
-          platformUserId={userId}
-          appointments={appointments}
-          showCreateForm
-        />
-      </div>
+      {membershipsVisible ? (
+        <div className={doctorSectionCardClass}>
+          <p className={doctorSectionTitleClass}>Абонементы</p>
+          <DoctorClientMembershipsPanel
+            platformUserId={userId}
+            appointments={appointments}
+            showCreateForm
+            mutationsAllowed={membershipMutationsAllowed}
+            consumptionAllowed
+          />
+        </div>
+      ) : null}
 
       {/* ================================================================
           SECTION 3 — Timeline

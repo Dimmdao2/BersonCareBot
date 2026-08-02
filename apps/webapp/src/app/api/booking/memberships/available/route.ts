@@ -44,7 +44,6 @@ export async function GET(request: Request) {
     serviceId: params.get('serviceId') ?? undefined,
   });
   if (resolvedOrResponse instanceof NextResponse) return resolvedOrResponse;
-
   const packages = await withExplicitOrganizationPrincipal(
     {
       organizationId: resolvedOrResponse.organizationId,

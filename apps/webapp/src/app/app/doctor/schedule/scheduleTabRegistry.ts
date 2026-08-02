@@ -14,6 +14,9 @@ export type ScheduleTabProps = {
   isActive?: boolean;
   /** IANA-таймзона из system_settings (от серверной страницы). */
   initialTimeZone?: string;
+  /** Tariff-backed visibility and mutability for payment-acceptance controls. */
+  paymentsVisible?: boolean;
+  paymentsReadOnly?: boolean;
   /** Server-resolved role/specialist capabilities shared by calendar/KPI/create. */
   scheduleScopeBootstrap?: DoctorScheduleScopeBootstrap;
   /** The single doctor_statistics mechanic controls clinic statistics and booking attribution. */

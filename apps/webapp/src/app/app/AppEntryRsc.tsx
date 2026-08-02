@@ -22,15 +22,19 @@ import { AppEntryLoginContent } from './AppEntryLoginContent';
 import { PatientUnsupportedClientFallback } from './PatientUnsupportedClientFallback';
 import { getUnsupportedClientFallbackEnabled } from '@/modules/auth/unsupportedClientFallback';
 import { parseSupportedClientEnvironment } from '@/modules/auth/supportedClientMatrix';
+import { roleCanUsePortal, type RoleLoginPortal } from '@/modules/auth/roleLogin';
+import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
 
 export type AppEntrySearchParams = { next?: string; t?: string; token?: string; switch?: string };
 
 export async function AppEntryRsc({
   searchParams,
   routeBoundMessengerSurface,
+  roleLoginPortal = null,
 }: {
   searchParams: Promise<AppEntrySearchParams>;
   routeBoundMessengerSurface: MessengerSurfaceHint | null;
+  roleLoginPortal?: RoleLoginPortal | null;
 }) {
   const deps = buildAppDeps();
   const session = await deps.auth.getCurrentSession();
@@ -38,7 +42,11 @@ export async function AppEntryRsc({
   const rawToken = (t ?? token ?? null)?.trim() || null;
 
   if (session) {
-    redirect(getPostAuthRedirectTarget(session.user.role, nextParam ?? null));
+    redirect(
+      roleLoginPortal && !roleCanUsePortal(session.user.role, roleLoginPortal)
+        ? buildOwnHubUrlWithAccessDeniedToast(session.user.role)
+        : getPostAuthRedirectTarget(session.user.role, nextParam ?? null, null, roleLoginPortal),
+    );
   }
 
   const allowDevBypass = isDevAuthBypassEnabled({
@@ -100,6 +108,7 @@ export async function AppEntryRsc({
         serverMessengerSurface={serverMessengerSurface}
         entryClassification={entryClassification}
         routeBoundMiniappEntry={routeBoundMessengerSurface != null}
+        roleLoginPortal={roleLoginPortal}
       />
       {clientEnvironment ? (
         <PatientUnsupportedClientFallback

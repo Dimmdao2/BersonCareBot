@@ -391,6 +391,11 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       отдельно отнёс отсутствующее call-site покрытие к открытому D20 level 4 — это не откат D4.
 - [ ] **D5 — правила напоминаний.** `public.reminder_rules` — единственный бизнес-источник и для CRUD, и для
       чтения планировщиком.
+      **Порядок сведения 02.08:** основа — `wt/trackd-d5` (`570dba899`). Ветка обновляется от текущего `feat`,
+      проходит один независимый аудит именно чтения планировщиком, один fixer только при реальном finding и живую
+      проверку на DEV/TEST: созданное в веб-приложении правило действительно подхватывается планировщиком без чтения
+      `integrator.user_reminder_rules`. После доказательства D5 сразу сливается; галочка ставится тем же коммитом с
+      фактическим evidence.
       **Сделана write-сторона 2026-07-25** (`384e7ca29`): `reminder.rule.upserted` снят, `writePort.ts`
       (`reminders.rule.upsert`) пишет `public.reminder_rules` напрямую через
       `directPublic/writeReminderRulesDirect.ts` с полным паритетом полей (`linked_object_type/id`,
@@ -412,6 +417,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       ⛔ Дублирующие проекции доставки/контента ещё не сняты — это следующий шаг, он упирается в D10.
 - [ ] **D7 — остальные записи напоминаний.** Подписанные POST-адаптеры snooze/skip/done/mute/messenger-topic/
       notification-settings заменяются тем же валидируемым контрактом прямого сервиса по правилу 5.1.1.
+      **Порядок сведения 02.08:** основа — `wt/trackd-d7` (`1c3bdab5e`), но обновление и приёмка начинаются после
+      принятого D5. Живая проверка выполняет реальные подписанные `done/snooze/skip/mute`, подтверждает изменение
+      канонического состояния и сохранение истории. D7 проходит свой один аудит и при необходимости один fixer;
+      галочка ставится только в коммите с этим доказательством.
 - [x] **D8 — рассылки и подписки.** Сначала точный callgraph производителей/потребителей: у мёртвого домена
       писателя не строят, мёртвые типы событий/адаптеры/таблицы удаляют. **DONE 2026-07-30** (`60caf998`):
       мёртвые runtime/projection-поверхности и пустые legacy-таблицы удалены; миграция отказывается работать на
@@ -619,6 +628,30 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       путь. Исходов three, а не два: «прочитали значение», «не смогли прочитать» и «этому вызывающему не
       положено читать» — последнее есть ОТВЕТ «не показывай», а не сбой. Для интегратора это фоновая
       доставка без принципала. И не строить гейт на импорты: граница уже стоит у данных.
+      - [x] D38/3 integrator availability and provider config: `isPlatformIntegrationAvailable` preserves canonical
+        `false` and read/ACL failures; Telegram, MAX and SMSC now read operational credentials, provider URLs and
+        enablement from `public.system_settings` at use time, and incomplete/malformed/denied authority reaches no
+        adapter. Google Calendar has no env substitution. Evidence 2026-08-02:
+        `pnpm --dir apps/integrator exec vitest run src/infra/db/platformIntegrationAvailability.test.ts src/integrations/runtimeConfig.test.ts`
+        (2 files, 11 passed); `pnpm --dir apps/integrator typecheck`; scoped `eslint`; `git diff --check`;
+        `rg -n 'process\\.env\\.(TELEGRAM_|MAX_|SMSC_)' apps/integrator/src --glob '!**/*.test.ts' --glob '!**/*.spec.ts'`
+        (no output). Telegram long-polling transport ownership remains documented deployment bootstrap only.
+        Fixer `b7236c67c` + deploy pin `b1dd99145` + principal correction `11b1111fa`; full CI
+        `/home/dev/brain/host-orch/run-tests.sh 'pnpm run ci'` — exit 0 / 378s. TEST deploy
+        `bash deploy/host/deploy-test.sh wt/trackd-d38-integrations` — exit 0, log
+        `/home/dev/.local/state/bersoncarebot/deploy-logs/deploy-test-20260802T140603Z-924877.log`.
+        Живой admin API: login/admin mode 200, изменение настройки увидено интегратором и исходное значение
+        восстановлено (`changedObserved=true`, `restoredObserved=true`).
+      - [x] D38/4 экран «Авторизация» загружает только свои настройки: живой DEV-путь до исправления
+        `curl -sS -b /tmp/bcb-d38-admin.cookies -o /tmp/bcb-d38-auth-page.html -w 'page_status=%{http_code}' http://127.0.0.1:5200/app/admin/auth`
+        вернул `page_status=500` из-за отсутствующей несвязанной настройки
+        `operator_alert_fallback_email`. `page.tsx` теперь использует выделенный из существующего
+        `adminSettingsData.ts` auth-only loader; общий загрузчик и его строгий technical gate сохранены.
+        `pnpm --dir apps/webapp exec vitest run --project unit src/app/app/settings/adminSettingsData.unit.test.ts`
+        — 2 passed; независимый аудит `cc50f7ecc` — PASS; полный CI
+        `/home/dev/brain/host-orch/run-tests.sh 'pnpm run ci'` — exit 0 / 390s. После land `2c0270cd3`
+        та же живая DEV-проверка вернула HTTP 200; экран содержит способы входа Apple, Google, MAX,
+        Telegram и Яндекс. TEST/PROD не трогались.
 
 - [ ] **D36 — тесты интегратора, блок И** (передано из #1081 целиком). И1: уровни 0-2, причём уровень 0
       переписывается против ПЛАНА, а не против кода. И2: уровень 2 закрывается числом, а не следующим

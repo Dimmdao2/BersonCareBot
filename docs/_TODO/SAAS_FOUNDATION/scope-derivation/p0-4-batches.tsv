@@ -7,8 +7,7 @@ P0.4.I2	integrator.message_drafts	bridge_identity_user	add nullable organization
 P0.4.I3	integrator.question_messages	parent_denorm_copy	copy organization_id from integrator.user_questions after I2 backfill; quarantine orphan child rows
 P0.4.I2	integrator.user_questions	bridge_identity_user	add nullable organization_id; backfill through identities.user_id -> integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
 P0.4.I3	integrator.user_reminder_delivery_logs	parent_denorm_copy	copy organization_id from integrator.user_reminder_occurrences after I3 occurrence backfill; quarantine orphan child rows
-P0.4.I3	integrator.user_reminder_occurrences	parent_denorm_copy	copy organization_id from integrator.user_reminder_rules after I1 backfill; quarantine orphan child rows
-P0.4.I1	integrator.user_reminder_rules	bridge_user_id	add nullable organization_id; backfill through integrator.users -> public.platform_users.integrator_user_id -> org membership/enrollment
+P0.4.I3	integrator.user_reminder_occurrences	parent_denorm_copy	copy organization_id from canonical public.reminder_rules after D5 re-key; quarantine orphan child rows
 P0.4.P8	public.admin_audit_log	audit_actor_org	add nullable organization_id; backfill from actor_id membership/enrollment where possible, otherwise current single org with explicit count check
 P0.4.P8	public.broadcast_audit	audit_actor_org	add nullable organization_id; backfill from actor_id membership/enrollment where possible, otherwise current single org with explicit count check
 P0.4.P8	public.broadcast_audit_recipients	audit_parent_denorm	copy organization_id from public.broadcast_audit; quarantine orphan child rows

@@ -36,6 +36,7 @@ export type BroadcastEmailRecipientsPort = {
 };
 
 export type FanOutBroadcastEmailInput = {
+  organizationId: string;
   auditId: string;
   broadcastCategory: BroadcastCategory;
   broadcastTitle: string;
@@ -102,10 +103,12 @@ export async function fanOutBroadcastEmail(
       const result = await relayOutbound(
         {
           messageId,
+          organizationId: input.organizationId,
           channel: 'email',
           recipient: emailAddress,
           text: `${input.broadcastTitle}\n\n${input.broadcastBody}`,
           metadata: { subject: input.broadcastTitle },
+          senderScope: 'clinic_required',
           ...(input.mediaUrl
             ? {
                 html: buildBroadcastEmailHtml(
