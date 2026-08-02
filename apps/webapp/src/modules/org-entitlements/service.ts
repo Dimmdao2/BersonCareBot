@@ -489,16 +489,38 @@ export class TariffDowngradeBlockedError extends Error {
  */
 export function evaluateTariffTransition(params: {
   usage: Partial<Record<OrgMechanic, number>>;
-  currentTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'includedSeats'>;
-  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies' | 'includedSeats'>;
+  currentTariff: Pick<
+    Tariff,
+    'mechanics' | 'quotas' | 'includedSeats' | 'priceMinor' | 'currency' | 'billingPeriod'
+  >;
+  targetTariff: Pick<
+    Tariff,
+    | 'mechanics'
+    | 'quotas'
+    | 'downgradePolicies'
+    | 'includedSeats'
+    | 'priceMinor'
+    | 'currency'
+    | 'billingPeriod'
+  >;
   /** Self-service tariff changes only require cleanup of the three owner-named countable resources. */
   blockableMechanics?: readonly OrgMechanic[];
 }): { blocks: TariffDowngradeBlock[]; appliesNextPeriod: boolean } {
   const blocks: TariffDowngradeBlock[] = [];
   const blockableMechanics = params.blockableMechanics ?? MECHANICS;
+  // Price is authoritative only when the two stored prices describe the same currency and billing
+  // period. Comparing a monthly price with an annual one would invent a proration/normalization
+  // policy which the product has deliberately not defined.
+  const isCheaperForSamePeriod =
+    params.currentTariff.priceMinor !== null &&
+    params.targetTariff.priceMinor !== null &&
+    params.currentTariff.currency === params.targetTariff.currency &&
+    params.currentTariff.billingPeriod === params.targetTariff.billingPeriod &&
+    params.targetTariff.priceMinor < params.currentTariff.priceMinor;
   let appliesNextPeriod =
+    isCheaperForSamePeriod ||
     (params.targetTariff.includedSeats ?? Number.POSITIVE_INFINITY) <
-    (params.currentTariff.includedSeats ?? Number.POSITIVE_INFINITY);
+      (params.currentTariff.includedSeats ?? Number.POSITIVE_INFINITY);
   const targetSeatLimit = params.targetTariff.includedSeats;
   if (
     targetSeatLimit !== null &&
@@ -578,8 +600,20 @@ export async function resolveOwnTariffTransition(
 /** Compatibility export for callers that only need blockers; transition classification lives above. */
 export function evaluateTariffDowngrade(params: {
   usage: Partial<Record<OrgMechanic, number>>;
-  currentTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'includedSeats'>;
-  targetTariff: Pick<Tariff, 'mechanics' | 'quotas' | 'downgradePolicies' | 'includedSeats'>;
+  currentTariff: Pick<
+    Tariff,
+    'mechanics' | 'quotas' | 'includedSeats' | 'priceMinor' | 'currency' | 'billingPeriod'
+  >;
+  targetTariff: Pick<
+    Tariff,
+    | 'mechanics'
+    | 'quotas'
+    | 'downgradePolicies'
+    | 'includedSeats'
+    | 'priceMinor'
+    | 'currency'
+    | 'billingPeriod'
+  >;
 }): TariffDowngradeBlock[] {
   return evaluateTariffTransition(params).blocks;
 }

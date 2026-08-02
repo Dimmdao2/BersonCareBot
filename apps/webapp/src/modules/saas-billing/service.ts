@@ -612,6 +612,18 @@ export function createSaasBillingService(dependencies: {
           subscription.savedPaymentMethodId !== null;
         let invoiceIdForFailureReport: string | undefined;
         try {
+          if (subscription.pendingTariffId) {
+            if (!dependencies.getTariffTransition) {
+              throw new Error('saas_billing_tariff_change_unavailable');
+            }
+            const transition = await dependencies.getTariffTransition(
+              subscription.organizationId,
+              subscription.pendingTariffId,
+            );
+            if (transition.blocks.length > 0) {
+              throw new SaasBillingTariffDowngradeBlockedError(transition.blocks);
+            }
+          }
           const provider = await resolvePaymentProvider();
           const { invoice, created: wasCreated } =
             await dependencies.repository.createSaasBillingRenewalInvoiceIfAbsent({
