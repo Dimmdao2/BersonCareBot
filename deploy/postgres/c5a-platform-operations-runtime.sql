@@ -988,6 +988,11 @@ BEGIN
     UNION
     SELECT relation_name, 'app_clinic_billing', 'SELECT', false FROM relations
     UNION
+    -- Migration 0286 grants this supporting read to its app_owner SECURITY DEFINER function.
+    -- Earlier bounded scratch clusters can have the billing tables without that function.
+    SELECT 'saas_billing_subscriptions', 'app_owner', 'SELECT', false
+    WHERE to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)') IS NOT NULL
+    UNION
     SELECT relation_name, 'app_platform_settings', privilege_type, false
     FROM relations
     CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type

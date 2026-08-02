@@ -1650,6 +1650,11 @@ WITH expected(relation_name) AS (
   UNION
   SELECT relation_name, 'app_clinic_billing', 'SELECT', false FROM relations
   UNION
+  -- Migration 0286 grants this supporting read to its app_owner SECURITY DEFINER function.
+  -- Earlier bounded scratch clusters can have the billing tables without that function.
+  SELECT 'saas_billing_subscriptions', 'app_owner', 'SELECT', false
+  WHERE to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)') IS NOT NULL
+  UNION
   SELECT relation_name, 'app_platform_settings', privilege_type, false
   FROM relations
   CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
@@ -1766,7 +1771,7 @@ SELECT (
 ")"
   [ "$ok" = "true" ] || {
     echo "FATAL: SaaS billing foundation exact grants/RLS inventory did not take effect." >&2
-    echo "       Expected dedicated app_clinic_billing SELECT, no app_staff table ACL," >&2
+    echo "       Expected dedicated app_clinic_billing SELECT, the app_owner subscription read, no app_staff table ACL," >&2
     echo "       platform SELECT/INSERT/UPDATE, exact policies," >&2
     echo "       signed-context install/current-org/release helpers, no additional policies," >&2
     echo "       and ENABLE+FORCE RLS on all four tables." >&2
