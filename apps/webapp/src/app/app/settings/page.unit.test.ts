@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const organizationId = '11111111-1111-4111-8111-111111111111';
-const otherOrganizationId = '55555555-5555-4555-8555-555555555555';
+const organizationId: string = '11111111-1111-4111-8111-111111111111';
+const otherOrganizationId: string = '55555555-5555-4555-8555-555555555555';
 
 const fakes = vi.hoisted(() => ({
   requireOrganizationWorkspaceContext: vi.fn(),
