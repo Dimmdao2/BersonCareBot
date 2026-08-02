@@ -642,7 +642,6 @@ export function createInMemorySaasBillingRepository(
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
       if (!authority) throw new Error('saas_billing_subscription_not_found');
-      const tariff = tariffs.get(authority.pendingTariffId ?? authority.tariffId);
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
