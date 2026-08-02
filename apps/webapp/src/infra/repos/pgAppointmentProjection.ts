@@ -66,7 +66,8 @@ async function resolveCanonicalAppointmentTargetById(
 
 export type AppointmentRecordRow = {
   id: string;
-  organizationId: string;
+  /** NULL only for retained historical rows with no immutable tenant proof. */
+  organizationId: string | null;
   integratorRecordId: string;
   phoneNormalized: string | null;
   recordAt: string | null;
@@ -122,7 +123,7 @@ export type AppointmentProjectionPort = {
 
 function mapRow(r: {
   id: string;
-  organization_id: string;
+  organization_id: string | null;
   integrator_record_id: string;
   phone_normalized: string | null;
   record_at: Date | null;
@@ -200,7 +201,7 @@ async function purgeCanonicalStaffDeleteTombstone(
 export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
   return {
     async upsertRecordFromProjection(params) {
-      const result = await runWebappPgText<{ organization_id: string }>(
+      const result = await runWebappPgText<{ organization_id: string | null }>(
         `INSERT INTO appointment_records (
           integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at, branch_id,
           platform_user_id, organization_id
@@ -239,7 +240,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     ): Promise<AppointmentRecordRow | null> {
       const result = await runWebappPgText<{
         id: string;
-        organization_id: string;
+        organization_id: string | null;
         integrator_record_id: string;
         phone_normalized: string | null;
         record_at: Date | null;
@@ -262,7 +263,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     async listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]> {
       const result = await runWebappPgText<{
         id: string;
-        organization_id: string;
+        organization_id: string | null;
         integrator_record_id: string;
         phone_normalized: string | null;
         record_at: Date | null;
@@ -291,7 +292,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     ): Promise<AppointmentRecordRow[]> {
       const result = await runWebappPgText<{
         id: string;
-        organization_id: string;
+        organization_id: string | null;
         integrator_record_id: string;
         phone_normalized: string | null;
         record_at: Date | null;
@@ -326,7 +327,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           const tx = getWebappSqlFromPgClient(client);
           const existing = await runWebappPgText<{
             deleted_at: Date | null;
-            organization_id: string;
+            organization_id: string | null;
           }>(
             `SELECT deleted_at, organization_id
                FROM appointment_records

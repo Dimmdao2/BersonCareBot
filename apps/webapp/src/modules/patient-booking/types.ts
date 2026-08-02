@@ -49,7 +49,8 @@ export type BookingSlotsByDate = {
  */
 export type PatientBookingRecord = {
   id: string;
-  organizationId: string;
+  /** NULL only for retained historical rows with no immutable tenant proof. */
+  organizationId: string | null;
   userId: string | null;
   bookingType: BookingType;
   city: string | null;

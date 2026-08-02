@@ -170,10 +170,10 @@ logins above. `app_worker` is not an evidence actor or fallback capability.
 | --- | --- | --- |
 | S01 | **ACCEPTED AND INTEGRATED 02.08.** Product `86344858e`, independent report `79f3dd0b8`; after building the four workspace packages the same webapp typecheck passed. Merged into `wt/single-entry-integration` and migration `0304` applied on DEV through the unified `0300…0305` ledger. | Removed only `booking_branch_services`, `booking_branches`, `booking_services`, `booking_specialists`, `branches`, their FK/backrefs, `pgBranches` and three DI lines; regenerated grant SQL. |
 | S02 | **ACCEPTED AND INTEGRATED 02.08.** Product `ddab86eda`, audit `cfb813a96`, replay closure `f54468e67`, land `c6b844bbc`; disposable migration replay reached `count=307` twice. | Expanded seams/EXECUTE and operational ACLs in the 29+9 matrix; no final revoke/FORCE. |
-| S03 | **WIP 02.08.** Branch `wt/v9b-s03-booking-ownership`; product base `dd6360e0b`. Postgres suite 6/6 files 17/17 tests (6 migration behavior oracles + 3 writer oracles); unit suite 162/162. Typecheck exit 0 (product code). Forbidden destructive/RLS statements are a one-time diff inspection, not a permanent source-text test (AGENTS.md §24.4). DEV census: 673 rows all `zero_match` — migration aborts on current DEV (expected; NOT NULL and S05b unreachable until authorised reconcile). Independent audit and zero-unresolved reconcile remain before land. Journal entry `0309_v9b_booking_ownership_local` at idx 308 — re-index to 309 after 0308 saas-seat-billing merges. | Nullable `organization_id` on `patient_bookings` and `appointment_records`; deterministic backfill with five-reason abort (`zero_match`, `multiple_match`, `deleted_parent`, `user_mismatch`, `provider_mismatch`); writers thread org through `createPending` and all four native projection writes; staff-delete tombstone persists resolved org; in-memory org-mismatch guard. |
+| S03 | **WIP 02.08.** Branch `wt/v9b-s03-booking-ownership`; product base `dd6360e0b`. Forbidden destructive/RLS statements are a one-time diff inspection, not a permanent source-text test (AGENTS.md §24.4). DEV census: 440 exact canonical parents (343 live, 97 soft-deleted) stamp deterministically; 233 historical rows have no immutable tenant key and remain NULL. Independent audit remains before land. Journal entry `0309_v9b_booking_ownership_local` is idx 309. | Nullable `organization_id` on `patient_bookings` and `appointment_records`; deterministic stamp for exact live/soft-deleted parents, NULL preservation for zero-match history, and transactional abort for ambiguity/mapping-org contradiction, user mismatch, or provider mismatch; writers thread org through `createPending` and all four native projection writes; staff-delete tombstone persists resolved org; existing patient reader provides self-only NULL-org history without canonical navigation. |
 | S04 | S02 seams exist; every named adoption test, including D1 writer test, green. | Caller adoption then one contract migration with final revokes. |
 | S05a | D1 exact capability green + S04 D1 direct grants revoked + direct-deny A1 green. | identity/preferences FORCE. |
-| S05b | S03 backfill zero-unresolved verifier + S04 booking callers green. | booking FORCE. |
+| S05b | S04 booking callers green; policy distinguishes staff non-NULL org scope, patient self-read, and non-NULL writes. | booking FORCE. |
 | S05c | membership/analytics exact seams and A1 direct-deny green. | membership/analytics FORCE. |
 | S06 | all S05 A1 additions ready. | Existing A1 harness only, full table/actor/verb matrix. |
 | S07 | S06 green and explicit authorized TEST action. | Existing TEST deploy contour records the exact same matrix. |
@@ -185,14 +185,19 @@ The bounded S02 artifact `0306_v9b_capability_seams_local.sql` and
 (`ddab86eda` + `cfb813a96` + `f54468e67`) and landed through `c6b844bbc`. It remains expand-only: no caller
 adoption, direct-table revoke, RLS/FORCE, or D1 writer change is claimed here. The next slice is S03.
 
-S03 backfill is transactional and deterministic. It stamps only proven canonical matches; before
-`NOT NULL` it computes reason counts (`zero_match`, `multiple_match`, `deleted_parent`,
-`user_mismatch`, `provider_mismatch`) and **raises an exception that aborts the whole migration** if
-any count is non-zero. No quarantine/audit relation is created; no `patient_bookings`,
-`appointment_records`, pending booking, `be_*` row or canonical record is deleted/denied to fake a
-zero count. `canonicalCreate.ts` must resolve and write the canonical appointment's organization
-before a pending booking insert. `NOT NULL` and S05b are unreachable until an authorised reconcile
-shows every count zero.
+S03 backfill is transactional and deterministic. It stamps only exact canonical matches, including
+soft-deleted canonical parents, and keeps both new `organization_id` columns nullable. A
+`zero_match` has no immutable tenant proof and therefore remains NULL; it is neither guessed,
+deleted nor quarantined. The migration **raises an exception that aborts the whole migration** only
+for `multiple_match` (including mapping-org contradiction), `user_mismatch`, or
+`provider_mismatch`. No `patient_bookings`, `appointment_records`, pending booking, `be_*` row or
+canonical record is deleted/denied to fake a result. `canonicalCreate.ts` resolves and writes the
+canonical appointment's organization before a pending booking insert.
+
+The existing `app.read_current_patient_booking_rows` remains the only patient reader. It keeps the
+canonical tenant checks and lets a signed enrolled patient self-read a NULL-org legacy row without
+canonical navigation/context. S04/S05 are still absent: after S04 adoption/revoke, staff must match
+a non-NULL org, patient access is self-read, and INSERT/UPDATE/DELETE require non-NULL org.
 
 ### S03 execution status — 2026-08-02
 
@@ -201,26 +206,23 @@ writers and behavior oracles). Absence of DELETE/DROP/REVOKE/RLS/FORCE in 0309 i
 one-time diff inspection; a permanent source-text oracle is intentionally not retained.
 
 **Test evidence:**
-- `bookingOwnershipMigration.postgres.integration.test.ts` — 6/6 behavior oracles: (1) stamps exact
-  native+external-key matches, reaches NOT NULL, reruns idempotently; (2) zero_match rolls back;
-  (3) multiple_match; (4) deleted_parent; (5) user_mismatch; (6) provider_mismatch.
+- `bookingOwnershipMigration.postgres.integration.test.ts` — behavior oracles stamp exact live and
+  soft-deleted parents, preserve zero-match rows as NULL, abort ambiguity/user/provider mismatch,
+  rerun idempotently, and prove self-only NULL-org history at the existing reader seam.
 - `bookingOwnershipWriters.postgres.integration.test.ts` — 3/3: createPending persists org, upsert
   conflict rejects org change, staff-delete tombstone writes org.
-- Full postgres suite: 6/6 files, 17/17 tests. Migration runs to `count=309` in globalSetup.
-- Unit suite: 162/162. Typecheck: exit 0 (product code).
+- Full disposable PostgreSQL suite: 6/6 files, 17/17 tests; migration replay reached `count=310`.
+  No DEV/TEST migration was applied.
 
-**DEV census (read-only, 2026-08-02):**
-```
--- classification query against DEV DATABASE_URL (sourced from apps/webapp/.env.dev)
--- result: 673 rows total (263 patient_bookings + 410 appointment_records), all zero_match
--- breakdown: 219 bookings NULL canonical_appointment_id; 44 canonical to deleted be_appointments;
---   408 records non-native (no be: prefix); 2 native but orphaned parent
-```
-Migration would abort on current DEV with `zero_match=673` — expected per spec.
+**DEV census (read-only, 2026-08-02):** 27 live + 17 soft-deleted exact parents in
+`patient_bookings`, 316 live + 80 soft-deleted exact parents in `appointment_records`, and 233
+rows without an immutable tenant key. All 440 exact-parent rows are stamped; the 233 unresolved
+historical rows remain NULL. See `V9B_S03_DEV_BOOKING_OWNERSHIP_CENSUS_AUDIT.md`.
 
 **NOT done (pre-land gates):**
 - Independent adversarial audit of migration SQL and writer code.
-- Zero-unresolved reconcile: an authorised backfill pass on DEV/TEST showing every count zero.
+- S04/S05 adoption, revoke and enforcement (out of S03 scope); historical NULL rows are not
+  reconciled by inference.
 - S04 caller conversion (out of S03 scope).
 - Journal re-ordering: entry `0309_v9b_booking_ownership_local` is at idx 308; when
   `wt/saas-seat-billing` (0308) merges first, update idx to 309 and `when` timestamp.

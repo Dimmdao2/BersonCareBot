@@ -762,7 +762,7 @@ export const appointmentRecords = pgTable(
   'appointment_records',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id').notNull(),
+    organizationId: uuid('organization_id'),
     integratorRecordId: text('integrator_record_id').notNull(),
     phoneNormalized: text('phone_normalized'),
     recordAt: timestamp('record_at', { withTimezone: true, mode: 'string' }),
@@ -2619,7 +2619,7 @@ export const patientBookings = pgTable(
   'patient_bookings',
   {
     id: uuid().primaryKey().notNull(),
-    organizationId: uuid('organization_id').notNull(),
+    organizationId: uuid('organization_id'),
     platformUserId: uuid('platform_user_id'),
     bookingType: text('booking_type').notNull(),
     city: text(),

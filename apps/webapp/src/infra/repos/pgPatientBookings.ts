@@ -14,7 +14,7 @@ import type {
 
 type Row = {
   id: string;
-  organization_id: string;
+  organization_id: string | null;
   platform_user_id: string | null;
   booking_type: string;
   city: string | null;
