@@ -1,14 +1,13 @@
 import type { DispatchPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { getMaxBotInfo } from '../integrations/max/client.js';
-import { maxConfig } from '../integrations/max/config.js';
+import { getMaxRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
 import { probeGoogleCalendarAccess } from '../integrations/google-calendar/probe.js';
 import {
   getGoogleCalendarConfig,
   listGoogleCalendarProbeOrganizationIds,
 } from '../integrations/google-calendar/runtimeConfig.js';
 import { getBotInstance } from '../integrations/telegram/client.js';
-import { telegramConfig } from '../integrations/telegram/config.js';
 import { reportOperatorFailure } from '../infra/operatorIncident/reportOperatorFailure.js';
 import {
   recordOperatorOutboundProbeRun,
@@ -100,9 +99,10 @@ export async function runOperatorHealthProbes(input: {
   let telegram: ProbeOutcome = 'skipped_not_configured';
   let google_calendar: ProbeOutcome = 'skipped_not_configured';
 
-  if (shouldProbe('max') && maxConfig.enabled && maxConfig.apiKey.trim().length > 0) {
+  const maxRuntimeConfig = shouldProbe('max') ? await getMaxRuntimeConfig() : null;
+  if (shouldProbe('max') && maxRuntimeConfig?.enabled) {
     const info = await withProbeTimeout(
-      getMaxBotInfo({ apiKey: maxConfig.apiKey }),
+      getMaxBotInfo({ apiKey: maxRuntimeConfig.apiKey, baseUrl: maxRuntimeConfig.baseUrl }),
       config.max.timeoutMs,
     ).catch(() => null);
     if (info === null) {
@@ -118,9 +118,10 @@ export async function runOperatorHealthProbes(input: {
     details.max = 'skipped_not_configured';
   }
 
-  if (shouldProbe('telegram') && telegramConfig.botToken.trim().length > 0) {
+  const telegramRuntimeConfig = shouldProbe('telegram') ? await getTelegramRuntimeConfig() : null;
+  if (shouldProbe('telegram') && telegramRuntimeConfig?.enabled) {
     try {
-      await withProbeTimeout(getBotInstance().api.getMe(), config.telegram.timeoutMs);
+      await withProbeTimeout((await getBotInstance()).api.getMe(), config.telegram.timeoutMs);
       telegram = 'ok';
       details.telegram = 'ok';
       const n = await resolveOpenOperatorIncidentsByDedupKeyPrefix('outbound:telegram:');

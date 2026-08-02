@@ -9,7 +9,6 @@ import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
 import type {
   TodayDashboardData,
-  TodayIntakeItem,
   TodayUnreadConversationItem,
   TodayExerciseCommentAttentionItem,
 } from './loadDoctorTodayDashboard';
@@ -18,7 +17,6 @@ import { routePaths } from '@/app-layer/routes/paths';
 
 type Props = Pick<
   TodayDashboardData,
-  | 'newIntakeRequests'
   | 'unreadConversations'
   | 'unreadTotal'
   | 'pendingProgramTests'
@@ -27,7 +25,6 @@ type Props = Pick<
   | 'exerciseCommentAttentionTotal'
   | 'exerciseCommentAttentionTruncated'
 > & {
-  intakeCount: number;
   pendingTestsTotal: number;
   /**
    * SEG-07: Переопределяет локальный счётчик комментариев.
@@ -37,29 +34,7 @@ type Props = Pick<
   exerciseCommentsTotalOverride?: number;
 };
 
-type KpiModal = 'messages' | 'comments' | 'intake' | 'tests' | null;
-
-function IntakeModalItem({ item }: { item: TodayIntakeItem }) {
-  return (
-    <div className={doctorSectionItemClass}>
-      <p className="font-medium text-foreground">{item.patientName}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">Тел.: {item.patientPhone}</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {item.typeLabel} · {item.createdAtLabel}
-      </p>
-      {item.summaryPreview ? (
-        <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
-          {item.summaryPreview}
-        </p>
-      ) : null}
-      <p className="mt-2">
-        <Link href={item.href} className={doctorInlineLinkClass}>
-          Открыть заявку
-        </Link>
-      </p>
-    </div>
-  );
-}
+type KpiModal = 'messages' | 'comments' | 'tests' | null;
 
 function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationItem }) {
   return (
@@ -117,9 +92,7 @@ function ExerciseCommentModalItem({ item }: { item: TodayExerciseCommentAttentio
 }
 
 export function DoctorTodayLeftKpiRow({
-  intakeCount,
   pendingTestsTotal,
-  newIntakeRequests,
   unreadConversations,
   unreadTotal,
   pendingProgramTests,
@@ -140,7 +113,7 @@ export function DoctorTodayLeftKpiRow({
       <DoctorMetricList
         id="doctor-today-left-kpi"
         aria-label="Входящий поток"
-        className="grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4"
+        className="grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3"
       >
         {/* Сообщения → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
@@ -159,15 +132,6 @@ export function DoctorTodayLeftKpiRow({
           tooltip="Новые комментарии клиентов к упражнениям."
           tone={displayTotal > 0 ? 'warning' : 'neutral'}
           onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
-        />
-        {/* Онлайн-заявки → KpiPreviewModal (S2.8) */}
-        <DoctorStatCard
-          id="doctor-today-left-kpi-intake"
-          title="Заявки"
-          value={intakeCount}
-          tooltip="Новые заявки на консультацию."
-          tone={intakeCount > 0 ? 'warning' : 'neutral'}
-          onClick={intakeCount > 0 ? () => setKpiModal('intake') : undefined}
         />
         {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
@@ -191,24 +155,6 @@ export function DoctorTodayLeftKpiRow({
         emptyState={
           <p className="py-4 text-center text-sm text-muted-foreground">
             Нет новых комментариев по упражнениям
-          </p>
-        }
-      />
-
-      {/* KpiPreviewModal: Заявки */}
-      <KpiPreviewModal<TodayIntakeItem>
-        open={kpiModal === 'intake'}
-        onClose={() => setKpiModal(null)}
-        title="Заявки"
-        count={intakeCount}
-        items={newIntakeRequests}
-        renderItem={(item) => <IntakeModalItem item={item} />}
-        emptyState={
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Новых заявок нет.{' '}
-            <Link href="/app/doctor/online-intake" className={doctorInlineLinkClass}>
-              Все заявки
-            </Link>
           </p>
         }
       />

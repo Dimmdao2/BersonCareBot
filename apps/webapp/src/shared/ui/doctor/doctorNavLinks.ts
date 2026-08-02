@@ -18,7 +18,6 @@ export const DOCTOR_MENU_DEFAULT_CLUSTER_ID = 'library';
 
 /** Ключ счётчика для бейджа пункта меню врача (навигация). */
 export type DoctorMenuBadgeKey =
-  | 'onlineIntakeNew'
   | 'messagesUnread'
   | 'registrationSystemFailures'
   | 'pendingProgramTests'

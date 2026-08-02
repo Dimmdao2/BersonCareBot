@@ -40,7 +40,7 @@ export type ExecutorDeps = {
   contentCatalogPort?: ContentCatalogPort | null;
   protectedAccessPort?: ProtectedAccessPort | null;
   /** When true, attach main reply keyboard (from replyMenu.json) to user `message.send` / `message.compose` only if `ctx.base.linkedPhone === true`. */
-  sendMenuOnButtonPress?: boolean;
+  isTelegramMenuOnButtonPress?: () => Promise<boolean>;
   contentPort?: ContentPort;
   /** Policy for support relay message types. When set, relay checks allowed types and uses copyMessage where applicable. */
   supportRelayPolicy?: SupportRelayPolicy | null;

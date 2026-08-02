@@ -1,6 +1,4 @@
-import { smscConfig } from '../../integrations/smsc/config.js';
-import { getSmscApiKey } from '../../integrations/smsc/runtimeConfig.js';
-import { createDbPort } from '../db/client.js';
+import { getSmscRuntimeConfig } from '../adapters/integrationRuntimeConfig.js';
 
 type BalanceResponse = {
   balance?: string | number;
@@ -51,12 +49,12 @@ async function requestJson<T>(url: string): Promise<T> {
 
 async function main(): Promise<void> {
   const { phone, message } = parseArgs(process.argv.slice(2));
-  const apiKey = await getSmscApiKey(createDbPort());
-  if (!apiKey) {
+  const runtimeConfig = await getSmscRuntimeConfig();
+  if (!runtimeConfig.enabled) {
     throw new Error('smsc api key missing');
   }
   const common = new URLSearchParams({
-    apikey: apiKey,
+    apikey: runtimeConfig.apiKey,
     fmt: '3',
     charset: 'utf-8',
   });
@@ -82,7 +80,7 @@ async function main(): Promise<void> {
     mes: message,
     cost: '1',
   });
-  const costUrl = `${smscConfig.baseUrl}?${costParams.toString()}`;
+  const costUrl = `${runtimeConfig.baseUrl}?${costParams.toString()}`;
   const costResponse = await requestJson<CostResponse>(costUrl);
   if (costResponse.error || typeof costResponse.error_code === 'number') {
     throw new Error(formatProviderError(costResponse));

@@ -7,6 +7,7 @@ import {
 import type { IntegratorLinkedPhoneSource } from './AdminSettingsSection';
 import type { VideoDefaultDeliveryUi } from './VideoSystemSettingsSection';
 import type { EmailSmtpSectionProps } from './EmailSmtpSection';
+import type { AuthProvidersSectionProps } from './AuthProvidersSection';
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -74,6 +75,53 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
     return (valueJson as Record<string, unknown>).value as T;
   }
   return fallback;
+}
+
+function buildAuthProvidersConfig(
+  adminSettingsList: Array<{ key: string; valueJson: unknown }>,
+): AuthProvidersSectionProps {
+  function adminStr(key: string): string {
+    const raw = getValueJson(adminSettingsList.find((x) => x.key === key)?.valueJson, '');
+    return typeof raw === 'string' ? raw.trim() : '';
+  }
+
+  return {
+    telegramLoginBotUsername: adminStr('telegram_login_bot_username'),
+    maxLoginBotNickname: adminStr('max_login_bot_nickname'),
+    maxBotApiKey: adminStr('max_bot_api_key'),
+    vkWebLoginUrl: adminStr('vk_web_login_url'),
+    vkIdApplicationId: adminStr('vk_id_application_id'),
+    vkIdHasStoredClientSecret: (() => {
+      const raw = getValueJson<unknown>(
+        adminSettingsList.find((x) => x.key === 'vk_id_client_secret')?.valueJson,
+        null,
+      );
+      return (
+        raw !== null &&
+        typeof raw === 'object' &&
+        (raw as Record<string, unknown>).hasStoredSecret === true
+      );
+    })(),
+    vkIdRedirectUri: adminStr('vk_id_redirect_uri'),
+    yandexOauthClientId: adminStr('yandex_oauth_client_id'),
+    yandexOauthClientSecret: adminStr('yandex_oauth_client_secret'),
+    yandexOauthRedirectUri: adminStr('yandex_oauth_redirect_uri'),
+    googleClientId: adminStr('google_client_id'),
+    googleClientSecret: adminStr('google_client_secret'),
+    googleOauthLoginRedirectUri: adminStr('google_oauth_login_redirect_uri'),
+    googleCalendarRedirectUri: adminStr('google_redirect_uri'),
+    appleOauthClientId: adminStr('apple_oauth_client_id'),
+    appleOauthTeamId: adminStr('apple_oauth_team_id'),
+    appleOauthKeyId: adminStr('apple_oauth_key_id'),
+    appleOauthPrivateKey: adminStr('apple_oauth_private_key'),
+    appleOauthRedirectUri: adminStr('apple_oauth_redirect_uri'),
+  };
+}
+
+/** The auth page reads only its own settings; unrelated technical rows must not take it down. */
+export async function loadAuthProvidersConfig(): Promise<AuthProvidersSectionProps> {
+  const rawAdminSettingsList = await buildAppDeps().systemSettings.listSettingsByScope('admin');
+  return buildAuthProvidersConfig(redactAdminSettingsForClient(rawAdminSettingsList));
 }
 
 function parseVideoBoolSetting(valueJson: unknown): boolean {
@@ -189,27 +237,7 @@ export type AdminSettingsPageData = {
     supportContactUrl: string;
     appDisplayTimezone: string;
   };
-  authProvidersConfig: {
-    telegramLoginBotUsername: string;
-    maxLoginBotNickname: string;
-    maxBotApiKey: string;
-    vkWebLoginUrl: string;
-    vkIdApplicationId: string;
-    vkIdHasStoredClientSecret: boolean;
-    vkIdRedirectUri: string;
-    yandexOauthClientId: string;
-    yandexOauthClientSecret: string;
-    yandexOauthRedirectUri: string;
-    googleClientId: string;
-    googleClientSecret: string;
-    googleOauthLoginRedirectUri: string;
-    googleCalendarRedirectUri: string;
-    appleOauthClientId: string;
-    appleOauthTeamId: string;
-    appleOauthKeyId: string;
-    appleOauthPrivateKey: string;
-    appleOauthRedirectUri: string;
-  };
+  authProvidersConfig: AuthProvidersSectionProps;
   googleCalendarConfig: {
     googleClientId: string;
     googleClientSecret: string;
@@ -410,79 +438,7 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
         return typeof raw === 'string' ? raw.trim() : '';
       })(),
     },
-    authProvidersConfig: {
-      telegramLoginBotUsername: (() => {
-        const raw = getValueJson(
-          adminSettingsList.find((x) => x.key === 'telegram_login_bot_username')?.valueJson,
-          '',
-        );
-        return typeof raw === 'string' ? raw.trim() : '';
-      })(),
-      maxLoginBotNickname: (() => {
-        const raw = getValueJson(
-          adminSettingsList.find((x) => x.key === 'max_login_bot_nickname')?.valueJson,
-          '',
-        );
-        return typeof raw === 'string' ? raw.trim() : '';
-      })(),
-      maxBotApiKey: (() => {
-        const raw = getValueJson(
-          adminSettingsList.find((x) => x.key === 'max_bot_api_key')?.valueJson,
-          '',
-        );
-        return typeof raw === 'string' ? raw.trim() : '';
-      })(),
-      vkWebLoginUrl: (() => {
-        const raw = getValueJson(
-          adminSettingsList.find((x) => x.key === 'vk_web_login_url')?.valueJson,
-          '',
-        );
-        return typeof raw === 'string' ? raw.trim() : '';
-      })(),
-      vkIdApplicationId: adminStr('vk_id_application_id'),
-      vkIdHasStoredClientSecret: (() => {
-        const raw = getValueJson<unknown>(
-          adminSettingsList.find((x) => x.key === 'vk_id_client_secret')?.valueJson,
-          null,
-        );
-        return (
-          raw !== null &&
-          typeof raw === 'object' &&
-          (raw as Record<string, unknown>).hasStoredSecret === true
-        );
-      })(),
-      vkIdRedirectUri: adminStr('vk_id_redirect_uri'),
-      yandexOauthClientId: (() => {
-        const raw = getValueJson(
-          adminSettingsList.find((x) => x.key === 'yandex_oauth_client_id')?.valueJson,
-          '',
-        );
-        return typeof raw === 'string' ? raw.trim() : '';
-      })(),
-      yandexOauthClientSecret: (() => {
-        const raw = getValueJson(
-          adminSettingsList.find((x) => x.key === 'yandex_oauth_client_secret')?.valueJson,
-          '',
-        );
-        return typeof raw === 'string' ? raw.trim() : '';
-      })(),
-      yandexOauthRedirectUri: (() => {
-        const raw = getValueJson(
-          adminSettingsList.find((x) => x.key === 'yandex_oauth_redirect_uri')?.valueJson,
-          '',
-        );
-        return typeof raw === 'string' ? raw.trim() : '';
-      })(),
-      googleClientId: adminStr('google_client_id'),
-      googleClientSecret: adminStr('google_client_secret'),
-      googleOauthLoginRedirectUri: adminStr('google_oauth_login_redirect_uri'),
-      googleCalendarRedirectUri: adminStr('google_redirect_uri'),
-      appleOauthClientId: adminStr('apple_oauth_client_id'),
-      appleOauthTeamId: adminStr('apple_oauth_team_id'),
-      appleOauthKeyId: adminStr('apple_oauth_key_id'),
-      appleOauthPrivateKey: adminStr('apple_oauth_private_key'),
-      appleOauthRedirectUri: adminStr('apple_oauth_redirect_uri'),
-    },
+    authProvidersConfig: buildAuthProvidersConfig(adminSettingsList),
     googleCalendarConfig: {
       googleClientId: adminStr('google_client_id'),
       googleClientSecret: adminStr('google_client_secret'),

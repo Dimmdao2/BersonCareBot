@@ -6,7 +6,14 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import {
+  getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import {
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
@@ -35,6 +42,10 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const workspace = await requireDoctorWorkspaceContext();
   const session = workspace.session;
   const deps = buildAppDeps();
+  const membershipAccess = await getMechanicSurfaceVisibility(workspace, 'subscriptions');
+  const membershipMutation = membershipAccess.specialistNavigation
+    ? await getMechanicMutationAvailability(workspace, 'subscriptions')
+    : { available: false as const };
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
     userId,
     workspace.organizationId,
@@ -44,6 +55,12 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   }
   const patientUserId = identity.userId;
 
+  const [specialistTasksAvailability, specialistTasksRead] = await Promise.all([
+    getMechanicMutationAvailability(workspace, 'specialist_tasks'),
+    requireEntitlementForReadAction(workspace, 'specialist_tasks'),
+  ]);
+  const specialistTasksAvailable = specialistTasksAvailability.available;
+  const specialistTasksReadable = specialistTasksRead.ok;
   const [
     cardHeaderPromise,
     clinicalState,
@@ -66,7 +83,9 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     ),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId)),
     deps.doctorNotes.listForUser(patientUserId),
-    deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false),
+    specialistTasksReadable
+      ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
+      : Promise.resolve([]),
     loadDoctorPatientProgramActivity(
       { programItemDiscussion: deps.programItemDiscussion },
       {
@@ -248,6 +267,8 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialVisits={visits}
           initialNotes={notes}
           initialTasks={tasks}
+          specialistTasksAvailable={specialistTasksAvailable}
+          specialistTasksReadable={specialistTasksReadable}
           initialProgramActivity={programActivity}
           initialAppointments={appointments}
           initialProgramInstances={programInstances}
@@ -257,6 +278,8 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialFinancesData={initialFinancesData}
           initialSupplementaryContacts={initialSupplementaryContacts}
           initialPackages={initialPackagesForTabs}
+          membershipsVisible
+          membershipMutationsAllowed={membershipMutation.available}
           initialPaymentsSummary={initialPaymentsSummary}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
           initialPortalState={portalState}

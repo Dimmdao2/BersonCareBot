@@ -251,6 +251,7 @@ import { inMemoryDoctorNotesPort } from '@/infra/repos/inMemoryDoctorNotes';
 import {
   createPgSystemSettingsPort,
   createPgSystemSettingsWriteUnitOfWork,
+  readSaasBillingPaymentProviderValue,
 } from '@/infra/repos/pgSystemSettings';
 import { inMemorySystemSettingsPort } from '@/infra/repos/inMemorySystemSettings';
 import { createSystemSettingsService } from '@/modules/system-settings/service';
@@ -356,7 +357,7 @@ import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitl
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
 import {
   createPlatformEntitlementsService,
-  isMechanicEnabled,
+  resolveMechanicAccess,
 } from '@/modules/org-entitlements/service';
 import { createPgOrgBrandingPort } from '@/infra/repos/pgOrgBranding';
 import { createInMemoryOrgBrandingPort } from '@/infra/repos/inMemoryOrgBranding';
@@ -574,8 +575,8 @@ const orgEntitlementsPort = !inMemoryRepos
  */
 const orgBrandingService = createOrgBrandingService({
   port: !inMemoryRepos ? createPgOrgBrandingPort() : createInMemoryOrgBrandingPort(),
-  isBrandingMechanicEnabled: (organizationId: string) =>
-    isMechanicEnabled(orgEntitlementsPort, organizationId, 'branding'),
+  resolveBrandingAccess: (organizationId: string) =>
+    resolveMechanicAccess(orgEntitlementsPort, organizationId, 'branding'),
 });
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
@@ -746,9 +747,11 @@ const saasBillingService = createSaasBillingService({
   repository: saasBillingRepository,
   settings: {
     getSaasBillingPaymentProviderValue: () =>
-      systemSettingsService
-        .getSetting('saas_billing_payment_provider', 'admin')
-        .then((row) => row?.valueJson ?? null),
+      inMemoryRepos
+        ? systemSettingsService
+            .getSetting('saas_billing_payment_provider', 'admin')
+            .then((row) => row?.valueJson ?? null)
+        : readSaasBillingPaymentProviderValue(),
   },
   resolvePaymentProvider: getPaymentProviderAdapter,
   getTariffTransition: (organizationId, tariffId) =>

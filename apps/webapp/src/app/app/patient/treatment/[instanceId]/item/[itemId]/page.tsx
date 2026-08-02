@@ -27,6 +27,7 @@ import { PatientProgramStageItemPageClient } from '@/app/app/patient/treatment/P
 import type { PatientTestSetPageServerSnapshot } from '@/modules/treatment-program/progress-service';
 import { testTitleFromTestSetSnapshot } from '@/app/app/patient/treatment/stageItemSnapshot';
 import { loadPatientProgramInteractionBundle } from '@/app/app/patient/treatment/loadPatientProgramInteractionBundle';
+import { getMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
 
 type Props = {
   params: Promise<{ instanceId: string; itemId: string }>;
@@ -104,6 +105,10 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
     detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
     const organizationId = detail.organizationId?.trim();
     if (!organizationId) notFound();
+    if (detail.assignmentSource === 'promo') {
+      const promoVisibility = await getMechanicSurfaceVisibility({ organizationId }, 'promo');
+      if (!promoVisibility.directUrl) notFound();
+    }
     const [cooldown, interaction] = await Promise.all([
       deps.runtimeConfig.getInteger('patient_treatment_plan_item_done_repeat_cooldown_minutes', {
         patientUserId: session.user.userId,

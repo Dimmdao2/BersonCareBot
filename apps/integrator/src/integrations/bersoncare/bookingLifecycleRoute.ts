@@ -7,6 +7,7 @@ import { cancelPendingBookingReminderJobsByBookingId } from '../../infra/db/repo
 import { createPostgresJobQueue } from '../../infra/adapters/jobQueuePort.js';
 import { appSettings } from '../../config/appSettings.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
+import { loadAdminMessengerIdLists } from '../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 import type {
   DbWritePort,
@@ -16,8 +17,6 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { getAppDisplayTimezone } from '../../config/appTimezone.js';
 import { maxUserRecipient } from '../max/maxRecipient.js';
-import { telegramConfig } from '../telegram/config.js';
-import { maxConfig } from '../max/config.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
 import {
   syncCanonicalAppointmentToCalendar,
@@ -239,37 +238,19 @@ async function sendDoctorMessage(
   text: string,
   eventId: string,
 ): Promise<void> {
-  if (
-    typeof telegramConfig.adminTelegramId === 'number' &&
-    Number.isFinite(telegramConfig.adminTelegramId)
-  ) {
+  const recipients = await loadAdminMessengerIdLists(createDbPort());
+  for (const chatId of recipients.telegram) {
     await dispatchPort.dispatchOutgoing({
       type: 'message.send',
-      meta: {
-        eventId: `${eventId}:doctor:telegram`,
-        occurredAt: new Date().toISOString(),
-        source: 'telegram',
-      },
-      payload: {
-        recipient: { chatId: telegramConfig.adminTelegramId },
-        message: { text },
-        delivery: { channels: ['telegram'], maxAttempts: 3 },
-      },
+      meta: { eventId: `${eventId}:doctor:telegram:${chatId}`, occurredAt: new Date().toISOString(), source: 'telegram' },
+      payload: { recipient: { chatId }, message: { text }, delivery: { channels: ['telegram'], maxAttempts: 3 } },
     });
   }
-  if (typeof maxConfig.adminChatId === 'number' && Number.isFinite(maxConfig.adminChatId)) {
+  for (const userId of recipients.max) {
     await dispatchPort.dispatchOutgoing({
       type: 'message.send',
-      meta: {
-        eventId: `${eventId}:doctor:max`,
-        occurredAt: new Date().toISOString(),
-        source: 'max',
-      },
-      payload: {
-        recipient: { chatId: maxConfig.adminChatId },
-        message: { text },
-        delivery: { channels: ['max'], maxAttempts: 3 },
-      },
+      meta: { eventId: `${eventId}:doctor:max:${userId}`, occurredAt: new Date().toISOString(), source: 'max' },
+      payload: { recipient: maxUserRecipient(userId), message: { text }, delivery: { channels: ['max'], maxAttempts: 3 } },
     });
   }
 }

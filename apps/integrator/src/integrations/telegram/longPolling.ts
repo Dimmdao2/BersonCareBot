@@ -7,14 +7,13 @@
  * webhook uses (`processTelegramUpdate`).
  *
  * Safety:
- * - Never calls setWebhook. Calls deleteWebhook ONLY when
- *   `telegramConfig.deleteWebhookOnStart` is true (host owns the bot at cutover).
+ * - Never calls setWebhook. Calls deleteWebhook only for the deployment cutover switch.
  * - Fully NON-FATAL: any Telegram / getUpdates error logs + backs off; the API
  *   process stays up (webapp / M2M unaffected). A 409 (a webhook is still set for
  *   this token) is surfaced clearly and retried — it never crashes the process.
  */
 import { getBotInstance } from './client.js';
-import { telegramConfig } from './config.js';
+import { env } from '../../config/env.js';
 import { parseWebhookBody } from './schema.js';
 import { processTelegramUpdate, type TelegramWebhookDeps } from './webhook.js';
 import { setupTelegramMenuButton } from './setupMenuButton.js';
@@ -54,9 +53,15 @@ async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
   // Menu button / commands — best-effort, non-blocking (already non-fatal internally).
   void setupTelegramMenuButton();
 
-  const bot = getBotInstance();
+  let bot;
+  try {
+    bot = await getBotInstance();
+  } catch {
+    logger.warn('Telegram long-polling: runtime configuration unavailable; runner stopped');
+    return;
+  }
 
-  if (telegramConfig.deleteWebhookOnStart) {
+  if (env.TELEGRAM_DELETE_WEBHOOK_ON_START) {
     try {
       await bot.api.deleteWebhook();
       logger.info('Telegram long-polling: deleteWebhook ok (this host owns the bot)');

@@ -538,10 +538,13 @@ type Props = {
   initialAppointments?: PatientAppointmentItem[] | null;
   /** SSR-provided patient packages. When present, skips the client-side fetch. */
   initialPackages?: PackageItem[] | null;
+  membershipsVisible?: boolean;
   /** SSR-provided effective support policy. Passed to DoctorClientSupportPanel to skip its fetch. */
   initialSupportEffectivePolicy?:
     | import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy
     | null;
+  specialistTasksAvailable: boolean;
+  specialistTasksReadable: boolean;
 };
 
 /** Derive SSR-seeded OverviewData fields from initial props (all client-fetch-only fields start at loading). */
@@ -635,7 +638,10 @@ export function PatientTabOverview({
   initialProgramActivity,
   initialAppointments,
   initialPackages,
+  membershipsVisible = true,
   initialSupportEffectivePolicy,
+  specialistTasksAvailable,
+  specialistTasksReadable,
 }: Props) {
   const [calView, setCalView] = useState<'month' | 'week'>('month');
   // Calendar month navigation — starts at current month, cannot go into future
@@ -723,6 +729,7 @@ export function PatientTabOverview({
   }, [userId, calYear, calMonth]);
 
   useEffect(() => {
+    if (!membershipsVisible) return;
     let active = true;
     const loadPackages = () => {
       fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
@@ -751,14 +758,16 @@ export function PatientTabOverview({
       active = false;
       window.removeEventListener('patient:packages-changed', loadPackages);
     };
-  }, [userId]);
+  }, [userId, membershipsVisible]);
 
   useEffect(() => {
     let active = true;
 
     // patient-packages: skip when SSR data provided
     const fetchPackages =
-      initialPackages != null
+      !membershipsVisible
+        ? Promise.resolve(null)
+        : initialPackages != null
         ? Promise.resolve({ ok: true, packages: initialPackages } as PackagesApiResponse)
         : fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
             credentials: 'include',
@@ -804,7 +813,7 @@ export function PatientTabOverview({
             .catch(() => null);
 
     const fetchTasks =
-      hasSsrData && ssrSeedRef.current === userId
+      !specialistTasksReadable || (hasSsrData && ssrSeedRef.current === userId)
         ? Promise.resolve(null as TasksApiResponse | null)
         : fetch(`/api/doctor/clients/${userId}/tasks`, { credentials: 'include' })
             .then((r) => (r.ok ? (r.json() as Promise<TasksApiResponse>) : null))
@@ -1029,7 +1038,7 @@ export function PatientTabOverview({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, membershipsVisible]);
 
   const isStale = loadedUserId !== userId;
   const isLoading = isStale || data === null;
@@ -1153,33 +1162,34 @@ export function PatientTabOverview({
                 : 'нет предстоящих записей'
             }
           />
-          {/* Абонемент KPI */}
-          <KpiCard
-            label="Абонемент"
-            loading={isLoading}
-            value={
-              data?.packageStatus === 'empty' || !data?.activePackage
-                ? '—'
-                : (() => {
-                    const activePackages =
-                      data.activePackages.length > 0 ? data.activePackages : [data.activePackage];
-                    const totals = activePackages.map(summarizePackageBalance);
-                    const remaining = totals.every((total) => total.remaining != null)
-                      ? totals.reduce((sum, total) => sum + (total.remaining ?? 0), 0)
-                      : null;
-                    return remaining == null
-                      ? 'Осталось — визитов:'
-                      : `Осталось ${remaining} визитов:`;
-                  })()
-            }
-            hint={
-              data?.packageStatus === 'empty'
-                ? 'абонемент не активен'
-                : (data?.activePackages ?? []).length > 0
-                  ? (data?.activePackages ?? []).map(formatOverviewPackageSummary).join(', ')
-                  : 'осталось занятий'
-            }
-          />
+          {membershipsVisible ? (
+            <KpiCard
+              label="Абонемент"
+              loading={isLoading}
+              value={
+                data?.packageStatus === 'empty' || !data?.activePackage
+                  ? '—'
+                  : (() => {
+                      const activePackages =
+                        data.activePackages.length > 0 ? data.activePackages : [data.activePackage];
+                      const totals = activePackages.map(summarizePackageBalance);
+                      const remaining = totals.every((total) => total.remaining != null)
+                        ? totals.reduce((sum, total) => sum + (total.remaining ?? 0), 0)
+                        : null;
+                      return remaining == null
+                        ? 'Осталось — визитов:'
+                        : `Осталось ${remaining} визитов:`;
+                    })()
+              }
+              hint={
+                data?.packageStatus === 'empty'
+                  ? 'абонемент не активен'
+                  : (data?.activePackages ?? []).length > 0
+                    ? (data?.activePackages ?? []).map(formatOverviewPackageSummary).join(', ')
+                    : 'осталось занятий'
+              }
+            />
+          ) : null}
         </div>
 
 
@@ -1499,100 +1509,104 @@ export function PatientTabOverview({
         </div>
 
         {/* Задачи */}
-        <div className={doctorSectionCardClass}>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={doctorSectionTitleClass}>Задачи</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Добавить задачу"
-              onClick={() => {
-                setAddingTask(true);
-                setTaskTitle('');
-              }}
-              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
-            >
-              +
-            </Button>
-          </div>
-
-          {addingTask && (
-            <div className="flex flex-col gap-1.5 mb-2">
-              <Input
-                autoFocus
-                type="text"
-                value={taskTitle}
-                onChange={(e) => setTaskTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    void handleTaskSubmit();
-                  }
-                }}
-                placeholder="Название задачи…"
-                className="w-full text-xs"
-              />
-              <div className="flex gap-1.5">
+        {specialistTasksReadable ? (
+          <div className={doctorSectionCardClass}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className={doctorSectionTitleClass}>Задачи</span>
+              {specialistTasksAvailable ? (
                 <Button
-                  variant="default"
-                  onClick={() => void handleTaskSubmit()}
-                  disabled={taskSaving || !taskTitle.trim()}
-                  className="h-auto rounded-md px-3 py-1 text-xs font-medium"
-                >
-                  {taskSaving ? 'Сохранение…' : 'Добавить'}
-                </Button>
-                <Button
-                  variant="outline"
+                  variant="ghost"
+                  size="icon"
+                  title="Добавить задачу"
                   onClick={() => {
-                    setAddingTask(false);
+                    setAddingTask(true);
                     setTaskTitle('');
                   }}
-                  className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+                  className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
                 >
-                  Отмена
+                  +
                 </Button>
-              </div>
+              ) : null}
             </div>
-          )}
 
-          {isLoading && (
-            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка задач…</p>
-          )}
-          {!isLoading && data?.tasksStatus === 'error' && (
-            <p className="text-xs text-destructive py-1">Не удалось загрузить задачи.</p>
-          )}
-          {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length === 0 && !addingTask && (
-            <p className="text-xs text-muted-foreground py-2">Задач нет.</p>
-          )}
-          {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {data.tasks.map((task) => {
-                const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
-                return (
-                  <div
-                    key={task.id}
-                    className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
+            {addingTask && (
+              <div className="flex flex-col gap-1.5 mb-2">
+                <Input
+                  autoFocus
+                  type="text"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      void handleTaskSubmit();
+                    }
+                  }}
+                  placeholder="Название задачи…"
+                  className="w-full text-xs"
+                />
+                <div className="flex gap-1.5">
+                  <Button
+                    variant="default"
+                    onClick={() => void handleTaskSubmit()}
+                    disabled={taskSaving || !taskTitle.trim()}
+                    className="h-auto rounded-md px-3 py-1 text-xs font-medium"
                   >
-                    <span className="flex-none text-base">☐</span>
-                    {task.isImportant && (
-                      <span className="flex-none text-destructive text-xs">!</span>
-                    )}
-                    <span className="flex-1 text-xs text-foreground">{task.title}</span>
-                    {task.dueAt && (
-                      <span
-                        className={cn(
-                          'text-[11px] font-medium flex-none',
-                          isOverdue ? 'text-destructive font-semibold' : 'text-muted-foreground',
-                        )}
-                      >
-                        до {fmtDateShort(task.dueAt)}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                    {taskSaving ? 'Сохранение…' : 'Добавить'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setAddingTask(false);
+                      setTaskTitle('');
+                    }}
+                    className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+                  >
+                    Отмена
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {isLoading && (
+              <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка задач…</p>
+            )}
+            {!isLoading && data?.tasksStatus === 'error' && (
+              <p className="text-xs text-destructive py-1">Не удалось загрузить задачи.</p>
+            )}
+            {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length === 0 && !addingTask && (
+              <p className="text-xs text-muted-foreground py-2">Задач нет.</p>
+            )}
+            {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length > 0 && (
+              <div className="flex flex-col gap-1">
+                {data.tasks.map((task) => {
+                  const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
+                    >
+                      <span className="flex-none text-base">☐</span>
+                      {task.isImportant && (
+                        <span className="flex-none text-destructive text-xs">!</span>
+                      )}
+                      <span className="flex-1 text-xs text-foreground">{task.title}</span>
+                      {task.dueAt && (
+                        <span
+                          className={cn(
+                            'text-[11px] font-medium flex-none',
+                            isOverdue ? 'text-destructive font-semibold' : 'text-muted-foreground',
+                          )}
+                        >
+                          до {fmtDateShort(task.dueAt)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {/* Программа и комментарии */}
         <div className={doctorSectionCardClass}>

@@ -9,7 +9,7 @@ import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
 import { MaxSendError } from './client.js';
 import { parseMaxPlatformUserId, readMaxOutboundRecipient } from './maxRecipient.js';
-import { getMaxApiKey, getMaxBaseUrl } from './runtimeConfig.js';
+import { getMaxRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 
 /**
@@ -130,10 +130,9 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       return false;
     },
     async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
-      const apiKey = await getMaxApiKey();
-      if (!apiKey) throw new Error('max api key missing');
-      const baseUrl = getMaxBaseUrl();
-      const config = { apiKey, ...(baseUrl ? { baseUrl } : {}) };
+      const runtimeConfig = await getMaxRuntimeConfig();
+      if (!runtimeConfig.enabled) throw new Error('MAX_RUNTIME_CONFIG_UNAVAILABLE');
+      const config = { apiKey: runtimeConfig.apiKey, baseUrl: runtimeConfig.baseUrl };
       const payload = intent.payload as DeliveryPayload;
       const text = asNonEmptyString(payload.message?.text);
       const messageId = payload.messageId;

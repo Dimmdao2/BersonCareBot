@@ -35,6 +35,74 @@ const invoice: SaasBillingInvoice = {
   providerIdempotencyKey: 'renewal-1',
 };
 
+describe('SaaS billing payment provider availability', () => {
+  it('names a configured but unsupported provider as unavailable before an invoice is created', async () => {
+    const createSaasBillingInvoice = vi.fn(async () => ({ invoice, created: true }));
+    const getTariffTransition = vi.fn(async () => {
+      throw new Error('platform_operations_principal_required');
+    });
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          savedPaymentMethodId: null,
+          currentPeriodEndsAt: null,
+        }),
+        createSaasBillingInvoice,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true }],
+        }),
+      },
+      resolvePaymentProvider: () => {
+        throw new Error('unsupported_payment_provider:mock');
+      },
+      getTariffTransition,
+    });
+
+    await expect(service.createOwnTariffRenewalInvoice('org-1')).rejects.toThrow(
+      'saas_billing_payment_provider_unavailable:mock',
+    );
+    expect(getTariffTransition).not.toHaveBeenCalled();
+    expect(createSaasBillingInvoice).not.toHaveBeenCalled();
+  });
+
+  it('does not relabel a different provider-registry failure as unavailable', async () => {
+    const createSaasBillingInvoice = vi.fn();
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          savedPaymentMethodId: null,
+          currentPeriodEndsAt: null,
+        }),
+        createSaasBillingInvoice,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true }],
+        }),
+      },
+      resolvePaymentProvider: () => {
+        throw new Error('payment_registry_corrupted');
+      },
+    });
+
+    await expect(service.createOwnTariffRenewalInvoice('org-1')).rejects.toThrow(
+      'payment_registry_corrupted',
+    );
+    expect(createSaasBillingInvoice).not.toHaveBeenCalled();
+  });
+});
+
 describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', () => {
   function scheduledService(blocks: unknown[] = []) {
     const setManualSaasBillingSubscription = vi.fn(async () => {});
@@ -105,6 +173,7 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
       repository: {
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription', tariffId: 'tariff-small', billingPeriod: 'month' as const,
+          currentTariffId: 'tariff-current',
           savedPaymentMethodId: null, currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
         }),
       } as unknown as SaasBillingRepositoryPort,
@@ -420,6 +489,88 @@ describe('К0: early renewal does not cut the paid period short', () => {
         servicePeriodEndsAt: '2026-10-01T00:00:00.000Z',
       }),
     );
+  });
+});
+
+describe('К4/#1057: повтор периода использует старый пустой черновик', () => {
+  it('после смены legacy bucket возвращает тот же счёт и отправляет в provider его сохранённый ключ', async () => {
+    let clock = new Date('2026-07-01T00:00:00.000Z');
+    const repository = createInMemorySaasBillingRepository();
+    const createSaasBillingInvoice = repository.createSaasBillingInvoice.bind(repository);
+    let legacyProviderIdempotencyKey: string | null = null;
+    vi.spyOn(repository, 'createSaasBillingInvoice').mockImplementation((input) =>
+      createSaasBillingInvoice({
+        ...input,
+        providerIdempotencyKey: legacyProviderIdempotencyKey ?? input.providerIdempotencyKey,
+      }),
+    );
+    const createIntent = vi.fn(async () => {
+      if (createIntent.mock.calls.length === 2) {
+        throw new Error('provider_temporarily_unavailable');
+      }
+      return {
+        providerIntentRef: `provider-period-${createIntent.mock.calls.length}`,
+        checkoutUrl: `https://pay.example/period-${createIntent.mock.calls.length}`,
+      };
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => clock,
+    });
+    await service.assignManualTariff({
+      organizationId: 'org-period-retry',
+      tariffId: 'tariff-period-retry',
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+
+    const firstPeriod = await service.createOwnTariffRenewalInvoice('org-period-retry');
+    await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-period-retry',
+      saasBillingInvoiceId: firstPeriod.id,
+      providerId: 'mock',
+      verified: {
+        idempotencyKey: 'event-period-retry-first',
+        eventType: 'payment.succeeded',
+        amountMinor: 0,
+        payload: { currency: 'RUB' },
+      },
+    });
+
+    clock = new Date('2026-07-15T00:00:00.000Z');
+    legacyProviderIdempotencyKey = 'saas_tariff_renewal:legacy-clock-bucket';
+    await expect(service.createOwnTariffRenewalInvoice('org-period-retry')).rejects.toThrow(
+      'provider_temporarily_unavailable',
+    );
+    const legacyDraft = (await repository.getOrganizationBillingOverview('org-period-retry')).invoices.find(
+      (row) => row.status === 'draft',
+    );
+    if (!legacyDraft) throw new Error('test_seed_legacy_tariff_period_draft_missing');
+
+    clock = new Date('2026-07-16T00:00:00.000Z');
+    legacyProviderIdempotencyKey = null;
+    const retried = await service.createOwnTariffRenewalInvoice('org-period-retry');
+
+    expect(retried).toMatchObject({
+      id: legacyDraft.id,
+      organizationId: legacyDraft.organizationId,
+      saasBillingSubscriptionId: legacyDraft.saasBillingSubscriptionId,
+      amountMinor: legacyDraft.amountMinor,
+      currency: legacyDraft.currency,
+      providerCheckoutUrl: 'https://pay.example/period-3',
+      providerIdempotencyKey: 'saas_tariff_renewal:legacy-clock-bucket',
+    });
+    expect(createIntent).toHaveBeenLastCalledWith(
+      expect.objectContaining({ idempotencyKey: legacyDraft.providerIdempotencyKey }),
+    );
+    expect(createIntent).toHaveBeenCalledTimes(3);
+    expect((await repository.getOrganizationBillingOverview('org-period-retry')).invoices).toHaveLength(2);
   });
 });
 
@@ -957,6 +1108,133 @@ describe('К4 round 2: повторное «Выставить счёт» не �
 
     expect(different.id).not.toBe(first.id);
     expect(createIntent).toHaveBeenCalledTimes(2);
+  });
+
+  it('изолирует ключ повторного счёта по клинике и каждому полю запроса', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: `provider-isolation-${createIntent.mock.calls.length}`,
+      checkoutUrl: `https://yookassa.example.test/isolation-${createIntent.mock.calls.length}`,
+    }));
+    const repository = createInMemorySaasBillingRepository();
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [
+            { id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' },
+          ],
+        }),
+      },
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+    for (const organizationId of ['org-k4-isolation-a', 'org-k4-isolation-b']) {
+      await service.assignManualTariff({
+        organizationId,
+        tariffId: `tariff-${organizationId}`,
+        audit: { actorId: 'operator-k4-isolation', reason: 'test seed' },
+      });
+    }
+    const request = {
+      organizationId: 'org-k4-isolation-a',
+      amountMinor: 5_000,
+      currency: 'RUB',
+      description: 'Счёт за тариф',
+      expiresAt: '2026-08-05T00:00:00.000Z',
+    };
+
+    const first = await service.createManualSaasBillingInvoice(request);
+    const repeated = await service.createManualSaasBillingInvoice({ ...request });
+    const differentAmount = await service.createManualSaasBillingInvoice({ ...request, amountMinor: 7_000 });
+    const differentRequest = await service.createManualSaasBillingInvoice({
+      ...request,
+      description: 'Другой счёт за тариф',
+    });
+    const otherOrganization = await service.createManualSaasBillingInvoice({
+      ...request,
+      organizationId: 'org-k4-isolation-b',
+    });
+
+    expect(repeated.id).toBe(first.id);
+    expect(new Set([first.id, differentAmount.id, differentRequest.id, otherOrganization.id]).size).toBe(4);
+    expect(new Set([
+      first.providerIdempotencyKey,
+      differentAmount.providerIdempotencyKey,
+      differentRequest.providerIdempotencyKey,
+      otherOrganization.providerIdempotencyKey,
+    ]).size).toBe(4);
+    expect((await repository.getOrganizationBillingOverview('org-k4-isolation-a')).invoices).toHaveLength(3);
+    expect((await repository.getOrganizationBillingOverview('org-k4-isolation-b')).invoices).toHaveLength(1);
+    expect(createIntent).toHaveBeenCalledTimes(4);
+  });
+});
+
+// К4's provider-failure regression: the durable idempotency row is intentionally written before
+// YooKassa is called. Without releasing that unlinked draft, a retry of the exact same operator
+// request only returns the empty row and the clinic never receives a payment link.
+describe('К4: черновик после сбоя провайдера можно повторить тем же запросом', () => {
+  const request = {
+    organizationId: 'org-k4-retry',
+    amountMinor: 5_000,
+    currency: 'RUB',
+    description: 'Счёт за тариф',
+    expiresAt: '2026-08-05T00:00:00.000Z',
+  };
+
+  async function createService(createIntent: ReturnType<typeof vi.fn>) {
+    const repository = createInMemorySaasBillingRepository();
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ supportsInvoice: true, createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+    await service.assignManualTariff({
+      organizationId: request.organizationId,
+      tariffId: 'tariff-k4-retry',
+      audit: { actorId: 'operator-k4-retry', reason: 'test seed' },
+    });
+    return { repository, service };
+  }
+
+  it('после отказа повтор тем же ключом снова вызывает провайдера и возвращает ссылку', async () => {
+    const createIntent = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('provider_temporarily_unavailable'))
+      .mockResolvedValueOnce({ providerIntentRef: 'provider-retry-1', checkoutUrl: 'https://pay.example/retry-1' });
+    const { repository, service } = await createService(createIntent);
+
+    await expect(service.createManualSaasBillingInvoice(request)).rejects.toThrow(
+      'provider_temporarily_unavailable',
+    );
+    const retried = await service.createManualSaasBillingInvoice({ ...request });
+
+    expect(retried.providerCheckoutUrl).toBe('https://pay.example/retry-1');
+    expect(createIntent).toHaveBeenCalledTimes(2);
+    expect((await repository.getOrganizationBillingOverview(request.organizationId)).invoices).toHaveLength(1);
+  });
+
+  it('гонка одного запроса резервирует один вызов провайдера и один счёт', async () => {
+    let resolveIntent: ((value: { providerIntentRef: string; checkoutUrl: string }) => void) | undefined;
+    const createIntent = vi.fn(
+      () => new Promise<{ providerIntentRef: string; checkoutUrl: string }>((resolve) => { resolveIntent = resolve; }),
+    );
+    const { repository, service } = await createService(createIntent);
+
+    const first = service.createManualSaasBillingInvoice(request);
+    const second = service.createManualSaasBillingInvoice({ ...request });
+    await vi.waitFor(() => expect(createIntent).toHaveBeenCalledOnce());
+    resolveIntent?.({ providerIntentRef: 'provider-race-1', checkoutUrl: 'https://pay.example/race-1' });
+    await Promise.all([first, second]);
+
+    expect(createIntent).toHaveBeenCalledOnce();
+    expect((await repository.getOrganizationBillingOverview(request.organizationId)).invoices).toHaveLength(1);
   });
 });
 

@@ -8,7 +8,10 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
@@ -44,6 +47,12 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const deps = buildAppDeps();
   const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
     .ok;
+  const [specialistTasksAvailability, specialistTasksRead] = await Promise.all([
+    getMechanicMutationAvailability(workspace, 'specialist_tasks'),
+    requireEntitlementForReadAction(workspace, 'specialist_tasks'),
+  ]);
+  const specialistTasksAvailable = specialistTasksAvailability.available;
+  const specialistTasksReadable = specialistTasksRead.ok;
 
   let detail;
   try {
@@ -155,6 +164,8 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
           cardHeader={cardHeader}
           initialTab="program"
           embeddedProgramContent={embeddedEditor}
+          specialistTasksAvailable={specialistTasksAvailable}
+          specialistTasksReadable={specialistTasksReadable}
         />
       </section>
     </DoctorAppShell>

@@ -559,6 +559,26 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     async createSaasBillingInvoice(input) {
       return getDrizzle().transaction(async (tx) => {
+        // #1057 — K0 originally derived the provider key from a short clock bucket. A historical
+        // empty renewal draft can therefore have a different key even though it is the same
+        // subscription period. The period is authoritative for this renewal path; manual invoices
+        // (description + expiry) and seat overage invoices do not participate in this lookup.
+        const [existingRenewal] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.saasBillingSubscriptionId, input.saasBillingSubscriptionId),
+              eq(saasBillingInvoices.servicePeriodStartsAt, input.servicePeriodStartsAt),
+              eq(saasBillingInvoices.servicePeriodEndsAt, input.servicePeriodEndsAt),
+              eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
+              isNull(saasBillingInvoices.description),
+              isNull(saasBillingInvoices.expiresAt),
+            ),
+          )
+          .limit(1);
+        if (existingRenewal) return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
+
         const [authority] = await tx
           .select({
             organizationId: saasBillingSubscriptions.organizationId,
@@ -623,6 +643,34 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .returning();
       if (!row) throw new Error('saas_billing_invoice_not_found');
       return toSaasBillingInvoice(row);
+    },
+
+    async claimSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      const [row] = await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({ status: 'pending', updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.status, 'draft'),
+            isNull(saasBillingInvoices.providerInvoiceRef),
+          ),
+        )
+        .returning({ id: saasBillingInvoices.id });
+      return Boolean(row);
+    },
+
+    async releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({ status: 'draft', updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.status, 'pending'),
+            isNull(saasBillingInvoices.providerInvoiceRef),
+          ),
+        );
     },
 
     async recordSaasBillingProviderEvent(input) {
@@ -1013,6 +1061,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (!targetTariff) throw new Error('saas_billing_tariff_not_billable');
         return {
           saasBillingSubscriptionId: row.id,
+          currentTariffId: row.tariffId,
           tariffId: targetTariffId,
           billingPeriod: targetTariff.billingPeriod as SaasBillingPeriod,
           savedPaymentMethodId: row.savedPaymentMethodId,

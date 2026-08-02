@@ -9,6 +9,47 @@ afterEach(() => {
 });
 
 describe('commercial constructor access ladder', () => {
+  it('does not render retired tariff controls from legacy API data', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          tariffs: [
+            {
+              id: '11111111-1111-4111-8111-111111111199',
+              name: 'Legacy tariff',
+              description: '',
+              priceMinor: null,
+              currency: null,
+              billingPeriod: 'month',
+              mechanics: { booking: true, clinical_tests: false, online_intake: false },
+              quotas: {},
+              systemAccessPolicy: null,
+              mechanicAccessPolicies: { clinical_tests: null, online_intake: null },
+              downgradePolicies: { clinical_tests: 'block', online_intake: 'block' },
+              includedSeats: 1,
+              additionalSeatPriceMinor: null,
+              isActive: true,
+              createdAt: '2026-08-02T00:00:00.000Z',
+              updatedAt: '2026-08-02T00:00:00.000Z',
+            },
+          ],
+          organizations: [],
+          trialPolicy: null,
+          registrationTariffPolicy: { tariffId: null },
+        }),
+      })),
+    );
+
+    render(<CommercialConstructorClient />);
+
+    await screen.findByText('Legacy tariff');
+    expect(screen.queryByText('Клинические тесты и наборы')).not.toBeInTheDocument();
+    expect(screen.queryByText('Онлайн-анкета')).not.toBeInTheDocument();
+  });
+
   it('starts unconfigured and exposes the owner fields in product language', async () => {
     vi.stubGlobal(
       'fetch',

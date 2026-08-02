@@ -1,6 +1,5 @@
 import { createHmac } from 'node:crypto';
 import type { DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { maxConfig } from '../../integrations/max/config.js';
 import { logger } from '../observability/logger.js';
 import { openOrTouchOperatorIncident } from '../db/repos/operatorHealthDrizzle.js';
 import { createDbPort } from '../db/client.js';
@@ -147,7 +146,7 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
     );
   }
 
-  if (channels.max && maxConfig.enabled && lists.max.length > 0) {
+  if (channels.max && lists.max.length > 0) {
     for (const recipientId of lists.max) {
       const userId = Number(recipientId);
       if (!Number.isFinite(userId)) continue;
