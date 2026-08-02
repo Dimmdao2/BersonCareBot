@@ -76,10 +76,14 @@
       обе интеграторные точки переведены на общий порт; текущие production-ссылки
       `enqueueMessageRetryJob` остались только в adapter/repository, а четыре product-site вызывают `.enqueue()`
       через `QueuePort`.
-- [ ] **Ч3б. Механически запретить новый обход постановки фоновой работы.** Строгий критерий этого плана
-      «единая точка + self-tested gate» не выполнен: точный поиск по действующим eslint/scripts не нашёл
-      ограничения на прямой импорт/вызов job queue. Нужен один bounded structural gate с self-test поверх
-      существующего `QueuePort`, без новой очереди или runtime-абстракции.
+- [x] **Ч3б. Механически запретить новый обход постановки фоновой работы.** `scripts/check-queue-port-boundary.mjs`
+      сканирует production TypeScript интегратора и разрешает raw `enqueueMessageRetryJob` только
+      repository + QueuePort adapter; direct/aliased/dynamic imports и re-exports падают. Встроен в root и
+      integrator lint. Evidence: `node scripts/check-queue-port-boundary.mjs --self-test` (4 bypass forms red),
+      `node scripts/check-queue-port-boundary.mjs`, `pnpm --dir apps/integrator lint`,
+      `pnpm --dir apps/integrator typecheck`,
+      `pnpm --dir apps/integrator test -- src/integrations/bersoncare/bookingLifecycleRoute.reminderPlan.test.ts src/infra/db/repos/jobQueue.abstime.integration.test.ts`,
+      `node scripts/check-no-new-raw-sql.mjs`, `pnpm lint`, `git diff --check` — PASS.
 - [x] **Ч4. Настройки: три файла читают базу мимо общего читателя.** Канонический читатель
       `modules/system-settings/configAdapter.ts` (кэш → база → значение из конфигурации), у него 36
       потребителей. Мимо ходят `infra/repos/pgBookingEngine.ts`, `pgBookingScheduling.ts`,
