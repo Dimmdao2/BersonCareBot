@@ -99,10 +99,15 @@ export function BookingPaymentsSection({
             label="Включить оплату записи"
             checked={enabled}
             onCheckedChange={setEnabled}
+            disabled={readOnly}
           />
           <div className="space-y-2">
             <Label>Провайдер по умолчанию</Label>
-            <Select value={defaultProviderId} onValueChange={(v) => v && setDefaultProviderId(v)}>
+            <Select
+              value={defaultProviderId}
+              onValueChange={(v) => v && setDefaultProviderId(v)}
+              disabled={readOnly}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -120,6 +125,7 @@ export function BookingPaymentsSection({
               <LabeledSwitch
                 label={p.label}
                 checked={p.enabled}
+                disabled={readOnly}
                 onCheckedChange={(checked) =>
                   setProviders((prev) =>
                     prev.map((x) => (x.id === p.id ? { ...x, enabled: checked } : x)),
