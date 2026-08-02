@@ -2248,6 +2248,34 @@
       "when": 1793539230026,
       "tag": "0322_unified_reminder_occurrence_local",
       "breakpoints": true
+    },
+    {
+      "idx": 321,
+      "version": "7",
+      "when": 1793539230027,
+      "tag": "0324_saas_registration_tariff_policy_walls_forward_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1793539230028,
+      "tag": "0325_drop_booking_catalog_and_legacy_projections_forward_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1793539230029,
+      "tag": "0326_tariff_snapshot_access_doors_forward_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1793539230030,
+      "tag": "0327_saas_billing_provider_capability_forward_local",
+      "breakpoints": true
     }
   ]
 }
