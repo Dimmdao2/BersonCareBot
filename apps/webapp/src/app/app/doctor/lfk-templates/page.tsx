@@ -43,15 +43,20 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const listPubArch: DoctorCatalogPubArchQuery = parseDoctorCatalogPubArchQuery(sp);
 
   const deps = buildAppDeps();
-  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
-    .ok;
+  const [includePlatformPackages, includePlatformExercises] = await Promise.all([
+    requireEntitlementForReadAction(workspace, 'exercise_packages'),
+    requireEntitlementForReadAction(workspace, 'exercise_catalog'),
+  ]);
   const [rawList, exercises, bodyRegionItems, loadTypeRefItems] = await Promise.all([
     deps.lfkTemplates.listTemplates({
       includeExerciseDetails: true,
-      includePlatformBase,
+      includePlatformBase: includePlatformPackages.ok,
       ...lfkTemplateFilterFromPubArch(listPubArch),
     }),
-    deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
+    deps.lfkExercises.listExercises({
+      includeArchived: false,
+      includePlatformBase: includePlatformExercises.ok,
+    }),
     deps.references.listActiveItemsByCategoryCode('body_region'),
     deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
   ]);

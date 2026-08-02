@@ -67,6 +67,62 @@ export async function GET(
   return NextResponse.json({ ok: true, file: { ...file, previewUrl } });
 }
 
+/**
+ * DELETE /api/doctor/patients/[userId]/files/[fileId]
+ *
+ * Storage recovery deliberately remains available when the byte quota is exhausted: it removes
+ * the canonical row in the same transaction that stages durable S3 cleanup for retry.
+ */
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ userId: string; fileId: string }> },
+) {
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+
+  const { userId, fileId } = await params;
+  if (!z.string().uuid().safeParse(userId).success) {
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
+  }
+  if (!z.string().uuid().safeParse(fileId).success) {
+    return NextResponse.json({ ok: false, error: 'invalid_file_id' }, { status: 400 });
+  }
+
+  const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    gate.ctx.organizationId,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  const file = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.patientFiles.getFile(fileId),
+  );
+  if (!file || file.patientUserId !== identity.userId) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+
+  const confirmUsed = new URL(request.url).searchParams.get('confirmUsed') === 'true';
+  const mediaFileId = file.mediaFileId;
+  if (mediaFileId) {
+    const usage = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deps.media.findUsage(mediaFileId),
+    );
+    if (usage.length > 0 && !confirmUsed) {
+      return NextResponse.json({ ok: false, error: 'media_in_use', usage }, { status: 409 });
+    }
+  }
+
+  const deleted = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.files.delete', () =>
+    deps.patientFiles.deleteFile(fileId),
+  );
+  if (!deleted) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true, deleted: true, storageCleanupScheduled: true });
+}
+
 const patchBodySchema = z
   .object({
     visitId: z.string().uuid().optional(),

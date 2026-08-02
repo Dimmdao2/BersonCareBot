@@ -51,6 +51,7 @@ describe('loadContentPageForInlineEdit', () => {
     fakes.buildAppDeps.mockReturnValue({
       orgEntitlements: { resolveMechanicAccess: async () => ({ state: 'read_only', warning: null }) },
       contentPages: { getById },
+      contentSections: { getBySlug: async () => ({ systemParentCode: null }) },
     });
 
     await expect(loadContentPageForInlineEdit('page-1')).resolves.toEqual(page);

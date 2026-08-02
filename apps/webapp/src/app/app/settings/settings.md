@@ -28,3 +28,8 @@ Booking settings остаются в `/app/doctor/schedule?tab=setup`: owner з�
 
 Секреты и операционные значения интеграций по правилам репозитория хранятся в `system_settings`, а не в новых
 env-переменных.
+
+В organization tab находится единственный блок «Каналы доставки клиники»: SMTP, SMSC API key и credentials
+dedicated Telegram/MAX bots. Это org-scoped `secret_envelope` storage с redacted HTTP/audit представлением;
+настоящая encryption-at-rest остаётся отдельным §12.7. Каждая запись требует отдельный tariff mechanic. Inbound
+webhook/binding dedicated bots не дублируется здесь и остаётся контуром S6.5.

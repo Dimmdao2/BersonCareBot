@@ -99,7 +99,6 @@ VALUES
   ('integrator', 'user_questions', 'SCOPED'),
   ('integrator', 'user_reminder_delivery_logs', 'SCOPED'),
   ('integrator', 'user_reminder_occurrences', 'SCOPED'),
-  ('integrator', 'user_reminder_rules', 'SCOPED'),
   ('integrator', 'users', 'BOOTSTRAP'),
   ('public', 'admin_audit_log', 'SCOPED'),
   ('public', 'be_appointment_cancellations', 'SCOPED'),

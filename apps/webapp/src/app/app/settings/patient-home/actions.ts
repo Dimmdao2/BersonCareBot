@@ -96,16 +96,11 @@ function fail(error: string): ActionState {
 }
 
 async function requireDoctorForPatientHomeRead(): Promise<DoctorWorkspaceAccessContext> {
-  const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) throw new Error('forbidden');
-  return workspace;
+  return requireDoctorWorkspaceContext();
 }
 
 async function requireDoctorForPatientHomeMutation(): Promise<DoctorWorkspaceAccessContext> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) throw new Error('forbidden');
   const todayEntitlement = await requireEntitlementForMutationAction(
     workspace,
     'patient_home_today',
@@ -436,6 +431,8 @@ export async function createContentSectionForPatientHomeBlock(input: {
 }): Promise<{ ok: true; itemId: string; sectionSlug: string } | { ok: false; error: string }> {
   try {
     const workspace = await requireDoctorForPatientHomeMutation();
+    const cmsEntitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
+    if (!cmsEntitlement.ok) throw new Error('forbidden');
     const blockCode = input.blockCode;
     if (!isPatientHomeBlockCode(blockCode)) {
       return { ok: false, error: 'invalid_block_code' };

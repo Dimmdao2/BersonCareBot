@@ -350,7 +350,7 @@ const patientOwnedColumns = new Map([
 
   // integrator.* direct_org_column (P0.8.5), patient identity = integrator.users.id (bigint),
   // read from the dedicated `app.integrator_user_id` GUC (castType: "bigint" — see the note above
-  // integrator identity tables). contacts/content_access_grants/user_reminder_rules verified via
+  // integrator identity tables). contacts/content_access_grants verified via
   // apps/integrator/src/infra/db/migrations/core/20260306_0014_create_contacts.sql and
   // 20260311_0002_create_user_reminders.sql (user_id bigint REFERENCES users(id)). mailing_logs
   // and user_subscriptions originally referenced the legacy telegram_users(id) space, but
@@ -359,7 +359,6 @@ const patientOwnedColumns = new Map([
   // users(id).
   ['integrator.contacts', { column: 'user_id', castType: 'bigint' }],
   ['integrator.content_access_grants', { column: 'user_id', castType: 'bigint' }],
-  ['integrator.user_reminder_rules', { column: 'user_id', castType: 'bigint' }],
 
   // B4-core-3 census follow-up (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #658): 4 more
   // public.* direct_org_column tables with a direct `user_id` column referencing
@@ -444,8 +443,8 @@ const patientChainOwnedTables = new Map([
 
   // I3 parent-denorm (P0.4.I3, denorm_org_column): owner reached by walking to the immediate
   // parent, then (where the parent itself is identity-bridged, not directly user-owned) on through
-  // integrator.identities. user_reminder_occurrences/_delivery_logs walk to user_reminder_rules,
-  // which already carries a direct bigint user_id (no identities hop needed there).
+  // integrator.identities. Reminder technical rows walk to canonical public.reminder_rules via
+  // its stable integrator_rule_id and direct bigint integrator_user_id.
   [
     'integrator.conversation_messages',
     {
@@ -493,13 +492,13 @@ const patientChainOwnedTables = new Map([
     {
       hops: [
         {
-          table: 'integrator.user_reminder_rules',
+          table: 'public.reminder_rules',
           alias: 'b4f_rule',
-          parentPk: 'id',
+          parentPk: 'integrator_rule_id',
           localFk: 'rule_id',
         },
       ],
-      terminalColumn: 'user_id',
+      terminalColumn: 'integrator_user_id',
       castType: 'bigint',
     },
   ],
@@ -514,13 +513,13 @@ const patientChainOwnedTables = new Map([
           localFk: 'occurrence_id',
         },
         {
-          table: 'integrator.user_reminder_rules',
+          table: 'public.reminder_rules',
           alias: 'b4f_rule',
-          parentPk: 'id',
+          parentPk: 'integrator_rule_id',
           localFk: 'rule_id',
         },
       ],
-      terminalColumn: 'user_id',
+      terminalColumn: 'integrator_user_id',
       castType: 'bigint',
     },
   ],

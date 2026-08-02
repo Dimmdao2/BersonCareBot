@@ -148,6 +148,22 @@ async function promotePaidInvoice(
     currentPeriodEndsAt: invoice.servicePeriodEndsAt, tariffSnapshot, updatedAt: new Date().toISOString(),
   }).where(eq(saasBillingSubscriptions.id, subscription.id));
   await tx.update(beOrganizations).set({ tariffId: invoice.tariffId }).where(eq(beOrganizations.id, organizationId));
+  if (subscription.pendingTariffId !== null) {
+    await tx.insert(adminAuditLog).values({
+      organizationId,
+      actorId: null,
+      action: 'saas_tariff_change_activated',
+      targetId: subscription.id,
+      details: {
+        previousTariffId: subscription.tariffId,
+        tariffId: invoice.tariffId,
+        pendingTariffId: subscription.pendingTariffId,
+        servicePeriodStartsAt: invoice.servicePeriodStartsAt,
+        servicePeriodEndsAt: invoice.servicePeriodEndsAt,
+      },
+      status: 'ok',
+    });
+  }
   // A first real tariff payment replaces any active trial in the same transaction as the period;
   // otherwise a paid clinic could later be treated as still trial-bound.
   if (subscription.currentPeriodEndsAt === null) {
@@ -555,6 +571,26 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     async createSaasBillingInvoice(input) {
       return getDrizzle().transaction(async (tx) => {
+        // #1057 — K0 originally derived the provider key from a short clock bucket. A historical
+        // empty renewal draft can therefore have a different key even though it is the same
+        // subscription period. The period is authoritative for this renewal path; manual invoices
+        // (description + expiry) and seat overage invoices do not participate in this lookup.
+        const [existingRenewal] = await tx
+          .select()
+          .from(saasBillingInvoices)
+          .where(
+            and(
+              eq(saasBillingInvoices.saasBillingSubscriptionId, input.saasBillingSubscriptionId),
+              eq(saasBillingInvoices.servicePeriodStartsAt, input.servicePeriodStartsAt),
+              eq(saasBillingInvoices.servicePeriodEndsAt, input.servicePeriodEndsAt),
+              eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
+              isNull(saasBillingInvoices.description),
+              isNull(saasBillingInvoices.expiresAt),
+            ),
+          )
+          .limit(1);
+        if (existingRenewal) return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
+
         const [authority] = await tx
           .select({
             organizationId: saasBillingSubscriptions.organizationId,
@@ -619,6 +655,34 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .returning();
       if (!row) throw new Error('saas_billing_invoice_not_found');
       return toSaasBillingInvoice(row);
+    },
+
+    async claimSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      const [row] = await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({ status: 'pending', updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.status, 'draft'),
+            isNull(saasBillingInvoices.providerInvoiceRef),
+          ),
+        )
+        .returning({ id: saasBillingInvoices.id });
+      return Boolean(row);
+    },
+
+    async releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({ status: 'draft', updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.status, 'pending'),
+            isNull(saasBillingInvoices.providerInvoiceRef),
+          ),
+        );
     },
 
     async recordSaasBillingProviderEvent(input) {
@@ -956,6 +1020,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (!targetTariff) throw new Error('saas_billing_tariff_not_billable');
         return {
           saasBillingSubscriptionId: row.id,
+          currentTariffId: row.tariffId,
           tariffId: targetTariffId,
           billingPeriod: targetTariff.billingPeriod as SaasBillingPeriod,
           savedPaymentMethodId: row.savedPaymentMethodId,
@@ -1332,6 +1397,41 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         )
         .returning();
       return row ? toSaasBillingInvoice(row) : null;
+    },
+
+    async prepareSaasBillingFailedInvoiceForManualCheckout(input) {
+      const [reopened] = await getDrizzle()
+        .update(saasBillingInvoices)
+        .set({
+          status: 'draft',
+          providerId: input.providerId,
+          providerIdempotencyKey: input.providerIdempotencyKey,
+          providerInvoiceRef: null,
+          providerCheckoutUrl: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(saasBillingInvoices.id, input.saasBillingInvoiceId),
+            eq(saasBillingInvoices.organizationId, input.organizationId),
+            eq(saasBillingInvoices.status, 'failed'),
+          ),
+        )
+        .returning();
+      if (reopened) return toSaasBillingInvoice(reopened);
+
+      const [current] = await getDrizzle()
+        .select()
+        .from(saasBillingInvoices)
+        .where(
+          and(
+            eq(saasBillingInvoices.id, input.saasBillingInvoiceId),
+            eq(saasBillingInvoices.organizationId, input.organizationId),
+          ),
+        )
+        .limit(1);
+      if (!current) throw new Error('saas_billing_invoice_not_found');
+      return toSaasBillingInvoice(current);
     },
   };
 }

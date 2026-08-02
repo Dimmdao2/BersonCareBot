@@ -18,7 +18,7 @@ import type {
 } from '@/modules/lfk-templates/types';
 import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from '@/modules/lfk-templates/types';
 import { sanitizeLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 
 const BASE = '/app/doctor/lfk-templates';
 
@@ -138,7 +138,7 @@ export async function createLfkTemplateDraftFromEditor(payload: {
       },
     );
     const includePlatformBase = (
-      await requireEntitlementForMutationAction(workspace, 'exercise_catalog')
+      await requireEntitlementForReadAction(workspace, 'exercise_catalog')
     ).ok;
     await deps.lfkTemplates.updateExercises(created.id, payload.exercises, {
       includePlatformBase,
@@ -163,7 +163,7 @@ export async function persistLfkTemplateDraft(payload: {
     const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
     const includePlatformBase = (
-      await requireEntitlementForMutationAction(workspace, 'exercise_catalog')
+      await requireEntitlementForReadAction(workspace, 'exercise_catalog')
     ).ok;
     const cur = await deps.lfkTemplates.getTemplate(payload.templateId);
     if (!cur) return { ok: false, error: 'Шаблон не найден' };

@@ -111,6 +111,8 @@ export type DoctorCommunicationsShellProps = {
   initialTabData?: Partial<Record<CommunicationsTabId, unknown>>;
   /** IANA timezone name for display (e.g. "Europe/Moscow"). Threaded to all tab components. */
   displayIana?: string;
+  /** Tariff permission for creating or sending new mailings; history stays available. */
+  mailingsMutationAvailable?: boolean;
 };
 
 /**
@@ -127,6 +129,7 @@ export function DoctorCommunicationsShell({
   badges,
   initialTabData,
   displayIana,
+  mailingsMutationAvailable = true,
 }: DoctorCommunicationsShellProps) {
   const resolvedInit: CommunicationsTabId = (() => {
     if (initialTab) return initialTab;
@@ -239,6 +242,7 @@ export function DoctorCommunicationsShell({
               initialData={initialTabData?.[tabId]}
               isActive={tabId === activeTab}
               displayIana={displayIana}
+              mailingsMutationAvailable={mailingsMutationAvailable}
             />
           </div>
         );

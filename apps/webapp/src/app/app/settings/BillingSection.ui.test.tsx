@@ -73,6 +73,34 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
     expect(screen.getByRole('button', { name: 'Отменить' })).toBeInTheDocument();
   });
 
+  it('names the exact cleanup categories when the tariff change is refused', async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      json: async () => ({
+        ok: false,
+        error: 'saas_billing_tariff_downgrade_blocked',
+        blocks: [{ mechanic: 'clinic_team' }, { mechanic: 'patient_count' }],
+      }),
+    });
+    vi.stubGlobal('fetch', fetch);
+    render(
+      <BillingSection
+        tariffName="Стандарт"
+        commercialStateLabel="Тариф активен."
+        mechanics={[]}
+        quotaUsage={[]}
+        billing={emptyBilling}
+        tariffChange={{
+          choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
+          currentTariffId: 'current', pendingTariffId: 'small', pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Запланировать смену' }));
+
+    expect(await screen.findByText('Понижение недоступно: освободите места специалистов, пациенты.')).toBeInTheDocument();
+  });
+
   it('renders each configured number with its usage and limit, and hides the section when there are none', () => {
     const { rerender } = render(
       <BillingSection

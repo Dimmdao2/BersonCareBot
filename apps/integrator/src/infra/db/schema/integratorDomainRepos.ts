@@ -5,9 +5,7 @@
  */
 import {
   bigint,
-  boolean,
   index,
-  integer,
   jsonb,
   pgTable,
   text,
@@ -15,47 +13,6 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
-
-export const userReminderRules = pgTable(
-  'user_reminder_rules',
-  {
-    id: text().primaryKey().notNull(),
-    userId: bigint('user_id', { mode: 'number' }).notNull(),
-    category: text().notNull(),
-    isEnabled: boolean('is_enabled').default(false).notNull(),
-    scheduleType: text('schedule_type').default('interval_window').notNull(),
-    timezone: text().default('Europe/Moscow').notNull(),
-    intervalMinutes: integer('interval_minutes').notNull(),
-    windowStartMinute: integer('window_start_minute').notNull(),
-    windowEndMinute: integer('window_end_minute').notNull(),
-    daysMask: text('days_mask').default('1111111').notNull(),
-    contentMode: text('content_mode').default('none').notNull(),
-    linkedObjectType: text('linked_object_type'),
-    linkedObjectId: text('linked_object_id'),
-    customTitle: text('custom_title'),
-    customText: text('custom_text'),
-    deepLink: text('deep_link'),
-    scheduleData: jsonb('schedule_data'),
-    reminderIntent: text('reminder_intent').default('generic'),
-    quietHoursStartMinute: integer('quiet_hours_start_minute'),
-    quietHoursEndMinute: integer('quiet_hours_end_minute'),
-    notificationTopicCode: text('notification_topic_code'),
-    organizationId: uuid('organization_id'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('user_reminder_rules_enabled_idx').using(
-      'btree',
-      table.isEnabled.asc().nullsLast().op('text_ops'),
-      table.category.asc().nullsLast().op('bool_ops'),
-    ),
-  ],
-);
 
 export const userReminderOccurrences = pgTable(
   'user_reminder_occurrences',

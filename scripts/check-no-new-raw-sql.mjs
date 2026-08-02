@@ -55,7 +55,6 @@ const rawSqlQueryManifest = {
     'apps/webapp/src/infra/repos/pgDoctorClients.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgDoctorPhase13d.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgEmailChallengeAtomicAttempts.devDb.integration.test.ts',
-    'apps/webapp/src/infra/repos/pgOnlineIntake.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgOtpDecayingLockoutAtomicEscalation.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgPatientBookings.devDb.integration.test.ts',
     'apps/webapp/src/infra/repos/pgPhase14DCommsTail.devDb.integration.test.ts',

@@ -63,6 +63,10 @@ import {
 import { redactAdminSettingsForClient } from '@/modules/system-settings/webPushVapidRuntime';
 import { normalizePatientDefaultPromoTreatmentProgramTemplatePatch } from '@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate';
 import { normalizeDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
+import {
+  parsePlatformIntegrationAvailabilityEnvelope,
+  type PlatformIntegrationId,
+} from '@/modules/system-settings/platformIntegrationAvailability';
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -96,6 +100,11 @@ const ADMIN_SCOPE_KEYS = [
   'telegram_login_bot_username',
   'max_login_bot_nickname',
   'max_bot_api_key',
+  'max_webhook_secret',
+  'max_api_base_url',
+  'telegram_bot_token',
+  'telegram_webhook_secret',
+  'telegram_send_menu_on_button_press',
   'vk_web_login_url',
   'app_display_timezone',
   'patient_app_maintenance_enabled',
@@ -129,10 +138,15 @@ const ADMIN_SCOPE_KEYS = [
   'patient_home_mood_icons',
   'notifications_topics',
   'smtp_outbound',
+  'clinic_smtp_outbound',
+  'clinic_smsc_api_key',
+  'clinic_telegram_bot_token',
+  'clinic_max_bot_api_key',
   'operator_health_imap',
   'web_push_vapid',
   'smsc_enabled',
   'smsc_api_key',
+  'smsc_base_url',
   'yandex_oauth_client_id',
   'yandex_oauth_client_secret',
   'yandex_oauth_redirect_uri',
@@ -228,6 +242,47 @@ const EXTERNAL_CALENDAR_ENTITLEMENT_SETTING_KEYS = new Set([
   'google_calendar_enabled',
   'google_connected_email',
 ]);
+
+const CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS = new Map<
+  string,
+  {
+    mechanic: 'clinic_smtp' | 'clinic_sms' | 'clinic_telegram_bot' | 'clinic_max_bot';
+    action: string;
+  }
+>([
+  ['clinic_smtp_outbound', { mechanic: 'clinic_smtp', action: 'настроить собственный SMTP' }],
+  ['clinic_smsc_api_key', { mechanic: 'clinic_sms', action: 'настроить собственный SMS-канал' }],
+  [
+    'clinic_telegram_bot_token',
+    { mechanic: 'clinic_telegram_bot', action: 'настроить собственного Telegram-бота' },
+  ],
+  [
+    'clinic_max_bot_api_key',
+    { mechanic: 'clinic_max_bot', action: 'настроить собственного MAX-бота' },
+  ],
+]);
+
+const CLINIC_DELIVERY_SETTING_INTEGRATIONS = new Map<string, PlatformIntegrationId>([
+  ['clinic_smtp_outbound', 'email'],
+  ['clinic_smsc_api_key', 'smsc'],
+  ['clinic_telegram_bot_token', 'telegram'],
+  ['clinic_max_bot_api_key', 'max'],
+]);
+
+async function isClinicDeliveryIntegrationEnabled(
+  getSetting: ReturnType<typeof buildAppDeps>['systemSettings']['getSetting'],
+  integration: PlatformIntegrationId,
+): Promise<boolean> {
+  try {
+    const setting = await getSetting('platform_integration_availability', 'admin', {
+      organizationId: null,
+    });
+    return parsePlatformIntegrationAvailabilityEnvelope(setting?.valueJson).integrations[integration];
+  } catch {
+    // An unreadable global switch is not permission to configure a tenant sender.
+    return false;
+  }
+}
 
 const PATIENT_HOME_TODAY_ENTITLEMENT_SETTING_KEYS = new Set([
   'patient_home_daily_practice_target',
@@ -473,6 +528,7 @@ export async function PATCH(request: Request) {
       { status: 403 },
     );
   }
+  const deps = buildAppDeps();
   if (PAYMENT_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === 'clinic') {
     const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, 'payments');
     if (!entitlement.ok) return entitlement.response;
@@ -489,6 +545,26 @@ export async function PATCH(request: Request) {
       return entitlementMutationRefusalResponse(
         'external_calendar',
         'изменить или отключить внешний календарь',
+      );
+    }
+  }
+  const clinicDeliveryEntitlement = CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS.get(parsed.data.key);
+  if (clinicDeliveryEntitlement && gate.ctx.kind === 'clinic') {
+    const entitlement = await requireEntitlementForMutation(
+      gate.ctx.workspace,
+      clinicDeliveryEntitlement.mechanic,
+    );
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse(
+        clinicDeliveryEntitlement.mechanic,
+        clinicDeliveryEntitlement.action,
+      );
+    }
+    const integration = CLINIC_DELIVERY_SETTING_INTEGRATIONS.get(parsed.data.key)!;
+    if (!(await isClinicDeliveryIntegrationEnabled(deps.systemSettings.getSetting, integration))) {
+      return NextResponse.json(
+        { ok: false, error: 'integration_disabled', integration },
+        { status: 403 },
       );
     }
   }
@@ -531,7 +607,6 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const deps = buildAppDeps();
   const settingScope = settingScopeForKey(parsed.data.key);
 
   let normalizedValue = normalizeValueJson(parsed.data.value);
@@ -789,7 +864,7 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: checked.value };
   }
 
-  if (parsed.data.key === 'smtp_outbound') {
+  if (parsed.data.key === 'smtp_outbound' || parsed.data.key === 'clinic_smtp_outbound') {
     const checked = parseSmtpOutboundPatchValue(normalizedValue);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });

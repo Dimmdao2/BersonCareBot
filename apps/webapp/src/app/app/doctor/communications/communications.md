@@ -3,11 +3,11 @@
 Агрегатный экран кабинета врача: весь входящий/исходящий поток с пациентами под одним
 заголовком «Коммуникации» и единым таб-баром. Wireframe: `docs/design/doctor-cabinet-wireframe.html#p-comms`.
 
-**Версия UI:** V2 (COMMUNICATIONS_MD_V2_INITIATIVE, 2026-06-13). Все 7 этапов завершены.
+**Версия UI:** V2 (COMMUNICATIONS_MD_V2_INITIATIVE, 2026-06-13). Онлайн-заявки удалены решением владельца 2026-08-02; исторический журнал ниже сохранён как история реализации.
 
 ## Порядок вкладок
 
-`Чаты → Комментарии → Заявки → Рассылки`
+`Чаты → Комментарии → Рассылки`
 
 Управляется `COMMUNICATIONS_TABS` в `doctorCommunicationsTabs.ts` и `COMMUNICATIONS_TAB_REGISTRY`
 в `communicationsTabRegistry.ts`.
@@ -21,7 +21,6 @@ Internal-rewrite убран (Block 5 TODO#3). Старые прямые URL → 
 | ----------- | ----------------- | ------------------------------------------------------------------------------- |
 | Чаты        | `chats` (default) | `/app/doctor/messages`                                                          |
 | Комментарии | `comments`        | `/app/doctor/comments`                                                          |
-| Заявки      | `intake`          | `/app/doctor/online-intake`, `/online-intake/:id` (→ `?tab=intake&id=:id`)      |
 | Рассылки    | `broadcasts`      | `/app/doctor/broadcasts`, `/broadcasts/archive` (→ `?tab=broadcasts&archive=1`) |
 
 **Защита от петли redirects** больше не нужна для communications (rewrite убран).
@@ -35,16 +34,16 @@ SSR-предзагрузка непрочитанных комментариев
 `DoctorCommunicationsShell(initialTab, badges, initialTabData)`.
 
 - `DoctorCommunicationsShell.tsx` (`"use client"`) — `DoctorAppShell` + `DoctorCommunicationsTabsNav` +
-  реестр табов (`communicationsTabRegistry.ts`) + URL-sync (`?tab` + deep-link `id`/`archive` через
+  реестр табов (`communicationsTabRegistry.ts`) + URL-sync (`?tab` + deep-link `chatId`/`archive` через
   `history.replaceState`/`popstate`). Лениво монтирует активный таб (`next/dynamic`, `ssr:false`) и
   кэширует уже открытые (keepMounted: скрытие, не размонтирование) → мгновенное переключение.
-- 4 таб-обёртки в `tabs/`: `ChatsTab`, `CommentsTab`, `IntakeTab`, `BroadcastsTab`.
+- 3 таб-обёртки в `tabs/`: `ChatsTab`, `CommentsTab`, `BroadcastsTab`.
 - Активная область каждого таба: `flex-1 min-h-0` — растягивается на оставшуюся высоту, внутри
   каждый таб использует `CatalogSplitLayout` с независимым скроллом двух пейнов.
 
-## Независимый скролл (split-layout, все табы)
+## Независимый скролл (split-layout)
 
-Все 4 вкладки используют `CatalogSplitLayout` + `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`:
+Все 3 вкладки используют `CatalogSplitLayout` + `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`:
 
 - Левый пейн — список (пациенты/заявки/форма рассылки).
 - Правый пейн — деталь/тред/журнал.
@@ -58,19 +57,16 @@ Split-layout `lg:grid-cols-[1fr_1.2fr]` (чат шире списка). Полл
 и видимом окне (`visibilitychange`). Padding треда: `px-3`, интервал `space-y-3` (doctor-variant).
 Пустое состояние: `DoctorEmptyState`. Поиск + чипы «Непрочитанные»/«★ На сопровождении» — без изменений.
 
-Deep-link `?chatId=<conversationId>` (#812, тот же паттерн, что intake `?id=`/broadcasts `?archive=`):
+Deep-link `?chatId=<conversationId>` (#812):
 `communicationsChatHref()` в `doctorCommunicationsTabs.ts` строит `?tab=chats&chatId=…`; шелл читает/
 пишет его через `deepLinkParams`/`onDeepLinkChange` (реестр объявляет `deepLinkKeys: ["chatId"]` для
 `chats`); `DoctorSupportInbox` открывает диалог из `initialSelectedConversationId` на монтировании
-(и при внешней смене — тот же паттерн, что `DoctorOnlineIntakeClient`/`initialOpenRequestId`) и
+(и при внешней смене) и
 зовёт `onSelectedConversationChange` на каждый выбор/закрытие. «Сегодня» KPI «Сообщения» →
 «открыть переписку» использует этот href вместо голого `?tab=chats`.
 
-**Ключ namespaced (`chatId`, НЕ `id`):** `readDeepLinksFromSearchParams` в шелле копирует URL-ключ
-в КАЖДЫЙ таб, объявивший его в `deepLinkKeys` — namespacing по табам нет. Общий с intake ключ `id`
-протекал conversationId в intake как request-id (stray 404 fetch). Deep-link ключи обязаны быть
-уникальны между табами — контракт закреплён в `communicationsTabRegistry.test.ts` (uniqueness) и
-`DoctorCommunicationsShellDeepLinks.test.tsx` (изоляция через реальный реестр).
+**Ключ namespaced (`chatId`):** `readDeepLinksFromSearchParams` в шелле копирует URL-ключ
+в каждый таб, объявивший его в `deepLinkKeys`. Deep-link ключи обязаны быть уникальны между табами.
 
 Шапка треда: имя пациента + «Открыть карточку» (#813, только если `patientUserId` резолвится —
 non-webapp-platform диалоги вроде Telegram/MAX его не имеют, ссылка не рендерится) → `patientCardHref`.
@@ -109,15 +105,6 @@ SSR: `loadDoctorCommentPatients` + `loadDoctorExerciseCommentsForTab` (пара�
 - `app/api/doctor/comments/exercise-metrics/route.ts`
 - `shared/ui/doctor/ExerciseMicroChart.tsx`
 
-### Заявки (`online-intake/DoctorOnlineIntakeClient.tsx`)
-
-Мультитоггл статусов: Новые / В работе / Записанные / Отказанные (без «Все»); пустой выбор = все.
-Атрибут `aria-pressed`. Split-layout `lg:grid-cols-[1fr_1.4fr]`. Статистика (7/30/90/год) —
-независима от фильтра. Deep-link `?id=` сохранён.
-
-Дефолт фильтра: пустое множество (показать все). Ранее был дефолт «только новые» — продуктовое
-уточнение зафиксировано как follow-up.
-
 ### Рассылки (`broadcasts/BroadcastForm.tsx`, `tabs/BroadcastsTab.tsx`)
 
 **Форма (левый пейн):** порядок полей Аудитория → Категория → Каналы → Заголовок → Текст → кнопки.
@@ -136,7 +123,7 @@ Legacy `bot_message` → нормализуется в `telegram+max`. Email-ф�
 
 ## Компоненты таб-бара
 
-- `doctorCommunicationsTabs.ts` — конфиг 4 вкладок (`COMMUNICATIONS_TABS`) + `communicationsTabFromQuery`.
+- `doctorCommunicationsTabs.ts` — конфиг 3 вкладок (`COMMUNICATIONS_TABS`) + `communicationsTabFromQuery`.
 - `DoctorCommunicationsTabsNav.tsx` — sticky таб-бар (паттерн `BookingAdminTabsNav`). Активная вкладка —
   пропом `activeTab` от шелла; клик по вкладке — `onTabClick` (client-switch без навигации). Бейджи — проп `badges`.
 

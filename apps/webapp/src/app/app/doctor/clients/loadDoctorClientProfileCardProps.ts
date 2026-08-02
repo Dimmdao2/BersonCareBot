@@ -18,7 +18,6 @@ import type {
   PendingProgramTestEvaluationRow,
   TreatmentProgramInstanceSummary,
 } from '@/modules/treatment-program/types';
-import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
 import { buildDoctorClientWellbeingModel } from './buildDoctorClientWellbeingModel';
 import { normalizeDoctorClientProfileScope } from './doctorClientProfileHref';
 
@@ -42,7 +41,6 @@ export type DoctorClientProfileCardPageProps = {
   displayTimeZone: string;
   wellbeingChartModel: WellbeingWeekChartModel;
   taskSummary: DoctorClientTaskSummary | null;
-  proactiveInsights: ProactiveInsightRow[];
 };
 
 export type LoadDoctorClientProfileCardResult =
@@ -117,14 +115,6 @@ export async function loadDoctorClientProfileCardProps(input: {
         })
       : {};
 
-  const proactiveInsights = hasDb
-    ? await deps.doctorProactiveInsights.listForPatient({
-        patientUserId: userId,
-        organizationId,
-        displayIana: displayTimeZone,
-      })
-    : [];
-
   return {
     kind: 'found',
     props: {
@@ -155,7 +145,6 @@ export async function loadDoctorClientProfileCardProps(input: {
       displayTimeZone,
       wellbeingChartModel,
       taskSummary,
-      proactiveInsights,
     },
   };
 }

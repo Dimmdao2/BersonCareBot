@@ -9,9 +9,8 @@ import { DECLARED_NO_SURFACE, PROTECTED_ACTION_MAPPINGS } from './protectedActio
 
 describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
   it('fails when a mechanic is marked no-surface while a write mapping is registered for it', () => {
-    // 4a.5: this is the exact regression this checker exists to prevent — `branding` and
-    // `exercise_catalog` were both marked here while `saveOrgBranding`/the exercise-catalog
-    // actions already existed and were later wired into PROTECTED_ACTION_MAPPINGS.
+    // Branding owns tariff-gated writes; platform catalog mechanics only control visibility,
+    // so clinic-owned catalog writes intentionally have no registry mapping.
     const falselyDeclared = { ...DECLARED_NO_SURFACE, branding: 'поверхности записи нет' };
 
     const findings = validateDeclaredNoSurfaceClaims(PROTECTED_ACTION_MAPPINGS, falselyDeclared);
@@ -19,7 +18,8 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
     expect(findings).toEqual([
       {
         id: 'branding',
-        message: 'declared DECLARED_NO_SURFACE but has 1 registered write mapping(s): branding.save',
+        message:
+          'declared DECLARED_NO_SURFACE but has 4 registered write mapping(s): branding.save, branding.notification-templates.list, branding.notification-templates.save, branding.notification-templates.preview',
       },
     ]);
   });
@@ -28,13 +28,14 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
     expect(validateDeclaredNoSurfaceClaims(PROTECTED_ACTION_MAPPINGS)).toEqual([]);
   });
 
-  it('registers real write mappings for branding and the exercise catalog instead of declaring no surface', () => {
+  it('keeps clinic-owned catalog writes out of platform-library tariff gates', () => {
     expect(DECLARED_NO_SURFACE).not.toHaveProperty('branding');
-    expect(DECLARED_NO_SURFACE).not.toHaveProperty('exercise_catalog');
+    expect(DECLARED_NO_SURFACE).toHaveProperty('exercise_catalog');
+    expect(DECLARED_NO_SURFACE).toHaveProperty('exercise_packages');
     expect(PROTECTED_ACTION_MAPPINGS.some((mapping) => mapping.id === 'branding.save')).toBe(true);
-    expect(
-      PROTECTED_ACTION_MAPPINGS.some((mapping) => mapping.id === 'exercise-catalog.save'),
-    ).toBe(true);
+    expect(PROTECTED_ACTION_MAPPINGS.map((mapping) => mapping.id)).not.toContain(
+      'exercise-catalog.save',
+    );
   });
 
   it('drops the struck-out "proactive insights" mechanic from the registry entirely', () => {
@@ -51,7 +52,7 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
 });
 
 describe('runS4ProtectedActionCoverageCheck on the real registry', () => {
-  it('does not report the branding/exercise-catalog false no-surface findings this change fixed', () => {
+  it('does not report a false no-surface finding for branding or platform-library visibility', () => {
     const findings = runS4ProtectedActionCoverageCheck();
     const ids = findings.map((finding) => finding.id);
     expect(ids).not.toContain('branding');

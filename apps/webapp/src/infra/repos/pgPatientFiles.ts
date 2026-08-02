@@ -277,6 +277,53 @@ export function createPgPatientFilesPort(): PatientFilesPort {
       return row ? mapRow(row) : null;
     },
 
+    async deleteFile(id: string): Promise<boolean> {
+      const organizationId = currentPrincipalOrganizationId();
+      return runDrizzleMutationTransaction(async (tx) => {
+        const [file] = await tx
+          .select()
+          .from(patientFiles)
+          .where(and(eq(patientFiles.id, id), eq(patientFiles.organizationId, organizationId)))
+          .limit(1);
+        if (!file) return false;
+
+        if (file.mediaFileId) {
+          // The durable media lifecycle owns S3-first deletion and retries. Staging it before
+          // removing the canonical row makes quota release atomic with a recoverable cleanup job.
+          await tx
+            .update(mediaFiles)
+            .set({ status: 'pending_delete' })
+            .where(
+              and(
+                eq(mediaFiles.id, file.mediaFileId),
+                eq(mediaFiles.organizationId, organizationId),
+              ),
+            );
+        } else {
+          // Legacy patient_files rows predate the media-library link. Make a minimal lifecycle
+          // record instead of doing an unretryable direct S3 delete.
+          await tx.insert(mediaFiles).values({
+            organizationId,
+            originalName: file.fileName,
+            displayName: file.fileName,
+            storedPath: file.s3Key,
+            s3Key: file.s3Key,
+            mimeType: file.mimeType,
+            sizeBytes: file.sizeBytes,
+            uploadedBy: file.uploadedByUserId,
+            status: 'pending_delete',
+            previewStatus: 'skipped',
+          });
+        }
+
+        const deleted = await tx
+          .delete(patientFiles)
+          .where(and(eq(patientFiles.id, id), eq(patientFiles.organizationId, organizationId)))
+          .returning({ id: patientFiles.id });
+        return deleted.length === 1;
+      });
+    },
+
     async getStorageUsedBytes(): Promise<number> {
       const organizationId = currentPrincipalOrganizationId();
       return countStorageUsedBytes(getDrizzle(), organizationId);

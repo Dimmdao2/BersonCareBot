@@ -165,6 +165,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
       await relayOutbound(
         {
           messageId: `${messageId}:${channel}`,
+          organizationId,
           channel,
           recipient,
           text: messengerBody(notificationText, openUrl),
@@ -249,6 +250,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
           relayOutbound(
             {
               messageId: `${messageId}:email`,
+              organizationId,
               channel: 'email',
               recipient: to,
               text: `${notificationText}\n\n${openUrl}`,

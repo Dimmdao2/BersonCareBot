@@ -1,17 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
+import { env } from '../../config/env.js';
 import {
   runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
 } from '../../infra/principal/organizationPrincipal.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import { buildWebappEntryUrlForMax } from '../webappEntryToken.js';
-import { maxConfig } from './config.js';
 import { maxIncomingToEvent } from './connector.js';
 import { fromMax } from './mapIn.js';
 import { parseMaxUpdate } from './schema.js';
-import { getMaxWebhookSecret } from './runtimeConfig.js';
+import { getMaxRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
 import { setupMaxCommands } from './setupCommands.js';
 import type { MaxUpdateValidated } from './schema.js';
 import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
@@ -39,13 +39,9 @@ export type MaxWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
-  /**
-   * T0.4 channel-binding fallback: resolves the deployment's single organization when the
-   * messenger identity has no per-user org context yet (first-contact, not yet enrolled). The
-   * tenant boundary is the inbound channel/bot, not the user's enrollment state — see
-   * `resolveDeploymentSingleActiveOrganizationId` for the architecture rationale/limits.
-   */
-  resolveDeploymentOrganizationId?: () => Promise<string | null>;
+  /** Exact dedicated bot-instance binding; never falls back to enrollment/default organization. */
+  resolveDedicatedClinicBotOrganization?: (credentialFingerprint: string) => Promise<string | null>;
+  resolveDedicatedClinicBotApiKey?: (organizationId: string) => Promise<string | null>;
 };
 
 function getSourceMaxExternalId(data: MaxUpdateValidated): string | null {
@@ -64,27 +60,14 @@ async function resolveMaxOrganizationId(
       const perUserOrg = await deps.resolveOrganizationIdForMessengerIdentity(externalId, 'max');
       if (perUserOrg) return perUserOrg;
     } catch {
-      // fall through to channel-binding fallback below
+      // No enrollment/default fallback: a dedicated bot is resolved by its endpoint binding.
     }
   }
-  if (!deps.resolveDeploymentOrganizationId) return null;
-  try {
-    const deploymentOrg = await deps.resolveDeploymentOrganizationId();
-    if (deploymentOrg) {
-      reqLogger.info(
-        { source: 'max' },
-        'max webhook: no per-user org context, using deployment channel-binding fallback',
-      );
-      return deploymentOrg;
-    }
-    reqLogger.warn(
-      { source: 'max' },
-      'max webhook: no organization resolvable for this channel (unbound/misconfigured deployment)',
-    );
-    return null;
-  } catch {
-    return null;
-  }
+  reqLogger.warn(
+    { source: 'max' },
+    'max webhook: no exact organization context for inbound bot message',
+  );
+  return null;
 }
 
 async function resolveMaxIntegratorUserId(
@@ -123,6 +106,11 @@ export async function buildMaxLinks(
   } catch {
     integratorUserId = undefined;
   }
+  const appBase = (appBaseUrl ?? env.APP_BASE_URL).trim().replace(/\/+$/, '');
+  const remindersUrl =
+    appBase.startsWith('http://') || appBase.startsWith('https://')
+      ? `${appBase}/app/patient/reminders`
+      : undefined;
   const webappEntryUrl = buildWebappEntryUrlForMax(
     {
       maxId: String(maxId),
@@ -131,14 +119,14 @@ export async function buildMaxLinks(
     },
     appBaseUrl,
   );
-  if (!webappEntryUrl) return {};
+  if (!webappEntryUrl) return remindersUrl ? { links: { remindersUrl } } : {};
   const baseWebappUrl = webappEntryUrl;
   const enc = (p: string) => encodeURIComponent(p);
   return {
     links: {
       webappEntryUrl: baseWebappUrl,
       webappHomeUrl: `${baseWebappUrl}&next=${enc('/app/patient')}`,
-      webappRemindersUrl: `${baseWebappUrl}&next=${enc('/app/patient/reminders')}`,
+      ...(remindersUrl ? { remindersUrl } : {}),
       webappCabinetUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,
       webappAddressUrl: `${baseWebappUrl}&next=${enc('/app/patient/address')}`,
       bookingUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,
@@ -156,21 +144,11 @@ export async function buildMaxFacts(
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
   const appBaseUrl = getAppBaseUrl ? await getAppBaseUrl() : undefined;
-  const adminChatId = maxConfig.adminChatId;
-  const adminUserId = maxConfig.adminUserId;
   const chatId = data.message?.recipient?.chat_id ?? data.chat_id;
   const senderUserId =
     data.callback?.user?.user_id ?? data.message?.sender?.user_id ?? data.user?.user_id;
   const actorId =
     senderUserId != null ? String(senderUserId) : chatId != null ? String(chatId) : '';
-  const envAdmin =
-    (typeof adminUserId === 'number' &&
-      typeof senderUserId === 'number' &&
-      adminUserId === senderUserId) ||
-    (typeof adminUserId !== 'number' &&
-      typeof adminChatId === 'number' &&
-      typeof chatId === 'number' &&
-      adminChatId === chatId);
   let dbAdmin = false;
   if (actorId && resolveMessengerStaffAdmin) {
     try {
@@ -189,11 +167,9 @@ export async function buildMaxFacts(
       dbAdmin = false;
     }
   }
-  const isAdmin = envAdmin || dbAdmin;
+  const isAdmin = dbAdmin;
   return {
     ...(await buildMaxLinks(data, resolveIntegratorUserIdForMessenger, appBaseUrl)),
-    ...(typeof adminChatId === 'number' ? { adminChatId } : {}),
-    ...(typeof adminUserId === 'number' ? { adminUserId } : {}),
     ...(actorId ? { isAdmin } : {}),
   };
 }
@@ -218,10 +194,10 @@ export async function registerMaxWebhookRoutes(
     const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     try {
-      const webhookSecret = await getMaxWebhookSecret();
-      if (webhookSecret) {
-        const headerSecret = request.headers['x-max-bot-api-secret'];
-        if (headerSecret !== webhookSecret) {
+      const config = await getMaxRuntimeConfig();
+      if (!config.enabled) return reply.code(503).send({ ok: false, error: 'Unavailable' });
+      const headerSecret = request.headers['x-max-bot-api-secret'];
+      if (headerSecret !== config.webhookSecret) {
           reqLogger.warn('max webhook secret mismatch');
           recordMaxWebhookOutcome({
             source: 'max',
@@ -231,7 +207,6 @@ export async function registerMaxWebhookRoutes(
             detail: 'secret mismatch',
           });
           return reply.code(200).send({ ok: false, error: 'Forbidden' });
-        }
       }
 
       const parseResult = parseMaxUpdate(request.body);
@@ -269,7 +244,7 @@ export async function registerMaxWebhookRoutes(
         );
       }
 
-      const incoming = fromMax(data, maxConfig.apiKey);
+      const incoming = fromMax(data, config.apiKey);
       if (!incoming) {
         if (verbose) {
           reqLogger.info(
@@ -372,4 +347,72 @@ export async function registerMaxWebhookRoutes(
       return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });
+
+  app.post<{ Params: { credentialFingerprint: string } }>(
+    '/webhook/max/dedicated/:credentialFingerprint',
+    async (request, reply) => {
+      const correlationId = request.id;
+      const eventId = newEventId('incoming');
+      const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
+      const fingerprint = request.params.credentialFingerprint;
+      const organizationId = await deps.resolveDedicatedClinicBotOrganization?.(fingerprint);
+      if (!organizationId) {
+        reqLogger.warn({ source: 'max' }, 'max dedicated webhook: unknown bot binding');
+        recordMaxWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_auth_failed',
+          detail: 'unknown dedicated bot binding',
+        });
+        return reply.code(200).send({ ok: false, error: 'Unknown bot' });
+      }
+      const parseResult = parseMaxUpdate(request.body);
+      if (!parseResult.success) {
+        recordMaxWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_parse_failed',
+          detail: 'body validation failed',
+        });
+        return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
+      }
+      const data = parseResult.data;
+      const clinicApiKey = await deps.resolveDedicatedClinicBotApiKey?.(organizationId);
+      const incoming = fromMax(data, clinicApiKey ?? undefined);
+      if (!incoming) return reply.code(200).send({ ok: true });
+      const preRouting = await runWithDbBootstrapPrincipal(
+        { source: 'max-dedicated-webhook:pre-routing' },
+        async () => ({
+          facts: await buildMaxFacts(
+            data,
+            deps.resolveIntegratorUserIdForMessenger,
+            deps.getAppBaseUrl,
+            deps.resolveMessengerStaffAdmin,
+          ),
+          integratorUserId: await resolveMaxIntegratorUserId(data, deps),
+        }),
+      );
+      const event = maxIncomingToEvent({ incoming, correlationId, eventId, facts: preRouting.facts });
+      const result = preRouting.integratorUserId
+        ? await runWithIntegratorPrincipal(
+            { organizationId, integratorUserId: preRouting.integratorUserId, source: 'max-dedicated-webhook' },
+            () => deps.eventGateway.handleIncomingEvent(event),
+          )
+        : await runWithOrganizationPrincipal(organizationId, () => deps.eventGateway.handleIncomingEvent(event));
+      if (result.status === 'rejected') {
+        recordMaxWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_dispatch_failed',
+          detail: result.reason,
+        });
+        return reply.code(200).send({ ok: false, error: 'Processing failed' });
+      }
+      recordMaxWebhookOutcome({ source: 'max', processedOk: true, httpStatusReturned: 200 });
+      return reply.code(200).send({ ok: true });
+    },
+  );
 }

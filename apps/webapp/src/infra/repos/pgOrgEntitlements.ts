@@ -12,6 +12,7 @@ import type {
   MechanicAccessPolicyMap,
   OrgEntitlementSnapshot,
   OrgMechanic,
+  Tariff,
   TariffQuota,
   TariffQuotaMap,
 } from '@/modules/org-entitlements/types';
@@ -26,6 +27,7 @@ import { patientFiles } from '../../../db/schema/patientFiles';
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
+  saasTariffs,
 } from '../../../db/schema/saasEntitlements';
 
 type Db = ReturnType<typeof getDrizzle>;
@@ -65,6 +67,17 @@ type EnforcedQuotaUsageRow = {
   patient_count_used: number | string;
   files_used: number | string;
 };
+
+function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
+  return {
+    ...row,
+    billingPeriod: row.billingPeriod as Tariff['billingPeriod'],
+    quotas: row.quotas as TariffQuotaMap,
+    systemAccessPolicy: row.systemAccessPolicy as AccessLifecyclePolicy | null,
+    mechanicAccessPolicies: row.mechanicAccessPolicies as MechanicAccessPolicyMap,
+    downgradePolicies: row.downgradePolicies as Tariff['downgradePolicies'],
+  };
+}
 
 function numericQuotaUsage(value: number | string | undefined, field: string): number {
   const parsed = Number(value ?? 0);
@@ -312,6 +325,14 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
     getSnapshot: readSnapshot,
     async getTariffForOrg(organizationId) {
       return (await readSnapshot(organizationId)).tariff;
+    },
+    async getActiveTariffById(tariffId) {
+      const [tariff] = await getDrizzle()
+        .select()
+        .from(saasTariffs)
+        .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
+        .limit(1);
+      return tariff ? toTariff(tariff) : null;
     },
     async listOverrides(organizationId) {
       return (await readSnapshot(organizationId)).overrides;

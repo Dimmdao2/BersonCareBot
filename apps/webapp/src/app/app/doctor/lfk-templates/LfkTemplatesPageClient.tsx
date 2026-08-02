@@ -30,6 +30,7 @@ import {
 import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
+import { LfkTemplatePreviewPanel } from './LfkTemplatePreviewPanel';
 import { buildLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
 import { TemplateEditor } from './TemplateEditor';
 import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
@@ -257,12 +258,16 @@ export function LfkTemplatesPageClient({
       </div>
       {selected ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <TemplateEditor
-            key={selected.id}
-            template={selected}
-            exerciseCatalog={exerciseCatalog}
-            listPreserveQuery={listPreserveQuery}
-          />
+          {selected.ownerKind === 'platform' ? (
+            <LfkTemplatePreviewPanel template={selected} />
+          ) : (
+            <TemplateEditor
+              key={selected.id}
+              template={selected}
+              exerciseCatalog={exerciseCatalog}
+              listPreserveQuery={listPreserveQuery}
+            />
+          )}
         </div>
       ) : null}
     </CatalogRightPane>

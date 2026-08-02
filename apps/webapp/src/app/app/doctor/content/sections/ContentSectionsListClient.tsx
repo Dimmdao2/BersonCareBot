@@ -91,6 +91,7 @@ function SortableSectionRow({
   onToggleVisible,
   onToggleRequiresAuth,
   onRequestDelete,
+  canManageCms,
 }: {
   row: SectionListRow;
   visPending: boolean;
@@ -98,6 +99,7 @@ function SortableSectionRow({
   onToggleVisible: (slug: string, next: boolean) => void;
   onToggleRequiresAuth: (slug: string, next: boolean) => void;
   onRequestDelete: (row: SectionListRow) => void;
+  canManageCms: boolean;
 }) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -138,14 +140,20 @@ function SortableSectionRow({
       style={style}
       className="flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2"
     >
-      <DragHandle listeners={listeners as never} attributes={attributes as never} />
+      {canManageCms ? (
+        <DragHandle listeners={listeners as never} attributes={attributes as never} />
+      ) : null}
       <div className="min-w-0 flex-1">
-        <Link
-          href={`/app/doctor/content/sections/edit/${encodeURIComponent(row.slug)}`}
-          className="block truncate font-medium text-foreground hover:underline"
-        >
-          {row.title}
-        </Link>
+        {canManageCms ? (
+          <Link
+            href={`/app/doctor/content/sections/edit/${encodeURIComponent(row.slug)}`}
+            className="block truncate font-medium text-foreground hover:underline"
+          >
+            {row.title}
+          </Link>
+        ) : (
+          <span className="block truncate font-medium text-foreground">{row.title}</span>
+        )}
         <p className="truncate font-mono text-xs text-muted-foreground">{row.slug}</p>
         <div className="mt-1 flex flex-wrap items-center gap-1">
           <Badge variant={row.kind === 'article' ? 'outline' : 'secondary'} className="text-[10px]">
@@ -195,79 +203,83 @@ function SortableSectionRow({
           </div>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-9 shrink-0 rounded-full border border-border/80"
-          disabled={visPending}
-          title={row.isVisible ? 'Виден пациенту' : 'Скрыт'}
-          aria-label={row.isVisible ? 'Виден пациенту' : 'Скрыт'}
-          onClick={() => onToggleVisible(row.slug, !row.isVisible)}
-        >
-          {row.isVisible ? (
-            <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
-          ) : (
-            <EyeOff className="size-4 text-muted-foreground" aria-hidden />
-          )}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-9 shrink-0 rounded-full border border-border/80"
-          disabled={authPending}
-          title={row.requiresAuth ? 'Только для залогиненных' : 'Публично в каталоге'}
-          aria-label={row.requiresAuth ? 'Только для залогиненных' : 'Публично в каталоге'}
-          onClick={() => onToggleRequiresAuth(row.slug, !row.requiresAuth)}
-        >
-          {row.requiresAuth ? (
-            <Shield className="size-4 text-amber-700 dark:text-amber-500" aria-hidden />
-          ) : (
-            <ShieldOff className="size-4 text-muted-foreground" aria-hidden />
-          )}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-transparent hover:bg-muted"
-            aria-label="Действия"
+      {canManageCms ? (
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 shrink-0 rounded-full border border-border/80"
+            disabled={visPending}
+            title={row.isVisible ? 'Виден пациенту' : 'Скрыт'}
+            aria-label={row.isVisible ? 'Виден пациенту' : 'Скрыт'}
+            onClick={() => onToggleVisible(row.slug, !row.isVisible)}
           >
-            <EllipsisVertical className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Действия</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() =>
-                  router.push(`/app/doctor/content/sections/edit/${encodeURIComponent(row.slug)}`)
-                }
-              >
-                Редактировать
-              </DropdownMenuItem>
-              {!isSectionSlugProtectedFromDelete(row.slug) ? (
+            {row.isVisible ? (
+              <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
+            ) : (
+              <EyeOff className="size-4 text-muted-foreground" aria-hidden />
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 shrink-0 rounded-full border border-border/80"
+            disabled={authPending}
+            title={row.requiresAuth ? 'Только для залогиненных' : 'Публично в каталоге'}
+            aria-label={row.requiresAuth ? 'Только для залогиненных' : 'Публично в каталоге'}
+            onClick={() => onToggleRequiresAuth(row.slug, !row.requiresAuth)}
+          >
+            {row.requiresAuth ? (
+              <Shield className="size-4 text-amber-700 dark:text-amber-500" aria-hidden />
+            ) : (
+              <ShieldOff className="size-4 text-muted-foreground" aria-hidden />
+            )}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-transparent hover:bg-muted"
+              aria-label="Действия"
+            >
+              <EllipsisVertical className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Действия</DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => {
-                    onRequestDelete(row);
-                  }}
+                  onClick={() =>
+                    router.push(`/app/doctor/content/sections/edit/${encodeURIComponent(row.slug)}`)
+                  }
                 >
-                  Удалить раздел…
+                  Редактировать
                 </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                {!isSectionSlugProtectedFromDelete(row.slug) ? (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => {
+                      onRequestDelete(row);
+                    }}
+                  >
+                    Удалить раздел…
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null}
     </li>
   );
 }
 
 export function ContentSectionsListClient({
   initialSections,
+  canManageCms = true,
 }: {
   initialSections: SectionListRow[];
+  canManageCms?: boolean;
 }) {
   const [items, setItems] = useState(initialSections);
   const [deletingFor, setDeletingFor] = useState<SectionListRow | null>(null);
@@ -380,6 +392,7 @@ export function ContentSectionsListClient({
                 onToggleVisible={onToggleVisible}
                 onToggleRequiresAuth={onToggleRequiresAuth}
                 onRequestDelete={onRequestDelete}
+                canManageCms={canManageCms}
               />
             ))}
           </ul>

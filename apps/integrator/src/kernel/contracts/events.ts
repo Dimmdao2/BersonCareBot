@@ -18,6 +18,8 @@ export const OUTBOUND_MESSAGE_CAPABILITIES = [
   'auth_code',
   'contact_handshake',
   'app_push',
+  'essential_delivery',
+  'clinic_delivery',
   'operator_alert',
 ] as const;
 

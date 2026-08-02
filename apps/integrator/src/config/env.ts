@@ -11,6 +11,13 @@ const parsed = z
     HOST: z.string().default('127.0.0.1'),
     PORT: z.coerce.number().default(3000),
     LOG_LEVEL: z.string().default('info'),
+    /** Deployment ownership only: selects inbound transport, never provider credentials or policy. */
+    TELEGRAM_MODE: z.enum(['webhook', 'long_polling']).optional().default('webhook'),
+    /** Cutover-only deployment switch; never an admin-editable integration setting. */
+    TELEGRAM_DELETE_WEBHOOK_ON_START: z
+      .string()
+      .optional()
+      .transform((value) => /^(1|true|yes)$/i.test((value ?? '').trim())),
 
     DATABASE_URL: z.string().min(1),
     APP_BASE_URL: z
@@ -45,22 +52,6 @@ const parsed = z
     INTEGRATOR_WEBAPP_ENTRY_SECRET: z.string().min(16).optional(),
     /** Secret for webhook HMAC (outbound to webapp, inbound from webapp e.g. send-sms). Prefer over INTEGRATOR_SHARED_SECRET when set. */
     INTEGRATOR_WEBHOOK_SECRET: z.string().min(16).optional(),
-    /** @deprecated Use system_settings (admin scope) via webapp Settings UI; env kept as migration fallback only. */
-    GOOGLE_CALENDAR_ENABLED: z
-      .string()
-      .optional()
-      .default('false')
-      .transform((value) => value.toLowerCase() === 'true'),
-    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
-    GOOGLE_CLIENT_ID: z.string().optional().default(''),
-    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
-    GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
-    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
-    GOOGLE_REDIRECT_URI: z.string().optional().default(''),
-    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
-    GOOGLE_CALENDAR_ID: z.string().optional().default(''),
-    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
-    GOOGLE_REFRESH_TOKEN: z.string().optional().default(''),
   })
   .parse(process.env);
 

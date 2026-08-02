@@ -7,13 +7,11 @@ import {
   type DoctorTodayPeopleListMode,
   type DoctorTodayPreferences,
 } from '@/modules/system-settings/doctorTodayPreferences';
-import type { ProactiveInsightKind } from '@/modules/doctor-proactive-insights/types';
 import {
   DoctorSection,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
-import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import {
   Select,
   SelectContent,
@@ -53,18 +51,6 @@ export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndp
     });
   }
 
-  function setSignalVisible(kind: ProactiveInsightKind, visible: boolean) {
-    const selected = new Set(preferences.visibleProactiveInsightKinds);
-    if (visible) selected.add(kind);
-    else selected.delete(kind);
-    save({
-      ...preferences,
-      visibleProactiveInsightKinds: (
-        ['wellbeing_low_streak', 'program_inactivity'] as const
-      ).filter((candidate) => selected.has(candidate)),
-    });
-  }
-
   function setPeopleListMode(value: DoctorTodayPeopleListMode | null) {
     if (value === null) return;
     save({ ...preferences, peopleListMode: value });
@@ -76,18 +62,6 @@ export function DoctorTodayPreferencesSection({ initialPreferences, settingsEndp
         <DoctorSectionTitle>Сегодня</DoctorSectionTitle>
       </DoctorSectionHeader>
       <div className="flex flex-col gap-4">
-        <LabeledSwitch
-          label="Низкое самочувствие"
-          checked={preferences.visibleProactiveInsightKinds.includes('wellbeing_low_streak')}
-          onCheckedChange={(visible) => setSignalVisible('wellbeing_low_streak', visible)}
-          disabled={isPending}
-        />
-        <LabeledSwitch
-          label="Нет отметок по программе"
-          checked={preferences.visibleProactiveInsightKinds.includes('program_inactivity')}
-          onCheckedChange={(visible) => setSignalVisible('program_inactivity', visible)}
-          disabled={isPending}
-        />
         <label className="flex max-w-sm flex-col gap-1.5 text-sm font-medium">
           Список клиентов
           <Select

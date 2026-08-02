@@ -24,10 +24,15 @@ export type PatientTreatmentProgramEntryResult =
       promoEnsureFailed: boolean;
     };
 
+export type PatientPromoAccess = {
+  visible: boolean;
+  canMaterialize: boolean;
+};
+
 async function tryEnsureDefaultPromoInstanceId(
   deps: PatientTreatmentProgramEntryDeps,
   patientUserId: string,
-  canMaterializePromo: () => Promise<boolean>,
+  promoAccess: PatientPromoAccess,
 ): Promise<{ instanceId: string | null; refused: boolean }> {
   const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
   if (!promoTplId?.trim()) return { instanceId: null, refused: false };
@@ -35,7 +40,7 @@ async function tryEnsureDefaultPromoInstanceId(
   try {
     const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
     if (!tpl || tpl.status !== 'published') return { instanceId: null, refused: false };
-    if (!(await canMaterializePromo())) return { instanceId: null, refused: true };
+    if (!promoAccess.canMaterialize) return { instanceId: null, refused: true };
     const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
       patientUserId,
     });
@@ -63,9 +68,15 @@ async function tryEnsureDefaultPromoInstanceId(
 export async function resolvePatientTreatmentProgramEntry(
   deps: PatientTreatmentProgramEntryDeps,
   patientUserId: string,
-  canMaterializePromo: () => Promise<boolean>,
+  resolvePromoAccess: () => Promise<PatientPromoAccess>,
 ): Promise<PatientTreatmentProgramEntryResult> {
-  const list = await deps.treatmentProgramInstance.listForPatient(patientUserId);
+  const [storedList, promoAccess] = await Promise.all([
+    deps.treatmentProgramInstance.listForPatient(patientUserId),
+    resolvePromoAccess(),
+  ]);
+  const list = promoAccess.visible
+    ? storedList
+    : storedList.filter((instance) => instance.assignmentSource !== 'promo');
 
   const active = pickActivePlanInstance(list);
   if (active) {
@@ -79,7 +90,7 @@ export async function resolvePatientTreatmentProgramEntry(
   const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
   let promoEnsureFailed = false;
   if (promoTplId?.trim()) {
-    const ensured = await tryEnsureDefaultPromoInstanceId(deps, patientUserId, canMaterializePromo);
+    const ensured = await tryEnsureDefaultPromoInstanceId(deps, patientUserId, promoAccess);
     if (ensured.instanceId) {
       return { kind: 'redirect', instanceId: ensured.instanceId };
     }
@@ -93,11 +104,16 @@ export async function resolvePatientTreatmentProgramEntry(
 export async function resolveActiveTreatmentProgramInstanceId(
   deps: PatientTreatmentProgramEntryDeps,
   patientUserId: string,
-  canMaterializePromo: () => Promise<boolean>,
+  resolvePromoAccess: () => Promise<PatientPromoAccess>,
 ): Promise<string | null> {
-  const list = await deps.treatmentProgramInstance.listForPatient(patientUserId);
+  const [storedList, promoAccess] = await Promise.all([
+    deps.treatmentProgramInstance.listForPatient(patientUserId),
+    resolvePromoAccess(),
+  ]);
+  const list = promoAccess.visible
+    ? storedList
+    : storedList.filter((instance) => instance.assignmentSource !== 'promo');
   const active = pickActivePlanInstance(list);
   if (active) return active.id;
-  return (await tryEnsureDefaultPromoInstanceId(deps, patientUserId, canMaterializePromo))
-    .instanceId;
+  return (await tryEnsureDefaultPromoInstanceId(deps, patientUserId, promoAccess)).instanceId;
 }
