@@ -1,4 +1,3 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0304
 -- V9b S01: retire the five legacy booking projections after canonical be_* adoption.
 
 ALTER TABLE public.patient_bookings

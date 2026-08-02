@@ -32,6 +32,7 @@ function runGate(files: FixtureFile[]): { status: number | null; output: string 
 }
 
 const routePath = 'apps/webapp/src/app/api/media/[id]/download/route.ts';
+const alternatePrefixRoutePath = 'apps/webapp/src/app/api/files/[id]/route.ts';
 
 describe('media delivery chokepoint structural gate', () => {
   it('rejects syntax-equivalent and renamed HTTP delivery bypasses', () => {
@@ -122,15 +123,25 @@ describe('media delivery chokepoint structural gate', () => {
         ],
       },
       {
+        name: 'direct infra S3 import from an unrelated module',
+        files: [
+          {
+            path: 'apps/webapp/src/modules/online-intake/newDelivery.ts',
+            source:
+              "import { s3PublicUrl } from '@/infra/s3/client';\nexport function deliver() { return s3PublicUrl('media/foreign.mp4'); }\n",
+          },
+        ],
+      },
+      {
         name: 'renamed app-layer helper',
         files: [
           {
             path: 'apps/webapp/src/app-layer/media/newDelivery.ts',
             source:
-              "import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';\nexport const deliverWithoutSubmissionAcl = getMediaAccessRow;\n",
+              "import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';\nimport { presignGetUrl } from '@/app-layer/media/s3Client';\nexport async function deliverWithoutSubmissionAcl(id) { const row = await getMediaAccessRow(id); return row ? presignGetUrl(row.s3_key, 60) : null; }\n",
           },
           {
-            path: routePath,
+            path: alternatePrefixRoutePath,
             source:
               "import { deliverWithoutSubmissionAcl } from '@/app-layer/media/newDelivery';\nexport async function GET() { return Response.json(await deliverWithoutSubmissionAcl('00000000-0000-4000-8000-000000000099')); }\n",
           },
@@ -146,7 +157,7 @@ describe('media delivery chokepoint structural gate', () => {
     expect(missed, `gate accepted reachable bypasses: ${missed.join(', ')}`).toEqual([]);
   });
 
-  it('does not reject upload and background storage maintenance paths', () => {
+  it('does not reject unrelated route/module, upload, or background storage maintenance paths', () => {
     const result = runGate([
       {
         path: 'apps/webapp/src/app/api/media/multipart/complete/route.ts',
@@ -156,6 +167,14 @@ describe('media delivery chokepoint structural gate', () => {
       {
         path: 'apps/webapp/src/app-layer/media/backgroundDelete.ts',
         source: "import { s3DeleteObject } from '@/infra/s3/client';\nvoid s3DeleteObject;\n",
+      },
+      {
+        path: 'apps/webapp/src/app/api/health/route.ts',
+        source: 'export function GET() { return Response.json({ ok: true }); }\n',
+      },
+      {
+        path: 'apps/webapp/src/modules/online-intake/readModel.ts',
+        source: 'export const intakeReadModel = true;\n',
       },
     ]);
 

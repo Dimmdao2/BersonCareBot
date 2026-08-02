@@ -400,7 +400,7 @@ export async function createBookingOnCanonicalEngine(
   if (needsPrepayment && deps.payments && prepayQuote) {
     const returnUrl =
       createInput.bookingChannel === 'public_widget'
-        ? `${env.APP_BASE_URL}${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}&phone=${encodeURIComponent(createInput.contactPhone.trim())}`
+        ? `${env.APP_BASE_URL}${publicBookPaths.pay}?bookingId=${encodeURIComponent(pending.id)}`
         : `${env.APP_BASE_URL}/app/patient/booking/pay?bookingId=${encodeURIComponent(pending.id)}`;
     try {
       await deps.payments.createAppointmentPaymentIntent({

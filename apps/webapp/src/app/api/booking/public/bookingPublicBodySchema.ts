@@ -12,6 +12,7 @@ const contactFields = {
   contactEmail: z.string().email().optional(),
   formAnswers: z.array(formAnswerSchema).optional(),
   attribution: bookingAttributionBodySchema.optional(),
+  proofMethod: z.enum(['sms', 'email']).optional(),
 };
 
 export const publicBookingCreateBodySchema = z.discriminatedUnion('type', [

@@ -52,29 +52,41 @@
       self-test запрещает седьмой обход. **Fix-round #1082 (audit `d2ff0858f`):** F1–F4 закрыты в
       `CH1_UPLOAD_FIX_REPORT.md`; `uploadDoorAcceptance.route.test.ts` (23),
       `mediaUploadDoorGate.unit.test.ts` (14) и canonical gate/self-test — PASS.
-- [ ] **Ч1б. Storage commit/cleanup после разрыва upload.** Отдельный этап, найденный проходом по тем же живым
+- [x] **Ч1б. Storage commit/cleanup после разрыва upload.** Отдельный этап, найденный проходом по тем же живым
       путям, не маскируется под валидацию: proxy пишет S3 до DB и при DB-сбое оставляет orphan; single-PUT после
       PUT/до confirm оставляет pending row + object без cleanup; patient confirm при невалидном HEAD теперь
       отвечает ошибкой, но оставляет связанные `patient_files` + `media_files.pending` + object. Готово = единый
       commit/abort lifecycle на существующих `media_files`/storage ports и
       доказанный cleanup каждого из трёх достижимых сбоев; новой таблицы или второго upload-service нет.
-- [ ] **Ч2. Выдача медиа из хранилища.** Актуальный замер: семь GET-поверхностей; пять
+      **Закрыто 02.08:** product `a38d23c96`, independent audit `79c547755`,
+      `CH1B_STORAGE_LIFECYCLE_INDEPENDENT_AUDIT.md`; финальные faults убито 5/5, непойманных 0, units 21/21,
+      routes 23/23, typecheck/lint/upload-door/raw-SQL/runner gates PASS. K2/K4 подтверждены compiled Drizzle SQL
+      и inspection транзакции, не выданы за live PostgreSQL proof; новая DB-test infrastructure не создавалась.
+- [x] **Ч2. Выдача медиа из хранилища.** Актуальный замер: семь GET-поверхностей; пять
       `/api/media/[id]/**` handler'ов копируют одну ACL-последовательность; текущего пути выдачи `media_files`
       без проверки организации не найдено, но шестую копию ничто не запрещает. Отдельно online-intake при
       нестандартной конфигурации может вернуть бессрочный public-bucket URL. Исходные «21/4» считали все S3
       imports (upload/cleanup/worker/purge), а не delivery bypasses. Готово = одна дверь ACL для пяти handler'ов,
       structural gate с self-test и отсутствие public-URL fallback; `patient_files` остаётся отдельным ресурсом.
+      **Закрыто 02.08:** product `72cbfa172`, blind audit `9c5bdda54`, fixes `1e7a808f8`/`ea908c23e`/
+      `e1f0cd82a`; `CH2_MEDIA_DELIVERY_BLIND_AUDIT_REPORT.md`. Пять handlers / 18 behavior tests сохраняются;
+      structural faults убито 7/7 первоначальных + 2/2 all-root, непойманных 0. Лид повторил saved gate unit 2/2
+      и ordinary gate `exit 0`; public fallback отсутствует.
 - [x] ~~**Ч3. Постановка фоновых работ.**~~ **ОТДАНО СОСЕДНЕМУ СЕАНСУ 01.08 — не мой код.** Обе точки
       обхода общей абстракции `QueuePort` лежат в интеграторе (`integrations/bersoncare/bookingLifecycleRoute.ts`,
       `infra/db/writePort.ts`), это воркстрим интегратора. Из пяти очередей в вебаппе только перекодировка
       медиа, и обходов там нет. Пункт попал сюда механически: перепись чокпойнтов шла по всему репозиторию,
       а строки перенесены в план без разбора, чей это код.
-- [ ] **Ч4. Настройки: три файла читают базу мимо общего читателя.** Канонический читатель
+- [x] **Ч4. Настройки: три файла читают базу мимо общего читателя.** Канонический читатель
       `modules/system-settings/configAdapter.ts` (кэш → база → значение из конфигурации), у него 36
       потребителей. Мимо ходят `infra/repos/pgBookingEngine.ts`, `pgBookingScheduling.ts`,
       `pgProductAnalytics.ts` — читают базу напрямую, без кэша и без запасного значения. Последствие:
       обходящий код видит не то же, что остальное приложение, а при недоступности базы — ничего.
       Готово = три файла переведены на общего читателя.
+      **Закрыто 02.08:** product `b398fe178`, independent audit `0c597e8ec` /
+      `ch4-settings-reader-audit-r1`; четыре прямых чтения в трёх repos → 0, per-org лимиты используют
+      canonical runtime reader, default organization и structured analytics config fail closed. Focused 19/19,
+      scoped ESLint/typecheck/raw-SQL/diff green; fault injection на `0`, organization id и malformed JSON красный.
 - [ ] **Ч4б. Квоты: дубль логики в SQL — инженерный этап, не owner-gate.** Резолвер прав один
       (`modules/org-entitlements/service.ts`), но проверка квоты В МОМЕНТ ЗАПИСИ продублирована в SQL
       (`infra/repos/stockQuotaCheck.ts` + инлайн в `pgOrganizationInvites.ts`), и в комментариях кода это

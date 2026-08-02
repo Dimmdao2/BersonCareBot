@@ -148,6 +148,14 @@ export const SERVER_RUNTIME_INTEGER_DEFINITIONS = {
     minValue: 60,
     maxValue: 604800,
   },
+  booking_min_notice_hours: {
+    minValue: 0,
+    maxValue: 168,
+  },
+  booking_max_consecutive_slot_hours: {
+    minValue: 1,
+    maxValue: 24,
+  },
 } as const;
 
 export type PublicRuntimeBooleanKey = (typeof PUBLIC_RUNTIME_BOOLEAN_KEYS)[number];
@@ -171,7 +179,9 @@ function parseIntegerEnvelope(
       : typeof value === 'string' && /^\d+$/.test(value.trim())
         ? Number.parseInt(value.trim(), 10)
         : null;
-  return parsed === null || parsed < 1 ? null : Math.min(maxValue, Math.max(minValue, parsed));
+  return parsed === null || parsed < minValue
+    ? null
+    : Math.min(maxValue, Math.max(minValue, parsed));
 }
 
 function parseTokenListEnvelope(valueJson: unknown): string | null {
@@ -329,12 +339,15 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
       });
       return required(key, parseTokenListEnvelope(row?.valueJson ?? null));
     },
-    async getServerInteger(key: ServerRuntimeIntegerKey): Promise<number> {
+    async getServerInteger(
+      key: ServerRuntimeIntegerKey,
+      organizationId: string | null = null,
+    ): Promise<number> {
       const definition = SERVER_RUNTIME_INTEGER_DEFINITIONS[key];
       const row = await port.getEffective({
         key,
         scope: 'admin',
-        organizationId: null,
+        organizationId,
         allowedAudiences: ['server'],
         operationFamily: 'patient_runtime_config',
       });

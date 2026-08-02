@@ -166,18 +166,6 @@ export type PatientBookingService = {
       }
     | { ok: false; error: 'not_found' }
   >;
-  getBookingPaymentStatusForContact(
-    bookingId: string,
-    contactPhone: string,
-  ): Promise<
-    | {
-        ok: true;
-        booking: PatientBookingRecord;
-        summary: import('@/modules/payments/types').AppointmentPaymentSummary | null;
-        intentId: string | null;
-      }
-    | { ok: false; error: 'not_found' | 'forbidden' }
-  >;
   getBookingByCanonicalAppointment(
     canonicalAppointmentId: string,
   ): Promise<PatientBookingRecord | null>;

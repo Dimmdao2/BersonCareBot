@@ -7,12 +7,10 @@ import { logger } from '@/app-layer/logging/logger';
 import { pgFolderExists } from '@/app-layer/media/mediaFoldersRepo';
 import { pgValidateUserAssignableMediaFolder } from '@/app-layer/media/clientMediaFolders';
 import { insertUploadSessionTx } from '@/app-layer/media/mediaUploadSessionsRepo';
-import {
-  insertPendingMediaFileTx,
-  deletePendingMediaFileById,
-} from '@/app-layer/media/s3MediaStorage';
+import { insertPendingMediaFileTx } from '@/app-layer/media/s3MediaStorage';
 import {
   abortPreparedMultipartUpload,
+  abortPendingMediaUpload,
   beginPreparedMultipartUpload,
   prepareMediaUpload,
 } from '@/app-layer/media/mediaUploadAdapter';
@@ -142,7 +140,7 @@ export async function POST(request: Request) {
         /* best-effort */
       });
     }
-    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(mediaId)).catch(
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(mediaId)).catch(
       () => {
         /* ignore */
       },

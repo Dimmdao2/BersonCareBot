@@ -10,7 +10,7 @@ import {
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { resolveAnalyticsExcludedUserIds } from '@/infra/repos/pgAnalyticsAudience';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
-import { readAdminSystemSettingInnerValue } from '@/infra/repos/pgSystemSettings';
+import { getServerConfigStructuredValue } from '@/modules/system-settings/configAdapter';
 import {
   normalizeTestAccountIdentifiersValue,
   type TestAccountIdentifiers,
@@ -47,7 +47,7 @@ import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperatio
 
 async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
   return normalizeTestAccountIdentifiersValue(
-    await readAdminSystemSettingInnerValue('test_account_identifiers'),
+    await getServerConfigStructuredValue('test_account_identifiers'),
   );
 }
 

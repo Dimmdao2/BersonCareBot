@@ -4,7 +4,10 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { getMediaRowForConfirm } from '@/app-layer/media/s3MediaStorage';
-import { validateReceivedMediaObject } from '@/app-layer/media/mediaUploadAdapter';
+import {
+  abortPendingMediaUpload,
+  validateReceivedMediaObject,
+} from '@/app-layer/media/mediaUploadAdapter';
 import { uploadValidationResponse, validateUploadIntent } from '@/modules/media/uploadValidation';
 
 const FILES_QUOTA_REACHED_MESSAGE = 'saas_quota_reached:files';
@@ -53,11 +56,13 @@ export async function POST(
     policyId: 'patient-file',
   });
   if (!intent.ok) {
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(file.mediaFileId!));
     const rejection = uploadValidationResponse(intent);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
   const received = await validateReceivedMediaObject({ key: row.s3_key, intent: intent.value });
   if (!received.ok) {
+    await withDoctorWorkspacePrincipal(gate.ctx, () => abortPendingMediaUpload(file.mediaFileId!));
     const rejection = uploadValidationResponse(received);
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
