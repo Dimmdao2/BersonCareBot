@@ -25,8 +25,6 @@ const START_PARAM_TO_PATH: Record<string, string> = {
   diary: routePaths.diary,
   lessons: routePaths.lessons,
   emergency: routePaths.emergency,
-  intake_lfk: routePaths.intakeLfk,
-  intake_nutrition: routePaths.intakeNutrition,
 };
 
 /**

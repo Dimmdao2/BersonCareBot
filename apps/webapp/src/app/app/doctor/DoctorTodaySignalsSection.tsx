@@ -25,7 +25,6 @@ type Props = Pick<
   | 'proactiveInsightsTotal'
   | 'proactiveInsightsTruncated'
   // Диалогу нужны и остальные props, передаём пустые для неактивных вкладок
-  | 'newIntakeRequests'
   | 'unreadConversations'
   | 'unreadTotal'
   | 'pendingProgramTests'
@@ -47,7 +46,6 @@ export function DoctorTodaySignalsSection({
   proactiveInsights,
   proactiveInsightsTotal,
   proactiveInsightsTruncated,
-  newIntakeRequests,
   unreadConversations,
   unreadTotal,
   pendingProgramTests,
@@ -111,7 +109,6 @@ export function DoctorTodaySignalsSection({
         open={open}
         onOpenChange={setOpen}
         kind="proactive"
-        newIntakeRequests={newIntakeRequests}
         unreadConversations={unreadConversations}
         unreadTotal={unreadTotal}
         pendingProgramTests={pendingProgramTests}

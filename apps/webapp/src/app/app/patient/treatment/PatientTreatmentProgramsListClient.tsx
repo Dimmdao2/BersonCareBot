@@ -22,7 +22,6 @@ import {
   patientInnerPageStackClass,
   patientSectionTitleClass,
 } from '@/shared/ui/patient/patientVisual';
-import { PatientPlanPersonalProgramCtaCard } from '@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard';
 import { PatientTreatmentProgramsListPromoRetry } from './PatientTreatmentProgramsListPromoRetry';
 
 /** Текущий этап для hero списка: та же семантика, что на detail (`pipeline` без этапа 0). */
@@ -101,8 +100,6 @@ export function PatientTreatmentProgramsListClient(props: {
           </div>
         </section>
       ) : null}
-
-      {!hero ? <PatientPlanPersonalProgramCtaCard /> : null}
 
       {archived.length > 0 ? (
         <details className={cn(patientCardListSectionClass, 'group')}>

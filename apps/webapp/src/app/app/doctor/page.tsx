@@ -4,7 +4,6 @@
 import Link from 'next/link';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getOnlineIntakeService } from '@/app-layer/di/onlineIntakeDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   getMechanicMutationAvailability,
@@ -105,7 +104,6 @@ export default async function DoctorPage() {
     );
   }
   const deps = buildAppDeps();
-  const intakeService = getOnlineIntakeService();
   const displayIana = await getAppDisplayTimeZone();
   const audience = await loadDoctorAnalyticsAudience();
   const todayPreferencesRow = await deps.systemSettings.getSetting(
@@ -148,7 +146,6 @@ export default async function DoctorPage() {
               workspaceAudience,
             ),
         },
-        intakeService,
         workspaceAudience,
         todayPreferences,
       ),

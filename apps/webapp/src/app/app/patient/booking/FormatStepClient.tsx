@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Building2, Dna, Dumbbell } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
 import type { BookingCity } from '@/modules/booking-catalog/types';
@@ -77,22 +77,6 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
             Онлайн-приём
           </Link>
         ) : null}
-        <Link
-          href={routePaths.intakeLfk}
-          prefetch={false}
-          className={cn(bookingChoiceRowClass, 'text-left')}
-        >
-          <Dumbbell className={bookingChoiceRowIconClass} aria-hidden />
-          Реабилитация онлайн
-        </Link>
-        <Link
-          href={routePaths.intakeNutrition}
-          prefetch={false}
-          className={cn(bookingChoiceRowClass, 'text-left')}
-        >
-          <Dna className={bookingChoiceRowIconClass} aria-hidden />
-          Нутрициология онлайн
-        </Link>
       </div>
     </div>
   );
