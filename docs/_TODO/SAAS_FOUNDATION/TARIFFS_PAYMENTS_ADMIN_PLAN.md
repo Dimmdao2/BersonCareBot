@@ -971,6 +971,15 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       чтения данных через `getMechanicMutationAvailability`. `disabled` продолжает скрывать doctor/patient CMS через
       общий adapter видимости, а daily warmup использует собственный `warmups` guard. Доказательство: прошли
       `accessLifecycleSurfaces.ui.test.tsx` и `tariffMechanicsRefusals.ui.test.tsx`.
+      — Брендирование: `org-branding/service.ts` использует resolver access-state для обеих сторон
+      лестницы; disabled скрывает editor и возвращает platform presentation, read_only сохраняет
+      presentation и отказывает write до port. Patient context получает только server-resolved name
+      из trusted enrollment. Реестр: `protectedActionRegistry.ts` `branding.save`.
+      Поведенческое доказательство: `pnpm --dir apps/webapp exec vitest run --project=unit
+      src/modules/org-branding/service.unit.test.ts` (2 passed); `pnpm --dir apps/webapp exec vitest
+      run --project=ui src/shared/ui/patient/organization/PatientOrganizationContext.ui.test.tsx`
+      (1 passed). Целевые поломки «disabled применяет retained brand» и «read_only пропускает save»
+      обе делают unit-тест красным.
 - [ ] **4.8** Рассылки — после появления модели каналов клиники в соседнем потоке (#1071), по их контракту.
 - [ ] **4.9** Три механики владельца («Сегодня», разминки, промо) — выключены у всех, включаются ему существующим
       исключением организации, и подчиняются лестнице как все.
