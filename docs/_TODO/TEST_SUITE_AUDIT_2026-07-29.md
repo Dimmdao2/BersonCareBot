@@ -316,6 +316,13 @@ D20 у интегратора) не переживёт написания и н�
       инженерное/security-решение, не owner-gate. Документ пока рекомендация, не PASS: enforcement мерить на
       TEST под `app_*_login`, не на dev-владельце, после remediation access paths и backfill.
 
+      **Прогресс 02.08:** S01 и S02 приняты и приземлены через `c6b844bbc`: удалены ровно пять legacy booking
+      projections (`0304`), затем expand-only добавлены 29+9 capability/operational seams (`0306`) без revoke,
+      RLS или FORCE. Независимые evidence: S01 `86344858e`/`79f3dd0b8`; S02
+      `ddab86eda`/`cfb813a96`/`f54468e67`. Следующий исполнимый slice — S03: детерминированно проставить
+      `organization_id` у `patient_bookings`/`appointment_records` и откатить всю миграцию при любом ненулевом
+      reason-count; прямые права и RLS меняются только последующими S04/S05.
+
 - [ ] **В9в. Два предиката идентификатора свести в один (находка слепого аудита В9, П3).**
       `isPlatformUserUuid` и `isDbPrincipalPlatformUserId` сегодня дают одинаковый ответ, поэтому ветка
       `catch` в `enterWithDbPlatformPrincipal` недостижима и честный тест на неё написать нельзя. Комментарий

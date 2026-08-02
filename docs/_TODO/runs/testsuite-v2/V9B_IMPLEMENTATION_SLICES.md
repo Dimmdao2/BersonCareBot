@@ -169,7 +169,7 @@ logins above. `app_worker` is not an evidence actor or fallback capability.
 | Slice | Status / measurable prerequisite | Deliverable |
 | --- | --- | --- |
 | S01 | **ACCEPTED AND INTEGRATED 02.08.** Product `86344858e`, independent report `79f3dd0b8`; after building the four workspace packages the same webapp typecheck passed. Merged into `wt/single-entry-integration` and migration `0304` applied on DEV through the unified `0300…0305` ledger. | Removed only `booking_branch_services`, `booking_branches`, `booking_services`, `booking_specialists`, `branches`, their FK/backrefs, `pgBranches` and three DI lines; regenerated grant SQL. |
-| S02 | Ready after S01 source shape lock. No D1/D10 owner release condition. | Expand seams/EXECUTE and operational ACLs in the 29+9 matrix; no final revoke. |
+| S02 | **ACCEPTED AND INTEGRATED 02.08.** Product `ddab86eda`, audit `cfb813a96`, replay closure `f54468e67`, land `c6b844bbc`; disposable migration replay reached `count=307` twice. | Expanded seams/EXECUTE and operational ACLs in the 29+9 matrix; no final revoke/FORCE. |
 | S03 | S01 land plus one current board number. | Deterministic booking ownership backfill. |
 | S04 | S02 seams exist; every named adoption test, including D1 writer test, green. | Caller adoption then one contract migration with final revokes. |
 | S05a | D1 exact capability green + S04 D1 direct grants revoked + direct-deny A1 green. | identity/preferences FORCE. |
@@ -180,10 +180,10 @@ logins above. `app_worker` is not an evidence actor or fallback capability.
 
 ### S02 execution status — 2026-08-02
 
-The bounded S02 worker artifact is `0306_v9b_capability_seams_local.sql` with its journal entry
-and `V9B_S02_CAPABILITY_SEAMS_REPORT.md`. It is expand-only and awaits the required independent
-audit; no owner checkbox, DEV/TEST/PROD action, caller adoption, direct-table revoke, RLS, or D1
-writer change is recorded here.
+The bounded S02 artifact `0306_v9b_capability_seams_local.sql` and
+`V9B_S02_CAPABILITY_SEAMS_REPORT.md` passed independent 38/38 inspection and clean disposable replay
+(`ddab86eda` + `cfb813a96` + `f54468e67`) and landed through `c6b844bbc`. It remains expand-only: no caller
+adoption, direct-table revoke, RLS/FORCE, or D1 writer change is claimed here. The next slice is S03.
 
 S03 backfill is transactional and deterministic. It stamps only proven canonical matches; before
 `NOT NULL` it computes reason counts (`zero_match`, `multiple_match`, `deleted_parent`,
@@ -194,7 +194,7 @@ zero count. `canonicalCreate.ts` must resolve and write the canonical appointmen
 before a pending booking insert. `NOT NULL` and S05b are unreachable until an authorised reconcile
 shows every count zero.
 
-### First-worker brief — S01, READY NOW
+### Historical first-worker brief — S01, COMPLETED 02.08
 
 > Work only S01 on a fresh `wt/` branch from the current single-entry integration SHA. Before any
 > migration file: reread `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`, inspect active SHA/diff only for the
