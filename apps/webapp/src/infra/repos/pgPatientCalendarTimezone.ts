@@ -1,7 +1,9 @@
 /**
- * Wave 3 phase 14D — patient calendar timezone via `runWebappPgText`.
+ * Patient calendar timezone through the platform_users schema and patient DB function door.
  */
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { platformUsers } from '../../../db/schema/schema';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import { isAcceptableIanaTimezone } from '@/modules/system-settings/calendarIana';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
@@ -9,11 +11,12 @@ import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperatio
 export async function getPatientCalendarTimezoneIana(
   platformUserId: string,
 ): Promise<string | null> {
-  const r = await runWebappPgText<{ calendar_timezone: string | null }>(
-    `SELECT calendar_timezone FROM platform_users WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [platformUserId],
-  );
-  return r.rows[0]?.calendar_timezone ?? null;
+  const rows = await getWebappSqlDb()
+    .select({ calendarTimezone: platformUsers.calendarTimezone })
+    .from(platformUsers)
+    .where(and(eq(platformUsers.id, platformUserId), isNull(platformUsers.mergedIntoId)))
+    .limit(1);
+  return rows[0]?.calendarTimezone ?? null;
 }
 
 export async function setPatientCalendarTimezoneIana(
@@ -22,20 +25,25 @@ export async function setPatientCalendarTimezoneIana(
 ): Promise<boolean> {
   if (getCurrentDbPrincipal()?.kind === 'patient') {
     const result = await runWithWebappDbOperationFamily('patient_calendar_timezone', () =>
-      runWebappPgText<{ updated: boolean }>(
-        `SELECT app.set_current_patient_calendar_timezone($1, false) AS updated`,
-        [value],
+      runWebappSql<{ updated: boolean }>(
+        getWebappSqlDb(),
+        sql`SELECT app.set_current_patient_calendar_timezone(${value}, false) AS updated`,
       ),
     );
     return result.rows[0]?.updated === true;
   }
-  const res = await runWebappPgText(
-    `UPDATE platform_users
-     SET calendar_timezone = $2, updated_at = now()
-     WHERE id = $1::uuid AND role = 'client' AND merged_into_id IS NULL`,
-    [platformUserId, value],
-  );
-  return (res.rowCount ?? 0) > 0;
+  const rows = await getWebappSqlDb()
+    .update(platformUsers)
+    .set({ calendarTimezone: value, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(platformUsers.id, platformUserId),
+        eq(platformUsers.role, 'client'),
+        isNull(platformUsers.mergedIntoId),
+      ),
+    )
+    .returning({ id: platformUsers.id });
+  return rows.length > 0;
 }
 
 /**
@@ -50,20 +58,22 @@ export async function trySetInitialCalendarTimezoneIfEmpty(
   if (!candidate || !isAcceptableIanaTimezone(candidate)) return;
   if (getCurrentDbPrincipal()?.kind === 'patient') {
     await runWithWebappDbOperationFamily('patient_calendar_timezone', () =>
-      runWebappPgText<{ updated: boolean }>(
-        `SELECT app.set_current_patient_calendar_timezone($1, true) AS updated`,
-        [candidate],
+      runWebappSql<{ updated: boolean }>(
+        getWebappSqlDb(),
+        sql`SELECT app.set_current_patient_calendar_timezone(${candidate}, true) AS updated`,
       ),
     );
     return;
   }
-  await runWebappPgText(
-    `UPDATE platform_users
-     SET calendar_timezone = $2, updated_at = now()
-     WHERE id = $1::uuid
-       AND role = 'client'
-       AND merged_into_id IS NULL
-       AND calendar_timezone IS NULL`,
-    [platformUserId, candidate],
-  );
+  await getWebappSqlDb()
+    .update(platformUsers)
+    .set({ calendarTimezone: candidate, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(platformUsers.id, platformUserId),
+        eq(platformUsers.role, 'client'),
+        isNull(platformUsers.mergedIntoId),
+        isNull(platformUsers.calendarTimezone),
+      ),
+    );
 }
