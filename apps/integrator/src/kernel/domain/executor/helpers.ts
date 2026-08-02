@@ -50,7 +50,7 @@ export type ExecutorDeps = {
   webappEventsPort?: WebappEventsPort;
   /** Optional: resolve delivery targets by phone/channel for multi-channel booking fan-out. */
   deliveryTargetsPort?: DeliveryTargetsPort;
-  /** Optional: webapp journal + occurrence_history for reminder snooze/skip from bot callbacks. */
+  /** Optional: ready reminder-action capabilities from the webapp public schema. */
   remindersWebappWritesPort?: RemindersWebappWritesPort;
 };
 

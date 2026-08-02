@@ -2220,6 +2220,13 @@
       "when": 1793539230022,
       "tag": "0316_clinic_dedicated_bot_bindings_local",
       "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1793539230023,
+      "tag": "0314_reminder_callback_capabilities",
+      "breakpoints": true
     }
   ]
 }

@@ -513,19 +513,23 @@ export type ReminderOccurrenceHistoryItem = {
   occurredAt: string;
 };
 
-/** Signed POST actions for reminder occurrences (webapp journal + occurrence_history). */
+/**
+ * Ready reminder-action capabilities executed under the installed DB principal.
+ *
+ * The actor is deliberately absent: `app.*` derives it from the transaction
+ * principal and exact organization, so a callback cannot impersonate another
+ * integrator user through this boundary.
+ */
 export type RemindersWebappWritesPort = {
   postOccurrenceSnooze(input: {
-    integratorUserId: string;
     occurrenceId: string;
     minutes: number;
   }): Promise<{ ok: true; snoozedUntil: string } | { ok: false; error: string }>;
   postOccurrenceSkip(input: {
-    integratorUserId: string;
     occurrenceId: string;
     reason: string | null;
   }): Promise<{ ok: true; skippedAt: string } | { ok: false; error: string }>;
-  postOccurrenceDone(input: { integratorUserId: string; occurrenceId: string }): Promise<
+  postOccurrenceDone(input: { occurrenceId: string }): Promise<
     | {
         ok: true;
         doneAt: string;
@@ -537,18 +541,15 @@ export type RemindersWebappWritesPort = {
     | { ok: false; error: string }
   >;
   postReminderMuteUntil(input: {
-    integratorUserId: string;
     mutedUntilIso: string | null;
   }): Promise<{ ok: true } | { ok: false; error: string }>;
   /** Turn off reminder delivery in Telegram/MAX for occurrence's topic (`user_notification_topic_channels`). */
   postMessengerTopicDisable(input: {
-    integratorUserId: string;
     occurrenceId: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<{ ok: true; paragraphs: string[] } | { ok: false; error: string }>;
   /** Fetch per-channel notification topic settings for a user. */
   getNotificationSettings(input: {
-    integratorUserId: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<
     | { ok: true; topics: Array<{ code: string; title: string; isEnabled: boolean }> }
@@ -556,7 +557,6 @@ export type RemindersWebappWritesPort = {
   >;
   /** Toggle a notification topic on/off for a specific channel. Returns new state. */
   toggleNotificationTopic(input: {
-    integratorUserId: string;
     topicCode: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<{ ok: true; newState: boolean } | { ok: false; error: string }>;
