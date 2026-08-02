@@ -6,6 +6,7 @@ import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalytics
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getOnlineIntakeService } from '@/app-layer/di/onlineIntakeDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { getMechanicMutationAvailability } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { loadAdminRegistrationFailureAttention } from '@/app-layer/product-analytics/loadAdminRegistrationFailureAttention';
 import { loadAdminDoctorTodayHealthBanner } from '@/modules/operator-health/adminDoctorTodayHealthBanner';
@@ -110,6 +111,9 @@ export default async function DoctorPage() {
     { organizationId: workspace.organizationId },
   );
   const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
+  const specialistTasksAvailable = (
+    await getMechanicMutationAvailability(workspace, 'specialist_tasks')
+  ).available;
   const workspaceAudience = {
     includeTestAccounts: audience.includeTestAccounts,
     excludedUserIds: audience.excludedUserIds,
@@ -173,6 +177,7 @@ export default async function DoctorPage() {
         adminHealthBanner={adminHealthBanner}
         adminRegistrationFailureBanner={adminRegistrationFailureBanner}
         todayWorkingBounds={todayWorkingBounds}
+        specialistTasksAvailable={specialistTasksAvailable}
       />
     </DoctorAppShell>
   );

@@ -553,6 +553,7 @@ type Props = {
   initialSupportEffectivePolicy?:
     | import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy
     | null;
+  specialistTasksAvailable: boolean;
 };
 
 /** Derive SSR-seeded OverviewData fields from initial props (all client-fetch-only fields start at loading). */
@@ -653,6 +654,7 @@ export function PatientTabOverview({
   initialAppointments,
   initialPackages,
   initialSupportEffectivePolicy,
+  specialistTasksAvailable,
 }: Props) {
   const [calView, setCalView] = useState<'month' | 'week'>('month');
   // Calendar month navigation — starts at current month, cannot go into future
@@ -825,7 +827,7 @@ export function PatientTabOverview({
             .catch(() => null);
 
     const fetchTasks =
-      hasSsrData && ssrSeedRef.current === userId
+      !specialistTasksAvailable || (hasSsrData && ssrSeedRef.current === userId)
         ? Promise.resolve(null as TasksApiResponse | null)
         : fetch(`/api/doctor/clients/${userId}/tasks`, { credentials: 'include' })
             .then((r) => (r.ok ? (r.json() as Promise<TasksApiResponse>) : null))
@@ -1564,100 +1566,102 @@ export function PatientTabOverview({
         </div>
 
         {/* Задачи */}
-        <div className={doctorSectionCardClass}>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={doctorSectionTitleClass}>Задачи</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Добавить задачу"
-              onClick={() => {
-                setAddingTask(true);
-                setTaskTitle('');
-              }}
-              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
-            >
-              +
-            </Button>
-          </div>
-
-          {addingTask && (
-            <div className="flex flex-col gap-1.5 mb-2">
-              <Input
-                autoFocus
-                type="text"
-                value={taskTitle}
-                onChange={(e) => setTaskTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    void handleTaskSubmit();
-                  }
+        {specialistTasksAvailable ? (
+          <div className={doctorSectionCardClass}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className={doctorSectionTitleClass}>Задачи</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Добавить задачу"
+                onClick={() => {
+                  setAddingTask(true);
+                  setTaskTitle('');
                 }}
-                placeholder="Название задачи…"
-                className="w-full text-xs"
-              />
-              <div className="flex gap-1.5">
-                <Button
-                  variant="default"
-                  onClick={() => void handleTaskSubmit()}
-                  disabled={taskSaving || !taskTitle.trim()}
-                  className="h-auto rounded-md px-3 py-1 text-xs font-medium"
-                >
-                  {taskSaving ? 'Сохранение…' : 'Добавить'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setAddingTask(false);
-                    setTaskTitle('');
-                  }}
-                  className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
-                >
-                  Отмена
-                </Button>
-              </div>
+                className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
+              >
+                +
+              </Button>
             </div>
-          )}
 
-          {isLoading && (
-            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка задач…</p>
-          )}
-          {!isLoading && data?.tasksStatus === 'error' && (
-            <p className="text-xs text-destructive py-1">Не удалось загрузить задачи.</p>
-          )}
-          {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length === 0 && !addingTask && (
-            <p className="text-xs text-muted-foreground py-2">Задач нет.</p>
-          )}
-          {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {data.tasks.map((task) => {
-                const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
-                return (
-                  <div
-                    key={task.id}
-                    className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
+            {addingTask && (
+              <div className="flex flex-col gap-1.5 mb-2">
+                <Input
+                  autoFocus
+                  type="text"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      void handleTaskSubmit();
+                    }
+                  }}
+                  placeholder="Название задачи…"
+                  className="w-full text-xs"
+                />
+                <div className="flex gap-1.5">
+                  <Button
+                    variant="default"
+                    onClick={() => void handleTaskSubmit()}
+                    disabled={taskSaving || !taskTitle.trim()}
+                    className="h-auto rounded-md px-3 py-1 text-xs font-medium"
                   >
-                    <span className="flex-none text-base">☐</span>
-                    {task.isImportant && (
-                      <span className="flex-none text-destructive text-xs">!</span>
-                    )}
-                    <span className="flex-1 text-xs text-foreground">{task.title}</span>
-                    {task.dueAt && (
-                      <span
-                        className={cn(
-                          'text-[11px] font-medium flex-none',
-                          isOverdue ? 'text-destructive font-semibold' : 'text-muted-foreground',
-                        )}
-                      >
-                        до {fmtDateShort(task.dueAt)}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                    {taskSaving ? 'Сохранение…' : 'Добавить'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setAddingTask(false);
+                      setTaskTitle('');
+                    }}
+                    className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+                  >
+                    Отмена
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {isLoading && (
+              <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка задач…</p>
+            )}
+            {!isLoading && data?.tasksStatus === 'error' && (
+              <p className="text-xs text-destructive py-1">Не удалось загрузить задачи.</p>
+            )}
+            {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length === 0 && !addingTask && (
+              <p className="text-xs text-muted-foreground py-2">Задач нет.</p>
+            )}
+            {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length > 0 && (
+              <div className="flex flex-col gap-1">
+                {data.tasks.map((task) => {
+                  const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
+                    >
+                      <span className="flex-none text-base">☐</span>
+                      {task.isImportant && (
+                        <span className="flex-none text-destructive text-xs">!</span>
+                      )}
+                      <span className="flex-1 text-xs text-foreground">{task.title}</span>
+                      {task.dueAt && (
+                        <span
+                          className={cn(
+                            'text-[11px] font-medium flex-none',
+                            isOverdue ? 'text-destructive font-semibold' : 'text-muted-foreground',
+                          )}
+                        >
+                          до {fmtDateShort(task.dueAt)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {/* Программа и комментарии */}
         <div className={doctorSectionCardClass}>

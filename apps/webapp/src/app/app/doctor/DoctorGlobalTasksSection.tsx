@@ -45,6 +45,7 @@ export function DoctorGlobalTasksSection({
   todayIso,
   displayIana,
   className,
+  available,
 }: {
   initialTasks: SpecialistTaskRow[];
   /**
@@ -57,6 +58,7 @@ export function DoctorGlobalTasksSection({
   /** IANA timezone for display — threads from parent instead of hardcoding Europe/Moscow. */
   displayIana?: string;
   className?: string;
+  available: boolean;
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [tasksTotal, setTasksTotal] = useState(initialTasksTotal ?? initialTasks.length);
@@ -96,6 +98,8 @@ export function DoctorGlobalTasksSection({
   // the nearest N upcoming; everything else is reachable via the "Все задачи" button/modal.
   const visibleTasks = sortedTasks.slice(0, overdueCount + NEAREST_UPCOMING_PREVIEW_LIMIT);
   const hasMore = tasksTotal > visibleTasks.length;
+
+  if (!available) return null;
 
   return (
     <DoctorSection id="doctor-today-global-tasks" className={cn('h-full gap-2', className)}>

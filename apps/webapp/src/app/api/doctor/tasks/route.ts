@@ -12,6 +12,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { specialistTaskBodySchema } from '@/modules/specialist-tasks/apiSchemas';
@@ -42,6 +46,11 @@ export async function POST(request: Request) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
   const { session } = gate.ctx;
+
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'specialist_tasks');
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse('specialist_tasks', 'создать задачу');
+  }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = specialistTaskBodySchema.safeParse(raw);
