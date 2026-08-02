@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  getMechanicMutationAvailability: vi.fn(),
   requireEntitlementForRead: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   requireEntitlementForMutationAction: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock('@/app/api/booking/bookingTenant', () => ({
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
+  getMechanicMutationAvailability,
   requireEntitlementForRead,
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
@@ -152,6 +154,7 @@ beforeEach(() => {
   vi.mocked(requireOrganizationManagementContext).mockResolvedValue(workspace as never);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
+  vi.mocked(getMechanicMutationAvailability).mockResolvedValue({ available: true });
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
     ok: true,
     organizationId: ORG_ID,
@@ -226,6 +229,31 @@ describe('tariff and platform mutation gates', () => {
     expect(response.status).toBe(403);
     expect(buildAppDeps().notifTemplates.getManagedTemplates).not.toHaveBeenCalled();
     expect(buildAppDeps().notifTemplates.getManagedPresentation).not.toHaveBeenCalled();
+  });
+
+  it('keeps published clinic notification templates readable but marks their mutations unavailable in read-only access', async () => {
+    vi.mocked(requireEntitlementForRead).mockResolvedValue({ ok: true } as never);
+    vi.mocked(getMechanicMutationAvailability).mockResolvedValue({
+      available: false,
+      reason: 'commercial_read_only',
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      notifTemplates: {
+        getManagedTemplates: vi.fn().mockResolvedValue([]),
+        getManagedPresentation: vi.fn().mockResolvedValue({
+          presentation: { layout: 'organization', signature: 'Клиника', contacts: 'Контакты' },
+        }),
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await getNotificationTemplates();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      brandingMutationAvailable: false,
+      presentation: { presentation: { signature: 'Клиника' } },
+    });
   });
 
   it('refuses external-calendar connection visibly when it is not included in the tariff', async () => {

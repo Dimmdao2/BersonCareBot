@@ -19,7 +19,8 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
     expect(findings).toEqual([
       {
         id: 'branding',
-        message: 'declared DECLARED_NO_SURFACE but has 1 registered write mapping(s): branding.save',
+        message:
+          'declared DECLARED_NO_SURFACE but has 4 registered write mapping(s): branding.save, branding.notification-templates.list, branding.notification-templates.save, branding.notification-templates.preview',
       },
     ]);
   });
