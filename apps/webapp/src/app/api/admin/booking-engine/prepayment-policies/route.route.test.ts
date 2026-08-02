@@ -4,6 +4,7 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requireClinicManagementBookingEngine: vi.fn(),
   getMechanicMutationAvailability: vi.fn(),
+  getMechanicSurfaceVisibility: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   withDoctorWorkspacePrincipal: vi.fn(),
   getService: vi.fn(),
@@ -15,6 +16,7 @@ const fakes = vi.hoisted(() => ({
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   getMechanicMutationAvailability: fakes.getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility: fakes.getMechanicSurfaceVisibility,
   requireEntitlementForMutation: fakes.requireEntitlementForMutation,
 }));
 vi.mock('../_requireAdminBookingEngine', () => ({
@@ -59,6 +61,7 @@ beforeEach(() => {
     },
   });
   fakes.getMechanicMutationAvailability.mockResolvedValue({ available: true });
+  fakes.getMechanicSurfaceVisibility.mockResolvedValue({ directUrl: true });
   fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
   fakes.withDoctorWorkspacePrincipal.mockImplementation(
     (_ctx: unknown, _source: string, callback: () => Promise<unknown>) => callback(),
@@ -83,6 +86,7 @@ describe('B1.3 prepayment policy API', () => {
       ok: true,
       policies: [{ id: 'policy-1', mode: 'fixed_minor' }],
       availability: { available: false, reason: 'entitlement_required' },
+      visible: true,
     });
     expect(fakes.getPrepaymentAvailability).not.toHaveBeenCalled();
   });
@@ -98,6 +102,20 @@ describe('B1.3 prepayment policy API', () => {
 
     expect(response).toBe(denied);
     expect(fakes.upsertPrepaymentPolicy).not.toHaveBeenCalled();
+  });
+
+  it('hides policies when the mechanic is off without reading stored payment data', async () => {
+    fakes.getMechanicSurfaceVisibility.mockResolvedValue({ directUrl: false });
+
+    const response = await GET();
+
+    expect(await response.json()).toEqual({
+      ok: true,
+      policies: [],
+      availability: { available: false, reason: 'entitlement_required' },
+      visible: false,
+    });
+    expect(fakes.listPrepaymentPolicies).not.toHaveBeenCalled();
   });
 
   it('does not persist a non-disabled policy when no configured provider can create an intent', async () => {
@@ -143,7 +161,7 @@ describe('B1.3 prepayment policy API', () => {
     expect(fakes.upsertPrepaymentPolicy).not.toHaveBeenCalled();
   });
 
-  it('still saves disabled mode when the tariff and provider are unavailable', async () => {
+  it('refuses even a disabled policy change when the tariff denies mutation access', async () => {
     fakes.requireEntitlementForMutation.mockResolvedValue({
       ok: false,
       response: Response.json({ ok: false, error: 'entitlement_required' }, { status: 403 }),
@@ -151,11 +169,12 @@ describe('B1.3 prepayment policy API', () => {
 
     const response = await PUT(policyRequest('disabled'));
 
-    expect(response.status).toBe(200);
-    expect(fakes.requireEntitlementForMutation).not.toHaveBeenCalled();
-    expect(fakes.getPrepaymentAvailability).not.toHaveBeenCalled();
-    expect(fakes.upsertPrepaymentPolicy).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: 'disabled', organizationId: ORGANIZATION_ID }),
+    expect(response.status).toBe(403);
+    expect(fakes.requireEntitlementForMutation).toHaveBeenCalledWith(
+      { organizationId: ORGANIZATION_ID },
+      'booking_prepayment',
     );
+    expect(fakes.getPrepaymentAvailability).not.toHaveBeenCalled();
+    expect(fakes.upsertPrepaymentPolicy).not.toHaveBeenCalled();
   });
 });
