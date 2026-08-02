@@ -406,15 +406,16 @@ trialPolicy }` одним payload'ом (`route.ts:99-104`), тем же гейт
 - [x] **`POST /api/admin/organizations/:id/tariff` ... `POST/DELETE /api/admin/organizations/:id/entitlement-overrides`...**
       — ДУБЛЬ-СЛИТ: `assign_tariff`/`upsert_override`/`delete_override` — actions внутри того же
       `POST /api/admin/commercial` (`route.ts:56-74`), identity `(organizationId, mechanic)` соблюдена.
-- [ ] Org-creation: применить выбранную global-admin trial policy через typed service в атомарной provisioning
+- [x] Org-creation: применить выбранную global-admin trial policy через typed service в атомарной provisioning
       boundary; не выбирать тариф по имени/`is_default` и не скрывать неполную policy под all-on fallback — см. §3.2.
-      — НЕ СДЕЛАНО: `grep` по `modules/organization-provisioning/{service,ports}.ts` не находит ни `trial`, ни `tariff`.
-      `startTrial` вызывается только вручную из admin UI action (`route.ts` `start_trial`), не из
-      `specialist-signup/confirm|retry` или provisioning flow. Новая организация trial policy автоматически не получает.
-ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §5 / S4-0 — «Зафиксировать инженерный compatibility path для клиники без тарифа».
-- Для существующих org с `tariff_id IS NULL` сначала выполнить read-only inventory/dry-run. Apply разрешён только
-      по owner-approved mapping; до него сохранить compatibility behavior, не назначать придуманный all-true тариф.
-      — НЕ СДЕЛАНО: никакого dry-run/inventory скрипта или роута для `tariff_id IS NULL` в репозитории не найдено.
+      — ГОТОВО, land `706e7f52f`: C5A применяет registration tariff и активную trial policy в одной
+      provisioning-транзакции. `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs`
+      доказал configured tariff/trial (14+3 дня), идемпотентный replay, легальный NULL без trial и полный rollback
+      при stale non-NULL ссылке; независимый аудит нашёл и сохранённый PostgreSQL oracle подтвердил закрытие гонки
+      set-policy/deactivate (`65d9196df`).
+Прежний compatibility path для существующих org с `tariff_id IS NULL` ОТМЕНЁН ВЛАДЕЛЬЦЕМ 01.08 решением Р-12:
+инвентаризация допустима только как отчёт о фактах, но сохранение compatibility behavior и owner-approved mapping
+больше не являются работой или условием регистрации.
 - [x] **UI-размещение — PLAT-02/PLAT-03, НЕ старый паттерн S23 (см. §0a). Не добавлять пункт в кластер**
       «Настройки» `doctorNavLinks.ts` рядом с `admin-app-settings`/`admin-auth` — тот кластер сам помечен на миграцию
       прочь из doctor-сайдбара. Вместо этого — новый route-group маршрут по образцу уже существующего PLAT-07
@@ -543,7 +544,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 | **Р-4** | «количество разрешённых специалистов должно быть явно настроено в тарифе, иначе он не сохранится», при создании «по умолчанию пусть ставится одно — это разумный минимум» | 31.07 | ✅ сделано | 2.6a |
 | **Р-5** | «нет доступа и нет никаких механик вне тарифа; либо есть закончившийся тариф, либо отсутствует регистрация; при регистрации сразу даётся тариф с триалом, который настраивается в админке» | 31.07 | ✅ сделано | 2.13 |
 | **Р-6** | «просто сразу требуется выбор тарифа и оплата»; повторный триал не выдаётся — «перестала платить, вернулась — нет ни активного тарифа, ни триала уже повторного» | 31.07 | ✅ сделано: без тарифа/триала дверь закрыта, trial identity уникален на организацию | 2.13 |
-| **Р-7** | «клинику завели — выдаётся настроенный на этот случай тариф с триалом; потом клиника выбирает нужный тариф и оплачивает; при неоплате первично выданный тариф работает как настроено на этот случай, и переход на другие тарифы идёт по обычным правилам» | 31.07 | ⏳ не доказано, что настраивается, а не зашито | 2.6a |
+| **Р-7** | «клинику завели — выдаётся настроенный на этот случай тариф с триалом; потом клиника выбирает нужный тариф и оплачивает; при неоплате первично выданный тариф работает как настроено на этот случай, и переход на другие тарифы идёт по обычным правилам» | 31.07 | ✅ доказано: C5A читает обе DB-policy; PostgreSQL smoke проверяет configured/NULL/stale и replay, land `706e7f52f` | 2.6a |
 | **Р-8** | «процент для предупреждения надо считать только от количества доступных клиентов и объёма файлов». С мест порог снять совсем, у филиалов предупреждения нет | 31.07 | ✅ сделано | 2.6a |
 | **Р-9** | «третьего варианта — оставить доступ - и не надо». Причина владельца: «Если этот участок приложения ограничен в тарифе, значит, он явно ограничен не для того, чтобы после завершения оплаты заявлять доступ к нему» | 01.08 | ✅ сделано (откат `f8cfea0ec`) | 2.8, 4b.2 |
 | **Р-10** | «при оплате тарифа все настройки оплаченного тарифа фиксируются на оплаченный период для конкретной клиники. Не важно что меняется после - клиника уже оплатила и пока оплата не закончилась - имеет доступ к оплаченному» | 01.08 | ✅ сделано, круг 2 закрыл числа | 2.12 |
@@ -1156,10 +1157,13 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       декларирует `exercise_catalog`/`exercise_packages`/`patient_app`/`patient_app_paid_subscription`/`branding`/
       `custom_domain` в `DECLARED_NO_SURFACE` (строки 130-137). Coverage-тест (6/6) подтверждает: ни одна механика не
       осталась без mapping или exemption.
-- [ ] Новая организация применяет выбранную global-admin trial policy; если зависимая policy не утверждена/неполна,
-      автоматическое trial provisioning fail-closed без подстановки придуманного тарифа. Existing NULL-org проходят
-      отдельный owner-approved migration mapping до удаления compatibility behavior.
-      — НЕ СДЕЛАНО: см. Phase 3 пп.7-8 выше — ни provisioning-интеграция, ни dry-run/mapping инструмент не существуют.
+- [x] Новая организация применяет выбранную global-admin trial policy; если зависимая policy не утверждена/неполна,
+      автоматическое trial provisioning fail-closed без подстановки придуманного тарифа. — Land `706e7f52f`;
+      configured/NULL/stale/replay и атомарный rollback доказаны тем же PostgreSQL smoke, гонка записи политики и
+      деактивации тарифа — сохранённым oracle независимого аудита.
+- [-] ~~Existing NULL-org проходят отдельный owner-approved migration mapping до удаления compatibility behavior.~~
+      — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 01.08 решением Р-12: compatibility-ветка удаляется, mapping не является условием
+      регистрации новой клиники.
 - [x] **Global-admin управляет тарифами/ценами/периодом/mechanics/назначением/override как данными; `clinic_admin`
       получает 403 везде.**
       — ГОТОВО: `CommercialConstructorClient.tsx` + `POST /api/admin/commercial` (create/update/archive/assign/
