@@ -117,18 +117,21 @@ export async function POST(request: Request) {
   if (body !== null && !purchase.success) {
     return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
   }
+  const principal = {
+    organizationId: gate.ctx.organizationId,
+    platformUserId: gate.ctx.session.user.userId,
+    source: 'clinic-billing-invoice' as const,
+  };
   try {
-    const result = await runWithDbClinicBillingPrincipal(
-      {
-        organizationId: gate.ctx.organizationId,
-        platformUserId: gate.ctx.session.user.userId,
-        source: 'clinic-billing-invoice',
-      },
-      () => purchase.success
-        ? buildAppDeps().saasBilling.purchaseSeatOverage({ organizationId: gate.ctx.organizationId, requestKey: purchase.data.requestKey, confirmedAmountMinor: purchase.data.amountMinor, confirmedCurrency: purchase.data.currency })
-        : buildAppDeps().saasBilling.createOwnTariffRenewalInvoice(gate.ctx.organizationId),
-    );
-    if (purchase.success && 'outcome' in result) {
+    if (purchase.success) {
+      const result = await runWithDbClinicBillingPrincipal(principal, () =>
+        buildAppDeps().saasBilling.purchaseSeatOverage({
+          organizationId: gate.ctx.organizationId,
+          requestKey: purchase.data.requestKey,
+          confirmedAmountMinor: purchase.data.amountMinor,
+          confirmedCurrency: purchase.data.currency,
+        }),
+      );
       if (result.outcome === 'seat_available') {
         return NextResponse.json({ ok: true, outcome: 'seat_available' });
       }
@@ -149,8 +152,24 @@ export async function POST(request: Request) {
           { status: 409 },
         );
       }
+      // outcome === 'checkout'
+      const seatInvoice = result.invoice;
+      if (!seatInvoice.providerCheckoutUrl) {
+        return NextResponse.json(
+          { ok: false, error: 'saas_billing_checkout_unavailable' },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        checkoutUrl: seatInvoice.providerCheckoutUrl,
+        invoiceId: seatInvoice.id,
+      });
     }
-    const invoice = purchase.success && 'invoice' in result ? result.invoice : result;
+    // Tariff renewal path
+    const invoice = await runWithDbClinicBillingPrincipal(principal, () =>
+      buildAppDeps().saasBilling.createOwnTariffRenewalInvoice(gate.ctx.organizationId),
+    );
     if (!invoice.providerCheckoutUrl) {
       return NextResponse.json(
         { ok: false, error: 'saas_billing_checkout_unavailable' },

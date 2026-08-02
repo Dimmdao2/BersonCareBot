@@ -997,8 +997,21 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 #### Этап 5. Числа
 
-- [ ] **5.1** Места специалистов: база и цена за дополнительного; превышение разрешено и оплачивается; сумма к
-      подтверждению; выставление счёта — #1057.
+- [x] **5.1** ✅ **ЗАКРЫТО 02.08** (`wt/saas-seat-billing`): места специалистов реализованы через одну машину состояний
+      (`captureSaasBillingPaymentSucceeded` — единственная точка перевода). Миграция 0308: `paid_additional_seats`,
+      `invoice_kind`, `additional_seat_quantity`, частичный уникальный индекс period (только `tariff_period`), бэкфилл
+      легаси-счетов. Арифметика: `base + quantity × unit_price`, ошибка при отсутствии unit price с ненулевым
+      количеством. Ёмкость: `(override ?? includedSeats) + paidAdditionalSeats`; advisory lock на инвайт; replay
+      seat_overage не меняет подписку повторно; частичный возврат отклоняется до вызова провайдера; успешный полный
+      возврат декрементит `paidAdditionalSeats`. Путь: invite → 402 с ценой → `POST /api/clinic/billing` с
+      `purchase=seat_overage` → checkout → return URL → poll → replay invite. TeamSection держит сессию через
+      sessionStorage, SaasBillingOverview показывает вид/количество/ссылку Оплатить. `createReplacingPending`
+      переписан на Drizzle (нет raw SQL строк). Доказательства (02.08):
+      · `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts` — **24/24**
+      · `pnpm --dir apps/webapp exec vitest run src/app/api/clinic/billing/route.route.test.ts src/app/api/clinic/invites/route.route.test.ts src/app-layer/guards/cabinetAccessLadder.test.ts` — **33/33**
+      · `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` — **OK** (migration backfill, first tariff capture, seat replay, renewal arithmetic, concurrent invites for paid seat, advisory lock serialization)
+      · `pnpm --dir apps/webapp exec tsc --noEmit` — **clean**
+      · scoped ESLint 14 файлов — **clean**; `git diff --check` — **clean**
 - [x] **5.2** ✅ **ЗАКРЫТО 31.07** (`fa15dc5ac`): атомарная проверка в пишущей транзакции, архивирование освобождает место, ведение существующей карточки не блокируется. Доказательство гонки на настоящем PostgreSQL, проверено лидом поломкой.
       НЕ хардкодить — это значения владельца; на пределе просто не создаётся новое. Архивирование освобождает место (свойство механизма).
 - [x] **5.3** ✅ **ЗАКРЫТО 31.07** (`fa15dc5ac`): число филиалов по тому же образцу, деактивация освобождает место, доказательство гонки на настоящем PostgreSQL зелёное и краснеет при снятии решающей строки.
