@@ -21,6 +21,68 @@ const journalPath = path.join(migrationsFolder, 'meta', '_journal.json');
 
 const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
+const RECONCILIATION_MARKER = /^-- RECONCILES-MIGRATION-HASH: ([0-9]{4}_[a-z0-9_]+)$/gm;
+
+export function readMigrationReconciliations(folder, entries) {
+  const entryByTag = new Map(entries.map((entry) => [entry.tag, entry]));
+  const reconciliations = [];
+  for (const forward of entries) {
+    const sqlPath = path.join(folder, `${forward.tag}.sql`);
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    for (const match of sql.matchAll(RECONCILIATION_MARKER)) {
+      const sourceTag = match[1];
+      const source = entryByTag.get(sourceTag);
+      if (!source) {
+        throw new Error(`migration_reconciliation_unknown_source source=${sourceTag} forward=${forward.tag}`);
+      }
+      if (source.when >= forward.when) {
+        throw new Error(`migration_reconciliation_not_forward source=${sourceTag} forward=${forward.tag}`);
+      }
+      reconciliations.push({ sourceTag, forwardTag: forward.tag });
+    }
+  }
+  return reconciliations;
+}
+
+export function inspectMigrationLedgerCompleteness({ migrations, journalEntries, ledgerHashes, reconciliations }) {
+  const migrationByWhen = new Map(migrations.map((migration) => [migration.folderMillis, migration]));
+  const entryByTag = new Map(journalEntries.map((entry) => [entry.tag, entry]));
+  const forwardBySource = new Map();
+
+  for (const reconciliation of reconciliations) {
+    const source = entryByTag.get(reconciliation.sourceTag);
+    const forward = entryByTag.get(reconciliation.forwardTag);
+    if (!source || !forward || source.when >= forward.when) {
+      throw new Error(
+        `migration_reconciliation_invalid source=${reconciliation.sourceTag} forward=${reconciliation.forwardTag}`,
+      );
+    }
+    if (forwardBySource.has(source.tag)) {
+      throw new Error(`migration_reconciliation_ambiguous source=${source.tag}`);
+    }
+    forwardBySource.set(source.tag, forward);
+  }
+
+  const missing = [];
+  let direct = 0;
+  let reconciled = 0;
+  for (const entry of journalEntries) {
+    const migration = migrationByWhen.get(entry.when);
+    if (!migration) throw new Error(`migration_journal_file_missing tag=${entry.tag}`);
+    if (ledgerHashes.has(migration.hash)) {
+      direct += 1;
+      continue;
+    }
+    const forward = forwardBySource.get(entry.tag);
+    const forwardMigration = forward ? migrationByWhen.get(forward.when) : null;
+    if (forwardMigration && ledgerHashes.has(forwardMigration.hash)) {
+      reconciled += 1;
+      continue;
+    }
+    missing.push(entry.tag);
+  }
+  return { direct, reconciled, missing };
+}
 
 function extractLabeledSqlstate(raw) {
   for (const line of String(raw ?? '').split(/\r?\n/)) {
@@ -177,6 +239,59 @@ if (process.argv.includes('--self-test')) {
   if (classifyMigrationFailureOutput('unlabeled 42501').sqlstate !== null) {
     throw new Error('migration diagnostic self-test accepted an unlabeled SQLSTATE');
   }
+  const ledgerFixture = {
+    migrations: [
+      { folderMillis: 100, hash: 'old-current' },
+      { folderMillis: 200, hash: 'forward-current' },
+      { folderMillis: 300, hash: 'new-current' },
+    ],
+    journalEntries: [
+      { idx: 0, when: 100, tag: '0001_old' },
+      { idx: 1, when: 200, tag: '0002_forward' },
+      { idx: 2, when: 300, tag: '0003_new' },
+    ],
+    reconciliations: [{ sourceTag: '0001_old', forwardTag: '0002_forward' }],
+  };
+  const incomplete = inspectMigrationLedgerCompleteness({
+    ...ledgerFixture,
+    ledgerHashes: new Set(['forward-current']),
+  });
+  if (incomplete.missing.join(',') !== '0003_new' || incomplete.reconciled !== 1) {
+    throw new Error('migration ledger self-test did not distinguish reconciled and missing hashes');
+  }
+  const complete = inspectMigrationLedgerCompleteness({
+    ...ledgerFixture,
+    ledgerHashes: new Set(['forward-current', 'new-current']),
+  });
+  if (complete.missing.length !== 0 || complete.direct !== 2 || complete.reconciled !== 1) {
+    throw new Error('migration ledger self-test rejected an applied forward reconciliation');
+  }
+  const unappliedForward = inspectMigrationLedgerCompleteness({
+    ...ledgerFixture,
+    ledgerHashes: new Set(['new-current']),
+  });
+  if (unappliedForward.missing.join(',') !== '0001_old,0002_forward') {
+    throw new Error('migration ledger self-test accepted an unapplied forward reconciliation');
+  }
+  for (const invalidReconciliations of [
+    [{ sourceTag: '9999_unknown', forwardTag: '0002_forward' }],
+    [{ sourceTag: '0002_forward', forwardTag: '0001_old' }],
+    [
+      { sourceTag: '0001_old', forwardTag: '0002_forward' },
+      { sourceTag: '0001_old', forwardTag: '0003_new' },
+    ],
+  ]) {
+    try {
+      inspectMigrationLedgerCompleteness({
+        ...ledgerFixture,
+        ledgerHashes: new Set(['forward-current', 'new-current']),
+        reconciliations: invalidReconciliations,
+      });
+      throw new Error('migration ledger self-test accepted an invalid reconciliation marker');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
+    }
+  }
   console.log('run-webapp-drizzle-migrate diagnostic self-test: OK');
   process.exit(0);
 }
@@ -192,14 +307,31 @@ if (!url) {
 
 const migrations = readMigrationFiles({ migrationsFolder });
 const journalEntries = JSON.parse(fs.readFileSync(journalPath, 'utf8')).entries;
+const reconciliations = readMigrationReconciliations(migrationsFolder, journalEntries);
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
 try {
   await migrate(drizzle(pool), { migrationsFolder });
-  console.log(`[migrate] Drizzle migrations complete count=${migrations.length}`);
+  const ledgerResult = await pool.query('SELECT hash FROM drizzle.__drizzle_migrations');
+  const completeness = inspectMigrationLedgerCompleteness({
+    migrations,
+    journalEntries,
+    ledgerHashes: new Set(ledgerResult.rows.map((row) => String(row.hash))),
+    reconciliations,
+  });
+  if (completeness.missing.length > 0) {
+    throw new Error(`migration_ledger_incomplete tags=${completeness.missing.join(',')}`);
+  }
+  console.log(
+    `[migrate] Drizzle migrations complete count=${migrations.length} direct=${completeness.direct} reconciled=${completeness.reconciled}`,
+  );
 } catch (error) {
   exitCode = 1;
-  console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries));
+  if (error instanceof Error && error.message.startsWith('migration_ledger_incomplete ')) {
+    console.error(`[migrate] ${error.message}`);
+  } else {
+    console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries));
+  }
   console.error('[migrate] Drizzle migration failed; raw SQL and parameters suppressed');
 } finally {
   await pool.end();

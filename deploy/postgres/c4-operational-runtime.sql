@@ -475,7 +475,7 @@ GRANT SELECT, UPDATE ON TABLE public.media_transcode_jobs, public.media_files TO
 GRANT USAGE ON SCHEMA integrator, public TO app_owner;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 GRANT SELECT ON TABLE public.reminder_rules TO app_owner;
-GRANT SELECT, DELETE ON TABLE integrator.user_reminder_occurrences TO app_owner;
+GRANT SELECT, UPDATE, DELETE ON TABLE integrator.user_reminder_occurrences TO app_owner;
 GRANT SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents TO app_owner;
 DO $c4_email_send_cooldowns_app_owner_acl$
 BEGIN

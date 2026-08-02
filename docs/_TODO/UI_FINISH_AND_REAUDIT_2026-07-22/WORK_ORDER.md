@@ -391,36 +391,38 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       отдельно отнёс отсутствующее call-site покрытие к открытому D20 level 4 — это не откат D4.
 - [ ] **D5 — правила напоминаний.** `public.reminder_rules` — единственный бизнес-источник и для CRUD, и для
       чтения планировщиком.
-      **Порядок сведения 02.08:** основа — `wt/trackd-d5` (`570dba899`). Ветка обновляется от текущего `feat`,
-      проходит один независимый аудит именно чтения планировщиком, один fixer только при реальном finding и живую
-      проверку на DEV/TEST: созданное в веб-приложении правило действительно подхватывается планировщиком без чтения
-      `integrator.user_reminder_rules`. После доказательства D5 сразу сливается; галочка ставится тем же коммитом с
-      фактическим evidence.
+      **Сведение 02.08 выполнено:** ветка пересобрана как `wt/trackd-d5-salvage`, прошла один независимый аудит и
+      один fixer по сохранённому oracle, затем приземлена `e96ea7ef6`. Фактический DEV data cutover отдельно остаётся
+      открытым по CURRENT-блоку ниже; поэтому чекбокс D5 пока не закрыт.
       **Сделана write-сторона 2026-07-25** (`384e7ca29`): `reminder.rule.upserted` снят, `writePort.ts`
       (`reminders.rule.upsert`) пишет `public.reminder_rules` напрямую через
       `directPublic/writeReminderRulesDirect.ts` с полным паритетом полей (`linked_object_type/id`,
       `custom_title/text`, `schedule_data`, `reminder_intent`, `quiet_hours_*`, `notification_topic_code`) и
       правильным `organization_id`. Гранты по колонкам применены и проверены на TEST, изоляция арендаторов
       доказана живьём в откатываемых транзакциях.
-      **НЕ сделано — чтения планировщика:** `getEnabledReminderRules` (чтение `reminders.planDue`) по-прежнему
-      ходит в `integrator.user_reminder_rules`, и локальная запись туда сохранена, потому что
-      `user_reminder_occurrences.rule_id` имеет жёсткий FK `ON DELETE CASCADE`. Перевод требует миграции этого
-      FK — это машинерия жизненного цикла occurrence, то есть **D6**. Поэтому
-      `integrator.user_reminder_rules` ещё не классифицирована к удалению миграцией.
-      **Хвост, заведён отдельной задачей `task_53b67199`:** роль `app_patient`, под которой работает
-      `runWithIntegratorPrincipal`, вообще не имеет INSERT/UPDATE (и почти нигде SELECT) на таблицы схемы
-      `integrator` — значит локальные записи интегратора под настоящим запертым принципалом падают.
+      **CURRENT 03.08 — код принят, DEV data cutover не применился:** product `66d218d2f`, независимый аудит
+      `d68b0b617`, saved-oracle fix `dca053c14`, land `e96ea7ef6` перевели scheduler-read на
+      `public.reminder_rules`; disposable PostgreSQL доказал parity/FK/history. Но read-only сверка фактической DEV
+      history выявила, что SHA256 migration 0312 отсутствует в `drizzle.__drizzle_migrations`, хотя более поздние
+      migration применены через `when=1793539230026`; live FK всё ещё ссылается на
+      `integrator.user_reminder_rules(id) ON DELETE CASCADE`. Причина — 0312 поздно попала в journal с `when` ниже
+      уже применённого максимума и была молча пропущена Drizzle. Старую frozen 0312 не менять: D5 остаётся `[ ]`
+      до нового forward migration по `TRACK_D_D5_FORWARD_MIGRATION_REPAIR_BRIEF.md`, независимого acceptance,
+      land и DEV apply. `integrator.user_reminder_rules` до этого не удалять. PROD не затрагивался.
 - [x] **D6 — жизненный цикл напоминаний, доставка и гранты контента.** ✅ **ЗАКРЫТО 31.07** (`d2b206cb5`):
       история несостоявшихся occurrence больше не теряется — истечение «осиротевших» публикует то же
       идемпотентное событие завершения, миграция `0282` добирает потерянные строки (fail-closed без времени
       отказа или организации), повторный добор не плодит дубликатов. Проверено лидом поломкой.
       ⛔ Дублирующие проекции доставки/контента ещё не сняты — это следующий шаг, он упирается в D10.
-- [ ] **D7 — остальные записи напоминаний.** Подписанные POST-адаптеры snooze/skip/done/mute/messenger-topic/
+- [x] **D7 — остальные записи напоминаний.** Подписанные POST-адаптеры snooze/skip/done/mute/messenger-topic/
       notification-settings заменяются тем же валидируемым контрактом прямого сервиса по правилу 5.1.1.
-      **Порядок сведения 02.08:** основа — `wt/trackd-d7` (`1c3bdab5e`), но обновление и приёмка начинаются после
-      принятого D5. Живая проверка выполняет реальные подписанные `done/snooze/skip/mute`, подтверждает изменение
-      канонического состояния и сохранение истории. D7 проходит свой один аудит и при необходимости один fixer;
-      галочка ставится только в коммите с этим доказательством.
+      **ЗАКРЫТО 02–03.08:** product/capabilities `76a1c0fcc` + `19d2d8757` + `f11c78d81` + `9723dea2f`,
+      acceptance `f595b866d`, docs-fix `981b45a1a`, land `5dcba21e5`. Независимый аудит
+      `D7_REMINDER_CALLBACK_AUDIT_REPORT.md` подтвердил private PostgreSQL capabilities и exact-org отказ;
+      snooze operational bridge отдельно принят `6fdc15670` + `7eede4a44`, migration 0321. Read-only DEV
+      introspection 03.08: migration 0314 hash присутствует, все шесть `app.patient_*reminder*` capability-функций
+      существуют; более поздние миграции применены через `when=1793539230026`. Старые семь HTTP routes удалены и
+      больше не объявлены живыми в active docs. PROD не затрагивался.
 - [x] **D8 — рассылки и подписки.** Сначала точный callgraph производителей/потребителей: у мёртвого домена
       писателя не строят, мёртвые типы событий/адаптеры/таблицы удаляют. **DONE 2026-07-30** (`60caf998`):
       мёртвые runtime/projection-поверхности и пустые legacy-таблицы удалены; миграция отказывается работать на
@@ -715,11 +717,18 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       `D20_TESTS_LEVEL2_REPORT.md`, `D20_TESTS_LEVEL3_REPORT.md`); пункт остаётся открыт только на level 4+.
       Сюда же входит дыра в защите D3/D4 (карта, раздел «Дыра в защите D3/D4 — поимённо») — владелец 31.07
       отнёс её к тем же модулям, которые нужно покрыть правильными тестами.
-- [ ] **D21 — напоминания о самопомощи как часть общей системы, а не своя ветка.** Решение — **Р-D21** (§2.3):
+- [x] **D21 — напоминания о самопомощи как часть общей системы, а не своя ветка.** Решение — **Р-D21** (§2.3):
       уезжают собственное планирование, расчёты «отложить»/«выключить до», своя таксономия причин пропуска и
       русские тексты в `handlers/reminders.ts`; остаётся доставка выбранным каналом, тихих часов и автоповтора
       не будет, «отложить» не строится заново — сносится только дублирующий локальный расчёт, накопленные
       расписания переносятся как есть.
+      **ЗАКРЫТО 03.08:** product `f5e19344e`, migration registration `ce3a212b8`, legacy runtime teardown
+      `ff9b17e11`, independent audit `c4742c75f`/`243379ee7`, saved-oracle fix `6cfa0e33a`, land
+      `77068bd2d`. Единая occurrence обслуживает bot/web-push и правила без bot identity; delivery generation
+      делает snooze повторно доставляемым без дубля, pre-send gate гасит done/skip/mute/topic-disable, sibling
+      channels не подавляют друг друга, quiet hours и webpush-only scheduler/table удалены. Лид повторил
+      PostgreSQL 2 файла / 9 тестов и behavioral 6 файлов / 35 тестов; migration 0322 применена на DEV,
+      read-only proof: `max(created_at)=1793539230026`, legacy webpush table отсутствует. TEST/PROD не трогались.
 - [x] **D31 (часть 1/2) — Instagram удалить.** Решение — **Р-D31** (§2.3). Вырезано
       `apps/integrator/src/integrations/instagram/*` (дескриптор + плейсхолдеры), запись из
       `integrations/registry.ts`, упоминание в `platformIntegrationAvailability.ts`; добавлен тест-сторож

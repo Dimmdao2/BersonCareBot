@@ -1112,6 +1112,8 @@ WITH required(tbl, priv) AS (
     ('public.clinic_dedicated_bot_bindings', 'INSERT'),
     ('public.clinic_dedicated_bot_bindings', 'UPDATE'),
     ('public.clinic_dedicated_bot_bindings', 'DELETE'),
+    ('integrator.user_reminder_occurrences', 'SELECT'),
+    ('integrator.user_reminder_occurrences', 'UPDATE'),
     ('integrator.user_reminder_occurrences', 'DELETE'),
     -- 0256 staff-security self password action: the body reads user_id for its exact self-principal
     -- predicate and updates only that credentials row. Runtime callers retain no direct table grant.
