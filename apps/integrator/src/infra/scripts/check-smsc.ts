@@ -1,5 +1,4 @@
 import { getSmscRuntimeConfig } from '../adapters/integrationRuntimeConfig.js';
-import { createDbPort } from '../db/client.js';
 
 type BalanceResponse = {
   balance?: string | number;
