@@ -461,11 +461,12 @@ describe('org entitlement mechanic classes', () => {
     void forbidden;
   });
 
-  it('§5a stage 6.1/6.2 — projects "used out of included" for patients and branches, from either usage source', async () => {
+  it('§5a stage 6.1/6.2 — projects "used out of included" for patients, files and branches, from either usage source', async () => {
     const snapshot = {
       tariff: {
         mechanics: {},
         quotas: {
+          files: { kind: 'numeric', limit: 1000, unit: 'bytes', warningAtPercent: null },
           patient_count: { kind: 'numeric', limit: 25, unit: 'items', warningAtPercent: null },
           branches: { kind: 'numeric', limit: 2, unit: 'items' },
         } as TariffQuotaMap,
@@ -492,17 +493,19 @@ describe('org entitlement mechanic classes', () => {
       getTariffForOrg: async () => snapshot.tariff,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
-      getEnforcedQuotaUsage: async () => ({ patient_count: 25, branches: 1 }),
-      getOwnQuotaUsage: async () => ({ patient_count: 25, branches: 2 }),
+      getEnforcedQuotaUsage: async () => ({ files: 1000, patient_count: 25, branches: 1 }),
+      getOwnQuotaUsage: async () => ({ files: 1000, patient_count: 25, branches: 2 }),
     };
 
     await expect(resolveOrgQuotaProjections(platformPort, 'org')).resolves.toEqual([
+      expect.objectContaining({ mechanic: 'files', usage: 1000, threshold: 'reached' }),
       expect.objectContaining({ mechanic: 'patient_count', usage: 25, threshold: 'reached' }),
       // §5a item 2.6a — branches have no early warning at all: below the limit is below_warning
       // and nothing else, whatever percentage anyone tries to store for them.
       expect.objectContaining({ mechanic: 'branches', usage: 1, threshold: 'below_warning' }),
     ]);
     await expect(resolveOwnOrgQuotaProjections(platformPort, 'org')).resolves.toEqual([
+      expect.objectContaining({ mechanic: 'files', usage: 1000, threshold: 'reached' }),
       expect.objectContaining({ mechanic: 'patient_count', usage: 25, threshold: 'reached' }),
       expect.objectContaining({ mechanic: 'branches', usage: 2, threshold: 'reached' }),
     ]);
