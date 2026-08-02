@@ -17,9 +17,6 @@ import type {
   TreatmentProgramInstanceSummary,
 } from '@/modules/treatment-program/types';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
-import type { DoctorProactiveInsightsPort } from '@/modules/doctor-proactive-insights/ports';
-import type { ProactiveInsightKind } from '@/modules/doctor-proactive-insights/types';
-import { DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT } from '@/modules/doctor-proactive-insights/constants';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   type DoctorTodayPeopleListMode,
@@ -31,10 +28,6 @@ import {
   mapPendingProgramTestsForToday,
   type TodayPendingProgramTestItem,
 } from './mapPendingProgramTestsForToday';
-import {
-  mapProactiveInsightsForToday,
-  type TodayProactiveInsightItem,
-} from './mapProactiveInsightsForToday';
 import { patientCardHref } from './patients/patientCardHref';
 import { communicationsChatHref } from './communications/doctorCommunicationsTabs';
 import { formatDateTimeRu, truncateText } from './doctorTodayFormat';
@@ -82,7 +75,6 @@ export type DoctorTodayDashboardDeps = {
   doctorUserId?: string;
   organizationId: string;
   treatmentProgramProgress?: TreatmentProgramProgressService;
-  doctorProactiveInsights?: DoctorProactiveInsightsPort;
   treatmentProgramInstance?: {
     listForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
@@ -183,10 +175,6 @@ export type TodayDashboardData = {
   pendingProgramTests: TodayPendingProgramTestItem[];
   pendingProgramTestsTotal: number;
   pendingProgramTestsTruncated: boolean;
-  proactiveInsights: TodayProactiveInsightItem[];
-  proactiveInsightsTotal: number;
-  proactiveInsightsTruncated: boolean;
-  visibleProactiveInsightKinds: readonly ProactiveInsightKind[];
   exerciseCommentAttentionItems: TodayExerciseCommentAttentionItem[];
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
@@ -439,7 +427,7 @@ export async function loadDoctorTodayDashboard(
   const peopleCount = peopleSorted.length;
   const peopleListTruncated = peopleCount > people.length;
 
-  const [globalOpenTasks, pendingTestsResult, proactiveResult, exerciseCommentAttention] =
+  const [globalOpenTasks, pendingTestsResult, exerciseCommentAttention] =
     await Promise.all([
       // §1.3: грузим ВСЕ открытые задачи владельца (без лимита, без фильтра по patientUserId —
       // owner punch-list 2026-07-25 item 1: раньше `patientUserId: null` скрывал задачи,
@@ -461,14 +449,6 @@ export async function loadDoctorTodayDashboard(
             ),
           ])
         : Promise.resolve([0, []] as const),
-      deps.doctorProactiveInsights && preferences.visibleProactiveInsightKinds.length > 0
-        ? deps.doctorProactiveInsights.queryInsights({
-            limit: DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT,
-            displayIana: deps.displayIana,
-            organizationId: deps.organizationId,
-            kinds: preferences.visibleProactiveInsightKinds,
-          })
-        : Promise.resolve({ items: [], totalCount: 0 }),
       loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
     ]);
 
@@ -498,10 +478,6 @@ export async function loadDoctorTodayDashboard(
   const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows, appDisplayTimeZone);
   const pendingProgramTestsTruncated =
     pendingProgramTestsTotal > DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT;
-  const proactiveInsights = mapProactiveInsightsForToday(proactiveResult.items);
-  const proactiveInsightsTotal = proactiveResult.totalCount;
-  const proactiveInsightsTruncated =
-    proactiveInsightsTotal > DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT;
 
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
@@ -521,10 +497,6 @@ export async function loadDoctorTodayDashboard(
     pendingProgramTests,
     pendingProgramTestsTotal,
     pendingProgramTestsTruncated,
-    proactiveInsights,
-    proactiveInsightsTotal,
-    proactiveInsightsTruncated,
-    visibleProactiveInsightKinds: preferences.visibleProactiveInsightKinds,
     exerciseCommentAttentionItems: exerciseCommentAttention.items,
     exerciseCommentAttentionTotal: exerciseCommentAttention.total,
     exerciseCommentAttentionTruncated: exerciseCommentAttention.truncated,

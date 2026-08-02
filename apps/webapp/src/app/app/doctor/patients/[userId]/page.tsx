@@ -20,7 +20,6 @@ import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
-import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { toDoctorSupplementaryContacts } from '@/modules/platform-user-contacts/bookingContactUpsert';
 import { loadDoctorPatientProgramActivity } from '../loadDoctorPatientProgramActivity';
 import { PatientCardClient } from './PatientCardClient';
@@ -56,21 +55,18 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   }
   const patientUserId = identity.userId;
 
-  const displayIana = await getAppDisplayTimeZone();
   const [specialistTasksAvailability, specialistTasksRead] = await Promise.all([
     getMechanicMutationAvailability(workspace, 'specialist_tasks'),
     requireEntitlementForReadAction(workspace, 'specialist_tasks'),
   ]);
   const specialistTasksAvailable = specialistTasksAvailability.available;
   const specialistTasksReadable = specialistTasksRead.ok;
-
   const [
     cardHeaderPromise,
     clinicalState,
     visits,
     notes,
     tasks,
-    signals,
     programActivity,
     appointments,
     programInstances,
@@ -90,11 +86,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     specialistTasksReadable
       ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
       : Promise.resolve([]),
-    deps.doctorProactiveInsights.listForPatient({
-      patientUserId,
-      organizationId: workspace.organizationId,
-      displayIana,
-    }),
     loadDoctorPatientProgramActivity(
       { programItemDiscussion: deps.programItemDiscussion },
       {
@@ -278,7 +269,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialTasks={tasks}
           specialistTasksAvailable={specialistTasksAvailable}
           specialistTasksReadable={specialistTasksReadable}
-          initialSignals={signals}
           initialProgramActivity={programActivity}
           initialAppointments={appointments}
           initialProgramInstances={programInstances}
