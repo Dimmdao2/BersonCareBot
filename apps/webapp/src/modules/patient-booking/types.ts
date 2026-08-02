@@ -49,6 +49,7 @@ export type BookingSlotsByDate = {
  */
 export type PatientBookingRecord = {
   id: string;
+  organizationId: string;
   userId: string | null;
   bookingType: BookingType;
   city: string | null;

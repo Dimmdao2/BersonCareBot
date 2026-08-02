@@ -762,6 +762,7 @@ export const appointmentRecords = pgTable(
   'appointment_records',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid('organization_id').notNull(),
     integratorRecordId: text('integrator_record_id').notNull(),
     phoneNormalized: text('phone_normalized'),
     recordAt: timestamp('record_at', { withTimezone: true, mode: 'string' }),
@@ -779,6 +780,10 @@ export const appointmentRecords = pgTable(
     platformUserId: uuid('platform_user_id'),
   },
   (table) => [
+    index('idx_appointment_records_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+    ),
     index('idx_appointment_records_branch_id')
       .using('btree', table.branchId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(branch_id IS NOT NULL)`),
@@ -806,6 +811,11 @@ export const appointmentRecords = pgTable(
     index('idx_appointment_records_platform_user_id')
       .using('btree', table.platformUserId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(platform_user_id IS NOT NULL)`),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'appointment_records_organization_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.platformUserId],
       foreignColumns: [platformUsers.id],
@@ -2609,6 +2619,7 @@ export const patientBookings = pgTable(
   'patient_bookings',
   {
     id: uuid().primaryKey().notNull(),
+    organizationId: uuid('organization_id').notNull(),
     platformUserId: uuid('platform_user_id'),
     bookingType: text('booking_type').notNull(),
     city: text(),
@@ -2643,6 +2654,10 @@ export const patientBookings = pgTable(
     canonicalAppointmentId: uuid('canonical_appointment_id'),
   },
   (table) => [
+    index('idx_patient_bookings_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+    ),
     index('idx_patient_bookings_branch_id').using(
       'btree',
       table.branchId.asc().nullsLast().op('uuid_ops'),
@@ -2667,6 +2682,11 @@ export const patientBookings = pgTable(
       'btree',
       table.platformUserId.asc().nullsLast().op('uuid_ops'),
     ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'patient_bookings_organization_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.platformUserId],
       foreignColumns: [platformUsers.id],

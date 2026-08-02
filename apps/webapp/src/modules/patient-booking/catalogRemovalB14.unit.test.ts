@@ -25,6 +25,7 @@ function bookingRecord(
 ): PatientBookingRecord {
   return {
     id: 'booking-1',
+    organizationId: ORGANIZATION_ID,
     userId: PATIENT_ID,
     bookingType: 'in_person',
     city: 'msk',

@@ -75,6 +75,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     const now = new Date().toISOString();
     const row: PatientBookingRecord = {
       id: randomUUID(),
+      organizationId: input.organizationId,
       userId: input.userId,
       bookingType: input.bookingType,
       city: input.city,

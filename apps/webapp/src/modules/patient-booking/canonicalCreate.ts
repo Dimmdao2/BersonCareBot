@@ -88,8 +88,10 @@ export type CanonicalBookingDeps = {
 
 function toPendingRowOnline(
   input: CreatePatientBookingInput & { type: 'online' },
+  organizationId: string,
 ): CreatePendingPatientBookingInput {
   return {
+    organizationId,
     userId: input.userId,
     bookingType: 'online',
     city: null,
@@ -112,6 +114,7 @@ function toPendingRowOnline(
 
 function toPendingRowInPerson(
   input: CreatePatientBookingInput & { type: 'in_person' },
+  organizationId: string,
   resolved: {
     context: CanonicalBookingContext;
     branch: BeBranch;
@@ -120,6 +123,7 @@ function toPendingRowInPerson(
 ): CreatePendingPatientBookingInput {
   const { context, branch, service } = resolved;
   return {
+    organizationId,
     userId: input.userId,
     bookingType: 'in_person',
     city: branch.cityCode,
@@ -167,7 +171,7 @@ export async function createBookingOnCanonicalEngine(
 
   if (createInput.type === 'online') {
     if (!orgId) throw new Error('ambiguous_booking_tenant');
-    pendingRow = toPendingRowOnline(createInput);
+    pendingRow = toPendingRowOnline(createInput, orgId);
     await deps.bookingScheduling.assertSlotAvailable({
       organizationId: orgId,
       specialistId: null,
@@ -203,7 +207,11 @@ export async function createBookingOnCanonicalEngine(
     const expectedCity = branch.cityCode.trim().toLowerCase();
     if (createInput.cityCode.trim().toLowerCase() !== expectedCity)
       throw new Error('city_mismatch');
-    pendingRow = toPendingRowInPerson(createInput, { context: inPersonCtx, branch, service });
+    pendingRow = toPendingRowInPerson(createInput, orgId, {
+      context: inPersonCtx,
+      branch,
+      service,
+    });
     durationMinutes = inPersonCtx.durationMinutes;
     await deps.bookingScheduling.assertSlotAvailable({
       organizationId: inPersonCtx.organizationId,
@@ -268,6 +276,7 @@ export async function createBookingOnCanonicalEngine(
       chainPosition,
       pending: {
         ...pendingRow,
+        organizationId: orgId,
         slotStart: startAt,
         slotEnd: endAt,
         durationMinutesSnapshot:

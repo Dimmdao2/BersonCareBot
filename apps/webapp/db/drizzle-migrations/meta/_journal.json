@@ -2157,6 +2157,13 @@
       "when": 1793539230008,
       "tag": "0307_tariff_change_paid_period_local",
       "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1793539230010,
+      "tag": "0309_v9b_booking_ownership_local",
+      "breakpoints": true
     }
   ]
 }

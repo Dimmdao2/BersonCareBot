@@ -15,11 +15,8 @@ export type SoftDeleteByIntegratorIdOpts = {
   /** Staff delete: DELETE patient_bookings (not only UPDATE active). */
   purgePatientBookings?: boolean;
   /**
-   * Caller's resolved admin/doctor workspace organization. `appointment_records` and
-   * `patient_bookings` are compatibility projections with no `organization_id`
-   * column. When provided, and the target record resolves to a canonical
-   * `be_appointments` organization via a `be:<uuid>` integrator id, the delete is refused unless that
-   * canonical organization matches.
+   * Caller's resolved admin/doctor workspace organization. The delete is refused
+   * unless both the projection row and its canonical appointment belong to it.
    */
   organizationId?: string;
 };
@@ -69,6 +66,7 @@ async function resolveCanonicalAppointmentTargetById(
 
 export type AppointmentRecordRow = {
   id: string;
+  organizationId: string;
   integratorRecordId: string;
   phoneNormalized: string | null;
   recordAt: string | null;
@@ -91,6 +89,8 @@ class AppointmentProjectionRecordNotFoundError extends Error {
 
 export type AppointmentProjectionPort = {
   upsertRecordFromProjection(params: {
+    organizationId: string;
+    platformUserId: string | null;
     integratorRecordId: string;
     phoneNormalized: string | null;
     recordAt: string | null;
@@ -113,12 +113,16 @@ export type AppointmentProjectionPort = {
     integratorRecordId: string,
     opts?: SoftDeleteByIntegratorIdOpts,
   ): Promise<boolean>;
-  softDeleteByCanonicalAppointmentId(appointmentId: string): Promise<boolean>;
+  softDeleteByCanonicalAppointmentId(
+    appointmentId: string,
+    organizationId: string,
+  ): Promise<boolean>;
   isIntegratorRecordPurged(integratorRecordId: string): Promise<boolean>;
 };
 
 function mapRow(r: {
   id: string;
+  organization_id: string;
   integrator_record_id: string;
   phone_normalized: string | null;
   record_at: Date | null;
@@ -132,6 +136,7 @@ function mapRow(r: {
 }): AppointmentRecordRow {
   return {
     id: r.id,
+    organizationId: r.organization_id,
     integratorRecordId: r.integrator_record_id,
     phoneNormalized: r.phone_normalized,
     recordAt: nullableToIsoStringSafe(r.record_at),
@@ -149,21 +154,32 @@ function mapRow(r: {
 }
 
 /** Staff delete when cancel left no projection row — tombstone + DELETE patient_bookings. */
-async function purgeCanonicalStaffDeleteTombstone(appointmentId: string): Promise<boolean> {
+async function purgeCanonicalStaffDeleteTombstone(
+  appointmentId: string,
+  organizationId: string,
+): Promise<boolean> {
   const pool = getPool();
   const tombstoneId = nativeIntegratorRecordId(appointmentId);
   await withPoolTransaction(pool, async (client) => {
     const tx = getWebappSqlFromPgClient(client);
-    await runWebappPgText(
+    const target = await resolveCanonicalAppointmentTargetById(appointmentId, tx);
+    if (!target || target.organizationId !== organizationId) {
+      throw new AppointmentProjectionOrganizationMismatchError();
+    }
+    const inserted = await runWebappPgText<{ organization_id: string }>(
       `INSERT INTO appointment_records (
-        integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at, deleted_at
-      ) VALUES ($1, NULL, NULL, 'canceled', '{}'::jsonb, 'staff_delete', now(), now())
+        organization_id, integrator_record_id, phone_normalized, record_at, status,
+        payload_json, last_event, updated_at, deleted_at
+      ) VALUES ($2::uuid, $1, NULL, NULL, 'canceled', '{}'::jsonb, 'staff_delete', now(), now())
       ON CONFLICT (integrator_record_id) DO UPDATE SET
         deleted_at = COALESCE(appointment_records.deleted_at, now()),
-        updated_at = now()`,
-      [tombstoneId],
+        updated_at = now()
+      WHERE appointment_records.organization_id = EXCLUDED.organization_id
+      RETURNING appointment_records.organization_id`,
+      [tombstoneId, target.organizationId],
       tx,
     );
+    if (!inserted.rows[0]) throw new AppointmentProjectionOrganizationMismatchError();
     await runWebappPgText(
       `UPDATE be_appointments
           SET deleted_at = now(), updated_at = now()
@@ -184,40 +200,13 @@ async function purgeCanonicalStaffDeleteTombstone(appointmentId: string): Promis
 export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
   return {
     async upsertRecordFromProjection(params) {
-      await runWebappPgText(
+      const result = await runWebappPgText<{ organization_id: string }>(
         `INSERT INTO appointment_records (
           integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at, branch_id,
-          platform_user_id
+          platform_user_id, organization_id
         )
-        SELECT $1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz, $8::uuid,
-          COALESCE(
-            (
-              SELECT owner_id
-              FROM (
-                SELECT h.platform_user_id AS owner_id, COUNT(*) OVER () AS owner_count
-                FROM user_phone_history h
-                WHERE h.phone_normalized = $2
-                  AND h.valid_from <= COALESCE($3::timestamptz, now())
-                  AND (h.valid_to IS NULL OR h.valid_to > COALESCE($3::timestamptz, now()))
-              ) phone_owner
-              WHERE owner_count = 1
-            ),
-            (
-              SELECT pu.id
-              FROM platform_users pu
-              WHERE pu.merged_into_id IS NULL
-                AND pu.phone_normalized = $2
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM user_phone_history h_other_claim
-                  WHERE h_other_claim.phone_normalized = $2
-                    AND h_other_claim.platform_user_id <> pu.id
-                    AND h_other_claim.valid_from <= COALESCE($3::timestamptz, now())
-                    AND (h_other_claim.valid_to IS NULL OR h_other_claim.valid_to > COALESCE($3::timestamptz, now()))
-                )
-              LIMIT 1
-            )
-          )
+        VALUES ($1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz, $8::uuid,
+                $9::uuid, $10::uuid)
         ON CONFLICT (integrator_record_id) DO UPDATE SET
           phone_normalized = COALESCE(appointment_records.phone_normalized, EXCLUDED.phone_normalized),
           record_at = EXCLUDED.record_at,
@@ -226,11 +215,9 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           last_event = EXCLUDED.last_event,
           updated_at = EXCLUDED.updated_at,
           branch_id = COALESCE(EXCLUDED.branch_id, appointment_records.branch_id),
-          platform_user_id = CASE
-            WHEN EXCLUDED.platform_user_id IS NOT NULL THEN EXCLUDED.platform_user_id
-            WHEN EXCLUDED.phone_normalized IS NOT NULL AND EXCLUDED.record_at IS NOT NULL THEN NULL
-            ELSE appointment_records.platform_user_id
-          END`,
+          platform_user_id = EXCLUDED.platform_user_id
+        WHERE appointment_records.organization_id = EXCLUDED.organization_id
+        RETURNING appointment_records.organization_id`,
         [
           params.integratorRecordId,
           params.phoneNormalized,
@@ -240,8 +227,11 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           params.lastEvent,
           params.updatedAt,
           params.branchId ?? null,
+          params.platformUserId,
+          params.organizationId,
         ],
       );
+      if (!result.rows[0]) throw new AppointmentProjectionOrganizationMismatchError();
     },
 
     async getRecordByIntegratorId(
@@ -249,6 +239,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     ): Promise<AppointmentRecordRow | null> {
       const result = await runWebappPgText<{
         id: string;
+        organization_id: string;
         integrator_record_id: string;
         phone_normalized: string | null;
         record_at: Date | null;
@@ -260,7 +251,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         updated_at: Date;
         deleted_at: Date | null;
       }>(
-        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
+        `SELECT id, organization_id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
          FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
         [integratorRecordId],
       );
@@ -271,6 +262,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     async listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]> {
       const result = await runWebappPgText<{
         id: string;
+        organization_id: string;
         integrator_record_id: string;
         phone_normalized: string | null;
         record_at: Date | null;
@@ -282,7 +274,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         updated_at: Date;
         deleted_at: Date | null;
       }>(
-        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
+        `SELECT id, organization_id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
          FROM appointment_records
          WHERE phone_normalized = $1 AND status IN ('created', 'updated')
            AND deleted_at IS NULL
@@ -299,6 +291,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     ): Promise<AppointmentRecordRow[]> {
       const result = await runWebappPgText<{
         id: string;
+        organization_id: string;
         integrator_record_id: string;
         phone_normalized: string | null;
         record_at: Date | null;
@@ -310,7 +303,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         updated_at: Date;
         deleted_at: Date | null;
       }>(
-        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
+        `SELECT id, organization_id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
          FROM appointment_records
          WHERE phone_normalized = $1 AND deleted_at IS NULL
          ORDER BY record_at DESC NULLS LAST, updated_at DESC
@@ -331,14 +324,23 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       try {
         await withPoolTransaction(pool, async (client) => {
           const tx = getWebappSqlFromPgClient(client);
-          const existing = await runWebappPgText<{ deleted_at: Date | null }>(
-            `SELECT deleted_at FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
+          const existing = await runWebappPgText<{
+            deleted_at: Date | null;
+            organization_id: string;
+          }>(
+            `SELECT deleted_at, organization_id
+               FROM appointment_records
+              WHERE integrator_record_id = $1
+              LIMIT 1`,
             [integratorRecordId],
             tx,
           );
           const row = existing.rows[0];
           if (!row) {
             throw new AppointmentProjectionRecordNotFoundError();
+          }
+          if (organizationId && row.organization_id !== organizationId) {
+            throw new AppointmentProjectionOrganizationMismatchError();
           }
 
           let canonicalAppointmentId = opts?.canonicalAppointmentId?.trim() || null;
@@ -420,16 +422,20 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       }
     },
 
-    async softDeleteByCanonicalAppointmentId(appointmentId: string): Promise<boolean> {
+    async softDeleteByCanonicalAppointmentId(
+      appointmentId: string,
+      organizationId: string,
+    ): Promise<boolean> {
       const purgeOpts = {
         canonicalAppointmentId: appointmentId,
         purgePatientBookings: true as const,
         cancelReason: 'staff_delete',
+        organizationId,
       };
       const primaryId = nativeIntegratorRecordId(appointmentId);
       const ok = await this.softDeleteByIntegratorId(primaryId, purgeOpts);
       if (ok) return true;
-      return purgeCanonicalStaffDeleteTombstone(appointmentId);
+      return purgeCanonicalStaffDeleteTombstone(appointmentId, organizationId);
     },
 
     async isIntegratorRecordPurged(integratorRecordId: string): Promise<boolean> {
