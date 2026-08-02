@@ -1,4 +1,5 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
 import {
   isProjectionHealthDegraded,
   readProjectionHealthSnapshot,
@@ -19,6 +20,6 @@ export async function getProjectionHealth(
   options?: { retryThreshold?: number },
 ): Promise<ProjectionHealthSnapshot> {
   return runWithInfraPrincipal({ source: 'integrator-projection-health' }, () =>
-    readProjectionHealthSnapshot(db, options),
+    readProjectionHealthSnapshot(getIntegratorDrizzleSession(db), options),
   );
 }
