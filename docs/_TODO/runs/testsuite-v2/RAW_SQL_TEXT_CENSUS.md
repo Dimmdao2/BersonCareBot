@@ -69,6 +69,18 @@ whitespace-normalized SQL and exact parameter order/values to its prior `$1..$n`
 query: all five matched. The canonical AST command above, run after this slice,
 returned `{ candidateFiles: 73, invocationFiles: 72, semanticCalls: 523 }`.
 
+### 2026-08-02 password-login entry slice evidence
+
+`pgPasswordLoginProtection.ts` now uses `runWebappSql` with tagged Drizzle `sql`
+fragments for all four password admission, completion and ALTCHA calls. A one-time
+`PgDialect().sqlToQuery()` inspection compared the pre-conversion `$1..$n` text
+with each converted fragment: all four matched by whitespace-normalized SQL and
+exact parameters, including nullable ALTCHA inputs and the ISO timestamp. The
+canonical AST command above returned
+`{ candidateFiles: 71, invocationFiles: 70, semanticCalls: 509 }` after this
+slice (from `{ candidateFiles: 72, invocationFiles: 71, semanticCalls: 513 }`).
+The global raw-SQL-text item remains open.
+
 Legend: **TL** = `TRANSLATE_LIVE`; **WO** = `WAIT_OVERLAP`; **DO** =
 `DELETE_BY_OWNER_STAGE`; **EX** = `LOW_LEVEL_EXEMPT`. A split is shown as
 `TL n + WO n`; every call is assigned once. No `EX` exists: a function, lock,

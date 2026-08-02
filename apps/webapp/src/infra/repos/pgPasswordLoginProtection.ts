@@ -1,4 +1,5 @@
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import type {
   PasswordLoginProtectionPort,
   PasswordProofAdmission,
@@ -30,21 +31,16 @@ type CompleteRow = {
 export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPort {
   return {
     async acquirePasswordProof(params): Promise<PasswordProofAdmission> {
-      const result = await runWebappPgText<AcquireRow>(
-        `SELECT
+      const result = await runWebappSql<AcquireRow>(
+        getWebappSqlDb(),
+        sql`SELECT
            status,
            lease_token::text AS lease_token,
            password_hash,
            user_id::text AS user_id,
            retry_after_seconds,
            captcha_required
-         FROM app.password_login_acquire($1, $2, $3::uuid, $4)`,
-        [
-          params.emailNormalized,
-          params.identifierKey,
-          params.altchaProof?.challengeId ?? null,
-          params.altchaProof?.challengeDigest ?? null,
-        ],
+         FROM app.password_login_acquire(${params.emailNormalized}, ${params.identifierKey}, ${params.altchaProof?.challengeId ?? null}::uuid, ${params.altchaProof?.challengeDigest ?? null})`,
       );
       const row = result.rows[0];
       if (!row) throw new Error('password_login_acquire_missing_result');
@@ -74,8 +70,9 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
     },
 
     async completePasswordProof(params): Promise<PasswordProofCompletion> {
-      const result = await runWebappPgText<CompleteRow>(
-        `SELECT
+      const result = await runWebappSql<CompleteRow>(
+        getWebappSqlDb(),
+        sql`SELECT
            accepted,
            succeeded,
            user_id::text AS user_id,
@@ -83,8 +80,7 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
            attempts,
            retry_after_seconds,
            captcha_required
-         FROM app.password_login_complete($1::uuid, $2)`,
-        [params.leaseToken, params.passwordVerified],
+         FROM app.password_login_complete(${params.leaseToken}::uuid, ${params.passwordVerified})`,
       );
       const row = result.rows[0];
       if (!row?.accepted) return { accepted: false };
@@ -106,26 +102,22 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
     },
 
     async readAltchaRootSecret() {
-      const result = await runWebappPgText<{ secret: string | null }>(
-        'SELECT app.password_login_read_altcha_secret() AS secret',
+      const result = await runWebappSql<{ secret: string | null }>(
+        getWebappSqlDb(),
+        sql`SELECT app.password_login_read_altcha_secret() AS secret`,
       );
       return result.rows[0]?.secret ?? null;
     },
 
     async registerAltchaChallenge(params) {
-      const result = await runWebappPgText<{ issued: boolean }>(
-        `SELECT app.password_login_issue_altcha_challenge(
-           $1,
-           $2::uuid,
-           $3,
-           $4::timestamptz
+      const result = await runWebappSql<{ issued: boolean }>(
+        getWebappSqlDb(),
+        sql`SELECT app.password_login_issue_altcha_challenge(
+           ${params.emailNormalized},
+           ${params.challengeId}::uuid,
+           ${params.challengeDigest},
+           ${params.expiresAt.toISOString()}::timestamptz
          ) AS issued`,
-        [
-          params.emailNormalized,
-          params.challengeId,
-          params.challengeDigest,
-          params.expiresAt.toISOString(),
-        ],
       );
       return result.rows[0]?.issued === true;
     },
