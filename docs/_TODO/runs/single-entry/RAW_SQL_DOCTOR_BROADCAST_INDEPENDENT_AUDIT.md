@@ -83,3 +83,14 @@ git diff --check
 No product fix was made. Handoff: map Drizzle's camelCase schema rows (or select
 the needed aliases consistently) in both audit mappers, then rerun this same
 acceptance test and gates.
+
+## Lead acceptance correction after the product fix
+
+The mapper fix made the original two `Invalid time value` failures disappear and
+exposed interference inside the saved ordering oracle: the same test first appended
+a row with current database time, then inserted January 2026 fixtures and expected
+the second January row to be newest. The test now deletes the already-verified
+append fixture before the independent ordering assertion. This does not weaken the
+mapping or ordering contract; it isolates the two behaviors that the test already
+claimed to check. The final result and exact gate results are recorded with the
+bounded product fix in the audit queue.

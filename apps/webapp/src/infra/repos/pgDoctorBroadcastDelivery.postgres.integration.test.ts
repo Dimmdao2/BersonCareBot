@@ -92,6 +92,7 @@ describe('doctor broadcast Drizzle SQL conversion', () => {
       executedAt: expect.any(String),
     });
     expect(Number.isNaN(Date.parse(appended.executedAt))).toBe(false);
+    await execute(sql`DELETE FROM broadcast_audit WHERE id = ${appended.id}`);
 
     const firstId = randomUUID();
     const secondId = randomUUID();
