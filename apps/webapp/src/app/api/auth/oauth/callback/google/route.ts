@@ -122,6 +122,8 @@ export async function GET(request: Request) {
     displayNameHint: profile.name?.trim() || profile.email || profile.sub,
     authMethod: 'google_oauth',
     userByPhone: deps.userByPhone,
+    next: verifiedState.next,
+    roleLoginPortal: verifiedState.roleLoginPortal,
   });
 
   if (!done.ok) {

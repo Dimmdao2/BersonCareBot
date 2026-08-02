@@ -14,6 +14,8 @@ SELECT 1 / 0 AS integrator_runtime_config_role_missing;
 \if :{?integrator_runtime_config_grants_down}
 REVOKE EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
   FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_integrator_provider_runtime_setting(text)
+  FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
   FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
@@ -70,6 +72,7 @@ SELECT 1 / (
       AND pg_has_role(:'integrator_runtime_config_role', relation.relowner, 'MEMBER')
   )
   AND to_regprocedure('app.read_global_server_runtime_setting(text)') IS NOT NULL
+  AND to_regprocedure('app.read_integrator_provider_runtime_setting(text)') IS NOT NULL
   AND to_regprocedure('app.read_integrator_smtp_outbound_setting()') IS NOT NULL
   AND to_regprocedure(
     'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'
@@ -99,6 +102,7 @@ REVOKE USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq
   FROM :"integrator_runtime_config_role";
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 ALTER FUNCTION app.read_global_server_runtime_setting(text) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_provider_runtime_setting(text) OWNER TO app_owner;
 ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;
 ALTER FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
@@ -139,6 +143,37 @@ $function$;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
   FROM app_staff, app_patient, app_worker;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_provider_runtime_setting(text)
+  FROM :"integrator_runtime_config_role" CASCADE;
+DO $provider_runtime_acl_scrub$
+DECLARE
+  v_grantee_oid oid;
+  v_grantee_name text;
+BEGIN
+  FOR v_grantee_oid, v_grantee_name IN
+    SELECT DISTINCT privilege.grantee, role.rolname
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
+    WHERE procedure.oid = 'app.read_integrator_provider_runtime_setting(text)'::regprocedure
+      AND privilege.grantee <> procedure.proowner
+  LOOP
+    IF v_grantee_oid = 0 THEN
+      EXECUTE
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_provider_runtime_setting(text) FROM PUBLIC CASCADE';
+    ELSE
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_provider_runtime_setting(text) FROM %I CASCADE',
+        v_grantee_name
+      );
+    END IF;
+  END LOOP;
+END
+$provider_runtime_acl_scrub$;
+REVOKE ALL ON FUNCTION app.read_integrator_provider_runtime_setting(text)
+  FROM PUBLIC, app_staff, app_patient, app_worker;
 -- CREATE OR REPLACE preserves an existing function ACL. Reset the restricted SMTP capability
 -- exactly so stale/unknown explicit grantees and grants delegated by the runtime login cannot survive.
 REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_smtp_outbound_setting()
@@ -221,6 +256,8 @@ REVOKE EXECUTE ON FUNCTION
 GRANT USAGE ON SCHEMA app TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
   TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_integrator_provider_runtime_setting(text)
+  TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
   TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
@@ -253,6 +290,55 @@ SELECT 1 / (
   AND has_function_privilege(
     :'integrator_runtime_config_role',
     'app.read_integrator_smtp_outbound_setting()',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.read_integrator_provider_runtime_setting(text)',
+    'EXECUTE'
+  )
+  AND (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.read_integrator_provider_runtime_setting(text)'::regprocedure
+      AND procedure.prosecdef
+      AND owner.rolname = 'app_owner'
+      AND privilege.grantee IN (procedure.proowner, runtime_role.oid)
+      AND privilege.privilege_type = 'EXECUTE'
+      AND NOT privilege.is_grantable
+  ) = 2
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.read_integrator_provider_runtime_setting(text)'::regprocedure
+      AND (
+        privilege.grantee NOT IN (procedure.proowner, runtime_role.oid)
+        OR privilege.privilege_type <> 'EXECUTE'
+        OR privilege.is_grantable
+      )
+  )
+  AND NOT has_function_privilege(
+    'app_staff',
+    'app.read_integrator_provider_runtime_setting(text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_patient',
+    'app.read_integrator_provider_runtime_setting(text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_worker',
+    'app.read_integrator_provider_runtime_setting(text)',
     'EXECUTE'
   )
   AND has_function_privilege(

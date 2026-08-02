@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { revalidatePatientContentPaths } from '@/app-layer/content/revalidatePatientContentPaths';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
@@ -19,7 +22,12 @@ export async function applyContentLifecycle(
 ): Promise<LifecycleState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const id = (formData.get('id') as string)?.trim();
   const op = (formData.get('op') as string)?.trim();
   if (!id || !op) return { ok: false, error: 'Некорректные данные' };

@@ -38,6 +38,8 @@ export type OrgEntitlementsPort = {
     mechanicAccessPolicies: MechanicAccessPolicyMap;
     includedSeats: number | null;
   } | null>;
+  /** Read-only tariff catalog lookup for the clinic's own billing transition. */
+  getActiveTariffById(tariffId: string): Promise<Tariff | null>;
   /** Per-org, per-mechanic overrides. May be empty. */
   listOverrides(
     organizationId: string,
@@ -56,7 +58,7 @@ export type OrgEntitlementsPort = {
   /**
    * §5a stage 6.1 — the clinic's own "used out of included" numbers, for the caller's own
    * organization. Reads the same tables and formulas as each mechanic's write-path quota check
-   * (`stockQuotaCheck.ts` callers), under the ordinary staff principal — every source table is
+   * (`transactionQuotaPort.ts` callers), under the ordinary staff principal — every source table is
    * already row-level-security-scoped to the caller's own organization, so this needs no platform
    * (`app_platform_settings`) privilege the way `getEnforcedQuotaUsage` does.
    */
@@ -104,7 +106,7 @@ export type PlatformEntitlementsPort = {
   /**
    * Real, current usage for the numeric (`запас`/`объём`) mechanics — used ONLY to evaluate
    * §5a stage 4b.3's downgrade guard before a tariff switch. Same counts as each mechanic's own
-   * write-path check (`assertStockQuotaAvailable` callers), read outside that transaction.
+   * write-path check (`transactionQuotaPort` callers), read outside that transaction.
    */
   getOrganizationMechanicUsage(organizationId: string): Promise<Partial<Record<OrgMechanic, number>>>;
   assignTariff(

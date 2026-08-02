@@ -128,11 +128,21 @@ function buildMessageSendIntent(input: {
       source,
       userId: input.clientUserId,
       correlationId: `doctor-broadcast:${input.eventId.slice(0, 80)}`,
+      // This queue producer is the trusted clinic-owned broadcast path. The central egress
+      // policy accepts this marker only together with clinic_required below.
+      outboundMessageClass: 'broadcast_event',
+      outboundCapability: 'clinic_delivery',
     },
     payload: {
       recipient: input.recipient,
       message: { text: input.text },
-      delivery: { channels: input.deliveryChannels, maxAttempts: 1 },
+      // Mailings never borrow a platform sender. The integrator resolves an exact-org,
+      // tariff-allowed credential at dispatch time and fails closed if it is absent.
+      delivery: {
+        channels: input.deliveryChannels,
+        maxAttempts: 1,
+        senderScope: 'clinic_required',
+      },
       ...(input.parseMode ? { parse_mode: input.parseMode } : {}),
       ...(input.imageUrl ? { imageUrl: input.imageUrl } : {}),
     },

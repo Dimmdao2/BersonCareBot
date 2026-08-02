@@ -3603,43 +3603,6 @@ export const questionMessages = pgTable(
   ],
 );
 
-export const userReminderRules = pgTable(
-  'user_reminder_rules',
-  {
-    id: text().primaryKey().notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    userId: bigint('user_id', { mode: 'number' }).notNull(),
-    category: text().notNull(),
-    isEnabled: boolean('is_enabled').default(false).notNull(),
-    scheduleType: text('schedule_type').default('interval_window').notNull(),
-    timezone: text().default('Europe/Moscow').notNull(),
-    intervalMinutes: integer('interval_minutes').notNull(),
-    windowStartMinute: integer('window_start_minute').notNull(),
-    windowEndMinute: integer('window_end_minute').notNull(),
-    daysMask: text('days_mask').default('1111111').notNull(),
-    contentMode: text('content_mode').default('none').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('user_reminder_rules_enabled_idx').using(
-      'btree',
-      table.isEnabled.asc().nullsLast().op('text_ops'),
-      table.category.asc().nullsLast().op('bool_ops'),
-    ),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: 'user_reminder_rules_user_id_fkey',
-    }).onDelete('cascade'),
-    unique('user_reminder_rules_user_category_uniq').on(table.userId, table.category),
-  ],
-);
-
 export const userReminderOccurrences = pgTable(
   'user_reminder_occurrences',
   {
@@ -3669,9 +3632,9 @@ export const userReminderOccurrences = pgTable(
     ),
     foreignKey({
       columns: [table.ruleId],
-      foreignColumns: [userReminderRules.id],
+      foreignColumns: [reminderRules.integratorRuleId],
       name: 'user_reminder_occurrences_rule_id_fkey',
-    }).onDelete('cascade'),
+    }).onDelete('restrict'),
     unique('user_reminder_occurrences_occurrence_key_key').on(table.occurrenceKey),
   ],
 );

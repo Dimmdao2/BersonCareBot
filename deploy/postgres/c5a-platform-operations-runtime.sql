@@ -30,6 +30,24 @@ ALTER ROLE app_clinic_billing
 -- staff principal remains app_staff and has no billing table ACL.
 GRANT app_clinic_billing TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
 GRANT USAGE ON SCHEMA public, app TO app_clinic_billing;
+
+DO $c5a_saas_provider_capability$
+BEGIN
+  IF to_regclass('public.system_settings') IS NOT NULL THEN
+    REVOKE SELECT ON TABLE public.system_settings FROM app_clinic_billing;
+    DROP POLICY IF EXISTS system_settings_clinic_billing_global_read
+      ON public.system_settings;
+  END IF;
+
+  IF to_regprocedure('app.read_saas_billing_payment_provider()') IS NOT NULL THEN
+    ALTER FUNCTION app.read_saas_billing_payment_provider() OWNER TO app_owner;
+    REVOKE ALL ON FUNCTION app.read_saas_billing_payment_provider()
+      FROM PUBLIC, app_staff, app_patient, app_worker;
+    GRANT EXECUTE ON FUNCTION app.read_saas_billing_payment_provider()
+      TO app_clinic_billing, app_platform_settings;
+  END IF;
+END
+$c5a_saas_provider_capability$;
 GRANT EXECUTE ON FUNCTION
   app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text),
   app.current_org_id(),
@@ -1209,6 +1227,16 @@ BEGIN
     )
     AND has_function_privilege('app_clinic_billing', 'app.current_org_id()', 'EXECUTE')
     AND has_function_privilege('app_clinic_billing', 'app.release_principal_context()', 'EXECUTE')
+    AND has_function_privilege(
+      'app_clinic_billing',
+      'app.read_saas_billing_payment_provider()',
+      'EXECUTE'
+    )
+    AND NOT has_table_privilege(
+      'app_clinic_billing',
+      'public.system_settings',
+      'SELECT'
+    )
     AND NOT EXISTS (
       (SELECT * FROM actual_table_acl EXCEPT SELECT * FROM expected_table_acl)
       UNION ALL

@@ -8,8 +8,11 @@ import { NextResponse } from 'next/server';
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  getMechanicMutationAvailability: vi.fn(),
+  requireEntitlementForRead: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
   requireEntitlementForMutationAction: vi.fn(),
+  requireEntitlementForReadAction: vi.fn(),
   entitlementMutationRefusalMessage: (action: string) =>
     'Невозможно ' +
     action +
@@ -58,7 +61,11 @@ vi.mock('@/app/api/booking/bookingTenant', () => ({
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForRead,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import {
   requireClinicManagementApiContext,
@@ -73,11 +80,18 @@ import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookin
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { PATCH as updateWarmupSchedule } from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
-import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-templates/route';
+import {
+  GET as getNotificationTemplates,
+  PUT as saveNotificationTemplate,
+} from '@/app/api/doctor/notification-templates/route';
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
-import { PATCH as updatePromoProgram } from '@/app/api/doctor/treatment-program-promo/route';
+import { DELETE as deletePatientFile } from '@/app/api/doctor/patients/[userId]/files/[fileId]/route';
+import {
+  GET as getPromoProgram,
+  PATCH as updatePromoProgram,
+} from '@/app/api/doctor/treatment-program-promo/route';
 import { PATCH as updateAdminSetting } from '@/app/api/admin/settings/route';
 import { POST as updatePatientPromo } from '@/app/api/patient/treatment-program-promo/action/route';
 import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
@@ -105,10 +119,15 @@ import { saveOrgBranding } from '@/app/app/settings/brandingActions';
 import { createOrgBrandingService } from '@/modules/org-branding/service';
 import {
   archiveDoctorExerciseCore,
-  bulkCreateExercisesFromMediaCore,
   saveDoctorExerciseCore,
   unarchiveDoctorExerciseCore,
 } from '@/app/app/doctor/exercises/actionsShared';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { createLfkExercisesService } from '@/modules/lfk-exercises/service';
+import type { Exercise } from '@/modules/lfk-exercises/types';
+import { createLfkTemplatesService } from '@/modules/lfk-templates/service';
+import type { Template } from '@/modules/lfk-templates/types';
+import { persistLfkTemplateDraft } from '@/app/app/doctor/lfk-templates/actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -143,14 +162,22 @@ beforeEach(() => {
   vi.mocked(getCurrentSession).mockResolvedValue(null);
   vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue(workspace as never);
   vi.mocked(requireOrganizationManagementContext).mockResolvedValue(workspace as never);
+  vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
   vi.mocked(requireEntitlementForMutation).mockResolvedValue(denied);
+  vi.mocked(requireEntitlementForRead).mockResolvedValue(denied);
+  vi.mocked(getMechanicMutationAvailability).mockResolvedValue({ available: true });
   vi.mocked(resolvePatientEnrollmentOrganizationId).mockResolvedValue({
     ok: true,
     organizationId: ORG_ID,
   });
   vi.mocked(buildAppDeps).mockReturnValue({
     courses: { createCourse: vi.fn() },
-    notifTemplates: { saveManagedTemplate: vi.fn(), saveManagedPresentation: vi.fn() },
+    notifTemplates: {
+      getManagedTemplates: vi.fn(),
+      getManagedPresentation: vi.fn(),
+      saveManagedTemplate: vi.fn(),
+      saveManagedPresentation: vi.fn(),
+    },
     systemSettings: { getSetting: vi.fn().mockResolvedValue({ valueJson: { value: false } }) },
     contentSections: { getBySlug: vi.fn().mockResolvedValue(null), upsert: vi.fn() },
     doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
@@ -176,6 +203,13 @@ afterEach(() => {
 });
 
 describe('tariff and platform mutation gates', () => {
+  it('refuses reading promo configuration when promo is disabled', async () => {
+    const response = await getPromoProgram();
+
+    expect(response.status).toBe(403);
+    expect(requireEntitlementForRead).toHaveBeenCalledWith(workspace, 'promo');
+  });
+
   it('refuses course creation when courses are not included in the tariff', async () => {
     const response = await createCourse(
       request('https://app.example.test/api/doctor/courses', {
@@ -205,6 +239,39 @@ describe('tariff and platform mutation gates', () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it('does not expose clinic notification-template controls when branding is disabled', async () => {
+    const response = await getNotificationTemplates();
+
+    expect(response.status).toBe(403);
+    expect(buildAppDeps().notifTemplates.getManagedTemplates).not.toHaveBeenCalled();
+    expect(buildAppDeps().notifTemplates.getManagedPresentation).not.toHaveBeenCalled();
+  });
+
+  it('keeps published clinic notification templates readable but marks their mutations unavailable in read-only access', async () => {
+    vi.mocked(requireEntitlementForRead).mockResolvedValue({ ok: true } as never);
+    vi.mocked(getMechanicMutationAvailability).mockResolvedValue({
+      available: false,
+      reason: 'commercial_read_only',
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      notifTemplates: {
+        getManagedTemplates: vi.fn().mockResolvedValue([]),
+        getManagedPresentation: vi.fn().mockResolvedValue({
+          presentation: { layout: 'organization', signature: 'Клиника', contacts: 'Контакты' },
+        }),
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await getNotificationTemplates();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      brandingMutationAvailable: false,
+      presentation: { presentation: { signature: 'Клиника' } },
+    });
   });
 
   it('refuses external-calendar connection visibly when it is not included in the tariff', async () => {
@@ -340,7 +407,6 @@ describe('tariff and platform mutation gates', () => {
       vi.mocked(requireEntitlementForMutationAction)
         .mockReset()
         .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({
           ok: false,
           reason: 'entitlement_required',
@@ -455,6 +521,167 @@ describe('tariff and platform mutation gates', () => {
     },
   );
 
+  it.each([
+    ['clinic_smtp_outbound', 'clinic_smtp'],
+    ['clinic_smsc_api_key', 'clinic_sms'],
+    ['clinic_telegram_bot_token', 'clinic_telegram_bot'],
+    ['clinic_max_bot_api_key', 'clinic_max_bot'],
+  ] as const)(
+    'refuses clinic delivery setting %s without its independent %s entitlement',
+    async (key, mechanic) => {
+      const response = await updateAdminSetting(
+        request('https://app.example.test/api/admin/settings', {
+          key,
+          value:
+            key === 'clinic_smtp_outbound'
+              ? {
+                  host: 'smtp.clinic.test',
+                  port: 587,
+                  secure: false,
+                  user: 'clinic',
+                  password: 'secret',
+                  from: 'clinic@example.test',
+                }
+              : 'secret',
+        }),
+      );
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'entitlement_required',
+        mechanic,
+      });
+      expect(requireEntitlementForMutation).toHaveBeenCalledWith(workspace, mechanic);
+    },
+  );
+
+  it('writes a clinic delivery credential only to the authenticated clinic organization and redacts the response', async () => {
+    vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
+    const getSetting = vi.fn().mockImplementation(async (key: string) =>
+      key === 'platform_integration_availability'
+        ? {
+            key,
+            scope: 'admin',
+            organizationId: null,
+            valueJson: {
+              value: {
+                version: 1,
+                integrations: {
+                  telegram: true,
+                  max: true,
+                  email: true,
+                  smsc: true,
+                  web_push: true,
+                  google_calendar: true,
+                  yandex_calendar: false,
+                },
+              },
+            },
+          }
+        : null,
+    );
+    const updateSetting = vi.fn().mockResolvedValue({
+      key: 'clinic_telegram_bot_token',
+      scope: 'admin',
+      organizationId: ORG_ID,
+      valueJson: { value: 'secret-token' },
+      updatedAt: '2026-08-02T00:00:00.000Z',
+      updatedBy: USER_ID,
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      systemSettings: { getSetting, updateSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'clinic_telegram_bot_token',
+        value: 'secret-token',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateSetting).toHaveBeenCalledWith(
+      'clinic_telegram_bot_token',
+      'admin',
+      { value: 'secret-token' },
+      USER_ID,
+      { organizationId: ORG_ID },
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      setting: {
+        organizationId: ORG_ID,
+        valueJson: { value: '[REDACTED]' },
+      },
+    });
+  });
+
+  it('does not reach a clinic settings write when clinic-management authorization is denied', async () => {
+    vi.mocked(requireClinicManagementApiContext).mockResolvedValue(denied);
+    const updateSetting = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      systemSettings: { updateSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'clinic_telegram_bot_token',
+        value: 'secret-token',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('does not configure a clinic channel while the platform integration is globally disabled', async () => {
+    vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
+    const getSetting = vi.fn().mockImplementation(async (key: string) =>
+      key === 'platform_integration_availability'
+        ? {
+            key,
+            scope: 'admin',
+            organizationId: null,
+            valueJson: {
+              value: {
+                version: 1,
+                integrations: {
+                  telegram: false,
+                  max: true,
+                  email: true,
+                  smsc: true,
+                  web_push: true,
+                  google_calendar: true,
+                  yandex_calendar: false,
+                },
+              },
+            },
+          }
+        : null,
+    );
+    const updateSetting = vi.fn().mockResolvedValue({
+      key: 'clinic_telegram_bot_token',
+      scope: 'admin',
+      organizationId: ORG_ID,
+      valueJson: { value: 'secret-token' },
+      updatedAt: '2026-08-02T00:00:00.000Z',
+      updatedBy: USER_ID,
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      systemSettings: { getSetting, updateSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'clinic_telegram_bot_token',
+        value: 'secret-token',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'integration_disabled' });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
   it('checks both Today and warmups before changing shared warmup settings', async () => {
     vi.mocked(requireEntitlementForMutation)
       .mockResolvedValueOnce({ ok: true })
@@ -476,7 +703,6 @@ describe('tariff and platform mutation gates', () => {
 
   it('refuses creating a CMS section in the warmups cluster', async () => {
     vi.mocked(requireEntitlementForMutationAction)
-      .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({
         ok: false,
         reason: 'entitlement_required',
@@ -568,6 +794,146 @@ describe('tariff and platform mutation gates', () => {
     expect(createFile).not.toHaveBeenCalled();
   });
 
+  it('allows an authorized clinic to delete its patient file and release storage even when file mutations are otherwise denied', async () => {
+    const deleteFile = vi.fn().mockResolvedValue(true);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({ id: USER_ID, patientUserId: TARGET_ID }),
+        deleteFile,
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      deleted: true,
+      storageCleanupScheduled: true,
+    });
+    expect(deleteFile).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('does not stage deletion when a linked media file is used and the doctor has not confirmed the consequence', async () => {
+    const deleteFile = vi.fn();
+    const usage = [{ pageId: USER_ID, pageSlug: 'patient-guide', field: 'body_md' as const }];
+    const findUsage = vi.fn().mockResolvedValue(usage);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({
+          id: USER_ID,
+          patientUserId: TARGET_ID,
+          mediaFileId: ORG_ID,
+        }),
+        deleteFile,
+      },
+      media: { findUsage },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'media_in_use', usage });
+    expect(findUsage).toHaveBeenCalledWith(ORG_ID);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it('deletes a used linked media file only after the doctor explicitly confirms the consequence', async () => {
+    const deleteFile = vi.fn().mockResolvedValue(true);
+    const findUsage = vi
+      .fn()
+      .mockResolvedValue([
+        { pageId: USER_ID, pageSlug: 'patient-guide', field: 'body_md' as const },
+      ]);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({
+          id: USER_ID,
+          patientUserId: TARGET_ID,
+          mediaFileId: ORG_ID,
+        }),
+        deleteFile,
+      },
+      media: { findUsage },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request(
+        'https://app.example.test/api/doctor/patients/' +
+          TARGET_ID +
+          '/files/' +
+          USER_ID +
+          '?confirmUsed=true',
+        { method: 'DELETE' },
+      ),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(deleteFile).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('does not expose patient-file deletion across organizations', async () => {
+    const deleteFile = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization: vi.fn().mockResolvedValue(null) },
+      patientFiles: { getFile: vi.fn(), deleteFile },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(404);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it('denies unauthenticated patient-file deletion before reading or deleting the file', async () => {
+    const getFile = vi.fn();
+    const deleteFile = vi.fn();
+    vi.mocked(requireDoctorWorkspaceApiContext).mockResolvedValue(denied);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
+      patientFiles: { getFile, deleteFile },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request(
+        'https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID,
+        {
+          method: 'DELETE',
+        },
+      ),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(getFile).not.toHaveBeenCalled();
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
   it('refuses file metadata creation visibly when the file storage quota is exhausted, without creating the patient folder', async () => {
     const createFile = vi.fn();
     const getStorageUsedBytes = vi.fn().mockResolvedValue(1_000);
@@ -652,7 +1018,12 @@ describe('tariff and platform mutation gates', () => {
     vi.mocked(buildAppDeps).mockReturnValue({
       orgBranding: createOrgBrandingService({
         port: brandingPort,
-        isBrandingMechanicEnabled: async () => false,
+        resolveBrandingAccess: async () => ({
+          mechanic: 'branding',
+          state: 'disabled',
+          policySource: 'mechanic',
+          warning: null,
+        }),
       }),
     } as unknown as ReturnType<typeof buildAppDeps>);
 
@@ -663,15 +1034,17 @@ describe('tariff and platform mutation gates', () => {
     expect(brandingPort.publishDraft).not.toHaveBeenCalled();
   });
 
-  it('refuses every exercise-catalog write while it is not included in the tariff', async () => {
+  it('keeps clinic-owned exercise creation, editing, and archiving available while the platform library is disabled', async () => {
     const lfkExercises = {
-      createExercise: vi.fn(),
-      updateExercise: vi.fn(),
-      archiveExercise: vi.fn(),
-      unarchiveExercise: vi.fn(),
+      createExercise: vi.fn().mockResolvedValue({ id: 'created-exercise' }),
+      getExercise: vi.fn().mockResolvedValue({ id: TARGET_ID, isArchived: false }),
+      updateExercise: vi.fn().mockResolvedValue({ id: TARGET_ID }),
+      archiveExercise: vi.fn().mockResolvedValue(undefined),
+      unarchiveExercise: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(buildAppDeps).mockReturnValue({
       lfkExercises,
+      references: { listActiveItemsByCategoryCode: vi.fn().mockResolvedValue([]) },
     } as unknown as ReturnType<typeof buildAppDeps>);
     vi.mocked(requireEntitlementForMutationAction).mockResolvedValue({
       ok: false,
@@ -681,25 +1054,134 @@ describe('tariff and platform mutation gates', () => {
 
     const exerciseForm = new FormData();
     exerciseForm.set('title', 'Наклоны');
+    const updateForm = new FormData();
+    updateForm.set('id', TARGET_ID);
+    updateForm.set('title', 'Наклоны с поворотом');
     const archiveForm = new FormData();
     archiveForm.set('id', TARGET_ID);
 
-    const [saveResult, archiveResult, unarchiveResult, bulkResult] = await Promise.all([
+    const [createResult, updateResult, archiveResult, unarchiveResult] = await Promise.all([
       saveDoctorExerciseCore(exerciseForm),
+      saveDoctorExerciseCore(updateForm),
       archiveDoctorExerciseCore(archiveForm),
       unarchiveDoctorExerciseCore(archiveForm),
-      bulkCreateExercisesFromMediaCore([
-        { title: 'Присед', mediaUrl: '/api/media/photo.jpg', mediaType: 'image' },
-      ]),
     ]);
 
-    expect(saveResult).toMatchObject({ ok: false, error: 'entitlement_required' });
-    expect(archiveResult).toMatchObject({ kind: 'invalid', error: 'entitlement_required' });
-    expect(unarchiveResult).toMatchObject({ kind: 'invalid', error: 'entitlement_required' });
-    expect(bulkResult).toMatchObject({ ok: false, error: 'entitlement_required' });
-    expect(lfkExercises.createExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.updateExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.archiveExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.unarchiveExercise).not.toHaveBeenCalled();
+    expect(createResult).toMatchObject({ ok: true, exerciseId: 'created-exercise', wasUpdate: false });
+    expect(updateResult).toMatchObject({ ok: true, exerciseId: TARGET_ID, wasUpdate: true });
+    expect(archiveResult).toMatchObject({ kind: 'archived', id: TARGET_ID });
+    expect(unarchiveResult).toMatchObject({ kind: 'unarchived', id: TARGET_ID });
+    expect(lfkExercises.createExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.updateExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.archiveExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.unarchiveExercise).toHaveBeenCalledOnce();
+    expect(requireEntitlementForMutationAction).not.toHaveBeenCalledWith(
+      workspace,
+      'exercise_catalog',
+    );
+  });
+
+  it('never mutates a platform-owned exercise through the real service, even though the tariff mutation gate no longer runs', async () => {
+    const PLATFORM_EXERCISE_ID = 'platform-exercise-id';
+    const platformExercise: Exercise = {
+      id: PLATFORM_EXERCISE_ID,
+      ownerKind: 'platform',
+      catalogScope: 'catalog',
+      title: 'Platform squat',
+      description: null,
+      regionRefId: null,
+      regionRefIds: [],
+      loadType: null,
+      difficulty1_10: null,
+      contraindications: null,
+      tags: null,
+      isArchived: false,
+      createdBy: null,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      media: [],
+    };
+    // Mirrors the real repo's `organization_id = ORG_ID_EXPR` scoping (pgLfkExercises.ts):
+    // reads only see a platform row when explicitly requested, writes never touch it.
+    const fakePort = {
+      list: vi.fn().mockResolvedValue([]),
+      listTitlesByIds: vi.fn().mockResolvedValue(new Map()),
+      getById: vi.fn(async (id: string, options?: { includePlatformBase?: boolean }) => {
+        if (id !== PLATFORM_EXERCISE_ID) return null;
+        return options?.includePlatformBase ? platformExercise : null;
+      }),
+      create: vi.fn(),
+      update: vi.fn(async () => null),
+      archive: vi.fn(async () => false),
+      unarchive: vi.fn(async () => false),
+      getExerciseUsageSummary: vi.fn(),
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      lfkExercises: createLfkExercisesService(fakePort),
+      references: { listActiveItemsByCategoryCode: vi.fn().mockResolvedValue([]) },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const updateForm = new FormData();
+    updateForm.set('id', PLATFORM_EXERCISE_ID);
+    updateForm.set('title', 'Hijacked title');
+    const archiveForm = new FormData();
+    archiveForm.set('id', PLATFORM_EXERCISE_ID);
+
+    const [updateResult, archiveResult, unarchiveResult] = await Promise.all([
+      saveDoctorExerciseCore(updateForm),
+      archiveDoctorExerciseCore(archiveForm),
+      unarchiveDoctorExerciseCore(archiveForm),
+    ]);
+
+    expect(updateResult).toMatchObject({ ok: false, error: 'Упражнение не найдено' });
+    expect(archiveResult).toMatchObject({ kind: 'invalid' });
+    expect(unarchiveResult).toMatchObject({ kind: 'invalid' });
+    expect(fakePort.update).not.toHaveBeenCalled();
+    expect(fakePort.archive).not.toHaveBeenCalled();
+    expect(fakePort.unarchive).not.toHaveBeenCalled();
+  });
+
+  it('never mutates a platform-owned LFK complex template through the real service, even though the tariff mutation gate no longer runs', async () => {
+    const PLATFORM_TEMPLATE_ID = 'platform-template-id';
+    const platformTemplate: Template = {
+      id: PLATFORM_TEMPLATE_ID,
+      ownerKind: 'platform',
+      title: 'Platform complex',
+      description: null,
+      status: 'published',
+      createdBy: null,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      exercises: [],
+    };
+    // Mirrors the real repo's `organization_id = ORG_ID_EXPR` scoping (pgLfkTemplates.ts):
+    // reads only see a platform row when explicitly requested, writes never touch it.
+    const fakePort = {
+      list: vi.fn().mockResolvedValue([]),
+      getById: vi.fn(async (id: string, options?: { includePlatformBase?: boolean }) => {
+        if (id !== PLATFORM_TEMPLATE_ID) return null;
+        return options?.includePlatformBase ? platformTemplate : null;
+      }),
+      create: vi.fn(),
+      update: vi.fn(async () => null),
+      updateExercises: vi.fn(),
+      setStatus: vi.fn(async () => null),
+      getTemplateUsageSummary: vi.fn(),
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      lfkTemplates: createLfkTemplatesService(fakePort),
+    } as unknown as ReturnType<typeof buildAppDeps>);
+    vi.mocked(requireEntitlementForReadAction).mockResolvedValue({ ok: true } as never);
+
+    const result = await persistLfkTemplateDraft({
+      templateId: PLATFORM_TEMPLATE_ID,
+      title: 'Hijacked complex',
+      description: null,
+      exercises: [],
+    });
+
+    expect(result).toMatchObject({ ok: false, error: 'Шаблон не найден' });
+    expect(fakePort.update).not.toHaveBeenCalled();
+    expect(fakePort.updateExercises).not.toHaveBeenCalled();
   });
 });

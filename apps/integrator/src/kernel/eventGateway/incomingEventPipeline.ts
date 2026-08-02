@@ -34,7 +34,7 @@ export type IncomingEventPipelineDeps = {
   deliveryDefaultsPort?: DeliveryDefaultsPort | null;
   actorResolutionPort?: ActorResolutionPort;
   /** When true, executor attaches main reply keyboard to every message to user that has no keyboard. */
-  sendMenuOnButtonPress?: boolean;
+  isTelegramMenuOnButtonPress?: () => Promise<boolean>;
   contentPort?: ContentPort;
   /** Policy for support relay allowed message types. When unset, default from app config is used. */
   supportRelayPolicy?: SupportRelayPolicy | null;
@@ -153,8 +153,8 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             ...(deps.deliveryDefaultsPort !== undefined
               ? { deliveryDefaultsPort: deps.deliveryDefaultsPort }
               : {}),
-            ...(deps.sendMenuOnButtonPress !== undefined
-              ? { sendMenuOnButtonPress: deps.sendMenuOnButtonPress }
+            ...(deps.isTelegramMenuOnButtonPress !== undefined
+              ? { isTelegramMenuOnButtonPress: deps.isTelegramMenuOnButtonPress }
               : {}),
             ...(deps.contentPort ? { contentPort: deps.contentPort } : {}),
             ...(deps.supportRelayPolicy !== undefined && deps.supportRelayPolicy !== null

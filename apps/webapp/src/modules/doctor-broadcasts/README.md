@@ -14,6 +14,12 @@
 | SMS      | `sms`              | `outgoing_delivery_queue` (smsc)                                          | `platform_users.phone_normalized IS NOT NULL`         |
 | Email    | `email`            | `fanOutBroadcastEmail` → `sendTransactionalSmtpEmail` (guarded)           | `platform_users.email_verified_at IS NOT NULL`        |
 
+Для каждого внешнего канала рассылки обязателен отдельный tariff entitlement и exact-org credential:
+`clinic_telegram_bot`, `clinic_max_bot`, `clinic_sms`, `clinic_smtp`. Перед постановкой в очередь action
+отказывает без разрешённого и сохранённого канала; queue/relay несут `senderScope='clinic_required'`, поэтому
+integrator не подменяет его платформенным sender. Push может дополнять выбранный собственный канал, но не является
+самостоятельным обходом этого gate.
+
 **Legacy:** `bot_message` — старое значение, сохранено в `BroadcastChannel` для исторического аудита.
 `normalizeBroadcastChannels` раскрывает `bot_message` → `["telegram", "max"]` (backward compat).
 Как новый активный канал не предлагается.
@@ -28,9 +34,8 @@
   `wantsEmail`. Legacy-флаг `legacyBotMessage`: если в `channels` встретился `bot_message` —
   трактуется как `telegram+max`.
 - `fanOutBroadcastWebPush.ts` — push-рассылка (eligibility = активная web_push-подписка + тема `news`).
-- `fanOutBroadcastEmail.ts` — email-рассылка (eligibility = верифицированный email). **Guarded:**
-  если `fanOutBroadcastEmailDeps` не задан в DI (`buildAppDeps.ts`) — канал виден с реальным
-  счётчиком, но отправка не происходит. Требует SMTP-конфигурации (`getSmtpValueJson` lazy getter).
+- `fanOutBroadcastEmail.ts` — email-рассылка (eligibility = верифицированный email) через exact-org SMTP
+  clinic; платформа для неё не является fallback.
 - `broadcastEligible.ts` — `filterEligibleBroadcastClients` + `deriveBroadcastDeliveryPolicy`.
 
 PWA-чат (все eligible): `appendPatientInboundAdminMessage` после `execute` (полный текст в тред).

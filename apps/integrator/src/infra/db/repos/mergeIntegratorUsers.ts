@@ -418,21 +418,13 @@ export async function mergeIntegratorUsers(
     );
     const contactsReassigned = cr.rowCount ?? 0;
 
-    const rrd = await runIntegratorSql(
-      tx,
-      sql`
-      DELETE FROM user_reminder_rules r
-       USING user_reminder_rules w
-       WHERE r.user_id = ${loser}::bigint
-         AND w.user_id = ${winner}::bigint
-         AND r.category = w.category
-    `,
-    );
-    const reminderRulesDeletedDuplicate = rrd.rowCount ?? 0;
-
     const rr = await runIntegratorSql(
       tx,
-      sql`UPDATE user_reminder_rules SET user_id = ${winner}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner, 'user_reminder_rules.organization_id')} WHERE user_id = ${loser}::bigint`,
+      sql`UPDATE public.reminder_rules
+          SET integrator_user_id = ${winner}::bigint,
+              organization_id = ${organizationIdForIntegratorUserSql(winner, 'reminder_rules.organization_id')},
+              updated_at = now()
+          WHERE integrator_user_id = ${loser}::bigint`,
     );
     const reminderRulesReassigned = rr.rowCount ?? 0;
 
@@ -456,7 +448,7 @@ export async function mergeIntegratorUsers(
       identitiesReassigned,
       contactsDeletedDuplicate,
       contactsReassigned,
-      reminderRulesDeletedDuplicate,
+      reminderRulesDeletedDuplicate: 0,
       reminderRulesReassigned,
       contentAccessGrantsReassigned,
       projectionOutboxPayloadRewrites: ob.payloadRewrites,

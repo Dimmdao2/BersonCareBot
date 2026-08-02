@@ -26,12 +26,12 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-// Both doors were last redefined by 0297 (#1069 §2.13 — commercial_access_state removed, the
-// eternal-full-access branch collapsed to the paid-period/lifecycle check alone), so the proof
-// must extract the CURRENT bodies from there, not from the superseded 0278/0283/0284/0285/0286.
+// Both doors are redefined by the forward-only 0320 migration. The proof must extract those
+// CURRENT bodies, not the applied 0305 migration, otherwise a green private-cluster run would not
+// cover live tariff edits.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0297_commercial_access_state_removal_local.sql',
+  'apps/webapp/db/drizzle-migrations/0320_tariff_policy_live_progression_local.sql',
 );
 const cabinetMigrationPath = mechanicMigrationPath;
 const mechanicRegistryPath = path.join(
@@ -166,6 +166,13 @@ function schemaSql(functionSource, cabinetSource) {
       mechanic_access_policies jsonb NOT NULL DEFAULT '{}'::jsonb,
       included_seats integer
     );
+    CREATE TABLE public.admin_audit_log (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      action text NOT NULL,
+      target_id text,
+      details jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
     CREATE TABLE public.saas_organization_trials (
       id uuid PRIMARY KEY,
       organization_id uuid NOT NULL,
@@ -192,15 +199,53 @@ function schemaSql(functionSource, cabinetSource) {
       status text NOT NULL,
       current_period_starts_at timestamptz,
       current_period_ends_at timestamptz,
+      tariff_snapshot jsonb,
       UNIQUE (organization_id, source)
     );
     GRANT SELECT ON TABLE
       public.be_organizations,
       public.saas_tariffs,
+      public.admin_audit_log,
       public.saas_organization_trials,
       public.saas_org_entitlement_overrides,
       public.saas_billing_subscriptions
     TO app_owner;
+    ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.admin_audit_log FORCE ROW LEVEL SECURITY;
+    CREATE POLICY admin_audit_log_access_policy_history_select ON public.admin_audit_log
+      FOR SELECT TO app_owner
+      USING (action = 'saas_tariff_update' AND target_id IS NOT NULL);
+
+    -- Fixture boundary for the existing paid-period switch: the door must consume this supplied
+    -- effective row, rather than bypass it with a direct read of the live tariff.
+    CREATE FUNCTION app.saas_billing_effective_tariff(p_organization_id uuid, p_tariff_id uuid)
+    RETURNS SETOF public.saas_tariffs
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $$
+      SELECT snapshot.*
+      FROM public.saas_billing_subscriptions AS subscription
+      CROSS JOIN LATERAL jsonb_populate_record(null::public.saas_tariffs, subscription.tariff_snapshot) AS snapshot
+      WHERE subscription.organization_id = p_organization_id
+        AND subscription.tariff_id = p_tariff_id
+        AND subscription.status = ANY (ARRAY['active', 'expired'])
+        AND subscription.tariff_snapshot IS NOT NULL
+        AND subscription.current_period_starts_at <= statement_timestamp()
+        AND subscription.current_period_ends_at > statement_timestamp()
+      UNION ALL
+      SELECT tariff.*
+      FROM public.saas_tariffs AS tariff
+      WHERE tariff.id = p_tariff_id
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.saas_billing_subscriptions AS subscription
+          WHERE subscription.organization_id = p_organization_id
+            AND subscription.tariff_id = p_tariff_id
+            AND subscription.status = ANY (ARRAY['active', 'expired'])
+            AND subscription.tariff_snapshot IS NOT NULL
+            AND subscription.current_period_starts_at <= statement_timestamp()
+            AND subscription.current_period_ends_at > statement_timestamp()
+        );
+    $$;
+    ALTER FUNCTION app.saas_billing_effective_tariff(uuid, uuid) OWNER TO app_owner;
 
     ${functionSource}
     ALTER FUNCTION app.resolve_organization_mechanic_access(uuid, text) OWNER TO app_owner;
@@ -243,6 +288,46 @@ async function setPolicies(connection, { systemAccessPolicy, mechanicAccessPolic
       systemAccessPolicy ? JSON.stringify(systemAccessPolicy) : null,
       JSON.stringify(mechanicAccessPolicies ?? {}),
       TARIFF_ID,
+    ],
+  );
+}
+
+async function clearPolicyHistory(connection) {
+  await connection.query(
+    `DELETE FROM public.admin_audit_log
+     WHERE action = 'saas_tariff_update' AND target_id = $1`,
+    [TARIFF_ID],
+  );
+}
+
+/** Same before/after shape that pgPlatformEntitlements.appendAudit persists for a tariff edit. */
+async function editPolicies(connection, { systemAccessPolicy, mechanicAccessPolicies }) {
+  const beforeResult = await connection.query(
+    `SELECT system_access_policy, mechanic_access_policies
+     FROM public.saas_tariffs WHERE id = $1`,
+    [TARIFF_ID],
+  );
+  const before = beforeResult.rows[0];
+  if (!before) fail('policy edit fixture tariff is missing');
+  await setPolicies(connection, { systemAccessPolicy, mechanicAccessPolicies });
+  await connection.query(
+    `INSERT INTO public.admin_audit_log (action, target_id, details)
+     VALUES ('saas_tariff_update', $1, jsonb_build_object(
+       'before', jsonb_build_object(
+         'systemAccessPolicy', $2::jsonb,
+         'mechanicAccessPolicies', $3::jsonb
+       ),
+       'after', jsonb_build_object(
+         'systemAccessPolicy', $4::jsonb,
+         'mechanicAccessPolicies', $5::jsonb
+       )
+     ))`,
+    [
+      TARIFF_ID,
+      JSON.stringify(before.system_access_policy),
+      JSON.stringify(before.mechanic_access_policies),
+      JSON.stringify(systemAccessPolicy),
+      JSON.stringify(mechanicAccessPolicies ?? {}),
     ],
   );
 }
@@ -313,6 +398,25 @@ async function resolveCabinetAs(connection, organizationId) {
   }
 }
 
+async function provePrincipalOrgMismatchIsDenied(connection) {
+  await connection.query("SELECT set_config('app.org', $1, false)", [ORG_ID]);
+  await connection.query('SET ROLE app_staff');
+  try {
+    await connection.query(
+      'SELECT * FROM app.resolve_organization_mechanic_access($1::uuid, $2::text)',
+      ['20000000-0000-4000-8000-000000000002', 'courses'],
+    );
+    fail('cross-organization mechanic resolution must be rejected before any tariff is read');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes('organization_mechanic_access_principal_mismatch')) {
+      throw error;
+    }
+  } finally {
+    await connection.query('RESET ROLE');
+  }
+}
+
 const OWNER_NOTIFICATION = {
   offsetDays: -2,
   condition: 'payment_failed',
@@ -328,6 +432,7 @@ const MECHANIC_POLICY = {
 
 /** Proof 1: dates drive the ladder, not "now". */
 async function proveTransitionsByDate(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: null,
     mechanicAccessPolicies: { courses: MECHANIC_POLICY },
@@ -380,6 +485,7 @@ async function proveTransitionsByDate(connection) {
 
 /** Proof 2: policy is DATA — the same function, different tariff row, different outcome. */
 async function provePolicyIsData(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: null,
     mechanicAccessPolicies: { courses: MECHANIC_POLICY },
@@ -403,8 +509,121 @@ async function provePolicyIsData(connection) {
   }
 }
 
+/**
+ * §5a 2.9/2.10 — the resolver reads the live tariff on its next question, but uses the immutable
+ * edit record to retain a stage that was already running. This covers both ladder subjects:
+ * mechanic-level extension while in grace, then system-policy shortening while in read-only.
+ */
+async function proveLivePolicyChangesAreProspective(connection) {
+  await clearPolicyHistory(connection);
+  await setPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {
+      courses: { graceDays: 3, readOnlyDays: 2, notifications: [], terminalState: 'disabled' },
+    },
+  });
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-2 days' });
+  const beforeExtension = await resolveAs(connection, ORG_ID, 'courses');
+  if (beforeExtension.state !== 'grace') {
+    fail(`2 days into 3-day grace expected grace before extension, got ${beforeExtension.state}`);
+  }
+  await editPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {
+      courses: { graceDays: 5, readOnlyDays: 2, notifications: [], terminalState: 'disabled' },
+    },
+  });
+  const afterExtension = await resolveAs(connection, ORG_ID, 'courses');
+  if (afterExtension.state !== 'grace') {
+    fail(`extending an in-progress grace must keep it in grace, got ${afterExtension.state}`);
+  }
+  const extendedUntil = Date.parse(afterExtension.warning?.until ?? '');
+  if (!Number.isFinite(extendedUntil) || extendedUntil < Date.now() + 2 * 86_400_000) {
+    fail(`the extended grace deadline must come from the live tariff, got ${JSON.stringify(afterExtension.warning)}`);
+  }
+
+  await clearPolicyHistory(connection);
+  await setPolicies(connection, {
+    systemAccessPolicy: { graceDays: 2, readOnlyDays: 5, notifications: [], terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
+  });
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3 days' });
+  const beforeShortening = await resolveCabinetAs(connection, ORG_ID);
+  if (beforeShortening.state !== 'read_only') {
+    fail(`3 days into 2+5 days expected cabinet read_only before shortening, got ${beforeShortening.state}`);
+  }
+  await editPolicies(connection, {
+    systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
+  });
+  const afterShortening = await resolveCabinetAs(connection, ORG_ID);
+  if (afterShortening.state !== 'read_only') {
+    fail(`shortening must not retroactively eject an in-progress read-only cabinet, got ${afterShortening.state}`);
+  }
+}
+
+/** The mechanic door has its own policy source and must retain its started grace stage too. */
+async function proveGraceShorteningPreservesStartedMechanicStage(connection) {
+  await clearPolicyHistory(connection);
+  await setPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {
+      courses: { graceDays: 5, readOnlyDays: 3, notifications: [], terminalState: 'disabled' },
+    },
+  });
+  await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3 days' });
+  const beforeShortening = await resolveAs(connection, ORG_ID, 'courses');
+  if (beforeShortening.state !== 'grace') {
+    fail(`3 days into 5-day mechanic grace expected grace before shortening, got ${beforeShortening.state}`);
+  }
+  await editPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {
+      courses: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
+    },
+  });
+  const afterShortening = await resolveAs(connection, ORG_ID, 'courses');
+  if (afterShortening.state !== 'grace') {
+    fail(`shortening must retain an already-started mechanic grace stage, got ${afterShortening.state}`);
+  }
+}
+
+/** Paid tariff snapshots are a supplied boundary; the live row cannot bypass it before expiry. */
+async function provePaidSnapshotBeatsLiveTariff(connection) {
+  await clearPolicyHistory(connection);
+  await setPolicies(connection, {
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: { courses: MECHANIC_POLICY },
+  });
+  await setPaidPeriod(connection, { endsAtIntervalFromNow: '1 day' });
+  await connection.query(
+    `UPDATE public.saas_billing_subscriptions
+     SET tariff_snapshot = (SELECT to_jsonb(tariff) FROM public.saas_tariffs AS tariff WHERE tariff.id = $1)
+     WHERE id = $2`,
+    [TARIFF_ID, SUBSCRIPTION_ID],
+  );
+  await connection.query(
+    `UPDATE public.saas_tariffs
+     SET mechanics = jsonb_set(mechanics, '{courses}', 'false'::jsonb)
+     WHERE id = $1`,
+    [TARIFF_ID],
+  );
+  const access = await resolveAs(connection, ORG_ID, 'courses');
+  if (access.state !== 'full_access' || access.mutation_allowed !== true) {
+    fail(`an active paid snapshot must beat a changed live tariff, got ${JSON.stringify(access)}`);
+  }
+  await clearPaidPeriod(connection);
+  await connection.query(
+    `UPDATE public.saas_tariffs
+     SET mechanics = jsonb_set(mechanics, '{courses}', 'true'::jsonb)
+     WHERE id = $1`,
+    [TARIFF_ID],
+  );
+}
+
 /** Proof 3: mechanic-level policy beats system-level; unset mechanics fall back to system. */
 async function proveMechanicOverridesSystem(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
@@ -442,6 +661,7 @@ async function proveMechanicOverridesSystem(connection) {
 
 /** Proof 4: a critical (никогда-class) mechanic stays full_access under any policy or date. */
 async function proveCriticalMechanicNeverDegrades(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
@@ -463,6 +683,7 @@ async function proveCriticalMechanicNeverDegrades(connection) {
 
 /** Proof 5 / §5a 2.1b: every tariff mechanic, without an owner-defined critical class, degrades. */
 async function proveNoAgentMechanicExclusions(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
     mechanicAccessPolicies: {},
@@ -488,6 +709,7 @@ async function proveNoAgentMechanicExclusions(connection) {
 
 /** Proof 6 / §5a 2.1a: cabinet is a separate subject with all three configured stages. */
 async function proveCabinetTransitionsAndDataRestoration(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: {
       graceDays: 5,
@@ -549,6 +771,7 @@ async function proveCabinetTransitionsAndDataRestoration(connection) {
  * assigned-tariff branch returned full access forever no matter how the owner configured the ladder.
  */
 async function provePaidPeriodDrivesTheLadder(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: null,
     mechanicAccessPolicies: { courses: MECHANIC_POLICY },
@@ -599,6 +822,7 @@ async function provePaidPeriodDrivesTheLadder(connection) {
 
 /** Proof 8 / §5a item 7.0: the CABINET door sees non-payment as well — both doors, not one. */
 async function provePaidPeriodDrivesTheCabinet(connection) {
+  await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: {
       graceDays: 5,
@@ -658,6 +882,34 @@ const REGRESSIONS = [
       ),
   },
   {
+    label: 'retroactive block restored — a live shortening ejects an in-progress mechanic stage',
+    proof: async (connection) => {
+      await clearPolicyHistory(connection);
+      await setPolicies(connection, {
+        systemAccessPolicy: null,
+        mechanicAccessPolicies: {
+          courses: { graceDays: 2, readOnlyDays: 5, notifications: [], terminalState: 'disabled' },
+        },
+      });
+      await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3 days' });
+      await editPolicies(connection, {
+        systemAccessPolicy: null,
+        mechanicAccessPolicies: {
+          courses: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
+        },
+      });
+      const access = await resolveAs(connection, ORG_ID, 'courses');
+      if (access.state !== 'read_only') {
+        fail(`prospective shortening expected read_only, got ${access.state}`);
+      }
+    },
+    breakSource: (source) =>
+      source.replaceAll(
+        'previous_policy ->>',
+        "(CASE WHEN previous_policy IS NOT NULL THEN '{}'::jsonb ELSE '{}'::jsonb END) ->>",
+      ),
+  },
+  {
     label: 'critical mechanic hardcode removed — patient_card would degrade like any other mechanic',
     proof: proveCriticalMechanicNeverDegrades,
     breakSource: (source) =>
@@ -672,9 +924,7 @@ const REGRESSIONS = [
     breakSource: (source) =>
       source.replace(
         `WHEN degradation_started_at IS NOT NULL
-          AND (policy ->> 'graceDays')::integer > 0
-          AND v_now < degradation_started_at
-            + make_interval(days => (policy ->> 'graceDays')::integer)
+          AND v_now < included.grace_ends_at
           THEN 'grace'`,
         `WHEN false THEN 'grace'`,
       ),
@@ -804,6 +1054,14 @@ try {
     console.log('  proof OK: transitions follow degradation date (full_access -> grace -> read_only -> terminal)');
     await provePolicyIsData(connection);
     console.log('  proof OK: editing the tariff row changes behaviour with zero code change');
+    await proveLivePolicyChangesAreProspective(connection);
+    console.log('  proof OK: live policy extension and shortening preserve elapsed ladder progress (§5a 2.9/2.10)');
+    await proveGraceShorteningPreservesStartedMechanicStage(connection);
+    console.log('  proof OK: mechanic grace already in progress survives a live shortening');
+    await provePrincipalOrgMismatchIsDenied(connection);
+    console.log('  proof OK: a caller cannot resolve another organization\'s tariff state');
+    await provePaidSnapshotBeatsLiveTariff(connection);
+    console.log('  proof OK: an active paid snapshot beats a changed live tariff');
     await proveMechanicOverridesSystem(connection);
     console.log('  proof OK: mechanic-level policy overrides system-level policy');
     await proveCriticalMechanicNeverDegrades(connection);

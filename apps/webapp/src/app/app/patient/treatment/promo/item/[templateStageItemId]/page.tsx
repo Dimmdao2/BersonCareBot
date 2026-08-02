@@ -10,6 +10,7 @@ import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
 import { mapTemplateStageItemToInstanceStageItemId } from '@/modules/treatment-program/mapTemplateStageItemToInstanceItem';
 import { resolvePlanStartLessonPathForPatient } from '@/app/app/patient/go/resolvePatientReminderGoTargets';
+import { resolvePromoAccessForPatient } from '@/app-layer/treatment-program/promoMaterializationGate';
 
 type Props = { params: Promise<{ templateStageItemId: string }> };
 
@@ -44,6 +45,12 @@ export default async function PatientTreatmentPromoItemPage({ params }: Props) {
   const { templateStageItemId } = await params;
   const deps = buildAppDeps();
   const userId = session.user.userId;
+
+  const promoAccess = await resolvePromoAccessForPatient(
+    { patientOrganization: deps.patientOrganization },
+    userId,
+  );
+  if (!promoAccess.visible) notFound();
 
   const templateId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
   if (!templateId) notFound();

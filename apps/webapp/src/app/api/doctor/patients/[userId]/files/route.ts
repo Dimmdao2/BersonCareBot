@@ -25,7 +25,7 @@ import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolder
 
 const FILE_PRESIGN_GET_TTL = 3600; // 1 hour
 
-/** Thrown by the infra atomic quota check (`stockQuotaCheck.ts`); compared by message, not class, to keep this route free of an infra import. */
+/** Thrown by the infra atomic quota port; compared by message, not class, to keep this route free of an infra import. */
 const FILES_QUOTA_REACHED_MESSAGE = 'saas_quota_reached:files';
 
 const categorySchema = z.enum(
@@ -154,7 +154,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     );
   }
   // Best-effort pre-check so an exhausted quota refuses before the folder side effect below;
-  // the transaction inside `createFile` (`assertStockQuotaAvailable`) is what actually stays
+  // the transaction inside `createFile` (transactionQuotaPort) is what actually stays
   // race-safe under concurrent uploads.
   if (storageLimitBytes !== null) {
     const usedBytes = await withDoctorWorkspacePrincipal(gate.ctx, () =>

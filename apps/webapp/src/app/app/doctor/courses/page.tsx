@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForPage,
+} from '@/app-layer/guards/requireEntitlement';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
@@ -57,6 +60,10 @@ type PageProps = {
 export default async function DoctorCoursesPage({ searchParams }: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
   await requireEntitlementForPage({ organizationId: workspace.organizationId }, 'courses');
+  const courseMutation = await getMechanicMutationAvailability(
+    { organizationId: workspace.organizationId },
+    'courses',
+  );
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const listStatus = parseTemplateCourseCatalogListStatus(sp);
@@ -84,12 +91,14 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
           </DoctorCatalogToolbarFiltersSlot>
         }
         end={
-          <Link
-            href="/app/doctor/courses/new"
-            className={doctorCatalogToolbarPrimaryActionClassName}
-          >
-            Новый курс
-          </Link>
+          courseMutation.available ? (
+            <Link
+              href="/app/doctor/courses/new"
+              className={doctorCatalogToolbarPrimaryActionClassName}
+            >
+              Новый курс
+            </Link>
+          ) : null
         }
       />
       <section className={`mt-3 ${doctorSectionCardClass}`}>
@@ -113,12 +122,16 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
                 className="flex flex-col gap-1 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
-                  <Link
-                    href={`/app/doctor/courses/${encodeURIComponent(c.id)}`}
-                    className={`truncate font-medium text-foreground focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${doctorHoverLinkClass}`}
-                  >
-                    {c.title}
-                  </Link>
+                  {courseMutation.available ? (
+                    <Link
+                      href={`/app/doctor/courses/${encodeURIComponent(c.id)}`}
+                      className={`truncate font-medium text-foreground focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${doctorHoverLinkClass}`}
+                    >
+                      {c.title}
+                    </Link>
+                  ) : (
+                    <p className="truncate font-medium text-foreground">{c.title}</p>
+                  )}
                   <p className="font-mono text-xs text-muted-foreground">{c.id}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

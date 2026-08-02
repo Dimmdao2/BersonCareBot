@@ -157,13 +157,19 @@ Payload example:
 }
 ```
 
-### `POST /api/integrator/reminders/occurrences/done`
+### D7: callback capabilities for reminder actions
 
-Подписанный webhook **webapp ← integrator** (те же заголовки `X-Bersoncare-Timestamp` / `X-Bersoncare-Signature`, HMAC по `timestamp + "." + rawBody`, секрет **`INTEGRATOR_WEBHOOK_SECRET`**). Тело JSON: **`integratorUserId`**, **`occurrenceId`** (id строки `reminder_occurrence_history` / integrator occurrence).
+HTTP routes `POST /api/integrator/reminders/occurrences/{done,snooze,skip}`, `mute`,
+`messenger-topic/disable` and `notification-settings` are retired. The integrator invokes the narrow
+`app.patient_*` reminder functions via its Drizzle port under the already-installed signed callback
+principal; each function derives the integrator user and exact organization itself and returns no row
+on an unresolved or foreign principal. `done` returns `doneAt`, `firstDoneForOccurrence`,
+`dayDoneCount`, `daySentTotal` and `dayFullyDone` for the existing callback UX; it records the
+canonical `reminder_journal` action and acts on the exact-organization occurrence history.
 
-**Успех 200:** `{ "ok": true, "occurrenceId", "doneAt", "firstDoneForOccurrence", "dayDoneCount", "daySentTotal", "dayFullyDone" }` — последние четыре поля нужны боту: «первая отметка по этому occurrence», счётчики за **календарный день доставки** (`occurred_at` в **`app_display_timezone`**): сколько **sent**-напоминаний за день и сколько из них с записью `done` в `reminder_journal`, и флаг «в этом запросе закрыт последний слот дня». Ошибки: **404** `not_found`, **409** `conflict` (повторный `done`), **401** неверная подпись.
-
-Сценарий бота после успеха: удалить сообщение с пушем; при `firstDoneForOccurrence && dayFullyDone && daySentTotal > 0` отправить пользователю отдельное сообщение (шаблон integrator **`reminder.dayAllDone`**). См. [`apps/webapp/src/modules/reminders/reminders.md`](src/modules/reminders/reminders.md) §«Бот».
+After a successful `done`, the bot deletes the reminder message; when
+`firstDoneForOccurrence && dayFullyDone && daySentTotal > 0`, it sends `reminder.dayAllDone`. See
+[`apps/webapp/src/modules/reminders/reminders.md`](src/modules/reminders/reminders.md) §«Бот».
 
 ## Authentication
 

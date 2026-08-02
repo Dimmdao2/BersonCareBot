@@ -37,7 +37,13 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: 'Отменён',
 };
 
-export function PatientMembershipsSection() {
+export function PatientMembershipsSection({
+  visible = true,
+  mutationsAllowed = true,
+}: {
+  visible?: boolean;
+  mutationsAllowed?: boolean;
+}) {
   const [packages, setPackages] = useState<PackageRow[]>([]);
   const [, startTransition] = useTransition();
 
@@ -51,7 +57,7 @@ export function PatientMembershipsSection() {
     });
   }, [startTransition]);
 
-  if (packages.length === 0) return null;
+  if (!visible || packages.length === 0) return null;
 
   return (
     <div className={patientSectionSurfaceClass}>
@@ -79,7 +85,7 @@ export function PatientMembershipsSection() {
             >
               Подробнее
             </Link>
-            {p.status === 'awaiting_payment' && p.paymentIntentId ? (
+            {mutationsAllowed && p.status === 'awaiting_payment' && p.paymentIntentId ? (
               <Link
                 href={`/app/patient/memberships/pay?patientPackageId=${encodeURIComponent(p.id)}`}
                 className="text-sm text-[var(--patient-color-primary)] underline"

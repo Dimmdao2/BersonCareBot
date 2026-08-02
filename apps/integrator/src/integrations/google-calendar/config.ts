@@ -1,5 +1,3 @@
-import { env } from '../../config/env.js';
-
 export type GoogleCalendarConfig = {
   enabled: boolean;
   clientId: string;
@@ -9,18 +7,7 @@ export type GoogleCalendarConfig = {
   refreshToken: string;
 };
 
-export const googleCalendarConfig: GoogleCalendarConfig = {
-  enabled: env.GOOGLE_CALENDAR_ENABLED,
-  clientId: env.GOOGLE_CLIENT_ID,
-  clientSecret: env.GOOGLE_CLIENT_SECRET,
-  redirectUri: env.GOOGLE_REDIRECT_URI,
-  calendarId: env.GOOGLE_CALENDAR_ID,
-  refreshToken: env.GOOGLE_REFRESH_TOKEN,
-};
-
-export function isGoogleCalendarConfigured(
-  config: GoogleCalendarConfig = googleCalendarConfig,
-): boolean {
+export function isGoogleCalendarConfigured(config: GoogleCalendarConfig): boolean {
   if (!config.enabled) return false;
   return (
     config.clientId.trim().length > 0 &&

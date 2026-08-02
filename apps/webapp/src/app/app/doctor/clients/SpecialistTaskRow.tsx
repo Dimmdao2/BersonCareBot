@@ -28,9 +28,17 @@ type Props = {
   onEdit: (task: Task) => void;
   busy?: boolean;
   displayIana?: string;
+  canMutate?: boolean;
 };
 
-export function SpecialistTaskRow({ task, onComplete, onEdit, busy, displayIana }: Props) {
+export function SpecialistTaskRow({
+  task,
+  onComplete,
+  onEdit,
+  busy,
+  displayIana,
+  canMutate = true,
+}: Props) {
   const overdue = isSpecialistTaskOverdue(task);
   const dueLabel = formatWhen(task.dueAt, displayIana);
 
@@ -77,20 +85,22 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy, displayIana 
           <p className="line-clamp-2 text-xs text-muted-foreground">{task.description.trim()}</p>
         ) : null}
       </div>
-      <div className="flex shrink-0 gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => onEdit(task)}
-        >
-          Изменить
-        </Button>
-        <Button type="button" size="sm" disabled={busy} onClick={() => onComplete(task.id)}>
-          Выполнить
-        </Button>
-      </div>
+      {canMutate ? (
+        <div className="flex shrink-0 gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => onEdit(task)}
+          >
+            Изменить
+          </Button>
+          <Button type="button" size="sm" disabled={busy} onClick={() => onComplete(task.id)}>
+            Выполнить
+          </Button>
+        </div>
+      ) : null}
     </li>
   );
 }

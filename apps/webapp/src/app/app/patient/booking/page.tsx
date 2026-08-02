@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
+} from '@/app-layer/guards/requireEntitlement';
 import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
@@ -50,6 +55,24 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
 
   const { cityCode: cityCodeFromQuery } = await searchParams;
   const deps = buildAppDeps();
+  const patientOrganization = deps.patientOrganization
+    ? await deps.patientOrganization.resolveActiveOrganizationForPatient(session.user.userId, {
+        rememberedOrganizationId: getCurrentDbPrincipalOrganizationId() ?? null,
+      })
+    : null;
+  const membershipAccess = patientOrganization?.ok
+    ? await getMechanicSurfaceVisibility(
+        { organizationId: patientOrganization.organizationId },
+        'subscriptions',
+      )
+    : null;
+  const membershipMutation =
+    patientOrganization?.ok && membershipAccess?.patientNavigation
+      ? await getMechanicMutationAvailability(
+          { organizationId: patientOrganization.organizationId },
+          'subscriptions',
+        )
+      : { available: false as const };
   const records = await deps.patientBooking.listMyBookings(session.user.userId);
   const bookingCityCode = pickBookingCityCodeForAddressLinks(
     cityCodeFromQuery,
@@ -97,7 +120,10 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
           </Link>
         )}
         <PatientBookingPaymentHistorySection />
-        <PatientMembershipsSection />
+        <PatientMembershipsSection
+          visible
+          mutationsAllowed={membershipMutation.available}
+        />
         <FormatStepClient
           cities={catalogCities}
           onlineLocation={onlineLocation}

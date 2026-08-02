@@ -15,6 +15,8 @@ export const routePaths = {
   /** Редирект из напоминаний бота: «Начать занятие» по программе (как на карточке плана / в программе). */
   patientGoPlanStartLesson: '/app/patient/go/plan-start-lesson',
   doctor: '/app/doctor',
+  /** Home of the global platform-admin cabinet. */
+  admin: '/app/admin/system-health',
   /** Legacy compatibility entry; redirects to the organization section in Settings. */
   manage: '/app/manage',
   /** Единая личная область staff-аккаунта, не требующая organization membership. */
@@ -74,8 +76,6 @@ export const routePaths = {
   /** Журнал действий по одному правилу (`integrator_rule_id`). */
   patientReminderJournal: (ruleIntegratorId: string) =>
     `/app/patient/reminders/journal/${encodeURIComponent(ruleIntegratorId)}`,
-  /** Online intake — LFK (online-only flow). */
-  intakeLfk: '/app/patient/intake/lfk',
   /** Каталог курсов (продажа → тот же экземпляр программы, что и назначение врача). */
   patientCourses: '/app/patient/courses',
   /** Промо-программа по умолчанию (шаблон из admin settings, до материализации). */
@@ -116,13 +116,9 @@ export const routePaths = {
     `/app/patient/treatment/${encodeURIComponent(instanceId)}`,
   /** Раздел CMS «Разминки» (канонический slug — см. `warmupsSection.ts`). */
   patientWarmups: patientWarmupsSectionHref(),
-  /** Online intake — Nutrition questionnaire. */
-  intakeNutrition: '/app/patient/intake/nutrition',
-  /** Doctor online-intake inbox. */
-  doctorOnlineIntake: '/app/doctor/online-intake',
   /** Расписание врача (новый URL, объединяет calendar + appointments + admin/booking). */
   doctorSchedule: '/app/doctor/schedule',
-  /** Коммуникации врача (новый URL, объединяет messages + online-intake + broadcasts). */
+  /** Коммуникации врача (чаты, комментарии и рассылки). */
   doctorCommunications: '/app/doctor/communications',
   /** Список пациентов врача (новый раздел «Пациенты», Patients list page). */
   doctorPatients: '/app/doctor/patients',

@@ -36,8 +36,8 @@ import {
 } from '../../support/webappSupportSync.js';
 import { buildProgramNoteReplyState } from '../../../../shared/support/programNoteReplyState.js';
 
-function channelDeliveryPayload(channel: string) {
-  return { channels: [channel], maxAttempts: 1 };
+function channelDeliveryPayload(channel: string, senderScope?: 'clinic_required') {
+  return { channels: [channel], maxAttempts: 1, ...(senderScope ? { senderScope } : {}) };
 }
 
 /**
@@ -194,7 +194,9 @@ export async function handleConversationUserMessage(
               payload: {
                 recipient: { chatId: refusalChatId },
                 message: { text: refusalText },
-                delivery: channelDeliveryPayload(source),
+                // A bot-support response must never borrow the platform bot. Without the
+                // dedicated clinic binding (S6.5), the dispatcher fails closed here.
+                delivery: channelDeliveryPayload(source, 'clinic_required'),
               },
             },
           ]
@@ -298,10 +300,7 @@ const ADMIN_REPLY_NOT_DELIVERED_TEXT: Record<string, string> = {
 };
 
 function adminReplyNotDeliveredText(error: string | undefined): string {
-  return (
-    (error && ADMIN_REPLY_NOT_DELIVERED_TEXT[error]) ||
-    'Ответ не отправлен.'
-  );
+  return (error && ADMIN_REPLY_NOT_DELIVERED_TEXT[error]) || 'Ответ не отправлен.';
 }
 
 /**
@@ -491,5 +490,9 @@ async function attemptConversationAdminReply(
   // with no replacement built. Conversation ids in that shape can only be pre-existing open
   // threads from before this cut; they are left as-is (schema/tables untouched), just no longer
   // reachable through this action.
-  return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_LEGACY_REMOVED' };
+  return {
+    actionId: action.id,
+    status: 'skipped',
+    error: 'CONVERSATION_ADMIN_REPLY_LEGACY_REMOVED',
+  };
 }
