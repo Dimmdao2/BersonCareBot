@@ -30,6 +30,7 @@ const baseProps = {
       displayName: 'Пациент',
       phoneNormalized: null,
       lastMessageAtLabel: 'сегодня, 10:00',
+      lastMessageText: 'Нужна помощь',
       lastMessagePreview: 'Нужна помощь',
       unreadFromUserCount: 1,
       href: '/app/doctor/messages',

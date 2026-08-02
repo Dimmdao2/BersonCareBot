@@ -824,7 +824,6 @@ export function PatientTabOverview({
       fetchNotes,
       fetchTasks,
       fetchProgram,
-      fetchSignals,
       fetchProgramActivity,
       fetchMessages,
     ]).then(
