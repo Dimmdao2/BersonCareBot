@@ -367,7 +367,7 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
     },
     async getOwnQuotaUsage(organizationId) {
       const db = getDrizzle();
-      // Same formula as each mechanic's write-path check (stockQuotaCheck.ts callers below), read
+      // Same formula as each mechanic's write-path check (transactionQuotaPort callers below), read
       // outside their transaction. Every source table's RLS already scopes rows to the caller's
       // own organization for the staff principal, so no SECURITY DEFINER hop is needed here.
       const [[branchesRow], [patientsRow], [filesRow], acceptedSeatRows] = await Promise.all([

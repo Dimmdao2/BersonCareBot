@@ -14,7 +14,7 @@ import type {
   PatientFilesPort,
 } from '@/modules/patient-files/ports';
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
-import { assertStockQuotaAvailable } from '@/infra/repos/stockQuotaCheck';
+import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { mediaFiles } from '../../../db/schema/schema';
 import { clinicalVisit } from '../../../db/schema/patientClinical';
@@ -186,12 +186,14 @@ export function createPgPatientFilesPort(): PatientFilesPort {
         ) {
           return [];
         }
-        await assertStockQuotaAvailable(
+        await transactionQuotaPort.withinLock(
           tx,
-          organizationId,
-          'files',
-          () => countStorageUsedBytes(tx, organizationId),
-          received.intent.sizeBytes,
+          { organizationId, mechanic: 'files' },
+          (quota) =>
+            quota.assertStockAvailable(
+              () => countStorageUsedBytes(tx, organizationId),
+              received.intent.sizeBytes,
+            ),
         );
         const [ready] = await tx
           .update(mediaFiles)
