@@ -34,3 +34,29 @@ it('loads the auth form when unrelated technical settings are missing', async ()
     appleOauthClientId: '',
   });
 });
+
+it('treats missing auth configuration as an unconfigured form', async () => {
+  await expect(loadAuthProvidersConfig()).resolves.toMatchObject({
+    telegramLoginBotUsername: '',
+    maxLoginBotNickname: '',
+    googleClientId: '',
+    appleOauthClientId: '',
+  });
+});
+
+it('does not pass a stored provider secret to the auth form', async () => {
+  listSettingsByScope.mockResolvedValue([
+    {
+      key: 'yandex_oauth_client_secret',
+      scope: 'admin',
+      organizationId: null,
+      valueJson: { value: 'raw-provider-secret' },
+      updatedAt: '2026-08-02T00:00:00.000Z',
+      updatedBy: null,
+    },
+  ]);
+
+  await expect(loadAuthProvidersConfig()).resolves.toMatchObject({
+    yandexOauthClientSecret: '[REDACTED]',
+  });
+});
