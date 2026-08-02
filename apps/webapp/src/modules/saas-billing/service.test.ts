@@ -1143,3 +1143,112 @@ describe('К6: повторный тик с активным автосписа�
     expect(call?.[0]?.paymentMethodId).toBe('pm-1');
   });
 });
+
+// К6 — after an off-session decline the period uniqueness guard must keep protecting against a
+// second tariff period WITHOUT trapping the clinic behind a failed row. The existing tariff button
+// must reopen that same row as a manual checkout exactly once; a repeat click gets its already
+// attached link instead of another provider call.
+// Арбитр: remove `retryFailedManually: true` from `createOwnTariffRenewalInvoice` — the first call
+// returns the old failed invoice without a link and this test turns red.
+describe('К6: неудачное автосписание возвращает клинику к ручной оплате', () => {
+  it('reopens the failed period as one idempotent manual checkout', async () => {
+    let currentInvoice: SaasBillingInvoice = {
+      ...invoice,
+      status: 'failed',
+      providerId: 'yookassa',
+      providerInvoiceRef: 'autopay-canceled-1',
+      providerIdempotencyKey: 'saas_tariff_auto_renewal:subscription-1:2026-08-01T00:00:00.000Z',
+    };
+    const createSaasBillingInvoice = vi.fn(async () => ({ invoice: currentInvoice, created: false }));
+    const prepareSaasBillingFailedInvoiceForManualCheckout = vi.fn(async (input) => {
+      currentInvoice = {
+        ...currentInvoice,
+        status: 'draft',
+        providerId: input.providerId,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+        providerInvoiceRef: null,
+        providerCheckoutUrl: null,
+      };
+      return currentInvoice;
+    });
+    const attachSaasBillingInvoiceProviderIntent = vi.fn(async (input) => {
+      currentInvoice = {
+        ...currentInvoice,
+        status: 'pending',
+        providerInvoiceRef: input.providerInvoiceRef,
+        providerCheckoutUrl: input.providerCheckoutUrl,
+      };
+      return currentInvoice;
+    });
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'manual-checkout-1',
+      checkoutUrl: 'https://yookassa.example.test/manual-checkout-1',
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'tariff-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          savedPaymentMethodId: 'pm-1',
+          currentPeriodEndsAt: '2026-08-01T00:00:00.000Z',
+        }),
+        createSaasBillingInvoice,
+        prepareSaasBillingFailedInvoiceForManualCheckout,
+        attachSaasBillingInvoiceProviderIntent,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+
+    const first = await service.createOwnTariffRenewalInvoice('org-1');
+    const second = await service.createOwnTariffRenewalInvoice('org-1');
+
+    expect(first.providerCheckoutUrl).toBe('https://yookassa.example.test/manual-checkout-1');
+    expect(second.providerCheckoutUrl).toBe(first.providerCheckoutUrl);
+    expect(prepareSaasBillingFailedInvoiceForManualCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        saasBillingInvoiceId: invoice.id,
+        organizationId: 'org-1',
+        providerId: 'yookassa',
+        providerIdempotencyKey: expect.stringMatching(/^saas_tariff_manual_retry:/),
+      }),
+    );
+    expect(createIntent).toHaveBeenCalledTimes(1);
+    const [manualCheckout] = createIntent.mock.calls;
+    expect(manualCheckout?.[0]).toMatchObject({ savePaymentMethod: false });
+    expect(manualCheckout?.[0]).not.toHaveProperty('paymentMethodId');
+  });
+
+  it('turns a later provider cancellation into the visible failed state', async () => {
+    const recordSaasBillingProviderEvent = vi.fn(async () => ({ created: true }));
+    const markSaasBillingInvoiceFailed = vi.fn(async () => ({ ...invoice, status: 'failed' as const }));
+    const service = createSaasBillingService({
+      repository: {
+        recordSaasBillingProviderEvent,
+        markSaasBillingInvoiceFailed,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({}) as never,
+    });
+
+    await expect(
+      service.captureSaasBillingProviderWebhookEvent({
+        organizationId: 'org-1',
+        saasBillingInvoiceId: 'invoice-1',
+        providerId: 'yookassa',
+        verified: {
+          idempotencyKey: 'payment-canceled-1',
+          eventType: 'payment.canceled',
+          payload: { currency: 'RUB' },
+        },
+      }),
+    ).resolves.toEqual({ captured: false, duplicate: false });
+    expect(markSaasBillingInvoiceFailed).toHaveBeenCalledWith({
+      saasBillingInvoiceId: 'invoice-1',
+      organizationId: 'org-1',
+    });
+  });
+});
