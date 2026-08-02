@@ -35,6 +35,38 @@ const invoice: SaasBillingInvoice = {
   providerIdempotencyKey: 'renewal-1',
 };
 
+describe('SaaS billing payment provider availability', () => {
+  it('names a configured but unsupported provider as unavailable before an invoice is created', async () => {
+    const createSaasBillingInvoice = vi.fn();
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          tariffId: 'tariff-1',
+          billingPeriod: 'month' as const,
+          savedPaymentMethodId: null,
+          currentPeriodEndsAt: null,
+        }),
+        createSaasBillingInvoice,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true }],
+        }),
+      },
+      resolvePaymentProvider: () => {
+        throw new Error('unsupported_payment_provider:mock');
+      },
+    });
+
+    await expect(service.createOwnTariffRenewalInvoice('org-1')).rejects.toThrow(
+      'saas_billing_payment_provider_unavailable:mock',
+    );
+    expect(createSaasBillingInvoice).not.toHaveBeenCalled();
+  });
+});
+
 describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', () => {
   function scheduledService(blocks: unknown[] = []) {
     const setManualSaasBillingSubscription = vi.fn(async () => {});

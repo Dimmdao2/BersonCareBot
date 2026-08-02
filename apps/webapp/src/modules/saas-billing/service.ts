@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
+import type { PaymentProviderPort, PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
 import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingInvoiceStatus,
@@ -88,10 +88,25 @@ export function createSaasBillingService(dependencies: {
     if (!providerConfig) {
       throw new Error(`saas_billing_payment_provider_unavailable:${id}`);
     }
+    let adapter: PaymentProviderPort;
+    try {
+      adapter = dependencies.resolvePaymentProvider(providerConfig.id);
+    } catch (error) {
+      // A persisted provider id can outlive an adapter removal or TEST fixture.  This is an
+      // unavailable platform payment store, not an invoice/DB failure; keep the route's honest
+      // 503 contract instead of letting the registry's implementation error become a 500.
+      if (
+        error instanceof Error &&
+        error.message === `unsupported_payment_provider:${providerConfig.id}`
+      ) {
+        throw new Error(`saas_billing_payment_provider_unavailable:${providerConfig.id}`);
+      }
+      throw error;
+    }
     return {
       providerId: providerConfig.id,
       providerConfig,
-      adapter: dependencies.resolvePaymentProvider(providerConfig.id),
+      adapter,
     };
   }
 

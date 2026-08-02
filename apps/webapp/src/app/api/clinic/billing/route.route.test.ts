@@ -146,3 +146,31 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
     expect(purchaseSeatOverage).not.toHaveBeenCalled();
   });
 });
+
+describe('POST /api/clinic/billing own-tariff renewal', () => {
+  const createOwnTariffRenewalInvoice = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.requireClinicManagementApiContext.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId, membershipRole: 'owner', session: { user: { userId: 'actor' } } },
+    });
+    fakes.buildAppDeps.mockReturnValue({ saasBilling: { createOwnTariffRenewalInvoice } });
+  });
+
+  it('returns an honest unavailable-provider response for the bodyless own-tariff checkout', async () => {
+    createOwnTariffRenewalInvoice.mockRejectedValue(
+      new Error('saas_billing_payment_provider_unavailable:mock'),
+    );
+
+    const response = await POST(new Request('http://test/api/clinic/billing', { method: 'POST' }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_payment_provider_unavailable',
+    });
+    expect(createOwnTariffRenewalInvoice).toHaveBeenCalledWith(organizationId);
+  });
+});
