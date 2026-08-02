@@ -1118,7 +1118,7 @@ BEGIN
       relations.relation_name,
       relations.relation_name || expected_policy.suffix AS policy_name,
       true AS permissive,
-      expected_policy.command,
+      expected_policy.command::"char",
       expected_policy.roles,
       expected_policy.using_expression,
       expected_policy.check_expression
@@ -1142,7 +1142,7 @@ BEGIN
       relations.relation_name,
       relations.relation_name || expected_policy.suffix,
       true,
-      expected_policy.command,
+      expected_policy.command::"char",
       expected_policy.roles,
       expected_policy.using_expression,
       expected_policy.check_expression

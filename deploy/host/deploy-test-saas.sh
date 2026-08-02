@@ -1765,7 +1765,7 @@ WITH expected(relation_name) AS (
     relations.relation_name,
     relations.relation_name || expected_policy.suffix AS policy_name,
     true AS permissive,
-    expected_policy.command,
+    expected_policy.command::\"char\",
     expected_policy.roles,
     expected_policy.using_expression,
     expected_policy.check_expression
@@ -1789,7 +1789,7 @@ WITH expected(relation_name) AS (
     relations.relation_name,
     relations.relation_name || expected_policy.suffix,
     true,
-    expected_policy.command,
+    expected_policy.command::\"char\",
     expected_policy.roles,
     expected_policy.using_expression,
     expected_policy.check_expression
@@ -1799,14 +1799,14 @@ WITH expected(relation_name) AS (
     VALUES
       (
         '_clinic_billing_insert',
-        'a'::"char",
+        'a'::\"char\",
         ARRAY[role_oids.clinic_billing_oid]::oid[],
         NULL::text,
         '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
       ),
       (
         '_clinic_billing_update',
-        'w'::"char",
+        'w'::\"char\",
         ARRAY[role_oids.clinic_billing_oid]::oid[],
         '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
         '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
