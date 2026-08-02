@@ -1071,46 +1071,6 @@ export const PROTECTED_ACTION_MAPPINGS = [
     guard: 'requireEntitlementForRead',
     serviceBoundary: 'renderManagedNotifTemplate',
   },
-  {
-    id: 'exercise-catalog.save',
-    mechanic: 'exercise_catalog',
-    file: 'src/app/app/doctor/exercises/actionsShared.ts',
-    exportName: 'saveDoctorExerciseCore',
-    method: 'action',
-    authContext: 'requireDoctorWorkspaceContext',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'deps.lfkExercises.createExercise/updateExercise',
-  },
-  {
-    id: 'exercise-catalog.archive',
-    mechanic: 'exercise_catalog',
-    file: 'src/app/app/doctor/exercises/actionsShared.ts',
-    exportName: 'archiveDoctorExerciseCore',
-    method: 'action',
-    authContext: 'requireDoctorWorkspaceContext',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'deps.lfkExercises.archiveExercise',
-  },
-  {
-    id: 'exercise-catalog.unarchive',
-    mechanic: 'exercise_catalog',
-    file: 'src/app/app/doctor/exercises/actionsShared.ts',
-    exportName: 'unarchiveDoctorExerciseCore',
-    method: 'action',
-    authContext: 'requireDoctorWorkspaceContext',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'deps.lfkExercises.unarchiveExercise',
-  },
-  {
-    id: 'exercise-catalog.bulk-create',
-    mechanic: 'exercise_catalog',
-    file: 'src/app/app/doctor/exercises/actionsShared.ts',
-    exportName: 'bulkCreateExercisesFromMediaCore',
-    method: 'action',
-    authContext: 'requireDoctorWorkspaceContext',
-    guard: 'requireEntitlementForMutationAction',
-    serviceBoundary: 'deps.lfkExercises.createExercise',
-  },
 ] as const satisfies readonly ProtectedActionMapping[];
 
 /**
@@ -1503,7 +1463,10 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
 ] as const satisfies readonly ProtectedActionExemption[];
 
 export const DECLARED_NO_SURFACE = {
-  exercise_packages: 'S4-3/C5D deferred; no protected write surface in this stage',
+  exercise_catalog:
+    'tariff controls platform-library visibility only; clinic-owned exercise writes are never tariff-gated',
+  exercise_packages:
+    'tariff controls platform-library visibility only; clinic-owned template writes are never tariff-gated',
   patient_app: 'code-search: no patient_app_enabled/toggle action',
   patient_app_paid_subscription: 'code-search: no subscription-toggle action',
   custom_domain: 'code-search: no custom-domain write action',
