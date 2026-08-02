@@ -173,8 +173,7 @@ export function DoctorSupportInbox({
     };
   }, []);
 
-  // Deep-link: открыть конкретный диалог из URL (?id=), матчит паттерн IntakeTab/
-  // DoctorOnlineIntakeClient. Реагируем только на ВНЕШНИЙ deep-link — если диалог уже
+  // Deep-link: открыть конкретный диалог из URL. Реагируем только на ВНЕШНИЙ deep-link — если диалог уже
   // выбран (echo от нашего же onSelectedConversationChange после клика), не перезапускаем.
   useEffect(() => {
     const id = initialSelectedConversationId?.trim();

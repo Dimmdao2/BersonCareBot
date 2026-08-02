@@ -126,6 +126,10 @@ async function buildWebappLinkFactsForRecipient(input: {
 }): Promise<Record<string, string>> {
   const appBase = env.APP_BASE_URL;
   const links: Record<string, string> = {};
+  const appBaseUrl = appBase.trim().replace(/\/+$/, '');
+  if (appBaseUrl.startsWith('http://') || appBaseUrl.startsWith('https://')) {
+    links.remindersUrl = `${appBaseUrl}/app/patient/reminders`;
+  }
   const intId = input.integratorUserId ?? undefined;
 
   if (input.queueChannel === 'telegram') {
@@ -140,7 +144,6 @@ async function buildWebappLinkFactsForRecipient(input: {
         const enc = (p: string) => encodeURIComponent(p);
         links.webappEntryUrl = baseWebappUrl;
         links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
-        links.webappRemindersUrl = `${baseWebappUrl}&next=${enc('/app/patient/reminders')}`;
         links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
         links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
         links.bookingUrl = links.webappCabinetUrl;

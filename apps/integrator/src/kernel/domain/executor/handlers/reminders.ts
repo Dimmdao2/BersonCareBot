@@ -44,11 +44,7 @@ import {
   reminderIntentPrimaryLabel,
   reminderLinkKeyboardButton,
 } from '../../reminders/reminderInlineKeyboard.js';
-import type {
-  InlineKeyboardButton,
-  ReminderOpenLinkSpec,
-} from '../../reminders/reminderInlineKeyboard.js';
-import { buildExerciseReminderWebAppUrls } from '../../reminders/reminderMessengerWebAppUrls.js';
+import type { InlineKeyboardButton } from '../../reminders/reminderInlineKeyboard.js';
 import { maxBindingRecipient } from '../../../../integrations/max/maxRecipient.js';
 import { env } from '../../../../config/env.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
@@ -675,23 +671,10 @@ export async function handleReminders(
         } else {
           reminderTitle = 'Напоминание';
         }
-        const webUrls = await buildExerciseReminderWebAppUrls({
-          channel,
-          chatId,
-          externalId,
-          integratorUserId: occ.userId,
-          reminderTargetUrl: openUrl,
-        });
-        const primarySpec: ReminderOpenLinkSpec = webUrls
-          ? { kind: 'web_app', url: webUrls.primaryWebAppUrl }
-          : { kind: 'url', url: openUrl };
-        const scheduleSpec: ReminderOpenLinkSpec = webUrls
-          ? { kind: 'web_app', url: webUrls.scheduleWebAppUrl }
-          : { kind: 'url', url: remindersEditUrl ?? openUrl };
         const replyMarkup = buildReminderDispatchInlineKeyboard({
           primaryLabel: reminderIntentPrimaryLabel(rule?.reminderIntent ?? null),
-          primary: primarySpec,
-          schedule: scheduleSpec,
+          primaryUrl: openUrl,
+          scheduleUrl: remindersEditUrl ?? openUrl,
           occurrenceId: occ.id,
         });
 
@@ -1169,52 +1152,21 @@ export async function handleReminders(
     const callbackQueryId =
       asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
 
-    const identities = await deps.readPort.readDb<Array<{ resource: string; externalId: string }>>({
-      type: 'identities.allByUserId',
-      params: { userId },
-    });
-    const maxIdentity = Array.isArray(identities)
-      ? identities.find((i) => i.resource === 'max' && i.externalId.trim().length > 0)
-      : undefined;
-
-    let maxExternal = maxIdentity?.externalId.trim() ?? '';
-    if (messengerChannel === 'max' && !maxExternal) {
-      maxExternal = channelUserId;
-    }
-
-    const webUrls = await buildExerciseReminderWebAppUrls({
-      channel: messengerChannel,
-      chatId,
-      externalId: messengerChannel === 'max' ? maxExternal : String(chatId),
-      integratorUserId: userId,
-      reminderTargetUrl: '/app/patient',
-    });
-
-    let profileSpec: ReminderOpenLinkSpec;
-    let mobileSpec: ReminderOpenLinkSpec;
-    if (webUrls) {
-      profileSpec = { kind: 'web_app', url: webUrls.profileChannelsWebAppUrl };
-      mobileSpec = { kind: 'web_app', url: webUrls.mobileAppWebAppUrl };
-    } else {
-      const baseHttpRaw = trimTrailingSlash(env.APP_BASE_URL);
-      if (baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')) {
-        profileSpec = {
-          kind: 'url',
-          url: `${baseHttpRaw}/app/patient/profile#patient-profile-notifications`,
-        };
-        mobileSpec = { kind: 'url', url: `${baseHttpRaw}/app/patient` };
-      } else {
-        profileSpec = { kind: 'url', url: '/app/patient/profile#patient-profile-notifications' };
-        mobileSpec = { kind: 'url', url: '/app/patient' };
-      }
-    }
+    const baseHttpRaw = trimTrailingSlash(env.APP_BASE_URL);
+    const appBaseUrl = baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')
+      ? baseHttpRaw
+      : '';
+    const profileUrl = appBaseUrl
+      ? `${appBaseUrl}/app/patient/profile#patient-profile-notifications`
+      : '/app/patient/profile#patient-profile-notifications';
+    const mobileUrl = appBaseUrl ? `${appBaseUrl}/app/patient` : '/app/patient';
 
     const ackText = web.paragraphs.map((p) => escapeReminderHtml(p)).join('\n\n');
 
     const followUpKb: InlineKeyboardButton[][] = [
       [
-        reminderLinkKeyboardButton('Настроить каналы уведомлений', profileSpec),
-        reminderLinkKeyboardButton('Установить мобильное приложение', mobileSpec),
+        reminderLinkKeyboardButton('Настроить каналы уведомлений', profileUrl),
+        reminderLinkKeyboardButton('Установить мобильное приложение', mobileUrl),
       ],
     ];
 

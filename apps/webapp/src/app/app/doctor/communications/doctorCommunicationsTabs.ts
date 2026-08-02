@@ -3,13 +3,13 @@
  *
  * `/app/doctor/communications` — настоящая страница-шелл (`page.tsx` → `DoctorCommunicationsShell`).
  * Internal-rewrite убран. Активная вкладка определяется по `?tab=` параметру.
- * Старые прямые URL (`/messages`, `/online-intake` и др.) → 308 на агрегатный URL
+ * Старые прямые URL (`/messages`, `/comments` и др.) → 308 на агрегатный URL
  * через `doctorRouteRedirects.ts`. Schedule-rewrite и его REWRITE_MARKER_HEADER не затронуты.
  */
 
 export const COMMUNICATIONS_BASE = '/app/doctor/communications';
 
-export type CommunicationsTabId = 'chats' | 'intake' | 'comments' | 'broadcasts';
+export type CommunicationsTabId = 'chats' | 'comments' | 'broadcasts';
 
 export type CommunicationsTab = {
   id: CommunicationsTabId;
@@ -20,7 +20,6 @@ export type CommunicationsTab = {
 export const COMMUNICATIONS_TABS: CommunicationsTab[] = [
   { id: 'chats', label: 'Чаты', href: `${COMMUNICATIONS_BASE}?tab=chats` },
   { id: 'comments', label: 'Комментарии', href: `${COMMUNICATIONS_BASE}?tab=comments` },
-  { id: 'intake', label: 'Заявки', href: `${COMMUNICATIONS_BASE}?tab=intake` },
   { id: 'broadcasts', label: 'Рассылки', href: `${COMMUNICATIONS_BASE}?tab=broadcasts` },
 ];
 
@@ -41,8 +40,6 @@ export function communicationsChatHref(conversationId: string): string {
 /** Нормализует значение `?tab=` к валидному id вкладки (fallback — chats). */
 export function communicationsTabFromQuery(tab: string | null | undefined): CommunicationsTabId {
   switch (tab) {
-    case 'intake':
-      return 'intake';
     case 'comments':
       return 'comments';
     case 'broadcasts':

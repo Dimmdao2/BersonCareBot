@@ -78,6 +78,7 @@ function mapRow(row: typeof contentSections.$inferSelect): ContentSectionRow {
   }
   return {
     id: row.id,
+    organizationId: row.organizationId,
     slug: row.slug,
     title: row.title,
     description: row.description ?? '',
@@ -572,6 +573,7 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
       const id = section.id ?? `mem-${section.slug}`;
       const row: ContentSectionRow = {
         id,
+        organizationId: null,
         slug: section.slug,
         title: section.title,
         description: section.description,

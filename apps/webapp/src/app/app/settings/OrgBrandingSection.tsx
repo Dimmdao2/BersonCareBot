@@ -14,7 +14,7 @@ import { OrgBrandLogoControl, type OrgBrandLogoChange } from './OrgBrandLogoCont
 import { saveOrgBranding } from './brandingActions';
 
 type Props = {
-  brandingMechanicEnabled: boolean;
+  brandingMutationAvailable: boolean;
   /** Canonical organization name — never gated by the paid mechanic, always defined (§3.4). */
   coreDisplayName: string;
   /** Currently published paid name override, or `null` when none is set (uses the core name). */
@@ -25,6 +25,7 @@ type Props = {
 
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
   entitlement_disabled: 'Брендирование недоступно на текущем тарифе.',
+  commercial_read_only: 'Брендирование доступно только для просмотра.',
 };
 
 /**
@@ -34,7 +35,7 @@ const SAVE_ERROR_MESSAGES: Record<string, string> = {
  * publish concept is exposed — see `brandingActions.ts`.
  */
 export function OrgBrandingSection({
-  brandingMechanicEnabled,
+  brandingMutationAvailable,
   coreDisplayName,
   publishedDisplayName,
   publishedLogoMediaId,
@@ -83,10 +84,10 @@ export function OrgBrandingSection({
         <DoctorSectionTitle>Бренд клиники</DoctorSectionTitle>
       </DoctorSectionHeader>
 
-      {!brandingMechanicEnabled ? (
+      {!brandingMutationAvailable ? (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-muted-foreground">
-          Брендирование не входит в ваш текущий тариф. Ниже показаны сохранённые название и логотип
-          — они не удалены и снова применятся, если тариф подключит эту возможность.
+          Брендирование доступно только для просмотра. Сохранённые название и логотип остаются
+          применёнными, но изменения недоступны.
         </p>
       ) : null}
 
@@ -100,7 +101,7 @@ export function OrgBrandingSection({
               setName(e.target.value);
               setJustSaved(false);
             }}
-            disabled={!brandingMechanicEnabled || saving}
+            disabled={!brandingMutationAvailable || saving}
             maxLength={120}
           />
         </div>
@@ -110,7 +111,7 @@ export function OrgBrandingSection({
           <OrgBrandLogoControl
             initialMediaId={publishedLogoMediaId}
             initialUrl={publishedLogoUrl}
-            disabled={!brandingMechanicEnabled || saving}
+            disabled={!brandingMutationAvailable || saving}
             onChange={handleLogoChange}
           />
         </div>
@@ -122,7 +123,7 @@ export function OrgBrandingSection({
           <Button
             type="button"
             size="sm"
-            disabled={!brandingMechanicEnabled || saving || !dirty}
+            disabled={!brandingMutationAvailable || saving || !dirty}
             onClick={() => void handleSave()}
           >
             {saving ? 'Сохранение…' : 'Сохранить'}

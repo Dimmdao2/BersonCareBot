@@ -1,7 +1,12 @@
 import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
+import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { cn } from '@/lib/utils';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -14,23 +19,35 @@ type Props = {
 
 export default async function DoctorContentSectionEditPage({ params }: Props) {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) notFound();
+  const [cmsVisibility, warmupsVisibility, cmsMutation, warmupsMutation] = await Promise.all([
+    getMechanicSurfaceVisibility(workspace, 'cms_pages'),
+    getMechanicSurfaceVisibility(workspace, 'warmups'),
+    getMechanicMutationAvailability(workspace, 'cms_pages'),
+    getMechanicMutationAvailability(workspace, 'warmups'),
+  ]);
+  if (!cmsVisibility.directUrl && !warmupsVisibility.directUrl) notFound();
+  if (!cmsMutation.available && !warmupsMutation.available) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();
   const { slug: raw } = await params;
   const slug = decodeURIComponent(raw);
 
-  const [row, pagesInSection] = await withDoctorWorkspacePrincipal(
+  const row = await withDoctorWorkspacePrincipal(
     workspace,
     'doctor.content.section.edit.read',
-    () =>
-      Promise.all([
-        deps.contentSections.getBySlug(slug),
-        deps.contentPages.countPagesWithSectionSlug(slug),
-      ]),
+    () => deps.contentSections.getBySlug(slug),
   );
   if (!row) notFound();
+  const mechanic = contentMechanicForSection(row);
+  const entitlement = await requireEntitlementForReadAction(workspace, mechanic);
+  if (!entitlement.ok) notFound();
+  const mechanicMutation = mechanic === 'warmups' ? warmupsMutation : cmsMutation;
+  if (!mechanicMutation.available) notFound();
+  const pagesInSection = await withDoctorWorkspacePrincipal(
+    workspace,
+    'doctor.content.section.edit.page-count',
+    () => deps.contentPages.countPagesWithSectionSlug(slug),
+  );
 
   return (
     <DoctorAppShell
