@@ -533,10 +533,26 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           if (!row) return false;
 
           if (row.status === 'pending_delete') {
+            await db
+              .delete(patientFiles)
+              .where(
+                and(
+                  eq(patientFiles.mediaFileId, mediaId),
+                  eq(patientFiles.organizationId, organizationId),
+                ),
+              );
             return true;
           }
 
           if (!row.s3_key) {
+            await db
+              .delete(patientFiles)
+              .where(
+                and(
+                  eq(patientFiles.mediaFileId, mediaId),
+                  eq(patientFiles.organizationId, organizationId),
+                ),
+              );
             const del = await runWebappSql(
               db,
               sql`DELETE FROM media_files
@@ -551,9 +567,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             sql`UPDATE media_files
                    SET organization_id = ${organizationId}::uuid,
                        status = 'pending_delete'
-                 WHERE id = ${mediaId}::uuid
+               WHERE id = ${mediaId}::uuid
                    AND organization_id = ${organizationId}::uuid`,
           );
+          await db
+            .delete(patientFiles)
+            .where(
+              and(
+                eq(patientFiles.mediaFileId, mediaId),
+                eq(patientFiles.organizationId, organizationId),
+              ),
+            );
           return true;
         } finally {
           await pgSessionAdvisoryUnlock(client, mediaId);

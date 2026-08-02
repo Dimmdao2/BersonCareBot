@@ -87,6 +87,7 @@ import {
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
+import { DELETE as deletePatientFile } from '@/app/api/doctor/patients/[userId]/files/[fileId]/route';
 import {
   GET as getPromoProgram,
   PATCH as updatePromoProgram,
@@ -791,6 +792,146 @@ describe('tariff and platform mutation gates', () => {
       error: 'file_storage_limit_not_configured',
     });
     expect(createFile).not.toHaveBeenCalled();
+  });
+
+  it('allows an authorized clinic to delete its patient file and release storage even when file mutations are otherwise denied', async () => {
+    const deleteFile = vi.fn().mockResolvedValue(true);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({ id: USER_ID, patientUserId: TARGET_ID }),
+        deleteFile,
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      deleted: true,
+      storageCleanupScheduled: true,
+    });
+    expect(deleteFile).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('does not stage deletion when a linked media file is used and the doctor has not confirmed the consequence', async () => {
+    const deleteFile = vi.fn();
+    const usage = [{ pageId: USER_ID, pageSlug: 'patient-guide', field: 'body_md' as const }];
+    const findUsage = vi.fn().mockResolvedValue(usage);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({
+          id: USER_ID,
+          patientUserId: TARGET_ID,
+          mediaFileId: ORG_ID,
+        }),
+        deleteFile,
+      },
+      media: { findUsage },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'media_in_use', usage });
+    expect(findUsage).toHaveBeenCalledWith(ORG_ID);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it('deletes a used linked media file only after the doctor explicitly confirms the consequence', async () => {
+    const deleteFile = vi.fn().mockResolvedValue(true);
+    const findUsage = vi
+      .fn()
+      .mockResolvedValue([
+        { pageId: USER_ID, pageSlug: 'patient-guide', field: 'body_md' as const },
+      ]);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({
+          id: USER_ID,
+          patientUserId: TARGET_ID,
+          mediaFileId: ORG_ID,
+        }),
+        deleteFile,
+      },
+      media: { findUsage },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request(
+        'https://app.example.test/api/doctor/patients/' +
+          TARGET_ID +
+          '/files/' +
+          USER_ID +
+          '?confirmUsed=true',
+        { method: 'DELETE' },
+      ),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(deleteFile).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('does not expose patient-file deletion across organizations', async () => {
+    const deleteFile = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization: vi.fn().mockResolvedValue(null) },
+      patientFiles: { getFile: vi.fn(), deleteFile },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(404);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it('denies unauthenticated patient-file deletion before reading or deleting the file', async () => {
+    const getFile = vi.fn();
+    const deleteFile = vi.fn();
+    vi.mocked(requireDoctorWorkspaceApiContext).mockResolvedValue(denied);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization: vi.fn() },
+      patientFiles: { getFile, deleteFile },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request(
+        'https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID,
+        {
+          method: 'DELETE',
+        },
+      ),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(getFile).not.toHaveBeenCalled();
+    expect(deleteFile).not.toHaveBeenCalled();
   });
 
   it('refuses file metadata creation visibly when the file storage quota is exhausted, without creating the patient folder', async () => {

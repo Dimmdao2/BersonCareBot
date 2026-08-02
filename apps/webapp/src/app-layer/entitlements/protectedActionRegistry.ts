@@ -1126,6 +1126,12 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     reason: 'clinic tariff-change cancellation remains available for tariff recovery',
   },
   {
+    file: 'src/app/api/doctor/patients/[userId]/files/[fileId]/route.ts',
+    exportName: 'DELETE',
+    reason:
+      'storage recovery: authorized clinic deletion must remain available to free an exhausted files quota',
+  },
+  {
     file: 'src/app/app/patient/reminders/actions.ts',
     exportName: 'toggleReminderCategory',
     reason:
