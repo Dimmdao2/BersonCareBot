@@ -128,9 +128,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     return NextResponse.json(rejection.body, { status: rejection.status });
   }
   const upload = prepared.value;
-  if (!isS3MediaEnabled(env)) {
-    return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
-  }
 
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
@@ -166,6 +163,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     if (usedBytes + upload.intent.sizeBytes > storageLimitBytes) {
       return NextResponse.json({ ok: false, error: 'file_storage_limit_reached' }, { status: 403 });
     }
+  }
+
+  if (!isS3MediaEnabled(env)) {
+    return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
 
   let uploadUrl: string;
