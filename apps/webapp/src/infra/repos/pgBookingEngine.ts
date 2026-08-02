@@ -39,6 +39,9 @@ import { pickPreferredSsaId } from '@/modules/booking-scheduling/ssaResolve';
 import { isChainFree } from '@/modules/booking-scheduling/computeSlots';
 import { listBookingBusyIntervals } from '@/infra/repos/pgBookingScheduling';
 import type { BookingEngineCorePort } from '@/modules/booking-engine/ports';
+import {
+  normalizeAppointmentReminderSettings,
+} from '@/modules/booking-notifications/appointmentReminderPresets';
 import type {
   AppointmentStatus,
   BeAppointment,
@@ -96,6 +99,8 @@ function mapSpecialist(row: typeof beSpecialists.$inferSelect): BeSpecialist {
     organizationId: row.organizationId,
     fullName: row.fullName,
     description: row.description ?? null,
+    appointmentReminderAllowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
+    appointmentReminderDefaultPresetId: row.appointmentReminderDefaultPresetId ?? null,
     isActive: row.isActive,
     sortOrder: row.sortOrder,
   };
@@ -142,6 +147,10 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     packageUsageRef: row.packageUsageRef ?? null,
     phoneNormalized: row.phoneNormalized ?? null,
     attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
+    appointmentReminderAllowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
+    appointmentReminderPresetId: row.appointmentReminderPresetId ?? null,
+    appointmentReminderSelectionSource:
+      row.appointmentReminderSelectionSource === 'patient' ? 'patient' : 'specialist_default',
   };
 }
 
@@ -176,6 +185,9 @@ async function insertAppointmentInTransaction(
       rescheduleCount: 0,
       phoneNormalized: input.phoneNormalized ?? null,
       attributionJson: input.attributionJson ?? {},
+      appointmentReminderAllowedPresetIds: input.appointmentReminderAllowedPresetIds ?? [],
+      appointmentReminderPresetId: input.appointmentReminderPresetId ?? null,
+      appointmentReminderSelectionSource: input.appointmentReminderSelectionSource ?? 'specialist_default',
       createdAt: now,
       updatedAt: now,
     })
@@ -1196,6 +1208,85 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         branchId: row.branchId,
         isActive: row.isActive,
       }));
+    },
+
+    async getSpecialistAppointmentReminderSettings({ organizationId, specialistId }) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          allowedPresetIds: beSpecialists.appointmentReminderAllowedPresetIds,
+          defaultPresetId: beSpecialists.appointmentReminderDefaultPresetId,
+        })
+        .from(beSpecialists)
+        .where(
+          and(
+            eq(beSpecialists.id, specialistId),
+            eq(beSpecialists.organizationId, organizationId),
+          ),
+        )
+        .limit(1);
+      const row = rows[0];
+      return row
+        ? normalizeAppointmentReminderSettings({
+            allowedPresetIds: row.allowedPresetIds ?? [],
+            defaultPresetId: row.defaultPresetId ?? null,
+          })
+        : null;
+    },
+
+    async updateSpecialistAppointmentReminderSettings({ organizationId, specialistId, settings }) {
+      const db = getDrizzle();
+      const result = await db
+        .update(beSpecialists)
+        .set({
+          appointmentReminderAllowedPresetIds: settings.allowedPresetIds,
+          appointmentReminderDefaultPresetId: settings.defaultPresetId,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(beSpecialists.id, specialistId),
+            eq(beSpecialists.organizationId, organizationId),
+          ),
+        );
+      return (result.rowCount ?? 0) === 1;
+    },
+
+    async setPatientAppointmentReminderPreset({ appointmentId, presetId }) {
+      const db = getDrizzle();
+      const result = await db
+        .update(beAppointments)
+        .set({
+          appointmentReminderPresetId: presetId,
+          appointmentReminderSelectionSource: 'patient',
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(beAppointments.id, appointmentId));
+      return (result.rowCount ?? 0) === 1;
+    },
+
+    async getPatientAppointmentReminderPreference(appointmentId) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          organizationId: beAppointments.organizationId,
+          status: beAppointments.status,
+          allowedPresetIds: beAppointments.appointmentReminderAllowedPresetIds,
+          presetId: beAppointments.appointmentReminderPresetId,
+          selectionSource: beAppointments.appointmentReminderSelectionSource,
+        })
+        .from(beAppointments)
+        .where(eq(beAppointments.id, appointmentId))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return null;
+      return {
+        organizationId: row.organizationId,
+        status: row.status as AppointmentStatus,
+        allowedPresetIds: row.allowedPresetIds ?? [],
+        presetId: row.presetId ?? null,
+        selectionSource: row.selectionSource === 'patient' ? 'patient' : 'specialist_default',
+      };
     },
 
     async getAppointment(id) {

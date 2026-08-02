@@ -10,6 +10,7 @@ import {
   nativeBookingSubtitle,
 } from '@/app/app/patient/cabinet/patientBookingLabels';
 import { cn } from '@/lib/utils';
+import { AppointmentReminderPreference } from './AppointmentReminderPreference';
 import {
   patientListItemClass,
   patientMutedTextClass,
@@ -103,6 +104,9 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
                 ) : null}
                 {hasNativeActions && showManageLink(row.status) ? (
                   <CabinetBookingActions row={row} />
+                ) : null}
+                {row.canonicalAppointmentId && row.status === 'confirmed' ? (
+                  <AppointmentReminderPreference appointmentId={row.canonicalAppointmentId} />
                 ) : null}
               </div>
             </div>

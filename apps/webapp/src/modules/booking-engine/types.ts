@@ -52,6 +52,8 @@ export type BeSpecialist = {
   organizationId: string;
   fullName: string;
   description: string | null;
+  appointmentReminderAllowedPresetIds: string[];
+  appointmentReminderDefaultPresetId: string | null;
   isActive: boolean;
   sortOrder: number;
 };
@@ -115,6 +117,9 @@ export type BeAppointment = {
   packageUsageRef: string | null;
   phoneNormalized: string | null;
   attributionJson: Record<string, unknown>;
+  appointmentReminderAllowedPresetIds: string[];
+  appointmentReminderPresetId: string | null;
+  appointmentReminderSelectionSource: 'specialist_default' | 'patient';
 };
 
 export type CreateAppointmentInput = {
@@ -137,6 +142,9 @@ export type CreateAppointmentInput = {
   phoneNormalized?: string | null;
   actorId?: string | null;
   attributionJson?: Record<string, unknown>;
+  appointmentReminderAllowedPresetIds?: string[];
+  appointmentReminderPresetId?: string | null;
+  appointmentReminderSelectionSource?: 'specialist_default' | 'patient';
 };
 
 type CreateManualPatientIdentityInput = {

@@ -697,6 +697,23 @@ export async function handleBookingLifecycleEvent(
       return;
     }
 
+    if (eventType === 'booking.reminder_updated') {
+      if (shouldCancelPendingReminders(payload)) {
+        await cancelPendingBookingReminders(bookingId);
+      }
+      await scheduleBookingReminders({
+        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        bookingId,
+        slotStartIso: payload.slotStart,
+        phoneNormalized: contactPhone,
+        patientName,
+        timeZone,
+        ...(webappEventsPort ? { webappEventsPort } : {}),
+        ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+      });
+      return;
+    }
+
     if (eventType === 'booking.payment_captured') {
       const patientText = resolvePatientMessageText(
         payload,

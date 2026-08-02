@@ -337,10 +337,7 @@ import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTa
 import { createPatientBookingService } from '@/modules/patient-booking/service';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
-import {
-  loadAppointmentReminderPlanFromSystemSettings,
-  loadBookingLifecycleNotificationsFromSystemSettings,
-} from '@/modules/booking-notifications/settings';
+import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
 import { pgPatientBookingsPort } from '@/infra/repos/pgPatientBookings';
 import { inMemoryPatientBookingsPort } from '@/infra/repos/inMemoryPatientBookings';
 import { createPgPatientMaintenanceHistoryPort } from '@/infra/repos/pgPatientMaintenanceHistory';
@@ -804,10 +801,6 @@ const onAppointmentPaymentConfirmed = bookingEngineService
         loadBookingLifecycleNotificationsFromSystemSettings((key, scope) =>
           systemSettingsService.getSetting(key, scope),
         ),
-      loadReminderPlan: (organizationId) =>
-        loadAppointmentReminderPlanFromSystemSettings(organizationId, (key, scope, options) =>
-          systemSettingsService.getSetting(key, scope, options),
-        ),
       bookingSync: bookingSyncPortForPayments,
     })
   : undefined;
@@ -1160,10 +1153,6 @@ patientBookingService = createPatientBookingService({
       await import('@/modules/booking-notifications/settings');
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
-  getAppointmentReminderPlan: (organizationId) =>
-    loadAppointmentReminderPlanFromSystemSettings(organizationId, (key, scope, options) =>
-      systemSettingsService.getSetting(key, scope, options),
-    ),
   getAppDisplayTimeZone,
 });
 
@@ -1823,6 +1812,7 @@ function _buildAppDeps() {
     /** `/book/{publicSlug}` bootstrap resolver (owner canon OWNER_RULINGS_2026-07-17.md §1). */
     clinicDirectory: clinicDirectoryService,
     bookingEngine: bookingEngineService,
+    bookingSync: bookingSyncPortForPayments,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,

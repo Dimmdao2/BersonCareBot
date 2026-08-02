@@ -39,6 +39,7 @@ import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { parsePlatformIntegrationAvailabilityEnvelope } from '@/modules/system-settings/platformIntegrationAvailability';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
+import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
 
 type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
 
@@ -144,17 +145,12 @@ export default async function SettingsPage({
       doctorSettings.find((setting) => setting.key === 'patient_label')?.valueJson,
       'пациент',
     );
-    const appointmentReminderEnabled = valueOf(
-      doctorSettings.find((setting) => setting.key === 'doctor_appointment_reminder_enabled')
-        ?.valueJson,
-      false,
-    );
-    const appointmentReminderOffsets = valueOf<unknown>(
-      doctorSettings.find(
-        (setting) => setting.key === 'doctor_appointment_reminder_offsets_minutes',
-      )?.valueJson,
-      [],
-    );
+    const appointmentReminderSettings: AppointmentReminderSpecialistSettings = workspace.specialistId
+      ? ((await deps.bookingEngine?.getSpecialistAppointmentReminderSettings({
+          organizationId: workspace.organizationId,
+          specialistId: workspace.specialistId,
+        })) ?? { allowedPresetIds: [], defaultPresetId: null })
+      : { allowedPresetIds: [], defaultPresetId: null };
     const todayPreferences = parseDoctorTodayPreferences(
       doctorSettings.find((setting) => setting.key === 'doctor_today_preferences')?.valueJson,
     );
@@ -234,17 +230,9 @@ export default async function SettingsPage({
           initialPreferences={todayPreferences}
           settingsEndpoint="/api/admin/settings"
         />
-        <AppointmentReminderSettingsSection
-          initialEnabled={Boolean(appointmentReminderEnabled)}
-          initialOffsetsMinutes={
-            Array.isArray(appointmentReminderOffsets)
-              ? appointmentReminderOffsets.filter(
-                  (value): value is number => Number.isSafeInteger(value) && value > 0,
-                )
-              : []
-          }
-          settingsEndpoint="/api/admin/settings"
-        />
+        {workspace.specialistId ? (
+          <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
+        ) : null}
         {shouldShowGoogleCalendarSettings(
           integrationAvailability.integrations.google_calendar,
           externalCalendarEnabled,
