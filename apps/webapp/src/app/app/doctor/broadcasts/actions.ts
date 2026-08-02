@@ -12,6 +12,7 @@ import type {
   BroadcastPreviewResult,
 } from '@/modules/doctor-broadcasts/ports';
 import type { BroadcastChannelCounts, BroadcastDraft } from '@/modules/doctor-broadcasts/draftPort';
+import { normalizeBroadcastChannels } from '@/modules/doctor-broadcasts/broadcastChannels';
 
 /**
  * Zod-схема для входящего черновика рассылки.
@@ -44,7 +45,18 @@ const draftSchema = z.object({
     ])
     .nullable(),
   channels: z
-    .array(z.enum(['bot_message', 'sms', 'push', 'home_banner', 'notification_bell']))
+    .array(
+      z.enum([
+        'bot_message',
+        'sms',
+        'push',
+        'telegram',
+        'max',
+        'email',
+        'home_banner',
+        'notification_bell',
+      ]),
+    )
     .max(10),
   title: z.string().max(200),
   body: z.string().max(4000),
@@ -65,6 +77,7 @@ export async function executeBroadcastAction(
   command: Omit<BroadcastCommand, 'actorId'>,
 ): Promise<{ auditEntry: BroadcastAuditEntry }> {
   const workspace = await requireDoctorWorkspaceContext();
+  await assertClinicBroadcastChannels(workspace, command.channels);
   const deps = buildAppDeps();
   const result = await deps.doctorBroadcasts.execute(
     {
@@ -83,6 +96,56 @@ export async function executeBroadcastAction(
   );
   revalidatePath('/app/doctor/broadcasts');
   return result;
+}
+
+async function assertClinicBroadcastChannels(
+  workspace: Awaited<ReturnType<typeof requireDoctorWorkspaceContext>>,
+  requestedChannels: string[] | undefined,
+): Promise<void> {
+  const channels = normalizeBroadcastChannels(requestedChannels);
+  const required = new Map<
+    string,
+    {
+      mechanic: 'clinic_smtp' | 'clinic_sms' | 'clinic_telegram_bot' | 'clinic_max_bot';
+      settingKey:
+        | 'clinic_smtp_outbound'
+        | 'clinic_smsc_api_key'
+        | 'clinic_telegram_bot_token'
+        | 'clinic_max_bot_api_key';
+    }
+  >();
+  if (channels.includes('email'))
+    required.set('email', { mechanic: 'clinic_smtp', settingKey: 'clinic_smtp_outbound' });
+  if (channels.includes('sms'))
+    required.set('sms', { mechanic: 'clinic_sms', settingKey: 'clinic_smsc_api_key' });
+  if (channels.includes('telegram'))
+    required.set('telegram', {
+      mechanic: 'clinic_telegram_bot',
+      settingKey: 'clinic_telegram_bot_token',
+    });
+  if (channels.includes('max'))
+    required.set('max', { mechanic: 'clinic_max_bot', settingKey: 'clinic_max_bot_api_key' });
+  if (required.size === 0) throw new Error('clinic_delivery_channel_required');
+
+  const deps = buildAppDeps();
+  for (const { mechanic, settingKey } of required.values()) {
+    const entitlement = await requireEntitlementForMutationAction(workspace, mechanic);
+    if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
+    const setting = await deps.systemSettings.getSetting(settingKey, 'admin', {
+      organizationId: workspace.organizationId,
+    });
+    if (setting?.organizationId !== workspace.organizationId) {
+      throw new Error(`clinic_delivery_channel_not_configured:${settingKey}`);
+    }
+    const value = setting?.valueJson;
+    const inner =
+      value && typeof value === 'object' && 'value' in value
+        ? (value as { value: unknown }).value
+        : null;
+    if (typeof inner === 'string' ? inner.trim().length === 0 : inner === null) {
+      throw new Error(`clinic_delivery_channel_not_configured:${settingKey}`);
+    }
+  }
 }
 
 export async function listBroadcastAuditAction(limit?: number): Promise<BroadcastAuditEntry[]> {

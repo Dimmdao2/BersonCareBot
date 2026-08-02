@@ -129,6 +129,10 @@ const ADMIN_SCOPE_KEYS = [
   'patient_home_mood_icons',
   'notifications_topics',
   'smtp_outbound',
+  'clinic_smtp_outbound',
+  'clinic_smsc_api_key',
+  'clinic_telegram_bot_token',
+  'clinic_max_bot_api_key',
   'operator_health_imap',
   'web_push_vapid',
   'smsc_enabled',
@@ -227,6 +231,25 @@ const EXTERNAL_CALENDAR_ENTITLEMENT_SETTING_KEYS = new Set([
   'google_calendar_id',
   'google_calendar_enabled',
   'google_connected_email',
+]);
+
+const CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS = new Map<
+  string,
+  {
+    mechanic: 'clinic_smtp' | 'clinic_sms' | 'clinic_telegram_bot' | 'clinic_max_bot';
+    action: string;
+  }
+>([
+  ['clinic_smtp_outbound', { mechanic: 'clinic_smtp', action: 'настроить собственный SMTP' }],
+  ['clinic_smsc_api_key', { mechanic: 'clinic_sms', action: 'настроить собственный SMS-канал' }],
+  [
+    'clinic_telegram_bot_token',
+    { mechanic: 'clinic_telegram_bot', action: 'настроить собственного Telegram-бота' },
+  ],
+  [
+    'clinic_max_bot_api_key',
+    { mechanic: 'clinic_max_bot', action: 'настроить собственного MAX-бота' },
+  ],
 ]);
 
 const PATIENT_HOME_TODAY_ENTITLEMENT_SETTING_KEYS = new Set([
@@ -489,6 +512,19 @@ export async function PATCH(request: Request) {
       return entitlementMutationRefusalResponse(
         'external_calendar',
         'изменить или отключить внешний календарь',
+      );
+    }
+  }
+  const clinicDeliveryEntitlement = CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS.get(parsed.data.key);
+  if (clinicDeliveryEntitlement && gate.ctx.kind === 'clinic') {
+    const entitlement = await requireEntitlementForMutation(
+      gate.ctx.workspace,
+      clinicDeliveryEntitlement.mechanic,
+    );
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse(
+        clinicDeliveryEntitlement.mechanic,
+        clinicDeliveryEntitlement.action,
       );
     }
   }
@@ -789,7 +825,7 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: checked.value };
   }
 
-  if (parsed.data.key === 'smtp_outbound') {
+  if (parsed.data.key === 'smtp_outbound' || parsed.data.key === 'clinic_smtp_outbound') {
     const checked = parseSmtpOutboundPatchValue(normalizedValue);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });

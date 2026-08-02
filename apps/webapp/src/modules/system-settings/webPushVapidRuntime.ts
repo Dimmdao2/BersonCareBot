@@ -90,8 +90,26 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         },
       };
     }
-    if (s.key === 'smsc_api_key') {
+    if (
+      s.key === 'smsc_api_key' ||
+      s.key === 'clinic_smsc_api_key' ||
+      s.key === 'clinic_telegram_bot_token' ||
+      s.key === 'clinic_max_bot_api_key'
+    ) {
       return { ...s, valueJson: { value: '[REDACTED]' } };
+    }
+    if (s.key === 'clinic_smtp_outbound') {
+      const value =
+        s.valueJson && typeof s.valueJson === 'object' && 'value' in s.valueJson
+          ? (s.valueJson as Record<string, unknown>).value
+          : null;
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const redacted = { ...(value as Record<string, unknown>) };
+        const hasStoredPassword =
+          typeof redacted.password === 'string' && redacted.password.trim().length > 0;
+        delete redacted.password;
+        return { ...s, valueJson: { value: { ...redacted, hasStoredPassword } } };
+      }
     }
     if (s.key === 'vk_id_client_secret') {
       const value =

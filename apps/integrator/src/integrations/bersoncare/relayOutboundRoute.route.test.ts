@@ -46,6 +46,7 @@ type RelayPayload = {
   text: string;
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
+  senderScope?: 'clinic_required';
 };
 
 function relayPayload(overrides: Partial<RelayPayload> = {}): RelayPayload {
@@ -116,6 +117,27 @@ afterEach(async () => {
 });
 
 describe('POST /api/bersoncare/relay-outbound', () => {
+  it('preserves clinic-required sender scope for an exact organization relay', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const app = await buildApp(dispatchOutgoing);
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'telegram',
+        recipient: '12345',
+        senderScope: 'clinic_required',
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(dispatchOutgoing).toHaveBeenCalledOnce();
+    expect(
+      (dispatchOutgoing.mock.calls[0]?.[0].payload as { delivery?: unknown }).delivery,
+    ).toEqual({ channels: ['telegram'], senderScope: 'clinic_required' });
+  });
+
   it('rejects missing, invalid, and stale authentication without dispatching', async () => {
     const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
     const app = await buildApp(dispatchOutgoing);

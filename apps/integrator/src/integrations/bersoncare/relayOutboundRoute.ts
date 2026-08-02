@@ -36,6 +36,7 @@ const relayPayloadSchema = z
     html: z.string().optional(),
     idempotencyKey: z.string().min(1),
     metadata: z.record(z.string(), z.unknown()).optional(),
+    senderScope: z.literal('clinic_required').optional(),
     purpose: z.never().optional(),
   })
   .superRefine((value, ctx) => {
@@ -99,7 +100,10 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         recipient,
         message: { text: parsed.text },
         ...(replyMarkup ? { replyMarkup } : {}),
-        delivery: { channels: [parsed.channel] },
+        delivery: {
+          channels: [parsed.channel],
+          ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+        },
       },
     };
   }
@@ -111,7 +115,10 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
       payload: {
         recipient: { phoneNormalized: parsed.recipient },
         message: { text: parsed.text },
-        delivery: { channels: ['smsc'] },
+        delivery: {
+          channels: ['smsc'],
+          ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+        },
       },
     };
   }
@@ -133,7 +140,10 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         subject,
         message: { text: parsed.text },
         ...(parsed.html ? { html: parsed.html } : {}),
-        delivery: { channels: ['email'] },
+        delivery: {
+          channels: ['email'],
+          ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+        },
       },
     };
   }

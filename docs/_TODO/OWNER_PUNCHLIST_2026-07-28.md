@@ -747,6 +747,10 @@ community-лицензия).
       рассылки и bot-support обязаны fail closed без собственного канала, essential delivery использует
       клиниковый канал с платформенным fallback. Свести с S6.5 и тарифным планом до реализации, не создавать
       вторую конкурирующую модель channel binding.
+      Частично выполнено в `wt/clinic-channels`: org-scoped secret-envelope credentials, отдельные tariff
+      mechanics, clinic-required исходящий broadcast и essential clinic-first/platform-fallback routing.
+      **ОСТАЛОСЬ:** S6.5 должен создать canonical dedicated Telegram/MAX inbound binding и webhook-routing;
+      до него двухсторонний bot-support не может быть заявлен готовым.
 - [ ] **12.7** Защитить credentials клиники настоящим authenticated encryption, а не текущим
       `valueContract='secret_envelope'`, который классифицирует и редактирует JSON, но не шифрует его.
       До реализации утвердить key custody/rotation/recovery и threat model из `CRYPTO-01` C0/C1/C4.

@@ -30,6 +30,7 @@ import { BillingSection, type BillingMechanicRow } from './BillingSection';
 import { describeCommercialAccessState } from './billingCommercialState';
 import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
 import { ClinicSlugSection } from './ClinicSlugSection';
+import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
 import { OrgBrandingSection } from './OrgBrandingSection';
 import { SettingsForm } from './SettingsForm';
 import { SettingsTabsNav } from './SettingsTabsNav';
@@ -38,6 +39,7 @@ import { TeamSection } from './TeamSection';
 import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { parsePlatformIntegrationAvailabilityEnvelope } from '@/modules/system-settings/platformIntegrationAvailability';
+import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 
 type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
@@ -192,6 +194,26 @@ export default async function SettingsPage({
         ?.valueJson,
     );
     const externalCalendarEnabled = await isMechanicIncluded(workspace, 'external_calendar');
+    const clinicAdminSetting = (key: string) =>
+      clinicAdminSettings.find(
+        (setting) => setting.key === key && setting.organizationId === workspace.organizationId,
+      ) ?? null;
+    const clinicSmtp = smtpInnerFromValueJson(
+      clinicAdminSetting('clinic_smtp_outbound')?.valueJson,
+    );
+    const clinicDelivery = {
+      smtp: {
+        configured: clinicSmtp.success,
+        host: clinicSmtp.success ? clinicSmtp.data.host : '',
+        port: clinicSmtp.success ? String(clinicSmtp.data.port) : '587',
+        secure: clinicSmtp.success ? clinicSmtp.data.secure : false,
+        user: clinicSmtp.success ? clinicSmtp.data.user : '',
+        from: clinicSmtp.success ? clinicSmtp.data.from : '',
+      },
+      smsConfigured: clinicAdminSetting('clinic_smsc_api_key') !== null,
+      telegramConfigured: clinicAdminSetting('clinic_telegram_bot_token') !== null,
+      maxConfigured: clinicAdminSetting('clinic_max_bot_api_key') !== null,
+    };
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
@@ -245,6 +267,7 @@ export default async function SettingsPage({
           }
           settingsEndpoint="/api/admin/settings"
         />
+        <ClinicDeliveryChannelsSection initial={clinicDelivery} />
         {shouldShowGoogleCalendarSettings(
           integrationAvailability.integrations.google_calendar,
           externalCalendarEnabled,

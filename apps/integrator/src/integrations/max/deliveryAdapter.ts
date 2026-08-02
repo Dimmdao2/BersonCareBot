@@ -34,7 +34,7 @@ type DeliveryPayload = {
   notification?: unknown;
   replyMarkup?: unknown;
   parse_mode?: string;
-  delivery?: { channels?: unknown };
+  delivery?: { channels?: unknown; clinicCredential?: { channel?: unknown; apiKey?: unknown } };
 } & Record<string, unknown>;
 
 /**
@@ -130,11 +130,16 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       return false;
     },
     async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
-      const apiKey = await getMaxApiKey();
+      const payload = intent.payload as DeliveryPayload;
+      const clinicCredential = payload.delivery?.clinicCredential;
+      const clinicApiKey =
+        clinicCredential?.channel === 'max' && typeof clinicCredential.apiKey === 'string'
+          ? clinicCredential.apiKey.trim()
+          : '';
+      const apiKey = clinicApiKey || (await getMaxApiKey());
       if (!apiKey) throw new Error('max api key missing');
       const baseUrl = getMaxBaseUrl();
       const config = { apiKey, ...(baseUrl ? { baseUrl } : {}) };
-      const payload = intent.payload as DeliveryPayload;
       const text = asNonEmptyString(payload.message?.text);
       const messageId = payload.messageId;
 

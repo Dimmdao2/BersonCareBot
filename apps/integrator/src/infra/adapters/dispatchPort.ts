@@ -20,6 +20,10 @@ import {
 } from '../principal/organizationPrincipal.js';
 import { readChannel } from './channelRouting.js';
 import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
+import type {
+  ClinicDeliveryChannel,
+  ClinicDeliveryCredential,
+} from '../db/clinicDeliveryCredentials.js';
 
 const DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED = 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED';
 let deliveryAttemptAuditPersistFailureCount = 0;
@@ -29,8 +33,42 @@ export type DispatchPlatformIntegrationId = 'telegram' | 'max' | 'email' | 'smsc
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
   message?: { text?: unknown };
-  delivery?: { channels?: unknown; maxAttempts?: unknown };
+  delivery?: {
+    channels?: unknown;
+    maxAttempts?: unknown;
+    senderScope?: unknown;
+    clinicCredential?: ClinicDeliveryCredential;
+  };
 } & Record<string, unknown>;
+
+type ClinicSenderScope = 'clinic_required' | 'clinic_preferred';
+
+function clinicSenderScope(intent: OutgoingIntent): ClinicSenderScope {
+  if (intent.type !== 'message.send') return 'clinic_preferred';
+  const scope = (intent.payload as DeliveryPayload).delivery?.senderScope;
+  return scope === 'clinic_required' ? 'clinic_required' : 'clinic_preferred';
+}
+
+function asClinicDeliveryChannel(channel: string): ClinicDeliveryChannel | null {
+  return channel === 'email' || channel === 'smsc' || channel === 'telegram' || channel === 'max'
+    ? channel
+    : null;
+}
+
+function withClinicCredential(
+  intent: OutgoingIntent,
+  credential: ClinicDeliveryCredential,
+): OutgoingIntent {
+  if (intent.type !== 'message.send') return intent;
+  const payload = intent.payload as DeliveryPayload;
+  return {
+    ...intent,
+    payload: {
+      ...payload,
+      delivery: { ...(payload.delivery ?? {}), clinicCredential: credential },
+    },
+  };
+}
 
 function isOtpIntent(intent: OutgoingIntent): boolean {
   return typeof intent.meta.eventId === 'string' && intent.meta.eventId.startsWith('otp:');
@@ -290,6 +328,10 @@ export function createDefaultDispatchPort(deps: {
   writePort?: DbWritePort;
   readPort?: unknown;
   isPlatformIntegrationEnabled?: (integrationId: DispatchPlatformIntegrationId) => Promise<boolean>;
+  /** Exact-org tariff + credential resolver. It never returns a platform fallback credential. */
+  resolveClinicDeliveryCredential?: (
+    channel: ClinicDeliveryChannel,
+  ) => Promise<ClinicDeliveryCredential | null>;
 }): DispatchPort {
   return {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<DeliverySendResult> {
@@ -331,7 +373,29 @@ export function createDefaultDispatchPort(deps: {
       if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);
       let sendResult: DeliverySendResult | void;
       try {
-        sendResult = await adapter.send(intentForChannel);
+        const clinicChannel = asClinicDeliveryChannel(channel);
+        const senderScope = clinicSenderScope(intentForChannel);
+        const clinicCredential =
+          clinicChannel && deps.resolveClinicDeliveryCredential
+            ? await deps.resolveClinicDeliveryCredential(clinicChannel)
+            : null;
+        if (senderScope === 'clinic_required' && !clinicCredential) {
+          throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
+        }
+        if (clinicCredential) {
+          try {
+            sendResult = await adapter.send(
+              withClinicCredential(intentForChannel, clinicCredential),
+            );
+          } catch (clinicError) {
+            // Essential traffic remains deliverable through the platform. Clinic-required flows
+            // (broadcasts and bot support) must never silently assume the platform sender.
+            if (senderScope === 'clinic_required') throw clinicError;
+            sendResult = await adapter.send(intentForChannel);
+          }
+        } else {
+          sendResult = await adapter.send(intentForChannel);
+        }
       } catch (providerError) {
         if (intent.type === 'message.send') {
           try {

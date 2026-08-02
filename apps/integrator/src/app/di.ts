@@ -68,6 +68,7 @@ import { createWebPushAccessPort } from '../infra/adapters/webPushAccessPort.js'
 import type { WebPushAccessPort } from '../kernel/contracts/index.js';
 import { createWebPushDeliveryAdapter } from '../integrations/web-push/deliveryAdapter.js';
 import { isPlatformIntegrationAvailable } from '../infra/db/platformIntegrationAvailability.js';
+import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -225,7 +226,11 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const adapters = [
     createTelegramDeliveryAdapter(),
-    createSmscDeliveryAdapter({ smsClient }),
+    createSmscDeliveryAdapter({
+      smsClient,
+      createClinicSmsClient: (apiKey) =>
+        createSmscClient({ apiKey, baseUrl: smscConfig.baseUrl, log: logger }),
+    }),
     ...(maxConfig.enabled ? [createMaxDeliveryAdapter()] : []),
     createEmailDeliveryAdapter({ getDb: () => dbPort }),
     createWebPushDeliveryAdapter({ webPushAccessPort }),
@@ -239,6 +244,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       writePort: input.dispatchAttemptWritePort ?? dbWritePort,
       isPlatformIntegrationEnabled: (integrationId: DispatchPlatformIntegrationId) =>
         isPlatformIntegrationAvailable(dbPort, integrationId),
+      resolveClinicDeliveryCredential: createClinicDeliveryCredentialResolver(dbPort),
     });
 
   dispatchPortRef.current = dispatchPort;

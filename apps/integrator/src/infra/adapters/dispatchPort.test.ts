@@ -25,6 +25,18 @@ function messageSendIntent(): OutgoingIntent {
   } as unknown as OutgoingIntent;
 }
 
+function clinicRequiredIntent(channel: 'telegram' | 'max' | 'smsc' | 'email'): OutgoingIntent {
+  return {
+    ...messageSendIntent(),
+    meta: { ...messageSendIntent().meta, source: channel === 'smsc' ? 'sms' : channel },
+    payload: {
+      recipient: { chatId: 123 },
+      message: { text: 'hello' },
+      delivery: { channels: [channel], senderScope: 'clinic_required' },
+    },
+  } as unknown as OutgoingIntent;
+}
+
 describe('D20 item 17: a failed delivery-attempt audit write must not cause a duplicate send', () => {
   it('returns the real send result even when the audit write throws (send is not retried, outcome is not swallowed)', async () => {
     const send = vi.fn(async () => ({ telegramMessageId: 42 }));
@@ -57,5 +69,66 @@ describe('D20 item 17: a failed delivery-attempt audit write must not cause a du
 
     await expect(port.dispatchOutgoing(messageSendIntent())).rejects.toBe(providerError);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('clinic-owned delivery routing', () => {
+  it('uses the exact clinic credential for a clinic-required broadcast', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const port = createDefaultDispatchPort({
+      adapters: [adapter],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'telegram',
+        botToken: 'clinic-a-token',
+      }),
+    });
+
+    await port.dispatchOutgoing(clinicRequiredIntent('telegram'));
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential: unknown } }).delivery,
+    ).toMatchObject({ clinicCredential: { channel: 'telegram', botToken: 'clinic-a-token' } });
+  });
+
+  it('fails closed before reaching a provider when a clinic-required credential is absent', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const port = createDefaultDispatchPort({
+      adapters: [adapter],
+      resolveClinicDeliveryCredential: async () => null,
+    });
+
+    await expect(port.dispatchOutgoing(clinicRequiredIntent('telegram'))).rejects.toThrow(
+      'CLINIC_CHANNEL_NOT_CONFIGURED:telegram',
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the platform credential only for clinic-preferred essential delivery', async () => {
+    const send = vi
+      .fn(async (_intent: OutgoingIntent) => ({ telegramMessageId: 0 }))
+      .mockRejectedValueOnce(new Error('clinic_provider_failed'))
+      .mockResolvedValueOnce({ telegramMessageId: 7 });
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const port = createDefaultDispatchPort({
+      adapters: [adapter],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'telegram',
+        botToken: 'clinic-a-token',
+      }),
+    });
+
+    await expect(port.dispatchOutgoing(messageSendIntent())).resolves.toEqual({
+      telegramMessageId: 7,
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).toMatchObject({ clinicCredential: { channel: 'telegram', botToken: 'clinic-a-token' } });
+    expect(
+      (send.mock.calls[1]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).not.toHaveProperty('clinicCredential');
   });
 });

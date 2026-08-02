@@ -7,8 +7,8 @@ import type { ApiClientOptions } from 'grammy';
 import type { MessagingPort } from '../../kernel/domain/ports/messaging.js';
 import { telegramConfig } from './config.js';
 
-function getBot(): Bot {
-  return new Bot(telegramConfig.botToken, {
+function getBot(botToken = telegramConfig.botToken): Bot {
+  return new Bot(botToken, {
     client: { fetch: globalThis.fetch as unknown as NonNullable<ApiClientOptions['fetch']> },
   });
 }
@@ -20,8 +20,8 @@ export function getBotInstance(): Bot {
   return botInstance;
 }
 
-export function createMessagingPort(): MessagingPort {
-  const api = getBotInstance().api;
+export function createMessagingPort(botToken?: string): MessagingPort {
+  const api = botToken ? getBot(botToken).api : getBotInstance().api;
   return {
     sendMessage: (p) =>
       api.sendMessage(p.chat_id, p.text, {

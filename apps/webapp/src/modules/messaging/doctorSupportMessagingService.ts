@@ -122,15 +122,19 @@ export function createDoctorSupportMessagingService(
           });
       } else if (channelCode && channelExternalId) {
         // Legacy: диалог без platform_user_id — только канал из projection
+        const senderScope =
+          channelCode === 'telegram' || channelCode === 'max' ? 'clinic_required' : undefined;
         relayOutbound(
           {
             messageId: integratorMessageId,
+            ...(convInfo.organizationId ? { organizationId: convInfo.organizationId } : {}),
             channel: channelCode,
             recipient: channelExternalId,
             text: `${buildPersonalChatNotificationText(
               senderDisplayName,
               'specialist',
             )}\n\n${buildPatientMessagesOpenUrl(env.APP_BASE_URL)}`,
+            ...(senderScope ? { senderScope } : {}),
           },
           opts,
         ).catch((err: unknown) => {
