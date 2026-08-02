@@ -181,6 +181,10 @@ export function BookingPrepaymentSection() {
   }
 
   const canEnable = availability?.available ?? false;
+  const mutationsLockedByTariff =
+    availability?.reason === 'commercial_read_only' ||
+    availability?.reason === 'commercial_blocked' ||
+    availability?.reason === 'access_lifecycle_unconfigured';
   const availabilityMessage =
     availability && !availability.available && availability.reason
       ? AVAILABILITY_MESSAGES[availability.reason]
@@ -266,6 +270,7 @@ export function BookingPrepaymentSection() {
           <Label>Режим</Label>
           <Select
             value={mode}
+            disabled={mutationsLockedByTariff}
             onValueChange={(v) => {
               if (canEnable || v === 'disabled') setMode(v as PolicyRow['mode']);
             }}
@@ -308,7 +313,10 @@ export function BookingPrepaymentSection() {
         <Button
           type="button"
           disabled={
-            pending || (scope === 'service' && !serviceId) || (mode !== 'disabled' && !canEnable)
+            pending ||
+            mutationsLockedByTariff ||
+            (scope === 'service' && !serviceId) ||
+            (mode !== 'disabled' && !canEnable)
           }
           onClick={save}
         >

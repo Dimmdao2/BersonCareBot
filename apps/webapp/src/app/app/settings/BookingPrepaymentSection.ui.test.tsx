@@ -111,4 +111,27 @@ describe('B1.3 prepayment settings', () => {
       expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
     });
   });
+
+  it.each([
+    'commercial_read_only',
+    'commercial_blocked',
+    'access_lifecycle_unconfigured',
+  ] as const)('keeps policy controls read-only for tariff reason %s', async (reason) => {
+    fakes.apiJson.mockImplementation((url: string) => {
+      if (url.includes('/services'))
+        return Promise.resolve({ ok: true, services: [{ id: 'service-1', title: 'Приём' }] });
+      return Promise.resolve({
+        ...policyResponse('fixed_minor'),
+        availability: { available: false, reason },
+      });
+    });
+
+    render(<BookingPrepaymentSection />);
+    await screen.findByText('Предоплата');
+    await chooseService();
+
+    expect(screen.getAllByRole('combobox')[2]).toBeDisabled();
+    expect(screen.getByDisplayValue('1000')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+  });
 });
