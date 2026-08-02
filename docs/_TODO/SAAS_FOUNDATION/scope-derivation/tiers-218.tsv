@@ -60,12 +60,7 @@ INFRA|public.saas_registration_tariff_policy
 INFRA|public.webapp_schema_migrations
 LEGACY|integrator.message_retry_jobs
 LEGACY|public.appointment_records
-LEGACY|public.booking_branch_services
-LEGACY|public.booking_branches
 LEGACY|public.booking_cities
-LEGACY|public.booking_services
-LEGACY|public.booking_specialists
-LEGACY|public.branches
 LEGACY|public.patient_bookings
 SCOPED|integrator.contacts
 SCOPED|integrator.content_access_grants
