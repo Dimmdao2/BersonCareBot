@@ -860,13 +860,15 @@ function SectionSpecialists() {
   return <BookingSoloSpecialistsSection />;
 }
 
-function SectionForm() {
+function SectionForm({
+  doctorStatisticsEnabled,
+}: Pick<ScheduleTabProps, 'doctorStatisticsEnabled'>) {
   return (
     <div className="flex flex-col gap-3">
       <BookingSoloFormFieldsSection />
       <div className={BOOKING_CARD_GRID_CLASS}>
         <BookingPublicWidgetSection />
-        <BookingPublicAttributionSection />
+        <BookingPublicAttributionSection visible={doctorStatisticsEnabled} />
       </div>
     </div>
   );
@@ -901,6 +903,7 @@ function SectionNotifications() {
 export function ScheduleSetupTab({
   deepLinkParams,
   onDeepLinkChange,
+  doctorStatisticsEnabled,
   paymentsVisible = true,
   paymentsReadOnly = false,
 }: ScheduleTabProps) {
@@ -948,7 +951,9 @@ export function ScheduleSetupTab({
         {activeSection === 'locations' && <SectionLocations />}
         {activeSection === 'services' && <SectionServices />}
         {activeSection === 'specialists' && <SectionSpecialists />}
-        {activeSection === 'form' && <SectionForm />}
+        {activeSection === 'form' && (
+          <SectionForm doctorStatisticsEnabled={doctorStatisticsEnabled} />
+        )}
         {activeSection === 'payments' && paymentsVisible && (
           <SectionPayments readOnly={paymentsReadOnly} />
         )}

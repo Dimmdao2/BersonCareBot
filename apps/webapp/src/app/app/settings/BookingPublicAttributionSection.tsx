@@ -31,7 +31,15 @@ function formatAttribution(attr: Record<string, unknown>): string {
   return parts.length > 0 ? parts.join(' · ') : JSON.stringify(attr);
 }
 
-export function BookingPublicAttributionSection() {
+type BookingPublicAttributionSectionProps = {
+  visible: boolean;
+};
+
+export function BookingPublicAttributionSection({ visible }: BookingPublicAttributionSectionProps) {
+  return visible ? <BookingPublicAttributionContent /> : null;
+}
+
+function BookingPublicAttributionContent() {
   const [items, setItems] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

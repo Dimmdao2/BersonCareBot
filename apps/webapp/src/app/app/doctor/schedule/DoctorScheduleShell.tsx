@@ -101,6 +101,8 @@ export type DoctorScheduleShellProps = {
   paymentsReadOnly: boolean;
   /** Server-resolved schedule permissions and active specialists. */
   scheduleScopeBootstrap: DoctorScheduleScopeBootstrap;
+  /** Server-resolved visibility of clinic statistics and booking attribution. */
+  doctorStatisticsEnabled: boolean;
 };
 
 /**
@@ -122,6 +124,7 @@ export function DoctorScheduleShell({
   paymentsVisible,
   paymentsReadOnly,
   scheduleScopeBootstrap,
+  doctorStatisticsEnabled,
 }: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
     if (initialTab) return initialTab;
@@ -243,6 +246,7 @@ export function DoctorScheduleShell({
               paymentsVisible={paymentsVisible}
               paymentsReadOnly={paymentsReadOnly}
               scheduleScopeBootstrap={scheduleScopeBootstrap}
+              doctorStatisticsEnabled={doctorStatisticsEnabled}
             />
           </div>
         );
