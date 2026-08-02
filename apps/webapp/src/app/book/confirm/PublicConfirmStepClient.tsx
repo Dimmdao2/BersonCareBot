@@ -43,8 +43,8 @@ export function PublicConfirmStepClient(props: InPersonProps | OnlineProps) {
       formFieldsApiPath="/api/booking/public/form-fields"
       successRedirectPath={publicBookPaths.done}
       doneRedirectPath={publicBookPaths.done}
-      buildAwaitingPaymentHref={(booking, contactPhone) =>
-        `${publicBookPaths.pay}?bookingId=${encodeURIComponent(booking.id)}&phone=${encodeURIComponent(contactPhone)}`
+      buildAwaitingPaymentHref={(booking) =>
+        `${publicBookPaths.pay}?bookingId=${encodeURIComponent(booking.id)}`
       }
       useCreateBookingHook={usePublicCreateBooking}
     />

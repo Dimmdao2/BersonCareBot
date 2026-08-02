@@ -15,6 +15,7 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { createVerifiedPublicBooking } from '@/app-layer/booking/createVerifiedPublicBooking';
+import { identifyPublicBookingPayer } from '@/app-layer/booking/identifyPublicBookingPayer';
 import {
   isPublicBookingCreateRateLimited,
   PUBLIC_BOOKING_RATE_LIMIT_SEC,
@@ -26,8 +27,6 @@ import {
   type PublicBookingIntent,
 } from '@/modules/public-booking/publicBookingIntent';
 import { redactPublicBookingRecord } from '@/modules/public-booking/publicBookingResponse';
-import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
-import { canAccessPatient } from '@/modules/roles/service';
 import { publicBookingCreateBodySchema } from '../bookingPublicBodySchema';
 import {
   InPersonBookingResolveError,
@@ -70,28 +69,6 @@ const PUBLIC_BOOKING_CREATE_ERROR_RULES = {
   required_field_missing: { status: 400, code: 'required_field_missing' },
   slot_overlap: { status: 409, code: 'slot_overlap' },
 } as const satisfies ApiErrorLiteralRules;
-
-type Deps = ReturnType<typeof buildAppDeps>;
-
-/**
- * Does the caller already hold a session proving control of the phone on this booking?
- *
- * Only an exact match of the caller's OWN normalised phone counts. A logged-in patient booking for
- * somebody else still has to produce a code — otherwise any account would be a free pass to attach
- * bookings to any phone, which is the same hole one step to the left.
- *
- * This branch depends on the CALLER's session, never on whether the submitted contact matched
- * anything, so it introduces no oracle.
- */
-async function sessionProvesContactPhone(deps: Deps, contactPhone: string): Promise<boolean> {
-  const normalized = normalizeRuPhoneE164(contactPhone);
-  if (!normalized) return false;
-  const session = await deps.auth.getCurrentSession().catch(() => null);
-  if (!session) return false;
-  if (!canAccessPatient(session.user.role)) return false;
-  const sessionPhone = session.user.phone ? normalizeRuPhoneE164(session.user.phone) : null;
-  return sessionPhone != null && sessionPhone === normalized;
-}
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/booking/public/create:POST', request);
@@ -156,20 +133,23 @@ export async function POST(request: Request) {
       attribution: body.attribution,
     };
 
-    if (await sessionProvesContactPhone(deps, body.contactPhone)) {
-      // `booking_blocked` is mapped ONLY here. On this branch the caller is provably the phone's
-      // owner, so a 403 tells them their own status; on the anonymous branch the same 403 was the
-      // third existence oracle and is now unreachable, because nothing looks the person up.
+    const payer = await identifyPublicBookingPayer(
+      deps,
+      body.proofMethod === 'email'
+        ? { kind: 'verified_email_session', submittedEmail: body.contactEmail }
+        : { kind: 'session' },
+    );
+    if (payer.ok) {
       try {
         const booking = await withExplicitOrganizationPrincipal(
           { organizationId: ctx.organizationId, source: 'api/booking/public/create:POST' },
-          () => createVerifiedPublicBooking(deps, intent, true),
+          () => createVerifiedPublicBooking(deps, intent, payer.platformUserId),
         );
         let checkoutUrl: string | null = null;
         if (booking.status === 'awaiting_payment') {
-          const paymentStatus = await deps.patientBooking.getBookingPaymentStatusForContact(
+          const paymentStatus = await deps.patientBooking.getBookingPaymentStatus(
             booking.id,
-            body.contactPhone,
+            payer.platformUserId,
           );
           checkoutUrl = paymentStatus.ok
             ? (paymentStatus.summary?.intent?.checkoutUrl ?? null)
@@ -185,6 +165,10 @@ export async function POST(request: Request) {
         }
         throw error;
       }
+    }
+
+    if (body.proofMethod === 'email') {
+      return jsonError('identity_not_verified', {}, { status: 403 });
     }
 
     const issued = await issuePublicBookingVerification(deps.publicBookingVerification, intent);

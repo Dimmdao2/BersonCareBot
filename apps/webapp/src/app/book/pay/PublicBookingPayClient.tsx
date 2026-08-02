@@ -9,9 +9,9 @@ import toast from 'react-hot-toast';
 
 const POLL_MS = 4000;
 
-type Props = { bookingId: string; contactPhone: string };
+type Props = { bookingId: string };
 
-export function PublicBookingPayClient({ bookingId, contactPhone }: Props) {
+export function PublicBookingPayClient({ bookingId }: Props) {
   const router = useRouter();
   const [intentId, setIntentId] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
@@ -21,8 +21,7 @@ export function PublicBookingPayClient({ bookingId, contactPhone }: Props) {
   const [pending, startTransition] = useTransition();
 
   const load = useCallback(async () => {
-    const q = new URLSearchParams({ bookingId, phone: contactPhone });
-    const res = await fetch(`/api/booking/public/payment-status?${q.toString()}`);
+    const res = await fetch(`/api/booking/payment-status?bookingId=${encodeURIComponent(bookingId)}`);
     const json = (await res.json()) as {
       ok?: boolean;
       intentId?: string | null;
@@ -39,7 +38,7 @@ export function PublicBookingPayClient({ bookingId, contactPhone }: Props) {
     setAmountMinor(json.summary?.intent?.amountMinor ?? null);
     setIntentStatus(json.summary?.intent?.status ?? null);
     setCheckoutUrl(json.summary?.intent?.checkoutUrl ?? null);
-  }, [bookingId, contactPhone]);
+  }, [bookingId]);
 
   useEffect(() => {
     startTransition(() => {
