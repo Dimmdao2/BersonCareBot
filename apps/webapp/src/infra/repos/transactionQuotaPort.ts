@@ -66,10 +66,11 @@ export function decideClinicTeamQuota(input: {
   additionalSeatPriceMinor: number | null;
   currency: string | null;
 }): ClinicTeamQuotaDecision {
-  const limit = input.includedSeats === null
-    ? null
-    : input.includedSeats + input.paidAdditionalSeats;
-  if (limit !== null && input.used < limit) return { allowed: true };
+  if (input.includedSeats === null) {
+    return { allowed: false, code: 'seat_limit_reached' };
+  }
+  const limit = input.includedSeats + input.paidAdditionalSeats;
+  if (input.used < limit) return { allowed: true };
   if (input.additionalSeatPriceMinor === null || input.currency === null) {
     return { allowed: false, code: 'seat_limit_reached' };
   }
