@@ -1,10 +1,12 @@
-/** Wave 3 phase 15E — media folder existence check via `runWebappPgText`. */
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { eq } from 'drizzle-orm';
+import { getWebappSqlDb } from '@/infra/db/runWebappSql';
+import { mediaFolders } from '../../../db/schema/schema';
 
 export async function mediaFolderExists(folderId: string): Promise<boolean> {
-  const r = await runWebappPgText<{ id: string }>(
-    `SELECT id::text AS id FROM media_folders WHERE id = $1::uuid LIMIT 1`,
-    [folderId],
-  );
-  return r.rows.length > 0;
+  const rows = await getWebappSqlDb()
+    .select({ id: mediaFolders.id })
+    .from(mediaFolders)
+    .where(eq(mediaFolders.id, folderId))
+    .limit(1);
+  return rows.length > 0;
 }
