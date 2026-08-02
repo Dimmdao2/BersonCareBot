@@ -91,8 +91,6 @@ export function TeamSection({ members, invites, seats }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
-  // §5a item 5.1 — set only by a `seat_overage_confirmation_required` response; the clinic sees
-  // the price and must resubmit with it echoed back before the seat is created and billed.
   const [seatOverageConfirm, setSeatOverageConfirm] = useState<{
     priceMinor: number;
     currency: string;
@@ -102,7 +100,7 @@ export function TeamSection({ members, invites, seats }: Props) {
 
   // Bypasses the shared `apiJson` helper (which only surfaces the error string) because this call
   // needs the full error body — `priceMinor`/`currency` — to show the overage confirmation dialog.
-  async function submitInvite(confirmedSeatOveragePriceMinor?: number) {
+  async function submitInvite() {
     setInviteError(null);
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
@@ -117,9 +115,6 @@ export function TeamSection({ members, invites, seats }: Props) {
         body: JSON.stringify({
           email: trimmedEmail,
           role,
-          ...(confirmedSeatOveragePriceMinor !== undefined
-            ? { confirmedSeatOveragePriceMinor }
-            : {}),
         }),
       });
       const body = (await res.json().catch(() => null)) as
@@ -158,6 +153,20 @@ export function TeamSection({ members, invites, seats }: Props) {
     } finally {
       setRevokingId(null);
     }
+  }
+
+  async function purchaseSeatOverage() {
+    if (!seatOverageConfirm) return;
+    const requestKey = crypto.randomUUID();
+    sessionStorage.setItem('clinic-seat-overage-invite', JSON.stringify({ email: email.trim(), role, requestKey }));
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/clinic/billing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ purchase: 'seat_overage', requestKey, amountMinor: seatOverageConfirm.priceMinor, currency: seatOverageConfirm.currency }) });
+      const body = await response.json().catch(() => null) as { ok?: boolean; checkoutUrl?: string; error?: string } | null;
+      if (body?.ok && body.checkoutUrl) { window.location.assign(body.checkoutUrl); return; }
+      setInviteError('Не удалось создать оплату дополнительного места');
+    } catch { setInviteError('Не удалось создать оплату дополнительного места'); }
+    finally { setSubmitting(false); }
   }
 
   return (
@@ -247,9 +256,9 @@ export function TeamSection({ members, invites, seats }: Props) {
                   type="button"
                   size="sm"
                   disabled={submitting}
-                  onClick={() => void submitInvite(seatOverageConfirm.priceMinor)}
+                  onClick={() => void purchaseSeatOverage()}
                 >
-                  {submitting ? 'Отправка…' : 'Подтвердить и пригласить'}
+                  'Оплатить место'
                 </Button>
                 <Button
                   type="button"

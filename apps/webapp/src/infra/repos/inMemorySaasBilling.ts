@@ -222,6 +222,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             currentPeriodEndsAt: period?.endsAt ?? null,
             graceEndsAt: null,
             readOnlyEndsAt: null,
+            paidAdditionalSeats: 0,
           });
         },
         async updateOrganizationTariffAssignment({ organizationId, tariffId }) {
@@ -248,6 +249,8 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         saasBillingSubscriptionId: authority.id,
         tariffId: authority.pendingTariffId ?? authority.tariffId,
         tariffName: 'In-memory tariff',
+        invoiceKind: 'tariff_period',
+        additionalSeatQuantity: 0,
         description: null,
         amountMinor: 0,
         currency: 'RUB',
@@ -379,6 +382,8 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         saasBillingSubscriptionId: authority.id,
         tariffId: authority.tariffId,
         tariffName: 'In-memory tariff',
+        invoiceKind: 'tariff_period',
+        additionalSeatQuantity: 0,
         description: input.description,
         amountMinor: input.amountMinor,
         currency: input.currency,
@@ -430,6 +435,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         currentPeriodEndsAt: current?.currentPeriodEndsAt ?? null,
         graceEndsAt: current?.graceEndsAt ?? null,
         readOnlyEndsAt: current?.readOnlyEndsAt ?? null,
+        paidAdditionalSeats: current?.paidAdditionalSeats ?? 0,
       };
       rows.set(key, row);
       return {
@@ -437,6 +443,8 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         tariffId,
           billingPeriod: 'month' as const,
           savedPaymentMethodId: row.savedPaymentMethodId,
+          additionalSeatPriceMinor: null,
+          currency: 'RUB',
           currentPeriodEndsAt: row.currentPeriodEndsAt,
       };
     },
@@ -487,6 +495,8 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         saasBillingSubscriptionId: authority.id,
         tariffId: authority.pendingTariffId ?? authority.tariffId,
         tariffName: 'In-memory tariff',
+        invoiceKind: 'tariff_period',
+        additionalSeatQuantity: 0,
         description: null,
         amountMinor: 0,
         currency: 'RUB',

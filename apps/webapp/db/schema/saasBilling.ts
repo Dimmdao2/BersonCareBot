@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { beOrganizations } from './bookingEngine';
@@ -37,6 +38,8 @@ export const SAAS_BILLING_INVOICE_STATUS_VALUES = [
   'void',
 ] as const;
 export type SaasBillingInvoiceStatus = (typeof SAAS_BILLING_INVOICE_STATUS_VALUES)[number];
+export const SAAS_BILLING_INVOICE_KIND_VALUES = ['tariff_period', 'seat_overage'] as const;
+export type SaasBillingInvoiceKind = (typeof SAAS_BILLING_INVOICE_KIND_VALUES)[number];
 
 /**
  * К2 — `pending` until the provider webhook confirms it (see `PAYMENTS_CABINET_PLAN.md` К2: "пока
@@ -126,6 +129,7 @@ export const saasBillingSubscriptions = pgTable(
      * resolver falls back to the live tariff whenever it is `null`, same as no paid period at all.
      */
     tariffSnapshot: jsonb('tariff_snapshot').$type<Record<string, unknown>>(),
+    paidAdditionalSeats: integer('paid_additional_seats').default(0).notNull(),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -190,6 +194,7 @@ export const saasBillingSubscriptions = pgTable(
       'saas_billing_subscriptions_autopay_consent_check',
       sql`(${table.autopayConsentedAt} IS NULL) = (${table.autopayConsentText} IS NULL)`,
     ),
+    check('saas_billing_subscriptions_paid_additional_seats_check', sql`${table.paidAdditionalSeats} >= 0`),
   ],
 );
 
@@ -202,6 +207,8 @@ export const saasBillingInvoices = pgTable(
     saasBillingSubscriptionId: uuid('saas_billing_subscription_id').notNull(),
     tariffId: uuid('tariff_id').notNull(),
     tariffName: text('tariff_name').notNull(),
+    invoiceKind: text('invoice_kind').$type<SaasBillingInvoiceKind>().notNull(),
+    additionalSeatQuantity: integer('additional_seat_quantity').notNull(),
     /** К4 — admin-entered "за что" for a manual invoice; `null` for auto/renewal invoices, which
      *  are fully described by `tariffName` + the service period. See PAYMENTS_CABINET_PLAN.md К4. */
     description: text(),
@@ -242,11 +249,13 @@ export const saasBillingInvoices = pgTable(
       table.providerId,
       table.providerIdempotencyKey,
     ),
-    unique('saas_billing_invoices_period_uidx').on(
-      table.saasBillingSubscriptionId,
-      table.servicePeriodStartsAt,
-      table.servicePeriodEndsAt,
-    ),
+    index('saas_billing_invoices_period_uidx')
+      .on(table.saasBillingSubscriptionId, table.servicePeriodStartsAt, table.servicePeriodEndsAt)
+      .where(sql`${table.invoiceKind} = 'tariff_period'`),
+    uniqueIndex('saas_billing_invoices_provider_ref_uidx')
+      .on(table.providerId, table.providerInvoiceRef)
+      .where(sql`${table.providerInvoiceRef} IS NOT NULL`)
+      ,
     index('idx_saas_billing_invoices_org_created').on(table.organizationId, table.createdAt),
     index('idx_saas_billing_invoices_status_created').on(table.status, table.createdAt),
     foreignKey({
@@ -270,6 +279,8 @@ export const saasBillingInvoices = pgTable(
       name: 'saas_billing_invoices_tariff_id_fkey',
     }).onDelete('restrict'),
     check('saas_billing_invoices_amount_check', sql`${table.amountMinor} >= 0`),
+    check('saas_billing_invoices_kind_check', sql`${table.invoiceKind} = ANY (ARRAY['tariff_period'::text, 'seat_overage'::text])`),
+    check('saas_billing_invoices_additional_seat_quantity_check', sql`${table.additionalSeatQuantity} >= 0 AND (${table.invoiceKind} <> 'seat_overage' OR ${table.additionalSeatQuantity} > 0)`),
     check('saas_billing_invoices_currency_check', sql`${table.currency} ~ '^[A-Z]{3}$'`),
     check(
       'saas_billing_invoices_period_check',

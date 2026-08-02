@@ -228,6 +228,36 @@ export function createSaasBillingService(dependencies: {
     });
   }
 
+  async function purchaseSeatOverage(input: {
+    organizationId: string;
+    requestKey: string;
+    confirmedAmountMinor: number;
+    confirmedCurrency: string;
+  }) {
+    const subscription = await dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId);
+    if (subscription.additionalSeatPriceMinor === null || subscription.currency === null) {
+      throw new Error('saas_billing_seat_overage_unavailable');
+    }
+    if (input.confirmedAmountMinor !== subscription.additionalSeatPriceMinor || input.confirmedCurrency !== subscription.currency) {
+      throw new Error('saas_billing_seat_overage_price_changed');
+    }
+    const provider = await resolvePaymentProvider();
+    const periodStart = now().toISOString();
+    const invoice = await dependencies.repository.createManualSaasBillingInvoice({
+      organizationId: input.organizationId, saasBillingSubscriptionId: subscription.saasBillingSubscriptionId,
+      amountMinor: subscription.additionalSeatPriceMinor, currency: subscription.currency,
+      description: 'Дополнительное место специалиста сверх тарифа', servicePeriodStartsAt: periodStart,
+      servicePeriodEndsAt: paidPeriodEndsAt(periodStart, subscription.billingPeriod), expiresAt: paidPeriodEndsAt(periodStart, subscription.billingPeriod),
+      providerId: provider.providerId, providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.requestKey}`,
+      invoiceKind: 'seat_overage', additionalSeatQuantity: 1,
+    });
+    if (!invoice.created && invoice.invoice.providerCheckoutUrl) return invoice.invoice;
+    const intent = await provider.adapter.createIntent({ amountMinor: invoice.invoice.amountMinor, currency: invoice.invoice.currency,
+      idempotencyKey: invoice.invoice.providerIdempotencyKey, payerRef: `organization:${input.organizationId}`, purpose: 'saas_billing_seat_overage', subjectRef: invoice.invoice.id,
+      returnUrl: `${SAAS_BILLING_RETURN_URL}?seatPayment=${invoice.invoice.id}`, metadata: { organizationId: input.organizationId, saasBillingInvoiceId: invoice.invoice.id, saasBillingSubscriptionId: subscription.saasBillingSubscriptionId }, providerConfig: provider.providerConfig });
+    return dependencies.repository.attachSaasBillingInvoiceProviderIntent({ saasBillingInvoiceId: invoice.invoice.id, providerInvoiceRef: intent.providerIntentRef, providerCheckoutUrl: intent.checkoutUrl ?? null });
+  }
+
   return {
     getOrganizationBillingOverview(organizationId: string) {
       return dependencies.repository.getOrganizationBillingOverview(organizationId);
@@ -467,6 +497,7 @@ export function createSaasBillingService(dependencies: {
     createRenewalSaasBillingInvoice,
 
     createManualSaasBillingInvoice,
+    purchaseSeatOverage,
 
     /** К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port doc. */
     cancelSaasBillingInvoice(input: {

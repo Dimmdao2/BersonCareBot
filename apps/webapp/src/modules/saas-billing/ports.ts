@@ -6,6 +6,7 @@ import type { SaasBillingPeriod } from './paidPeriod';
 export type SaasBillingSource = 'manual' | 'paid_subscription';
 export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expired' | 'cancelled';
 export type SaasBillingInvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'void';
+export type SaasBillingInvoiceKind = 'tariff_period' | 'seat_overage';
 /** К2 — `pending` until the provider webhook confirms it; `failed` frees the amount for a retry. */
 export type SaasBillingRefundStatus = 'pending' | 'succeeded' | 'failed' | 'canceled';
 
@@ -29,6 +30,7 @@ export type SaasBillingSubscription = {
   currentPeriodEndsAt: string | null;
   graceEndsAt: string | null;
   readOnlyEndsAt: string | null;
+  paidAdditionalSeats: number;
 };
 
 export type SaasBillingInvoice = {
@@ -38,6 +40,8 @@ export type SaasBillingInvoice = {
   saasBillingSubscriptionId: string;
   tariffId: string;
   tariffName: string;
+  invoiceKind: SaasBillingInvoiceKind;
+  additionalSeatQuantity: number;
   /** К4 — admin-entered "за что" for a manual invoice; `null` for auto/renewal invoices. */
   description: string | null;
   amountMinor: number;
@@ -381,6 +385,8 @@ export type SaasBillingRepositoryPort = {
     expiresAt: string;
     providerId: string;
     providerIdempotencyKey: string;
+    invoiceKind?: SaasBillingInvoiceKind;
+    additionalSeatQuantity?: number;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by
@@ -411,6 +417,8 @@ export type SaasBillingRepositoryPort = {
     currentPeriodEndsAt: string | null;
     /** К6 — lets the caller decide whether THIS payment still needs `save_payment_method: true`. */
     savedPaymentMethodId: string | null;
+    additionalSeatPriceMinor: number | null;
+    currency: string | null;
   }>;
   /**
    * §5a item К0 — a captured payment extends the ONE subscription row the paid invoice was raised

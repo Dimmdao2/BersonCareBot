@@ -134,7 +134,6 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           return { ok: false, code: 'already_member' };
         }
 
-        let seatOverage: { priceMinor: number; currency: string } | null = null;
         if (input.invitedRole === 'doctor') {
           // Atomic, race-safe seat capacity check — the authoritative enforcement (the JS-level
           // clinicSeats.assertSeatAvailableForInvite pre-check is best-effort UX only). Mirrors
@@ -167,7 +166,8 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
                    (SELECT eo.seat_limit_override FROM saas_org_entitlement_overrides eo
                     WHERE eo.organization_id = $1 AND eo.mechanic = 'clinic_team'),
                    (SELECT included_seats FROM effective_tariff)
-                 ) AS value
+                 ) + COALESCE((SELECT s.paid_additional_seats FROM saas_billing_subscriptions s
+                    WHERE s.organization_id = $1 AND s.source = 'paid_subscription'), 0) AS value
              )
              SELECT
                (SELECT value FROM seat_limit)::int AS limit_value,
@@ -186,15 +186,12 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
             if (overagePriceMinor === null || overageCurrency === null) {
               return { ok: false, code: 'seat_limit_reached' };
             }
-            if (input.confirmedSeatOveragePriceMinor !== overagePriceMinor) {
-              return {
-                ok: false,
-                code: 'seat_overage_confirmation_required',
-                priceMinor: overagePriceMinor,
-                currency: overageCurrency,
-              };
-            }
-            seatOverage = { priceMinor: overagePriceMinor, currency: overageCurrency };
+            return {
+              ok: false,
+              code: 'seat_overage_confirmation_required',
+              priceMinor: overagePriceMinor,
+              currency: overageCurrency,
+            };
           }
         }
 
@@ -264,7 +261,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
         );
         const invite = inserted.rows[0];
         if (!invite) throw new Error('organization_invite_insert_failed');
-        return { ok: true, invite: mapInvite(invite), seatOverage };
+        return { ok: true, invite: mapInvite(invite) };
       });
     },
 
