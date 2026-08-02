@@ -32,4 +32,16 @@ describe('transaction quota decisions', () => {
       decideClinicTeamQuota({ ...atBaseLimit, paidAdditionalSeats: 1 }),
     ).toEqual({ allowed: true });
   });
+
+  it('refuses seat growth when the legacy tariff has no configured included-seat baseline', () => {
+    expect(
+      decideClinicTeamQuota({
+        includedSeats: null,
+        paidAdditionalSeats: 0,
+        used: 0,
+        additionalSeatPriceMinor: 1_500,
+        currency: 'RUB',
+      }),
+    ).toEqual({ allowed: false, code: 'seat_limit_reached' });
+  });
 });
