@@ -472,6 +472,37 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
       }),
     );
   });
+
+  it('refuses a fiscally configured YooKassa payment with no VAT code before the provider call', async () => {
+    const createIntent = vi.fn(async () => ({ providerIntentRef: 'provider-intent-1' }));
+    const service = createSaasBillingService({
+      repository: {
+        createSaasBillingInvoice: async () => ({ invoice, created: true }),
+        getSaasBillingAccountBillingEmail: async () => 'payer@example.test',
+        attachSaasBillingInvoiceReceiptSnapshot: async () => invoice,
+        attachSaasBillingInvoiceProviderIntent: async () => invoice,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'yookassa',
+          providers: [{ id: 'yookassa', label: 'YooKassa', enabled: true }],
+          payeeRequisites: { taxSystemCode: '2' },
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+    });
+
+    await expect(
+      service.createRenewalSaasBillingInvoice({
+        organizationId: 'org-1',
+        saasBillingSubscriptionId: 'subscription-1',
+        servicePeriodStartsAt: invoice.servicePeriodStartsAt,
+        servicePeriodEndsAt: invoice.servicePeriodEndsAt,
+        providerIdempotencyKey: invoice.providerIdempotencyKey,
+      }),
+    ).rejects.toThrow('saas_billing_receipt_vat_code_missing');
+    expect(createIntent).not.toHaveBeenCalled();
+  });
 });
 
 // §5a item 7.0 — источник события для лестницы. Поломка, которую ловит: назначение тарифа
