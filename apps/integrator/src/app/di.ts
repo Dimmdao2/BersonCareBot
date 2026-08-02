@@ -168,8 +168,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
           getDispatchPort: () => dispatchPortForReminders.current,
         })
       : undefined;
-  const remindersWebappWritesPort =
-    integratorWebhookSecret().length >= 16 ? createRemindersWritesPort({ db: dbPort }) : undefined;
+  // D7: product mutations execute through webapp-owned app.* capability functions, not a signed HTTP seam.
+  const remindersWebappWritesPort = createRemindersWritesPort({ db: dbPort });
   /** Same condition: appointment product reads from webapp when configured. */
   const appointmentsReadsPort =
     integratorWebhookSecret().length >= 16

@@ -786,22 +786,24 @@ export async function handleReminders(
         error: 'reminders.snooze.callback: forbidden',
       };
     }
-    let plannedUntil = new Date(Date.now() + minutes * 60_000).toISOString();
-    if (deps.remindersWebappWritesPort) {
-      const w = await deps.remindersWebappWritesPort.postOccurrenceSnooze({
-        integratorUserId: userId,
-        occurrenceId,
-        minutes,
-      });
-      if (w.ok) plannedUntil = w.snoozedUntil;
+    if (!deps.remindersWebappWritesPort) {
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.snooze.callback: no remindersWebappWritesPort',
+      };
     }
-    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [
-      {
-        type: 'reminders.occurrence.reschedulePlanned',
-        params: { occurrenceId, plannedAt: plannedUntil },
-      },
-    ];
-    await persistWrites(deps.writePort, writes);
+    const w = await deps.remindersWebappWritesPort.postOccurrenceSnooze({
+      occurrenceId,
+      minutes,
+    });
+    if (!w.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.snooze.callback: ${w.error}`,
+      };
+    }
     const tplSource = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
       ? (
@@ -832,7 +834,7 @@ export async function handleReminders(
       text: ack,
       channel: src,
     });
-    return { actionId: action.id, status: 'success', writes, intents };
+    return { actionId: action.id, status: 'success', intents };
   }
 
   if (action.type === 'reminders.skip.applyPreset') {
@@ -863,17 +865,24 @@ export async function handleReminders(
       };
     }
 
-    if (deps.remindersWebappWritesPort) {
-      await deps.remindersWebappWritesPort.postOccurrenceSkip({
-        integratorUserId: userId,
-        occurrenceId,
-        reason: null,
-      });
+    if (!deps.remindersWebappWritesPort) {
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.skip.applyPreset: no remindersWebappWritesPort',
+      };
     }
-    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [
-      { type: 'reminders.occurrence.markSkippedLocal', params: { occurrenceId } },
-    ];
-    await persistWrites(deps.writePort, writes);
+    const web = await deps.remindersWebappWritesPort.postOccurrenceSkip({
+      occurrenceId,
+      reason: null,
+    });
+    if (!web.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.skip.applyPreset: ${web.error}`,
+      };
+    }
     const tplSaved = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
       ? (
@@ -899,7 +908,6 @@ export async function handleReminders(
     return {
       actionId: action.id,
       status: 'success',
-      writes,
       intents,
     };
   }
@@ -935,7 +943,6 @@ export async function handleReminders(
       };
     }
     const web = await deps.remindersWebappWritesPort.postOccurrenceDone({
-      integratorUserId: userId,
       occurrenceId,
     });
     if (!web.ok) {
@@ -1057,11 +1064,20 @@ export async function handleReminders(
       templateVars = { minutes: String(minutesRounded) };
     }
 
-    if (deps.remindersWebappWritesPort) {
-      await deps.remindersWebappWritesPort.postReminderMuteUntil({
-        integratorUserId: userId,
-        mutedUntilIso,
-      });
+    if (!deps.remindersWebappWritesPort) {
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.mute.callback: no remindersWebappWritesPort',
+      };
+    }
+    const mute = await deps.remindersWebappWritesPort.postReminderMuteUntil({ mutedUntilIso });
+    if (!mute.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.mute.callback: ${mute.error}`,
+      };
     }
     const tplMs = resource === 'max' ? 'max' : 'telegram';
     const ack = deps.templatePort
@@ -1135,7 +1151,6 @@ export async function handleReminders(
     }
 
     const web = await deps.remindersWebappWritesPort.postMessengerTopicDisable({
-      integratorUserId: userId,
       occurrenceId,
       messengerChannel,
     });
@@ -1290,7 +1305,6 @@ export async function handleReminders(
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
-      integratorUserId: userId,
       messengerChannel,
     });
     const topics = settingsResult.ok ? settingsResult.topics : [];
@@ -1373,13 +1387,18 @@ export async function handleReminders(
       };
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
-    await deps.remindersWebappWritesPort.toggleNotificationTopic({
-      integratorUserId: userId,
+    const toggle = await deps.remindersWebappWritesPort.toggleNotificationTopic({
       topicCode,
       messengerChannel,
     });
+    if (!toggle.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.notifSettings.toggle.callback: ${toggle.error}`,
+      };
+    }
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
-      integratorUserId: userId,
       messengerChannel,
     });
     const topics = settingsResult.ok ? settingsResult.topics : [];
