@@ -4,8 +4,10 @@ import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
   getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
+import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { cn } from '@/lib/utils';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -19,9 +21,14 @@ type Props = {
 
 export default async function DoctorContentEditPage({ params }: Props) {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) notFound();
-  if (!(await getMechanicMutationAvailability(workspace, 'cms_pages')).available) notFound();
+  const [cmsVisibility, warmupsVisibility, cmsMutation, warmupsMutation] = await Promise.all([
+    getMechanicSurfaceVisibility(workspace, 'cms_pages'),
+    getMechanicSurfaceVisibility(workspace, 'warmups'),
+    getMechanicMutationAvailability(workspace, 'cms_pages'),
+    getMechanicMutationAvailability(workspace, 'warmups'),
+  ]);
+  if (!cmsVisibility.directUrl && !warmupsVisibility.directUrl) notFound();
+  if (!cmsMutation.available && !warmupsMutation.available) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();
   const coursesEnabled = (await requireEntitlementForReadAction(workspace, 'courses')).ok;
@@ -31,6 +38,16 @@ export default async function DoctorContentEditPage({ params }: Props) {
     deps.contentPages.getById(id),
   );
   if (!page) notFound();
+  const pageSection = await withDoctorWorkspacePrincipal(
+    workspace,
+    'doctor.content.edit.section-read',
+    () => deps.contentSections.getBySlug(page.section),
+  );
+  const mechanic = contentMechanicForSection(pageSection);
+  const entitlement = await requireEntitlementForReadAction(workspace, mechanic);
+  if (!entitlement.ok) notFound();
+  const mechanicMutation = mechanic === 'warmups' ? warmupsMutation : cmsMutation;
+  if (!mechanicMutation.available) notFound();
 
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
   let publishedCourses: { id: string; title: string }[] = [];
@@ -55,6 +72,9 @@ export default async function DoctorContentEditPage({ params }: Props) {
   } catch (err) {
     loadError = logServerRuntimeError('app/doctor/content/edit', err, { pageId: id });
   }
+  sections = sections.filter(
+    (section) => contentMechanicForSection(section) === mechanic,
+  );
   try {
     const agg = await withDoctorWorkspacePrincipal(
       workspace,

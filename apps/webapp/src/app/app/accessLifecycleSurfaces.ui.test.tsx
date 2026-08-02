@@ -452,12 +452,14 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
 
   it('does not render a direct specialist content URL through the shared visibility adapter', async () => {
     cmsAccessState = 'disabled';
+    warmupsIncluded = false;
 
     await expect(DoctorContentPage()).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
   it('does not open CMS mutation pages during the read-only ladder step', async () => {
     cmsAccessState = 'read_only';
+    warmupsIncluded = false;
 
     await expect(DoctorContentNewPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
       'NEXT_NOT_FOUND',

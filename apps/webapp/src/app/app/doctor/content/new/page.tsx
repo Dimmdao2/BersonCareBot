@@ -32,9 +32,6 @@ export default async function DoctorContentNewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) notFound();
-  if (!(await getMechanicMutationAvailability(workspace, 'cms_pages')).available) notFound();
   const session = workspace.session;
   const sp = await searchParams;
   const patientHomeContext: PatientHomeCmsReturnQuery | null = parsePatientHomeCmsReturnQuery({
@@ -46,6 +43,10 @@ export default async function DoctorContentNewPage({
   const sectionQueryRaw = pick(sp, 'section')?.trim() ?? '';
   const systemParentRaw = pick(sp, 'systemParentCode')?.trim().toLowerCase() ?? '';
   const systemParentFilter = isSystemParentCode(systemParentRaw) ? systemParentRaw : undefined;
+  const mechanic = systemParentFilter === 'warmups' ? 'warmups' : 'cms_pages';
+  const entitlement = await requireEntitlementForReadAction(workspace, mechanic);
+  if (!entitlement.ok) notFound();
+  if (!(await getMechanicMutationAvailability(workspace, mechanic)).available) notFound();
 
   const deps = buildAppDeps();
   const coursesEnabled = (await requireEntitlementForReadAction(workspace, 'courses')).ok;

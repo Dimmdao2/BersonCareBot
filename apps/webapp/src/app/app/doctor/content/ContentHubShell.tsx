@@ -40,7 +40,9 @@ export type ContentHubSection = {
 
 export type ContentHubShellProps = {
   sections: ContentHubSection[];
+  cmsEnabled?: boolean;
   canManageCms: boolean;
+  canManageWarmups?: boolean;
   patientHomeTodayEnabled: boolean;
   warmupsEnabled: boolean;
   /** Full ContentSectionRow[] needed by ContentForm's section select. */
@@ -74,6 +76,7 @@ function SystemFolderPane({
   onSelectPage,
   onCreatePage,
   canManageCms,
+  canAttachSections,
 }: {
   folderCode: SystemParentCode;
   sections: ContentHubSection[];
@@ -83,6 +86,7 @@ function SystemFolderPane({
   onSelectPage: (id: string) => void;
   onCreatePage: (sectionSlug: string) => void;
   canManageCms: boolean;
+  canAttachSections: boolean;
 }) {
   const label = SYSTEM_FOLDER_LABELS[folderCode] ?? folderCode;
   const childSections = useMemo(
@@ -106,7 +110,7 @@ function SystemFolderPane({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="m-0 text-base font-semibold">{label}</h2>
       <div className="ml-auto flex flex-wrap items-center gap-1.5">
-        {canManageCms ? (
+        {canAttachSections ? (
           <AttachExistingSectionsModal folderCode={folderCode} freeSections={freeSections} />
         ) : null}
       </div>
@@ -269,7 +273,9 @@ function computeCountsByPaneKey(
  */
 export function ContentHubShell({
   sections,
+  cmsEnabled = true,
   canManageCms,
+  canManageWarmups = canManageCms,
   patientHomeTodayEnabled,
   warmupsEnabled,
   fullSections,
@@ -305,6 +311,7 @@ export function ContentHubShell({
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2">
         <ContentNav
           articleSections={articleSectionEntries}
+          cmsEnabled={cmsEnabled}
           canManageCms={canManageCms}
           patientHomeTodayEnabled={patientHomeTodayEnabled}
           warmupsEnabled={warmupsEnabled}
@@ -339,10 +346,12 @@ export function ContentHubShell({
     }
 
     if (isSystemParentCode(activePaneKey)) {
+      const canManageFolder = activePaneKey === 'warmups' ? canManageWarmups : canManageCms;
       return (
         <SystemFolderPane
           folderCode={activePaneKey}
-          canManageCms={canManageCms}
+          canManageCms={canManageFolder}
+          canAttachSections={canManageCms}
           sections={sections}
           pagesBySectionSlug={pagesBySectionSlug}
           ratingsById={ratingsById}

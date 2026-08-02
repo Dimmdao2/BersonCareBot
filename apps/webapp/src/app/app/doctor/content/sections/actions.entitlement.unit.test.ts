@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: vi.fn(),
+}));
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
+  withDoctorWorkspacePrincipal: async (
+    _workspace: unknown,
+    callback: () => Promise<unknown>,
+  ) => callback(),
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -79,5 +86,30 @@ describe('saveContentSection entitlement boundary', () => {
     });
     expect(getBySlug).not.toHaveBeenCalled();
     expect(listAll).not.toHaveBeenCalled();
+  });
+
+  it('saves a warmup through the warmups mechanic when ordinary CMS is disabled', async () => {
+    const data = pageFormData();
+    data.set('section', 'warmups');
+    data.set('content_mechanic', 'warmups');
+    const resolveMechanicAccess = vi.fn(async (_organizationId: string, mechanic: string) => ({
+      mechanic,
+      state: mechanic === 'warmups' ? ('full_access' as const) : ('disabled' as const),
+      policySource: 'system' as const,
+      warning: null,
+    }));
+    const upsert = vi.fn().mockResolvedValue('page-id');
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: { resolveMechanicAccess },
+      contentSections: {
+        getBySlug: async () => ({ systemParentCode: 'warmups' }),
+      },
+      contentPages: { listAll: async () => [], upsert },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    await expect(saveContentPage(null, data)).resolves.toEqual({ ok: true });
+    expect(resolveMechanicAccess).toHaveBeenCalledWith(organizationId, 'warmups');
+    expect(resolveMechanicAccess).not.toHaveBeenCalledWith(organizationId, 'cms_pages');
+    expect(upsert).toHaveBeenCalledOnce();
   });
 });

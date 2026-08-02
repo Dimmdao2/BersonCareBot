@@ -5,6 +5,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import {
+  contentMechanicForSection,
   isWarmupsContentSection,
   warmupsContentMutationRefusal,
 } from '@/app-layer/content/warmupsContentMutationGuard';
@@ -50,6 +51,10 @@ export async function saveContentSection(
   if (!parsedPlacement) {
     return { ok: false, error: 'Выберите корректное расположение раздела' };
   }
+
+  const targetMechanic = contentMechanicForSection(parsedPlacement);
+  const targetEntitlement = await requireEntitlementForMutationAction(workspace, targetMechanic);
+  if (!targetEntitlement.ok) return { ok: false, error: targetEntitlement.reason };
 
   if (!slug || !title) {
     return { ok: false, error: 'Заполните slug и заголовок' };
@@ -103,11 +108,13 @@ export async function saveContentSection(
     return { ok: false, error: 'Некорректное сочетание типа раздела и папки CMS' };
   }
 
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
-  if (systemParentCode === 'warmups' || isWarmupsContentSection(existing)) {
-    const refusal = await warmupsContentMutationRefusal(workspace);
-    if (refusal) return { ok: false, error: refusal };
+  const existingMechanic = contentMechanicForSection(existing);
+  if (existing && existingMechanic !== targetMechanic) {
+    const existingEntitlement = await requireEntitlementForMutationAction(
+      workspace,
+      existingMechanic,
+    );
+    if (!existingEntitlement.ok) return { ok: false, error: existingEntitlement.reason };
   }
 
   try {

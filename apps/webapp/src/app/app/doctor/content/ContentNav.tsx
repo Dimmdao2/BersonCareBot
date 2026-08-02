@@ -34,6 +34,7 @@ export type ContentNavSectionEntry = {
 
 export type ContentNavProps = {
   articleSections: ContentNavSectionEntry[];
+  cmsEnabled?: boolean;
   canManageCms?: boolean;
   patientHomeTodayEnabled: boolean;
   warmupsEnabled: boolean;
@@ -155,6 +156,7 @@ type SectionVisState = { slug: string; title: string; isVisible: boolean };
  */
 export function ContentNav({
   articleSections,
+  cmsEnabled = true,
   canManageCms = true,
   patientHomeTodayEnabled,
   warmupsEnabled,
@@ -218,7 +220,9 @@ export function ContentNav({
       ) : null}
 
       {SYSTEM_PARENT_CODES.filter(
-        (code) => !HIDDEN_SYSTEM_CODES.has(code) && (code !== 'warmups' || warmupsEnabled),
+        (code) =>
+          !HIDDEN_SYSTEM_CODES.has(code) &&
+          (code === 'warmups' ? warmupsEnabled : cmsEnabled),
       ).map((code) => (
         <NavRow
           key={code}
@@ -229,7 +233,7 @@ export function ContentNav({
         />
       ))}
 
-      {articleSections.some((section) => isHelpSectionSlug(section.slug)) ? (
+      {cmsEnabled && articleSections.some((section) => isHelpSectionSlug(section.slug)) ? (
         <NavRow
           label="Справка"
           active={activePaneKey === 'section:help'}
@@ -238,49 +242,53 @@ export function ContentNav({
         />
       ) : null}
 
-      <Separator className="my-1.5" />
+      {cmsEnabled ? (
+        <>
+          <Separator className="my-1.5" />
 
-      {/* ── Статьи и страницы ── */}
-      <div className="flex items-center justify-between px-2.5 pb-0.5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Статьи и страницы
-        </p>
-        {canManageCms ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={onCreateSection}
-          >
-            + Раздел
-          </Button>
-        ) : null}
-      </div>
+          {/* ── Статьи и страницы ── */}
+          <div className="flex items-center justify-between px-2.5 pb-0.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Статьи и страницы
+            </p>
+            {canManageCms ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={onCreateSection}
+              >
+                + Раздел
+              </Button>
+            ) : null}
+          </div>
 
-      {userSections.length === 0 ? (
-        <p className="px-2.5 text-xs text-muted-foreground">Нет пользовательских разделов.</p>
-      ) : (
-        userSections.map((s) => (
-          <NavRow
-            key={s.slug}
-            label={s.title}
-            active={activePaneKey === `section:${s.slug}`}
-            count={countsByPaneKey[`section:${s.slug}`]}
-            onClick={() => onPaneChange(`section:${s.slug}`)}
-            trailingSlot={
-              canManageCms ? (
-                <SectionVisibilityToggle
-                  slug={s.slug}
-                  isVisible={s.isVisible}
-                  onToggle={handleVisibilityToggle}
-                  disabled={isPending}
-                />
-              ) : undefined
-            }
-          />
-        ))
-      )}
+          {userSections.length === 0 ? (
+            <p className="px-2.5 text-xs text-muted-foreground">Нет пользовательских разделов.</p>
+          ) : (
+            userSections.map((s) => (
+              <NavRow
+                key={s.slug}
+                label={s.title}
+                active={activePaneKey === `section:${s.slug}`}
+                count={countsByPaneKey[`section:${s.slug}`]}
+                onClick={() => onPaneChange(`section:${s.slug}`)}
+                trailingSlot={
+                  canManageCms ? (
+                    <SectionVisibilityToggle
+                      slug={s.slug}
+                      isVisible={s.isVisible}
+                      onToggle={handleVisibilityToggle}
+                      disabled={isPending}
+                    />
+                  ) : undefined
+                }
+              />
+            ))
+          )}
+        </>
+      ) : null}
     </nav>
   );
 }

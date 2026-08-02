@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
@@ -7,7 +7,7 @@ const fakes = vi.hoisted(() => ({
   requireEntitlementForReadAction: vi.fn(),
   requireEntitlementForMutationAction: vi.fn(),
   getMechanicMutationAvailability: vi.fn(),
-  isMechanicIncluded: vi.fn(),
+  getMechanicSurfaceVisibility: vi.fn(),
   contentHubShell: vi.fn(),
 }));
 
@@ -24,7 +24,7 @@ vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForReadAction: fakes.requireEntitlementForReadAction,
   requireEntitlementForMutationAction: fakes.requireEntitlementForMutationAction,
   getMechanicMutationAvailability: fakes.getMechanicMutationAvailability,
-  isMechanicIncluded: fakes.isMechanicIncluded,
+  getMechanicSurfaceVisibility: fakes.getMechanicSurfaceVisibility,
 }));
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: async (
@@ -65,11 +65,20 @@ describe('doctor content hub — warmups entitlement independence', () => {
       mechanic: 'patient_home_today',
       reason: 'entitlement_required',
     });
-    fakes.getMechanicMutationAvailability.mockResolvedValue({
-      available: false,
-      reason: 'entitlement_required',
-    });
-    fakes.isMechanicIncluded.mockResolvedValue(true);
+    fakes.getMechanicSurfaceVisibility.mockImplementation(
+      async (_workspace: unknown, mechanic: string) => ({
+        specialistNavigation: mechanic === 'warmups',
+        patientNavigation: mechanic === 'warmups',
+        directUrl: mechanic === 'warmups',
+        warning: null,
+      }),
+    );
+    fakes.getMechanicMutationAvailability.mockImplementation(
+      async (_workspace: unknown, mechanic: string) =>
+        mechanic === 'warmups'
+          ? { available: true }
+          : { available: false, reason: 'entitlement_required' },
+    );
     fakes.buildAppDeps.mockReturnValue({
       contentPages: { listAll: async () => [] },
       contentSections: { listAll: async () => [] },
@@ -77,9 +86,16 @@ describe('doctor content hub — warmups entitlement independence', () => {
       courses: { listCoursesForDoctor: async () => [] },
     });
 
-    await expect(DoctorContentPage()).resolves.toBeTruthy();
-    expect(fakes.contentHubShell).toHaveBeenCalledWith(
-      expect.objectContaining({ warmupsEnabled: true }),
+    const result = (await DoctorContentPage()) as ReactElement<{
+      children: ReactElement<Record<string, unknown>>;
+    }>;
+    expect(result.props.children.props).toEqual(
+      expect.objectContaining({
+        cmsEnabled: false,
+        warmupsEnabled: true,
+        canManageCms: false,
+        canManageWarmups: true,
+      }),
     );
   });
 });
