@@ -117,7 +117,6 @@ import { saveOrgBranding } from '@/app/app/settings/brandingActions';
 import { createOrgBrandingService } from '@/modules/org-branding/service';
 import {
   archiveDoctorExerciseCore,
-  bulkCreateExercisesFromMediaCore,
   saveDoctorExerciseCore,
   unarchiveDoctorExerciseCore,
 } from '@/app/app/doctor/exercises/actionsShared';
@@ -728,15 +727,17 @@ describe('tariff and platform mutation gates', () => {
     expect(brandingPort.publishDraft).not.toHaveBeenCalled();
   });
 
-  it('refuses every exercise-catalog write while it is not included in the tariff', async () => {
+  it('keeps clinic-owned exercise creation, editing, and archiving available while the platform library is disabled', async () => {
     const lfkExercises = {
-      createExercise: vi.fn(),
-      updateExercise: vi.fn(),
-      archiveExercise: vi.fn(),
-      unarchiveExercise: vi.fn(),
+      createExercise: vi.fn().mockResolvedValue({ id: 'created-exercise' }),
+      getExercise: vi.fn().mockResolvedValue({ id: TARGET_ID, isArchived: false }),
+      updateExercise: vi.fn().mockResolvedValue({ id: TARGET_ID }),
+      archiveExercise: vi.fn().mockResolvedValue(undefined),
+      unarchiveExercise: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(buildAppDeps).mockReturnValue({
       lfkExercises,
+      references: { listActiveItemsByCategoryCode: vi.fn().mockResolvedValue([]) },
     } as unknown as ReturnType<typeof buildAppDeps>);
     vi.mocked(requireEntitlementForMutationAction).mockResolvedValue({
       ok: false,
@@ -746,25 +747,30 @@ describe('tariff and platform mutation gates', () => {
 
     const exerciseForm = new FormData();
     exerciseForm.set('title', 'Наклоны');
+    const updateForm = new FormData();
+    updateForm.set('id', TARGET_ID);
+    updateForm.set('title', 'Наклоны с поворотом');
     const archiveForm = new FormData();
     archiveForm.set('id', TARGET_ID);
 
-    const [saveResult, archiveResult, unarchiveResult, bulkResult] = await Promise.all([
+    const [createResult, updateResult, archiveResult, unarchiveResult] = await Promise.all([
       saveDoctorExerciseCore(exerciseForm),
+      saveDoctorExerciseCore(updateForm),
       archiveDoctorExerciseCore(archiveForm),
       unarchiveDoctorExerciseCore(archiveForm),
-      bulkCreateExercisesFromMediaCore([
-        { title: 'Присед', mediaUrl: '/api/media/photo.jpg', mediaType: 'image' },
-      ]),
     ]);
 
-    expect(saveResult).toMatchObject({ ok: false, error: 'entitlement_required' });
-    expect(archiveResult).toMatchObject({ kind: 'invalid', error: 'entitlement_required' });
-    expect(unarchiveResult).toMatchObject({ kind: 'invalid', error: 'entitlement_required' });
-    expect(bulkResult).toMatchObject({ ok: false, error: 'entitlement_required' });
-    expect(lfkExercises.createExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.updateExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.archiveExercise).not.toHaveBeenCalled();
-    expect(lfkExercises.unarchiveExercise).not.toHaveBeenCalled();
+    expect(createResult).toMatchObject({ ok: true, exerciseId: 'created-exercise', wasUpdate: false });
+    expect(updateResult).toMatchObject({ ok: true, exerciseId: TARGET_ID, wasUpdate: true });
+    expect(archiveResult).toMatchObject({ kind: 'archived', id: TARGET_ID });
+    expect(unarchiveResult).toMatchObject({ kind: 'unarchived', id: TARGET_ID });
+    expect(lfkExercises.createExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.updateExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.archiveExercise).toHaveBeenCalledOnce();
+    expect(lfkExercises.unarchiveExercise).toHaveBeenCalledOnce();
+    expect(requireEntitlementForMutationAction).not.toHaveBeenCalledWith(
+      workspace,
+      'exercise_catalog',
+    );
   });
 });
