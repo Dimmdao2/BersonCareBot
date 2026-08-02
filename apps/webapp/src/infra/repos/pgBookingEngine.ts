@@ -94,13 +94,17 @@ function mapRoom(row: typeof beRooms.$inferSelect): BeRoom {
 }
 
 function mapSpecialist(row: typeof beSpecialists.$inferSelect): BeSpecialist {
+  const reminderSettings = normalizeAppointmentReminderSettings({
+    allowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
+    defaultPresetId: row.appointmentReminderDefaultPresetId ?? null,
+  });
   return {
     id: row.id,
     organizationId: row.organizationId,
     fullName: row.fullName,
     description: row.description ?? null,
-    appointmentReminderAllowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
-    appointmentReminderDefaultPresetId: row.appointmentReminderDefaultPresetId ?? null,
+    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
+    appointmentReminderDefaultPresetId: reminderSettings.defaultPresetId,
     isActive: row.isActive,
     sortOrder: row.sortOrder,
   };
@@ -126,6 +130,10 @@ function mapService(row: typeof beClinicServices.$inferSelect): BeClinicService 
 }
 
 function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment {
+  const reminderSettings = normalizeAppointmentReminderSettings({
+    allowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
+    defaultPresetId: row.appointmentReminderPresetId ?? null,
+  });
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -147,8 +155,8 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     packageUsageRef: row.packageUsageRef ?? null,
     phoneNormalized: row.phoneNormalized ?? null,
     attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
-    appointmentReminderAllowedPresetIds: row.appointmentReminderAllowedPresetIds ?? [],
-    appointmentReminderPresetId: row.appointmentReminderPresetId ?? null,
+    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
+    appointmentReminderPresetId: reminderSettings.defaultPresetId,
     appointmentReminderSelectionSource:
       row.appointmentReminderSelectionSource === 'patient' ? 'patient' : 'specialist_default',
   };
@@ -1259,6 +1267,10 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
 
     async setPatientAppointmentReminderPreset({ appointmentId, presetId }) {
       const db = getDrizzle();
+      const allowedPresetPredicate =
+        presetId === null
+          ? undefined
+          : sql`${beAppointments.appointmentReminderAllowedPresetIds} @> ${JSON.stringify([presetId])}::jsonb`;
       const result = await db
         .update(beAppointments)
         .set({
@@ -1266,7 +1278,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           appointmentReminderSelectionSource: 'patient',
           updatedAt: new Date().toISOString(),
         })
-        .where(eq(beAppointments.id, appointmentId));
+        .where(
+          and(
+            eq(beAppointments.id, appointmentId),
+            inArray(beAppointments.status, ['confirmed', 'rescheduled']),
+            allowedPresetPredicate,
+          ),
+        );
       return (result.rowCount ?? 0) === 1;
     },
 
@@ -1285,11 +1303,15 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .limit(1);
       const row = rows[0];
       if (!row) return null;
+      const reminderSettings = normalizeAppointmentReminderSettings({
+        allowedPresetIds: row.allowedPresetIds ?? [],
+        defaultPresetId: row.presetId ?? null,
+      });
       return {
         organizationId: row.organizationId,
         status: row.status as AppointmentStatus,
-        allowedPresetIds: row.allowedPresetIds ?? [],
-        presetId: row.presetId ?? null,
+        allowedPresetIds: reminderSettings.allowedPresetIds,
+        presetId: reminderSettings.defaultPresetId,
         selectionSource: row.selectionSource === 'patient' ? 'patient' : 'specialist_default',
       };
     },

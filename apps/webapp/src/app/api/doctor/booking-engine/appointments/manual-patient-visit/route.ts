@@ -10,7 +10,7 @@ import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
-import { loadAppointmentReminderPlanFromSystemSettings } from '@/modules/booking-notifications/settings';
+import { appointmentReminderPlanForPreset } from '@/modules/booking-notifications/appointmentReminderPresets';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
 import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
@@ -90,6 +90,14 @@ export async function POST(request: Request) {
           }
         }
 
+        const reminderSettings =
+          parsed.data.kind === 'scheduled'
+            ? await ctx.service.getSpecialistAppointmentReminderSettings({
+                organizationId: ctx.organizationId,
+                specialistId,
+              })
+            : null;
+
         const identity = {
           organizationId: ctx.organizationId,
           requestId: parsed.data.requestId,
@@ -116,6 +124,9 @@ export async function POST(request: Request) {
                     source: 'admin_manual',
                     status: 'confirmed',
                     actorId: ctx.session.user.userId,
+                    appointmentReminderAllowedPresetIds:
+                      reminderSettings?.allowedPresetIds ?? [],
+                    appointmentReminderPresetId: reminderSettings?.defaultPresetId ?? null,
                   },
                 },
                 { bookingEngine: ctx.service, emailSetupAccess: deps.emailSetupAccess },
@@ -145,9 +156,8 @@ export async function POST(request: Request) {
         const contactPhone = bookingRow?.contactPhone ?? created.patient.phoneNormalized;
         if (!created.replayed && contactPhone) {
           try {
-            const reminderPlan = await loadAppointmentReminderPlanFromSystemSettings(
-              created.appointment.organizationId,
-              (key, scope, options) => deps.systemSettings.getSetting(key, scope, options),
+            const reminderPlan = appointmentReminderPlanForPreset(
+              created.appointment.appointmentReminderPresetId,
             );
             await createBookingSyncPort().emitBookingEvent({
               eventType: 'booking.created',

@@ -2,7 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import { apiJson } from '@/shared/lib/apiJson';
-import { REMINDER_SCHEDULE_PRESETS, type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
+import {
+  isAppointmentReminderPresetId,
+  REMINDER_SCHEDULE_PRESETS,
+  type AppointmentReminderSpecialistSettings,
+} from '@/modules/booking-notifications/appointmentReminderPresets';
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
@@ -35,14 +39,24 @@ export function AppointmentReminderSettingsSection({ initialSettings }: { initia
         return <Label key={preset.id} className="flex items-center gap-2 text-sm">
           <Checkbox checked={checked} disabled={pending} onCheckedChange={(value) => {
             const allowedPresetIds = value === true ? [...settings.allowedPresetIds, preset.id] : settings.allowedPresetIds.filter((id) => id !== preset.id);
-            save({ allowedPresetIds, defaultPresetId: allowedPresetIds.includes(settings.defaultPresetId ?? '') ? settings.defaultPresetId : null });
+            save({
+              allowedPresetIds,
+              defaultPresetId:
+                settings.defaultPresetId !== null &&
+                allowedPresetIds.includes(settings.defaultPresetId)
+                  ? settings.defaultPresetId
+                  : null,
+            });
           }} />
           {preset.displayLabel}
         </Label>;
       })}
       <div className="max-w-sm space-y-1.5">
         <Label>Вариант по умолчанию</Label>
-        <Select value={settings.defaultPresetId ?? 'disabled'} disabled={pending} onValueChange={(value) => save({ ...settings, defaultPresetId: value === 'disabled' ? null : value })}>
+        <Select value={settings.defaultPresetId ?? 'disabled'} disabled={pending} onValueChange={(value) => {
+          const defaultPresetId = isAppointmentReminderPresetId(value) ? value : null;
+          save({ ...settings, defaultPresetId });
+        }}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="disabled">Не напоминать</SelectItem>

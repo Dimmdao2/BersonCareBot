@@ -8,7 +8,10 @@ import {
   isAppointmentReminderPresetId,
 } from '@/modules/booking-notifications/appointmentReminderPresets';
 
-const bodySchema = z.object({ presetId: z.string().nullable() });
+const bodySchema = z.object({
+  presetId: z.string().nullable(),
+  mutationId: z.string().uuid(),
+});
 
 async function loadOwnConfirmedPreference(appointmentId: string) {
   const deps = buildAppDeps();
@@ -57,7 +60,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
   try {
     await deps.bookingSync.emitBookingEvent({
       eventType: 'booking.reminder_updated',
-      idempotencyKey: `booking.reminder_updated:${booking.id}:${presetId ?? 'disabled'}`,
+      idempotencyKey: `booking.reminder_updated:${booking.id}:${parsed.data.mutationId}`,
       payload: {
         organizationId: preference.organizationId,
         bookingId: booking.id,

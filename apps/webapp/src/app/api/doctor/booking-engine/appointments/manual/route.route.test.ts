@@ -73,6 +73,8 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
         service: {
           createAppointment: fakes.createAppointment,
           getAppointment: vi.fn(async () => null),
+          getSpecialistAppointmentReminderSettings:
+            fakes.getSpecialistAppointmentReminderSettings,
         },
       },
     });
@@ -104,6 +106,10 @@ describe('doctor booking-engine manual-create: reminderPlan в событии', 
   });
 
   it('несёт план напоминаний — выключенные напоминания клиники доходят до события', async () => {
+    fakes.getSpecialistAppointmentReminderSettings.mockResolvedValue({
+      allowedPresetIds: [],
+      defaultPresetId: null,
+    });
     const response = await POST(
       new Request('http://127.0.0.1/api/doctor/booking-engine/appointments/manual', {
         method: 'POST',

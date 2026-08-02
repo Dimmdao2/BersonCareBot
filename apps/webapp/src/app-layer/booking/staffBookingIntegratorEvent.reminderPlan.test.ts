@@ -29,6 +29,9 @@ function fakeAppointment(): BeAppointment {
     packageUsageRef: null,
     phoneNormalized: '+79990000000',
     attributionJson: { contact_name: 'Пациент' },
+    appointmentReminderAllowedPresetIds: [],
+    appointmentReminderPresetId: null,
+    appointmentReminderSelectionSource: 'specialist_default',
   };
 }
 

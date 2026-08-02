@@ -178,8 +178,8 @@ export type BookingEnginePort = {
   getPatientAppointmentReminderPreference(appointmentId: string): Promise<{
     organizationId: string;
     status: AppointmentStatus;
-    allowedPresetIds: string[];
-    presetId: string | null;
+    allowedPresetIds: AppointmentReminderPresetId[];
+    presetId: AppointmentReminderPresetId | null;
     selectionSource: 'specialist_default' | 'patient';
   } | null>;
   getAppointment(id: string): Promise<BeAppointment | null>;

@@ -36,7 +36,7 @@ export function AppointmentReminderPreference({ appointmentId }: { appointmentId
               {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ presetId }),
+                body: JSON.stringify({ presetId, mutationId: crypto.randomUUID() }),
               },
             );
             if (!response.ok) {

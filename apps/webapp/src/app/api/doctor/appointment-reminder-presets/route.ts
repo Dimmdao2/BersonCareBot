@@ -12,7 +12,7 @@ const bodySchema = z.object({
 async function ownSpecialistContext() {
   const workspace = await requireDoctorWorkspaceContext();
   if (!workspace.specialistId) return null;
-  return workspace;
+  return { ...workspace, specialistId: workspace.specialistId };
 }
 
 export async function GET() {
