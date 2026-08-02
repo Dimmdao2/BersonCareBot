@@ -2213,6 +2213,13 @@
       "when": 1793539230021,
       "tag": "0320_tariff_policy_live_progression_local",
       "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1793539230022,
+      "tag": "0316_clinic_dedicated_bot_bindings_local",
+      "breakpoints": true
     }
   ]
 }

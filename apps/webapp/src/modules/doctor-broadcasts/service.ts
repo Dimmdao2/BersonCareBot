@@ -222,11 +222,13 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       }
 
       if (channels.includes('email') && deps.fanOutBroadcastEmailDeps) {
+        if (!options?.organizationId) throw new Error('doctor_broadcast_organization_required');
         const emailClients = emailEligibleUserIds
           ? eligibleClients.filter((c) => emailEligibleUserIds.has(c.userId))
           : eligibleClients;
         await fanOutBroadcastEmail(
           {
+            organizationId: options.organizationId,
             auditId,
             broadcastCategory: command.category,
             broadcastTitle: command.message.title,

@@ -98,6 +98,15 @@
 
 Массовая доставка **не** идёт через HTTP **`relay-outbound`**: воркер integrator в штатном цикле **`runOutgoingDeliveryWorkerTick`** вызывает **`dispatchOutgoing`** по строкам с `kind = doctor_broadcast_intent` (см. `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts`).
 
+### Собственный sender клиники
+
+Каждое внешнее задание рассылки получает `delivery.senderScope='clinic_required'`. Перед вызовом
+adapter integrator разрешает только exact-org credential, для которого включён отдельный tariff mechanic:
+`clinic_smtp`, `clinic_sms`, `clinic_telegram_bot` или `clinic_max_bot`. Отсутствующий/недоступный credential
+или ошибка его provider останавливают конкретную доставку — platform sender не подставляется. Push не является
+самостоятельным обходом: врач выбирает хотя бы один из собственных external channel. Inbound dedicated bot,
+его binding с пациентом и webhook-routing принадлежат S6.5; этот этап их не дублирует.
+
 ### Семантика счётчиков в `broadcast_audit`
 
 | Колонка                      | Смысл                                                                                                                                                             |

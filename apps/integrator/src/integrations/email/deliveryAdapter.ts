@@ -24,6 +24,7 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
+import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { sendMail } from './mailer.js';
 import type { MailAttachment } from './mailer.js';
 
@@ -36,7 +37,10 @@ type EmailDeliveryPayload = {
   /** payload.title: legacy path — used when content.subject was not set (backwards compat). */
   title?: unknown;
   fromOverride?: unknown;
-  delivery?: { channels?: unknown };
+  delivery?: {
+    channels?: unknown;
+    clinicCredential?: { channel?: unknown; smtp?: ResolvedSmtpOutboundConfig };
+  };
   /**
    * Base64-encoded .ics file content for booking confirmation emails.
    * When present, attached as `bersoncare-booking.ics` (text/calendar; charset=utf-8).
@@ -93,7 +97,11 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         : [];
 
       const db = deps.getDb();
-      const smtpConfig = await resolveSmtpOutboundConfig(db);
+      const clinicSmtp =
+        payload.delivery?.clinicCredential?.channel === 'email'
+          ? payload.delivery.clinicCredential.smtp
+          : undefined;
+      const smtpConfig = clinicSmtp ?? (await resolveSmtpOutboundConfig(db));
 
       if (!smtpConfig.configured) {
         throw new Error('EMAIL_NOT_CONFIGURED');

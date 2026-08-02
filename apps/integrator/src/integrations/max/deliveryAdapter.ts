@@ -34,7 +34,7 @@ type DeliveryPayload = {
   notification?: unknown;
   replyMarkup?: unknown;
   parse_mode?: string;
-  delivery?: { channels?: unknown };
+  delivery?: { channels?: unknown; clinicCredential?: { channel?: unknown; apiKey?: unknown } };
 } & Record<string, unknown>;
 
 /**
@@ -130,10 +130,22 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       return false;
     },
     async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
-      const runtimeConfig = await getMaxRuntimeConfig();
-      if (!runtimeConfig.enabled) throw new Error('MAX_RUNTIME_CONFIG_UNAVAILABLE');
-      const config = { apiKey: runtimeConfig.apiKey, baseUrl: runtimeConfig.baseUrl };
       const payload = intent.payload as DeliveryPayload;
+      const clinicCredential = payload.delivery?.clinicCredential;
+      const clinicApiKey =
+        clinicCredential?.channel === 'max' && typeof clinicCredential.apiKey === 'string'
+          ? clinicCredential.apiKey.trim()
+          : '';
+      const runtimeConfig = await getMaxRuntimeConfig();
+      if (!clinicApiKey && !runtimeConfig.enabled) {
+        throw new Error('MAX_RUNTIME_CONFIG_UNAVAILABLE');
+      }
+      const config = clinicApiKey
+        ? {
+            apiKey: clinicApiKey,
+            ...(runtimeConfig.baseUrl ? { baseUrl: runtimeConfig.baseUrl } : {}),
+          }
+        : { apiKey: runtimeConfig.apiKey, baseUrl: runtimeConfig.baseUrl };
       const text = asNonEmptyString(payload.message?.text);
       const messageId = payload.messageId;
 

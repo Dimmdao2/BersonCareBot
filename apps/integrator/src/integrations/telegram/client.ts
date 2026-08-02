@@ -24,32 +24,33 @@ export async function getBotInstance(): Promise<Bot> {
   return botInstance.bot;
 }
 
-export function createMessagingPort(): MessagingPort {
+export function createMessagingPort(botToken?: string): MessagingPort {
+  const getApi = async () => (botToken ? getBot(botToken).api : (await getBotInstance()).api);
   return {
     sendMessage: async (p) =>
-      (await getBotInstance()).api.sendMessage(p.chat_id, p.text, {
+      (await getApi()).sendMessage(p.chat_id, p.text, {
         reply_markup: p.reply_markup as never,
         parse_mode: p.parse_mode as never,
       }),
     sendPhoto: async (p) =>
-      (await getBotInstance()).api.sendPhoto(p.chat_id, p.photo, {
+      (await getApi()).sendPhoto(p.chat_id, p.photo, {
         ...(p.caption !== undefined ? { caption: p.caption } : {}),
         parse_mode: p.parse_mode as never,
         reply_markup: p.reply_markup as never,
       }),
-    copyMessage: async (p) => (await getBotInstance()).api.copyMessage(p.chat_id, p.from_chat_id, p.message_id),
+    copyMessage: async (p) => (await getApi()).copyMessage(p.chat_id, p.from_chat_id, p.message_id),
     editMessageText: async (p) =>
-      (await getBotInstance()).api.editMessageText(p.chat_id, p.message_id, p.text, {
+      (await getApi()).editMessageText(p.chat_id, p.message_id, p.text, {
         reply_markup: p.reply_markup as never,
         parse_mode: p.parse_mode as never,
       }),
     editMessageReplyMarkup: async (p) =>
-      (await getBotInstance()).api.editMessageReplyMarkup(p.chat_id, p.message_id, {
+      (await getApi()).editMessageReplyMarkup(p.chat_id, p.message_id, {
         reply_markup: p.reply_markup as never,
       }),
-    deleteMessage: async (p) => (await getBotInstance()).api.deleteMessage(p.chat_id, p.message_id),
+    deleteMessage: async (p) => (await getApi()).deleteMessage(p.chat_id, p.message_id),
     answerCallbackQuery: async (p) =>
-      (await getBotInstance()).api.answerCallbackQuery(p.callback_query_id, {
+      (await getApi()).answerCallbackQuery(p.callback_query_id, {
         ...(typeof p.text === 'string' && p.text.trim().length > 0 ? { text: p.text.trim() } : {}),
         ...(p.show_alert === true ? { show_alert: true } : {}),
       }),
