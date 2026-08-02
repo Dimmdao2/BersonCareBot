@@ -15,12 +15,17 @@ import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doc
 import type { CommunicationsTabProps } from '../communicationsTabRegistry';
 
 /** Таб «Рассылки». ?archive=1 → лог ошибок в правой панели. */
-export function BroadcastsTab({ deepLinkParams, onDeepLinkChange }: CommunicationsTabProps) {
+export function BroadcastsTab({
+  deepLinkParams,
+  onDeepLinkChange,
+  mailingsMutationAvailable = true,
+}: CommunicationsTabProps) {
   return (
     <BroadcastsMainView
       errorLogOpen={deepLinkParams.archive === '1'}
       onOpenErrorLog={() => onDeepLinkChange('archive', '1')}
       onCloseErrorLog={() => onDeepLinkChange('archive', null)}
+      mailingsMutationAvailable={mailingsMutationAvailable}
     />
   );
 }
@@ -29,12 +34,14 @@ type BroadcastsMainViewProps = {
   errorLogOpen: boolean;
   onOpenErrorLog: () => void;
   onCloseErrorLog: () => void;
+  mailingsMutationAvailable: boolean;
 };
 
 function BroadcastsMainView({
   errorLogOpen,
   onOpenErrorLog,
   onCloseErrorLog,
+  mailingsMutationAvailable,
 }: BroadcastsMainViewProps) {
   const [entries, setEntries] = useState<BroadcastAuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +105,7 @@ function BroadcastsMainView({
         onOpenErrorLog();
         setMobileView('detail');
       }}
-      onCreateFrom={createFromEntry}
+      onCreateFrom={mailingsMutationAvailable ? createFromEntry : undefined}
     />
   ) : (
     formPane
@@ -150,6 +157,14 @@ function BroadcastsMainView({
       </section>
     </div>
   );
+
+  if (!mailingsMutationAvailable) {
+    return (
+      <div id="broadcasts-main-view" className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}>
+        {rightPane}
+      </div>
+    );
+  }
 
   return (
     <div id="broadcasts-main-view" className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}>

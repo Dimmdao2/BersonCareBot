@@ -1,5 +1,6 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { getMechanicMutationAvailability } from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { communicationsTabFromQuery } from './doctorCommunicationsTabs';
@@ -16,6 +17,7 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
   const session = workspace.session;
   const params = await searchParams;
   const initialTab = communicationsTabFromQuery(params.tab ?? null);
+  const mailingsMutationAvailability = await getMechanicMutationAvailability(workspace, 'mailings');
 
   const deps = buildAppDeps();
 
@@ -50,6 +52,7 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
   return (
     <DoctorCommunicationsShell
       initialTab={initialTab}
+      mailingsMutationAvailable={mailingsMutationAvailability.available}
       badges={badges}
       displayIana={displayIana}
       initialTabData={{

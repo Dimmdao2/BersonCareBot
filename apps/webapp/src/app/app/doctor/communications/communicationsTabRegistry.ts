@@ -13,6 +13,8 @@ export type CommunicationsTabProps = {
   isActive?: boolean;
   /** IANA timezone name for display (e.g. "Europe/Moscow"). Threaded from server page. */
   displayIana?: string;
+  /** Whether the clinic tariff permits creating or sending a new mailing. */
+  mailingsMutationAvailable?: boolean;
 };
 
 export type CommunicationsTabRegistryEntry = {
