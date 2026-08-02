@@ -31,7 +31,6 @@ import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import { useDoctorRegistrationSystemFailureCount } from '@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount';
 import { useDoctorPendingProgramTestsCount } from '@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount';
-import { useDoctorProactiveInsightsCount } from '@/modules/doctor-proactive-insights/hooks/useDoctorProactiveInsightsCount';
 import { useDoctorSupportUnreadCount } from '@/shared/hooks/useSupportUnreadPolling';
 import {
   getDoctorMenuItems,
@@ -505,7 +504,6 @@ export function DoctorMenuAccordion({
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const pendingProgramTests = useDoctorPendingProgramTestsCount(enableBadgePolling);
-  const proactiveInsights = useDoctorProactiveInsightsCount(enableBadgePolling);
   const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(
     enableBadgePolling && hasLaunchCapability(menuAccess.capabilities, 'platform.operations'),
   );
@@ -516,14 +514,13 @@ export function DoctorMenuAccordion({
         messagesUnread,
         registrationSystemFailures,
         pendingProgramTests,
-        todayAttention: pendingProgramTests + proactiveInsights,
+        todayAttention: pendingProgramTests,
         communicationsTotal: messagesUnread,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
     [
       messagesUnread,
       registrationSystemFailures,
       pendingProgramTests,
-      proactiveInsights,
     ],
   );
 

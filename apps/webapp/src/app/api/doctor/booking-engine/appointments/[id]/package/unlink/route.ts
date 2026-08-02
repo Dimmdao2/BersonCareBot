@@ -1,4 +1,5 @@
 import { runPackageDetach } from '@/app/api/booking-engine/packageDetachShared';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../../../../_requireDoctorBookingEngine';
 import { resolveDoctorAppointmentAccess } from '../../../../_resolveDoctorAppointmentAccess';
@@ -8,6 +9,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function POST(request: Request, context: RouteContext) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'subscriptions');
+  if (!entitlement.ok) return entitlement.response;
   const { id: appointmentId } = await context.params;
   const body = (await request.json().catch(() => ({}))) as { confirmPastTwice?: boolean };
   const appointment = await resolveDoctorAppointmentAccess(gate.ctx, appointmentId, 'own');

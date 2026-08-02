@@ -29,7 +29,7 @@ type Props = Pick<
   /**
    * SEG-07: Переопределяет локальный счётчик комментариев.
    * Управляется из DoctorTodayLeftPaneBridge (client) в DoctorTodayDashboard.tsx,
-   * чтобы декремент из DoctorTodaySignalsSection синхронно обновлял KPI-тайл.
+   * чтобы обработка комментария синхронно обновляла KPI-тайл.
    */
   exerciseCommentsTotalOverride?: number;
 };
@@ -104,7 +104,7 @@ export function DoctorTodayLeftKpiRow({
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
   // SEG-07: items сохраняем локально (список в KpiPreviewModal);
   // total берётся из exerciseCommentsTotalOverride, управляемого DoctorTodayDashboard,
-  // чтобы синхронизировать с декрементом из DoctorTodaySignalsSection.
+  // чтобы синхронизировать с обработкой комментария в диалоге.
   const [exerciseCommentItems] = useState(exerciseCommentAttentionItems);
   const displayTotal = exerciseCommentsTotalOverride ?? exerciseCommentAttentionTotal;
 

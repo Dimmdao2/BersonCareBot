@@ -90,12 +90,18 @@ type Props = {
    * Defaults to true (full panel).
    */
   showCreateForm?: boolean;
+  /** Controls which create and sale mutations are available. */
+  mutationsAllowed?: boolean;
+  /** Existing purchased packages remain consumable through the access lifecycle. */
+  consumptionAllowed?: boolean;
 };
 
 export function DoctorClientMembershipsPanel({
   platformUserId,
   appointments = [],
   showCreateForm = true,
+  mutationsAllowed = true,
+  consumptionAllowed = true,
 }: Props) {
   const router = useRouter();
   const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
@@ -336,13 +342,16 @@ export function DoctorClientMembershipsPanel({
               apiBase={apiBase}
               onError={showError}
               onChanged={() => void loadPackages()}
-              onRecalc={pkg.status === 'active' ? () => void recalcPackage(pkg.id) : undefined}
+              onRecalc={
+                mutationsAllowed && pkg.status === 'active' ? () => void recalcPackage(pkg.id) : undefined
+              }
+              mutationsAllowed={mutationsAllowed}
             />
           ))}
         </ul>
       )}
 
-      {showCreateForm ? (
+      {showCreateForm && mutationsAllowed ? (
         <>
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium">Назначить из каталога</summary>
@@ -485,11 +494,12 @@ export function DoctorClientMembershipsPanel({
         </>
       ) : null}
 
-      <details className="group">
-        <summary className="cursor-pointer text-sm font-medium">
-          Списать сеанс по абонементу
-        </summary>
-        <div className="mt-3 flex flex-col gap-2">
+      {consumptionAllowed ? (
+        <details className="group">
+          <summary className="cursor-pointer text-sm font-medium">
+            Списать сеанс по абонементу
+          </summary>
+          <div className="mt-3 flex flex-col gap-2">
           <Label>Абонемент</Label>
           <Select
             value={consumePackageId}
@@ -550,8 +560,9 @@ export function DoctorClientMembershipsPanel({
           <Button type="button" size="sm" disabled={pending} onClick={manualConsume}>
             Списать
           </Button>
-        </div>
-      </details>
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
