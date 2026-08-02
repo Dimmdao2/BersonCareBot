@@ -83,6 +83,39 @@ describe('/api/clinic/billing tariff change', () => {
     });
   });
 
+  it('returns the server-derived upgrade checkout from the existing billing route', async () => {
+    scheduleOwnTariffChange.mockResolvedValue({
+      outcome: 'checkout',
+      invoice: { id: 'upgrade-invoice', providerCheckoutUrl: 'https://pay.example/upgrade' },
+    });
+
+    const response = await PATCH(
+      new Request('http://test/api/clinic/billing', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          tariffId,
+          organizationId: 'attacker-org',
+          amountMinor: 1,
+          currency: 'USD',
+          periodStartsAt: '2099-01-01T00:00:00.000Z',
+          periodEndsAt: '2099-01-02T00:00:00.000Z',
+        }),
+      }),
+    );
+
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      invoiceId: 'upgrade-invoice',
+      checkoutUrl: 'https://pay.example/upgrade',
+    });
+    expect(scheduleOwnTariffChange).toHaveBeenCalledWith({
+      organizationId,
+      tariffId,
+      actorId: 'actor',
+    });
+  });
+
   it('cancels the pending change without creating an invoice', async () => {
     const response = await DELETE();
 

@@ -42,7 +42,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Запланировать смену' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перейти на тариф' }));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/clinic/billing', expect.objectContaining({
       method: 'PATCH', body: JSON.stringify({ tariffId: 'small' }),
     })));
@@ -96,7 +96,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Запланировать смену' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Перейти на тариф' }));
 
     expect(await screen.findByText('Понижение недоступно: освободите места специалистов, пациенты.')).toBeInTheDocument();
   });
