@@ -274,6 +274,11 @@ counts/metadata или потерю standalone deep-link compatibility.
   отправителя с clock-state вместо delivery checks. Нужны per-message `scheduled_at` + durable status и worker
   dispatch поверх отдельно проверенных queue/retry/cancel/org-scope contracts. Этап не прячется внутри presentation
   UI-3 и не копирует broadcast storage без contract review.
+- **Reconciliation 2026-08-02:** владелец подтвердил, что ручная отложенная отправка нужна продукту и не является
+  администраторской рассылкой по триггерам. Старый прототип `origin/agent/ui964-20260722` не переносится: его
+  отдельные migration/cron/principal и access boundary устарели. Требования ниже сохраняются как authority, а новая
+  реализация строится от текущего `feat`, использует действующий operational runner/principal и новый заранее
+  забронированный номер миграции.
 - **UI-7b voice/STT:** решением G2 отложено до post-production, taskdb `#922`; в текущий заход не входит.
 
 ### UI-8 — capability/commercial projection
@@ -312,7 +317,7 @@ SHA `eb64a495644` (code-only deploy 2026-07-22, без dump/restore/full reset).
 | UI-4                 | `DONE code / TEST deployed / owner pending`            | Presentation, metric semantics и normal-mode functional `PatientPreviewPane` находятся на TEST; smoke и desktop/mobile list check прошли.                                                                                                                                 |
 | UI-5                 | `UI-5a TEST deployed / UI-5b BLOCKED #971→#796`        | Existing full card replaces the doctor workspace with list-state restoration; mandatory live route smoke прошёл. U5B record-class contract `#928` закрыт, но полный atomic composition/data-policy ждёт два U5A live-seal из `#796`; presentation-only подмена запрещена. |
 | UI-6                 | `DONE current contract / TEST deployed / future gated` | 50/50, calendar button/window and existing-signal preferences/list switch находятся на TEST; «Самые активные»/new counters/hiding stay contract-gated.                                                                                                                    |
-| UI-7                 | `BLOCKED after hard-stop #964`                         | Backend/CAS/access foundation реализован в isolated branch, но два correction-pass не закрыли единый pending-feed placement. Требуется ровно один owner ruling; незапечатанный код не интегрирован. Voice/STT корректно post-production.                                  |
+| UI-7                 | `OPEN #964 / rebuild from current feat`                | Ручная отложенная отправка подтверждена владельцем. Старый isolated-прототип признан несовместимым с текущими migration/runner/access boundaries и удаляется; реализация выполняется по exact checklist ниже. Voice/STT корректно post-production.                         |
 | UI-8                 | `DONE current contract`                                | S4/C5 organization-only commercial contour готов; `#191` задаёт только новым правилам разминок `12:00`/`15:00` в рабочие дни и не изменяет существующие правила.                                                                                                          |
 | UI-9                 | `DONE`                                                 | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно.                                                                                                                                                              |
 | Client mood residual | `DONE`                                                 | Empty chart скрывается, mood controls остаются.                                                                                                                                                                                                                           |
