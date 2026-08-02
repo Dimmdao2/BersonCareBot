@@ -975,6 +975,13 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       run --project=ui src/shared/ui/patient/organization/PatientOrganizationContext.ui.test.tsx`
       (1 passed). Целевые поломки «disabled применяет retained brand» и «read_only пропускает save»
       обе делают unit-тест красным.
+      **Курсы — ГОТОВО:** `read_only` оставляет врачебный список и пациентское чтение, но убирает создание и
+      переход к редактору; прямые URL создания/редактирования завершаются тем же `notFound`, а POST/PATCH до
+      write-порта отказывают `commercial_read_only`. `disabled` скрывает навигацию и прямое пациентское чтение,
+      не удаляя курсы или записи. Доказательство: `pnpm --dir apps/webapp exec vitest --run --project=ui
+      src/app/app/accessLifecycleSurfaces.ui.test.tsx` (10/10) и `pnpm --dir apps/webapp exec vitest --run
+      --project=fast src/app-layer/guards/requireEntitlementReadOnlyRefusesWrites.test.ts` (7/7); при временном
+      снятии ветки `read_only` упали 2 UI- и 5 write-сценариев.
 - [ ] **4.8** Рассылки — после появления модели каналов клиники в соседнем потоке (#1071), по их контракту.
 - [ ] **4.9** Три механики владельца («Сегодня», разминки, промо) — выключены у всех, включаются ему существующим
       исключением организации, и подчиняются лестнице как все.
