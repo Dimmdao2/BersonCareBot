@@ -71,6 +71,9 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     async updateTariff(id, input) {
       const current = tariffs.get(id);
       if (!current) throw new Error('tariff_not_found');
+      if (current.isActive && !input.isActive && registrationTariffPolicy.tariffId === id) {
+        throw new Error('tariff_used_by_registration_tariff_policy');
+      }
       const tariff = { ...current, ...input, updatedAt: new Date().toISOString() };
       tariffs.set(id, tariff);
       return tariff;
@@ -78,6 +81,9 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     async archiveTariff(id) {
       const current = tariffs.get(id);
       if (!current) throw new Error('tariff_not_found');
+      if (registrationTariffPolicy.tariffId === id) {
+        throw new Error('tariff_used_by_registration_tariff_policy');
+      }
       tariffs.set(id, { ...current, isActive: false, updatedAt: new Date().toISOString() });
     },
     async assignTariff(organizationId, tariffId) {

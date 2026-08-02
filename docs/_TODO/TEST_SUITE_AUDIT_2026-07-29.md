@@ -1420,12 +1420,15 @@ HOW-A тратил 8–15 дней, мутируя 200 файлов, чтобы 
   `.github/workflows/ci.yml` вызывает `pnpm test:webapp:behavior`, а команда
   `pnpm test:webapp:behavior` 30.07 прошла как 2 unit-файла/7 тестов, 1 route-файл/3 теста,
   1 UI-файл/2 теста.
-- [ ] Построить маршрут `*.postgres.integration.test.ts → disposable PostgreSQL project/job` после аудита
-  ролей/стен, стабилизации схемы БД и owner-go.
+- [x] Построить маршрут `*.postgres.integration.test.ts → disposable PostgreSQL project/job` после аудита
+  ролей/стен, стабилизации схемы БД и owner-go. — ГОТОВО: `apps/webapp/vitest.postgres.config.ts` →
+  `pnpm run test:webapp:postgres` → отдельный `test-webapp-postgres` job в `.github/workflows/ci.yml` с PostgreSQL 16;
+  product pilot `4d3b58d73` прошёл `3 files / 4 tests`, fault injection read-then-delete покрасил настоящий atomicity oracle.
 - [x] `*.ui.test.tsx` запускается в DOM-среде: project `ui` использует `jsdom` и отдельный
   `vitest.ui.setup.ts`; пилот `PatientHomeBlockRuntimeStatusBadge.ui.test.tsx` прошёл 2 теста.
-- [x] `*.postgres.integration.test.ts` исключён из DB-free `fast`; категория не включена ни в один активный
-  project и остаётся закрыта до снятия owner freeze.
+- [x] `*.postgres.integration.test.ts` исключён из DB-free `fast` и включён только в отдельный активный
+  `postgres-integration` project/job; DEV-базу этот job не использует. RLS/ACL acceptance остаётся в A1/TEST,
+  как зафиксировано в Б1 и `AGENTS.md` §3a.
 - [x] Каждая активная категория вызывается отдельной Vitest-командой, поэтому ноль файлов красный:
   `pnpm --dir apps/webapp exec vitest --run --project=route __zero_file_gate_probe__` завершился кодом 1 с
   `No test files found`; CI вызывает последовательный `test:behavior`.
