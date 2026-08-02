@@ -258,7 +258,7 @@ export function TeamSection({ members, invites, seats }: Props) {
                   disabled={submitting}
                   onClick={() => void purchaseSeatOverage()}
                 >
-                  'Оплатить место'
+                  Оплатить место
                 </Button>
                 <Button
                   type="button"

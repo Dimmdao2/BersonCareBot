@@ -40,6 +40,11 @@ const INVOICE_STATUS_LABELS = {
   void: 'Аннулирован',
 } as const;
 
+const INVOICE_KIND_LABELS = {
+  tariff_period: 'Тарифный период',
+  seat_overage: 'Дополнительные места',
+} as const;
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
@@ -130,10 +135,15 @@ export function SaasBillingOverview({
                 className={`${doctorDnaFlatListRowClass} items-start justify-between gap-3`}
               >
                 <span>
-                  <span className={doctorDnaFlatListPrimaryClass}>{invoice.tariffName}</span>
+                  <span className={doctorDnaFlatListPrimaryClass}>
+                    {INVOICE_KIND_LABELS[invoice.invoiceKind]}
+                  </span>
                   <span className={doctorDnaFlatListMetaClass}>
-                    {formatDate(invoice.servicePeriodStartsAt)} —{' '}
-                    {formatDate(invoice.servicePeriodEndsAt)}
+                    {invoice.invoiceKind === 'seat_overage'
+                      ? `${invoice.additionalSeatQuantity} ${invoice.additionalSeatQuantity === 1 ? 'место' : 'места'}`
+                      : invoice.tariffName}
+                    {' · '}
+                    {formatDate(invoice.servicePeriodStartsAt)} — {formatDate(invoice.servicePeriodEndsAt)}
                     {' · '}
                     {invoice.providerId}
                   </span>
@@ -145,6 +155,11 @@ export function SaasBillingOverview({
                   <Badge variant={invoice.status === 'failed' ? 'destructive' : 'outline'}>
                     {INVOICE_STATUS_LABELS[invoice.status]}
                   </Badge>
+                  {(invoice.status === 'draft' || invoice.status === 'pending') && invoice.providerCheckoutUrl ? (
+                    <a className="mt-1 block text-sm text-primary underline" href={invoice.providerCheckoutUrl}>
+                      Оплатить
+                    </a>
+                  ) : null}
                 </span>
               </li>
             ))}

@@ -165,6 +165,7 @@ export type SaasBillingPlatformSummary = {
  * actually happened, not something pending or failed.
  */
 export type SaasBillingPlatformBreakdownRow = {
+  invoiceKind: SaasBillingInvoiceKind;
   tariffId: string;
   tariffName: string;
   tariffBillingPeriod: 'day' | 'month' | 'year';

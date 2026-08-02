@@ -18,6 +18,8 @@ const invoice: SaasBillingInvoice = {
   saasBillingSubscriptionId: 'subscription-1',
   tariffId: 'tariff-1',
   tariffName: 'Стандарт',
+  invoiceKind: 'tariff_period',
+  additionalSeatQuantity: 0,
   description: null,
   amountMinor: 10_000,
   currency: 'RUB',

@@ -249,7 +249,7 @@ export const saasBillingInvoices = pgTable(
       table.providerId,
       table.providerIdempotencyKey,
     ),
-    index('saas_billing_invoices_period_uidx')
+    uniqueIndex('saas_billing_invoices_period_uidx')
       .on(table.saasBillingSubscriptionId, table.servicePeriodStartsAt, table.servicePeriodEndsAt)
       .where(sql`${table.invoiceKind} = 'tariff_period'`),
     uniqueIndex('saas_billing_invoices_provider_ref_uidx')

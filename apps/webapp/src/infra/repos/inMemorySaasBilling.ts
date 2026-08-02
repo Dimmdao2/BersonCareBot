@@ -319,10 +319,16 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       const entry = [...rows.entries()].find(([, row]) => row.id === current.saasBillingSubscriptionId);
       if (!entry) throw new Error('saas_billing_subscription_not_found');
       const [subscriptionKeyValue, subscription] = entry;
-      if (input.savedPaymentMethodId) {
+      if (input.savedPaymentMethodId && current.invoiceKind === 'tariff_period') {
         rows.set(subscriptionKeyValue, { ...subscription, savedPaymentMethodId: input.savedPaymentMethodId });
       }
-      const due = current.servicePeriodStartsAt <= input.paidAt;
+      if (current.invoiceKind === 'seat_overage' && current.status !== 'paid') {
+        rows.set(subscriptionKeyValue, {
+          ...subscription,
+          paidAdditionalSeats: subscription.paidAdditionalSeats + current.additionalSeatQuantity,
+        });
+      }
+      const due = current.invoiceKind === 'tariff_period' && current.servicePeriodStartsAt <= input.paidAt;
       if (due) {
         const latest = rows.get(subscriptionKeyValue) as SaasBillingSubscription;
         rows.set(subscriptionKeyValue, {
