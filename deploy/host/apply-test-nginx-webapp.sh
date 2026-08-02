@@ -141,6 +141,34 @@ server {
         proxy_send_timeout 120s;
     }
 
+    # YooKassa callbacks originate from documented provider networks, not the
+    # owner VPN. Keep this exception limited to the three existing webhook
+    # routes; all other TEST traffic remains covered by the server-level deny.
+    location ~ ^/api/payments/(?:saas-webhook|webhook|patient-acquiring-webhook)/yookassa$ {
+        allow 10.9.0.0/24;
+        allow 172.17.0.0/16;
+        allow 151.241.228.122;
+        allow 127.0.0.1;
+        allow 185.71.76.0/27;
+        allow 185.71.77.0/27;
+        allow 77.75.153.0/25;
+        allow 77.75.156.11/32;
+        allow 77.75.156.35/32;
+        allow 77.75.154.128/25;
+        allow 2a02:5180::/32;
+        deny all;
+
+        proxy_pass http://127.0.0.1:6300;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:6300;
         proxy_http_version 1.1;
