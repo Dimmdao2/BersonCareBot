@@ -29,10 +29,13 @@ describe('POST /api/booking/memberships/purchase', () => {
     });
   });
 
-  it('refuses a patient purchase in read-only access before creating a package', async () => {
+  it.each([
+    ['disabled', 'entitlement_required'],
+    ['read_only', 'commercial_read_only'],
+  ] as const)('refuses a direct patient purchase when subscriptions are %s', async (state, error) => {
     const purchaseCatalogPackageForPatient = vi.fn();
     fakes.buildAppDeps.mockReturnValue({
-      orgEntitlements: { resolveMechanicAccess: async () => ({ state: 'read_only', warning: null }) },
+      orgEntitlements: { resolveMechanicAccess: async () => ({ state, warning: null }) },
       memberships: {
         resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
         purchaseCatalogPackageForPatient,
@@ -49,9 +52,38 @@ describe('POST /api/booking/memberships/purchase', () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
       ok: false,
-      error: 'commercial_read_only',
+      error,
       mechanic: 'subscriptions',
     });
     expect(purchaseCatalogPackageForPatient).not.toHaveBeenCalled();
+  });
+
+  it('keeps the patient purchase flow available with full subscriptions access', async () => {
+    const purchaseCatalogPackageForPatient = vi.fn().mockResolvedValue({ id: 'package-1' });
+    fakes.withExplicitOrganizationPrincipal.mockImplementation(
+      async (_context: unknown, callback: () => Promise<unknown>) => callback(),
+    );
+    fakes.buildAppDeps.mockReturnValue({
+      orgEntitlements: { resolveMechanicAccess: async () => ({ state: 'full_access', warning: null }) },
+      memberships: {
+        resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
+        purchaseCatalogPackageForPatient,
+      },
+    });
+
+    const response = await POST(
+      new Request('http://test/api/booking/memberships/purchase', {
+        method: 'POST',
+        body: JSON.stringify({ subscriptionPackageId: catalogPackageId }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, package: { id: 'package-1' } });
+    expect(purchaseCatalogPackageForPatient).toHaveBeenCalledWith({
+      organizationId,
+      platformUserId: patientUserId,
+      subscriptionPackageId: catalogPackageId,
+    });
   });
 });

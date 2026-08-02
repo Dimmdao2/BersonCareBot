@@ -25,10 +25,12 @@ describe('POST /api/doctor/booking-engine/patient-packages/[id]/consume', () => 
     });
   });
 
-  it('refuses a direct consume while subscriptions are read-only', async () => {
-    const manualConsume = vi.fn();
+  it.each(['disabled', 'read_only'] as const)(
+    'keeps an already purchased package consumable while subscriptions are %s',
+    async (state) => {
+    const manualConsume = vi.fn().mockResolvedValue({ id: 'usage-1' });
     fakes.buildAppDeps.mockReturnValue({
-      orgEntitlements: { resolveMechanicAccess: async () => ({ state: 'read_only', warning: null }) },
+      orgEntitlements: { resolveMechanicAccess: async () => ({ state, warning: null }) },
       memberships: { manualConsume },
     });
 
@@ -40,12 +42,15 @@ describe('POST /api/doctor/booking-engine/patient-packages/[id]/consume', () => 
       { params: Promise.resolve({ id: patientPackageId }) },
     );
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: false,
-      error: 'commercial_read_only',
-      mechanic: 'subscriptions',
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, usage: { id: 'usage-1' } });
+    expect(manualConsume).toHaveBeenCalledWith({
+      organizationId,
+      patientPackageId,
+      patientPackageItemId,
+      appointmentId: null,
+      createdByPlatformUserId: 'doctor-user',
     });
-    expect(manualConsume).not.toHaveBeenCalled();
-  });
+    },
+  );
 });
