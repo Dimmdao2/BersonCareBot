@@ -122,7 +122,7 @@ export const SYSTEM_SETTING_REGISTRY = {
     'per_org',
     'server',
     'structured',
-    '{"visibleProactiveInsightKinds":["wellbeing_low_streak","program_inactivity"],"peopleListMode":"on_support"}',
+    '{"peopleListMode":"on_support"}',
   ),
   doctor_appointment_reminder_enabled: runtime('doctor', 'per_org', 'server', 'boolean', 'false'),
   doctor_appointment_reminder_offsets_minutes: runtime(

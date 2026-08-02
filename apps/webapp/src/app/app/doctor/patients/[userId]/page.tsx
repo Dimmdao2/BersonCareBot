@@ -13,7 +13,6 @@ import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
-import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { toDoctorSupplementaryContacts } from '@/modules/platform-user-contacts/bookingContactUpsert';
 import { loadDoctorPatientProgramActivity } from '../loadDoctorPatientProgramActivity';
 import { PatientCardClient } from './PatientCardClient';
@@ -45,15 +44,12 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   }
   const patientUserId = identity.userId;
 
-  const displayIana = await getAppDisplayTimeZone();
-
   const [
     cardHeaderPromise,
     clinicalState,
     visits,
     notes,
     tasks,
-    signals,
     programActivity,
     appointments,
     programInstances,
@@ -71,11 +67,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId)),
     deps.doctorNotes.listForUser(patientUserId),
     deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false),
-    deps.doctorProactiveInsights.listForPatient({
-      patientUserId,
-      organizationId: workspace.organizationId,
-      displayIana,
-    }),
     loadDoctorPatientProgramActivity(
       { programItemDiscussion: deps.programItemDiscussion },
       {
@@ -257,7 +248,6 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialVisits={visits}
           initialNotes={notes}
           initialTasks={tasks}
-          initialSignals={signals}
           initialProgramActivity={programActivity}
           initialAppointments={appointments}
           initialProgramInstances={programInstances}

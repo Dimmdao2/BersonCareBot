@@ -127,7 +127,6 @@ export default async function DoctorPage() {
           doctorUserId: session.user.userId,
           organizationId: workspace.organizationId,
           treatmentProgramProgress: deps.treatmentProgramProgress,
-          doctorProactiveInsights: deps.doctorProactiveInsights,
           treatmentProgramInstance: deps.treatmentProgramInstance,
           programItemDiscussion: deps.programItemDiscussion,
           programActionLog: deps.programActionLog,

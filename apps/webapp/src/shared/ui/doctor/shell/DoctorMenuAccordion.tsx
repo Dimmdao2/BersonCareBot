@@ -32,7 +32,6 @@ import { cn } from '@/lib/utils';
 import { useDoctorRegistrationSystemFailureCount } from '@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount';
 import { useDoctorOnlineIntakeNewCount } from '@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount';
 import { useDoctorPendingProgramTestsCount } from '@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount';
-import { useDoctorProactiveInsightsCount } from '@/modules/doctor-proactive-insights/hooks/useDoctorProactiveInsightsCount';
 import { useDoctorSupportUnreadCount } from '@/shared/hooks/useSupportUnreadPolling';
 import {
   getDoctorMenuItems,
@@ -509,7 +508,6 @@ export function DoctorMenuAccordion({
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount(enableBadgePolling);
   const pendingProgramTests = useDoctorPendingProgramTestsCount(enableBadgePolling);
-  const proactiveInsights = useDoctorProactiveInsightsCount(enableBadgePolling);
   const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(
     enableBadgePolling && hasLaunchCapability(menuAccess.capabilities, 'platform.operations'),
   );
@@ -521,7 +519,7 @@ export function DoctorMenuAccordion({
         messagesUnread,
         registrationSystemFailures,
         pendingProgramTests,
-        todayAttention: pendingProgramTests + proactiveInsights,
+        todayAttention: pendingProgramTests,
         communicationsTotal: onlineIntakeNew + messagesUnread,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
     [
@@ -529,7 +527,6 @@ export function DoctorMenuAccordion({
       messagesUnread,
       registrationSystemFailures,
       pendingProgramTests,
-      proactiveInsights,
     ],
   );
 

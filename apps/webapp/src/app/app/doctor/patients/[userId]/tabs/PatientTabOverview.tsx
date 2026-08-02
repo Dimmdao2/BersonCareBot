@@ -18,7 +18,6 @@ import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientS
 import type { ActiveComplaint, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
-import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
 import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import type { DoctorPatientProgramActivity } from '@/app/app/doctor/patients/loadDoctorPatientProgramActivity';
 import { parseCatalogMediaRows } from '@/app/app/patient/treatment/stageItemSnapshot';
@@ -159,11 +158,6 @@ interface ProgramInstancesApiResponse {
   items: TreatmentInstanceItem[];
 }
 
-interface SignalsApiResponse {
-  ok: boolean;
-  signals: ProactiveInsightRow[];
-}
-
 interface ProgramActivityApiResponse {
   ok: boolean;
   activity: DoctorPatientProgramActivity;
@@ -224,10 +218,6 @@ interface OverviewData {
   // Tasks
   tasksStatus: WidgetStatus;
   tasks: SpecialistTaskRow[];
-
-  // Signals
-  signalsStatus: WidgetStatus;
-  signals: ProactiveInsightRow[];
 
   // Exercise calendar
   calendarStatus: WidgetStatus;
@@ -544,7 +534,6 @@ type Props = {
   initialVisits?: Visit[] | null;
   initialNotes?: DoctorNoteRow[] | null;
   initialTasks?: SpecialistTaskRow[] | null;
-  initialSignals?: ProactiveInsightRow[] | null;
   initialProgramActivity?: DoctorPatientProgramActivity | null;
   initialAppointments?: PatientAppointmentItem[] | null;
   /** SSR-provided patient packages. When present, skips the client-side fetch. */
@@ -561,7 +550,6 @@ function buildSsrSeedData(
   visits: Visit[],
   notes: DoctorNoteRow[],
   tasks: SpecialistTaskRow[],
-  signals: ProactiveInsightRow[],
   programActivity: DoctorPatientProgramActivity,
   appointments: PatientAppointmentItem[],
   initialPackages?: PackageItem[] | null,
@@ -604,8 +592,6 @@ function buildSsrSeedData(
   });
   const tasksStatus: WidgetStatus = 'ok';
 
-  const signalsList = signals;
-  const signalsStatus: WidgetStatus = signalsList.length === 0 ? 'empty' : 'ok';
   const activePackages = normalizeActivePackages(initialPackages);
   const activePackage: PackageItem | null = activePackages[0] ?? null;
   const packageStatus: WidgetStatus =
@@ -631,8 +617,6 @@ function buildSsrSeedData(
     notes: notesList,
     tasksStatus,
     tasks: tasksList,
-    signalsStatus,
-    signals: signalsList,
     calendarStatus: 'loading' as WidgetStatus,
     calendarDays: [],
     messagesStatus: 'loading' as WidgetStatus,
@@ -648,7 +632,6 @@ export function PatientTabOverview({
   initialVisits,
   initialNotes,
   initialTasks,
-  initialSignals,
   initialProgramActivity,
   initialAppointments,
   initialPackages,
@@ -666,7 +649,6 @@ export function PatientTabOverview({
       initialVisits != null &&
       initialNotes != null &&
       initialTasks != null &&
-      initialSignals != null &&
       initialProgramActivity != null &&
       initialAppointments != null
     ) {
@@ -675,7 +657,6 @@ export function PatientTabOverview({
         initialVisits,
         initialNotes,
         initialTasks,
-        initialSignals,
         initialProgramActivity,
         initialAppointments,
         initialPackages,
@@ -689,7 +670,6 @@ export function PatientTabOverview({
       initialVisits != null &&
       initialNotes != null &&
       initialTasks != null &&
-      initialSignals != null &&
       initialProgramActivity != null &&
       initialAppointments != null
     ) {
@@ -713,7 +693,6 @@ export function PatientTabOverview({
     initialVisits != null &&
     initialNotes != null &&
     initialTasks != null &&
-    initialSignals != null &&
     initialProgramActivity != null &&
     initialAppointments != null;
 
@@ -831,13 +810,6 @@ export function PatientTabOverview({
             .then((r) => (r.ok ? (r.json() as Promise<TasksApiResponse>) : null))
             .catch(() => null);
 
-    const fetchSignals =
-      hasSsrData && ssrSeedRef.current === userId
-        ? Promise.resolve(null as SignalsApiResponse | null)
-        : fetch(`/api/doctor/patients/${userId}/proactive-insights`, { credentials: 'include' })
-            .then((r) => (r.ok ? (r.json() as Promise<SignalsApiResponse>) : null))
-            .catch(() => null);
-
     const fetchProgramActivity =
       hasSsrData && ssrSeedRef.current === userId
         ? Promise.resolve(null as ProgramActivityApiResponse | null)
@@ -863,7 +835,6 @@ export function PatientTabOverview({
         notes,
         tasks,
         programList,
-        signals,
         programActivityRes,
         messages,
       ]) => {
@@ -1011,17 +982,6 @@ export function PatientTabOverview({
           }
         }
 
-        // --- Signals (from SSR or fetch) ---
-        let signalsList: ProactiveInsightRow[];
-        let signalsStatus: WidgetStatus;
-        if (usingSsrForClinical && initialSignals != null) {
-          signalsList = initialSignals;
-          signalsStatus = signalsList.length === 0 ? 'empty' : 'ok';
-        } else {
-          signalsList = signals?.signals ?? [];
-          signalsStatus = !signals ? 'error' : signalsList.length === 0 ? 'empty' : 'ok';
-        }
-
         // --- Program activity (from SSR or fetch) ---
         let programActivity: DoctorPatientProgramActivity | null;
         if (usingSsrForClinical && initialProgramActivity != null) {
@@ -1058,8 +1018,6 @@ export function PatientTabOverview({
           notes: notesList,
           tasksStatus,
           tasks: tasksList,
-          signalsStatus,
-          signals: signalsList,
           messagesStatus,
           messages: messagesList,
           unreadFromUserCount,
@@ -1225,28 +1183,6 @@ export function PatientTabOverview({
           />
         </div>
 
-        {/* Сигналы — shown only when present */}
-        {!isLoading && data?.signalsStatus === 'ok' && (data.signals?.length ?? 0) > 0 && (
-          <div className={doctorSectionCardClass}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className={doctorSectionTitleClass}>Сигналы</span>
-              <span className="inline-flex items-center rounded-full bg-destructive/10 px-1.5 py-0 text-[10px] font-semibold text-destructive">
-                {data.signals.length}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              {data.signals.map((sig, idx) => (
-                <div
-                  key={sig.patientUserId + sig.kind + idx}
-                  className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
-                >
-                  <span className="text-base flex-none">⚠</span>
-                  <span className="flex-1 text-xs text-foreground">{sig.summary}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Актуальные симптомы */}
         <div className={doctorSectionCardClass}>

@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ClipboardList, X } from 'lucide-react';
+import { ClipboardList, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/doctor/primitives/tooltip';
 import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
@@ -94,14 +93,6 @@ function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
   }));
 }
 
-/**
- * Owner punch-list (2026-07-25) item 2: the standalone «Сигналы пациентов» card on «Сегодня»
- * was removed, but the underlying signal mechanism (doctor-proactive-insights) is kept — it now
- * surfaces here as an «внимание» attention mark on the patient's conversation row, with a
- * tooltip carrying the reason(s) (which signal(s) fired).
- */
-type PatientSignal = { kind: string; summary: string };
-
 function convSignature(rows: ConvRow[]): string {
   return rows
     .map(
@@ -136,42 +127,12 @@ export function DoctorSupportInbox({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
-  const [signalsByPatient, setSignalsByPatient] = useState<Map<string, PatientSignal[]>>(new Map());
   const sigRef = useRef<string>('');
   const selectedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
   }, [selectedId]);
-
-  // Owner punch-list item 2: load per-patient attention signals once — best-effort, does not
-  // block or gate the conversation list itself (kept out of the 1s poll loop below).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/doctor/proactive-insights/by-patient');
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          ok?: boolean;
-          items?: { patientUserId: string; kind: string; summary: string }[];
-        };
-        if (cancelled || !data.ok || !data.items) return;
-        const map = new Map<string, PatientSignal[]>();
-        for (const item of data.items) {
-          const list = map.get(item.patientUserId) ?? [];
-          list.push({ kind: item.kind, summary: item.summary });
-          map.set(item.patientUserId, list);
-        }
-        setSignalsByPatient(map);
-      } catch {
-        // best-effort — attention marks are a nice-to-have, not worth surfacing an error for.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Deep-link: открыть конкретный диалог из URL (?id=), матчит паттерн IntakeTab/
   // DoctorOnlineIntakeClient. Реагируем только на ВНЕШНИЙ deep-link — если диалог уже
@@ -216,9 +177,7 @@ export function DoctorSupportInbox({
     if (rows === null) {
       setError('Не удалось загрузить диалоги');
       setAllList([]);
-      sigRef.current = '';
     } else {
-      sigRef.current = convSignature(rows);
       setAllList(rows);
     }
   }, [fetchList]);
@@ -420,9 +379,6 @@ export function DoctorSupportInbox({
           <ul className={cn(doctorDnaFlatListClass, doctorDnaFlatListInsetClass, 'flex flex-col')}>
             {filteredList.map((c, index) => {
               const isSelected = selectedId === c.conversationId;
-              const patientSignals = c.patientUserId
-                ? (signalsByPatient.get(c.patientUserId) ?? null)
-                : null;
               return (
                 <li key={c.conversationId}>
                   <Button
@@ -452,23 +408,6 @@ export function DoctorSupportInbox({
                           {c.onSupport && (
                             <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
                           )}
-                          {patientSignals && patientSignals.length > 0 ? (
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <span
-                                    className="ml-1.5 inline-flex translate-y-[-1px] items-center text-destructive"
-                                    aria-label={`Внимание: ${patientSignals.map((s) => s.summary).join('; ')}`}
-                                  >
-                                    <AlertTriangle className="size-3" aria-hidden />
-                                  </span>
-                                }
-                              />
-                              <TooltipContent>
-                                {patientSignals.map((s) => s.summary).join('; ')}
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : null}
                         </span>
                         <span className={cn('shrink-0', doctorDnaFlatListMetaClass)}>
                           {formatConversationTime(c.lastMessageAt, displayIana)}

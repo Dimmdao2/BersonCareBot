@@ -6,7 +6,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { createPgDoctorMotivationQuotesEditorPort } from '@/infra/repos/pgDoctorMotivationQuotesEditor';
-import { createPgDoctorProactiveInsightsPort } from '@/infra/repos/pgDoctorProactiveInsights';
 
 async function assertDevDb(client: pg.PoolClient): Promise<void> {
   const r = await client.query<{ n: string }>(`SELECT current_database() AS n`);
@@ -45,29 +44,4 @@ describe.skipIf(!enabled)('Wave 3 phase 13D (dev DB, opt-in read-only)', () => {
     expect(Array.isArray(rows)).toBe(true);
   });
 
-  it('proactive insights queryInsights returns paginated shape', async () => {
-    const client = await pool.connect();
-    let organizationId = '00000000-0000-0000-0000-000000000000';
-    try {
-      await assertDevDb(client);
-      const result = await client.query<{ organization_id: string }>(
-        `SELECT organization_id::text
-         FROM doctor_patient_support
-         WHERE organization_id IS NOT NULL
-         LIMIT 1`,
-      );
-      organizationId = result.rows[0]?.organization_id ?? organizationId;
-    } finally {
-      client.release();
-    }
-
-    const port = createPgDoctorProactiveInsightsPort();
-    const result = await port.queryInsights({
-      limit: 5,
-      displayIana: 'Europe/Moscow',
-      organizationId,
-    });
-    expect(Array.isArray(result.items)).toBe(true);
-    expect(typeof result.totalCount).toBe('number');
-  });
 });

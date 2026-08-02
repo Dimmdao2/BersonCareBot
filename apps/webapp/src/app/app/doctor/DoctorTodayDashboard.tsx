@@ -249,12 +249,6 @@ export function DoctorTodayDashboard({
             )}
           </DoctorSection>
 
-          {/* Owner punch-list (2026-07-25) item 2: the «Сигналы пациентов» card is removed —
-              it was unclear to the owner. The underlying signal mechanism (doctor-proactive-insights,
-              data.proactiveInsights) is kept and now surfaces as an attention mark + reason tooltip
-              on the patient's row in the support/messages list instead
-              (see DoctorSupportInbox.tsx). DoctorTodaySignalsSection.tsx is left in the tree unused
-              in case the owner wants a variant of it back later. */}
         </div>
 
         {/* ───── Правое полотно: приём и время ───── */}

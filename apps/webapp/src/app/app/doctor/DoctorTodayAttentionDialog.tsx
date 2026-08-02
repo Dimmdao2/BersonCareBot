@@ -6,12 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { proactiveInsightKindLabelRu } from '@/modules/doctor-proactive-insights/computeProactiveInsights';
 import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
 import { sendDoctorProgramDiscussionReply } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/doctorProgramDiscussionReply';
 import type { TodayPendingProgramTestItem } from './mapPendingProgramTestsForToday';
-import type { TodayProactiveInsightItem } from './mapProactiveInsightsForToday';
 import { markDoctorProgramDiscussionRead } from './doctorProgramDiscussionMarkRead';
 import type { TodayExerciseCommentAttentionItem } from './loadDoctorExerciseCommentAttention';
 import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
@@ -21,14 +19,12 @@ export type DoctorTodayAttentionKind =
   | 'intake'
   | 'messages'
   | 'pendingTests'
-  | 'proactive'
   | 'exerciseComments';
 
 const TITLES: Record<DoctorTodayAttentionKind, string> = {
   intake: 'Онлайн-заявки',
   messages: 'Сообщения',
   pendingTests: 'Тесты к проверке',
-  proactive: 'Сигналы пациентов',
   exerciseComments: 'Новые комментарии по упражнениям',
 };
 
@@ -36,7 +32,6 @@ const EMPTY_MESSAGES: Record<DoctorTodayAttentionKind, string> = {
   intake: 'Новых заявок нет',
   messages: 'Непрочитанных сообщений нет',
   pendingTests: 'Нет тестов, ожидающих оценки',
-  proactive: 'Нет сигналов по самочувствию и активности программы',
   exerciseComments: 'Нет новых комментариев по упражнениям',
 };
 
@@ -50,9 +45,6 @@ type Props = {
   pendingProgramTests: TodayPendingProgramTestItem[];
   pendingProgramTestsTotal: number;
   pendingProgramTestsTruncated: boolean;
-  proactiveInsights: TodayProactiveInsightItem[];
-  proactiveInsightsTotal: number;
-  proactiveInsightsTruncated: boolean;
   exerciseCommentAttentionItems: TodayExerciseCommentAttentionItem[];
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
@@ -302,9 +294,6 @@ export function DoctorTodayAttentionDialog({
   pendingProgramTests,
   pendingProgramTestsTotal,
   pendingProgramTestsTruncated,
-  proactiveInsights,
-  proactiveInsightsTotal,
-  proactiveInsightsTruncated,
   exerciseCommentAttentionItems,
   exerciseCommentAttentionTotal,
   exerciseCommentAttentionTruncated,
@@ -433,39 +422,6 @@ export function DoctorTodayAttentionDialog({
           </>
         ) : null}
 
-        {kind === 'proactive' ? (
-          <>
-            {proactiveInsightsTotal > 0 ? (
-              <p className="mb-2 text-xs text-muted-foreground">
-                На сопровождении: {proactiveInsightsTotal}
-              </p>
-            ) : null}
-            {proactiveInsights.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.proactive}</p>
-            ) : (
-              <ul className="m-0 list-none space-y-2 p-0">
-                {proactiveInsights.map((item) => (
-                  <li key={`${item.kind}-${item.patientUserId}`} className={doctorSectionItemClass}>
-                    <p className="font-medium text-foreground">{item.patientDisplayName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {proactiveInsightKindLabelRu(item.kind)} · {item.summary}
-                    </p>
-                    <p className="mt-2">
-                      <Link href={item.href} className={doctorInlineLinkClass}>
-                        Открыть карточку
-                      </Link>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {proactiveInsightsTruncated ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Показаны первые {proactiveInsights.length} из {proactiveInsightsTotal}
-              </p>
-            ) : null}
-          </>
-        ) : null}
 
         {kind === 'exerciseComments' ? (
           <>

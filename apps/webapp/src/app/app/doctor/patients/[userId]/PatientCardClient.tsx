@@ -12,7 +12,6 @@ import type { AnamnesisState, ClinicalState, Visit } from '@/modules/patient-cli
 import type { Comorbidity } from '@/modules/patient-comorbidities/ports';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
-import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
 import type { DoctorPatientProgramActivity } from '../loadDoctorPatientProgramActivity';
 import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
 import {
@@ -58,7 +57,6 @@ type Props = {
   initialVisits?: Visit[] | null;
   initialNotes?: DoctorNoteRow[] | null;
   initialTasks?: SpecialistTaskRow[] | null;
-  initialSignals?: ProactiveInsightRow[] | null;
   initialProgramActivity?: DoctorPatientProgramActivity | null;
   initialAppointments?: PatientAppointmentItem[] | null;
   initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
@@ -139,7 +137,6 @@ export function PatientCardClient({
   initialVisits,
   initialNotes,
   initialTasks,
-  initialSignals,
   initialProgramActivity,
   initialAppointments,
   initialProgramInstances,
@@ -574,7 +571,6 @@ export function PatientCardClient({
           initialVisits={initialVisits}
           initialNotes={initialNotes}
           initialTasks={initialTasks}
-          initialSignals={initialSignals}
           initialProgramActivity={initialProgramActivity}
           initialAppointments={initialAppointments}
           initialPackages={initialPackages}
