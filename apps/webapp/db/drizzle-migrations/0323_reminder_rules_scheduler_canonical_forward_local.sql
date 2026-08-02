@@ -36,8 +36,9 @@ BEGIN
 END
 $d5_preflight$;
 
--- Old rows predate D5 direct writes. Their stable text ID and all scheduler fields are copied once;
--- the following parity gate makes every ambiguous or conflicting mapping fail closed.
+-- Old rows predate D5 direct writes. Their stable text ID and scheduler fields are copied only when
+-- the canonical row is absent. Existing canonical rows are newer product authority and must not be
+-- forced back to stale legacy topic/intent/schedule values by this late forward replay.
 INSERT INTO public.reminder_rules (
   integrator_rule_id, platform_user_id, organization_id, integrator_user_id,
   category, is_enabled, schedule_type, timezone, interval_minutes,
@@ -78,7 +79,7 @@ WHERE canonical.integrator_rule_id = legacy.id
   AND canonical.integrator_user_id = legacy.user_id
   AND legacy.organization_id IS NOT NULL;
 
-DO $d5_parity$
+DO $d5_identity_parity$
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -86,33 +87,14 @@ BEGIN
     LEFT JOIN public.reminder_rules canonical
       ON canonical.integrator_rule_id = legacy.id
     WHERE canonical.integrator_rule_id IS NULL
-       OR canonical.integrator_user_id IS DISTINCT FROM legacy.user_id
        OR canonical.organization_id IS DISTINCT FROM legacy.organization_id
-       OR canonical.category IS DISTINCT FROM legacy.category
-       OR canonical.is_enabled IS DISTINCT FROM legacy.is_enabled
-       OR canonical.schedule_type IS DISTINCT FROM legacy.schedule_type
-       OR canonical.timezone IS DISTINCT FROM legacy.timezone
-       OR canonical.interval_minutes IS DISTINCT FROM legacy.interval_minutes
-       OR canonical.window_start_minute IS DISTINCT FROM legacy.window_start_minute
-       OR canonical.window_end_minute IS DISTINCT FROM legacy.window_end_minute
-       OR canonical.days_mask IS DISTINCT FROM legacy.days_mask
-       OR canonical.content_mode IS DISTINCT FROM legacy.content_mode
-       OR canonical.linked_object_type IS DISTINCT FROM legacy.linked_object_type
-       OR canonical.linked_object_id IS DISTINCT FROM legacy.linked_object_id
-       OR canonical.custom_title IS DISTINCT FROM legacy.custom_title
-       OR canonical.custom_text IS DISTINCT FROM legacy.custom_text
-       OR canonical.schedule_data IS DISTINCT FROM legacy.schedule_data
-       OR canonical.reminder_intent IS DISTINCT FROM legacy.reminder_intent
-       OR canonical.quiet_hours_start_minute IS DISTINCT FROM legacy.quiet_hours_start_minute
-       OR canonical.quiet_hours_end_minute IS DISTINCT FROM legacy.quiet_hours_end_minute
-       OR canonical.notification_topic_code IS DISTINCT FROM legacy.notification_topic_code
   ) THEN
     RAISE EXCEPTION
-      'D5 precondition failed: canonical reminder_rules parity differs from legacy data; resolve mapping before retrying'
+      'D5 precondition failed: canonical reminder_rules ownership differs from legacy data; resolve mapping before retrying'
       USING ERRCODE = '23514';
   END IF;
 END
-$d5_parity$;
+$d5_identity_parity$;
 
 ALTER TABLE integrator.user_reminder_occurrences
   DROP CONSTRAINT IF EXISTS user_reminder_occurrences_rule_id_fkey;
