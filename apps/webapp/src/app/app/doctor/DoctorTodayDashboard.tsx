@@ -42,6 +42,8 @@ type Props = {
   displayIana: string;
   adminHealthBanner?: AdminDoctorTodayHealthBanner;
   adminRegistrationFailureBanner?: AdminRegistrationFailureAttention;
+  specialistTasksAvailable: boolean;
+  specialistTasksReadable: boolean;
   /**
    * Рабочие границы дня (§1.2, S4): вычислены на сервере через deriveWorkingBounds.
    * Прокидываются в мини-календарь как базовое окно рабочего дня.
@@ -67,6 +69,8 @@ export function DoctorTodayDashboard({
   adminHealthBanner,
   adminRegistrationFailureBanner,
   todayWorkingBounds,
+  specialistTasksAvailable,
+  specialistTasksReadable,
 }: Props) {
   // Вычисляем серверное время в бизнес-таймзоне для mini-calendar и карточки приёма
   const nowDt = DateTime.now().setZone(displayIana);
@@ -115,11 +119,9 @@ export function DoctorTodayDashboard({
       <div id="doctor-today-two-panes" className="grid gap-3 md:grid-cols-2 md:items-start">
         {/* ───── Левое полотно: входящий рабочий поток ───── */}
         <div id="doctor-today-left-pane" className="flex flex-col gap-3">
-          {/* 4 компактных KPI: Сообщения, Комментарии, Заявки, Тесты */}
+          {/* Компактные KPI входящего рабочего потока. */}
           <DoctorTodayLeftKpiRow
-            intakeCount={data.newIntakeRequests.length}
             pendingTestsTotal={data.pendingProgramTestsTotal}
-            newIntakeRequests={data.newIntakeRequests}
             unreadConversations={data.unreadConversations}
             unreadTotal={data.unreadTotal}
             pendingProgramTests={data.pendingProgramTests}
@@ -136,6 +138,8 @@ export function DoctorTodayDashboard({
             todayIso={todayIso}
             displayIana={displayIana}
             className="flex-1"
+            available={specialistTasksAvailable}
+            readable={specialistTasksReadable}
           />
 
           {/* Configurable people list: exact on-support or recent-visit semantics. */}
@@ -249,12 +253,6 @@ export function DoctorTodayDashboard({
             )}
           </DoctorSection>
 
-          {/* Owner punch-list (2026-07-25) item 2: the «Сигналы пациентов» card is removed —
-              it was unclear to the owner. The underlying signal mechanism (doctor-proactive-insights,
-              data.proactiveInsights) is kept and now surfaces as an attention mark + reason tooltip
-              on the patient's row in the support/messages list instead
-              (see DoctorSupportInbox.tsx). DoctorTodaySignalsSection.tsx is left in the tree unused
-              in case the owner wants a variant of it back later. */}
         </div>
 
         {/* ───── Правое полотно: приём и время ───── */}

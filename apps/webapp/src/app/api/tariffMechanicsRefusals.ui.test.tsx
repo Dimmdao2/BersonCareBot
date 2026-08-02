@@ -110,6 +110,75 @@ describe('tariff refusal UI', () => {
     expect(screen.queryByRole('button', { name: 'Разминки' })).not.toBeInTheDocument();
   });
 
+  it('keeps CMS lists readable without offering mutations during the read-only ladder step', () => {
+    const nav = render(
+      <ContentNav
+        articleSections={[{ slug: 'articles', title: 'Статьи', isVisible: true }]}
+        canManageCms={false}
+        patientHomeTodayEnabled
+        warmupsEnabled
+        activePaneKey="section:articles"
+        onPaneChange={vi.fn()}
+        onCreateSection={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Статьи' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ Раздел' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Скрыть раздел' })).not.toBeInTheDocument();
+    nav.unmount();
+
+    const pages = render(
+      <ContentPagesSectionList
+        sectionSlug="articles"
+        sectionTitle="Статьи"
+        canManageCms={false}
+        initialPages={[
+          {
+            id: '22222222-2222-4222-8222-222222222222',
+            section: 'articles',
+            slug: 'article',
+            title: 'Статья',
+            sortOrder: 0,
+            isPublished: true,
+            requiresAuth: false,
+            archivedAt: null,
+            deletedAt: null,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('Статья')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Статья' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Публичная страница' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Снять с публикации' })).not.toBeInTheDocument();
+    pages.unmount();
+
+    render(
+      <ContentSectionsListClient
+        canManageCms={false}
+        initialSections={[
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            slug: 'articles',
+            title: 'Статьи',
+            sortOrder: 0,
+            isVisible: true,
+            requiresAuth: false,
+            coverImageUrl: null,
+            iconImageUrl: null,
+            kind: 'article',
+            systemParentCode: null,
+            pagesInSection: 1,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('articles')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Статьи' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Виден пациенту' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Действия' })).not.toBeInTheDocument();
+  });
+
   it('shows CMS refusals from nav, section, page, and lifecycle handlers', async () => {
     const nav = render(
       <ContentNav
@@ -319,6 +388,22 @@ describe('tariff refusal UI', () => {
     await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
     fireEvent.click(screen.getByRole('button', { name: 'Обновить' }));
     await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps promo statistics readable but hides mutation controls in read-only mode', () => {
+    render(
+      <DefaultPromoProgramClient
+        initialTemplateId="22222222-2222-4222-8222-222222222222"
+        templates={[{ id: '22222222-2222-4222-8222-222222222222', title: 'Промо' }]}
+        stats={{ activePromo: 3, completedPromo: 5 }}
+        canMutate={false}
+      />,
+    );
+
+    expect(screen.getByText('Активных экземпляров: 3')).toBeInTheDocument();
+    expect(screen.getByText('Завершённых экземпляров: 5')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Обновить' })).not.toBeInTheDocument();
   });
 
   it('shows returned errors in every Today settings panel', async () => {

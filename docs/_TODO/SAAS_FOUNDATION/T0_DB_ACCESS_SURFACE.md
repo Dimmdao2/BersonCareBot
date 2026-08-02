@@ -87,13 +87,14 @@ These route files had `getPool`, `getDrizzle`, `runWebappPgText`, direct query, 
 - `apps/webapp/src/app/api/doctor/clients/name-match-hints/route.ts`
 - `apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/media-presign/route.ts`
 - `apps/webapp/src/app/api/integrator/events/route.ts`
-- `apps/webapp/src/app/api/integrator/reminders/messenger-topic/disable/route.ts`
-- `apps/webapp/src/app/api/integrator/reminders/mute/route.ts`
-- `apps/webapp/src/app/api/integrator/reminders/notification-settings/route.ts`
-- `apps/webapp/src/app/api/integrator/reminders/notification-settings/toggle/route.ts`
-- `apps/webapp/src/app/api/integrator/reminders/occurrences/done/route.ts`
-- `apps/webapp/src/app/api/integrator/reminders/occurrences/skip/route.ts`
-- `apps/webapp/src/app/api/integrator/reminders/occurrences/snooze/route.ts`
+<!-- Historical D7 removal record: these seven callback routes were removed; they are not current surface entries. -->
+- [Historical D7 removal] `apps/webapp/src/app/api/integrator/reminders/messenger-topic/disable/route.ts`
+- [Historical D7 removal] `apps/webapp/src/app/api/integrator/reminders/mute/route.ts`
+- [Historical D7 removal] `apps/webapp/src/app/api/integrator/reminders/notification-settings/route.ts`
+- [Historical D7 removal] `apps/webapp/src/app/api/integrator/reminders/notification-settings/toggle/route.ts`
+- [Historical D7 removal] `apps/webapp/src/app/api/integrator/reminders/occurrences/done/route.ts`
+- [Historical D7 removal] `apps/webapp/src/app/api/integrator/reminders/occurrences/skip/route.ts`
+- [Historical D7 removal] `apps/webapp/src/app/api/integrator/reminders/occurrences/snooze/route.ts`
 - `apps/webapp/src/app/api/internal/media-multipart/cleanup/route.ts`
 - `apps/webapp/src/app/api/media/multipart/abort/route.ts`
 - `apps/webapp/src/app/api/media/multipart/complete/route.ts`

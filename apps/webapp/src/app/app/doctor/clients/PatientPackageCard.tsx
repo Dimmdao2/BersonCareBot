@@ -56,9 +56,17 @@ type Props = {
   onChanged?: () => void;
   /** Called when doctor clicks «Пересчитать» on an active package. */
   onRecalc?: () => void;
+  mutationsAllowed?: boolean;
 };
 
-export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc }: Props) {
+export function PatientPackageCard({
+  pkg,
+  apiBase,
+  onError,
+  onChanged,
+  onRecalc,
+  mutationsAllowed = true,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
@@ -193,18 +201,20 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
       </ul>
 
       {/* Notes field */}
-      <div className="space-y-1">
-        <Label htmlFor={`notes-${pkg.id}`} className="text-xs">
-          Комментарий
-        </Label>
-        <Input
-          id={`notes-${pkg.id}`}
-          value={notes}
-          onChange={(e) => setNotesDraft(e.target.value)}
-          onBlur={saveNotes}
-          disabled={pending}
-        />
-      </div>
+      {mutationsAllowed ? (
+        <div className="space-y-1">
+          <Label htmlFor={`notes-${pkg.id}`} className="text-xs">
+            Комментарий
+          </Label>
+          <Input
+            id={`notes-${pkg.id}`}
+            value={notes}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            onBlur={saveNotes}
+            disabled={pending}
+          />
+        </div>
+      ) : null}
 
       {/* Expandable: sessions list + history */}
       {open ? (
@@ -214,6 +224,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
             apiBase={apiBase}
             onError={(code) => onError?.(code)}
             onChanged={onChanged}
+            mutationsAllowed={mutationsAllowed}
           />
           <details
             className="mt-2"

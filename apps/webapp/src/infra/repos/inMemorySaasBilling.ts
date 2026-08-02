@@ -245,6 +245,19 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
     },
 
     async createSaasBillingInvoice(input) {
+      // #1057 — old K0 keys were clock-bucketed. A retry after that bucket changed must still use
+      // the empty renewal invoice for this exact subscription period. Manual invoices have a
+      // description/expiry and seat overage has a different kind, so neither can alias this path.
+      const existingRenewal = [...invoices.values()].find(
+        (row) =>
+          row.saasBillingSubscriptionId === input.saasBillingSubscriptionId &&
+          row.servicePeriodStartsAt === input.servicePeriodStartsAt &&
+          row.servicePeriodEndsAt === input.servicePeriodEndsAt &&
+          row.invoiceKind === 'tariff_period' &&
+          row.description === null &&
+          row.expiresAt === null,
+      );
+      if (existingRenewal) return { invoice: existingRenewal, created: false };
       const authority = [...rows.values()].find(
         (row) =>
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
@@ -287,6 +300,20 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       };
       invoices.set(row.id, row);
       return row;
+    },
+
+    async claimSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      const current = invoices.get(saasBillingInvoiceId);
+      if (!current || current.status !== 'draft' || current.providerInvoiceRef !== null) return false;
+      invoices.set(current.id, { ...current, status: 'pending' });
+      return true;
+    },
+
+    async releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+      const current = invoices.get(saasBillingInvoiceId);
+      if (current?.status === 'pending' && current.providerInvoiceRef === null) {
+        invoices.set(current.id, { ...current, status: 'draft' });
+      }
     },
 
     async recordSaasBillingProviderEvent(input) {
@@ -704,6 +731,24 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         return null;
       }
       const row: SaasBillingInvoice = { ...current, status: 'failed' };
+      invoices.set(row.id, row);
+      return row;
+    },
+
+    async prepareSaasBillingFailedInvoiceForManualCheckout(input) {
+      const current = invoices.get(input.saasBillingInvoiceId);
+      if (!current || current.organizationId !== input.organizationId) {
+        throw new Error('saas_billing_invoice_not_found');
+      }
+      if (current.status !== 'failed') return current;
+      const row: SaasBillingInvoice = {
+        ...current,
+        status: 'draft',
+        providerId: input.providerId,
+        providerIdempotencyKey: input.providerIdempotencyKey,
+        providerInvoiceRef: null,
+        providerCheckoutUrl: null,
+      };
       invoices.set(row.id, row);
       return row;
     },

@@ -177,6 +177,11 @@ describe('D32 unsupported message type gets a reply, not silence', () => {
         payload: expect.objectContaining({
           recipient: { chatId: 7001 },
           message: { text: 'text:relay.unsupportedType' },
+          delivery: {
+            channels: ['telegram'],
+            maxAttempts: 1,
+            senderScope: 'clinic_required',
+          },
         }),
       }),
     ]);

@@ -94,16 +94,13 @@
       `ch4-settings-reader-audit-r1`; четыре прямых чтения в трёх repos → 0, per-org лимиты используют
       canonical runtime reader, default organization и structured analytics config fail closed. Focused 19/19,
       scoped ESLint/typecheck/raw-SQL/diff green; fault injection на `0`, organization id и malformed JSON красный.
-- [ ] **Ч4б. Квоты: дубль логики в SQL — инженерный этап, не owner-gate.** Резолвер прав один
-      (`modules/org-entitlements/service.ts`), но проверка квоты В МОМЕНТ ЗАПИСИ продублирована в SQL
-      (`infra/repos/stockQuotaCheck.ts` + инлайн в `pgOrganizationInvites.ts`), и в комментариях кода это
-      признано зеркалом. Причина настоящая: чтобы двое не заняли последний слот одновременно, проверка
-      обязана идти внутри транзакции с блокировкой, чего резолвер на JS не умеет. Убрать дубль = потерять
-      атомарность. **Уточнение владельца 01.08:** техническую архитектуру выбирает аудит/исполнитель, владелец
-      задаёт продуктовое поведение. Действующее продуктовое поведение уже определено тарифным планом; задача
-      этапа — свести enforcement в один transaction-aware quota-port/DB-resolver и сохранить UI read-проекцию,
-      не ослабив lock/атомарность. После 0308 соседнего writer-а в этих файлах больше нет; реализацию начинать
-      после фиксации/land миграции 0309 В9б, чтобы не столкнуть journal и общий SQL-overlay.
+- [x] **Ч4б. Квоты: один transaction-aware quota port.** `transactionQuotaPort.ts` держит прежние
+      organization advisory locks, effective-tariff/active-override resolution и serialized recount. Через
+      него проходят stock writers, `pgOrganizationInvites` и seat-overage invoice writer; UI read-projection
+      `modules/org-entitlements/service.ts` не менялась. Доказательство: `transactionQuotaPort.unit.test.ts`
+      (2), `clinic/invites/route.route.test.ts` (3), `pnpm --dir apps/webapp exec tsc --noEmit`, scoped ESLint,
+      `node scripts/check-no-new-raw-sql.mjs` и `git diff --check` — exit 0. Private/disposable PostgreSQL не
+      запускался; lock сохраняется в том же Drizzle transaction boundary.
 - [x] **Ч7. Значение настройки живёт в базе, в коде его нет (владелец, 01.08).** До этапа у каждой
       настройки было значение, зашитое в исходник (`modules/system-settings/runtimeConfig.ts`, таблицы
       `*_DEFAULTS`), и оно подставлялось молча, когда чтение из базы не удалось. «В базе нет строки» и «не

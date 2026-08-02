@@ -44,6 +44,10 @@ export function createPatientFilesService({ patientFilesPort }: PatientFilesServ
       return patientFilesPort.renameFile(id, fileName);
     },
 
+    async deleteFile(id: string): Promise<boolean> {
+      return patientFilesPort.deleteFile(id);
+    },
+
     async getStorageUsedBytes(): Promise<number> {
       return patientFilesPort.getStorageUsedBytes();
     },

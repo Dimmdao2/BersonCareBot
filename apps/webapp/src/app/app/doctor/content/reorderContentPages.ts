@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { routePaths } from '@/app-layer/routes/paths';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { isHelpSectionSlug } from '@/modules/content-sections/types';
@@ -20,7 +23,12 @@ export async function reorderContentPagesInSection(
 ): Promise<ReorderContentPagesState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const sec = section?.trim();
   if (!sec) return { ok: false, error: 'Не указан раздел' };
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {

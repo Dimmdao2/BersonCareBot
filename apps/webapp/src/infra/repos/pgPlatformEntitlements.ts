@@ -34,14 +34,26 @@ import { PLATFORM_OPERATIONS_DB_SOURCE } from '@/shared/security/platformOperati
 type Db = ReturnType<typeof getDrizzle>;
 type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
 
+function withoutLegacyClinicalTestConfiguration<T>(value: Record<string, T>): Record<string, T> {
+  const { clinical_tests: _legacyClinicalTests, ...current } = value;
+  return current;
+}
+
 function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
   return {
     ...row,
     billingPeriod: row.billingPeriod as Tariff['billingPeriod'],
+    // Owner 02.08: stored tariff JSON can retain the former key, but it is no longer a
+    // configurable tariff surface or serialized mechanic.
+    mechanics: withoutLegacyClinicalTestConfiguration(row.mechanics),
     quotas: row.quotas as TariffQuotaMap,
     systemAccessPolicy: row.systemAccessPolicy as AccessLifecyclePolicy | null,
-    mechanicAccessPolicies: row.mechanicAccessPolicies as MechanicAccessPolicyMap,
-    downgradePolicies: row.downgradePolicies as DowngradePolicyMap,
+    mechanicAccessPolicies: withoutLegacyClinicalTestConfiguration(
+      row.mechanicAccessPolicies,
+    ) as MechanicAccessPolicyMap,
+    downgradePolicies: withoutLegacyClinicalTestConfiguration(
+      row.downgradePolicies,
+    ) as DowngradePolicyMap,
   };
 }
 
@@ -310,6 +322,8 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         const trialByOrg = new Map(trials.map((trial) => [trial.organizationId, trial]));
         const overridesByOrg = new Map<string, OrgEntitlementOverride[]>();
         for (const override of overrides) {
+          // Leave legacy override rows intact in storage, but never expose them as a tariff control.
+          if (override.mechanic === 'clinical_tests') continue;
           const current = overridesByOrg.get(override.organizationId) ?? [];
           current.push(toOverride(override));
           overridesByOrg.set(override.organizationId, current);

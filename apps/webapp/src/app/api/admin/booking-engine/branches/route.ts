@@ -5,7 +5,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 import { isReservedOnlineLocationIdentity } from '@/modules/booking-engine/onlineLocation';
 
-/** Thrown by the infra atomic quota check (`stockQuotaCheck.ts`); compared by message, not class, to keep this route free of an infra import. */
+/** Thrown by the infra atomic quota port; compared by message, not class, to keep this route free of an infra import. */
 const BRANCHES_QUOTA_REACHED_MESSAGE = 'saas_quota_reached:branches';
 
 const PostSchema = z.object({

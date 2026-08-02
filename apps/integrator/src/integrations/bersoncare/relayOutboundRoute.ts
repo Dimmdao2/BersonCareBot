@@ -36,6 +36,7 @@ const relayPayloadSchema = z
     html: z.string().optional(),
     idempotencyKey: z.string().min(1),
     metadata: z.record(z.string(), z.unknown()).optional(),
+    senderScope: z.literal('clinic_required').optional(),
     purpose: z.never().optional(),
   })
   .superRefine((value, ctx) => {
@@ -75,11 +76,24 @@ function verifySignature(
 }
 
 function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
+  // The signed relay is a trusted producer. Its public body cannot nominate a policy marker:
+  // normal product notices are essential, whereas an explicitly clinic-required send is a
+  // clinic-owned broadcast and must fail closed at the sender boundary.
+  const outboundPolicy = parsed.senderScope === 'clinic_required'
+    ? {
+        outboundMessageClass: 'broadcast_event' as const,
+        outboundCapability: 'clinic_delivery' as const,
+      }
+    : {
+        outboundMessageClass: 'routine_product' as const,
+        outboundCapability: 'essential_delivery' as const,
+      };
   const meta = {
     eventId: parsed.messageId,
     occurredAt: new Date().toISOString(),
     source: parsed.channel,
     correlationId: parsed.idempotencyKey,
+    ...outboundPolicy,
   };
 
   if (parsed.channel === 'telegram' || parsed.channel === 'max') {
@@ -99,7 +113,10 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         recipient,
         message: { text: parsed.text },
         ...(replyMarkup ? { replyMarkup } : {}),
-        delivery: { channels: [parsed.channel] },
+        delivery: {
+          channels: [parsed.channel],
+          ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+        },
       },
     };
   }
@@ -111,7 +128,10 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
       payload: {
         recipient: { phoneNormalized: parsed.recipient },
         message: { text: parsed.text },
-        delivery: { channels: ['smsc'] },
+        delivery: {
+          channels: ['smsc'],
+          ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+        },
       },
     };
   }
@@ -133,7 +153,10 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         subject,
         message: { text: parsed.text },
         ...(parsed.html ? { html: parsed.html } : {}),
-        delivery: { channels: ['email'] },
+        delivery: {
+          channels: ['email'],
+          ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+        },
       },
     };
   }

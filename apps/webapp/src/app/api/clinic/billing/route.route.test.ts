@@ -14,6 +14,7 @@ vi.mock('@bersoncare/db-principal', () => ({
 }));
 
 import { DELETE, GET, PATCH, POST } from './route';
+import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/service';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const tariffId = '22222222-2222-4222-8222-222222222222';
@@ -30,18 +31,26 @@ describe('/api/clinic/billing tariff change', () => {
       ok: true,
       ctx: { organizationId, membershipRole: 'owner', session: { user: { userId: 'actor' } } },
     });
-    fakes.buildAppDeps.mockReturnValue({ saasBilling: {
-      getOrganizationBillingOverview,
-      getOwnTariffChangeState,
-      scheduleOwnTariffChange,
-      cancelOwnTariffChange,
-    } });
+    fakes.buildAppDeps.mockReturnValue({
+      saasBilling: {
+        getOrganizationBillingOverview,
+        getOwnTariffChangeState,
+        scheduleOwnTariffChange,
+        cancelOwnTariffChange,
+      },
+    });
   });
 
   it('returns choices and the pending effective date from the single billing route', async () => {
-    getOrganizationBillingOverview.mockResolvedValue({ organizationId, subscriptions: [], invoices: [] });
+    getOrganizationBillingOverview.mockResolvedValue({
+      organizationId,
+      subscriptions: [],
+      invoices: [],
+    });
     getOwnTariffChangeState.mockResolvedValue({
-      choices: [{ id: tariffId, name: 'Меньше' }], currentTariffId: 'current', pendingTariffId: tariffId,
+      choices: [{ id: tariffId, name: 'Меньше' }],
+      currentTariffId: 'current',
+      pendingTariffId: tariffId,
       pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
     });
 
@@ -54,14 +63,24 @@ describe('/api/clinic/billing tariff change', () => {
   });
 
   it('schedules through the service and exposes a blocker before any payment path', async () => {
-    scheduleOwnTariffChange.mockRejectedValue(new Error('saas_billing_tariff_downgrade_blocked'));
+    scheduleOwnTariffChange.mockRejectedValue(
+      new SaasBillingTariffDowngradeBlockedError([{ mechanic: 'branches', reason: 'quota_exceeded' }]),
+    );
 
-    const response = await PATCH(new Request('http://test/api/clinic/billing', {
-      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tariffId }),
-    }));
+    const response = await PATCH(
+      new Request('http://test/api/clinic/billing', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tariffId }),
+      }),
+    );
 
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({ ok: false, error: 'saas_billing_tariff_downgrade_blocked' });
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_tariff_downgrade_blocked',
+      blocks: [{ mechanic: 'branches', reason: 'quota_exceeded' }],
+    });
   });
 
   it('cancels the pending change without creating an invoice', async () => {
@@ -81,7 +100,10 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       ok: true,
       ctx: { organizationId, membershipRole: 'owner', session: { user: { userId: 'actor' } } },
     });
-    fakes.buildAppDeps.mockReturnValue({ saasBilling: { purchaseSeatOverage } });
+    fakes.buildAppDeps.mockReturnValue({
+      orgEntitlements: { resolveMechanicAccess: async () => ({ state: 'active', warning: null }) },
+      saasBilling: { purchaseSeatOverage },
+    });
   });
 
   function request(body: unknown) {
@@ -95,9 +117,14 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
   it('does not issue an invoice when a seat became available', async () => {
     purchaseSeatOverage.mockResolvedValue({ outcome: 'seat_available' });
 
-    const response = await POST(request({
-      purchase: 'seat_overage', requestKey: 'stable-key', amountMinor: 15_000, currency: 'RUB',
-    }));
+    const response = await POST(
+      request({
+        purchase: 'seat_overage',
+        requestKey: 'stable-key',
+        amountMinor: 15_000,
+        currency: 'RUB',
+      }),
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, outcome: 'seat_available' });
@@ -105,12 +132,19 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
 
   it('returns the fresh server quote without an invoice when the price changed', async () => {
     purchaseSeatOverage.mockResolvedValue({
-      outcome: 'price_changed', priceMinor: 18_000, currency: 'RUB',
+      outcome: 'price_changed',
+      priceMinor: 18_000,
+      currency: 'RUB',
     });
 
-    const response = await POST(request({
-      purchase: 'seat_overage', requestKey: 'stable-key', amountMinor: 15_000, currency: 'RUB',
-    }));
+    const response = await POST(
+      request({
+        purchase: 'seat_overage',
+        requestKey: 'stable-key',
+        amountMinor: 15_000,
+        currency: 'RUB',
+      }),
+    );
 
     expect(response.status).toBe(402);
     await expect(response.json()).resolves.toEqual({
@@ -127,9 +161,14 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       invoice: { id: 'seat-invoice', providerCheckoutUrl: 'https://pay.example/seat' },
     });
 
-    const response = await POST(request({
-      purchase: 'seat_overage', requestKey: 'stable-key', amountMinor: 15_000, currency: 'RUB',
-    }));
+    const response = await POST(
+      request({
+        purchase: 'seat_overage',
+        requestKey: 'stable-key',
+        amountMinor: 15_000,
+        currency: 'RUB',
+      }),
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -137,6 +176,28 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       checkoutUrl: 'https://pay.example/seat',
       invoiceId: 'seat-invoice',
     });
+  });
+
+  it('rejects a direct seat purchase in read-only before the billing service', async () => {
+    fakes.buildAppDeps.mockReturnValue({
+      orgEntitlements: {
+        resolveMechanicAccess: async () => ({ state: 'read_only', warning: null }),
+      },
+      saasBilling: { purchaseSeatOverage },
+    });
+
+    const response = await POST(
+      request({
+        purchase: 'seat_overage',
+        requestKey: 'stable-key',
+        amountMinor: 15_000,
+        currency: 'RUB',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
+    expect(purchaseSeatOverage).not.toHaveBeenCalled();
   });
 
   it('rejects a malformed typed purchase instead of falling through to tariff renewal', async () => {

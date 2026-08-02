@@ -3,8 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import {
+  entitlementMutationRefusalMessage,
+  requireEntitlementForMutationAction,
+} from '@/app-layer/guards/requireEntitlement';
+import {
+  contentMechanicForSection,
   isWarmupsContentSection,
   warmupsContentMutationRefusal,
 } from '@/app-layer/content/warmupsContentMutationGuard';
@@ -49,6 +53,18 @@ export async function saveContentSection(
       : taxonomyFromPlacement(trimmedPlacement);
   if (!parsedPlacement) {
     return { ok: false, error: 'Выберите корректное расположение раздела' };
+  }
+
+  const targetMechanic = contentMechanicForSection(parsedPlacement);
+  const targetEntitlement = await requireEntitlementForMutationAction(workspace, targetMechanic);
+  if (!targetEntitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage(
+        targetMechanic === 'warmups' ? 'изменить контент разминок' : 'изменить контент',
+        targetEntitlement.reason,
+      ),
+    };
   }
 
   if (!slug || !title) {
@@ -103,11 +119,18 @@ export async function saveContentSection(
     return { ok: false, error: 'Некорректное сочетание типа раздела и папки CMS' };
   }
 
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
-  if (systemParentCode === 'warmups' || isWarmupsContentSection(existing)) {
-    const refusal = await warmupsContentMutationRefusal(workspace);
-    if (refusal) return { ok: false, error: refusal };
+  const existingMechanic = contentMechanicForSection(existing);
+  if (existing && existingMechanic !== targetMechanic) {
+    const existingEntitlement = await requireEntitlementForMutationAction(
+      workspace,
+      existingMechanic,
+    );
+    if (!existingEntitlement.ok) {
+      return {
+        ok: false,
+        error: entitlementMutationRefusalMessage('изменить контент', existingEntitlement.reason),
+      };
+    }
   }
 
   try {
@@ -149,7 +172,12 @@ export async function attachArticleSectionToSystemFolder(
 ): Promise<AttachArticleSectionToFolderState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const deps = buildAppDeps();
 
   const slug = ((formData.get('section_slug') as string) ?? '').trim();
@@ -219,7 +247,12 @@ export async function renameContentSectionSlug(
 ): Promise<RenameContentSectionSlugState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const deps = buildAppDeps();
 
   if (formData.get('confirm_rename') !== 'on') {
@@ -270,7 +303,12 @@ export async function deleteContentSection(
 ): Promise<DeleteContentSectionState> {
   const workspace = await requireDoctorWorkspaceContext();
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
+    };
+  }
   const deps = buildAppDeps();
 
   if (formData.get('confirm_delete') !== 'on') {

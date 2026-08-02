@@ -103,5 +103,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     redirectTo: getRedirectPathForRole(user.role),
+    role: user.role,
   });
 }

@@ -17,11 +17,6 @@ import type {
   TreatmentProgramInstanceSummary,
 } from '@/modules/treatment-program/types';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
-import type { OnlineIntakeService } from '@/modules/online-intake/ports';
-import type { IntakeRequestWithPatientIdentity, IntakeType } from '@/modules/online-intake/types';
-import type { DoctorProactiveInsightsPort } from '@/modules/doctor-proactive-insights/ports';
-import type { ProactiveInsightKind } from '@/modules/doctor-proactive-insights/types';
-import { DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT } from '@/modules/doctor-proactive-insights/constants';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   type DoctorTodayPeopleListMode,
@@ -33,10 +28,6 @@ import {
   mapPendingProgramTestsForToday,
   type TodayPendingProgramTestItem,
 } from './mapPendingProgramTestsForToday';
-import {
-  mapProactiveInsightsForToday,
-  type TodayProactiveInsightItem,
-} from './mapProactiveInsightsForToday';
 import { patientCardHref } from './patients/patientCardHref';
 import { communicationsChatHref } from './communications/doctorCommunicationsTabs';
 import { formatDateTimeRu, truncateText } from './doctorTodayFormat';
@@ -84,7 +75,6 @@ export type DoctorTodayDashboardDeps = {
   doctorUserId?: string;
   organizationId: string;
   treatmentProgramProgress?: TreatmentProgramProgressService;
-  doctorProactiveInsights?: DoctorProactiveInsightsPort;
   treatmentProgramInstance?: {
     listForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
     getInstanceById(instanceId: string): Promise<TreatmentProgramInstanceDetail>;
@@ -142,17 +132,6 @@ export type TodayAppointmentItem = {
   ctaLabel: string;
 };
 
-export type TodayIntakeItem = {
-  id: string;
-  patientName: string;
-  patientPhone: string;
-  typeLabel: string;
-  summary: string | null;
-  summaryPreview: string | null;
-  createdAtLabel: string;
-  href: string;
-};
-
 export type TodayUnreadConversationItem = {
   conversationId: string;
   displayName: string;
@@ -183,7 +162,6 @@ export type TodayDashboardData = {
   weekAppointments: TodayAppointmentItem[];
   /** All appointments in calendar month for SEG-04 month modal. */
   monthAppointments: TodayAppointmentItem[];
-  newIntakeRequests: TodayIntakeItem[];
   unreadConversations: TodayUnreadConversationItem[];
   unreadTotal: number;
   upcomingAppointments: TodayAppointmentItem[];
@@ -197,18 +175,9 @@ export type TodayDashboardData = {
   pendingProgramTests: TodayPendingProgramTestItem[];
   pendingProgramTestsTotal: number;
   pendingProgramTestsTruncated: boolean;
-  proactiveInsights: TodayProactiveInsightItem[];
-  proactiveInsightsTotal: number;
-  proactiveInsightsTruncated: boolean;
-  visibleProactiveInsightKinds: readonly ProactiveInsightKind[];
   exerciseCommentAttentionItems: TodayExerciseCommentAttentionItem[];
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
-};
-
-const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
-  lfk: 'ЛФК',
-  nutrition: 'Нутрициология',
 };
 
 export {
@@ -232,24 +201,6 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
     scheduleProvenancePrefix: row.scheduleProvenancePrefix ?? null,
     href: hasClient ? patientCardHref(uid) : '/app/doctor/appointments',
     ctaLabel: hasClient ? 'Открыть карточку' : 'Открыть записи',
-  };
-}
-
-export function mapIntakeToTodayItem(
-  row: IntakeRequestWithPatientIdentity,
-  timeZone?: string,
-): TodayIntakeItem {
-  const label = INTAKE_TYPE_LABELS[row.type] ?? row.type;
-  const summaryPreview = truncateText(row.summary);
-  return {
-    id: row.id,
-    patientName: row.patientName.trim() || '—',
-    patientPhone: row.patientPhone.trim() || '—',
-    typeLabel: label,
-    summary: row.summary,
-    summaryPreview,
-    createdAtLabel: formatDateTimeRu(row.createdAt, timeZone),
-    href: `/app/doctor/online-intake/${encodeURIComponent(row.id)}`,
   };
 }
 
@@ -403,7 +354,6 @@ export function getUpcomingAppointments(
 
 export async function loadDoctorTodayDashboard(
   deps: DoctorTodayDashboardDeps,
-  intakeService: OnlineIntakeService,
   audience: DoctorAppointmentsAudience | undefined,
   preferences: DoctorTodayPreferences,
 ): Promise<TodayDashboardData> {
@@ -416,7 +366,6 @@ export async function loadDoctorTodayDashboard(
     todayRaw,
     weekRaw,
     monthRaw,
-    newIntake,
     unreadConversations,
     unreadTotal,
     onSupportListRaw,
@@ -434,7 +383,6 @@ export async function loadDoctorTodayDashboard(
     deps.loadMonthAppointments
       ? deps.loadMonthAppointments()
       : Promise.resolve([] as AppointmentRow[]),
-    intakeService.listForDoctor({ status: 'new', limit: 3, offset: 0 }),
     deps.messaging.doctorSupport.listOpenConversations({
       unreadOnly: true,
       limit: 3,
@@ -479,7 +427,7 @@ export async function loadDoctorTodayDashboard(
   const peopleCount = peopleSorted.length;
   const peopleListTruncated = peopleCount > people.length;
 
-  const [globalOpenTasks, pendingTestsResult, proactiveResult, exerciseCommentAttention] =
+  const [globalOpenTasks, pendingTestsResult, exerciseCommentAttention] =
     await Promise.all([
       // §1.3: грузим ВСЕ открытые задачи владельца (без лимита, без фильтра по patientUserId —
       // owner punch-list 2026-07-25 item 1: раньше `patientUserId: null` скрывал задачи,
@@ -501,14 +449,6 @@ export async function loadDoctorTodayDashboard(
             ),
           ])
         : Promise.resolve([0, []] as const),
-      deps.doctorProactiveInsights && preferences.visibleProactiveInsightKinds.length > 0
-        ? deps.doctorProactiveInsights.queryInsights({
-            limit: DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT,
-            displayIana: deps.displayIana,
-            organizationId: deps.organizationId,
-            kinds: preferences.visibleProactiveInsightKinds,
-          })
-        : Promise.resolve({ items: [], totalCount: 0 }),
       loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
     ]);
 
@@ -538,16 +478,11 @@ export async function loadDoctorTodayDashboard(
   const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows, appDisplayTimeZone);
   const pendingProgramTestsTruncated =
     pendingProgramTestsTotal > DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT;
-  const proactiveInsights = mapProactiveInsightsForToday(proactiveResult.items);
-  const proactiveInsightsTotal = proactiveResult.totalCount;
-  const proactiveInsightsTruncated =
-    proactiveInsightsTotal > DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT;
 
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
     weekAppointments: weekRaw.map(mapAppointmentToTodayItem),
     monthAppointments: monthRaw.map(mapAppointmentToTodayItem),
-    newIntakeRequests: newIntake.items.map((row) => mapIntakeToTodayItem(row, appDisplayTimeZone)),
     unreadConversations: unreadConversations.map((row) =>
       mapConversationToTodayItem(row, appDisplayTimeZone),
     ),
@@ -562,10 +497,6 @@ export async function loadDoctorTodayDashboard(
     pendingProgramTests,
     pendingProgramTestsTotal,
     pendingProgramTestsTruncated,
-    proactiveInsights,
-    proactiveInsightsTotal,
-    proactiveInsightsTruncated,
-    visibleProactiveInsightKinds: preferences.visibleProactiveInsightKinds,
     exerciseCommentAttentionItems: exerciseCommentAttention.items,
     exerciseCommentAttentionTotal: exerciseCommentAttention.total,
     exerciseCommentAttentionTruncated: exerciseCommentAttention.truncated,

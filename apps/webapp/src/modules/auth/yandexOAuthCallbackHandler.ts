@@ -8,7 +8,7 @@ import {
 import { exchangeYandexCode, fetchYandexUserInfo } from '@/modules/auth/oauthService';
 import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
 import { setSessionFromUser } from '@/modules/auth/service';
-import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
+import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
 import { resolveUserIdForYandexOAuth } from '@/modules/auth/oauthYandexResolve';
 import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
@@ -213,6 +213,11 @@ export async function handleYandexOAuthCallbackGet(
     });
   }
 
-  const finalRedirect = getRedirectPathForRole(role);
+  const finalRedirect = getPostAuthRedirectTarget(
+    role,
+    verifiedState.next ?? null,
+    null,
+    verifiedState.roleLoginPortal ?? null,
+  );
   return NextResponse.redirect(new URL(finalRedirect, appBase));
 }

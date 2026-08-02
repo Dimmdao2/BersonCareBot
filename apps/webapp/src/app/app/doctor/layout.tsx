@@ -79,11 +79,20 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
-  const [coursesVisibility, promoVisibility, cmsVisibility, entitlementSnapshot, cabinetAccess, billingOverview] =
+  const [
+    coursesVisibility,
+    promoVisibility,
+    cmsVisibility,
+    patientHomeTodayVisibility,
+    entitlementSnapshot,
+    cabinetAccess,
+    billingOverview,
+  ] =
     await Promise.all([
       getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
       getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
       getMechanicSurfaceVisibility(workspaceAccess, 'cms_pages'),
+      getMechanicSurfaceVisibility(workspaceAccess, 'patient_home_today'),
       deps.orgEntitlements.getSnapshot(workspaceAccess.organizationId).catch(() => null),
       // The cabinet is its own ladder subject (§5a/2.1a). Reaching this layout already means entry is
       // open, so the only thing left to show is the `терпение` countdown for the cabinet itself.
@@ -97,6 +106,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   const coursesEnabled = coursesVisibility.specialistNavigation;
   const promoEnabled = promoVisibility.specialistNavigation;
   const cmsEnabled = cmsVisibility.specialistNavigation;
+  const patientHomeTodayEnabled = patientHomeTodayVisibility.specialistNavigation;
   // §5a item 2.6a — the banner shows the OWNER's notification texts, rendered from his ladder.
   // The variable map is open: a placeholder this shell cannot fill stays visible instead of
   // silently blanking, so an unsupplied variable is a defect the owner can see in his own text.
@@ -156,6 +166,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       coursesEnabled={coursesEnabled}
       promoEnabled={promoEnabled}
       cmsEnabled={cmsEnabled}
+      patientHomeTodayEnabled={patientHomeTodayEnabled}
       brand={shellBrand}
     >
       {accessWarnings.length > 0 ? (

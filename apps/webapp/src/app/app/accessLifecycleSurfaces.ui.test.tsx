@@ -1,12 +1,17 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import type { OrgEntitlementSnapshot, OrgMechanic } from '@/modules/org-entitlements/types';
+import type {
+  MechanicAccessState,
+  OrgEntitlementSnapshot,
+  OrgMechanic,
+} from '@/modules/org-entitlements/types';
 
 const fakes = vi.hoisted(() => ({
   requireOrganizationWorkspaceContext: vi.fn(),
   requireDoctorWorkspaceContext: vi.fn(),
   requirePatientAccess: vi.fn(),
+  requirePatientAccessWithPhone: vi.fn(),
   patientRscPersonalDataGate: vi.fn(),
   getCurrentSession: vi.fn(),
   buildAppDeps: vi.fn(),
@@ -14,6 +19,9 @@ const fakes = vi.hoisted(() => ({
   stampPatientOrganizationRequestContext: vi.fn(),
   getAppDisplayTimeZone: vi.fn(),
   resolvePatientCanViewAuthOnlyContent: vi.fn(),
+  resolvePatientEnrollmentOrganizationId: vi.fn(),
+  withPatientOrganizationPrincipal: vi.fn(),
+  withDoctorWorkspacePrincipal: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -23,11 +31,14 @@ vi.mock('next/navigation', () => ({
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND');
   }),
+  usePathname: vi.fn(() => '/app/doctor/courses'),
+  useRouter: vi.fn(() => ({ replace: vi.fn() })),
 }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireOrganizationWorkspaceContext: fakes.requireOrganizationWorkspaceContext,
   requireDoctorWorkspaceContext: fakes.requireDoctorWorkspaceContext,
   requirePatientAccess: fakes.requirePatientAccess,
+  requirePatientAccessWithPhone: fakes.requirePatientAccessWithPhone,
   patientRscPersonalDataGate: fakes.patientRscPersonalDataGate,
 }));
 vi.mock('@/modules/auth/service', () => ({
@@ -46,6 +57,13 @@ vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
 vi.mock('@/app-layer/platform-access', () => ({
   resolvePatientCanViewAuthOnlyContent: fakes.resolvePatientCanViewAuthOnlyContent,
 }));
+vi.mock('@/app/api/booking/bookingTenant', () => ({
+  resolvePatientEnrollmentOrganizationId: fakes.resolvePatientEnrollmentOrganizationId,
+}));
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
+  withPatientOrganizationPrincipal: fakes.withPatientOrganizationPrincipal,
+  withDoctorWorkspacePrincipal: fakes.withDoctorWorkspacePrincipal,
+}));
 vi.mock('@/modules/patient-home/patientGreetingPersonalizedName', () => ({
   patientGreetingPersonalizedName: () => 'Пациент',
 }));
@@ -54,14 +72,17 @@ vi.mock('@/shared/ui/doctor/shell/DoctorWorkspaceShell', () => ({
     children,
     coursesEnabled,
     cmsEnabled,
+    patientHomeTodayEnabled,
   }: {
     children: ReactNode;
     coursesEnabled?: boolean;
     cmsEnabled?: boolean;
+    patientHomeTodayEnabled?: boolean;
   }) => (
     <main>
       {coursesEnabled ? <span role="link">Курсы</span> : null}
       {cmsEnabled ? <span role="link">Контент</span> : null}
+      {patientHomeTodayEnabled ? <span role="link">Главная пациента</span> : null}
       {children}
     </main>
   ),
@@ -71,6 +92,13 @@ vi.mock('@/shared/ui/patient/PatientAppShell', () => ({
 }));
 vi.mock('@/shared/ui/patient/LegalFooterLinks', () => ({
   LegalFooterLinks: () => null,
+}));
+vi.mock('./doctor/content/ContentHubShell', () => ({
+  ContentHubShell: ({ patientHomeTodayEnabled }: { patientHomeTodayEnabled: boolean }) => (
+    <div data-testid="doctor-patient-home-navigation">
+      {patientHomeTodayEnabled ? 'visible' : 'hidden'}
+    </div>
+  ),
 }));
 vi.mock('./patient/home/PatientHomeGreeting', () => ({
   greetingPrefixFromHour: () => 'Здравствуйте',
@@ -85,12 +113,8 @@ vi.mock('./patient/home/PatientHomeToday', () => ({
     warmupsOrganizationId: string | null;
   }) => (
     <div>
-      <div data-testid="patient-home-courses-organization">
-        {coursesOrganizationId ?? 'hidden'}
-      </div>
-      <div data-testid="patient-home-warmups-organization">
-        {warmupsOrganizationId ?? 'hidden'}
-      </div>
+      <div data-testid="patient-home-courses-organization">{coursesOrganizationId ?? 'hidden'}</div>
+      <div data-testid="patient-home-warmups-organization">{warmupsOrganizationId ?? 'hidden'}</div>
     </div>
   ),
 }));
@@ -98,10 +122,21 @@ vi.mock('./patient/home/PatientHomeToday', () => ({
 let DoctorSectionLayout: typeof import('./doctor/layout').default;
 let PatientHomePage: typeof import('./patient/page').default;
 let DoctorCoursesPage: typeof import('./doctor/courses/page').default;
+let DoctorCoursesNewPage: typeof import('./doctor/courses/new/page').default;
+let DoctorCourseEditPage: typeof import('./doctor/courses/[id]/page').default;
+let PatientCoursesPage: typeof import('./patient/courses/page').default;
 let DoctorContentPage: typeof import('./doctor/content/page').default;
+let DoctorPatientHomeSettingsPage: typeof import('./doctor/patient-home/page').default;
+let DoctorContentNewPage: typeof import('./doctor/content/new/page').default;
+let DoctorContentEditPage: typeof import('./doctor/content/edit/[id]/page').default;
+let DoctorContentSectionNewPage: typeof import('./doctor/content/sections/new/page').default;
+let DoctorContentSectionEditPage: typeof import('./doctor/content/sections/edit/[slug]/page').default;
 let coursesIncluded = true;
-let cmsIncluded = true;
+let cmsAccessState: 'grace' | 'read_only' | 'disabled' = 'grace';
+let coursesReadOnly = false;
+let coursesAccessState: MechanicAccessState | null = null;
 let warmupsIncluded = true;
+let patientHomeTodayState: 'grace' | 'read_only' | 'disabled' = 'grace';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const userId = '22222222-2222-4222-8222-222222222222';
@@ -138,12 +173,28 @@ beforeAll(async () => {
     { default: DoctorSectionLayout },
     { default: PatientHomePage },
     { default: DoctorCoursesPage },
+    { default: DoctorCoursesNewPage },
+    { default: DoctorCourseEditPage },
+    { default: PatientCoursesPage },
     { default: DoctorContentPage },
+    { default: DoctorPatientHomeSettingsPage },
+    { default: DoctorContentNewPage },
+    { default: DoctorContentEditPage },
+    { default: DoctorContentSectionNewPage },
+    { default: DoctorContentSectionEditPage },
   ] = await Promise.all([
     import('./doctor/layout'),
     import('./patient/page'),
     import('./doctor/courses/page'),
+    import('./doctor/courses/new/page'),
+    import('./doctor/courses/[id]/page'),
+    import('./patient/courses/page'),
     import('./doctor/content/page'),
+    import('./doctor/patient-home/page'),
+    import('./doctor/content/new/page'),
+    import('./doctor/content/edit/[id]/page'),
+    import('./doctor/content/sections/new/page'),
+    import('./doctor/content/sections/edit/[slug]/page'),
   ]);
 });
 
@@ -152,8 +203,11 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-07-30T12:00:00.000Z'));
   coursesIncluded = true;
-  cmsIncluded = true;
+  cmsAccessState = 'grace';
+  coursesReadOnly = false;
+  coursesAccessState = null;
   warmupsIncluded = true;
+  patientHomeTodayState = 'grace';
   const session = {
     adminMode: false,
     user: { userId, role: 'doctor', displayName: 'Врач' },
@@ -167,16 +221,35 @@ beforeEach(() => {
       warning: null,
     }),
     resolveMechanicAccess: async (_organizationId: string, mechanic: OrgMechanic) => {
-      const included =
+      if (mechanic === 'patient_home_today') {
+        return patientHomeTodayState === 'disabled'
+          ? {
+              mechanic,
+              state: 'disabled' as const,
+              policySource: 'unconfigured' as const,
+              warning: null,
+            }
+          : {
+              mechanic,
+              state: patientHomeTodayState,
+              policySource: 'system' as const,
+              warning: null,
+            };
+      }
+      const state: MechanicAccessState =
         mechanic === 'cms_pages'
-          ? cmsIncluded
+          ? cmsAccessState
           : mechanic === 'warmups'
             ? warmupsIncluded
-            : coursesIncluded;
-      return included
+              ? 'grace'
+              : 'disabled'
+            : !coursesIncluded
+              ? 'disabled'
+              : coursesAccessState ?? (coursesReadOnly ? 'read_only' : 'grace');
+      return state !== 'disabled'
         ? {
             mechanic,
-            state: 'grace' as const,
+            state,
             policySource: 'system' as const,
             warning: {
               until: '2026-08-01T00:00:00.000Z',
@@ -238,23 +311,40 @@ beforeEach(() => {
   fakes.requirePatientAccess.mockResolvedValue({
     user: { userId, role: 'patient', displayName: 'Пациент' },
   });
+  fakes.requirePatientAccessWithPhone.mockResolvedValue({
+    user: { userId, role: 'patient', displayName: 'Пациент' },
+  });
   fakes.patientRscPersonalDataGate.mockResolvedValue('allow');
   fakes.resolvePatientCanViewAuthOnlyContent.mockResolvedValue(true);
   fakes.resolvePatientOrganizationRequestContext.mockResolvedValue({
     ok: true,
     organizationId,
   });
+  fakes.resolvePatientEnrollmentOrganizationId.mockResolvedValue({ ok: true, organizationId });
+  fakes.withPatientOrganizationPrincipal.mockImplementation(
+    async (_context: unknown, callback: () => Promise<unknown>) => callback(),
+  );
+  fakes.withDoctorWorkspacePrincipal.mockImplementation(
+    async (_context: unknown, _source: string, callback: () => Promise<unknown>) => callback(),
+  );
   fakes.getAppDisplayTimeZone.mockResolvedValue('UTC');
   fakes.buildAppDeps.mockReturnValue({
     orgEntitlements,
     bookingEngine: {
       organization: { getOrganization: async () => ({ title: 'Клиника' }) },
     },
-    systemSettings: { listSettingsByScope: async () => [] },
+    systemSettings: { listSettingsByScope: async () => [], getSetting: async () => null },
     orgBranding: { resolveEffectiveOrgBranding: async () => null },
     saasBilling: { getOrganizationBillingOverview: async () => ({ invoices: [] }) },
     patientOrganization: {},
-    courses: { listCoursesForDoctor: vi.fn() },
+    contentPages: { listAll: async () => [] },
+    contentSections: { listAll: async () => [] },
+    materialRating: { listDoctorAggregates: async () => new Map() },
+    patientHomeBlocks: { listBlocksWithItems: async () => [] },
+    courses: {
+      listCoursesForDoctor: vi.fn().mockResolvedValue([]),
+      listPublishedCatalog: vi.fn(),
+    },
   });
 });
 
@@ -300,8 +390,90 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
     expect(fakes.buildAppDeps().courses.listCoursesForDoctor).not.toHaveBeenCalled();
   });
 
+  it('keeps the read-only course list visible but removes create and edit controls', async () => {
+    coursesReadOnly = true;
+    fakes.buildAppDeps().courses.listCoursesForDoctor.mockResolvedValue([
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        title: 'Существующий курс',
+        status: 'published',
+        updatedAt: '2026-07-30T12:00:00.000Z',
+      },
+    ]);
+
+    render(await DoctorCoursesPage({}));
+
+    expect(screen.getByText('Существующий курс')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Новый курс' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Существующий курс' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the course list and both editor entry points usable at full access', async () => {
+    coursesAccessState = 'full_access';
+    const courseId = '33333333-3333-4333-8333-333333333333';
+    fakes.buildAppDeps().courses.listCoursesForDoctor.mockResolvedValue([
+      {
+        id: courseId,
+        title: 'Существующий курс',
+        status: 'published',
+        updatedAt: '2026-07-30T12:00:00.000Z',
+      },
+    ]);
+    fakes.buildAppDeps().courses.getCourseForDoctor = vi.fn().mockResolvedValue({
+      id: courseId,
+      title: 'Существующий курс',
+    });
+    fakes.buildAppDeps().courses.getCourseUsage = vi.fn().mockResolvedValue(null);
+    fakes.buildAppDeps().treatmentProgram = {
+      listTemplates: vi.fn().mockResolvedValue([]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    fakes.buildAppDeps().contentPages = {
+      listAll: vi.fn().mockResolvedValue([]),
+      getById: vi.fn().mockResolvedValue(null),
+    };
+
+    render(await DoctorCoursesPage({}));
+
+    expect(screen.getByRole('link', { name: 'Новый курс' })).toHaveAttribute(
+      'href',
+      '/app/doctor/courses/new',
+    );
+    expect(screen.getByRole('link', { name: 'Существующий курс' })).toHaveAttribute(
+      'href',
+      `/app/doctor/courses/${courseId}`,
+    );
+    await expect(
+      DoctorCoursesNewPage({ searchParams: Promise.resolve({}) }),
+    ).resolves.toBeDefined();
+    await expect(DoctorCourseEditPage({ params: Promise.resolve({ id: courseId }) })).resolves.toBeDefined();
+  });
+
+  it('does not render direct course create or edit URLs when courses are read-only', async () => {
+    coursesReadOnly = true;
+
+    await expect(
+      DoctorCoursesNewPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(
+      DoctorCourseEditPage({
+        params: Promise.resolve({ id: '33333333-3333-4333-8333-333333333333' }),
+      }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(fakes.buildAppDeps().courses.listCoursesForDoctor).not.toHaveBeenCalled();
+  });
+
+  it('does not render a direct patient course URL when courses are disabled', async () => {
+    coursesIncluded = false;
+
+    await expect(PatientCoursesPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      'NEXT_NOT_FOUND',
+    );
+    expect(fakes.buildAppDeps().courses.listPublishedCatalog).not.toHaveBeenCalled();
+  });
+
   it('hides the specialist content navigation through the shared visibility adapter', async () => {
-    cmsIncluded = false;
+    cmsAccessState = 'disabled';
 
     render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
 
@@ -316,9 +488,60 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
     expect(screen.getByTestId('patient-home-warmups-organization')).toHaveTextContent('hidden');
   });
 
+  it('keeps the doctor Today navigation visible while the mechanic is read-only', async () => {
+    patientHomeTodayState = 'read_only';
+
+    render(await DoctorContentPage());
+
+    expect(screen.getByTestId('doctor-patient-home-navigation')).toHaveTextContent('visible');
+  });
+
+  it('keeps Today settings navigation and direct URL available when Today is read-only and CMS is disabled', async () => {
+    patientHomeTodayState = 'read_only';
+    cmsAccessState = 'disabled';
+
+    render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
+
+    expect(screen.getByRole('link', { name: 'Главная пациента' })).toBeInTheDocument();
+    await expect(DoctorPatientHomeSettingsPage()).resolves.toBeDefined();
+  });
+
+  it('hides and refuses the doctor Today settings direct URL when the mechanic is disabled', async () => {
+    patientHomeTodayState = 'disabled';
+
+    render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
+
+    expect(screen.queryByRole('link', { name: 'Главная пациента' })).not.toBeInTheDocument();
+    await expect(DoctorPatientHomeSettingsPage()).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('refuses the patient Today direct URL when the mechanic is disabled', async () => {
+    patientHomeTodayState = 'disabled';
+
+    await expect(PatientHomePage()).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
   it('does not render a direct specialist content URL through the shared visibility adapter', async () => {
-    cmsIncluded = false;
+    cmsAccessState = 'disabled';
+    warmupsIncluded = false;
+    patientHomeTodayState = 'disabled';
 
     await expect(DoctorContentPage()).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('does not open CMS mutation pages during the read-only ladder step', async () => {
+    cmsAccessState = 'read_only';
+    warmupsIncluded = false;
+
+    await expect(DoctorContentNewPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      'NEXT_NOT_FOUND',
+    );
+    await expect(
+      DoctorContentEditPage({ params: Promise.resolve({ id: 'page-id' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(DoctorContentSectionNewPage({})).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(
+      DoctorContentSectionEditPage({ params: Promise.resolve({ slug: 'articles' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
   });
 });

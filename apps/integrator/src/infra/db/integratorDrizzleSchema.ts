@@ -3,12 +3,12 @@ import {
   bookingCalendarMap,
   deliveryAttemptLogs,
   orgEnrollments,
+  reminderRules,
 } from './schema/integratorPublicProduct.js';
 import {
   contentAccessGrants,
   userReminderDeliveryLogs,
   userReminderOccurrences,
-  userReminderRules,
 } from './schema/integratorDomainRepos.js';
 import { messageRetryJobs, projectionOutbox } from './schema/integratorQueues.js';
 
@@ -18,9 +18,9 @@ export const integratorDrizzleSchema = {
   bookingCalendarMap,
   deliveryAttemptLogs,
   orgEnrollments,
+  reminderRules,
   projectionOutbox,
   messageRetryJobs,
-  userReminderRules,
   userReminderOccurrences,
   userReminderDeliveryLogs,
   contentAccessGrants,

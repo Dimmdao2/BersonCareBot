@@ -6,37 +6,29 @@ import { useEffect, useRef, useState } from 'react';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { proactiveInsightKindLabelRu } from '@/modules/doctor-proactive-insights/computeProactiveInsights';
 import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
 import { sendDoctorProgramDiscussionReply } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/doctorProgramDiscussionReply';
 import type { TodayPendingProgramTestItem } from './mapPendingProgramTestsForToday';
-import type { TodayProactiveInsightItem } from './mapProactiveInsightsForToday';
 import { markDoctorProgramDiscussionRead } from './doctorProgramDiscussionMarkRead';
 import type { TodayExerciseCommentAttentionItem } from './loadDoctorExerciseCommentAttention';
 import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
-import type { TodayIntakeItem, TodayUnreadConversationItem } from './loadDoctorTodayDashboard';
+import type { TodayUnreadConversationItem } from './loadDoctorTodayDashboard';
 
 export type DoctorTodayAttentionKind =
-  | 'intake'
   | 'messages'
   | 'pendingTests'
-  | 'proactive'
   | 'exerciseComments';
 
 const TITLES: Record<DoctorTodayAttentionKind, string> = {
-  intake: 'Онлайн-заявки',
   messages: 'Сообщения',
   pendingTests: 'Тесты к проверке',
-  proactive: 'Сигналы пациентов',
   exerciseComments: 'Новые комментарии по упражнениям',
 };
 
 const EMPTY_MESSAGES: Record<DoctorTodayAttentionKind, string> = {
-  intake: 'Новых заявок нет',
   messages: 'Непрочитанных сообщений нет',
   pendingTests: 'Нет тестов, ожидающих оценки',
-  proactive: 'Нет сигналов по самочувствию и активности программы',
   exerciseComments: 'Нет новых комментариев по упражнениям',
 };
 
@@ -44,15 +36,11 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   kind: DoctorTodayAttentionKind | null;
-  newIntakeRequests: TodayIntakeItem[];
   unreadConversations: TodayUnreadConversationItem[];
   unreadTotal: number;
   pendingProgramTests: TodayPendingProgramTestItem[];
   pendingProgramTestsTotal: number;
   pendingProgramTestsTruncated: boolean;
-  proactiveInsights: TodayProactiveInsightItem[];
-  proactiveInsightsTotal: number;
-  proactiveInsightsTruncated: boolean;
   exerciseCommentAttentionItems: TodayExerciseCommentAttentionItem[];
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
@@ -296,15 +284,11 @@ export function DoctorTodayAttentionDialog({
   open,
   onOpenChange,
   kind,
-  newIntakeRequests,
   unreadConversations,
   unreadTotal,
   pendingProgramTests,
   pendingProgramTestsTotal,
   pendingProgramTestsTruncated,
-  proactiveInsights,
-  proactiveInsightsTotal,
-  proactiveInsightsTruncated,
   exerciseCommentAttentionItems,
   exerciseCommentAttentionTotal,
   exerciseCommentAttentionTruncated,
@@ -314,41 +298,6 @@ export function DoctorTodayAttentionDialog({
   return (
     <DoctorModal open={open} onClose={() => onOpenChange(false)} title={title} size="lg">
       <div className="max-h-[65vh] overflow-y-auto pr-1">
-        {kind === 'intake' ? (
-          <>
-            {newIntakeRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.intake}</p>
-            ) : (
-              <ul className="m-0 list-none space-y-2 p-0">
-                {newIntakeRequests.map((r) => (
-                  <li key={r.id} className={doctorSectionItemClass}>
-                    <p className="font-medium text-foreground">{r.patientName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Тел.: {r.patientPhone}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {r.typeLabel} · {r.createdAtLabel}
-                    </p>
-                    {r.summaryPreview ? (
-                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-muted-foreground">
-                        {r.summaryPreview}
-                      </p>
-                    ) : null}
-                    <p className="mt-2">
-                      <Link href={r.href} className={doctorInlineLinkClass}>
-                        Открыть заявку
-                      </Link>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-3">
-              <Link href="/app/doctor/online-intake" className={`${doctorInlineLinkClass} text-sm`}>
-                Открыть все заявки
-              </Link>
-            </p>
-          </>
-        ) : null}
-
         {kind === 'messages' ? (
           <>
             {unreadTotal > 0 ? (
@@ -433,39 +382,6 @@ export function DoctorTodayAttentionDialog({
           </>
         ) : null}
 
-        {kind === 'proactive' ? (
-          <>
-            {proactiveInsightsTotal > 0 ? (
-              <p className="mb-2 text-xs text-muted-foreground">
-                На сопровождении: {proactiveInsightsTotal}
-              </p>
-            ) : null}
-            {proactiveInsights.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.proactive}</p>
-            ) : (
-              <ul className="m-0 list-none space-y-2 p-0">
-                {proactiveInsights.map((item) => (
-                  <li key={`${item.kind}-${item.patientUserId}`} className={doctorSectionItemClass}>
-                    <p className="font-medium text-foreground">{item.patientDisplayName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {proactiveInsightKindLabelRu(item.kind)} · {item.summary}
-                    </p>
-                    <p className="mt-2">
-                      <Link href={item.href} className={doctorInlineLinkClass}>
-                        Открыть карточку
-                      </Link>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {proactiveInsightsTruncated ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Показаны первые {proactiveInsights.length} из {proactiveInsightsTotal}
-              </p>
-            ) : null}
-          </>
-        ) : null}
 
         {kind === 'exerciseComments' ? (
           <>
