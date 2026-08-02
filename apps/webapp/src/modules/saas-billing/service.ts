@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
+import type { PaymentProviderPort, PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
 import type {
   ResolvedSaasBillingPaymentProvider,
   SaasBillingInvoiceStatus,
@@ -88,10 +88,25 @@ export function createSaasBillingService(dependencies: {
     if (!providerConfig) {
       throw new Error(`saas_billing_payment_provider_unavailable:${id}`);
     }
+    let adapter: PaymentProviderPort;
+    try {
+      adapter = dependencies.resolvePaymentProvider(providerConfig.id);
+    } catch (error) {
+      // A persisted provider id can outlive an adapter removal or TEST fixture.  This is an
+      // unavailable platform payment store, not an invoice/DB failure; keep the route's honest
+      // 503 contract instead of letting the registry's implementation error become a 500.
+      if (
+        error instanceof Error &&
+        error.message === `unsupported_payment_provider:${providerConfig.id}`
+      ) {
+        throw new Error(`saas_billing_payment_provider_unavailable:${providerConfig.id}`);
+      }
+      throw error;
+    }
     return {
       providerId: providerConfig.id,
       providerConfig,
-      adapter: dependencies.resolvePaymentProvider(providerConfig.id),
+      adapter,
     };
   }
 
@@ -667,9 +682,19 @@ export function createSaasBillingService(dependencies: {
      * field. One renewal period starting now, same arithmetic as manual assignment (`paidPeriod.ts`).
      */
     async createOwnTariffRenewalInvoice(organizationId: string) {
-      const { saasBillingSubscriptionId, tariffId, billingPeriod, savedPaymentMethodId, currentPeriodEndsAt } =
-        await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
-      if (dependencies.getTariffTransition) {
+      const {
+        saasBillingSubscriptionId,
+        currentTariffId,
+        tariffId,
+        billingPeriod,
+        savedPaymentMethodId,
+        currentPeriodEndsAt,
+      } = await dependencies.repository.requireOwnTariffBillingSubscription(organizationId);
+      // A normal renewal pays the tariff already assigned to this clinic.  Its route runs under
+      // the clinic-billing principal and must not enter the platform-only transition port.  A
+      // scheduled next tariff is different: retain the downgrade recheck before selling that
+      // next period.
+      if (dependencies.getTariffTransition && currentTariffId !== tariffId) {
         const transition = await dependencies.getTariffTransition(organizationId, tariffId);
         if (transition.blocks.length > 0) throw new Error('saas_billing_tariff_downgrade_blocked');
       }
