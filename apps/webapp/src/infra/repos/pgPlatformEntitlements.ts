@@ -89,7 +89,8 @@ async function requireActiveTariff(tx: Transaction, tariffId: string): Promise<v
     .select({ id: saasTariffs.id })
     .from(saasTariffs)
     .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
-    .limit(1);
+    .limit(1)
+    .for('update');
   if (!row[0]) throw new Error('active_tariff_not_found');
 }
 
@@ -421,7 +422,12 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async updateTariff(id, input, audit) {
       assertPlatformOperationsPrincipal();
       return getDrizzle().transaction(async (tx) => {
-        const [before] = await tx.select().from(saasTariffs).where(eq(saasTariffs.id, id)).limit(1);
+        const [before] = await tx
+          .select()
+          .from(saasTariffs)
+          .where(eq(saasTariffs.id, id))
+          .limit(1)
+          .for('update');
         if (!before) throw new Error('tariff_not_found');
         if (before.isActive && !input.isActive) {
           await assertTariffNotUsedByActiveTrialPolicy(tx, id);
@@ -448,7 +454,12 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async archiveTariff(id, audit) {
       assertPlatformOperationsPrincipal();
       await getDrizzle().transaction(async (tx) => {
-        const [before] = await tx.select().from(saasTariffs).where(eq(saasTariffs.id, id)).limit(1);
+        const [before] = await tx
+          .select()
+          .from(saasTariffs)
+          .where(eq(saasTariffs.id, id))
+          .limit(1)
+          .for('update');
         if (!before) throw new Error('tariff_not_found');
         await assertTariffNotUsedByActiveTrialPolicy(tx, id);
         await assertTariffNotUsedByRegistrationTariffPolicy(tx, id);

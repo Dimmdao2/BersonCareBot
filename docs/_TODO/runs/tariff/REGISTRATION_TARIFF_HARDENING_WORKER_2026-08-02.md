@@ -20,4 +20,19 @@ Implemented:
 
 The full smoke initially exposed its stale minimal bootstrap: it omitted migrations `0289` and `0291`, now included in its existing private migration list. No migration, journal, schema, environment, role, queue, or host state was changed.
 
-Remaining: independent audit only. PROD was not run.
+## Race fix round
+
+The independent acceptance found that concurrent registration-policy assignment and tariff archival could
+both commit. This round changes only `pgPlatformEntitlements.ts`: the active-tariff authority read and both
+tariff deactivation paths acquire `FOR UPDATE` on the same `saas_tariffs` row. The losing transaction then
+observes the winner's committed state and returns the existing domain error.
+
+| Command | Result |
+| --- | --- |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` | PASS — the saved disposable PostgreSQL race acceptance is green. |
+| `pnpm --dir apps/webapp exec vitest run src/modules/org-entitlements/service.test.ts` | PASS — 1 file, 48 tests. |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs --static-only && bash -n deploy/host/deploy-prod.sh && node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase3-specialist-signup-provisioning.mjs` | PASS. |
+| `pnpm --dir packages/platform-merge run build && pnpm --dir packages/error-tracking run build && pnpm --dir apps/webapp run typecheck` | PASS. |
+| `pnpm --dir apps/webapp exec eslint src/infra/repos/inMemoryPlatformEntitlements.ts src/infra/repos/pgPlatformEntitlements.ts src/modules/org-entitlements/service.test.ts && node scripts/check-no-new-raw-sql.mjs && git diff --check` | PASS — raw-SQL gate: integrator manifest files 7; webapp manifest files 21. |
+
+No DEV, TEST, or PROD action ran; no migration, schema, journal, deploy ordering, test suite, or audit scope changed.
