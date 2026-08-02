@@ -1,6 +1,7 @@
 # Track D D30-P1 — независимый аудит specialist-task scheduled delivery
 
-Канон: `AGENTS.md` §5, §10, §24; `WORK_ORDER.md` Р-D30; worker brief
+Канон: `AGENTS.md` §5, §10, §24;
+`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` Р-D30; worker brief
 `TRACK_D_D30_SPECIALIST_TASK_SCHEDULING_BRIEF.md`. Продуктовый коммит: `2e30f3b90`.
 
 Провести один независимый live-аудит полного diff. Отчёт воркера не считать доказательством.
