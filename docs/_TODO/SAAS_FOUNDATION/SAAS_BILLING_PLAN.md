@@ -463,7 +463,7 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       reads in blocked lifecycle»). Но САМА подписка/её state machine, которая переводила бы lifecycle по `expired`/
       `past_due`, не существует — фундамент для потребления есть, источника события (billing) нет.
 
-- [ ] **Фискализация: объект `receipt` в платеже и возврате.** Заведено ПРЯМЫМ распоряжением владельца 27.07:
+- [x] **Фискализация: объект `receipt` в платеже и возврате.** Заведено ПРЯМЫМ распоряжением владельца 27.07:
       «И облачную кассу будем подключать» → на уточнение «поле `receipt` в платеже» — **«делай конечно как надо.
       чеки и касса будут»**. Разведка с источниками:
       [`CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md`](./CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md).
@@ -491,8 +491,14 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       Полный возврат отправляется без `receipt`: ЮKassa строит чек возврата из исходного платежа. Частичный возврат
       обязан передать receipt с суммой позиций ровно на сумму возврата; исходный email/VAT/описание для этого надо
       хранить снимком, а не пересчитывать из изменившихся настроек.
-      — **НЕ СДЕЛАНО, перемерено 02.08:**
-      `rg -n "vat_code|tax_system_code|receipt_registration|fiscalization" apps/webapp/src | wc -l` → `0`.
+      — Реализовано 02.08: единый `PaymentProviderPort.receipt?`; YooKassa сериализует его в payment,
+      invoice payment_data и partial refund, остальные адаптеры явно отклоняют supplied receipt. SaaS service
+      берёт VAT/tax-system code из существующих global-admin `payeeRequisites`, email — из billing account и
+      сохраняет исходный receipt в invoice snapshot для частичного возврата. Проверено тем же коммитом:
+      `pnpm --dir apps/webapp exec vitest run --project unit src/infra/payments/paymentProviderIdentity.unit.test.ts`
+      (13 passed), `pnpm --dir apps/webapp exec vitest run --project fast src/modules/saas-billing/service.test.ts`
+      (29 passed), scoped ESLint, `pnpm --dir apps/webapp typecheck`, `git diff --check`; direct fault injection
+      `assertReceiptSupported` → no-op сделала тест явного отказа красным, после восстановления — зелёным.
       Официальные источники: [OpenAPI](https://yookassa.ru/developers/api/yookassa-openapi-specification.yaml),
       [платежи с чеками](https://yookassa.ru/developers/payment-acceptance/receipts/54fz/yoomoney/payments),
       [возвраты](https://yookassa.ru/developers/payment-acceptance/receipts/54fz/yoomoney/refunds),

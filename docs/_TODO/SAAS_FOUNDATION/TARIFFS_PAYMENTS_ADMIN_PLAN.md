@@ -1051,8 +1051,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 - [-] ~~**4.1** Клинические тесты и наборы; при выключении системные группы тестов исчезают и из программы лечения.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: «Клинические тесты будут частью программы. Они просто есть в принципе. Просто убери это в интерфейсе, убери из списка настраиваемых механик». Проверка этого commit: `pnpm --dir apps/webapp exec vitest --run --reporter=verbose src/app/api/doctor/clinicalTestsBuiltInProgram.route.test.ts src/app/api/admin/commercial/route.route.test.ts src/app/app/admin/commercial/CommercialConstructorClient.ui.test.tsx src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 4 файла / 16 тестов green; `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts`.
 - [-] ~~**4.2** Онлайн-анкета.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: недостроенную отдельную форму и ведущие в неё кнопки удалить; не перенаправлять их в обычную запись. Существующая запись остаётся отдельным неизменённым путём. Исторические строки `online_intake_*` остаются в БД до отдельного решения о сроке хранения.
- - [ ] **4.3** Задачи специалиста.
- - [ ] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две.
+- [ ] **4.3** Задачи специалиста.
+- [ ] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две.
       Частично закрыт реальный clinic-разрыв: `doctor_statistics` скрывает KPI записей в
       `/app/doctor/schedule` и блок «Источники публичных записей» в его настройках, не гейтит
       публичную запись и не меняет attribution. Dedicated clinic route `/app/doctor/analytics` и
@@ -1061,8 +1061,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       page/shell → `getMechanicSurfaceVisibility(..., 'doctor_statistics')`; behavior tests
       `ScheduleCalendarTab.ui.test.tsx` и `BookingPublicAttributionSection.ui.test.tsx`; временное снятие
       KPI visibility guard красит первый тест.
- - [-] ~~**4.5** Проактивные подсказки.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 31.07: «Проактивных подсказок не будет вовсе — механика вычёркивается. Вместо неё появится ИИ-помощник... Медицинских подсказок платформа не даёт — это не медицинское приложение» (`QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §3, решение владельца 31.07 п.3).
-- [ ] **4.6** Предоплата при записи; правила отмены не трогать.
+- [-] ~~**4.5** Проактивные подсказки.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 31.07: «Проактивных подсказок не будет вовсе — механика вычёркивается. Вместо неё появится ИИ-помощник... Медицинских подсказок платформа не даёт — это не медицинское приложение» (`QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §3, решение владельца 31.07 п.3).
+- [x] **4.6** Предоплата при записи; правила отмены не трогать. — `booking_prepayment` остаётся единственной записью `booking-prepayment.policy.upsert` в protected-action registry; disabled/unconfigured скрывает clinic settings и отказывает PUT до `upsertPrepaymentPolicy`, read_only сохраняет существующую public prepayment только если отдельная механика `payments` допускает новый платёж, disabled создаёт обычную confirmed booking без intent. Evidence 2026-08-02: `pnpm --dir apps/webapp exec vitest run --project=route src/app/api/admin/booking-engine/prepayment-policies/route.route.test.ts` (7 passed); `pnpm --dir apps/webapp exec vitest run --project=ui src/app/app/settings/BookingPrepaymentSection.ui.test.tsx` (4 passed); `pnpm --dir apps/webapp exec vitest run --project=fast src/modules/patient-booking/canonicalCreate.d14.test.ts` (5 passed); `pnpm --dir apps/webapp exec vitest run --project=unit src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` (8 passed); `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp lint`; `git diff --check`.
 - [ ] **4.7** Курсы · CMS · каталог и пакеты упражнений · абонементы · приём оплат · платная подписка пациента ·
       брендирование (включает свои шаблоны уведомлений) · свой домен — привести к порту и к лестнице.
       — CMS: `wt/cms-entitlement-visibility` — read-only оставляет списки страниц и разделов, но скрывает создание,

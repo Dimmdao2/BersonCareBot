@@ -6,6 +6,7 @@ import type {
   SaasBillingRepositoryPort,
   SaasBillingSubscription,
 } from '@/modules/saas-billing/ports';
+import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 
 const OPEN_REFUND_STATUSES: SaasBillingRefund['status'][] = ['pending', 'succeeded'];
 
@@ -28,9 +29,10 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
   /** К4 round 2 — same shared point as `insertSaasBillingInvoiceIdempotent` in the pg repository:
    *  a second call under the same `(providerId, providerIdempotencyKey)` returns the invoice
    *  already inserted instead of a duplicate row. */
-  function insertInvoiceIdempotent(
-    row: SaasBillingInvoice,
-  ): { invoice: SaasBillingInvoice; created: boolean } {
+  function insertInvoiceIdempotent(row: SaasBillingInvoice): {
+    invoice: SaasBillingInvoice;
+    created: boolean;
+  } {
     const existing = [...invoices.values()].find(
       (candidate) =>
         candidate.providerId === row.providerId &&
@@ -42,6 +44,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
   }
 
   return {
+    async getSaasBillingAccountBillingEmail() {
+      return null;
+    },
     async getOrganizationBillingOverview(organizationId) {
       const now = new Date().toISOString();
       return {
@@ -67,7 +72,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
     },
 
     async listActiveTariffChoices() {
-      return [...new Set([...organizationTariffs.values()].filter((id): id is string => id !== null))]
+      return [
+        ...new Set([...organizationTariffs.values()].filter((id): id is string => id !== null)),
+      ]
         .sort()
         .map((id) => ({ id, name: 'In-memory tariff' }));
     },
@@ -175,7 +182,10 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
     async runManualAssignmentTransaction(work) {
       return work({
         async loadManualAssignmentState(organizationId) {
-          const manual = rows.get(subscriptionKey(organizationId, 'paid_subscription')) ?? rows.get(subscriptionKey(organizationId, 'manual')) ?? null;
+          const manual =
+            rows.get(subscriptionKey(organizationId, 'paid_subscription')) ??
+            rows.get(subscriptionKey(organizationId, 'manual')) ??
+            null;
           return {
             organization: {
               tariffId: organizationTariffs.get(organizationId) ?? null,
@@ -196,8 +206,15 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         async requireActiveTariff() {
           return { billingPeriod: 'month' as const };
         },
-        async setManualSaasBillingSubscription({ organizationId, tariffId, period, pendingTariffId = null }) {
-          const source = rows.has(subscriptionKey(organizationId, 'paid_subscription')) ? 'paid_subscription' : 'manual';
+        async setManualSaasBillingSubscription({
+          organizationId,
+          tariffId,
+          period,
+          pendingTariffId = null,
+        }) {
+          const source = rows.has(subscriptionKey(organizationId, 'paid_subscription'))
+            ? 'paid_subscription'
+            : 'manual';
           const key = subscriptionKey(organizationId, source);
           if (tariffId === null) {
             const current = rows.get(key);
@@ -289,6 +306,17 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       return insertInvoiceIdempotent(row);
     },
 
+    async attachSaasBillingInvoiceReceiptSnapshot({ saasBillingInvoiceId, receipt }) {
+      const current = invoices.get(saasBillingInvoiceId);
+      if (!current) throw new Error('saas_billing_invoice_not_found');
+      const invoice = {
+        ...current,
+        tariffSnapshot: withReceiptSnapshot(current.tariffSnapshot, receipt),
+      };
+      invoices.set(invoice.id, invoice);
+      return invoice;
+    },
+
     async attachSaasBillingInvoiceProviderIntent(input) {
       const current = invoices.get(input.saasBillingInvoiceId);
       if (!current) throw new Error('saas_billing_invoice_not_found');
@@ -344,18 +372,27 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       }
       if (!existingEvent) {
         events.set(key, {
-          id: crypto.randomUUID(), organizationId: input.organizationId,
-          saasBillingInvoiceId: current.id, providerId: input.event.providerId,
-          providerEventId: input.event.providerEventId, eventType: input.event.type,
-          processedAt: new Date().toISOString(), createdAt: new Date().toISOString(),
+          id: crypto.randomUUID(),
+          organizationId: input.organizationId,
+          saasBillingInvoiceId: current.id,
+          providerId: input.event.providerId,
+          providerEventId: input.event.providerEventId,
+          eventType: input.event.type,
+          processedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         });
       }
       if (current.status !== 'paid') invoices.set(current.id, { ...current, status: 'paid' });
-      const entry = [...rows.entries()].find(([, row]) => row.id === current.saasBillingSubscriptionId);
+      const entry = [...rows.entries()].find(
+        ([, row]) => row.id === current.saasBillingSubscriptionId,
+      );
       if (!entry) throw new Error('saas_billing_subscription_not_found');
       const [subscriptionKeyValue, subscription] = entry;
       if (input.savedPaymentMethodId && current.invoiceKind === 'tariff_period') {
-        rows.set(subscriptionKeyValue, { ...subscription, savedPaymentMethodId: input.savedPaymentMethodId });
+        rows.set(subscriptionKeyValue, {
+          ...subscription,
+          savedPaymentMethodId: input.savedPaymentMethodId,
+        });
       }
       if (current.invoiceKind === 'seat_overage' && current.status !== 'paid') {
         rows.set(subscriptionKeyValue, {
@@ -372,8 +409,12 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       if (due) {
         const latest = rows.get(subscriptionKeyValue) as SaasBillingSubscription;
         rows.set(subscriptionKeyValue, {
-          ...latest, tariffId: current.tariffId, pendingTariffId: null, status: 'active',
-          lifecycleState: 'active', currentPeriodStartsAt: current.servicePeriodStartsAt,
+          ...latest,
+          tariffId: current.tariffId,
+          pendingTariffId: null,
+          status: 'active',
+          lifecycleState: 'active',
+          currentPeriodStartsAt: current.servicePeriodStartsAt,
           currentPeriodEndsAt: current.servicePeriodEndsAt,
         });
         organizationTariffs.set(input.organizationId, current.tariffId);
@@ -500,11 +541,11 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         saasBillingSubscriptionId: row.id,
         currentTariffId: row.tariffId,
         tariffId,
-          billingPeriod: 'month' as const,
-          savedPaymentMethodId: row.savedPaymentMethodId,
-          additionalSeatPriceMinor: null,
-          currency: 'RUB',
-          currentPeriodEndsAt: row.currentPeriodEndsAt,
+        billingPeriod: 'month' as const,
+        savedPaymentMethodId: row.savedPaymentMethodId,
+        additionalSeatPriceMinor: null,
+        currency: 'RUB',
+        currentPeriodEndsAt: row.currentPeriodEndsAt,
       };
     },
 
@@ -579,14 +620,22 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       if (!entry) throw new Error('saas_billing_subscription_not_found');
       const [key, subscription] = entry;
       const candidate = [...invoices.values()].find(
-        (row) => row.organizationId === organizationId && row.saasBillingSubscriptionId === saasBillingSubscriptionId &&
-          row.invoiceKind === 'tariff_period' && row.status === 'paid' &&
-          row.servicePeriodStartsAt === subscription.currentPeriodEndsAt && row.servicePeriodStartsAt <= asOf,
+        (row) =>
+          row.organizationId === organizationId &&
+          row.saasBillingSubscriptionId === saasBillingSubscriptionId &&
+          row.invoiceKind === 'tariff_period' &&
+          row.status === 'paid' &&
+          row.servicePeriodStartsAt === subscription.currentPeriodEndsAt &&
+          row.servicePeriodStartsAt <= asOf,
       );
       if (!candidate) return false;
       rows.set(key, {
-        ...subscription, tariffId: candidate.tariffId, pendingTariffId: null, status: 'active',
-        lifecycleState: 'active', currentPeriodStartsAt: candidate.servicePeriodStartsAt,
+        ...subscription,
+        tariffId: candidate.tariffId,
+        pendingTariffId: null,
+        status: 'active',
+        lifecycleState: 'active',
+        currentPeriodStartsAt: candidate.servicePeriodStartsAt,
         currentPeriodEndsAt: candidate.servicePeriodEndsAt,
       });
       organizationTariffs.set(organizationId, candidate.tariffId);
@@ -672,7 +721,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
       refunds.set(refund.id, refund);
       const invoice = invoices.get(refund.saasBillingInvoiceId);
       if (status === 'succeeded' && invoice?.invoiceKind === 'seat_overage') {
-        const entry = [...rows.entries()].find(([, row]) => row.id === invoice.saasBillingSubscriptionId);
+        const entry = [...rows.entries()].find(
+          ([, row]) => row.id === invoice.saasBillingSubscriptionId,
+        );
         if (entry) {
           const [key, subscription] = entry;
           rows.set(key, {
