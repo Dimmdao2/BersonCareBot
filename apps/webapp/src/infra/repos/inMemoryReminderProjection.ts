@@ -2,7 +2,7 @@ import type {
   ReminderProjectionPort,
   ReminderRuleListItem,
   ReminderOccurrenceHistoryItem,
-} from './pgReminderProjection';
+} from '@/modules/reminders/projectionPort';
 import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
 import { env } from '@/config/env';
 

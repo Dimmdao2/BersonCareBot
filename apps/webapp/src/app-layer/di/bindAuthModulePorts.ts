@@ -6,6 +6,7 @@ import { bindAuthRateLimitDbPort } from '@/modules/auth/authRateLimits';
 import { bindChannelLinkDbPort } from '@/modules/auth/channelLink';
 import { bindEmailSendPort } from '@/modules/auth/emailSendPort';
 import { bindOAuthUserResolvePort } from '@/modules/auth/oauthUserResolvePort';
+import { bindSessionUserPort } from '@/modules/auth/sessionUserPort';
 import {
   checkAndRecordAuthRateLimitEvent,
   countActiveAuthRateLimitEvents,
@@ -18,6 +19,7 @@ import { pgPhoneOtpLimitsPort } from '@/infra/repos/pgPhoneOtpLimits';
 import { pgDevBypassPlatformUserPhonePort } from '@/infra/repos/pgDevBypassPlatformUserPhone';
 import { pgDevBypassClinicAdminWorkspacePort } from '@/infra/repos/pgDevBypassClinicAdminWorkspace';
 import { pgOAuthUserResolvePort } from '@/infra/repos/pgOAuthUserResolve';
+import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
 import { sendEmailCodeViaIntegrator } from '@/infra/integrations/email/integratorEmailAdapter';
 
 let bound = false;
@@ -36,6 +38,7 @@ export function ensureAuthModulePortsBound(): void {
   bindDevBypassPlatformUserPhonePort(pgDevBypassPlatformUserPhonePort);
   bindDevBypassClinicAdminWorkspacePort(pgDevBypassClinicAdminWorkspacePort);
   bindOAuthUserResolvePort(pgOAuthUserResolvePort);
+  bindSessionUserPort(pgUserByPhonePort);
   bindChannelLinkDbPort(pgChannelLinkDbPort);
   bindEmailSendPort({
     sendCode: async (to, code) => {
