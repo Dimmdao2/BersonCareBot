@@ -553,6 +553,17 @@ export type SaasBillingRepositoryPort = {
     saasBillingInvoiceId: string;
     organizationId: string;
   }): Promise<SaasBillingInvoice | null>;
+  /**
+   * К6 — reopens only a provider-rejected tariff invoice for the existing clinic checkout flow.
+   * The period row is retained (so a retry cannot create a second period); the new deterministic
+   * provider key makes a fresh manual checkout possible after an off-session attempt was canceled.
+   */
+  prepareSaasBillingFailedInvoiceForManualCheckout(input: {
+    saasBillingInvoiceId: string;
+    organizationId: string;
+    providerId: string;
+    providerIdempotencyKey: string;
+  }): Promise<SaasBillingInvoice>;
 };
 
 export type SaasBillingSettingsReadPort = {

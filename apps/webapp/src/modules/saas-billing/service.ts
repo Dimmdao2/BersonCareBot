@@ -108,6 +108,8 @@ export function createSaasBillingService(dependencies: {
     providerIdempotencyKey: string;
     /** К6 — request the provider save this payment's method; only meaningful while none is saved yet. */
     savePaymentMethod?: boolean;
+    /** К6 — a failed off-session attempt reuses its period row, but opens a fresh manual checkout. */
+    retryFailedManually?: boolean;
   }) {
     const provider = await resolvePaymentProvider();
     const { invoice, created } = await dependencies.repository.createSaasBillingInvoice({
@@ -119,34 +121,61 @@ export function createSaasBillingService(dependencies: {
       providerId: provider.providerId,
     });
     if (!created && invoice.providerCheckoutUrl) return invoice;
+    let checkoutInvoice = invoice;
+    if (!created && input.retryFailedManually) {
+      if (invoice.status === 'failed') {
+        checkoutInvoice = await dependencies.repository.prepareSaasBillingFailedInvoiceForManualCheckout({
+          saasBillingInvoiceId: invoice.id,
+          organizationId: input.organizationId,
+          providerId: provider.providerId,
+          // A canceled provider payment must never be retried under its old idempotency key: the
+          // PSP would correctly return that same canceled attempt forever. The invoice id plus its
+          // previous key advances once per failed attempt, while concurrent clicks converge on the
+          // same new key and therefore cannot charge twice.
+          providerIdempotencyKey: `saas_tariff_manual_retry:${deriveSaasBillingIdempotencyKey([
+            invoice.id,
+            invoice.providerIdempotencyKey,
+            ])}`,
+        });
+        if (
+          checkoutInvoice.status !== 'draft' ||
+          checkoutInvoice.providerCheckoutUrl ||
+          !checkoutInvoice.providerIdempotencyKey.startsWith('saas_tariff_manual_retry:')
+        ) {
+          return checkoutInvoice;
+        }
+      } else if (checkoutInvoice.status !== 'draft' || checkoutInvoice.providerCheckoutUrl) {
+        return checkoutInvoice;
+      }
+    }
     const claimed =
-      (await dependencies.repository.claimSaasBillingInvoiceProviderIntent?.(invoice.id)) ??
-      (created || invoice.status === 'draft');
-    if (!claimed) return invoice;
+      (await dependencies.repository.claimSaasBillingInvoiceProviderIntent?.(checkoutInvoice.id)) ??
+      (created || checkoutInvoice.status === 'draft');
+    if (!claimed) return checkoutInvoice;
     try {
       const intent = await provider.adapter.createIntent({
-      amountMinor: invoice.amountMinor,
-      currency: invoice.currency,
-      idempotencyKey: invoice.providerIdempotencyKey,
-      payerRef: `organization:${invoice.organizationId}`,
-      purpose: 'saas_billing_tariff_renewal',
-      subjectRef: invoice.id,
-      returnUrl: SAAS_BILLING_RETURN_URL,
-      metadata: {
-        organizationId: invoice.organizationId,
-        saasBillingInvoiceId: invoice.id,
-        saasBillingSubscriptionId: invoice.saasBillingSubscriptionId,
-      },
-      providerConfig: provider.providerConfig,
-      savePaymentMethod: input.savePaymentMethod,
+        amountMinor: checkoutInvoice.amountMinor,
+        currency: checkoutInvoice.currency,
+        idempotencyKey: checkoutInvoice.providerIdempotencyKey,
+        payerRef: `organization:${checkoutInvoice.organizationId}`,
+        purpose: 'saas_billing_tariff_renewal',
+        subjectRef: checkoutInvoice.id,
+        returnUrl: SAAS_BILLING_RETURN_URL,
+        metadata: {
+          organizationId: checkoutInvoice.organizationId,
+          saasBillingInvoiceId: checkoutInvoice.id,
+          saasBillingSubscriptionId: checkoutInvoice.saasBillingSubscriptionId,
+        },
+        providerConfig: provider.providerConfig,
+        savePaymentMethod: input.savePaymentMethod,
       });
       return await dependencies.repository.attachSaasBillingInvoiceProviderIntent({
-        saasBillingInvoiceId: invoice.id,
+        saasBillingInvoiceId: checkoutInvoice.id,
         providerInvoiceRef: intent.providerIntentRef,
         providerCheckoutUrl: intent.checkoutUrl ?? null,
       });
     } catch (error) {
-      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.(invoice.id);
+      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.(checkoutInvoice.id);
       throw error;
     }
   }
@@ -716,6 +745,7 @@ export function createSaasBillingService(dependencies: {
         // К6 — asked once, automatically, until the organization has a saved method; asking again
         // once one exists would be pointless (the provider already has one to reuse for autopay).
         savePaymentMethod: !savedPaymentMethodId,
+        retryFailedManually: true,
         providerIdempotencyKey: `saas_tariff_renewal:${deriveSaasBillingIdempotencyKey([
           organizationId,
           saasBillingSubscriptionId,
@@ -889,6 +919,16 @@ export function createSaasBillingService(dependencies: {
             currency: payloadCurrency,
           },
         });
+        // YooKassa may accept the off-session request first and only later notify us that the
+        // payment was canceled. Without this transition the invoice remains `pending`, while the
+        // period uniqueness guard then prevents the clinic's existing manual-payment button from
+        // opening a usable checkout.
+        if (input.verified.eventType === 'payment.canceled') {
+          await dependencies.repository.markSaasBillingInvoiceFailed({
+            saasBillingInvoiceId: input.saasBillingInvoiceId,
+            organizationId: input.organizationId,
+          });
+        }
         return { captured: false, duplicate: !created };
       }
       return dependencies.repository.captureSaasBillingPaymentSucceeded({
