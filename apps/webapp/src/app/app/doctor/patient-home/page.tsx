@@ -29,8 +29,6 @@ import {
 
 export default async function DoctorPatientHomeSettingsPage() {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
-  if (!entitlement.ok) notFound();
   const todayEntitlement = await requireEntitlementForReadAction(workspace, 'patient_home_today');
   if (!todayEntitlement.ok) notFound();
   const session = workspace.session;

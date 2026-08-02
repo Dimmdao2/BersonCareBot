@@ -340,7 +340,6 @@ describe('tariff and platform mutation gates', () => {
       vi.mocked(requireEntitlementForMutationAction)
         .mockReset()
         .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({
           ok: false,
           reason: 'entitlement_required',

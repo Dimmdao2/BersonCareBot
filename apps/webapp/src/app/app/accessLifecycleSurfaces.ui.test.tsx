@@ -54,14 +54,17 @@ vi.mock('@/shared/ui/doctor/shell/DoctorWorkspaceShell', () => ({
     children,
     coursesEnabled,
     cmsEnabled,
+    patientHomeTodayEnabled,
   }: {
     children: ReactNode;
     coursesEnabled?: boolean;
     cmsEnabled?: boolean;
+    patientHomeTodayEnabled?: boolean;
   }) => (
     <main>
       {coursesEnabled ? <span role="link">Курсы</span> : null}
       {cmsEnabled ? <span role="link">Контент</span> : null}
+      {patientHomeTodayEnabled ? <span role="link">Главная пациента</span> : null}
       {children}
     </main>
   ),
@@ -102,6 +105,7 @@ let DoctorSectionLayout: typeof import('./doctor/layout').default;
 let PatientHomePage: typeof import('./patient/page').default;
 let DoctorCoursesPage: typeof import('./doctor/courses/page').default;
 let DoctorContentPage: typeof import('./doctor/content/page').default;
+let DoctorPatientHomeSettingsPage: typeof import('./doctor/patient-home/page').default;
 let coursesIncluded = true;
 let cmsIncluded = true;
 let warmupsIncluded = true;
@@ -143,11 +147,13 @@ beforeAll(async () => {
     { default: PatientHomePage },
     { default: DoctorCoursesPage },
     { default: DoctorContentPage },
+    { default: DoctorPatientHomeSettingsPage },
   ] = await Promise.all([
     import('./doctor/layout'),
     import('./patient/page'),
     import('./doctor/courses/page'),
     import('./doctor/content/page'),
+    import('./doctor/patient-home/page'),
   ]);
 });
 
@@ -270,13 +276,14 @@ beforeEach(() => {
     bookingEngine: {
       organization: { getOrganization: async () => ({ title: 'Клиника' }) },
     },
-    systemSettings: { listSettingsByScope: async () => [] },
+    systemSettings: { listSettingsByScope: async () => [], getSetting: async () => null },
     orgBranding: { resolveEffectiveOrgBranding: async () => null },
     patientOrganization: {},
-    courses: { listCoursesForDoctor: vi.fn() },
+    courses: { listCoursesForDoctor: vi.fn().mockResolvedValue([]) },
     contentPages: { listAll: async () => [] },
     contentSections: { listAll: async () => [] },
     materialRating: { listDoctorAggregates: async () => new Map() },
+    patientHomeBlocks: { listBlocksWithItems: async () => [] },
   });
 });
 
@@ -344,6 +351,25 @@ describe('access lifecycle on real clinic and patient surfaces', () => {
     render(await DoctorContentPage());
 
     expect(screen.getByTestId('doctor-patient-home-navigation')).toHaveTextContent('visible');
+  });
+
+  it('keeps Today settings navigation and direct URL available when Today is read-only and CMS is disabled', async () => {
+    patientHomeTodayState = 'read_only';
+    cmsIncluded = false;
+
+    render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
+
+    expect(screen.getByRole('link', { name: 'Главная пациента' })).toBeInTheDocument();
+    await expect(DoctorPatientHomeSettingsPage()).resolves.toBeDefined();
+  });
+
+  it('hides and refuses the doctor Today settings direct URL when the mechanic is disabled', async () => {
+    patientHomeTodayState = 'disabled';
+
+    render(await DoctorSectionLayout({ children: <div>Рабочая область</div> }));
+
+    expect(screen.queryByRole('link', { name: 'Главная пациента' })).not.toBeInTheDocument();
+    await expect(DoctorPatientHomeSettingsPage()).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
   it('refuses the patient Today direct URL when the mechanic is disabled', async () => {

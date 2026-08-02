@@ -38,6 +38,7 @@ export type DoctorMenuLinkItem = {
   requiresCoursesEntitlement?: boolean;
   requiresPromoEntitlement?: boolean;
   requiresCmsEntitlement?: boolean;
+  requiresPatientHomeTodayEntitlement?: boolean;
 };
 
 export type DoctorMenuAccessTier = 'doctor' | 'staff' | 'clinic_admin' | 'global_admin';
@@ -47,6 +48,7 @@ export type DoctorMenuAccess = {
   coursesEnabled?: boolean;
   promoEnabled?: boolean;
   cmsEnabled?: boolean;
+  patientHomeTodayEnabled?: boolean;
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
@@ -67,6 +69,7 @@ export function isDoctorMenuLinkVisible(
   if (item.requiresCoursesEntitlement && !access.coursesEnabled) return false;
   if (item.requiresPromoEntitlement && !access.promoEnabled) return false;
   if (item.requiresCmsEntitlement && !access.cmsEnabled) return false;
+  if (item.requiresPatientHomeTodayEntitlement && !access.patientHomeTodayEnabled) return false;
   const tier = item.accessTier ?? 'doctor';
   if (tier === 'doctor') return hasLaunchCapability(access.capabilities, 'clinical.workspace');
   if (tier === 'staff') {
@@ -83,6 +86,12 @@ export function isDoctorMenuLinkVisible(
 
 const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: 'today', label: 'Сегодня', href: '/app/doctor', badgeKey: 'todayAttention' },
+  {
+    id: 'patient-home',
+    label: 'Главная пациента',
+    href: '/app/doctor/patient-home',
+    requiresPatientHomeTodayEntitlement: true,
+  },
   { id: 'patients', label: 'Пациенты', href: '/app/doctor/patients' },
   {
     id: 'schedule',
