@@ -70,7 +70,7 @@ type ConfirmStepOptions = {
   formFieldsApiPath?: string;
   successRedirectPath?: string;
   doneRedirectPath?: string;
-  buildAwaitingPaymentHref?: (booking: PatientBookingRecord, contactPhone: string) => string;
+  buildAwaitingPaymentHref?: (booking: PatientBookingRecord) => string;
   /**
    * A-3: the public variant of this hook may answer the first request with a one-time-code
    * challenge instead of a booking (`verificationPrompt`). The authenticated variant never does, so
@@ -78,12 +78,15 @@ type ConfirmStepOptions = {
    */
   useCreateBookingHook?: () => ReturnType<typeof useCreateBooking> & {
     verificationPrompt?: {
+      proofMethod: 'sms' | 'email';
       challengeId: string;
       expiresInSeconds: number;
-      contactPhone: string;
+      contact: string;
     } | null;
     confirmVerification?: (code: string) => Promise<PatientBookingRecord | false>;
     cancelVerification?: () => void;
+    proofMethod?: 'sms' | 'email';
+    setProofMethod?: (method: 'sms' | 'email') => void;
   };
   useRescheduleBookingHook?: typeof useRescheduleBooking;
 };
@@ -278,7 +281,7 @@ export function ConfirmStepClient({
     if (booking.status === 'awaiting_payment') {
       toast.success('Требуется оплата');
       const payPath = buildAwaitingPaymentHref
-        ? buildAwaitingPaymentHref(booking, phone.trim())
+        ? buildAwaitingPaymentHref(booking)
         : `/app/patient/booking/pay?bookingId=${encodeURIComponent(booking.id)}`;
       router.push(payPath);
       return;
@@ -317,8 +320,7 @@ export function ConfirmStepClient({
         >
           <h2 className={patientSectionTitleClass}>Подтверждение записи</h2>
           <p className={cn(patientMutedTextClass, 'text-sm')}>
-            Мы отправили код на номер {verificationPrompt.contactPhone}. Введите его, чтобы
-            подтвердить запись — так мы убеждаемся, что номер принадлежит вам.
+            Мы отправили код на {verificationPrompt.contact}. Введите его, чтобы подтвердить запись.
           </p>
           <label className="flex flex-col gap-1">
             <span className={cn(patientMutedTextClass, 'text-xs')}>Код из сообщения</span>
@@ -435,6 +437,30 @@ export function ConfirmStepClient({
           <span className={cn(patientMutedTextClass, 'text-xs')}>Email</span>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
+
+        {createState.proofMethod && createState.setProofMethod ? (
+          <fieldset className="flex flex-col gap-2">
+            <legend className={cn(patientMutedTextClass, 'text-xs')}>Подтверждение личности</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="publicBookingProofMethod"
+                checked={createState.proofMethod === 'sms'}
+                onChange={() => createState.setProofMethod?.('sms')}
+              />
+              Код по SMS
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="publicBookingProofMethod"
+                checked={createState.proofMethod === 'email'}
+                onChange={() => createState.setProofMethod?.('email')}
+              />
+              Код на подтверждённую почту
+            </label>
+          </fieldset>
+        ) : null}
 
         {type === 'in_person' && !isReschedule && packageOptions.length > 0 ? (
           <label className="flex flex-col gap-1">
