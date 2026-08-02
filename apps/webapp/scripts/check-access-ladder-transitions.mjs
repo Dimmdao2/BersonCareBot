@@ -26,11 +26,12 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-// Both doors were last redefined by 0305. The proof must extract those CURRENT bodies, not a
-// superseded migration, otherwise a green private-cluster run would not cover live tariff edits.
+// Both doors are redefined by the forward-only 0320 migration. The proof must extract those
+// CURRENT bodies, not the applied 0305 migration, otherwise a green private-cluster run would not
+// cover live tariff edits.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0305_tariff_snapshot_access_doors_local.sql',
+  'apps/webapp/db/drizzle-migrations/0320_tariff_policy_live_progression_local.sql',
 );
 const cabinetMigrationPath = mechanicMigrationPath;
 const mechanicRegistryPath = path.join(

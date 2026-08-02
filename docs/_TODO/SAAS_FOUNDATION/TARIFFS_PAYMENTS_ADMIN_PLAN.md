@@ -729,13 +729,26 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       ступеней и конечных состояний расширяется данными, кодом остаётся только смысл ступени. Тест: смена политики в
       тарифе меняет поведение без перезапуска и без правки кода. ✅ `apps/webapp/scripts/check-access-ladder-transitions.mjs`
       на private PostgreSQL: следующая резолюция читает новую запись тарифа; существующие приоритеты system/mechanic и
-      критичные механики остаются теми же.
+      критичные механики остаются теми же. **ПРОДОЛЖЕНИЕ 02.08 (`wt/tariff-policy-live`):** applied
+      `0305_tariff_snapshot_access_doors_local.sql` восстановлена byte-for-byte из
+      `feat/doctor-ui-rebuild` (`cmp -s apps/webapp/db/drizzle-migrations/0305_tariff_snapshot_access_doors_local.sql
+      <(git show feat/doctor-ui-rebuild:apps/webapp/db/drizzle-migrations/0305_tariff_snapshot_access_doors_local.sql)`;
+      exit 0); forward-only `0320_tariff_policy_live_progression_local.sql`
+      несёт узкий audit-history read и переопределение двух существующих дверей. Oracle читает именно `0320`;
+      `node apps/webapp/scripts/check-access-ladder-transitions.mjs` PASS, включая смену terminal state без
+      перезапуска/правки кода и self-test red-paths.
 - [x] **2.10** Изменение политики действует ВПЕРЁД: организация, уже идущая по лестнице, пересчитывается от новой
       политики без потери накопленного и без мгновенного блока (образец — Stripe, где правка настроек влияет на будущие
       попытки). Тест: организация в терпении при удлинении терпения не блокируется, при укорочении не выкидывается
       задним числом. ✅ `apps/webapp/scripts/check-access-ladder-transitions.mjs` на private PostgreSQL: продление
       mechanic-level grace сохраняет grace до нового срока; сокращение system-level grace/read-only до нуля не выбрасывает
       уже read-only кабинет. Self-test с удалённой исторической границей краснеет: `expected read_only, got disabled`.
+      **ПРОДОЛЖЕНИЕ 02.08 (`wt/tariff-policy-live`):** `0320` сохраняет этот единственный live-data resolver path,
+      без snapshot table или отдельного transition service; journal `idx 314` / `when 1793539230021` синхронизирован
+      (`bash apps/webapp/scripts/check-drizzle-journal-sync.sh` PASS). `pnpm --dir apps/webapp typecheck` и scoped
+      `pnpm --dir apps/webapp exec eslint scripts/check-access-ladder-transitions.mjs` PASS; `git diff --check` PASS.
+      DEV-only preflight `bash deploy/host/migrate-dev.sh --preflight` не дошёл до БД: `DEV env path guard failed`
+      (exit 1), поэтому миграции не применялись и TEST/PROD не затрагивались.
 - [x] **2.11** Журнал правок политики: кто, когда, что было, что стало — по обоим предметам лестницы (кабинет и каждая
       механика). Без него нельзя будет объяснить клинике, почему она получила блок. — ГОТОВО `f64b6e539`,
       независимый live-audit на четырёх правках PASS: `admin_audit_log` хранит immutable before/after, API
