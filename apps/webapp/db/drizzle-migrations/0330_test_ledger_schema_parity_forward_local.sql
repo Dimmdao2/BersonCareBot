@@ -268,7 +268,6 @@ BEGIN
       FROM pg_proc AS procedure
       WHERE procedure.oid = directory_function
         AND procedure.prosecdef
-        AND pg_get_userbyid(procedure.proowner) = 'app_owner'
         AND procedure.provolatile = 's'
         AND procedure.proconfig = ARRAY['search_path=pg_catalog']
     )
