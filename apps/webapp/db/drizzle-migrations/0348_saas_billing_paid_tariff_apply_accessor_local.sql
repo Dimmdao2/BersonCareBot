@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0346
+-- Final migration number 0348 — assigned at merge (0346/0347 were taken by branches that landed first).
 -- #1057 B0.3: applies the tariff of a confirmed-paid invoice onto its organization. The capture
 -- path (`captureSaasBillingPaymentSucceeded` -> `promotePaidInvoice` and the tariff-upgrade branch,
 -- `apps/webapp/src/infra/repos/pgSaasBilling.ts`) runs under `SET ROLE app_staff`

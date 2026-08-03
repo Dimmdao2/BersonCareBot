@@ -273,6 +273,11 @@ export type Tariff = {
    * overage. See `apps/webapp/db/schema/saasEntitlements.ts` for the storage-level contract.
    */
   additionalSeatPriceMinor: number | null;
+  /**
+   * Триал и льготный период — owner 03.08 (Т8): exact discounted price for this tariff's
+   * discount-payment window. `null` gives no discount; there is no global percent fallback.
+   */
+  discountedPriceMinor: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -309,10 +314,19 @@ export type TrialPostBehavior = 'read_only' | 'blocked' | 'tariff';
 /** Operator-authored event key. Empty means invalid; the runtime never substitutes an event. */
 export type TrialStartEvent = string;
 
+/**
+ * §5a #1069 Т3/Т5 (owner 03.08): the trial is a one-time period on the organization's first
+ * tariff, whatever it is (auto-assigned via {@link RegistrationTariffPolicy} or already assigned to
+ * the organization) — it no longer carries its own separate tariff.
+ */
 export type TrialPolicy = {
-  tariffId: string;
   durationDays: number;
-  graceDays: number;
+  /**
+   * Т6 — length of the discount-payment window that opens once the trial ends, orthogonal to
+   * access. Not the removed trial-extension `graceDays`: that field and its access-extending
+   * behavior are gone outright, not repurposed.
+   */
+  discountWindowDays: number;
   startEvent: TrialStartEvent;
   postTrialBehavior: TrialPostBehavior;
   postTrialTariffId: string | null;
@@ -337,11 +351,10 @@ export type EffectiveOrgCommercialAccess = {
   source: 'assignment' | 'trial' | 'post_trial_tariff';
   /**
    * Present only when this access derives from an active organization trial (`source === "trial"`,
-   * or a lifecycle of `grace`/`blocked`/`read_only` reached via a trial). Owner-facing displays
-   * (settings billing tab) need the real date, not just the enum — see Defect #2 2026-07-25.
+   * or a lifecycle of `blocked`/`read_only` reached via a trial). Owner-facing displays (settings
+   * billing tab) need the real date, not just the enum — see Defect #2 2026-07-25.
    */
   trialEndsAt?: string;
-  trialGraceEndsAt?: string;
   /** Server-derived instant when commercial access stopped being active. */
   degradationStartedAt?: string;
 };

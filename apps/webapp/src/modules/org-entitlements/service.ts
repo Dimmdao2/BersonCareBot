@@ -157,6 +157,13 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
     }
     if (!input.currency?.trim()) throw new Error('tariff_currency_required');
   }
+  // Т8 — the discounted price is explicit per tariff; `null` simply gives no discount.
+  if (input.discountedPriceMinor !== null) {
+    if (!Number.isSafeInteger(input.discountedPriceMinor) || input.discountedPriceMinor < 0) {
+      throw new Error('tariff_discounted_price_invalid');
+    }
+    if (!input.currency?.trim()) throw new Error('tariff_currency_required');
+  }
   if (input.systemAccessPolicy) assertAccessPolicy(input.systemAccessPolicy);
   const mechanicAccessPolicies = {} as Tariff['mechanicAccessPolicies'];
   for (const [mechanic, policy] of Object.entries(input.mechanicAccessPolicies)) {
@@ -206,8 +213,8 @@ function assertTrialPolicy(policy: TrialPolicy): void {
   if (!Number.isSafeInteger(policy.durationDays) || policy.durationDays <= 0) {
     throw new Error('trial_duration_invalid');
   }
-  if (!Number.isSafeInteger(policy.graceDays) || policy.graceDays < 0) {
-    throw new Error('trial_grace_invalid');
+  if (!Number.isSafeInteger(policy.discountWindowDays) || policy.discountWindowDays < 0) {
+    throw new Error('trial_discount_window_invalid');
   }
   if (policy.postTrialBehavior === 'tariff' && !policy.postTrialTariffId) {
     throw new Error('trial_post_tariff_required');
@@ -745,10 +752,6 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     },
     startTrial: (organizationId: string, audit: PlatformMutationAudit) => {
       return port.startTrial(organizationId, audit);
-    },
-    extendTrial: (organizationId: string, days: number, audit: PlatformMutationAudit) => {
-      if (!Number.isSafeInteger(days) || days <= 0) throw new Error('trial_extension_days_invalid');
-      return port.extendTrial(organizationId, days, audit);
     },
   };
 }

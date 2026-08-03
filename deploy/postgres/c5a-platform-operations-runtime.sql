@@ -763,18 +763,21 @@ BEGIN
   SELECT policy.*
   INTO v_policy
   FROM public.saas_trial_policy AS policy
-  INNER JOIN public.saas_tariffs AS tariff
-    ON tariff.id = policy.tariff_id
-   AND tariff.is_active
   WHERE policy.key = 'global'
     AND policy.is_active
     AND policy.start_event = 'organization_provisioned'
   LIMIT 1
   FOR UPDATE OF policy;
-  IF NOT FOUND THEN
-    -- No active trial policy is configured on this platform (owner has not set one). Whether the
-    -- organization instead gets a direct starting tariff is governed by the independent
-    -- registration-tariff setting above -- never a hardcoded value.
+  -- #1069 Т3/Т5 (owner 03.08): the trial no longer carries its own tariff_id -- it is a one-time
+  -- period on the organization's FIRST tariff, whatever it is. Without a registration tariff there
+  -- is nothing yet to attach a trial to (the person picks one themselves; wiring a trial into that
+  -- later self-choice is a separate slice), so this falls through to the same no-trial outcome as
+  -- no active policy at all.
+  IF NOT FOUND OR v_registration_tariff_id IS NULL THEN
+    -- No active trial policy is configured on this platform (owner has not set one), or there is no
+    -- tariff yet for a trial to apply to. Whether the organization instead gets a direct starting
+    -- tariff is governed by the independent registration-tariff setting above -- never a hardcoded
+    -- value.
     IF v_registration_tariff_id IS NOT NULL THEN
       UPDATE public.be_organizations
       SET tariff_id = v_registration_tariff_id,
@@ -802,12 +805,12 @@ BEGIN
 
   v_started_at := clock_timestamp();
   INSERT INTO public.saas_organization_trials (
-    organization_id, tariff_id, started_at, ends_at, grace_ends_at,
+    organization_id, tariff_id, started_at, ends_at, discount_ends_at,
     post_trial_behavior, post_trial_tariff_id, status, created_by
   ) VALUES (
-    v_organization_id, v_policy.tariff_id, v_started_at,
+    v_organization_id, v_registration_tariff_id, v_started_at,
     v_started_at + make_interval(days => v_policy.duration_days),
-    v_started_at + make_interval(days => v_policy.duration_days + v_policy.grace_days),
+    v_started_at + make_interval(days => v_policy.duration_days + v_policy.discount_window_days),
     v_policy.post_trial_behavior, v_policy.post_trial_tariff_id, 'active', v_patient_user_id
   )
   ON CONFLICT (organization_id) DO NOTHING
@@ -817,7 +820,7 @@ BEGIN
   END IF;
 
   UPDATE public.be_organizations
-  SET tariff_id = v_policy.tariff_id,
+  SET tariff_id = v_registration_tariff_id,
       updated_at = now()
   WHERE id = v_organization_id;
 
@@ -829,9 +832,9 @@ BEGIN
       'reason', 'automatic organization provisioning trial',
       'before', NULL,
       'after', jsonb_build_object(
-        'tariffId', v_policy.tariff_id,
+        'tariffId', v_registration_tariff_id,
         'durationDays', v_policy.duration_days,
-        'graceDays', v_policy.grace_days,
+        'discountWindowDays', v_policy.discount_window_days,
         'startEvent', v_policy.start_event,
         'postTrialBehavior', v_policy.post_trial_behavior,
         'postTrialTariffId', v_policy.post_trial_tariff_id

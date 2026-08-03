@@ -47,7 +47,7 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
                       : ('expired' as const),
                 startedAt: trial.endsAt,
                 endsAt: trial.endsAt,
-                graceEndsAt: trial.endsAt,
+                discountEndsAt: trial.endsAt,
               }
             : null,
         };
@@ -106,18 +106,13 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
       if (!policy?.isActive) return null;
       const existing = trials.get(organizationId);
       if (existing) return { created: false, endsAt: existing.endsAt };
+      // #1069 Т3/Т5 (owner 03.08): the trial applies to whatever tariff the organization already
+      // has — it no longer carries its own separate tariff.
+      const currentTariffId = organizationTariffs.get(organizationId) ?? null;
+      if (!currentTariffId) throw new Error('organization_tariff_required_for_trial');
       const endsAt = new Date(Date.now() + policy.durationDays * 86_400_000).toISOString();
-      trials.set(organizationId, { tariffId: policy.tariffId, endsAt, status: 'active' });
-      organizationTariffs.set(organizationId, policy.tariffId);
+      trials.set(organizationId, { tariffId: currentTariffId, endsAt, status: 'active' });
       return { created: true, endsAt };
-    },
-    async extendTrial(organizationId, days) {
-      const current = trials.get(organizationId);
-      if (!current) throw new Error('organization_trial_not_found');
-      const endsAt = new Date(new Date(current.endsAt).getTime() + days * 86_400_000).toISOString();
-      if (current.status !== 'active') throw new Error('organization_trial_not_found');
-      trials.set(organizationId, { ...current, endsAt, status: 'active' });
-      return { endsAt };
     },
   };
 }
