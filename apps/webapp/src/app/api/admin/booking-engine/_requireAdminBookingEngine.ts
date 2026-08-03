@@ -30,7 +30,7 @@ export async function requireAdminBookingEngine(): Promise<
       response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     };
   }
-  if (session.user.role !== 'admin' || !session.adminMode) {
+  if (session.user.role !== 'admin') {
     return {
       ok: false,
       response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),

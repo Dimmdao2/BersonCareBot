@@ -30,9 +30,9 @@ export async function GET(request: Request) {
   // dedicated "platform" DB principal (SET ROLE app_platform_settings), which is what
   // healthFailureArchive.listForAdmin's underlying SELECT on operator_health_failure_archive
   // needs to see rows across ALL clinics (owner ruling 2026-07-25). The previous
-  // requireAdminModeSession()-only guard checked role+adminMode but never stamped a DB
-  // principal, so the read stayed on the bootstrap/nonstaff pool and failed with
-  // "permission denied for table operator_health_failure_archive" (reproduced live on TEST).
+  // role-only-check guard never stamped a DB principal, so the read stayed on the
+  // bootstrap/nonstaff pool and failed with "permission denied for table
+  // operator_health_failure_archive" (reproduced live on TEST).
   const gate = await requirePlatformOperationsApiContext();
   if (!gate.ok) return gate.response;
 
