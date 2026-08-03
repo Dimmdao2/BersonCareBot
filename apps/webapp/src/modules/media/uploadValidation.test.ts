@@ -66,6 +66,36 @@ describe('media upload received-object door', () => {
     ).toMatchObject({ ok: false, error: 'file_too_large' });
   });
 
+  it('rejects SVG uploads outright: the mime is not whitelisted', () => {
+    expect(
+      validateUploadIntent({
+        filename: 'icon.svg',
+        mimeType: 'image/svg+xml',
+        sizeBytes: 10,
+        policyId: 'cms',
+      }),
+    ).toMatchObject({ ok: false, error: 'mime_not_allowed' });
+  });
+
+  it('rejects SVG content by sniffing, even disguised as an allowed text mime', () => {
+    const textIntentResult = validateUploadIntent({
+      filename: 'notes.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 40,
+      policyId: 'cms',
+    });
+    if (!textIntentResult.ok) throw new Error('fixture intent rejected');
+    const svgBody = new TextEncoder().encode('<svg onload="alert(1)"></svg>');
+    expect(
+      validateReceivedUpload({
+        intent: textIntentResult.value,
+        contentLength: 40,
+        contentType: 'text/plain',
+        firstBytes: svgBody,
+      }),
+    ).toMatchObject({ ok: false, error: 'file_signature_mismatch' });
+  });
+
   it('does not let a TypeScript cast mint the received-object capability', () => {
     expect(() => assertReceivedUpload({} as ReceivedUpload)).toThrow(
       'invalid_received_upload_capability',

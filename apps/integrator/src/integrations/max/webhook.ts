@@ -18,6 +18,7 @@ import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js
 import { createDbPort } from '../../infra/db/client.js';
 import { getOperationalVerboseLogEnabled } from '../../infra/db/repos/operationalVerboseLog.js';
 import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
+import { isWebhookSecretValid } from '../common/webhookSecretCompare.js';
 
 type WebhookOutcomeInput = Parameters<typeof recordIntegrationWebhookOutcome>[0];
 
@@ -197,7 +198,7 @@ export async function registerMaxWebhookRoutes(
       const config = await getMaxRuntimeConfig();
       if (!config.enabled) return reply.code(503).send({ ok: false, error: 'Unavailable' });
       const headerSecret = request.headers['x-max-bot-api-secret'];
-      if (headerSecret !== config.webhookSecret) {
+      if (!isWebhookSecretValid(headerSecret, config.webhookSecret)) {
           reqLogger.warn('max webhook secret mismatch');
           recordMaxWebhookOutcome({
             source: 'max',

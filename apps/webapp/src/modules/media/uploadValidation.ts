@@ -32,7 +32,6 @@ const UPLOAD_FILENAME_EXTENSIONS: Record<string, readonly string[]> = {
   'image/heif': ['.heif'],
   'image/avif': ['.avif'],
   'image/tiff': ['.tif', '.tiff'],
-  'image/svg+xml': ['.svg'],
   'video/mp4': ['.mp4', '.m4v'],
   'video/quicktime': ['.mov', '.qt'],
   'video/webm': ['.webm'],
@@ -191,7 +190,6 @@ export function matchesUploadSignature(mime: string, bytes: Uint8Array): boolean
   if (mime === 'image/avif') return isIsoBmffFtyp(bytes) && ['avif', 'avis'].includes(brand(bytes));
   if (mime === 'image/tiff')
     return hasPrefix(bytes, [0x49, 0x49, 0x2a, 0]) || hasPrefix(bytes, [0x4d, 0x4d, 0, 0x2a]);
-  if (mime === 'image/svg+xml') return isSvgText(bytes);
   if (mime === 'video/mp4' || mime === 'video/quicktime') return isIsoBmffFtyp(bytes);
   if (mime === 'video/webm') return hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3]);
   if (mime === 'audio/mpeg')
@@ -237,6 +235,10 @@ export function validateReceivedUpload(input: {
   const storedType = input.contentType?.split(';')[0]?.trim().toLowerCase();
   if (storedType !== input.intent.mimeType)
     return { ok: false, error: 'received_content_type_mismatch', mime: input.intent.mimeType };
+  // SVG is rejected by content regardless of the declared/whitelisted mime type (e.g. disguised as
+  // text/plain, which otherwise has no magic-byte check): an SVG opened from our origin runs script.
+  if (isSvgText(input.firstBytes))
+    return { ok: false, error: 'file_signature_mismatch', mime: input.intent.mimeType };
   if (!matchesUploadSignature(input.intent.mimeType, input.firstBytes))
     return { ok: false, error: 'file_signature_mismatch', mime: input.intent.mimeType };
   const received: ReceivedUpload = Object.freeze({

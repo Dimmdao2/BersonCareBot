@@ -9,8 +9,6 @@ export const ALLOWED_MEDIA_MIME = new Set([
   'image/heif',
   'image/avif',
   'image/tiff',
-  /** SVG: treat as download-only in UI; do not inline unsanitized in &lt;img&gt;. */
-  'image/svg+xml',
   // Video
   'video/mp4',
   'video/quicktime',
