@@ -1037,6 +1037,9 @@ WITH required(tbl, priv) AS (
     -- 0295/0302/0306 app_owner capabilities added after the 123-function baseline. Each row below
     -- comes directly from a live function body; ON CONFLICT writes require both INSERT and UPDATE.
     ('public.saas_billing_subscriptions', 'SELECT'),
+    -- 0343 (#1057 B0.3): app.resolve_saas_billing_invoice_for_webhook(text,text) is the bootstrap
+    -- webhook's invoice-by-provider-ref lookup, read-only, before the organization is known.
+    ('public.saas_billing_invoices', 'SELECT'),
     ('public.system_settings', 'SELECT'),
     -- Track D login/delivery capabilities: the provider-failure function returns the touched row
     -- and performs INSERT ... ON CONFLICT. UPDATE stays column-scoped and is asserted separately.
@@ -1485,7 +1488,11 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # ACLs. This is a measured value (154 + these exact four), not recomputed arithmetic; the dedicated
   # ownership/ACL wall right below re-checks the same four functions by name so a future silent
   # ownership regression on just these four cannot hide behind an otherwise-correct whole-class count.
-  local expected_secdef_count=158
+  # 158 -> 159 (2026-08-03, migration 0343, #1057 B0.3): one new function,
+  # app.resolve_saas_billing_invoice_for_webhook(text,text), the bootstrap webhook's invoice
+  # lookup by provider ref. Its one table dependency (SELECT on saas_billing_invoices) is the new
+  # row added to the required-grant set immediately above.
+  local expected_secdef_count=159
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1654,7 +1661,7 @@ SELECT (
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (114 required table grants + 5 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (116 required table grants + 5 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){

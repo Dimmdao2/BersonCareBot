@@ -406,11 +406,16 @@ export type SaasBillingRepositoryPort = {
     event: SaasBillingProviderEventEnvelope;
     savedPaymentMethodId: string | null;
   }): Promise<{ captured: boolean; duplicate: boolean }>;
-  /** Unscoped lookup — the webhook does not know the organization until this resolves it. */
+  /**
+   * Unscoped lookup — the webhook does not know the organization until this resolves it. Runs
+   * under the bootstrap principal (organization not yet known), so the implementation reads
+   * through a narrow SECURITY DEFINER resolver rather than the plain table — only the fields the
+   * webhook actually needs to check are returned, never the full invoice row.
+   */
   findSaasBillingInvoiceByProviderRef(input: {
     providerId: string;
     providerInvoiceRef: string;
-  }): Promise<SaasBillingInvoice | null>;
+  }): Promise<Pick<SaasBillingInvoice, 'id' | 'organizationId' | 'amountMinor' | 'currency'> | null>;
   /**
    * К4 — a platform-admin-issued invoice for the organization's OWN currently assigned tariff
    * (same subscription row `requireOwnTariffBillingSubscription` resolves), with an admin-chosen
