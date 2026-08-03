@@ -145,7 +145,9 @@ BEGIN
   -- #1069 stage 2.6: the accessor's RETURNS TABLE list changed when the seat warning threshold was
   -- removed, and PostgreSQL refuses `CREATE OR REPLACE` across a changed return type ("cannot
   -- change return type of existing function"). The overlay is re-runnable, so it drops the old
-  -- signature first; every grant this function needs is re-issued below, right after creation.
+  -- signature first; the own-org wrapper is dropped first because it depends on this accessor.
+  -- Every function and grant is recreated below in the same transaction.
+  DROP FUNCTION IF EXISTS app.read_current_org_tariff_transition_usage();
   DROP FUNCTION IF EXISTS app.read_org_enforced_quota_usage(uuid);
 
   EXECUTE $quota_usage_function$
@@ -201,7 +203,8 @@ BEGIN
     public.be_organization_members,
     public.organization_member_invites,
     public.org_enrollments,
-    public.patient_files
+    public.patient_files,
+    public.be_branches
   TO app_owner;
   REVOKE ALL PRIVILEGES ON TABLE
     public.organization_member_invites,
@@ -214,6 +217,43 @@ BEGIN
     FROM PUBLIC, app_staff, app_patient, app_clinic_billing, app_platform_settings;
   GRANT EXECUTE ON FUNCTION app.read_org_enforced_quota_usage(uuid)
     TO app_platform_settings;
+
+  EXECUTE $own_tariff_usage_function$
+    CREATE OR REPLACE FUNCTION app.read_current_org_tariff_transition_usage()
+    RETURNS TABLE(
+      organization_id uuid,
+      clinic_team_used integer,
+      patient_count_used integer,
+      files_used bigint,
+      branches_used integer
+    )
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = pg_catalog
+    AS $function$
+      SELECT
+        context.organization_id,
+        usage.clinic_team_used,
+        usage.patient_count_used,
+        usage.files_used,
+        (
+          SELECT count(*)::integer
+          FROM public.be_branches AS branch
+          WHERE branch.organization_id = context.organization_id
+            AND branch.is_active = true
+        ) AS branches_used
+      FROM (SELECT app.current_org_id() AS organization_id) AS context
+      CROSS JOIN LATERAL app.read_org_enforced_quota_usage(context.organization_id) AS usage
+      WHERE context.organization_id IS NOT NULL
+    $function$
+  $own_tariff_usage_function$;
+
+  ALTER FUNCTION app.read_current_org_tariff_transition_usage() OWNER TO app_owner;
+  REVOKE ALL ON FUNCTION app.read_current_org_tariff_transition_usage()
+    FROM PUBLIC, app_patient, app_platform_settings, app_staff, app_clinic_billing;
+  GRANT EXECUTE ON FUNCTION app.read_current_org_tariff_transition_usage()
+    TO app_staff, app_clinic_billing;
 END
 $c5a_enforced_quota_usage_runtime$;
 -- A-6 / #1007: matching platform-side grant for the clinical_test_measure_kinds write-lock above.
@@ -811,7 +851,8 @@ BEGIN
   IF to_regclass('public.organization_member_invites') IS NULL
      OR to_regclass('public.org_enrollments') IS NULL
      OR to_regclass('public.patient_files') IS NULL
-     OR to_regprocedure('app.read_org_enforced_quota_usage(uuid)') IS NULL THEN
+     OR to_regprocedure('app.read_org_enforced_quota_usage(uuid)') IS NULL
+     OR to_regprocedure('app.read_current_org_tariff_transition_usage()') IS NULL THEN
     RAISE WARNING '§10.1: enforced quota usage prerequisites are incomplete -- skipping the guarded exact wall.';
     RETURN;
   END IF;
@@ -877,6 +918,28 @@ SELECT (
     'app.read_org_enforced_quota_usage(uuid)',
     'EXECUTE'
   )
+  AND has_function_privilege(
+    'app_clinic_billing',
+    'app.read_current_org_tariff_transition_usage()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_clinic_billing',
+    'app.read_org_enforced_quota_usage(uuid)',
+    'EXECUTE'
+  )
+  AND NOT has_table_privilege(
+    'app_clinic_billing',
+    'public.be_organization_members',
+    'SELECT'
+  )
+  AND NOT has_table_privilege(
+    'app_clinic_billing',
+    'public.organization_member_invites',
+    'SELECT'
+  )
+  AND NOT has_table_privilege('app_clinic_billing', 'public.org_enrollments', 'SELECT')
+  AND NOT has_table_privilege('app_clinic_billing', 'public.patient_files', 'SELECT')
 )
 INTO inventory_ok;
 

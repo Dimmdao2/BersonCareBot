@@ -15,12 +15,7 @@ vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: getDrizzleMock }));
 
 import { createPgOrgEntitlementsPort } from './pgOrgEntitlements';
 
-/**
- * `getOwnQuotaUsage` issues six sequential `db.select(...)` calls (branches, patient_count, files,
- * then the three-part specialist-seat formula). Each `.select()` claims the next row-set from
- * `resultsQueue` in call order; `.from`/`.where`/`.innerJoin` are no-ops that just keep the chain
- * awaitable, matching how the real drizzle query builder is used in `pgOrgEntitlements.ts`.
- */
+/** Minimal awaitable Drizzle select stub for the platform branch count. */
 function stubSequentialDrizzleSelects(resultsQueue: Array<Array<{ value: number }>>) {
   let callIndex = 0;
   return {
@@ -57,20 +52,42 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
   });
 
   it('§5a stage 6.1 — sums the three-part seat formula and reports every quota number for the caller\'s own organization', async () => {
-    getDrizzleMock.mockReturnValue(
-      stubSequentialDrizzleSelects([
-        [{ value: 2 }], // branches (active)
-        [{ value: 7 }], // patient_count (invited + active)
-        [{ value: 12345 }], // files (summed bytes)
-        [{ value: 3 }], // clinic_team: active members with a seat
-        [{ value: 1 }], // clinic_team: pending doctor invites
-        [{ value: 1 }], // clinic_team: accepted doctor invites still missing a seat
-      ]),
-    );
+    runWebappPgTextMock.mockResolvedValue({
+      rows: [
+        {
+          organization_id: '11111111-1111-4111-8111-111111111111',
+          branches_used: 2,
+          patient_count_used: 7,
+          files_used: '12345',
+          clinic_team_used: 5,
+        },
+      ],
+    });
 
     await expect(
       createPgOrgEntitlementsPort().getOwnQuotaUsage('11111111-1111-4111-8111-111111111111'),
     ).resolves.toEqual({ branches: 2, patient_count: 7, files: 12345, clinic_team: 5 });
+    expect(runWebappPgTextMock).toHaveBeenCalledWith(
+      expect.stringContaining('app.read_current_org_tariff_transition_usage()'),
+    );
+  });
+
+  it('rejects an own-usage aggregate resolved for a different signed organization', async () => {
+    runWebappPgTextMock.mockResolvedValue({
+      rows: [
+        {
+          organization_id: '22222222-2222-4222-8222-222222222222',
+          branches_used: 0,
+          patient_count_used: 0,
+          files_used: 0,
+          clinic_team_used: 0,
+        },
+      ],
+    });
+
+    await expect(
+      createPgOrgEntitlementsPort().getOwnQuotaUsage('11111111-1111-4111-8111-111111111111'),
+    ).rejects.toThrow('own_tariff_transition_usage_context_denied');
   });
 
   it('projects lifecycle policies from the patient database capability', async () => {

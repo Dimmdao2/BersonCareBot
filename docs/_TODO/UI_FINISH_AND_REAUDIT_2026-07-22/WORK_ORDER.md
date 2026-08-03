@@ -15,6 +15,12 @@
 в `AuthFlowV2`, но роль админа сегодня резолвится только по телефону/telegram/max-разрешённым спискам, email не
 подключён.
 
+**CURRENT 03.08:** отдельный runtime-разрыв доставки email-OTP закрыт: product `4054417ea`, independent audit
+`b2b5e5a758`, land `17487d2b4`; штатный `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` завершился с
+exit `0`, а живой `POST /api/auth/email-otp/start` на TEST вернул `200` и
+`{"ok":true,"retryAfterSeconds":60}`. Сам Track B остаётся открыт: этим доказана отправка кода, но ещё не
+подтверждены ввод кода, резолв именно в `global_admin`, PWA и web-push.
+
 **Интегратор (Track D).** Интегратор сегодня — не только приёмник вебхуков и доставка, а второй писатель в
 продуктовый канон рядом с вебаппом: пишет идентичность, беседы поддержки, правила напоминаний и рассылки
 напрямую, часть пути идёт через HTTP-транспорт проекции (`/api/integrator/events`, fanout/outbox), хотя целевая
