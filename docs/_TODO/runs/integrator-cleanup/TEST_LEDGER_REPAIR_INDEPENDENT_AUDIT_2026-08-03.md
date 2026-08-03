@@ -2,7 +2,24 @@
 
 Кандидат: `28887ec27` (`wt/trackd-test-ledger-repair`), база `9255392a9`.
 
-Вердикт: **PASS К LAND/APPLY**. Это только audit gate; land/apply/deploy не выполнялись, DEV и PROD не затронуты.
+Первичный вердикт ниже **ОТКЛОНЁН последующей независимой проверкой** `audit-0330-test-ledger-r2-20260803`.
+Финальный вердикт после fixer `71a3ee727` / `a2de3db52` / `72791c80b` / `844524a07` /
+`eb06ced93` / `dcd4e65be`: **PASS К LAND/APPLY ПО СОХРАНЁННОМУ ORACLE**. Land/apply/deploy
+этой проверкой не выполнялись, DEV/TEST/PROD не затронуты.
+
+## Коррекция независимого аудита
+
+- Предварительная миграция безусловно удаляла owner-настроенный `lifecyclePolicy`. Одноразовый PostgreSQL
+  доказал потерю значения; fixer повторяет только exact legacy seed из `0278` и сохраняет любое owner-значение.
+- Проверка требовала существования global provider row и роняла fresh deploy после штатного удаления настройки.
+  Данные больше не используются как обязательный schema invariant.
+- Добавленные до runtime-overlays exact ACL/owner assertions последовательно роняли fresh chain на `0259`,
+  `0262`, `0266`, `0267`; они удалены, а фактические runtime-права остаются обязанностью overlay-гейтов.
+- Тот же финальный прогон: `pnpm --dir apps/webapp exec tsx scripts/postgres-integration/cli.ts build-template`
+  → `count=329 direct=329 reconciled=0`; временный кластер штатно удалён, оба worktree чистые.
+- Повторный blind audit не запускался: fixer повторил тот же fresh-chain oracle и закрыл конкретные findings.
+
+## Первичный evidence (историческая запись, не финальный вердикт)
 
 ## Evidence
 
@@ -14,4 +31,3 @@
 - `node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --self-test` — PASS.
 - `node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --check-online-index-layout` — PASS.
 - `git diff --check 9255392a9..28887ec27` — PASS.
-
