@@ -146,6 +146,14 @@ export function createWebappEventsPort(deps: {
       });
     },
 
+    async wakePatientReminderMaterialization(input: { wakeId: string; organizationId: string }) {
+      return postSignedJson({
+        path: '/api/integrator/patient-reminders/materialize-wake',
+        body: JSON.stringify(input),
+        idempotencyKey: `patient-reminder-materialize:${input.organizationId}:${input.wakeId}`,
+      });
+    },
+
     async emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {

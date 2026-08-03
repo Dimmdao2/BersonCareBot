@@ -43,6 +43,7 @@ import {
   type OutgoingDeliveryQueueRow,
 } from '../../db/repos/outgoingDeliveryQueue.js';
 import { revalidateSpecialistTaskReminderMaterialization } from '../../db/repos/specialistTaskReminderOutcome.js';
+import { revalidatePatientReminderDeliveryMaterialization } from '../../db/repos/patientReminderMaterialization.js';
 import { getOutgoingDeliveryReclaimConfig } from '../../db/repos/outgoingDeliveryReclaimSettings.js';
 import {
   enrichDoctorBroadcastIntentIfNeeded,
@@ -50,7 +51,6 @@ import {
 } from './doctorBroadcastIntentMenu.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../db/repos/notificationDeliveryAttempts.js';
 import {
-  getReminderDeliveryGateDecision,
   isReminderTransactionalEmailRateLimited,
   recordReminderTransactionalEmailSent,
   resolveReminderOccurrenceOrganizationId,
@@ -731,20 +731,25 @@ export async function processOutgoingDeliveryRow(
     const topicCode = typeof p.topicCode === 'string' && p.topicCode.trim() ? p.topicCode : null;
     const externalId = typeof p.externalId === 'string' ? p.externalId : '';
     const text = typeof p.logText === 'string' ? p.logText : '';
-    if (!occurrenceId || !channel || !deliveryLogId || generation === null || generation < 0) {
+    if (
+      !occurrenceId ||
+      !channel ||
+      !deliveryLogId ||
+      !topicCode ||
+      generation === null ||
+      generation < 0
+    ) {
       await queueMarkDead(db, row.id, 'MISSING_REMINDER_FIELDS');
       return;
     }
-    const gate = await getReminderDeliveryGateDecision(db, {
-      occurrenceId,
-      generation,
-      channel,
-      topicCode,
-    });
-    if (!gate.allowed) {
+    const materializationCurrent = await revalidatePatientReminderDeliveryMaterialization(
+      db,
+      row.id,
+    );
+    if (!materializationCurrent) {
       await recordQueueDeliveryAttempt(db, row, intent, {
         status: 'skipped',
-        reason: gate.reason,
+        reason: 'stale_materialization',
       });
       await queueMarkSent(db, row.id);
       return;

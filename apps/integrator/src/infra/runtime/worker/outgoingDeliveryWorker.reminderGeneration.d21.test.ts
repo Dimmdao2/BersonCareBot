@@ -51,7 +51,7 @@ function row(
           ? { pushUserId: 'a0000000-0000-4000-8000-00000000000a' }
           : channel === 'email'
             ? { email: 'patient@example.test' }
-          : { chatId: channel === 'telegram' ? 1001 : 1002 },
+            : { chatId: channel === 'telegram' ? 1001 : 1002 },
       message: { text: 'Reminder' },
       delivery: { channels: [channel] },
     },
@@ -69,11 +69,7 @@ function row(
       deliveryLogId: `rdl:${OCCURRENCE_ID}:g${generation}:${channel}`,
       platformUserId: 'a0000000-0000-4000-8000-00000000000a',
       externalId:
-        channel === 'telegram'
-          ? '1001'
-          : channel === 'email'
-            ? 'patient@example.test'
-            : '1002',
+        channel === 'telegram' ? '1001' : channel === 'email' ? 'patient@example.test' : '1002',
       logText: 'Reminder',
       intent,
     },
@@ -94,16 +90,18 @@ function harness(
 ) {
   const dispatchOutgoing = vi.fn(async (intent: OutgoingIntent) => {
     assertOutboundMessagePolicy(intent);
-    return options.deliveryResult ?? {
-      telegramMessageId: 7,
-      maxMessageId: 'm-7',
-      webPushOutcome: {
-        status: 'success' as const,
-        delivered: 1,
-        errors: 0,
-        deactivated: 0,
-      },
-    };
+    return (
+      options.deliveryResult ?? {
+        telegramMessageId: 7,
+        maxMessageId: 'm-7',
+        webPushOutcome: {
+          status: 'success' as const,
+          delivered: 1,
+          errors: 0,
+          deactivated: 0,
+        },
+      }
+    );
   });
   const writes: Array<{ type: string; params: Record<string, unknown> }> = [];
   const queueSent: string[] = [];
@@ -111,8 +109,15 @@ function harness(
   const queueDead: Array<{ id: string; error: string }> = [];
   const db: DbPort = {
     async query<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
-      if (sql.includes('occurrence.delivery_generation AS current_generation')) {
-        return { rows: [gate] as T[] };
+      if (sql.includes('revalidate_patient_reminder_delivery_materialization')) {
+        const current =
+          gate.current_generation === 2 &&
+          !gate.terminal_action &&
+          gate.rule_enabled &&
+          !gate.muted &&
+          gate.channel_enabled &&
+          gate.topic_enabled;
+        return { rows: [{ current }] as T[] };
       }
       if (sql.includes('COALESCE(o.organization_id')) {
         return {

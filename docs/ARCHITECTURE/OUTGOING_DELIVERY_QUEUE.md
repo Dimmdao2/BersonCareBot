@@ -1,11 +1,11 @@
 # Outgoing delivery queue
 
-Исходящие уведомления (операторские Telegram-алерты, напоминания пациентам по каналам `telegram` / `max`) ставятся в таблицу **`public.outgoing_delivery_queue`**. **Пациентские напоминания по правилам:** integrator **`bersoncarebot-scheduler-prod`** → `schedule.tick` → **`reminders.dispatchDue`** ставит строки в очередь; доставка и ретраи выполняются **integrator worker** (`bersoncarebot-worker-prod`) отдельным циклом рядом с job queue и projection outbox. Операторские алерты enqueue из своих путей — тот же worker обрабатывает очередь.
+Исходящие уведомления (операторские Telegram-алерты, напоминания пациентам по каналам `telegram` / `max` / `email` / `web_push`) ставятся в таблицу **`public.outgoing_delivery_queue`**. **Пациентские напоминания по правилам:** integrator **`bersoncarebot-scheduler-prod`** посылает подписанный fixed-cadence wake в webapp; webapp в одной транзакции планирует канонический occurrence и ставит готовые `reminder_dispatch`-строки в очередь. Integrator worker перед обращением к provider выполняет boolean claim-time revalidation и занимается только доставкой/ретраями. Операторские алерты enqueue из своих путей — тот же worker обрабатывает очередь.
 
 ## Идемпотентность
 
 - Колонка **`event_id`** уникальна: повторный `INSERT … ON CONFLICT DO NOTHING` не создаёт дубликат отправки.
-- Напоминания: ключ `rem:<occurrenceId>:<channel>`.
+- Напоминания: ключ `rem:<occurrenceId>:g<deliveryGeneration>:<channel>`.
 - Операторский алерт: ключ `op-alert:<incidentId>`.
 
 ## Статусы и ретраи

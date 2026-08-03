@@ -37,9 +37,26 @@ export type OperatorHealthDigestReadyOutgoingDelivery = {
   nextRetryAt: string;
 };
 
+export type PatientReminderReadyOutgoingDelivery = {
+  organizationId: string;
+  eventId: string;
+  kind: 'reminder_dispatch';
+  channel: 'telegram' | 'max' | 'email' | 'web_push';
+  intent: OutgoingIntent;
+  maxAttempts: number;
+  nextRetryAt: string;
+  occurrenceId: string;
+  deliveryGeneration: number;
+  topicCode: string;
+  externalId: string;
+  logText: string;
+  platformUserId: string;
+};
+
 export type ReadyOutgoingDelivery =
   | SpecialistTaskReadyOutgoingDelivery
-  | OperatorHealthDigestReadyOutgoingDelivery;
+  | OperatorHealthDigestReadyOutgoingDelivery
+  | PatientReminderReadyOutgoingDelivery;
 
 /** The only webapp write seam for `public.outgoing_delivery_queue`. */
 export type OutgoingDeliveryQueueWritePort<TransactionClient> = {

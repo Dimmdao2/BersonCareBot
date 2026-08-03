@@ -18,6 +18,7 @@ import {} from '../reminders/policy.js';
 import { handleBooking } from './handlers/booking.js';
 import { handleDelivery } from './handlers/delivery.js';
 import { handleReminders } from './handlers/reminders.js';
+import { handleScheduledMaterialization } from './handlers/scheduledMaterialization.js';
 import {
   buildDoctorPatientMessageNotificationIntents,
   handleConversationAdminReply,
@@ -66,8 +67,6 @@ import {
 
 const BOOKING_TYPES = new Set<string>(['booking.event.insert']);
 const REMINDER_TYPES = new Set<string>([
-  'reminders.planDue',
-  'reminders.dispatchDue',
   'reminders.snooze.callback',
   'reminders.done.callback',
   'reminders.mute.callback',
@@ -77,6 +76,7 @@ const REMINDER_TYPES = new Set<string>([
   'reminders.notifSettings.open.callback',
   'reminders.notifSettings.toggle.callback',
 ]);
+const SCHEDULED_MATERIALIZATION_TYPES = new Set<string>(['patientReminders.materializeWake']);
 
 const DELIVERY_TYPES = new Set<string>([
   'callback.answer',
@@ -368,6 +368,9 @@ export async function executeAction(
   const fullDeps: ExecutorDeps = { ...deps, executeAction };
   if (BOOKING_TYPES.has(action.type)) return handleBooking(action, ctx, fullDeps);
   if (REMINDER_TYPES.has(action.type)) return handleReminders(action, ctx, fullDeps);
+  if (SCHEDULED_MATERIALIZATION_TYPES.has(action.type)) {
+    return handleScheduledMaterialization(action, ctx, fullDeps);
+  }
   if (DELIVERY_TYPES.has(action.type)) return handleDelivery(action, ctx, fullDeps);
 
   switch (action.type) {

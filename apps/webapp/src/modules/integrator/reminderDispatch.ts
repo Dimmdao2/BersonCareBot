@@ -1,10 +1,9 @@
 /**
  * Legacy HTTP entry for integrator → webapp reminder push (POST /api/integrator/reminders/dispatch).
  *
- * **Production patient reminders** are planned and enqueued by integrator
- * `schedule.tick` → `reminders.dispatchDue` → `public.outgoing_delivery_queue` (see
- * `apps/integrator/src/content/scheduler/scripts.json` and deploy unit `bersoncarebot-scheduler-prod`).
- * This handler remains intentionally non-durable so callers do not assume messenger delivery here.
+ * **Production patient reminders** are planned and enqueued by the webapp-owned signed-wake
+ * materializer. This retired handler remains intentionally non-durable so callers cannot create a
+ * second delivery path.
  */
 export type ReminderDispatchBody = {
   idempotencyKey?: string;
@@ -32,6 +31,6 @@ export async function handleReminderDispatch(
   }
   return {
     accepted: false,
-    reason: 'use_integrator_reminders_dispatchDue_not_http_dispatch',
+    reason: 'use_signed_patient_reminder_materialization_wake',
   };
 }

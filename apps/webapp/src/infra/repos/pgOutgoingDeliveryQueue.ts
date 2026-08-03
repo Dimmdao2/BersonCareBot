@@ -12,12 +12,25 @@ const TERMINALIZABLE_STATUSES = [...REPLACEABLE_STATUSES, 'processing'] as const
 function queueValues(delivery: ReadyOutgoingDelivery) {
   const botMarkerRequired = delivery.channel === 'telegram' || delivery.channel === 'max';
   const specialist = delivery.kind === 'specialist_task_reminder';
+  const reminder = delivery.kind === 'reminder_dispatch';
   return {
     organizationId: delivery.organizationId,
     eventId: delivery.eventId,
     kind: delivery.kind,
     channel: delivery.channel,
     payloadJson: {
+      ...(reminder
+        ? {
+            occurrenceId: delivery.occurrenceId,
+            deliveryGeneration: delivery.deliveryGeneration,
+            topicCode: delivery.topicCode,
+            channel: delivery.channel,
+            deliveryLogId: `rdl:${delivery.occurrenceId}:g${delivery.deliveryGeneration}:${delivery.channel}`,
+            externalId: delivery.externalId,
+            logText: delivery.logText,
+            platformUserId: delivery.platformUserId,
+          }
+        : {}),
       intent: delivery.intent,
       ...(specialist ? { successOutcome: delivery.successOutcome } : {}),
       ...(specialist && botMarkerRequired ? { bookkeeping: { botMarkerRequired: true } } : {}),
@@ -63,12 +76,14 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
         })
         .returning({ eventId: outgoingDeliveryQueue.eventId });
       if (refreshedRows.length === 0) return false;
-      const result = await tx.execute(
-        sql`SELECT app.refresh_specialist_task_reminder_materialization(${delivery.eventId}) AS refreshed`,
-      );
-      const row = result.rows[0] as { refreshed?: boolean } | undefined;
-      if (row?.refreshed !== true) {
-        throw new Error('specialist_task_reminder_materialization_refresh_failed');
+      if (delivery.kind === 'specialist_task_reminder') {
+        const result = await tx.execute(
+          sql`SELECT app.refresh_specialist_task_reminder_materialization(${delivery.eventId}) AS refreshed`,
+        );
+        const row = result.rows[0] as { refreshed?: boolean } | undefined;
+        if (row?.refreshed !== true) {
+          throw new Error('specialist_task_reminder_materialization_refresh_failed');
+        }
       }
       return true;
     },

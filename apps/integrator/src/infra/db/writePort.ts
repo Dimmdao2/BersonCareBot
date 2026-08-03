@@ -114,7 +114,7 @@ import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTas
  * durable outbox + fires an operator incident" (D3/D4/D5).
  *
  * Fix (mirrors `persistWritesByOrganization` in handlers/reminders.ts, the ALREADY-correct pattern used
- * by `reminders.planDue`/`.dispatchDue`): re-install an EXPLICIT organization principal — `SET ROLE
+ * by signed scheduled wakes): re-install an EXPLICIT organization principal — `SET ROLE
  * app_staff` + the SAME organization id already ambiently known — for the duration of the direct write,
  * satisfying `is_staff() AND organization_id = current_org_id()`. No new organization is invented or
  * guessed: this reuses whatever `organizationId` the CURRENT principal (integrator, organization, or

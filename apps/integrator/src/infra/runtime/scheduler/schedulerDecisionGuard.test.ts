@@ -1,12 +1,23 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { findSchedulerDecisionViolations } from './schedulerDecisionGuard.js';
 
 const schedulerDir = dirname(fileURLToPath(import.meta.url));
 const integratorSrc = join(schedulerDir, '..', '..', '..');
-const SCANNED_DIRECTORIES = [join(integratorSrc, 'infra', 'runtime', 'scheduler'), join(integratorSrc, 'infra', 'runtime', 'worker')];
+const SCANNED_DIRECTORIES = [
+  join(integratorSrc, 'infra', 'runtime', 'scheduler'),
+  join(integratorSrc, 'infra', 'runtime', 'worker'),
+];
+const scheduledHandler = join(
+  integratorSrc,
+  'kernel',
+  'domain',
+  'executor',
+  'handlers',
+  'scheduledMaterialization.ts',
+);
 
 function productSources(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -18,14 +29,55 @@ function productSources(directory: string): string[] {
 
 describe('D30 schedulerDecisionGuard', () => {
   it('keeps product decisions out of resident scheduler and worker sources', () => {
-    const offenders = SCANNED_DIRECTORIES.flatMap(productSources).flatMap((path) =>
-      findSchedulerDecisionViolations(path, readFileSync(path, 'utf8')).map((v) => `${relative(integratorSrc, path)}:${v.line} ${v.kind}: ${v.text}`),
+    const offenders = [...SCANNED_DIRECTORIES.flatMap(productSources), scheduledHandler].flatMap(
+      (path) =>
+        findSchedulerDecisionViolations(path, readFileSync(path, 'utf8')).map(
+          (v) => `${relative(integratorSrc, path)}:${v.line} ${v.kind}: ${v.text}`,
+        ),
     );
     expect(offenders, `scheduler business decisions:\n${offenders.join('\n')}`).toEqual([]);
   });
 
+  it('routes every scheduler script action through the scanned scheduled handler', () => {
+    const scriptsPath = join(integratorSrc, 'content', 'scheduler', 'scripts.json');
+    const scripts = JSON.parse(readFileSync(scriptsPath, 'utf8')) as Array<{
+      steps?: Array<{ action?: unknown }>;
+    }>;
+    const actions = scripts.flatMap((script) => script.steps ?? []).map((step) => step.action);
+    expect(actions).toEqual(['patientReminders.materializeWake']);
+
+    const executorPath = join(integratorSrc, 'kernel', 'domain', 'executor', 'executeAction.ts');
+    const executor = readFileSync(executorPath, 'utf8');
+    expect(executor).toContain(
+      "import { handleScheduledMaterialization } from './handlers/scheduledMaterialization.js'",
+    );
+    expect(executor).toContain("['patientReminders.materializeWake']");
+    expect(executor).toContain('return handleScheduledMaterialization(action, ctx, fullDeps)');
+
+    const handler = readFileSync(scheduledHandler, 'utf8');
+    const localImports = [...handler.matchAll(/from\s+['"](\.[^'"]+)['"]/g)]
+      .map((match) => match[1])
+      .filter((value): value is string => value !== undefined);
+    expect(localImports).toEqual(['../../../contracts/index.js', '../helpers.js']);
+    for (const imported of localImports) {
+      const target = resolve(dirname(scheduledHandler), imported.replace(/\.js$/, '.ts'));
+      expect(target.startsWith(join(integratorSrc, 'kernel'))).toBe(true);
+      const importedViolations = findSchedulerDecisionViolations(
+        target,
+        readFileSync(target, 'utf8'),
+      );
+      expect(
+        importedViolations,
+        `imported scheduler decision source: ${relative(integratorSrc, target)}`,
+      ).toEqual([]);
+    }
+  });
+
   it.each([
-    ['scheduled_literal', 'const offsetMinutes = 15; const job = { offsetMs: offsetMinutes * 60 * 1000 };'],
+    [
+      'scheduled_literal',
+      'const offsetMinutes = 15; const job = { offsetMs: offsetMinutes * 60 * 1000 };',
+    ],
     ['scheduled_literal', 'let offsetMs = 900000; ({ offsetMs: offsetMs });'],
     ['scheduled_literal', 'const offsetMs = 900000; const job = { offsetMs };'],
     ['scheduled_literal', 'const offsetMs = 900000; const job = {}; job.offsetMs = offsetMs;'],
@@ -33,7 +85,7 @@ describe('D30 schedulerDecisionGuard', () => {
     ['russian_message', "const job = { text: 'Напомина' + 'ние: приём' };"],
     ['business_branch', "if (rule.reminderKind === 'visit') send();"],
     ['business_branch', "if (['visit', 'followup'].includes(rule.reminderKind)) send();"],
-    ['decision_table_read', "const query = db.raw`select * from public.system_settings`;"],
+    ['decision_table_read', 'const query = db.raw`select * from public.system_settings`;'],
   ] as const)('rejects %s self-test fixture', (kind, fixture) => {
     expect(findSchedulerDecisionViolations('fixture.ts', fixture)).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind })]),
@@ -41,17 +93,27 @@ describe('D30 schedulerDecisionGuard', () => {
   });
 
   it('allows delivery mechanics and reads of already chosen data', () => {
-    expect(findSchedulerDecisionViolations('fixture.ts', `
+    expect(
+      findSchedulerDecisionViolations(
+        'fixture.ts',
+        `
       const retry = { maxAttempts: 6, backoffSeconds: 60 };
       const text = row.text;
       const offset = policy.offsetMinutes;
-    `)).toEqual([]);
+    `,
+      ),
+    ).toEqual([]);
   });
 
   it('keeps the documented imported re-export boundary explicit', () => {
-    expect(findSchedulerDecisionViolations('fixture.ts', `
+    expect(
+      findSchedulerDecisionViolations(
+        'fixture.ts',
+        `
       import { MESSAGE_TEXT } from '../shared/message.js';
       const job = { text: MESSAGE_TEXT };
-    `)).toEqual([]);
+    `,
+      ),
+    ).toEqual([]);
   });
 });

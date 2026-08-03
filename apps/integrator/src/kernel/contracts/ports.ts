@@ -387,6 +387,10 @@ export type WebappEventsPort = {
   wakeSystemHealthGuard?(input: {
     wakeId: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
+  wakePatientReminderMaterialization?(input: {
+    wakeId: string;
+    organizationId: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
   completeChannelLink?(params: {
     linkToken: string;

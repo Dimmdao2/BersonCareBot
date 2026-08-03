@@ -16,6 +16,7 @@ import {
   bigserial,
   primaryKey,
   date,
+  pgSchema,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { beOrganizations } from './bookingEngine';
@@ -3604,11 +3605,14 @@ export const questionMessages = pgTable(
   ],
 );
 
-export const userReminderOccurrences = pgTable(
+const integratorSchema = pgSchema('integrator');
+
+export const userReminderOccurrences = integratorSchema.table(
   'user_reminder_occurrences',
   {
     id: text().primaryKey().notNull(),
     ruleId: text('rule_id').notNull(),
+    platformUserId: uuid('platform_user_id').notNull(),
     occurrenceKey: text('occurrence_key').notNull(),
     plannedAt: timestamp('planned_at', { withTimezone: true, mode: 'string' }).notNull(),
     status: text().default('planned').notNull(),
@@ -3618,6 +3622,8 @@ export const userReminderOccurrences = pgTable(
     deliveryChannel: text('delivery_channel'),
     deliveryJobId: text('delivery_job_id'),
     errorCode: text('error_code'),
+    deliveryGeneration: integer('delivery_generation').default(0).notNull(),
+    organizationId: uuid('organization_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -3631,10 +3637,26 @@ export const userReminderOccurrences = pgTable(
       table.status.asc().nullsLast().op('text_ops'),
       table.plannedAt.asc().nullsLast().op('text_ops'),
     ),
+    index('user_reminder_occurrences_platform_due_idx').using(
+      'btree',
+      table.platformUserId.asc().nullsLast().op('uuid_ops'),
+      table.status.asc().nullsLast().op('text_ops'),
+      table.plannedAt.asc().nullsLast().op('timestamptz_ops'),
+    ),
+    index('user_reminder_occurrences_generation_idx').using(
+      'btree',
+      table.id.asc().nullsLast().op('text_ops'),
+      table.deliveryGeneration.asc().nullsLast().op('int4_ops'),
+    ),
     foreignKey({
       columns: [table.ruleId],
       foreignColumns: [reminderRules.integratorRuleId],
       name: 'user_reminder_occurrences_rule_id_fkey',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.platformUserId],
+      foreignColumns: [platformUsers.id],
+      name: 'user_reminder_occurrences_platform_user_id_fkey',
     }).onDelete('restrict'),
     unique('user_reminder_occurrences_occurrence_key_key').on(table.occurrenceKey),
   ],

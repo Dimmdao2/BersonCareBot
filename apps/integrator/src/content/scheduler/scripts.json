@@ -6,16 +6,9 @@
     "match": {},
     "steps": [
       {
-        "action": "reminders.planDue",
+        "action": "patientReminders.materializeWake",
         "mode": "sync",
         "params": {}
-      },
-      {
-        "action": "reminders.dispatchDue",
-        "mode": "sync",
-        "params": {
-          "limit": 50
-        }
       }
     ]
   }
