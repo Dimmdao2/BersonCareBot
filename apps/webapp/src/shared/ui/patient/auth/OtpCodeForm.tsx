@@ -49,6 +49,7 @@ type OtpCodeFormProps = {
   onRequestSms?: () => Promise<OtpResendOutcome>;
   /** Раскрывающийся список альтернативных каналов + ссылка в поддержку */
   alternatives?: OtpAlternativeEntry[];
+  alternativesLabel?: string;
   /** HTTPS ссылка в поддержку; из `system_settings.support_contact_url` (сервер) или дефолт. */
   supportContactHref?: string;
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
@@ -66,6 +67,7 @@ export function OtpCodeForm({
   smsFallbackLink = false,
   onRequestSms,
   alternatives,
+  alternativesLabel = 'Другие способы',
   supportContactHref = DEFAULT_SUPPORT_CONTACT_URL,
   onConfirm,
   onResend,
@@ -290,7 +292,7 @@ export function OtpCodeForm({
             disabled={loading || resendLoading || hardBlocked}
             aria-expanded={altExpanded}
           >
-            Другие способы
+            {alternativesLabel}
           </Button>
           {altExpanded ? (
             <div className="flex flex-col gap-2 pl-1">

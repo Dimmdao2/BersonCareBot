@@ -41,7 +41,7 @@ const bodySchema = z.object({
  * Start phone auth. Unauthenticated login always receives web context; a caller cannot make its
  * body trusted by claiming `channel: telegram`. Authenticated profile-bind preserves its channel.
  * Для публичного web-login без deliveryChannel сервер сам выбирает SMS → verified email.
- * Явный deliveryChannel сохраняется для messenger/profile-bind контрактов; явный web SMS запрещён.
+ * Явный deliveryChannel позволяет нейтрально повторить отправку или выбрать другой включённый канал.
  */
 export async function POST(request: Request) {
   const startedAt = Date.now();
@@ -96,17 +96,6 @@ export async function POST(request: Request) {
 
   if (!automaticPublicLogin && !(await isAuthChannelEnabled(deliveryChannel))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
-  }
-
-  if (!automaticPublicLogin && publicLogin && deliveryChannel === 'sms') {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'sms_disabled_web',
-        message: 'SMS для входа с сайта отключён. Используйте код в Telegram или Max.',
-      },
-      { status: 400 },
-    );
   }
 
   if (deliveryChannel === 'sms' && !isRuMobile(normalized)) {

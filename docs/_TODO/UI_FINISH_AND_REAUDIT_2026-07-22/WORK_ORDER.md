@@ -817,8 +817,13 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       success/failure/exception или per-email resend cooldown: valid known/unknown requests get a neutral `200` with
       one schema, while the independent per-IP limiter still applies to every request; provider failure/exception
       remains only as a fixed server log event without email/OTP. A server-enforced minimum response floor covers the
-      fast path; arbitrary provider latency remains open for D27-C/D30 durable delivery. Открыты D27-B/C/D/E:
-      preference UI, durable auth queue и полный экран выбора каналов; этот checkbox не закрыт.
+      fast path; arbitrary provider latency remains open for D27-C/D30 durable delivery.
+      **CURRENT PARTIAL 03.08 (D27-D/E):** существующий browser phone-code screen дополнен верхним «Войти иначе»
+      и полным списком глобально configured+enabled каналов в «Подтвердить другим способом»; результат отправки
+      нейтрален для известного и неизвестного номера, email добавляет только подсказку про «Спам». Поведенческое
+      доказательство: `apps/webapp/src/shared/ui/patient/auth/PhoneMessengerAuthFlow.ui.test.tsx` и
+      `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts`. Открыты D27-B/C: preference UI и durable
+      auth queue; этот checkbox не закрыт.
 - [ ] **D28 — отзыв подтверждения вместе с номером.** Решение — **Р-D28** (§2.3).
 - [ ] **D29 — ФИО только кириллицей, автоподстановка имени отменяется.** Решение — **Р-D29** (§2.3). Это не
       только проверка ввода: сегодня имя приезжает из внешнего профиля мессенджеров и OAuth.

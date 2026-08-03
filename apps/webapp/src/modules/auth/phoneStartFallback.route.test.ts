@@ -409,6 +409,38 @@ describe('phone login automatic delivery fallback', () => {
     );
   });
 
+  it('accepts an explicitly selected configured SMS channel on the code screen', async () => {
+    fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'sms');
+
+    const response = await finishResponse(
+      startPhone(
+        request({
+          phone: '+79991234567',
+          channel: 'web',
+          chatId: 'browser-1005',
+          purpose: 'login',
+          deliveryChannel: 'sms',
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      challengeId: 'real-challenge-id-1005',
+      retryAfterSeconds: 60,
+      deliveryChannel: 'sms',
+    });
+    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
+      '+79991234567',
+      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
+      expect.objectContaining({
+        delivery: { channel: 'sms' },
+        deferredDelivery: { schedule: fakes.after },
+      }),
+    );
+  });
+
   it('does not trust a client-claimed Telegram context to bypass opaque login', async () => {
     fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'email');
     fakes.findByPhone.mockResolvedValueOnce(null);
