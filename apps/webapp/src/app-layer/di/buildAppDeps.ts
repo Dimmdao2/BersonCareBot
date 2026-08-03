@@ -231,6 +231,17 @@ import { createPgSpecialistTasksPort } from '@/infra/repos/pgSpecialistTasks';
 import { inMemorySpecialistTasksPort } from '@/infra/repos/inMemorySpecialistTasks';
 import { createSpecialistTasksService } from '@/modules/specialist-tasks/service';
 import { prepareSpecialistTaskReminderDeliveries } from '@/modules/specialist-tasks/prepareReminderDeliveries';
+import { resolveOperatorHealthDigestWebPushRecipients } from '@/modules/operator-health/prepareOperatorHealthDigestDeliveries';
+import {
+  emptyGlobalAdminWebPushRecipientsPort,
+  type GlobalAdminWebPushRecipientsPort,
+} from '@/modules/operator-health/globalAdminWebPushRecipientsPort';
+import { createPgGlobalAdminWebPushRecipientsPort } from '@/infra/repos/pgGlobalAdminWebPushRecipients';
+import {
+  enqueueOperatorHealthDigestDeliveries,
+  loadLatestSentOperatorHealthDigestAt,
+} from '@/infra/repos/pgOperatorHealthDigestDeliveries';
+import type { OperatorHealthDigestReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import { createPgPatientFilesPort } from '@/infra/repos/pgPatientFiles';
 import { inMemoryPatientFilesPort } from '@/infra/repos/inMemoryPatientFiles';
 import { createPatientFilesService } from '@/modules/patient-files/service';
@@ -479,6 +490,9 @@ const topicChannelPrefsPort = !inMemoryRepos
   ? createPgTopicChannelPrefsPort()
   : inMemoryTopicChannelPrefsPort;
 const staffUsersPort = !inMemoryRepos ? createPgStaffUsersPort() : inMemoryStaffUsersPort;
+const globalAdminWebPushRecipientsPort: GlobalAdminWebPushRecipientsPort = !inMemoryRepos
+  ? createPgGlobalAdminWebPushRecipientsPort()
+  : emptyGlobalAdminWebPushRecipientsPort;
 const patientNotificationTopicsPort = !inMemoryRepos
   ? createPgPatientNotificationTopicsPort()
   : inMemoryPatientNotificationTopicsPort;
@@ -1709,6 +1723,21 @@ function _buildAppDeps() {
     operatorHealthRead: operatorHealthReadPort,
     saasIsolationDiagnostics,
     operatorHealthDigestRead: operatorHealthDigestReadPort,
+    operatorHealthDigestDelivery: {
+      loadRecipients: async () => ({
+        ...(await loadAdminNotificationTargetsFromDb()),
+        web_push: await resolveOperatorHealthDigestWebPushRecipients({
+          globalAdmins: globalAdminWebPushRecipientsPort,
+          channelPreferences: channelPreferencesPort,
+          webPushSubscriptions: webPushSubscriptionsPort,
+        }),
+      }),
+      enqueue: inMemoryRepos
+        ? async (deliveries: readonly OperatorHealthDigestReadyOutgoingDelivery[]) =>
+            deliveries.length
+        : enqueueOperatorHealthDigestDeliveries,
+      loadLatestSentAt: inMemoryRepos ? async () => null : loadLatestSentOperatorHealthDigestAt,
+    },
     operatorHealthWrite: operatorHealthWritePort,
     healthFailureArchive,
     notificationDelivery,

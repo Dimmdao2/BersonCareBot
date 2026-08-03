@@ -9,13 +9,22 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return { promise, resolve };
 }
 
+function healthWakeDeps() {
+  return {
+    runOperatorHealthDigestWake: vi.fn(async () => true),
+    runSystemHealthGuardWake: vi.fn(async () => true),
+  };
+}
+
 describe('scheduler leader cadence', () => {
   it('starts neither organization nor health delivery when the leader lock is lost', async () => {
     const runOrganizationTicks = vi.fn(async () => 0);
     const runOperatorHealthProbeTick = vi.fn(async () => false);
+    const wakes = healthWakeDeps();
     const coordinator = createSchedulerLockedTickCoordinator({
       assertLockStillHeld: vi.fn().mockRejectedValue(new Error('lock lost')),
       runOrganizationTicks,
+      ...wakes,
       runOperatorHealthProbeTick,
       onOrganizationTickError: vi.fn(),
     });
@@ -23,16 +32,20 @@ describe('scheduler leader cadence', () => {
     await expect(coordinator.runTick()).rejects.toThrow('lock lost');
 
     expect(runOrganizationTicks).not.toHaveBeenCalled();
+    expect(wakes.runOperatorHealthDigestWake).not.toHaveBeenCalled();
+    expect(wakes.runSystemHealthGuardWake).not.toHaveBeenCalled();
     expect(runOperatorHealthProbeTick).not.toHaveBeenCalled();
   });
 
-  it('still runs health when the organization sweep fails and reports the sweep separately', async () => {
+  it('still runs all health wakes when the organization sweep fails and reports the sweep separately', async () => {
     const organizationError = new Error('organization rejected');
     const onOrganizationTickError = vi.fn();
     const runOperatorHealthProbeTick = vi.fn(async () => true);
+    const wakes = healthWakeDeps();
     const coordinator = createSchedulerLockedTickCoordinator({
       assertLockStillHeld: vi.fn(async () => undefined),
       runOrganizationTicks: vi.fn().mockRejectedValue(organizationError),
+      ...wakes,
       runOperatorHealthProbeTick,
       onOrganizationTickError,
     });
@@ -40,6 +53,8 @@ describe('scheduler leader cadence', () => {
     await coordinator.runTick();
     await coordinator.waitForOrganizationTick();
 
+    expect(wakes.runOperatorHealthDigestWake).toHaveBeenCalledTimes(1);
+    expect(wakes.runSystemHealthGuardWake).toHaveBeenCalledTimes(1);
     expect(runOperatorHealthProbeTick).toHaveBeenCalledTimes(1);
     expect(onOrganizationTickError).toHaveBeenCalledWith(organizationError);
   });
@@ -59,6 +74,7 @@ describe('scheduler leader cadence', () => {
       const coordinator = createSchedulerLockedTickCoordinator({
         assertLockStillHeld: vi.fn(async () => undefined),
         runOrganizationTicks,
+        ...healthWakeDeps(),
         runOperatorHealthProbeTick: vi.fn(async () => false),
         onOrganizationTickError,
       });
@@ -103,9 +119,11 @@ describe('scheduler leader cadence', () => {
     const runOrganizationTicks = vi.fn(() => sweep.promise);
     const runOperatorHealthProbeTick = vi.fn(async () => false);
     const assertLockStillHeld = vi.fn(async () => undefined);
+    const wakes = healthWakeDeps();
     const coordinator = createSchedulerLockedTickCoordinator({
       assertLockStillHeld,
       runOrganizationTicks,
+      ...wakes,
       runOperatorHealthProbeTick,
       onOrganizationTickError: vi.fn(),
     });
@@ -114,6 +132,8 @@ describe('scheduler leader cadence', () => {
     await coordinator.runTick();
 
     expect(assertLockStillHeld).toHaveBeenCalledTimes(2);
+    expect(wakes.runOperatorHealthDigestWake).toHaveBeenCalledTimes(2);
+    expect(wakes.runSystemHealthGuardWake).toHaveBeenCalledTimes(2);
     expect(runOperatorHealthProbeTick).toHaveBeenCalledTimes(2);
     expect(runOrganizationTicks).toHaveBeenCalledTimes(1);
 
@@ -133,9 +153,11 @@ describe('scheduler leader cadence', () => {
       .mockRejectedValueOnce(new Error('lock lost'));
     const runOrganizationTicks = vi.fn(async () => 0);
     const runOperatorHealthProbeTick = vi.fn(async () => false);
+    const wakes = healthWakeDeps();
     const coordinator = createSchedulerLockedTickCoordinator({
       assertLockStillHeld,
       runOrganizationTicks,
+      ...wakes,
       runOperatorHealthProbeTick,
       onOrganizationTickError: vi.fn(),
     });
@@ -145,6 +167,8 @@ describe('scheduler leader cadence', () => {
     await expect(coordinator.runTick()).rejects.toThrow('lock lost');
 
     expect(runOrganizationTicks).toHaveBeenCalledTimes(1);
+    expect(wakes.runOperatorHealthDigestWake).toHaveBeenCalledTimes(1);
+    expect(wakes.runSystemHealthGuardWake).toHaveBeenCalledTimes(1);
     expect(runOperatorHealthProbeTick).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,12 +3,11 @@ import { tickProjectionDigestDebounce } from '@/app-layer/health/tickProjectionD
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { buildOperatorHealthDigest } from '@/modules/operator-health/buildOperatorHealthDigest';
 import {
-  buildDigestDedupKey,
+  formatLocalYmd,
   isDigestSendSlot,
   resolveDigestWindowStartIso,
 } from '@/modules/operator-health/digestSchedule';
-import { dispatchOperatorAlert } from '@/modules/operator-alerts/dispatchOperatorAlert';
-import { getOperatorAlertDedupPort } from '@/modules/operator-alerts/operatorAlertRuntime';
+import { prepareOperatorHealthDigestDeliveries } from '@/modules/operator-health/prepareOperatorHealthDigestDeliveries';
 import {
   isOperatorAlertBlockEnabled,
   mergeOperatorHealthAlertConfigFromLegacy,
@@ -44,7 +43,7 @@ async function loadDigestConfig(): Promise<OperatorHealthAlertConfig> {
 }
 
 /**
- * Digest tick: 1×/сутки в `digestTime` (TZ `app_display_timezone`) → `dispatchOperatorAlert` (block digest).
+ * Digest tick: 1×/сутки в `digestTime` materializes ready per-recipient queue intents in webapp.
  */
 export async function runOperatorHealthDigestTick(
   now = new Date(),
@@ -61,17 +60,10 @@ export async function runOperatorHealthDigestTick(
     return { sent: false, reason: 'not_slot' };
   }
 
-  const dedupKey = buildDigestDedupKey(now, timeZone);
-  const dedupPort = getOperatorAlertDedupPort();
-  if (dedupPort) {
-    const recent = await dedupPort.wasSentWithinHours(dedupKey, 24);
-    if (recent) return { sent: false, reason: 'dedup', dedupKey };
-  }
-
-  const lastDigestSentAt = dedupPort
-    ? await dedupPort.getLatestSentAtByDedupKeyPrefix('digest:')
-    : null;
-  const windowStartIso = resolveDigestWindowStartIso(lastDigestSentAt, now);
+  const localDate = formatLocalYmd(now, timeZone);
+  const dedupKey = `digest:${localDate}`;
+  const delivery = buildAppDeps().operatorHealthDigestDelivery;
+  const windowStartIso = resolveDigestWindowStartIso(await delivery.loadLatestSentAt(), now);
   const windowEndIso = now.toISOString();
 
   const digestRead = buildAppDeps().operatorHealthDigestRead;
@@ -87,29 +79,24 @@ export async function runOperatorHealthDigestTick(
   });
   const digest = buildOperatorHealthDigest(input);
 
-  const result = await dispatchOperatorAlert({
-    block: 'digest',
-    topic: 'operator_health_digest',
-    dedupKey,
+  const recipients = await delivery.loadRecipients();
+  const deliveries = prepareOperatorHealthDigestDeliveries({
+    localDate,
+    occurredAt: now.toISOString(),
     lines: digest.lines,
-    pushTitle:
+    title:
       digest.icon === '🛑'
         ? '🛑 ! Отказ провайдера доставки'
         : digest.hasIssues
           ? 'Сводка здоровья системы'
           : 'Всё в порядке',
-    pushUrl: '/app/admin/system-health',
+    url: '/app/admin/system-health',
+    config: cfg,
+    recipients,
   });
-
-  if (!result.dispatched) {
-    const reason =
-      result.reason === 'dedup'
-        ? 'dedup'
-        : result.reason === 'disabled'
-          ? 'disabled'
-          : 'no_recipients';
-    return { sent: false, reason, dedupKey };
-  }
+  if (deliveries.length === 0) return { sent: false, reason: 'no_recipients', dedupKey };
+  const inserted = await delivery.enqueue(deliveries);
+  if (inserted === 0) return { sent: false, reason: 'dedup', dedupKey };
 
   // D-d, пульс 2: сводка, которая не запустилась, выглядит ровно как тихий день.
   // Поэтому у неё собственный пульс, и алертом является его отсутствие.

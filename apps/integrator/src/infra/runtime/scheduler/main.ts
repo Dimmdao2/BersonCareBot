@@ -5,6 +5,7 @@ import { logger } from '../../observability/logger.js';
 import { closeDb, createDbPort } from '../../db/client.js';
 import { SchedulerLockLostError, tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
+import { runFixedCadenceWake } from './fixedCadenceWake.js';
 import { createSchedulerLockedTickCoordinator } from './schedulerLockedTick.js';
 import {
   assertSchedulerIsolationTelemetryWriterReady,
@@ -26,6 +27,8 @@ import {
 } from '../../observability/errorTracking.js';
 
 const SCHEDULER_LOCK_KEY = 42001001;
+const DIGEST_WAKE_PERIOD_MS = 60 * 60 * 1000;
+const HEALTH_GUARD_WAKE_PERIOD_MS = 15 * 60 * 1000;
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -62,6 +65,8 @@ async function startScheduler(): Promise<void> {
   const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps();
   const schedulerDb = createDbPort();
+  const digestWakeState = { completedBucket: null as number | null };
+  const healthGuardWakeState = { completedBucket: null as number | null };
 
   logger.info('Scheduler lock acquired, starting scheduler loop');
 
@@ -73,6 +78,32 @@ async function startScheduler(): Promise<void> {
         listOrganizationIds: () => listSchedulerReminderOrganizationIds(schedulerDb),
         nowIso: () => new Date().toISOString(),
         newEventId: randomUUID,
+      }),
+    runOperatorHealthDigestWake: () =>
+      runFixedCadenceWake({
+        nowMs: Date.now(),
+        periodMs: DIGEST_WAKE_PERIOD_MS,
+        state: digestWakeState,
+        wake: async (wakeId) => {
+          const result = await deps.webappEventsPort.wakeOperatorHealthDigest?.({ wakeId });
+          if (!result?.ok)
+            throw new Error(
+              `operator_health_digest_wake_failed:${result?.status ?? 0}:${result?.error ?? 'unavailable'}`,
+            );
+        },
+      }),
+    runSystemHealthGuardWake: () =>
+      runFixedCadenceWake({
+        nowMs: Date.now(),
+        periodMs: HEALTH_GUARD_WAKE_PERIOD_MS,
+        state: healthGuardWakeState,
+        wake: async (wakeId) => {
+          const result = await deps.webappEventsPort.wakeSystemHealthGuard?.({ wakeId });
+          if (!result?.ok)
+            throw new Error(
+              `system_health_guard_wake_failed:${result?.status ?? 0}:${result?.error ?? 'unavailable'}`,
+            );
+        },
       }),
     runOperatorHealthProbeTick: () =>
       runScheduledOperatorHealthProbeTick({
@@ -118,7 +149,10 @@ async function startScheduler(): Promise<void> {
         );
         reportSchedulerLockIsolationFailure(err);
         await releaseLock().catch((releaseErr) =>
-          logger.error({ err: releaseErr }, 'Failed to release scheduler lock during lock-loss shutdown'),
+          logger.error(
+            { err: releaseErr },
+            'Failed to release scheduler lock during lock-loss shutdown',
+          ),
         );
         process.exit(1);
       }

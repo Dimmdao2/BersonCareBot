@@ -358,6 +358,11 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       `operator_health_alert_config` — но читает его **вебапп при постановке задания**, а не планировщик.
       **Гейт:** сводка приходит один раз в назначенный час при обоих работающих триггерах; изменение
       `digestTime` в админке сдвигает следующую отправку (доказательство, что решение осталось в таблице).
+      **CURRENT PARTIAL 03.08:** постановка через fixed-cadence wake и единую durable queue, каноническая
+      global-admin web-push audience и fail-closed egress policy приняты (`0a34719d6`, post-merge audit
+      `7632b7091`) и приземлены `00ef96e59`; migration `0335` применена на DEV, runner postcheck
+      `count=334 direct=328 reconciled=6`. Пункт остаётся `[ ]`: ещё нужен живой безопасный recipient probe,
+      доказывающий ровно одну доставку и перенос следующего запуска после изменения `digestTime`.
 
 - [ ] **Ш6. B4 — снять внешний cron health-проб.** Работу продолжает делать `runScheduledOperatorHealthProbeTick`
       с due-gating и quiet-часами. **Гейт:** после снятия cron `lastRunAt` каждой включённой пробы продолжает

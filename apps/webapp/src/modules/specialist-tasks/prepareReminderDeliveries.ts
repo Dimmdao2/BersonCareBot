@@ -1,6 +1,7 @@
 import type {
   OutgoingIntent,
   ReadyOutgoingDelivery,
+  SpecialistTaskReadyOutgoingDelivery,
 } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import {
   resolveSpecialistTaskReminderChannelsForUser,
@@ -29,7 +30,10 @@ type MaterializedIntent = {
   payload: OutgoingIntent['payload'];
 };
 
-function eventId(task: SpecialistTaskRow, channel: ReadyOutgoingDelivery['channel']): string {
+function eventId(
+  task: SpecialistTaskRow,
+  channel: SpecialistTaskReadyOutgoingDelivery['channel'],
+): string {
   return `specialist-task:${task.id}:${encodeURIComponent(task.remindAt ?? '')}:${channel}`;
 }
 
@@ -51,7 +55,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
   const occurredAt = new Date().toISOString();
   const deliveries: ReadyOutgoingDelivery[] = [];
   const appendDelivery = (
-    channel: ReadyOutgoingDelivery['channel'],
+    channel: SpecialistTaskReadyOutgoingDelivery['channel'],
     materializedIntent: MaterializedIntent,
   ) => {
     const id = eventId(task, channel);

@@ -11,6 +11,7 @@ const TERMINALIZABLE_STATUSES = [...REPLACEABLE_STATUSES, 'processing'] as const
 
 function queueValues(delivery: ReadyOutgoingDelivery) {
   const botMarkerRequired = delivery.channel === 'telegram' || delivery.channel === 'max';
+  const specialist = delivery.kind === 'specialist_task_reminder';
   return {
     organizationId: delivery.organizationId,
     eventId: delivery.eventId,
@@ -18,12 +19,12 @@ function queueValues(delivery: ReadyOutgoingDelivery) {
     channel: delivery.channel,
     payloadJson: {
       intent: delivery.intent,
-      successOutcome: delivery.successOutcome,
-      ...(botMarkerRequired ? { bookkeeping: { botMarkerRequired: true } } : {}),
+      ...(specialist ? { successOutcome: delivery.successOutcome } : {}),
+      ...(specialist && botMarkerRequired ? { bookkeeping: { botMarkerRequired: true } } : {}),
     },
     status: 'pending',
     attemptCount: 0,
-    maxAttempts: 6,
+    maxAttempts: specialist ? 6 : delivery.maxAttempts,
     nextRetryAt: delivery.nextRetryAt,
     lastError: null,
     deadAt: null,
@@ -33,8 +34,16 @@ function queueValues(delivery: ReadyOutgoingDelivery) {
 /** Replaces only a not-yet-sent intent. A sent/dead row remains immutable evidence. */
 export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueWritePort<DrizzleDb> {
   return {
-    async enqueueReady(tx: DrizzleDb, delivery: ReadyOutgoingDelivery): Promise<void> {
+    async enqueueReady(tx: DrizzleDb, delivery: ReadyOutgoingDelivery): Promise<boolean> {
       const values = queueValues(delivery);
+      if (delivery.kind === 'operator_health_digest') {
+        const inserted = await tx
+          .insert(outgoingDeliveryQueue)
+          .values(values)
+          .onConflictDoNothing({ target: outgoingDeliveryQueue.eventId })
+          .returning({ eventId: outgoingDeliveryQueue.eventId });
+        return inserted.length > 0;
+      }
       const refreshedRows = await tx
         .insert(outgoingDeliveryQueue)
         .values(values)
@@ -53,7 +62,7 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
           where: inArray(outgoingDeliveryQueue.status, [...REPLACEABLE_STATUSES]),
         })
         .returning({ eventId: outgoingDeliveryQueue.eventId });
-      if (refreshedRows.length === 0) return;
+      if (refreshedRows.length === 0) return false;
       const result = await tx.execute(
         sql`SELECT app.refresh_specialist_task_reminder_materialization(${delivery.eventId}) AS refreshed`,
       );
@@ -61,6 +70,7 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
       if (row?.refreshed !== true) {
         throw new Error('specialist_task_reminder_materialization_refresh_failed');
       }
+      return true;
     },
 
     async terminalizeUnsentSpecialistTaskReminders(tx, input): Promise<void> {
