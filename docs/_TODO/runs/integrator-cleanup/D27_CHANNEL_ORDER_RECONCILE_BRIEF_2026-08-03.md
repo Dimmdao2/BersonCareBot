@@ -110,3 +110,35 @@ sources, the code always goes there, the rest stay recovery-only. Do not add a s
 which addresses may log in (§2 is a different question and is not in this slice). Prove it with behavioral tests
 covering: OAuth address linked earlier than the profile address, profile address linked earlier, and an account
 with no verified address at all.
+
+### F5 addendum — the owner closed развилка №6 on 2026-08-03
+
+Owner, verbatim: «для входа используется одна почта — основная. Та которая привязана первой. Я думаю что пока
+этого хватит, и чтобы возможность привязывать дополнительные адреса давала почту для восстановления, но не для
+входа». Recorded in `IDENTITY_AND_MERGE_SCHEME.md` §2 (развилка №6, closed for email) and §3.4.
+
+Measured before recording, so the slice knows what it is fixing:
+
+- Login, password state and reset all resolve the account through `platform_users.email_normalized` only
+  (`pgEmailPasswordLookup.ts:75-88`, `pgEmailAuth.ts:178`). A secondary address already cannot log in — the
+  decision confirms current behavior and takes nothing away.
+- **But the primary does not survive.** `applyVerifiedOAuthEmail` (`pgOAuthUserResolve.ts:13-28`) runs
+  `UPDATE platform_users SET email = <provider address>, email_normalized = …` on **every** OAuth sign-in with a
+  trusted email. A person who registered as `anna@mail.ru` and later signs in with Google silently loses that
+  address as their login identity — it is not even kept as a recovery address, because the column was overwritten.
+  This violates the owner's rule directly and is a break in a real person's path.
+- Recovery through a secondary address does not exist today (same single lookup).
+
+So F5 grows by two concrete requirements, on top of «the code always goes to the primary»:
+
+1. **The primary is assigned once and never silently reassigned.** When a verified OAuth address arrives and the
+   account already has a verified primary, keep the primary and retain the new address as an additional
+   (recovery/delivery) address — `user_oauth_bindings` already stores it. Set the primary from OAuth only when the
+   account has none. Prove it with a test that signs in twice with two different provider addresses and asserts the
+   primary is unchanged.
+2. **Secondary addresses recover, never authenticate.** Password recovery accepts a secondary address and recovers
+   the same account; login and the login code stay bound to the primary. Prove both directions: recovery by
+   secondary succeeds, login by secondary does not.
+
+Out of scope: phones and messengers as login identifiers — развилка №6 stays open for them, the owner spoke about
+email only. Do not touch that.
