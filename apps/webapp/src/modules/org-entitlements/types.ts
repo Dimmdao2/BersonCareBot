@@ -164,8 +164,23 @@ export type AccessTerminalState = 'read_only' | 'disabled';
  * §5a item 2.6a (owner 31.07): «список уведомлений — там срок (за сколько до/после окончания
  * периода), условие (успешная оплата / ошибка оплаты) и шаблон текста». The condition is part of
  * the ROW, not a branch in code: nothing here decides when to send on failure.
+ *
+ * Т2/Т7 (owner 04.08): five more conditions, named by the owner — «старт триала», «завершение
+ * триала», «регистрация — то есть первый вход в кабинет», and two grace/discount-window ones that
+ * Т7 requires to fire only while the organization has not paid: «начало льготного периода»,
+ * «завершение льготного периода». One canonical list — the admin validation, the API schema and
+ * the constructor's option labels all derive from it instead of repeating the values.
  */
-export type AccessNotificationCondition = 'payment_succeeded' | 'payment_failed';
+export const ACCESS_NOTIFICATION_CONDITIONS = [
+  'payment_succeeded',
+  'payment_failed',
+  'registration',
+  'trial_started',
+  'trial_ended',
+  'discount_period_started',
+  'discount_period_ended',
+] as const;
+export type AccessNotificationCondition = (typeof ACCESS_NOTIFICATION_CONDITIONS)[number];
 
 export type AccessNotificationRule = {
   /**

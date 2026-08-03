@@ -1,9 +1,9 @@
 import {
+  ACCESS_NOTIFICATION_CONDITIONS,
   MECHANIC_REGISTRY,
   MECHANICS,
   quotaMechanicSupportsWarning,
   type AccessLifecyclePolicy,
-  type AccessNotificationCondition,
   type AccessNotificationRule,
   type CabinetAccessResolution,
   type AccessTerminalState,
@@ -86,8 +86,7 @@ function assertAccessNotification(rule: AccessNotificationRule): void {
   if (!Number.isSafeInteger(rule.offsetDays)) {
     throw new Error('access_notification_offset_invalid');
   }
-  const conditions: AccessNotificationCondition[] = ['payment_succeeded', 'payment_failed'];
-  if (!conditions.includes(rule.condition)) {
+  if (!(ACCESS_NOTIFICATION_CONDITIONS as readonly string[]).includes(rule.condition)) {
     throw new Error('access_notification_condition_invalid');
   }
   if (!rule.template.trim()) throw new Error('access_notification_template_required');
