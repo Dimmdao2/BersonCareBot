@@ -26,12 +26,14 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-// Both doors are redefined by the forward-only 0320 migration. The proof must extract those
-// CURRENT bodies, not the applied 0305 migration, otherwise a green private-cluster run would not
-// cover live tariff edits.
+// Both doors were redefined by 0320, then again by the forward-only #1069 Т5-Т8 (owner 03.08)
+// migration 0344, which removes the trial-extension `grace` branch (post-trial rule now applies
+// the instant `ends_at` passes) but keeps this ladder's own graceDays/readOnlyDays progression
+// verbatim. The proof must extract those CURRENT bodies, not an earlier migration, otherwise a
+// green private-cluster run would not cover live tariff edits.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0320_tariff_policy_live_progression_local.sql',
+  'apps/webapp/db/drizzle-migrations/0344_saas_trial_grace_discount_window_local.sql',
 );
 const cabinetMigrationPath = mechanicMigrationPath;
 const mechanicRegistryPath = path.join(
@@ -178,7 +180,7 @@ function schemaSql(functionSource, cabinetSource) {
       organization_id uuid NOT NULL,
       tariff_id uuid NOT NULL,
       ends_at timestamptz NOT NULL,
-      grace_ends_at timestamptz NOT NULL,
+      discount_ends_at timestamptz NOT NULL,
       post_trial_behavior text NOT NULL,
       post_trial_tariff_id uuid,
       status text NOT NULL DEFAULT 'active'
@@ -336,7 +338,7 @@ async function setDegradationAnchor(connection, { endsAtIntervalFromNow, postTri
   await connection.query('DELETE FROM public.saas_organization_trials WHERE id = $1', [TRIAL_ID]);
   await connection.query(
     `INSERT INTO public.saas_organization_trials
-       (id, organization_id, tariff_id, ends_at, grace_ends_at, post_trial_behavior, status)
+       (id, organization_id, tariff_id, ends_at, discount_ends_at, post_trial_behavior, status)
      VALUES ($1, $2, $3, now() + $4::interval, now() + $4::interval, $5, 'active')`,
     [TRIAL_ID, ORG_ID, TARIFF_ID, endsAtIntervalFromNow, postTrialBehavior ?? 'blocked'],
   );

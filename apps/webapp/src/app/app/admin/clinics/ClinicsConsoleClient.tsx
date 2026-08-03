@@ -67,7 +67,6 @@ const TRIAL_STATUS_LABELS: Record<
   string
 > = {
   active: 'Активен',
-  grace: 'Льготный период',
   expired: 'Истёк',
   ended: 'Завершён',
 };
@@ -451,8 +450,8 @@ function ClinicDetail({
               <dd className="mt-1 font-medium">{formatDate(organization.trial.endsAt)}</dd>
             </div>
             <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Льготный период до</dt>
-              <dd className="mt-1 font-medium">{formatDate(organization.trial.graceEndsAt)}</dd>
+              <dt className="text-xs text-muted-foreground">Скидка на оплату до</dt>
+              <dd className="mt-1 font-medium">{formatDate(organization.trial.discountEndsAt)}</dd>
             </div>
           </dl>
         ) : (
