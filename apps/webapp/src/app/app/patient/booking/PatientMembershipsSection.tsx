@@ -39,10 +39,12 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function PatientMembershipsSection({
   visible = true,
-  mutationsAllowed = true,
+  subscriptionsMutationsAllowed,
+  paymentsMutationsAllowed,
 }: {
   visible?: boolean;
-  mutationsAllowed?: boolean;
+  subscriptionsMutationsAllowed: boolean;
+  paymentsMutationsAllowed: boolean;
 }) {
   const [packages, setPackages] = useState<PackageRow[]>([]);
   const [, startTransition] = useTransition();
@@ -85,7 +87,10 @@ export function PatientMembershipsSection({
             >
               Подробнее
             </Link>
-            {mutationsAllowed && p.status === 'awaiting_payment' && p.paymentIntentId ? (
+            {subscriptionsMutationsAllowed &&
+            paymentsMutationsAllowed &&
+            p.status === 'awaiting_payment' &&
+            p.paymentIntentId ? (
               <Link
                 href={`/app/patient/memberships/pay?patientPackageId=${encodeURIComponent(p.id)}`}
                 className="text-sm text-[var(--patient-color-primary)] underline"

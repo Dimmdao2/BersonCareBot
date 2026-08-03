@@ -23,6 +23,9 @@ const catalogPackageId = '33333333-3333-4333-8333-333333333333';
 describe('POST /api/booking/memberships/purchase', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes.withExplicitOrganizationPrincipal.mockImplementation(
+      async (_context: unknown, callback: () => Promise<unknown>) => callback(),
+    );
     fakes.requirePatientApiBusinessAccess.mockResolvedValue({
       ok: true,
       session: { user: { userId: patientUserId } },
@@ -32,41 +35,44 @@ describe('POST /api/booking/memberships/purchase', () => {
   it.each([
     ['disabled', 'entitlement_required'],
     ['read_only', 'commercial_read_only'],
-  ] as const)('refuses a direct patient purchase when subscriptions are %s', async (state, error) => {
-    const purchaseCatalogPackageForPatient = vi.fn();
-    fakes.buildAppDeps.mockReturnValue({
-      orgEntitlements: { resolveMechanicAccess: async () => ({ state, warning: null }) },
-      memberships: {
-        resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
-        purchaseCatalogPackageForPatient,
-      },
-    });
+  ] as const)(
+    'refuses a direct patient purchase when subscriptions are %s',
+    async (state, error) => {
+      const purchaseCatalogPackageForPatient = vi.fn();
+      fakes.buildAppDeps.mockReturnValue({
+        orgEntitlements: { resolveMechanicAccess: async () => ({ state, warning: null }) },
+        memberships: {
+          resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
+          purchaseCatalogPackageForPatient,
+        },
+      });
 
-    const response = await POST(
-      new Request('http://test/api/booking/memberships/purchase', {
-        method: 'POST',
-        body: JSON.stringify({ subscriptionPackageId: catalogPackageId }),
-      }),
-    );
+      const response = await POST(
+        new Request('http://test/api/booking/memberships/purchase', {
+          method: 'POST',
+          body: JSON.stringify({ subscriptionPackageId: catalogPackageId }),
+        }),
+      );
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: false,
-      error,
-      mechanic: 'subscriptions',
-    });
-    expect(purchaseCatalogPackageForPatient).not.toHaveBeenCalled();
-  });
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        error,
+        mechanic: 'subscriptions',
+      });
+      expect(purchaseCatalogPackageForPatient).not.toHaveBeenCalled();
+    },
+  );
 
   it('keeps the patient purchase flow available with full subscriptions access', async () => {
     const purchaseCatalogPackageForPatient = vi.fn().mockResolvedValue({ id: 'package-1' });
-    fakes.withExplicitOrganizationPrincipal.mockImplementation(
-      async (_context: unknown, callback: () => Promise<unknown>) => callback(),
-    );
     fakes.buildAppDeps.mockReturnValue({
-      orgEntitlements: { resolveMechanicAccess: async () => ({ state: 'full_access', warning: null }) },
+      orgEntitlements: {
+        resolveMechanicAccess: async () => ({ state: 'full_access', warning: null }),
+      },
       memberships: {
         resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
+        getCatalogPackage: vi.fn().mockResolvedValue({ id: catalogPackageId, priceMinor: 1000 }),
         purchaseCatalogPackageForPatient,
       },
     });
@@ -85,5 +91,67 @@ describe('POST /api/booking/memberships/purchase', () => {
       platformUserId: patientUserId,
       subscriptionPackageId: catalogPackageId,
     });
+  });
+
+  it.each([
+    ['disabled', 'entitlement_required'],
+    ['read_only', 'commercial_read_only'],
+  ] as const)('does not create a paid package when payments are %s', async (state, error) => {
+    const purchaseCatalogPackageForPatient = vi.fn();
+    fakes.buildAppDeps.mockReturnValue({
+      orgEntitlements: {
+        resolveMechanicAccess: async (_organizationId: string, mechanic: string) => ({
+          state: mechanic === 'payments' ? state : 'full_access',
+          warning: null,
+        }),
+      },
+      memberships: {
+        resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
+        getCatalogPackage: vi.fn().mockResolvedValue({ id: catalogPackageId, priceMinor: 1000 }),
+        purchaseCatalogPackageForPatient,
+      },
+    });
+
+    const response = await POST(
+      new Request('http://test/api/booking/memberships/purchase', {
+        method: 'POST',
+        body: JSON.stringify({ subscriptionPackageId: catalogPackageId }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error,
+      mechanic: 'payments',
+    });
+    expect(purchaseCatalogPackageForPatient).not.toHaveBeenCalled();
+  });
+
+  it('keeps a free package available when online payments are disabled', async () => {
+    const purchaseCatalogPackageForPatient = vi.fn().mockResolvedValue({ id: 'free-package' });
+    fakes.buildAppDeps.mockReturnValue({
+      orgEntitlements: {
+        resolveMechanicAccess: async (_organizationId: string, mechanic: string) => ({
+          state: mechanic === 'payments' ? 'disabled' : 'full_access',
+          warning: null,
+        }),
+      },
+      memberships: {
+        resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
+        getCatalogPackage: vi.fn().mockResolvedValue({ id: catalogPackageId, priceMinor: 0 }),
+        purchaseCatalogPackageForPatient,
+      },
+    });
+
+    const response = await POST(
+      new Request('http://test/api/booking/memberships/purchase', {
+        method: 'POST',
+        body: JSON.stringify({ subscriptionPackageId: catalogPackageId }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(purchaseCatalogPackageForPatient).toHaveBeenCalledOnce();
   });
 });

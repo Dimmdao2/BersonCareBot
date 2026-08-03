@@ -8,7 +8,21 @@ export const inMemoryUserPinsPort: UserPinsPort = {
     return r ? { ...r } : null;
   },
 
+  async getForCurrentPrincipal(userId: string): Promise<UserPinRecord | null> {
+    const r = byUser.get(userId);
+    return r ? { ...r } : null;
+  },
+
   async upsertPinHash(userId: string, pinHash: string): Promise<void> {
+    byUser.set(userId, {
+      userId,
+      pinHash,
+      attemptsFailed: 0,
+      lockedUntil: null,
+    });
+  },
+
+  async upsertPinHashForCurrentPrincipal(userId: string, pinHash: string): Promise<void> {
     byUser.set(userId, {
       userId,
       pinHash,

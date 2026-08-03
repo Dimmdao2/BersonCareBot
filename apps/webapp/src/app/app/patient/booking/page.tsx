@@ -66,13 +66,19 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
         'subscriptions',
       )
     : null;
-  const membershipMutation =
+  const [membershipMutation, paymentsMutation] =
     patientOrganization?.ok && membershipAccess?.patientNavigation
-      ? await getMechanicMutationAvailability(
-          { organizationId: patientOrganization.organizationId },
-          'subscriptions',
-        )
-      : { available: false as const };
+      ? await Promise.all([
+          getMechanicMutationAvailability(
+            { organizationId: patientOrganization.organizationId },
+            'subscriptions',
+          ),
+          getMechanicMutationAvailability(
+            { organizationId: patientOrganization.organizationId },
+            'payments',
+          ),
+        ])
+      : [{ available: false as const }, { available: false as const }];
   const records = await deps.patientBooking.listMyBookings(session.user.userId);
   const bookingCityCode = pickBookingCityCodeForAddressLinks(
     cityCodeFromQuery,
@@ -122,7 +128,8 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
         <PatientBookingPaymentHistorySection />
         <PatientMembershipsSection
           visible
-          mutationsAllowed={membershipMutation.available}
+          subscriptionsMutationsAllowed={membershipMutation.available}
+          paymentsMutationsAllowed={paymentsMutation.available}
         />
         <FormatStepClient
           cities={catalogCities}

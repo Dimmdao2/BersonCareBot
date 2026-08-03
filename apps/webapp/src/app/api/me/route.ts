@@ -19,7 +19,7 @@ export async function GET() {
 
   await renewSessionCookieFromRequest();
 
-  const pinRow = await deps.userPins.getByUserId(session.user.userId);
+  const pinRow = await deps.userPins.getForCurrentPrincipal(session.user.userId);
 
   let platformAccess: MePlatformAccessPayload | null = null;
   let platformAccessUnresolved = false;

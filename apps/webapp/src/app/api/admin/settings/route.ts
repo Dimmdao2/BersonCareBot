@@ -41,7 +41,10 @@ import {
   VIDEO_PRESIGN_TTL_MIN_SEC,
 } from '@/modules/media/videoPresignTtlConstants';
 import { coerceAdminBooleanSetting } from '@/modules/system-settings/coerceAdminBooleanSetting';
-import { redactSaasBillingPaymentProviderValue } from '@/modules/saas-billing/settings';
+import {
+  isValidSaasBillingPaymentProviderFiscalSettings,
+  redactSaasBillingPaymentProviderValue,
+} from '@/modules/saas-billing/settings';
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
@@ -618,6 +621,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = { value: label };
+  }
+
+  if (
+    parsed.data.key === 'saas_billing_payment_provider' &&
+    !isValidSaasBillingPaymentProviderFiscalSettings(normalizedValue)
+  ) {
+    return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
   }
 
   if (isModesFormKey(parsed.data.key)) {

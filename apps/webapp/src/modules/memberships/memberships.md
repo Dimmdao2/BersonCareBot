@@ -10,6 +10,9 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 
 `modules/payments`: `purpose=package_purchase`, `productRef=patient_package:{id}`. Activation after capture in `buildAppDeps` (`onPackagePaymentCaptured`). Free manual packages (`priceMinor=0`) activate without payment offer.
 
+Создание нового онлайн-платежа требует одновременно `subscriptions=full_access` и `payments=full_access`. Проверка `payments` применяется только к платной отправке на оплату: бесплатная выдача и зафиксированная сотрудником офлайн-продажа остаются доступны. Уже купленные абонементы, история и расходование не зависят от возможности создавать новые платежи.
+`GET /api/booking/memberships/payment-status` сохраняет чтение статуса существующего абонемента, но возвращает `checkoutUrl=null`, когда новые платежи недоступны по тарифу.
+
 ## Booking integration
 
 **Canonical-only debit path:** reserve/consume/FEFO и ручные действия staff опираются на **canonical `serviceId`** записи и позиций пакета. В UI сеансов абонемента: `mappingStatus` + бейдж «нет связи услуги».

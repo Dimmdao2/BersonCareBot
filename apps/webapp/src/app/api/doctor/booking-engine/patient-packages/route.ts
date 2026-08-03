@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  requireEntitlementForMutation,
-} from '@/app-layer/guards/requireEntitlement';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
+  catalogPatientPackageCreatesOnlinePayment,
+  manualPatientPackageCreatesOnlinePayment,
   membershipErrorResponse,
   resolveAssignedByPlatformUserId,
 } from '@/app/api/booking-engine/patientPackagesRouteShared';
@@ -86,6 +86,10 @@ export async function POST(request: Request) {
   const body = parsed.data;
   try {
     if (body.kind === 'manual') {
+      if (manualPatientPackageCreatesOnlinePayment(body)) {
+        const paymentsEntitlement = await requireEntitlementForMutation(gate.ctx, 'payments');
+        if (!paymentsEntitlement.ok) return paymentsEntitlement.response;
+      }
       const pkg = await deps.memberships.createManualPatientPackage(
         {
           organizationId: gate.ctx.organizationId,
@@ -114,6 +118,21 @@ export async function POST(request: Request) {
         },
       );
       return NextResponse.json({ ok: true, package: pkg });
+    }
+    const catalogPackage = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      'doctor.booking-engine.patient-packages.catalog-read',
+      () =>
+        deps.memberships!.getCatalogPackage(body.subscriptionPackageId, gate.ctx.organizationId),
+    );
+    if (!catalogPackage) {
+      return NextResponse.json({ ok: false, error: 'catalog_package_not_found' }, { status: 404 });
+    }
+    if (
+      catalogPatientPackageCreatesOnlinePayment({ ...body, priceMinor: catalogPackage.priceMinor })
+    ) {
+      const paymentsEntitlement = await requireEntitlementForMutation(gate.ctx, 'payments');
+      if (!paymentsEntitlement.ok) return paymentsEntitlement.response;
     }
     const pkg = await deps.memberships.offerCatalogPackageToPatient(
       {
