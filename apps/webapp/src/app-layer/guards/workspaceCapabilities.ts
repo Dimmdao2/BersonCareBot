@@ -49,7 +49,7 @@ export function resolveLaunchCapabilities(
   }
 
   const capabilities = new Set<LaunchCapability>();
-  if (facts.sessionRole === 'doctor' || facts.sessionRole === 'admin') {
+  if (facts.sessionRole === 'doctor') {
     capabilities.add('account.self');
   }
 
