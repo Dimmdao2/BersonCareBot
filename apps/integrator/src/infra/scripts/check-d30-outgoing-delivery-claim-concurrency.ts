@@ -163,7 +163,7 @@ const D30_ONLINE_INDEX_ARTIFACT = path.resolve(
 const D30_SPECIALIST_OUTCOME_MIGRATION = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../../../..',
-  'apps/webapp/db/drizzle-migrations/9998_d30_specialist_task_delivery_outcome_capability_local.sql',
+  'apps/webapp/db/drizzle-migrations/0333_d30_specialist_task_delivery_outcome_capability_local.sql',
 );
 
 function runD30OnlineIndexArtifact(connectionString: string) {

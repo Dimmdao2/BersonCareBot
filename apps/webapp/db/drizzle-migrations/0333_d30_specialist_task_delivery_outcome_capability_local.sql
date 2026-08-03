@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 9998 — final number is assigned by the Track D lead at land.
+-- D30 Ш3: specialist-task reminder delivery outcome + claim-time revalidation capability.
 -- D30 Ш3: a sent transport row is durable proof; product bookkeeping retries without transport.
 
 GRANT SELECT (id, organization_id, reminder_sent_at), UPDATE (reminder_sent_at)
