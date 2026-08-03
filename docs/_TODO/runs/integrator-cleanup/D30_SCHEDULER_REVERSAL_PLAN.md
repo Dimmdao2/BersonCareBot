@@ -390,7 +390,7 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       **Гейт:** дренаж — `SELECT count(*) FROM integrator.message_retry_jobs WHERE status IN ('pending','processing')`
       равен нулю и держится нулём наблюдаемый период; только после этого — снос таблицы и кода.
       **Это точка невозврата** (см. раздел 5).
-      **CURRENT PARTIAL 03.08 (кандидат `wt/trackd-d30-sh7-cutover`):** shipped appointment-reminder producer
+      **CURRENT PARTIAL 03.08 (land `25a6c11a7`):** shipped appointment-reminder producer
       больше не пишет в `integrator.message_retry_jobs`: booking lifecycle передаёт канонические входы в
       webapp, webapp материализует стабильные messenger/Web Push sibling-события в
       `public.outgoing_delivery_queue`, а механический worker перед отправкой повторно проверяет поколение,
@@ -403,9 +403,15 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       last-moment revalidation теперь также отсекает blocked/archived/merged и глобально muted recipient.
       Полный integrator: `pnpm --dir apps/integrator test` → `347 passed`, `4 expected fail`, `9 skipped`;
       disposable PostgreSQL Ш7 + D7 + Ш4 → `21/21`; typecheck/lint и boundary-gates PASS. Broad
-      `app_owner` DML на occurrence-таблицу не возвращён. Миграция `9995` временная, вне journal и нигде не
-      применялась. Ш7 остаётся `[ ]`: legacy consumer/table сохранены для старых строк; живой drain-period,
-      финальная миграция и необратимый drop относятся к следующим стадиям и этим кандидатом не заявлены.
+      `app_owner` DML на occurrence-таблицу не возвращён. Миграция `0339` (`idx=337`,
+      `when=1793539230043`) применена на DEV штатным preflight+execute; runner показал
+      `count=338 direct=332 reconciled=6`, worker capabilities true/true, direct occurrence DML
+      false/false/false. Сразу после apply точный запрос к `public.outgoing_delivery_queue` дал `0` всего и `0`
+      активных appointment-reminder строк. Legacy-запрос дал `113` строк всего: `20 pending` с due
+      `06–29.08` и `4` stale processing с due `25–28.07`; все 24 имеют старую appointment payload shape
+      (`booking/intent/retry/targets/webappPushNotify`). Ш7 остаётся `[ ]`: сначала штатно reclaim/drain этих строк,
+      затем доказать post-cutover zero-write период и только после этого отдельным audited шагом удалить legacy
+      consumer/table. Необратимый drop этим land не заявлен.
 
 - [ ] **Ш8. B3 — не в этом плане.** Дренаж `integrator_push_outbox` исчезает вместе с M2M-каналом
       `reminder_rule_upsert` по D5–D7/D25. Здесь фиксируется зависимость, работа не начинается.

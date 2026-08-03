@@ -812,10 +812,13 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
 - [ ] **D29 — ФИО только кириллицей, автоподстановка имени отменяется.** Решение — **Р-D29** (§2.3). Это не
       только проверка ввода: сегодня имя приезжает из внешнего профиля мессенджеров и OAuth.
 - [ ] **D30 — разворот архитектуры запуска по расписанию.** Решение, гейты и объём — **Р-D30** (§2.3).
-      **CURRENT PARTIAL 03.08:** Ш7 stages 1–4 подготовлены в отдельном кандидате: appointment-reminder
-      producer переведён на единую `public.outgoing_delivery_queue`; legacy consumer/table оставлены до
-      доказанного дренажа. Точный evidence, временная миграция и оставшаяся точка невозврата записаны в
-      `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` §Ш7. D30 и Ш7 остаются открытыми.
+      **CURRENT PARTIAL 03.08:** Ш7 stages 1–4 приземлены `25a6c11a7`; migration `0339`
+      (`idx=337`, `when=1793539230043`) применена на DEV. Appointment-reminder producer переведён на единую
+      `public.outgoing_delivery_queue`; после apply новая appointment-reminder queue имеет `0` активных строк,
+      но в legacy остались `24` старые active строки (`20 pending`, `4` stale processing). Legacy consumer/table
+      оставлены до их штатного дренажа и доказанного post-cutover zero-write периода; точный evidence
+      и оставшаяся точка невозврата записаны в `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` §Ш7.
+      D30 и Ш7 остаются открытыми.
 
 ### 3.5 Track E — принятые решения без своего трека
 
