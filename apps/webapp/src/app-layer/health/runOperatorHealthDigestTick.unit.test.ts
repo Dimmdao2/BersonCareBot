@@ -1,39 +1,28 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => {
-  const counter = vi.fn();
-  const fallbackRelay = vi.fn();
-  const reportEmptyAudience = vi.fn(async (event: unknown) => {
-    counter(event);
-    fallbackRelay(event);
-    return { counterTotal: 1, fallback: 'sent' as const };
-  });
-
-  return {
-    counter,
-    fallbackRelay,
-    reportEmptyAudience,
-    heartbeat: vi.fn(async () => undefined),
-    standardRelay: vi.fn(async () => ({ ok: true as const, status: 'accepted' as const })),
-  };
-});
+const mocks = vi.hoisted(() => ({
+  digestTime: '09:00',
+  timeZone: 'Europe/Berlin',
+  rows: new Set<string>(),
+  enqueue: vi.fn(async (deliveries: readonly { eventId: string }[]) => {
+    let inserted = 0;
+    for (const delivery of deliveries) {
+      if (!mocks.rows.has(delivery.eventId)) {
+        mocks.rows.add(delivery.eventId);
+        inserted += 1;
+      }
+    }
+    return inserted;
+  }),
+  heartbeat: vi.fn(async () => undefined),
+}));
 
 vi.mock('@/app-layer/health/tickProjectionDigestDebounce', () => ({
   tickProjectionDigestDebounce: vi.fn(async () => undefined),
 }));
-
-vi.mock('@/app-layer/di/buildAppDeps', () => ({
-  buildAppDeps: vi.fn(() => ({
-    operatorHealthDigestRead: {
-      hadOperatorIncidentsResolveAllInWindow: vi.fn(async () => false),
-    },
-  })),
-}));
-
 vi.mock('@/app-layer/health/collectOperatorHealthDigestInput', () => ({
   collectOperatorHealthDigestInput: vi.fn(async () => ({})),
 }));
-
 vi.mock('@/modules/operator-health/buildOperatorHealthDigest', () => ({
   buildOperatorHealthDigest: vi.fn(() => ({
     icon: '✅',
@@ -41,100 +30,74 @@ vi.mock('@/modules/operator-health/buildOperatorHealthDigest', () => ({
     lines: ['Всё в порядке'],
   })),
 }));
-
 vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
-  getAppDisplayTimeZone: vi.fn(async () => 'UTC'),
+  getAppDisplayTimeZone: vi.fn(async () => mocks.timeZone),
 }));
-
 vi.mock('@/modules/system-settings/configAdapter', () => ({
   getConfigValue: vi.fn(async (key: string) =>
     key === 'operator_health_alert_config'
       ? JSON.stringify({
           topics: { digest_enabled: true },
-          digestTime: '09:00',
+          digestTime: mocks.digestTime,
           channels: {
-            digest: {
-              telegram: true,
-              max: true,
-              web_push: true,
-              sms: true,
-              email: true,
-            },
+            digest: { telegram: true, max: false, web_push: false, sms: false, email: false },
           },
         })
       : '',
   ),
 }));
-
-vi.mock('@/modules/operator-alerts/operatorAlertRuntime', () => ({
-  getOperatorAlertDedupPort: vi.fn(() => null),
-}));
-
-vi.mock('@/modules/operator-alerts/adminNotificationTargetsRuntime', () => ({
-  getAdminNotificationTargetsPort: vi.fn(() => ({
-    loadTargets: vi.fn(async () => ({
-      telegram: [],
-      max: [],
-      sms: [],
-      email: [],
-    })),
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
+  buildAppDeps: vi.fn(() => ({
+    operatorHealthDigestRead: { hadOperatorIncidentsResolveAllInWindow: vi.fn(async () => false) },
+    operatorHealthDigestDelivery: {
+      loadRecipients: vi.fn(async () => ({
+        telegram: ['123'],
+        max: [],
+        sms: [],
+        email: [],
+        web_push: [],
+      })),
+      enqueue: mocks.enqueue,
+      loadLatestSentAt: vi.fn(async () => null),
+    },
   })),
 }));
-
-vi.mock('@/modules/admin-incidents/adminIncidentStaffPushRuntime', () => ({
-  getAdminIncidentStaffPushDeps: vi.fn(() => null),
-}));
-
-vi.mock('@/modules/admin-incidents/sendAdminIncidentStaffWebPush', () => ({
-  sendAdminIncidentStaffWebPush: vi.fn(async () => 0),
-}));
-
-vi.mock('@/modules/operator-alerts/relayOperatorAlert', () => ({
-  relayOperatorAlert: mocks.standardRelay,
-}));
-
-vi.mock('@/app-layer/operator-alerts/reportEmptyNotificationAudience', () => ({
-  reportEmptyNotificationAudience: mocks.reportEmptyAudience,
-}));
-
 vi.mock('@/app-layer/operator-health/pingOperatorHeartbeat', () => ({
   pingOperatorHeartbeatBestEffort: mocks.heartbeat,
 }));
 
-vi.mock('@/infra/logging/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
-
-import {
-  registerEmptyAudienceReporter,
-  resetEmptyAudienceReporterForTests,
-} from '@/modules/operator-alerts/emptyAudienceRuntime';
 import { runOperatorHealthDigestTick } from './runOperatorHealthDigestTick';
 
-describe('runOperatorHealthDigestTick empty-audience seam', () => {
+describe('runOperatorHealthDigestTick queue materialization', () => {
   beforeEach(() => {
+    mocks.digestTime = '09:00';
+    mocks.timeZone = 'Europe/Berlin';
+    mocks.rows.clear();
     vi.clearAllMocks();
-    registerEmptyAudienceReporter(async (event) => {
-      await mocks.reportEmptyAudience(event);
+  });
+
+  it('uses the configured local slot across DST and converges concurrent old/new triggers', async () => {
+    const now = new Date('2026-03-29T07:00:00.000Z'); // 09:00 after Europe/Berlin DST jump
+    const [oldCron, signedWake] = await Promise.all([
+      runOperatorHealthDigestTick(now),
+      runOperatorHealthDigestTick(now),
+    ]);
+    expect([oldCron.sent, signedWake.sent].sort()).toEqual([false, true]);
+    expect(mocks.rows.size).toBe(1);
+    expect(mocks.enqueue).toHaveBeenCalledTimes(2);
+    expect(mocks.heartbeat).toHaveBeenCalledOnce();
+  });
+
+  it('moves the next materialization immediately when digestTime changes', async () => {
+    mocks.digestTime = '10:00';
+    expect(await runOperatorHealthDigestTick(new Date('2026-04-01T07:00:00.000Z'))).toMatchObject({
+      sent: false,
+      reason: 'not_slot',
     });
-  });
-
-  afterEach(() => {
-    resetEmptyAudienceReporterForTests();
-  });
-
-  it('counts and relays an empty digest audience exactly once through the dispatcher', async () => {
-    const result = await runOperatorHealthDigestTick(new Date('2026-07-30T09:00:00.000Z'));
-
-    expect(result).toMatchObject({ sent: false, reason: 'no_recipients' });
-    expect(result.dedupKey).toBeTruthy();
-    expect(mocks.reportEmptyAudience).toHaveBeenCalledOnce();
-    expect(mocks.counter).toHaveBeenCalledOnce();
-    expect(mocks.fallbackRelay).toHaveBeenCalledOnce();
-    expect(mocks.standardRelay).not.toHaveBeenCalled();
-    expect(mocks.heartbeat).not.toHaveBeenCalled();
+    expect(mocks.rows.size).toBe(0);
+    expect(await runOperatorHealthDigestTick(new Date('2026-04-01T08:00:00.000Z'))).toMatchObject({
+      sent: true,
+    });
+    expect(mocks.rows.size).toBe(1);
   });
 });

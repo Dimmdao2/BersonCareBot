@@ -130,6 +130,22 @@ export function createWebappEventsPort(deps: {
   }
 
   return {
+    async wakeOperatorHealthDigest(input: { wakeId: string }) {
+      return postSignedJson({
+        path: '/api/integrator/operator-health/digest-wake',
+        body: JSON.stringify(input),
+        idempotencyKey: `operator-health-digest-wake:${input.wakeId}`,
+      });
+    },
+
+    async wakeSystemHealthGuard(input: { wakeId: string }) {
+      return postSignedJson({
+        path: '/api/integrator/system-health/guard-wake',
+        body: JSON.stringify(input),
+        idempotencyKey: `system-health-guard-wake:${input.wakeId}`,
+      });
+    },
+
     async emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {

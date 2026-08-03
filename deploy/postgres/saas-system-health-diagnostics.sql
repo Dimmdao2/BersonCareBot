@@ -141,14 +141,25 @@ channel_diagnostics AS MATERIALIZED (
     LIMIT 1
   ) AS diagnostic ON true
   GROUP BY base.value
+),
+digest_delivery AS MATERIALIZED (
+  SELECT max(sent_at) AS last_sent_at
+  FROM public.outgoing_delivery_queue
+  WHERE kind = 'operator_health_digest'
+    AND status = 'sent'
 )
 SELECT jsonb_set(
-  base.value,
-  ARRAY['notificationDelivery', 'byChannel'],
-  channel_diagnostics.value,
-  false
+  jsonb_set(
+    base.value,
+    ARRAY['notificationDelivery', 'byChannel'],
+    channel_diagnostics.value,
+    false
+  ),
+  ARRAY['operatorHealthDigestLastSentAt'],
+  COALESCE(to_jsonb(digest_delivery.last_sent_at), 'null'::jsonb),
+  true
 )
-FROM base, channel_diagnostics
+FROM base, channel_diagnostics, digest_delivery
 $function$;
 
 DO $roles$

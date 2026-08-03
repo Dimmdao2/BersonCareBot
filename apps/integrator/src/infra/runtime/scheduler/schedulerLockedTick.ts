@@ -2,6 +2,8 @@ export type SchedulerLockedTickDeps = {
   /** Throws when this process no longer holds the scheduler lock. */
   assertLockStillHeld: () => Promise<void>;
   runOrganizationTicks: () => Promise<number>;
+  runOperatorHealthDigestWake: () => Promise<boolean>;
+  runSystemHealthGuardWake: () => Promise<boolean>;
   runOperatorHealthProbeTick: () => Promise<boolean>;
   onOrganizationTickError: (error: unknown) => void | Promise<void>;
 };
@@ -52,6 +54,8 @@ export function createSchedulerLockedTickCoordinator(
       // D30 Ш0 §2a condition 2: neither body may start after this exact lock connection is lost.
       await deps.assertLockStillHeld();
       startOrganizationTickIfIdle();
+      await deps.runOperatorHealthDigestWake();
+      await deps.runSystemHealthGuardWake();
       await deps.runOperatorHealthProbeTick();
     },
 

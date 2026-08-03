@@ -6,13 +6,13 @@ export type OutgoingIntent = {
     occurredAt: string;
     source: string;
     userId?: string;
-    outboundMessageClass?: 'routine_product';
-    outboundCapability?: 'app_push' | 'essential_delivery';
+    outboundMessageClass?: 'routine_product' | 'operator_security';
+    outboundCapability?: 'app_push' | 'essential_delivery' | 'operator_alert';
   };
   payload: Record<string, unknown>;
 };
 
-export type ReadyOutgoingDelivery = {
+export type SpecialistTaskReadyOutgoingDelivery = {
   organizationId: string;
   eventId: string;
   kind: 'specialist_task_reminder';
@@ -27,9 +27,24 @@ export type ReadyOutgoingDelivery = {
   nextRetryAt: string;
 };
 
+export type OperatorHealthDigestReadyOutgoingDelivery = {
+  organizationId: null;
+  eventId: string;
+  kind: 'operator_health_digest';
+  channel: 'telegram' | 'max' | 'sms' | 'email' | 'web_push';
+  intent: OutgoingIntent;
+  maxAttempts: number;
+  nextRetryAt: string;
+};
+
+export type ReadyOutgoingDelivery =
+  | SpecialistTaskReadyOutgoingDelivery
+  | OperatorHealthDigestReadyOutgoingDelivery;
+
 /** The only webapp write seam for `public.outgoing_delivery_queue`. */
 export type OutgoingDeliveryQueueWritePort<TransactionClient> = {
-  enqueueReady(tx: TransactionClient, delivery: ReadyOutgoingDelivery): Promise<void>;
+  /** True only when a new stable event row was inserted. */
+  enqueueReady(tx: TransactionClient, delivery: ReadyOutgoingDelivery): Promise<boolean>;
   terminalizeUnsentSpecialistTaskReminders(
     tx: TransactionClient,
     input: { taskId: string; exceptEventIds?: readonly string[]; reason: string },

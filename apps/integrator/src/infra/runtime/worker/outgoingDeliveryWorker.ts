@@ -1,6 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { parseCorrelationId, runWithObservabilityContext } from '@bersoncare/db-principal';
 import {
+  OUTBOUND_MESSAGE_CAPABILITIES,
+  OUTBOUND_MESSAGE_CLASSES,
+  type OutboundMessageCapability,
+  type OutboundMessageClass,
   type DbPort,
   type DbWritePort,
   type DeliverySendResult,
@@ -156,6 +160,17 @@ function asChatIdFromRecipient(recipient: unknown): number | null {
   return null;
 }
 
+const outboundMessageClasses: ReadonlySet<string> = new Set(OUTBOUND_MESSAGE_CLASSES);
+const outboundMessageCapabilities: ReadonlySet<string> = new Set(OUTBOUND_MESSAGE_CAPABILITIES);
+
+function isOutboundMessageClass(value: unknown): value is OutboundMessageClass {
+  return typeof value === 'string' && outboundMessageClasses.has(value);
+}
+
+function isOutboundMessageCapability(value: unknown): value is OutboundMessageCapability {
+  return typeof value === 'string' && outboundMessageCapabilities.has(value);
+}
+
 function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingIntent | null {
   const rawIntent = payload.intent;
   if (!rawIntent || typeof rawIntent !== 'object') return null;
@@ -171,6 +186,14 @@ function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingInten
   ) {
     return null;
   }
+  const outboundMessageClass = meta.outboundMessageClass;
+  const outboundCapability = meta.outboundCapability;
+  if (
+    (outboundMessageClass !== undefined && !isOutboundMessageClass(outboundMessageClass)) ||
+    (outboundCapability !== undefined && !isOutboundMessageCapability(outboundCapability))
+  ) {
+    return null;
+  }
   const pl = o.payload;
   if (!pl || typeof pl !== 'object') return null;
   return {
@@ -181,6 +204,8 @@ function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingInten
       source: meta.source,
       ...(typeof meta.correlationId === 'string' ? { correlationId: meta.correlationId } : {}),
       ...(typeof meta.userId === 'string' ? { userId: meta.userId } : {}),
+      ...(isOutboundMessageClass(outboundMessageClass) ? { outboundMessageClass } : {}),
+      ...(isOutboundMessageCapability(outboundCapability) ? { outboundCapability } : {}),
     },
     payload: pl as Record<string, unknown>,
   };
