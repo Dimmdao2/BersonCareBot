@@ -1,4 +1,4 @@
--- TEMP D30 Ш5 migration. Final sequence number is assigned only while landing Track D.
+-- D30 Ш5: allow the unified delivery worker to resolve global operator-health digest rows.
 CREATE OR REPLACE FUNCTION app.resolve_outgoing_delivery_scope(p_queue_id uuid)
 RETURNS TABLE(queue_kind text, organization_id uuid, resolution text)
 LANGUAGE plpgsql
