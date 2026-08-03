@@ -38,7 +38,6 @@ vi.mock('@/modules/auth/oauthStartRateLimit', () => ({
 vi.mock('@/infra/repos/pgPasskeyStore', () => ({ pgPasskeyStore: {} }));
 
 import { POST as requestPasskeyOptions } from '@/app/api/auth/passkey/login/options/route';
-import { POST as loginByPin } from '@/app/api/auth/pin/login/route';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,17 +52,5 @@ describe('independent login method server gates', () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'auth_method_disabled' });
     expect(fakes.beginPasskeyAuthentication).not.toHaveBeenCalled();
-  });
-
-  it('rejects direct PIN API login when the global toggle is off', async () => {
-    const response = await loginByPin(
-      new Request('https://app.example.test/api/auth/pin/login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone: '+79990000000', pin: '1234' }),
-      }),
-    );
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ error: 'auth_method_disabled' });
   });
 });

@@ -232,6 +232,20 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
+  it('blocks a correct password for a patient account (patients have no password)', async () => {
+    fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
+    fakes.findUser.mockResolvedValue({ ...user, role: 'client' });
+
+    const response = await login(request());
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'password_not_available_for_role',
+    });
+    expect(fakes.setSession).not.toHaveBeenCalled();
+  });
+
   it('returns a typed our-side failure instead of an empty body when an unhandled exception hits the DB', async () => {
     fakes.verifyPassword.mockRejectedValueOnce(
       new Error('permission denied for table platform_users'),
@@ -309,6 +323,7 @@ describe('email/password reset HTTP boundary', () => {
   it('uses only the password-reset OTP purpose and keeps unknown/wrong-code failures neutral', async () => {
     fakes.findPasswordUser.mockResolvedValueOnce(null).mockResolvedValueOnce(userId);
     fakes.consumeChallenge.mockResolvedValue({ ok: false, code: 'invalid_code' });
+    fakes.findUser.mockResolvedValue(user);
 
     const unknownAccount = await resetPassword(request());
     const wrongCode = await resetPassword(request());
@@ -338,11 +353,27 @@ describe('email/password reset HTTP boundary', () => {
     fakes.findPasswordUser.mockResolvedValue(userId);
     fakes.consumeChallenge.mockResolvedValue({ ok: true });
     fakes.invalidateSessions.mockRejectedValue(new Error('revocation unavailable'));
+    fakes.findUser.mockResolvedValue(user);
 
     const response = await resetPassword(request());
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'reset_failed' });
+    expect(fakes.updatePassword).not.toHaveBeenCalled();
+  });
+
+  it('blocks reset for a patient account even with a valid code (patients have no password)', async () => {
+    fakes.findPasswordUser.mockResolvedValue(userId);
+    fakes.consumeChallenge.mockResolvedValue({ ok: true });
+    fakes.findUser.mockResolvedValue({ ...user, role: 'client' });
+
+    const response = await resetPassword(request());
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'password_not_available_for_role',
+    });
     expect(fakes.updatePassword).not.toHaveBeenCalled();
   });
 });

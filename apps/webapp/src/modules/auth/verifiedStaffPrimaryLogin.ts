@@ -12,7 +12,7 @@ export type VerifiedStaffPrimaryLoginPreparation =
   | { factorRequired: true }
   | { factorRequired: false; sessionOptions: SessionOptions };
 
-function isStaff(user: SessionUser): boolean {
+export function isStaff(user: SessionUser): boolean {
   return user.role === 'doctor' || user.role === 'admin';
 }
 

@@ -36,7 +36,6 @@ const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   'auth_oauth_vk_enabled',
   'auth_oauth_apple_enabled',
   'auth_passkey_enabled',
-  'auth_pin_enabled',
   // admin_emails deliberately NOT here: the field was removed 2026-07-27 — it wrote a setting that the
   // global-admin login never read (elevation comes from PLATFORM_OWNER_IDENTITY), so it looked like a
   // security lever and was not one.

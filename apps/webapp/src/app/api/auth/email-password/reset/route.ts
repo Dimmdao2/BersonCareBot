@@ -15,6 +15,10 @@ import {
 } from '@/modules/auth/emailAuth';
 import { hashPin } from '@/modules/auth/pinHash';
 import { newPasswordSchema } from '@/modules/auth/passwordPolicy';
+import {
+  isPasswordEligibleRole,
+  PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR,
+} from '@/modules/auth/passwordEligibility';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 
 const bodySchema = z.object({
@@ -86,6 +90,14 @@ export async function POST(request: Request) {
     : await consumeLatestEmailChallengeCodeForUser(userId, parsed.data.code, 'password_reset');
   if (!consumed.ok) {
     return resetNeutralFailureResponse();
+  }
+
+  const targetUser = await deps.userByPhone.findByUserId(userId);
+  if (!targetUser || !isPasswordEligibleRole(targetUser.role)) {
+    return NextResponse.json(
+      { ok: false, error: PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR },
+      { status: 403 },
+    );
   }
 
   const passwordHash = await hashPin(parsed.data.newPassword);

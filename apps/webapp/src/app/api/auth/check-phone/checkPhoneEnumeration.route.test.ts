@@ -55,7 +55,6 @@ function identityDeps() {
       findByPhone: fakes.identityPort,
       getVerifiedEmailForUser: fakes.identityPort,
     },
-    userPins: { getByUserId: fakes.identityPort },
     oauthBindings: fakes.identityPort,
     channelPreferences: { getPreferredAuthOtpChannel: fakes.identityPort },
   };

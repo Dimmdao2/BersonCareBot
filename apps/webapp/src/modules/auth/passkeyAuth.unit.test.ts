@@ -70,11 +70,12 @@ describe('passkey ceremonies', () => {
     const store = makeStore();
     fakes.generateRegistrationOptions.mockResolvedValue({ challenge: 'c'.repeat(43) });
 
-    await beginPasskeyRegistration('00000000-0000-0000-0000-000000000002', store);
+    await beginPasskeyRegistration('00000000-0000-0000-0000-000000000002', 'Доктор Тестовый', store);
 
     expect(fakes.generateRegistrationOptions).toHaveBeenCalledWith(
       expect.objectContaining({
         rpID: '127.0.0.1',
+        userDisplayName: 'Доктор Тестовый',
         attestationType: 'none',
         authenticatorSelection: expect.objectContaining({
           residentKey: 'required',

@@ -19,8 +19,6 @@ export async function GET() {
 
   await renewSessionCookieFromRequest();
 
-  const pinRow = await deps.userPins.getForCurrentPrincipal(session.user.userId);
-
   let platformAccess: MePlatformAccessPayload | null = null;
   let platformAccessUnresolved = false;
   if (env.DATABASE_URL?.trim()) {
@@ -46,9 +44,6 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     user: deps.users.getCurrentUser(session),
-    security: {
-      hasPin: pinRow != null,
-    },
     postLoginHints: session.postLoginHints,
     platformAccess,
     ...(platformAccessUnresolved ? { platformAccessUnresolved: true as const } : {}),

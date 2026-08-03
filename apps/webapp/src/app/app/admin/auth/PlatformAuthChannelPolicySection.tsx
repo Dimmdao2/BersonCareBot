@@ -21,7 +21,7 @@ type PolicyKey = keyof AuthChannelUiPolicy;
 type SettingKey = `auth_${PolicyKey}_enabled`;
 type OAuthProviderKey = 'google' | 'yandex' | 'apple';
 type OAuthSettingKey = `auth_oauth_${OAuthProviderKey}_enabled`;
-type IndependentMethodKey = 'passkey' | 'pin';
+type IndependentMethodKey = 'passkey';
 type IndependentSettingKey = `auth_${IndependentMethodKey}_enabled`;
 const UNSUPPORTED_CLIENT_FALLBACK_KEY = 'patient_unsupported_client_fallback_enabled' as const;
 type SavingKey =
@@ -70,11 +70,6 @@ const INDEPENDENT_METHODS: ReadonlyArray<{
     label: 'Ключ доступа (passkey)',
     hint: 'Разрешить добровольное добавление ключей доступа и вход по ним.',
   },
-  {
-    method: 'pin',
-    label: 'PIN',
-    hint: 'Разрешить вход по номеру телефона и ранее установленному PIN.',
-  },
 ];
 
 const EMPTY_POLICY: AuthChannelUiPolicy = { email: false, sms: false, telegram: false, max: false };
@@ -96,7 +91,6 @@ const EMPTY_OAUTH_STATUS: OAuthConfigurationStatus = {
 };
 const EMPTY_INDEPENDENT_POLICY: Record<IndependentMethodKey, boolean> = {
   passkey: false,
-  pin: false,
 };
 
 /**

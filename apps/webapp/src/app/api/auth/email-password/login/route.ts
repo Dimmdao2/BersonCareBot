@@ -8,6 +8,10 @@ import { normalizeEmail } from '@/modules/auth/emailAuth';
 import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
+import {
+  isPasswordEligibleRole,
+  PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR,
+} from '@/modules/auth/passwordEligibility';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { prepareVerifiedPrimaryLoginWithStatus } from '@/modules/auth/verifiedStaffPrimaryLogin';
 import {
@@ -130,6 +134,13 @@ export async function POST(request: Request) {
     if (sessionUser.role !== effectiveRole) {
       await deps.userProjection.updateRole(sessionUser.userId, effectiveRole);
       sessionUser = { ...sessionUser, role: effectiveRole };
+    }
+
+    if (!isPasswordEligibleRole(sessionUser.role)) {
+      return NextResponse.json(
+        { ok: false, error: PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR },
+        { status: 403 },
+      );
     }
 
     let security = await deps.staffSecurity.getStatus();
