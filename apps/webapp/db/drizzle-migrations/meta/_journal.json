@@ -2416,6 +2416,13 @@
       "when": 1793539230050,
       "tag": "0346_saas_trial_grace_discount_window_local",
       "breakpoints": true
+    },
+    {
+      "idx": 345,
+      "version": "7",
+      "when": 1793539230051,
+      "tag": "0347_admin_settings_page_required_keys_seed_local",
+      "breakpoints": true
     }
   ]
 }
