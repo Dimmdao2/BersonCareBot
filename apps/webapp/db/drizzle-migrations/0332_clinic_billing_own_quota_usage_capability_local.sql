@@ -9,6 +9,12 @@ GRANT SELECT ON TABLE
   public.patient_files,
   public.be_branches
 TO app_owner;
+REVOKE SELECT ON TABLE
+  public.be_organization_members,
+  public.organization_member_invites,
+  public.org_enrollments,
+  public.patient_files
+FROM app_clinic_billing;
 
 -- Existing DEV is intentionally migrated by its ordinary schema owner. The protected `app`
 -- schema belongs to app_owner, so that login must not be granted CREATE or app_owner membership
