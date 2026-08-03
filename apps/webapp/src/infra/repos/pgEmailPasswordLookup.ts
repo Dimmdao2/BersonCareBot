@@ -72,16 +72,24 @@ async function recordEmailAuthConflict(params: {
   });
 }
 
+/**
+ * F6 §2a item 7 (equal-rights login, migration 0342): resolves through
+ * `app.find_platform_user_ids_by_any_confirmed_email` so an account is recognized here even when
+ * `emailNormalized` is only its confirmed OAuth-linked secondary, not its primary — otherwise
+ * register/forgot/setup-access would treat that address as `free` and create a competing account
+ * with the same confirmed email. `matched_primary = false` counts as verified: a
+ * `user_oauth_bindings` row only ever exists because the provider already vouched for it.
+ */
 async function loadEmailAuthStateRows(emailNormalized: string): Promise<EmailAuthStateRow[]> {
   const r = await runWebappPgText<EmailAuthStateRow>(
     `SELECT pu.id::text AS id,
-            (pu.email_verified_at IS NOT NULL) AS email_verified,
+            (pu.email_verified_at IS NOT NULL OR fpu.matched_primary = false) AS email_verified,
             EXISTS (
               SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id
             ) AS has_password
      FROM platform_users pu
-     WHERE pu.email_normalized = $1
-       AND pu.merged_into_id IS NULL`,
+     INNER JOIN app.find_platform_user_ids_by_any_confirmed_email($1) AS fpu ON fpu.user_id = pu.id
+     WHERE pu.merged_into_id IS NULL`,
     [emailNormalized],
   );
   return r.rows;

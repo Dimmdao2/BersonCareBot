@@ -158,6 +158,9 @@ export async function POST(request: Request) {
     if (r === 'email_ambiguous') {
       return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('email_ambiguous'), appBase));
     }
+    if (r === 'contact_conflict') {
+      return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('contact_conflict'), appBase));
+    }
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('db_error'), appBase));
   }
 

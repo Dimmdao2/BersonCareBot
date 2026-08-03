@@ -230,6 +230,10 @@ REVOKE EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text,
 REVOKE EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) FROM :"d3_4_bootstrap_base_role";
+-- 0342 (F5/F6, Track D / #987 D27): equal-rights login resolver — primary OR confirmed OAuth
+-- secondary email. WHERE-guarded: absent function (migration 0342 not yet applied) is a no-op.
+SELECT format('REVOKE EXECUTE ON FUNCTION app.find_platform_user_ids_by_any_confirmed_email(text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.find_platform_user_ids_by_any_confirmed_email(text)') IS NOT NULL \gexec
 SELECT format('REVOKE EXECUTE ON FUNCTION app.password_login_read_altcha_secret() FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.password_login_read_altcha_secret()') IS NOT NULL \gexec
 SELECT format('REVOKE EXECUTE ON FUNCTION app.password_login_issue_altcha_challenge(text,uuid,text,timestamptz) FROM %I', :'d3_4_bootstrap_base_role')
@@ -643,6 +647,8 @@ GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, 
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO :"d3_4_bootstrap_base_role";
+SELECT format('GRANT EXECUTE ON FUNCTION app.find_platform_user_ids_by_any_confirmed_email(text) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.find_platform_user_ids_by_any_confirmed_email(text)') IS NOT NULL \gexec
 SELECT format('GRANT EXECUTE ON FUNCTION app.password_login_read_altcha_secret() TO %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.password_login_read_altcha_secret()') IS NOT NULL \gexec
 SELECT format('GRANT EXECUTE ON FUNCTION app.password_login_issue_altcha_challenge(text,uuid,text,timestamptz) TO %I', :'d3_4_bootstrap_base_role')
