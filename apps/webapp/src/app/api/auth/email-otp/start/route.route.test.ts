@@ -16,9 +16,7 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   isEmailOtpStartRateLimitedByKey: vi.fn(),
   isAuthChannelEnabled: vi.fn(),
-  startPublicEmailOtpChallenge: vi.fn<
-    (email: string, db: object) => Promise<StartResult>
-  >(),
+  startPublicEmailOtpChallenge: vi.fn<(email: string, db: object) => Promise<StartResult>>(),
   resolveRealIpRateLimitClientKey: vi.fn(),
 }));
 
@@ -129,6 +127,129 @@ describe('public email OTP start anti-enumeration', () => {
 
     await vi.advanceTimersByTimeAsync(1);
     expect((await responsePromise).status).toBe(200);
+  });
+
+  it('keeps a known address out of a slower response-time class when its provider exceeds the floor', async () => {
+    const knownEmail = 'known@example.test';
+    const unknownEmail = 'unknown@example.test';
+    fakes.startPublicEmailOtpChallenge.mockImplementation((email) => {
+      if (email === knownEmail) {
+        return new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                ok: true,
+                challengeId: '00000000-0000-4000-8000-000000000201',
+                retryAfterSeconds: 60,
+              }),
+            1_500,
+          );
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        challengeId: '00000000-0000-4000-8000-000000000202',
+        retryAfterSeconds: 60,
+      });
+    });
+
+    let knownResolvedAt: number | null = null;
+    let unknownResolvedAt: number | null = null;
+    const knownResponsePromise = POST(request(knownEmail)).then((response) => {
+      knownResolvedAt = Date.now();
+      return response;
+    });
+    const unknownResponsePromise = POST(request(unknownEmail)).then((response) => {
+      unknownResolvedAt = Date.now();
+      return response;
+    });
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    const [knownResponse, unknownResponse] = await Promise.all([
+      knownResponsePromise,
+      unknownResponsePromise,
+    ]);
+
+    expect(knownResponse.status).toBe(200);
+    expect(unknownResponse.status).toBe(200);
+    expect(knownResolvedAt).not.toBeNull();
+    expect(unknownResolvedAt).not.toBeNull();
+    expect(Math.abs((knownResolvedAt ?? 0) - (unknownResolvedAt ?? 0))).toBeLessThanOrEqual(50);
+    expect(Object.keys((await knownResponse.json()) as Record<string, unknown>).sort()).toEqual(
+      Object.keys((await unknownResponse.json()) as Record<string, unknown>).sort(),
+    );
+  });
+
+  it('contains a thrown provider failure with safe operator evidence and a neutral public response', async () => {
+    const submittedEmail = 'known-secret@example.test';
+    const submittedOtp = '654321';
+    fakes.startPublicEmailOtpChallenge.mockRejectedValueOnce(
+      new Error(`provider rejected ${submittedEmail} with OTP ${submittedOtp}`),
+    );
+
+    const outcomePromise = POST(request(submittedEmail)).then(
+      (response) => ({ kind: 'response' as const, response }),
+      (error: unknown) => ({ kind: 'error' as const, error }),
+    );
+    await vi.advanceTimersByTimeAsync(500);
+    const outcome = await outcomePromise;
+
+    expect(outcome.kind).toBe('response');
+    if (outcome.kind !== 'response') throw outcome.error;
+    expect(outcome.response.status).toBe(200);
+    const body = (await outcome.response.json()) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['challengeId', 'ok', 'retryAfterSeconds']);
+    expect(body).toMatchObject({ ok: true, retryAfterSeconds: 60 });
+    expect(body.challengeId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(fakes.loggerWarn).toHaveBeenCalledTimes(1);
+    const capturedLogs = JSON.stringify(fakes.loggerWarn.mock.calls);
+    expect(capturedLogs).not.toContain(submittedEmail);
+    expect(capturedLogs).not.toContain(submittedOtp);
+  });
+
+  it('does not expose a known address through its existing resend cooldown state', async () => {
+    const knownEmail = 'known@example.test';
+    const unknownEmail = 'unknown@example.test';
+    const requestCount = new Map<string, number>();
+    fakes.startPublicEmailOtpChallenge.mockImplementation((email) => {
+      const count = (requestCount.get(email) ?? 0) + 1;
+      requestCount.set(email, count);
+      if (email === knownEmail && count === 2) {
+        return Promise.resolve({ ok: false, code: 'rate_limited', retryAfterSeconds: 55 });
+      }
+      return Promise.resolve({
+        ok: true,
+        challengeId:
+          email === knownEmail
+            ? '00000000-0000-4000-8000-000000000203'
+            : '00000000-0000-4000-8000-000000000204',
+        retryAfterSeconds: 60,
+      });
+    });
+
+    const firstKnown = await resolveAfterPublicFloor(POST(request(knownEmail)));
+    const firstUnknown = await resolveAfterPublicFloor(POST(request(unknownEmail)));
+    expect([firstKnown.status, firstUnknown.status]).toEqual([200, 200]);
+
+    const publicResponses: Array<{ status: number; body: Record<string, unknown> }> = [];
+    for (const email of [knownEmail, unknownEmail]) {
+      const response = await resolveAfterPublicFloor(POST(request(email)));
+      publicResponses.push({
+        status: response.status,
+        body: (await response.json()) as Record<string, unknown>,
+      });
+    }
+
+    expect(publicResponses.map(({ status }) => status)).toEqual([200, 200]);
+    for (const { body } of publicResponses) {
+      expect(Object.keys(body).sort()).toEqual(['challengeId', 'ok', 'retryAfterSeconds']);
+      expect(body).toMatchObject({ ok: true, retryAfterSeconds: 60 });
+      expect(body.challengeId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+    }
   });
 
   it('keeps invalid-email and IP rate-limit semantics unchanged', async () => {
