@@ -8,6 +8,7 @@ const userId = randomUUID();
 const appointmentId = randomUUID();
 const firstQueueId = randomUUID();
 const ladderQueueId = randomUUID();
+const blockedRecipientQueueId = randomUUID();
 const slotStart = '2026-08-08T12:00:00.000Z';
 
 describe('D30 Ш7 appointment reminder atomic delivery capability', () => {
@@ -54,7 +55,7 @@ describe('D30 Ш7 appointment reminder atomic delivery capability', () => {
 
   afterAll(async () => {
     await pool.query('DELETE FROM public.outgoing_delivery_queue WHERE id = ANY($1::uuid[])', [
-      [firstQueueId, ladderQueueId],
+      [firstQueueId, ladderQueueId, blockedRecipientQueueId],
     ]);
     await pool.query('DELETE FROM public.user_channel_bindings WHERE user_id = $1', [userId]);
     await pool.query('DELETE FROM public.be_appointments WHERE id = $1', [appointmentId]);
@@ -160,5 +161,23 @@ describe('D30 Ш7 appointment reminder atomic delivery capability', () => {
       recipient: { userId: 'max-1' },
       channels: ['max'],
     });
+  });
+
+  it('terminalizes before provider when the current appointment recipient becomes blocked', async () => {
+    await insertQueue(blockedRecipientQueueId, `sh7-blocked-${randomUUID()}`);
+    await pool.query('UPDATE public.platform_users SET is_blocked = true WHERE id = $1', [userId]);
+
+    const result = await pool.query<{ current: boolean }>(
+      'SELECT app.revalidate_appointment_reminder_materialization($1) AS current',
+      [blockedRecipientQueueId],
+    );
+
+    expect(result.rows[0]?.current).toBe(false);
+    const terminal = await pool.query<{ status: string }>(
+      'SELECT status FROM public.outgoing_delivery_queue WHERE id = $1',
+      [blockedRecipientQueueId],
+    );
+    expect(terminal.rows[0]?.status).toBe('dead');
+    await pool.query('UPDATE public.platform_users SET is_blocked = false WHERE id = $1', [userId]);
   });
 });

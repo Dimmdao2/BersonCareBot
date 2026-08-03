@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DeliveryJob, OutgoingIntent } from '../../../kernel/contracts/index.js';
+import { assertOutboundMessagePolicy } from '../../adapters/outboundMessagePolicy.js';
 import { executeJob } from './jobExecutor.js';
 
 function legacyAppointmentJob(attempts: number): DeliveryJob {
@@ -54,5 +55,18 @@ describe('legacy message_retry appointment consumer', () => {
         delivery: expect.objectContaining({ channels: ['max'], maxAttempts: 1 }),
       }),
     ]);
+  });
+
+  it('keeps an old persisted appointment row deliverable through the real outbound policy gate', async () => {
+    const providerSend = vi.fn(async () => ({}));
+    const dispatchOutgoing = async (intent: OutgoingIntent) => {
+      assertOutboundMessagePolicy(intent);
+      return providerSend(intent);
+    };
+
+    const result = await executeJob(legacyAppointmentJob(0), { dispatchOutgoing });
+
+    expect(result).toEqual({ ok: true, final: true });
+    expect(providerSend).toHaveBeenCalledTimes(1);
   });
 });

@@ -30,6 +30,7 @@ import type {
 } from '../../../kernel/contracts/index.js';
 import { createDefaultDispatchPort } from '../../adapters/dispatchPort.js';
 import { OUTBOUND_MESSAGE_POLICY_DENIED } from '../../adapters/outboundMessagePolicy.js';
+import { RecipientBlockedBotError } from '../../delivery/recipientBotBlocked.js';
 import {
   getCurrentOrganizationPrincipalId,
   runWithInfraPrincipal,
@@ -332,6 +333,22 @@ describe('воркер доставки: строка без разрешимо�
     expect(h.ladderTransitions).toBe(1);
     expect(h.markedSent).toBe(0);
     expect(h.rescheduled).toBe(0);
+  });
+
+  it('appointment Telegram recipient-blocked failure still advances to the persisted MAX fallback', async () => {
+    const h = harness({
+      queue_kind: 'appointment_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
+    h.dispatchOutgoing = async () => {
+      throw new RecipientBlockedBotError('telegram', 'bot was blocked by the user');
+    };
+
+    await processUnderWorkerTick(h, queueRow('appointment_reminder'));
+
+    expect(h.ladderTransitions).toBe(1);
+    expect(h.markedSent).toBe(0);
   });
 
   it('stale appointment generation is terminalized before provider dispatch', async () => {
