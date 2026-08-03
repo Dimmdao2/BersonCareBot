@@ -2423,6 +2423,13 @@
       "when": 1793539230051,
       "tag": "0347_admin_settings_page_required_keys_seed_local",
       "breakpoints": true
+    },
+    {
+      "idx": 346,
+      "version": "7",
+      "when": 1793539230052,
+      "tag": "0348_saas_billing_paid_tariff_apply_accessor_local",
+      "breakpoints": true
     }
   ]
 }

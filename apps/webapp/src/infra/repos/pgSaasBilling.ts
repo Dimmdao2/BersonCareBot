@@ -109,6 +109,23 @@ async function readTariffSnapshotForPeriod(
   return row.snapshot;
 }
 
+// B0.3 (#1057): `promotePaidInvoice` and the tariff-upgrade branch of `captureSaasBillingPaymentSucceeded`
+// run under `SET ROLE app_staff` (`runWithDbOrganizationPrincipal`), where the guard trigger
+// `app.reject_staff_commercial_organization_update()` unconditionally rejects a direct
+// `be_organizations.tariff_id` write. Route it through the narrow SECURITY DEFINER accessor instead
+// (`0346`): it re-derives the tariff from the invoice row itself and refuses anything not paid/matching.
+async function applyPaidSaasBillingTariff(
+  tx: Transaction,
+  saasBillingInvoiceId: string,
+  organizationId: string,
+): Promise<void> {
+  const result = await tx.execute(
+    sql`SELECT app.apply_paid_saas_billing_tariff(${saasBillingInvoiceId}::uuid, ${organizationId}::uuid) AS applied`,
+  );
+  const row = result.rows[0] as { applied: boolean } | undefined;
+  if (!row?.applied) throw new Error('saas_billing_tariff_apply_failed');
+}
+
 async function upsertSaasBillingAccount(
   tx: Transaction,
   organizationId: string,
@@ -151,7 +168,7 @@ async function promotePaidInvoice(
     cancelledAt: null, currentPeriodStartsAt: invoice.servicePeriodStartsAt,
     currentPeriodEndsAt: invoice.servicePeriodEndsAt, tariffSnapshot, updatedAt: new Date().toISOString(),
   }).where(eq(saasBillingSubscriptions.id, subscription.id));
-  await tx.update(beOrganizations).set({ tariffId: invoice.tariffId }).where(eq(beOrganizations.id, organizationId));
+  await applyPaidSaasBillingTariff(tx, invoice.id, organizationId);
   if (subscription.pendingTariffId !== null) {
     await tx.insert(adminAuditLog).values({
       organizationId,
@@ -1028,10 +1045,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               updatedAt: new Date().toISOString(),
             })
             .where(eq(saasBillingSubscriptions.id, subscription.id));
-          await tx
-            .update(beOrganizations)
-            .set({ tariffId: invoice.tariffId })
-            .where(eq(beOrganizations.id, input.organizationId));
+          await applyPaidSaasBillingTariff(tx, invoice.id, input.organizationId);
         } else if (invoice.servicePeriodStartsAt <= input.paidAt) {
           await promotePaidInvoice(tx, invoice, input.organizationId);
         }
