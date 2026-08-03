@@ -326,7 +326,6 @@ const patientOwnedColumns = new Map([
   ['public.program_item_discussion_messages', { column: 'patient_user_id' }],
   ['public.program_item_discussion_reads', { column: 'patient_user_id' }],
   ['public.symptom_entries', { column: 'platform_user_id' }],
-  ['public.webapp_reminder_occurrences', { column: 'platform_user_id' }],
   ['public.reminder_delivery_events', { column: 'integrator_user_id', castType: 'bigint' }],
   // public.reminder_occurrence_history is NOT registered here (as a direct integrator_user_id/bigint
   // column reading app.current_integrator_user_id()) even though its column shape matches
