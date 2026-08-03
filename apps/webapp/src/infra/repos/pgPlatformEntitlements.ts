@@ -1,6 +1,7 @@
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type {
   PlatformEntitlementsPort,
   PlatformMutationAudit,
@@ -18,8 +19,7 @@ import type {
   TariffQuotaMap,
   TrialPolicy,
 } from '@/modules/org-entitlements/types';
-import { beBranches, beOrganizations, orgEnrollments } from '../../../db/schema/bookingEngine';
-import { patientFiles } from '../../../db/schema/patientFiles';
+import { beBranches, beOrganizations } from '../../../db/schema/bookingEngine';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import {
   saasOrganizationTrials,
@@ -33,6 +33,20 @@ import { PLATFORM_OPERATIONS_DB_SOURCE } from '@/shared/security/platformOperati
 
 type Db = ReturnType<typeof getDrizzle>;
 type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+type EnforcedQuotaUsageRow = {
+  clinic_team_used: number | string;
+  patient_count_used: number | string;
+  files_used: number | string;
+};
+
+function numericUsage(value: number | string | undefined, field: string): number {
+  const parsed = Number(value ?? 0);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`invalid_platform_quota_usage_${field}`);
+  }
+  return parsed;
+}
 
 function withoutLegacyClinicalTestConfiguration<T>(value: Record<string, T>): Record<string, T> {
   const { clinical_tests: _legacyClinicalTests, ...current } = value;
@@ -370,29 +384,23 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
 
     async getOrganizationMechanicUsage(organizationId) {
       assertPlatformOperationsPrincipal();
-      const [[patientCountRow], [branchesRow], [filesRow]] = await Promise.all([
-        getDrizzle()
-          .select({ used: sql<number>`count(*)::int` })
-          .from(orgEnrollments)
-          .where(
-            and(
-              eq(orgEnrollments.organizationId, organizationId),
-              or(eq(orgEnrollments.status, 'invited'), eq(orgEnrollments.status, 'active')),
-            ),
-          ),
+      const [enforcedUsage, [branchesRow]] = await Promise.all([
+        runWebappPgText<EnforcedQuotaUsageRow>(
+          `SELECT clinic_team_used, patient_count_used, files_used
+           FROM app.read_org_enforced_quota_usage($1::uuid)`,
+          [organizationId],
+        ),
         getDrizzle()
           .select({ used: sql<number>`count(*)::int` })
           .from(beBranches)
           .where(and(eq(beBranches.organizationId, organizationId), eq(beBranches.isActive, true))),
-        getDrizzle()
-          .select({ used: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
-          .from(patientFiles)
-          .where(eq(patientFiles.organizationId, organizationId)),
       ]);
+      const usage = enforcedUsage.rows[0];
       return {
-        patient_count: patientCountRow?.used ?? 0,
-        branches: branchesRow?.used ?? 0,
-        files: Number(filesRow?.used ?? 0),
+        clinic_team: numericUsage(usage?.clinic_team_used, 'clinic_team'),
+        patient_count: numericUsage(usage?.patient_count_used, 'patient_count'),
+        branches: numericUsage(branchesRow?.used, 'branches'),
+        files: numericUsage(usage?.files_used, 'files'),
       };
     },
 
