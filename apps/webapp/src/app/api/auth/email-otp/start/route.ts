@@ -1,5 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { logger } from '@/app-layer/logging/logger';
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
@@ -75,7 +76,18 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   const deps = buildAppDeps();
-  const result = await startPublicEmailOtpChallenge(parsed.data.email, deps.emailOtpPublicDb);
+  let result;
+  try {
+    result = await startPublicEmailOtpChallenge(parsed.data.email, deps.emailOtpPublicDb);
+  } catch {
+    // Do not log the thrown error: provider messages may include email or OTP data. This fixed
+    // event is enough for operators and keeps the public outcome indistinguishable.
+    logger.warn(
+      { route: 'auth/email-otp/start', outcome: 'email_delivery_exception' },
+      'auth/email-otp/start delivery failed',
+    );
+    return publicEmailOtpStartAccepted(startedAt, randomUUID(), 60);
+  }
 
   if (!result.ok) {
     switch (result.code) {
@@ -86,18 +98,10 @@ export async function POST(request: Request) {
         );
 
       case 'rate_limited':
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'rate_limited',
-            retryAfterSeconds: result.retryAfterSeconds,
-            message: formatOtpRetryAfterMessage(result.retryAfterSeconds ?? 60),
-          },
-          {
-            status: 429,
-            headers: { 'Retry-After': String(result.retryAfterSeconds ?? 60) },
-          },
-        );
+        // Per-email cooldown state exists only after a delivered challenge, so exposing it would
+        // disclose whether an address has an account. The independent per-IP limiter above still
+        // bounds all public requests and remains the only public rate-limit response.
+        return publicEmailOtpStartAccepted(startedAt, randomUUID(), 60);
 
       default:
         return NextResponse.json(

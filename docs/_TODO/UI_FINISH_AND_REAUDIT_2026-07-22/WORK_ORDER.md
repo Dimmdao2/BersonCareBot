@@ -813,11 +813,12 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       oracle удалён, а profile-bind идёт через self-scoped `phone/messenger-bind/start`. Поведенческое доказательство:
       `apps/webapp/src/app/api/auth/check-phone/checkPhoneEnumeration.route.test.ts` (включая fault injection
       identity lookup).
-      **CURRENT PARTIAL 03.08 (D27-A2):** public `email-otp/start` не раскрывает наличие email по provider failure
-      или быстрому unknown-path: valid non-rate-limited known/unknown и provider success/failure получают нейтральный
-      `200` одной схемы с server-enforced minimum response floor; provider failure остаётся только в server log без
-      email/OTP. Открыты D27-B/C/D/E: preference UI, durable auth queue и полный экран выбора каналов; этот checkbox
-      не закрыт.
+      **CURRENT PARTIAL 03.08 (D27-A2):** public `email-otp/start` не раскрывает наличие email через provider
+      success/failure/exception или per-email resend cooldown: valid known/unknown requests get a neutral `200` with
+      one schema, while the independent per-IP limiter still applies to every request; provider failure/exception
+      remains only as a fixed server log event without email/OTP. A server-enforced minimum response floor covers the
+      fast path; arbitrary provider latency remains open for D27-C/D30 durable delivery. Открыты D27-B/C/D/E:
+      preference UI, durable auth queue и полный экран выбора каналов; этот checkbox не закрыт.
 - [ ] **D28 — отзыв подтверждения вместе с номером.** Решение — **Р-D28** (§2.3).
 - [ ] **D29 — ФИО только кириллицей, автоподстановка имени отменяется.** Решение — **Р-D29** (§2.3). Это не
       только проверка ввода: сегодня имя приезжает из внешнего профиля мессенджеров и OAuth.
