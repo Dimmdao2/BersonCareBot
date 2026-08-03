@@ -56,7 +56,8 @@
 | `0326` | тарифы / #1069 | `feat`, land `78780b505` | ПРИЗЕМЛЕНО И ПРИМЕНЕНО НА DEV 03.08: forward-marker для пропущенной `0305`, при этом сохраняет более новую progression из `0320`. |
 | `0327` | SaaS billing / #1057 | `feat`, land `78780b505` | ПРИЗЕМЛЕНО И ПРИМЕНЕНО НА DEV 03.08: forward-marker для пропущенной `0318`; clinic billing получает только fixed-key capability, без общего чтения `system_settings`. Общий proof: `bash deploy/host/migrate-dev.sh --preflight && bash deploy/host/migrate-dev.sh --execute` → PASS; `node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` → `count=326 direct=320 reconciled=6`. |
 | `0330` | Track D / #987 TEST ledger forward repair | `wt/trackd-test-ledger-repair` | ЗАБРОНИРОВАНО 03.08 ДО СОЗДАНИЯ ФАЙЛА: один forward-only reconciliation семи фактически присутствующих schema effects (`0101`, `0237`, `0259`, `0262`, `0265`–`0267`), с fail-closed parity assertions; старые SQL/ledger не переписывать. |
-| `0331`+ | свободно | — | следующий берущий начинает отсюда |
+| `0331` | Track D / #987 0330 race forward repair | `wt/trackd-0330-race-repair` | ЗАБРОНИРОВАНО 03.08 ДО СОЗДАНИЯ ФАЙЛА: deploy TEST применил hash `0330` из merge `051b42e98`, пока параллельные bounded corrections `71a3ee727`–`dcd4e65be` ещё не попали в checkout; append-only replay текущего идемпотентного тела `0330` с marker на старый hash, без переписывания TEST ledger. |
+| `0332`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Текущий режим 02.08:** оркестратор один. Stateful workstreams остаются в отдельных worktree, но единый
 migration ledger `0300…0305` собран в `wt/single-entry-integration`; новые номера по-прежнему бронируются здесь
