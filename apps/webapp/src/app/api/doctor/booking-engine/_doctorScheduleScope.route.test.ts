@@ -112,6 +112,9 @@ beforeEach(() => {
     bookingCalendar: { getCalendar: mocks.getCalendar },
     doctorAppointments: { getScheduleKpis: mocks.getScheduleKpis },
     bookingScheduling: { nearestFreeWindow: mocks.nearestFreeWindow },
+    orgEntitlements: {
+      resolveMechanicAccess: vi.fn().mockResolvedValue({ state: 'full_access', warning: null }),
+    },
   });
 });
 
