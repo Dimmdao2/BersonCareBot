@@ -20,7 +20,7 @@ import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeH
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
-  adminMode?: boolean;
+  isPlatformOperator?: boolean;
   menuAccess: DoctorMenuAccess;
   /** Если `"клиент"`, пункт «Пациенты» в Sheet-меню отображается как «Клиенты» (как в сайдбаре). */
   patientLabel?: string;
@@ -41,7 +41,7 @@ const HEADER_ICON_CLASS = cn(
 
 export function DoctorHeader({
   userDisplayName,
-  adminMode,
+  isPlatformOperator,
   menuAccess,
   patientLabel,
   hideMenuOnDesktop,
@@ -75,7 +75,7 @@ export function DoctorHeader({
           // Глобальная шапка — только мобильный (<md). На desktop кабинет = сайдбар + контент
           // с per-page шапкой (`DoctorPageHeader`), глобальной шапки нет.
           'fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80 md:hidden',
-          adminMode ? 'bg-destructive/10' : 'bg-background/95',
+          isPlatformOperator ? 'bg-destructive/10' : 'bg-background/95',
         )}
       >
         <div className={DOCTOR_HEADER_INNER_CLASS}>
@@ -115,7 +115,7 @@ export function DoctorHeader({
             >
               {title}
             </p>
-            {adminMode ? (
+            {isPlatformOperator ? (
               <span className="shrink-0 rounded bg-destructive px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-destructive-foreground">
                 ADMIN MODE
               </span>

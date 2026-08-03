@@ -1,17 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  requireAdminModeSession: vi.fn(),
+  requireAdminApiContext: vi.fn(),
   requirePlatformOperationsApiContext: vi.fn(),
   loadDoctorAnalyticsAudience: vi.fn(),
   buildAppDeps: vi.fn(),
   listMetricAccounts: vi.fn(),
 }));
 
-vi.mock('@/modules/auth/requireAdminMode', () => ({
-  requireAdminModeSession: fakes.requireAdminModeSession,
-}));
 vi.mock('@/app-layer/guards/requireRole', () => ({
+  requireAdminApiContext: fakes.requireAdminApiContext,
   requirePlatformOperationsApiContext: fakes.requirePlatformOperationsApiContext,
 }));
 vi.mock('@/app-layer/analytics/loadAnalyticsAudience', () => ({
@@ -25,7 +23,7 @@ import { GET } from './route';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fakes.requireAdminModeSession.mockResolvedValue({ ok: true, session: {} });
+  fakes.requireAdminApiContext.mockResolvedValue({ ok: true, session: {} });
   fakes.requirePlatformOperationsApiContext.mockResolvedValue({ ok: true, session: {} });
   fakes.buildAppDeps.mockReturnValue({
     doctorAnalyticsMetricAccounts: {

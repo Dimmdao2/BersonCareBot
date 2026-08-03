@@ -49,7 +49,6 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     hasLaunchCapability(
       resolveLaunchCapabilities({
         sessionRole: currentSession.user.role,
-        adminMode: currentSession.adminMode,
       }),
       'platform.operations',
     )
@@ -165,7 +164,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   );
   return (
     <DoctorWorkspaceShell
-      adminMode={session.adminMode ?? false}
+      isPlatformOperator={session.user.role === 'admin'}
       userRole={session.user.role}
       userDisplayName={session.user.displayName}
       patientLabel={String(patientLabel)}

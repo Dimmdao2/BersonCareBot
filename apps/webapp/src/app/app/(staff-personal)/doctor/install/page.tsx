@@ -13,14 +13,14 @@ export const metadata = staffPwaLayoutMetadata;
 /** Personal-only install entry; it intentionally sits outside the clinical `/app/doctor` layout. */
 export default async function DoctorInstallPage() {
   const session = await requireStaffPersonalInstallPage();
-  const isPlatformOperator = session.user.role === 'admin' && session.adminMode === true;
+  const isPlatformOperator = session.user.role === 'admin';
   if (!isPlatformOperator) {
     redirect('/app/account?tab=install');
   }
 
   return (
     <DoctorWorkspaceShell
-      adminMode={isPlatformOperator}
+      isPlatformOperator={isPlatformOperator}
       enableTenantRuntime={false}
       userDisplayName={session.user.displayName}
       userRole={session.user.role}

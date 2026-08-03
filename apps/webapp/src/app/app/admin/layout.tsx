@@ -6,9 +6,7 @@
  *
  * Guard reconciliation (done once, here, not re-litigated per route): the old `/app/admin`
  * layout checked only `session.user.role !== "admin"`. That is WEAKER than
- * `requirePlatformOperationsPage()`: it never checked `adminMode` (in practice always forced true
- * for role "admin" — `ensureAdminMode` in `modules/auth/service.ts` — so no legitimate admin
- * session is newly excluded), and never stamped the platform DB principal that every moved
+ * `requirePlatformOperationsPage()`: it never stamped the platform DB principal that every moved
  * `admin/*` settings page needs to read
  * `system_settings` (see the long comment on `requirePlatformOperationsPage` in
  * `app-layer/guards/requireRole.ts` — without that stamp these reads 42501 under the nonstaff
@@ -29,7 +27,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const session = await requirePlatformOperationsPage();
   return (
     <DoctorWorkspaceShell
-      adminMode={true}
+      isPlatformOperator={true}
       enableTenantRuntime={false}
       menuKind="platform"
       userRole={session.user.role}
