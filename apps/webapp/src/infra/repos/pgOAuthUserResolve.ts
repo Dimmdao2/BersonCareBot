@@ -16,8 +16,16 @@ import type {
  * IDENTITY_AND_MERGE_SCHEME.md §2a (owner, 03.08): "убрать перезапись основной почты при входе
  * через OAuth" — the primary is set once, from whichever verified email arrives first (OTP,
  * registration, or an earlier OAuth sign-in), and never reassigned by a later OAuth sign-in.
- * The `email IS NULL` guard is the whole fix: a later provider address is still recorded, just
- * as a confirmed secondary via `upsertOAuthBinding`'s `user_oauth_bindings` row, not here.
+ * The `email IS NULL` guard on the first UPDATE is that fix: a later, DIFFERENT provider address
+ * is still recorded, just as a confirmed secondary via `upsertOAuthBinding`'s `user_oauth_bindings`
+ * row, not here.
+ *
+ * §2a case 1 separately requires that an OAuth sign-in confirms an address the account already
+ * holds ("успешный OAuth-вход является подтверждением адреса наравне с кодом") — e.g. someone
+ * registered by email+password and never finished the verification challenge. The second UPDATE
+ * below covers exactly that: it only ever touches `email_verified_at`, never the primary email
+ * value, so it cannot reassign the primary (F5 stays intact) and is idempotent (no-op once
+ * already verified).
  */
 async function applyVerifiedOAuthEmail(
   userId: string,
@@ -25,14 +33,24 @@ async function applyVerifiedOAuthEmail(
   emailTrusted: boolean,
 ): Promise<void> {
   if (!emailTrusted || !emailRaw?.trim()) return;
+  const email = emailRaw.trim();
   await runWebappPgText(
     `UPDATE platform_users
      SET email = $2::text,
          email_normalized = lower(btrim($2::text)),
-         email_verified_at = COALESCE(email_verified_at, now()),
+         email_verified_at = now(),
          updated_at = now()
      WHERE id = $1::uuid AND merged_into_id IS NULL AND email IS NULL`,
-    [userId, emailRaw.trim()],
+    [userId, email],
+  );
+  await runWebappPgText(
+    `UPDATE platform_users
+     SET email_verified_at = now(),
+         updated_at = now()
+     WHERE id = $1::uuid AND merged_into_id IS NULL
+       AND email_verified_at IS NULL
+       AND lower(btrim(email)) = lower(btrim($2::text))`,
+    [userId, email],
   );
 }
 

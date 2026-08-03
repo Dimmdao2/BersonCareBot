@@ -53,9 +53,19 @@ function createFakeOAuthWorld() {
     async applyVerifiedOAuthEmail(userId, emailRaw, emailTrusted) {
       if (!emailTrusted || !emailRaw?.trim()) return;
       const acc = accounts.get(userId);
-      if (!acc || acc.email != null) return; // primary set once, never reassigned (F5)
-      acc.email = emailRaw.trim();
-      acc.emailVerified = true;
+      if (!acc) return;
+      const email = emailRaw.trim();
+      if (acc.email == null) {
+        // primary set once, never reassigned (F5)
+        acc.email = email;
+        acc.emailVerified = true;
+        return;
+      }
+      // §2a case 1: OAuth vouching for the SAME address confirms it, even if it was never
+      // verified before (e.g. email+password registration that never finished confirmation).
+      if (!acc.emailVerified && acc.email.toLowerCase() === email.toLowerCase()) {
+        acc.emailVerified = true;
+      }
     },
     async findUserIdsByVerifiedEmail(emailNorm) {
       return [...accounts.values()]
