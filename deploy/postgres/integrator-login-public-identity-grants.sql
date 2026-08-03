@@ -198,6 +198,11 @@
 \set ON_ERROR_STOP on
 \pset pager off
 
+-- D15b/4: idempotent role creation for the platform_users identity-bootstrap RLS branch (this file
+-- grants membership in it to the integrator login role below). Included, not re-defined here, so
+-- this file and d3-4-bootstrap-base-login-read-grants.sql share one definition.
+\ir d15b4-platform-users-identity-bootstrap-role.sql
+
 \if :{?integrator_login_public_identity_grants_role}
 \else
 \echo 'FATAL: missing required psql variable integrator_login_public_identity_grants_role.'
@@ -300,6 +305,7 @@ REVOKE SELECT,
   INSERT ("integrator_user_id", "phone_normalized", "display_name", "first_name", "last_name", "patient_phone_trust_at"),
   UPDATE ("display_name", "first_name", "last_name", "phone_normalized", "patient_phone_trust_at", "integrator_user_id", "updated_at")
   ON TABLE public.platform_users FROM :"integrator_login_public_identity_grants_role";
+REVOKE app_identity_bootstrap FROM :"integrator_login_public_identity_grants_role";
 \echo 'Integrator login public identity grants DOWN complete.'
 \else
 
@@ -315,6 +321,15 @@ GRANT INSERT ("integrator_user_id", "phone_normalized", "display_name", "first_n
   ON TABLE public.platform_users TO :"integrator_login_public_identity_grants_role";
 GRANT UPDATE ("display_name", "first_name", "last_name", "phone_normalized", "patient_phone_trust_at", "integrator_user_id", "updated_at")
   ON TABLE public.platform_users TO :"integrator_login_public_identity_grants_role";
+-- D15b/4: public.platform_users now carries FORCE RLS; the column-scoped grants above are necessary
+-- but no longer sufficient (row visibility is policy-gated). Membership in app_identity_bootstrap
+-- (created by the \ir include above) is what lets this bare, NOINHERIT, never-SET-ROLE'd login
+-- actually see/insert/update rows for candidate lookup and identity writes, without needing (and
+-- without re-granting) EXECUTE on is_staff()/current_org_id()/current_patient_user_id() -- a `TO
+-- app_staff`/`TO app_patient` policy is not "applicable" to a NOINHERIT member that never SET ROLEs,
+-- so those two policy branches are structurally skipped for this role and its REVOKEd EXECUTE grants
+-- on those three functions (A7 addendum #1 above) stay exactly as they are.
+GRANT app_identity_bootstrap TO :"integrator_login_public_identity_grants_role";
 
 -- public.user_channel_bindings: whole-table SELECT (candidate JOIN, getLinkDataByIdentity) +
 -- column-scoped INSERT matching upsertChannelBinding's INSERT list.

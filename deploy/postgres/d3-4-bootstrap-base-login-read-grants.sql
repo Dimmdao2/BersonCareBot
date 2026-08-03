@@ -20,6 +20,11 @@
 \set ON_ERROR_STOP on
 \pset pager off
 
+-- D15b/4: idempotent role creation for the platform_users identity-bootstrap RLS branch (this file
+-- grants membership in it to the bootstrap base role below). Included, not re-defined here, so this
+-- file and integrator-login-public-identity-grants.sql share one definition.
+\ir d15b4-platform-users-identity-bootstrap-role.sql
+
 -- 0258/0337: these exact-UUID functions are pre-session server capabilities, never a PUBLIC
 -- database API. Reapply the denial here so restored or late-land environments converge before the
 -- bare bootstrap login receives its explicit reviewed grants below.
@@ -450,6 +455,7 @@ REVOKE EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, 
 
 REVOKE SELECT ON TABLE public.be_organization_members FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.platform_users FROM :"d3_4_bootstrap_base_role";
+REVOKE app_identity_bootstrap FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.user_channel_bindings FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.be_external_entity_mappings FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.be_specialist_service_availability FROM :"d3_4_bootstrap_base_role";
@@ -872,6 +878,13 @@ WHERE to_regprocedure('app.email_auth_reset_email_otp_lockout(uuid)') IS NOT NUL
 -- app_staff/app_patient or through a narrow accessor.
 GRANT SELECT ON TABLE public.be_organization_members TO :"d3_4_bootstrap_base_role";
 GRANT SELECT ON TABLE public.platform_users TO :"d3_4_bootstrap_base_role";
+-- D15b/4: public.platform_users now carries FORCE RLS; the plain table SELECT above is necessary
+-- but no longer sufficient on its own (row visibility is policy-gated). Membership in
+-- app_identity_bootstrap (deploy/postgres/d15b4-platform-users-identity-bootstrap-role.sql, applied
+-- earlier in this same deploy) is what lets this bare bootstrap login actually see rows for
+-- login-by-phone/email/oauth candidate lookup and the shared identity write engine, before any
+-- session/org principal exists.
+GRANT app_identity_bootstrap TO :"d3_4_bootstrap_base_role";
 GRANT SELECT ON TABLE public.user_channel_bindings TO :"d3_4_bootstrap_base_role";
 GRANT SELECT ON TABLE public.be_external_entity_mappings TO :"d3_4_bootstrap_base_role";
 GRANT SELECT ON TABLE public.be_specialist_service_availability TO :"d3_4_bootstrap_base_role";
