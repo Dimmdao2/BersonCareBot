@@ -13,6 +13,7 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { saveContentPage } from '../actions';
+import { applyContentLifecycle } from '../lifecycleActions';
 import { saveContentSection } from './actions';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 
@@ -111,5 +112,37 @@ describe('saveContentSection entitlement boundary', () => {
     expect(resolveMechanicAccess).toHaveBeenCalledWith(organizationId, 'warmups');
     expect(resolveMechanicAccess).not.toHaveBeenCalledWith(organizationId, 'cms_pages');
     expect(upsert).toHaveBeenCalledOnce();
+  });
+
+  it('publishes a warmup through the warmups mechanic when ordinary CMS is disabled', async () => {
+    const resolveMechanicAccess = vi.fn(async (_organizationId: string, mechanic: string) => ({
+      mechanic,
+      state: mechanic === 'warmups' ? ('full_access' as const) : ('disabled' as const),
+      policySource: 'system' as const,
+      warning: null,
+    }));
+    const updateLifecycle = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: { resolveMechanicAccess },
+      contentPages: {
+        getById: vi.fn().mockResolvedValue({
+          id: '22222222-2222-4222-8222-222222222222',
+          section: 'warmups',
+          slug: 'warmup',
+        }),
+        updateLifecycle,
+      },
+      contentSections: {
+        getBySlug: vi.fn().mockResolvedValue({ systemParentCode: 'warmups' }),
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+    const data = new FormData();
+    data.set('id', '22222222-2222-4222-8222-222222222222');
+    data.set('op', 'publish');
+
+    await expect(applyContentLifecycle(null, data)).resolves.toEqual({ ok: true });
+    expect(resolveMechanicAccess).toHaveBeenCalledWith(organizationId, 'warmups');
+    expect(resolveMechanicAccess).not.toHaveBeenCalledWith(organizationId, 'cms_pages');
+    expect(updateLifecycle).toHaveBeenCalledOnce();
   });
 });

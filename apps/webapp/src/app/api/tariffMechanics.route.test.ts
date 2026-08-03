@@ -79,7 +79,10 @@ import { getCurrentSession } from '@/modules/auth/service';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
-import { PATCH as updateWarmupSchedule } from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
+import {
+  GET as getWarmupSchedule,
+  PATCH as updateWarmupSchedule,
+} from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
 import {
   GET as getNotificationTemplates,
   PUT as saveNotificationTemplate,
@@ -100,6 +103,7 @@ import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/Patient
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
 import { POST as recordWarmupCompletion } from '@/app/api/patient/practice/completion/route';
 import { POST as recordWarmupVideoView } from '@/app/api/patient/daily-warmup/video-viewed/route';
+import { POST as subscribePatientWebPush } from '@/app/api/patient/web-push/subscribe/route';
 import {
   addPatientHomeItem,
   deletePatientHomeItem,
@@ -313,6 +317,46 @@ describe('tariff and platform mutation gates', () => {
     }
   });
 
+  it('refuses reading a patient warmup schedule when warmups are disabled', async () => {
+    const response = await getWarmupSchedule(
+      new Request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/warmup-schedule'),
+      { params: Promise.resolve({ userId: TARGET_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(requireEntitlementForRead).toHaveBeenCalledWith(workspace, 'warmups');
+    expect(buildAppDeps().doctorClientsPort.getClientIdentityForOrganization).not.toHaveBeenCalled();
+  });
+
+  it('keeps an existing warmup schedule readable in read-only access', async () => {
+    vi.mocked(requireEntitlementForRead).mockResolvedValue({ ok: true } as never);
+    const warmupRule = {
+      id: TARGET_ID,
+      scheduleType: 'slots_v1',
+      scheduleData: { timesLocal: ['09:00'], dayFilter: 'weekdays' as const },
+      enabled: true,
+      linkedObjectType: 'content_section',
+      linkedObjectId: 'warmups',
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      reminders: { listRulesByUser: vi.fn().mockResolvedValue([warmupRule]) },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await getWarmupSchedule(
+      new Request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/warmup-schedule'),
+      { params: Promise.resolve({ userId: TARGET_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      rule: { id: TARGET_ID, enabled: true },
+    });
+  });
+
   it('refuses Today configuration visibly when it is not included in the tariff', async () => {
     vi.mocked(requireDoctorWorkspaceContext).mockResolvedValue({
       ...workspace,
@@ -497,6 +541,51 @@ describe('tariff and platform mutation gates', () => {
     expect(reminders.createObjectReminder).not.toHaveBeenCalled();
     expect(reminders.updateRule).not.toHaveBeenCalled();
     expect(reminders.deleteReminder).not.toHaveBeenCalled();
+  });
+
+  it('does not create the onboarding warmup schedule when warmups are disabled', async () => {
+    const createObjectReminder = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { id: TARGET_ID },
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      webPushSubscriptions: {
+        hasAnyForUserId: vi.fn().mockResolvedValue(false),
+        saveSubscription: vi.fn().mockResolvedValue(undefined),
+      },
+      channelPreferences: {
+        getChannelCards: vi.fn().mockResolvedValue([]),
+        updatePreference: vi.fn().mockResolvedValue(undefined),
+      },
+      systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
+      topicChannelPrefs: {
+        listByUserId: vi.fn().mockResolvedValue([]),
+        upsert: vi.fn().mockResolvedValue(undefined),
+      },
+      contentSections: {
+        getBySlug: vi.fn().mockResolvedValue({
+          slug: 'warmups',
+          isVisible: true,
+          systemParentCode: 'warmups',
+        }),
+        getRedirectNewSlugForOldSlug: vi.fn().mockResolvedValue(null),
+      },
+      reminders: {
+        listRulesByUser: vi.fn().mockResolvedValue([]),
+        createObjectReminder,
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await subscribePatientWebPush(
+      request('https://app.example.test/api/patient/web-push/subscribe', {
+        endpoint: 'https://push.example.test/subscription',
+        keys: { p256dh: 'p256dh', auth: 'auth' },
+        platform: 'pwa',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(createObjectReminder).not.toHaveBeenCalled();
   });
 
   it.each([

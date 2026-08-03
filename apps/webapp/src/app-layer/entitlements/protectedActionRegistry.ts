@@ -920,6 +920,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.systemSettings.updateSetting',
   },
   {
+    id: 'warmups.schedule.read',
+    mechanic: 'warmups',
+    file: 'src/app/api/doctor/clients/[userId]/warmup-schedule/route.ts',
+    exportName: 'GET',
+    method: 'GET',
+    authContext: 'requireDoctorWorkspaceApiContext',
+    guard: 'requireEntitlementForRead',
+    serviceBoundary: 'deps.reminders.listRulesByUser',
+  },
+  {
     id: 'warmups.schedule.update',
     mechanic: 'warmups',
     file: 'src/app/api/doctor/clients/[userId]/warmup-schedule/route.ts',
@@ -988,6 +998,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     authContext: 'requirePatientAccessWithPhone + resolvePatientEnrollmentOrganizationId',
     guard: 'requireEntitlementForMutation',
     serviceBoundary: 'deps.reminders.updateRule',
+  },
+  {
+    id: 'warmups.pwa-push-onboarding.create',
+    mechanic: 'warmups',
+    file: 'src/app/api/patient/web-push/subscribe/route.ts',
+    exportName: 'POST',
+    method: 'POST',
+    authContext: 'requirePatientApiBusinessAccess + resolvePatientEnrollmentOrganizationId',
+    guard: 'requireEntitlementForMutation',
+    serviceBoundary: 'ensureWarmupsReminderOnFirstPwaPush -> deps.reminders.createObjectReminder',
   },
   {
     id: 'warmups.repeat-cooldown.update',
@@ -1481,11 +1501,6 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
   },
   {
     file: 'src/app/api/admin/booking-engine/schedule-blocks/route.ts',
-    exportName: 'GET',
-    reason: 'read route',
-  },
-  {
-    file: 'src/app/api/doctor/clients/[userId]/warmup-schedule/route.ts',
     exportName: 'GET',
     reason: 'read route',
   },

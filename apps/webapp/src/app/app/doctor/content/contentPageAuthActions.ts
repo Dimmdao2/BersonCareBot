@@ -9,10 +9,7 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
-import {
-  isWarmupsContentSection,
-  warmupsContentMutationRefusal,
-} from '@/app-layer/content/warmupsContentMutationGuard';
+import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 
 export type ContentPageAuthState = { ok: boolean; error?: string };
 
@@ -21,13 +18,6 @@ export async function setContentPageRequiresAuth(
   requiresAuth: boolean,
 ): Promise<ContentPageAuthState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) {
-    return {
-      ok: false,
-      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
-    };
-  }
   const pageId = id?.trim();
   if (!pageId) return { ok: false, error: 'Нет id' };
 
@@ -38,9 +28,16 @@ export async function setContentPageRequiresAuth(
     () => deps.contentPages.getById(pageId),
   );
   const section = page ? await deps.contentSections.getBySlug(page.section) : null;
-  if (isWarmupsContentSection(section)) {
-    const refusal = await warmupsContentMutationRefusal(workspace);
-    if (refusal) return { ok: false, error: refusal };
+  const mechanic = contentMechanicForSection(section);
+  const entitlement = await requireEntitlementForMutationAction(workspace, mechanic);
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage(
+        mechanic === 'warmups' ? 'изменить контент разминок' : 'изменить контент',
+        entitlement.reason,
+      ),
+    };
   }
   try {
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.page.requires-auth', () =>

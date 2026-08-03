@@ -10,10 +10,7 @@ import {
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { isHelpSectionSlug } from '@/modules/content-sections/types';
-import {
-  isWarmupsContentSection,
-  warmupsContentMutationRefusal,
-} from '@/app-layer/content/warmupsContentMutationGuard';
+import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 
 export type ReorderContentPagesState = { ok: boolean; error?: string };
 
@@ -22,13 +19,6 @@ export async function reorderContentPagesInSection(
   orderedIds: string[],
 ): Promise<ReorderContentPagesState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) {
-    return {
-      ok: false,
-      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
-    };
-  }
   const sec = section?.trim();
   if (!sec) return { ok: false, error: 'Не указан раздел' };
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
@@ -39,9 +29,16 @@ export async function reorderContentPagesInSection(
 
   const deps = buildAppDeps();
   const sectionRow = await deps.contentSections.getBySlug(sec);
-  if (isWarmupsContentSection(sectionRow)) {
-    const refusal = await warmupsContentMutationRefusal(workspace);
-    if (refusal) return { ok: false, error: refusal };
+  const mechanic = contentMechanicForSection(sectionRow);
+  const entitlement = await requireEntitlementForMutationAction(workspace, mechanic);
+  if (!entitlement.ok) {
+    return {
+      ok: false,
+      error: entitlementMutationRefusalMessage(
+        mechanic === 'warmups' ? 'изменить контент разминок' : 'изменить контент',
+        entitlement.reason,
+      ),
+    };
   }
   try {
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.pages.reorder', () =>

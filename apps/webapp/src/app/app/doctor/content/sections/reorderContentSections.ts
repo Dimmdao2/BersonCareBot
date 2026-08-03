@@ -8,10 +8,7 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  isWarmupsContentSection,
-  warmupsContentMutationRefusal,
-} from '@/app-layer/content/warmupsContentMutationGuard';
+import { contentMechanicForSection } from '@/app-layer/content/warmupsContentMutationGuard';
 
 export type ReorderContentSectionsState = { ok: boolean; error?: string };
 
@@ -19,13 +16,6 @@ export async function reorderContentSections(
   orderedSlugs: string[],
 ): Promise<ReorderContentSectionsState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
-  if (!entitlement.ok) {
-    return {
-      ok: false,
-      error: entitlementMutationRefusalMessage('изменить контент', entitlement.reason),
-    };
-  }
   if (!Array.isArray(orderedSlugs) || orderedSlugs.length === 0) {
     return { ok: false, error: 'Пустой порядок' };
   }
@@ -34,11 +24,23 @@ export async function reorderContentSections(
 
   const deps = buildAppDeps();
   const sections = await deps.contentSections.listAll();
-  if (
-    sections.some((section) => slugs.includes(section.slug) && isWarmupsContentSection(section))
-  ) {
-    const refusal = await warmupsContentMutationRefusal(workspace);
-    if (refusal) return { ok: false, error: refusal };
+  const involvedMechanics = new Set(
+    sections
+      .filter((section) => slugs.includes(section.slug))
+      .map((section) => contentMechanicForSection(section)),
+  );
+  if (involvedMechanics.size === 0) involvedMechanics.add('cms_pages');
+  for (const mechanic of involvedMechanics) {
+    const entitlement = await requireEntitlementForMutationAction(workspace, mechanic);
+    if (!entitlement.ok) {
+      return {
+        ok: false,
+        error: entitlementMutationRefusalMessage(
+          mechanic === 'warmups' ? 'изменить контент разминок' : 'изменить контент',
+          entitlement.reason,
+        ),
+      };
+    }
   }
   try {
     await withDoctorWorkspacePrincipal(workspace, 'doctor.content.sections.reorder', () =>

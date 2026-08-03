@@ -3,10 +3,13 @@ import {
   type PatientContentSectionSlugResolverDeps,
 } from '@/modules/content-sections/resolvePatientContentSectionSlug';
 import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
+import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
 import { DEFAULT_REMINDER_FORM_DAYS_MASK } from './reminderFormDefaults';
 import { DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS, SLOTS_V1_DB_PLACEHOLDER } from './scheduleSlots';
 import type { createRemindersService } from './service';
 import { isWarmupsContentSectionReminderRule } from './warmupsReminderRuleMatch';
+
+type WarmupMutationGuardDeps = Parameters<typeof requirePatientWarmupReminderMutation>[0];
 
 export type PwaPushPlatform = 'pwa' | 'ios-pwa' | 'android-pwa';
 
@@ -18,9 +21,10 @@ export function isPwaPushPlatform(
 
 type RemindersService = ReturnType<typeof createRemindersService>;
 
-export type EnsureWarmupsReminderOnFirstPwaPushDeps = {
-  reminders: Pick<RemindersService, 'createObjectReminder' | 'listRulesByUser'>;
-  contentSections: PatientContentSectionSlugResolverDeps;
+export type EnsureWarmupsReminderOnFirstPwaPushDeps = WarmupMutationGuardDeps & {
+  reminders: WarmupMutationGuardDeps['reminders'] &
+    Pick<RemindersService, 'createObjectReminder' | 'listRulesByUser'>;
+  contentSections: WarmupMutationGuardDeps['contentSections'] & PatientContentSectionSlugResolverDeps;
 };
 
 export type EnsureWarmupsReminderOnFirstPwaPushResult =
@@ -31,6 +35,7 @@ export type EnsureWarmupsReminderOnFirstPwaPushResult =
         | 'not_pwa'
         | 'not_first_push'
         | 'warmups_unavailable'
+        | 'entitlement_denied'
         | 'already_exists'
         | 'create_failed';
     };
@@ -67,6 +72,16 @@ export async function ensureWarmupsReminderOnFirstPwaPush(params: {
   );
   if (hasWarmupRule) {
     return { created: false, reason: 'already_exists' };
+  }
+
+  const entitlement = await requirePatientWarmupReminderMutation(
+    params.deps,
+    params.userId,
+    { linkedObjectType: 'content_section', linkedObjectId: warmupsSectionSlug },
+    'создать напоминание о разминках при первом входе в PWA',
+  );
+  if (!entitlement.ok) {
+    return { created: false, reason: 'entitlement_denied' };
   }
 
   const createRes = await params.deps.reminders.createObjectReminder(params.userId, {
