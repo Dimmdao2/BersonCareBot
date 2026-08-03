@@ -105,6 +105,48 @@ BEGIN
         AND conname = 'saas_billing_provider_events_provider_event_uidx'
         AND contype = 'u'
     )
+    -- 0308 deliberately superseded the original period-only uniqueness so seat-overage invoices
+    -- can coexist; require the other 28 foundation constraints without resurrecting that one.
+    OR 28 <> (
+      SELECT count(*)
+      FROM pg_constraint
+      WHERE conname IN (
+        'saas_billing_accounts_id_organization_uidx',
+        'saas_billing_accounts_organization_id_fkey',
+        'saas_billing_accounts_organization_uidx',
+        'saas_billing_invoices_account_org_fkey',
+        'saas_billing_invoices_amount_check',
+        'saas_billing_invoices_currency_check',
+        'saas_billing_invoices_id_organization_uidx',
+        'saas_billing_invoices_organization_id_fkey',
+        'saas_billing_invoices_period_check',
+        'saas_billing_invoices_provider_idempotency_uidx',
+        'saas_billing_invoices_saas_billing_subscription_org_fkey',
+        'saas_billing_invoices_status_check',
+        'saas_billing_invoices_tariff_billing_period_check',
+        'saas_billing_invoices_tariff_id_fkey',
+        'saas_billing_provider_events_invoice_org_fkey',
+        'saas_billing_provider_events_organization_id_fkey',
+        'saas_billing_provider_events_payload_check',
+        'saas_billing_provider_events_provider_event_uidx',
+        'saas_billing_subscriptions_account_org_fkey',
+        'saas_billing_subscriptions_id_organization_uidx',
+        'saas_billing_subscriptions_lifecycle_check',
+        'saas_billing_subscriptions_lifecycle_dates_check',
+        'saas_billing_subscriptions_org_source_uidx',
+        'saas_billing_subscriptions_organization_id_fkey',
+        'saas_billing_subscriptions_period_check',
+        'saas_billing_subscriptions_source_check',
+        'saas_billing_subscriptions_status_check',
+        'saas_billing_subscriptions_tariff_id_fkey'
+      )
+        AND conrelid IN (
+          'public.saas_billing_accounts'::regclass,
+          'public.saas_billing_subscriptions'::regclass,
+          'public.saas_billing_invoices'::regclass,
+          'public.saas_billing_provider_events'::regclass
+        )
+    )
     OR NOT EXISTS (
       SELECT 1 FROM public.system_settings
       WHERE key = 'saas_billing_payment_provider'
@@ -143,6 +185,36 @@ BEGIN
           'saas_billing_provider_events_staff_select'
         )
     )
+    OR 12 <> (
+      SELECT count(*)
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND policyname IN (
+          'saas_billing_accounts_platform_select',
+          'saas_billing_accounts_platform_insert',
+          'saas_billing_accounts_platform_update',
+          'saas_billing_subscriptions_platform_select',
+          'saas_billing_subscriptions_platform_insert',
+          'saas_billing_subscriptions_platform_update',
+          'saas_billing_invoices_platform_select',
+          'saas_billing_invoices_platform_insert',
+          'saas_billing_invoices_platform_update',
+          'saas_billing_provider_events_platform_select',
+          'saas_billing_provider_events_platform_insert',
+          'saas_billing_provider_events_platform_update'
+        )
+        AND 'app_platform_settings' = ANY (roles)
+    )
+    OR NOT (
+      has_table_privilege('app_platform_settings', 'public.saas_billing_accounts', 'SELECT,INSERT,UPDATE')
+      AND has_table_privilege('app_platform_settings', 'public.saas_billing_subscriptions', 'SELECT,INSERT,UPDATE')
+      AND has_table_privilege('app_platform_settings', 'public.saas_billing_invoices', 'SELECT,INSERT,UPDATE')
+      AND has_table_privilege('app_platform_settings', 'public.saas_billing_provider_events', 'SELECT,INSERT,UPDATE')
+    )
+    OR has_table_privilege('app_patient', 'public.saas_billing_accounts', 'SELECT,INSERT,UPDATE,DELETE')
+    OR has_table_privilege('app_patient', 'public.saas_billing_subscriptions', 'SELECT,INSERT,UPDATE,DELETE')
+    OR has_table_privilege('app_patient', 'public.saas_billing_invoices', 'SELECT,INSERT,UPDATE,DELETE')
+    OR has_table_privilege('app_patient', 'public.saas_billing_provider_events', 'SELECT,INSERT,UPDATE,DELETE')
   THEN
     RAISE EXCEPTION '0330 parity failed: 0259 SaaS billing foundation is incomplete'
       USING ERRCODE = '23514';
