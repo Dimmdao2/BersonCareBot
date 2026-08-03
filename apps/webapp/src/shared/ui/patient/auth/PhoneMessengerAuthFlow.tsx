@@ -6,14 +6,20 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
+  OTP_OTHER_CHANNELS_ORDER,
   type AuthChannelUiPolicy,
+  type OtpUiChannel,
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage';
 import { finishChannelLinkNavigation } from '@/shared/lib/telegramChannelLinkOpen';
 import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
 import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
-import { OtpCodeForm, type OtpResendOutcome } from '@/shared/ui/patient/auth/OtpCodeForm';
+import {
+  OtpCodeForm,
+  type OtpAlternativeEntry,
+  type OtpResendOutcome,
+} from '@/shared/ui/patient/auth/OtpCodeForm';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
@@ -33,13 +39,29 @@ function getWebChatId(): string {
   return id;
 }
 
-function otpDescription(channel: 'automatic' | 'telegram' | 'max'): string {
-  if (channel === 'automatic') {
-    return 'Если для номера доступен вход, код отправлен по SMS или на подтверждённый email.';
-  }
-  return channel === 'telegram'
-    ? 'Введите код, отправленный вам в Telegram.'
-    : 'Введите код, отправленный вам в Max.';
+type LoginOtpChannel = 'automatic' | OtpUiChannel;
+
+function otpDescription(channel: LoginOtpChannel): string {
+  return channel === 'email'
+    ? 'Код отправлен, проверьте входящие. Если письмо не приходит, проверьте папку «Спам».'
+    : 'Код отправлен, проверьте входящие.';
+}
+
+function buildLoginAlternatives(
+  channelPolicy: AuthChannelUiPolicy,
+  onChoose: (channel: OtpUiChannel) => Promise<void>,
+): OtpAlternativeEntry[] {
+  return OTP_OTHER_CHANNELS_ORDER.filter((channel) => channelPolicy[channel]).map((channel) => ({
+    label:
+      channel === 'telegram'
+        ? 'Получить код в Telegram'
+        : channel === 'max'
+          ? 'Получить код в Max'
+          : channel === 'email'
+            ? 'Получить код на email'
+            : 'Получить код по SMS',
+    onClick: () => onChoose(channel),
+  }));
 }
 
 export type PhoneMessengerAuthFlowProps = {
@@ -84,7 +106,7 @@ export function PhoneMessengerAuthFlow({
   const [bindManualCommand, setBindManualCommand] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
-  const [otpChannel, setOtpChannel] = useState<'automatic' | 'telegram' | 'max'>('automatic');
+  const [otpChannel, setOtpChannel] = useState<LoginOtpChannel>('automatic');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearPoll = useCallback(() => {
@@ -178,7 +200,10 @@ export function PhoneMessengerAuthFlow({
     };
   }, [step, setupToken, bindChannel, pollBindStatus]);
 
-  const startAutomaticPhoneOtp = async (normalized: string): Promise<boolean> => {
+  const startLoginPhoneOtp = async (
+    normalized: string,
+    deliveryChannel?: OtpUiChannel,
+  ): Promise<boolean> => {
     setLoading(true);
     try {
       const chatId = getWebChatId();
@@ -190,6 +215,7 @@ export function PhoneMessengerAuthFlow({
           channel: 'web',
           chatId,
           purpose: 'login',
+          ...(deliveryChannel ? { deliveryChannel } : {}),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -205,7 +231,7 @@ export function PhoneMessengerAuthFlow({
       setPhone(normalized);
       setChallengeId(data.challengeId);
       setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
-      setOtpChannel('automatic');
+      setOtpChannel(deliveryChannel ?? 'automatic');
       setStep('code');
       return true;
     } finally {
@@ -216,7 +242,7 @@ export function PhoneMessengerAuthFlow({
   const runCheckPhone = async (normalized: string) => {
     if (purpose === 'login') {
       if (channelPolicy.sms || channelPolicy.email) {
-        await startAutomaticPhoneOtp(normalized);
+        await startLoginPhoneOtp(normalized);
       } else {
         setPhone(normalized);
         setStep('messenger_pick');
@@ -294,8 +320,11 @@ export function PhoneMessengerAuthFlow({
   const resendOtp = async (): Promise<OtpResendOutcome> => {
     if (!phone || !challengeId)
       return { kind: 'error', message: 'Нет данных для повторной отправки' };
-    if (otpChannel === 'automatic') {
-      return startAutomaticPhoneOtp(phone).then((ok) =>
+    if (purpose === 'login') {
+      return startLoginPhoneOtp(
+        phone,
+        otpChannel === 'automatic' ? undefined : otpChannel,
+      ).then((ok) =>
         ok
           ? { kind: 'ok' as const }
           : { kind: 'error' as const, message: 'Не удалось запросить код' },
@@ -414,12 +443,39 @@ export function PhoneMessengerAuthFlow({
 
   if (step === 'code') {
     const waitingForBot = setupToken != null && challengeId == null && purpose === 'login';
+    const loginAlternatives =
+      purpose === 'login'
+        ? buildLoginAlternatives(channelPolicy, async (channel) => {
+            if (!phone) return;
+            clearPoll();
+            const started = await startLoginPhoneOtp(phone, channel);
+            if (started) {
+              setSetupToken(null);
+              setBindChannel(null);
+              setBindManualCommand(null);
+            }
+          })
+        : undefined;
     const waitingDescription =
       purpose === 'profile_bind'
         ? `Подтвердите номер в ${bindChannel === 'max' ? 'Max' : 'Telegram'}. После этого можно вернуться в приложение.`
         : `Подтвердите номер в ${bindChannel === 'max' ? 'Max' : 'Telegram'}, затем введите код из бота.`;
     return (
       <div id="phone-messenger-auth-code" className="flex w-full flex-col gap-3 text-left">
+        {purpose === 'login' ? (
+          <Button
+            type="button"
+            variant="link"
+            className={patientInlineLinkClass}
+            disabled={loading}
+            onClick={() => {
+              clearPoll();
+              onBack();
+            }}
+          >
+            Войти иначе
+          </Button>
+        ) : null}
         {waitingForBot ? (
           <>
             <p className={patientMutedTextClass}>{waitingDescription}</p>
@@ -448,6 +504,8 @@ export function PhoneMessengerAuthFlow({
             supportContactHref={supportContactHref}
             submitLabel={purpose === 'login' ? 'Войти' : 'Подтвердить'}
             description={otpDescription(otpChannel)}
+            alternatives={loginAlternatives}
+            alternativesLabel="Подтвердить другим способом"
             onConfirm={async (code) => {
               const chatId = getWebChatId();
               const res = await fetch('/api/auth/phone/confirm', {
@@ -523,14 +581,14 @@ export function PhoneMessengerAuthFlow({
               }
               setChallengeId(null);
             }}
-            hideBack={waitingForBot}
+            hideBack={waitingForBot || purpose === 'login'}
           />
         ) : (
           <p className={cn(patientMutedTextClass, 'text-center')}>
             Ожидание подтверждения в мессенджере…
           </p>
         )}
-        {!waitingForBot && hasAnyMessenger ? (
+        {!waitingForBot && hasAnyMessenger && purpose === 'profile_bind' ? (
           <Button
             type="button"
             variant="link"

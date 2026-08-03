@@ -312,6 +312,13 @@ export const userPhoneHistory = pgTable(
       .notNull(),
     validTo: timestamp('valid_to', { withTimezone: true, mode: 'string' }),
     source: text('source').notNull(),
+    /**
+     * Канал, который фактически подтвердил ЭТОТ телефон в момент транзакции (`otp`/`messenger`
+     * source only — `merge`/`admin`/`projection` не являются подтверждением каналом, остаётся NULL).
+     * NULL также на строках, записанных до миграции `0341`; `getDefaultAuthOtpChannel` в этом случае
+     * откатывается на прежнюю аппроксимацию «самая ранняя привязка» (см. её комментарий).
+     */
+    confirmingChannel: text('confirming_channel'),
   },
   (table) => [
     index('idx_user_phone_history_organization_id').using(
@@ -345,6 +352,10 @@ export const userPhoneHistory = pgTable(
     check(
       'user_phone_history_source_check',
       sql`source = ANY (ARRAY['otp'::text, 'messenger'::text, 'merge'::text, 'admin'::text, 'projection'::text])`,
+    ),
+    check(
+      'user_phone_history_confirming_channel_check',
+      sql`confirming_channel IS NULL OR confirming_channel = ANY (ARRAY['telegram'::text, 'max'::text, 'email'::text, 'sms'::text])`,
     ),
   ],
 );

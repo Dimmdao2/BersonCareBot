@@ -440,6 +440,78 @@ describe('phone login automatic delivery fallback', () => {
     );
   });
 
+  it('accepts an explicitly selected configured SMS channel on the code screen', async () => {
+    fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'sms');
+
+    const response = await finishResponse(
+      startPhone(
+        request({
+          phone: '+79991234567',
+          channel: 'web',
+          chatId: 'browser-1005',
+          purpose: 'login',
+          deliveryChannel: 'sms',
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      challengeId: 'real-challenge-id-1005',
+      retryAfterSeconds: 60,
+      deliveryChannel: 'sms',
+    });
+    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
+      '+79991234567',
+      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
+      expect.objectContaining({
+        delivery: { channel: 'sms' },
+        deferredDelivery: { schedule: fakes.after },
+      }),
+    );
+  });
+
+  it('stays silent when the resolved channel is not enabled+configured (no SMS fallback)', async () => {
+    fakes.isChannelEnabled.mockResolvedValue(true);
+    fakes.getClientVisiblePolicy.mockResolvedValue({
+      email: false,
+      sms: true,
+      telegram: false,
+      max: false,
+    });
+    fakes.resolveAuthOtpChannel.mockResolvedValue('telegram');
+
+    const response = await finishResponse(
+      startPhone(
+        request({
+          phone: '+79991234567',
+          channel: 'web',
+          chatId: 'browser-1005',
+          purpose: 'login',
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      deliveryChannel: 'automatic',
+    });
+    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
+      '+79991234567',
+      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
+      expect.objectContaining({
+        delivery: undefined,
+        deferredDelivery: expect.objectContaining({
+          schedule: fakes.after,
+          suppressDelivery: true,
+          challengeDeliveryChannel: 'telegram',
+        }),
+      }),
+    );
+  });
+
   it('does not trust a client-claimed Telegram context to bypass opaque login', async () => {
     fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'email');
     fakes.findByPhone.mockResolvedValueOnce(null);

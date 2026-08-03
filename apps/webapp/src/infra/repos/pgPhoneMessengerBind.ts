@@ -145,6 +145,7 @@ async function applyMessengerContactPreOtpImpl(
       platformUserId: canonicalSession,
       newPhoneNormalized: params.phoneNormalized,
       source: 'messenger',
+      confirmingChannel: channelCode,
     });
     const ins = await runIdentityClientPgText(
       client,
@@ -247,6 +248,7 @@ async function applyMessengerContactPreOtpImpl(
       platformUserId: userId,
       newPhoneNormalized: params.phoneNormalized,
       source: 'messenger',
+      confirmingChannel: channelCode,
     });
   } else if (existingByPhone.rows.length > 0) {
     userId = parseIdentityRow(
@@ -267,6 +269,7 @@ async function applyMessengerContactPreOtpImpl(
       platformUserId: userId,
       newPhoneNormalized: params.phoneNormalized,
       source: 'messenger',
+      confirmingChannel: channelCode,
     });
   }
 

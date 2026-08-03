@@ -174,6 +174,25 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   },
 
   async getDefaultAuthOtpChannel(userId) {
+    // IDENTITY_AND_MERGE_SCHEME.md §3.1: default is the channel that confirmed the CURRENT phone,
+    // recorded on the active user_phone_history row's confirming_channel (migration 0341) at the
+    // moment of confirmation. Only telegram/max/email are eligible (SMS is bootstrap-only, never a
+    // default — mirrors the historical fallback below).
+    const confirmed = await runWebappPgText<{ confirming_channel: string | null }>(
+      `SELECT confirming_channel FROM user_phone_history
+       WHERE platform_user_id = $1::uuid AND valid_to IS NULL
+       LIMIT 1`,
+      [userId],
+    );
+    const confirmedChannel = confirmed.rows[0]?.confirming_channel;
+    if (confirmedChannel === 'telegram' || confirmedChannel === 'max' || confirmedChannel === 'email') {
+      return confirmedChannel;
+    }
+
+    // Historical fallback: rows written before migration 0341, or whose source isn't a channel
+    // confirmation (merge/admin/projection), have confirming_channel = NULL — approximate with the
+    // previous heuristic (earliest-linked Telegram/Max binding or verified email) rather than
+    // inventing a provenance value for them.
     const result = await runWebappPgText<{ code: string }>(
       `SELECT code FROM (
          SELECT channel_code AS code, created_at AS at

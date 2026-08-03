@@ -360,6 +360,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
               platformUserId: canonicalProfileId,
               newPhoneNormalized: normalized,
               source: 'otp',
+              confirmingChannel: options?.confirmingChannel,
             });
           }
           userId = canonicalProfileId;
@@ -398,6 +399,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
             platformUserId: userId,
             newPhoneNormalized: normalized,
             source: 'otp',
+            confirmingChannel: options?.confirmingChannel,
           });
         }
 

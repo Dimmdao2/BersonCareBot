@@ -185,6 +185,7 @@ export async function confirmPhoneAuth(
   const bindResult = await deps.userByPhonePort.createOrBind(challenge.phone, context, {
     phoneNumberProven:
       challenge.phoneNumberProven ?? isPhoneNumberProvenByOtpDelivery(deliveryChannel),
+    confirmingChannel: deliveryChannel,
     ...(challenge.profileBindUserId ? { profileBindUserId: challenge.profileBindUserId } : {}),
     ...(challenge.profileBindOrganizationId
       ? { profileBindOrganizationId: challenge.profileBindOrganizationId }

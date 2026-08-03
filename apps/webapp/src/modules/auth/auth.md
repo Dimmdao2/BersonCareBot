@@ -207,8 +207,9 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 - **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`: **4** неверных ввода → блок 10 мин, resend cooldown **60 с**), верификация кода; успешный verify **не** удаляет челлендж (удаление — `consumePhoneOtpChallenge` после post-steps в DI). Доставка — `PhoneOtpDelivery` (telegram / max / email / sms).
 - HTTP `POST /api/auth/phone/start` для автоматического публичного login (`channel: web`, без
-  `deliveryChannel`) выбирает SMS → подтверждённый email. Явный `deliveryChannel: sms` в старом ручном контракте
-  по-прежнему отклоняется (`sms_disabled_web`), чтобы SMS не выбирал клиент в обход серверной политики.
+  `deliveryChannel`) оставляет выбор канала серверу, включая сохранённое предпочтение, когда оно есть. Явный
+  `deliveryChannel` используется экраном кода для нейтрального выбора другого глобально включённого канала;
+  ответ не сообщает, привязан ли канал к владельцу номера.
 - `POST /api/auth/phone/confirm`: опционально **`browserCalendarIana`** (IANA из `Intl`, до 120 символов) — после успешного входа выставляет `platform_users.calendar_timezone`, если поле ещё `null`.
 - Для direct OTP **`profile_bind`** `userId` и organization-scope берутся только из сессии на `/phone/start`, сохраняются в challenge и не принимаются телом `/phone/confirm`.
 - Порты: **SmsPort**, **PhoneChallengeStore**, **UserByPhonePort**.
