@@ -512,6 +512,9 @@ function discoverApplicationRoleNames(schemaText: string, migrationsDir: string)
     for (const match of text.matchAll(/pg_has_role\([^,]+,\s*'([a-z_]+)'/g)) roles.add(match[1]);
     for (const match of text.matchAll(/\b(?:TO|OWNER TO)\s+"?(app_[a-z0-9_]+)"?/g))
       roles.add(match[1]);
+    for (const acl of text.matchAll(/\b(?:GRANT|REVOKE)\b[\s\S]*?\b(?:TO|FROM)\s+([^;]+);/gi)) {
+      for (const match of acl[1].matchAll(/"?(app_[a-z0-9_]+)"?/g)) roles.add(match[1]);
+    }
   };
   scan(schemaText);
   for (const file of fs.readdirSync(migrationsDir)) {
