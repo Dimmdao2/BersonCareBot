@@ -14,15 +14,17 @@
 DROP TABLE IF EXISTS public.rubitime_records CASCADE;
 DROP TABLE IF EXISTS public.rubitime_events CASCADE;
 
--- The applied 0259 hash predates the security correction that removed lifecycle policy from the
--- provider credential document and removed ambient app_staff access. Preserve every newer provider
--- value while deleting only that obsolete nested field and those four exact policies/grants.
+-- The applied 0259 hash predates the security correction that removed the historical agent seed
+-- from the provider credential document and removed ambient app_staff access. Repeat 0278's exact
+-- conditional cleanup so an absent setting or an owner-edited lifecycle policy is preserved.
 UPDATE public.system_settings
-SET value_json = value_json #- '{value,lifecyclePolicy}'
+SET value_json = value_json #- '{value,lifecyclePolicy}',
+    updated_at = now()
 WHERE key = 'saas_billing_payment_provider'
   AND scope = 'admin'
   AND organization_id IS NULL
-  AND value_json #> '{value,lifecyclePolicy}' IS NOT NULL;
+  AND value_json #> '{value,lifecyclePolicy}' =
+    '{"graceDays": 7, "chargeAttempts": 3, "readOnlyDays": 21}'::jsonb;
 
 DROP POLICY IF EXISTS saas_billing_accounts_staff_select ON public.saas_billing_accounts;
 DROP POLICY IF EXISTS saas_billing_subscriptions_staff_select ON public.saas_billing_subscriptions;
@@ -231,19 +233,6 @@ BEGIN
           'public.saas_billing_invoices'::regclass,
           'public.saas_billing_provider_events'::regclass
         )
-    )
-    OR NOT EXISTS (
-      SELECT 1 FROM public.system_settings
-      WHERE key = 'saas_billing_payment_provider'
-        AND scope = 'admin'
-        AND organization_id IS NULL
-    )
-    OR EXISTS (
-      SELECT 1 FROM public.system_settings
-      WHERE key = 'saas_billing_payment_provider'
-        AND scope = 'admin'
-        AND organization_id IS NULL
-        AND value_json #> '{value,lifecyclePolicy}' IS NOT NULL
     )
     OR EXISTS (
       SELECT 1
