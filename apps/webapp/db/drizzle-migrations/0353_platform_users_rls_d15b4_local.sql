@@ -11,9 +11,17 @@
 --   1. The person themself       -> platform_users_self_select / _update (id = own patient GUC).
 --   2. Staff of the person's org -> platform_users_staff_org_{select,update,delete}, same
 --                                    EXISTS(org_enrollments) / EXISTS(be_organization_members) shape
---                                    already live on org_enrollments itself (org-wide, variant A,
---                                    no assignment predicate -- docs/_TODO/SAAS_FOUNDATION patient
---                                    wall decision, 2026-07-11).
+--                                    already live on org_enrollments itself (organization-wide, no
+--                                    per-assignment predicate). NOTE: this shape is an AGENT choice,
+--                                    not an owner decision -- the "variant A / owner decision
+--                                    2026-07-11" attribution was retracted 04.08 (owner: "I could not
+--                                    have said that, it is agent language"). It is retained here only
+--                                    because the owner's own 04.08 model puts the hard wall BETWEEN
+--                                    clinics and leaves in-clinic visibility to a code-level filter:
+--                                    "достаточно жесткого блока на данные между клиниками ... а внутри
+--                                    фильтр на уровне кода". So RLS stops at the org boundary BY
+--                                    DESIGN; the in-clinic "own patient" filter belongs in code and is
+--                                    not implemented yet (docs/_TODO/VISIBILITY_MODEL_GAP_2026-08-04.md).
 --   3. The platform role         -> untouched. app_platform_settings has NO grant on this table
 --                                    (asserted today by deploy-test-saas.sh / e1-webapp-runtime-config.sql
 --                                    has_table_privilege('app_platform_settings', 'public.platform_users', ...)
