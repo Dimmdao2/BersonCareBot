@@ -1,4 +1,5 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { logger } from '@/app-layer/logging/logger';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
@@ -18,13 +19,15 @@ const bodySchema = z.object({
 
 /** Общий bucket только в non-production, если прокси не передал X-Real-Ip. */
 const EMAIL_OTP_START_FALLBACK_CLIENT_KEY = 'email_otp_start:missing_x_real_ip';
+const PUBLIC_EMAIL_OTP_START_MIN_RESPONSE_MS = 500;
 
 /**
  * POST /api/auth/email-otp/start
  *
  * Public (unauthenticated) endpoint: request a 6-digit OTP code to the given email.
- * Anti-enumeration: same response body shape for known and unknown emails.
- * Distinguishing errors: rate_limited (timing), invalid_email (format), email_send_failed (infra).
+ * Anti-enumeration: valid, non-rate-limited requests get the same response status/body schema and
+ * minimum response-time class for known/unknown addresses and provider success/failure.
+ * Distinguishing errors remain invalid_email and rate_limited.
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-otp/start:POST', request);
@@ -70,6 +73,7 @@ export async function POST(request: Request) {
     );
   }
 
+  const startedAt = Date.now();
   const deps = buildAppDeps();
   const result = await startPublicEmailOtpChallenge(parsed.data.email, deps.emailOtpPublicDb);
 
@@ -95,16 +99,6 @@ export async function POST(request: Request) {
           },
         );
 
-      case 'email_send_failed':
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'email_send_failed',
-            message: 'Не удалось отправить код. Попробуйте позже.',
-          },
-          { status: 503 },
-        );
-
       default:
         return NextResponse.json(
           { ok: false, error: 'error', message: 'Не удалось отправить код. Попробуйте позже.' },
@@ -113,9 +107,30 @@ export async function POST(request: Request) {
     }
   }
 
+  if (result.deliveryFailed) {
+    // Do not log raw email, OTP, or provider payload: this fixed event is sufficient operator
+    // evidence while preserving the public neutral response.
+    logger.warn(
+      { route: 'auth/email-otp/start', outcome: 'email_delivery_failed' },
+      'auth/email-otp/start delivery failed',
+    );
+  }
+
+  return publicEmailOtpStartAccepted(startedAt, result.challengeId, result.retryAfterSeconds ?? 60);
+}
+
+async function publicEmailOtpStartAccepted(
+  startedAt: number,
+  challengeId: string,
+  retryAfterSeconds: number,
+): Promise<NextResponse> {
+  const remainingMs = PUBLIC_EMAIL_OTP_START_MIN_RESPONSE_MS - (Date.now() - startedAt);
+  if (remainingMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, remainingMs));
+  }
   return NextResponse.json({
     ok: true,
-    challengeId: result.challengeId,
-    retryAfterSeconds: result.retryAfterSeconds ?? 60,
+    challengeId,
+    retryAfterSeconds,
   });
 }
