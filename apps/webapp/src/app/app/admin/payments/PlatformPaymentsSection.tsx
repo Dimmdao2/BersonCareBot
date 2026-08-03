@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { apiJson } from '@/shared/lib/apiJson';
+import { SaasBillingProviderSettings } from './SaasBillingProviderSettings';
 
 const INVOICE_STATUS_LABELS: Record<SaasBillingInvoiceStatus, string> = {
   draft: 'Черновик',
@@ -989,6 +990,8 @@ export function PlatformPaymentsSection() {
 
   return (
     <div className="space-y-4">
+      <SaasBillingProviderSettings />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Сводка за период</CardTitle>

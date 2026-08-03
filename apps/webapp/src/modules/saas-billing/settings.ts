@@ -2,6 +2,22 @@ import type { PaymentProviderConfig } from '@/modules/payments/types';
 
 export const DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = 'yookassa';
 
+const YOOKASSA_VAT_CODES = new Set([
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  '11',
+  '12',
+]);
+const YOOKASSA_TAX_SYSTEM_CODES = new Set(['1', '2', '3', '4', '5', '6']);
+
 export type SaasBillingLifecyclePolicy = {
   graceDays: number;
   chargeAttempts: number;
@@ -125,6 +141,15 @@ export function parseSaasBillingPaymentProviderSettings(
     payeeRequisites: parsePayeeRequisites(row.payeeRequisites),
     lifecyclePolicy: parseLifecyclePolicy(row.lifecyclePolicy),
   };
+}
+
+export function isValidSaasBillingPaymentProviderFiscalSettings(envelope: unknown): boolean {
+  const { payeeRequisites } = parseSaasBillingPaymentProviderSettings(envelope);
+  return (
+    (payeeRequisites.vatCode === null || YOOKASSA_VAT_CODES.has(payeeRequisites.vatCode)) &&
+    (payeeRequisites.taxSystemCode === null ||
+      YOOKASSA_TAX_SYSTEM_CODES.has(payeeRequisites.taxSystemCode))
+  );
 }
 
 function redactProvider(provider: PaymentProviderConfig): PaymentProviderConfig {
