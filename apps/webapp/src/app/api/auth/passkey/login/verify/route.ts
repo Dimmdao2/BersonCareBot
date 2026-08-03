@@ -11,8 +11,8 @@ import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
-import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { isStaff } from '@/modules/auth/verifiedStaffPrimaryLogin';
+import type { AppSession } from '@/shared/types/session';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { checkAuthConfirmRateLimit } from '@/modules/auth/authConfirmRateLimit';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
@@ -86,15 +86,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_credentials' }, { status: 401 });
   }
 
-  const prepared = await prepareVerifiedPrimaryLogin({
-    user,
-    staffSecurity: buildAppDeps().staffSecurity,
-  });
-  if (prepared.factorRequired) {
-    return NextResponse.json({ ok: true, factorRequired: true });
-  }
+  // Owner model (docs/ARCHITECTURE/AUTH_AND_IDENTITY_CANON.md §8): a passkey ceremony with
+  // `userVerification: 'required'` is already device-possession + user-verification — the NIST
+  // equivalent of password+code. It does NOT go through prepareVerifiedPrimaryLogin/staff TOTP the
+  // way pin/password/phone logins do; the second factor is not asked again on top of it. This is
+  // deliberately scoped to passkey only — every other primary-login route is unchanged.
+  const sessionOptions: Pick<AppSession, 'staffSecurity'> = isStaff(user)
+    ? { staffSecurity: { assurance: 'factor_verified', verifiedAt: Math.floor(Date.now() / 1000) } }
+    : {};
 
-  await setSessionFromUser(user, prepared.sessionOptions);
+  await setSessionFromUser(user, sessionOptions);
   await recordAuthLogin({
     userId,
     entryChannel: 'browser',
