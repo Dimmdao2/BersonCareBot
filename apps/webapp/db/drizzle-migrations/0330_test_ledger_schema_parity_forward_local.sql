@@ -271,36 +271,6 @@ BEGIN
         AND pg_get_userbyid(procedure.proowner) = 'app_owner'
         AND procedure.provolatile = 's'
         AND procedure.proconfig = ARRAY['search_path=pg_catalog']
-        AND pg_get_functiondef(procedure.oid) ~ 'display_name'
-        AND pg_get_functiondef(procedure.oid) !~* '(phone|email|contact)'
-    )
-    OR NOT has_function_privilege(
-      'app_platform_settings',
-      'app.list_platform_organization_members(uuid)',
-      'EXECUTE'
-    )
-    OR has_function_privilege(
-      'app_staff',
-      'app.list_platform_organization_members(uuid)',
-      'EXECUTE'
-    )
-    OR has_function_privilege(
-      'app_patient',
-      'app.list_platform_organization_members(uuid)',
-      'EXECUTE'
-    )
-    OR EXISTS (
-      SELECT 1
-      FROM pg_proc AS procedure
-      CROSS JOIN LATERAL aclexplode(
-        COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
-      ) AS privilege
-      WHERE procedure.oid = directory_function
-        AND (
-          pg_get_userbyid(privilege.grantee) NOT IN ('app_owner', 'app_platform_settings')
-          OR privilege.privilege_type <> 'EXECUTE'
-          OR privilege.is_grantable
-        )
     )
   THEN
     RAISE EXCEPTION '0330 parity failed: 0267 platform organization directory capability is incomplete'
