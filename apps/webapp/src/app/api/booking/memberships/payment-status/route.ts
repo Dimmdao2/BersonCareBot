@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement';
+import {
+  getMechanicMutationAvailability,
+  requireEntitlementForRead,
+} from '@/app-layer/guards/requireEntitlement';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -33,13 +36,17 @@ export async function GET(request: Request) {
   const intent = pkg.package.paymentIntentId
     ? await deps.payments?.getIntentForOrganization(pkg.package.paymentIntentId, organizationId)
     : null;
+  const paymentsAvailability = await getMechanicMutationAvailability(
+    { organizationId },
+    'payments',
+  );
   return NextResponse.json({
     ok: true,
     patientPackageId,
     status: pkg.package.status,
     intentId: pkg.package.paymentIntentId,
     intentStatus: intent?.status ?? null,
-    checkoutUrl: intent?.checkoutUrl ?? null,
+    checkoutUrl: paymentsAvailability.available ? (intent?.checkoutUrl ?? null) : null,
     priceMinor: pkg.package.priceMinor,
     currency: pkg.package.currency,
     package: pkg.package,

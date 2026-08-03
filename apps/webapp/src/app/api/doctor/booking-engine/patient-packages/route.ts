@@ -4,6 +4,8 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
+  catalogPatientPackageCreatesOnlinePayment,
+  manualPatientPackageCreatesOnlinePayment,
   membershipErrorResponse,
   resolveAssignedByPlatformUserId,
 } from '@/app/api/booking-engine/patientPackagesRouteShared';
@@ -84,12 +86,7 @@ export async function POST(request: Request) {
   const body = parsed.data;
   try {
     if (body.kind === 'manual') {
-      const staffSold =
-        body.activateImmediately === true ||
-        (body.soldAt != null && body.paidAmountMinor != null && body.sendForPayment === false);
-      const createsOnlinePayment =
-        body.priceMinor > 0 && body.sendForPayment !== false && !staffSold;
-      if (createsOnlinePayment) {
+      if (manualPatientPackageCreatesOnlinePayment(body)) {
         const paymentsEntitlement = await requireEntitlementForMutation(gate.ctx, 'payments');
         if (!paymentsEntitlement.ok) return paymentsEntitlement.response;
       }
@@ -131,9 +128,9 @@ export async function POST(request: Request) {
     if (!catalogPackage) {
       return NextResponse.json({ ok: false, error: 'catalog_package_not_found' }, { status: 404 });
     }
-    const staffSold =
-      body.activateImmediately === true || (body.soldAt != null && body.paidAmountMinor != null);
-    if (catalogPackage.priceMinor > 0 && !staffSold) {
+    if (
+      catalogPatientPackageCreatesOnlinePayment({ ...body, priceMinor: catalogPackage.priceMinor })
+    ) {
       const paymentsEntitlement = await requireEntitlementForMutation(gate.ctx, 'payments');
       if (!paymentsEntitlement.ok) return paymentsEntitlement.response;
     }
