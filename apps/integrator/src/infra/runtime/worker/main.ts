@@ -6,6 +6,7 @@ import { createWebappEventsPort } from '../../adapters/webappEventsClient.js';
 import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
 import { createDbWritePort } from '../../db/writePort.js';
+import { getOutgoingDeliveryReclaimConfig } from '../../db/repos/outgoingDeliveryReclaimSettings.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../../kernel/domain/reminders/patientNotificationTopics.js';
 import { runWorkerTick } from './runner.js';
 import { assertWebappPushNotifyAccepted } from './jobExecutor.js';
@@ -49,8 +50,9 @@ async function startWorker(): Promise<void> {
   const webappEvents = createWebappEventsPort({
     getAppBaseUrl: async () => env.APP_BASE_URL,
   });
+  const queueDb = createDbPort();
   const queue = createPostgresJobQueue({
-    db: createDbPort(),
+    db: queueDb,
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
   });
   const batchSize = Math.max(1, Math.trunc(appSettings.runtime.worker.batchSize));
@@ -69,6 +71,11 @@ async function startWorker(): Promise<void> {
           // doesn't reject the claim query before per-job dispatch gets a chance to install its own
           // org principal deeper in the executor pipeline.
           await runWithInfraPrincipal({ source: 'worker:job-queue-drain' }, async () => {
+            // Sh7 drain: old appointment rows may have been left `processing` when a former
+            // worker died. Return only an expired lease to pending; the compatible consumer keeps
+            // their persisted ladder, Web Push sibling and first-success semantics intact.
+            const reclaimConfig = await getOutgoingDeliveryReclaimConfig(queueDb);
+            await queue.reclaimStaleProcessing(reclaimConfig.processingTimeoutMinutes);
             while (true) {
               const jobs = await queue.claimDueJobs(batchSize);
               if (jobs.length === 0) break;
