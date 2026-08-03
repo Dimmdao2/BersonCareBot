@@ -514,6 +514,8 @@ SELECT 1 / (NOT has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.auth
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.auth_user_pin_upsert_self(text)', 'EXECUTE'))::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(patientRole)}, 'app.auth_user_pin_read(uuid)', 'EXECUTE'))::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(patientRole)}, 'app.auth_user_pin_upsert(uuid,text)', 'EXECUTE'))::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(patientRole)}, 'app.auth_user_pin_increment_failed(uuid)', 'EXECUTE'))::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(patientRole)}, 'app.auth_user_pin_reset_attempts(uuid)', 'EXECUTE'))::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE'))::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(mediaRole)}, 'app.release_principal_context()', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)', 'EXECUTE'))::int;

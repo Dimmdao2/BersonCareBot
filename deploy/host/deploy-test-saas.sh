@@ -2274,6 +2274,8 @@ SELECT (
   AND has_function_privilege(current_user, 'app.auth_user_pin_upsert_self(text)', 'EXECUTE')
   AND NOT has_function_privilege(current_user, 'app.auth_user_pin_read(uuid)', 'EXECUTE')
   AND NOT has_function_privilege(current_user, 'app.auth_user_pin_upsert(uuid,text)', 'EXECUTE')
+  AND NOT has_function_privilege(current_user, 'app.auth_user_pin_increment_failed(uuid)', 'EXECUTE')
+  AND NOT has_function_privilege(current_user, 'app.auth_user_pin_reset_attempts(uuid)', 'EXECUTE')
   AND NOT has_table_privilege(
     current_user,
     'public.staff_security_profiles',

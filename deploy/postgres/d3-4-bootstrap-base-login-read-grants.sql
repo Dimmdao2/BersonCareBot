@@ -20,6 +20,14 @@
 \set ON_ERROR_STOP on
 \pset pager off
 
+-- 0258/0337: these exact-UUID functions are pre-session server capabilities, never a PUBLIC
+-- database API. Reapply the denial here so restored or late-land environments converge before the
+-- bare bootstrap login receives its explicit reviewed grants below.
+REVOKE ALL ON FUNCTION app.auth_user_pin_read(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.auth_user_pin_upsert(uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.auth_user_pin_increment_failed(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.auth_user_pin_reset_attempts(uuid) FROM PUBLIC;
+
 \if :{?d3_4_bootstrap_base_role}
 \else
 \echo 'FATAL: missing required psql variable d3_4_bootstrap_base_role.'

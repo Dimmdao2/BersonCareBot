@@ -2346,6 +2346,13 @@
       "when": 1793539230040,
       "tag": "0336_auth_user_pin_identity_self_local",
       "breakpoints": true
+    },
+    {
+      "idx": 335,
+      "version": "7",
+      "when": 1793539230041,
+      "tag": "0337_auth_user_pin_bootstrap_acl_repair_local",
+      "breakpoints": true
     }
   ]
 }
