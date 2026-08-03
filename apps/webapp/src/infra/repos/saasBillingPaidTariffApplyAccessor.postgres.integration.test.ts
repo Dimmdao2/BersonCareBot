@@ -254,6 +254,51 @@ describe('B0.3 saas billing paid tariff apply accessor', () => {
     }
   });
 
+  it('reports success from the tariff write, not from ending a trial the organization never had (#1057 B0.3 regression)', async () => {
+    // Root cause found by a live DEV measurement 2026-08-04, not by reading code: a real ЮKassa
+    // payment succeeded, the webhook was delivered, the signed org principal resolved correctly,
+    // and `UPDATE saas_billing_invoices SET status='paid'` genuinely affected the row -- yet this
+    // accessor still reported `applied=false`, which made the caller throw and roll back the whole
+    // capture transaction (undoing even the correct invoice-paid write). 0350 folded an
+    // active-trial-ending UPDATE into this function and returned bare `FOUND`, which PL/pgSQL
+    // overwrites with the LAST statement's row-affected status -- so for any organization with no
+    // active trial (every renewal/upgrade past a clinic's first paid period; both `orgA`/`orgB`
+    // fixtures here have zero `saas_organization_trials` rows, matching live DEV/TEST exactly),
+    // the trial UPDATE's 0-row result silently overrode the real tariff-write success.
+    const noTrialInvoice = randomUUID();
+    await insertInvoice({
+      id: noTrialInvoice,
+      organizationId: orgA,
+      accountId: accountA,
+      subscriptionId: subscriptionA,
+      tariffId: tariffX,
+      status: 'paid',
+      servicePeriodStartsAt: '2026-10-01T00:00:00.000Z',
+      servicePeriodEndsAt: '2026-11-01T00:00:00.000Z',
+    });
+    const trialRows = await run<{ n: string }>(
+      'SELECT count(*)::text AS n FROM public.saas_organization_trials WHERE organization_id = $1::uuid',
+      [orgA],
+    );
+    expect(trialRows.rows[0]?.n).toBe('0');
+
+    await run('SET ROLE app_staff');
+    try {
+      const applied = await run<{ applied: boolean }>(
+        'SELECT app.apply_paid_saas_billing_tariff($1::uuid, $2::uuid) AS applied',
+        [noTrialInvoice, orgA],
+      );
+      expect(applied.rows[0]?.applied).toBe(true);
+    } finally {
+      await run('RESET ROLE');
+    }
+    const org = await run<{ tariff_id: string | null }>(
+      'SELECT tariff_id FROM public.be_organizations WHERE id = $1::uuid',
+      [orgA],
+    );
+    expect(org.rows[0]?.tariff_id).toBe(tariffX);
+  });
+
   it('applies the tariff for the second, still-foreign-organization-owned paid invoice under its own org', async () => {
     await run('SET ROLE app_staff');
     try {
