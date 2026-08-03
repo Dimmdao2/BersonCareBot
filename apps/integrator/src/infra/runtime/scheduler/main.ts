@@ -5,7 +5,7 @@ import { logger } from '../../observability/logger.js';
 import { closeDb, createDbPort } from '../../db/client.js';
 import { SchedulerLockLostError, tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
-import { runSchedulerLockedTick } from './schedulerLockedTick.js';
+import { createSchedulerLockedTickCoordinator } from './schedulerLockedTick.js';
 import {
   assertSchedulerIsolationTelemetryWriterReady,
   reportSchedulerDispatchIsolationFailure,
@@ -65,6 +65,29 @@ async function startScheduler(): Promise<void> {
 
   logger.info('Scheduler lock acquired, starting scheduler loop');
 
+  const lockedTick = createSchedulerLockedTickCoordinator({
+    assertLockStillHeld: () => lockHandle.assertStillHeld(),
+    runOrganizationTicks: () =>
+      runSchedulerOrganizationTicks({
+        eventGateway: deps.eventGateway,
+        listOrganizationIds: () => listSchedulerReminderOrganizationIds(schedulerDb),
+        nowIso: () => new Date().toISOString(),
+        newEventId: randomUUID,
+      }),
+    runOperatorHealthProbeTick: () =>
+      runScheduledOperatorHealthProbeTick({
+        dispatchPort: deps.dispatchPort,
+        loadConfig: getOperatorHealthProbeConfig,
+        loadLastRunAt: getOperatorOutboundProbeLastRunAt,
+        runProbes: runOperatorHealthProbes,
+      }),
+    onOrganizationTickError: (err) => {
+      captureSchedulerLoopError(err);
+      reportSchedulerDispatchIsolationFailure(err);
+      logger.error({ err }, 'Runtime scheduler organization tick failed');
+    },
+  });
+
   const releaseLock = async (): Promise<void> => {
     try {
       await lockHandle.release();
@@ -86,23 +109,7 @@ async function startScheduler(): Promise<void> {
 
   while (true) {
     try {
-      await runSchedulerLockedTick({
-        assertLockStillHeld: () => lockHandle.assertStillHeld(),
-        runOrganizationTicks: () =>
-          runSchedulerOrganizationTicks({
-            eventGateway: deps.eventGateway,
-            listOrganizationIds: () => listSchedulerReminderOrganizationIds(schedulerDb),
-            nowIso: () => new Date().toISOString(),
-            newEventId: randomUUID,
-          }),
-        runOperatorHealthProbeTick: () =>
-          runScheduledOperatorHealthProbeTick({
-            dispatchPort: deps.dispatchPort,
-            loadConfig: getOperatorHealthProbeConfig,
-            loadLastRunAt: getOperatorOutboundProbeLastRunAt,
-            runProbes: runOperatorHealthProbes,
-          }),
-      });
+      await lockedTick.runTick();
     } catch (err) {
       if (err instanceof SchedulerLockLostError) {
         logger.error(
