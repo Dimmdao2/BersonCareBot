@@ -16,16 +16,22 @@ import type { EmailOtpPublicDbPort } from './emailOtpPublicPort';
 import { normalizeFioPart } from '@/shared/lib/fio';
 
 export type StartPublicEmailOtpResult =
-  | { ok: true; challengeId: string; retryAfterSeconds?: number }
+  | {
+      ok: true;
+      challengeId: string;
+      retryAfterSeconds?: number;
+      /** Server-only delivery evidence; the public route must not expose it. */
+      deliveryFailed?: true;
+    }
   | {
       ok: false;
-      code: 'invalid_email' | 'rate_limited' | 'email_send_failed' | 'too_many_attempts';
+      code: 'invalid_email' | 'rate_limited';
       retryAfterSeconds?: number;
     };
 
 export type StartPublicEmailOtpRegistrationResult =
   | StartPublicEmailOtpResult
-  | { ok: false; code: 'duplicate_email' | 'invalid_fio' };
+  | { ok: false; code: 'duplicate_email' | 'invalid_fio' | 'email_send_failed' | 'too_many_attempts' };
 
 export type ConfirmPublicEmailOtpResult =
   /** No redirectTo here on purpose: the route loads the DB base role, then may apply the fresh session-only email-admin policy. */
@@ -44,6 +50,8 @@ export type ConfirmPublicEmailOtpResult =
  *  3. Find an existing user only. Unknown addresses get the same successful
  *     response shape without an identity or delivered challenge.
  *  4. Delegate to startEmailChallenge (existing infra: code gen, hash, DB insert, send).
+ *     Delivery and per-user lock failures become the same neutral success-shaped result as an
+ *     unknown address; `deliveryFailed` is server-only observability evidence.
  */
 export async function startPublicEmailOtpChallenge(
   emailRaw: string,
@@ -73,7 +81,27 @@ export async function startPublicEmailOtpChallenge(
   }
 
   // Delegate to existing startEmailChallenge (handles code gen, hash, DB insert, send, per-user cooldown).
-  return startEmailChallenge(user.userId, email, 'login');
+  const result = await startEmailChallenge(user.userId, email, 'login');
+  if (result.ok) return result;
+  if (result.code === 'rate_limited') {
+    return {
+      ok: false,
+      code: 'rate_limited',
+      ...(result.retryAfterSeconds == null
+        ? {}
+        : { retryAfterSeconds: result.retryAfterSeconds }),
+    };
+  }
+
+  // A public caller must not learn whether a valid address has an account from a provider outage
+  // or a per-user lockout. Keep the actual provider failure as a server-only outcome for the route
+  // logger, but make the public result indistinguishable from an unknown address.
+  return {
+    ok: true,
+    challengeId: randomUUID(),
+    retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+    ...(result.code === 'email_send_failed' ? { deliveryFailed: true as const } : {}),
+  };
 }
 
 /** Start a distinct structured patient email-registration flow. */
