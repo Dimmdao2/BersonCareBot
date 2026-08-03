@@ -1492,7 +1492,16 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # app.resolve_saas_billing_invoice_for_webhook(text,text), the bootstrap webhook's invoice
   # lookup by provider ref. Its one table dependency (SELECT on saas_billing_invoices) is the new
   # row added to the required-grant set immediately above.
-  local expected_secdef_count=159
+  # 159 -> 160 (2026-08-03, migration 0342, #987 D27 F5/F6, merged in from feat/doctor-ui-rebuild
+  # after this constant was last bumped): one new function,
+  # app.find_platform_user_ids_by_any_confirmed_email(text), used by
+  # email_password_find_login_candidate and email_auth_find_email_owner_conflict to resolve a
+  # login/conflict through any confirmed email, not only the primary. Its two table dependencies,
+  # SELECT on public.platform_users and SELECT on public.user_oauth_bindings, are both already
+  # in the required-grant set above (rows for platform_users and user_oauth_bindings pinned by
+  # earlier auth functions) -- no new GRANT needed, this is a book-keeping-only bump caught live
+  # by this gate (measured actual=160 against the stale expected=159).
+  local expected_secdef_count=160
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
