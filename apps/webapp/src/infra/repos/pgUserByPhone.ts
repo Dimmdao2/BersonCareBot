@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
 import { eq, sql } from 'drizzle-orm';
 import {
   getCurrentDbPrincipalPlatformUserId,
@@ -80,25 +80,43 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
 }
 
 /**
- * Loads the session-shaped identity for a `platform_users` row.
+ * Loads the session-shaped identity for a `platform_users` row — the ONE place in this file that
+ * assembles a `SessionUser` from raw columns (D15b/3: previously duplicated between this function
+ * and a second inline builder inside `findByUserId`). `includeSecurityFactor` adds the staff-MFA
+ * join that only the exact-id post-verification path (`findByUserId`) is allowed to attach.
+ * `onMissingRow` preserves each original caller's own behavior for the (rare, racy) case where the
+ * row disappears between canonical-resolve and select: `findByPhone`/`createOrBind` used to throw,
+ * `findByUserId` used to return `null`.
  *
  * Returns `null` when the row is ARCHIVED (D2, 2026-07-26). Archiving must not merely gate future
- * UI — it must end the session. Both loaders in this file therefore refuse to produce a
- * `SessionUser` for an archived row, so no caller can resolve an existing session for one and no
- * caller can mint a new one; the archive writer's epoch bump kills the cookies that already exist,
- * and this check is what makes it hold on EVERY subsequent request.
+ * UI — it must end the session. This is what refuses to produce a `SessionUser` for an archived
+ * row, so no caller can resolve an existing session for one and no caller can mint a new one; the
+ * archive writer's epoch bump kills the cookies that already exist, and this check is what makes
+ * it hold on EVERY subsequent request.
  */
-async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<SessionUser | null> {
+async function loadSessionIdentityUser(
+  userId: string,
+  options: { includeSecurityFactor?: boolean; onMissingRow?: 'throw' | 'null' } = {},
+): Promise<SessionUser | null> {
   const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
-    `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
-            pu.session_epoch,
-            COALESCE(pu.is_archived, false) AS is_archived
-     FROM platform_users pu
-     WHERE pu.id = $1`,
+    options.includeSecurityFactor
+      ? `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+                pu.session_epoch,
+                COALESCE(pu.is_archived, false) AS is_archived,
+                COALESCE(sss.factor_required, false) AS security_factor_required
+         FROM platform_users pu
+         LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
+         WHERE pu.id = $1`
+      : `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+                pu.session_epoch,
+                COALESCE(pu.is_archived, false) AS is_archived
+         FROM platform_users pu
+         WHERE pu.id = $1`,
     [canonicalId],
   );
   if (userRow.rows.length === 0) {
+    if (options.onMissingRow === 'null') return null;
     throw new Error(`loadSessionUser: user ${userId} missing after canonical resolve`);
   }
   const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], 'load_session_user');
@@ -121,6 +139,9 @@ async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<Sess
     phone: u.phone_normalized ?? undefined,
     bindings,
     sessionEpoch: u.session_epoch,
+    ...(options.includeSecurityFactor
+      ? { securityFactorRequired: u.security_factor_required }
+      : {}),
   };
 }
 
@@ -170,50 +191,20 @@ export const pgUserByPhonePort: UserByPhonePort = {
   },
 
   async findByUserId(userId: string): Promise<SessionUser | null> {
-    const pool = getPool();
     const canonicalId = await resolveCanonicalUserId(getWebappSqlDb(), userId);
     if (!canonicalId) return null;
     if (getCurrentDbPrincipalPlatformUserId() !== canonicalId) {
       throw new Error('session_user_identity_self_principal_mismatch');
     }
-    const userRow = await runIdentityPoolPgText(
-      `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
-              pu.session_epoch,
-              COALESCE(pu.is_archived, false) AS is_archived,
-              COALESCE(sss.factor_required, false) AS security_factor_required
-       FROM platform_users pu
-       LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
-       WHERE pu.id = $1`,
-      [canonicalId],
-    );
-    if (userRow.rows.length === 0) return null;
-    const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], 'find_by_user_id');
     // D2 (2026-07-26): an archived identity has no session, on every request. Returning `null` here
     // rather than carrying an `isArchived` flag on SessionUser is deliberate — every caller of this
     // method is an auth path (session resolution or session minting), and `null` already means
     // "there is no session identity" to all of them, so the check cannot be forgotten downstream
     // and no stale copy of the flag can ever travel in a cookie.
-    if (u.is_archived) return null;
-    const firstName = u.first_name?.trim() || undefined;
-    const lastName = u.last_name?.trim() || undefined;
-    const patronymic = u.patronymic?.trim() || undefined;
-    const bindingsRows = await runIdentityPoolPgText(
-      'SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1',
-      [canonicalId],
-    );
-    const bindings = bindingsFromRows(bindingsRows.rows);
-    return {
-      userId: u.id,
-      role: parseUserRole(u.role, 'find_by_user_id.role'),
-      displayName: u.display_name ?? '',
-      ...(firstName ? { firstName } : {}),
-      ...(lastName ? { lastName } : {}),
-      ...(patronymic ? { patronymic } : {}),
-      phone: u.phone_normalized ?? undefined,
-      bindings,
-      sessionEpoch: u.session_epoch,
-      securityFactorRequired: u.security_factor_required,
-    };
+    return loadSessionIdentityUser(canonicalId, {
+      includeSecurityFactor: true,
+      onMissingRow: 'null',
+    });
   },
 
   /**
@@ -233,12 +224,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
   },
 
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {
-    const pool = getPool();
     const canonicalId = await findCanonicalUserIdByPhone(getWebappSqlDb(), normalizedPhone);
     if (!canonicalId) return null;
     // Phone lookup is not authentication proof. Do not read identity-self staff-security
     // state here; only the exact-id post-verification path may attach it to a session user.
-    return loadSessionIdentityUser(pool, canonicalId);
+    return loadSessionIdentityUser(canonicalId);
   },
 
   async createOrBind(
@@ -459,7 +449,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
       ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
       : await bindInTransaction();
 
-    const user = await loadSessionIdentityUser(pool, bound.userId);
+    const user = await loadSessionIdentityUser(bound.userId);
     if (!user) {
       // Archived (D2): binding a channel must not resurrect an archived identity into a session.
       throw new Error('createOrBind: platform user is archived');

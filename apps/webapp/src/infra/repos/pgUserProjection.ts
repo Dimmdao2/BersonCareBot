@@ -21,6 +21,7 @@ import {
   findPlatformUserIdWithEmailConflict,
   findPlatformUserIdWithPhoneConflict,
 } from '@/infra/repos/pgAdminClientProfileConflicts';
+import type { UserProjectionPort } from '@/modules/identity/ports';
 
 function txPgText<T = unknown>(
   client: PoolClient,
@@ -42,68 +43,6 @@ class PatchAdminClientProfileNoRowsError extends Error {
     super('patch_admin_client_profile_no_rows');
   }
 }
-
-export type UserProjectionPort = {
-  upsertFromProjection: (params: {
-    integratorUserId: string;
-    phoneNormalized?: string;
-    displayName?: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-    channelCode?: string;
-    externalId?: string;
-  }) => Promise<{ platformUserId: string }>;
-  findByIntegratorId: (integratorUserId: string) => Promise<{
-    platformUserId: string;
-    phoneNormalized?: string | null;
-  } | null>;
-  findByPhoneNormalized: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
-  updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
-  /** Update structured profile fields (first_name, last_name, email) by phone; no-op if no user found. */
-  updateProfileByPhone: (params: {
-    phoneNormalized: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-  }) => Promise<void>;
-  upsertNotificationTopics: (params: {
-    platformUserId: string;
-    topics: { topicCode: string; isEnabled: boolean }[];
-  }) => Promise<void>;
-  updateRole: (platformUserId: string, role: string) => Promise<void>;
-  getProfileEmailFields: (platformUserId: string) => Promise<{
-    email: string | null;
-    emailVerifiedAt: string | null;
-  }>;
-  /** Сброс email у своего аккаунта врача/админа (`role IN ('doctor','admin')`). */
-  clearStaffAccountEmail: (
-    platformUserId: string,
-  ) => Promise<{ ok: true } | { ok: false; reason: 'not_found_or_not_staff' | 'already_empty' }>;
-  /**
-   * Admin (webapp): правка ФИО/email/телефона канонического клиента по `platform_users.id`.
-   * Только `role = client`, `merged_into_id IS NULL`. Смена email сбрасывает верификацию при изменении значения.
-   */
-  patchAdminClientProfile: (params: {
-    platformUserId: string;
-    patch: {
-      firstName?: string | null;
-      lastName?: string | null;
-      email?: string | null;
-      phoneNormalized?: string | null;
-    };
-  }) => Promise<
-    { ok: true } | { ok: false; reason: 'nothing_to_update' | 'not_found_or_not_client' }
-  >;
-  findPlatformUserIdWithEmailConflict: (
-    canonicalId: string,
-    email: string,
-  ) => Promise<string | null>;
-  findPlatformUserIdWithPhoneConflict: (
-    canonicalId: string,
-    phoneNormalized: string,
-  ) => Promise<string | null>;
-};
 
 /**
  * Collapse duplicate canonical `platform_users` rows referenced by integrator/messenger resolution
