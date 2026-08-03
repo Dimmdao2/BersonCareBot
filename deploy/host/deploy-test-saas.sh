@@ -1513,7 +1513,12 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # No new required-grant row for its SELECT on saas_billing_invoices (already pinned by 0343); its
   # UPDATE on be_organizations is a pre-existing app_owner privilege, now pinned as a required row
   # immediately above.
-  local expected_secdef_count=161
+  # 161 -> 162 (2026-08-03, migration 0351, TEST owner findings D1): one new app_owner-owned
+  # function, app.read_webapp_preauth_provider_setting(text) -- fixed-key pre-auth OAuth/Telegram
+  # credential accessor for oauth/start, oauth/callback/{yandex,google,apple} and telegram-login.
+  # It only reads public.system_settings, already required for app_owner in the VALUES list above,
+  # so no new grant row is needed -- only this count.
+  local expected_secdef_count=162
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

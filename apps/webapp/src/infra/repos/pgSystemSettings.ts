@@ -54,6 +54,26 @@ type SystemSettingValueRow = {
   value_json: unknown;
 };
 
+/**
+ * Keys `app.read_webapp_preauth_provider_setting(text)` (migration 0343) exposes to the bare
+ * bootstrap/nonstaff login, which has no SELECT on `system_settings` at all (TEST owner findings
+ * 2026-08-03, D1: `oauth/start` 500'd empty-bodied on a raw table read under that principal).
+ */
+const PREAUTH_PROVIDER_SETTING_KEYS: ReadonlySet<string> = new Set([
+  'yandex_oauth_client_id',
+  'yandex_oauth_client_secret',
+  'yandex_oauth_redirect_uri',
+  'google_client_id',
+  'google_client_secret',
+  'google_oauth_login_redirect_uri',
+  'apple_oauth_client_id',
+  'apple_oauth_redirect_uri',
+  'apple_oauth_team_id',
+  'apple_oauth_key_id',
+  'apple_oauth_private_key',
+  'telegram_bot_token',
+]);
+
 const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
   'patient_home_mood_icons',
   'patient_home_daily_warmup_repeat_cooldown_minutes',
@@ -121,10 +141,26 @@ export function systemSettingInnerValueToString(value: unknown): string | null {
   return null;
 }
 
+async function readPreAuthProviderSettingInnerValue(key: string): Promise<unknown | null> {
+  const r = await runWebappPgText<{ value_json: unknown }>(
+    `SELECT app.read_webapp_preauth_provider_setting($1) AS value_json`,
+    [key],
+  );
+  return parseSettingEnvelopeValue(r.rows[0]?.value_json ?? null);
+}
+
 export async function readAdminSystemSettingInnerValue(
   key: string,
   options: SystemSettingsReadOptions = {},
 ): Promise<unknown | null> {
+  // The bootstrap principal never SET ROLEs (it only clears GUCs — see packages/db-principal), so
+  // it stays on the bare login for the whole pre-auth request, which has no table SELECT on
+  // system_settings at all. For the fixed OAuth/Telegram keys those routes need, go through the
+  // narrow SECURITY DEFINER accessor instead; every other principal keeps the direct table read
+  // unchanged (getByKey's patient-UI branch above is the same shape, one seam, split by key set).
+  if (getCurrentDbPrincipal()?.kind === 'bootstrap' && PREAUTH_PROVIDER_SETTING_KEYS.has(key)) {
+    return readPreAuthProviderSettingInnerValue(key);
+  }
   return readSystemSettingInnerValueByScopes(key, ['admin'], options);
 }
 

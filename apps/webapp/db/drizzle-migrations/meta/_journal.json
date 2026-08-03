@@ -2444,6 +2444,13 @@
       "when": 1793539230054,
       "tag": "0350_saas_billing_paid_tariff_apply_ends_trial_local",
       "breakpoints": true
+    },
+    {
+      "idx": 349,
+      "version": "7",
+      "when": 1793539230055,
+      "tag": "0351_webapp_preauth_oauth_provider_capability_local",
+      "breakpoints": true
     }
   ]
 }
