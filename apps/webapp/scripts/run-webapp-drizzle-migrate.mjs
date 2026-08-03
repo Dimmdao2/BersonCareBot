@@ -169,6 +169,24 @@ export function inspectMigrationLedgerCompleteness({ migrations, journalEntries,
     forwardBySource.set(source.tag, forward);
   }
 
+  const appliedByTag = new Map();
+  const isApplied = (entry) => {
+    const cached = appliedByTag.get(entry.tag);
+    if (cached !== undefined) return cached;
+
+    const migration = migrationByWhen.get(entry.when);
+    if (!migration) throw new Error(`migration_journal_file_missing tag=${entry.tag}`);
+    if (ledgerHashes.has(migration.hash)) {
+      appliedByTag.set(entry.tag, true);
+      return true;
+    }
+
+    const forward = forwardBySource.get(entry.tag);
+    const applied = forward ? isApplied(forward) : false;
+    appliedByTag.set(entry.tag, applied);
+    return applied;
+  };
+
   const missing = [];
   let direct = 0;
   let reconciled = 0;
@@ -179,9 +197,7 @@ export function inspectMigrationLedgerCompleteness({ migrations, journalEntries,
       direct += 1;
       continue;
     }
-    const forward = forwardBySource.get(entry.tag);
-    const forwardMigration = forward ? migrationByWhen.get(forward.when) : null;
-    if (forwardMigration && ledgerHashes.has(forwardMigration.hash)) {
+    if (isApplied(entry)) {
       reconciled += 1;
       continue;
     }
@@ -378,6 +394,17 @@ if (process.argv.includes('--self-test')) {
   });
   if (unappliedForward.missing.join(',') !== '0001_old,0002_forward') {
     throw new Error('migration ledger self-test accepted an unapplied forward reconciliation');
+  }
+  const chained = inspectMigrationLedgerCompleteness({
+    ...ledgerFixture,
+    ledgerHashes: new Set(['new-current']),
+    reconciliations: [
+      { sourceTag: '0001_old', forwardTag: '0002_forward' },
+      { sourceTag: '0002_forward', forwardTag: '0003_new' },
+    ],
+  });
+  if (chained.missing.length !== 0 || chained.direct !== 1 || chained.reconciled !== 2) {
+    throw new Error('migration ledger self-test rejected a transitive forward reconciliation');
   }
   for (const invalidReconciliations of [
     [{ sourceTag: '9999_unknown', forwardTag: '0002_forward' }],
