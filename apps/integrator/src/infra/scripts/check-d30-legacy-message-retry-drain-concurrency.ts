@@ -69,6 +69,7 @@ async function main(): Promise<void> {
 
   try {
     const { createPostgresJobQueue } = await import('../adapters/jobQueuePort.js');
+    const { reclaimStaleMessageRetryJobProcessing } = await import('../db/repos/jobQueue.js');
     const client = await import('../db/client.js');
     closeDb = client.closeDb;
     const db = client.createDbPort();
@@ -116,13 +117,18 @@ async function main(): Promise<void> {
     const futureId = futureInsert.rows[0]?.id;
     assert(futureId !== undefined, 'could not create stale legacy appointment fixture');
 
-    const [reclaimA, reclaimB] = await Promise.all([
-      queue.reclaimStaleProcessing(10),
-      queue.reclaimStaleProcessing(10),
-    ]);
+    const timedReclaim = async (): Promise<{ reclaimed: number; durationMs: number }> => {
+      const startedAt = performance.now();
+      return { reclaimed: await queue.reclaimStaleProcessing(10), durationMs: performance.now() - startedAt };
+    };
+    const [reclaimA, reclaimB] = await Promise.all([timedReclaim(), timedReclaim()]);
     assert(
-      reclaimA + reclaimB === 1,
-      `two concurrent reclaims must return one row exactly once, got ${reclaimA}+${reclaimB}`,
+      reclaimA.reclaimed + reclaimB.reclaimed === 1,
+      `two concurrent reclaims must return one row exactly once, got ${reclaimA.reclaimed}+${reclaimB.reclaimed}`,
+    );
+    assert(
+      Math.min(reclaimA.durationMs, reclaimB.durationMs) < 200,
+      'a skipped concurrent reclaim must return without waiting on the stale-row lease',
     );
 
     const futureRow = await runIntegratorSql<RetryRow>(
@@ -145,6 +151,46 @@ async function main(): Promise<void> {
     );
     const repeatReclaim = await queue.reclaimStaleProcessing(10);
     assert(repeatReclaim === 0, 'repeating drain must not duplicate or mutate a pending legacy row');
+
+    await db.tx(async (txDb) => {
+      const boundaryInsert = await runIntegratorSql<{ id: number }>(
+        txDb,
+        sql`INSERT INTO integrator.message_retry_jobs (
+              phone_normalized, message_text, next_try_at, attempts_done, max_attempts,
+              status, kind, payload_json, updated_at
+            ) VALUES (
+              '+79990000002', 'Lease boundary fixture', now(), 0, 2,
+              'processing', 'message.deliver', ${JSON.stringify(payload)}::jsonb,
+              now() - interval '10 minutes'
+            ) RETURNING id`,
+      );
+      const liveInsert = await runIntegratorSql<{ id: number }>(
+        txDb,
+        sql`INSERT INTO integrator.message_retry_jobs (
+              phone_normalized, message_text, next_try_at, attempts_done, max_attempts,
+              status, kind, payload_json, updated_at
+            ) VALUES (
+              '+79990000003', 'Live lease fixture', now(), 0, 2,
+              'processing', 'message.deliver', ${JSON.stringify(payload)}::jsonb,
+              now() - interval '9 minutes'
+            ) RETURNING id`,
+      );
+      assert(
+        boundaryInsert.rows[0]?.id !== undefined && liveInsert.rows[0]?.id !== undefined,
+        'could not create lease-boundary fixtures',
+      );
+      const boundaryReclaim = await reclaimStaleMessageRetryJobProcessing(txDb, 10);
+      assert(
+        boundaryReclaim === 0,
+        'a lease at the stale boundary or younger must remain processing',
+      );
+      await runIntegratorSql(
+        txDb,
+        sql`UPDATE integrator.message_retry_jobs
+            SET status = 'done'
+            WHERE id IN (${boundaryInsert.rows[0]?.id}, ${liveInsert.rows[0]?.id})`,
+      );
+    });
 
     const crashInsert = await runIntegratorSql<{ id: number }>(
       db,
