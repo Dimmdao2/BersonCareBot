@@ -3,12 +3,14 @@ import { writeAuditLog } from '@/app-layer/admin/auditLog';
 import { getPool } from '@/app-layer/db/client';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  requireAdminApiContext,
+  requireDoctorWorkspaceApiContext,
+} from '@/app-layer/guards/requireRole';
 import { logger } from '@/app-layer/logging/logger';
-import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
 
 export async function POST() {
-  const gate = await requireAdminModeSession();
+  const gate = await requireAdminApiContext();
   if (!gate.ok) return gate.response;
   const workspaceGate = await requireDoctorWorkspaceApiContext();
   if (!workspaceGate.ok) return workspaceGate.response;

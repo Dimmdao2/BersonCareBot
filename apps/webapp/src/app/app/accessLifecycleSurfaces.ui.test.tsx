@@ -215,7 +215,6 @@ beforeEach(() => {
   warmupsIncluded = true;
   patientHomeTodayState = 'grace';
   const session = {
-    adminMode: false,
     user: { userId, role: 'doctor', displayName: 'Врач' },
   };
   const orgEntitlements = {

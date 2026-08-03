@@ -84,9 +84,9 @@ export function proxy(request: NextRequest) {
       response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
       return response;
     }
-    // A platform operator (role==='admin' && adminMode===true) can never hold the literal
-    // 'doctor' role roleCanUsePortal requires, but a fixed handful of platform-only pages still
-    // live under the doctor portal's URL prefix pending their move to /app/admin/* — see
+    // A platform operator (role==='admin') can never hold the literal 'doctor' role
+    // roleCanUsePortal requires, but a fixed handful of platform-only pages still live under
+    // the doctor portal's URL prefix pending their move to /app/admin/* — see
     // isDoctorPortalPlatformOperationsPath. Every other /app/doctor/* path stays doctor-only.
     const canUsePortal =
       roleCanUsePortal(session.user.role, portal) ||
@@ -95,7 +95,6 @@ export function proxy(request: NextRequest) {
         hasLaunchCapability(
           resolveLaunchCapabilities({
             sessionRole: session.user.role,
-            adminMode: session.adminMode,
           }),
           'platform.operations',
         ));

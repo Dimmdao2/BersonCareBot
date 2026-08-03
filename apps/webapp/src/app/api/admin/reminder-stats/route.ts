@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
-import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
+import {
+  requireAdminApiContext,
+  requirePlatformOperationsApiContext,
+} from '@/app-layer/guards/requireRole';
 import {
   loadContentEngagementStats,
   parseReminderStatsWindowHours,
 } from '@/app-layer/stats/loadAdminReminderStats';
-import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
 
 export async function GET(req: Request) {
-  const gate = await requireAdminModeSession();
+  const gate = await requireAdminApiContext();
   if (!gate.ok) return gate.response;
   const platformGate = await requirePlatformOperationsApiContext();
   if (!platformGate.ok) return platformGate.response;

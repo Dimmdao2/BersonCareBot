@@ -5,11 +5,13 @@
  * fail-closed compatibility surface, чтобы старый UI/операторский вызов не мог обойти запрет.
  */
 import { NextResponse } from 'next/server';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
-import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
+import {
+  requireAdminApiContext,
+  requireDoctorWorkspaceApiContext,
+} from '@/app-layer/guards/requireRole';
 
 export async function POST() {
-  const adminGate = await requireAdminModeSession();
+  const adminGate = await requireAdminApiContext();
   if (!adminGate.ok) {
     return adminGate.response;
   }

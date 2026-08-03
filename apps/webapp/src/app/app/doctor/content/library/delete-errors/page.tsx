@@ -13,7 +13,7 @@ export default async function MediaDeleteErrorsPage() {
   const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
   const session = workspace.session;
-  if (session.user.role !== 'admin' || !session.adminMode) {
+  if (session.user.role !== 'admin') {
     redirect(CONTENT_LIBRARY);
   }
   const { items, total } = await withDoctorWorkspacePrincipal(workspace, () =>

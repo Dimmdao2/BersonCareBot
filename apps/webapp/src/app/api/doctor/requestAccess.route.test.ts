@@ -110,7 +110,6 @@ const buildAppDepsMock = vi.mocked(buildAppDeps);
 function session(
   role: UserRole,
   options: {
-    adminMode?: boolean;
     securityFactorRequired?: boolean;
     staffSecurity?: AppSession['staffSecurity'];
   } = {},
@@ -125,7 +124,6 @@ function session(
     },
     issuedAt: 1,
     expiresAt: 2,
-    adminMode: options.adminMode,
     staffSecurity: options.staffSecurity,
   };
 }
@@ -220,7 +218,6 @@ describe('doctor request access boundary', () => {
   it('keeps platform operations closed when an enrolled factor is not verified in-session', async () => {
     vi.mocked(isDbPrincipalPlatformUserId).mockReturnValue(true);
     const adminSession = session('admin', {
-      adminMode: true,
       securityFactorRequired: true,
     });
     getCurrentSessionMock.mockResolvedValue({
@@ -242,7 +239,7 @@ describe('doctor request access boundary', () => {
   });
 
   it('does not turn platform operations into a clinic workspace grant', async () => {
-    const platformSession = session('admin', { adminMode: true });
+    const platformSession = session('admin');
     getCurrentSessionMock.mockResolvedValue(platformSession);
     resolveOrganizationForUser.mockResolvedValue({
       ok: true,

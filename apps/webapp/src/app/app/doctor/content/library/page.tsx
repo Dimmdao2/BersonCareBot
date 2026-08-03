@@ -12,7 +12,7 @@ export default async function DoctorContentLibraryPage() {
       <DoctorPageHeader title="Библиотека файлов" />
       <PageSection id="doctor-content-library-section" as="section" className="flex flex-col gap-4">
         <MediaLibraryClient
-          canSeeDeleteErrorsLink={session.user.role === 'admin' && Boolean(session.adminMode)}
+          canSeeDeleteErrorsLink={session.user.role === 'admin'}
         />
       </PageSection>
     </DoctorAppShell>

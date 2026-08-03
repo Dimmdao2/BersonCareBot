@@ -61,7 +61,6 @@ const session = {
     securityFactorRequired: false,
     bindings: {},
   },
-  adminMode: false,
   staffSecurity: { assurance: 'factor_verified' },
 };
 

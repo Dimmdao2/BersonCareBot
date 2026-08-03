@@ -1,5 +1,5 @@
 /**
- * Admin + admin mode: probable name overlap report (`name-match-hints` API). Non-admins redirect to clients hub.
+ * Admin only: probable name overlap report (`name-match-hints` API). Non-admins redirect to clients hub.
  */
 import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
 import Link from 'next/link';
@@ -12,7 +12,7 @@ const CLIENTS_ALL = CLIENTS;
 
 export default async function NameMatchHintsPage() {
   const session = await requireDoctorAccess();
-  if (session.user.role !== 'admin' || !session.adminMode) {
+  if (session.user.role !== 'admin') {
     redirect(CLIENTS);
   }
 

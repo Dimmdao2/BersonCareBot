@@ -6,11 +6,13 @@
  */
 import { NextResponse } from 'next/server';
 
-import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
-import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
+import {
+  requireAdminApiContext,
+  requirePlatformOperationsApiContext,
+} from '@/app-layer/guards/requireRole';
 
 export async function GET() {
-  const gate = await requireAdminModeSession();
+  const gate = await requireAdminApiContext();
   if (!gate.ok) return gate.response;
   const platformGate = await requirePlatformOperationsApiContext();
   if (!platformGate.ok) return platformGate.response;

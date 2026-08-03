@@ -27,7 +27,6 @@ const ADMIN_SESSION = {
   user: { userId: '9c40e322-5823-4dba-ba98-84b1e9b3aeba', role: 'admin', displayName: 'Admin', bindings: {} },
   issuedAt: 0,
   expiresAt: 0,
-  adminMode: true,
 };
 
 const DOCTOR_SESSION = {

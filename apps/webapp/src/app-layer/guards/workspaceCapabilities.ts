@@ -19,7 +19,6 @@ export type LaunchCapability = (typeof LAUNCH_CAPABILITIES)[number];
 
 export type TrustedWorkspaceCapabilityFacts = {
   sessionRole: UserRole;
-  adminMode?: boolean;
   membershipRole?: OrganizationMembershipRole;
   specialistId?: string | null;
   canManageOrganization?: boolean;
@@ -29,10 +28,10 @@ export type TrustedWorkspaceCapabilityFacts = {
 /**
  * Conservative projection of already-trusted session and membership facts.
  *
- * A global administrator in explicit admin mode deliberately stops here: it is
- * a platform operator, not an implicit member of a clinical or organization
- * workspace — `organization.management` and `clinical.workspace` are never
- * derived for this branch, regardless of any membership facts passed in.
+ * A global administrator deliberately stops here: it is a platform operator,
+ * not an implicit member of a clinical or organization workspace —
+ * `organization.management` and `clinical.workspace` are never derived for
+ * this branch, regardless of any membership facts passed in.
  * It does resolve `account.self` alongside `platform.operations` (owner
  * ruling 2026-07-26): the platform operator still manages its own personal
  * account — profile, security/2FA, sessions, notifications, PWA install —
@@ -45,12 +44,12 @@ export type TrustedWorkspaceCapabilityFacts = {
 export function resolveLaunchCapabilities(
   facts: TrustedWorkspaceCapabilityFacts,
 ): ReadonlySet<LaunchCapability> {
-  if (facts.sessionRole === 'admin' && facts.adminMode === true) {
+  if (facts.sessionRole === 'admin') {
     return new Set(['platform.operations', 'account.self']);
   }
 
   const capabilities = new Set<LaunchCapability>();
-  if (facts.sessionRole === 'doctor' || facts.sessionRole === 'admin') {
+  if (facts.sessionRole === 'doctor') {
     capabilities.add('account.self');
   }
 

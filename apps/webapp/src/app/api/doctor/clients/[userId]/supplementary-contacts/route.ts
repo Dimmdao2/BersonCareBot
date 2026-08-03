@@ -21,9 +21,7 @@ const postBodySchema = z.object({
 });
 
 function contactSourceForSession(session: DoctorWorkspaceAccessContext['session']) {
-  return session.user.role === 'admin' && session.adminMode
-    ? ('admin' as const)
-    : ('doctor' as const);
+  return session.user.role === 'admin' ? ('admin' as const) : ('doctor' as const);
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ userId: string }> }) {

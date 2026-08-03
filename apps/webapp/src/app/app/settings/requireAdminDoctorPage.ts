@@ -9,16 +9,15 @@ export async function requireAdminDoctorPage() {
   return requirePlatformOperationsPage();
 }
 
-/** Глобальные operator pages: global admin и обязательно явно включённый admin mode. */
+/** Глобальные operator pages: только global admin. */
 export async function requireGlobalAdminDoctorPage() {
   return requirePlatformOperationsPage();
 }
 
-/** Страницы управления клиникой: global admin in admin mode или управляющий участник клиники. */
+/** Страницы управления клиникой: global admin или управляющий участник клиники. */
 export async function requireClinicManagementDoctorPage() {
   const workspace = await requireOrganizationWorkspaceContext();
-  const isGlobalAdmin =
-    workspace.session.user.role === 'admin' && workspace.session.adminMode === true;
+  const isGlobalAdmin = workspace.session.user.role === 'admin';
   if (!isGlobalAdmin && !workspace.canManageOrganization) {
     redirect('/app/doctor');
   }

@@ -12,7 +12,7 @@ export default async function GlobalAdminDoctorLayout({ children }: { children: 
   const session = await requirePlatformOperationsPage();
   return (
     <DoctorWorkspaceShell
-      adminMode={true}
+      isPlatformOperator={true}
       enableTenantRuntime={false}
       menuKind="platform"
       userRole={session.user.role}

@@ -9,11 +9,11 @@ export const metadata: Metadata = staffPwaLayoutMetadata;
 
 export default async function AccountLayout({ children }: { children: ReactNode }) {
   const { session, workspaceContext } = await loadStaffAccountPageContext();
-  const isPlatformConsole = session.user.role === 'admin' && session.adminMode === true;
+  const isPlatformConsole = session.user.role === 'admin';
 
   return (
     <DoctorWorkspaceShell
-      adminMode={session.adminMode ?? false}
+      isPlatformOperator={isPlatformConsole}
       menuKind={isPlatformConsole ? 'platform' : 'doctor'}
       userRole={session.user.role}
       userDisplayName={session.user.displayName}

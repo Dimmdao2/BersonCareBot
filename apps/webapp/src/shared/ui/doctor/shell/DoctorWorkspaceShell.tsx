@@ -15,7 +15,7 @@ import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import { cn } from '@/lib/utils';
 
 type DoctorWorkspaceShellProps = {
-  adminMode: boolean;
+  isPlatformOperator: boolean;
   /** Роль из сессии: левое меню на md+ для всех с доступом к кабинету врача, не только в admin mode. */
   userRole: UserRole;
   userDisplayName?: string;
@@ -56,7 +56,7 @@ type DoctorWorkspaceShellProps = {
  *   per-page `DoctorPageHeader` внутри контента.
  */
 export function DoctorWorkspaceShell({
-  adminMode,
+  isPlatformOperator,
   userRole,
   userDisplayName,
   patientLabel,
@@ -73,7 +73,6 @@ export function DoctorWorkspaceShell({
   const capabilities = Array.from(
     resolveLaunchCapabilities({
       sessionRole: userRole,
-      adminMode,
       membershipRole: workspaceContext?.membershipRole,
       specialistId: workspaceContext?.specialistId,
       canManageOrganization: workspaceContext?.canManageOrganization,
@@ -105,7 +104,7 @@ export function DoctorWorkspaceShell({
       <div className="flex min-h-screen flex-col bg-background">
         <DoctorHeader
           userDisplayName={userDisplayName}
-          adminMode={adminMode}
+          isPlatformOperator={isPlatformOperator}
           menuAccess={menuAccess}
           patientLabel={patientLabel}
           hideMenuOnDesktop={showDoctorDesktopNav}

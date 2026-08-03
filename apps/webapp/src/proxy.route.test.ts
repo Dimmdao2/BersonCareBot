@@ -16,7 +16,7 @@ function unsafeRequest(pathname: string, headers: Record<string, string> = {}): 
   });
 }
 
-function appRequest(pathname: string, role?: UserRole, adminMode?: boolean): NextRequest {
+function appRequest(pathname: string, role?: UserRole): NextRequest {
   const headers: Record<string, string> = { host: 'app.example.test' };
   if (role) {
     const now = Math.floor(Date.now() / 1000);
@@ -29,7 +29,6 @@ function appRequest(pathname: string, role?: UserRole, adminMode?: boolean): Nex
       },
       issuedAt: now,
       expiresAt: now + 3600,
-      ...(adminMode !== undefined ? { adminMode } : {}),
     };
     headers.cookie = `${SESSION_COOKIE_NAME}=${encodeSessionCookie(session)}`;
   }
@@ -129,27 +128,18 @@ describe('role-specific protected app doors', () => {
 });
 
 describe('global admin reaching platform pages under the doctor portal prefix', () => {
-  it('lets a platform-operations admin (adminMode) through to /app/doctor/analytics', () => {
-    expect(
-      proxy(appRequest('/app/doctor/analytics', 'admin', true)).headers.get('location'),
-    ).toBeNull();
+  it('lets a platform-operations admin through to /app/doctor/analytics', () => {
+    expect(proxy(appRequest('/app/doctor/analytics', 'admin')).headers.get('location')).toBeNull();
   });
 
   it('lets a platform-operations admin through to /app/doctor/booking-merge', () => {
     expect(
-      proxy(appRequest('/app/doctor/booking-merge', 'admin', true)).headers.get('location'),
+      proxy(appRequest('/app/doctor/booking-merge', 'admin')).headers.get('location'),
     ).toBeNull();
   });
 
   it('still denies a platform-operations admin on a clinical-only doctor page', () => {
-    const response = proxy(appRequest('/app/doctor/patients', 'admin', true));
-    expect(response.headers.get('location')).toBe(
-      'https://app.example.test/app/admin/system-health?app_access_denied=1',
-    );
-  });
-
-  it('denies an admin session without adminMode on the platform-under-doctor page too', () => {
-    const response = proxy(appRequest('/app/doctor/analytics', 'admin', false));
+    const response = proxy(appRequest('/app/doctor/patients', 'admin'));
     expect(response.headers.get('location')).toBe(
       'https://app.example.test/app/admin/system-health?app_access_denied=1',
     );

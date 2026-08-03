@@ -71,7 +71,6 @@ describe('settings organization branding read', () => {
     fakes.requireOrganizationWorkspaceContext.mockResolvedValue({
       organizationId,
       session: {
-        adminMode: false,
         user: {
           userId: '22222222-2222-4222-8222-222222222222',
           role: 'doctor',

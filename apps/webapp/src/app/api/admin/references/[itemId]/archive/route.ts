@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
-import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
+import {
+  requireAdminApiContext,
+  requireDoctorWorkspaceApiContext,
+} from '@/app-layer/guards/requireRole';
 
 /** Админ: soft-delete значения справочника (is_active = false). */
 export async function PATCH(_request: Request, context: { params: Promise<{ itemId: string }> }) {
-  const adminGate = await requireAdminModeSession();
+  const adminGate = await requireAdminApiContext();
   if (!adminGate.ok) return adminGate.response;
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;

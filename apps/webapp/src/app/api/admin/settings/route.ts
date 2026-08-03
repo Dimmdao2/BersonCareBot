@@ -373,7 +373,6 @@ async function requireSettingsApiContext(): Promise<
     hasLaunchCapability(
       resolveLaunchCapabilities({
         sessionRole: session.user.role,
-        adminMode: session.adminMode,
       }),
       'platform.operations',
     );

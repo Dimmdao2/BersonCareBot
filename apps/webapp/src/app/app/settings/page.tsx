@@ -102,8 +102,7 @@ export default async function SettingsPage({
   if (isCabinetEntryBlocked(cabinetAccess) && tab !== 'billing') {
     redirect(`${routePaths.settings}?tab=billing`);
   }
-  const isGlobalAdmin =
-    workspace.session.user.role === 'admin' && workspace.session.adminMode === true;
+  const isGlobalAdmin = workspace.session.user.role === 'admin';
   const canManageOrganization = workspace.canManageOrganization || isGlobalAdmin;
   if (!canManageOrganization) redirect(routePaths.account);
 

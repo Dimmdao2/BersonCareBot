@@ -24,7 +24,7 @@ export default async function ManagementLayout({ children }: { children: ReactNo
 
   return (
     <DoctorWorkspaceShell
-      adminMode={workspace.session.adminMode ?? false}
+      isPlatformOperator={workspace.session.user.role === 'admin'}
       userRole={workspace.session.user.role}
       userDisplayName={workspace.session.user.displayName}
       workspaceContext={workspaceContext}

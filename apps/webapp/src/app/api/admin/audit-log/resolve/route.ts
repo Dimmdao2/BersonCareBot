@@ -7,15 +7,17 @@ import { z } from 'zod';
 import { getPool } from '@/app-layer/db/client';
 import { resolveAdminAuditConflictById } from '@/app-layer/admin/auditLog';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
-import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
+import {
+  requireAdminApiContext,
+  requireDoctorWorkspaceApiContext,
+} from '@/app-layer/guards/requireRole';
 
 const bodySchema = z.object({
   id: z.string().uuid(),
 });
 
 export async function POST(req: Request) {
-  const gate = await requireAdminModeSession();
+  const gate = await requireAdminApiContext();
   if (!gate.ok) return gate.response;
   const workspaceGate = await requireDoctorWorkspaceApiContext();
   if (!workspaceGate.ok) return workspaceGate.response;

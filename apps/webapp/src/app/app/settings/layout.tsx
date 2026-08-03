@@ -50,7 +50,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
 
   return (
     <DoctorWorkspaceShell
-      adminMode={session.adminMode ?? false}
+      isPlatformOperator={session.user.role === 'admin'}
       userRole={session.user.role}
       userDisplayName={session.user.displayName}
       patientLabel={String(patientLabel)}

@@ -1,6 +1,6 @@
 /**
  * PATCH /api/admin/users/:userId/profile — правка ФИО, email и телефона канонического клиента.
- * Guard: admin + admin mode.
+ * Guard: admin.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -9,9 +9,11 @@ import { fireAndForgetContactEmailSetup } from '@/modules/auth/emailSetupAccess/
 import { getPool } from '@/app-layer/db/client';
 import { writeAuditLog } from '@/app-layer/admin/auditLog';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  requireAdminApiContext,
+  requireDoctorWorkspaceApiContext,
+} from '@/app-layer/guards/requireRole';
 import { resolveCanonicalUserId } from '@/app-layer/platform-user/canonicalPlatformUser';
-import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
 import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import { normalizeFioPart } from '@/shared/lib/fio';
 
@@ -43,7 +45,7 @@ function normalizePatch(data: z.infer<typeof bodySchema>): AdminClientProfilePat
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
-  const adminGate = await requireAdminModeSession();
+  const adminGate = await requireAdminApiContext();
   if (!adminGate.ok) {
     return adminGate.response;
   }

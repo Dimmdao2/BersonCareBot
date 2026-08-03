@@ -1,6 +1,6 @@
 /**
  * GET /api/admin/audit-log — пагинированный журнал операций (admin_audit_log).
- * Guard: requireAdminModeSession() (admin + admin mode), then branches:
+ * Guard: requireAdminApiContext() (admin), then branches:
  *   - global admin (platform.operations capability): requirePlatformOperationsApiContext(), no
  *     organization principal is stamped, so listAdminAuditLog()'s currentPrincipalOrganizationId()
  *     read returns undefined and the query is unscoped — ALL clinics (owner ruling 2026-07-25).
@@ -16,6 +16,7 @@ import { getPool } from '@/app-layer/db/client';
 import { countOpenAutoMergeConflicts, listAdminAuditLog } from '@/app-layer/admin/auditLog';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
+  requireAdminApiContext,
   requireDoctorWorkspaceApiContext,
   requirePlatformOperationsApiContext,
 } from '@/app-layer/guards/requireRole';
@@ -27,16 +28,14 @@ import {
   adminAuditListFilterFromQuery,
   adminAuditListQuerySchema,
 } from '@/modules/admin/adminAuditListQuery';
-import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
 
 export async function GET(req: Request) {
-  const gate = await requireAdminModeSession();
+  const gate = await requireAdminApiContext();
   if (!gate.ok) return gate.response;
 
   const isGlobalAdmin = hasLaunchCapability(
     resolveLaunchCapabilities({
       sessionRole: gate.session.user.role,
-      adminMode: gate.session.adminMode,
     }),
     'platform.operations',
   );

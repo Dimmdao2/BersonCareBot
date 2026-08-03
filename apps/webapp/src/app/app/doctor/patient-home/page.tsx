@@ -32,7 +32,7 @@ export default async function DoctorPatientHomeSettingsPage() {
   const todayEntitlement = await requireEntitlementForReadAction(workspace, 'patient_home_today');
   if (!todayEntitlement.ok) notFound();
   const session = workspace.session;
-  const isAdmin = session.user.role === 'admin' && session.adminMode === true;
+  const isAdmin = session.user.role === 'admin';
   const canManagePatientHome = workspace.membershipRole === 'owner' || isAdmin;
 
   const deps = buildAppDeps();
