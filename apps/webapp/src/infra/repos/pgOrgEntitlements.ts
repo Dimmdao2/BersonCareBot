@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
@@ -16,14 +16,7 @@ import type {
   TariffQuota,
   TariffQuotaMap,
 } from '@/modules/org-entitlements/types';
-import {
-  beBranches,
-  beOrganizationMembers,
-  beOrganizations,
-  orgEnrollments,
-} from '../../../db/schema/bookingEngine';
-import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
-import { patientFiles } from '../../../db/schema/patientFiles';
+import { beBranches, beOrganizations } from '../../../db/schema/bookingEngine';
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
@@ -66,6 +59,11 @@ type EnforcedQuotaUsageRow = {
   clinic_team_used: number | string;
   patient_count_used: number | string;
   files_used: number | string;
+};
+
+type OwnTariffTransitionUsageRow = EnforcedQuotaUsageRow & {
+  organization_id: string;
+  branches_used: number | string;
 };
 
 function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
@@ -366,80 +364,21 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       };
     },
     async getOwnQuotaUsage(organizationId) {
-      const db = getDrizzle();
-      // Same formula as each mechanic's write-path check (transactionQuotaPort callers below), read
-      // outside their transaction. Every source table's RLS already scopes rows to the caller's
-      // own organization for the staff principal, so no SECURITY DEFINER hop is needed here.
-      const [[branchesRow], [patientsRow], [filesRow], acceptedSeatRows] = await Promise.all([
-        db
-          .select({ value: sql<number>`count(*)::int` })
-          .from(beBranches)
-          .where(and(eq(beBranches.organizationId, organizationId), eq(beBranches.isActive, true))),
-        db
-          .select({ value: sql<number>`count(*)::int` })
-          .from(orgEnrollments)
-          .where(
-            and(
-              eq(orgEnrollments.organizationId, organizationId),
-              inArray(orgEnrollments.status, ['invited', 'active']),
-            ),
-          ),
-        db
-          .select({ value: sql<number>`COALESCE(SUM(${patientFiles.sizeBytes}), 0)::bigint` })
-          .from(patientFiles)
-          .where(eq(patientFiles.organizationId, organizationId)),
-        // clinic_team, same three-part formula as `read_org_enforced_quota_usage` in
-        // c5a-platform-operations-runtime.sql: active members with a specialist seat, plus
-        // pending doctor invites, plus accepted doctor invites whose membership has no seat yet.
-        Promise.all([
-          db
-            .select({ value: sql<number>`count(*)::int` })
-            .from(beOrganizationMembers)
-            .where(
-              and(
-                eq(beOrganizationMembers.organizationId, organizationId),
-                eq(beOrganizationMembers.status, 'active'),
-                sql`${beOrganizationMembers.specialistId} is not null`,
-              ),
-            ),
-          db
-            .select({ value: sql<number>`count(*)::int` })
-            .from(organizationMemberInvites)
-            .where(
-              and(
-                eq(organizationMemberInvites.organizationId, organizationId),
-                eq(organizationMemberInvites.status, 'pending'),
-                gt(organizationMemberInvites.expiresAt, sql`now()`),
-                eq(organizationMemberInvites.invitedRole, 'doctor'),
-              ),
-            ),
-          db
-            .select({ value: sql<number>`count(*)::int` })
-            .from(organizationMemberInvites)
-            .innerJoin(
-              beOrganizationMembers,
-              eq(beOrganizationMembers.id, organizationMemberInvites.acceptedMembershipId),
-            )
-            .where(
-              and(
-                eq(organizationMemberInvites.organizationId, organizationId),
-                eq(organizationMemberInvites.status, 'accepted'),
-                eq(organizationMemberInvites.invitedRole, 'doctor'),
-                eq(beOrganizationMembers.status, 'active'),
-                isNull(beOrganizationMembers.specialistId),
-              ),
-            ),
-        ]),
-      ]);
-      const [activeSeats, pendingSeatInvites, acceptedSeatInvites] = acceptedSeatRows;
+      // Billing runs under app_clinic_billing, not app_staff. Keep the sensitive source rows behind
+      // the existing aggregate seam and let the database derive the signed organization itself.
+      const result = await runWebappPgText<OwnTariffTransitionUsageRow>(
+        `SELECT organization_id, clinic_team_used, patient_count_used, files_used, branches_used
+         FROM app.read_current_org_tariff_transition_usage()`,
+      );
+      const usage = result.rows[0];
+      if (!usage || usage.organization_id !== organizationId) {
+        throw new Error('own_tariff_transition_usage_context_denied');
+      }
       return {
-        branches: Number(branchesRow?.value ?? 0),
-        patient_count: Number(patientsRow?.value ?? 0),
-        files: Number(filesRow?.value ?? 0),
-        clinic_team:
-          Number(activeSeats[0]?.value ?? 0) +
-          Number(pendingSeatInvites[0]?.value ?? 0) +
-          Number(acceptedSeatInvites[0]?.value ?? 0),
+        branches: numericQuotaUsage(usage.branches_used, 'branches'),
+        patient_count: numericQuotaUsage(usage.patient_count_used, 'patient_count'),
+        files: numericQuotaUsage(usage.files_used, 'files'),
+        clinic_team: numericQuotaUsage(usage.clinic_team_used, 'clinic_team'),
       };
     },
   };
