@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 9996 — D30 Ш4; final number assigned only after audit/sync.
+-- D30 Ш4: move patient-reminder materialization decisions to the webapp boundary.
 -- Webapp owns reminder decisions. These capabilities expose only atomic materialization and a
 -- boolean last-moment transport permission; no caller receives broad integrator-table writes.
 
