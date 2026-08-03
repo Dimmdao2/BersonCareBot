@@ -200,6 +200,20 @@ describe('resolveUserIdForWebOAuthLogin — IDENTITY_AND_MERGE_SCHEME.md §2a', 
     expect(world.accounts.get('acc-1')?.phone).toBe('+79990000003');
   });
 
+  it('IDENTITY_AND_MERGE_SCHEME.md §1: an email the provider did NOT verify never resolves to, links, or creates any account — a brand new account is created isolated from the existing owner', async () => {
+    world.seed({ id: 'acc-1', email: 'victim@mail.ru', emailVerified: true });
+    const result = await resolveUserIdForWebOAuthLogin(world.oauthBindingsPort, {
+      ...loginInput(),
+      email: 'victim@mail.ru',
+      emailVerified: false, // provider did NOT vouch for this address
+    });
+    expect(result.ok).toBe(true);
+    // must NOT log into acc-1 — an unverified email must not authenticate as someone else
+    expect(result.ok && result.userId).not.toBe('acc-1');
+    // must NOT silently confirm/attach the address to acc-1 either
+    expect(world.accounts.get('acc-1')?.bindings).toEqual([]);
+  });
+
   it('case 6: phone confirms one account and email confirms a DIFFERENT account -> refuses login', async () => {
     world.seed({ id: 'acc-1', phone: '+79990000004' });
     world.seed({ id: 'acc-2', email: 'other@mail.ru', emailVerified: true });
@@ -210,6 +224,17 @@ describe('resolveUserIdForWebOAuthLogin — IDENTITY_AND_MERGE_SCHEME.md §2a', 
       emailVerified: true,
     });
     expect(result).toEqual({ ok: false, reason: 'contact_conflict' });
+  });
+
+  it('IDENTITY_AND_MERGE_SCHEME.md §2a case 1: OAuth login with the SAME address as an already-set but still-unverified primary confirms that email, same as a code would', async () => {
+    world.seed({ id: 'acc-1', email: 'unverified@mail.ru', emailVerified: false });
+    const result = await resolveUserIdForWebOAuthLogin(world.oauthBindingsPort, {
+      ...loginInput(),
+      email: 'unverified@mail.ru',
+      emailVerified: true,
+    });
+    expect(result).toEqual({ ok: true, userId: 'acc-1', accountOutcome: 'linked_existing' });
+    expect(world.accounts.get('acc-1')?.emailVerified).toBe(true);
   });
 
   it('F5 invariant: two consecutive OAuth sign-ins with two different provider emails leave the primary unchanged', async () => {
