@@ -1376,6 +1376,7 @@ describe('Р-14: immediate paid upgrade', () => {
       downgradePolicies: {},
       includedSeats: 1,
       additionalSeatPriceMinor: null,
+      discountedPriceMinor: null,
       isActive: true,
       createdAt: '2026-08-01T00:00:00.000Z',
       updatedAt: '2026-08-01T00:00:00.000Z',

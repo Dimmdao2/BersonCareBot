@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0346 — final number assigned at land, per AGENTS.md §1.
+-- Final migration number 0347 — assigned at merge (0346 was taken by the trial/discount branch that landed first).
 --
 -- `ADMIN_SETTINGS_PAGE_REQUIRED_KEYS` (adminSettingsData.ts, added by #1082) throws
 -- RuntimeSettingUnavailableError and 500s `/app/admin/app-settings` the instant ANY key in that

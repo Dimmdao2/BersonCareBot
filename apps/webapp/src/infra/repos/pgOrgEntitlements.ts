@@ -138,12 +138,11 @@ async function readCurrentPatientSnapshot(
   return snapshotFromPatientRows(result.rows);
 }
 
-function resolveAccess(input: {
+export function resolveAccess(input: {
   organizationTariffId: string | null;
   trial: {
     tariffId: string;
     endsAt: string;
-    graceEndsAt: string;
     postTrialBehavior: string;
     postTrialTariffId: string | null;
   } | null;
@@ -159,15 +158,14 @@ function resolveAccess(input: {
   }
   const trialDates = {
     trialEndsAt: trial.endsAt,
-    trialGraceEndsAt: trial.graceEndsAt,
     degradationStartedAt: trial.endsAt,
   };
   if (input.now <= new Date(trial.endsAt).getTime()) {
     return { lifecycle: 'active', tariffId: trial.tariffId, source: 'trial', ...trialDates };
   }
-  if (input.now <= new Date(trial.graceEndsAt).getTime()) {
-    return { lifecycle: 'grace', tariffId: trial.tariffId, source: 'trial', ...trialDates };
-  }
+  // #1069 Т5-Т8 (owner 03.08): the post-trial rule applies the instant `endsAt` passes — no
+  // further access-extending `grace` stage. The discount-payment window runs in parallel and never
+  // changes access.
   if (trial.postTrialBehavior === 'tariff') {
     return {
       lifecycle: 'active',
@@ -233,7 +231,6 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
       .select({
         tariffId: saasOrganizationTrials.tariffId,
         endsAt: saasOrganizationTrials.endsAt,
-        graceEndsAt: saasOrganizationTrials.graceEndsAt,
         postTrialBehavior: saasOrganizationTrials.postTrialBehavior,
         postTrialTariffId: saasOrganizationTrials.postTrialTariffId,
       })

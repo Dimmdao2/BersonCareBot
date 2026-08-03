@@ -66,7 +66,9 @@ export type OrgEntitlementsPort = {
 };
 
 export type PlatformMutationAudit = { actorId: string | null; reason: string };
-export type PlatformTrialStatus = 'active' | 'grace' | 'expired' | 'ended';
+/** #1069 Т5-Т8: the trial-extension `grace` stage is gone — the post-trial rule now applies the
+ * instant `endsAt` passes. */
+export type PlatformTrialStatus = 'active' | 'expired' | 'ended';
 export type PlatformOrganizationSummary = {
   id: string;
   title: string;
@@ -84,7 +86,8 @@ export type PlatformOrganizationSummary = {
     status: PlatformTrialStatus;
     startedAt: string;
     endsAt: string;
-    graceEndsAt: string;
+    /** Т6 — discount-payment window; orthogonal to access, never extends it. */
+    discountEndsAt: string;
   } | null;
 };
 
@@ -139,9 +142,4 @@ export type PlatformEntitlementsPort = {
     organizationId: string,
     audit: PlatformMutationAudit,
   ): Promise<{ created: boolean; endsAt: string } | null>;
-  extendTrial(
-    organizationId: string,
-    days: number,
-    audit: PlatformMutationAudit,
-  ): Promise<{ endsAt: string }>;
 };
