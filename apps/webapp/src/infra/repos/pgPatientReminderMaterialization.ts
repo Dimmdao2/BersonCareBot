@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
-import { reminderRules, userReminderOccurrences } from '../../../db/schema/schema';
+import { and, eq, isNull, lte, sql } from 'drizzle-orm';
+import {
+  contentPages,
+  contentSections,
+  reminderRules,
+  userReminderOccurrences,
+} from '../../../db/schema/schema';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import type {
   PatientReminderMaterializationPort,
@@ -8,8 +13,12 @@ import type {
 } from '@/modules/reminders/patientReminderMaterializationPort';
 import { createPgOutgoingDeliveryQueueWritePort } from './pgOutgoingDeliveryQueue';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import type { OutgoingDeliveryQueueWritePort } from '@/modules/messaging/outgoingDeliveryQueuePort';
+import type { DrizzleDb } from '@/app-layer/db/drizzle';
 
-const queueWriter = createPgOutgoingDeliveryQueueWritePort();
+type PatientReminderMaterializationDependencies = {
+  queueWriter?: Pick<OutgoingDeliveryQueueWritePort<DrizzleDb>, 'enqueueReady'>;
+};
 
 function mapRule(row: typeof reminderRules.$inferSelect): PatientReminderRuleForMaterialization {
   if (!row.organizationId || !row.platformUserId) {
@@ -41,7 +50,10 @@ function mapRule(row: typeof reminderRules.$inferSelect): PatientReminderRuleFor
   };
 }
 
-export function createPgPatientReminderMaterializationPort(): PatientReminderMaterializationPort {
+export function createPgPatientReminderMaterializationPort(
+  dependencies: PatientReminderMaterializationDependencies = {},
+): PatientReminderMaterializationPort {
+  const queueWriter = dependencies.queueWriter ?? createPgOutgoingDeliveryQueueWritePort();
   return {
     async listEnabledRules(organizationId) {
       const rows = await getDrizzle()
@@ -51,6 +63,65 @@ export function createPgPatientReminderMaterializationPort(): PatientReminderMat
           and(eq(reminderRules.organizationId, organizationId), eq(reminderRules.isEnabled, true)),
         );
       return rows.map(mapRule);
+    },
+
+    async listDuePlannedOccurrences(organizationId, nowIso) {
+      const rows = await getDrizzle()
+        .select({
+          ruleId: userReminderOccurrences.ruleId,
+          occurrenceKey: userReminderOccurrences.occurrenceKey,
+          plannedAt: userReminderOccurrences.plannedAt,
+        })
+        .from(userReminderOccurrences)
+        .innerJoin(
+          reminderRules,
+          and(
+            eq(reminderRules.integratorRuleId, userReminderOccurrences.ruleId),
+            eq(reminderRules.organizationId, userReminderOccurrences.organizationId),
+            eq(reminderRules.platformUserId, userReminderOccurrences.platformUserId),
+          ),
+        )
+        .where(
+          and(
+            eq(userReminderOccurrences.organizationId, organizationId),
+            eq(userReminderOccurrences.status, 'planned'),
+            lte(userReminderOccurrences.plannedAt, nowIso),
+            eq(reminderRules.isEnabled, true),
+          ),
+        )
+        .limit(100);
+      return rows.map((row) => ({
+        ruleId: row.ruleId,
+        draft: { occurrenceKey: row.occurrenceKey, plannedAt: row.plannedAt },
+      }));
+    },
+
+    async resolveLinkedTitle(rule) {
+      const linkedObjectId = rule.linkedObjectId?.trim();
+      if (!linkedObjectId) return null;
+      if (rule.linkedObjectType === 'content_page') {
+        const rows = await getDrizzle()
+          .select({ title: contentPages.title })
+          .from(contentPages)
+          .where(
+            and(
+              eq(contentPages.slug, linkedObjectId),
+              eq(contentPages.isPublished, true),
+              isNull(contentPages.deletedAt),
+            ),
+          )
+          .limit(1);
+        return rows[0]?.title.trim() || null;
+      }
+      if (rule.linkedObjectType === 'content_section') {
+        const rows = await getDrizzle()
+          .select({ title: contentSections.title })
+          .from(contentSections)
+          .where(eq(contentSections.slug, linkedObjectId))
+          .limit(1);
+        return rows[0]?.title.trim() || null;
+      }
+      return null;
     },
 
     async materializeOccurrence(rule, draft, prepare) {

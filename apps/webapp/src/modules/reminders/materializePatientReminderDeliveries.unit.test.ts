@@ -82,4 +82,27 @@ describe('patient reminder ready-delivery materializer', () => {
     });
     expect(deliveries).toEqual([]);
   });
+
+  it('preserves the canonical warmup default copy', () => {
+    const deliveries = materializePatientReminderDeliveries({
+      ...input,
+      rule: { ...input.rule, customTitle: null, customText: null, displayTitle: null },
+      targets: { selectedChannels: ['telegram'] as const, telegramId: '1001' },
+    });
+    expect(deliveries[0]?.intent.payload).toEqual(
+      expect.objectContaining({ message: { text: '<b>Разминка ⚡</b>' } }),
+    );
+  });
+
+  it('prefers the linked published content title when custom copy is absent', () => {
+    const deliveries = materializePatientReminderDeliveries({
+      ...input,
+      rule: { ...input.rule, customTitle: null, customText: null, displayTitle: null },
+      linkedTitle: 'Моя разминка для шеи',
+      targets: { selectedChannels: ['telegram'] as const, telegramId: '1001' },
+    });
+    expect(deliveries[0]?.intent.payload).toEqual(
+      expect.objectContaining({ message: { text: '<b>Моя разминка для шеи</b>' } }),
+    );
+  });
 });

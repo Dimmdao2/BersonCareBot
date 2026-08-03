@@ -1,8 +1,11 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { findSchedulerDecisionViolations } from './schedulerDecisionGuard.js';
+import {
+  findSchedulerDecisionClosureViolations,
+  findSchedulerDecisionViolations,
+} from './schedulerDecisionGuard.js';
 
 const schedulerDir = dirname(fileURLToPath(import.meta.url));
 const integratorSrc = join(schedulerDir, '..', '..', '..');
@@ -25,6 +28,14 @@ function productSources(directory: string): string[] {
     if (entry.isDirectory()) return productSources(path);
     return /\.tsx?$/.test(entry.name) && !entry.name.includes('.test.') ? [path] : [];
   });
+}
+
+function resolveLocalSource(fromFileName: string, specifier: string) {
+  const unresolved = resolve(dirname(fromFileName), specifier.replace(/\.js$/, ''));
+  const candidates = [`${unresolved}.ts`, `${unresolved}.tsx`, join(unresolved, 'index.ts')];
+  const target = candidates.find(existsSync);
+  if (!target || !target.startsWith(integratorSrc)) return null;
+  return { fileName: target, sourceText: readFileSync(target, 'utf8') };
 }
 
 describe('D30 schedulerDecisionGuard', () => {
@@ -71,6 +82,34 @@ describe('D30 schedulerDecisionGuard', () => {
         `imported scheduler decision source: ${relative(integratorSrc, target)}`,
       ).toEqual([]);
     }
+  });
+
+  it('scans dynamic and transitive local imports for hidden decisions', () => {
+    const graph = new Map([
+      ['/entry.ts', "export async function wake() { return import('./bridge.js'); }"],
+      ['/bridge.ts', "export { decision } from './hidden.js';"],
+      ['/hidden.ts', "export const decision = { dueAt: 900000, text: 'Напоминание' };"],
+    ]);
+    const violations = findSchedulerDecisionClosureViolations(
+      [{ fileName: '/entry.ts', sourceText: graph.get('/entry.ts') ?? '' }],
+      (fromFileName, specifier) => {
+        const target = resolve(dirname(fromFileName), specifier.replace(/\.js$/, '.ts'));
+        const sourceText = graph.get(target);
+        return sourceText === undefined ? null : { fileName: target, sourceText };
+      },
+    );
+    expect(violations.map((violation) => violation.kind)).toEqual(
+      expect.arrayContaining(['scheduled_literal', 'russian_message']),
+    );
+  });
+
+  it('keeps the real scheduled-handler import closure free of product decisions', () => {
+    expect(
+      findSchedulerDecisionClosureViolations(
+        [{ fileName: scheduledHandler, sourceText: readFileSync(scheduledHandler, 'utf8') }],
+        resolveLocalSource,
+      ),
+    ).toEqual([]);
   });
 
   it.each([

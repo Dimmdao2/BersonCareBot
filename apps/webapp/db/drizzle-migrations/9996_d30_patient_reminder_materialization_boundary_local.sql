@@ -3,7 +3,7 @@
 -- boolean last-moment transport permission; no caller receives broad integrator-table writes.
 
 GRANT USAGE ON SCHEMA integrator TO app_owner;
-GRANT SELECT, INSERT, UPDATE ON TABLE integrator.user_reminder_occurrences TO app_owner;
+REVOKE SELECT, INSERT, UPDATE ON TABLE integrator.user_reminder_occurrences FROM app_owner;
 GRANT SELECT ON TABLE public.reminder_rules, public.platform_users,
   public.user_channel_bindings, public.user_channel_preferences,
   public.user_notification_topics, public.user_notification_topic_channels,
@@ -95,7 +95,6 @@ AS $function$
   WHERE occurrence.id = p_occurrence_id
 $function$;
 
-ALTER FUNCTION app.patient_reminder_materialization_fingerprint(text, text) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.patient_reminder_materialization_fingerprint(text, text) FROM PUBLIC;
 
 CREATE OR REPLACE FUNCTION app.upsert_patient_reminder_occurrence_plan(
@@ -165,8 +164,6 @@ BEGIN
 END
 $function$;
 
-ALTER FUNCTION app.upsert_patient_reminder_occurrence_plan(text, text, uuid, uuid, text, timestamptz)
-  OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.upsert_patient_reminder_occurrence_plan(text, text, uuid, uuid, text, timestamptz)
   FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.upsert_patient_reminder_occurrence_plan(text, text, uuid, uuid, text, timestamptz)
@@ -246,7 +243,6 @@ BEGIN
 END
 $function$;
 
-ALTER FUNCTION app.mark_patient_reminder_occurrence_queued(text, integer, text[]) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.mark_patient_reminder_occurrence_queued(text, integer, text[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.mark_patient_reminder_occurrence_queued(text, integer, text[]) TO app_staff;
 
@@ -283,7 +279,13 @@ BEGIN
   IF NOT FOUND THEN RETURN false; END IF;
 
   resolved_topic_code := delivery.payload_json ->> 'topicCode';
-  recipient := delivery.payload_json ->> 'externalId';
+  recipient := CASE delivery.channel
+    WHEN 'telegram' THEN delivery.payload_json #>> '{intent,payload,recipient,chatId}'
+    WHEN 'max' THEN delivery.payload_json #>> '{intent,payload,recipient,userId}'
+    WHEN 'email' THEN delivery.payload_json #>> '{intent,payload,recipient,email}'
+    WHEN 'web_push' THEN delivery.payload_json #>> '{intent,payload,recipient,pushUserId}'
+    ELSE NULL
+  END;
   expected_fingerprint := delivery.payload_json ->> 'materializationFingerprint';
   current_fingerprint := app.patient_reminder_materialization_fingerprint(occurrence.id, delivery.channel);
   channel_allowed := CASE delivery.channel
@@ -318,6 +320,7 @@ BEGIN
     )
     AND (delivery.payload_json ->> 'deliveryGeneration')::integer = occurrence.delivery_generation
     AND delivery.payload_json ->> 'channel' = delivery.channel
+    AND delivery.payload_json ->> 'externalId' = recipient
     AND occurrence.status IN ('queued', 'sent')
     AND rule.is_enabled = true
     AND EXISTS (
@@ -357,7 +360,6 @@ BEGIN
 END
 $function$;
 
-ALTER FUNCTION app.revalidate_patient_reminder_delivery_materialization(uuid) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.revalidate_patient_reminder_delivery_materialization(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.revalidate_patient_reminder_delivery_materialization(uuid)
   TO app_operational_delivery_worker;

@@ -3,6 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
+import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { createPgPatientReminderMaterializationPort } from './pgPatientReminderMaterialization';
+import type { PatientReminderRuleForMaterialization } from '@/modules/reminders/patientReminderMaterializationPort';
 
 const orgA = randomUUID();
 const orgB = randomUUID();
@@ -104,19 +107,71 @@ describe('D30 Ш4 patient reminder materialization capabilities', () => {
     ).rejects.toMatchObject({ code: '42501' });
   });
 
-  it('rolls back the occurrence when queue materialization fails before queued mark', async () => {
-    await run(`SELECT set_config('app.org', $1, false)`, [orgA]);
-    await run('BEGIN');
-    await run(
-      `SELECT * FROM app.upsert_patient_reminder_occurrence_plan(
-         $1, $2, $3, $4, $5, $6::timestamptz
-       )`,
-      [occurrenceId, ruleId, orgA, patient, occurrenceKey, plannedAt],
-    );
-    await run('ROLLBACK');
+  it('rolls back the production port when queue materialization fails', async () => {
+    const atomicKey = `sh4-atomic-${randomUUID()}`;
+    const port = createPgPatientReminderMaterializationPort({
+      queueWriter: {
+        enqueueReady: async () => {
+          throw new Error('injected_queue_failure');
+        },
+      },
+    });
+    const rule: PatientReminderRuleForMaterialization = {
+      id: ruleId,
+      organizationId: orgA,
+      platformUserId: patient,
+      integratorUserId: '4242',
+      category: 'warmup',
+      isEnabled: true,
+      scheduleType: 'interval_window',
+      timezone: 'Europe/Moscow',
+      intervalMinutes: 60,
+      windowStartMinute: 480,
+      windowEndMinute: 1320,
+      daysMask: '1111111',
+      scheduleData: null,
+      quietHoursStartMinute: null,
+      quietHoursEndMinute: null,
+      linkedObjectType: null,
+      linkedObjectId: null,
+      customTitle: null,
+      customText: null,
+      displayTitle: null,
+      reminderIntent: null,
+      notificationTopicCode: 'warmup_reminders',
+    };
+    await expect(
+      runWithDbOrganizationPrincipal(orgA, () =>
+        port.materializeOccurrence(
+          rule,
+          { occurrenceKey: atomicKey, plannedAt },
+          async (occurrence) => [
+            {
+              organizationId: orgA,
+              eventId: `rem:${occurrence.id}:g${occurrence.deliveryGeneration}:telegram`,
+              kind: 'reminder_dispatch',
+              channel: 'telegram',
+              maxAttempts: 6,
+              nextRetryAt: occurrence.plannedAt,
+              occurrenceId: occurrence.id,
+              deliveryGeneration: occurrence.deliveryGeneration,
+              topicCode: 'warmup_reminders',
+              externalId: '1001',
+              logText: 'Разминка ⚡',
+              platformUserId: patient,
+              intent: {
+                type: 'message.send',
+                meta: { eventId: 'atomic-test', occurredAt: plannedAt, source: 'telegram' },
+                payload: { recipient: { chatId: '1001' }, message: { text: 'Разминка ⚡' } },
+              },
+            },
+          ],
+        ),
+      ),
+    ).rejects.toThrow('injected_queue_failure');
     const hot = await run<{ count: string }>(
-      `SELECT count(*)::text AS count FROM integrator.user_reminder_occurrences WHERE id = $1`,
-      [occurrenceId],
+      `SELECT count(*)::text AS count FROM integrator.user_reminder_occurrences WHERE occurrence_key = $1`,
+      [atomicKey],
     );
     expect(hot.rows[0]?.count).toBe('0');
   });
@@ -173,7 +228,10 @@ describe('D30 Ш4 patient reminder materialization capabilities', () => {
           topicCode: 'warmup_reminders',
           channel: 'telegram',
           externalId: '1001',
-          intent: { type: 'message.send' },
+          intent: {
+            type: 'message.send',
+            payload: { recipient: { chatId: '1001' } },
+          },
         }),
         plannedAt,
       ],

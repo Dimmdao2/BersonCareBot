@@ -35,6 +35,16 @@ describe('D30 Ш4 saved oracle: canonical snooze generation', () => {
     const materializeOccurrence = vi.fn(async () => 'materialized' as const);
     const port: PatientReminderMaterializationPort = {
       listEnabledRules: vi.fn(async () => [rule]),
+      listDuePlannedOccurrences: vi.fn(async () => [
+        {
+          ruleId: rule.id,
+          draft: {
+            occurrenceKey: 'rule-snoozed:2026-08-03T07:00:00.000Z',
+            plannedAt: '2026-08-03T07:04:00.000Z',
+          },
+        },
+      ]),
+      resolveLinkedTitle: vi.fn(async () => null),
       materializeOccurrence,
     };
 

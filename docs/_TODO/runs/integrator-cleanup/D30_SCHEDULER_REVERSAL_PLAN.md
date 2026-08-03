@@ -349,14 +349,17 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
         **Гейт:** живой dev-прогон web-push-напоминания (правило с `integrator_user_id IS NULL`) — доставка
         состоялась через планировщик; счётчики тика (`planned`, `dueClaimed`, `sent`) сошлись; админский экран
         «Cron-задачи хоста» не показывает «нет данных» по снятой задаче (запись удалена тем же коммитом).
-        **CURRENT CANDIDATE 03.08:** D21 удалил B1 cron/route/registry/host requirement и прежний
+        **CURRENT FIXER 03.08:** D21 удалил B1 cron/route/registry/host requirement и прежний
         check→send→cache путь Ш4.0. Кандидат Ш4 переносит оставшееся materialization-решение в webapp: scheduler
         посылает один signed wake, webapp в одной транзакции планирует occurrence и ready intents для всех
         разрешённых каналов с `event_id=rem:<occurrence>:g<generation>:<channel>`, integrator worker перед
-        provider вызывает только boolean claim-time revalidation. Fresh disposable PostgreSQL suite доказывает
-        tenant isolation, atomic rollback, exact generation/event binding, stale-recipient отказ и сохранение
-        snooze/terminal evidence. Сам Ш4 остаётся `[ ]`: кандидат ещё не прошёл независимый аудит/land и живой
-        безопасный provider proof со сходящимися счётчиками не выполнен.
+        provider вызывает только boolean claim-time revalidation. После audit FAIL `ff1ede6f7` bounded fixer
+        добавил canonical due-claim для snoozed `g+1`, exact nested provider-recipient revalidation, убрал прямой
+        occurrence DML у `app_owner` и четыре legacy integrator operations, замкнул decision guard по dynamic/
+        transitive imports и восстановил прежние default/linked titles. Saved unit `6/6`, guard `15/15`, fresh
+        PostgreSQL `31 files / 88 tests`, integrator `55 files / 341 tests`, route `4/4`, typecheck/lint и boundary
+        gates проходят. Сам Ш4 остаётся `[ ]`: fixer ещё не land/apply, а живой безопасный provider proof со
+        сходящимися счётчиками не выполнен.
 
 - [ ] **Ш5. B5b + B5c — сводка оператора и system-health-guard.** `digestTime` продолжает читаться из
       `operator_health_alert_config` — но читает его **вебапп при постановке задания**, а не планировщик.

@@ -37,13 +37,11 @@ import {
   getReminderOccurrenceContextForProjection,
   insertReminderDeliveryLog,
   markReminderOccurrenceFailed,
-  markReminderOccurrenceQueued,
   markReminderOccurrenceSent,
   expireOrphanedPendingReminderOccurrences,
   markReminderOccurrenceSkippedLocal,
   rescheduleReminderOccurrencePlanned,
   cancelPendingReminderOccurrencesForRule,
-  upsertReminderOccurrencePlanned,
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
@@ -260,8 +258,6 @@ export function createDbWritePort(
     'draft.cancel',
     'identity.ensure',
     'conversation.mergeLegacyToPlatform',
-    'reminders.occurrence.upsertPlanned',
-    'reminders.occurrence.markQueued',
     'reminders.occurrence.reschedulePlanned',
     'reminders.occurrence.markSkippedLocal',
     'specialistTask.reminder.markSent',
@@ -1277,25 +1273,6 @@ export function createDbWritePort(
               );
             });
           }
-          return;
-        }
-        case 'reminders.occurrence.upsertPlanned': {
-          const id = asNonEmptyString(mutation.params.id);
-          const ruleId = asNonEmptyString(mutation.params.ruleId);
-          const occurrenceKey = asNonEmptyString(mutation.params.occurrenceKey);
-          const plannedAt = asNonEmptyString(mutation.params.plannedAt);
-          if (!id || !ruleId || !occurrenceKey || !plannedAt) return;
-          await upsertReminderOccurrencePlanned(db, { id, ruleId, occurrenceKey, plannedAt });
-          return;
-        }
-        case 'reminders.occurrence.markQueued': {
-          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
-          if (!occurrenceId) return;
-          await markReminderOccurrenceQueued(
-            db,
-            occurrenceId,
-            asNullableString(mutation.params.deliveryJobId),
-          );
           return;
         }
         case 'reminders.occurrence.markSent': {

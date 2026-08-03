@@ -8,8 +8,18 @@ import type { PatientReminderReadyOutgoingDelivery } from '@/modules/messaging/o
 export type PatientReminderRuleForMaterialization = ReminderPlanRule &
   PatientReminderMaterializationRule;
 
+export type DuePatientReminderOccurrence = {
+  ruleId: string;
+  draft: ReminderOccurrenceDraft;
+};
+
 export type PatientReminderMaterializationPort = {
   listEnabledRules(organizationId: string): Promise<PatientReminderRuleForMaterialization[]>;
+  listDuePlannedOccurrences(
+    organizationId: string,
+    nowIso: string,
+  ): Promise<DuePatientReminderOccurrence[]>;
+  resolveLinkedTitle(rule: PatientReminderRuleForMaterialization): Promise<string | null>;
   materializeOccurrence(
     rule: PatientReminderRuleForMaterialization,
     draft: ReminderOccurrenceDraft,

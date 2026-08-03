@@ -35,7 +35,7 @@ export type PatientReminderMaterializationTargets = {
 
 const DEFAULT_TITLES: Readonly<Record<string, string>> = {
   exercise: 'Время упражнений 🏃',
-  warmup: 'Время разминки 🤸',
+  warmup: 'Разминка ⚡',
   breathing: 'Время подышать 🌬',
   water: 'Напоминание попить воду 💧',
   supplements_medication: 'Напоминание: бады и лекарства 💊',
@@ -113,12 +113,14 @@ export function materializePatientReminderDeliveries(input: {
   occurrence: PatientReminderMaterializationOccurrence;
   targets: PatientReminderMaterializationTargets;
   appBaseUrl: string;
+  linkedTitle?: string | null;
 }): PatientReminderReadyOutgoingDelivery[] {
   const { rule, occurrence, targets } = input;
   const topicCode = reminderOccurrenceTopicCode(rule, rule.category);
   if (!topicCode) return [];
   const title =
     rule.customTitle?.trim() ||
+    input.linkedTitle?.trim() ||
     rule.displayTitle?.trim() ||
     DEFAULT_TITLES[rule.category] ||
     'Напоминание';
