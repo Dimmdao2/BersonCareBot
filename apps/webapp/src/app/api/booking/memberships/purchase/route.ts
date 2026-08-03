@@ -5,6 +5,7 @@ import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitle
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
+import { resolvePatientEnrollmentOrganizationId } from '../../bookingTenant';
 
 const bodySchema = z.object({
   subscriptionPackageId: z.string().uuid(),
@@ -21,12 +22,12 @@ export async function POST(request: Request) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
-  const organizationId = await deps.memberships.resolveCatalogPackageOrganizationId(
-    parsed.data.subscriptionPackageId,
+  const resolvedOrg = await resolvePatientEnrollmentOrganizationId(
+    deps,
+    gate.session.user.userId,
   );
-  if (!organizationId) {
-    return NextResponse.json({ ok: false, error: 'catalog_package_not_found' }, { status: 404 });
-  }
+  if (!resolvedOrg.ok) return resolvedOrg.response;
+  const organizationId = resolvedOrg.organizationId;
   const entitlement = await requireEntitlementForMutation({ organizationId }, 'subscriptions');
   if (!entitlement.ok) return entitlement.response;
   const catalogPackage = await withExplicitOrganizationPrincipal(

@@ -56,7 +56,7 @@ export type LoadInPersonSlotContextResult =
     }
   | { ok: false; error: 'catalog_unavailable' | 'invalid_selection' };
 
-async function resolvePatientOrganizationId(
+export async function resolvePatientOrganizationIdForRsc(
   deps: { patientOrganization: PatientOrganizationServiceLike | null },
   platformUserId: string | undefined,
 ): Promise<string | null> {
@@ -76,7 +76,7 @@ export async function loadPatientBookingDisplaySettingsRsc(
   platformUserId: string,
 ): Promise<LoadPatientBookingDisplaySettingsResult> {
   const deps = buildAppDeps();
-  const organizationId = await resolvePatientOrganizationId(deps, platformUserId);
+  const organizationId = await resolvePatientOrganizationIdForRsc(deps, platformUserId);
   if (!organizationId) return { ok: false, error: 'catalog_unavailable' };
   try {
     const appDisplayTimeZone = await withExplicitOrganizationPrincipal(
@@ -99,7 +99,7 @@ export async function loadInPersonSlotContextForPatientRsc(input: {
   serviceId?: string;
 }): Promise<LoadInPersonSlotContextResult> {
   const deps = buildAppDeps();
-  const organizationId = await resolvePatientOrganizationId(deps, input.platformUserId);
+  const organizationId = await resolvePatientOrganizationIdForRsc(deps, input.platformUserId);
   const bookingScheduling = deps.bookingScheduling;
   if (!organizationId || !deps.bookingEngine || !bookingScheduling) {
     return { ok: false, error: 'catalog_unavailable' };
@@ -165,7 +165,7 @@ export async function loadBookingCitiesForPatientRsc(
   platformUserId: string,
 ): Promise<LoadCitiesResult> {
   const deps = buildAppDeps();
-  const organizationId = await resolvePatientOrganizationId(deps, platformUserId);
+  const organizationId = await resolvePatientOrganizationIdForRsc(deps, platformUserId);
   if (!organizationId) {
     return { ok: false, error: 'catalog_unavailable', cities: [], onlineLocation: null };
   }
@@ -195,7 +195,7 @@ export async function loadInPersonServicesForCityRsc(
   platformUserId?: string,
 ): Promise<LoadInPersonServicesResult> {
   const deps = buildAppDeps();
-  const organizationId = await resolvePatientOrganizationId(deps, platformUserId);
+  const organizationId = await resolvePatientOrganizationIdForRsc(deps, platformUserId);
   if (!deps.bookingEngine || !organizationId) {
     return { ok: false, error: 'catalog_unavailable', services: [] };
   }

@@ -185,14 +185,6 @@ export function createMembershipsService(deps: {
       return deps.port.getCatalogPackage(id, organizationId);
     },
 
-    async resolveCatalogPackageOrganizationId(id: string) {
-      return deps.port.resolveCatalogPackageOrganizationId(id);
-    },
-
-    async resolvePatientPackageOrganizationId(id: string) {
-      return deps.port.resolvePatientPackageOrganizationId(id);
-    },
-
     async upsertCatalogPackage(
       input: Parameters<MembershipsPort['upsertCatalogPackage']>[0],
     ): Promise<SubscriptionPackageRecord> {

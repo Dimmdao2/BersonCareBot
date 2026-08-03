@@ -3,6 +3,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
+import { resolvePatientEnrollmentOrganizationId } from '../../bookingTenant';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,10 +15,12 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
-  const organizationId = await deps.memberships.resolvePatientPackageOrganizationId(id);
-  if (!organizationId) {
-    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
-  }
+  const resolvedOrg = await resolvePatientEnrollmentOrganizationId(
+    deps,
+    gate.session.user.userId,
+  );
+  if (!resolvedOrg.ok) return resolvedOrg.response;
+  const organizationId = resolvedOrg.organizationId;
   const detail = await withExplicitOrganizationPrincipal(
     { organizationId, source: 'api/booking/memberships/[id]:GET' },
     () => deps.memberships!.getPatientPackageDetail(id, organizationId),

@@ -7,6 +7,7 @@ import {
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
+import { resolvePatientEnrollmentOrganizationId } from '../../bookingTenant';
 
 export async function GET(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });
@@ -19,11 +20,12 @@ export async function GET(request: Request) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
-  const organizationId =
-    await deps.memberships.resolvePatientPackageOrganizationId(patientPackageId);
-  if (!organizationId) {
-    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
-  }
+  const resolvedOrg = await resolvePatientEnrollmentOrganizationId(
+    deps,
+    gate.session.user.userId,
+  );
+  if (!resolvedOrg.ok) return resolvedOrg.response;
+  const organizationId = resolvedOrg.organizationId;
   const entitlement = await requireEntitlementForRead({ organizationId }, 'subscriptions');
   if (!entitlement.ok) return entitlement.response;
   const pkg = await withExplicitOrganizationPrincipal(

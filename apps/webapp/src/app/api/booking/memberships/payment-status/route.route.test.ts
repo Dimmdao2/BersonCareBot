@@ -4,7 +4,7 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
   withExplicitOrganizationPrincipal: vi.fn(),
-  resolvePatientPackageOrganizationId: vi.fn(),
+  resolveActiveOrganizationForPatient: vi.fn(),
   getPatientPackageDetail: vi.fn(),
   getIntentForOrganization: vi.fn(),
 }));
@@ -32,7 +32,7 @@ beforeEach(() => {
   fakes.withExplicitOrganizationPrincipal.mockImplementation(
     async (_ctx: unknown, callback: () => Promise<unknown>) => callback(),
   );
-  fakes.resolvePatientPackageOrganizationId.mockResolvedValue(organizationId);
+  fakes.resolveActiveOrganizationForPatient.mockResolvedValue({ ok: true, organizationId });
   fakes.getPatientPackageDetail.mockResolvedValue({
     package: {
       id: patientPackageId,
@@ -54,6 +54,9 @@ beforeEach(() => {
 
 function configurePayments(state: 'full_access' | 'disabled' | 'read_only') {
   fakes.buildAppDeps.mockReturnValue({
+    patientOrganization: {
+      resolveActiveOrganizationForPatient: fakes.resolveActiveOrganizationForPatient,
+    },
     orgEntitlements: {
       resolveMechanicAccess: async (_organizationId: string, mechanic: string) => ({
         state: mechanic === 'payments' ? state : 'full_access',
@@ -61,7 +64,6 @@ function configurePayments(state: 'full_access' | 'disabled' | 'read_only') {
       }),
     },
     memberships: {
-      resolvePatientPackageOrganizationId: fakes.resolvePatientPackageOrganizationId,
       getPatientPackageDetail: fakes.getPatientPackageDetail,
     },
     payments: { getIntentForOrganization: fakes.getIntentForOrganization },
