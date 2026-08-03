@@ -527,6 +527,31 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       Ограничение доказательства: TEST-магазин проверяет receipt только для режима сторонней кассы; настоящая
       приёмка «Чеков от ЮKassa» требует минимального платежа в реальном магазине и полного возврата после проверки
       обоих чеков. Это не разрешает трогать PROD без отдельной команды владельца.
+      Живой B0.3 03.08 после ответа владельца «УСН Доходы, без НДС, никаких медицинских услуг»: через защищённый
+      TEST fixture packet и существующий TEST-only credential converger были сведены пароли трёх выбранных
+      существующих TEST-аккаунтов (clinic owner, global admin, patient; строгие role/state predicates)
+      (`set -o pipefail; sudo -n /usr/bin/node .tmp-b0-3-convergence-input.mjs | sudo -n -u
+      postgres /usr/bin/node /opt/projects/bersoncarebot-test/apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs
+      --apply-test-from-stdin` → exit 0, `changed=3`), без печати email/password. Использованный session route —
+      обычный `POST /api/auth/email-password/login`, затем для глобального администратора обычный
+      `POST /api/admin/mode`; dev-bypass и подписывание cookie вручную не использовались. Команда
+      `sudo -n /usr/bin/node .tmp-b0-3-admin-write.mjs` → exit 0: login/admin-mode/GET/PATCH/GET
+      `/api/admin/settings` → `200/200/200/200/200`; запись `saas_billing_payment_provider` прочитана обратно с
+      `vatCode="1"`, `taxSystemCode="2"`, `apiKey="[REDACTED]"`.
+      Клиника вошла тем же обычным login-route: `POST /api/auth/email-password/login` → `200`; перед оплатой
+      `GET /api/clinic/billing` → `200`, billing email присутствует, paid subscription
+      `c5488fdc-6065-4abf-a208-05921ececcd6` имеет `status=active`, `lifecycleState=active`,
+      `tariffId=e07db366-f471-40a5-bc9b-499908636acd`. `POST /api/clinic/billing` → `500`
+      `{"ok":false,"error":"saas_billing_invoice_failed"}`. Точный повтор того же provider-request с тем же
+      сохранённым ключом и телом из draft invoice `e13b2c92-5693-463f-8c3a-274cd198bcf7` доказал, что receipt уже
+      содержит `vat_code=1` и `tax_system_code=2`, но `POST https://api.yookassa.ru/v3/payments` → `400`:
+      `{"type":"error","id":"019fc6ca-1a9f-7255-806f-dbb149e4cb32","description":"You've already used this idempotence key for another request within the past 24 hours. Repeat the request with another idempotence key","parameter":"Idempotence-Key","code":"invalid_request"}`.
+      Не хватает нового `Idempotence-Key` при повторе draft invoice после того, как прежний запрос с тем же ключом
+      уже был отклонён с другим телом (до ввода налоговых значений); текущий retry вращает ключ только для
+      `status=failed`, а provider-create failure возвращает invoice в `draft`. Финальный read-only
+      `GET /api/clinic/billing` → `200`: invoice остаётся `draft`, `providerInvoiceRef=null`, `paidAt=null`,
+      provider events `0`. По обязательному stop-rule карта не вводилась, webhook/paid/applied tariff не заявлены;
+      **вердикт на 03.08: клиника сейчас оплатить тариф на TEST не может**. Код, deploy, push и PROD не трогались.
 
 **Проверка:** state-machine + idempotency тесты; подписанный webhook success/replay/forgery/amount-mismatch;
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
