@@ -3,6 +3,8 @@
 Смешанный независимый pass: policy/route/worker behavior и exact PostgreSQL principals — тест; capability scope,
 ACL overlays, callgraph и отсутствие второго delivery path — взгляд.
 
+Канон исполнения: `AGENTS.md` §5, §10 и §24; продуктовый authority — brief ниже и Track D в `WORK_ORDER.md`.
+
 Источник оракула: `docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md` — «closed SECURITY DEFINER capability/ports, no broad table SELECT».
 
 ## Scope
