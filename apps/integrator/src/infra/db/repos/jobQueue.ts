@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import { messageRetryJobs } from '../schema/integratorQueues.js';
 
 export type MessageRetryJobRow = {
@@ -77,6 +78,39 @@ export async function claimDueMessageRetryJobs(
       j.max_attempts AS "maxAttempts"
   `);
   return res.rows as MessageRetryJobRow[];
+}
+
+/**
+ * Returns only an expired legacy worker lease to `pending`.
+ *
+ * `message_retry_jobs` predates the unified queue and has no separate lease column: its
+ * `updated_at` is advanced atomically when `claimDueMessageRetryJobs` changes the row to
+ * `processing`. Reclaim deliberately preserves `next_try_at`, attempts and the historical
+ * payload, so a pre-cutover appointment remains scheduled for its original due time and goes
+ * through the compatibility consumer exactly once per successful claim.
+ */
+export async function reclaimStaleMessageRetryJobProcessing(
+  db: DbPort,
+  staleAfterMinutes: number,
+): Promise<number> {
+  const minutes = Math.max(1, Math.trunc(staleAfterMinutes));
+  const result = await runIntegratorSql<{ id: number }>(
+    db,
+    sql`WITH stale AS (
+      SELECT id
+      FROM integrator.message_retry_jobs
+      WHERE status = 'processing'
+        AND updated_at < now() - ((${String(minutes)}::text || ' minutes')::interval)
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE integrator.message_retry_jobs AS job
+    SET status = 'pending',
+        updated_at = now()
+    FROM stale
+    WHERE job.id = stale.id
+    RETURNING job.id`,
+  );
+  return result.rows.length;
 }
 
 export async function rescheduleMessageRetryJob(

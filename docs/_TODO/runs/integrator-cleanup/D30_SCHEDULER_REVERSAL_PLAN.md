@@ -412,6 +412,21 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       (`booking/intent/retry/targets/webappPushNotify`). Ш7 остаётся `[ ]`: сначала штатно reclaim/drain этих строк,
       затем доказать post-cutover zero-write период и только после этого отдельным audited шагом удалить legacy
       consumer/table. Необратимый drop этим land не заявлен.
+      **CANDIDATE DRAIN 03.08 (unlanded worktree `wt/trackd-d30-sh7-drain`):** причина stale `processing`
+      подтверждена: legacy claim меняет статус, но раньше не возвращал истёкший lease. Worker перед обычным
+      legacy drain читает существующий `outgoing_delivery_reclaim_config` и через
+      `PostgresJobQueue.reclaimStaleProcessing` атомарно возвращает только `processing` с просроченным
+      `updated_at` в `pending` через `FOR UPDATE SKIP LOCKED`. `next_try_at`, attempts и весь historical payload
+      не меняются; отдельной conversion/enqueue/finalize фазы нет, поэтому повтор drain не создаёт sibling/queue
+      row. Сохранённый compatibility consumer остаётся единственным путём для 24 строк и удерживает TG→MAX,
+      first-success и Web Push sibling. Disposable proof
+      `pnpm --dir apps/integrator run check:d30-legacy-message-retry-drain-concurrency` → PASS доказывает
+      reclaim race (ровно один winner), повторный drain, сохранение future due/payload и crash-before-finalize
+      (ровно один повторный claim той же строки); `pnpm --dir apps/integrator exec vitest --run
+      src/infra/runtime/worker/jobExecutor.legacy.test.ts` → `3 passed` удерживает ladder/first-success/Web Push;
+      `pnpm --dir apps/integrator run check:d30-no-legacy-message-retry-producers` → PASS. Окружения не
+      затрагивались. Это candidate evidence, не zero-drain evidence: legacy table/consumer остаются, `[x]` не
+      ставится, а drop запрещён до наблюдаемого post-cutover zero-write периода.
 
 - [ ] **Ш8. B3 — не в этом плане.** Дренаж `integrator_push_outbox` исчезает вместе с M2M-каналом
       `reminder_rule_upsert` по D5–D7/D25. Здесь фиксируется зависимость, работа не начинается.

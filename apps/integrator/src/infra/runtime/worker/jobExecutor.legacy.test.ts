@@ -69,4 +69,39 @@ describe('legacy message_retry appointment consumer', () => {
     expect(result).toEqual({ ok: true, final: true });
     expect(providerSend).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps first-success and Web Push sibling behavior without sending the fallback channel', async () => {
+    const dispatched: OutgoingIntent[] = [];
+    const webPush = vi.fn(async () => undefined);
+    const job = legacyAppointmentJob(0);
+    job.payload.webappPushNotify = {
+      organizationId: 'legacy-org',
+      phoneNormalized: '+79990000000',
+      slotStartIso: '2026-08-03T10:00:00.000Z',
+      stableKey: 'legacy-appointment-push',
+    };
+
+    const result = await executeJob(job, {
+      dispatchOutgoing: async (intent) => {
+        dispatched.push(intent);
+        return {};
+      },
+      dispatchWebappPush: webPush,
+    });
+
+    expect(result).toEqual({ ok: true, final: true });
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]?.payload).toEqual(
+      expect.objectContaining({
+        recipient: { chatId: 'tg-legacy' },
+        delivery: expect.objectContaining({ channels: ['telegram'] }),
+      }),
+    );
+    expect(webPush).toHaveBeenCalledWith({
+      organizationId: 'legacy-org',
+      phoneNormalized: '+79990000000',
+      slotStartIso: '2026-08-03T10:00:00.000Z',
+      stableKey: 'legacy-appointment-push',
+    });
+  });
 });
