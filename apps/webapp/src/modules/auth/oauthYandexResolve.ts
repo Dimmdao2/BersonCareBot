@@ -3,13 +3,22 @@ import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 import { requireOAuthUserResolvePort } from '@/modules/auth/oauthUserResolvePort';
 import {
+  addSparePhoneContactIfFree,
+  resolveOAuthContactOwners,
+} from '@/modules/auth/oauthContactResolve';
+import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from '@/modules/platform-access/trustedPhonePolicy';
 
 export type AccountOutcome = 'created' | 'linked_existing';
 
-export type YandexOAuthResolveFailure = 'no_identity' | 'email_ambiguous' | 'db_error';
+/** See `WebOAuthResolveFailure` (oauthWebLoginResolve.ts) for what `contact_conflict` means. */
+export type YandexOAuthResolveFailure =
+  | 'no_identity'
+  | 'email_ambiguous'
+  | 'contact_conflict'
+  | 'db_error';
 
 /**
  * Резолвит пользователя для Yandex OAuth:
@@ -59,35 +68,18 @@ export async function resolveUserIdForYandexOAuth(
   const db = requireOAuthUserResolvePort();
 
   try {
-    let userId: string | null = null;
     let accountOutcome: AccountOutcome = 'linked_existing';
 
-    if (phoneNorm) {
-      userId = await db.findCanonicalUserIdByPhone(phoneNorm);
+    // IDENTITY_AND_MERGE_SCHEME.md §2a cases 1-6 (shared with oauthWebLoginResolve.ts).
+    const owners = await resolveOAuthContactOwners(db, { phoneNorm, emailNorm });
+    if (owners.kind === 'ambiguous') {
+      return { ok: false, reason: 'email_ambiguous' };
+    }
+    if (owners.kind === 'conflict') {
+      return { ok: false, reason: 'contact_conflict' };
     }
 
-    if (!userId && emailNorm) {
-      const byEmail = await db.findUserIdsByVerifiedEmail(emailNorm);
-      if (byEmail.length > 1) {
-        return { ok: false, reason: 'email_ambiguous' };
-      }
-      if (byEmail.length === 1) {
-        userId = byEmail[0]!;
-      }
-    }
-
-    // Yandex treats its account email as verified, so the INSERT sets email_normalized. An existing
-    // active account owning this email_normalized but with it UNVERIFIED (phone/booking-created) is
-    // missed by findUserIdsByVerifiedEmail → INSERT duplicate-key crash. Link to it instead.
-    if (!userId && emailNorm) {
-      const byAnyEmail = await db.findActiveUserIdsByEmail(emailNorm);
-      if (byAnyEmail.length > 1) {
-        return { ok: false, reason: 'email_ambiguous' };
-      }
-      if (byAnyEmail.length === 1) {
-        userId = byAnyEmail[0]!;
-      }
-    }
+    let userId = owners.userId;
 
     if (!userId) {
       accountOutcome = 'created';
@@ -102,6 +94,9 @@ export async function resolveUserIdForYandexOAuth(
       if (phoneNorm) {
         trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OAuthYandexVerifiedPhone);
       }
+    } else {
+      // Case 4: Yandex's phone differs from what matched the account via email -> spare contact.
+      await addSparePhoneContactIfFree(db, { userId, phoneNorm, phoneOwner: owners.phoneOwner });
     }
 
     const bind = await db.upsertOAuthBinding({

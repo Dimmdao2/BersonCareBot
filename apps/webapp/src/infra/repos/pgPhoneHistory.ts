@@ -6,7 +6,9 @@ import {
 import type { Pool, PoolClient } from 'pg';
 import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
 
-export type PhoneHistorySource = 'otp' | 'messenger' | 'merge' | 'admin' | 'projection';
+/** F6 case 4 (§2a, migration 0342): 'oauth' — phone added as a confirmed contact by an OAuth
+ *  provider that returned it alongside an already-matched email (never a login identifier). */
+export type PhoneHistorySource = 'otp' | 'messenger' | 'merge' | 'admin' | 'projection' | 'oauth';
 
 /** Канал, доказуемо подтвердивший номер в этой транзакции (`otp`/`messenger` source only). */
 export type PhoneHistoryConfirmingChannel = 'telegram' | 'max' | 'email' | 'sms';

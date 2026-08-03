@@ -894,6 +894,39 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       migration carries no GRANT statement). Preflight and execute both PASS; ran from the worktree by
       copying `.env.dev`/`.env` from the main checkout per the shared-DEV-DB recipe (same target database,
       no product code touched, no push).
+      **CURRENT PARTIAL 03.08 (D27 F5/F6, wt/trackd-d27de-login-code-screen, migration `0342`, not yet
+      applied to any environment):** F5 (§3.4/§2a) — `applyVerifiedOAuthEmail` (`pgOAuthUserResolve.ts`) no
+      longer overwrites the primary unconditionally: the `UPDATE` now runs only `WHERE email IS NULL`; a
+      later OAuth address stays a confirmed secondary in `user_oauth_bindings` (already written there, just
+      never read back as one before). Test: `oauthWebLoginResolve.unit.test.ts` → "F5 invariant".
+      F6 (§2a) — the owner's six cases live in one shared helper, `oauthContactResolve.ts`, used by BOTH
+      `oauthWebLoginResolve.ts` (google/apple) and `oauthYandexResolve.ts` (not a second resolver — the
+      matching rules are centralized, each resolver keeps its own create/bind orchestration). Cases 1/2
+      unchanged in substance; case 3/5 (email added as a confirmed spare) already worked through the
+      existing `upsertOAuthBinding` write — this slice adds the conflict check that must run first; case 4
+      (phone added as a spare) is a new writer, `addSparePhoneContact`, and only fires when the matched
+      account has NO existing active phone — `user_phone_history` allows at most one active phone per
+      account today (`uq_user_phone_history_user_active`), so a second confirmed phone next to an existing
+      different one is NOT written; that is a real schema limit, not a bug, and its removal is D15a/D15b
+      territory, not this slice's. Case 6 (conflict) — `resolveOAuthContactOwners` returns `contact_conflict`;
+      the `/app` screen renders the owner's verbatim message plus a support-chat button (see below). New
+      migration `0342` (SECURITY DEFINER `app.find_platform_user_ids_by_any_confirmed_email`, primary OR
+      confirmed OAuth-linked secondary) is used by `email_password_find_login_candidate`,
+      `email_auth_find_email_owner_conflict`, and `pgEmailPasswordLookup` — one function so equal-rights
+      login (§2a item 7) and the OAuth resolver's own email lookup share the exact same rule; plus `'oauth'`
+      added to `user_phone_history.source`'s check constraint (case 4 only). Tests:
+      `oauthWebLoginResolve.unit.test.ts` (all six cases + the F5 invariant + the pre-existing ambiguous-email
+      guard), `pgEmailPasswordLookup.test.ts` (a confirmed secondary contact resolves to
+      `verified_with_password`, same as a verified primary).
+      **Support button / D-12 decision:** reused the login screen's ALREADY-existing public, signed-out-safe
+      support path (`routePaths.loginContactSupport` / the `supportContactHref` prop `AuthBootstrap` already
+      receives for its unauthenticated specialist-signup-unavailable screen) — no new anonymous-support
+      exception was created; D-12 already carved this one out for this exact screen.
+      Still open: D27-B/C (preference UI, durable delivery queue); the contact list UI with per-contact
+      removal (separate slice — the owner chose "an honest list with delete", not a per-binding identify/
+      recover switch; the automatic-binding timestamp it needs already exists, `user_oauth_bindings.
+      created_at`); a genuine second confirmed phone next to an existing different one (structural limit
+      above, D15a/D15b); migration `0342` has not been applied to any environment by this slice.
 - [ ] **D28 — отзыв подтверждения вместе с номером.** Решение — **Р-D28** (§2.3).
 - [ ] **D29 — ФИО только кириллицей, автоподстановка имени отменяется.** Решение — **Р-D29** (§2.3). Это не
       только проверка ввода: сегодня имя приезжает из внешнего профиля мессенджеров и OAuth.

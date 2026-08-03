@@ -1,8 +1,10 @@
+import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   findCanonicalUserIdByPhone,
   resolveCanonicalUserId,
 } from '@/infra/repos/pgCanonicalPlatformUser';
+import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
 import type {
   CreateOAuthPlatformUserInput,
   OAuthUserResolvePort,
@@ -10,6 +12,13 @@ import type {
   UpsertOAuthBindingResult,
 } from '@/modules/auth/oauthUserResolvePort';
 
+/**
+ * IDENTITY_AND_MERGE_SCHEME.md §2a (owner, 03.08): "убрать перезапись основной почты при входе
+ * через OAuth" — the primary is set once, from whichever verified email arrives first (OTP,
+ * registration, or an earlier OAuth sign-in), and never reassigned by a later OAuth sign-in.
+ * The `email IS NULL` guard is the whole fix: a later provider address is still recorded, just
+ * as a confirmed secondary via `upsertOAuthBinding`'s `user_oauth_bindings` row, not here.
+ */
 async function applyVerifiedOAuthEmail(
   userId: string,
   emailRaw: string | null,
@@ -22,9 +31,41 @@ async function applyVerifiedOAuthEmail(
          email_normalized = lower(btrim($2::text)),
          email_verified_at = COALESCE(email_verified_at, now()),
          updated_at = now()
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
+     WHERE id = $1::uuid AND merged_into_id IS NULL AND email IS NULL`,
     [userId, emailRaw.trim()],
   );
+}
+
+async function findUserIdsByAnyConfirmedEmail(emailNorm: string): Promise<string[]> {
+  const r = await runWebappPgText<{ user_id: string }>(
+    `SELECT user_id::text AS user_id
+     FROM app.find_platform_user_ids_by_any_confirmed_email($1)`,
+    [emailNorm],
+  );
+  return r.rows.map((row) => row.user_id);
+}
+
+async function getActivePhoneForUser(userId: string): Promise<string | null> {
+  const r = await runWebappPgText<{ phone_normalized: string | null }>(
+    `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid AND merged_into_id IS NULL`,
+    [userId],
+  );
+  const phone = r.rows[0]?.phone_normalized;
+  return typeof phone === 'string' && phone.trim() ? phone : null;
+}
+
+async function addSparePhoneContact(userId: string, phoneNorm: string): Promise<void> {
+  const pool = getPool();
+  await runWebappPgText(
+    `UPDATE platform_users SET phone_normalized = $2::text, updated_at = now()
+     WHERE id = $1::uuid AND merged_into_id IS NULL`,
+    [userId, phoneNorm],
+  );
+  await applyPlatformUserPhoneHistoryTransition(pool, {
+    platformUserId: userId,
+    newPhoneNormalized: phoneNorm,
+    source: 'oauth',
+  });
 }
 
 async function findUserIdsByVerifiedEmail(emailNorm: string): Promise<string[]> {
@@ -109,6 +150,9 @@ export const pgOAuthUserResolvePort: OAuthUserResolvePort = {
   applyVerifiedOAuthEmail,
   findUserIdsByVerifiedEmail,
   findActiveUserIdsByEmail,
+  findUserIdsByAnyConfirmedEmail,
+  getActivePhoneForUser,
+  addSparePhoneContact,
   createOAuthPlatformUser,
   upsertOAuthBinding,
 };
