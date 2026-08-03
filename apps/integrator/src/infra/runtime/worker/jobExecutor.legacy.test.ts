@@ -58,7 +58,7 @@ describe('legacy message_retry appointment consumer', () => {
   });
 
   it('keeps an old persisted appointment row deliverable through the real outbound policy gate', async () => {
-    const providerSend = vi.fn(async () => ({}));
+    const providerSend = vi.fn(async (_intent: OutgoingIntent) => ({}));
     const dispatchOutgoing = async (intent: OutgoingIntent) => {
       assertOutboundMessagePolicy(intent);
       return providerSend(intent);

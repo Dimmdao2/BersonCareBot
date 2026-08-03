@@ -5,6 +5,7 @@ import { getPool } from '@/infra/db/client';
 
 const orgId = randomUUID();
 const userId = randomUUID();
+const mergedTargetUserId = randomUUID();
 const appointmentId = randomUUID();
 const firstQueueId = randomUUID();
 const ladderQueueId = randomUUID();
@@ -37,8 +38,9 @@ describe('D30 Ш7 appointment reminder atomic delivery capability', () => {
     await pool.query('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
     await pool.query(`INSERT INTO public.be_organizations (id, title) VALUES ($1, 'Ш7 org')`, [orgId]);
     await pool.query(
-      `INSERT INTO public.platform_users (id, display_name) VALUES ($1, 'Ш7 patient')`,
-      [userId],
+      `INSERT INTO public.platform_users (id, display_name)
+       VALUES ($1, 'Ш7 patient'), ($2, 'Ш7 merged target')`,
+      [userId, mergedTargetUserId],
     );
     await pool.query(
       `INSERT INTO public.be_appointments (
@@ -59,7 +61,9 @@ describe('D30 Ш7 appointment reminder atomic delivery capability', () => {
     ]);
     await pool.query('DELETE FROM public.user_channel_bindings WHERE user_id = $1', [userId]);
     await pool.query('DELETE FROM public.be_appointments WHERE id = $1', [appointmentId]);
-    await pool.query('DELETE FROM public.platform_users WHERE id = $1', [userId]);
+    await pool.query('DELETE FROM public.platform_users WHERE id = ANY($1::uuid[])', [
+      [userId, mergedTargetUserId],
+    ]);
     await pool.query('DELETE FROM public.be_organizations WHERE id = $1', [orgId]);
     await pool.query('ALTER TABLE public.be_organizations ENABLE TRIGGER USER');
     await pool.end();
@@ -179,5 +183,35 @@ describe('D30 Ш7 appointment reminder atomic delivery capability', () => {
     );
     expect(terminal.rows[0]?.status).toBe('dead');
     await pool.query('UPDATE public.platform_users SET is_blocked = false WHERE id = $1', [userId]);
+  });
+
+  it.each([
+    ['archived', 'is_archived = true', 'is_archived = false'],
+    ['merged', `merged_into_id = '${mergedTargetUserId}'::uuid`, 'merged_into_id = NULL'],
+    [
+      'globally muted',
+      "reminder_muted_until = statement_timestamp() + interval '1 hour'",
+      'reminder_muted_until = NULL',
+    ],
+  ])('terminalizes before provider when the recipient becomes %s', async (_label, setSql, resetSql) => {
+    await pool.query(
+      `UPDATE public.outgoing_delivery_queue
+       SET status = 'processing', dead_at = NULL, last_error = NULL
+       WHERE id = $1`,
+      [blockedRecipientQueueId],
+    );
+    await pool.query(`UPDATE public.platform_users SET ${setSql} WHERE id = $1`, [userId]);
+
+    const result = await pool.query<{ current: boolean }>(
+      'SELECT app.revalidate_appointment_reminder_materialization($1) AS current',
+      [blockedRecipientQueueId],
+    );
+    expect(result.rows[0]?.current).toBe(false);
+    const terminal = await pool.query<{ status: string }>(
+      'SELECT status FROM public.outgoing_delivery_queue WHERE id = $1',
+      [blockedRecipientQueueId],
+    );
+    expect(terminal.rows[0]?.status).toBe('dead');
+    await pool.query(`UPDATE public.platform_users SET ${resetSql} WHERE id = $1`, [userId]);
   });
 });

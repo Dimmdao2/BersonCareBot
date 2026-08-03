@@ -3,7 +3,8 @@
 
 GRANT SELECT ON TABLE public.be_appointments, public.user_channel_bindings,
   public.user_channel_preferences, public.user_notification_topics,
-  public.user_notification_topic_channels, public.user_web_push_subscriptions TO app_owner;
+  public.user_notification_topic_channels, public.user_web_push_subscriptions,
+  public.platform_users TO app_owner;
 GRANT SELECT, UPDATE ON TABLE public.outgoing_delivery_queue TO app_owner;
 
 -- 0338 intentionally removed broad app_owner access to operational occurrences. The D7 callback
@@ -74,10 +75,15 @@ BEGIN
     SELECT EXISTS (
       SELECT 1
       FROM public.be_appointments AS appointment
+      INNER JOIN public.platform_users AS recipient ON recipient.id = appointment.platform_user_id
       WHERE appointment.id = appointment_id
         AND appointment.organization_id = delivery.organization_id
         AND appointment.platform_user_id = recipient_user_id
         AND appointment.start_at = generation_start
+        AND recipient.is_blocked = false
+        AND recipient.is_archived = false
+        AND recipient.merged_into_id IS NULL
+        AND (recipient.reminder_muted_until IS NULL OR recipient.reminder_muted_until <= statement_timestamp())
         AND appointment.deleted_at IS NULL
         AND appointment.status IN (
           'created', 'awaiting_payment', 'paid', 'confirmed', 'rescheduled',

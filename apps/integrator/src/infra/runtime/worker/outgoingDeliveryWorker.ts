@@ -1030,7 +1030,10 @@ export async function processOutgoingDeliveryRow(
       }
       if (row.kind === 'appointment_reminder') {
         const message = truncateDeliveryErrorMessage(err instanceof Error ? err.message : String(err));
-        if (isOutgoingDeliveryDispatchErrorRetryable(message)) {
+        const isRecipientBlocked =
+          (row.channel === 'telegram' || row.channel === 'max') &&
+          classifyRecipientBlockedBotError(err, row.channel) !== null;
+        if (isRecipientBlocked || isOutgoingDeliveryDispatchErrorRetryable(message)) {
           const transition = await runWithDeliveryQueueCapability(() =>
             advanceAppointmentReminderMessengerLadder(db, {
               queueId: row.id,

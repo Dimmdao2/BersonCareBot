@@ -396,7 +396,13 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       `public.outgoing_delivery_queue`, а механический worker перед отправкой повторно проверяет поколение,
       получателя и policy. Сохранены фактические TG→MAX / «один канал дважды» и first-success semantics;
       cancel/reschedule терминализуют старые поколения. Новый executable gate запрещает новых legacy-producer.
-      Disposable PostgreSQL: Ш7 + D7 + Ш4 `17/17`; product/lifecycle/worker/legacy unit `51/51`; broad
+      После independent audit FAIL `bcffe541e` исправлены все три findings: blocked-recipient и обычные
+      retryable provider failures переходят на оставшуюся ступень messenger ladder, но policy/invariant
+      failures остаются terminal; старые persisted rows получают server-owned
+      `routine_product/essential_delivery` только в trusted legacy adapter (DB-маркеры не принимаются);
+      last-moment revalidation теперь также отсекает blocked/archived/merged и глобально muted recipient.
+      Полный integrator: `pnpm --dir apps/integrator test` → `347 passed`, `4 expected fail`, `9 skipped`;
+      disposable PostgreSQL Ш7 + D7 + Ш4 → `21/21`; typecheck/lint и boundary-gates PASS. Broad
       `app_owner` DML на occurrence-таблицу не возвращён. Миграция `9995` временная, вне journal и нигде не
       применялась. Ш7 остаётся `[ ]`: legacy consumer/table сохранены для старых строк; живой drain-period,
       финальная миграция и необратимый drop относятся к следующим стадиям и этим кандидатом не заявлены.
