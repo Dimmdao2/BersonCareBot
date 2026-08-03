@@ -1,5 +1,16 @@
 # B0.3 — the capture transaction runs without an RLS org context
 
+⛔ **SUPERSEDED (fixer run, same day).** This brief's "Cause" section restates the `c3d576c54` measurement
+without incorporating the refutation the SAME plan file already recorded one section earlier (`8cd4dcda9`, lead
+check 04.08: "причина названа неверно"). Re-verified independently again this run against a real clone of
+`bcb_webapp_dev` (real migrations, real `locked`-mode signed context, real FORCE RLS): both branches of
+`captureSaasBillingPaymentSucceeded` complete cleanly under a real org principal — no pool.connect()-bypass
+defect exists. The real cause of the 04.08 failure was a PL/pgSQL `FOUND`-clobbering bug inside
+`app.apply_paid_saas_billing_tariff`, found and fixed by the parallel `wt/billing-capture-fix` worktree
+(migration `0354`, commit `faa715252`, already merged into this branch). See
+`docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`, entry "fixer verdict on `1f1c73e0e`", for the full
+reconciliation. Do not re-open a "pool.connect() bypass" fix from this brief.
+
 Rules: `AGENTS.md` — Маршрут, CORE rules, §5 (DB only through the app's own port), §6, §10/§10a/§10b, §24.
 Language: internal work is English.
 

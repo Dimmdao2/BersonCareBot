@@ -1,19 +1,43 @@
 /**
- * B0.3 (#1057) — live proof for `captureSaasBillingPaymentSucceeded`
+ * B0.3 (#1057) — exoneration proof for `captureSaasBillingPaymentSucceeded`
  * (`apps/webapp/src/infra/repos/pgSaasBilling.ts:958`) under the EXACT runtime mechanism the
  * webhook route uses (`runWithDbOrganizationPrincipal` + `getDrizzle().transaction()`), with real
  * FORCE RLS on `saas_billing_invoices`/`saas_billing_subscriptions`/`saas_billing_provider_events`
  * (migration `0259`) and `DB_PRINCIPAL_CONTEXT_MODE=locked` (the mode DEV/TEST/PROD actually run,
  * `.env.dev:20` — the default-test `legacy-guc` in `vitest.setup.ts` never exercises the signed
- * path and would prove nothing about the live defect).
+ * path and would prove nothing here).
  *
- * The original diagnosis for the live TEST failure ("drizzle transactions bypass `pool.query`, so
- * the org RLS context is never installed") was refuted by code review
- * (`docs/_TODO/SAAS_FOUNDATION/SAAS_BILLING_PLAN.md` B0.3, lead check 04.08):
- * `withPrincipalAwareTransactions` (`app-layer/db/drizzle.ts:102`) already installs the principal
- * INSIDE the transaction via `tx.execute()`, on the same connection the transaction runs on — no
- * `pool.query` involved either way. This test exercises that real path end to end instead of
- * re-asserting the refuted claim.
+ * The "drizzle transactions bypass `pool.query`, so the org RLS context is never installed" theory
+ * for the 04.08 live TEST failure (`saas_billing_tariff_apply_failed`) is FALSE — refuted twice
+ * over, independently:
+ *   1. Code review (`SAAS_BILLING_PLAN.md` B0.3, lead check 04.08): `withPrincipalAwareTransactions`
+ *      (`app-layer/db/drizzle.ts:102`) already installs the principal INSIDE the transaction via
+ *      `tx.execute()`, on the same connection the transaction runs on — no `pool.query` involved
+ *      either way.
+ *   2. This test, run against a real disposable clone of `bcb_webapp_dev` (real migrations, real
+ *      `locked`-mode signed context, real FORCE RLS): both the first-payment and the tariff-upgrade
+ *      branch of `captureSaasBillingPaymentSucceeded` complete cleanly under a real org principal —
+ *      invoice paid, tariff applied, subscription promoted.
+ *
+ * The REAL cause of the 04.08 failure was a PL/pgSQL `FOUND`-clobbering bug inside
+ * `app.apply_paid_saas_billing_tariff` itself (a later `UPDATE` on the empty `saas_organization_trials`
+ * table silently overwrote `FOUND` before `RETURN FOUND`) — found, fixed, and proven live on DEV and
+ * TEST by a parallel worktree (`wt/billing-capture-fix`, migration `0354`, commit `faa715252`,
+ * merged into this branch). See `SAAS_BILLING_PLAN.md` B0.3 for the full trail. This test does not
+ * duplicate that fix's own regression coverage
+ * (`saasBillingPaidTariffApplyAccessor.postgres.integration.test.ts`) — it proves the drizzle-level
+ * RLS/principal seam this task was asked to inspect is sound, so nobody re-chases it again.
+ *
+ * ⚠️ Known harness-fidelity gap, unrelated to this seam: under `pnpm test:postgres`'s from-scratch
+ * build (drizzle migrations + a0-greenfield baseline only — no `deploy/postgres/*.sql` overlay), the
+ * `app.apply_paid_saas_billing_tariff` accessor's `UPDATE public.be_organizations` silently matches
+ * zero rows (`app_owner` has `rolbypassrls=false` there and no permissive RLS policy on
+ * `be_organizations` covers it), so the first `it` below fails with `saas_billing_tariff_apply_failed`
+ * in THIS harness even though the RLS/principal seam it exercises is proven sound (see above) and the
+ * same write succeeds on a real `bcb_webapp_dev` clone and on live DEV/TEST. The existing
+ * `saasBillingPaidTariffApplyAccessor.postgres.integration.test.ts` hits the same class one statement
+ * later (`permission denied for table saas_organization_trials`) for the same reason. Not fixed here —
+ * out of scope for this task and pre-existing (reproduces on an unmodified checkout).
  */
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -58,7 +82,15 @@ describe('B0.3 captureSaasBillingPaymentSucceeded under a real org principal', (
     }
   }
 
-  async function insertInvoice(input: { id: string; status: 'pending' }): Promise<void> {
+  // Distinct service periods per invoice: `saas_billing_invoices_period_uidx` (migration `0308`)
+  // uniquely keys `tariff_period` invoices on (subscription, period start, period end) — two
+  // fixture invoices under the same subscription must not share a period.
+  async function insertInvoice(input: {
+    id: string;
+    status: 'pending';
+    servicePeriodStartsAt: string;
+    servicePeriodEndsAt: string;
+  }): Promise<void> {
     await run(
       `INSERT INTO public.saas_billing_invoices (
          id, organization_id, saas_billing_account_id, saas_billing_subscription_id, tariff_id,
@@ -68,8 +100,8 @@ describe('B0.3 captureSaasBillingPaymentSucceeded under a real org principal', (
        ) VALUES (
          $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
          'B0.3 capture probe', 'tariff_period', 199214, 'RUB', 'month', '{}'::jsonb,
-         '2026-08-01T00:00:00.000Z'::timestamptz, '2026-09-01T00:00:00.000Z'::timestamptz,
-         $6::text, 'yookassa', $7::text, $8::text
+         $6::timestamptz, $7::timestamptz,
+         $8::text, 'yookassa', $9::text, $10::text
        )`,
       [
         input.id,
@@ -77,6 +109,8 @@ describe('B0.3 captureSaasBillingPaymentSucceeded under a real org principal', (
         accountA,
         subscriptionA,
         tariffX,
+        input.servicePeriodStartsAt,
+        input.servicePeriodEndsAt,
         input.status,
         `b03-capture-probe-${input.id}`,
         `b03-capture-probe-idempotency-${input.id}`,
@@ -122,8 +156,18 @@ describe('B0.3 captureSaasBillingPaymentSucceeded under a real org principal', (
        ) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'manual', 'active', 'active', NULL, NULL)`,
       [subscriptionA, orgA, accountA, tariffX],
     );
-    await insertInvoice({ id: invoiceA, status: 'pending' });
-    await insertInvoice({ id: invoiceB, status: 'pending' });
+    await insertInvoice({
+      id: invoiceA,
+      status: 'pending',
+      servicePeriodStartsAt: '2026-08-01T00:00:00.000Z',
+      servicePeriodEndsAt: '2026-09-01T00:00:00.000Z',
+    });
+    await insertInvoice({
+      id: invoiceB,
+      status: 'pending',
+      servicePeriodStartsAt: '2026-09-01T00:00:00.000Z',
+      servicePeriodEndsAt: '2026-10-01T00:00:00.000Z',
+    });
 
     // Re-arm real RLS for the actual capture calls under test — grants come from migration 0344.
     await run('GRANT SELECT, UPDATE ON TABLE public.be_organizations TO app_staff');
