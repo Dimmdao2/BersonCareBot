@@ -1,5 +1,9 @@
 # Global-admin channel & auth-method toggles + mini-app removal (spec capture)
 
+**СВЕДЕНО в `docs/ARCHITECTURE/AUTH_AND_IDENTITY_CANON.md` 04.08** (раздел «Способы входа и админ control
+plane») — этот файл остаётся исполнительным трекером карточек `#993`/`#1005`/`#1031` и др., канон даёт сводную
+нормативную картину и решения владельца.
+
 > **Owner requirement, 2026-07-24** — prod-prep feature. Captured verbatim-structured; current-state recon in
 > progress (grounds the plan). Related: `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` (login config,
 > U-contracts), tariff/entitlements/mechanics-flags (`SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`),
