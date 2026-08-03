@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
+import { getCurrentDatabasePrincipal } from '../principal/organizationPrincipal.js';
 import { isAuthChannelEnabled } from './authChannelPolicy.js';
 
 function channelDb(valueJson: unknown | null): DbPort {
@@ -19,6 +20,26 @@ function failingDb(error: Error): DbPort {
 }
 
 describe('isAuthChannelEnabled', () => {
+  it('дано: signed M2M вызов без principal → fixed-key read получает только runtime-config bootstrap principal', async () => {
+    const observed: unknown[] = [];
+    const db = {
+      query: vi.fn().mockImplementation(async () => {
+        observed.push(getCurrentDatabasePrincipal());
+        return { rows: [{ value_json: { value: true } }] };
+      }),
+      tx: vi.fn(),
+    } as unknown as DbPort;
+
+    await expect(isAuthChannelEnabled(db, 'email')).resolves.toBe(true);
+    expect(observed).toEqual([
+      expect.objectContaining({
+        kind: 'bootstrap',
+        source: 'integrator-server-runtime-config',
+      }),
+    ]);
+    expect(getCurrentDatabasePrincipal()).toBeUndefined();
+  });
+
   it('дано: явный true (boolean или строка) → тогда канал включён', async () => {
     await expect(isAuthChannelEnabled(channelDb({ value: true }), 'email')).resolves.toBe(true);
     await expect(isAuthChannelEnabled(channelDb({ value: 'true' }), 'telegram')).resolves.toBe(
