@@ -1,23 +1,21 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
-import { resolveAuthMethodsForPhone } from '@/modules/auth/checkPhoneMethods';
+import { getPublicCheckPhoneMethods } from '@/modules/auth/checkPhoneMethods';
 import { isCheckPhoneRateLimited } from '@/modules/auth/checkPhoneRateLimit';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
-import { getTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsername';
 import { getClientVisibleAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
+
+const PUBLIC_CHECK_PHONE_MIN_RESPONSE_MS = 500;
 
 const bodySchema = z.object({
   phone: z.string().min(1).max(32),
 });
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   stampBootstrapPrincipal('api/auth/check-phone:POST', request);
-  ensureAuthModulePortsBound();
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -45,31 +43,13 @@ export async function POST(request: Request) {
 
   // Owner ruling 2026-07-24: a channel toggled on but unconfigured must not appear to the client.
   const channelPolicy = await getClientVisibleAuthChannelPolicy();
-  const deps = buildAppDeps();
-  const botUsername = channelPolicy.telegram ? (await getTelegramLoginBotUsername()).trim() : '';
-  const telegramLoginAvailable = channelPolicy.telegram && botUsername.length > 0;
-  const result = await resolveAuthMethodsForPhone(
-    phone,
-    {
-      userByPhonePort: deps.userByPhone,
-      userPinsPort: deps.userPins,
-      oauthBindingsPort: deps.oauthBindings,
-    },
-    { telegramLoginAvailable, suppressSmsForPublicWebLogin: true, channelPolicy },
-  );
-
-  let preferredOtpChannel: OtpUiChannel | null = null;
-  if (result.exists) {
-    preferredOtpChannel = await deps.channelPreferences.getPreferredAuthOtpChannel(result.userId);
-    if (preferredOtpChannel && channelPolicy[preferredOtpChannel] === false) {
-      preferredOtpChannel = null;
-    }
+  const remainingMs = PUBLIC_CHECK_PHONE_MIN_RESPONSE_MS - (Date.now() - startedAt);
+  if (remainingMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, remainingMs));
   }
 
   return NextResponse.json({
     ok: true,
-    exists: result.exists,
-    methods: result.methods,
-    ...(result.exists ? { preferredOtpChannel } : {}),
+    methods: getPublicCheckPhoneMethods(channelPolicy),
   });
 }

@@ -4,13 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { cn } from '@/lib/utils';
-import type { AuthMethodsPayload } from '@/modules/auth/checkPhoneMethods';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
-  filterAuthMethodsByChannelPolicy,
-  pickOtpChannelWithPreferencePublic,
   type AuthChannelUiPolicy,
-  type OtpUiChannel,
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage';
@@ -35,10 +31,6 @@ function getWebChatId(): string {
     sessionStorage.setItem(WEB_CHAT_ID_KEY, id);
   }
   return id;
-}
-
-function hasMessengerBinding(methods: AuthMethodsPayload): boolean {
-  return Boolean(methods.telegram || methods.max);
 }
 
 function otpDescription(channel: 'automatic' | 'telegram' | 'max'): string {
@@ -87,8 +79,6 @@ export function PhoneMessengerAuthFlow({
   const [step, setStep] = useState<FlowStep>('phone');
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState('');
-  const [methods, setMethods] = useState<AuthMethodsPayload | null>(null);
-  const [exists, setExists] = useState(false);
   const [setupToken, setSetupToken] = useState<string | null>(null);
   const [bindChannel, setBindChannel] = useState<'telegram' | 'max' | null>(null);
   const [bindManualCommand, setBindManualCommand] = useState<string | null>(null);
@@ -188,52 +178,6 @@ export function PhoneMessengerAuthFlow({
     };
   }, [step, setupToken, bindChannel, pollBindStatus]);
 
-  const startPhoneOtp = async (
-    normalized: string,
-    deliveryChannel: 'telegram' | 'max',
-  ): Promise<boolean> => {
-    if (!channelPolicy[deliveryChannel]) return false;
-    setLoading(true);
-    try {
-      const chatId = getWebChatId();
-      const res = await fetch('/api/auth/phone/start', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          phone: normalized,
-          channel: 'web',
-          chatId,
-          deliveryChannel,
-          purpose,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        challengeId?: string;
-        retryAfterSeconds?: number;
-        message?: string;
-        error?: string;
-      };
-      if (!res.ok || !data.ok || !data.challengeId) {
-        if (data.error === 'channel_unavailable') {
-          setPhone(normalized);
-          setStep('messenger_pick');
-          return false;
-        }
-        toast.error(data.message ?? 'Не удалось отправить код');
-        return false;
-      }
-      setPhone(normalized);
-      setChallengeId(data.challengeId);
-      setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
-      setOtpChannel(deliveryChannel);
-      setStep('code');
-      return true;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const startAutomaticPhoneOtp = async (normalized: string): Promise<boolean> => {
     setLoading(true);
     try {
@@ -279,49 +223,10 @@ export function PhoneMessengerAuthFlow({
       }
       return;
     }
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/check-phone', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone: normalized }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        exists?: boolean;
-        methods?: AuthMethodsPayload;
-        preferredOtpChannel?: OtpUiChannel | null;
-      };
-      if (!res.ok || !data.ok || !data.methods) {
-        toast.error('Не удалось проверить номер');
-        return;
-      }
-      setPhone(normalized);
-      setExists(Boolean(data.exists));
-      const allowedMethods = filterAuthMethodsByChannelPolicy(data.methods, channelPolicy);
-      setMethods(allowedMethods);
-
-      if (hasMessengerBinding(allowedMethods)) {
-        const primary = pickOtpChannelWithPreferencePublic(
-          allowedMethods,
-          data.preferredOtpChannel,
-        );
-        const ch =
-          primary === 'telegram' || primary === 'max'
-            ? primary
-            : allowedMethods.telegram
-              ? 'telegram'
-              : 'max';
-        const ok = await startPhoneOtp(normalized, ch);
-        if (!ok) {
-          setStep('messenger_pick');
-        }
-      } else {
-        setStep('messenger_pick');
-      }
-    } finally {
-      setLoading(false);
-    }
+    // Profile binding is already self-scoped by `/phone/messenger-bind/start`; never inspect the
+    // entered phone to decide which delivery channels its owner has.
+    setPhone(normalized);
+    setStep('messenger_pick');
   };
 
   const startMessengerBind = async (channelCode: 'telegram' | 'max') => {
@@ -414,11 +319,7 @@ export function PhoneMessengerAuthFlow({
         return { kind: 'ok' };
       }
     }
-    return startPhoneOtp(phone, otpChannel).then((ok) =>
-      ok
-        ? { kind: 'ok' as const }
-        : { kind: 'error' as const, message: 'Не удалось отправить код' },
-    );
+    return { kind: 'error', message: 'Начните привязку через мессенджер заново.' };
   };
 
   if (step === 'phone') {
@@ -615,8 +516,6 @@ export function PhoneMessengerAuthFlow({
               clearPoll();
               if (otpChannel === 'automatic') {
                 setStep('phone');
-              } else if (methods && hasMessengerBinding(methods) && exists) {
-                setStep('messenger_pick');
               } else if (setupToken) {
                 setStep('messenger_pick');
               } else {
