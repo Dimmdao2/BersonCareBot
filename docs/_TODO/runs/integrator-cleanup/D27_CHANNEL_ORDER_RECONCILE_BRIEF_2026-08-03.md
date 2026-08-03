@@ -181,10 +181,20 @@ Hard constraint from the same ruling: **remove the unconditional primary-email o
 (`pgOAuthUserResolve.ts:13-28`). The primary is set only when the account has none; every later address is added,
 never substituted.
 
-⛔ Do NOT build anything for item 7 (equal-rights login across all registered contacts, or a per-binding
-identification/recovery switch). That is an open owner gate. Adding contacts as confirmed (cases 3–5) is required;
-deciding whether they may authenticate is not this slice's business — leave today's lookup behavior untouched
-there and say so.
+**Item 7 was closed by the owner on 2026-08-03 — read §2a item 7 of the scheme.** Ruling: «равноправный вход по
+любому подтверждённому контакту — согласен». So a contact added by cases 3–5 is confirmed and therefore **is** a
+login door, by design: «OAuth сделан для того чтобы не подтверждать телефон и почту по смс и паролю — провайдер
+берёт это на себя». What follows for this slice:
+
+- Login lookup must accept **any confirmed contact** of the account, not only `platform_users.email_normalized` /
+  the primary phone. Today `pgEmailPasswordLookup.ts:75-88` and `pgEmailAuth.ts:178` resolve by the primary column
+  only — that is the gap to close.
+- «Основная почта» keeps exactly one meaning: the default destination for codes and notifications (§3.4). It is
+  not a login restriction.
+- ⛔ Do NOT build a per-binding «identification / recovery only» switch — the owner explicitly chose the other
+  option: an honest list of all linked contacts with the ability to remove the unneeded ones.
+- A contact added automatically must be shown as automatic, with its date, in that list — otherwise a person
+  removes contacts blind.
 
 Tests must cover each of the six cases as behavior, plus: two consecutive OAuth sign-ins with different provider
 addresses leave the primary unchanged.
