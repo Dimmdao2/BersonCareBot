@@ -17,12 +17,14 @@ export type OutgoingDeliveryKind =
   | 'doctor_broadcast_intent'
   | 'inbound_reply'
   | 'specialist_task_reminder'
-  | 'operator_health_digest';
+  | 'operator_health_digest'
+  | 'appointment_reminder';
 
 /** Kinds whose rows are already complete transport intents and need no product-specific worker logic. */
 export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>([
   'specialist_task_reminder',
   'operator_health_digest',
+  'appointment_reminder',
 ]);
 
 export const DOCTOR_BROADCAST_INTENT_QUEUE_KIND =

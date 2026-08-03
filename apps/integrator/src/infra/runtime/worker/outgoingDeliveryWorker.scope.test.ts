@@ -69,6 +69,25 @@ function operatorAlertIntent(): OutgoingIntent {
   };
 }
 
+function appointmentReminderIntent(channel: 'telegram' | 'max' = 'telegram'): OutgoingIntent {
+  return {
+    type: 'message.send',
+    meta: {
+      eventId: 'appointment-reminder:event:messenger',
+      occurredAt: '2026-07-31T10:00:00.000Z',
+      source: channel,
+      userId: 'a0000000-0000-4000-8000-00000000000a',
+      outboundMessageClass: 'routine_product',
+      outboundCapability: 'essential_delivery',
+    },
+    payload: {
+      recipient: channel === 'telegram' ? { chatId: 'tg-1' } : { userId: 'max-1' },
+      message: { text: 'Напоминание о записи' },
+      delivery: { channels: [channel], maxAttempts: 1 },
+    },
+  };
+}
+
 function queueRow(kind: string): OutgoingDeliveryQueueRow {
   return {
     id: ROW_ID,
@@ -76,7 +95,7 @@ function queueRow(kind: string): OutgoingDeliveryQueueRow {
     kind,
     channel: 'telegram',
     payloadJson: {
-      intent: operatorAlertIntent(),
+      intent: kind === 'appointment_reminder' ? appointmentReminderIntent() : operatorAlertIntent(),
       incidentId: INCIDENT_ID,
       ...(kind === 'specialist_task_reminder'
         ? {
@@ -84,6 +103,18 @@ function queueRow(kind: string): OutgoingDeliveryQueueRow {
               type: 'specialistTask.reminder.markSent',
               taskId: 'a0000000-0000-4000-8000-00000000000a',
             },
+          }
+        : {}),
+      ...(kind === 'appointment_reminder'
+        ? {
+            appointmentId: 'b0000000-0000-4000-8000-00000000000b',
+            generationStartAt: '2026-08-01T10:00:00.000Z',
+            dueAt: '2026-07-31T10:00:00.000Z',
+            messengerStepIndex: 0,
+            messengerLadder: [
+              { channel: 'telegram', recipient: { chatId: 'tg-1' } },
+              { channel: 'max', recipient: { userId: 'max-1' } },
+            ],
           }
         : {}),
     },
@@ -110,6 +141,7 @@ type Harness = {
   rescheduled: number;
   /** Sent-row bookkeeping completion writes, which must never dispatch the provider. */
   bookkeepingApplied: number;
+  ladderTransitions: number;
   writes: DbWriteMutation[];
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
   writePort: { writeDb: (mutation: DbWriteMutation) => Promise<undefined> };
@@ -117,7 +149,11 @@ type Harness = {
 
 function harness(
   scope: ScopeRow | null,
-  options: { materializationCurrent?: boolean; botMarkerBookkeepingFailure?: boolean } = {},
+  options: {
+    materializationCurrent?: boolean;
+    appointmentMaterializationCurrent?: boolean;
+    botMarkerBookkeepingFailure?: boolean;
+  } = {},
 ): Harness {
   const dispatched: Harness['dispatched'] = [];
   const quarantined: string[] = [];
@@ -126,6 +162,7 @@ function harness(
     markedSent: 0,
     rescheduled: 0,
     bookkeepingApplied: 0,
+    ladderTransitions: 0,
     botMarkerFailuresRemaining: options.botMarkerBookkeepingFailure === true ? 1 : 0,
   };
 
@@ -139,6 +176,13 @@ function harness(
       }
       if (sql.includes('app.revalidate_specialist_task_reminder_materialization')) {
         return { rows: [{ current: options.materializationCurrent !== false }] as T[] };
+      }
+      if (sql.includes('app.revalidate_appointment_reminder_materialization')) {
+        return { rows: [{ current: options.appointmentMaterializationCurrent !== false }] as T[] };
+      }
+      if (sql.includes('app.advance_appointment_reminder_messenger_ladder')) {
+        state.ladderTransitions += 1;
+        return { rows: [{ transition: 'advanced' }] as T[] };
       }
       if (
         state.botMarkerFailuresRemaining > 0 &&
@@ -185,6 +229,9 @@ function harness(
     get bookkeepingApplied() {
       return state.bookkeepingApplied;
     },
+    get ladderTransitions() {
+      return state.ladderTransitions;
+    },
     async dispatchOutgoing(intent: OutgoingIntent) {
       dispatched.push({ intent, organizationId: getCurrentOrganizationPrincipalId() });
       return {};
@@ -225,6 +272,83 @@ function processUnderWorkerTick(h: Harness, row: OutgoingDeliveryQueueRow): Prom
 }
 
 describe('воркер доставки: строка без разрешимого арендатора не отправляется «под текущим»', () => {
+  it('appointment messenger success finishes the stable row without trying MAX', async () => {
+    const h = harness({
+      queue_kind: 'appointment_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
+    await processUnderWorkerTick(h, queueRow('appointment_reminder'));
+    expect(h.dispatched).toHaveLength(1);
+    expect(h.dispatched[0]?.intent.payload.delivery).toMatchObject({ channels: ['telegram'] });
+    expect(h.markedSent).toBe(1);
+    expect(h.ladderTransitions).toBe(0);
+  });
+
+  it('appointment reminder without exact product-policy markers never reaches a provider', async () => {
+    const send = vi.fn(async () => ({}));
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const dispatch = createDefaultDispatchPort({ adapters: [adapter] });
+    const h = harness({
+      queue_kind: 'appointment_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
+    h.dispatchOutgoing = dispatch.dispatchOutgoing.bind(dispatch);
+    const row = queueRow('appointment_reminder');
+    const original = appointmentReminderIntent();
+    const {
+      outboundMessageClass: _outboundMessageClass,
+      outboundCapability: _outboundCapability,
+      ...metaWithoutPolicy
+    } = original.meta;
+    void _outboundMessageClass;
+    void _outboundCapability;
+
+    await processUnderWorkerTick(h, {
+      ...row,
+      payloadJson: {
+        ...row.payloadJson,
+        intent: { ...original, meta: metaWithoutPolicy },
+      },
+    });
+
+    expect(send).not.toHaveBeenCalled();
+    expect(h.quarantined).toEqual([OUTBOUND_MESSAGE_POLICY_DENIED]);
+    expect(h.markedSent).toBe(0);
+    expect(h.ladderTransitions).toBe(0);
+  });
+
+  it('appointment retryable failure advances the persisted ladder exactly once', async () => {
+    const h = harness({
+      queue_kind: 'appointment_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
+    h.dispatchOutgoing = async () => {
+      throw new Error('temporary_provider_failure');
+    };
+    await processUnderWorkerTick(h, queueRow('appointment_reminder'));
+    expect(h.ladderTransitions).toBe(1);
+    expect(h.markedSent).toBe(0);
+    expect(h.rescheduled).toBe(0);
+  });
+
+  it('stale appointment generation is terminalized before provider dispatch', async () => {
+    const h = harness(
+      {
+        queue_kind: 'appointment_reminder',
+        organization_id: OWNER_ORG,
+        resolution: 'tenant',
+      },
+      { appointmentMaterializationCurrent: false },
+    );
+    await processUnderWorkerTick(h, queueRow('appointment_reminder'));
+    expect(h.dispatched).toEqual([]);
+    expect(h.markedSent).toBe(0);
+    expect(h.ladderTransitions).toBe(0);
+  });
+
   it('delivers a ready specialist-task transport intent under its row tenant without product-policy reads', async () => {
     const h = harness({
       queue_kind: 'specialist_task_reminder',

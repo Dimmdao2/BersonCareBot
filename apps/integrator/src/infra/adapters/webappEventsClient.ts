@@ -455,6 +455,46 @@ export function createWebappEventsPort(deps: {
       }
     },
 
+    async materializeAppointmentReminders(input: { body: string; idempotencyKey: string }) {
+      const baseUrl = await deps.getAppBaseUrl();
+      if (!baseUrl || !secret) {
+        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/appointment-reminders/materialize`;
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, input.body, secret);
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Bersoncare-Timestamp': timestamp,
+        'X-Bersoncare-Signature': signature,
+        'X-Bersoncare-Idempotency-Key': normalizeIdempotencyKeyForHeader(input.idempotencyKey),
+      };
+      try {
+        const res = await fetch(url, { method: 'POST', headers, body: input.body });
+        const text = await res.text().catch(() => '');
+        let parsed: Record<string, unknown> = {};
+        if (text) {
+          try {
+            parsed = JSON.parse(text) as Record<string, unknown>;
+          } catch {
+            /* non-JSON */
+          }
+        }
+        const ok = res.status === 200 && parsed.ok === true;
+        return {
+          ok,
+          status: res.status,
+          ...(typeof parsed.current === 'boolean' ? { current: parsed.current } : {}),
+          ...(typeof parsed.inserted === 'number' ? { inserted: parsed.inserted } : {}),
+          ...(ok
+            ? {}
+            : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
+        };
+      } catch (err) {
+        return { ok: false, status: 0, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+
     async completeChannelLink(params: {
       linkToken: string;
       channelCode: string;

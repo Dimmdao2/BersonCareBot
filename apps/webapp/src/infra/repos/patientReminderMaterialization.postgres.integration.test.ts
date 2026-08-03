@@ -29,7 +29,7 @@ describe('D30 Ш4 patient reminder materialization capabilities', () => {
     expect(database.rows[0]?.name).toMatch(/^pbt_/);
     const migrationSql = await readFile(
       new URL(
-        '../../../db/drizzle-migrations/9996_d30_patient_reminder_materialization_boundary_local.sql',
+        '../../../db/drizzle-migrations/0338_d30_patient_reminder_materialization_boundary_local.sql',
         import.meta.url,
       ),
       'utf8',
