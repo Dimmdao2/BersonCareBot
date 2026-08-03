@@ -1455,7 +1455,14 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # channel preference/binding/subscription tables and fixed reminder/VAPID system_settings rows.
   # Migration 0333 grants app_owner only the exact referenced columns and gives runtime roles EXECUTE
   # only; no runtime role receives a new direct table grant.
-  local expected_secdef_count=153
+  # 153 -> 155 (2026-08-03, #987 TEST identity-self PIN repair): the final auth migration
+  # (currently staged as temporary local migration 9995 until integration assigns its final number)
+  # adds app.auth_user_pin_read_self() and app.auth_user_pin_upsert_self(text). Both accept no target
+  # user UUID, derive the signed current identity through app.require_staff_security_self_user_id(),
+  # and read/write only that principal's public.user_pins row. The migration and the canonical
+  # overlays revoke app_patient table/column privileges and the old target-UUID functions, then grant
+  # only these two identity-self capabilities; app_owner's required user_pins grants are pinned above.
+  local expected_secdef_count=155
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
