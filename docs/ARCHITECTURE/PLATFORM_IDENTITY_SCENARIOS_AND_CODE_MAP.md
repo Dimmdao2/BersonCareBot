@@ -145,6 +145,7 @@
 | _(нет enum — не trusted)_           | `ensureClientFromAppointmentProjection` в том же файле: телефон из записи Rubitime заполняет/обогащает канон **без** `patient_phone_trust_at` (снимок данных записи, не активация tier).                       |
 | `integrator_update_phone`           | Тот же файл — `updatePhone`.                                                                                                                                                                                   |
 | `oauth_yandex_verified_phone`       | `apps/webapp/src/modules/auth/oauthYandexResolve.ts` — INSERT нового пользователя с непустым нормализованным телефоном из Yandex.                                                                              |
+| `oauth_vk_verified_phone`           | `apps/webapp/src/modules/auth/oauthVkResolve.ts` — INSERT нового пользователя с непустым нормализованным телефоном из VK ID.                                                                                   |
 | `platform_user_merge`               | `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts` — перенос/объединение `patient_phone_trust_at` при merge (auto + manual ветки `UPDATE platform_users AS pu`).                                             |
 | `admin_manual_profile_patch`        | `apps/webapp/src/infra/repos/pgUserProjection.ts` — `patchAdminClientProfile` при успешном `PATCH /api/admin/users/:userId/profile` (ФИО, email, телефон; нормализация `+7` и конфликт по `phone_normalized`). |
 

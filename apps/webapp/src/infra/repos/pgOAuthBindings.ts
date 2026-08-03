@@ -2,7 +2,7 @@
 import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type { OauthProvider, OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 
-const ALLOWED_PROVIDERS: OauthProvider[] = ['google', 'apple', 'yandex'];
+const ALLOWED_PROVIDERS: OauthProvider[] = ['google', 'apple', 'yandex', 'vk'];
 
 export const pgOAuthBindingsPort: OAuthBindingsPort = {
   async listProvidersForUser(userId: string): Promise<OauthProvider[]> {

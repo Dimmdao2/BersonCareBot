@@ -13,6 +13,7 @@ import {
 import {
   createAppleSignedOAuthState,
   createSignedOAuthState,
+  createVkSignedOAuthState,
   parseVerifiedSignedOAuthState,
   type OAuthStatePurpose,
 } from '@/modules/auth/oauthSignedState';
@@ -28,6 +29,9 @@ import {
   getAppleOauthTeamId,
   getAppleOauthKeyId,
   getAppleOauthPrivateKey,
+  getVkIdApplicationId,
+  getVkIdClientSecret,
+  getVkIdRedirectUri,
 } from '@/modules/system-settings/integrationRuntime';
 import {
   isOAuthStartRateLimitedByKey,
@@ -40,25 +44,29 @@ import { isSafeRolePortalNext } from '@/modules/auth/roleLogin';
 const OAUTH_STATE_TTL_SECONDS = 600;
 
 const bodySchema = z.object({
-  provider: z.enum(['yandex', 'google', 'apple']),
+  provider: z.enum(['yandex', 'google', 'apple', 'vk']),
   browserCalendarIana: z.string().max(120).optional(),
   next: z.string().max(2048).optional(),
   roleLoginPortal: z.enum(['doctor', 'patient', 'admin']).optional(),
 });
 
 const GOOGLE_LOGIN_SCOPES = ['openid', 'email', 'profile'].join(' ');
+/** ⚠️ Best-effort per VK ID docs — confirm against the live app once real credentials land. */
+const VK_LOGIN_SCOPES = ['email', 'phone'].join(' ');
 
 function oauthAuthMethod(
   provider: z.infer<typeof bodySchema>['provider'],
 ): AuthRegistrationAuthMethod {
   if (provider === 'google') return 'oauth_google';
   if (provider === 'apple') return 'oauth_apple';
+  if (provider === 'vk') return 'oauth_vk';
   return 'oauth_yandex';
 }
 
 function oauthStatePurpose(provider: z.infer<typeof bodySchema>['provider']): OAuthStatePurpose {
   if (provider === 'google') return 'google_login';
   if (provider === 'apple') return 'apple';
+  if (provider === 'vk') return 'vk';
   return 'yandex';
 }
 
@@ -190,6 +198,32 @@ export async function POST(request: Request) {
       authUrl.searchParams.set('state', state);
       authUrl.searchParams.set('access_type', 'online');
       authUrl.searchParams.set('include_granted_scopes', 'true');
+      return jsonOk({ authUrl: authUrl.toString() });
+    }
+
+    if (provider === 'vk') {
+      const [vkOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
+        isOAuthProviderEnabled('vk'),
+        getVkIdApplicationId().then((v) => v.trim()),
+        getVkIdRedirectUri().then((v) => v.trim()),
+        getVkIdClientSecret().then((v) => v.trim()),
+      ]);
+      if (!vkOAuthEnabled || !clientId || !redirectUri || !secret) {
+        await logOAuthStartFailure(provider, 'oauth_disabled');
+        return jsonError('oauth_disabled', { message: 'VK ID не настроен' }, { status: 501 });
+      }
+      const { state, codeChallenge } = createVkSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
+      await logOAuthStartAttempt(provider, state);
+      // ⚠️ Best-effort endpoint/params per VK ID (OAuth 2.1) docs — confirm against the live app
+      // once real credentials land (see oauthVkService.ts header).
+      const authUrl = new URL('https://id.vk.com/authorize');
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('client_id', clientId);
+      authUrl.searchParams.set('redirect_uri', redirectUri);
+      authUrl.searchParams.set('scope', VK_LOGIN_SCOPES);
+      authUrl.searchParams.set('state', state);
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
       return jsonOk({ authUrl: authUrl.toString() });
     }
 

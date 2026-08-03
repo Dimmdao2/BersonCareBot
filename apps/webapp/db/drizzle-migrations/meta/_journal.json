@@ -2451,6 +2451,13 @@
       "when": 1793539230055,
       "tag": "0351_webapp_preauth_oauth_provider_capability_local",
       "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1793539230056,
+      "tag": "0352_vk_id_oauth_provider_local",
+      "breakpoints": true
     }
   ]
 }

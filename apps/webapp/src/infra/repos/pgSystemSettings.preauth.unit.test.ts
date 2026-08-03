@@ -41,6 +41,20 @@ describe('readAdminSystemSettingString under the pre-login bootstrap principal',
     expect(params).toEqual(['yandex_oauth_client_id']);
   });
 
+  it('reads the VK ID credential keys via the same SECURITY DEFINER accessor as the other providers', async () => {
+    fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'bootstrap' });
+    fakes.runWebappPgText.mockResolvedValueOnce({
+      rows: [{ value_json: { value: 'vk-app-id' } }],
+    });
+
+    await expect(readAdminSystemSettingString('vk_id_application_id')).resolves.toBe('vk-app-id');
+
+    const [query, params] = fakes.runWebappPgText.mock.calls[0] as [string, unknown[]];
+    expect(query).toContain('app.read_webapp_preauth_provider_setting');
+    expect(query).not.toMatch(/FROM\s+system_settings/i);
+    expect(params).toEqual(['vk_id_application_id']);
+  });
+
   it('still uses the raw table SELECT for a key outside the pre-auth allowlist', async () => {
     fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'bootstrap' });
     fakes.runWebappPgText.mockResolvedValueOnce({ rows: [] });
