@@ -2297,6 +2297,13 @@
       "when": 1793539230033,
       "tag": "0329_integrator_login_delivery_capabilities_local",
       "breakpoints": true
+    },
+    {
+      "idx": 328,
+      "version": "7",
+      "when": 1793539230034,
+      "tag": "0330_test_ledger_schema_parity_forward_local",
+      "breakpoints": true
     }
   ]
 }
