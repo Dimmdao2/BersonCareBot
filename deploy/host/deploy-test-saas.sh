@@ -1012,7 +1012,7 @@ WITH required(tbl, priv) AS (
     ('public.email_challenges', 'DELETE'),
     ('public.be_organizations', 'INSERT'),
     ('public.be_organizations', 'SELECT'),
-    -- 0346 (#1057 B0.3): app.apply_paid_saas_billing_tariff(uuid,uuid) writes tariff_id from inside
+    -- 0348 (#1057 B0.3): app.apply_paid_saas_billing_tariff(uuid,uuid) writes tariff_id from inside
     -- a SECURITY DEFINER call so the app_staff-only guard trigger
     -- (app.reject_staff_commercial_organization_update) does not fire. app_owner already holds
     -- table-level UPDATE here (deploy/postgres/patient-invites-rls.sql, U3B) -- pinned as a required
@@ -1508,7 +1508,7 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # in the required-grant set above (rows for platform_users and user_oauth_bindings pinned by
   # earlier auth functions) -- no new GRANT needed, this is a book-keeping-only bump caught live
   # by this gate (measured actual=160 against the stale expected=159).
-  # 160 -> 161 (2026-08-03, migration 0346, #1057 B0.3): one new function,
+  # 160 -> 161 (2026-08-03, migration 0348, #1057 B0.3): one new function,
   # app.apply_paid_saas_billing_tariff(uuid,uuid), the capture path's paid-tariff apply accessor.
   # No new required-grant row for its SELECT on saas_billing_invoices (already pinned by 0343); its
   # UPDATE on be_organizations is a pre-existing app_owner privilege, now pinned as a required row
