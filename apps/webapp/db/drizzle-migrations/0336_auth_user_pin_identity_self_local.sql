@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 9995. The integrator assigns the final number and journal entry.
+-- 0336: restore authenticated identity-self PIN access without exposing arbitrary user rows.
 -- Authenticated /api/me and PIN setup run under the signed identity-self app_patient principal.
 -- Keep bootstrap login accessors that accept a server-resolved UUID unchanged; these capabilities
 -- accept no target user and derive the only readable/writable row from the signed DB principal.
