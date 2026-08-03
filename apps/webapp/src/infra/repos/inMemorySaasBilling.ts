@@ -1019,7 +1019,7 @@ export function createInMemorySaasBillingRepository(
       if (!current || current.organizationId !== input.organizationId) {
         throw new Error('saas_billing_invoice_not_found');
       }
-      if (current.status !== 'failed') return current;
+      if (current.status !== 'failed' && current.status !== 'void') return current;
       const row: SaasBillingInvoice = {
         ...current,
         status: 'draft',

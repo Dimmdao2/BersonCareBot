@@ -1721,7 +1721,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           and(
             eq(saasBillingInvoices.id, input.saasBillingInvoiceId),
             eq(saasBillingInvoices.organizationId, input.organizationId),
-            eq(saasBillingInvoices.status, 'failed'),
+            inArray(saasBillingInvoices.status, ['failed', 'void']),
           ),
         )
         .returning();
