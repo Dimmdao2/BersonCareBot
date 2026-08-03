@@ -18,10 +18,115 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webappRoot = path.join(__dirname, '..');
 const migrationsFolder = path.join(webappRoot, 'db', 'drizzle-migrations');
 const journalPath = path.join(migrationsFolder, 'meta', '_journal.json');
+const repositoryRoot = path.join(webappRoot, '..', '..');
+const D30_ONLINE_INDEX_ARTIFACT = path.join(
+  repositoryRoot,
+  'deploy',
+  'postgres',
+  'd30-outgoing-delivery-queue-organization-status-due-online-index.sql',
+);
+const D30_ONLINE_INDEX_VARIABLE = 'D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX';
+const TRANSACTION_FORBIDDEN_CONCURRENT_INDEX = /\b(?:CREATE(?:\s+UNIQUE)?|DROP)\s+INDEX\s+CONCURRENTLY\b/iu;
 
 const OBJECT_CONFLICT_SQLSTATES = new Set(['23505', '42701', '42710', '42P06', '42P07']);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
 const RECONCILIATION_MARKER = /^-- RECONCILES-MIGRATION-HASH: ([0-9]{4}_[a-z0-9_]+)$/gm;
+
+function readCurrentMigrationSources() {
+  return fs
+    .readdirSync(migrationsFolder, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.sql'))
+    .map((entry) => ({
+      tag: path.basename(entry.name, '.sql'),
+      source: fs.readFileSync(path.join(migrationsFolder, entry.name), 'utf8'),
+    }));
+}
+
+export function assertNoTransactionForbiddenConcurrentIndexes(migrationSources) {
+  for (const migration of migrationSources) {
+    if (TRANSACTION_FORBIDDEN_CONCURRENT_INDEX.test(migration.source)) {
+      throw new Error(`transaction_forbidden_concurrent_index migration=${migration.tag}`);
+    }
+  }
+}
+
+export function validateD30OnlineIndexArtifact(source) {
+  const requiredPatterns = [
+    [/^\\set ON_ERROR_STOP on\s*$/mu, 'psql_on_error_stop'],
+    [/idx_outgoing_delivery_queue_organization_status_due/, 'exact_index_name'],
+    [/table_class\.relname = 'outgoing_delivery_queue'/, 'exact_table'],
+    [/index_state\.indisvalid = false OR index_state\.indisready = false/, 'invalid_residue_query'],
+    [/\\if :d30_invalid_queue_organization_status_due_index\s+DROP INDEX CONCURRENTLY IF EXISTS public\.idx_outgoing_delivery_queue_organization_status_due;\s+\\endif/m, 'conditional_invalid_residue_drop'],
+    [/CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_outgoing_delivery_queue_organization_status_due\s+ON public\.outgoing_delivery_queue \(organization_id, status, next_retry_at\)/m, 'concurrent_exact_index_create'],
+    [/index_method\.amname = 'btree'/, 'btree_assertion'],
+    [/index_state\.indisvalid = true/, 'valid_assertion'],
+    [/index_state\.indisready = true/, 'ready_assertion'],
+    [/index_state\.indisunique = false/, 'non_unique_assertion'],
+    [/index_state\.indnkeyatts = 3/, 'three_key_columns_assertion'],
+    [/index_state\.indnatts = 3/, 'no_included_columns_assertion'],
+    [/index_state\.indexprs IS NULL/, 'expression_free_assertion'],
+    [/index_state\.indpred IS NULL/, 'non_partial_assertion'],
+    [/ARRAY\['organization_id', 'status', 'next_retry_at'\]::text\[\]/, 'ordered_key_columns_assertion'],
+  ];
+  const missing = requiredPatterns
+    .filter(([pattern]) => !pattern.test(source))
+    .map(([, label]) => label);
+  if (missing.length > 0) {
+    throw new Error(`d30_online_index_artifact_invalid missing=${missing.join(',')}`);
+  }
+}
+
+export function assertD30OnlineIndexAfterMigration(wrapper) {
+  const migrationAt = wrapper.source.indexOf(wrapper.migrationCommand);
+  if (migrationAt === -1) {
+    throw new Error(`d30_online_index_wrapper_migration_missing wrapper=${wrapper.name}`);
+  }
+  const referenceAt = wrapper.source.indexOf(D30_ONLINE_INDEX_VARIABLE, migrationAt);
+  if (referenceAt === -1) {
+    throw new Error(`d30_online_index_wrapper_reference_missing wrapper=${wrapper.name}`);
+  }
+  const applyWindow = wrapper.source.slice(referenceAt - 320, referenceAt + 320);
+  if (!/psql[\s\S]*-f[\s\S]*D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX/.test(applyWindow)) {
+    throw new Error(`d30_online_index_wrapper_apply_missing wrapper=${wrapper.name}`);
+  }
+}
+
+export function validateD30OnlineIndexDeployment({ migrationSources, artifactSource, wrappers }) {
+  assertNoTransactionForbiddenConcurrentIndexes(migrationSources);
+  validateD30OnlineIndexArtifact(artifactSource);
+  for (const wrapper of wrappers) assertD30OnlineIndexAfterMigration(wrapper);
+}
+
+function validateCurrentD30OnlineIndexDeployment() {
+  const wrappers = [
+    {
+      name: 'migrate-dev',
+      path: path.join(repositoryRoot, 'deploy', 'host', 'migrate-dev.sh'),
+      migrationCommand: '  pnpm run migrate',
+    },
+    {
+      name: 'deploy-test',
+      path: path.join(repositoryRoot, 'deploy', 'host', 'deploy-test.sh'),
+      migrationCommand: "WEBAPP_ENV_FILE='$WEBAPP_ENV' pnpm migrate",
+    },
+    {
+      name: 'deploy-test-saas',
+      path: path.join(repositoryRoot, 'deploy', 'host', 'deploy-test-saas.sh'),
+      migrationCommand: "WEBAPP_ENV_FILE='$WEBAPP_ENV' pnpm migrate",
+    },
+    {
+      name: 'deploy-prod',
+      path: path.join(repositoryRoot, 'deploy', 'host', 'deploy-prod.sh'),
+      migrationCommand: 'pnpm --dir apps/webapp run migrate',
+    },
+  ].map((wrapper) => ({ ...wrapper, source: fs.readFileSync(wrapper.path, 'utf8') }));
+  const migrationSources = readCurrentMigrationSources();
+  // Reject this class before requiring its companion artifact: this preserves a useful red-first
+  // diagnostic while a migration still contains a transaction-forbidden statement.
+  assertNoTransactionForbiddenConcurrentIndexes(migrationSources);
+  validateD30OnlineIndexArtifact(fs.readFileSync(D30_ONLINE_INDEX_ARTIFACT, 'utf8'));
+  for (const wrapper of wrappers) assertD30OnlineIndexAfterMigration(wrapper);
+}
 
 export function readMigrationReconciliations(folder, entries) {
   const entryByTag = new Map(entries.map((entry) => [entry.tag, entry]));
@@ -292,7 +397,52 @@ if (process.argv.includes('--self-test')) {
       if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
     }
   }
+  try {
+    assertNoTransactionForbiddenConcurrentIndexes([
+      { tag: '9999_bad', source: 'CREATE INDEX CONCURRENTLY bad_index ON public.example (id);' },
+    ]);
+    throw new Error('migration online-index self-test accepted a transaction-forbidden statement');
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
+  }
+  assertNoTransactionForbiddenConcurrentIndexes([
+    { tag: '9999_good', source: 'CREATE INDEX IF NOT EXISTS good_index ON public.example (id);' },
+  ]);
+  try {
+    validateD30OnlineIndexArtifact('CREATE INDEX CONCURRENTLY IF NOT EXISTS wrong ON public.example (id);');
+    throw new Error('migration online-index self-test accepted an incomplete artifact');
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
+  }
+  const wrapperFixture = {
+    name: 'fixture',
+    migrationCommand: 'pnpm migrate',
+    source:
+      'pnpm migrate\npsql -X -v ON_ERROR_STOP=1 -f "$REPO/' +
+      D30_ONLINE_INDEX_VARIABLE +
+      '"',
+  };
+  assertD30OnlineIndexAfterMigration(wrapperFixture);
+  try {
+    assertD30OnlineIndexAfterMigration({
+      ...wrapperFixture,
+      source:
+        'psql -X -v ON_ERROR_STOP=1 -f "$REPO/' +
+        D30_ONLINE_INDEX_VARIABLE +
+        '"\npnpm migrate',
+    });
+    throw new Error('migration online-index self-test accepted a pre-migration artifact apply');
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
+  }
+  validateCurrentD30OnlineIndexDeployment();
   console.log('run-webapp-drizzle-migrate diagnostic self-test: OK');
+  process.exit(0);
+}
+
+if (process.argv.includes('--check-online-index-layout')) {
+  validateCurrentD30OnlineIndexDeployment();
+  console.log('run-webapp-drizzle-migrate online-index layout check: OK');
   process.exit(0);
 }
 
@@ -304,6 +454,8 @@ if (!url) {
   console.error('[migrate] DATABASE_URL is not set (export it or use apps/webapp/.env.dev / .env)');
   process.exit(1);
 }
+
+validateCurrentD30OnlineIndexDeployment();
 
 const migrations = readMigrationFiles({ migrationsFolder });
 const journalEntries = JSON.parse(fs.readFileSync(journalPath, 'utf8')).entries;

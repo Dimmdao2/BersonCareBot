@@ -63,4 +63,6 @@ if (( missing != 0 )); then
   exit 1
 fi
 
+node "${ROOT}/scripts/run-webapp-drizzle-migrate.mjs" --check-online-index-layout
+
 echo "check-drizzle-journal-sync: OK"

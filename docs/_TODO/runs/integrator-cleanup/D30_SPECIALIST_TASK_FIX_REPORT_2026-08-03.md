@@ -42,6 +42,35 @@ At land, root synchronized the accepted branch with current `feat`, renamed the 
 removed the temporary `9999` journal-sync exception. DEV application and live delivery proof remain required
 after the preceding `0323` repair succeeds; TEST/PROD are not part of this D30 application.
 
+## Online-index landing correction
+
+Root acceptance found that `0328_d30_specialist_task_delivery_queue_local.sql` placed
+`CREATE INDEX CONCURRENTLY` inside a Drizzle migration even though the installed PostgreSQL dialect runs pending
+migrations in `session.transaction(...)`. PostgreSQL therefore rejects the candidate before it can land.
+
+The additive `organization_id` column and scope function remain in `0328`. The exact hot-table index now lives in
+`deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql`: it runs as standalone
+autocommit `psql`, removes only an invalid/unready residue of that exact index, creates it concurrently, and
+asserts the final btree/non-unique/non-partial/expression-free three-key definition. `migrate-dev.sh --execute`,
+`deploy-test.sh`, `deploy-test-saas.sh`, and `deploy-prod.sh` apply the version-matched artifact immediately after
+Drizzle succeeds and before any service restart.
+
+Validation in this correction:
+
+- Red-first: `node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --check-online-index-layout` rejected the
+  original `0328`, and rejected a temporary post-fix reinjection, with
+  `transaction_forbidden_concurrent_index migration=0328_d30_specialist_task_delivery_queue_local` (exit `1`).
+- `node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --self-test` and
+  `bash apps/webapp/scripts/check-drizzle-journal-sync.sh` — PASS.
+- `bash -n deploy/host/migrate-dev.sh && bash -n deploy/host/deploy-test.sh && bash -n deploy/host/deploy-test-saas.sh && bash -n deploy/host/deploy-prod.sh`
+  and the runner's offline SQL-shape/layout check — PASS.
+- Existing D30 targeted tests: webapp `1` file / `3` tests; integrator `7` passed files / `51` passed tests
+  (`1` file / `3` tests skipped). Both typechecks, scoped ESLint, raw-SQL and queue-boundary gates, both D30
+  concurrency checks, and `git diff --check` — PASS.
+
+No DEV, TEST, or PROD mutation was performed. D30 Ш3 remains open: DEV apply and live specialist-task delivery
+proof are still pending.
+
 ## R2 command record
 
 ```bash

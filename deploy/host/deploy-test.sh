@@ -60,6 +60,7 @@ DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
 APP_OWNER_ROLE=app_owner
 STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
+D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
 MIGRATOR_MEMBERSHIP_ADDED=0
@@ -179,7 +180,10 @@ DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
   export PGOPTIONS='-c role=$DBROLE' && \
-  API_ENV_FILE='$API_ENV' WEBAPP_ENV_FILE='$WEBAPP_ENV' pnpm migrate"
+  API_ENV_FILE='$API_ENV' WEBAPP_ENV_FILE='$WEBAPP_ENV' pnpm migrate && \
+  set -a && source '$WEBAPP_ENV' && set +a && \
+  psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 \
+    -f \"$DEPLOY_REPO/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX\""
 cleanup_elevation
 
 # 5) The same fail-closed closure as the fresh-restore wrapper: roles/helpers/grants, base+safe

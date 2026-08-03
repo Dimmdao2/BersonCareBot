@@ -15,6 +15,7 @@ REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
 PATIENT_VISIBLE_CATALOG_RLS=deploy/postgres/patient-visible-catalog-rls.sql
 PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS=deploy/postgres/patient-media-playback-telemetry-accessors.sql
 PATIENT_INVITES_RLS=deploy/postgres/patient-invites-rls.sql
+D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
@@ -114,6 +115,7 @@ require_file "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}" "Reference catalog RLS o
 require_file "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}" "Patient-visible catalog RLS overlay"
 require_file "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}" "Patient media playback telemetry accessor overlay"
 require_file "${PROJECT_ROOT}/${PATIENT_INVITES_RLS}" "Patient invite strict runtime overlay"
+require_file "${PROJECT_ROOT}/${D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX}" "D30 online index artifact"
 require_unit_file "${API_SERVICE}"
 require_unit_file "${WORKER_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
@@ -172,6 +174,10 @@ sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 pnpm migrate
 pnpm --dir apps/webapp run migrate
+
+# 0328 commits first; this hot-table index must run as a separate autocommit psql operation.
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 \
+  -f "${PROJECT_ROOT}/${D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX}"
 
 # Migration 0182 versions the reference baseline helper. Refresh the canonical SECURITY DEFINER
 # provisioning function in the same post-migration order as the SaaS TEST wrapper so a newly

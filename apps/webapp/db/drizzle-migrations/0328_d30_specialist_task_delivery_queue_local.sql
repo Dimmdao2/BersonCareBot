@@ -3,9 +3,6 @@
 ALTER TABLE public.outgoing_delivery_queue
   ADD COLUMN IF NOT EXISTS organization_id uuid;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_outgoing_delivery_queue_organization_status_due
-  ON public.outgoing_delivery_queue (organization_id, status, next_retry_at);
-
 -- Direct scope is authoritative for new tenant rows. NULL preserves the legacy per-kind resolver
 -- until historical rows drain; no missing organization is guessed or allowed through.
 CREATE OR REPLACE FUNCTION app.resolve_outgoing_delivery_scope(p_queue_id uuid)
