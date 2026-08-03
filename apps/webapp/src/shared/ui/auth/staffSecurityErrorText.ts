@@ -6,7 +6,8 @@ type SecurityAction =
   | 'retry_provisioning'
   | 'revoke_sessions'
   | 'change_password'
-  | 'login_factor';
+  | 'login_factor'
+  | 'email_password_login';
 
 const actionFallback: Record<SecurityAction, string> = {
   start_enrollment: 'Не удалось начать настройку защиты. Повторите попытку.',
@@ -18,6 +19,7 @@ const actionFallback: Record<SecurityAction, string> = {
   revoke_sessions: 'Не удалось завершить другие сеансы. Повторите попытку.',
   change_password: 'Пароль не изменён. Проверьте данные и повторите попытку.',
   login_factor: 'Не удалось подтвердить вход. Введите код ещё раз.',
+  email_password_login: 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.',
 };
 
 /** Human-readable staff-security errors for browser surfaces. */
@@ -82,6 +84,8 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
       return 'Защита входа временно недоступна. Обратитесь к администратору и повторите позже.';
     case 'password_change_failed':
       return 'Пароль не изменён из-за временной ошибки. Повторите попытку позже.';
+    case 'security_setup_pending':
+      return 'Не удалось подготовить защищённый вход. Повторите попытку позже.';
     default:
       return actionFallback[action];
   }

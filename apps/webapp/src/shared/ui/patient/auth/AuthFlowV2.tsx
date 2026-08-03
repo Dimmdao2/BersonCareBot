@@ -883,7 +883,7 @@ export function AuthFlowV2({
         return;
       }
       if (res.status === 409 || data.error === 'email_not_verified') {
-        toast.error('Email не подтверждён. Обратитесь в поддержку.');
+        toast.error(data.message ?? 'Email не подтверждён. Подтвердите адрес и повторите вход.');
         return;
       }
       if (data.error === 'invalid_credentials') {
@@ -899,7 +899,10 @@ export function AuthFlowV2({
         );
         return;
       }
-      toast.error('Не удалось войти.');
+      // Every other known code (proxy_configuration, rate_limited, invalid_body,
+      // security_setup_pending, server_error) carries its own server message; an unrecognized or
+      // empty body falls through to the action fallback, which reads as our failure, not theirs.
+      toast.error(data.message ?? staffSecurityErrorText(data.error, 'email_password_login'));
     } finally {
       setLoading(false);
     }
