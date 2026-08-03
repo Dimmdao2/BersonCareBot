@@ -1,11 +1,11 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { env } from '@/config/env';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 
 const VERSION = 'v1';
 
 /** Публичный OAuth и админский Google Calendar — разные `purpose`, подпись не взаимозаменима. */
-export type OAuthStatePurpose = 'yandex' | 'gcal' | 'google_login' | 'apple';
+export type OAuthStatePurpose = 'yandex' | 'gcal' | 'google_login' | 'apple' | 'vk';
 
 function requireSigningSecret(): string {
   const s = env.SESSION_COOKIE_SECRET ?? '';
@@ -107,6 +107,55 @@ export function createAppleSignedOAuthState(
     payload.portal = options.roleLoginPortal;
   }
   return { state: signPayload(payload), nonce };
+}
+
+const VK_PKCE_HMAC_INFO = 'vk-pkce-code-verifier';
+
+/**
+ * VK ID (OAuth 2.1) requires PKCE. This app keeps OAuth `state` signed-but-stateless (no server
+ * session to key a stored `code_verifier` by), so instead of adding storage, `code_verifier` is
+ * derived deterministically from the same HMAC secret that signs `state` plus that state's own
+ * one-time `attemptId`. Only the server holding `SESSION_COOKIE_SECRET` can compute it, so an
+ * attacker who intercepts `code`+`state` off the wire — exactly what PKCE defends against — still
+ * cannot reconstruct the verifier.
+ */
+export function deriveVkPkceCodeVerifier(attemptId: string): string {
+  const secret = requireSigningSecret();
+  return base64UrlEncode(hmacSha256(secret, `${VK_PKCE_HMAC_INFO}.${attemptId}`));
+}
+
+export function vkPkceCodeChallenge(codeVerifier: string): string {
+  return base64UrlEncode(createHash('sha256').update(codeVerifier, 'utf8').digest());
+}
+
+/** VK ID: `state` + the PKCE pair derived from its own `attemptId` (see above). */
+export function createVkSignedOAuthState(
+  ttlSeconds: number,
+  options?: {
+    browserCalendarIana?: string | null;
+    next?: string | null;
+    roleLoginPortal?: RoleLoginPortal | null;
+  },
+): { state: string; attemptId: string; codeVerifier: string; codeChallenge: string } {
+  const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+  const attemptId = randomUUID();
+  const payload: Payload = { p: 'vk', exp, n: attemptId };
+  const rawTz = options?.browserCalendarIana?.trim();
+  if (rawTz && rawTz.length <= 120) {
+    payload.tz = rawTz;
+  }
+  const next = options?.next?.trim();
+  if (next && next.length <= 2048 && options?.roleLoginPortal) {
+    payload.next = next;
+    payload.portal = options.roleLoginPortal;
+  }
+  const codeVerifier = deriveVkPkceCodeVerifier(attemptId);
+  return {
+    state: signPayload(payload),
+    attemptId,
+    codeVerifier,
+    codeChallenge: vkPkceCodeChallenge(codeVerifier),
+  };
 }
 
 export type VerifiedOAuthState = {

@@ -12,13 +12,14 @@ const ROUTE = 'auth/oauth/providers';
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/auth/oauth/providers:GET', request);
   const startedAt = Date.now();
-  const [yandex, google, apple] = await Promise.all([
+  const [yandex, google, apple, vk] = await Promise.all([
     isOAuthProviderEnabled('yandex'),
     isOAuthProviderEnabled('google'),
     isOAuthProviderEnabled('apple'),
+    isOAuthProviderEnabled('vk'),
   ]);
 
-  const res = NextResponse.json({ ok: true, yandex, google, apple });
+  const res = NextResponse.json({ ok: true, yandex, google, apple, vk });
   res.headers.set('Cache-Control', 'private, no-store');
   logAuthRouteTiming({
     route: ROUTE,

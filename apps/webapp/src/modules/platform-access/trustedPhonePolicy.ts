@@ -20,6 +20,8 @@ export enum TrustedPatientPhoneSource {
   IntegratorUpdatePhone = 'integrator_update_phone',
   /** Новый пользователь с телефоном из Yandex OAuth (`oauthYandexResolve`). */
   OAuthYandexVerifiedPhone = 'oauth_yandex_verified_phone',
+  /** Новый пользователь с телефоном из VK ID OAuth (`oauthVkResolve`). */
+  OAuthVkVerifiedPhone = 'oauth_vk_verified_phone',
   /** Новый пользователь с телефоном из Google / Apple web OAuth (`oauthWebLoginResolve`). */
   OAuthWebLoginVerifiedPhone = 'oauth_web_login_verified_phone',
   /**

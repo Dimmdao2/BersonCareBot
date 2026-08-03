@@ -39,6 +39,19 @@ export async function getYandexOauthRedirectUri(): Promise<string> {
   return getConfigValue('yandex_oauth_redirect_uri');
 }
 
+/** VK ID OAuth 2.1 credentials: `system_settings` (admin), same seam as Yandex/Google/Apple. */
+export async function getVkIdApplicationId(): Promise<string> {
+  return getConfigValue('vk_id_application_id');
+}
+
+export async function getVkIdClientSecret(): Promise<string> {
+  return getConfigValue('vk_id_client_secret');
+}
+
+export async function getVkIdRedirectUri(): Promise<string> {
+  return getConfigValue('vk_id_redirect_uri');
+}
+
 /** Google Calendar OAuth / integration: `system_settings` (admin scope). */
 export async function getGoogleClientId(): Promise<string> {
   return getConfigValue('google_client_id');

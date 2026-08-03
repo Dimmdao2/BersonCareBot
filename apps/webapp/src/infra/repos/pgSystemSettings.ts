@@ -71,6 +71,9 @@ const PREAUTH_PROVIDER_SETTING_KEYS: ReadonlySet<string> = new Set([
   'apple_oauth_team_id',
   'apple_oauth_key_id',
   'apple_oauth_private_key',
+  'vk_id_application_id',
+  'vk_id_client_secret',
+  'vk_id_redirect_uri',
   'telegram_bot_token',
 ]);
 

@@ -33,6 +33,7 @@ const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   'auth_max_enabled',
   'auth_oauth_google_enabled',
   'auth_oauth_yandex_enabled',
+  'auth_oauth_vk_enabled',
   'auth_oauth_apple_enabled',
   'auth_passkey_enabled',
   'auth_pin_enabled',

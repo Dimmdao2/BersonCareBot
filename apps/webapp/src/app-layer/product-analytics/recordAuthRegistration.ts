@@ -16,6 +16,7 @@ export type AuthRegistrationAuthMethod =
   | 'oauth_yandex'
   | 'oauth_google'
   | 'oauth_apple'
+  | 'oauth_vk'
   | 'phone_otp'
   | 'messenger_bind'
   | 'telegram_init'
