@@ -1,72 +1,174 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runSchedulerLockedTick } from './schedulerLockedTick.js';
+import { createSchedulerLockedTickCoordinator } from './schedulerLockedTick.js';
 
-/**
- * D30 Ш0 §2a condition 2: a tick must not do dispatch work once the scheduler lock is lost.
- * Poromka this catches: someone moves the ownership check to run after the tick bodies (or
- * drops it), so a lock-losing instance keeps ticking. That reorder is exactly what the second
- * test below breaks on purpose.
- */
-describe('runSchedulerLockedTick', () => {
-  it('does not run either tick body when the lock ownership check fails', async () => {
-    const calls: string[] = [];
-    const assertLockStillHeld = vi.fn().mockRejectedValue(new Error('lock lost'));
-    const runOrganizationTicks = vi.fn().mockImplementation(async () => {
-      calls.push('organization');
-      return 0;
-    });
-    const runOperatorHealthProbeTick = vi.fn().mockImplementation(async () => {
-      calls.push('operatorHealth');
-    });
-    const runOperatorHealthDigestWake = vi.fn(async () => true);
-    const runSystemHealthGuardWake = vi.fn(async () => true);
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
-    await expect(
-      runSchedulerLockedTick({
-        assertLockStillHeld,
-        runOrganizationTicks,
-        runOperatorHealthDigestWake,
-        runSystemHealthGuardWake,
-        runOperatorHealthProbeTick,
-      }),
-    ).rejects.toThrow('lock lost');
+function healthWakeDeps() {
+  return {
+    runOperatorHealthDigestWake: vi.fn(async () => true),
+    runSystemHealthGuardWake: vi.fn(async () => true),
+  };
+}
+
+describe('scheduler leader cadence', () => {
+  it('starts neither organization nor health delivery when the leader lock is lost', async () => {
+    const runOrganizationTicks = vi.fn(async () => 0);
+    const runOperatorHealthProbeTick = vi.fn(async () => false);
+    const wakes = healthWakeDeps();
+    const coordinator = createSchedulerLockedTickCoordinator({
+      assertLockStillHeld: vi.fn().mockRejectedValue(new Error('lock lost')),
+      runOrganizationTicks,
+      ...wakes,
+      runOperatorHealthProbeTick,
+      onOrganizationTickError: vi.fn(),
+    });
+
+    await expect(coordinator.runTick()).rejects.toThrow('lock lost');
 
     expect(runOrganizationTicks).not.toHaveBeenCalled();
+    expect(wakes.runOperatorHealthDigestWake).not.toHaveBeenCalled();
+    expect(wakes.runSystemHealthGuardWake).not.toHaveBeenCalled();
     expect(runOperatorHealthProbeTick).not.toHaveBeenCalled();
-    expect(runOperatorHealthDigestWake).not.toHaveBeenCalled();
-    expect(runSystemHealthGuardWake).not.toHaveBeenCalled();
-    expect(calls).toEqual([]);
   });
 
-  it('runs the ownership check before both tick bodies when the lock is held', async () => {
-    const calls: string[] = [];
-    const assertLockStillHeld = vi.fn().mockImplementation(async () => {
-      calls.push('assert');
-    });
-    const runOrganizationTicks = vi.fn().mockImplementation(async () => {
-      calls.push('organization');
-      return 3;
-    });
-    const runOperatorHealthProbeTick = vi.fn().mockImplementation(async () => {
-      calls.push('operatorHealth');
-    });
-    const runOperatorHealthDigestWake = vi.fn().mockImplementation(async () => {
-      calls.push('digestWake');
-      return true;
-    });
-    const runSystemHealthGuardWake = vi.fn().mockImplementation(async () => {
-      calls.push('guardWake');
-      return true;
+  it('still runs all health wakes when the organization sweep fails and reports the sweep separately', async () => {
+    const organizationError = new Error('organization rejected');
+    const onOrganizationTickError = vi.fn();
+    const runOperatorHealthProbeTick = vi.fn(async () => true);
+    const wakes = healthWakeDeps();
+    const coordinator = createSchedulerLockedTickCoordinator({
+      assertLockStillHeld: vi.fn(async () => undefined),
+      runOrganizationTicks: vi.fn().mockRejectedValue(organizationError),
+      ...wakes,
+      runOperatorHealthProbeTick,
+      onOrganizationTickError,
     });
 
-    await runSchedulerLockedTick({
+    await coordinator.runTick();
+    await coordinator.waitForOrganizationTick();
+
+    expect(wakes.runOperatorHealthDigestWake).toHaveBeenCalledTimes(1);
+    expect(wakes.runSystemHealthGuardWake).toHaveBeenCalledTimes(1);
+    expect(runOperatorHealthProbeTick).toHaveBeenCalledTimes(1);
+    expect(onOrganizationTickError).toHaveBeenCalledWith(organizationError);
+  });
+
+  it('contains a rejected organization error reporter and allows the next sweep', async () => {
+    const unhandledRejection = vi.fn();
+    process.on('unhandledRejection', unhandledRejection);
+    try {
+      const reporterEntered = deferred<void>();
+      const reporterRelease = deferred<void>();
+      const runOrganizationTicks = vi.fn().mockRejectedValue(new Error('organization rejected'));
+      const onOrganizationTickError = vi.fn(async () => {
+        reporterEntered.resolve(undefined);
+        await reporterRelease.promise;
+        throw new Error('reporter rejected');
+      });
+      const coordinator = createSchedulerLockedTickCoordinator({
+        assertLockStillHeld: vi.fn(async () => undefined),
+        runOrganizationTicks,
+        ...healthWakeDeps(),
+        runOperatorHealthProbeTick: vi.fn(async () => false),
+        onOrganizationTickError,
+      });
+
+      await coordinator.runTick();
+      await reporterEntered.promise;
+      // Drain the catch/finally continuation. With `void onOrganizationTickError(...)` the tracked
+      // sweep is now falsely complete; with the required `await`, it remains behind this barrier.
+      await Promise.resolve();
+      await Promise.resolve();
+      let firstSweepObserved = false;
+      const firstSweep = coordinator.waitForOrganizationTick().then(() => {
+        firstSweepObserved = true;
+      });
+      await Promise.resolve();
+
+      const observedBeforeReporterSettled = firstSweepObserved;
+      await coordinator.runTick();
+      const sweepsWhileReporterPending = runOrganizationTicks.mock.calls.length;
+
+      reporterRelease.resolve(undefined);
+      await firstSweep;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(unhandledRejection).not.toHaveBeenCalled();
+      expect(observedBeforeReporterSettled).toBe(false);
+      expect(sweepsWhileReporterPending).toBe(1);
+
+      await coordinator.runTick();
+      await coordinator.waitForOrganizationTick();
+
+      expect(unhandledRejection).not.toHaveBeenCalled();
+      expect(runOrganizationTicks).toHaveBeenCalledTimes(2);
+      expect(onOrganizationTickError).toHaveBeenCalledTimes(2);
+    } finally {
+      process.off('unhandledRejection', unhandledRejection);
+    }
+  });
+
+  it('keeps health cadence moving while one slow organization sweep is behind a barrier', async () => {
+    const sweep = deferred<number>();
+    const runOrganizationTicks = vi.fn(() => sweep.promise);
+    const runOperatorHealthProbeTick = vi.fn(async () => false);
+    const assertLockStillHeld = vi.fn(async () => undefined);
+    const wakes = healthWakeDeps();
+    const coordinator = createSchedulerLockedTickCoordinator({
       assertLockStillHeld,
       runOrganizationTicks,
-      runOperatorHealthDigestWake,
-      runSystemHealthGuardWake,
+      ...wakes,
       runOperatorHealthProbeTick,
+      onOrganizationTickError: vi.fn(),
     });
 
-    expect(calls).toEqual(['assert', 'organization', 'digestWake', 'guardWake', 'operatorHealth']);
+    await coordinator.runTick();
+    await coordinator.runTick();
+
+    expect(assertLockStillHeld).toHaveBeenCalledTimes(2);
+    expect(wakes.runOperatorHealthDigestWake).toHaveBeenCalledTimes(2);
+    expect(wakes.runSystemHealthGuardWake).toHaveBeenCalledTimes(2);
+    expect(runOperatorHealthProbeTick).toHaveBeenCalledTimes(2);
+    expect(runOrganizationTicks).toHaveBeenCalledTimes(1);
+
+    sweep.resolve(1);
+    await coordinator.waitForOrganizationTick();
+    await coordinator.runTick();
+
+    expect(runOperatorHealthProbeTick).toHaveBeenCalledTimes(3);
+    expect(runOrganizationTicks).toHaveBeenCalledTimes(2);
+    await coordinator.waitForOrganizationTick();
+  });
+
+  it('does not start another body after a later lock-loss observation', async () => {
+    const assertLockStillHeld = vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('lock lost'));
+    const runOrganizationTicks = vi.fn(async () => 0);
+    const runOperatorHealthProbeTick = vi.fn(async () => false);
+    const wakes = healthWakeDeps();
+    const coordinator = createSchedulerLockedTickCoordinator({
+      assertLockStillHeld,
+      runOrganizationTicks,
+      ...wakes,
+      runOperatorHealthProbeTick,
+      onOrganizationTickError: vi.fn(),
+    });
+
+    await coordinator.runTick();
+    await coordinator.waitForOrganizationTick();
+    await expect(coordinator.runTick()).rejects.toThrow('lock lost');
+
+    expect(runOrganizationTicks).toHaveBeenCalledTimes(1);
+    expect(wakes.runOperatorHealthDigestWake).toHaveBeenCalledTimes(1);
+    expect(wakes.runSystemHealthGuardWake).toHaveBeenCalledTimes(1);
+    expect(runOperatorHealthProbeTick).toHaveBeenCalledTimes(1);
   });
 });

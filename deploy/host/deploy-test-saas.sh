@@ -1448,7 +1448,14 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # the already-reviewed app.read_org_enforced_quota_usage(uuid). All five underlying SELECT grants
   # are already pinned in the required set above; app_clinic_billing gets only this wrapper's
   # EXECUTE and no direct source-table access, asserted by C5A's exact wall.
-  local expected_secdef_count=149
+  # 149 -> 153 (2026-08-03, #987 D30): migration 0333 adds four reviewed specialist-task reminder
+  # capabilities: one materialization fingerprint, one staff-triggered queue materialization refresh,
+  # one delivery-worker claim-time revalidation, and one delivery-worker durable success outcome.
+  # Their bodies touch only specialist_tasks, outgoing_delivery_queue, platform_users, the existing
+  # channel preference/binding/subscription tables and fixed reminder/VAPID system_settings rows.
+  # Migration 0333 grants app_owner only the exact referenced columns and gives runtime roles EXECUTE
+  # only; no runtime role receives a new direct table grant.
+  local expected_secdef_count=153
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

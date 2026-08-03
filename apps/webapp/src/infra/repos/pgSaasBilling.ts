@@ -472,7 +472,13 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                   inArray(saasBillingSubscriptions.source, ['paid_subscription', 'manual']),
                 ),
               )
-              .orderBy(desc(saasBillingSubscriptions.source))
+              // A pending payment row must not hide the active assignment that currently owns
+              // the organization's tariff. Within the same lifecycle state, keep the existing
+              // paid-subscription-before-manual precedence.
+              .orderBy(
+                desc(sql<number>`CASE WHEN ${saasBillingSubscriptions.status} = 'active' THEN 1 ELSE 0 END`),
+                desc(saasBillingSubscriptions.source),
+              )
               .limit(1);
             return {
               organization,

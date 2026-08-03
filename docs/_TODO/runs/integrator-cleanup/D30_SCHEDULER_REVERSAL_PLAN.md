@@ -327,13 +327,15 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       **Гейт:** живой dev-прогон — задача с `remind_at` через минуту порождает ровно одну строку очереди и
       ровно одну отправку при работающих обоих триггерах; `reminder_sent_at` проставлен один раз. Снятие cron —
       только после наблюдения периода.
-      **CURRENT FAIL 03.08:** candidate `ae89f61b1` + `aae3a4917` не приземлять. Независимый аудит
-      `6d2c159fde` воспроизвёл два разрыва гейта: (1) после принятой провайдером Telegram/MAX-отправки сбой
-      очистки bot-marker происходит до `queueMarkSent`, общий `catch` возвращает строку в retry и следующий
-      тик отправляет сообщение повторно; (2) binding/preferences материализуются при создании будущего intent,
-      но их mutation-path не пересобирает intent, поэтому worker с шагом 5 секунд может отправить старому
-      получателю или в уже отключённый канал раньше cron `*/10`. Fixer обязан закрыть оба сохранённых oracle;
-      стабильный `event_id`, узкая outcome-capability и запрет прямого DML уже приняты аудитом.
+      **CURRENT PARTIAL 03.08:** оба разрыва прежнего FAIL `6d2c159fde` исправлены и сохранённые oracle
+      повторно приняты (`1f9b2f22f`, final `4deeb99be`, audit `f399a58274`, land `d3203f25d`). Миграция `0333`
+      применена на DEV и TEST; exact locked TEST login может `SET ROLE app_operational_delivery_worker` и имеет
+      только нужные EXECUTE на scope/revalidate/outcome. DEV-прогон через штатный producer доказал сходимость
+      двух trigger в один `event_id`, один вызов recording stub и единственный `reminder_sent_at`; fixture
+      удалена штатным портом, активных queue-хвостов нет. Пункт остаётся `[ ]`: настоящая provider-отправка на
+      TEST не запускалась, потому что канонический `/run/bersoncarebot/saas-smoke.fixture` отсутствует, а
+      произвольному реальному пользователю сообщение не отправлялось. Закрыть после безопасного test-session
+      probe без нового временного auth-harness; cron до периода наблюдения не снимать.
 
 - [ ] **Ш4. B1 — web-push-only напоминания.** Тот же приём. Отдельно: задача объявлена **обязательной** в
       `deploy/HOST_DEPLOY_README.md`, её отсутствие проверяется `web-push-only-reminder-cron.sh status` и
