@@ -32,6 +32,8 @@ export function assertDeliveryWorkerPoolReady(): Promise<void> {
     "SELECT resolution FROM app.resolve_outgoing_delivery_scope('00000000-0000-4000-8000-000000000000'::uuid)",
     "SELECT app.operator_incident_alert_already_sent('00000000-0000-4000-8000-000000000000'::uuid)",
     "SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE')::int",
+    "SELECT app.revalidate_specialist_task_reminder_materialization('00000000-0000-4000-8000-000000000000'::uuid)",
+    "SELECT app.apply_specialist_task_reminder_success_outcome('00000000-0000-4000-8000-000000000000'::uuid)",
   ]);
 }
 

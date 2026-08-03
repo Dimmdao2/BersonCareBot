@@ -29,12 +29,16 @@ import {
 } from '../../db/repos/outgoingDeliveryScope.js';
 import {
   claimDueOutgoingDeliveries,
+  listPendingSpecialistTaskReminderBotMarkers,
   markOutgoingDeliveryDead,
   markOutgoingDeliverySent,
+  markSpecialistTaskReminderBotMarkerApplied,
+  listPendingSpecialistTaskReminderOutcomes,
   rescheduleOutgoingDeliveryRetry,
   resetStaleOutgoingDeliveryProcessing,
   type OutgoingDeliveryQueueRow,
 } from '../../db/repos/outgoingDeliveryQueue.js';
+import { revalidateSpecialistTaskReminderMaterialization } from '../../db/repos/specialistTaskReminderOutcome.js';
 import { getOutgoingDeliveryReclaimConfig } from '../../db/repos/outgoingDeliveryReclaimSettings.js';
 import {
   enrichDoctorBroadcastIntentIfNeeded,
@@ -70,6 +74,13 @@ export type OutgoingDeliveryWorkerDeps = {
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 };
+
+async function applyDeliverySuccessOutcome(writePort: DbWritePort, queueId: string): Promise<void> {
+  await writePort.writeDb({
+    type: 'specialistTask.reminder.markSent',
+    params: { queueId },
+  });
+}
 
 function outgoingDeliveryCorrelationId(row: OutgoingDeliveryQueueRow): string | undefined {
   const intent = row.payloadJson.intent;
@@ -266,6 +277,30 @@ async function maybeClearMessengerBotBlockedMarker(
     channel: row.channel,
     externalId: resolveExternalIdForBotBlockedMarker(row, intent),
   });
+}
+
+async function completeSpecialistTaskReminderBotMarkerBookkeeping(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+  intent: OutgoingIntent,
+): Promise<void> {
+  await maybeClearMessengerBotBlockedMarker(db, row, intent);
+  await markSpecialistTaskReminderBotMarkerApplied(db, row.id);
+}
+
+export async function retrySentSpecialistTaskReminderBotMarker(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+): Promise<void> {
+  const intent = parseIntentFromPayload(row.payloadJson);
+  if (!intent) throw new Error('SPECIALIST_TASK_REMINDER_BAD_SENT_PAYLOAD');
+  const scope = await resolveOutgoingDeliveryScope(db, row.id);
+  if (scope.kind !== 'tenant' || scope.queueKind !== row.kind) {
+    throw new Error('SPECIALIST_TASK_REMINDER_BOOKKEEPING_SCOPE_UNRESOLVED');
+  }
+  await runWithOrganizationPrincipal(scope.organizationId, () =>
+    completeSpecialistTaskReminderBotMarkerBookkeeping(db, row, intent),
+  );
 }
 
 async function readReminderOccurrenceStatus(
@@ -928,9 +963,21 @@ export async function processOutgoingDeliveryRow(
   }
 
   if (GENERIC_TRANSPORT_QUEUE_KINDS.has(row.kind)) {
+    if (row.kind === 'specialist_task_reminder') {
+      const materializationCurrent = await revalidateSpecialistTaskReminderMaterialization(
+        db,
+        row.id,
+      );
+      if (!materializationCurrent) {
+        logger.info(
+          { rowId: row.id, eventId: row.eventId },
+          'specialist_task_reminder_stale_materialization_deferred',
+        );
+        return;
+      }
+    }
     try {
       await dispatchOutgoing(intent);
-      await maybeClearMessengerBotBlockedMarker(db, row, intent);
       await queueMarkSent(db, row.id);
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
@@ -938,6 +985,32 @@ export async function processOutgoingDeliveryRow(
         return;
       }
       await handleDispatchFailure(db, row, err, writePort, intent);
+      return;
+    }
+    if (row.kind === 'specialist_task_reminder') {
+      try {
+        await runWithDeliveryQueueCapability(() => applyDeliverySuccessOutcome(writePort, row.id));
+      } catch (err) {
+        logger.error(
+          { err, rowId: row.id, eventId: row.eventId },
+          'specialist_task_reminder_success_outcome_deferred',
+        );
+      }
+    }
+    try {
+      if (row.kind === 'specialist_task_reminder') {
+        await completeSpecialistTaskReminderBotMarkerBookkeeping(db, row, intent);
+      } else {
+        await maybeClearMessengerBotBlockedMarker(db, row, intent);
+      }
+    } catch (err) {
+      // The provider already accepted the stable intent and the durable queue row is terminal.
+      // Bot-marker maintenance is independent bookkeeping: retry it through its own repair path,
+      // never by returning the external delivery to the provider.
+      logger.warn(
+        { err, rowId: row.id, eventId: row.eventId },
+        'outgoing_delivery_bot_marker_bookkeeping_failed_after_delivery',
+      );
     }
     return;
   }
@@ -1007,6 +1080,34 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
   batchSize: number;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 }): Promise<{ claimed: number; processed: number; errors: number }> {
+  const pendingOutcomeQueueIds = await listPendingSpecialistTaskReminderOutcomes(
+    input.db,
+    input.batchSize,
+  );
+  for (const queueId of pendingOutcomeQueueIds) {
+    try {
+      await applyDeliverySuccessOutcome(input.writePort, queueId);
+    } catch (err) {
+      logger.error(
+        { err, rowId: queueId },
+        'specialist_task_reminder_success_outcome_retry_failed',
+      );
+    }
+  }
+  const pendingBotMarkerRows = await listPendingSpecialistTaskReminderBotMarkers(
+    input.db,
+    input.batchSize,
+  );
+  for (const row of pendingBotMarkerRows) {
+    try {
+      await retrySentSpecialistTaskReminderBotMarker(input.db, row);
+    } catch (err) {
+      logger.error(
+        { err, rowId: row.id, eventId: row.eventId },
+        'specialist_task_reminder_bot_marker_retry_failed',
+      );
+    }
+  }
   const reclaimConfig = await getOutgoingDeliveryReclaimConfig(input.db);
   await resetStaleOutgoingDeliveryProcessing(
     input.db,

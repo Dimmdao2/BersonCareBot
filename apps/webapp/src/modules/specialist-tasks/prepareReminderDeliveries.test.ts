@@ -24,7 +24,9 @@ describe('specialist-task ready delivery producer', () => {
       topicChannelPrefs: { listByUserId: async () => [] },
       channelPreferences: { getPreferences: async () => [] },
       webPushSubscriptions: { hasAnyForUserId: async () => false },
-      systemSettings: { getSetting: async () => ({ valueJson: { channels: ['telegram', 'email'] } }) },
+      systemSettings: {
+        getSetting: async () => ({ valueJson: { channels: ['telegram', 'email'] } }),
+      },
       getChannelBindings: async () => ({ telegramId: '12345' }),
       getProfileEmail: async () => 'doctor@example.test',
       getProfileEmailVerified: async () => true,
@@ -38,9 +40,11 @@ describe('specialist-task ready delivery producer', () => {
           organizationId: task.organizationId,
           channel: 'telegram',
           nextRetryAt: task.remindAt,
-          eventId: expect.stringMatching(
-            new RegExp(`^specialist-task:${task.id}:${encodeURIComponent(task.remindAt ?? '')}:[0-9a-f]{16}:telegram$`),
-          ),
+          successOutcome: {
+            type: 'specialistTask.reminder.markSent',
+            taskId: task.id,
+          },
+          eventId: `specialist-task:${task.id}:${encodeURIComponent(task.remindAt ?? '')}:telegram`,
           intent: expect.objectContaining({
             payload: expect.objectContaining({ recipient: { chatId: '12345' } }),
           }),
@@ -63,17 +67,20 @@ describe('specialist-task ready delivery producer', () => {
     expect(deliveries).toEqual([]);
   });
 
-  it('versions every materialized ready payload but keeps an unchanged replay idempotent', async () => {
-    const makeDeps = (input?: { telegramId?: string; email?: string }) => ({
-      topicChannelPrefs: { listByUserId: async () => [] },
-      channelPreferences: { getPreferences: async () => [] },
-      webPushSubscriptions: { hasAnyForUserId: async () => false },
-      systemSettings: { getSetting: async () => ({ valueJson: { channels: ['telegram', 'email'] } }) },
-      getChannelBindings: async () => ({ telegramId: input?.telegramId ?? '12345' }),
-      getProfileEmail: async () => input?.email ?? null,
-      getProfileEmailVerified: async () => Boolean(input?.email),
-      resolvePatientDisplayName: async () => 'Пациент',
-    }) as never;
+  it('keeps one durable identity while rematerialized recipients and text safely replace the pending payload', async () => {
+    const makeDeps = (input?: { telegramId?: string; email?: string }) =>
+      ({
+        topicChannelPrefs: { listByUserId: async () => [] },
+        channelPreferences: { getPreferences: async () => [] },
+        webPushSubscriptions: { hasAnyForUserId: async () => false },
+        systemSettings: {
+          getSetting: async () => ({ valueJson: { channels: ['telegram', 'email'] } }),
+        },
+        getChannelBindings: async () => ({ telegramId: input?.telegramId ?? '12345' }),
+        getProfileEmail: async () => input?.email ?? null,
+        getProfileEmailVerified: async () => Boolean(input?.email),
+        resolvePatientDisplayName: async () => 'Пациент',
+      }) as never;
 
     const eventIdFor = (
       deliveries: Awaited<ReturnType<typeof prepareSpecialistTaskReminderDeliveries>>,
@@ -100,12 +107,12 @@ describe('specialist-task ready delivery producer', () => {
       deps,
     );
 
-    expect(repeated.map((delivery) => delivery.eventId)).toEqual(first.map((delivery) => delivery.eventId));
-    expect(eventIdFor(dueAtChanged, 'telegram')).not.toBe(eventIdFor(first, 'telegram'));
-    expect(eventIdFor(telegramRecipientChanged, 'telegram')).not.toBe(
-      eventIdFor(first, 'telegram'),
+    expect(repeated.map((delivery) => delivery.eventId)).toEqual(
+      first.map((delivery) => delivery.eventId),
     );
-    expect(eventIdFor(emailRecipientChanged, 'email')).not.toBe(eventIdFor(first, 'email'));
+    expect(eventIdFor(dueAtChanged, 'telegram')).toBe(eventIdFor(first, 'telegram'));
+    expect(eventIdFor(telegramRecipientChanged, 'telegram')).toBe(eventIdFor(first, 'telegram'));
+    expect(eventIdFor(emailRecipientChanged, 'email')).toBe(eventIdFor(first, 'email'));
     expect(descriptionOnlyChanged.map((delivery) => delivery.eventId)).toEqual(
       first.map((delivery) => delivery.eventId),
     );

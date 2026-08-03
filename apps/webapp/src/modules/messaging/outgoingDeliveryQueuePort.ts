@@ -18,6 +18,11 @@ export type ReadyOutgoingDelivery = {
   kind: 'specialist_task_reminder';
   channel: 'telegram' | 'max' | 'email' | 'web_push';
   intent: OutgoingIntent;
+  /** Canonical product receipt applied only after the transport reports success. */
+  successOutcome: {
+    type: 'specialistTask.reminder.markSent';
+    taskId: string;
+  };
   /** Product-selected absolute schedule, never a worker-derived delay. */
   nextRetryAt: string;
 };

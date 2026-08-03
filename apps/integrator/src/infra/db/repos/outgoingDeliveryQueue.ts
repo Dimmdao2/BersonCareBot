@@ -165,6 +165,16 @@ export async function deleteExpiredSentOutgoingDeliveries(
     sql`DELETE FROM public.outgoing_delivery_queue
      WHERE status = 'sent'
        AND sent_at IS NOT NULL
+       AND NOT (
+         kind = 'specialist_task_reminder'
+         AND payload_json ? 'successOutcome'
+         AND payload_json #>> '{successOutcome,appliedAt}' IS NULL
+       )
+       AND NOT (
+         kind = 'specialist_task_reminder'
+         AND payload_json #>> '{bookkeeping,botMarkerRequired}' = 'true'
+         AND payload_json #>> '{bookkeeping,botMarkerAppliedAt}' IS NULL
+       )
        AND sent_at < now() - ((${String(d)}::text || ' days')::interval)
      RETURNING id`,
   );
@@ -250,6 +260,98 @@ export async function markOutgoingDeliverySent(db: DbPort, id: string): Promise<
          last_error = NULL
      WHERE id = ${id}
        AND status = 'processing'`,
+  );
+}
+
+/** Sent transport rows whose product receipt still needs applying; never claimed for dispatch again. */
+export async function listPendingSpecialistTaskReminderOutcomes(
+  db: DbPort,
+  limit: number,
+): Promise<string[]> {
+  const lim = Math.max(1, Math.trunc(limit));
+  const result = await runIntegratorSql<{ id: string }>(
+    db,
+    sql`SELECT id
+        FROM public.outgoing_delivery_queue
+        WHERE status = 'sent'
+          AND kind = 'specialist_task_reminder'
+          AND payload_json ? 'successOutcome'
+          AND payload_json #>> '{successOutcome,appliedAt}' IS NULL
+        ORDER BY sent_at ASC
+        LIMIT ${lim}`,
+  );
+  return result.rows.map((row) => row.id);
+}
+
+/** Sent messenger deliveries whose non-transport bot-marker cleanup still needs retrying. */
+export async function listPendingSpecialistTaskReminderBotMarkers(
+  db: DbPort,
+  limit: number,
+): Promise<OutgoingDeliveryQueueRow[]> {
+  const lim = Math.max(1, Math.trunc(limit));
+  const result = await runIntegratorSql<{
+    id: string;
+    event_id: string;
+    kind: string;
+    channel: string;
+    payload_json: Record<string, unknown>;
+    status: string;
+    attempt_count: number;
+    max_attempts: number;
+    next_retry_at: string;
+    last_attempt_at: string | null;
+    sent_at: string | null;
+    dead_at: string | null;
+    last_error: string | null;
+  }>(
+    db,
+    sql`SELECT id, event_id, kind, channel, payload_json, status,
+               attempt_count, max_attempts, next_retry_at::text,
+               last_attempt_at::text, sent_at::text, dead_at::text, last_error
+        FROM public.outgoing_delivery_queue
+        WHERE status = 'sent'
+          AND kind = 'specialist_task_reminder'
+          AND payload_json #>> '{bookkeeping,botMarkerRequired}' = 'true'
+          AND payload_json #>> '{bookkeeping,botMarkerAppliedAt}' IS NULL
+        ORDER BY sent_at ASC
+        LIMIT ${lim}`,
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    eventId: row.event_id,
+    kind: row.kind,
+    channel: row.channel,
+    payloadJson: row.payload_json ?? {},
+    status: row.status,
+    attemptCount: row.attempt_count,
+    maxAttempts: row.max_attempts,
+    nextRetryAt: row.next_retry_at,
+    lastAttemptAt: row.last_attempt_at,
+    sentAt: row.sent_at,
+    deadAt: row.dead_at,
+    lastError: row.last_error,
+  }));
+}
+
+export async function markSpecialistTaskReminderBotMarkerApplied(
+  db: DbPort,
+  queueId: string,
+): Promise<void> {
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
+        SET payload_json = jsonb_set(
+              payload_json,
+              '{bookkeeping,botMarkerAppliedAt}',
+              to_jsonb(clock_timestamp()::text),
+              true
+            ),
+            updated_at = clock_timestamp()
+        WHERE id = ${queueId}::uuid
+          AND status = 'sent'
+          AND kind = 'specialist_task_reminder'
+          AND payload_json #>> '{bookkeeping,botMarkerRequired}' = 'true'
+          AND payload_json #>> '{bookkeeping,botMarkerAppliedAt}' IS NULL`,
   );
 }
 

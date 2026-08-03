@@ -174,7 +174,9 @@ REVOKE ALL ON TABLE integrator.projection_outbox, integrator.message_retry_jobs,
   app_operational_scheduler, app_operational_media_worker;
 REVOKE EXECUTE ON FUNCTION app.release_principal_context(), app.is_staff(), app.current_org_id(),
   app.current_patient_user_id(),
-  app.open_or_touch_operator_incident(text, text, text, text, text)
+  app.open_or_touch_operator_incident(text, text, text, text, text),
+  app.revalidate_specialist_task_reminder_materialization(uuid),
+  app.apply_specialist_task_reminder_success_outcome(uuid)
   FROM app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
 REVOKE USAGE ON SCHEMA app, integrator, public FROM
@@ -189,6 +191,9 @@ DROP FUNCTION IF EXISTS app.record_operator_delivery_attempt(text, text, text, i
 DROP FUNCTION IF EXISTS app.read_outgoing_delivery_reclaim_config();
 REVOKE SELECT ON TABLE integrator.user_reminder_occurrences, public.reminder_rules FROM app_owner;
 REVOKE SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents FROM app_owner;
+REVOKE SELECT (id, organization_id, reminder_sent_at), UPDATE (reminder_sent_at)
+  ON TABLE public.specialist_tasks FROM app_owner;
+REVOKE UPDATE (payload_json) ON TABLE public.outgoing_delivery_queue FROM app_owner;
 REVOKE UPDATE (alert_sent_at) ON TABLE public.operator_incidents FROM app_owner;
 REVOKE INSERT ON TABLE public.operator_incidents FROM app_owner;
 REVOKE UPDATE (last_seen_at, occurrence_count, error_detail) ON TABLE public.operator_incidents FROM app_owner;
@@ -483,6 +488,9 @@ GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 GRANT SELECT ON TABLE public.reminder_rules TO app_owner;
 GRANT SELECT, UPDATE, DELETE ON TABLE integrator.user_reminder_occurrences TO app_owner;
 GRANT SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents TO app_owner;
+GRANT SELECT (id, organization_id, reminder_sent_at), UPDATE (reminder_sent_at)
+  ON TABLE public.specialist_tasks TO app_owner;
+GRANT UPDATE (payload_json) ON TABLE public.outgoing_delivery_queue TO app_owner;
 DO $c4_email_send_cooldowns_app_owner_acl$
 BEGIN
   IF to_regclass('public.email_send_cooldowns') IS NOT NULL THEN
@@ -722,6 +730,18 @@ REVOKE ALL ON FUNCTION app.open_or_touch_operator_incident(text, text, text, tex
   app_staff, app_patient, app_worker,
   app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
 GRANT EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
+  TO app_operational_delivery_worker;
+
+REVOKE ALL ON FUNCTION app.apply_specialist_task_reminder_success_outcome(uuid) FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.apply_specialist_task_reminder_success_outcome(uuid)
+  TO app_operational_delivery_worker;
+
+REVOKE ALL ON FUNCTION app.revalidate_specialist_task_reminder_materialization(uuid) FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.revalidate_specialist_task_reminder_materialization(uuid)
   TO app_operational_delivery_worker;
 
 CREATE OR REPLACE FUNCTION app.list_scheduler_reminder_organization_ids()
@@ -1166,6 +1186,8 @@ WITH managed(role_name) AS (VALUES
   ('function','app.record_operator_delivery_attempt(text,text,text,integer,text)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.read_outgoing_delivery_reclaim_config()','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.open_or_touch_operator_incident(text,text,text,text,text)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.revalidate_specialist_task_reminder_materialization(uuid)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.apply_specialist_task_reminder_success_outcome(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('schema','app','USAGE','app_operational_scheduler',false),
   ('schema','integrator','USAGE','app_operational_scheduler',false),
   ('schema','public','USAGE','app_operational_scheduler',false),

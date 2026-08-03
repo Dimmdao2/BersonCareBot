@@ -17,14 +17,22 @@
  * У каждого `it` в комментарии — свой арбитр. Арбитры прогнаны руками, вывод — в отчёте.
  */
 import { describe, expect, it } from 'vitest';
-import type { DbPort, DbQueryResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
+import type {
+  DbPort,
+  DbQueryResult,
+  DbWriteMutation,
+  OutgoingIntent,
+} from '../../../kernel/contracts/index.js';
 import {
   getCurrentOrganizationPrincipalId,
   runWithInfraPrincipal,
   runWithOrganizationPrincipal,
 } from '../../principal/organizationPrincipal.js';
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
-import { processClaimedOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
+import {
+  processClaimedOutgoingDeliveryRow,
+  retrySentSpecialistTaskReminderBotMarker,
+} from './outgoingDeliveryWorker.js';
 
 /** Клиника, под которой воркер оказался «по инерции» — не она владеет строкой очереди. */
 const AMBIENT_ORG = 'c0000000-0000-4000-8000-00000000000c';
@@ -60,7 +68,18 @@ function queueRow(kind: string): OutgoingDeliveryQueueRow {
     eventId: 'evt-scope',
     kind,
     channel: 'telegram',
-    payloadJson: { intent: operatorAlertIntent(), incidentId: INCIDENT_ID },
+    payloadJson: {
+      intent: operatorAlertIntent(),
+      incidentId: INCIDENT_ID,
+      ...(kind === 'specialist_task_reminder'
+        ? {
+            successOutcome: {
+              type: 'specialistTask.reminder.markSent',
+              taskId: 'a0000000-0000-4000-8000-00000000000a',
+            },
+          }
+        : {}),
+    },
     status: 'processing',
     attemptCount: 1,
     maxAttempts: 6,
@@ -82,14 +101,26 @@ type Harness = {
   markedSent: number;
   /** Строки, оставленные durable для retry. */
   rescheduled: number;
+  /** Sent-row bookkeeping completion writes, which must never dispatch the provider. */
+  bookkeepingApplied: number;
+  writes: DbWriteMutation[];
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<Record<string, never>>;
-  writePort: { writeDb: () => Promise<undefined> };
+  writePort: { writeDb: (mutation: DbWriteMutation) => Promise<undefined> };
 };
 
-function harness(scope: ScopeRow | null): Harness {
+function harness(
+  scope: ScopeRow | null,
+  options: { materializationCurrent?: boolean; botMarkerBookkeepingFailure?: boolean } = {},
+): Harness {
   const dispatched: Harness['dispatched'] = [];
   const quarantined: string[] = [];
-  const state = { markedSent: 0, rescheduled: 0 };
+  const writes: DbWriteMutation[] = [];
+  const state = {
+    markedSent: 0,
+    rescheduled: 0,
+    bookkeepingApplied: 0,
+    botMarkerFailuresRemaining: options.botMarkerBookkeepingFailure === true ? 1 : 0,
+  };
 
   const db: DbPort = {
     async query<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
@@ -99,12 +130,26 @@ function harness(scope: ScopeRow | null): Harness {
       if (sql.includes('app.operator_incident_alert_already_sent')) {
         return { rows: [{ already_sent: false }] as T[] };
       }
+      if (sql.includes('app.revalidate_specialist_task_reminder_materialization')) {
+        return { rows: [{ current: options.materializationCurrent !== false }] as T[] };
+      }
+      if (
+        state.botMarkerFailuresRemaining > 0 &&
+        sql.includes('UPDATE public.user_channel_bindings')
+      ) {
+        state.botMarkerFailuresRemaining -= 1;
+        throw new Error('temporary_bot_marker_bookkeeping_failure');
+      }
+      if (sql.includes('{bookkeeping,botMarkerAppliedAt}')) {
+        state.bookkeepingApplied += 1;
+        return { rows: [] as T[] };
+      }
       if (sql.includes("status = 'dead'")) {
         // Второй параметр запроса markOutgoingDeliveryDead — текст last_error.
         quarantined.push(String(params?.[0] ?? ''));
         return { rows: [] as T[] };
       }
-      if (sql.includes("status = 'sent'")) {
+      if (sql.includes("SET status = 'sent'")) {
         state.markedSent += 1;
         return { rows: [] as T[] };
       }
@@ -123,17 +168,26 @@ function harness(scope: ScopeRow | null): Harness {
     db,
     dispatched,
     quarantined,
+    writes,
     get markedSent() {
       return state.markedSent;
     },
     get rescheduled() {
       return state.rescheduled;
     },
+    get bookkeepingApplied() {
+      return state.bookkeepingApplied;
+    },
     async dispatchOutgoing(intent: OutgoingIntent) {
       dispatched.push({ intent, organizationId: getCurrentOrganizationPrincipalId() });
       return {};
     },
-    writePort: { writeDb: async () => undefined },
+    writePort: {
+      writeDb: async (mutation: DbWriteMutation) => {
+        writes.push(mutation);
+        return undefined;
+      },
+    },
   } as Harness;
 }
 
@@ -165,39 +219,136 @@ function processUnderWorkerTick(h: Harness, row: OutgoingDeliveryQueueRow): Prom
 
 describe('воркер доставки: строка без разрешимого арендатора не отправляется «под текущим»', () => {
   it('delivers a ready specialist-task transport intent under its row tenant without product-policy reads', async () => {
-    const h = harness({ queue_kind: 'specialist_task_reminder', organization_id: OWNER_ORG, resolution: 'tenant' });
+    const h = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
     const row = queueRow('specialist_task_reminder');
 
     await processUnderWorkerTick(h, row);
 
     expect(h.dispatched).toHaveLength(1);
     expect(h.dispatched[0]?.organizationId).toBe(OWNER_ORG);
+    expect(h.writes).toEqual([
+      {
+        type: 'specialistTask.reminder.markSent',
+        params: {
+          queueId: ROW_ID,
+        },
+      },
+    ]);
     expect(h.markedSent).toBe(1);
   });
 
   it('keeps retryable generic transport failure durable and dead-letters permanent failure', async () => {
-    const retry = harness({ queue_kind: 'specialist_task_reminder', organization_id: OWNER_ORG, resolution: 'tenant' });
+    const retry = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
     retry.dispatchOutgoing = async () => {
       throw new Error('temporary_provider_failure');
     };
     await processUnderWorkerTick(retry, queueRow('specialist_task_reminder'));
     expect(retry.rescheduled).toBe(1);
+    expect(retry.writes).toEqual([]);
     expect(retry.markedSent).toBe(0);
 
-    const permanent = harness({ queue_kind: 'specialist_task_reminder', organization_id: OWNER_ORG, resolution: 'tenant' });
+    const permanent = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
     permanent.dispatchOutgoing = async () => {
       throw new Error('CHANNEL_NOT_SUPPORTED:telegram');
     };
     await processUnderWorkerTick(permanent, queueRow('specialist_task_reminder'));
     expect(permanent.quarantined).toEqual(['CHANNEL_NOT_SUPPORTED:telegram']);
+    expect(permanent.writes).toEqual([]);
     expect(permanent.rescheduled).toBe(0);
   });
+
+  it('does not reschedule transport after an external success when product receipt bookkeeping fails', async () => {
+    const h = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
+    h.writePort.writeDb = async (mutation: DbWriteMutation) => {
+      h.writes.push(mutation);
+      throw new Error('temporary_outcome_store_failure');
+    };
+
+    await processUnderWorkerTick(h, queueRow('specialist_task_reminder'));
+
+    expect(h.dispatched).toHaveLength(1);
+    expect(h.markedSent).toBe(1);
+    expect(h.rescheduled).toBe(0);
+    expect(h.quarantined).toEqual([]);
+    expect(h.writes).toEqual([
+      {
+        type: 'specialistTask.reminder.markSent',
+        params: { queueId: ROW_ID },
+      },
+    ]);
+  });
+
+  it('does not repeat an external specialist reminder when bot-marker bookkeeping fails after send', async () => {
+    const h = harness(
+      {
+        queue_kind: 'specialist_task_reminder',
+        organization_id: OWNER_ORG,
+        resolution: 'tenant',
+      },
+      { botMarkerBookkeepingFailure: true },
+    );
+
+    await processUnderWorkerTick(h, queueRow('specialist_task_reminder'));
+
+    expect(h.dispatched).toHaveLength(1);
+    expect(h.markedSent).toBe(1);
+    expect(h.rescheduled).toBe(0);
+
+    await retrySentSpecialistTaskReminderBotMarker(h.db, {
+      ...queueRow('specialist_task_reminder'),
+      status: 'sent',
+      sentAt: '2026-07-31T10:00:01.000Z',
+    });
+
+    expect(h.dispatched).toHaveLength(1);
+    expect(h.bookkeepingApplied).toBe(1);
+  });
+
+  for (const mutation of ['topic/channel disabled', 'messenger recipient rebound'] as const) {
+    it(`does not dispatch stale materialization within the 5s worker window after ${mutation}`, async () => {
+      const h = harness(
+        {
+          queue_kind: 'specialist_task_reminder',
+          organization_id: OWNER_ORG,
+          resolution: 'tenant',
+        },
+        { materializationCurrent: false },
+      );
+
+      await processUnderWorkerTick(h, queueRow('specialist_task_reminder'));
+
+      expect(h.dispatched).toEqual([]);
+      expect(h.markedSent).toBe(0);
+      expect(h.rescheduled).toBe(0);
+      expect(h.writes).toEqual([]);
+    });
+  }
 
   it('дано: арендатор строки не резолвится → когда обработка → тогда карантин и НИ ОДНОЙ отправки', async () => {
     // Ровно требование карты. Без этой ветки сообщение ушло бы из-под ambient-принципала чужой клиники.
     // АРБИТР: в processClaimedOutgoingDeliveryRowInner() убрать блок `if (scope.kind === 'invalid')`
     // — dispatchOutgoing будет вызван, `dispatched` перестанет быть пустым, тест покраснеет.
-    const h = harness({ queue_kind: 'operator_alert', organization_id: null, resolution: 'unresolved' });
+    const h = harness({
+      queue_kind: 'operator_alert',
+      organization_id: null,
+      resolution: 'unresolved',
+    });
 
     await processUnderForeignTenant(h, queueRow('operator_alert'));
 
