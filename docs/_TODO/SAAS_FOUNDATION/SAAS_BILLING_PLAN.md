@@ -257,7 +257,9 @@
       мутаций теперь дают exit 1; вместе с двумя классами, уже пойманными аудитом, итог **8/8, uncaught 0**.
       `pnpm --dir apps/webapp exec vitest run src/modules/saas-billing/service.test.ts src/app/api/clinic/billing/route.route.test.ts src/app/api/clinic/invites/route.route.test.ts src/app/app/settings/TeamSection.ui.test.tsx src/app-layer/guards/cabinetAccessLadder.test.ts` —
       5 файлов, 51/51; webapp typecheck, scoped ESLint, migration/journal/schema/raw-SQL gates и diff-check — exit 0.
-      `0308` нигде не применялась; live TEST card→webhook acceptance остаётся открытой в B0.3.
+      `0308` нигде не применялась; live TEST card→webhook acceptance для клиники — ✅ закрыта 04.08,
+      см. запись «#1057 … ветка `wt/pay-close` … ЗАКРЫТО» в конце этого файла (не B0.3 — та про
+      патентский mock-путь покупок, другой домен, см. её собственную пометку выше).
 
 ---
 
@@ -1105,3 +1107,75 @@ capture/refund integration тест на mock-адаптере; secret redaction
       блокирует свежий, отдельный дефект идемпотентности чекаута (см. выше), не капчер. Код этого второго
       дефекта не менялся (не в скоупе), состояние TEST не испорчено (проверено — `void`/`draft`, суммы у
       ЮKassa не списывались). Push и merge не делались.
+
+      ---
+
+      **04.08, задача #1057 «закрыть оплату тарифа на TEST живым платежом — последний шаг», ветка
+      `wt/pay-close`. ЗАКРЫТО: клиника реально оплатила тариф на TEST end-to-end.**
+
+      _Шаг 1 — деплой._ `bash deploy/host/deploy-test.sh wt/pay-close` упал на закрывающих гейтах ДВАЖДЫ
+      подряд, оба раза — новый, узкий дефект, не капчер, поправлено и задокументировано в git-истории
+      (коммиты на `wt/pay-close`, слиты в `feat/doctor-ui-rebuild` мерджем `0ed6194eb` до того, как этот ход
+      успел закоммитить сам план):
+      1. `migration_ledger_incomplete tags=0353_platform_users_rls_d15b4_local` (`e96f12641`) — `0353`
+         применялась на TEST РАНЬШЕ, чем `60ab00db5` тем же днём отредактировал в ней только комментарий
+         (сняв ложную атрибуцию владельцу); хеш файла изменился, хеш в леджере — нет. Узкая реконсиляция
+         `0355_platform_users_rls_d15b4_comment_reconcile_local.sql` (`RECONCILES-MIGRATION-HASH: 0353…`,
+         тот же идиом, что `0330`/`0345`/`0349`) переигрывает тело `0353` дословно (все операторы
+         идемпотентны) — `0353` не тронута.
+      2. Два дивижн-бай-зиро fail-closed гейта (`d3_4_bootstrap_base_role_exact_topology_verified`,
+         `integrator_server_runtime_config_preflight`, `ff44ef95a` + `75813c9b0`) — оба жёстко считали
+         РОВНО одно/три прямых членства ролью для bootstrap-логинов webapp/integrator; D15b/4 тем же днём
+         законно добавила им членство в `app_identity_bootstrap` (для identity-bootstrap RLS-ветки
+         `platform_users`), но эти два ассерта не обновили. Подтверждено живым SQL до и после правки
+         (`select … from pg_auth_members` — оба логина реально несут это членство; изолированный прогон
+         исправленного assert'а вернул `1`, не `division by zero`). Итог: `bash deploy/host/deploy-test.sh
+         wt/pay-close` → `exit 0`, лог
+         `deploy-test-20260803T225113Z-599720.log`; единственная не-`ok` строка — тот же известный
+         warn-not-fatal E1 diagnostic gate ([[test-deploy-isolation-gate-and-resolve]]); все 5 test-юнитов
+         остались `active running`.
+
+      _Шаг 2 — снят блокер идемпотентности из записи выше, БЕЗ правки её кода._ Причина той записи —
+      `createProratedTariffUpgradeInvoice` (`pgSaasBilling.ts:731`) ищет «открытый» апгрейд-инвойс ТОЛЬКО по
+      `(saasBillingSubscriptionId, description='Доплата за повышение тарифа', status IN (draft,pending))` —
+      без фильтра по целевому тарифу. На подписке уже лежал именно такой открытый `draft`-инвойс
+      `7a1bb1a9-…` (от прогона на тариф КЛИНИКА тем же 04.08, до этого хода) — он подставлялся под ЛЮБУЮ
+      следующую попытку (в т.ч. на ПРОФИ) со своим детерминированным ключом, colliding с ЮKassa так же, как
+      описано выше. Это отдельная, узкая находка (matching not scoped to target tariff), НЕ исправлена в
+      коде — вместо этого использован уже существующий, непотроганный К4-путь: `POST
+      /api/admin/saas-billing/payments/7a1bb1a9-…/cancel` → `void`. Дальше сработала УЖЕ имеющаяся
+      void-ветка (`service.ts:283`, ключ `saas_tariff_upgrade_retry:…`, keyed по `invoice.id` — код этой
+      ветки не менялся): следующая попытка апгрейда на ПРОФИ корректно нашла свой собственный, отдельный,
+      уже `void` инвойс `a91b7c2e-…` (тариф ПРОФИ, тот самый из прогона 03.08 вечером) и получила для него
+      СВЕЖИЙ ключ — коллизии больше нет.
+
+      _Шаг 3 — живой платёж._ Вход `dimmdao@yandex.ru` обычной сессией (cookie сохранена с более раннего
+      хода того же дня, `sessionEpoch` не поменялся редеплоем — проверено рабочим `GET /api/clinic/billing`
+      → `200`). `PATCH /api/clinic/billing {tariffId: ПРОФИ}` → `200`, инвойс `a91b7c2e-…`,
+      `providerCheckoutUrl=https://yoomoney.ru/checkout/payments/v2/contract?orderId=320331b3-…`,
+      `amountMinor=69745` (прорейтированная разница СТАРТ→ПРОФИ). Оплачено headless-браузером (Playwright
+      1.60.0, chromium) официальной тестовой картой ЮKassa `4111111111111111`, `12/30`, `123` — форма
+      «Новая карта», страница ответила «Успешно», `697,45 ₽`.
+      Подтверждено НЕ по редиректу, а прямым запросом к API провайдера: `GET
+      https://api.yookassa.ru/v3/payments/320331b3-…` → `status=succeeded`, `paid=true`, `test=true`,
+      `amount=697.45 RUB`, `captured_at` заполнен, `metadata.saasBillingInvoiceId=a91b7c2e-…` совпадает.
+      Вебхук пришёл НЕ подделан: `saas_billing_provider_events` — новая строка `payment.succeeded`
+      (`563e6a27-…`, `created_at=02:05:29.735`), тот же момент, что `captured_at` у провайдера. Инвойс
+      `a91b7c2e-…`: `status='paid'`, `paid_at='2026-08-04 02:05:29.733+03'`.
+      **`be_organizations.tariff_id`** для `a0000000-…-0001` («Точка Здоровья») сменился на
+      `2512c9fd-…` (ПРОФИ). `saas_billing_subscriptions` (`source=paid_subscription`) —
+      `tariff_id=2512c9fd-…`, `status=active`, `lifecycle_state=active`. `GET /api/clinic/billing`
+      (та же живая сессия, реальный маршрут, не приватный скрипт) отдаёт тариф ПРОФИ в
+      `subscriptions[].tariffSnapshot.name`. Ни RLS, ни FORCE RLS, ни guard-триггеры не ослаблялись; продуктовый
+      код капчера/вебхука/идемпотентности не менялся — только два узких deploy-gate фикса (шаг 1) и один
+      узкий migration-reconcile (тоже шаг 1); снятие блокера шага 2 — операция через существующий
+      К4-эндпоинт, не код.
+
+      Оставлены нетронутыми (не блокируют, не по скоупу этого хода): три черновых инвойса
+      `9db26000-…`/`515a7f2c-…`/`0ff769f8-…` — пустое `description`, поэтому «открытым upgrade-инвойсом»
+      выше не матчатся и ни на что не влияют; находка из шага 2 (matching без фильтра по тарифу) — отдельная,
+      узкая, не тронута кодом, эту запись достаточно для её описания при следующей необходимости.
+
+      **Итог: клиника «Точка Здоровья» реально оплатила тариф ПРОФИ на TEST end-to-end** — подтверждено
+      независимо тремя источниками (API провайдера, БД, `GET /api/clinic/billing`), не логом и не отчётом
+      исполнителя. #1057 закрыт.
