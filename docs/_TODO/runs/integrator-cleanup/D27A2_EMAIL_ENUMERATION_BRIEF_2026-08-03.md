@@ -8,8 +8,9 @@
 - Существующий security-contract: `emailOtpPublic.ts` — «Rate-limit: check by email (no userId needed yet — anti-enumeration)».
 - Recent live fix не откатывать: product `4054417ea`, audit `b2b5e5a758`, land `17487d2b4`.
 
-Источник оракула: существующая anti-enumeration ветка возвращает fake UUID для unknown email; public caller не
-должен отличить known/unknown по status/body shape, provider outage или response-time class.
+Источник оракула: `emailOtpPublic.ts` — «Rate-limit: check by email (no userId needed yet — anti-enumeration)»;
+существующая ветка возвращает fake UUID для unknown email, поэтому public caller не должен отличить known/unknown
+по status/body shape, provider outage или response-time class.
 
 ## Измеренная уязвимость
 
