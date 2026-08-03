@@ -219,9 +219,28 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .limit(1);
       return account?.billingEmail?.trim() || null;
     },
+    async updateSaasBillingAccountBillingEmail({ organizationId, billingEmail }) {
+      const normalizedEmail = billingEmail.trim().toLowerCase();
+      const [account] = await getDrizzle()
+        .insert(saasBillingAccounts)
+        .values({ organizationId, billingEmail: normalizedEmail })
+        .onConflictDoUpdate({
+          target: saasBillingAccounts.organizationId,
+          set: { billingEmail: normalizedEmail, updatedAt: new Date().toISOString() },
+        })
+        .returning({ billingEmail: saasBillingAccounts.billingEmail });
+      if (!account?.billingEmail) throw new Error('saas_billing_account_email_update_failed');
+      return account.billingEmail;
+    },
     async getOrganizationBillingOverview(organizationId) {
       const db = getDrizzle();
-      const [subscriptionRows, invoiceRows, providerEvents] = await Promise.all([
+      const [account, subscriptionRows, invoiceRows, providerEvents] = await Promise.all([
+        db
+          .select({ billingEmail: saasBillingAccounts.billingEmail })
+          .from(saasBillingAccounts)
+          .where(eq(saasBillingAccounts.organizationId, organizationId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null),
         db
           .select()
           .from(saasBillingSubscriptions)
@@ -250,6 +269,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
       return {
         organizationId,
+        billingEmail: account?.billingEmail?.trim() || null,
         subscriptions: subscriptionRows as SaasBillingSubscriptionReadRow[],
         invoices: invoiceRows.map(
           (row): SaasBillingInvoiceReadRow => ({

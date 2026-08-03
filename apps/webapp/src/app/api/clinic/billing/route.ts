@@ -35,7 +35,13 @@ export async function GET() {
   }
 }
 
-const tariffChangeSchema = z.object({ tariffId: z.string().uuid() });
+const billingPatchSchema = z.union([
+  z.object({ tariffId: z.string().uuid() }),
+  z.object({
+    action: z.literal('billing_contact'),
+    billingEmail: z.string().trim().email().max(320),
+  }),
+]);
 
 async function requireBillingManager() {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
@@ -75,10 +81,27 @@ function tariffChangeError(error: unknown) {
 export async function PATCH(request: Request) {
   const gate = await requireBillingManager();
   if (!gate.ok) return gate.response;
-  const parsed = tariffChangeSchema.safeParse(await request.json().catch(() => null));
+  const parsed = billingPatchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
   try {
+    if ('billingEmail' in parsed.data) {
+      const billingEmailInput = parsed.data.billingEmail;
+      const billingEmail = await runWithDbClinicBillingPrincipal(
+        {
+          organizationId: gate.ctx.organizationId,
+          platformUserId: gate.ctx.session.user.userId,
+          source: 'clinic-billing-contact-update',
+        },
+        () =>
+          buildAppDeps().saasBilling.updateOwnBillingEmail({
+            organizationId: gate.ctx.organizationId,
+            billingEmail: billingEmailInput,
+          }),
+      );
+      return NextResponse.json({ ok: true, billingEmail });
+    }
+    const tariffId = parsed.data.tariffId;
     const result = await runWithDbClinicBillingPrincipal(
       {
         organizationId: gate.ctx.organizationId,
@@ -88,7 +111,7 @@ export async function PATCH(request: Request) {
       () =>
         buildAppDeps().saasBilling.scheduleOwnTariffChange({
           organizationId: gate.ctx.organizationId,
-          tariffId: parsed.data.tariffId,
+          tariffId,
           actorId: gate.ctx.session.user.userId,
         }),
     );
@@ -203,6 +226,12 @@ export async function POST(request: Request) {
         { ok: false, error: 'saas_billing_payment_provider_unavailable' },
         { status: 503 },
       );
+    }
+    if (
+      message === 'saas_billing_receipt_email_missing' ||
+      message === 'saas_billing_receipt_vat_code_missing'
+    ) {
+      return NextResponse.json({ ok: false, error: message }, { status: 409 });
     }
     return NextResponse.json({ ok: false, error: 'saas_billing_invoice_failed' }, { status: 500 });
   }

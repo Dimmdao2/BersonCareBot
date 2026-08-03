@@ -454,6 +454,10 @@ export function createSaasBillingService(dependencies: {
       return dependencies.repository.getOrganizationBillingOverview(organizationId);
     },
 
+    updateOwnBillingEmail(input: { organizationId: string; billingEmail: string }) {
+      return dependencies.repository.updateSaasBillingAccountBillingEmail(input);
+    },
+
     /** К1 — platform-wide payments journal, filtered by period/status/payer. Never org-scoped. */
     listPlatformPayments(filter: {
       periodFrom?: string;
