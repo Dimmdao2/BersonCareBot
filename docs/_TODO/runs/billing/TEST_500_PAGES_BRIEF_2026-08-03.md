@@ -7,6 +7,10 @@ Rules: `AGENTS.md` — Маршрут, CORE rules, §1/§1b, §5, §6, §24. Lan
 
 Authority: this brief (bounded live incident, `ORCH_OPS`). Owner hit both pages on TEST on 2026-08-03 ~19:58 MSK.
 
+Источник оракула: `AGENTS.md` «Как решать, что делать» — «Мера всему — человек. Единственный вопрос к любой
+работе: если этого не сделать, человек получит то, что ему нужно, или нет?». Владелец открыл обе страницы на
+TEST и получил экран «Что-то пошло не так» вместо своих уведомлений и настроек приложения.
+
 ## What the owner sees
 
 Both return the generic «Что-то пошло не так — An error occurred in the Server Components render»:
