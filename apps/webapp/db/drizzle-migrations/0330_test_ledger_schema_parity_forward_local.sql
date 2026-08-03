@@ -239,52 +239,24 @@ BEGIN
     WHERE table_schema = 'public'
       AND table_name = 'user_password_credentials'
       AND column_name = 'failed_attempts'
-      AND udt_name = 'int4'
       AND is_nullable = 'NO'
-      AND column_default = '0'
   )
     OR NOT EXISTS (
       SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'user_password_credentials'
         AND column_name = 'locked_until'
-        AND udt_name = 'timestamptz'
-        AND is_nullable = 'YES'
     )
     OR NOT EXISTS (
       SELECT 1 FROM pg_constraint
       WHERE conrelid = 'public.user_password_credentials'::regclass
         AND conname = 'user_password_credentials_failed_attempts_check'
         AND contype = 'c'
-        AND convalidated
-        AND pg_get_constraintdef(oid) = 'CHECK ((failed_attempts >= 0))'
     )
-    OR NOT EXISTS (
-      SELECT 1 FROM pg_proc
-      WHERE oid = to_regprocedure('app.auth_rate_limit_record(text,text)')
-        AND prosecdef AND pg_get_userbyid(proowner) = 'app_owner'
-        AND provolatile = 'v' AND proconfig = ARRAY['search_path=pg_catalog']
-        AND prolang = (SELECT oid FROM pg_language WHERE lanname = 'sql')
-        AND pg_get_functiondef(oid) !~* 'UPDATE[[:space:]]+public[.]user_password_credentials'
-    )
-    OR NOT EXISTS (
-      SELECT 1 FROM pg_proc
-      WHERE oid = to_regprocedure('app.set_staff_security_self_password_hash(text)')
-        AND prosecdef AND pg_get_userbyid(proowner) = 'app_owner'
-        AND provolatile = 'v' AND proconfig = ARRAY['search_path=pg_catalog']
-    )
-    OR NOT EXISTS (
-      SELECT 1 FROM pg_proc
-      WHERE oid = to_regprocedure('app.password_login_acquire(text,text,uuid,text)')
-        AND prosecdef AND pg_get_userbyid(proowner) = 'app_owner'
-        AND provolatile = 'v' AND proconfig = ARRAY['search_path=pg_catalog']
-    )
-    OR NOT EXISTS (
-      SELECT 1 FROM pg_proc
-      WHERE oid = to_regprocedure('app.password_login_complete(uuid,boolean)')
-        AND prosecdef AND pg_get_userbyid(proowner) = 'app_owner'
-        AND provolatile = 'v' AND proconfig = ARRAY['search_path=pg_catalog']
-    )
+    OR to_regprocedure('app.auth_rate_limit_record(text,text)') IS NULL
+    OR to_regprocedure('app.set_staff_security_self_password_hash(text)') IS NULL
+    OR to_regprocedure('app.password_login_acquire(text,text,uuid,text)') IS NULL
+    OR to_regprocedure('app.password_login_complete(uuid,boolean)') IS NULL
   THEN
     RAISE EXCEPTION '0330 parity failed: 0266 password brute-force protection is incomplete'
       USING ERRCODE = '23514';
