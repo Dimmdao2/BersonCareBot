@@ -147,6 +147,9 @@ export async function handleYandexOAuthCallbackGet(
     if (r === 'email_ambiguous') {
       return NextResponse.redirect(redirectToAppQuery('email_ambiguous'));
     }
+    if (r === 'contact_conflict') {
+      return NextResponse.redirect(redirectToAppQuery('contact_conflict'));
+    }
     return NextResponse.redirect(redirectToAppQuery('db_error'));
   }
 

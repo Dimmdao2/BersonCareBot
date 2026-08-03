@@ -23,6 +23,7 @@ const USER_ERROR_CODES = new Set([
   'no_code',
   'no_identity',
   'email_ambiguous',
+  'contact_conflict',
   'not_ready',
   'not_found',
   'already_consumed',

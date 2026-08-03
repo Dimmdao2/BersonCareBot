@@ -33,6 +33,21 @@ export type OAuthUserResolvePort = {
    * causing an INSERT duplicate-key crash on OAuth login with a verified copy of that email.
    */
   findActiveUserIdsByEmail: (emailNorm: string) => Promise<string[]>;
+  /**
+   * F6 §2a item 7 (equal-rights login): owner(s) of `emailNorm` as EITHER the active primary
+   * OR a confirmed OAuth-linked secondary (`user_oauth_bindings.email`) — the third tier a plain
+   * OAuth sign-in checks after `findUserIdsByVerifiedEmail`/`findActiveUserIdsByEmail` come back
+   * empty, so an account is recognized even when this exact address is only its secondary.
+   */
+  findUserIdsByAnyConfirmedEmail: (emailNorm: string) => Promise<string[]>;
+  /** Current active `phone_normalized` of an account, or null if it has none. */
+  getActivePhoneForUser: (userId: string) => Promise<string | null>;
+  /**
+   * F6 case 4 ("email matches, phone differs"): records `phoneNorm` as this account's confirmed
+   * phone. Caller must have already checked the account has no active phone and that `phoneNorm`
+   * belongs to nobody else — this never closes/replaces an existing active phone.
+   */
+  addSparePhoneContact: (userId: string, phoneNorm: string) => Promise<void>;
   createOAuthPlatformUser: (input: CreateOAuthPlatformUserInput) => Promise<string>;
   upsertOAuthBinding: (input: UpsertOAuthBindingInput) => Promise<UpsertOAuthBindingResult>;
 };

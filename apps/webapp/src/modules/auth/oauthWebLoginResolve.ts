@@ -4,6 +4,10 @@ import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 import type { AccountOutcome } from '@/modules/auth/oauthYandexResolve';
 import { requireOAuthUserResolvePort } from '@/modules/auth/oauthUserResolvePort';
 import {
+  addSparePhoneContactIfFree,
+  resolveOAuthContactOwners,
+} from '@/modules/auth/oauthContactResolve';
+import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from '@/modules/platform-access/trustedPhonePolicy';
@@ -12,7 +16,17 @@ export type { AccountOutcome };
 
 export type WebOAuthProvider = 'google' | 'apple';
 
-export type WebOAuthResolveFailure = 'no_identity' | 'email_ambiguous' | 'db_error';
+/**
+ * `contact_conflict` — IDENTITY_AND_MERGE_SCHEME.md §2a case 6: the provider's phone and email
+ * each confirm a DIFFERENT existing account. Distinct from `email_ambiguous` (a data anomaly:
+ * more than one active account already owns the same email) — case 6 is two otherwise-consistent
+ * accounts, not a duplicate.
+ */
+export type WebOAuthResolveFailure =
+  | 'no_identity'
+  | 'email_ambiguous'
+  | 'contact_conflict'
+  | 'db_error';
 
 /**
  * Резолв пользователя для Google / Apple web login (аналог Yandex по merge / привязке).
@@ -62,38 +76,22 @@ export async function resolveUserIdForWebOAuthLogin(
   const db = requireOAuthUserResolvePort();
 
   try {
-    let userId: string | null = null;
     let accountOutcome: AccountOutcome = 'linked_existing';
 
-    if (phoneNorm) {
-      userId = await db.findCanonicalUserIdByPhone(phoneNorm);
+    // IDENTITY_AND_MERGE_SCHEME.md §2a cases 1-6: who (if anyone) already owns each contact, and
+    // whether the two contacts disagree about which account that is (case 6, refused below).
+    const owners = await resolveOAuthContactOwners(db, { phoneNorm, emailNorm });
+    if (owners.kind === 'ambiguous') {
+      return { ok: false, reason: 'email_ambiguous' };
+    }
+    if (owners.kind === 'conflict') {
+      return { ok: false, reason: 'contact_conflict' };
     }
 
-    if (!userId && emailNorm) {
-      const byEmail = await db.findUserIdsByVerifiedEmail(emailNorm);
-      if (byEmail.length > 1) {
-        return { ok: false, reason: 'email_ambiguous' };
-      }
-      if (byEmail.length === 1) {
-        userId = byEmail[0]!;
-      }
-    }
-
-    // The OAuth email is verified (emailNorm is only set when emailTrusted), but the active account
-    // that already owns this email_normalized may have it UNVERIFIED (e.g. created via phone/booking).
-    // `uq_platform_users_email_normalized_active` covers it regardless of verification, so link to
-    // that account instead of INSERTing a duplicate (the prod crash: db_error / unique violation).
-    if (!userId && emailNorm) {
-      const byAnyEmail = await db.findActiveUserIdsByEmail(emailNorm);
-      if (byAnyEmail.length > 1) {
-        return { ok: false, reason: 'email_ambiguous' };
-      }
-      if (byAnyEmail.length === 1) {
-        userId = byAnyEmail[0]!;
-      }
-    }
+    let userId = owners.userId;
 
     if (!userId) {
+      // Case 2: neither contact is registered anywhere -> new account.
       accountOutcome = 'created';
       const display = (input.displayName?.trim() || emailRaw || phoneNorm || sub).slice(0, 500);
       const emailVerifiedAt = emailTrusted ? new Date() : null;
@@ -106,6 +104,12 @@ export async function resolveUserIdForWebOAuthLogin(
       if (phoneNorm) {
         trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OAuthWebLoginVerifiedPhone);
       }
+    } else {
+      // Case 4 ("email matches, phone differs"): add the provider's phone as a spare confirmed
+      // contact of the matched account. Case 3/5 (email side) needs no extra call here — it
+      // already happens below via applyVerifiedOAuthEmail (primary-if-none) + upsertOAuthBinding
+      // (secondary, always).
+      await addSparePhoneContactIfFree(db, { userId, phoneNorm, phoneOwner: owners.phoneOwner });
     }
 
     const bind = await db.upsertOAuthBinding({

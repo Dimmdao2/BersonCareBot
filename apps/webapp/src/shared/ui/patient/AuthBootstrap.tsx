@@ -1042,6 +1042,42 @@ export function AuthBootstrap({
   /** MAX bridge: cookie `ctx=max`, либо отложенно если нет Telegram WebApp (legacy без surface-cookie). */
   const loadMaxBridge = token == null && authChannelPolicy.max && maxBridgeActive;
 
+  // IDENTITY_AND_MERGE_SCHEME.md §2a case 6: the OAuth callback refused the login (phone and email
+  // each confirm a DIFFERENT existing account) and redirected here with `?oauth=error&reason=
+  // contact_conflict`. The support link reuses this exact screen's already-public, signed-out-safe
+  // `supportContactHref` (routePaths.loginContactSupport) — no new anonymous-support exception.
+  const oauthErrorReason =
+    searchParams.get('oauth') === 'error' ? searchParams.get('reason') : null;
+  if (oauthErrorReason === 'contact_conflict') {
+    return (
+      <>
+        <MaxBridgeScript active={loadMaxBridge} />
+        <section aria-labelledby="oauth-contact-conflict-title" className="flex flex-col gap-4 text-left">
+          <h1 id="oauth-contact-conflict-title" className="sr-only">
+            Конфликт контактных данных
+          </h1>
+          <p className={patientMutedTextClass}>
+            Конфликт контактных данных, войдите в систему по подтвержденному телефону или email. Для
+            устранения конфликта напишите в службу поддержки.
+          </p>
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            {supportContactHref ? (
+              <SupportContactLink
+                href={supportContactHref}
+                className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+              >
+                Написать в поддержку
+              </SupportContactLink>
+            ) : null}
+            <a href="/app" className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}>
+              Войти иначе
+            </a>
+          </div>
+        </section>
+      </>
+    );
+  }
+
   if (showPhoneFlow) {
     if (specialistSignupRequested && prefetchedAuth?.specialistSignupEnabled !== true) {
       return (
