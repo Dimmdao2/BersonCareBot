@@ -230,6 +230,7 @@ import { createPgDoctorNotesPort } from '@/infra/repos/pgDoctorNotes';
 import { createPgSpecialistTasksPort } from '@/infra/repos/pgSpecialistTasks';
 import { inMemorySpecialistTasksPort } from '@/infra/repos/inMemorySpecialistTasks';
 import { createSpecialistTasksService } from '@/modules/specialist-tasks/service';
+import { prepareSpecialistTaskReminderDeliveries } from '@/modules/specialist-tasks/prepareReminderDeliveries';
 import { createPgPatientFilesPort } from '@/infra/repos/pgPatientFiles';
 import { inMemoryPatientFilesPort } from '@/infra/repos/inMemoryPatientFiles';
 import { createPatientFilesService } from '@/modules/patient-files/service';
@@ -709,10 +710,6 @@ const mediaStoragePort =
 const referencesPort = !inMemoryRepos ? pgReferencesPort : inMemoryReferencesPort;
 const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
-const specialistTasksPort = !inMemoryRepos
-  ? createPgSpecialistTasksPort()
-  : inMemorySpecialistTasksPort;
-const specialistTasksService = createSpecialistTasksService(specialistTasksPort);
 const patientFilesPort = !inMemoryRepos ? createPgPatientFilesPort() : inMemoryPatientFilesPort;
 const patientFilesService = createPatientFilesService({ patientFilesPort });
 const patientClinicalPort = !inMemoryRepos
@@ -741,6 +738,30 @@ const systemSettingsService = createSystemSettingsService(systemSettingsPort, {
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
 });
+const specialistTasksPort = !inMemoryRepos
+  ? createPgSpecialistTasksPort((task) =>
+      prepareSpecialistTaskReminderDeliveries(task, {
+        topicChannelPrefs: topicChannelPrefsPort,
+        channelPreferences: channelPreferencesPort,
+        webPushSubscriptions: webPushSubscriptionsPort,
+        systemSettings: systemSettingsService,
+        getChannelBindings: loadPlatformUserChannelBindings,
+        getProfileEmail: async (platformUserId) => {
+          const fields = await userProjectionPort.getProfileEmailFields(platformUserId);
+          return fields?.email?.trim() || null;
+        },
+        getProfileEmailVerified: async (platformUserId) => {
+          const fields = await userProjectionPort.getProfileEmailFields(platformUserId);
+          return Boolean(fields?.emailVerifiedAt);
+        },
+        resolvePatientDisplayName: async (patientUserId) => {
+          const identity = await doctorClientsPort.getClientIdentity(patientUserId);
+          return identity?.displayName?.trim() || null;
+        },
+      }),
+    )
+  : inMemorySpecialistTasksPort;
+const specialistTasksService = createSpecialistTasksService(specialistTasksPort);
 let platformEntitlementsService!: ReturnType<typeof createPlatformEntitlementsService>;
 const saasBillingService = createSaasBillingService({
   repository: saasBillingRepository,

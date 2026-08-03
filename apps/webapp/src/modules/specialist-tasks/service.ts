@@ -82,6 +82,10 @@ export function createSpecialistTasksService(port: SpecialistTasksPort) {
       return port.markReminderSent(taskId, sentAtIso);
     },
 
+    enqueueDueReminders(nowIso: string, limit: number) {
+      return port.enqueueDueReminders(nowIso, limit);
+    },
+
     async buildPatientSummaryFromTasks(
       ownerUserId: string,
       patientUserId: string,

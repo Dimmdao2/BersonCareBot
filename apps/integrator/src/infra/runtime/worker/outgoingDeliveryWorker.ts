@@ -12,6 +12,7 @@ import {
   isOutgoingDeliveryDispatchErrorRetryable,
   DOCTOR_BROADCAST_INTENT_QUEUE_KIND,
   INBOUND_REPLY_QUEUE_KIND,
+  GENERIC_TRANSPORT_QUEUE_KINDS,
 } from '../../delivery/deliveryContract.js';
 import {
   classifyRecipientBlockedBotError,
@@ -922,6 +923,21 @@ export async function processOutgoingDeliveryRow(
         );
       }
       await handleDispatchFailure(db, row, err, writePort, toSend);
+    }
+    return;
+  }
+
+  if (GENERIC_TRANSPORT_QUEUE_KINDS.has(row.kind)) {
+    try {
+      await dispatchOutgoing(intent);
+      await maybeClearMessengerBotBlockedMarker(db, row, intent);
+      await queueMarkSent(db, row.id);
+    } catch (err) {
+      if (isOutboundMessagePolicyDenied(err)) {
+        await finalizeOutboundPolicyDenied(db, row);
+        return;
+      }
+      await handleDispatchFailure(db, row, err, writePort, intent);
     }
     return;
   }

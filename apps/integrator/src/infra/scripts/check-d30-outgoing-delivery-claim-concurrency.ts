@@ -17,10 +17,13 @@
  *    a crash-looping worker must not keep re-sending the same message on every reclaim.
  *
  * DDL below is the real `public.outgoing_delivery_queue` shape, assembled from migrations 0060,
- * 0107 and 0280. Runs against its own throwaway PostgreSQL instance; reads no application env and
- * touches no configured DATABASE_URL.
+ * 0107, 0280 and D30's 0328 addition. Runs against its own throwaway PostgreSQL instance; reads no
+ * application env and touches no configured DATABASE_URL.
  */
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sql } from 'drizzle-orm';
 import { startDisposablePostgres } from './d30DisposablePostgres.js';
 import { runIntegratorSql } from '../db/runIntegratorSql.js';
@@ -31,7 +34,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 // D20 level-3 F5: a `main()` that returns early must not exit 0 with an empty log. `passedPieces`
 // lives outside `main()` so the completion check below still fires even if `main()` never reaches it.
-const EXPECTED_PIECES = ['piece 4a', 'piece 4b', 'piece 4c'] as const;
+const EXPECTED_PIECES = ['piece 4a', 'piece 4b', 'piece 4c', 'piece 4d'] as const;
 const passedPieces = new Set<string>();
 
 function reportPiecePass(id: (typeof EXPECTED_PIECES)[number], message: string): void {
@@ -58,6 +61,7 @@ CREATE TABLE public.outgoing_delivery_queue (
   updated_at timestamptz NOT NULL DEFAULT now(),
   failure_class text,
   reclaim_count integer NOT NULL DEFAULT 0,
+  organization_id uuid,
   CONSTRAINT outgoing_delivery_queue_status_check CHECK (
     status IN ('pending', 'processing', 'sent', 'failed_retryable', 'dead')
   )
@@ -67,6 +71,20 @@ CREATE UNIQUE INDEX uq_outgoing_delivery_queue_event_id
 CREATE INDEX idx_outgoing_delivery_queue_due
   ON public.outgoing_delivery_queue (status, next_retry_at);
 `;
+
+const D30_ONLINE_INDEX_ARTIFACT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../../..',
+  'deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql',
+);
+
+function runD30OnlineIndexArtifact(connectionString: string) {
+  return spawnSync(
+    '/usr/lib/postgresql/16/bin/psql',
+    ['-d', connectionString, '-X', '-v', 'ON_ERROR_STOP=1', '-f', D30_ONLINE_INDEX_ARTIFACT],
+    { encoding: 'utf8' },
+  );
+}
 
 /**
  * D20 level-3 F2 — makes the piece 4a race deterministic instead of timing-luck. A plain
@@ -226,6 +244,71 @@ async function main(): Promise<void> {
     reportPiecePass(
       'piece 4c',
       'a stale row at the reclaim cap was dead-lettered, not recycled, and a stale-but-already-sent control row was left untouched',
+    );
+
+    // --- Piece 4d: standalone online-index artifact fails closed on valid incompatibility -----
+    await runIntegratorSql(
+      db,
+      sql.raw(`CREATE INDEX idx_outgoing_delivery_queue_organization_status_due
+        ON public.outgoing_delivery_queue (status, organization_id, next_retry_at)`),
+    );
+    const incompatibleResult = runD30OnlineIndexArtifact(disposable.connectionString);
+    assert(
+      incompatibleResult.status !== 0,
+      'the standalone online-index artifact must return non-zero for a valid same-name index with incompatible key order',
+    );
+    assert(
+      `${incompatibleResult.stdout}${incompatibleResult.stderr}`.includes(
+        'FATAL: D30 outgoing delivery queue online index is missing, invalid, or has an incompatible definition',
+      ),
+      'the incompatible-index failure must retain the operator-facing diagnostic',
+    );
+
+    await runIntegratorSql(
+      db,
+      sql.raw('DROP INDEX public.idx_outgoing_delivery_queue_organization_status_due'),
+    );
+    const firstCreateResult = runD30OnlineIndexArtifact(disposable.connectionString);
+    assert(
+      firstCreateResult.status === 0,
+      `the standalone online-index artifact must create the missing exact index, exit=${firstCreateResult.status}`,
+    );
+    const retryResult = runD30OnlineIndexArtifact(disposable.connectionString);
+    assert(
+      retryResult.status === 0,
+      `the standalone online-index artifact retry must be idempotent, exit=${retryResult.status}`,
+    );
+    const indexState = await runIntegratorSql<{
+      indisvalid: boolean;
+      indisready: boolean;
+      keys: string[];
+    }>(
+      db,
+      sql.raw(`SELECT index_state.indisvalid,
+                      index_state.indisready,
+                      ARRAY(
+                        SELECT attribute.attname::text
+                          FROM unnest(index_state.indkey) WITH ORDINALITY AS key_column(attnum, ordinality)
+                          JOIN pg_catalog.pg_attribute attribute
+                            ON attribute.attrelid = index_state.indrelid
+                           AND attribute.attnum = key_column.attnum
+                         ORDER BY key_column.ordinality
+                      ) AS keys
+                 FROM pg_catalog.pg_index index_state
+                WHERE index_state.indexrelid =
+                      'public.idx_outgoing_delivery_queue_organization_status_due'::regclass`),
+    );
+    assert(
+      indexState.rows[0]?.indisvalid === true && indexState.rows[0]?.indisready === true,
+      'the created exact index must be valid and ready',
+    );
+    assert(
+      indexState.rows[0]?.keys.join(',') === 'organization_id,status,next_retry_at',
+      `the created exact index has unexpected keys: ${indexState.rows[0]?.keys.join(',')}`,
+    );
+    reportPiecePass(
+      'piece 4d',
+      'online-index artifact failed closed on an incompatible valid index and created/retried the exact index',
     );
 
     await closeDb();

@@ -15,6 +15,8 @@ export const outgoingDeliveryQueue = pgTable(
   'outgoing_delivery_queue',
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
+    /** Nullable only while legacy rows drain; every new tenant intent supplies this. */
+    organizationId: uuid('organization_id'),
     eventId: text('event_id').notNull(),
     kind: text('kind').notNull(),
     channel: text('channel').notNull(),
@@ -41,5 +43,10 @@ export const outgoingDeliveryQueue = pgTable(
   (table) => [
     uniqueIndex('uq_outgoing_delivery_queue_event_id').on(table.eventId),
     index('idx_outgoing_delivery_queue_due').on(table.status, table.nextRetryAt),
+    index('idx_outgoing_delivery_queue_organization_status_due').on(
+      table.organizationId,
+      table.status,
+      table.nextRetryAt,
+    ),
   ],
 );
