@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
-import type {
-  OrgMechanic,
-  Tariff,
-  TariffQuota,
-  TrialPolicy,
+import {
+  ACCESS_NOTIFICATION_CONDITIONS,
+  type OrgMechanic,
+  type Tariff,
+  type TariffQuota,
+  type TrialPolicy,
 } from '@/modules/org-entitlements/types';
 
 const quotaAmountSchema = {
@@ -38,7 +39,7 @@ const quotaSchema = z.union([storageQuotaSchema, patientStockQuotaSchema, branch
 // на длину. Texts and their variables are data, so the template is only checked for being present.
 const accessNotificationSchema = z.object({
   offsetDays: z.number().int(),
-  condition: z.enum(['payment_succeeded', 'payment_failed']),
+  condition: z.enum(ACCESS_NOTIFICATION_CONDITIONS),
   template: z.string().trim().min(1),
 });
 

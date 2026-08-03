@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  ACCESS_NOTIFICATION_CONDITIONS,
   MECHANIC_REGISTRY,
   MECHANICS,
   quotaMechanicSupportsWarning,
@@ -28,6 +29,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
+import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import {
   Select,
   SelectContent,
@@ -103,9 +105,16 @@ type AccessPolicyDraft = {
   terminalState: AccessTerminalState | null;
 };
 
+// Т2/Т7 (owner 04.08) — три новых триггера ради маркетинга (старт триала, завершение триала,
+// регистрация) и два льготных (срабатывают только тем, кто ещё не купил после завершения триала).
 const NOTIFICATION_CONDITION_LABELS: Record<AccessNotificationCondition, string> = {
   payment_succeeded: 'Успешная оплата',
   payment_failed: 'Ошибка оплаты',
+  registration: 'Регистрация (первый вход в кабинет)',
+  trial_started: 'Старт триала',
+  trial_ended: 'Завершение триала',
+  discount_period_started: 'Льготный период начат',
+  discount_period_ended: 'Льготный период завершён',
 };
 
 const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
@@ -391,13 +400,6 @@ function AccessPolicyEditor({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <AccessNotificationsEditor
-              title={title}
-              rows={value.notifications}
-              onChange={(notifications) => onChange({ ...value, notifications })}
-            />
-          </div>
         </div>
       ) : null}
     </div>
@@ -459,8 +461,8 @@ function AccessNotificationsEditor({
             <Select
               value={row.condition}
               onValueChange={(next) => {
-                if (next === 'payment_succeeded' || next === 'payment_failed') {
-                  update(index, { condition: next });
+                if ((ACCESS_NOTIFICATION_CONDITIONS as readonly string[]).includes(next)) {
+                  update(index, { condition: next as AccessNotificationCondition });
                 }
               }}
             >
@@ -471,9 +473,7 @@ function AccessNotificationsEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(
-                  Object.keys(NOTIFICATION_CONDITION_LABELS) as AccessNotificationCondition[]
-                ).map((condition) => (
+                {ACCESS_NOTIFICATION_CONDITIONS.map((condition) => (
                   <SelectItem key={condition} value={condition}>
                     {NOTIFICATION_CONDITION_LABELS[condition]}
                   </SelectItem>
@@ -481,14 +481,16 @@ function AccessNotificationsEditor({
               </SelectContent>
             </Select>
           </div>
-          <Label className="space-y-1 sm:col-span-2">
-            <span>Текст</span>
-            <Textarea
-              aria-label={`${title}: уведомление ${index + 1}: текст`}
+          <div className="space-y-1 sm:col-span-2">
+            <MarkdownEditor
+              name={`access-notification-${index}-template`}
+              label="Текст"
+              helpText="Маркетинговый шаблон письма — форматирование и картинки, как в рассылках врача."
               value={row.template}
-              onChange={(event) => update(index, { template: event.target.value })}
+              onChange={(next) => update(index, { template: next })}
+              minHeight={180}
             />
-          </Label>
+          </div>
           <div className="sm:col-span-2">
             <Button
               type="button"
