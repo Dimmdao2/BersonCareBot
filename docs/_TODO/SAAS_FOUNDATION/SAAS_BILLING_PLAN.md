@@ -503,6 +503,17 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       [платежи с чеками](https://yookassa.ru/developers/payment-acceptance/receipts/54fz/yoomoney/payments),
       [возвраты](https://yookassa.ru/developers/payment-acceptance/receipts/54fz/yoomoney/refunds),
       [приёмка](https://yookassa.ru/developers/payment-acceptance/receipts/54fz/yoomoney/basics).
+      Живой TEST 03.08 после включения онлайн-кассы владельцем дошёл до ЮKassa с рабочими Shop ID/ключом,
+      но провайдер вернул `400 invalid_request: Receipt is missing or illegal`: в global-admin
+      `payeeRequisites` не заданы `vatCode`/`taxSystemCode`, а у billing account не было email. Продуктовый
+      разрыв email закрыт `aba3aa990` / land `3b6c1cc52`: владелец или администратор клиники сохраняет email
+      для чека на существующей вкладке «Тариф и биллинг», та же clinic-billing роль читает его обратно; живая
+      команда получила `PATCH /api/clinic/billing` → `200` и следующий `GET` → `200` с сохранённым email.
+      Full CI общего land: `/home/dev/brain/host-orch/run-tests.sh 'pnpm run ci'` → `exit 0`, `461s`;
+      TEST deploy: `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` → `exit 0`, лог
+      `deploy-test-20260803T040130Z-2733069.log`. B0.3 остаётся открыт: до checkout/card/webhook владелец должен
+      указать фактические `vatCode` и, если его касса требует, `taxSystemCode`; подставлять налоговые значения
+      агенту запрещает `OWNER_PRODUCT_RULES.md` §19.
       Ограничение доказательства: TEST-магазин проверяет receipt только для режима сторонней кассы; настоящая
       приёмка «Чеков от ЮKassa» требует минимального платежа в реальном магазине и полного возврата после проверки
       обоих чеков. Это не разрешает трогать PROD без отдельной команды владельца.
