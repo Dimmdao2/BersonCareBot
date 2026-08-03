@@ -104,16 +104,11 @@ export type ExchangeResult = {
 function buildSession(user: SessionUser): AppSession {
   const now = Math.floor(Date.now() / 1000);
   const ttl = sessionTtlSecondsForRole(user.role);
-  const base: AppSession = {
+  return {
     user,
     issuedAt: now,
     expiresAt: now + ttl,
   };
-  return user.role === 'admin' ? { ...base, adminMode: true } : base;
-}
-
-function ensureAdminMode(session: AppSession): AppSession {
-  return session.user.role === 'admin' ? { ...session, adminMode: true } : session;
 }
 
 async function finalizeCurrentSession(
@@ -121,8 +116,7 @@ async function finalizeCurrentSession(
   patientOrganizationHint?: string | null,
   options: { stampDbPrincipal?: boolean } = {},
 ): Promise<AppSession> {
-  const normalized = ensureAdminMode(session);
-  if (options.stampDbPrincipal === false) return normalized;
+  if (options.stampDbPrincipal === false) return session;
   try {
     // Central chokepoint (see also ensureDbPrincipalContext() at the top of getCurrentSession()
     // above, and its doc comment in packages/db-principal). Uses a static import — a dynamic
@@ -130,11 +124,11 @@ async function finalizeCurrentSession(
     // direct static call avoids one more layer of indirection around the AsyncLocalStorage
     // continuation. Do not add per-route re-stamps instead — this is the one place all
     // getCurrentSession() callers share.
-    await stampDbPrincipalFromSession(normalized, 'getCurrentSession', patientOrganizationHint);
+    await stampDbPrincipalFromSession(session, 'getCurrentSession', patientOrganizationHint);
   } catch {
     /* Session auth behavior stays legacy-compatible; locked DB ports fail closed if no principal was resolved. */
   }
-  return normalized;
+  return session;
 }
 
 /**
@@ -1071,7 +1065,6 @@ async function getCurrentSessionWithPrincipalMode(
       ...buildSession(session.user),
       ...(isDevBypassSession ? { authSource: 'dev_bypass' as const } : {}),
       postLoginHints: session.postLoginHints,
-      adminMode: session.adminMode,
       reauth: session.reauth,
       staffSecurity: session.staffSecurity,
     };
@@ -1112,7 +1105,6 @@ async function getCurrentSessionWithPrincipalMode(
     const emailAdminSession: AppSession = {
       ...buildSession({ ...nextSession.user, role: 'admin' }),
       postLoginHints: nextSession.postLoginHints,
-      adminMode: nextSession.adminMode,
       reauth: nextSession.reauth,
       staffSecurity: nextSession.staffSecurity,
     };
@@ -1174,24 +1166,6 @@ export async function clearSession(): Promise<void> {
     maxAge: 0,
   });
   clearFreshLoginMarkerCookie(cookieStore);
-}
-
-/** Переключает adminMode в текущей сессии (только для role === 'admin'). */
-export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: boolean }> {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = raw ? decodeSessionCookie(raw) : null;
-  if (!session || session.user.role !== 'admin') return { ok: false };
-
-  const nextSession: AppSession = ensureAdminMode({ ...session, adminMode: true });
-
-  cookieStore.set(
-    SESSION_COOKIE_NAME,
-    encodeSessionCookie(nextSession),
-    buildSessionCookieOptions(nextSession),
-  );
-
-  return { ok: true, adminMode: true };
 }
 
 /**

@@ -93,12 +93,11 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
   const session = await requireSession();
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
-    adminMode: session.adminMode,
   });
   const restricted = isRestrictedStaffSecuritySession(session);
   if (hasLaunchCapability(capabilities, 'account.self')) {
-    // A doctor always resolves account.self, and so does a global admin (adminMode permanently
-    // forced on) — owner ruling 2026-07-26: the platform operator manages its own profile,
+    // A doctor always resolves account.self, and so does a global admin — owner ruling
+    // 2026-07-26: the platform operator manages its own profile,
     // security/2FA, sessions, notifications and PWA install here like any other staff account.
     // This is the ONLY branch a global admin now hits: platform.operations no longer bounces it
     // away from its own account page (that bounce was an unreviewed side effect of the earlier
@@ -131,7 +130,6 @@ export async function requireStaffPersonalInstallPage(): Promise<AppSession> {
   if (!session) redirect(routePaths.root);
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
-    adminMode: session.adminMode,
   });
   if (
     hasLaunchCapability(capabilities, 'account.self') ||
@@ -188,7 +186,6 @@ export async function requirePlatformOperationsPage(): Promise<AppSession> {
   const session = await requireSession();
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
-    adminMode: session.adminMode,
   });
   if (!hasLaunchCapability(capabilities, 'platform.operations')) {
     redirect('/app');
@@ -225,7 +222,6 @@ export async function requirePlatformOperationsApiContext(): Promise<
   }
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
-    adminMode: session.adminMode,
   });
   if (
     !hasLaunchCapability(capabilities, 'platform.operations') ||
@@ -248,6 +244,30 @@ export async function requirePlatformOperationsApiContext(): Promise<
       source: PLATFORM_OPERATIONS_DB_SOURCE,
     });
   } catch {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+    };
+  }
+  return { ok: true, session };
+}
+
+/**
+ * Bare `role === 'admin'` API gate, for admin-only endpoints that resolve their own DB principal
+ * downstream (or need none) — unlike {@link requirePlatformOperationsApiContext}, it does not stamp
+ * the platform DB principal and does not apply the staff-security recovery restriction.
+ */
+export async function requireAdminApiContext(): Promise<
+  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
+> {
+  const session = await getCurrentSession();
+  if (!session) {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+    };
+  }
+  if (session.user.role !== 'admin') {
     return {
       ok: false,
       response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
@@ -368,8 +388,7 @@ async function resolveDoctorWorkspaceAccessContext(
       capabilities: Array.from(
         resolveLaunchCapabilities({
           sessionRole: session.user.role,
-          adminMode: session.adminMode,
-          membershipRole: context.role,
+                membershipRole: context.role,
           specialistId: context.specialistId,
           canManageOrganization: context.canManageOrganization,
           canAccessClinicalWorkspace,
@@ -411,7 +430,6 @@ export async function requireOrganizationWorkspaceContext(
   }
   const accountCapabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
-    adminMode: session.adminMode,
   });
   if (hasLaunchCapability(accountCapabilities, 'platform.operations')) {
     redirect('/app/admin/system-health');
@@ -479,7 +497,6 @@ export async function requireDoctorApiSession(): Promise<
   }
   const accountCapabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
-    adminMode: session.adminMode,
   });
   if (!hasLaunchCapability(accountCapabilities, 'account.self')) {
     return {
@@ -603,7 +620,6 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
 
   const capabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
-    adminMode: session.adminMode,
   });
   if (
     (!hasLaunchCapability(capabilities, 'account.self') &&
@@ -734,7 +750,7 @@ export async function requireAdminWorkspaceApiContext(
 /**
  * Для clinic-management API: только management-capable member (`owner`/`admin`) of the
  * resolved organization. Platform admin is a separate capability and cannot inherit an
- * organization workspace through adminMode.
+ * organization workspace through its global-admin role.
  */
 export async function requireClinicManagementApiContext(
   options: CabinetGateOptions = {},
