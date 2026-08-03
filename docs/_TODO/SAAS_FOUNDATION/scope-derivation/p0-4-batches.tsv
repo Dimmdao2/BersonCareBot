@@ -107,4 +107,3 @@ P0.4.P2	public.treatment_program_template_stage_groups	parent_denorm_copy	copy o
 P0.4.P2	public.treatment_program_template_stage_items	parent_denorm_copy	copy organization_id from public.treatment_program_template_stage_groups; quarantine orphan items
 P0.4.P2	public.treatment_program_template_stages	parent_denorm_copy	copy organization_id from public.treatment_program_templates; quarantine orphan stages
 P0.4.P2	public.treatment_program_templates	catalog_org	add nullable organization_id; current program template catalog rows single-org backfill
-P0.4.P7	public.webapp_reminder_occurrences	parent_denorm_copy	copy organization_id from public.reminder_rules; quarantine orphan occurrences

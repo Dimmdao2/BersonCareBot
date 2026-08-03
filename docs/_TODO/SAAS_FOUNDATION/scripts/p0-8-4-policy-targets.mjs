@@ -48,7 +48,6 @@ export const expectedP084PublicDenormTargets = Object.freeze([
   'public.treatment_program_template_stage_groups',
   'public.treatment_program_template_stage_items',
   'public.treatment_program_template_stages',
-  'public.webapp_reminder_occurrences',
 ]);
 
 // B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): public.comments
@@ -132,9 +131,9 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 38) {
+  if (actualTables.length !== 37) {
     throw new Error(
-      `Expected 38 P0.8.4 public FK/denorm/polymorphic path targets, got ${actualTables.length}`,
+      `Expected 37 P0.8.4 public FK/denorm/polymorphic path targets, got ${actualTables.length}`,
     );
   }
 
@@ -168,8 +167,8 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
     throw new Error(`Expected 2 P0.8.4 FK-path targets, got ${fkTargets.length}`);
   }
 
-  if (denormTargets.length !== 35) {
-    throw new Error(`Expected 35 P0.8.4 denorm-org targets, got ${denormTargets.length}`);
+  if (denormTargets.length !== 34) {
+    throw new Error(`Expected 34 P0.8.4 denorm-org targets, got ${denormTargets.length}`);
   }
 
   if (polymorphicTargets.length !== 1) {

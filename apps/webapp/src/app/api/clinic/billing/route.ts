@@ -58,7 +58,9 @@ function tariffChangeError(error: unknown) {
   }
   const message = error instanceof Error ? error.message : '';
   if (
-    message === 'saas_billing_upgrade_charge_policy_unresolved' ||
+    message === 'saas_billing_tariff_upgrade_proration_unavailable' ||
+    message === 'saas_billing_tariff_upgrade_not_more_expensive' ||
+    message === 'saas_billing_upgrade_no_remaining_period' ||
     message === 'saas_billing_tariff_downgrade_blocked' ||
     message === 'saas_billing_no_active_paid_subscription'
   ) {
@@ -77,7 +79,7 @@ export async function PATCH(request: Request) {
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_request' }, { status: 400 });
   try {
-    await runWithDbClinicBillingPrincipal(
+    const result = await runWithDbClinicBillingPrincipal(
       {
         organizationId: gate.ctx.organizationId,
         platformUserId: gate.ctx.session.user.userId,
@@ -90,6 +92,19 @@ export async function PATCH(request: Request) {
           actorId: gate.ctx.session.user.userId,
         }),
     );
+    if (result.outcome === 'checkout') {
+      if (!result.invoice.providerCheckoutUrl) {
+        return NextResponse.json(
+          { ok: false, error: 'saas_billing_checkout_unavailable' },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        checkoutUrl: result.invoice.providerCheckoutUrl,
+        invoiceId: result.invoice.id,
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     return tariffChangeError(error);
