@@ -14,6 +14,10 @@ import {
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { hashPin } from '@/modules/auth/pinHash';
+import {
+  isPasswordEligibleRole,
+  PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR,
+} from '@/modules/auth/passwordEligibility';
 import { normalizeFioPart } from '@/shared/lib/fio';
 
 const bodySchema = z.object({
@@ -35,6 +39,15 @@ export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-password/register:POST', request);
   if (!(await isAuthChannelEnabled('email'))) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
+  }
+  // This endpoint only ever creates `role: 'client'` accounts (registerPendingVerification below) —
+  // patients have no password (owner, 2026-08-04). Specialists register with a password through the
+  // separate specialist-signup flow (registerPendingSpecialistVerification).
+  if (!isPasswordEligibleRole('client')) {
+    return NextResponse.json(
+      { ok: false, error: PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR },
+      { status: 403 },
+    );
   }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);

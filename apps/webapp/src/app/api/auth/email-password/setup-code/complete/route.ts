@@ -20,6 +20,10 @@ import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/e
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { hashPin } from '@/modules/auth/pinHash';
+import {
+  isPasswordEligibleRole,
+  PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR,
+} from '@/modules/auth/passwordEligibility';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
@@ -102,16 +106,22 @@ export async function POST(request: Request) {
   if (!isPlatformUserUuid(state.userId)) {
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }
+  let sessionUser = await deps.userByPhone.findByUserId(state.userId);
+  if (!sessionUser) {
+    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
+  }
+  if (!isPasswordEligibleRole(sessionUser.role)) {
+    return NextResponse.json(
+      { ok: false, error: PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR },
+      { status: 403 },
+    );
+  }
   enterStaffSecuritySelfPrincipal(
     state.userId,
     'api/auth/email-password/setup-code/complete:email-verified-self',
   );
   const passwordHash = await hashPin(parsed.data.password);
   await deps.userPasswordCredentials.upsertPasswordHash(state.userId, emailNorm, passwordHash);
-  let sessionUser = await deps.userByPhone.findByUserId(state.userId);
-  if (!sessionUser) {
-    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
-  }
 
   // C-4 (2026-07-26): the messenger/phone allowlists never grant role anymore (envRole.ts);
   // reconciled so a resolver that only ever says "client" cannot demote an existing staff role.
