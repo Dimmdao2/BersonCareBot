@@ -206,6 +206,12 @@ BEGIN
     public.patient_files,
     public.be_branches
   TO app_owner;
+  REVOKE SELECT ON TABLE
+    public.be_organization_members,
+    public.organization_member_invites,
+    public.org_enrollments,
+    public.patient_files
+  FROM app_clinic_billing;
   REVOKE ALL PRIVILEGES ON TABLE
     public.organization_member_invites,
     public.org_enrollments,
