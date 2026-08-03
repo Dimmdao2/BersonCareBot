@@ -79,7 +79,10 @@ import { getCurrentSession } from '@/modules/auth/service';
 import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
-import { PATCH as updateWarmupSchedule } from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
+import {
+  GET as getWarmupSchedule,
+  PATCH as updateWarmupSchedule,
+} from '@/app/api/doctor/clients/[userId]/warmup-schedule/route';
 import {
   GET as getNotificationTemplates,
   PUT as saveNotificationTemplate,
@@ -311,6 +314,46 @@ describe('tariff and platform mutation gates', () => {
         message: 'Невозможно ' + action + ': этот раздел не входит в ваш тариф.',
       });
     }
+  });
+
+  it('refuses reading a patient warmup schedule when warmups are disabled', async () => {
+    const response = await getWarmupSchedule(
+      new Request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/warmup-schedule'),
+      { params: Promise.resolve({ userId: TARGET_ID }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(requireEntitlementForRead).toHaveBeenCalledWith(workspace, 'warmups');
+    expect(buildAppDeps().doctorClientsPort.getClientIdentityForOrganization).not.toHaveBeenCalled();
+  });
+
+  it('keeps an existing warmup schedule readable in read-only access', async () => {
+    vi.mocked(requireEntitlementForRead).mockResolvedValue({ ok: true } as never);
+    const warmupRule = {
+      id: TARGET_ID,
+      scheduleType: 'slots_v1',
+      scheduleData: { timesLocal: ['09:00'], dayFilter: 'weekdays' as const },
+      enabled: true,
+      linkedObjectType: 'content_section',
+      linkedObjectId: 'warmups',
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      reminders: { listRulesByUser: vi.fn().mockResolvedValue([warmupRule]) },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await getWarmupSchedule(
+      new Request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/warmup-schedule'),
+      { params: Promise.resolve({ userId: TARGET_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      rule: { id: TARGET_ID, enabled: true },
+    });
   });
 
   it('refuses Today configuration visibly when it is not included in the tariff', async () => {

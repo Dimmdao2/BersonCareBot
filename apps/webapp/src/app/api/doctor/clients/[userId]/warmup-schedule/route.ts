@@ -9,6 +9,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import {
   entitlementMutationRefusalResponse,
   requireEntitlementForMutation,
+  requireEntitlementForRead,
 } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { isWarmupsContentSectionReminderRule } from '@/modules/reminders/warmupsReminderRuleMatch';
@@ -34,6 +35,8 @@ const patchSchema = z.object({
 export async function GET(_req: Request, context: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForRead(gate.ctx, 'warmups');
+  if (!entitlement.ok) return entitlement.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
