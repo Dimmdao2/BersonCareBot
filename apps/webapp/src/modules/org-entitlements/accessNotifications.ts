@@ -105,6 +105,10 @@ export function accessNotificationVariables(template: string): string[] {
  *
  * Rows are returned in the order they became due (earliest first), which is the order the owner
  * wrote them into the ladder when he numbered "первое напоминание, второе предупреждение…".
+ *
+ * The anchor is named `periodEndsAt` for the payment pair, but the function itself has no opinion
+ * on WHAT the anchor is — {@link dueLifecycleNotifications} reuses it unchanged against
+ * registration/trial/discount-window timestamps instead of a period end.
  */
 export function dueAccessNotifications(input: {
   notifications: readonly AccessNotificationRule[];
@@ -121,4 +125,65 @@ export function dueAccessNotifications(input: {
     .filter((entry) => entry.dueAt <= now)
     .sort((left, right) => left.dueAt - right.dueAt)
     .map((entry) => entry.rule);
+}
+
+/** The org-lifecycle timestamps Т2/Т7's five conditions anchor on; `null` means the event hasn't happened. */
+export type OrgLifecycleNotificationAnchors = {
+  registeredAt: string | null;
+  trialStartedAt: string | null;
+  trialEndsAt: string | null;
+  discountEndsAt: string | null;
+};
+
+/**
+ * Т2/Т7 (owner 04.08) — the five conditions beyond the payment pair, each anchored on its own
+ * org-lifecycle timestamp instead of a paid period's end: registration on provisioning, the trial
+ * pair on the organization's actual trial window, the discount pair on the grace/discount window
+ * Т6 already models (`discountWindowDays`/`discountEndsAt`).
+ *
+ * Т7, dословно: «только тем кто ещё не купил после завершения триала» — `hasPaidSinceTrial` is the
+ * one branch this function owns; while it is `true` BOTH discount conditions are suppressed
+ * outright (their anchor is treated as absent), not just filtered after the fact, so a stale
+ * `discountEndsAt` left over from before payment can never resurface a "льгота заканчивается" text
+ * to a clinic that already paid.
+ */
+export function dueLifecycleNotifications(input: {
+  notifications: readonly AccessNotificationRule[];
+  anchors: OrgLifecycleNotificationAnchors;
+  now: Date;
+  hasPaidSinceTrial: boolean;
+}): AccessNotificationRule[] {
+  const anchorFor = (condition: AccessNotificationCondition): string | null => {
+    switch (condition) {
+      case 'registration':
+        return input.anchors.registeredAt;
+      case 'trial_started':
+        return input.anchors.trialStartedAt;
+      case 'trial_ended':
+        return input.anchors.trialEndsAt;
+      case 'discount_period_started':
+        return input.hasPaidSinceTrial ? null : input.anchors.trialEndsAt;
+      case 'discount_period_ended':
+        return input.hasPaidSinceTrial ? null : input.anchors.discountEndsAt;
+      default:
+        return null;
+    }
+  };
+  const lifecycleConditions: AccessNotificationCondition[] = [
+    'registration',
+    'trial_started',
+    'trial_ended',
+    'discount_period_started',
+    'discount_period_ended',
+  ];
+  return lifecycleConditions.flatMap((condition) => {
+    const anchor = anchorFor(condition);
+    if (!anchor) return [];
+    return dueAccessNotifications({
+      notifications: input.notifications,
+      periodEndsAt: anchor,
+      now: input.now,
+      condition,
+    });
+  });
 }

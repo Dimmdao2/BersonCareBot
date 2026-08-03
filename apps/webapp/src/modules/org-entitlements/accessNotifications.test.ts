@@ -3,6 +3,7 @@ import {
   accessNotificationBillingVariables,
   accessNotificationVariables,
   dueAccessNotifications,
+  dueLifecycleNotifications,
   renderAccessNotification,
 } from './accessNotifications';
 import type { AccessNotificationRule, MechanicAccessWarning } from './types';
@@ -166,5 +167,91 @@ describe('access ladder notifications', () => {
         condition: 'payment_failed',
       }),
     ).toEqual([]);
+  });
+});
+
+/**
+ * Т2/Т7 (owner 04.08) — five conditions beyond the payment pair, each anchored on its own
+ * org-lifecycle timestamp rather than a paid period's end.
+ */
+describe('lifecycle notification triggers (Т2/Т7)', () => {
+  const anchors = {
+    registeredAt: '2026-08-01T00:00:00.000Z',
+    trialStartedAt: '2026-08-01T00:00:00.000Z',
+    trialEndsAt: '2026-08-15T00:00:00.000Z',
+    discountEndsAt: '2026-08-18T00:00:00.000Z',
+  };
+  const lifecycleRules: AccessNotificationRule[] = [
+    { offsetDays: 0, condition: 'registration', template: 'добро пожаловать' },
+    { offsetDays: 0, condition: 'trial_started', template: 'триал начался' },
+    { offsetDays: 0, condition: 'trial_ended', template: 'триал закончился' },
+    { offsetDays: 0, condition: 'discount_period_started', template: 'льгота началась' },
+    { offsetDays: 3, condition: 'discount_period_ended', template: 'льгота закончилась' },
+  ];
+
+  // Breakage: the registration/trial-start/trial-end rows stop firing because nothing anchors
+  // them (they don't share `periodEndsAt` with the payment pair).
+  it('fires registration, trial-start and trial-end each on its own anchor', () => {
+    const due = dueLifecycleNotifications({
+      notifications: lifecycleRules,
+      anchors,
+      now: new Date('2026-08-16T00:00:00.000Z'),
+      hasPaidSinceTrial: false,
+    }).map((rule) => rule.template);
+    expect(due).toEqual(
+      expect.arrayContaining(['добро пожаловать', 'триал начался', 'триал закончился']),
+    );
+  });
+
+  // Breakage: a lifecycle row fires before its anchor instant instead of waiting for it.
+  it('does not fire a lifecycle row before its anchor is reached', () => {
+    const due = dueLifecycleNotifications({
+      notifications: lifecycleRules,
+      anchors,
+      now: new Date('2026-07-31T00:00:00.000Z'),
+      hasPaidSinceTrial: false,
+    });
+    expect(due).toEqual([]);
+  });
+
+  // Т7 дословно: «тогда я могу слать письма с предложением о покупке со льготой и уведомление о
+  // том что скидка скоро закончится, но только тем кто ещё не купил после завершения триала».
+  it('fires both discount-window triggers once their anchor is due, while unpaid', () => {
+    const due = dueLifecycleNotifications({
+      notifications: lifecycleRules,
+      anchors,
+      now: new Date('2026-08-19T00:00:00.000Z'),
+      hasPaidSinceTrial: false,
+    }).map((rule) => rule.template);
+    expect(due).toEqual(expect.arrayContaining(['льгота началась', 'льгота закончилась']));
+  });
+
+  // Breakage: Т7's hard rule is dropped and a clinic that already paid still gets a discount
+  // upsell/expiry email.
+  it('suppresses both discount-window triggers once the organization has paid', () => {
+    const due = dueLifecycleNotifications({
+      notifications: lifecycleRules,
+      anchors,
+      now: new Date('2026-08-19T00:00:00.000Z'),
+      hasPaidSinceTrial: true,
+    }).map((rule) => rule.condition);
+    expect(due).not.toContain('discount_period_started');
+    expect(due).not.toContain('discount_period_ended');
+    // The registration/trial pair are unrelated to payment and still fire.
+    expect(due).toEqual(
+      expect.arrayContaining(['registration', 'trial_started', 'trial_ended']),
+    );
+  });
+
+  // Breakage: a missing anchor (event hasn't happened yet) is treated as "due now" instead of
+  // "never due" — e.g. an org with no trial at all would get a phantom "trial ended" email.
+  it('never fires a condition whose anchor is absent', () => {
+    const due = dueLifecycleNotifications({
+      notifications: lifecycleRules,
+      anchors: { registeredAt: null, trialStartedAt: null, trialEndsAt: null, discountEndsAt: null },
+      now: new Date('2026-12-01T00:00:00.000Z'),
+      hasPaidSinceTrial: false,
+    });
+    expect(due).toEqual([]);
   });
 });
