@@ -615,6 +615,63 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       настроен слать HTTP-уведомления на наш `saas-webhook` адрес — это владельческая настройка личного кабинета
       ЮKassa, не открытый в коде дефект.** Идемпотентность (сам B0.3-регресс) доказана исправленной живым
       прогоном. Код не менялся, push не делался, PROD не трогался.
+      **Продолжение 03.08 после того, как владелец прописал notification URL в тестовом кабинете ЮKassa**
+      (`https://test.bersoncare.ru/api/payments/saas-webhook/yookassa`), карточка `#1057`, бриф
+      `docs/_TODO/runs/billing/BILLING_WEBHOOK_CHAIN_BRIEF_2026-08-03.md`. TEST был на коммите `a08eddece99`
+      (позади текущего `feat/doctor-ui-rebuild`, разница — не-billing коммиты D27/identity/setphone) →
+      передеплоен: `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` → `exit 0`, лог
+      `deploy-test-20260803T143653Z-3933687.log` (единственная не-`ok` строка — тот же известный
+      warn-not-fatal E1 гейт, см. [[test-deploy-isolation-gate-and-resolve]]); TEST теперь на `5dca96c9e0f`
+      (потомок HEAD ветки на момент запуска). Пароли тех же трёх TEST-фикстур сведены тем же классом операции
+      (`converge-saas-smoke-login-passwords.mjs --apply-test-from-stdin` под `sudo -u postgres`, `changed=3`,
+      email/password не печатались). Обычный вход клиникой: `POST /api/auth/email-password/login` → `200`;
+      `GET /api/clinic/billing` → `200` — старый инвойс `e13b2c92-…` всё ещё `pending`/`paidAt=null`/
+      `providerEvents=[]`, т.е. до старта этого прогона вебхук по-прежнему не приходил ни разу.
+      `POST /api/clinic/billing` (обычная рента) — идемпотентен по периоду и просто вернул бы тот же зависший
+      чекаут без нового provider-события, поэтому для чистой проверки доставки использован тот же продуктовый
+      эндпоинт `/api/clinic/billing`, но его апгрейд-путь: `PATCH {tariffId: "ПРОФИ"}` → `200`, новый инвойс
+      `a91b7c2e-1484-460e-8788-ded52bbe9d35`, `providerInvoiceRef=3202bcea-000f-5001-9000-1d3202486c7f`,
+      `amountMinor=69745` (прорейтированная разница СТАРТ→ПРОФИ). Оплачено headless-браузером (глобальный
+      playwright 1.60.0, chromium) той же официальной тестовой картой ЮKassa `4111111111111111`, `12/30`, `123`
+      — страница ответила «Успешно», `697,45 ₽`, код платежа `3202bcea-…` совпал с `providerInvoiceRef`.
+      **На этот раз вебхук реально дошёл** (впервые за всю историю — предыдущий прогон не нашёл ни одной строки
+      никогда): `nginx access.log` — `POST /api/payments/saas-webhook/yookassa` в `17:46:57` и `17:47:07` МСК,
+      оба `503`. Причина — не продуктовый код: `route.ts` требует непустой `providerConfig.webhookSecret`
+      ДО попытки верификации, а экран глобального администратора «Платежи»
+      (`SaasBillingProviderSettings.tsx`) не содержит поля для этого значения (только Shop ID/API key/
+      `vatCode`/`taxSystemCode`); прямой проверкой (без раскрытия значения) подтверждено
+      `webhookSecret_present:false`. Замечено: для адаптера ЮKassa это поле фактически МЁРТВОЕ —
+      `yookassaPaymentProvider.ts`.`verifyWebhook` его не читает вовсе (проверка — IP-allowlist + обратный
+      API-запрос), оно существует только как обязательный gate в `route.ts`. Значение заведено через ТОТ ЖЕ
+      уже используемый сегодня путь записи настроек (`PATCH /api/admin/settings`, ключ
+      `saas_billing_payment_provider`, тот же generic API, которым раньше в этот день были заведены
+      `shopId`/`apiKey`/`vatCode`/`taxSystemCode`) — случайное TEST-only 32-байтовое hex-значение, продуктовый
+      код не менялся, IP-allowlist и подпись не обходились. Следующая естественная (не подделанная) попытка
+      доставки ЮKassa на уже оплаченный инвойс `a91b7c2e-…` пришла в `17:52:01` МСК и прошла gate секрета
+      (уже не `503`), но получила **новую** ошибку — `500`. Лог приложения: Postgres
+      `permission denied for table saas_billing_invoices` (`42501`) из
+      `findSaasBillingInvoiceByProviderRef` → `resolveSaasBillingInvoiceForWebhook` — этот запрос выполняется
+      ДО того, как организация известна, под **bootstrap**-принципалом (`packages/db-principal/src/index.ts`:
+      принципалы `bootstrap`/`infra` вообще не переключают роль через `SET ROLE`, значит запрос идёт под
+      базовой ролью пула, не под `app_clinic_billing`). Миграция
+      `0311_clinic_billing_live_payment_path_local.sql` выдала `GRANT SELECT, INSERT, UPDATE` на
+      `saas_billing_invoices` только `app_clinic_billing` — базовая/bootstrap-роль этого гранта не получала.
+      Это НАСТОЯЩИЙ дефект (grant/migration gap), не конфигурация; правка требует новой миграции — вне
+      границ этого прогона («no product code change»), поэтому прогон остановлен на этом шаге. Итоговая
+      читка `GET /api/clinic/billing` подтвердила отсутствие порчи: `a91b7c2e-…` остался `status=pending`,
+      `paidAt=null`, `providerEvents=[]`, активный тариф клиники не изменился (СТАРТ, `e07db366-…`) — оплата
+      реально прошла у провайдера, но ни разу не была захвачена приложением. **Вердикт 03.08 (второе
+      продолжение): клиника ПО-ПРЕЖНЕМУ не может оплатить тариф на TEST end-to-end.** Прогресс против
+      предыдущего прогона: вебхук теперь физически доходит и проходит IP-allowlist (URL в кабинете ЮKassa
+      сработал); блокеров теперь два, оба — код/данные, не кабинет: (1) *закрыт конфигурацией в этом прогоне,
+      без кода* — `webhookSecret` не имел поля в UI, значение выставлено через существующий settings API;
+      TEST-only значение не переживёт полный рефреш TEST из прод-дампа, а на PROD того же поля в UI тоже нет —
+      нужно либо добавить поле в `SaasBillingProviderSettings.tsx`, либо убрать обязательность проверки для
+      адаптеров, которые её не используют; (2) *открыт, блокирует, нужна миграция* — выдать read-доступ на
+      `saas_billing_invoices` роли, под которой выполняется pre-org bootstrap-запрос вебхука
+      (`findSaasBillingInvoiceByProviderRef`), либо провести весь webhook-lookup под ролью, уже имеющей грант.
+      Код не менялся, push не делался, PROD не трогался; из настроек TEST изменён только `webhookSecret`
+      (тем же generic settings API, не миграцией и не кодом).
 
 **Проверка:** state-machine + idempotency тесты; подписанный webhook success/replay/forgery/amount-mismatch;
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
