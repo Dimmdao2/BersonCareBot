@@ -102,6 +102,10 @@ export async function POST(request: Request) {
     deps: {
       reminders: deps.reminders,
       contentSections: deps.contentSections,
+      patientOrganization: deps.patientOrganization,
+      patientHomeBlocks: deps.patientHomeBlocks,
+      contentPages: deps.contentPages,
+      systemSettings: deps.systemSettings,
     },
   });
   if (warmupsReminder.created) {
