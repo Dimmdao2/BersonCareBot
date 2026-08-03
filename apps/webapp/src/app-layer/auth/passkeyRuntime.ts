@@ -19,11 +19,12 @@ export function deletePasskeyCredential(userId: string, credentialId: string) {
   return pgPasskeyStore.deleteCredential(userId, credentialId);
 }
 
-export function beginPatientPasskeyRegistration(userId: string) {
-  return beginPasskeyRegistration(userId, pgPasskeyStore);
+/** Registration is shared across all roles (patient, doctor, admin) — the caller supplies the real name. */
+export function beginSelfPasskeyRegistration(userId: string, userDisplayName: string) {
+  return beginPasskeyRegistration(userId, userDisplayName, pgPasskeyStore);
 }
 
-export function finishPatientPasskeyRegistration(input: {
+export function finishSelfPasskeyRegistration(input: {
   userId: string;
   challengeId: string;
   response: RegistrationResponseJSON;

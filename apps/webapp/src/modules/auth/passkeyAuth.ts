@@ -36,6 +36,7 @@ export function getPasskeyRpConfig(): PasskeyRpConfig {
 
 export async function beginPasskeyRegistration(
   userId: string,
+  userDisplayName: string,
   store: PasskeyStore,
 ): Promise<{
   challengeId: string;
@@ -52,7 +53,7 @@ export async function beginPasskeyRegistration(
     rpID: config.rpId,
     userID: Buffer.from(userHandle, 'base64url'),
     userName: userHandle,
-    userDisplayName: 'Пациент BersonCare',
+    userDisplayName,
     attestationType: 'none',
     authenticatorSelection: {
       residentKey: 'required',

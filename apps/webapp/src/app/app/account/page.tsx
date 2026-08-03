@@ -18,6 +18,7 @@ import {
 import { AccountTabs, type AccountTab } from './AccountTabs';
 import { loadStaffAccountPageContext } from './accountContext';
 import { StaffSecuritySection } from './StaffSecuritySection';
+import { StaffPasskeySection } from './StaffPasskeySection';
 import { isRestrictedStaffSecuritySession } from '@/app-layer/guards/requireRole';
 import { runWithStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 
@@ -77,15 +78,18 @@ export default async function AccountPage({
       sessionVersion: 0,
     };
     content = (
-      <StaffSecuritySection
-        initialStatus={status}
-        hasProfileName={Boolean(session.user.displayName.trim())}
-        hasTimezone={Boolean(timezone)}
-        hasOrganization={workspaceContext !== null}
-        hasSpecialistBinding={workspaceContext?.specialistId != null}
-        showSpecialistFirstRun={!isPlatformConsole}
-        recoveryOnly={recoveryOnly}
-      />
+      <>
+        <StaffSecuritySection
+          initialStatus={status}
+          hasProfileName={Boolean(session.user.displayName.trim())}
+          hasTimezone={Boolean(timezone)}
+          hasOrganization={workspaceContext !== null}
+          hasSpecialistBinding={workspaceContext?.specialistId != null}
+          showSpecialistFirstRun={!isPlatformConsole}
+          recoveryOnly={recoveryOnly}
+        />
+        {!recoveryOnly ? <StaffPasskeySection /> : null}
+      </>
     );
   } else if (tab === 'notifications') {
     const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);

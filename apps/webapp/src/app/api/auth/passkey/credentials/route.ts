@@ -4,13 +4,13 @@ import {
   deletePasskeyCredential,
   listPasskeyCredentials,
 } from '@/app-layer/auth/passkeyRuntime';
-import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
+import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 
 const deleteSchema = z.object({ credentialId: z.string().min(16).max(1024) });
 
 async function authorize() {
-  const gate = await requirePatientApiSession();
+  const gate = await requireAuthenticatedIdentitySelfApiSession();
   if (!gate.ok) return gate;
   if (!(await isIndependentAuthMethodEnabled('passkey'))) {
     return {

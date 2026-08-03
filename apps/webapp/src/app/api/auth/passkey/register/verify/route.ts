@@ -1,8 +1,8 @@
 import type { RegistrationResponseJSON } from '@simplewebauthn/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { finishPatientPasskeyRegistration } from '@/app-layer/auth/passkeyRuntime';
-import { requirePatientApiSession } from '@/app-layer/guards/requireRole';
+import { finishSelfPasskeyRegistration } from '@/app-layer/auth/passkeyRuntime';
+import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 
 const responseSchema = z
@@ -28,7 +28,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const gate = await requirePatientApiSession();
+  const gate = await requireAuthenticatedIdentitySelfApiSession();
   if (!gate.ok) return gate.response;
   if (!(await isIndependentAuthMethodEnabled('passkey'))) {
     return NextResponse.json(
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const completed = await finishPatientPasskeyRegistration({
+    const completed = await finishSelfPasskeyRegistration({
       userId: gate.session.user.userId,
       challengeId: parsed.data.challengeId,
       response: parsed.data.response as RegistrationResponseJSON,
