@@ -220,6 +220,10 @@ SELECT format('REVOKE EXECUTE ON FUNCTION app.is_max_bot_configured() FROM %I', 
 WHERE to_regprocedure('app.is_max_bot_configured()') IS NOT NULL \gexec
 SELECT format('REVOKE EXECUTE ON FUNCTION app.read_saas_billing_payment_provider() FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.read_saas_billing_payment_provider()') IS NOT NULL \gexec
+-- 0343: WHERE-guarded, same as the other post-2026-07-25 additions above -- absent function
+-- (migration 0343 not yet applied) is a no-op rather than an error.
+SELECT format('REVOKE EXECUTE ON FUNCTION app.read_webapp_preauth_provider_setting(text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.read_webapp_preauth_provider_setting(text)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.current_patient_has_password_credentials() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) FROM :"d3_4_bootstrap_base_role";
@@ -632,6 +636,11 @@ WHERE to_regprocedure('app.is_max_bot_configured()') IS NOT NULL \gexec
 -- The fixed-key function exposes no arbitrary setting selector and no table grant.
 SELECT format('GRANT EXECUTE ON FUNCTION app.read_saas_billing_payment_provider() TO %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.read_saas_billing_payment_provider()') IS NOT NULL \gexec
+-- TEST owner findings 2026-08-03 (D1): oauth/start, oauth/callback/{yandex,google,apple} and
+-- telegram-login all read an OAuth/Telegram credential before a session exists. The fixed-key
+-- function exposes exactly those 12 keys, never a caller-controlled key, never table access.
+SELECT format('GRANT EXECUTE ON FUNCTION app.read_webapp_preauth_provider_setting(text) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.read_webapp_preauth_provider_setting(text)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.current_patient_has_password_credentials() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) TO :"d3_4_bootstrap_base_role";

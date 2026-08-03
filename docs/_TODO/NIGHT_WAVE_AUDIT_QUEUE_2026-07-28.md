@@ -68,7 +68,8 @@
 | `0340` | TEST deploy / D30 Ш4 ownership repair | `wt/test-secdef-ownership-repair` | ЗАБРОНИРОВАНО 03.08 ДО СОЗДАНИЯ ФАЙЛА: forward-only передача четырёх `0338` patient-reminder SECURITY DEFINER функций от владельца базы роли `app_owner`, точные EXECUTE ACL и поимённый deploy gate; TEST closure фактически измерил owner mismatch и остановил deploy. |
 | `0341` | Track D / #987 D27 login-code default channel provenance | `wt/trackd-d27de-login-code-screen` | ЗАБРОНИРОВАНО 03.08 ДО СОЗДАНИЯ ФАЙЛА: nullable `user_phone_history.confirming_channel` — F1 фикс `getDefaultAuthOtpChannel`, дефолт «канал, который подтвердил номер» (§3.1) вместо «самая ранняя привязка». |
 | `0342` | Track D / #987 D27 F5/F6 OAuth contact resolution + equal-rights login | `wt/trackd-d27de-login-code-screen` | ЗАБРОНИРОВАНО 03.08 ДО СОЗДАНИЯ ФАЙЛА: `app.find_platform_user_ids_by_any_confirmed_email` (primary + confirmed `user_oauth_bindings.email`), используется в `email_password_find_login_candidate` и `email_auth_find_email_owner_conflict` (§2a пункт 7 равноправный вход); плюс `'oauth'` в `user_phone_history.source` check для F6 case 4 (телефон добавлен как резервный при совпадении по почте). |
-| `0343`+ | свободно | — | следующий берущий начинает отсюда |
+| `0343` | TEST owner findings 03.08 — pre-auth `system_settings` 42501 | `wt/owner-findings-fix` / `/home/dev/dev-projects/bcb-wt-owner-findings-fix` | ЗАБРОНИРОВАНО 03.08 ДО СОЗДАНИЯ ФАЙЛА: fixed-key SECURITY DEFINER accessor для OAuth (yandex/google/apple) + telegram_bot_token, читаемых `oauth/start`/`oauth/callback/*`/`telegram-login` до входа; общий `SELECT` на `system_settings` бутстрап-роли не выдаётся. |
+| `0344`+ | свободно | — | следующий берущий начинает отсюда |
 
 **Текущий режим 02.08:** оркестратор один. Stateful workstreams остаются в отдельных worktree, но единый
 migration ledger `0300…0305` собран в `wt/single-entry-integration`; новые номера по-прежнему бронируются здесь

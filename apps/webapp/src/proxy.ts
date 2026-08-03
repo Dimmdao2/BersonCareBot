@@ -6,10 +6,15 @@ import { decodeSessionCookie } from '@/modules/auth/sessionCookie';
 import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 import {
   getRoleLoginPath,
+  isDoctorPortalPlatformOperationsPath,
   isRoleLoginPath,
   portalForAppPath,
   roleCanUsePortal,
 } from '@/modules/auth/roleLogin';
+import {
+  hasLaunchCapability,
+  resolveLaunchCapabilities,
+} from '@/app-layer/guards/workspaceCapabilities';
 import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
 import { doctorRouteRedirectResponse } from '@/middleware/doctorRouteRedirects';
 import {
@@ -79,7 +84,22 @@ export function proxy(request: NextRequest) {
       response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
       return response;
     }
-    if (!roleCanUsePortal(session.user.role, portal)) {
+    // A platform operator (role==='admin' && adminMode===true) can never hold the literal
+    // 'doctor' role roleCanUsePortal requires, but a fixed handful of platform-only pages still
+    // live under the doctor portal's URL prefix pending their move to /app/admin/* — see
+    // isDoctorPortalPlatformOperationsPath. Every other /app/doctor/* path stays doctor-only.
+    const canUsePortal =
+      roleCanUsePortal(session.user.role, portal) ||
+      (portal === 'doctor' &&
+        isDoctorPortalPlatformOperationsPath(pathname) &&
+        hasLaunchCapability(
+          resolveLaunchCapabilities({
+            sessionRole: session.user.role,
+            adminMode: session.adminMode,
+          }),
+          'platform.operations',
+        ));
+    if (!canUsePortal) {
       const redirectUrl = request.nextUrl.clone();
       const ownHub = new URL(buildOwnHubUrlWithAccessDeniedToast(session.user.role), request.url);
       redirectUrl.pathname = ownHub.pathname;

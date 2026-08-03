@@ -1485,7 +1485,12 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # ACLs. This is a measured value (154 + these exact four), not recomputed arithmetic; the dedicated
   # ownership/ACL wall right below re-checks the same four functions by name so a future silent
   # ownership regression on just these four cannot hide behind an otherwise-correct whole-class count.
-  local expected_secdef_count=158
+  # 158 -> 159 (2026-08-03, migration 0343, TEST owner findings D1): one new app_owner-owned
+  # function, app.read_webapp_preauth_provider_setting(text) -- fixed-key pre-auth OAuth/Telegram
+  # credential accessor for oauth/start, oauth/callback/{yandex,google,apple} and telegram-login.
+  # It only reads public.system_settings, already required for app_owner in the VALUES list above
+  # (`('public.system_settings', 'SELECT')`), so no new row was needed there -- only this count.
+  local expected_secdef_count=159
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;

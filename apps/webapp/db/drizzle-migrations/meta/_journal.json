@@ -2388,6 +2388,13 @@
       "when": 1793539230046,
       "tag": "0342_oauth_confirmed_contact_equal_rights_login_local",
       "breakpoints": true
+    },
+    {
+      "idx": 341,
+      "version": "7",
+      "when": 1793539230047,
+      "tag": "0343_webapp_preauth_oauth_provider_capability_local",
+      "breakpoints": true
     }
   ]
 }
