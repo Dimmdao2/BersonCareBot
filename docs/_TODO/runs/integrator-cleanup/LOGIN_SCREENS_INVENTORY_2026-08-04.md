@@ -25,10 +25,10 @@
 | `GET /app` | любой неавторизованный (браузер) | `AppEntryRsc` → классификация входа → `AuthBootstrap` → тихий вход или `AuthFlowV2` | `apps/webapp/src/app/app/page.tsx`, `AppEntryRsc.tsx` |
 | `GET /app/tg` | Telegram Mini App | то же, но surface жёстко задан `telegram` (без cookie/`ctx`) | `apps/webapp/src/app/app/tg/page.tsx:8` |
 | `GET /app/max` | Max Mini App | то же, surface жёстко `max` | `apps/webapp/src/app/app/max/page.tsx` (симметрично tg) |
-| `GET /app/(role-login)/patient/login` | пациент по прямой ссылке роли | тот же `AppEntryRsc`, но `roleLoginPortal="patient"` — после входа не-пациента редиректит в его хаб с тостом "доступ запрещён" | `apps/webapp/src/app/app/(role-login)/patient/login/page.tsx` |
-| `GET /app/(role-login)/doctor/login` | специалист/клиника (роль `doctor` — клиника-админ и специалист делят одну роль, см. ниже) | `roleLoginPortal="doctor"`, показывает `RoleLoginPortalHeader` | `apps/webapp/src/app/app/(role-login)/doctor/login/page.tsx` |
-| `GET /app/(role-login)/admin/login` | платформенный админ | `roleLoginPortal="admin"` | `apps/webapp/src/app/app/(role-login)/admin/login/page.tsx` |
-| **Реальный путь на три строки выше** — middleware-редирект | любой, у кого нет сессии, но открыл защищённый `/app/patient/**`, `/app/doctor/**`, `/app/admin/**` (в т.ч. по PWA-ярлыку — `manifest.ts` даёт `start_url:'/app/patient'`, `staffPwaManifest.ts` даёт `/app/doctor`) | 302 на `getRoleLoginPath(portal)` с `?next=<исходный путь>` — это и есть основной способ, которым живые пользователи попадают на три страницы выше, а не прямые ссылки | `apps/webapp/src/proxy.ts:74-90` (`portalForAppPath`, `isRoleLoginPath`) |
+| `GET /app/patient/login` | пациент по прямой ссылке роли | тот же `AppEntryRsc`, но `roleLoginPortal="patient"` — после входа не-пациента редиректит в его хаб с тостом "доступ запрещён" | `apps/webapp/src/app/app/(role-login)/patient/login/page.tsx` |
+| `GET /app/doctor/login` | специалист/клиника (роль `doctor` — клиника-админ и специалист делят одну роль, см. ниже) | `roleLoginPortal="doctor"`, показывает `RoleLoginPortalHeader` | `apps/webapp/src/app/app/(role-login)/doctor/login/page.tsx` |
+| `GET /app/admin/login` | платформенный админ | `roleLoginPortal="admin"` | `apps/webapp/src/app/app/(role-login)/admin/login/page.tsx` |
+| **Реальный путь на три строки выше** — редирект в `proxy.ts` (⚠️ middleware в этом репозитории НЕТ) | любой, у кого нет сессии, но открыл защищённый `/app/patient/**`, `/app/doctor/**`, `/app/admin/**` (в т.ч. по PWA-ярлыку — `manifest.ts` даёт `start_url:'/app/patient'`, `staffPwaManifest.ts` даёт `/app/doctor`) | 302 на `getRoleLoginPath(portal)` с `?next=<исходный путь>` — это и есть основной способ, которым живые пользователи попадают на три страницы выше, а не прямые ссылки | `apps/webapp/src/proxy.ts:74-90` (`portalForAppPath`, `isRoleLoginPath`) |
 | `GET /app/clinic/invites/accept?token=` | приглашённый в команду клиники (сотрудник/специалист) | **отдельный, полностью самостоятельный OTP-экран** — не рендерит ни `AuthFlowV2`, ни `PhoneMessengerAuthFlow` | `apps/webapp/src/app/app/clinic/invites/accept/page.tsx`, `InviteAcceptClient.tsx`; создаётся клиникой через `apps/webapp/src/app/api/clinic/invites/route.ts` |
 | `GET /join/[continuation]` и `GET /join/start` | пациент, приглашённый врачом в портал | тоже отдельный самостоятельный OTP-экран; `join/start` берёт токен из URL-фрагмента (`#…`, не хвост пути — чтобы не улетал в лог сервера) и меняет на continuation-cookie | `apps/webapp/src/app/join/[continuation]/page.tsx`, `JoinPatientClient.tsx`, `apps/webapp/src/app/join/start/page.tsx`, `JoinStartClient.tsx`; создаётся врачом через `apps/webapp/src/app/api/doctor/patients/[userId]/portal-invite/route.ts` |
 | `?t=`/`?token=` JWT от интегратора (диплинк бота) | пользователь, пришедший по ссылке из Telegram/Max-бота вне mini app | `AuthBootstrap` меняет токен на сессию через `/api/auth/exchange`, минуя экран | `AuthBootstrap.tsx:668-778` (`postTokenExchange`) |
@@ -39,6 +39,16 @@
 | `POST /api/auth/telegram-login` (Telegram Login Widget) | теоретически — пользователь виджета на внешнем сайте | сервер полностью готов принять и провести вход | `apps/webapp/src/app/api/auth/telegram-login/route.ts` — **но кнопки/страницы, которая бы отправила сюда запрос, в кодовой базе нет** (см. §5) |
 | `/api/auth/dev-bypass?token=dev:*`, `/api/auth/dev-public?view=clinic-registration` | только дев-режим (`ALLOW_DEV_AUTH_BYPASS=true`) | мгновенный вход без провайдера/пароля, роль зависит от токена | `AppEntryLoginContent.tsx:68-105` |
 | Восстановление пароля / первичная установка пароля («забыли пароль?») | сотрудник клиники с почтовым логином | тот же экран, без ухода со страницы: код на sessionStorage-состоянии, не отдельная ссылка | `AuthFlowV2.tsx:718-766` (`submitForgotPassword`), хранение — `authFlowPendingStorage.ts:184-199` |
+
+**Поправка лида 04.08 по замечаниям владельца.** Две ошибки в таблице выше исправлены прямо в ней:
+
+1. **`(role-login)` — не сегмент адреса.** Скобки в Next.js означают группу маршрутов: папка складывает три
+   страницы вместе и даёт им общий шаблон, но в URL не попадает. Реальные адреса — `/app/patient/login`,
+   `/app/doctor/login`, `/app/admin/login`. В первой версии путь был выписан по файловой системе, а не по URL,
+   и читался как «пациент/пациент».
+2. **«middleware-редирект» — неверное слово.** Middleware в этом репозитории нет вовсе
+   ([[no-middleware-use-proxy]]); перехват идёт через `proxy.ts`, на который документ и ссылается в той же
+   строке.
 
 **Поправка после второго прохода.** Первая версия этого документа утверждала «инвайт-ссылок не
 найдено» — это было неверно: искал `invite` только в `modules/auth/**`, `app/api/auth/**`,
