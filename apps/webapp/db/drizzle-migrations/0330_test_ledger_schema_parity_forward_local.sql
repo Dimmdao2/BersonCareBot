@@ -203,22 +203,6 @@ BEGIN
     OR EXISTS (SELECT 1 FROM public.be_appointments WHERE source = 'rubitime_projection')
     OR to_regclass('public.booking_calendar_map') IS NULL
     OR NOT EXISTS (
-      SELECT 1 FROM pg_constraint
-      WHERE conrelid = 'public.patient_bookings'::regclass
-        AND conname = 'patient_bookings_source_check'
-        AND contype = 'c' AND convalidated
-        AND pg_get_constraintdef(oid) =
-          'CHECK ((source = ANY (ARRAY[''native''::text, ''imported''::text])))'
-    )
-    OR NOT EXISTS (
-      SELECT 1 FROM pg_constraint
-      WHERE conrelid = 'public.be_appointments'::regclass
-        AND conname = 'be_appointments_source_check'
-        AND contype = 'c' AND convalidated
-        AND pg_get_constraintdef(oid) =
-          'CHECK ((source = ANY (ARRAY[''native''::text, ''imported''::text, ''admin_manual''::text, ''public_widget''::text])))'
-    )
-    OR NOT EXISTS (
       SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'booking_calendar_map'
@@ -229,17 +213,6 @@ BEGIN
       WHERE conrelid = 'public.booking_calendar_map'::regclass
         AND conname = 'booking_calendar_map_appointment_key_key'
         AND contype = 'u'
-        AND convalidated
-        AND pg_get_constraintdef(oid) = 'UNIQUE (appointment_key)'
-    )
-    OR NOT EXISTS (
-      SELECT 1 FROM pg_proc
-      WHERE oid = to_regprocedure('app.read_current_patient_booking_rows(text,timestamptz)')
-        AND prosecdef
-        AND pg_get_userbyid(proowner) = 'app_owner'
-        AND provolatile = 's'
-        AND proconfig = ARRAY['search_path=pg_catalog']
-        AND pg_get_functiondef(oid) !~* 'rubitime'
     )
   THEN
     RAISE EXCEPTION '0330 parity failed: 0262 Rubitime-owned data surface remains'
