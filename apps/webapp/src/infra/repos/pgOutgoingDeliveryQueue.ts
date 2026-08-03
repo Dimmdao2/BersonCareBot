@@ -10,12 +10,17 @@ const REPLACEABLE_STATUSES = ['pending', 'failed_retryable'] as const;
 const TERMINALIZABLE_STATUSES = [...REPLACEABLE_STATUSES, 'processing'] as const;
 
 function queueValues(delivery: ReadyOutgoingDelivery) {
+  const botMarkerRequired = delivery.channel === 'telegram' || delivery.channel === 'max';
   return {
     organizationId: delivery.organizationId,
     eventId: delivery.eventId,
     kind: delivery.kind,
     channel: delivery.channel,
-    payloadJson: { intent: delivery.intent, successOutcome: delivery.successOutcome },
+    payloadJson: {
+      intent: delivery.intent,
+      successOutcome: delivery.successOutcome,
+      ...(botMarkerRequired ? { bookkeeping: { botMarkerRequired: true } } : {}),
+    },
     status: 'pending',
     attemptCount: 0,
     maxAttempts: 6,
@@ -30,7 +35,7 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
   return {
     async enqueueReady(tx: DrizzleDb, delivery: ReadyOutgoingDelivery): Promise<void> {
       const values = queueValues(delivery);
-      await tx
+      const refreshedRows = await tx
         .insert(outgoingDeliveryQueue)
         .values(values)
         .onConflictDoUpdate({
@@ -46,7 +51,16 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
             updatedAt: sql`now()`,
           },
           where: inArray(outgoingDeliveryQueue.status, [...REPLACEABLE_STATUSES]),
-        });
+        })
+        .returning({ eventId: outgoingDeliveryQueue.eventId });
+      if (refreshedRows.length === 0) return;
+      const result = await tx.execute(
+        sql`SELECT app.refresh_specialist_task_reminder_materialization(${delivery.eventId}) AS refreshed`,
+      );
+      const row = result.rows[0] as { refreshed?: boolean } | undefined;
+      if (row?.refreshed !== true) {
+        throw new Error('specialist_task_reminder_materialization_refresh_failed');
+      }
     },
 
     async terminalizeUnsentSpecialistTaskReminders(tx, input): Promise<void> {

@@ -175,6 +175,7 @@ REVOKE ALL ON TABLE integrator.projection_outbox, integrator.message_retry_jobs,
 REVOKE EXECUTE ON FUNCTION app.release_principal_context(), app.is_staff(), app.current_org_id(),
   app.current_patient_user_id(),
   app.open_or_touch_operator_incident(text, text, text, text, text),
+  app.revalidate_specialist_task_reminder_materialization(uuid),
   app.apply_specialist_task_reminder_success_outcome(uuid)
   FROM app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
@@ -737,6 +738,12 @@ REVOKE ALL ON FUNCTION app.apply_specialist_task_reminder_success_outcome(uuid) 
 GRANT EXECUTE ON FUNCTION app.apply_specialist_task_reminder_success_outcome(uuid)
   TO app_operational_delivery_worker;
 
+REVOKE ALL ON FUNCTION app.revalidate_specialist_task_reminder_materialization(uuid) FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.revalidate_specialist_task_reminder_materialization(uuid)
+  TO app_operational_delivery_worker;
+
 CREATE OR REPLACE FUNCTION app.list_scheduler_reminder_organization_ids()
 RETURNS SETOF uuid
 LANGUAGE plpgsql
@@ -1179,6 +1186,7 @@ WITH managed(role_name) AS (VALUES
   ('function','app.record_operator_delivery_attempt(text,text,text,integer,text)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.read_outgoing_delivery_reclaim_config()','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.open_or_touch_operator_incident(text,text,text,text,text)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.revalidate_specialist_task_reminder_materialization(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.apply_specialist_task_reminder_success_outcome(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('schema','app','USAGE','app_operational_scheduler',false),
   ('schema','integrator','USAGE','app_operational_scheduler',false),

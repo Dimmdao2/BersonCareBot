@@ -34,7 +34,14 @@ function assert(condition: unknown, message: string): asserts condition {
 
 // D20 level-3 F5: a `main()` that returns early must not exit 0 with an empty log. `passedPieces`
 // lives outside `main()` so the completion check below still fires even if `main()` never reaches it.
-const EXPECTED_PIECES = ['piece 4a', 'piece 4b', 'piece 4c', 'piece 4d', 'piece 4e'] as const;
+const EXPECTED_PIECES = [
+  'piece 4a',
+  'piece 4b',
+  'piece 4c',
+  'piece 4d',
+  'piece 4e',
+  'piece 4f',
+] as const;
 const passedPieces = new Set<string>();
 
 function reportPiecePass(id: (typeof EXPECTED_PIECES)[number], message: string): void {
@@ -44,7 +51,7 @@ function reportPiecePass(id: (typeof EXPECTED_PIECES)[number], message: string):
 
 const OUTGOING_DELIVERY_QUEUE_DDL = `
 CREATE ROLE app_owner NOLOGIN NOBYPASSRLS;
-CREATE ROLE app_staff NOLOGIN NOBYPASSRLS;
+CREATE ROLE app_staff LOGIN NOBYPASSRLS;
 CREATE ROLE app_patient NOLOGIN NOBYPASSRLS;
 CREATE ROLE app_worker NOLOGIN NOBYPASSRLS;
 CREATE ROLE app_operational_diagnostic NOLOGIN NOBYPASSRLS;
@@ -54,6 +61,7 @@ CREATE ROLE app_operational_media_worker NOLOGIN NOBYPASSRLS;
 CREATE SCHEMA app;
 GRANT USAGE, CREATE ON SCHEMA app TO app_owner;
 GRANT USAGE ON SCHEMA app, public TO app_operational_delivery_worker;
+GRANT USAGE ON SCHEMA app, public TO app_staff;
 CREATE TABLE public.outgoing_delivery_queue (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   event_id text NOT NULL,
@@ -81,13 +89,69 @@ CREATE UNIQUE INDEX uq_outgoing_delivery_queue_event_id
   ON public.outgoing_delivery_queue (event_id);
 CREATE INDEX idx_outgoing_delivery_queue_due
   ON public.outgoing_delivery_queue (status, next_retry_at);
+CREATE TABLE public.platform_users (
+  id uuid PRIMARY KEY,
+  email text,
+  email_verified_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE public.specialist_tasks (
   id uuid PRIMARY KEY,
   organization_id uuid NOT NULL,
-  reminder_sent_at timestamptz
+  owner_user_id uuid NOT NULL,
+  patient_user_id uuid,
+  title text NOT NULL,
+  description text,
+  due_at timestamptz,
+  remind_at timestamptz,
+  is_important boolean NOT NULL DEFAULT false,
+  completed_at timestamptz,
+  reminder_sent_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE public.specialist_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.specialist_tasks FORCE ROW LEVEL SECURITY;
+CREATE TABLE public.user_channel_bindings (
+  user_id uuid NOT NULL,
+  channel_code text NOT NULL,
+  external_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  bot_blocked_at timestamptz,
+  bot_blocked_reason text,
+  PRIMARY KEY (user_id, channel_code)
+);
+CREATE TABLE public.user_channel_preferences (
+  user_id text NOT NULL,
+  platform_user_id uuid NOT NULL,
+  channel_code text NOT NULL,
+  is_enabled_for_messages boolean NOT NULL DEFAULT true,
+  is_enabled_for_notifications boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (platform_user_id, channel_code)
+);
+CREATE TABLE public.user_notification_topic_channels (
+  user_id uuid NOT NULL,
+  topic_code text NOT NULL,
+  channel_code text NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, topic_code, channel_code)
+);
+CREATE TABLE public.user_web_push_subscriptions (
+  user_id uuid NOT NULL,
+  endpoint text NOT NULL,
+  p256dh text NOT NULL,
+  auth text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (endpoint)
+);
+CREATE TABLE public.system_settings (
+  key text NOT NULL,
+  scope text NOT NULL,
+  organization_id uuid,
+  value_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 `;
 
 const D30_ONLINE_INDEX_ARTIFACT = path.resolve(
@@ -375,10 +439,18 @@ async function main(): Promise<void> {
     const outcomeTaskId = randomUUID();
     const outcomeQueueId = randomUUID();
     const outcomeOrganizationId = randomUUID();
+    const outcomeOwnerId = randomUUID();
     await runIntegratorSql(
       db,
-      sql`INSERT INTO public.specialist_tasks (id, organization_id)
-          VALUES (${outcomeTaskId}::uuid, ${outcomeOrganizationId}::uuid)`,
+      sql`INSERT INTO public.platform_users (id) VALUES (${outcomeOwnerId}::uuid)`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.specialist_tasks (id, organization_id, owner_user_id, title)
+          VALUES (
+            ${outcomeTaskId}::uuid, ${outcomeOrganizationId}::uuid,
+            ${outcomeOwnerId}::uuid, 'Outcome fixture'
+          )`,
     );
     await runIntegratorSql(
       db,
@@ -449,8 +521,11 @@ async function main(): Promise<void> {
     const foreignQueueId = randomUUID();
     await runIntegratorSql(
       db,
-      sql`INSERT INTO public.specialist_tasks (id, organization_id)
-          VALUES (${foreignTaskId}::uuid, ${randomUUID()}::uuid)`,
+      sql`INSERT INTO public.specialist_tasks (id, organization_id, owner_user_id, title)
+          VALUES (
+            ${foreignTaskId}::uuid, ${randomUUID()}::uuid,
+            ${outcomeOwnerId}::uuid, 'Foreign outcome fixture'
+          )`,
     );
     await runIntegratorSql(
       db,
@@ -489,6 +564,26 @@ async function main(): Promise<void> {
       foreignState.rows[0]?.reminder_sent_at === null && foreignState.rows[0]?.applied_at === null,
       'cross-tenant outcome failure must leave both task and durable receipt pending untouched',
     );
+    const pendingBotMarkerQueueId = randomUUID();
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.outgoing_delivery_queue (
+            id, event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+            next_retry_at, sent_at, organization_id
+          ) VALUES (
+            ${pendingBotMarkerQueueId}::uuid, ${`d30-bot-marker-${pendingBotMarkerQueueId}`},
+            'specialist_task_reminder', 'telegram',
+            ${JSON.stringify({
+              successOutcome: {
+                type: 'specialistTask.reminder.markSent',
+                taskId: outcomeTaskId,
+                appliedAt: '2026-08-01T00:00:00.000Z',
+              },
+              bookkeeping: { botMarkerRequired: true },
+            })}::jsonb,
+            'sent', 1, 6, now(), now() - interval '2 days', ${outcomeOrganizationId}::uuid
+          )`,
+    );
     await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
       deleteExpiredSentOutgoingDeliveries(db, 1),
     );
@@ -502,9 +597,189 @@ async function main(): Promise<void> {
       retainedPendingOutcome.rows[0]?.n === 1,
       'retention must not delete a sent row while its durable product outcome is pending',
     );
+    const retainedPendingBotMarker = await runIntegratorSql<{ n: number }>(
+      db,
+      sql`SELECT count(*)::int AS n
+          FROM public.outgoing_delivery_queue
+          WHERE id = ${pendingBotMarkerQueueId}::uuid`,
+    );
+    assert(
+      retainedPendingBotMarker.rows[0]?.n === 1,
+      'retention must not delete a sent row while bot-marker bookkeeping is pending',
+    );
     reportPiecePass(
       'piece 4e',
-      'locked delivery role had no direct task DML, exact capability atomically applied the sent receipt, retry was idempotent, and cross-tenant receipt failed closed',
+      'locked delivery role had no direct task DML, exact capability atomically applied the sent receipt, retry was idempotent, cross-tenant receipt failed closed, and pending bookkeeping survived retention',
+    );
+
+    // --- Piece 4f: stale materialization never reaches provider; concurrent producers stay one ---
+    const materializationOwnerId = randomUUID();
+    const materializationTaskId = randomUUID();
+    const materializationQueueId = randomUUID();
+    const materializationOrganizationId = randomUUID();
+    const materializationEventId = `specialist-task:${materializationTaskId}:2026-08-03T05%3A00%3A00.000Z:telegram`;
+    const materializationPayload = {
+      successOutcome: {
+        type: 'specialistTask.reminder.markSent',
+        taskId: materializationTaskId,
+      },
+      bookkeeping: { botMarkerRequired: true },
+      intent: { type: 'message.send' },
+    };
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.platform_users (id, email, email_verified_at)
+          VALUES (${materializationOwnerId}::uuid, 'doctor@example.test', now())`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.specialist_tasks (
+            id, organization_id, owner_user_id, title, remind_at
+          ) VALUES (
+            ${materializationTaskId}::uuid, ${materializationOrganizationId}::uuid,
+            ${materializationOwnerId}::uuid, 'Materialization fixture', now()
+          )`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.user_channel_bindings (user_id, channel_code, external_id)
+          VALUES (${materializationOwnerId}::uuid, 'telegram', 'recipient-before')`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.user_notification_topic_channels (
+            user_id, topic_code, channel_code, is_enabled
+          ) VALUES (
+            ${materializationOwnerId}::uuid, 'doctor_specialist_task_reminders',
+            'telegram', true
+          )`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.outgoing_delivery_queue (
+            id, event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+            next_retry_at, organization_id
+          ) VALUES (
+            ${materializationQueueId}::uuid, ${materializationEventId},
+            'specialist_task_reminder', 'telegram',
+            ${JSON.stringify(materializationPayload)}::jsonb,
+            'pending', 0, 6, now(), ${materializationOrganizationId}::uuid
+          )`,
+    );
+    const staffRoleConnectionString = connectionStringForRole(
+      disposable.connectionString,
+      'app_staff',
+    );
+    const refreshMaterialization = () =>
+      runPsql(staffRoleConnectionString, [
+        '-qAtc',
+        `BEGIN; SET LOCAL app.org = '${materializationOrganizationId}'; SELECT app.refresh_specialist_task_reminder_materialization('${materializationEventId}'); COMMIT`,
+      ]);
+    const crossTenantRefresh = runPsql(staffRoleConnectionString, [
+      '-qAtc',
+      `BEGIN; SET LOCAL app.org = '${randomUUID()}'; SELECT app.refresh_specialist_task_reminder_materialization('${materializationEventId}'); COMMIT`,
+    ]);
+    assert(
+      crossTenantRefresh.status !== 0,
+      'cross-tenant producer must not refresh a specialist reminder materialization',
+    );
+    const firstRefresh = refreshMaterialization();
+    assert(
+      firstRefresh.status === 0 && firstRefresh.stdout.trim().includes('t'),
+      `initial materialization refresh failed: ${firstRefresh.stderr}`,
+    );
+
+    await runIntegratorSql(
+      db,
+      sql`UPDATE public.outgoing_delivery_queue
+          SET status = 'processing'
+          WHERE id = ${materializationQueueId}::uuid`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`UPDATE public.user_channel_bindings
+          SET external_id = 'recipient-after'
+          WHERE user_id = ${materializationOwnerId}::uuid AND channel_code = 'telegram'`,
+    );
+    const rebindValidation = runPsql(deliveryRoleConnectionString, [
+      '-qAtc',
+      `SELECT app.revalidate_specialist_task_reminder_materialization('${materializationQueueId}'::uuid)`,
+    ]);
+    assert(
+      rebindValidation.status === 0 && rebindValidation.stdout.trim().endsWith('f'),
+      `a recipient rebind inside one 5s worker window must fail closed: ${rebindValidation.stderr}`,
+    );
+
+    const producerUpsert = () =>
+      runIntegratorSql(
+        db,
+        sql`INSERT INTO public.outgoing_delivery_queue (
+              id, event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+              next_retry_at, organization_id
+            ) VALUES (
+              gen_random_uuid(), ${materializationEventId}, 'specialist_task_reminder', 'telegram',
+              ${JSON.stringify(materializationPayload)}::jsonb, 'pending', 0, 6, now(),
+              ${materializationOrganizationId}::uuid
+            )
+            ON CONFLICT (event_id) DO UPDATE SET
+              payload_json = EXCLUDED.payload_json,
+              status = 'pending',
+              attempt_count = 0,
+              next_retry_at = now(),
+              last_error = NULL,
+              dead_at = NULL,
+              updated_at = now()
+            WHERE outgoing_delivery_queue.status IN ('pending', 'failed_retryable')`,
+      );
+    await Promise.all([producerUpsert(), producerUpsert()]);
+    const concurrentRefresh = refreshMaterialization();
+    assert(
+      concurrentRefresh.status === 0 && concurrentRefresh.stdout.trim().includes('t'),
+      `concurrent producer materialization refresh failed: ${concurrentRefresh.stderr}`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`UPDATE public.user_notification_topic_channels
+          SET is_enabled = false, updated_at = clock_timestamp()
+          WHERE user_id = ${materializationOwnerId}::uuid
+            AND topic_code = 'doctor_specialist_task_reminders'
+            AND channel_code = 'telegram'`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`UPDATE public.outgoing_delivery_queue
+          SET status = 'processing'
+          WHERE id = ${materializationQueueId}::uuid`,
+    );
+    const disableValidation = runPsql(deliveryRoleConnectionString, [
+      '-qAtc',
+      `SELECT app.revalidate_specialist_task_reminder_materialization('${materializationQueueId}'::uuid)`,
+    ]);
+    assert(
+      disableValidation.status === 0 && disableValidation.stdout.trim().endsWith('f'),
+      `a topic disable inside one 5s worker window must fail closed: ${disableValidation.stderr}`,
+    );
+    const staleState = await runIntegratorSql<{
+      status: string;
+      last_error: string | null;
+      count: number;
+    }>(
+      db,
+      sql`SELECT min(status) AS status,
+                 min(last_error) AS last_error,
+                 count(*)::int AS count
+          FROM public.outgoing_delivery_queue
+          WHERE event_id = ${materializationEventId}`,
+    );
+    assert(
+      staleState.rows[0]?.status === 'failed_retryable' &&
+        staleState.rows[0]?.last_error === 'SPECIALIST_TASK_REMINDER_STALE_MATERIALIZATION' &&
+        staleState.rows[0]?.count === 1,
+      `stale materialization must remain one producer-replaceable row: ${JSON.stringify(staleState.rows[0])}`,
+    );
+    reportPiecePass(
+      'piece 4f',
+      'recipient rebind and topic disable inside the 5s worker window failed closed before provider dispatch; concurrent immediate/cron producers retained one stable event row',
     );
 
     await closeDb();
