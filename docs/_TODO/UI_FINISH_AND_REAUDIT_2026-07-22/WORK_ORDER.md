@@ -887,6 +887,13 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       для таких аккаунтов дефолт остаётся на аппроксимации через `email_verified_at`, что для OAuth создания
       обычно совпадает по факту (email и телефон приходят одной транзакцией), но не является записанным
       подтверждением каналом; отдельная работа, не в этом слайсе.
+      **DEV APPLY 03.08:** migration `0341` applied to `bcb_webapp_dev` (drizzle journal idx 339, when
+      1793539230045). Verified against the live schema (not the runner's report): `user_phone_history.
+      confirming_channel` is `text`, nullable, with `user_phone_history_confirming_channel_check` allowing
+      NULL or one of `telegram/max/email/sms`; no unexpected grant appeared (table grants unchanged —
+      migration carries no GRANT statement). Preflight and execute both PASS; ran from the worktree by
+      copying `.env.dev`/`.env` from the main checkout per the shared-DEV-DB recipe (same target database,
+      no product code touched, no push).
 - [ ] **D28 — отзыв подтверждения вместе с номером.** Решение — **Р-D28** (§2.3).
 - [ ] **D29 — ФИО только кириллицей, автоподстановка имени отменяется.** Решение — **Р-D29** (§2.3). Это не
       только проверка ввода: сегодня имя приезжает из внешнего профиля мессенджеров и OAuth.
