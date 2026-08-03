@@ -16,10 +16,14 @@ export type OutgoingDeliveryKind =
   | 'reminder_dispatch'
   | 'doctor_broadcast_intent'
   | 'inbound_reply'
-  | 'specialist_task_reminder';
+  | 'specialist_task_reminder'
+  | 'operator_health_digest';
 
 /** Kinds whose rows are already complete transport intents and need no product-specific worker logic. */
-export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>(['specialist_task_reminder']);
+export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>([
+  'specialist_task_reminder',
+  'operator_health_digest',
+]);
 
 export const DOCTOR_BROADCAST_INTENT_QUEUE_KIND =
   'doctor_broadcast_intent' as const satisfies OutgoingDeliveryKind;
@@ -65,10 +69,7 @@ function retryBackoffLadderForKind(kind: string | undefined): readonly number[] 
  *   Без указания или для любого вида кроме `inbound_reply` — прежняя общая лестница, поведение
  *   напоминаний/рассылок/операторских алертов не меняется.
  */
-export function retryDelaySecondsAfterFailure(
-  failedAttemptNumber: number,
-  kind?: string,
-): number {
+export function retryDelaySecondsAfterFailure(failedAttemptNumber: number, kind?: string): number {
   const ladder = retryBackoffLadderForKind(kind);
   if (!Number.isFinite(failedAttemptNumber) || failedAttemptNumber < 1) {
     return ladder[0]!;

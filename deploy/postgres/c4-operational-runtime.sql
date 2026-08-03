@@ -515,18 +515,24 @@ SET search_path = pg_catalog
 AS $function$
 DECLARE
   queue_payload jsonb;
+  stored_organization_id uuid;
   v_occurrence_id text;
   v_broadcast_audit_id uuid;
   v_incident_id uuid;
   occurrence_org uuid;
   rule_org uuid;
 BEGIN
-  SELECT queue.kind, queue.payload_json
-  INTO queue_kind, queue_payload
+  SELECT queue.kind, queue.organization_id, queue.payload_json
+  INTO queue_kind, stored_organization_id, queue_payload
   FROM public.outgoing_delivery_queue AS queue
   WHERE queue.id = p_queue_id;
   IF NOT FOUND THEN
     RETURN QUERY SELECT NULL::text, NULL::uuid, 'queue_not_found'::text;
+    RETURN;
+  END IF;
+
+  IF stored_organization_id IS NOT NULL THEN
+    RETURN QUERY SELECT queue_kind, stored_organization_id, 'tenant'::text;
     RETURN;
   END IF;
 
@@ -544,7 +550,7 @@ BEGIN
     RETURN;
   END IF;
 
-  IF queue_kind = 'inbound_reply' THEN
+  IF queue_kind IN ('inbound_reply', 'operator_health_digest') THEN
     RETURN QUERY SELECT queue_kind, NULL::uuid, 'operator_global'::text;
     RETURN;
   END IF;

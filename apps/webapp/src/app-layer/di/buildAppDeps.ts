@@ -231,6 +231,12 @@ import { createPgSpecialistTasksPort } from '@/infra/repos/pgSpecialistTasks';
 import { inMemorySpecialistTasksPort } from '@/infra/repos/inMemorySpecialistTasks';
 import { createSpecialistTasksService } from '@/modules/specialist-tasks/service';
 import { prepareSpecialistTaskReminderDeliveries } from '@/modules/specialist-tasks/prepareReminderDeliveries';
+import { resolveOperatorHealthDigestWebPushRecipients } from '@/modules/operator-health/prepareOperatorHealthDigestDeliveries';
+import {
+  enqueueOperatorHealthDigestDeliveries,
+  loadLatestSentOperatorHealthDigestAt,
+} from '@/infra/repos/pgOperatorHealthDigestDeliveries';
+import type { OperatorHealthDigestReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import { createPgPatientFilesPort } from '@/infra/repos/pgPatientFiles';
 import { inMemoryPatientFilesPort } from '@/infra/repos/inMemoryPatientFiles';
 import { createPatientFilesService } from '@/modules/patient-files/service';
@@ -1709,6 +1715,21 @@ function _buildAppDeps() {
     operatorHealthRead: operatorHealthReadPort,
     saasIsolationDiagnostics,
     operatorHealthDigestRead: operatorHealthDigestReadPort,
+    operatorHealthDigestDelivery: {
+      loadRecipients: async () => ({
+        ...(await loadAdminNotificationTargetsFromDb()),
+        web_push: await resolveOperatorHealthDigestWebPushRecipients({
+          staffUsers: staffUsersPort,
+          channelPreferences: channelPreferencesPort,
+          webPushSubscriptions: webPushSubscriptionsPort,
+        }),
+      }),
+      enqueue: inMemoryRepos
+        ? async (deliveries: readonly OperatorHealthDigestReadyOutgoingDelivery[]) =>
+            deliveries.length
+        : enqueueOperatorHealthDigestDeliveries,
+      loadLatestSentAt: inMemoryRepos ? async () => null : loadLatestSentOperatorHealthDigestAt,
+    },
     operatorHealthWrite: operatorHealthWritePort,
     healthFailureArchive,
     notificationDelivery,

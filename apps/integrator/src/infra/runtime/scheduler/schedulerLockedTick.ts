@@ -2,6 +2,8 @@ export type SchedulerLockedTickDeps = {
   /** Throws when this process no longer holds the scheduler lock. */
   assertLockStillHeld: () => Promise<void>;
   runOrganizationTicks: () => Promise<number>;
+  runOperatorHealthDigestWake: () => Promise<boolean>;
+  runSystemHealthGuardWake: () => Promise<boolean>;
   runOperatorHealthProbeTick: () => Promise<boolean>;
 };
 
@@ -14,5 +16,7 @@ export type SchedulerLockedTickDeps = {
 export async function runSchedulerLockedTick(deps: SchedulerLockedTickDeps): Promise<void> {
   await deps.assertLockStillHeld();
   await deps.runOrganizationTicks();
+  await deps.runOperatorHealthDigestWake();
+  await deps.runSystemHealthGuardWake();
   await deps.runOperatorHealthProbeTick();
 }

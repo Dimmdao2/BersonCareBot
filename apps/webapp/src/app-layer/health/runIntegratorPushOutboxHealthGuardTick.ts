@@ -38,13 +38,26 @@ async function purgeHealthFailureArchiveTtlBestEffort(): Promise<void> {
  * Проактивная проверка `integrator_push_outbox` для cron (`POST /api/internal/system-health-guard/tick`).
  * Critical push по ipo error — в `operator-health-critical/tick` (каждые 5 мин); guard только классифицирует и чистит архив.
  */
-export async function runIntegratorPushOutboxHealthGuardTick(): Promise<{
+export async function runIntegratorPushOutboxHealthClassificationTick(): Promise<{
   status: 'ok' | 'degraded' | 'error';
   alerted: boolean;
 }> {
   const snapshot = await buildAppDeps().operatorHealthRead.getIntegratorPushOutboxHealth();
   const status = classifyIntegratorPushOutboxSystemHealthStatus(snapshot);
+  return { status, alerted: false };
+}
+
+/** Maintenance remains periodic work; it is never converted into a delivery row. */
+export async function runOperatorHealthMaintenanceTick(): Promise<void> {
   await purgeHealthFailureArchiveTtlBestEffort();
   await purgeIntegrationWebhookErrorEventsBestEffort();
-  return { status, alerted: false };
+}
+
+export async function runIntegratorPushOutboxHealthGuardTick(): Promise<{
+  status: 'ok' | 'degraded' | 'error';
+  alerted: boolean;
+}> {
+  const result = await runIntegratorPushOutboxHealthClassificationTick();
+  await runOperatorHealthMaintenanceTick();
+  return result;
 }

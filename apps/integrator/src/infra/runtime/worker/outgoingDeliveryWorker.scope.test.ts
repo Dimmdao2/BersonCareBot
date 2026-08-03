@@ -269,6 +269,45 @@ describe('воркер доставки: строка без разрешимо�
     expect(permanent.rescheduled).toBe(0);
   });
 
+  it('delivers operator health digest globally without incidentId and preserves generic retry/dead behavior', async () => {
+    const digestRow = {
+      ...queueRow('operator_health_digest'),
+      payloadJson: { intent: operatorAlertIntent() },
+    };
+    const success = harness({
+      queue_kind: 'operator_health_digest',
+      organization_id: null,
+      resolution: 'operator_global',
+    });
+    await processUnderWorkerTick(success, digestRow);
+    expect(success.dispatched).toHaveLength(1);
+    expect(success.dispatched[0]?.organizationId).toBeUndefined();
+    expect(success.markedSent).toBe(1);
+    expect(success.writes).toEqual([]);
+
+    const retry = harness({
+      queue_kind: 'operator_health_digest',
+      organization_id: null,
+      resolution: 'operator_global',
+    });
+    retry.dispatchOutgoing = async () => {
+      throw new Error('temporary_provider_failure');
+    };
+    await processUnderWorkerTick(retry, digestRow);
+    expect(retry.rescheduled).toBe(1);
+
+    const dead = harness({
+      queue_kind: 'operator_health_digest',
+      organization_id: null,
+      resolution: 'operator_global',
+    });
+    dead.dispatchOutgoing = async () => {
+      throw new Error('CHANNEL_NOT_SUPPORTED:telegram');
+    };
+    await processUnderWorkerTick(dead, digestRow);
+    expect(dead.quarantined).toEqual(['CHANNEL_NOT_SUPPORTED:telegram']);
+  });
+
   it('does not reschedule transport after an external success when product receipt bookkeeping fails', async () => {
     const h = harness({
       queue_kind: 'specialist_task_reminder',

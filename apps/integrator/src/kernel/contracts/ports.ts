@@ -381,6 +381,12 @@ export type SupportDeliveryCanonicalWrite = {
 /** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
   emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
+  wakeOperatorHealthDigest?(input: {
+    wakeId: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
+  wakeSystemHealthGuard?(input: {
+    wakeId: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
   completeChannelLink?(params: {
     linkToken: string;

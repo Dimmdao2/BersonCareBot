@@ -18,13 +18,23 @@ describe('runSchedulerLockedTick', () => {
     const runOperatorHealthProbeTick = vi.fn().mockImplementation(async () => {
       calls.push('operatorHealth');
     });
+    const runOperatorHealthDigestWake = vi.fn(async () => true);
+    const runSystemHealthGuardWake = vi.fn(async () => true);
 
     await expect(
-      runSchedulerLockedTick({ assertLockStillHeld, runOrganizationTicks, runOperatorHealthProbeTick }),
+      runSchedulerLockedTick({
+        assertLockStillHeld,
+        runOrganizationTicks,
+        runOperatorHealthDigestWake,
+        runSystemHealthGuardWake,
+        runOperatorHealthProbeTick,
+      }),
     ).rejects.toThrow('lock lost');
 
     expect(runOrganizationTicks).not.toHaveBeenCalled();
     expect(runOperatorHealthProbeTick).not.toHaveBeenCalled();
+    expect(runOperatorHealthDigestWake).not.toHaveBeenCalled();
+    expect(runSystemHealthGuardWake).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
   });
 
@@ -40,9 +50,23 @@ describe('runSchedulerLockedTick', () => {
     const runOperatorHealthProbeTick = vi.fn().mockImplementation(async () => {
       calls.push('operatorHealth');
     });
+    const runOperatorHealthDigestWake = vi.fn().mockImplementation(async () => {
+      calls.push('digestWake');
+      return true;
+    });
+    const runSystemHealthGuardWake = vi.fn().mockImplementation(async () => {
+      calls.push('guardWake');
+      return true;
+    });
 
-    await runSchedulerLockedTick({ assertLockStillHeld, runOrganizationTicks, runOperatorHealthProbeTick });
+    await runSchedulerLockedTick({
+      assertLockStillHeld,
+      runOrganizationTicks,
+      runOperatorHealthDigestWake,
+      runSystemHealthGuardWake,
+      runOperatorHealthProbeTick,
+    });
 
-    expect(calls).toEqual(['assert', 'organization', 'operatorHealth']);
+    expect(calls).toEqual(['assert', 'organization', 'digestWake', 'guardWake', 'operatorHealth']);
   });
 });

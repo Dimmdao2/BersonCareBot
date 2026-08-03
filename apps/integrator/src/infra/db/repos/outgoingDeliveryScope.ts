@@ -4,7 +4,7 @@ import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type OutgoingDeliveryScope =
   | { kind: 'tenant'; queueKind: string; organizationId: string }
-  | { kind: 'operator'; queueKind: 'operator_alert' | 'inbound_reply' }
+  | { kind: 'operator'; queueKind: 'operator_alert' | 'inbound_reply' | 'operator_health_digest' }
   | { kind: 'invalid'; queueKind: string | null; reason: string };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,7 +25,9 @@ export async function resolveOutgoingDeliveryScope(
   if (!row) return { kind: 'invalid', queueKind: null, reason: 'queue_not_found' };
   if (
     row.resolution === 'operator_global' &&
-    (row.queue_kind === 'operator_alert' || row.queue_kind === 'inbound_reply')
+    (row.queue_kind === 'operator_alert' ||
+      row.queue_kind === 'inbound_reply' ||
+      row.queue_kind === 'operator_health_digest')
   ) {
     return { kind: 'operator', queueKind: row.queue_kind };
   }
@@ -52,5 +54,8 @@ export async function operatorIncidentAlertAlreadySent(
 }
 
 export async function markOperatorIncidentAlertSent(db: DbPort, incidentId: string): Promise<void> {
-  await runIntegratorSql(db, sql`SELECT app.mark_operator_incident_alert_sent(${incidentId}::uuid)`);
+  await runIntegratorSql(
+    db,
+    sql`SELECT app.mark_operator_incident_alert_sent(${incidentId}::uuid)`,
+  );
 }
