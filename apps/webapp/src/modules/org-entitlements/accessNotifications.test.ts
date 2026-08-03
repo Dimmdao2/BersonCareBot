@@ -186,7 +186,10 @@ describe('lifecycle notification triggers (Т2/Т7)', () => {
     { offsetDays: 0, condition: 'trial_started', template: 'триал начался' },
     { offsetDays: 0, condition: 'trial_ended', template: 'триал закончился' },
     { offsetDays: 0, condition: 'discount_period_started', template: 'льгота началась' },
-    { offsetDays: 3, condition: 'discount_period_ended', template: 'льгота закончилась' },
+    // Т7 дословно: «уведомление о том что скидка скоро закончится» — a WARNING, so it must fire
+    // BEFORE discountEndsAt, i.e. a negative offsetDays. A positive one would fire after the
+    // window already closed, which is not what the owner asked for.
+    { offsetDays: -1, condition: 'discount_period_ended', template: 'скидка скоро закончится' },
   ];
 
   // Breakage: the registration/trial-start/trial-end rows stop firing because nothing anchors
@@ -223,7 +226,7 @@ describe('lifecycle notification triggers (Т2/Т7)', () => {
       now: new Date('2026-08-19T00:00:00.000Z'),
       hasPaidSinceTrial: false,
     }).map((rule) => rule.template);
-    expect(due).toEqual(expect.arrayContaining(['льгота началась', 'льгота закончилась']));
+    expect(due).toEqual(expect.arrayContaining(['льгота началась', 'скидка скоро закончится']));
   });
 
   // Breakage: Т7's hard rule is dropped and a clinic that already paid still gets a discount
