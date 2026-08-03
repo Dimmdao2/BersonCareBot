@@ -1,5 +1,9 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../kernel/contracts/index.js';
+import {
+  getCurrentDatabasePrincipal,
+  runWithBootstrapPrincipal,
+} from '../principal/organizationPrincipal.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
 import { parseSystemSettingTrueLiteral } from './publicSystemSettings.js';
 
@@ -28,13 +32,24 @@ async function fetchAuthChannelSettingValueJson(
 }
 
 /**
+ * Signed M2M auth routes have no tenant principal. The fixed-key accessor is part of the
+ * integrator runtime-config capability, so classify only that no-principal read through the
+ * existing locked-mode bootstrap source. Preserve an already established request/worker principal.
+ */
+function readAuthChannelSettingValueJson(db: DbPort, key: string): Promise<unknown | null> {
+  const fetch = () => fetchAuthChannelSettingValueJson(db, key);
+  if (getCurrentDatabasePrincipal()) return fetch();
+  return runWithBootstrapPrincipal({ source: 'integrator-server-runtime-config' }, fetch);
+}
+
+/**
  * Canonical auth-channel policy: a missing row, an unreadable row, and an explicit `false` are
  * all the same safe default — disabled. Only an explicit `true` (or the string `'true'`) enables
  * the channel; a read failure (denied/unreachable) fails closed the same way.
  */
 export async function isAuthChannelEnabled(db: DbPort, channel: AuthChannel): Promise<boolean> {
   try {
-    const valueJson = await fetchAuthChannelSettingValueJson(db, SETTING_BY_CHANNEL[channel]);
+    const valueJson = await readAuthChannelSettingValueJson(db, SETTING_BY_CHANNEL[channel]);
     if (valueJson === null) return false;
     return parseSystemSettingTrueLiteral(valueJson);
   } catch {
