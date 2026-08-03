@@ -951,7 +951,7 @@ SELECT 1 / (
       AND NOT rolbypassrls
     FROM bootstrap_role
   )
-  AND (SELECT count(*) = 1 FROM direct_memberships)
+  AND (SELECT count(*) = 2 FROM direct_memberships)
   AND EXISTS (
     SELECT 1
     FROM direct_memberships membership
@@ -961,11 +961,23 @@ SELECT 1 / (
       AND NOT membership.inherit_option
       AND membership.set_option
   )
+  -- D15b/4: this bootstrap login is also a member of app_identity_bootstrap (GRANT above), the
+  -- pre-session identity-resolution role platform_users_identity_bootstrap_* policies check via
+  -- pg_has_role -- same shape as the app_patient membership this gate already required.
+  AND EXISTS (
+    SELECT 1
+    FROM direct_memberships membership
+    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    WHERE granted_role.rolname = 'app_identity_bootstrap'
+      AND NOT membership.admin_option
+      AND NOT membership.inherit_option
+      AND membership.set_option
+  )
   AND NOT EXISTS (
     SELECT 1
     FROM reachable_roles reachable
     JOIN pg_roles granted_role ON granted_role.oid = reachable.roleid
-    WHERE granted_role.rolname <> 'app_patient'
+    WHERE granted_role.rolname NOT IN ('app_patient', 'app_identity_bootstrap')
   )
   AND NOT EXISTS (
     SELECT 1
