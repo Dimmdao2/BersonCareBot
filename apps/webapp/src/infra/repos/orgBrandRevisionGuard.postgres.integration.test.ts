@@ -16,8 +16,8 @@
  * Migrated off the shared dev DB (was `.devDb.integration.test.ts`, opt-in env flags never set
  * anywhere — never ran in CI, and it demanded a superuser/BYPASSRLS connection dev rarely offered).
  */
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { getPool } from '@/infra/db/client';
 
 const ORG = '7e510000-0000-4000-8000-00000000ba01';
 const ACTOR = '7e510000-0000-4000-8000-00000000ba02';
@@ -42,10 +42,11 @@ async function pgErrorCodeOf(
 }
 
 describe('0238 app.guard_org_brand_revision (disposable Postgres)', () => {
-  let client: Awaited<ReturnType<ReturnType<typeof getPool>['connect']>>;
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  let client: pg.PoolClient;
 
   beforeAll(async () => {
-    client = await getPool().connect();
+    client = await pool.connect();
     await client.query(
       `ALTER TABLE public.be_organizations DISABLE ROW LEVEL SECURITY;
        ALTER TABLE public.platform_users DISABLE ROW LEVEL SECURITY;
@@ -118,7 +119,7 @@ describe('0238 app.guard_org_brand_revision (disposable Postgres)', () => {
       );
       client.release();
     }
-    await getPool().end();
+    await pool.end();
   });
 
   /**
