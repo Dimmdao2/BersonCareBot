@@ -173,7 +173,9 @@ REVOKE ALL ON TABLE integrator.projection_outbox, integrator.message_retry_jobs,
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
 REVOKE EXECUTE ON FUNCTION app.release_principal_context(), app.is_staff(), app.current_org_id(),
-  app.current_patient_user_id() FROM app_operational_diagnostic, app_operational_delivery_worker,
+  app.current_patient_user_id(),
+  app.open_or_touch_operator_incident(text, text, text, text, text)
+  FROM app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
 REVOKE USAGE ON SCHEMA app, integrator, public FROM
   app_operational_diagnostic, app_operational_delivery_worker,
@@ -184,9 +186,12 @@ DROP FUNCTION IF EXISTS app.resolve_outgoing_delivery_scope(uuid);
 DROP FUNCTION IF EXISTS app.operator_incident_alert_already_sent(uuid);
 DROP FUNCTION IF EXISTS app.mark_operator_incident_alert_sent(uuid);
 DROP FUNCTION IF EXISTS app.record_operator_delivery_attempt(text, text, text, integer, text);
+DROP FUNCTION IF EXISTS app.read_outgoing_delivery_reclaim_config();
 REVOKE SELECT ON TABLE integrator.user_reminder_occurrences, public.reminder_rules FROM app_owner;
 REVOKE SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents FROM app_owner;
 REVOKE UPDATE (alert_sent_at) ON TABLE public.operator_incidents FROM app_owner;
+REVOKE INSERT ON TABLE public.operator_incidents FROM app_owner;
+REVOKE UPDATE (last_seen_at, occurrence_count, error_detail) ON TABLE public.operator_incidents FROM app_owner;
 REVOKE INSERT ON TABLE integrator.delivery_attempt_logs FROM app_owner;
 REVOKE USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq FROM app_owner;
 REVOKE USAGE ON SCHEMA integrator, public FROM app_owner;
@@ -219,6 +224,7 @@ SELECT 1 / (
       OR role_state.rolreplication
   )
   AND to_regprocedure('app.release_principal_context()') IS NOT NULL
+  AND to_regprocedure('app.open_or_touch_operator_incident(text,text,text,text,text)') IS NOT NULL
 )::int AS c4_operational_preflight;
 
 DO $roles$
@@ -485,6 +491,10 @@ BEGIN
 END
 $c4_email_send_cooldowns_app_owner_acl$;
 GRANT UPDATE (alert_sent_at) ON TABLE public.operator_incidents TO app_owner;
+-- app.open_or_touch_operator_incident (Track D) runs SECURITY DEFINER as app_owner and needs
+-- exactly the columns its INSERT ... ON CONFLICT DO UPDATE touches — no broader UPDATE/DELETE.
+GRANT INSERT ON TABLE public.operator_incidents TO app_owner;
+GRANT UPDATE (last_seen_at, occurrence_count, error_detail) ON TABLE public.operator_incidents TO app_owner;
 GRANT INSERT ON TABLE integrator.delivery_attempt_logs TO app_owner;
 GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
 
@@ -679,6 +689,39 @@ REVOKE ALL ON FUNCTION app.record_operator_delivery_attempt(text, text, text, in
   app_staff, app_patient, app_worker,
   app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
 GRANT EXECUTE ON FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text)
+  TO app_operational_delivery_worker;
+
+-- Track D (docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md): the reclaim/
+-- retention/dead-letter thresholds worker tick reads must never carry SMTP/provider secrets or
+-- any other settings key — a single-purpose argless capability, exclusive to this worker role.
+CREATE OR REPLACE FUNCTION app.read_outgoing_delivery_reclaim_config()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'outgoing_delivery_reclaim_config'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$function$;
+ALTER FUNCTION app.read_outgoing_delivery_reclaim_config() OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.read_outgoing_delivery_reclaim_config() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_outgoing_delivery_reclaim_config() FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.read_outgoing_delivery_reclaim_config()
+  TO app_operational_delivery_worker;
+
+-- app.open_or_touch_operator_incident is owned by the webapp drizzle migration ledger (like
+-- app.release_principal_context below), not by this overlay; only its grant lives here.
+REVOKE ALL ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text) FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
   TO app_operational_delivery_worker;
 
 CREATE OR REPLACE FUNCTION app.list_scheduler_reminder_organization_ids()
@@ -930,6 +973,46 @@ SELECT 1 / (
       'EXECUTE'
     )
   )
+  AND has_function_privilege(
+    'app_operational_delivery_worker',
+    'app.read_outgoing_delivery_reclaim_config()',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    'app_operational_delivery_worker',
+    'app.open_or_touch_operator_incident(text,text,text,text,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_diagnostic',
+    'app.read_outgoing_delivery_reclaim_config()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_scheduler',
+    'app.read_outgoing_delivery_reclaim_config()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_media_worker',
+    'app.read_outgoing_delivery_reclaim_config()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_diagnostic',
+    'app.open_or_touch_operator_incident(text,text,text,text,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_scheduler',
+    'app.open_or_touch_operator_incident(text,text,text,text,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_media_worker',
+    'app.open_or_touch_operator_incident(text,text,text,text,text)',
+    'EXECUTE'
+  )
   AND NOT has_function_privilege(
     'app_operational_diagnostic',
     'app.resolve_outgoing_delivery_scope(uuid)',
@@ -1081,6 +1164,8 @@ WITH managed(role_name) AS (VALUES
   ('function','app.operator_incident_alert_already_sent(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.mark_operator_incident_alert_sent(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.record_operator_delivery_attempt(text,text,text,integer,text)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.read_outgoing_delivery_reclaim_config()','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.open_or_touch_operator_incident(text,text,text,text,text)','EXECUTE','app_operational_delivery_worker',false),
   ('schema','app','USAGE','app_operational_scheduler',false),
   ('schema','integrator','USAGE','app_operational_scheduler',false),
   ('schema','public','USAGE','app_operational_scheduler',false),
