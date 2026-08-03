@@ -1107,7 +1107,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       package mutations, `disabled` скрывает обе поверхности. Галочка остаётся открытой до независимой приёмки и
       живой проверки, что уже купленный абонемент продолжает работать.
 - [ ] **4.8** Рассылки — после появления модели каналов клиники в соседнем потоке (#1071), по их контракту.
-- [ ] **4.9** Три механики («Сегодня», разминки, промо) — обычные тарифные механики и подчиняются лестнице как все;
+- [x] **4.9** Три механики («Сегодня», разминки, промо) — обычные тарифные механики и подчиняются лестнице как все;
       личного исключения владельца нет (owner-correction 31.07: `QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §
       «Решения владельца», п.6).
   - [x] **4.9A** «Сегодня» использует `patient_home_today` на видимости и direct URL пациента, а в `read_only`
@@ -1123,6 +1123,15 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       (5 tests), `--project=route src/app/api/tariffMechanics.route.test.ts` (21 tests),
       `--project=ui src/app/api/tariffMechanicsRefusals.ui.test.tsx` (11 tests), `pnpm --dir apps/webapp typecheck`,
       `pnpm --dir apps/webapp lint`, `git diff --check`.
+  - [x] **4.9C** Разминки используют самостоятельную механику `warmups`, не требуют включённой CMS и закрывают
+      все найденные входы: врачебное чтение/изменение расписания, пациентскую карточку/direct URL, lifecycle
+      контента и автоматическое создание расписания при первой PWA-подписке. Independent audit `c89e3e070`
+      нашёл два обхода; единственный fixer `d5978551c` закрыл их по сохранённому oracle (targeted suite,
+      typecheck/lint/diff PASS), land `40309a2b0`. После migration/deploy repair `9c77dba16`/`512de3bd9` штатная
+      команда `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` завершилась `exit 0`, лог
+      `deploy-test-20260803T072421Z-3188839.log`, strict closure `158/158`. Живой TEST inline-probe через
+      `/api/admin/commercial` и обычную сессию врача: disabled GET расписания → HTTP 403, enabled → HTTP 200,
+      исходный override отсутствовал и после проверки восстановлен (`restored=true`). PROD не затрагивался.
 
 #### Этап 4a. Добор по находкам двойного аудита плана (Sol + Opus, 30.07)
 

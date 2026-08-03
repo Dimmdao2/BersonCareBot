@@ -75,6 +75,27 @@ describe('public auth policy', () => {
     });
   });
 
+  it('hides a configured channel when its global admin toggle is disabled', async () => {
+    for (const [key, value] of [
+      ['auth_email_enabled', true],
+      ['auth_sms_enabled', true],
+      ['auth_telegram_enabled', true],
+      ['auth_max_enabled', false],
+    ] as const) {
+      fakes.publicValues.set(key, value);
+    }
+    for (const channel of ['email', 'sms', 'telegram', 'max']) {
+      fakes.configuredChannels.set(channel, true);
+    }
+
+    await expect(getAnonymousClientVisibleAuthChannelPolicy()).resolves.toEqual({
+      email: true,
+      sms: true,
+      telegram: true,
+      max: false,
+    });
+  });
+
   it.each([
     ['google', 'auth_oauth_google_enabled', 'oauth_google_enabled'],
     ['yandex', 'auth_oauth_yandex_enabled', 'oauth_yandex_enabled'],
