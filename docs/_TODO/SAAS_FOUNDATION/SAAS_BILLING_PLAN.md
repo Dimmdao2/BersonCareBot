@@ -873,3 +873,47 @@ capture/refund integration тест на mock-адаптере; secret redaction
       `captureSaasBillingPaymentSucceeded` (RLS org-контекст не устанавливается на соединении drizzle-
       транзакции). **Клиника по-прежнему не может оплатить тариф на TEST end-to-end.** Обе страницы владельца
       — `200`, рендерятся штатно.
+
+      ---
+
+      ⛔ **ПРОВЕРКА ЛИДА 04.08: объяснение выше НЕ ПОДТВЕРДИЛОСЬ. Симптом верен, причина названа неверно.**
+      Чинить по нему нельзя — поведёт в ложную правку.
+
+      Опровергнутое утверждение: «drizzle-транзакция получает клиента через голый `pool.connect()`, ни разу
+      не проходит через `pool.query`, поэтому `app.current_org_id()` внутри транзакции всегда `NULL`».
+
+      Что показала проверка по коду:
+
+      1. **Механизм установки принципала в транзакции СУЩЕСТВУЕТ и вызывается.**
+         `apps/webapp/src/app-layer/db/drizzle.ts:102` — `withPrincipalAwareTransactions()` оборачивает
+         `rawDb.transaction`, снимает снимок принципала синхронно (строка 106) и внутри транзакции зовёт
+         `applyDbPrincipalToTransaction(queryable, principalSnapshot, …)` (строка 115). То есть
+         `getDrizzle().transaction()` — это уже обёрнутый transaction, а не сырой. Комментарий на
+         строке 224-225 того же файла прямо фиксирует это как конвенцию репозитория: мутации вынесены из
+         issue-time-обёртки чтений именно потому, что «every mutation runs inside `db.transaction()`, which
+         `withPrincipalAwareTransactions` above already makes issue-time-safe».
+      2. **Вебхук org-принципала НЕ теряет.** `app/api/payments/saas-webhook/[provider]/route.ts` вызывает
+         капчер внутри `runWithDbOrganizationPrincipal(resolved.organizationId, () => …)`. Организация к
+         этому моменту уже разрешена по инвойсу, принципал в области видимости есть.
+      3. Отдельная находка, верная и полезная, но к этому отказу отношения не имеющая:
+         `apps/webapp/src/infra/db/drizzleMutationTx.ts:38` ставит `set_config('app.org', …)`, а
+         авторитетное тело `app.current_org_id()` (`deploy/postgres/p2-b-protected-principal-context.sql:270`)
+         читает **только** таблицу `app.principal_context` по `pg_backend_pid()` и GUC `app.org` не смотрит
+         вообще. Значит этот хелпер org-контекст де-факто не выставляет. Он в пути капчера не участвует —
+         но там, где он используется, это самостоятельный дефект, и его надо разобрать отдельно.
+
+      **Что остаётся установленным фактом:** платёж у провайдера прошёл, вебхук дошёл, ответ `500`,
+      `app.apply_paid_saas_billing_tariff` вернул `applied=false`, инвойс остался `pending`. Аксессор
+      (`0348`, строки 54-62) возвращает `false` ровно тогда, когда не нашёл строку с
+      `id = p_saas_billing_invoice_id AND organization_id = p_organization_id AND status = 'paid'`.
+
+      **Куда смотреть дальше** (гипотезы не проверены, порядок по стоимости проверки):
+      ветка `kind === 'infra'` в `drizzle.ts:113`, которая пропускает установку принципала — какой `kind` у
+      принципала из `runWithDbOrganizationPrincipal`; наличие и предикат `WITH CHECK` у политики
+      `saas_billing_invoices_staff_capture_update`; полнота грантов `0344` на `UPDATE` для `app_staff`;
+      поведение FORCE RLS внутри SECURITY DEFINER, владелец которого не имеет `BYPASSRLS`. Первый шаг
+      диагностики — не чтение, а живой прогон на DEV: под тем же принципалом выполнить `UPDATE` и
+      напечатать `app.current_org_id()`, `current_user`, число затронутых строк.
+
+      Правило, по которому это записано: расхождение с прежним отчётом помечается в самом источнике, а не
+      исправляется молча (иначе по ложной записи перестают проверять).
