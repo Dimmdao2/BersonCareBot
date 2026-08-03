@@ -880,6 +880,26 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient',
   },
   {
+    id: 'doctor-statistics.schedule-kpis.read',
+    mechanic: 'doctor_statistics',
+    file: 'src/app/api/doctor/schedule-kpis/route.ts',
+    exportName: 'GET',
+    method: 'GET',
+    authContext: 'requireDoctorBookingEngine',
+    guard: 'requireEntitlementForRead',
+    serviceBoundary: 'deps.doctorAppointments.getScheduleKpis',
+  },
+  {
+    id: 'doctor-statistics.public-appointments.read',
+    mechanic: 'doctor_statistics',
+    file: 'src/app/api/admin/booking-engine/public-appointments/route.ts',
+    exportName: 'GET',
+    method: 'GET',
+    authContext: 'requireClinicManagementBookingEngine',
+    guard: 'requireEntitlementForRead',
+    serviceBoundary: 'db.select(beAppointments)',
+  },
+  {
     id: 'external-calendar.connect.start',
     mechanic: 'external_calendar',
     file: 'src/app/api/admin/google-calendar/start/route.ts',
@@ -1497,7 +1517,6 @@ export const DECLARED_NO_SURFACE = {
   patient_app_paid_subscription: 'code-search: no subscription-toggle action',
   custom_domain: 'code-search: no custom-domain write action',
   patient_count: 'creation/reactivation path is not yet identified; stage 4.4 owns its inventory',
-  doctor_statistics: 'statistics and booking-attribution surfaces are read-only',
   // 3.3: class "никогда" mechanics (MECHANIC_REGISTRY) are never tariff-gated by owner decision —
   // patient_card (owner 31.07, see the exemptions below) and patient_diaries (owner 31.07, 4a.4:
   // "дневники у пациентов не отбираем"). No PROTECTED_ACTION_MAPPINGS row for either can ever be
