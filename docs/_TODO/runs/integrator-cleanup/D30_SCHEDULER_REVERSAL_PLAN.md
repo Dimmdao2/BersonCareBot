@@ -353,14 +353,16 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       **Гейт:** живой dev-прогон web-push-напоминания (правило с `integrator_user_id IS NULL`) — доставка
       состоялась через планировщик; счётчики тика (`planned`, `dueClaimed`, `sent`) сошлись; админский экран
       «Cron-задачи хоста» не показывает «нет данных» по снятой задаче (запись удалена тем же коммитом).
-      **CURRENT PARTIAL 03.08:** закрыт fail-closed разрыв уже работающего D21 hot path до начала второго
-      trigger: trusted materializer `handlers/reminders.ts` теперь кладёт server-owned markers
-      `routine_product/app_push` для `web_push` и `routine_product/essential_delivery` для
-      `telegram`/`max`/`email`, не читая значения markers из body/HTTP/БД. Сохранённые oracles
-      фиксируют exact markers в поставленном intent и проводят его через настоящий
-      `assertOutboundMessagePolicy` (`reminders.dispatch.d21.test.ts`,
-      `outgoingDeliveryWorker.reminderGeneration.d21.test.ts`). Сам Ш4 остаётся `[ ]`: Ш4.0 atomic claim,
-      новый trigger, живой DEV-прогон, период наблюдения и снятие cron этим prerequisite не выполнялись.
+      **CURRENT PARTIAL 03.08:** D21 уже удалил B1 cron/route/registry/host requirement и прежний
+      check→send→cache путь Ш4.0; рабочий trigger пишет в unified queue со stable `event_id`, unique +
+      `ON CONFLICT` и захватывается через `SKIP LOCKED`. В этом follow-up закрыт оставшийся fail-closed разрыв:
+      trusted materializer `handlers/reminders.ts` кладёт server-owned markers `routine_product/app_push`
+      для `web_push` и `routine_product/essential_delivery` для `telegram`/`max`/`email`, не читая значения
+      markers из body/HTTP/БД; сохранённые oracles фиксируют exact markers и проводят queued intent через
+      настоящий `assertOutboundMessagePolicy` (`reminders.dispatch.d21.test.ts`,
+      `outgoingDeliveryWorker.reminderGeneration.d21.test.ts`). Сам Ш4 остаётся `[ ]` только из-за ещё не
+      закрытой границы materialization бизнес-решений и отсутствия живого безопасного proof со сходящимися
+      счётчиками.
 
 - [ ] **Ш5. B5b + B5c — сводка оператора и system-health-guard.** `digestTime` продолжает читаться из
       `operator_health_alert_config` — но читает его **вебапп при постановке задания**, а не планировщик.
