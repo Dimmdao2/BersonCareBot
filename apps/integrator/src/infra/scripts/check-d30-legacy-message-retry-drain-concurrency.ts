@@ -69,7 +69,6 @@ async function main(): Promise<void> {
 
   try {
     const { createPostgresJobQueue } = await import('../adapters/jobQueuePort.js');
-    const { reclaimStaleMessageRetryJobProcessing } = await import('../db/repos/jobQueue.js');
     const client = await import('../db/client.js');
     closeDb = client.closeDb;
     const db = client.createDbPort();
@@ -153,6 +152,7 @@ async function main(): Promise<void> {
     assert(repeatReclaim === 0, 'repeating drain must not duplicate or mutate a pending legacy row');
 
     await db.tx(async (txDb) => {
+      const txQueue = createPostgresJobQueue({ db: txDb, retryDelaySeconds: 60 });
       const boundaryInsert = await runIntegratorSql<{ id: number }>(
         txDb,
         sql`INSERT INTO integrator.message_retry_jobs (
@@ -179,7 +179,7 @@ async function main(): Promise<void> {
         boundaryInsert.rows[0]?.id !== undefined && liveInsert.rows[0]?.id !== undefined,
         'could not create lease-boundary fixtures',
       );
-      const boundaryReclaim = await reclaimStaleMessageRetryJobProcessing(txDb, 10);
+      const boundaryReclaim = await txQueue.reclaimStaleProcessing(10);
       assert(
         boundaryReclaim === 0,
         'a lease at the stale boundary or younger must remain processing',

@@ -1,7 +1,6 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
 import { messageRetryJobs } from '../schema/integratorQueues.js';
 
 export type MessageRetryJobRow = {
@@ -94,9 +93,8 @@ export async function reclaimStaleMessageRetryJobProcessing(
   staleAfterMinutes: number,
 ): Promise<number> {
   const minutes = Math.max(1, Math.trunc(staleAfterMinutes));
-  const result = await runIntegratorSql<{ id: number }>(
-    db,
-    sql`WITH stale AS (
+  const d = getIntegratorDrizzleSession(db);
+  const result = await d.execute(sql`WITH stale AS (
       SELECT id
       FROM integrator.message_retry_jobs
       WHERE status = 'processing'
@@ -108,8 +106,7 @@ export async function reclaimStaleMessageRetryJobProcessing(
         updated_at = now()
     FROM stale
     WHERE job.id = stale.id
-    RETURNING job.id`,
-  );
+    RETURNING job.id`);
   return result.rows.length;
 }
 
