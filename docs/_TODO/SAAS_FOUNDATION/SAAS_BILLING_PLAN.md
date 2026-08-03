@@ -673,6 +673,67 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       Код не менялся, push не делался, PROD не трогался; из настроек TEST изменён только `webhookSecret`
       (тем же generic settings API, не миграцией и не кодом).
 
+      **Продолжение 03.08, задача #1057 «закрыть красный TEST-гейт и достать платёж».** TEST-деплой
+      `deploy-test-20260803T161652Z-4162017.log` упал на закрывающем гейте `app_owner SECURITY DEFINER
+      table-grant completeness: FATAL app_owner now owns 160 ... expected exactly 159` — TEST units остались
+      живы (это гейт, не авария). Прочитан не по имени, а разбором: `pg_proc`-дифф показал
+      `app.find_platform_user_ids_by_any_confirmed_email(text)` — функцию из СОВСЕМ ДРУГОГО, не билингового
+      коммита (`66b82d55b`, #987 D27 F5/F6, миграция 0342), который вошёл на эту ветку через merge
+      `feat/doctor-ui-rebuild` (`87ef0fe6e`) уже ПОСЛЕ того, как счётчик 159 был здесь в последний раз выставлен
+      — сам коммит `deploy-test-saas.sh` не трогал. Проверено, а не предположено: тело функции читает только
+      `public.platform_users` и `public.user_oauth_bindings`, оба уже полным SELECT выданы `app_owner` более
+      ранними auth-функциями (`information_schema.role_table_grants` подтвердил обе строки живьём) — гранта не
+      хватало ровно нуля, только счётчик отстал. Правка `824e2fee1`: константа 159→160 с комментарием, откуда
+      взялась функция и почему грант не нужен. Повторный `bash deploy/host/deploy-test.sh wt/billing-live-vat`
+      → `exit 0`, лог `deploy-test-20260803T170306Z-20459.log`, гейт
+      `app_owner SECURITY DEFINER table-grant completeness: OK (... 160/160 secdef functions pinned)`, ни
+      одной `FATAL`/`RED` строки в логе, `GET https://test.bersoncare.ru/api/health` → `{"ok":true,"db":"up"}`.
+
+      Живой прогон платежа тем же классом операции, что и раньше (`saas-smoke-login.env`, TEST-only учётки;
+      пароли разошлись с БД — сведены заново через `converge-saas-smoke-login-passwords.mjs
+      --apply-test-from-stdin` под `sudo -u postgres`, `changed=3`, email/password не печатались). Старый
+      зависший инвойс `a91b7c2e-…` (upgrade → ПРОФИ, провайдер уже подтвердил `succeeded` ещё 03.08 утром, но
+      наш вебхук ни разу не принял его — блокировал грант-гэп, который чинили 0343/0344/0345) отменён через
+      штатный admin-кабинет (`POST /api/admin/saas-billing/payments/{id}/cancel`, платформенная роль,
+      документированное поведение: «cancelled invoice, оплаченный поздним вебхуком, закрыт CAS на стороне
+      capture» — код не менялся, это существующая К4-ручка) — статус ушёл в `void`, что штатно освободило
+      guard «один открытый upgrade-инвойс на подписку» для чистого прогона. Клиника вошла обычным
+      `POST /api/auth/email-password/login` → `200`, апгрейд на тариф КЛИНИКА через `PATCH /api/clinic/billing
+      {tariffId}` → `200`, новый инвойс `9ed3f0cf-bd8e-4a1a-a034-8eee16b027c2`,
+      `providerInvoiceRef=3202e004-000f-5001-8000-19f8dfa7a940`, `amountMinor=199214` (прорейтированная
+      разница СТАРТ→КЛИНИКА). Оплачено headless-браузером (Playwright 1.61.0, chromium) официальной тестовой
+      картой ЮKassa `4111111111111111`, `12/30`, `123` — страница ответила «Успешно», `1 992,14 ₽`, код
+      платежа `3202e004-…` совпал с `providerInvoiceRef`.
+
+      **Вебхук пришёл и на этот раз прошёл дальше, чем когда-либо** (`nginx access.log`:
+      `POST /api/payments/saas-webhook/yookassa` в `20:15:47`, `20:15:57`, `20:16:39` МСК) — секрет,
+      IP-allowlist и bootstrap-резолвер инвойса (0343) все прошли; `journalctl -u bersoncarebot-webapp-test`
+      подтвердил, что выполнение дошло до предпоследнего шага `promotePaidInvoice` —
+      `update be_organizations set tariff_id=... where id=...`. Там новый блокер, ранее не виденный:
+      `error: platform_commercial_capability_required`, `PL/pgSQL function
+      app.reject_staff_commercial_organization_update() line 5 at RAISE`. Это НЕ грант-гэп этого прогона —
+      это давний (миграции 0225/0297, задолго до #1057) намеренный guard: триггер `BEFORE UPDATE OF tariff_id
+      ON be_organizations` безусловно запрещает `app_staff` менять `tariff_id`, независимо от RLS-политик
+      (защита от того, что скомпрометированный/недобросовестный staff-аккаунт сам себе назначит платный
+      тариф). Ровно это же 0344 (эта ветка, тем же днём) научило RLS ПУСКАТЬ `app_staff` писать `tariff_id`
+      для capture-пути — но триггер об этой легитимной причине не знает и режет запись всё равно. Конфликт
+      двух защитных слоёв, не одна забытая строка.
+      Транзакция атомарна — проверено, не предположено: `GET /api/clinic/billing` после попытки показывает
+      инвойс `9ed3f0cf-…` всё ещё `pending`, `paidAt=null`; прямой счёт `saas_billing_provider_events` в БД —
+      `0` строк; активный тариф клиники остался СТАРТ. Платёж реально прошёл у ЮKassa (`succeeded`,
+      `1 992,14 ₽`, тестовые деньги), но клиника ПОКА не может завершить оплату тарифа на TEST end-to-end —
+      блокирует не грант, а сама архитектура «под какой ролью capture-путь обязан писать тариф». По
+      обязательному стоп-правилу задачи (`«если появится другой дефект — зафиксировать точную ошибку и
+      остановиться, не трогая state machine и не расширяя грант, чтобы протащить гейт»`) код не менялся,
+      триггер не трогался, push не делался, PROD не трогался. Нужно решение владельца: либо capture-путь для
+      именно этой записи должен идти под ролью, у которой `app.reject_staff_commercial_organization_update()`
+      не срабатывает (например `app_clinic_billing`, которая пишет `saas_billing_*` уже сегодня), либо у
+      триггера должно появиться узкое, аудируемое исключение для легитимной billing-driven записи (не общее
+      снятие guard'а). Итог по красному TEST-гейту из задачи #1057: **закрыт** (`824e2fee1`, зелёный деплой,
+      лог `deploy-test-20260803T170306Z-20459.log`). Итог по живому платежу: **клиника всё ещё не может
+      оплатить тариф на TEST end-to-end** — новый, отдельный от гейта дефект, найден и не потрогана ни одна
+      из запрещённых задачей вещей.
+
 **Проверка:** state-machine + idempotency тесты; подписанный webhook success/replay/forgery/amount-mismatch;
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
 **Выход:** клиника может оплатить тариф через существующий provider layer в mock-режиме на test; когда владелец

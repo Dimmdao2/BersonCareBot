@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0344 — final number assigned at land, per AGENTS.md §1.
+-- TEMPORARY LOCAL MIGRATION NUMBER 0346 — final number assigned at land, per AGENTS.md §1.
 --
 -- `ADMIN_SETTINGS_PAGE_REQUIRED_KEYS` (adminSettingsData.ts, added by #1082) throws
 -- RuntimeSettingUnavailableError and 500s `/app/admin/app-settings` the instant ANY key in that
