@@ -2458,6 +2458,13 @@
       "when": 1793539230056,
       "tag": "0352_vk_id_oauth_provider_local",
       "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1793539230100,
+      "tag": "0354_saas_billing_paid_tariff_apply_found_local",
+      "breakpoints": true
     }
   ]
 }
