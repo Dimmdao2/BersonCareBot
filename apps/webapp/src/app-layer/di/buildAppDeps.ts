@@ -56,6 +56,7 @@ import { listLessons } from '@/modules/lessons/service';
 import { listEmergencyTopics } from '@/modules/emergency/service';
 import { getDoctorWorkspaceState, getOverviewState } from '@/modules/doctor-cabinet/service';
 import { createDoctorClientsService } from '@/modules/doctor-clients/service';
+import { assembleIdentityPort } from '@/modules/identity/service';
 import { createDoctorAppointmentsService } from '@/modules/doctor-appointments/service';
 import { createDoctorMessagingService } from '@/modules/doctor-messaging/service';
 import { createDoctorStatsService } from '@/modules/doctor-stats/service';
@@ -545,6 +546,13 @@ const doctorMotivationQuotesEditorPort = !inMemoryRepos
   ? createPgDoctorMotivationQuotesEditorPort()
   : inMemoryDoctorMotivationQuotesEditorPort;
 const userProjectionPort = !inMemoryRepos ? pgUserProjectionPort : inMemoryUserProjectionPort;
+/** D15b/3: the identity port — see `modules/identity/ports.ts` for what it aggregates and why. */
+const identityPort = assembleIdentityPort({
+  projection: userProjectionPort,
+  session: userByPhonePort,
+  channelResolution: identityResolutionPort,
+  clients: doctorClientsPort,
+});
 const emailSetupAccessService = createEmailSetupAccessService(
   !inMemoryRepos
     ? createPgEmailSetupAccessPort(pgEmailSetupTokensPort)
@@ -1901,6 +1909,8 @@ function _buildAppDeps() {
     entitlements: entitlementsService,
     patientMergeCandidate: patientMergeCandidateService,
     platformUserContacts: platformUserContactsService,
+    /** D15b/3 — see `modules/identity/ports.ts`. */
+    identity: identityPort,
   };
 }
 
