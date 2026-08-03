@@ -188,6 +188,50 @@ BEGIN
           'public.saas_billing_provider_events'::regclass
         )
     )
+    OR '4389e12ce3433a9c9618b3e2b339e278' <> (
+      SELECT md5(string_agg(
+        constraint_row.conname || '|' || constraint_row.contype::text || '|' ||
+        constraint_row.convalidated::text || '|' || pg_get_constraintdef(constraint_row.oid),
+        E'\n' ORDER BY constraint_row.conname
+      ))
+      FROM pg_constraint AS constraint_row
+      WHERE constraint_row.conname IN (
+        'saas_billing_accounts_id_organization_uidx',
+        'saas_billing_accounts_organization_id_fkey',
+        'saas_billing_accounts_organization_uidx',
+        'saas_billing_invoices_account_org_fkey',
+        'saas_billing_invoices_amount_check',
+        'saas_billing_invoices_currency_check',
+        'saas_billing_invoices_id_organization_uidx',
+        'saas_billing_invoices_organization_id_fkey',
+        'saas_billing_invoices_period_check',
+        'saas_billing_invoices_provider_idempotency_uidx',
+        'saas_billing_invoices_saas_billing_subscription_org_fkey',
+        'saas_billing_invoices_status_check',
+        'saas_billing_invoices_tariff_billing_period_check',
+        'saas_billing_invoices_tariff_id_fkey',
+        'saas_billing_provider_events_invoice_org_fkey',
+        'saas_billing_provider_events_organization_id_fkey',
+        'saas_billing_provider_events_payload_check',
+        'saas_billing_provider_events_provider_event_uidx',
+        'saas_billing_subscriptions_account_org_fkey',
+        'saas_billing_subscriptions_id_organization_uidx',
+        'saas_billing_subscriptions_lifecycle_check',
+        'saas_billing_subscriptions_lifecycle_dates_check',
+        'saas_billing_subscriptions_org_source_uidx',
+        'saas_billing_subscriptions_organization_id_fkey',
+        'saas_billing_subscriptions_period_check',
+        'saas_billing_subscriptions_source_check',
+        'saas_billing_subscriptions_status_check',
+        'saas_billing_subscriptions_tariff_id_fkey'
+      )
+        AND constraint_row.conrelid IN (
+          'public.saas_billing_accounts'::regclass,
+          'public.saas_billing_subscriptions'::regclass,
+          'public.saas_billing_invoices'::regclass,
+          'public.saas_billing_provider_events'::regclass
+        )
+    )
     OR NOT EXISTS (
       SELECT 1 FROM public.system_settings
       WHERE key = 'saas_billing_payment_provider'
@@ -246,6 +290,30 @@ BEGIN
         )
         AND 'app_platform_settings' = ANY (roles)
     )
+    OR '2d22f840f5df5241e378fc19510474fd' <> (
+      SELECT md5(string_agg(
+        policy_row.policyname || '|' || policy_row.cmd || '|' || policy_row.permissive || '|' ||
+        policy_row.roles::text || '|' || COALESCE(policy_row.qual, '') || '|' ||
+        COALESCE(policy_row.with_check, ''),
+        E'\n' ORDER BY policy_row.policyname
+      ))
+      FROM pg_policies AS policy_row
+      WHERE policy_row.schemaname = 'public'
+        AND policy_row.policyname IN (
+          'saas_billing_accounts_platform_select',
+          'saas_billing_accounts_platform_insert',
+          'saas_billing_accounts_platform_update',
+          'saas_billing_subscriptions_platform_select',
+          'saas_billing_subscriptions_platform_insert',
+          'saas_billing_subscriptions_platform_update',
+          'saas_billing_invoices_platform_select',
+          'saas_billing_invoices_platform_insert',
+          'saas_billing_invoices_platform_update',
+          'saas_billing_provider_events_platform_select',
+          'saas_billing_provider_events_platform_insert',
+          'saas_billing_provider_events_platform_update'
+        )
+    )
     OR NOT (
       has_table_privilege('app_platform_settings', 'public.saas_billing_accounts', 'SELECT,INSERT,UPDATE')
       AND has_table_privilege('app_platform_settings', 'public.saas_billing_subscriptions', 'SELECT,INSERT,UPDATE')
@@ -286,6 +354,22 @@ BEGIN
     OR EXISTS (SELECT 1 FROM public.be_appointments WHERE source = 'rubitime_projection')
     OR to_regclass('public.booking_calendar_map') IS NULL
     OR NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = 'public.patient_bookings'::regclass
+        AND conname = 'patient_bookings_source_check'
+        AND contype = 'c' AND convalidated
+        AND pg_get_constraintdef(oid) =
+          'CHECK ((source = ANY (ARRAY[''native''::text, ''imported''::text])))'
+    )
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = 'public.be_appointments'::regclass
+        AND conname = 'be_appointments_source_check'
+        AND contype = 'c' AND convalidated
+        AND pg_get_constraintdef(oid) =
+          'CHECK ((source = ANY (ARRAY[''native''::text, ''imported''::text, ''admin_manual''::text, ''public_widget''::text])))'
+    )
+    OR NOT EXISTS (
       SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'booking_calendar_map'
@@ -296,6 +380,17 @@ BEGIN
       WHERE conrelid = 'public.booking_calendar_map'::regclass
         AND conname = 'booking_calendar_map_appointment_key_key'
         AND contype = 'u'
+        AND convalidated
+        AND pg_get_constraintdef(oid) = 'UNIQUE (appointment_key)'
+    )
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_proc
+      WHERE oid = to_regprocedure('app.read_current_patient_booking_rows(text,timestamptz)')
+        AND prosecdef
+        AND pg_get_userbyid(proowner) = 'app_owner'
+        AND provolatile = 's'
+        AND proconfig = ARRAY['search_path=pg_catalog']
+        AND pg_get_functiondef(oid) !~* 'rubitime'
     )
   THEN
     RAISE EXCEPTION '0330 parity failed: 0262 Rubitime-owned data surface remains'
@@ -322,24 +417,52 @@ BEGIN
     WHERE table_schema = 'public'
       AND table_name = 'user_password_credentials'
       AND column_name = 'failed_attempts'
+      AND udt_name = 'int4'
       AND is_nullable = 'NO'
+      AND column_default = '0'
   )
     OR NOT EXISTS (
       SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'user_password_credentials'
         AND column_name = 'locked_until'
+        AND udt_name = 'timestamptz'
+        AND is_nullable = 'YES'
     )
     OR NOT EXISTS (
       SELECT 1 FROM pg_constraint
       WHERE conrelid = 'public.user_password_credentials'::regclass
         AND conname = 'user_password_credentials_failed_attempts_check'
         AND contype = 'c'
+        AND convalidated
+        AND pg_get_constraintdef(oid) = 'CHECK ((failed_attempts >= 0))'
     )
-    OR to_regprocedure('app.auth_rate_limit_record(text,text)') IS NULL
-    OR to_regprocedure('app.set_staff_security_self_password_hash(text)') IS NULL
-    OR to_regprocedure('app.password_login_acquire(text,text,uuid,text)') IS NULL
-    OR to_regprocedure('app.password_login_complete(uuid,boolean)') IS NULL
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_proc
+      WHERE oid = to_regprocedure('app.auth_rate_limit_record(text,text)')
+        AND prosecdef AND pg_get_userbyid(proowner) = 'app_owner'
+        AND provolatile = 'v' AND proconfig = ARRAY['search_path=pg_catalog']
+        AND prolang = (SELECT oid FROM pg_language WHERE lanname = 'sql')
+        AND pg_get_functiondef(oid) !~* 'UPDATE[[:space:]]+public[.]user_password_credentials'
+    )
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_proc
+      WHERE oid = to_regprocedure('app.set_staff_security_self_password_hash(text)')
+        AND prosecdef AND pg_get_userbyid(proowner) = 'app_owner'
+        AND provolatile = 'v' AND proconfig = ARRAY['search_path=pg_catalog']
+    )
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_proc
+      WHERE oid = to_regprocedure('app.password_login_acquire(text,text,uuid,text)')
+        AND prosecdef AND pg_get_userbyid(proowner) = 'app_owner'
+        AND provolatile = 'v' AND proconfig = ARRAY['search_path=pg_catalog']
+    )
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_proc
+      WHERE oid = to_regprocedure('app.password_login_complete(uuid,boolean)')
+        AND prosecdef AND pg_get_userbyid(proowner) = 'app_owner'
+        AND provolatile = 'v' AND proconfig = ARRAY['search_path=pg_catalog']
+    )
   THEN
     RAISE EXCEPTION '0330 parity failed: 0266 password brute-force protection is incomplete'
       USING ERRCODE = '23514';
@@ -354,6 +477,36 @@ BEGIN
         AND pg_get_userbyid(procedure.proowner) = 'app_owner'
         AND procedure.provolatile = 's'
         AND procedure.proconfig = ARRAY['search_path=pg_catalog']
+        AND pg_get_functiondef(procedure.oid) ~ 'display_name'
+        AND pg_get_functiondef(procedure.oid) !~* '(phone|email|contact)'
+    )
+    OR NOT has_function_privilege(
+      'app_platform_settings',
+      'app.list_platform_organization_members(uuid)',
+      'EXECUTE'
+    )
+    OR has_function_privilege(
+      'app_staff',
+      'app.list_platform_organization_members(uuid)',
+      'EXECUTE'
+    )
+    OR has_function_privilege(
+      'app_patient',
+      'app.list_platform_organization_members(uuid)',
+      'EXECUTE'
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM pg_proc AS procedure
+      CROSS JOIN LATERAL aclexplode(
+        COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+      ) AS privilege
+      WHERE procedure.oid = directory_function
+        AND (
+          pg_get_userbyid(privilege.grantee) NOT IN ('app_owner', 'app_platform_settings')
+          OR privilege.privilege_type <> 'EXECUTE'
+          OR privilege.is_grantable
+        )
     )
   THEN
     RAISE EXCEPTION '0330 parity failed: 0267 platform organization directory capability is incomplete'
