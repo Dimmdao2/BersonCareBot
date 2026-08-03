@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defaultOperatorHealthAlertConfig } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import {
   prepareOperatorHealthDigestDeliveries,
@@ -38,10 +38,10 @@ describe('prepareOperatorHealthDigestDeliveries', () => {
     ).toBe(true);
   });
 
-  it('excludes staff recipients with web-push disabled or without a live subscription', async () => {
+  it('excludes disabled or unsubscribed canonical global admins', async () => {
     const recipients = await resolveOperatorHealthDigestWebPushRecipients({
-      staffUsers: {
-        listActiveStaffUserIds: async () => ['enabled', 'disabled', 'unsubscribed'],
+      globalAdmins: {
+        listActiveGlobalAdminUserIds: async () => ['global-admin', 'disabled', 'unsubscribed'],
       },
       channelPreferences: {
         getPreferences: async (userId) =>
@@ -60,6 +60,24 @@ describe('prepareOperatorHealthDigestDeliveries', () => {
         hasAnyForUserId: async (userId) => userId !== 'unsubscribed',
       },
     });
-    expect(recipients).toEqual(['enabled']);
+    expect(recipients).toEqual(['global-admin']);
+  });
+
+  it('cannot promote an ordinary doctor or clinic-admin membership into the global digest audience', async () => {
+    const getPreferences = vi.fn(async () => []);
+    const hasAnyForUserId = vi.fn(async () => true);
+    const recipients = await resolveOperatorHealthDigestWebPushRecipients({
+      globalAdmins: {
+        listActiveGlobalAdminUserIds: async () => ['global-admin'],
+      },
+      channelPreferences: { getPreferences },
+      webPushSubscriptions: { hasAnyForUserId },
+    });
+    expect(recipients).toEqual(['global-admin']);
+    expect(getPreferences).toHaveBeenCalledOnce();
+    expect(getPreferences).not.toHaveBeenCalledWith('ordinary-doctor');
+    expect(getPreferences).not.toHaveBeenCalledWith('clinic-admin-member');
+    expect(hasAnyForUserId).toHaveBeenCalledOnce();
+    expect(hasAnyForUserId).toHaveBeenCalledWith('global-admin');
   });
 });

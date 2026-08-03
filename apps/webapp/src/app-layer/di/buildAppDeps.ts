@@ -233,6 +233,11 @@ import { createSpecialistTasksService } from '@/modules/specialist-tasks/service
 import { prepareSpecialistTaskReminderDeliveries } from '@/modules/specialist-tasks/prepareReminderDeliveries';
 import { resolveOperatorHealthDigestWebPushRecipients } from '@/modules/operator-health/prepareOperatorHealthDigestDeliveries';
 import {
+  emptyGlobalAdminWebPushRecipientsPort,
+  type GlobalAdminWebPushRecipientsPort,
+} from '@/modules/operator-health/globalAdminWebPushRecipientsPort';
+import { createPgGlobalAdminWebPushRecipientsPort } from '@/infra/repos/pgGlobalAdminWebPushRecipients';
+import {
   enqueueOperatorHealthDigestDeliveries,
   loadLatestSentOperatorHealthDigestAt,
 } from '@/infra/repos/pgOperatorHealthDigestDeliveries';
@@ -485,6 +490,9 @@ const topicChannelPrefsPort = !inMemoryRepos
   ? createPgTopicChannelPrefsPort()
   : inMemoryTopicChannelPrefsPort;
 const staffUsersPort = !inMemoryRepos ? createPgStaffUsersPort() : inMemoryStaffUsersPort;
+const globalAdminWebPushRecipientsPort: GlobalAdminWebPushRecipientsPort = !inMemoryRepos
+  ? createPgGlobalAdminWebPushRecipientsPort()
+  : emptyGlobalAdminWebPushRecipientsPort;
 const patientNotificationTopicsPort = !inMemoryRepos
   ? createPgPatientNotificationTopicsPort()
   : inMemoryPatientNotificationTopicsPort;
@@ -1719,7 +1727,7 @@ function _buildAppDeps() {
       loadRecipients: async () => ({
         ...(await loadAdminNotificationTargetsFromDb()),
         web_push: await resolveOperatorHealthDigestWebPushRecipients({
-          staffUsers: staffUsersPort,
+          globalAdmins: globalAdminWebPushRecipientsPort,
           channelPreferences: channelPreferencesPort,
           webPushSubscriptions: webPushSubscriptionsPort,
         }),

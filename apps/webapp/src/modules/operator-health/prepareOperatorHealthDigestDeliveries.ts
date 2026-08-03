@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import type { OperatorHealthAlertConfig } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import type { OperatorHealthDigestReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
-import type { StaffUsersPort } from '@/modules/doctor-notifications/staffUsersPort';
 import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import type { GlobalAdminWebPushRecipientsPort } from './globalAdminWebPushRecipientsPort';
 
 export type OperatorHealthDigestRecipients = {
   telegram: readonly string[];
@@ -14,20 +14,11 @@ export type OperatorHealthDigestRecipients = {
 };
 
 export async function resolveOperatorHealthDigestWebPushRecipients(deps: {
-  staffUsers: Pick<
-    StaffUsersPort,
-    'listActiveStaffUserIds' | 'listActiveStaffOrganizationRecipients'
-  >;
+  globalAdmins: GlobalAdminWebPushRecipientsPort;
   channelPreferences: Pick<ChannelPreferencesPort, 'getPreferences'>;
   webPushSubscriptions: Pick<WebPushSubscriptionsPort, 'hasAnyForUserId'>;
 }): Promise<string[]> {
-  const memberships = deps.staffUsers.listActiveStaffOrganizationRecipients
-    ? await deps.staffUsers.listActiveStaffOrganizationRecipients()
-    : [];
-  const candidates =
-    memberships.length > 0
-      ? [...new Set(memberships.map(({ userId }) => userId))]
-      : await deps.staffUsers.listActiveStaffUserIds();
+  const candidates = await deps.globalAdmins.listActiveGlobalAdminUserIds();
   const eligible = await Promise.all(
     candidates.map(async (userId) => {
       const [preferences, hasSubscription] = await Promise.all([

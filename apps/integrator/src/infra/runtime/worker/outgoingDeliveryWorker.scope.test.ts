@@ -16,13 +16,20 @@
  *
  * У каждого `it` в комментарии — свой арбитр. Арбитры прогнаны руками, вывод — в отчёте.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+vi.mock('../../../shared/devDeliveryRedirect.js', () => ({
+  isDevRedirectActive: () => false,
+}));
 import type {
   DbPort,
   DbQueryResult,
   DbWriteMutation,
+  DeliverySendResult,
   OutgoingIntent,
+  DeliveryAdapter,
 } from '../../../kernel/contracts/index.js';
+import { createDefaultDispatchPort } from '../../adapters/dispatchPort.js';
+import { OUTBOUND_MESSAGE_POLICY_DENIED } from '../../adapters/outboundMessagePolicy.js';
 import {
   getCurrentOrganizationPrincipalId,
   runWithInfraPrincipal,
@@ -104,7 +111,7 @@ type Harness = {
   /** Sent-row bookkeeping completion writes, which must never dispatch the provider. */
   bookkeepingApplied: number;
   writes: DbWriteMutation[];
-  dispatchOutgoing: (intent: OutgoingIntent) => Promise<Record<string, never>>;
+  dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
   writePort: { writeDb: (mutation: DbWriteMutation) => Promise<undefined> };
 };
 
@@ -306,6 +313,66 @@ describe('воркер доставки: строка без разрешимо�
     };
     await processUnderWorkerTick(dead, digestRow);
     expect(dead.quarantined).toEqual(['CHANNEL_NOT_SUPPORTED:telegram']);
+  });
+
+  it('preserves digest policy markers into real egress policy and fails closed for missing or wrong markers', async () => {
+    const send = vi.fn(async () => ({}));
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const dispatch = createDefaultDispatchPort({ adapters: [adapter] });
+    const scope = {
+      queue_kind: 'operator_health_digest',
+      organization_id: null,
+      resolution: 'operator_global',
+    };
+    const valid = harness(scope);
+    valid.dispatchOutgoing = dispatch.dispatchOutgoing.bind(dispatch);
+    const base = queueRow('operator_health_digest');
+    const validRow = { ...base, payloadJson: { intent: operatorAlertIntent() } };
+
+    await processUnderWorkerTick(valid, validRow);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(valid.markedSent).toBe(1);
+
+    for (const markerCase of ['missing', 'wrong'] as const) {
+      const denied = harness(scope);
+      denied.dispatchOutgoing = dispatch.dispatchOutgoing.bind(dispatch);
+      const original = operatorAlertIntent();
+      const deniedIntent: OutgoingIntent = {
+        ...original,
+        meta: {
+          eventId: original.meta.eventId,
+          occurredAt: original.meta.occurredAt,
+          source: original.meta.source,
+          ...(markerCase === 'wrong'
+            ? {
+                outboundMessageClass: 'routine_product' as const,
+                outboundCapability: 'operator_alert' as const,
+              }
+            : {}),
+        },
+      };
+      await processUnderWorkerTick(denied, {
+        ...base,
+        eventId: `evt-${markerCase}`,
+        payloadJson: { intent: deniedIntent },
+      });
+      expect(denied.quarantined).toEqual([OUTBOUND_MESSAGE_POLICY_DENIED]);
+      expect(denied.markedSent).toBe(0);
+    }
+    const invalid = harness(scope);
+    invalid.dispatchOutgoing = dispatch.dispatchOutgoing.bind(dispatch);
+    const rawInvalidIntent = operatorAlertIntent() as unknown as {
+      meta: Record<string, unknown>;
+    };
+    rawInvalidIntent.meta.outboundMessageClass = 'untrusted_external_value';
+    await processUnderWorkerTick(invalid, {
+      ...base,
+      eventId: 'evt-invalid-marker',
+      payloadJson: { intent: rawInvalidIntent },
+    });
+    expect(invalid.quarantined).toEqual(['BAD_PAYLOAD']);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('does not reschedule transport after an external success when product receipt bookkeeping fails', async () => {
