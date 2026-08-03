@@ -193,7 +193,21 @@ SVG исключён (`apps/webapp/src/app/app/doctor/content/library/mediaPrevi
 убрать MIME из разрешённых политик целиком, либо (если SVG нужен) добавить санитизацию содержимого
 (например, вырезание `<script>`/`on*=`/внешних `xlink:href`) перед сохранением.
 
-**Состояние:** ⛔ открыто. Ничего из требуемого не реализовано.
+**Легитимных применений SVG в загрузке не найдено** (нет отдельной политики под логотип клиники/аватар;
+единственный другой SVG в репозитории — `/test-fixtures/saas-exercise.svg`, статический файл, отдаваемый
+напрямую по жёстко зашитому пути только когда `DATABASE_URL` указывает на `bersoncarebot_test`
+(`apps/webapp/src/app-layer/media/localSaasTestFixtureMedia.ts`) — он не проходит через
+`ALLOWED_MEDIA_MIME`/`validateUploadIntent` и этой правкой не затронут).
+
+**Сделано (коммит `519558b55`):** `image/svg+xml` убран из `ALLOWED_MEDIA_MIME`
+(`uploadAllowedMime.ts`) и из `UPLOAD_FILENAME_EXTENSIONS` (`uploadValidation.ts`) — загрузка отклоняется
+на этапе intent (`mime_not_allowed`) независимо от заявленного расширения. Дополнительно
+`validateReceivedUpload` теперь прогоняет `isSvgText` по первым 512 байтам тела **для любого intent**, не
+только `image/svg+xml` — закрывает обход «назвался `text/plain`, тело — `<svg>…</svg>`», для которого
+магический-байт проверки не было вовсе. Тесты: `uploadValidation.test.ts` — SVG-intent отклонён
+(`mime_not_allowed`), SVG-тело под маской `text/plain` отклонено (`file_signature_mismatch`).
+
+**Состояние:** ✅ закрыто.
 
 ---
 
@@ -219,7 +233,15 @@ SVG исключён (`apps/webapp/src/app/app/doctor/content/library/mediaPrevi
 **Что делать:** заменить `!==` на `timingSafeEqual` (с предварительной проверкой длины, как в
 `tinkoffPaymentProvider.ts:191`) в обоих местах — Telegram и MAX.
 
-**Состояние:** ⛔ открыто, в двух местах (было известно про одно).
+**Сделано (коммит `519558b55`):** один общий хелпер `isWebhookSecretValid`
+(`apps/integrator/src/integrations/common/webhookSecretCompare.ts`) — та же схема, что у
+`tinkoffPaymentProvider.ts` (сравнение длины отдельно, затем `timingSafeEqual`), плюс безопасная обработка
+отсутствующего/пустого/повторного (array) заголовка и незаданного секрета — без исключений. Оба вебхука
+(`telegram/webhook.ts`, `max/webhook.ts`) зовут этот хелпер вместо `!==`. Тесты в
+`webhookSecretCompare.test.ts`: подделанный секрет (в т.ч. с длинным верным префиксом) отвергается,
+совпадающий — принимается, отсутствующий заголовок/секрет и array-заголовок не роняют проверку.
+
+**Состояние:** ✅ закрыто, в обоих местах.
 
 ---
 

@@ -24,6 +24,7 @@ import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
 import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
+import { isWebhookSecretValid } from '../common/webhookSecretCompare.js';
 
 type WebhookOutcomeInput = Parameters<typeof recordIntegrationWebhookOutcome>[0];
 
@@ -422,7 +423,7 @@ export async function registerTelegramWebhookRoutes(
         return reply.code(503).send({ ok: false, error: 'Unavailable' });
       }
       const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
-      if (headerSecret !== config.webhookSecret) {
+      if (!isWebhookSecretValid(headerSecret, config.webhookSecret)) {
           reqLogger.warn('telegram webhook secret mismatch');
           recordTelegramWebhookOutcome({
             source: 'telegram',
