@@ -13,7 +13,10 @@ import {
   type Tariff,
   type TariffQuota,
 } from '@/modules/org-entitlements/types';
+import { DOCTOR_CATALOG_FILTER_MISSING } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -24,7 +27,8 @@ import {
   doctorSectionSubtitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
-import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
 
 export type PlatformClinicsData = {
@@ -303,11 +307,93 @@ function ClinicAccountsSection({ members }: { members: PlatformClinicMember[] })
   );
 }
 
+const TRIAL_NOT_STARTED_LABEL = 'Не запускался';
+
 function ClinicsList({ data }: { data: PlatformClinicsData }) {
   const tariffsById = useMemo(
     () => new Map(data.tariffs.map((tariff) => [tariff.id, tariff])),
     [data.tariffs],
   );
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [trialFilter, setTrialFilter] = useState<string | null>(null);
+  const [tariffFilter, setTariffFilter] = useState<string | null>(null);
+
+  const statusItems: ReferenceItemDto[] = useMemo(
+    () =>
+      (
+        Object.keys(LIFECYCLE_LABELS) as Array<
+          PlatformOrganizationSummary['effectiveAccess']['lifecycle']
+        >
+      ).map((lifecycle, sortOrder) => ({
+        id: lifecycle,
+        code: lifecycle,
+        title: LIFECYCLE_LABELS[lifecycle],
+        sortOrder,
+      })),
+    [],
+  );
+
+  const trialItems: ReferenceItemDto[] = useMemo(
+    () =>
+      (
+        Object.keys(TRIAL_STATUS_LABELS) as Array<
+          NonNullable<PlatformOrganizationSummary['trial']>['status']
+        >
+      ).map((status, sortOrder) => ({
+        id: status,
+        code: status,
+        title: TRIAL_STATUS_LABELS[status],
+        sortOrder,
+      })),
+    [],
+  );
+
+  const tariffItems: ReferenceItemDto[] = useMemo(
+    () =>
+      data.tariffs.map((tariff, sortOrder) => ({
+        id: tariff.id,
+        code: tariff.id,
+        title: tariff.name,
+        sortOrder,
+      })),
+    [data.tariffs],
+  );
+
+  const filteredOrganizations = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return data.organizations.filter((organization) => {
+      if (query && !organization.title.toLowerCase().includes(query)) return false;
+      if (statusFilter && organization.effectiveAccess.lifecycle !== statusFilter) return false;
+      if (trialFilter) {
+        if (trialFilter === DOCTOR_CATALOG_FILTER_MISSING) {
+          if (organization.trial) return false;
+        } else if (organization.trial?.status !== trialFilter) {
+          return false;
+        }
+      }
+      if (tariffFilter) {
+        if (tariffFilter === DOCTOR_CATALOG_FILTER_MISSING) {
+          if (organization.effectiveAccess.tariffId) return false;
+        } else if (organization.effectiveAccess.tariffId !== tariffFilter) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [data.organizations, searchQuery, statusFilter, trialFilter, tariffFilter]);
+
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() || statusFilter || trialFilter || tariffFilter,
+  );
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter(null);
+    setTrialFilter(null);
+    setTariffFilter(null);
+  };
 
   return (
     <DoctorSection>
@@ -320,44 +406,131 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
       {data.organizations.length === 0 ? (
         <DoctorEmptyState>Клиники ещё не созданы.</DoctorEmptyState>
       ) : (
-        <div className="grid gap-2">
-          <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3 px-3 text-xs font-medium text-muted-foreground md:grid">
-            <span>Название</span>
-            <span>Тариф</span>
-            <span>Состояние</span>
-            <span>Пробный период</span>
+        <>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="w-full min-w-[180px] sm:w-56">
+              <label className="sr-only" htmlFor="clinics-filter-q">
+                Поиск по названию
+              </label>
+              <Input
+                id="clinics-filter-q"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск по названию"
+                className="w-full"
+              />
+            </div>
+            <div className="w-40 shrink-0">
+              <label className="sr-only" htmlFor="clinics-filter-status">
+                Статус оплаты
+              </label>
+              <ReferenceSelect
+                id="clinics-filter-status"
+                prefetchedItems={statusItems}
+                valueMatch="code"
+                submitField="code"
+                value={statusFilter}
+                onChange={(code) => setStatusFilter(code)}
+                placeholder="Статус оплаты"
+                clearOptionLabel="Все статусы"
+                showAllOnFocus
+                searchable={false}
+              />
+            </div>
+            <div className="w-40 shrink-0">
+              <label className="sr-only" htmlFor="clinics-filter-trial">
+                Пробный период
+              </label>
+              <ReferenceSelect
+                id="clinics-filter-trial"
+                prefetchedItems={trialItems}
+                valueMatch="code"
+                submitField="code"
+                value={trialFilter}
+                onChange={(code) => setTrialFilter(code)}
+                placeholder="Пробный период"
+                clearOptionLabel="Все"
+                missingValueOption={{
+                  value: DOCTOR_CATALOG_FILTER_MISSING,
+                  label: TRIAL_NOT_STARTED_LABEL,
+                }}
+                showAllOnFocus
+                searchable={false}
+              />
+            </div>
+            <div className="w-40 shrink-0">
+              <label className="sr-only" htmlFor="clinics-filter-tariff">
+                Тариф
+              </label>
+              <ReferenceSelect
+                id="clinics-filter-tariff"
+                prefetchedItems={tariffItems}
+                valueMatch="code"
+                submitField="code"
+                value={tariffFilter}
+                onChange={(code) => setTariffFilter(code)}
+                placeholder="Тариф"
+                clearOptionLabel="Все тарифы"
+                missingValueOption={{
+                  value: DOCTOR_CATALOG_FILTER_MISSING,
+                  label: 'Не назначен',
+                }}
+                showAllOnFocus
+                searchable={false}
+              />
+            </div>
+            {hasActiveFilters ? (
+              <Button type="button" variant="outline" size="sm" onClick={resetFilters}>
+                Сбросить
+              </Button>
+            ) : null}
           </div>
-          {data.organizations.map((organization) => (
-            <Link
-              key={organization.id}
-              href={`/app/admin/clinics/${organization.id}`}
-              className={`${doctorSectionItemClass} grid gap-2 transition-colors hover:border-primary/30 hover:bg-muted/30 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] md:items-center md:gap-3`}
-            >
-              <div className="min-w-0">
-                <p className="truncate font-medium">{organization.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {organization.isActive ? 'Организация активна' : 'Организация отключена'}
-                </p>
+          <p className="text-xs text-muted-foreground">
+            Показано {filteredOrganizations.length} из {data.organizations.length}
+          </p>
+          {filteredOrganizations.length === 0 ? (
+            <DoctorEmptyState size="xs">Ничего не найдено по заданным фильтрам.</DoctorEmptyState>
+          ) : (
+            <div className="grid gap-2">
+              <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3 px-3 text-xs font-medium text-muted-foreground md:grid">
+                <span>Название</span>
+                <span>Тариф</span>
+                <span>Состояние</span>
+                <span>Пробный период</span>
               </div>
-              <div>
-                <span className="text-xs text-muted-foreground md:hidden">Тариф: </span>
-                <span>{tariffName(organization, tariffsById)}</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <Badge variant={lifecycleBadgeVariant(organization.effectiveAccess.lifecycle)}>
-                  {LIFECYCLE_LABELS[organization.effectiveAccess.lifecycle]}
-                </Badge>
-                {(data.quotaProjections[organization.id] ?? []).some(
-                  (projection) => projection.threshold === 'reached',
-                ) && <Badge variant="destructive">Превышение</Badge>}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <span className="md:hidden">Пробный период: </span>
-                {trialSummary(organization)}
-              </div>
-            </Link>
-          ))}
-        </div>
+              {filteredOrganizations.map((organization) => (
+                <Link
+                  key={organization.id}
+                  href={`/app/admin/clinics/${organization.id}`}
+                  className={`${doctorSectionItemClass} grid gap-2 transition-colors hover:border-primary/30 hover:bg-muted/30 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] md:items-center md:gap-3`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{organization.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {organization.isActive ? 'Организация активна' : 'Организация отключена'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground md:hidden">Тариф: </span>
+                    <span>{tariffName(organization, tariffsById)}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant={lifecycleBadgeVariant(organization.effectiveAccess.lifecycle)}>
+                      {LIFECYCLE_LABELS[organization.effectiveAccess.lifecycle]}
+                    </Badge>
+                    {(data.quotaProjections[organization.id] ?? []).some(
+                      (projection) => projection.threshold === 'reached',
+                    ) && <Badge variant="destructive">Превышение</Badge>}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <span className="md:hidden">Пробный период: </span>
+                    {trialSummary(organization)}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </DoctorSection>
   );
