@@ -15,7 +15,7 @@ import type {
   SaasBillingManualAssignmentTransactionPort,
   SaasBillingRepositoryPort,
 } from './ports';
-import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import { PaymentProviderRequestRefusedError, type PaymentProviderPort } from '@/modules/payments/providerPort';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
 
 const invoice: SaasBillingInvoice = {
@@ -1896,6 +1896,117 @@ describe('К4: черновик после сбоя провайдера мож�
 
     expect(createIntent).toHaveBeenCalledOnce();
     expect((await repository.getOrganizationBillingOverview(request.organizationId)).invoices).toHaveLength(1);
+  });
+});
+
+// B0.3/#1057 — a refused provider create must not burn the invoice's idempotence key for 24h: a
+// PSP refusal PROVEN before creation (`PaymentProviderRequestRefusedError`) must rotate the key so
+// the next attempt is not resending a burned one, while an ambiguous failure (network/timeout/5xx,
+// a plain `Error`) must keep the same key so a retry idempotently replays instead of risking a
+// double charge. Both paths go through `createOwnTariffRenewalInvoice` — the clinic "Оплатить
+// тариф" button (K0) — which reuses the exact same period each retry once a paid period exists,
+// reproducing the live TEST defect (invoice `e13b2c92-5693-463f-8c3a-274cd198bcf7`).
+describe('B0.3/#1057: отказ провайдера ДО создания платежа не жжёт ключ на 24 часа', () => {
+  async function createService(createIntent: ReturnType<typeof vi.fn>, organizationId: string) {
+    const repository = createInMemorySaasBillingRepository();
+    const service = createSaasBillingService({
+      repository,
+      settings: {
+        getSaasBillingPaymentProviderValue: async () => ({
+          defaultProviderId: 'mock',
+          providers: [{ id: 'mock', label: 'Mock', enabled: true, webhookSecret: 'unused', shopId: 's', apiKey: 'k' }],
+        }),
+      },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+    await service.assignManualTariff({
+      organizationId,
+      tariffId: 'tariff-b03',
+      audit: { actorId: 'platform-admin', reason: 'test seed' },
+    });
+    return { repository, service };
+  }
+
+  it('отказ до создания платежа ротирует ключ — повтор уходит с ДРУГИМ ключом и получает ссылку', async () => {
+    const createIntent = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new PaymentProviderRequestRefusedError('yookassa_create_failed:400:invalid_request'),
+      )
+      .mockResolvedValueOnce({
+        providerIntentRef: 'provider-refused-retry-1',
+        checkoutUrl: 'https://pay.example/refused-retry-1',
+      });
+    const { repository, service } = await createService(createIntent, 'org-b03-refused');
+
+    await expect(service.createOwnTariffRenewalInvoice('org-b03-refused')).rejects.toThrow(
+      'yookassa_create_failed:400',
+    );
+    const retried = await service.createOwnTariffRenewalInvoice('org-b03-refused');
+
+    expect(retried.providerCheckoutUrl).toBe('https://pay.example/refused-retry-1');
+    expect(createIntent).toHaveBeenCalledTimes(2);
+    const [firstCall, secondCall] = createIntent.mock.calls;
+    expect(secondCall[0].idempotencyKey).not.toBe(firstCall[0].idempotencyKey);
+    expect(
+      (await repository.getOrganizationBillingOverview('org-b03-refused')).invoices,
+    ).toHaveLength(1);
+  });
+
+  it('неоднозначный сбой (не доказанный отказ) НЕ меняет ключ — повтор уходит ТЕМ ЖЕ ключом', async () => {
+    const createIntent = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('yookassa_create_failed:502:upstream'))
+      .mockResolvedValueOnce({
+        providerIntentRef: 'provider-ambiguous-retry-1',
+        checkoutUrl: 'https://pay.example/ambiguous-retry-1',
+      });
+    const { repository, service } = await createService(createIntent, 'org-b03-ambiguous');
+
+    await expect(service.createOwnTariffRenewalInvoice('org-b03-ambiguous')).rejects.toThrow(
+      'yookassa_create_failed:502',
+    );
+    const retried = await service.createOwnTariffRenewalInvoice('org-b03-ambiguous');
+
+    expect(retried.providerCheckoutUrl).toBe('https://pay.example/ambiguous-retry-1');
+    expect(createIntent).toHaveBeenCalledTimes(2);
+    const [firstCall, secondCall] = createIntent.mock.calls;
+    expect(secondCall[0].idempotencyKey).toBe(firstCall[0].idempotencyKey);
+    expect(
+      (await repository.getOrganizationBillingOverview('org-b03-ambiguous')).invoices,
+    ).toHaveLength(1);
+  });
+
+  it('два параллельных повтора после отказа сходятся на одном ключе — провайдер вызван один раз', async () => {
+    let resolveIntent: ((value: { providerIntentRef: string; checkoutUrl: string }) => void) | undefined;
+    const createIntent = vi.fn(() => {
+      if (createIntent.mock.calls.length === 1) {
+        return Promise.reject(
+          new PaymentProviderRequestRefusedError('yookassa_create_failed:400:invalid_request'),
+        );
+      }
+      return new Promise<{ providerIntentRef: string; checkoutUrl: string }>((resolve) => {
+        resolveIntent = resolve;
+      });
+    });
+    const { repository, service } = await createService(createIntent, 'org-b03-race');
+
+    await expect(service.createOwnTariffRenewalInvoice('org-b03-race')).rejects.toThrow(
+      'yookassa_create_failed:400',
+    );
+
+    const first = service.createOwnTariffRenewalInvoice('org-b03-race');
+    const second = service.createOwnTariffRenewalInvoice('org-b03-race');
+    await vi.waitFor(() => expect(createIntent).toHaveBeenCalledTimes(2));
+    resolveIntent?.({ providerIntentRef: 'provider-race-1', checkoutUrl: 'https://pay.example/race-1' });
+    await Promise.all([first, second]);
+
+    // 1 refused attempt + 1 retry — the concurrent second retry never opens its own provider call.
+    expect(createIntent).toHaveBeenCalledTimes(2);
+    expect(
+      (await repository.getOrganizationBillingOverview('org-b03-race')).invoices,
+    ).toHaveLength(1);
   });
 });
 
