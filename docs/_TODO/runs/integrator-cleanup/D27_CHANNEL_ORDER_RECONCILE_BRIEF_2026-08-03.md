@@ -80,3 +80,33 @@ SMS → verified email». Correct it to what the code now does.
   `pnpm --dir apps/webapp typecheck`, scoped ESLint and `git diff --check` — all clean.
 - The D27 notes in `WORK_ORDER.md` state what is true after this slice, including what is still open.
 - One commit on `wt/trackd-d27de-login-code-screen`, no push, no merge into `feat`.
+
+---
+
+## F5 — SECOND SLICE (do not start until the F1–F4 run has returned)
+
+Added 2026-08-03 after the owner corrected a false record: «насколько помню было исследовано поведение в серьёзных
+продуктах и решено что одна почта является основной а остальные — для восстановления». The decision exists and is
+already written down — `IDENTITY_AND_MERGE_SCHEME.md` §3.4: «**первая привязанная почта — основная, код всегда
+уходит в неё; остальные — резервные.**»
+
+The previous D27-B1 note claimed §3.4 was inapplicable because «в текущей модели у аккаунта ровно один
+`platform_users.email`». That is wrong, and the note has been corrected in `WORK_ORDER.md`. Measured reality:
+
+- `platform_users.email` + `email_verified_at` — one address (`db/schema/schema.ts:122-125`);
+- `user_oauth_bindings.email` with its own `created_at`, **one row per OAuth provider**
+  (`db/schema/schema.ts:1101-1112`) — so several verified addresses per account exist today.
+
+Two divergences follow, both reachable:
+
+1. `pgUserByPhone.getVerifiedEmailForUser` (`pgUserByPhone.ts:141-152`) reads only `platform_users.email`. If the
+   earliest-linked address is an OAuth one, the login code goes to an address the owner's rule does not designate.
+2. `getDefaultAuthOtpChannel` derives the email candidate only from `platform_users.email_verified_at`, while the
+   owner's §3.1 default is «почта, привязанная к тому OAuth, которым подтвердили номер» — OAuth bindings are
+   precisely the source that rule names.
+
+Close both: one place decides «the primary address of this account» = the earliest verified address across both
+sources, the code always goes there, the rest stay recovery-only. Do not add a second email store; do not change
+which addresses may log in (§2 is a different question and is not in this slice). Prove it with behavioral tests
+covering: OAuth address linked earlier than the profile address, profile address linked earlier, and an account
+with no verified address at all.
