@@ -32,6 +32,13 @@ export function filterAuthMethodsByChannelPolicy(
 /** Каналы доставки OTP в UI (вход / выбор способа). */
 export type OtpUiChannel = 'sms' | 'telegram' | 'max' | 'email';
 
+/**
+ * Порядок в блоке «Подтвердить другим способом» на реальном браузерном экране кода
+ * (D27-D/E, Р-D27 §2.3): полный список включённых в админке каналов, SMS в том числе — экран не
+ * должен подсказывать постороннему состав каналов, поэтому список одинаков для любого номера.
+ */
+export const OTP_OTHER_CHANNELS_ORDER: readonly OtpUiChannel[] = ['max', 'email', 'telegram', 'sms'];
+
 /** Публичный вход: SMS на сайте отключён; email и мессенджеры — по флагам `methods`. */
 export const OTP_PUBLIC_OTHER_CHANNELS_ORDER: readonly OtpUiChannel[] = [
   'max',

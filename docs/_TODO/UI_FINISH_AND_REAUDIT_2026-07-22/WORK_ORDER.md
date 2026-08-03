@@ -848,6 +848,36 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       доказательство: `apps/webapp/src/shared/ui/patient/auth/PhoneMessengerAuthFlow.ui.test.tsx` и
       `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts`. Открыты D27-B/C: preference UI и durable
       auth queue; этот checkbox не закрыт.
+      **CURRENT PARTIAL 03.08 (D27 reconcile, wt/trackd-d27de-login-code-screen):** мёрдж D27-D/E (`96bad16a3`)
+      с B1-переписью (`053aad09c`) на `feat` конфликтовал по четырём пунктам, все закрыты этой веткой:
+      1) B1 удалила `OTP_OTHER_CHANNELS_ORDER` (полный список каналов включая SMS) как «мёртвую лестницу»,
+         не заметив, что D27-D/E реально его импортирует — экран кода падал на каждом рендере с открытым
+         «Подтвердить другим способом»; константа возвращена в `otpChannelUi.ts` (только для этого экрана,
+         Mini-App `ChannelPicker`/`AuthFlowV2` по-прежнему используют `OTP_PUBLIC_OTHER_CHANNELS_ORDER` без SMS —
+         разные контексты, не регрессия). Доказательство: все 7 кейсов `PhoneMessengerAuthFlow.ui.test.tsx`
+         зелёные, `webapp typecheck` чист.
+      2) `/api/auth/phone/start` при резолвнутом, но не enabled+configured канале подменял его SMS вместо тишины
+         — прямое нарушение записанного здесь же правила («если резолвнутый канал не enabled+configured —
+         тишина»). Исправлено: `automaticChannel` остаётся `null`, SMS bootstrap срабатывает только когда
+         `resolved` вовсе не вычислен. Новый тест: `phoneStartFallback.route.test.ts` → «stays silent when the
+         resolved channel is not enabled+configured».
+      3) `getDefaultAuthOtpChannel` (`pgChannelPreferences.ts`) аппроксимировал §3.1 «канал, впервые подтвердивший
+         номер» как «самая ранняя привязка Telegram/Max или verified email» — расходится с оракулом, когда канал
+         привязан раньше, чем через него подтвердили номер (Telegram привязан в 2024 без телефона, номер
+         подтверждён через Max в 2026 — старый код выбирал Telegram). Добавлен nullable
+         `user_phone_history.confirming_channel` (migration `0341`), пишется в момент подтверждения
+         (`pgUserByPhone.createOrBind` для `source='otp'` через `confirmingChannel` от `confirmPhoneAuth`;
+         `pgPhoneMessengerBind.ts` для `source='messenger'`); `getDefaultAuthOtpChannel` читает его с активной
+         строки истории и только при NULL (строки до `0341`, либо `source∈{merge,admin,projection}`) откатывается
+         на прежнюю аппроксимацию — без выдумывания провенанса для старых строк. Тест:
+         `pgChannelPreferences.getDefaultAuthOtpChannel.test.ts`.
+      4) Комментарий на `route.ts:43` всё ещё описывал снесённую лестницу «SMS → verified email»; переписан под
+         фактическое поведение (resolved/default канал, SMS — только bootstrap, тишина при disabled).
+      Открыто по-прежнему: D27-B (preference UI acceptance), D27-C (durable delivery queue); OAuth-подтверждение
+      телефона (`createOAuthPlatformUser`) не пишет `user_phone_history` вовсе (ни этой веткой, ни раньше) —
+      для таких аккаунтов дефолт остаётся на аппроксимации через `email_verified_at`, что для OAuth создания
+      обычно совпадает по факту (email и телефон приходят одной транзакцией), но не является записанным
+      подтверждением каналом; отдельная работа, не в этом слайсе.
 - [ ] **D28 — отзыв подтверждения вместе с номером.** Решение — **Р-D28** (§2.3).
 - [ ] **D29 — ФИО только кириллицей, автоподстановка имени отменяется.** Решение — **Р-D29** (§2.3). Это не
       только проверка ввода: сегодня имя приезжает из внешнего профиля мессенджеров и OAuth.

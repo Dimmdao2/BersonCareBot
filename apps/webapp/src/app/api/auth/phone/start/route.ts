@@ -40,8 +40,11 @@ const bodySchema = z.object({
 /**
  * Start phone auth. Unauthenticated login always receives web context; a caller cannot make its
  * body trusted by claiming `channel: telegram`. Authenticated profile-bind preserves its channel.
- * Для публичного web-login без deliveryChannel сервер сам выбирает SMS → verified email.
- * Явный deliveryChannel позволяет нейтрально повторить отправку или выбрать другой включённый канал.
+ * Для публичного web-login без deliveryChannel сервер разрешает канал автоматически (не лестницей):
+ * явный профильный выбор либо канал, впервые подтвердивший номер (IDENTITY_AND_MERGE_SCHEME.md §3.1);
+ * SMS — только bootstrap, когда ни того ни другого нет. Если резолвнутый канал не enabled+configured —
+ * тишина, подмены другим каналом нет (Р-D27, §2.3). Явный deliveryChannel позволяет нейтрально
+ * повторить отправку или выбрать другой включённый канал.
  */
 export async function POST(request: Request) {
   const startedAt = Date.now();
@@ -122,15 +125,19 @@ export async function POST(request: Request) {
     const effectivePolicy = await getClientVisibleAuthChannelPolicy();
     const lookupUserId = user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID;
     const resolved = await deps.channelPreferences.resolveAuthOtpChannel(lookupUserId);
-    if (resolved && effectivePolicy[resolved]) {
+    if (resolved) {
       deliveryChannel = resolved;
-      automaticChannel = resolved;
-      if (resolved === 'email') {
-        // Почта доставляет код по телефонному входу, только если этот номер действительно
-        // доверен аккаунту — иначе это была бы утечка «есть почта» через попытку входа чужим номером.
-        const phoneTrusted = await deps.userByPhone.isPhoneTrustedForUser(lookupUserId);
-        if (!phoneTrusted) automaticChannel = null;
+      if (effectivePolicy[resolved]) {
+        automaticChannel = resolved;
+        if (resolved === 'email') {
+          // Почта доставляет код по телефонному входу, только если этот номер действительно
+          // доверен аккаунту — иначе это была бы утечка «есть почта» через попытку входа чужим номером.
+          const phoneTrusted = await deps.userByPhone.isPhoneTrustedForUser(lookupUserId);
+          if (!phoneTrusted) automaticChannel = null;
+        }
       }
+      // else: резолвнутый канал не enabled+configured — тишина, а не подмена SMS (Р-D27, §2.3,
+      // D27-B1 note в WORK_ORDER.md).
     } else if (isRuMobile(normalized) && effectivePolicy.sms) {
       deliveryChannel = 'sms';
       automaticChannel = 'sms';

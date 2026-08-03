@@ -17,6 +17,8 @@ export type CreateOrBindOptions = {
   profileBindUserId?: string;
   /** Organization scope resolved from that authenticated session; never accepted from confirm request. */
   profileBindOrganizationId?: string;
+  /** OTP delivery channel of the confirmed challenge — recorded as `user_phone_history.confirming_channel` (§3.1 default provenance). */
+  confirmingChannel?: 'sms' | 'telegram' | 'max' | 'email';
 };
 
 /**
