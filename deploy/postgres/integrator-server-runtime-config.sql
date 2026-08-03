@@ -50,13 +50,16 @@ SELECT 1 / (
       AND rolbypassrls
   )
   AND NOT pg_has_role(:'integrator_runtime_config_role', 'app_owner', 'MEMBER')
-  AND 3 = (
+  -- D15b/4 (deploy/postgres/integrator-login-public-identity-grants.sql) also grants this role
+  -- app_identity_bootstrap for the platform_users identity-bootstrap RLS policy branch -- a fourth
+  -- legitimate direct membership alongside app_staff/app_patient/app_worker.
+  AND 4 = (
     SELECT count(*)
     FROM pg_auth_members membership
     JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
     JOIN pg_roles member_role ON member_role.oid = membership.member
     WHERE member_role.rolname = :'integrator_runtime_config_role'
-      AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker')
+      AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker', 'app_identity_bootstrap')
   )
   AND NOT EXISTS (
     SELECT 1
@@ -65,7 +68,7 @@ SELECT 1 / (
     JOIN pg_roles member_role ON member_role.oid = membership.member
     WHERE member_role.rolname = :'integrator_runtime_config_role'
       AND (
-        granted_role.rolname NOT IN ('app_staff', 'app_patient', 'app_worker')
+        granted_role.rolname NOT IN ('app_staff', 'app_patient', 'app_worker', 'app_identity_bootstrap')
         OR membership.admin_option
       )
   )
