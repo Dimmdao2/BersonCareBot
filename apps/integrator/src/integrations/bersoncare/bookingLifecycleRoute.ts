@@ -3,9 +3,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
 import { env } from '../../config/env.js';
 import { createDbPort } from '../../infra/db/client.js';
-import { cancelPendingBookingReminderJobsByBookingId } from '../../infra/db/repos/jobQueue.js';
-import { createPostgresJobQueue } from '../../infra/adapters/jobQueuePort.js';
-import { appSettings } from '../../config/appSettings.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
 import { loadAdminMessengerIdLists } from '../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
@@ -255,11 +252,6 @@ async function sendDoctorMessage(
   }
 }
 
-async function cancelPendingBookingReminders(bookingId: string): Promise<void> {
-  const db = createDbPort();
-  await cancelPendingBookingReminderJobsByBookingId(db, bookingId);
-}
-
 /** D14(1): webapp's explicit `false` skips the cancel; absent field keeps the old always-cancel default. */
 function shouldCancelPendingReminders(payload: BookingLifecyclePayloadValidated): boolean {
   return payload.cancelPendingReminders !== false;
@@ -314,6 +306,8 @@ function resolveCalendarTitleMarker(
 
 export async function scheduleBookingReminders(input: {
   organizationId?: string;
+  appointmentId?: string;
+  platformUserId?: string;
   bookingId: string;
   slotStartIso: string;
   phoneNormalized: string | null;
@@ -322,64 +316,8 @@ export async function scheduleBookingReminders(input: {
   webappEventsPort?: WebappEventsPort;
   /** Вебапп решает, включены ли напоминания и с какими смещениями; отсутствие плана — не ставить ни одного напоминания. */
   reminderPlan?: { enabled: boolean; offsetsMinutes: number[] };
+  cancelPending?: boolean;
 }): Promise<void> {
-  if (input.reminderPlan?.enabled === false) return;
-  const deliveryTargets = createDeliveryTargetsPort({
-    getAppBaseUrl: async () => env.APP_BASE_URL,
-  });
-  const fetched = input.phoneNormalized
-    ? await deliveryTargets.getTargetsByPhone(input.phoneNormalized, {
-        topic: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
-      })
-    : null;
-  const bindings = fetched?.channelBindings;
-  if (!bindings) {
-    logger.warn(
-      {
-        scope: 'notification_delivery',
-        event: 'notification_audience_empty',
-        topic: 'booking_reminder_scheduling',
-        severity: 'user_facing',
-        reason: 'no_bindings',
-      },
-      'appointment reminders not scheduled: no delivery target',
-    );
-    return;
-  }
-
-  const targets: Array<{ resource: string; address: Record<string, unknown> }> = [];
-  if (typeof bindings.telegramId === 'string' && bindings.telegramId.trim()) {
-    targets.push({ resource: 'telegram', address: { chatId: bindings.telegramId.trim() } });
-  }
-  if (typeof bindings.maxId === 'string' && bindings.maxId.trim()) {
-    targets.push({ resource: 'max', address: maxUserRecipient(bindings.maxId.trim()) });
-  }
-  if (targets.length === 0) {
-    logger.warn(
-      {
-        scope: 'notification_delivery',
-        event: 'notification_audience_empty',
-        topic: 'booking_reminder_scheduling',
-        severity: 'user_facing',
-        reason: 'no_messenger_binding',
-      },
-      'appointment reminders not scheduled: resolvable phone but no messenger binding',
-    );
-    return;
-  }
-
-  const startMs = Date.parse(input.slotStartIso);
-  if (!Number.isFinite(startMs)) return;
-  const db = createDbPort();
-  const queuePort = createPostgresJobQueue({
-    db,
-    retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
-  });
-  const patientLabel = input.patientName ?? 'Пациент';
-  const dateLabel = formatBookingRuDateTime(input.slotStartIso, input.timeZone);
-  // D13b: константы 24ч/2ч вырезаны — офсеты решает вебапп. Но отсутствие плана обязано быть ВИДИМЫМ:
-  // без этого предупреждения событие без плана тихо не поставит ни одного напоминания, ошибок в логах не
-  // будет, деплой останется зелёным — и это обнаружится по неявкам (дословное предупреждение плана D13b).
   if (!input.reminderPlan) {
     logger.warn(
       {
@@ -392,46 +330,37 @@ export async function scheduleBookingReminders(input: {
       'appointment reminders not scheduled: webapp sent no reminder plan',
     );
   }
-  const reminders = (input.reminderPlan?.offsetsMinutes ?? []).map((offsetMinutes) => ({
-    code: `${offsetMinutes}m`,
-    offsetMs: offsetMinutes * 60 * 1000,
-    text: `Напоминание: приём ${dateLabel} (через ${offsetMinutes} мин.).`,
-  }));
-
-  for (const reminder of reminders) {
-    const runAtMs = startMs - reminder.offsetMs;
-    if (runAtMs <= Date.now()) continue;
-    const channels = targets.map((x) => x.resource);
-    const payloadJson = {
-      intent: {
-        type: 'message.send',
-        meta: {
-          eventId: `booking-reminder:${input.bookingId}:${reminder.code}`,
-          occurredAt: new Date().toISOString(),
-          source: 'worker',
-        },
-        payload: {
-          message: { text: `${patientLabel}, ${reminder.text}` },
-          delivery: { channels, maxAttempts: 1 },
-        },
-      },
-      targets,
-      // No local retry policy here: maxAttempts:2 / 60s backoff is the shared QueuePort default
-      // (see jobQueuePort.ts createPostgresJobQueue().enqueue), not a second policy to maintain.
-      booking: { bookingId: input.bookingId, reminderCode: reminder.code },
-      webappPushNotify: {
-        ...(input.organizationId ? { organizationId: input.organizationId } : {}),
-        phoneNormalized: input.phoneNormalized,
-        slotStartIso: input.slotStartIso,
-        stableKey: `booking-reminder:${input.bookingId}:${reminder.code}`,
-      },
-    };
-    await queuePort.enqueue({
-      kind: 'message.deliver',
-      payload: payloadJson,
-      runAt: new Date(runAtMs).toISOString(),
-    });
+  if (!input.webappEventsPort?.materializeAppointmentReminders) {
+    logger.warn(
+      { bookingId: input.bookingId },
+      'appointment reminder materializer unavailable; legacy enqueue is intentionally disabled',
+    );
+    return;
   }
+  if (!input.organizationId || !input.appointmentId) {
+    logger.warn(
+      { bookingId: input.bookingId },
+      'appointment reminder canonical scope missing; legacy enqueue is intentionally disabled',
+    );
+    return;
+  }
+  const body = JSON.stringify({
+    organizationId: input.organizationId,
+    appointmentId: input.appointmentId,
+    bookingId: input.bookingId,
+    ...(input.platformUserId ? { platformUserId: input.platformUserId } : {}),
+    ...(input.phoneNormalized ? { phoneNormalized: input.phoneNormalized } : {}),
+    slotStartIso: input.slotStartIso,
+    patientName: input.patientName,
+    cancelPending: input.cancelPending === true,
+    reminderPlan: input.reminderPlan ?? { enabled: false, offsetsMinutes: [] },
+  });
+  const generationKey = `${input.appointmentId}:${input.slotStartIso}`;
+  const result = await input.webappEventsPort.materializeAppointmentReminders({
+    body,
+    idempotencyKey: `arm:${generationKey}:${input.cancelPending ? 'cancel' : 'replace'}`.slice(0, 240),
+  });
+  if (!result.ok) throw new Error(`APPOINTMENT_REMINDER_MATERIALIZATION_FAILED:${result.status}`);
 }
 
 async function sendBookingWebPush(input: {
@@ -581,11 +510,12 @@ export async function handleBookingLifecycleEvent(
           `booking-created:${bookingId}`,
         );
       }
-      if (shouldCancelPendingReminders(payload)) {
-        await cancelPendingBookingReminders(bookingId);
-      }
       await scheduleBookingReminders({
         ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        ...(payload.canonicalAppointmentId
+          ? { appointmentId: payload.canonicalAppointmentId }
+          : {}),
+        platformUserId: payload.userId,
         bookingId,
         slotStartIso: payload.slotStart,
         phoneNormalized: contactPhone,
@@ -593,15 +523,28 @@ export async function handleBookingLifecycleEvent(
         timeZone,
         ...(webappEventsPort ? { webappEventsPort } : {}),
         ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: shouldCancelPendingReminders(payload) && !payload.reminderPlan?.enabled,
       });
       await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
       return;
     }
 
     if (eventType === 'booking.cancelled') {
-      if (shouldCancelPendingReminders(payload)) {
-        await cancelPendingBookingReminders(bookingId);
-      }
+      await scheduleBookingReminders({
+        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        ...(payload.canonicalAppointmentId
+          ? { appointmentId: payload.canonicalAppointmentId }
+          : {}),
+        platformUserId: payload.userId,
+        bookingId,
+        slotStartIso: payload.slotStart,
+        phoneNormalized: contactPhone,
+        patientName,
+        timeZone,
+        ...(webappEventsPort ? { webappEventsPort } : {}),
+        reminderPlan: { enabled: false, offsetsMinutes: [] },
+        cancelPending: shouldCancelPendingReminders(payload),
+      });
       if (payload.suppressPatientNotification !== true) {
         const patientText = resolvePatientMessageText(payload, patientCancelledText(payload, timeZone));
         await sendLinkedChannelMessage({
@@ -635,9 +578,6 @@ export async function handleBookingLifecycleEvent(
     }
 
     if (eventType === 'booking.rescheduled') {
-      if (shouldCancelPendingReminders(payload)) {
-        await cancelPendingBookingReminders(bookingId);
-      }
       const patientText = resolvePatientMessageText(payload, patientRescheduledText(payload, timeZone));
       await sendLinkedChannelMessage({
         dispatchPort,
@@ -666,6 +606,10 @@ export async function handleBookingLifecycleEvent(
       }
       await scheduleBookingReminders({
         ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        ...(payload.canonicalAppointmentId
+          ? { appointmentId: payload.canonicalAppointmentId }
+          : {}),
+        platformUserId: payload.userId,
         bookingId,
         slotStartIso: payload.slotStart,
         phoneNormalized: contactPhone,
@@ -673,17 +617,19 @@ export async function handleBookingLifecycleEvent(
         timeZone,
         ...(webappEventsPort ? { webappEventsPort } : {}),
         ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: false,
       });
       await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
       return;
     }
 
     if (eventType === 'booking.reminder_updated') {
-      if (shouldCancelPendingReminders(payload)) {
-        await cancelPendingBookingReminders(bookingId);
-      }
       await scheduleBookingReminders({
         ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        ...(payload.canonicalAppointmentId
+          ? { appointmentId: payload.canonicalAppointmentId }
+          : {}),
+        platformUserId: payload.userId,
         bookingId,
         slotStartIso: payload.slotStart,
         phoneNormalized: contactPhone,
@@ -691,6 +637,7 @@ export async function handleBookingLifecycleEvent(
         timeZone,
         ...(webappEventsPort ? { webappEventsPort } : {}),
         ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: shouldCancelPendingReminders(payload) && !payload.reminderPlan?.enabled,
       });
       return;
     }
@@ -718,6 +665,10 @@ export async function handleBookingLifecycleEvent(
       }
       await scheduleBookingReminders({
         ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
+        ...(payload.canonicalAppointmentId
+          ? { appointmentId: payload.canonicalAppointmentId }
+          : {}),
+        platformUserId: payload.userId,
         bookingId,
         slotStartIso: payload.slotStart,
         phoneNormalized: contactPhone,
@@ -725,6 +676,7 @@ export async function handleBookingLifecycleEvent(
         timeZone,
         ...(webappEventsPort ? { webappEventsPort } : {}),
         ...(payload.reminderPlan ? { reminderPlan: payload.reminderPlan } : {}),
+        cancelPending: false,
       });
       await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
       return;

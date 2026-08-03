@@ -37,6 +37,25 @@ export type OperatorHealthDigestReadyOutgoingDelivery = {
   nextRetryAt: string;
 };
 
+export type AppointmentReminderMessengerStep = {
+  channel: 'telegram' | 'max';
+  recipient: Record<string, unknown>;
+};
+
+export type AppointmentReminderReadyOutgoingDelivery = {
+  organizationId: string;
+  eventId: string;
+  kind: 'appointment_reminder';
+  channel: 'telegram' | 'max' | 'web_push';
+  intent: OutgoingIntent;
+  nextRetryAt: string;
+  appointmentId: string;
+  generationStartAt: string;
+  dueAt: string;
+  /** Messenger only. Duplicating a sole step preserves the legacy two-attempt behavior. */
+  messengerLadder?: readonly AppointmentReminderMessengerStep[];
+};
+
 export type PatientReminderReadyOutgoingDelivery = {
   organizationId: string;
   eventId: string;
@@ -56,7 +75,8 @@ export type PatientReminderReadyOutgoingDelivery = {
 export type ReadyOutgoingDelivery =
   | SpecialistTaskReadyOutgoingDelivery
   | OperatorHealthDigestReadyOutgoingDelivery
-  | PatientReminderReadyOutgoingDelivery;
+  | PatientReminderReadyOutgoingDelivery
+  | AppointmentReminderReadyOutgoingDelivery;
 
 /** The only webapp write seam for `public.outgoing_delivery_queue`. */
 export type OutgoingDeliveryQueueWritePort<TransactionClient> = {
@@ -65,5 +85,9 @@ export type OutgoingDeliveryQueueWritePort<TransactionClient> = {
   terminalizeUnsentSpecialistTaskReminders(
     tx: TransactionClient,
     input: { taskId: string; exceptEventIds?: readonly string[]; reason: string },
+  ): Promise<void>;
+  terminalizeUnsentAppointmentReminders(
+    tx: TransactionClient,
+    input: { appointmentId: string; exceptEventIds?: readonly string[]; reason: string },
   ): Promise<void>;
 };

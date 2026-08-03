@@ -418,6 +418,14 @@ export type WebappEventsPort = {
     webPushDeactivated?: number;
     skipped?: string;
   }>;
+  /** Product-side appointment reminder materialization into the unified delivery queue. */
+  materializeAppointmentReminders?(input: { body: string; idempotencyKey: string }): Promise<{
+    ok: boolean;
+    status: number;
+    error?: string;
+    current?: boolean;
+    inserted?: number;
+  }>;
   /** Единый webapp-thread: сообщение пациента из бота (POST /api/integrator/support/sync-user-message). */
   syncSupportUserMessage?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;

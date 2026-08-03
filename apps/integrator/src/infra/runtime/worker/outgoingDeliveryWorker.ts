@@ -43,6 +43,10 @@ import {
   type OutgoingDeliveryQueueRow,
 } from '../../db/repos/outgoingDeliveryQueue.js';
 import { revalidateSpecialistTaskReminderMaterialization } from '../../db/repos/specialistTaskReminderOutcome.js';
+import {
+  advanceAppointmentReminderMessengerLadder,
+  revalidateAppointmentReminderMaterialization,
+} from '../../db/repos/appointmentReminderDelivery.js';
 import { revalidatePatientReminderDeliveryMaterialization } from '../../db/repos/patientReminderMaterialization.js';
 import { getOutgoingDeliveryReclaimConfig } from '../../db/repos/outgoingDeliveryReclaimSettings.js';
 import {
@@ -1006,6 +1010,16 @@ export async function processOutgoingDeliveryRow(
         return;
       }
     }
+    if (row.kind === 'appointment_reminder') {
+      const current = await revalidateAppointmentReminderMaterialization(db, row.id);
+      if (!current) {
+        logger.info(
+          { rowId: row.id, eventId: row.eventId },
+          'appointment_reminder_stale_materialization_terminalized',
+        );
+        return;
+      }
+    }
     try {
       await dispatchOutgoing(intent);
       await queueMarkSent(db, row.id);
@@ -1013,6 +1027,28 @@ export async function processOutgoingDeliveryRow(
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);
         return;
+      }
+      if (row.kind === 'appointment_reminder') {
+        const message = truncateDeliveryErrorMessage(err instanceof Error ? err.message : String(err));
+        const isRecipientBlocked =
+          (row.channel === 'telegram' || row.channel === 'max') &&
+          classifyRecipientBlockedBotError(err, row.channel) !== null;
+        if (isRecipientBlocked || isOutgoingDeliveryDispatchErrorRetryable(message)) {
+          const transition = await runWithDeliveryQueueCapability(() =>
+            advanceAppointmentReminderMessengerLadder(db, {
+              queueId: row.id,
+              expectedAttemptCount: row.attemptCount,
+              error: message,
+            }),
+          );
+          if (transition === 'not_transitioned') {
+            logger.info(
+              { rowId: row.id, eventId: row.eventId },
+              'appointment_reminder_retry_transition_skipped_after_concurrent_terminalization',
+            );
+          }
+          return;
+        }
       }
       await handleDispatchFailure(db, row, err, writePort, intent);
       return;

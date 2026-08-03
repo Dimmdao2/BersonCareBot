@@ -15,7 +15,7 @@
     "test": "vitest --run",
     "test:e2e": "RUN_E2E_TESTS=true vitest --run e2e/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src && node ../../scripts/check-queue-port-boundary.mjs",
+    "lint": "eslint src && node ../../scripts/check-queue-port-boundary.mjs && tsx src/infra/scripts/check-no-legacy-message-retry-producers.ts",
     "migrate": "tsx src/infra/db/migrate.ts",
     "db:migrate": "tsx src/infra/db/migrate.ts",
     "db:migrate:prod": "node dist/infra/db/migrate.js",
@@ -29,7 +29,8 @@
     "projection-health:host": "node dist/infra/scripts/projection-health.js",
     "check:d30-scheduler-lock-concurrency": "tsx src/infra/scripts/check-d30-scheduler-lock-concurrency.ts",
     "check:d30-outgoing-delivery-claim-concurrency": "tsx src/infra/scripts/check-d30-outgoing-delivery-claim-concurrency.ts",
-    "check:d30-idempotency-key-concurrency": "tsx src/infra/scripts/check-d30-idempotency-key-concurrency.ts"
+    "check:d30-idempotency-key-concurrency": "tsx src/infra/scripts/check-d30-idempotency-key-concurrency.ts",
+    "check:d30-no-legacy-message-retry-producers": "tsx src/infra/scripts/check-no-legacy-message-retry-producers.ts"
   },
   "engines": {
     "node": ">=22"

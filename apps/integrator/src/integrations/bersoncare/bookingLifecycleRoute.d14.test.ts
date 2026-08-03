@@ -1,17 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { enqueueMessageRetryJob, cancelPendingBookingReminderJobsByBookingId } = vi.hoisted(() => ({
-  enqueueMessageRetryJob: vi.fn(async () => undefined),
-  cancelPendingBookingReminderJobsByBookingId: vi.fn(async () => undefined),
-}));
-
 vi.mock('../../infra/db/client.js', () => ({ createDbPort: vi.fn(() => ({})) }));
 vi.mock('../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js', () => ({
   loadAdminMessengerIdLists: vi.fn(async () => ({ telegram: ['777'], max: [] })),
-}));
-vi.mock('../../infra/db/repos/jobQueue.js', () => ({
-  cancelPendingBookingReminderJobsByBookingId,
-  enqueueMessageRetryJob,
 }));
 vi.mock('../../infra/adapters/deliveryTargetsPort.js', () => ({
   createDeliveryTargetsPort: vi.fn(() => ({
@@ -38,7 +29,9 @@ function basePayload() {
   bookingCounter += 1;
   return {
     bookingId: `11111111-1111-1111-1111-11111111${String(bookingCounter).padStart(4, '0')}`,
-    userId: 'user-1',
+    organizationId: '10000000-0000-4000-8000-000000000001',
+    canonicalAppointmentId: '20000000-0000-4000-8000-000000000002',
+    userId: '30000000-0000-4000-8000-000000000003',
     bookingType: 'in_person' as const,
     category: 'general' as const,
     slotStart: '2027-01-02T12:00:00.000Z',
@@ -52,11 +45,18 @@ function fakeDispatchPort(): DispatchPort {
   return { dispatchOutgoing: vi.fn(async () => ({})) } as unknown as DispatchPort;
 }
 
-function fakeWebappEventsPort(): WebappEventsPort & { notifyPatientWebPush: ReturnType<typeof vi.fn> } {
+function fakeWebappEventsPort(): WebappEventsPort & {
+  notifyPatientWebPush: ReturnType<typeof vi.fn>;
+  materializeAppointmentReminders: ReturnType<typeof vi.fn>;
+} {
   return {
     emit: vi.fn(async () => ({ ok: true, status: 200 })),
     notifyPatientWebPush: vi.fn(async () => undefined),
-  } as unknown as WebappEventsPort & { notifyPatientWebPush: ReturnType<typeof vi.fn> };
+    materializeAppointmentReminders: vi.fn(async () => ({ ok: true, status: 200 })),
+  } as unknown as WebappEventsPort & {
+    notifyPatientWebPush: ReturnType<typeof vi.fn>;
+    materializeAppointmentReminders: ReturnType<typeof vi.fn>;
+  };
 }
 
 describe('D14(1): webapp decides whether to cancel pending reminders', () => {
@@ -66,38 +66,48 @@ describe('D14(1): webapp decides whether to cancel pending reminders', () => {
 
   it('cancels when the webapp says cancel (or says nothing)', async () => {
     const dispatchPort = fakeDispatchPort();
+    const webappEventsPort = fakeWebappEventsPort();
     await handleBookingLifecycleEvent(
       {
         eventType: 'booking.cancelled',
         payload: { ...basePayload(), cancelPendingReminders: true },
       },
       dispatchPort,
-      { idempotencyPort: createInMemoryIdempotencyPort() },
+      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
-    expect(cancelPendingBookingReminderJobsByBookingId).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body)).toMatchObject({
+      cancelPending: true,
+      reminderPlan: { enabled: false, offsetsMinutes: [] },
+    });
   });
 
   it('does not cancel when the webapp says do not cancel', async () => {
     const dispatchPort = fakeDispatchPort();
+    const webappEventsPort = fakeWebappEventsPort();
     await handleBookingLifecycleEvent(
       {
         eventType: 'booking.cancelled',
         payload: { ...basePayload(), cancelPendingReminders: false },
       },
       dispatchPort,
-      { idempotencyPort: createInMemoryIdempotencyPort() },
+      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
-    expect(cancelPendingBookingReminderJobsByBookingId).not.toHaveBeenCalled();
+    expect(JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body)).toMatchObject({
+      cancelPending: false,
+    });
   });
 
   it('keeps the previous always-cancel behavior when the field is absent', async () => {
     const dispatchPort = fakeDispatchPort();
+    const webappEventsPort = fakeWebappEventsPort();
     await handleBookingLifecycleEvent(
       { eventType: 'booking.cancelled', payload: basePayload() },
       dispatchPort,
-      { idempotencyPort: createInMemoryIdempotencyPort() },
+      { idempotencyPort: createInMemoryIdempotencyPort(), webappEventsPort },
     );
-    expect(cancelPendingBookingReminderJobsByBookingId).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(webappEventsPort.materializeAppointmentReminders.mock.calls[0]![0].body)).toMatchObject({
+      cancelPending: true,
+    });
   });
 });
 
