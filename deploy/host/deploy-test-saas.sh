@@ -1441,7 +1441,14 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # assert the final exact EXECUTE sets: API login only for the first two, API login + delivery worker
   # for incident open/touch, and delivery worker only for reclaim config (besides owner EXECUTE).
   # Migration 0327 merely replays 0318's existing payment-provider function and is count-neutral.
-  local expected_secdef_count=148
+  # 148 -> 149 (2026-08-03, #1057 live checkout): migration 0332 adds exactly one reviewed
+  # app_owner SECURITY DEFINER capability,
+  # app.read_current_org_tariff_transition_usage(). It accepts no organization argument, derives
+  # only app.current_org_id(), reads public.be_branches directly and delegates the other counts to
+  # the already-reviewed app.read_org_enforced_quota_usage(uuid). All five underlying SELECT grants
+  # are already pinned in the required set above; app_clinic_billing gets only this wrapper's
+  # EXECUTE and no direct source-table access, asserted by C5A's exact wall.
+  local expected_secdef_count=149
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
