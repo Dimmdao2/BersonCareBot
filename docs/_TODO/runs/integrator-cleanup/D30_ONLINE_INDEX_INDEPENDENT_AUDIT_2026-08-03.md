@@ -1,6 +1,22 @@
 # D30 online-index deploy boundary — independent audit (2026-08-03)
 
-## Verdict: MUST FIX
+## Verdict: FIXED; root acceptance/land pending
+
+The bounded fixer replaced the ineffective `\quit 1` with a real SQL error under `ON_ERROR_STOP`, so PostgreSQL
+16 now returns non-zero for every final-definition mismatch. The structural gate requires that fail-closed
+statement. `check-d30-outgoing-delivery-claim-concurrency.ts` now exercises the artifact against a fresh
+unix-socket-only PostgreSQL lifecycle: the old implementation failed the new piece 4d because the exact
+same-name wrong-order index returned exit `0`; after the fix the wrong-order fixture returns non-zero with the
+operator diagnostic, while missing-index creation and idempotent retry both return `0` and leave the exact
+valid/ready ordered keys.
+
+Fix verification repeated the runner/journal/layout gates, shell syntax for all four wrappers, D30 targeted
+tests (`3` webapp; `51` integrator with `3` skipped), both typechecks, scoped ESLint, raw-SQL/queue gates and all
+three disposable D30 concurrency scripts. A temporary removal of the real SQL error was rejected with
+`d30_online_index_artifact_invalid missing=fail_closed_psql_error`. No DEV/TEST/PROD database, service or port
+was touched; D30 Ш3 remains open.
+
+## Original finding
 
 `deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql` does not fail its caller when a same-name index is valid but incompatible. On disposable PostgreSQL 16, this command completed with **exit 0** while the index remained ordered `(status, organization_id, next_retry_at)`:
 

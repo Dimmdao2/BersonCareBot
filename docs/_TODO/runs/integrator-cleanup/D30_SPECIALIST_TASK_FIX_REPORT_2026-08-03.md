@@ -71,6 +71,21 @@ Validation in this correction:
 No DEV, TEST, or PROD mutation was performed. D30 Ш3 remains open: DEV apply and live specialist-task delivery
 proof are still pending.
 
+### Online-index caller fail-closed correction
+
+Independent PostgreSQL 16 audit proved that `\quit 1` printed the expected `FATAL` diagnostic but still returned
+exit `0` for a valid same-name index with incompatible ordered keys, allowing all wrappers to continue. The
+artifact now raises a real SQL error under `ON_ERROR_STOP`; the migration layout gate requires this exact
+fail-closed mechanism.
+
+The existing disposable outgoing-delivery concurrency script gained piece 4d. Red-first, it failed against the
+old artifact because the incompatible valid index returned `0`. After the fix it proves non-zero plus the
+operator diagnostic for `(status, organization_id, next_retry_at)`, then proves successful creation, valid/ready
+keys `(organization_id, status, next_retry_at)` and an idempotent second run. Removing the SQL-error statement
+temporarily makes `--check-online-index-layout` fail with `missing=fail_closed_psql_error`. Runner/journal,
+wrapper syntax, targeted tests, both typechecks, scoped lint, raw-SQL/queue gates and all three disposable D30
+concurrency scripts pass. No environment was mutated; Ш3 stays open.
+
 ## R2 command record
 
 ```bash

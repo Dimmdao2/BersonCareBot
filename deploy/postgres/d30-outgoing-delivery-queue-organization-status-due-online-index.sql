@@ -57,5 +57,5 @@ SELECT EXISTS (
 \if :d30_queue_organization_status_due_index_ready
 \else
 \echo 'FATAL: D30 outgoing delivery queue online index is missing, invalid, or has an incompatible definition'
-\quit 1
+SELECT 1 / 0; -- psql 16 ignores \quit's status argument; ON_ERROR_STOP must propagate a real SQL error.
 \endif

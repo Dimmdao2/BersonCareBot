@@ -67,6 +67,7 @@ export function validateD30OnlineIndexArtifact(source) {
     [/index_state\.indexprs IS NULL/, 'expression_free_assertion'],
     [/index_state\.indpred IS NULL/, 'non_partial_assertion'],
     [/ARRAY\['organization_id', 'status', 'next_retry_at'\]::text\[\]/, 'ordered_key_columns_assertion'],
+    [/SELECT 1 \/ 0;[^\n]*ON_ERROR_STOP/m, 'fail_closed_psql_error'],
   ];
   const missing = requiredPatterns
     .filter(([pattern]) => !pattern.test(source))
