@@ -189,7 +189,11 @@ function processUnderWorkerTick(h: Harness, row: OutgoingDeliveryQueueRow): Prom
 
 describe('воркер доставки: строка без разрешимого арендатора не отправляется «под текущим»', () => {
   it('delivers a ready specialist-task transport intent under its row tenant without product-policy reads', async () => {
-    const h = harness({ queue_kind: 'specialist_task_reminder', organization_id: OWNER_ORG, resolution: 'tenant' });
+    const h = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
     const row = queueRow('specialist_task_reminder');
 
     await processUnderWorkerTick(h, row);
@@ -200,8 +204,7 @@ describe('воркер доставки: строка без разрешимо�
       {
         type: 'specialistTask.reminder.markSent',
         params: {
-          taskId: 'a0000000-0000-4000-8000-00000000000a',
-          sentAt: expect.any(String),
+          queueId: ROW_ID,
         },
       },
     ]);
@@ -209,7 +212,11 @@ describe('воркер доставки: строка без разрешимо�
   });
 
   it('keeps retryable generic transport failure durable and dead-letters permanent failure', async () => {
-    const retry = harness({ queue_kind: 'specialist_task_reminder', organization_id: OWNER_ORG, resolution: 'tenant' });
+    const retry = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
     retry.dispatchOutgoing = async () => {
       throw new Error('temporary_provider_failure');
     };
@@ -218,7 +225,11 @@ describe('воркер доставки: строка без разрешимо�
     expect(retry.writes).toEqual([]);
     expect(retry.markedSent).toBe(0);
 
-    const permanent = harness({ queue_kind: 'specialist_task_reminder', organization_id: OWNER_ORG, resolution: 'tenant' });
+    const permanent = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
     permanent.dispatchOutgoing = async () => {
       throw new Error('CHANNEL_NOT_SUPPORTED:telegram');
     };
@@ -228,11 +239,40 @@ describe('воркер доставки: строка без разрешимо�
     expect(permanent.rescheduled).toBe(0);
   });
 
+  it('does not reschedule transport after an external success when product receipt bookkeeping fails', async () => {
+    const h = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
+    h.writePort.writeDb = async (mutation: DbWriteMutation) => {
+      h.writes.push(mutation);
+      throw new Error('temporary_outcome_store_failure');
+    };
+
+    await processUnderWorkerTick(h, queueRow('specialist_task_reminder'));
+
+    expect(h.dispatched).toHaveLength(1);
+    expect(h.markedSent).toBe(1);
+    expect(h.rescheduled).toBe(0);
+    expect(h.quarantined).toEqual([]);
+    expect(h.writes).toEqual([
+      {
+        type: 'specialistTask.reminder.markSent',
+        params: { queueId: ROW_ID },
+      },
+    ]);
+  });
+
   it('дано: арендатор строки не резолвится → когда обработка → тогда карантин и НИ ОДНОЙ отправки', async () => {
     // Ровно требование карты. Без этой ветки сообщение ушло бы из-под ambient-принципала чужой клиники.
     // АРБИТР: в processClaimedOutgoingDeliveryRowInner() убрать блок `if (scope.kind === 'invalid')`
     // — dispatchOutgoing будет вызван, `dispatched` перестанет быть пустым, тест покраснеет.
-    const h = harness({ queue_kind: 'operator_alert', organization_id: null, resolution: 'unresolved' });
+    const h = harness({
+      queue_kind: 'operator_alert',
+      organization_id: null,
+      resolution: 'unresolved',
+    });
 
     await processUnderForeignTenant(h, queueRow('operator_alert'));
 

@@ -34,7 +34,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 // D20 level-3 F5: a `main()` that returns early must not exit 0 with an empty log. `passedPieces`
 // lives outside `main()` so the completion check below still fires even if `main()` never reaches it.
-const EXPECTED_PIECES = ['piece 4a', 'piece 4b', 'piece 4c', 'piece 4d'] as const;
+const EXPECTED_PIECES = ['piece 4a', 'piece 4b', 'piece 4c', 'piece 4d', 'piece 4e'] as const;
 const passedPieces = new Set<string>();
 
 function reportPiecePass(id: (typeof EXPECTED_PIECES)[number], message: string): void {
@@ -43,6 +43,17 @@ function reportPiecePass(id: (typeof EXPECTED_PIECES)[number], message: string):
 }
 
 const OUTGOING_DELIVERY_QUEUE_DDL = `
+CREATE ROLE app_owner NOLOGIN NOBYPASSRLS;
+CREATE ROLE app_staff NOLOGIN NOBYPASSRLS;
+CREATE ROLE app_patient NOLOGIN NOBYPASSRLS;
+CREATE ROLE app_worker NOLOGIN NOBYPASSRLS;
+CREATE ROLE app_operational_diagnostic NOLOGIN NOBYPASSRLS;
+CREATE ROLE app_operational_delivery_worker LOGIN NOBYPASSRLS;
+CREATE ROLE app_operational_scheduler NOLOGIN NOBYPASSRLS;
+CREATE ROLE app_operational_media_worker NOLOGIN NOBYPASSRLS;
+CREATE SCHEMA app;
+GRANT USAGE, CREATE ON SCHEMA app TO app_owner;
+GRANT USAGE ON SCHEMA app, public TO app_operational_delivery_worker;
 CREATE TABLE public.outgoing_delivery_queue (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   event_id text NOT NULL,
@@ -70,6 +81,13 @@ CREATE UNIQUE INDEX uq_outgoing_delivery_queue_event_id
   ON public.outgoing_delivery_queue (event_id);
 CREATE INDEX idx_outgoing_delivery_queue_due
   ON public.outgoing_delivery_queue (status, next_retry_at);
+CREATE TABLE public.specialist_tasks (
+  id uuid PRIMARY KEY,
+  organization_id uuid NOT NULL,
+  reminder_sent_at timestamptz
+);
+ALTER TABLE public.specialist_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.specialist_tasks FORCE ROW LEVEL SECURITY;
 `;
 
 const D30_ONLINE_INDEX_ARTIFACT = path.resolve(
@@ -78,12 +96,35 @@ const D30_ONLINE_INDEX_ARTIFACT = path.resolve(
   'deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql',
 );
 
+const D30_SPECIALIST_OUTCOME_MIGRATION = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../../..',
+  'apps/webapp/db/drizzle-migrations/9998_d30_specialist_task_delivery_outcome_capability_local.sql',
+);
+
 function runD30OnlineIndexArtifact(connectionString: string) {
   return spawnSync(
     '/usr/lib/postgresql/16/bin/psql',
     ['-d', connectionString, '-X', '-v', 'ON_ERROR_STOP=1', '-f', D30_ONLINE_INDEX_ARTIFACT],
     { encoding: 'utf8' },
   );
+}
+
+function runPsql(connectionString: string, args: readonly string[]) {
+  return spawnSync(
+    '/usr/lib/postgresql/16/bin/psql',
+    ['-d', connectionString, '-X', '-v', 'ON_ERROR_STOP=1', ...args],
+    {
+      encoding: 'utf8',
+    },
+  );
+}
+
+function connectionStringForRole(connectionString: string, role: string): string {
+  assert(/^[a-z_][a-z0-9_]*$/.test(role), 'invalid disposable PostgreSQL role');
+  const prefix = 'postgresql://postgres@/';
+  assert(connectionString.startsWith(prefix), 'unexpected disposable PostgreSQL connection string');
+  return `postgresql://${role}@/${connectionString.slice(prefix.length)}`;
 }
 
 /**
@@ -122,6 +163,7 @@ async function main(): Promise<void> {
   try {
     const {
       claimDueOutgoingDeliveries,
+      deleteExpiredSentOutgoingDeliveries,
       enqueueOutgoingDeliveryIfAbsent,
       resetStaleOutgoingDeliveryProcessing,
       OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS,
@@ -132,6 +174,14 @@ async function main(): Promise<void> {
     const db = createDbPort();
     await runIntegratorSql(db, sql.raw(OUTGOING_DELIVERY_QUEUE_DDL));
     await runIntegratorSql(db, sql.raw(CLAIM_RACE_DELAY_DDL));
+    const outcomeMigration = runPsql(disposable.connectionString, [
+      '-f',
+      D30_SPECIALIST_OUTCOME_MIGRATION,
+    ]);
+    assert(
+      outcomeMigration.status === 0,
+      `specialist outcome capability migration failed: ${outcomeMigration.stderr}`,
+    );
 
     const eventId = `d30-claim-race-${randomUUID()}`;
 
@@ -171,7 +221,10 @@ async function main(): Promise<void> {
         payloadJson: {},
       }),
     );
-    assert(insertedAgain === false, 'repeated enqueue with the same event_id must not insert a second row');
+    assert(
+      insertedAgain === false,
+      'repeated enqueue with the same event_id must not insert a second row',
+    );
 
     const countRes = await runIntegratorSql<{ n: number }>(
       db,
@@ -181,7 +234,10 @@ async function main(): Promise<void> {
       countRes.rows[0]?.n === 1,
       `expected exactly one row for event_id after the repeated enqueue, found ${countRes.rows[0]?.n}`,
     );
-    reportPiecePass('piece 4b', 'repeated enqueue with the same event_id did not create a second row');
+    reportPiecePass(
+      'piece 4b',
+      'repeated enqueue with the same event_id did not create a second row',
+    );
 
     // --- Piece 4c: a stale row at the reclaim cap is dead-lettered, not recycled forever -----
     // F3 control: an already-`sent` row, stale by the same clock, must be left alone by reclaim —
@@ -216,8 +272,9 @@ async function main(): Promise<void> {
     assert(cappedId !== undefined, 'could not insert the capped stale row fixture');
     assert(sentId !== undefined, 'could not insert the sent control row fixture');
 
-    const reclaimResult = await runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
-      resetStaleOutgoingDeliveryProcessing(db, 10, 5),
+    const reclaimResult = await runWithInfraPrincipal(
+      { source: 'worker:outgoing-delivery-tick' },
+      () => resetStaleOutgoingDeliveryProcessing(db, 10, 5),
     );
     assert(
       reclaimResult.deadLettered >= 1,
@@ -232,7 +289,10 @@ async function main(): Promise<void> {
       db,
       sql`SELECT status, sent_at FROM public.outgoing_delivery_queue WHERE id = ${sentId}`,
     );
-    assert(cappedRow.rows[0]?.status === 'dead', 'the capped stale row must end up dead, not pending again');
+    assert(
+      cappedRow.rows[0]?.status === 'dead',
+      'the capped stale row must end up dead, not pending again',
+    );
     assert(
       cappedRow.rows[0]?.failure_class === OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS,
       `expected failure_class ${OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS}, got ${cappedRow.rows[0]?.failure_class}`,
@@ -309,6 +369,142 @@ async function main(): Promise<void> {
     reportPiecePass(
       'piece 4d',
       'online-index artifact failed closed on an incompatible valid index and created/retried the exact index',
+    );
+
+    // --- Piece 4e: locked delivery capability applies the product receipt without table DML ----
+    const outcomeTaskId = randomUUID();
+    const outcomeQueueId = randomUUID();
+    const outcomeOrganizationId = randomUUID();
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.specialist_tasks (id, organization_id)
+          VALUES (${outcomeTaskId}::uuid, ${outcomeOrganizationId}::uuid)`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.outgoing_delivery_queue (
+            id, event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+            next_retry_at, sent_at, organization_id
+          ) VALUES (
+            ${outcomeQueueId}::uuid, ${`d30-outcome-${outcomeQueueId}`},
+            'specialist_task_reminder', 'telegram',
+            ${JSON.stringify({
+              successOutcome: {
+                type: 'specialistTask.reminder.markSent',
+                taskId: outcomeTaskId,
+              },
+            })}::jsonb,
+            'sent', 1, 6, now(), now(), ${outcomeOrganizationId}::uuid
+          )`,
+    );
+
+    const deliveryRoleConnectionString = connectionStringForRole(
+      disposable.connectionString,
+      'app_operational_delivery_worker',
+    );
+    const directDml = runPsql(deliveryRoleConnectionString, [
+      '-c',
+      `UPDATE public.specialist_tasks SET reminder_sent_at = now() WHERE id = '${outcomeTaskId}'::uuid`,
+    ]);
+    assert(
+      directDml.status !== 0,
+      'delivery capability role must not UPDATE specialist_tasks directly',
+    );
+
+    const applyOutcome = runPsql(deliveryRoleConnectionString, [
+      '-qAtc',
+      `SELECT app.apply_specialist_task_reminder_success_outcome('${outcomeQueueId}'::uuid)`,
+    ]);
+    assert(
+      applyOutcome.status === 0 && applyOutcome.stdout.trim().endsWith('t'),
+      `exact delivery outcome capability failed: ${applyOutcome.stderr}`,
+    );
+    const appliedState = await runIntegratorSql<{
+      timestamps_match: boolean;
+      applied_at: string | null;
+    }>(
+      db,
+      sql`SELECT task.reminder_sent_at = delivery.sent_at AS timestamps_match,
+                 delivery.payload_json #>> '{successOutcome,appliedAt}' AS applied_at
+          FROM public.specialist_tasks AS task
+          JOIN public.outgoing_delivery_queue AS delivery ON delivery.id = ${outcomeQueueId}::uuid
+          WHERE task.id = ${outcomeTaskId}::uuid`,
+    );
+    assert(
+      appliedState.rows[0]?.timestamps_match === true,
+      `canonical reminder timestamp must equal the durable transport sent_at: ${JSON.stringify(appliedState.rows[0])}`,
+    );
+    assert(appliedState.rows[0]?.applied_at !== null, 'durable outcome must be marked applied');
+
+    const applyAgain = runPsql(deliveryRoleConnectionString, [
+      '-qAtc',
+      `SELECT app.apply_specialist_task_reminder_success_outcome('${outcomeQueueId}'::uuid)`,
+    ]);
+    assert(
+      applyAgain.status === 0 && applyAgain.stdout.trim().endsWith('f'),
+      'reapplying an already-applied outcome must be an idempotent false',
+    );
+
+    const foreignTaskId = randomUUID();
+    const foreignQueueId = randomUUID();
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.specialist_tasks (id, organization_id)
+          VALUES (${foreignTaskId}::uuid, ${randomUUID()}::uuid)`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.outgoing_delivery_queue (
+            id, event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+            next_retry_at, sent_at, organization_id
+          ) VALUES (
+            ${foreignQueueId}::uuid, ${`d30-outcome-foreign-${foreignQueueId}`},
+            'specialist_task_reminder', 'telegram',
+            ${JSON.stringify({
+              successOutcome: {
+                type: 'specialistTask.reminder.markSent',
+                taskId: foreignTaskId,
+              },
+            })}::jsonb,
+            'sent', 1, 6, now(), now() - interval '2 days', ${randomUUID()}::uuid
+          )`,
+    );
+    const foreignOutcome = runPsql(deliveryRoleConnectionString, [
+      '-qAtc',
+      `SELECT app.apply_specialist_task_reminder_success_outcome('${foreignQueueId}'::uuid)`,
+    ]);
+    assert(foreignOutcome.status !== 0, 'cross-tenant task outcome must fail closed');
+    const foreignState = await runIntegratorSql<{
+      reminder_sent_at: string | null;
+      applied_at: string | null;
+    }>(
+      db,
+      sql`SELECT task.reminder_sent_at::text,
+                 delivery.payload_json #>> '{successOutcome,appliedAt}' AS applied_at
+          FROM public.specialist_tasks AS task
+          JOIN public.outgoing_delivery_queue AS delivery ON delivery.id = ${foreignQueueId}::uuid
+          WHERE task.id = ${foreignTaskId}::uuid`,
+    );
+    assert(
+      foreignState.rows[0]?.reminder_sent_at === null && foreignState.rows[0]?.applied_at === null,
+      'cross-tenant outcome failure must leave both task and durable receipt pending untouched',
+    );
+    await runWithInfraPrincipal({ source: 'delivery-handler' }, () =>
+      deleteExpiredSentOutgoingDeliveries(db, 1),
+    );
+    const retainedPendingOutcome = await runIntegratorSql<{ n: number }>(
+      db,
+      sql`SELECT count(*)::int AS n
+          FROM public.outgoing_delivery_queue
+          WHERE id = ${foreignQueueId}::uuid`,
+    );
+    assert(
+      retainedPendingOutcome.rows[0]?.n === 1,
+      'retention must not delete a sent row while its durable product outcome is pending',
+    );
+    reportPiecePass(
+      'piece 4e',
+      'locked delivery role had no direct task DML, exact capability atomically applied the sent receipt, retry was idempotent, and cross-tenant receipt failed closed',
     );
 
     await closeDb();

@@ -11,7 +11,6 @@ import {
   userReminderOccurrences,
 } from './schema/integratorDomainRepos.js';
 import { messageRetryJobs, projectionOutbox } from './schema/integratorQueues.js';
-import { specialistTasks } from './schema/specialistTasks.js';
 
 export const integratorDrizzleSchema = {
   operatorIncidents,
@@ -25,5 +24,4 @@ export const integratorDrizzleSchema = {
   userReminderOccurrences,
   userReminderDeliveryLogs,
   contentAccessGrants,
-  specialistTasks,
 } as const;

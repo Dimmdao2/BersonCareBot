@@ -97,7 +97,7 @@ import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
 import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
-import { markSpecialistTaskReminderSent } from './repos/specialistTaskReminderOutcome.js';
+import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
@@ -300,10 +300,9 @@ export function createDbWritePort(
           return;
         }
         case 'specialistTask.reminder.markSent': {
-          const taskId = asNonEmptyString(mutation.params.taskId);
-          const sentAt = asNonEmptyString(mutation.params.sentAt);
-          if (!taskId || !sentAt) return;
-          await markSpecialistTaskReminderSent(db, { taskId, sentAt });
+          const queueId = asNonEmptyString(mutation.params.queueId);
+          if (!queueId) return;
+          await applySpecialistTaskReminderSuccessOutcome(db, queueId);
           return;
         }
         case 'user.upsert': {

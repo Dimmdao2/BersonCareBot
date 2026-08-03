@@ -165,6 +165,11 @@ export async function deleteExpiredSentOutgoingDeliveries(
     sql`DELETE FROM public.outgoing_delivery_queue
      WHERE status = 'sent'
        AND sent_at IS NOT NULL
+       AND NOT (
+         kind = 'specialist_task_reminder'
+         AND payload_json ? 'successOutcome'
+         AND payload_json #>> '{successOutcome,appliedAt}' IS NULL
+       )
        AND sent_at < now() - ((${String(d)}::text || ' days')::interval)
      RETURNING id`,
   );
@@ -251,6 +256,26 @@ export async function markOutgoingDeliverySent(db: DbPort, id: string): Promise<
      WHERE id = ${id}
        AND status = 'processing'`,
   );
+}
+
+/** Sent transport rows whose product receipt still needs applying; never claimed for dispatch again. */
+export async function listPendingSpecialistTaskReminderOutcomes(
+  db: DbPort,
+  limit: number,
+): Promise<string[]> {
+  const lim = Math.max(1, Math.trunc(limit));
+  const result = await runIntegratorSql<{ id: string }>(
+    db,
+    sql`SELECT id
+        FROM public.outgoing_delivery_queue
+        WHERE status = 'sent'
+          AND kind = 'specialist_task_reminder'
+          AND payload_json ? 'successOutcome'
+          AND payload_json #>> '{successOutcome,appliedAt}' IS NULL
+        ORDER BY sent_at ASC
+        LIMIT ${lim}`,
+  );
+  return result.rows.map((row) => row.id);
 }
 
 export async function markOutgoingDeliveryDead(

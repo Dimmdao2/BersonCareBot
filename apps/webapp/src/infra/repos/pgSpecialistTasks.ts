@@ -278,6 +278,11 @@ export function createPgSpecialistTasksPort(
           if (!fresh) return;
           const deliveries = await prepareReminderDeliveries(mapRow(fresh));
           for (const delivery of deliveries) await queueWriter.enqueueReady(tx, delivery);
+          await queueWriter.terminalizeUnsentSpecialistTaskReminders(tx, {
+            taskId: task.id,
+            exceptEventIds: deliveries.map((delivery) => delivery.eventId),
+            reason: 'SPECIALIST_TASK_REMINDER_SUPERSEDED',
+          });
           enqueued += deliveries.length;
         });
       }

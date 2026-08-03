@@ -1,15 +1,15 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { specialistTasks } from '../schema/specialistTasks.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
-/** First successful channel wins the canonical timestamp; later channel successes are no-ops. */
-export async function markSpecialistTaskReminderSent(
+/** Applies the durable queue-owned success outcome through the exact DB capability. */
+export async function applySpecialistTaskReminderSuccessOutcome(
   db: DbPort,
-  input: { taskId: string; sentAt: string },
-): Promise<void> {
-  await getIntegratorDrizzleSession(db)
-    .update(specialistTasks)
-    .set({ reminderSentAt: input.sentAt })
-    .where(and(eq(specialistTasks.id, input.taskId), isNull(specialistTasks.reminderSentAt)));
+  queueId: string,
+): Promise<boolean> {
+  const result = await runIntegratorSql<{ applied: boolean }>(
+    db,
+    sql`SELECT app.apply_specialist_task_reminder_success_outcome(${queueId}::uuid) AS applied`,
+  );
+  return result.rows[0]?.applied === true;
 }

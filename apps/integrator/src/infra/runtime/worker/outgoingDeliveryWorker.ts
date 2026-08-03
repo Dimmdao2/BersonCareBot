@@ -31,6 +31,7 @@ import {
   claimDueOutgoingDeliveries,
   markOutgoingDeliveryDead,
   markOutgoingDeliverySent,
+  listPendingSpecialistTaskReminderOutcomes,
   rescheduleOutgoingDeliveryRetry,
   resetStaleOutgoingDeliveryProcessing,
   type OutgoingDeliveryQueueRow,
@@ -71,28 +72,10 @@ export type OutgoingDeliveryWorkerDeps = {
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 };
 
-type DeliverySuccessOutcome = {
-  type: 'specialistTask.reminder.markSent';
-  taskId: string;
-};
-
-function parseDeliverySuccessOutcome(payload: Record<string, unknown>): DeliverySuccessOutcome | null {
-  const candidate = payload.successOutcome;
-  if (candidate === null || typeof candidate !== 'object') return null;
-  const record = candidate as Record<string, unknown>;
-  if (record.type !== 'specialistTask.reminder.markSent') return null;
-  if (typeof record.taskId !== 'string' || record.taskId.trim().length === 0) return null;
-  return { type: record.type, taskId: record.taskId };
-}
-
-async function applyDeliverySuccessOutcome(
-  writePort: DbWritePort,
-  outcome: DeliverySuccessOutcome | null,
-): Promise<void> {
-  if (!outcome) return;
+async function applyDeliverySuccessOutcome(writePort: DbWritePort, queueId: string): Promise<void> {
   await writePort.writeDb({
-    type: outcome.type,
-    params: { taskId: outcome.taskId, sentAt: new Date().toISOString() },
+    type: 'specialistTask.reminder.markSent',
+    params: { queueId },
   });
 }
 
@@ -956,7 +939,6 @@ export async function processOutgoingDeliveryRow(
     try {
       await dispatchOutgoing(intent);
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
-      await applyDeliverySuccessOutcome(writePort, parseDeliverySuccessOutcome(row.payloadJson));
       await queueMarkSent(db, row.id);
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
@@ -964,6 +946,17 @@ export async function processOutgoingDeliveryRow(
         return;
       }
       await handleDispatchFailure(db, row, err, writePort, intent);
+      return;
+    }
+    if (row.kind === 'specialist_task_reminder') {
+      try {
+        await runWithDeliveryQueueCapability(() => applyDeliverySuccessOutcome(writePort, row.id));
+      } catch (err) {
+        logger.error(
+          { err, rowId: row.id, eventId: row.eventId },
+          'specialist_task_reminder_success_outcome_deferred',
+        );
+      }
     }
     return;
   }
@@ -1033,6 +1026,20 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
   batchSize: number;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 }): Promise<{ claimed: number; processed: number; errors: number }> {
+  const pendingOutcomeQueueIds = await listPendingSpecialistTaskReminderOutcomes(
+    input.db,
+    input.batchSize,
+  );
+  for (const queueId of pendingOutcomeQueueIds) {
+    try {
+      await applyDeliverySuccessOutcome(input.writePort, queueId);
+    } catch (err) {
+      logger.error(
+        { err, rowId: queueId },
+        'specialist_task_reminder_success_outcome_retry_failed',
+      );
+    }
+  }
   const reclaimConfig = await getOutgoingDeliveryReclaimConfig(input.db);
   await resetStaleOutgoingDeliveryProcessing(
     input.db,
