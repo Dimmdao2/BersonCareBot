@@ -263,7 +263,8 @@ VALUES
   ('public', 'user_password_credentials', 'BOOTSTRAP'),
   ('public', 'user_phone_history', 'BOOTSTRAP'),
   ('public', 'user_pins', 'BOOTSTRAP'),
-  ('public', 'user_web_push_subscriptions', 'BOOTSTRAP');
+  ('public', 'user_web_push_subscriptions', 'BOOTSTRAP'),
+  ('public', 'webapp_reminder_occurrences', 'SCOPED');
 
 \if :{?p0_5_down}
 \echo 'P0.5 role split DOWN: revoking app grants and dropping roles when unused.'

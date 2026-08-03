@@ -7,7 +7,6 @@ integrator.question_messages
 integrator.user_questions
 integrator.user_reminder_delivery_logs
 integrator.user_reminder_occurrences
-integrator.user_reminder_rules
 public.admin_audit_log
 public.broadcast_audit
 public.broadcast_audit_recipients
