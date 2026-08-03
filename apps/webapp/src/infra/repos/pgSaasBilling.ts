@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
@@ -1041,18 +1042,29 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       });
     },
 
+    // B0.3 (#1057): runs under the bootstrap principal, before the organization is known — the
+    // plain table SELECT this used to be is unreachable there (only `app_clinic_billing` can read
+    // `saas_billing_invoices`, and the bootstrap connection never becomes it). Read through the
+    // narrow SECURITY DEFINER resolver instead; it returns only the four fields this lookup needs.
     async findSaasBillingInvoiceByProviderRef({ providerId, providerInvoiceRef }) {
-      const [row] = await getDrizzle()
-        .select()
-        .from(saasBillingInvoices)
-        .where(
-          and(
-            eq(saasBillingInvoices.providerId, providerId),
-            eq(saasBillingInvoices.providerInvoiceRef, providerInvoiceRef),
-          ),
-        )
-        .limit(1);
-      return row ? toSaasBillingInvoice(row) : null;
+      const result = await runWebappPgText<{
+        id: string;
+        organization_id: string;
+        amount_minor: number;
+        currency: string;
+      }>(
+        `SELECT * FROM app.resolve_saas_billing_invoice_for_webhook($1::text, $2::text)`,
+        [providerId, providerInvoiceRef],
+      );
+      const row = result.rows[0];
+      return row
+        ? {
+            id: row.id,
+            organizationId: row.organization_id,
+            amountMinor: row.amount_minor,
+            currency: row.currency,
+          }
+        : null;
     },
 
     /** К4 — same join as `createSaasBillingInvoice`; amount/description/expiry are admin input, not derived. */
