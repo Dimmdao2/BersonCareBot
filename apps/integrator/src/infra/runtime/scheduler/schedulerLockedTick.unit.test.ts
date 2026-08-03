@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSchedulerLockedTickCoordinator } from './schedulerLockedTick.js';
 
-function deferred(): { promise: Promise<number>; resolve: (value: number) => void } {
-  let resolve!: (value: number) => void;
-  const promise = new Promise<number>((done) => {
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
     resolve = done;
   });
   return { promise, resolve };
@@ -48,8 +48,14 @@ describe('scheduler leader cadence', () => {
     const unhandledRejection = vi.fn();
     process.on('unhandledRejection', unhandledRejection);
     try {
+      const reporterEntered = deferred<void>();
+      const reporterRelease = deferred<void>();
       const runOrganizationTicks = vi.fn().mockRejectedValue(new Error('organization rejected'));
-      const onOrganizationTickError = vi.fn().mockRejectedValue(new Error('reporter rejected'));
+      const onOrganizationTickError = vi.fn(async () => {
+        reporterEntered.resolve(undefined);
+        await reporterRelease.promise;
+        throw new Error('reporter rejected');
+      });
       const coordinator = createSchedulerLockedTickCoordinator({
         assertLockStillHeld: vi.fn(async () => undefined),
         runOrganizationTicks,
@@ -58,14 +64,30 @@ describe('scheduler leader cadence', () => {
       });
 
       await coordinator.runTick();
+      await reporterEntered.promise;
+      // Drain the catch/finally continuation. With `void onOrganizationTickError(...)` the tracked
+      // sweep is now falsely complete; with the required `await`, it remains behind this barrier.
+      await Promise.resolve();
+      await Promise.resolve();
+      let firstSweepObserved = false;
+      const firstSweep = coordinator.waitForOrganizationTick().then(() => {
+        firstSweepObserved = true;
+      });
+      await Promise.resolve();
+
+      const observedBeforeReporterSettled = firstSweepObserved;
+      await coordinator.runTick();
+      const sweepsWhileReporterPending = runOrganizationTicks.mock.calls.length;
+
+      reporterRelease.resolve(undefined);
+      await firstSweep;
       await new Promise<void>((resolve) => setImmediate(resolve));
-      await coordinator.waitForOrganizationTick();
 
       expect(unhandledRejection).not.toHaveBeenCalled();
-      expect(runOrganizationTicks).toHaveBeenCalledTimes(1);
+      expect(observedBeforeReporterSettled).toBe(false);
+      expect(sweepsWhileReporterPending).toBe(1);
 
       await coordinator.runTick();
-      await new Promise<void>((resolve) => setImmediate(resolve));
       await coordinator.waitForOrganizationTick();
 
       expect(unhandledRejection).not.toHaveBeenCalled();
@@ -77,7 +99,7 @@ describe('scheduler leader cadence', () => {
   });
 
   it('keeps health cadence moving while one slow organization sweep is behind a barrier', async () => {
-    const sweep = deferred();
+    const sweep = deferred<number>();
     const runOrganizationTicks = vi.fn(() => sweep.promise);
     const runOperatorHealthProbeTick = vi.fn(async () => false);
     const assertLockStillHeld = vi.fn(async () => undefined);
