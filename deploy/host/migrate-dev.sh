@@ -15,6 +15,7 @@ REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 DEV_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
 SAFE_MIGRATION_ENV="$REPO_ROOT/deploy/env/empty.local-migration.env"
+D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX="deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql"
 APP_OWNER_MEMBERSHIP_ADDED=0
 APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
 TARGET_ROLE_BYPASS_ENABLED=0
@@ -181,6 +182,10 @@ assert_canonical_file \
   "$SAFE_MIGRATION_ENV" \
   "$REPO_ROOT/deploy/env/empty.local-migration.env" \
   "safe migration env"
+assert_canonical_file \
+  "$REPO_ROOT/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX" \
+  "$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql" \
+  "D30 online index artifact"
 
 if grep -Eqv '^[[:space:]]*(#.*)?$' "$SAFE_MIGRATION_ENV"; then
   fatal "safe migration env must contain comments/blank lines only"
@@ -252,6 +257,18 @@ run_tracked env -i \
   WEBAPP_ENV_FILE="$SAFE_MIGRATION_ENV" \
   PGCONNECT_TIMEOUT=10 \
   pnpm run migrate
+
+# 0328 commits first; this hot-table index must run as a separate autocommit psql operation.
+run_tracked env -i \
+  PATH="$SANITIZED_PATH" \
+  PGHOST=127.0.0.1 \
+  PGPORT=5432 \
+  PGUSER="$TARGET_ROLE" \
+  PGDATABASE="$TARGET_DB" \
+  PGPASSFILE="$PGPASS_FILE" \
+  PGCONNECT_TIMEOUT=10 \
+  psql -X -v ON_ERROR_STOP=1 \
+  -f "$REPO_ROOT/$D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX"
 
 cleanup_elevation || fatal "failed to revoke temporary DEV app_owner membership"
 

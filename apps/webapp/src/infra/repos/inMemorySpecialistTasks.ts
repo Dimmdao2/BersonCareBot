@@ -94,4 +94,9 @@ export const inMemorySpecialistTasksPort: SpecialistTasksPort = {
     const idx = store.findIndex((t) => t.id === taskId);
     if (idx >= 0) store[idx] = { ...store[idx]!, reminderSentAt: sentAtIso, updatedAt: sentAtIso };
   },
+
+  async enqueueDueReminders(nowIso, limit) {
+    const processed = (await this.listDueReminders(nowIso, limit)).length;
+    return { processed, enqueued: 0 };
+  },
 };

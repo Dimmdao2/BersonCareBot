@@ -248,7 +248,8 @@ export async function markOutgoingDeliverySent(db: DbPort, id: string): Promise<
          sent_at = now(),
          updated_at = now(),
          last_error = NULL
-     WHERE id = ${id}`,
+     WHERE id = ${id}
+       AND status = 'processing'`,
   );
 }
 
@@ -266,7 +267,8 @@ export async function markOutgoingDeliveryDead(
          updated_at = now(),
          last_error = ${lastError},
          failure_class = ${failureClass ?? null}
-     WHERE id = ${id}`,
+     WHERE id = ${id}
+       AND status = 'processing'`,
   );
 }
 
@@ -284,6 +286,7 @@ export async function rescheduleOutgoingDeliveryRetry(
          next_retry_at = now() + ((${String(sec)}::text || ' seconds')::interval),
          updated_at = now(),
          last_error = ${lastError}
-     WHERE id = ${id}`,
+     WHERE id = ${id}
+       AND status = 'processing'`,
   );
 }
