@@ -3,28 +3,7 @@
   "_frozenBaselineComment": "М4 круг 2 (#1081): 'apps' is mechanically required to be a SUBSET of 'frozenBaseline' for every app — check-test-runner-visibility.mjs fails on any path present in 'apps' but absent from 'frozenBaseline'. This is what makes the exclusion list actually shrink-only: a comment saying so is not a gate (M4-4 of M_BLIND_AUDIT_REPORT.md). To legitimately widen the exception list you must edit 'frozenBaseline' itself — a change to this key is its own diff hunk, so it cannot be smuggled in by only appending to 'apps'. Shrinking 'apps' (fixing/removing a file) never requires touching 'frozenBaseline'.",
   "asOf": "2026-08-01",
   "apps": {
-    "webapp": [
-      "src/infra/adminAuditLog.devDb.integration.test.ts",
-      "src/infra/platformUserFullPurge.devDb.integration.test.ts",
-      "src/infra/platformUserMergePreview.devDb.integration.test.ts",
-      "src/infra/repos/orgBrandRevisionGuard.devDb.integration.test.ts",
-      "src/infra/repos/pgAuthRateLimitEvents.devDb.integration.test.ts",
-      "src/infra/repos/pgBookingScheduling.deactivateWorkingHours.devDb.integration.test.ts",
-      "src/infra/repos/pgBookingScheduling.readChokepoint.devDb.integration.test.ts",
-      "src/infra/repos/pgDoctorAnalyticsMetricAccounts.devDb.integration.test.ts",
-      "src/infra/repos/pgDoctorClients.appointmentJoin.devDb.integration.test.ts",
-      "src/infra/repos/pgDoctorClients.devDb.integration.test.ts",
-      "src/infra/repos/pgDoctorPhase13d.devDb.integration.test.ts",
-      "src/infra/repos/pgEmailChallengeAtomicAttempts.devDb.integration.test.ts",
-      "src/infra/repos/pgOtpDecayingLockoutAtomicEscalation.devDb.integration.test.ts",
-      "src/infra/repos/pgPatientBookings.devDb.integration.test.ts",
-      "src/infra/repos/pgPhase14DCommsTail.devDb.integration.test.ts",
-      "src/infra/repos/pgPhoneChallengeAtomicAttempts.devDb.integration.test.ts",
-      "src/infra/repos/pgPlatformUserMerge.devDb.integration.test.ts",
-      "src/infra/repos/pgProgramItemDiscussion.doctorComments.devDb.integration.test.ts",
-      "src/infra/repos/pgSupportCommunication.devDb.integration.test.ts",
-      "src/infra/repos/pgUserProjection.devDb.integration.test.ts"
-    ]
+    "webapp": []
   },
   "frozenBaseline": {
     "webapp": [
