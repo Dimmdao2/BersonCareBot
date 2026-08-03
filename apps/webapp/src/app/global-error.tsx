@@ -7,34 +7,9 @@
  */
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
+import { isChunkLoadFailure } from '@/shared/lib/isChunkLoadFailure';
 import { isStaleServerActionError } from '@/shared/lib/isStaleServerActionError';
 import { safeReload } from '@/shared/lib/safeReload';
-
-function messageLooksLikeChunkFailure(message: string): boolean {
-  const m = message.toLowerCase();
-  return (
-    m.includes('failed to load chunk') ||
-    m.includes('loading chunk') ||
-    m.includes('chunkloaderror') ||
-    m.includes('dynamically imported module') ||
-    m.includes('importing a module script failed') ||
-    m.includes('error loading dynamically imported module') ||
-    m.includes('failed to fetch dynamically imported module')
-  );
-}
-
-function isChunkLoadFailure(error: Error): boolean {
-  const n = (error.name || '').toLowerCase();
-  if (n.includes('chunkload')) return true;
-  if (messageLooksLikeChunkFailure(error.message)) return true;
-  const c = error.cause;
-  if (c instanceof Error) {
-    const cn = (c.name || '').toLowerCase();
-    if (cn.includes('chunkload')) return true;
-    if (messageLooksLikeChunkFailure(c.message)) return true;
-  }
-  return false;
-}
 
 function hardReloadApp(): void {
   if (typeof window === 'undefined') return;
@@ -51,6 +26,7 @@ export default function GlobalError({
   reset: () => void;
 }): ReactNode {
   const staleAutoReloadTriggeredRef = useRef(false);
+  const chunkAutoReloadTriggeredRef = useRef(false);
   const message = error.message || 'Не удалось загрузить страницу.';
   const isChunkError = isChunkLoadFailure(error);
   const isStaleAction = isStaleServerActionError(error);
@@ -60,6 +36,12 @@ export default function GlobalError({
     staleAutoReloadTriggeredRef.current = true;
     void safeReload('stale-server-action');
   }, [isStaleAction]);
+
+  useEffect(() => {
+    if (!isChunkError || chunkAutoReloadTriggeredRef.current) return;
+    chunkAutoReloadTriggeredRef.current = true;
+    void safeReload('chunk-load-error');
+  }, [isChunkError]);
 
   return (
     <html lang="ru">

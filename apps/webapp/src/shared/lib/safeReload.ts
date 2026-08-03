@@ -14,7 +14,7 @@ import {
   RELOAD_WINDOW_MS,
 } from '@/shared/lib/reloadConstants';
 
-type ReloadReason = 'version-mismatch' | 'stale-server-action';
+type ReloadReason = 'version-mismatch' | 'stale-server-action' | 'chunk-load-error';
 
 type ReloadState = {
   lastReloadAt: number;

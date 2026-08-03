@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DEFAULT_SUPPORT_CONTACT_URL } from '@/modules/system-settings/supportContactConstants';
+import { isChunkLoadFailure } from '@/shared/lib/isChunkLoadFailure';
 import { isStaleServerActionError } from '@/shared/lib/isStaleServerActionError';
 import { safeReload } from '@/shared/lib/safeReload';
 import { SupportContactLink } from '@/shared/ui/doctor/SupportContactLink';
@@ -55,11 +56,17 @@ export function SegmentRouteError({
   }, []);
 
   const isStaleAction = isStaleServerActionError(error);
+  const isChunkError = isChunkLoadFailure(error);
 
   useEffect(() => {
     if (!isStaleAction) return;
     void safeReload('stale-server-action');
   }, [isStaleAction]);
+
+  useEffect(() => {
+    if (!isChunkError) return;
+    void safeReload('chunk-load-error');
+  }, [isChunkError]);
 
   const message = error.message || 'Не удалось загрузить раздел.';
   const backFallback = backFallbackHref ?? resolveBackFallback(pathname);
@@ -90,10 +97,14 @@ export function SegmentRouteError({
               void safeReload('stale-server-action');
               return;
             }
+            if (isChunkError) {
+              void safeReload('chunk-load-error');
+              return;
+            }
             reset();
           }}
         >
-          Попробовать снова
+          {isChunkError || isStaleAction ? 'Обновить приложение' : 'Попробовать снова'}
         </Button>
         <SupportContactLink
           href={supportContactHref}
