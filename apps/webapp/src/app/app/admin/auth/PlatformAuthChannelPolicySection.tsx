@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { TriangleAlert } from 'lucide-react';
 import {
   DoctorSection,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/ui/primitives/tooltip';
 import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 
 type PolicyKey = keyof AuthChannelUiPolicy;
@@ -92,12 +99,20 @@ const EMPTY_INDEPENDENT_POLICY: Record<IndependentMethodKey, boolean> = {
   pin: false,
 };
 
-/** Owner ruling 2026-07-24: ON but unconfigured → hidden from the client + this warning next to the toggle. */
-function NotConfiguredWarning() {
+/**
+ * Owner ruling 2026-07-31 (`IDENTITY_AND_MERGE_SCHEME.md` §4): пока канал не настроен, включить
+ * его нельзя — флажок недоступен, рядом иконка с подсказкой «канал не настроен».
+ */
+function NotConfiguredHint() {
   return (
-    <p className="text-xs text-destructive">
-      Включено, но параметры не настроены — скрыто от клиента.
-    </p>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger aria-label="Канал не настроен">
+          <TriangleAlert className="size-4 text-destructive" />
+        </TooltipTrigger>
+        <TooltipContent>Канал не настроен</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -271,17 +286,17 @@ export function PlatformAuthChannelPolicySection() {
         </DoctorSectionHeader>
         <div className="grid gap-4 md:grid-cols-2">
           {CHANNELS.map(({ channel, label, hint }) => (
-            <div key={channel} className="flex flex-col gap-1">
+            <div key={channel} className="flex items-start gap-1.5">
               <LabeledSwitch
                 label={label}
                 hint={hint}
                 checked={policy[channel]}
-                disabled={!loaded || saving !== null}
+                disabled={
+                  !loaded || saving !== null || (!policy[channel] && !channelStatus[channel].configured)
+                }
                 onCheckedChange={(enabled) => void updateChannel(channel, enabled)}
               />
-              {policy[channel] && !channelStatus[channel].configured ? (
-                <NotConfiguredWarning />
-              ) : null}
+              {!channelStatus[channel].configured ? <NotConfiguredHint /> : null}
             </div>
           ))}
         </div>
@@ -295,17 +310,19 @@ export function PlatformAuthChannelPolicySection() {
         </DoctorSectionHeader>
         <div className="grid gap-4 md:grid-cols-2">
           {OAUTH_PROVIDERS.map(({ provider, label, hint }) => (
-            <div key={provider} className="flex flex-col gap-1">
+            <div key={provider} className="flex items-start gap-1.5">
               <LabeledSwitch
                 label={label}
                 hint={hint}
                 checked={oauthPolicy[provider]}
-                disabled={!loaded || saving !== null}
+                disabled={
+                  !loaded ||
+                  saving !== null ||
+                  (!oauthPolicy[provider] && !oauthStatus[provider].configured)
+                }
                 onCheckedChange={(enabled) => void updateOAuthProvider(provider, enabled)}
               />
-              {oauthPolicy[provider] && !oauthStatus[provider].configured ? (
-                <NotConfiguredWarning />
-              ) : null}
+              {!oauthStatus[provider].configured ? <NotConfiguredHint /> : null}
             </div>
           ))}
         </div>

@@ -9,6 +9,7 @@ import { requirePatientAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { patientOnboardingServerActionSurfaceOk } from '@/modules/platform-access';
 import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
+import { getClientVisibleAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
 const authOtpChannelSchema = z.enum(['auto', 'telegram', 'max', 'email', 'sms']);
 
@@ -39,10 +40,11 @@ export async function setPreferredAuthOtpChannelAction(
     );
 
     const order: OtpUiChannel[] = ['telegram', 'max', 'email', 'sms'];
+    const channelPolicy = await getClientVisibleAuthChannelPolicy();
     const available = new Set(
       order.filter((code) => {
         const c = channelCards.find((x) => x.code === code);
-        return c?.isLinked && c?.isImplemented;
+        return c?.isLinked && c?.isImplemented && channelPolicy[code];
       }),
     );
 

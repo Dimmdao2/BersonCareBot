@@ -41,6 +41,9 @@ function deps(providerConfigured: boolean, globalDisabled = false): DeliveryTarg
         return null;
       },
       async setPreferredAuthChannel() {},
+      async getDefaultAuthOtpChannel() {
+        return null;
+      },
     },
     topicChannelPrefsPort: {
       async listByUserId() {

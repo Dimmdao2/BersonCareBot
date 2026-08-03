@@ -15,9 +15,19 @@ import { LogoutSection } from './LogoutSection';
 import { PatientCalendarTimezoneSection } from './PatientCalendarTimezoneSection';
 import { PatientProfileHero } from './PatientProfileHero';
 import { formatPatientGreetingName, type StructuredFio } from '@/shared/lib/fio';
-import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
+import { getAuthChannelPolicy, getClientVisibleAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 import { PasskeySection } from './PasskeySection';
+import { AuthOtpChannelPreference, type AuthOtpOption } from './AuthOtpChannelPreference';
+import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
+
+const AUTH_OTP_CHANNEL_ORDER: readonly OtpUiChannel[] = ['telegram', 'max', 'email', 'sms'];
+const AUTH_OTP_CHANNEL_LABEL: Record<OtpUiChannel, string> = {
+  telegram: 'Telegram',
+  max: 'Max',
+  email: 'Email',
+  sms: 'SMS',
+};
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
@@ -38,6 +48,16 @@ export default async function PatientProfilePage() {
       emailVerified,
     },
   );
+  const [clientVisiblePolicy, resolvedAuthOtpChannel] = await Promise.all([
+    getClientVisibleAuthChannelPolicy(),
+    deps.channelPreferences.resolveAuthOtpChannel(session.user.userId),
+  ]);
+  const authOtpOptions: AuthOtpOption[] = AUTH_OTP_CHANNEL_ORDER.filter((code) => {
+    const card = channelCards.find((c) => c.code === code);
+    return Boolean(card?.isLinked && card?.isImplemented && clientVisiblePolicy[code]);
+  }).map((code) => ({ code, label: AUTH_OTP_CHANNEL_LABEL[code] }));
+  const authOtpShowBindHint =
+    authOtpOptions.length > 0 && authOtpOptions.every((o) => o.code === 'sms');
   const fallbackDisplayName =
     (emailFields.email && emailFields.email.trim()) ||
     (session.user.phone && session.user.phone.trim()) ||
@@ -87,6 +107,15 @@ export default async function PatientProfilePage() {
             channelCards={channelCards}
             channelPolicy={authChannelPolicy}
             showHeading={false}
+          />
+        </section>
+
+        <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Вход по телефону</h2>
+          <AuthOtpChannelPreference
+            options={authOtpOptions}
+            initialSelection={resolvedAuthOtpChannel}
+            showBindHint={authOtpShowBindHint}
           />
         </section>
 

@@ -91,5 +91,14 @@ export function createChannelPreferencesService(
     async setPreferredAuthOtpChannel(userId: string, channel: OtpUiChannel | null): Promise<void> {
       await port.setPreferredAuthChannel(userId, channel);
     },
+    /**
+     * Явный выбор из настроек, если задан; иначе канал, впервые подтвердивший номер
+     * (`IDENTITY_AND_MERGE_SCHEME.md` §3.1). `null`, если ни того ни другого нет.
+     */
+    async resolveAuthOtpChannel(userId: string): Promise<OtpUiChannel | null> {
+      const explicit = channelCodeToOtpUi(await port.getPreferredAuthChannelCode(userId));
+      if (explicit) return explicit;
+      return port.getDefaultAuthOtpChannel(userId);
+    },
   };
 }
