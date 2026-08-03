@@ -14,7 +14,6 @@ import { executeAction } from './executeAction.js';
 const HOME_SCRIPT_IDS = [
   'telegram.phoneauth.cancel.linked',
   'telegram.phoneauth.cancel.text.linked',
-  'telegram.start.setphone',
   'telegram.start',
   'telegram.contact.link.confirm',
   'telegram.cabinet.open',

@@ -259,51 +259,6 @@
     ]
   },
   {
-    "id": "telegram.start.setphone",
-    "source": "telegram",
-    "event": "message.received",
-    "priority": 20,
-    "match": {
-      "input": {
-        "action": "start.setphone"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.phone.link",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "phoneNormalized": "{{input.phone}}"
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.replyKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "telegram:startSetphoneWelcome",
-          "keyboard": [
-            [
-              {
-                "textTemplateKey": "telegram:menu.book"
-              }
-            ]
-          ],
-          "resizeKeyboard": true
-        }
-      }
-    ]
-  },
-  {
     "id": "telegram.start.noticeme",
     "source": "telegram",
     "event": "message.received",
@@ -354,7 +309,6 @@
         "excludeActions": [
           "start.link",
           "start.noticeme",
-          "start.setphone",
           "start.phoneauth",
           "start.set"
         ]
@@ -404,7 +358,6 @@
         "excludeActions": [
           "start.link",
           "start.noticeme",
-          "start.setphone",
           "start.phoneauth",
           "start.set"
         ]

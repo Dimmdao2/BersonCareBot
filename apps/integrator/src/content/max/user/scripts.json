@@ -433,7 +433,6 @@
         "excludeActions": [
           "start.link",
           "start.noticeme",
-          "start.setphone",
           "start.phoneauth",
           "start.set"
         ]
@@ -487,7 +486,6 @@
         "excludeActions": [
           "start.link",
           "start.noticeme",
-          "start.setphone",
           "start.phoneauth",
           "start.set"
         ]
@@ -1246,7 +1244,6 @@
           "cabinet.open",
           "start.link",
           "start.noticeme",
-          "start.setphone",
           "start.phoneauth",
           "start.set",
           "phone.request.cancel"
@@ -1611,7 +1608,6 @@
           "cabinet.open",
           "start.link",
           "start.noticeme",
-          "start.setphone",
           "start.phoneauth",
           "start.set",
           "phone.request.cancel"
