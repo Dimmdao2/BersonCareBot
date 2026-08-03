@@ -28,6 +28,21 @@ export type PaymentReceipt = {
   taxSystemCode?: string;
 };
 
+/**
+ * B0.3 — an adapter throws this from `createIntent` only when the PSP's own response PROVES no
+ * payment was created (e.g. a synchronous 4xx before the request reached processing: bad params,
+ * a rejected/reused idempotency key, auth, rate limit). Callers may safely retry under a FRESH
+ * idempotency key. Any other thrown error (network failure, timeout, 5xx) is ambiguous — the PSP
+ * may have created the payment before failing — and callers must retry under the SAME key so a
+ * retry idempotently replays instead of risking a double charge.
+ */
+export class PaymentProviderRequestRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PaymentProviderRequestRefusedError';
+  }
+}
+
 /** An unfiscalized payment is worse than a loud failure. */
 export function assertReceiptSupported(
   receipt: PaymentReceipt | undefined,

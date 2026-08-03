@@ -901,13 +901,19 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       return Boolean(row);
     },
 
-    async releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
+    async releaseSaasBillingInvoiceProviderIntent(input) {
       await getDrizzle()
         .update(saasBillingInvoices)
-        .set({ status: 'draft', updatedAt: new Date().toISOString() })
+        .set({
+          status: 'draft',
+          updatedAt: new Date().toISOString(),
+          ...(input.rotateProviderIdempotencyKeyTo
+            ? { providerIdempotencyKey: input.rotateProviderIdempotencyKeyTo }
+            : {}),
+        })
         .where(
           and(
-            eq(saasBillingInvoices.id, saasBillingInvoiceId),
+            eq(saasBillingInvoices.id, input.saasBillingInvoiceId),
             eq(saasBillingInvoices.status, 'pending'),
             isNull(saasBillingInvoices.providerInvoiceRef),
           ),

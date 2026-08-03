@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
-import type { PaymentProviderPort, PaymentProviderVerifyResult } from '@/modules/payments/providerPort';
+import {
+  PaymentProviderRequestRefusedError,
+  type PaymentProviderPort,
+  type PaymentProviderVerifyResult,
+} from '@/modules/payments/providerPort';
 import type { TariffDowngradeBlock } from '@/modules/org-entitlements/service';
 import type {
   ResolvedSaasBillingPaymentProvider,
@@ -218,7 +222,20 @@ export function createSaasBillingService(dependencies: {
         providerCheckoutUrl: intent.checkoutUrl ?? null,
       });
     } catch (error) {
-      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.(checkoutInvoice.id);
+      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.({
+        saasBillingInvoiceId: checkoutInvoice.id,
+        // B0.3 — a refusal PROVEN before creation must not leave the next attempt resending a
+        // burned key; an ambiguous failure (network/timeout/5xx) must, so it safely replays instead
+        // of risking a double charge. Same deterministic derivation the manual-retry path uses, so
+        // concurrent retries converge on one new key rather than racing to different ones.
+        rotateProviderIdempotencyKeyTo:
+          error instanceof PaymentProviderRequestRefusedError
+            ? `saas_tariff_refused_retry:${deriveSaasBillingIdempotencyKey([
+                checkoutInvoice.id,
+                checkoutInvoice.providerIdempotencyKey,
+              ])}`
+            : undefined,
+      });
       throw error;
     }
   }
@@ -289,7 +306,9 @@ export function createSaasBillingService(dependencies: {
         providerCheckoutUrl: intent.checkoutUrl ?? null,
       });
     } catch (error) {
-      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.(checkoutInvoice.id);
+      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.({
+        saasBillingInvoiceId: checkoutInvoice.id,
+      });
       throw error;
     }
   }
@@ -388,7 +407,9 @@ export function createSaasBillingService(dependencies: {
         providerCheckoutUrl: intent.checkoutUrl ?? null,
       });
     } catch (error) {
-      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.(invoice.id);
+      await dependencies.repository.releaseSaasBillingInvoiceProviderIntent?.({
+        saasBillingInvoiceId: invoice.id,
+      });
       throw error;
     }
   }
