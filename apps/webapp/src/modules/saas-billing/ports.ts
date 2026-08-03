@@ -104,6 +104,7 @@ export type SaasBillingProviderEventReadRow = {
 
 export type SaasBillingOverview = {
   organizationId: string;
+  billingEmail: string | null;
   subscriptions: SaasBillingSubscriptionReadRow[];
   invoices: SaasBillingInvoiceReadRow[];
   providerEvents: SaasBillingProviderEventReadRow[];
@@ -313,6 +314,10 @@ export type SaasBillingManualAssignmentTransactionPort = {
 export type SaasBillingRepositoryPort = {
   /** Billing-account contact is the payer email sent to the fiscal receipt. */
   getSaasBillingAccountBillingEmail(organizationId: string): Promise<string | null>;
+  updateSaasBillingAccountBillingEmail(input: {
+    organizationId: string;
+    billingEmail: string;
+  }): Promise<string>;
   getOrganizationBillingOverview(organizationId: string): Promise<SaasBillingOverview>;
   /** Active public tariff names available to the caller's own clinic billing screen. */
   listActiveTariffChoices(): Promise<Array<{ id: string; name: string }>>;

@@ -71,6 +71,7 @@ export function createInMemorySaasBillingRepository(
   const invoices = new Map<string, SaasBillingInvoice>();
   const events = new Map<string, SaasBillingProviderEventReadRow>();
   const refunds = new Map<string, SaasBillingRefund>();
+  const billingEmails = new Map<string, string>();
   const tariffs = new Map((input.tariffs ?? []).map((tariff) => [tariff.id, tariff]));
 
   /** К4 round 2 — same shared point as `insertSaasBillingInvoiceIdempotent` in the pg repository:
@@ -91,13 +92,19 @@ export function createInMemorySaasBillingRepository(
   }
 
   return {
-    async getSaasBillingAccountBillingEmail() {
-      return null;
+    async getSaasBillingAccountBillingEmail(organizationId) {
+      return billingEmails.get(organizationId) ?? null;
+    },
+    async updateSaasBillingAccountBillingEmail({ organizationId, billingEmail }) {
+      const normalizedEmail = billingEmail.trim().toLowerCase();
+      billingEmails.set(organizationId, normalizedEmail);
+      return normalizedEmail;
     },
     async getOrganizationBillingOverview(organizationId) {
       const now = new Date().toISOString();
       return {
         organizationId,
+        billingEmail: billingEmails.get(organizationId) ?? null,
         subscriptions: [...rows.values()]
           .filter((row) => row.organizationId === organizationId)
           .map((row) => ({

@@ -82,7 +82,9 @@ export function BillingSection({
           </span>
         </div>
         <p className="text-sm text-muted-foreground">{commercialStateLabel}</p>
-        {tariffName !== null && <PayTariffButton tariffChange={tariffChange} />}
+        {tariffName !== null && (
+          <PayTariffButton tariffChange={tariffChange} billingEmail={billing.billingEmail} />
+        )}
         {tariffName !== null && (
           <AutopayToggleButton
             subscription={

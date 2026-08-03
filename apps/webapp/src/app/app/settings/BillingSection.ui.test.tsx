@@ -9,6 +9,7 @@ afterEach(() => {
 
 const emptyBilling = {
   organizationId: 'org',
+  billingEmail: null,
   subscriptions: [],
   invoices: [],
   providerEvents: [],
