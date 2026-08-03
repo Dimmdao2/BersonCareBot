@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { logger, serializeError } from '@/infra/logging/logger';
 import { requireDoctorBookingEngine } from '../booking-engine/_requireDoctorBookingEngine';
@@ -26,6 +27,12 @@ const KpisQuerySchema = z.object({
 export async function GET(req: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
+
+  const entitlement = await requireEntitlementForRead(
+    { organizationId: gate.ctx.organizationId },
+    'doctor_statistics',
+  );
+  if (!entitlement.ok) return entitlement.response;
 
   const url = new URL(req.url);
   const raw = {
