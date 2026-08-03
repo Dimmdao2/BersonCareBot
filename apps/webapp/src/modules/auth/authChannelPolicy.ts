@@ -57,7 +57,7 @@ export async function getClientVisibleAuthChannelPolicy(): Promise<AuthChannelPo
  * The independent admin toggle (`auth_oauth_*_enabled`) is decoupled from credential presence.
  * "Configured" is the credential-derived public projection maintained by the DB trigger.
  */
-export type OAuthProvider = 'google' | 'yandex' | 'apple';
+export type OAuthProvider = 'google' | 'yandex' | 'apple' | 'vk';
 export type OAuthProviderDetail = Readonly<{ enabled: boolean; configured: boolean }>;
 export type OAuthProviderPolicyDetail = Readonly<Record<OAuthProvider, OAuthProviderDetail>>;
 
@@ -65,12 +65,14 @@ const OAUTH_TOGGLE_SETTING_BY_PROVIDER = {
   google: 'auth_oauth_google_enabled',
   yandex: 'auth_oauth_yandex_enabled',
   apple: 'auth_oauth_apple_enabled',
+  vk: 'auth_oauth_vk_enabled',
 } as const;
 
 const OAUTH_CONFIGURED_SETTING_BY_PROVIDER = {
   google: 'oauth_google_enabled',
   yandex: 'oauth_yandex_enabled',
   apple: 'oauth_apple_enabled',
+  vk: 'oauth_vk_enabled',
 } as const;
 
 async function isOAuthProviderConfigured(provider: OAuthProvider): Promise<boolean> {
@@ -91,7 +93,7 @@ export async function isOAuthProviderEnabled(provider: OAuthProvider): Promise<b
 
 /** Admin-only detail view for the OAuth toggles (raw toggle + configuration status). */
 export async function getOAuthProviderPolicyDetail(): Promise<OAuthProviderPolicyDetail> {
-  const providers: readonly OAuthProvider[] = ['google', 'yandex', 'apple'];
+  const providers: readonly OAuthProvider[] = ['google', 'yandex', 'apple', 'vk'];
   const entries = await Promise.all(
     providers.map(async (provider) => {
       const [enabled, configured] = await Promise.all([

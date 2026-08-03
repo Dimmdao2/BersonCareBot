@@ -1,4 +1,4 @@
-export type OauthProvider = 'google' | 'apple' | 'yandex';
+export type OauthProvider = 'google' | 'apple' | 'yandex' | 'vk';
 
 export type OAuthBindingsPort = {
   listProvidersForUser(userId: string): Promise<OauthProvider[]>;

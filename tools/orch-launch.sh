@@ -216,7 +216,12 @@ if [ -n "${ORCH_JOB:-}" ]; then
 else
   MODEL_ARGS=(--model "$MODEL" --effort "$EFFORT")
 fi
-nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
+# `setsid` уводит порт в СВОЮ сессию: иначе lifecycle-cleanup вызывающего shell шлёт SIGTERM всей
+# процесс-группе, `host-agent-run.mjs` пробрасывает его дочернему `claude -p`, и живой прогон умирает
+# с `exit 143` посреди работы. 03.08 так потеряны два прогона живой оплаты (43-я и 67-я минута), причём
+# в логе реапера записей об этих убийствах нет — убивал не он. `nohup` тут не помогает: он глушит
+# SIGHUP, а приходит SIGTERM.
+setsid nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
   --role "$ROLE_FOR_PORT" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
   < "$BRIEF" > "$LOG" 2>&1 &
 AGENT_PID=$!

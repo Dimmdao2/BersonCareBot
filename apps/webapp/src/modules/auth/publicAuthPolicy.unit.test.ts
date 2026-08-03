@@ -100,6 +100,7 @@ describe('public auth policy', () => {
     ['google', 'auth_oauth_google_enabled', 'oauth_google_enabled'],
     ['yandex', 'auth_oauth_yandex_enabled', 'oauth_yandex_enabled'],
     ['apple', 'auth_oauth_apple_enabled', 'oauth_apple_enabled'],
+    ['vk', 'auth_oauth_vk_enabled', 'oauth_vk_enabled'],
   ] as const)(
     'uses the %s public configured projection as the OAuth availability answer',
     async (provider, toggleKey, configuredKey) => {

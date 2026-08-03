@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  isOAuthProviderEnabled: vi.fn<(provider: 'google' | 'yandex' | 'apple') => Promise<boolean>>(),
+  isOAuthProviderEnabled: vi.fn<(provider: 'google' | 'yandex' | 'apple' | 'vk') => Promise<boolean>>(),
   resolveRateLimitClientKey: vi.fn(),
   isRateLimited: vi.fn<() => Promise<boolean>>(),
   recordFailure: vi.fn(),
@@ -75,6 +75,7 @@ describe('public OAuth provider boundary', () => {
       yandex: true,
       google: true,
       apple: false,
+      vk: true,
     });
 
     const startResponse = await startOAuth(
