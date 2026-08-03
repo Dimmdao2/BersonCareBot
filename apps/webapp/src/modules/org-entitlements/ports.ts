@@ -57,10 +57,10 @@ export type OrgEntitlementsPort = {
   getEnforcedQuotaUsage(organizationId: string): Promise<Partial<Record<OrgMechanic, number>>>;
   /**
    * §5a stage 6.1 — the clinic's own "used out of included" numbers, for the caller's own
-   * organization. Reads the same tables and formulas as each mechanic's write-path quota check
-   * (`transactionQuotaPort.ts` callers), under the ordinary staff principal — every source table is
-   * already row-level-security-scoped to the caller's own organization, so this needs no platform
-   * (`app_platform_settings`) privilege the way `getEnforcedQuotaUsage` does.
+   * organization. Uses the same aggregate formulas as each mechanic's write-path quota check
+   * (`transactionQuotaPort.ts` callers) through a narrow database capability which derives the
+   * organization from the signed request context. The clinic-billing role does not receive direct
+   * access to member, invite, patient or file rows and cannot supply another organization id.
    */
   getOwnQuotaUsage(organizationId: string): Promise<Partial<Record<OrgMechanic, number>>>;
 };
