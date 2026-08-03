@@ -185,12 +185,10 @@ async function promotePaidInvoice(
       status: 'ok',
     });
   }
-  // A first real tariff payment replaces any active trial in the same transaction as the period;
-  // otherwise a paid clinic could later be treated as still trial-bound.
-  if (subscription.currentPeriodEndsAt === null) {
-    await tx.update(saasOrganizationTrials).set({ status: 'ended', updatedAt: new Date().toISOString() })
-      .where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, 'active')));
-  }
+  // A first real tariff payment replaces any active trial in the same transaction as the period.
+  // `applyPaidSaasBillingTariff` above (0350) already ends it -- `app_staff` (this transaction's
+  // role) never held UPDATE on saas_organization_trials, so a direct write here always failed
+  // 42501; folded into the same SECURITY DEFINER accessor instead of granting it.
   return true;
 }
 
