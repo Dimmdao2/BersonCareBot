@@ -753,6 +753,7 @@ export function CommercialConstructorClient() {
         <TabsTrigger value="tariffs">Тарифы</TabsTrigger>
         <TabsTrigger value="organizations">Организации</TabsTrigger>
         <TabsTrigger value="trial">Триал</TabsTrigger>
+        <TabsTrigger value="notifications">Уведомления</TabsTrigger>
       </TabsList>
       {message ? (
         <p className="text-sm text-muted-foreground" role="status">
@@ -1459,6 +1460,110 @@ export function CommercialConstructorClient() {
                 Сохранить правило
               </Button>
             </div>
+          </form>
+        </DoctorSection>
+      </TabsContent>
+
+      <TabsContent
+        value="notifications"
+        className="grid gap-3 xl:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]"
+      >
+        <DoctorSection>
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Тариф</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          <div className="divide-y divide-border/70">
+            {state.tariffs.length === 0 ? (
+              <p className="px-[18px] py-3 text-sm text-muted-foreground">Тарифы ещё не созданы.</p>
+            ) : null}
+            {state.tariffs.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className="flex w-full items-center justify-between gap-3 px-[18px] py-3 text-left text-base font-normal hover:bg-muted/50"
+                onClick={() => setTariff(tariffToDraft(item))}
+              >
+                <span>{item.name}</span>
+                {tariff.id === item.id ? (
+                  <span className="text-xs text-muted-foreground">Выбран</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </DoctorSection>
+
+        <DoctorSection>
+          <form className="space-y-4" onSubmit={saveTariff}>
+            <DoctorSectionHeader>
+              <DoctorSectionTitle>
+                Шаблоны писем{tariff.id ? ` — ${tariff.name}` : ''}
+              </DoctorSectionTitle>
+            </DoctorSectionHeader>
+            {!tariff.id ? (
+              <p className="text-sm text-muted-foreground">
+                Выберите тариф слева, чтобы править его триггеры и тексты.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Полноценный редактор — форматирование и картинки, как в рассылках врача.
+                  Льготные триггеры («Льготный период начат/завершён») уходят только тем клиникам,
+                  которые ещё не оплатили после триала.
+                </p>
+                {tariff.systemAccessPolicy ? (
+                  <AccessNotificationsEditor
+                    title="Доступ к системе"
+                    rows={tariff.systemAccessPolicy.notifications}
+                    onChange={(notifications) =>
+                      setTariff((current) => ({
+                        ...current,
+                        systemAccessPolicy: current.systemAccessPolicy
+                          ? { ...current.systemAccessPolicy, notifications }
+                          : current.systemAccessPolicy,
+                      }))
+                    }
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    У тарифа не настроен доступ к системе — включите его во вкладке «Тарифы», затем
+                    возвращайтесь сюда за текстами.
+                  </p>
+                )}
+                {POLICY_MECHANICS.filter((mechanic) => tariff.mechanicAccessPolicies[mechanic]).map(
+                  (mechanic) => (
+                    <AccessNotificationsEditor
+                      key={mechanic}
+                      title={MECHANIC_REGISTRY[mechanic].label}
+                      rows={tariff.mechanicAccessPolicies[mechanic]!.notifications}
+                      onChange={(notifications) =>
+                        setTariff((current) => {
+                          const policy = current.mechanicAccessPolicies[mechanic];
+                          if (!policy) return current;
+                          return {
+                            ...current,
+                            mechanicAccessPolicies: {
+                              ...current.mechanicAccessPolicies,
+                              [mechanic]: { ...policy, notifications },
+                            },
+                          };
+                        })
+                      }
+                    />
+                  ),
+                )}
+                <div className="space-y-1">
+                  <Label htmlFor="notifications-reason">Причина изменения (необязательно)</Label>
+                  <Input
+                    id="notifications-reason"
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                  />
+                </div>
+                <Button disabled={busy} type="submit">
+                  Сохранить
+                </Button>
+              </>
+            )}
           </form>
         </DoctorSection>
       </TabsContent>
