@@ -380,8 +380,19 @@ export type SaasBillingRepositoryPort = {
   }): Promise<SaasBillingInvoice>;
   /** Atomically reserves a draft for one provider call. A false result means another call owns it. */
   claimSaasBillingInvoiceProviderIntent(saasBillingInvoiceId: string): Promise<boolean>;
-  /** Releases an unlinked reservation after the provider call fails, making the same key retryable. */
-  releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId: string): Promise<void>;
+  /**
+   * Releases an unlinked reservation after the provider call fails, making the same key retryable.
+   *
+   * B0.3 — pass `rotateProviderIdempotencyKeyTo` only when the adapter proved the PSP refused the
+   * request before creating anything (`PaymentProviderRequestRefusedError`): the release then also
+   * rotates `providerIdempotencyKey` to that value in the same write, so the next attempt is not
+   * resending a key the PSP already burned. Omitted for an ambiguous failure — the key must stay,
+   * so a retry idempotently replays instead of risking a double charge.
+   */
+  releaseSaasBillingInvoiceProviderIntent(input: {
+    saasBillingInvoiceId: string;
+    rotateProviderIdempotencyKeyTo?: string;
+  }): Promise<void>;
   recordSaasBillingProviderEvent(input: {
     organizationId: string;
     saasBillingInvoiceId: string | null;

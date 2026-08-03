@@ -1,6 +1,7 @@
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import {
   assertReceiptMatchesOperation,
+  PaymentProviderRequestRefusedError,
   type PaymentProviderPort,
   type PaymentReceipt,
 } from '@/modules/payments/providerPort';
@@ -299,7 +300,15 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
         async (res) => {
           if (!res.ok) {
             const text = await res.text().catch(() => '');
-            throw new Error(`yookassa_create_failed:${res.status}:${text.slice(0, 200)}`);
+            const message = `yookassa_create_failed:${res.status}:${text.slice(0, 200)}`;
+            // B0.3 — ЮKassa answers a 4xx (bad params, a reused Idempotence-Key, auth, rate limit)
+            // BEFORE any payment object exists — nothing was created, safe to retry under a fresh
+            // key. A 5xx/network/timeout is ambiguous (the request may have reached processing) and
+            // falls through to the plain `Error` below, which callers must retry under the SAME key.
+            if (res.status >= 400 && res.status < 500) {
+              throw new PaymentProviderRequestRefusedError(message);
+            }
+            throw new Error(message);
           }
           return (await res.json()) as {
             id?: string;

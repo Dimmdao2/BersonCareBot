@@ -508,10 +508,16 @@ export function createInMemorySaasBillingRepository(
       return true;
     },
 
-    async releaseSaasBillingInvoiceProviderIntent(saasBillingInvoiceId) {
-      const current = invoices.get(saasBillingInvoiceId);
+    async releaseSaasBillingInvoiceProviderIntent(input) {
+      const current = invoices.get(input.saasBillingInvoiceId);
       if (current?.status === 'pending' && current.providerInvoiceRef === null) {
-        invoices.set(current.id, { ...current, status: 'draft' });
+        invoices.set(current.id, {
+          ...current,
+          status: 'draft',
+          ...(input.rotateProviderIdempotencyKeyTo
+            ? { providerIdempotencyKey: input.rotateProviderIdempotencyKeyTo }
+            : {}),
+        });
       }
     },
 

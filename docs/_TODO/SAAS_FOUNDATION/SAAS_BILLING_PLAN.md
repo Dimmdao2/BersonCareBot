@@ -552,6 +552,23 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       `GET /api/clinic/billing` → `200`: invoice остаётся `draft`, `providerInvoiceRef=null`, `paidAt=null`,
       provider events `0`. По обязательному stop-rule карта не вводилась, webhook/paid/applied tariff не заявлены;
       **вердикт на 03.08: клиника сейчас оплатить тариф на TEST не может**. Код, deploy, push и PROD не трогались.
+      **B0.3 idempotency-key регрессия починена 03.08** (`6259357de`, ветка `wt/billing-live-vat`, ещё не
+      задеплоена/не запушена): новый `PaymentProviderRequestRefusedError` в `providerPort.ts` — адаптер бросает
+      его из `createIntent` только когда ответ PSP ДОКАЗЫВАЕТ, что платёж не создан (ЮKassa 4xx до обработки,
+      например `400 invalid_request` при повторном `Idempotence-Key`); `yookassaPaymentProvider.ts` классифицирует
+      `!res.ok` по коду статуса (4xx → refused, 5xx/сеть/timeout — прежний обычный `Error`, ключ не трогаем, т.к.
+      платёж мог быть создан). `releaseSaasBillingInvoiceProviderIntent` (порт + pg/in-memory реализации) принял
+      опциональный `rotateProviderIdempotencyKeyTo`, который `createRenewalSaasBillingInvoice` заполняет только для
+      доказанного отказа — тем же детерминированным выводом ключа, что и ручной retry (`invoice.id` + старый ключ),
+      поэтому параллельные повторы сходятся на одном новом ключе. Существующая колонка `providerIdempotencyKey`,
+      новых таблиц/маршрутов нет. Доказано: `pnpm --dir apps/webapp exec vitest run --project fast
+      src/modules/saas-billing/service.test.ts` — 44/44 (3 новых теста: отказ ротирует ключ и повтор проходит другим
+      ключом; неоднозначный сбой ключ не меняет и повтор проходит тем же ключом; два параллельных повтора после
+      отказа сходятся на одном ключе и провайдер вызывается один раз), `pnpm --dir apps/webapp exec vitest run
+      --project unit src/infra/payments/yookassaPaymentProvider.unit.test.ts` — новый файл, 4/4 (400/429 → refused,
+      500 → обычный Error, 2xx не затронут); `pnpm --dir apps/webapp typecheck`, scoped ESLint, `git diff --check`
+      — чисто. Живой TEST-прогон (карта/webhook) для этого фикса ещё не проводился — пункт «клиника может
+      оплатить тариф» остаётся открытым до него; починка снимает именно 24-часовую блокировку повторной попытки.
 
 **Проверка:** state-machine + idempotency тесты; подписанный webhook success/replay/forgery/amount-mismatch;
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
