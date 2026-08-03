@@ -358,8 +358,9 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
         occurrence DML у `app_owner` и четыре legacy integrator operations, замкнул decision guard по dynamic/
         transitive imports и восстановил прежние default/linked titles. Saved unit `6/6`, guard `15/15`, fresh
         PostgreSQL `31 files / 88 tests`, integrator `55 files / 341 tests`, route `4/4`, typecheck/lint и boundary
-        gates проходят. Сам Ш4 остаётся `[ ]`: fixer ещё не land/apply, а живой безопасный provider proof со
-        сходящимися счётчиками не выполнен.
+        gates проходят. Land `775d900b4`; migration `0338` применена на DEV, runner postcheck
+        `count=337 direct=331 reconciled=6`, direct occurrence INSERT/UPDATE у `app_owner` закрыты. Сам Ш4
+        остаётся `[ ]`: живой безопасный provider proof со сходящимися счётчиками не выполнен.
 
 - [ ] **Ш5. B5b + B5c — сводка оператора и system-health-guard.** `digestTime` продолжает читаться из
       `operator_health_alert_config` — но читает его **вебапп при постановке задания**, а не планировщик.
