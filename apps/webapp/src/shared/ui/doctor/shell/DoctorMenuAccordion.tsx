@@ -23,6 +23,9 @@ import {
   Activity,
   Archive,
   ScrollText,
+  Shield,
+  Building2,
+  Wallet,
 } from 'lucide-react';
 import type { ElementType } from 'react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -104,8 +107,14 @@ function getIconForMenuId(id: string): ElementType | null {
     case 'system':
       return Server;
     // Platform (global admin) flat menu — former "system" cluster sub-items, now top-level.
+    case 'account-security':
+      return Shield;
+    case 'clinics':
+      return Building2;
     case 'commercial':
       return CreditCard;
+    case 'payments':
+      return Wallet;
     case 'admin-app-settings':
       return Settings;
     case 'admin-auth':
