@@ -15,7 +15,7 @@ function queueValues(delivery: ReadyOutgoingDelivery) {
     eventId: delivery.eventId,
     kind: delivery.kind,
     channel: delivery.channel,
-    payloadJson: { intent: delivery.intent },
+    payloadJson: { intent: delivery.intent, successOutcome: delivery.successOutcome },
     status: 'pending',
     attemptCount: 0,
     maxAttempts: 6,

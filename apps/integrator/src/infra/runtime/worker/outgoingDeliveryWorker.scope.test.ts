@@ -17,7 +17,12 @@
  * У каждого `it` в комментарии — свой арбитр. Арбитры прогнаны руками, вывод — в отчёте.
  */
 import { describe, expect, it } from 'vitest';
-import type { DbPort, DbQueryResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
+import type {
+  DbPort,
+  DbQueryResult,
+  DbWriteMutation,
+  OutgoingIntent,
+} from '../../../kernel/contracts/index.js';
 import {
   getCurrentOrganizationPrincipalId,
   runWithInfraPrincipal,
@@ -60,7 +65,18 @@ function queueRow(kind: string): OutgoingDeliveryQueueRow {
     eventId: 'evt-scope',
     kind,
     channel: 'telegram',
-    payloadJson: { intent: operatorAlertIntent(), incidentId: INCIDENT_ID },
+    payloadJson: {
+      intent: operatorAlertIntent(),
+      incidentId: INCIDENT_ID,
+      ...(kind === 'specialist_task_reminder'
+        ? {
+            successOutcome: {
+              type: 'specialistTask.reminder.markSent',
+              taskId: 'a0000000-0000-4000-8000-00000000000a',
+            },
+          }
+        : {}),
+    },
     status: 'processing',
     attemptCount: 1,
     maxAttempts: 6,
@@ -82,13 +98,15 @@ type Harness = {
   markedSent: number;
   /** Строки, оставленные durable для retry. */
   rescheduled: number;
+  writes: DbWriteMutation[];
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<Record<string, never>>;
-  writePort: { writeDb: () => Promise<undefined> };
+  writePort: { writeDb: (mutation: DbWriteMutation) => Promise<undefined> };
 };
 
 function harness(scope: ScopeRow | null): Harness {
   const dispatched: Harness['dispatched'] = [];
   const quarantined: string[] = [];
+  const writes: DbWriteMutation[] = [];
   const state = { markedSent: 0, rescheduled: 0 };
 
   const db: DbPort = {
@@ -123,6 +141,7 @@ function harness(scope: ScopeRow | null): Harness {
     db,
     dispatched,
     quarantined,
+    writes,
     get markedSent() {
       return state.markedSent;
     },
@@ -133,7 +152,12 @@ function harness(scope: ScopeRow | null): Harness {
       dispatched.push({ intent, organizationId: getCurrentOrganizationPrincipalId() });
       return {};
     },
-    writePort: { writeDb: async () => undefined },
+    writePort: {
+      writeDb: async (mutation: DbWriteMutation) => {
+        writes.push(mutation);
+        return undefined;
+      },
+    },
   } as Harness;
 }
 
@@ -172,6 +196,15 @@ describe('воркер доставки: строка без разрешимо�
 
     expect(h.dispatched).toHaveLength(1);
     expect(h.dispatched[0]?.organizationId).toBe(OWNER_ORG);
+    expect(h.writes).toEqual([
+      {
+        type: 'specialistTask.reminder.markSent',
+        params: {
+          taskId: 'a0000000-0000-4000-8000-00000000000a',
+          sentAt: expect.any(String),
+        },
+      },
+    ]);
     expect(h.markedSent).toBe(1);
   });
 
@@ -182,6 +215,7 @@ describe('воркер доставки: строка без разрешимо�
     };
     await processUnderWorkerTick(retry, queueRow('specialist_task_reminder'));
     expect(retry.rescheduled).toBe(1);
+    expect(retry.writes).toEqual([]);
     expect(retry.markedSent).toBe(0);
 
     const permanent = harness({ queue_kind: 'specialist_task_reminder', organization_id: OWNER_ORG, resolution: 'tenant' });
@@ -190,6 +224,7 @@ describe('воркер доставки: строка без разрешимо�
     };
     await processUnderWorkerTick(permanent, queueRow('specialist_task_reminder'));
     expect(permanent.quarantined).toEqual(['CHANNEL_NOT_SUPPORTED:telegram']);
+    expect(permanent.writes).toEqual([]);
     expect(permanent.rescheduled).toBe(0);
   });
 

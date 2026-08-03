@@ -38,6 +38,10 @@ describe('specialist-task ready delivery producer', () => {
           organizationId: task.organizationId,
           channel: 'telegram',
           nextRetryAt: task.remindAt,
+          successOutcome: {
+            type: 'specialistTask.reminder.markSent',
+            taskId: task.id,
+          },
           eventId: expect.stringMatching(
             new RegExp(`^specialist-task:${task.id}:${encodeURIComponent(task.remindAt ?? '')}:[0-9a-f]{16}:telegram$`),
           ),

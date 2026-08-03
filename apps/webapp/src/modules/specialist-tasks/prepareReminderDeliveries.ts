@@ -62,6 +62,10 @@ export async function prepareSpecialistTaskReminderDeliveries(
       eventId: id,
       kind: 'specialist_task_reminder',
       channel,
+      successOutcome: {
+        type: 'specialistTask.reminder.markSent',
+        taskId: task.id,
+      },
       nextRetryAt: remindAt,
       intent: {
         type: 'message.send',
