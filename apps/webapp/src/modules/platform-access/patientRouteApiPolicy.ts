@@ -178,16 +178,9 @@ export function patientPageMinAccessTier(pathname: string): ClientAccessTier {
 /** Префиксы API, где операции от имени пациента требуют tier patient (`patientClientBusinessGate`). Для подтверждения native-записи и отмены см. {@link requirePatientBookingTrustedPhoneAccess}. */
 export const PATIENT_BUSINESS_API_PREFIXES = ['/api/patient/', '/api/booking/'] as const;
 
-/** `POST …/pin/set` и `…/verify` — с `requirePatientApiBusinessAccess`; `…/pin/login` — отдельный поток входа (без gate). */
-const PATIENT_BUSINESS_PIN_API_PREFIX = '/api/auth/pin/';
-
 export function patientApiPathIsPatientBusinessSurface(apiPathname: string): boolean {
   const p = apiPathname.trim();
-  if (PATIENT_BUSINESS_API_PREFIXES.some((prefix) => p.startsWith(prefix))) return true;
-  if (p.startsWith(PATIENT_BUSINESS_PIN_API_PREFIX) && !p.startsWith('/api/auth/pin/login')) {
-    return true;
-  }
-  return false;
+  return PATIENT_BUSINESS_API_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 /**

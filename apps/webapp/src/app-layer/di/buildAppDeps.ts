@@ -161,8 +161,6 @@ import {
 } from '@/infra/repos/pgTopicChannelPrefs';
 import { createPgStaffUsersPort, inMemoryStaffUsersPort } from '@/infra/repos/pgStaffUsers';
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from '@/infra/repos/pgUserProjection';
-import { pgUserPinsPort } from '@/infra/repos/pgUserPins';
-import { inMemoryUserPinsPort } from '@/infra/repos/inMemoryUserPins';
 import {
   createPgUserPasswordCredentialsPort,
   inMemoryUserPasswordCredentialsPort,
@@ -500,7 +498,6 @@ const patientNotificationTopicsPort = !inMemoryRepos
   ? createPgPatientNotificationTopicsPort()
   : inMemoryPatientNotificationTopicsPort;
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
-const userPinsPort = !inMemoryRepos ? pgUserPinsPort : inMemoryUserPinsPort;
 const passwordLoginProtectionPort = !inMemoryRepos
   ? createPgPasswordLoginProtectionPort()
   : inMemoryPasswordLoginProtectionPort;
@@ -1830,7 +1827,6 @@ function _buildAppDeps() {
       resolveLoginChallenge: (setupToken: string) =>
         resolvePhoneMessengerBindLoginChallenge(setupToken, phoneAuthDeps, phoneMessengerBindPort),
     },
-    userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,
     passwordAltcha: passwordAltchaService,
     passwordChange: passwordChangeService,

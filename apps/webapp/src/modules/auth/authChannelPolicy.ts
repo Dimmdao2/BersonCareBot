@@ -106,11 +106,10 @@ export async function getOAuthProviderPolicyDetail(): Promise<OAuthProviderPolic
   return Object.fromEntries(entries) as OAuthProviderPolicyDetail;
 }
 
-export type IndependentAuthMethod = 'passkey' | 'pin';
+export type IndependentAuthMethod = 'passkey';
 
 const AUTH_METHOD_TOGGLE_SETTING = {
   passkey: 'auth_passkey_enabled',
-  pin: 'auth_pin_enabled',
 } as const;
 
 /** Server-side gate for independent login methods; false is the safe default for both. */

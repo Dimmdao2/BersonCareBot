@@ -20,21 +20,9 @@ Server action `updateDisplayName` обновляет `platform_users.display_nam
 
 Отдельного хранения аватара и upload-flow пока нет. Когда появится схема в БД и загрузка — добавить в hero классический круг (`size-12 rounded-full`) с инициалами как fallback.
 
-### Возврат PIN UI
+### PIN снят как способ входа (владелец, 04.08)
 
-Механизм PIN **не удалён из кодовой базы**, только скрыт со страницы профиля (`AuthOtpChannelPreference`
-восстановлена отдельно — D27-B1, не зависит от PIN):
-
-- Компоненты: `PinSection.tsx`.
-- API: `/api/auth/pin/{set,verify,login}/*`, `userPins`, `isDiaryPurgePinReauthValid` в `modules/auth/service.ts`.
-
-Чтобы вернуть UI и двухфакторную защиту удаления дневника:
-
-1. В `page.tsx` снова импортировать и отрендерить `<PinSection>`; восстановить `deps.userPins.getByUserId`.
-2. В `DiaryDataPurgeSection` вернуть шаг PIN: состояние `"intro" | "pin" | "otp"` и блок с `PinInput` + `/api/auth/pin/verify`.
-3. В `purge-otp/start/route.ts` и `purge/route.ts` вернуть проверку `isDiaryPurgePinReauthValid(session)` перед отправкой OTP / финальным удалением (см. маркеры `// SECURITY:` в этих файлах).
-
-Связанные маркеры безопасности в коде:
-
-- `apps/webapp/src/app/api/patient/diary/purge-otp/start/route.ts`
-- `apps/webapp/src/app/api/patient/diary/purge/route.ts`
+PIN полностью удалён из кодовой базы: `PinSection.tsx`, `PinInput.tsx`, `/api/auth/pin/{set,verify,login}/*`,
+`userPins`-порт и `isDiaryPurgePinReauthValid`/`setDiaryPurgePinReauth` в `modules/auth/service.ts` — не
+восстанавливать. Удаление дневника защищено одним фактором — OTP на привязанный номер (маркеры `// SECURITY:`
+в `purge-otp/start/route.ts` и `purge/route.ts`). Подробности — `docs/ARCHITECTURE/AUTH_AND_IDENTITY_CANON.md` §7.

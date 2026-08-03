@@ -1189,27 +1189,6 @@ export async function setSessionFromUser(
   await persistNewAuthSession(cookieStore, full);
 }
 
-/** TTL повторного подтверждения PIN перед удалением дневников (секунды). */
-export const DIARY_PURGE_PIN_REAUTH_TTL_SEC = 600;
-
-export function isDiaryPurgePinReauthValid(session: AppSession | null): boolean {
-  if (!session?.reauth?.diaryPurgePinVerifiedUntil) return false;
-  return Math.floor(Date.now() / 1000) <= session.reauth.diaryPurgePinVerifiedUntil;
-}
-
-export async function setDiaryPurgePinReauth(): Promise<void> {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = raw ? decodeSessionCookie(raw) : null;
-  if (!session) return;
-  const until = Math.floor(Date.now() / 1000) + DIARY_PURGE_PIN_REAUTH_TTL_SEC;
-  const next: AppSession = {
-    ...session,
-    reauth: { ...session.reauth, diaryPurgePinVerifiedUntil: until },
-  };
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSessionCookie(next), buildSessionCookieOptions(next));
-}
-
 export async function clearDiaryPurgeReauth(): Promise<void> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;

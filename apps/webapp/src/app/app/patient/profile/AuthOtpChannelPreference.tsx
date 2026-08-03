@@ -44,7 +44,7 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
   return (
     <div id="patient-profile-auth-otp" className="flex flex-col gap-2">
       <p className={patientMutedTextClass}>
-        Куда отправлять код при входе по номеру телефона (если PIN не задан или нужен сброс).
+        Куда отправлять код при входе по номеру телефона.
       </p>
       <div className="max-w-56">
         <Select

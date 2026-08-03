@@ -4,10 +4,8 @@ import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole'
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
-// SECURITY: PIN re-auth temporarily disabled with patient profile PIN UI removal (2026-05-10).
+// SECURITY: PIN removed as a login/re-auth method (owner, 2026-08-04, docs/ARCHITECTURE/AUTH_AND_IDENTITY_CANON.md §7).
 // Destructive purge is protected by single-factor OTP only (SMS challenge).
-// When restoring PIN/2FA UI: reinstate isDiaryPurgePinReauthValid(session) before OTP send and before finalize purge;
-// see modules/auth/service.ts and apps/webapp/src/app/app/patient/profile/profile.md (TODO «Возврат PIN UI»).
 /**
  * Отправка OTP на привязанный номер для удаления дневниковых данных.
  */
