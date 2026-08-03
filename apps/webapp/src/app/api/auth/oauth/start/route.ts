@@ -1,4 +1,5 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { logger } from '@/app-layer/logging/logger';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
@@ -138,85 +139,94 @@ export async function POST(request: Request) {
     roleLoginPortal: safeNext ? roleLoginPortal : null,
   };
 
-  if (provider === 'yandex') {
-    const [yandexOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
-      isOAuthProviderEnabled('yandex'),
-      getYandexOauthClientId().then((v) => v.trim()),
-      getYandexOauthRedirectUri().then((v) => v.trim()),
-      getYandexOauthClientSecret().then((v) => v.trim()),
-    ]);
-    // Reuses the same enabled+configured gate the public providers list applies; not just an
-    // extra credential re-check — a disabled admin toggle must refuse the request even if
-    // credentials happen to be present (owner ruling 2026-07-24, R2 fail-closed).
-    if (!yandexOAuthEnabled || !clientId || !redirectUri || !secret) {
-      await logOAuthStartFailure(provider, 'oauth_disabled');
-      return jsonError('oauth_disabled', { message: 'OAuth не настроен' }, { status: 501 });
+  try {
+    if (provider === 'yandex') {
+      const [yandexOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
+        isOAuthProviderEnabled('yandex'),
+        getYandexOauthClientId().then((v) => v.trim()),
+        getYandexOauthRedirectUri().then((v) => v.trim()),
+        getYandexOauthClientSecret().then((v) => v.trim()),
+      ]);
+      // Reuses the same enabled+configured gate the public providers list applies; not just an
+      // extra credential re-check — a disabled admin toggle must refuse the request even if
+      // credentials happen to be present (owner ruling 2026-07-24, R2 fail-closed).
+      if (!yandexOAuthEnabled || !clientId || !redirectUri || !secret) {
+        await logOAuthStartFailure(provider, 'oauth_disabled');
+        return jsonError('oauth_disabled', { message: 'OAuth не настроен' }, { status: 501 });
+      }
+      const state = createSignedOAuthState('yandex', OAUTH_STATE_TTL_SECONDS, tzOpt);
+      await logOAuthStartAttempt(provider, state);
+      const authUrl = new URL('https://oauth.yandex.ru/authorize');
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('client_id', clientId);
+      authUrl.searchParams.set('redirect_uri', redirectUri);
+      authUrl.searchParams.set('scope', 'login:info login:email login:default_phone');
+      authUrl.searchParams.set('state', state);
+      return jsonOk({ authUrl: authUrl.toString() });
     }
-    const state = createSignedOAuthState('yandex', OAUTH_STATE_TTL_SECONDS, tzOpt);
-    await logOAuthStartAttempt(provider, state);
-    const authUrl = new URL('https://oauth.yandex.ru/authorize');
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('client_id', clientId);
-    authUrl.searchParams.set('redirect_uri', redirectUri);
-    authUrl.searchParams.set('scope', 'login:info login:email login:default_phone');
-    authUrl.searchParams.set('state', state);
-    return jsonOk({ authUrl: authUrl.toString() });
-  }
 
-  if (provider === 'google') {
-    const [googleOAuthEnabled, clientId, clientSecret, redirectUri] = await Promise.all([
-      isOAuthProviderEnabled('google'),
-      getGoogleClientId().then((v) => v.trim()),
-      getGoogleClientSecret().then((v) => v.trim()),
-      getGoogleOauthLoginRedirectUri().then((v) => v.trim()),
+    if (provider === 'google') {
+      const [googleOAuthEnabled, clientId, clientSecret, redirectUri] = await Promise.all([
+        isOAuthProviderEnabled('google'),
+        getGoogleClientId().then((v) => v.trim()),
+        getGoogleClientSecret().then((v) => v.trim()),
+        getGoogleOauthLoginRedirectUri().then((v) => v.trim()),
+      ]);
+      if (!googleOAuthEnabled || !clientId || !clientSecret || !redirectUri) {
+        await logOAuthStartFailure(provider, 'oauth_disabled');
+        return jsonError(
+          'oauth_disabled',
+          { message: 'Google OAuth для входа не настроен' },
+          { status: 501 },
+        );
+      }
+      const state = createSignedOAuthState('google_login', OAUTH_STATE_TTL_SECONDS, tzOpt);
+      await logOAuthStartAttempt(provider, state);
+      const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      authUrl.searchParams.set('client_id', clientId);
+      authUrl.searchParams.set('redirect_uri', redirectUri);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('scope', GOOGLE_LOGIN_SCOPES);
+      authUrl.searchParams.set('state', state);
+      authUrl.searchParams.set('access_type', 'online');
+      authUrl.searchParams.set('include_granted_scopes', 'true');
+      return jsonOk({ authUrl: authUrl.toString() });
+    }
+
+    const [appleEnabled, clientId, redirectUri, teamId, keyId, privateKey] = await Promise.all([
+      isOAuthProviderEnabled('apple'),
+      getAppleOauthClientId().then((value) => value.trim()),
+      getAppleOauthRedirectUri().then((value) => value.trim()),
+      getAppleOauthTeamId().then((value) => value.trim()),
+      getAppleOauthKeyId().then((value) => value.trim()),
+      getAppleOauthPrivateKey().then((value) => value.trim()),
     ]);
-    if (!googleOAuthEnabled || !clientId || !clientSecret || !redirectUri) {
+    if (!appleEnabled || !clientId || !redirectUri || !teamId || !keyId || !privateKey) {
       await logOAuthStartFailure(provider, 'oauth_disabled');
       return jsonError(
         'oauth_disabled',
-        { message: 'Google OAuth для входа не настроен' },
+        { message: 'Sign in with Apple не настроен' },
         { status: 501 },
       );
     }
-    const state = createSignedOAuthState('google_login', OAUTH_STATE_TTL_SECONDS, tzOpt);
+
+    const { state, nonce } = createAppleSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
     await logOAuthStartAttempt(provider, state);
-    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    const authUrl = new URL('https://appleid.apple.com/auth/authorize');
     authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('scope', GOOGLE_LOGIN_SCOPES);
+    authUrl.searchParams.set('response_mode', 'form_post');
+    authUrl.searchParams.set('scope', 'name email');
     authUrl.searchParams.set('state', state);
-    authUrl.searchParams.set('access_type', 'online');
-    authUrl.searchParams.set('include_granted_scopes', 'true');
+    authUrl.searchParams.set('nonce', nonce);
     return jsonOk({ authUrl: authUrl.toString() });
-  }
-
-  const [appleEnabled, clientId, redirectUri, teamId, keyId, privateKey] = await Promise.all([
-    isOAuthProviderEnabled('apple'),
-    getAppleOauthClientId().then((value) => value.trim()),
-    getAppleOauthRedirectUri().then((value) => value.trim()),
-    getAppleOauthTeamId().then((value) => value.trim()),
-    getAppleOauthKeyId().then((value) => value.trim()),
-    getAppleOauthPrivateKey().then((value) => value.trim()),
-  ]);
-  if (!appleEnabled || !clientId || !redirectUri || !teamId || !keyId || !privateKey) {
-    await logOAuthStartFailure(provider, 'oauth_disabled');
+  } catch (error) {
+    logger.error({ error, provider }, '[auth/oauth/start] unhandled failure');
     return jsonError(
-      'oauth_disabled',
-      { message: 'Sign in with Apple не настроен' },
-      { status: 501 },
+      'server_error',
+      { message: 'Не удалось начать вход из-за сбоя на нашей стороне. Повторите попытку позже.' },
+      { status: 500 },
     );
   }
-
-  const { state, nonce } = createAppleSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
-  await logOAuthStartAttempt(provider, state);
-  const authUrl = new URL('https://appleid.apple.com/auth/authorize');
-  authUrl.searchParams.set('client_id', clientId);
-  authUrl.searchParams.set('redirect_uri', redirectUri);
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('response_mode', 'form_post');
-  authUrl.searchParams.set('scope', 'name email');
-  authUrl.searchParams.set('state', state);
-  authUrl.searchParams.set('nonce', nonce);
-  return jsonOk({ authUrl: authUrl.toString() });
 }
