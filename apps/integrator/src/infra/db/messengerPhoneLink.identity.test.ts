@@ -63,7 +63,13 @@ function emptyTables(seed: Partial<Tables> = {}): Tables {
   };
 }
 
-const norm = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase();
+// D15b/2: the shared `@bersoncare/platform-merge` identity-projection writers (now used for the
+// INSERT/UPDATE on `platform_users` and the `user_channel_bindings`/`user_channel_preferences`
+// upserts) address these tables unqualified — same convention `pgPlatformUserMerge.ts` already uses
+// and that this test's `user.phone.link` path already exercises live. Stripping `public.` here makes
+// the model schema-qualification-agnostic instead of asserting one specific SQL style.
+const norm = (s: string): string =>
+  s.replace(/\s+/g, ' ').trim().toLowerCase().replaceAll('public.', '');
 
 /**
  * `DbPort` поверх модели таблиц. Транзакция — снимок: при исключении внутри `tx` состояние
@@ -128,14 +134,14 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
     }
 
     // --- canonical channel binding --------------------------------------------
-    if (q.includes('from public.user_channel_bindings ucb')) {
+    if (q.includes('from user_channel_bindings ucb')) {
       const hit = tables.bindings.find((b) => b.channel_code === p[0] && b.external_id === p[1]);
       const pu = hit
         ? tables.platformUsers.find((u) => u.id === hit.user_id && u.merged_into_id === null)
         : undefined;
       return rows(pu ? [{ platform_user_id: pu.id, user_id: pu.id }] : []);
     }
-    if (q.startsWith('insert into public.user_channel_bindings')) {
+    if (q.startsWith('insert into user_channel_bindings')) {
       const exists = tables.bindings.some(
         (b) => b.channel_code === p[1] && b.external_id === p[2],
       );
@@ -145,7 +151,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
     }
 
     // --- canonical platform_users ---------------------------------------------
-    if (q.includes('from public.platform_users')) {
+    if (q.includes('from platform_users')) {
       const live = tables.platformUsers.filter((u) => u.merged_into_id === null);
       if (q.includes('existing_int_uid')) {
         const hit = live.find((u) => u.id === p[0]);
@@ -174,7 +180,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
           : [],
       );
     }
-    if (q.startsWith('insert into public.platform_users')) {
+    if (q.startsWith('insert into platform_users')) {
       const id = `pu-new-${tables.platformUsers.length + 1}`;
       tables.platformUsers.push({
         id,
@@ -185,7 +191,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       });
       return rows([{ id }]);
     }
-    if (q.startsWith('update public.platform_users')) {
+    if (q.startsWith('update platform_users')) {
       if (q.includes('phone_normalized = $2')) {
         const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
         if (!hit) return rows([]);
@@ -204,20 +210,21 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
         hit.integrator_user_id = at(0);
         return { rows: [] as T[], rowCount: 1 };
       }
-      // enrichPlatformUser
+      // enrichIdentityProjection (shared package): params are
+      // [platformUserId, displayName, firstName, lastName, email, phoneNormalized, integratorUserId, channelCode]
       const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
       if (!hit) return { rows: [] as T[], rowCount: 0 };
       if (hit.integrator_user_id === null) hit.integrator_user_id = at(6);
-      if (hit.phone_normalized === null) hit.phone_normalized = at(4);
+      if (hit.phone_normalized === null) hit.phone_normalized = at(5);
       return { rows: [] as T[], rowCount: 1 };
     }
 
     // --- notification topics / прочее -----------------------------------------
-    if (q.startsWith('insert into public.user_notification_topics')) {
+    if (q.startsWith('insert into user_notification_topics')) {
       tables.topics.push({ user_id: p[0]!, topic_code: p[1]!, is_enabled: p[2] === 'true' });
       return rows([]);
     }
-    if (q.startsWith('insert into public.user_channel_preferences')) return rows([]);
+    if (q.startsWith('insert into user_channel_preferences')) return rows([]);
     if (q.includes('pg_advisory_xact_lock')) return rows([]);
 
     throw new Error(`модель таблиц не знает запроса: ${q}`);

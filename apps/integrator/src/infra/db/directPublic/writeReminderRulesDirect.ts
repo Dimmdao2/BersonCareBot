@@ -38,8 +38,8 @@
  *
  * PLATFORM-USER RESOLUTION: integrator_user_id-only (no channel/phone args), matching the CURRENTLY-LIVE
  * projection's own resolution (`resolvePlatformUserId` → `findCanonicalUserIdByIntegratorId`, integrator-
- * space id only) — same precedent as D1's `writeNotificationTopicsDirect` (`collectPlatformUserCandidates`
- * called with `channelCode: ''`, `externalId: ''`; the channel-binding branch is a no-op on empty args).
+ * space id only) — `collectPlatformUserCandidates` is called with `channelCode: ''`, `externalId: ''`;
+ * the channel-binding branch is a no-op on empty args.
  *
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
  * allowed here (src/infra/db repo).

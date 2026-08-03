@@ -109,12 +109,15 @@ canonical id и непривилегированные channel facts. Одина
 `patient_phone_trust_at=now()`. При существующем человеке `:232-292` дополняет имя, phone,
 `integrator_user_id` и trust.
 
-Отдельно `writeIdentityAndPreferencesDirect.ts:465-513` позволяет notification-only пути создать технического
-`platform_user` только по `integrator_user_id`. Живой `writePort.ts:286-343` сейчас не передаёт phone в обычный
-`user.upsert`, но API direct writer это допускает.
+⚠️ **Протухло, исправлено переписью D15b/1 (03.08) и снято D15b/2 (03.08).** Абзац описывал
+`writeNotificationTopicsDirect` (notification-only путь создания технического `platform_user`) без имени —
+перепись нашла, что `writePort.ts` не содержит и никогда не содержал вызывающего `case` для этого экспорта
+(мёртвый код с рождения); D15b/2 удалил сам экспорт. Живой `writePort.ts:286-343` сейчас не передаёт phone в
+обычный `user.upsert` — это по-прежнему верно.
 
-**Другие достижимые входы.** `writePort.ts:672` разрешает identity resolution для support conversation, а
-`writePort.ts:1121` — для `notifications.update`. Webapp-entry уже показывает правильное направление:
+**Другие достижимые входы.** `writePort.ts:672` разрешает identity resolution для support conversation.
+⚠️ **Протухло:** ссылка на `writePort.ts:1121` для `notifications.update` — такого `case` в `writePort.ts`
+нет (см. выше). Webapp-entry уже показывает правильное направление:
 интегратор лишь подписывает token (`integrations/webappEntryToken.ts:86-115`), а
 `apps/webapp/src/infra/repos/pgIdentityResolution.ts:86-191` сам resolve/create/bind/defaults.
 
@@ -148,7 +151,9 @@ canonical id и непривилегированные channel facts. Одина
 - обычного `user.upsert` (`writePort.ts:286-343`);
 - support actor resolution (`writePort.ts:672` и
   `directPublic/resolveDirectPublicActor.ts:58-76`);
-- `notifications.update` (`writePort.ts:1121`);
+- ⚠️ ~~`notifications.update` (`writePort.ts:1121`)~~ — протухло: `writePort.ts` не содержит и никогда не
+  содержал `case` для этой мутации; экспорт, который бы её обслуживал (`writeNotificationTopicsDirect`),
+  был мёртвым кодом и удалён D15b/2 (03.08);
 - `user.phone.link` (`writePort.ts:353-423`) через
   `packages/platform-merge/src/messengerPhonePublicBind.ts:80-314`.
 
