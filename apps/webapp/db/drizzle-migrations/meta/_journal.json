@@ -2409,6 +2409,13 @@
       "when": 1793539230049,
       "tag": "0345_saas_billing_webhook_bootstrap_invoice_read_reconcile_local",
       "breakpoints": true
+    },
+    {
+      "idx": 344,
+      "version": "7",
+      "when": 1793539230050,
+      "tag": "0346_saas_billing_paid_tariff_apply_accessor_local",
+      "breakpoints": true
     }
   ]
 }
