@@ -12,6 +12,9 @@
 - `docs/_TODO/runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md` §3.1, §3.2, §3.6.
 - `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`, D27.
 
+Источник оракула: `IDENTITY_AND_MERGE_SCHEME.md` §3.1/§3.6 — «У человека в настройках появляется поле —
+выпадающий список доступных каналов»; «показываются и выбираются только если у них есть настройка и они включены».
+
 Это частичный B1. Не выдумывать provenance «первый бот, подтвердивший номер», не добавлять несколько email и
 не начинать D25/D15a. Для `null`/stale preference сохраняется нынешний безопасный automatic fallback.
 
