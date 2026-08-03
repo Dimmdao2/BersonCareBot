@@ -3,16 +3,55 @@ export type SchedulerLockedTickDeps = {
   assertLockStillHeld: () => Promise<void>;
   runOrganizationTicks: () => Promise<number>;
   runOperatorHealthProbeTick: () => Promise<boolean>;
+  onOrganizationTickError: (error: unknown) => void | Promise<void>;
+};
+
+export type SchedulerLockedTickCoordinator = {
+  /** One leader cadence step: prove ownership, keep one org sweep running, run health now. */
+  runTick: () => Promise<void>;
+  /** Test/shutdown observation only; it never starts another sweep. */
+  waitForOrganizationTick: () => Promise<void>;
 };
 
 /**
- * D30 Ш0 §2a condition 2: ownership of the scheduler's advisory lock is verified before any
- * dispatch work runs on a tick, not just once at process start. If the lock was lost, the
- * assertion throws and neither tick body below runs — the caller (main.ts) exits the process on
- * that error instead of looping without the lock.
+ * Keeps operator-health cadence independent from the potentially long tenant sweep.
+ *
+ * The leader lock is still the common authority: every cadence step proves ownership before it
+ * starts either body. Organization work is single-flight, so a slow sweep is not duplicated, but
+ * it is deliberately not awaited by the health tick. A failed sweep is reported through its own
+ * boundary and cannot suppress this or later health ticks.
  */
-export async function runSchedulerLockedTick(deps: SchedulerLockedTickDeps): Promise<void> {
-  await deps.assertLockStillHeld();
-  await deps.runOrganizationTicks();
-  await deps.runOperatorHealthProbeTick();
+export function createSchedulerLockedTickCoordinator(
+  deps: SchedulerLockedTickDeps,
+): SchedulerLockedTickCoordinator {
+  let organizationTickInFlight: Promise<void> | null = null;
+
+  const startOrganizationTickIfIdle = (): void => {
+    if (organizationTickInFlight !== null) return;
+
+    const started = Promise.resolve().then(async () => {
+      await deps.runOrganizationTicks();
+    });
+    const tracked = started
+      .catch(async (error: unknown) => {
+        await deps.onOrganizationTickError(error);
+      })
+      .finally(() => {
+        if (organizationTickInFlight === tracked) organizationTickInFlight = null;
+      });
+    organizationTickInFlight = tracked;
+  };
+
+  return {
+    async runTick(): Promise<void> {
+      // D30 Ш0 §2a condition 2: neither body may start after this exact lock connection is lost.
+      await deps.assertLockStillHeld();
+      startOrganizationTickIfIdle();
+      await deps.runOperatorHealthProbeTick();
+    },
+
+    async waitForOrganizationTick(): Promise<void> {
+      await organizationTickInFlight;
+    },
+  };
 }
