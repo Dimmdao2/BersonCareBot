@@ -51,20 +51,61 @@ DECLARE
   directory_function oid := to_regprocedure('app.list_platform_organization_members(uuid)');
 BEGIN
   IF to_regclass('public.doctor_patient_support') IS NULL
+    OR 7 <> (
+      SELECT count(*)
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'doctor_patient_support'
+        AND (column_name, udt_name, is_nullable) IN (
+          ('id', 'uuid', 'NO'),
+          ('patient_user_id', 'uuid', 'NO'),
+          ('on_support', 'bool', 'NO'),
+          ('comments_enabled', 'bool', 'YES'),
+          ('media_enabled', 'bool', 'YES'),
+          ('updated_at', 'timestamptz', 'NO'),
+          ('updated_by', 'uuid', 'YES')
+        )
+    )
     OR NOT EXISTS (
       SELECT 1 FROM pg_constraint
       WHERE conrelid = 'public.doctor_patient_support'::regclass
         AND conname = 'doctor_patient_support_patient_user_id_fkey'
         AND contype = 'f'
+        AND confrelid = 'public.platform_users'::regclass
+        AND confdeltype = 'c'
+        AND convalidated
+        AND pg_get_constraintdef(oid) =
+          'FOREIGN KEY (patient_user_id) REFERENCES platform_users(id) ON DELETE CASCADE'
     )
     OR NOT EXISTS (
       SELECT 1 FROM pg_constraint
       WHERE conrelid = 'public.doctor_patient_support'::regclass
         AND conname = 'doctor_patient_support_updated_by_fkey'
         AND contype = 'f'
+        AND confrelid = 'public.platform_users'::regclass
+        AND confdeltype = 'n'
+        AND convalidated
+        AND pg_get_constraintdef(oid) =
+          'FOREIGN KEY (updated_by) REFERENCES platform_users(id) ON DELETE SET NULL'
     )
-    OR to_regclass('public.uq_doctor_patient_support_patient') IS NULL
-    OR to_regclass('public.idx_doctor_patient_support_on_support') IS NULL
+    OR NOT EXISTS (
+      SELECT 1
+      FROM pg_index
+      WHERE indexrelid = to_regclass('public.uq_doctor_patient_support_patient')
+        AND indrelid = 'public.doctor_patient_support'::regclass
+        AND indisunique AND indisvalid AND indisready
+        AND pg_get_indexdef(indexrelid) =
+          'CREATE UNIQUE INDEX uq_doctor_patient_support_patient ON public.doctor_patient_support USING btree (patient_user_id)'
+    )
+    OR NOT EXISTS (
+      SELECT 1
+      FROM pg_index
+      WHERE indexrelid = to_regclass('public.idx_doctor_patient_support_on_support')
+        AND indrelid = 'public.doctor_patient_support'::regclass
+        AND NOT indisunique AND indisvalid AND indisready
+        AND pg_get_indexdef(indexrelid) =
+          'CREATE INDEX idx_doctor_patient_support_on_support ON public.doctor_patient_support USING btree (on_support)'
+    )
   THEN
     RAISE EXCEPTION '0330 parity failed: 0101 doctor-patient support schema is incomplete'
       USING ERRCODE = '23514';
