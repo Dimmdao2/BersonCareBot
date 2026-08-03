@@ -269,8 +269,6 @@ export async function registerMaxWebhookRoutes(
                 action: incoming.action ?? '',
                 linkSecretPresent:
                   typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
-                phoneFromDeepLink:
-                  incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
               },
             },
             '[max] /start classified',

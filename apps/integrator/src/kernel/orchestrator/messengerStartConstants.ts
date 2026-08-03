@@ -5,7 +5,6 @@
 export const MESSENGER_START_SPECIAL_ACTIONS = new Set([
   'start.link',
   'start.noticeme',
-  'start.setphone',
   'start.phoneauth',
   'start.set',
 ]);
