@@ -13,8 +13,6 @@ import {
   getLinkDataByIdentity,
 } from './repos/channelUsers.js';
 import {
-  getDueReminderOccurrences,
-  getEnabledReminderRules,
   getReminderRuleById,
   getReminderOccurrencesForRuleRange,
   getReminderOccurrenceOwnerUserId,
@@ -26,14 +24,6 @@ import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLo
 
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
-}
-
-function asFiniteNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
-  const stringValue = asNonEmptyString(value);
-  if (!stringValue) return null;
-  const parsed = Number(stringValue);
-  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
 }
 
 async function handleUserLookup<T = unknown>(db: DbPort, query: DbReadQuery): Promise<T> {
@@ -159,8 +149,6 @@ export function createDbReadPort(
           }
           return (await remindersReadsPort.getRuleForUserAndCategory(userId, category)) as T;
         }
-        case 'reminders.rules.enabled':
-          return (await getEnabledReminderRules(db)) as T;
         case 'reminders.rule.byId': {
           const ruleId = asNonEmptyString(query.params.ruleId);
           if (!ruleId) return null as T;
@@ -172,12 +160,6 @@ export function createDbReadPort(
           const toIso = asNonEmptyString(query.params.toIso);
           if (!ruleId || !fromIso || !toIso) return [] as T;
           return (await getReminderOccurrencesForRuleRange(db, ruleId, fromIso, toIso)) as T;
-        }
-        case 'reminders.occurrences.due': {
-          const nowIso = asNonEmptyString(query.params.nowIso);
-          const limit = asFiniteNumber(query.params.limit) ?? 50;
-          if (!nowIso) return [] as T;
-          return (await getDueReminderOccurrences(db, nowIso, limit)) as T;
         }
         case 'reminders.occurrence.ownerUserId': {
           const occurrenceId = asNonEmptyString(query.params.occurrenceId);

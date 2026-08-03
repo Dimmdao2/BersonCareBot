@@ -46,9 +46,9 @@ describe('D5 canonical reminder-rule migration', () => {
     );
     await runWebappPgText(
       `INSERT INTO integrator.user_reminder_occurrences (
-         id, rule_id, occurrence_key, planned_at, status, organization_id
-       ) VALUES ($1, $2, $3, now(), 'sent', $4::uuid)`,
-      [occurrenceId, ruleId, occurrenceKey, organizationId],
+         id, rule_id, platform_user_id, occurrence_key, planned_at, status, organization_id
+       ) VALUES ($1, $2, $3::uuid, $4, now(), 'sent', $5::uuid)`,
+      [occurrenceId, ruleId, platformUserId, occurrenceKey, organizationId],
     );
     await runWebappPgText(
       `INSERT INTO integrator.user_reminder_delivery_logs (
@@ -59,11 +59,21 @@ describe('D5 canonical reminder-rule migration', () => {
   });
 
   afterAll(async () => {
-    await runWebappPgText('DELETE FROM integrator.user_reminder_delivery_logs WHERE id = $1', [deliveryId]);
-    await runWebappPgText('DELETE FROM integrator.user_reminder_occurrences WHERE id = $1', [occurrenceId]);
-    await runWebappPgText('DELETE FROM public.reminder_rules WHERE integrator_rule_id = $1', [ruleId]);
-    await runWebappPgText('DELETE FROM public.platform_users WHERE id = $1::uuid', [platformUserId]);
-    await runWebappPgText('DELETE FROM public.be_organizations WHERE id = $1::uuid', [organizationId]);
+    await runWebappPgText('DELETE FROM integrator.user_reminder_delivery_logs WHERE id = $1', [
+      deliveryId,
+    ]);
+    await runWebappPgText('DELETE FROM integrator.user_reminder_occurrences WHERE id = $1', [
+      occurrenceId,
+    ]);
+    await runWebappPgText('DELETE FROM public.reminder_rules WHERE integrator_rule_id = $1', [
+      ruleId,
+    ]);
+    await runWebappPgText('DELETE FROM public.platform_users WHERE id = $1::uuid', [
+      platformUserId,
+    ]);
+    await runWebappPgText('DELETE FROM public.be_organizations WHERE id = $1::uuid', [
+      organizationId,
+    ]);
     await runWebappPgText(
       'ALTER TABLE public.be_organizations ENABLE ROW LEVEL SECURITY; ' +
         'ALTER TABLE public.be_organizations ENABLE TRIGGER USER; ' +

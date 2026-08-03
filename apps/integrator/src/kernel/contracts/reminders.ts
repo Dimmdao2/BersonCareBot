@@ -79,14 +79,6 @@ export type ReminderOccurrenceRecord = {
   deliveryGeneration: number;
 };
 
-export type DueReminderOccurrence = ReminderOccurrenceRecord & {
-  userId: string | null;
-  category: ReminderCategory;
-  timezone: string;
-  channelId: string;
-  chatId: number;
-};
-
 export const CONTENT_CATALOG_SECTIONS = [
   'useful_lessons',
   'emergency_help',

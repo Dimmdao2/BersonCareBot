@@ -29,10 +29,8 @@ export type DbReadQueryType =
   | 'stats.adminDashboard'
   | 'reminders.rules.forUser'
   | 'reminders.rule.forUserAndCategory'
-  | 'reminders.rules.enabled'
   | 'reminders.rule.byId'
   | 'reminders.occurrences.forRuleRange'
-  | 'reminders.occurrences.due'
   | 'reminders.occurrence.ownerUserId'
   | 'reminders.delivery.staleMessengerMessage'
   | 'delivery.pending'
@@ -54,8 +52,6 @@ export type DbWriteMutationType =
   | 'question.message.add'
   | 'question.markAnswered'
   | 'reminders.rule.upsert'
-  | 'reminders.occurrence.upsertPlanned'
-  | 'reminders.occurrence.markQueued'
   | 'reminders.occurrence.markSent'
   | 'reminders.occurrence.markFailed'
   | 'reminders.occurrence.expireOrphanedPending'
@@ -386,6 +382,10 @@ export type WebappEventsPort = {
   }): Promise<{ ok: boolean; status: number; error?: string }>;
   wakeSystemHealthGuard?(input: {
     wakeId: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
+  wakePatientReminderMaterialization?(input: {
+    wakeId: string;
+    organizationId: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
   completeChannelLink?(params: {

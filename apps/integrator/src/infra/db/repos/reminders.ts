@@ -1,7 +1,6 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
 import type {
   DbPort,
-  DueReminderOccurrence,
   ReminderCategory,
   ReminderOccurrenceRecord,
   ReminderRuleRecord,
@@ -213,26 +212,6 @@ export async function getReminderRuleForUserAndCategory(
   return row ? normalizeRuleRow(row) : null;
 }
 
-export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleRecord[]> {
-  const organizationId = getCurrentOrganizationPrincipalId();
-  if (!organizationId) {
-    throw new Error('reminders.rules.enabled requires an exact organization principal');
-  }
-  const d = getIntegratorDrizzleSession(db);
-  const rows = await d
-    .select(ruleSelectShape)
-    .from(reminderRules)
-    .where(
-      and(
-        eq(reminderRules.isEnabled, true),
-        isNotNull(reminderRules.platformUserId),
-        eq(reminderRules.organizationId, organizationId),
-      ),
-    )
-    .orderBy(desc(reminderRules.updatedAt));
-  return rows.map((r) => normalizeRuleRow(r as Parameters<typeof normalizeRuleRow>[0]));
-}
-
 export async function getReminderRuleById(
   db: DbPort,
   ruleId: string,
@@ -273,182 +252,6 @@ export async function getReminderOccurrencesForRuleRange(
  * **Escape hatch:** one `execute` call with a Drizzle `sql` template — cross-schema JOINs and
  * mute-window logic match legacy; not modeled as typed Drizzle-only selects here.
  */
-export async function getDueReminderOccurrences(
-  db: DbPort,
-  nowIso: string,
-  limit: number,
-): Promise<DueReminderOccurrence[]> {
-  const d = getIntegratorDrizzleSession(db);
-  const lim = Math.max(1, Math.trunc(limit));
-  const res = await d.execute(sql`
-    SELECT
-       o.id,
-       o.rule_id,
-       o.occurrence_key,
-       o.planned_at::text,
-       o.status,
-       o.queued_at::text,
-       o.sent_at::text,
-       o.failed_at::text,
-       o.delivery_channel,
-       o.delivery_job_id,
-       o.error_code,
-       o.platform_user_id::text,
-       o.delivery_generation,
-       COALESCE(o.organization_id, r.organization_id)::text AS organization_id,
-       o.created_at::text,
-       o.updated_at::text,
-       r.integrator_user_id AS user_id,
-       r.category,
-       r.timezone,
-       COALESCE(i.external_id::text, '') AS channel_id
-     FROM user_reminder_occurrences o
-     JOIN public.reminder_rules r ON r.integrator_rule_id = o.rule_id
-     LEFT JOIN identities i ON i.user_id = r.integrator_user_id AND i.resource = 'telegram'
-     JOIN public.platform_users pu ON pu.id = o.platform_user_id
-     WHERE o.status = 'planned'
-       AND o.planned_at <= ${nowIso}::timestamptz
-       AND r.is_enabled = true
-       AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= ${nowIso}::timestamptz)
-     ORDER BY o.planned_at ASC
-     LIMIT ${lim}
-  `);
-  const rows = res.rows as {
-    id: string;
-    rule_id: string;
-    occurrence_key: string;
-    planned_at: string;
-    status: ReminderOccurrenceRecord['status'];
-    queued_at: string | null;
-    sent_at: string | null;
-    failed_at: string | null;
-    delivery_channel: string | null;
-    delivery_job_id: string | null;
-    error_code: string | null;
-    organization_id: string | null;
-    created_at: string;
-    updated_at: string;
-    user_id: string | number | null;
-    platform_user_id: string;
-    delivery_generation: number;
-    category: string;
-    timezone: string;
-    channel_id: string;
-  }[];
-  return rows.map((row) => {
-    const occurrence = normalizeOccurrenceRow(row);
-    const chatId = Number(row.channel_id);
-    return {
-      ...occurrence,
-      userId: row.user_id == null ? null : String(row.user_id),
-      category: row.category as ReminderCategory,
-      timezone: row.timezone,
-      channelId: row.channel_id ?? '',
-      chatId: Number.isFinite(chatId) ? chatId : 0,
-      ...(typeof row.organization_id === 'string' && row.organization_id.trim()
-        ? { organizationId: row.organization_id.trim() }
-        : {}),
-    };
-  });
-}
-
-export type ReminderDeliveryGateDecision =
-  | { allowed: true }
-  | {
-      allowed: false;
-      reason:
-        | 'missing'
-        | 'stale_generation'
-        | 'terminal_action'
-        | 'muted'
-        | 'rule_disabled'
-        | 'topic_disabled'
-        | 'channel_disabled';
-    };
-
-/**
- * Canonical, last-moment reminder delivery gate. `sent` is deliberately not terminal here:
- * sibling channels of the same generation must still be able to complete.
- */
-export async function getReminderDeliveryGateDecision(
-  db: DbPort,
-  input: { occurrenceId: string; generation: number; channel: string; topicCode: string | null },
-): Promise<ReminderDeliveryGateDecision> {
-  const result = await runIntegratorSql<{
-    current_generation: number;
-    occurrence_status: string;
-    rule_enabled: boolean;
-    muted: boolean;
-    terminal_action: boolean;
-    channel_enabled: boolean;
-    topic_enabled: boolean;
-  }>(
-    db,
-    sql`
-      SELECT
-        occurrence.delivery_generation AS current_generation,
-        occurrence.status AS occurrence_status,
-        rule.is_enabled AS rule_enabled,
-        (patient.reminder_muted_until IS NOT NULL AND patient.reminder_muted_until > statement_timestamp()) AS muted,
-        (
-          occurrence.status IN ('skipped', 'failed', 'expired')
-          OR EXISTS (
-            SELECT 1
-            FROM public.reminder_journal AS journal
-            WHERE journal.occurrence_id = occurrence.id
-              AND journal.action IN ('done', 'skipped')
-          )
-        ) AS terminal_action,
-        NOT EXISTS (
-          SELECT 1
-          FROM public.user_channel_preferences AS preference
-          WHERE preference.platform_user_id = occurrence.platform_user_id
-            AND preference.channel_code = ${input.channel}
-            AND preference.is_enabled_for_notifications = false
-        ) AS channel_enabled,
-        (
-          ${input.topicCode}::text IS NULL
-          OR (
-            NOT EXISTS (
-              SELECT 1
-              FROM public.user_notification_topics AS topic
-              WHERE topic.user_id = occurrence.platform_user_id
-                AND topic.topic_code = ${input.topicCode}
-                AND topic.is_enabled = false
-            )
-            AND NOT EXISTS (
-              SELECT 1
-              FROM public.user_notification_topic_channels AS preference
-              WHERE preference.user_id = occurrence.platform_user_id
-                AND preference.topic_code = ${input.topicCode}
-                AND preference.channel_code = ${input.channel}
-                AND preference.is_enabled = false
-            )
-          )
-        ) AS topic_enabled
-      FROM integrator.user_reminder_occurrences AS occurrence
-      INNER JOIN public.reminder_rules AS rule
-        ON rule.integrator_rule_id = occurrence.rule_id
-       AND rule.organization_id = occurrence.organization_id
-      INNER JOIN public.platform_users AS patient
-        ON patient.id = occurrence.platform_user_id
-      WHERE occurrence.id = ${input.occurrenceId}
-      LIMIT 1
-    `,
-  );
-  const row = result.rows[0];
-  if (!row) return { allowed: false, reason: 'missing' };
-  if (row.current_generation !== input.generation) {
-    return { allowed: false, reason: 'stale_generation' };
-  }
-  if (row.terminal_action) return { allowed: false, reason: 'terminal_action' };
-  if (!row.rule_enabled) return { allowed: false, reason: 'rule_disabled' };
-  if (row.muted) return { allowed: false, reason: 'muted' };
-  if (!row.channel_enabled) return { allowed: false, reason: 'channel_disabled' };
-  if (!row.topic_enabled) return { allowed: false, reason: 'topic_disabled' };
-  return { allowed: true };
-}
-
 export async function isReminderTransactionalEmailRateLimited(
   db: DbPort,
   platformUserId: string,
@@ -590,51 +393,6 @@ export async function resolveReminderOccurrenceOrganizationId(
   return typeof organizationId === 'string' && organizationId.trim().length > 0
     ? organizationId.trim()
     : null;
-}
-
-export async function upsertReminderOccurrencePlanned(
-  db: DbPort,
-  input: { id: string; ruleId: string; occurrenceKey: string; plannedAt: string },
-): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  await d
-    .insert(userReminderOccurrences)
-    .values({
-      id: input.id,
-      ruleId: input.ruleId,
-      platformUserId: sql`(
-        SELECT COALESCE(rule.platform_user_id, platform_user.id)
-        FROM public.reminder_rules AS rule
-        LEFT JOIN public.platform_users AS platform_user
-          ON platform_user.integrator_user_id = rule.integrator_user_id
-        WHERE rule.integrator_rule_id = ${input.ruleId}
-        LIMIT 1
-      )`,
-      occurrenceKey: input.occurrenceKey,
-      plannedAt: input.plannedAt,
-      status: 'planned',
-      organizationId: sql`(SELECT organization_id FROM public.reminder_rules WHERE integrator_rule_id = ${input.ruleId} LIMIT 1)`,
-      createdAt: sql`now()`,
-      updatedAt: sql`now()`,
-    })
-    .onConflictDoNothing({ target: userReminderOccurrences.occurrenceKey });
-}
-
-export async function markReminderOccurrenceQueued(
-  db: DbPort,
-  occurrenceId: string,
-  deliveryJobId: string | null,
-): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  await d
-    .update(userReminderOccurrences)
-    .set({
-      status: 'queued',
-      queuedAt: sql`now()`,
-      deliveryJobId,
-      updatedAt: sql`now()`,
-    })
-    .where(eq(userReminderOccurrences.id, occurrenceId));
 }
 
 export async function markReminderOccurrenceSent(

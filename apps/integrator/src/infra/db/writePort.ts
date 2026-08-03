@@ -37,13 +37,11 @@ import {
   getReminderOccurrenceContextForProjection,
   insertReminderDeliveryLog,
   markReminderOccurrenceFailed,
-  markReminderOccurrenceQueued,
   markReminderOccurrenceSent,
   expireOrphanedPendingReminderOccurrences,
   markReminderOccurrenceSkippedLocal,
   rescheduleReminderOccurrencePlanned,
   cancelPendingReminderOccurrencesForRule,
-  upsertReminderOccurrencePlanned,
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
@@ -114,7 +112,7 @@ import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTas
  * durable outbox + fires an operator incident" (D3/D4/D5).
  *
  * Fix (mirrors `persistWritesByOrganization` in handlers/reminders.ts, the ALREADY-correct pattern used
- * by `reminders.planDue`/`.dispatchDue`): re-install an EXPLICIT organization principal — `SET ROLE
+ * by signed scheduled wakes): re-install an EXPLICIT organization principal — `SET ROLE
  * app_staff` + the SAME organization id already ambiently known — for the duration of the direct write,
  * satisfying `is_staff() AND organization_id = current_org_id()`. No new organization is invented or
  * guessed: this reuses whatever `organizationId` the CURRENT principal (integrator, organization, or
@@ -260,8 +258,6 @@ export function createDbWritePort(
     'draft.cancel',
     'identity.ensure',
     'conversation.mergeLegacyToPlatform',
-    'reminders.occurrence.upsertPlanned',
-    'reminders.occurrence.markQueued',
     'reminders.occurrence.reschedulePlanned',
     'reminders.occurrence.markSkippedLocal',
     'specialistTask.reminder.markSent',
@@ -1277,25 +1273,6 @@ export function createDbWritePort(
               );
             });
           }
-          return;
-        }
-        case 'reminders.occurrence.upsertPlanned': {
-          const id = asNonEmptyString(mutation.params.id);
-          const ruleId = asNonEmptyString(mutation.params.ruleId);
-          const occurrenceKey = asNonEmptyString(mutation.params.occurrenceKey);
-          const plannedAt = asNonEmptyString(mutation.params.plannedAt);
-          if (!id || !ruleId || !occurrenceKey || !plannedAt) return;
-          await upsertReminderOccurrencePlanned(db, { id, ruleId, occurrenceKey, plannedAt });
-          return;
-        }
-        case 'reminders.occurrence.markQueued': {
-          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
-          if (!occurrenceId) return;
-          await markReminderOccurrenceQueued(
-            db,
-            occurrenceId,
-            asNullableString(mutation.params.deliveryJobId),
-          );
           return;
         }
         case 'reminders.occurrence.markSent': {

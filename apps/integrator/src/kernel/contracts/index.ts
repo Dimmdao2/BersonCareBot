@@ -59,7 +59,6 @@ export type {
   ReminderOccurrenceStatus,
   ReminderRuleRecord,
   ReminderSchedulePreset,
-  DueReminderOccurrence,
 } from './reminders.js';
 
 export type {

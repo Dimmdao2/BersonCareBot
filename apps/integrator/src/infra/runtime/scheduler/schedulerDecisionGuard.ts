@@ -7,6 +7,9 @@ export type SchedulerDecisionViolation = {
   text: string;
 };
 
+export type SchedulerDecisionSource = { fileName: string; sourceText: string };
+export type SchedulerDecisionClosureViolation = SchedulerDecisionViolation & { fileName: string };
+
 const SCHEDULE_FIELDS = new Set([
   'offsetMs',
   'offsetMinutes',
@@ -68,9 +71,12 @@ function resolvesToLiteral(node: ts.Expression, bindings: Map<string, ts.Express
     if (ts.isPrefixUnaryExpression(expression)) return visit(expression.operand, seen);
     if (
       ts.isBinaryExpression(expression) &&
-      [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.AsteriskToken, ts.SyntaxKind.SlashToken].includes(
-        expression.operatorToken.kind,
-      )
+      [
+        ts.SyntaxKind.PlusToken,
+        ts.SyntaxKind.MinusToken,
+        ts.SyntaxKind.AsteriskToken,
+        ts.SyntaxKind.SlashToken,
+      ].includes(expression.operatorToken.kind)
     ) {
       return visit(expression.left, new Set(seen)) && visit(expression.right, new Set(seen));
     }
@@ -81,13 +87,19 @@ function resolvesToLiteral(node: ts.Expression, bindings: Map<string, ts.Express
 
 function isMessageProperty(node: ts.PropertyAssignment): boolean {
   const name = propertyName(node);
-  if (name === 'text' || name === 'messageText' || name === 'caption' || name === 'label') return true;
+  if (name === 'text' || name === 'messageText' || name === 'caption' || name === 'label')
+    return true;
   return name === 'message' && ts.isObjectLiteralExpression(node.initializer);
 }
 
 function expressionHasRussianText(node: ts.Expression): boolean {
-  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return /[А-Яа-яЁё]/.test(node.text);
-  if (ts.isTemplateExpression(node)) return /[А-Яа-яЁё]/.test(node.head.text) || node.templateSpans.some((span) => /[А-Яа-яЁё]/.test(span.literal.text));
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+    return /[А-Яа-яЁё]/.test(node.text);
+  if (ts.isTemplateExpression(node))
+    return (
+      /[А-Яа-яЁё]/.test(node.head.text) ||
+      node.templateSpans.some((span) => /[А-Яа-яЁё]/.test(span.literal.text))
+    );
   if (ts.isParenthesizedExpression(node)) return expressionHasRussianText(node.expression);
   if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
     return expressionHasRussianText(node.left) || expressionHasRussianText(node.right);
@@ -100,7 +112,8 @@ function propertyNameFromAccess(
   bindings: Map<string, ts.Expression>,
 ): string | null {
   if (ts.isPropertyAccessExpression(node)) return node.name.text;
-  if (!node.argumentExpression || !resolvesToLiteral(node.argumentExpression, bindings)) return null;
+  if (!node.argumentExpression || !resolvesToLiteral(node.argumentExpression, bindings))
+    return null;
   let current = node.argumentExpression;
   const seen = new Set<string>();
   while (ts.isIdentifier(current)) {
@@ -110,7 +123,9 @@ function propertyNameFromAccess(
     if (!next) return null;
     current = next;
   }
-  return ts.isStringLiteral(current) || ts.isNoSubstitutionTemplateLiteral(current) ? current.text : null;
+  return ts.isStringLiteral(current) || ts.isNoSubstitutionTemplateLiteral(current)
+    ? current.text
+    : null;
 }
 
 function hasLiteralArray(node: ts.Expression, bindings: Map<string, ts.Expression>): boolean {
@@ -123,12 +138,18 @@ function hasLiteralArray(node: ts.Expression, bindings: Map<string, ts.Expressio
     if (!next) return false;
     current = next;
   }
-  return ts.isArrayLiteralExpression(current) && current.elements.some(
-    (element) => ts.isExpression(element) && resolvesToLiteral(element, bindings),
+  return (
+    ts.isArrayLiteralExpression(current) &&
+    current.elements.some(
+      (element) => ts.isExpression(element) && resolvesToLiteral(element, bindings),
+    )
   );
 }
 
-function hasBusinessCollectionCheck(node: ts.CallExpression, bindings: Map<string, ts.Expression>): boolean {
+function hasBusinessCollectionCheck(
+  node: ts.CallExpression,
+  bindings: Map<string, ts.Expression>,
+): boolean {
   if (!ts.isPropertyAccessExpression(node.expression)) return false;
   const method = node.expression.name.text;
   const collection = node.expression.expression;
@@ -149,7 +170,11 @@ function hasBusinessCollectionCheck(node: ts.CallExpression, bindings: Map<strin
 
 function referencesBusinessField(node: ts.Expression): boolean {
   if (ts.isPropertyAccessExpression(node)) return BUSINESS_FIELDS.has(node.name.text);
-  if (ts.isElementAccessExpression(node) && node.argumentExpression && ts.isStringLiteral(node.argumentExpression)) {
+  if (
+    ts.isElementAccessExpression(node) &&
+    node.argumentExpression &&
+    ts.isStringLiteral(node.argumentExpression)
+  ) {
     return BUSINESS_FIELDS.has(node.argumentExpression.text);
   }
   let found = false;
@@ -160,10 +185,20 @@ function referencesBusinessField(node: ts.Expression): boolean {
 }
 
 function hasLiteralComparison(node: ts.Expression, bindings: Map<string, ts.Expression>): boolean {
-  if (ts.isBinaryExpression(node) && [ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)) {
+  if (
+    ts.isBinaryExpression(node) &&
+    [
+      ts.SyntaxKind.EqualsEqualsToken,
+      ts.SyntaxKind.EqualsEqualsEqualsToken,
+      ts.SyntaxKind.ExclamationEqualsToken,
+      ts.SyntaxKind.ExclamationEqualsEqualsToken,
+    ].includes(node.operatorToken.kind)
+  ) {
     if (ts.isTypeOfExpression(node.left) || ts.isTypeOfExpression(node.right)) return false;
-    return (referencesBusinessField(node.left) && resolvesToLiteral(node.right, bindings)) ||
-      (referencesBusinessField(node.right) && resolvesToLiteral(node.left, bindings));
+    return (
+      (referencesBusinessField(node.left) && resolvesToLiteral(node.right, bindings)) ||
+      (referencesBusinessField(node.right) && resolvesToLiteral(node.left, bindings))
+    );
   }
   if (ts.isCallExpression(node) && hasBusinessCollectionCheck(node, bindings)) return true;
   let found = false;
@@ -177,23 +212,33 @@ function sqlText(node: ts.Node): string | null {
   const parent = node.parent;
   if (parent === undefined || !ts.isTaggedTemplateExpression(parent)) return null;
   if (ts.isNoSubstitutionTemplateLiteral(node) || ts.isStringLiteral(node)) return node.text;
-  if (ts.isTemplateExpression(node)) return `${node.head.text}${node.templateSpans.map((span) => span.literal.text).join('')}`;
+  if (ts.isTemplateExpression(node))
+    return `${node.head.text}${node.templateSpans.map((span) => span.literal.text).join('')}`;
   return null;
 }
 
 /** AST-only check. Its deliberate boundary is same-file aliases; imported identifiers are not resolved. */
-export function findSchedulerDecisionViolations(fileName: string, sourceText: string): SchedulerDecisionViolation[] {
+export function findSchedulerDecisionViolations(
+  fileName: string,
+  sourceText: string,
+): SchedulerDecisionViolation[] {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true);
   const bindings = collectBindings(source);
   const violations: SchedulerDecisionViolation[] = [];
   const add = (node: ts.Node, kind: SchedulerDecisionViolation['kind']): void => {
-    violations.push({ kind, line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1, text: node.getText(source) });
+    violations.push({
+      kind,
+      line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+      text: node.getText(source),
+    });
   };
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAssignment(node)) {
       const name = propertyName(node);
-      if (name && SCHEDULE_FIELDS.has(name) && resolvesToLiteral(node.initializer, bindings)) add(node, 'scheduled_literal');
-      if (isMessageProperty(node) && expressionHasRussianText(node.initializer)) add(node, 'russian_message');
+      if (name && SCHEDULE_FIELDS.has(name) && resolvesToLiteral(node.initializer, bindings))
+        add(node, 'scheduled_literal');
+      if (isMessageProperty(node) && expressionHasRussianText(node.initializer))
+        add(node, 'russian_message');
     }
     if (ts.isShorthandPropertyAssignment(node) && SCHEDULE_FIELDS.has(node.name.text)) {
       if (resolvesToLiteral(node.name, bindings)) add(node, 'scheduled_literal');
@@ -206,17 +251,77 @@ export function findSchedulerDecisionViolations(fileName: string, sourceText: st
       if (target && SCHEDULE_FIELDS.has(target) && resolvesToLiteral(node.right, bindings)) {
         add(node, 'scheduled_literal');
       }
-      if (target && ['text', 'messageText', 'caption', 'label'].includes(target) && expressionHasRussianText(node.right)) {
+      if (
+        target &&
+        ['text', 'messageText', 'caption', 'label'].includes(target) &&
+        expressionHasRussianText(node.right)
+      ) {
         add(node, 'russian_message');
       }
     }
-    if (ts.isIfStatement(node) && hasLiteralComparison(node.expression, bindings)) add(node.expression, 'business_branch');
-    if (ts.isConditionalExpression(node) && hasLiteralComparison(node.condition, bindings)) add(node.condition, 'business_branch');
-    if (ts.isSwitchStatement(node) && referencesBusinessField(node.expression)) add(node.expression, 'business_branch');
+    if (ts.isIfStatement(node) && hasLiteralComparison(node.expression, bindings))
+      add(node.expression, 'business_branch');
+    if (ts.isConditionalExpression(node) && hasLiteralComparison(node.condition, bindings))
+      add(node.condition, 'business_branch');
+    if (ts.isSwitchStatement(node) && referencesBusinessField(node.expression))
+      add(node.expression, 'business_branch');
     const text = sqlText(node);
-    if (text && [...DECISION_TABLES].some((table) => new RegExp(`\\b${table}\\b`, 'i').test(text))) add(node, 'decision_table_read');
+    if (text && [...DECISION_TABLES].some((table) => new RegExp(`\\b${table}\\b`, 'i').test(text)))
+      add(node, 'decision_table_read');
     ts.forEachChild(node, visit);
   };
   visit(source);
+  return violations;
+}
+
+/** Static, re-export and dynamic local imports; package imports are outside this source closure. */
+export function findLocalSchedulerModuleSpecifiers(fileName: string, sourceText: string): string[] {
+  const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true);
+  const specifiers = new Set<string>();
+  const add = (node: ts.Expression | undefined): void => {
+    if (node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))) {
+      if (node.text.startsWith('.')) specifiers.add(node.text);
+    }
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) add(node.moduleSpecifier);
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1
+    ) {
+      add(node.arguments[0]);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return [...specifiers];
+}
+
+export function findSchedulerDecisionClosureViolations(
+  entries: readonly SchedulerDecisionSource[],
+  resolveLocal: (fromFileName: string, specifier: string) => SchedulerDecisionSource | null,
+): SchedulerDecisionClosureViolation[] {
+  const pending = [...entries];
+  const seen = new Set<string>();
+  const violations: SchedulerDecisionClosureViolation[] = [];
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current || seen.has(current.fileName)) continue;
+    seen.add(current.fileName);
+    violations.push(
+      ...findSchedulerDecisionViolations(current.fileName, current.sourceText).map((violation) => ({
+        ...violation,
+        fileName: current.fileName,
+      })),
+    );
+    for (const specifier of findLocalSchedulerModuleSpecifiers(
+      current.fileName,
+      current.sourceText,
+    )) {
+      const target = resolveLocal(current.fileName, specifier);
+      if (target && !seen.has(target.fileName)) pending.push(target);
+    }
+  }
   return violations;
 }
