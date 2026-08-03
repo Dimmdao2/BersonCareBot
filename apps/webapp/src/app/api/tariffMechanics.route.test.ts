@@ -103,6 +103,7 @@ import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/Patient
 import { pgEnsureClientPatientFolder } from '@/app-layer/media/clientMediaFolders';
 import { POST as recordWarmupCompletion } from '@/app/api/patient/practice/completion/route';
 import { POST as recordWarmupVideoView } from '@/app/api/patient/daily-warmup/video-viewed/route';
+import { POST as subscribePatientWebPush } from '@/app/api/patient/web-push/subscribe/route';
 import {
   addPatientHomeItem,
   deletePatientHomeItem,
@@ -540,6 +541,51 @@ describe('tariff and platform mutation gates', () => {
     expect(reminders.createObjectReminder).not.toHaveBeenCalled();
     expect(reminders.updateRule).not.toHaveBeenCalled();
     expect(reminders.deleteReminder).not.toHaveBeenCalled();
+  });
+
+  it('does not create the onboarding warmup schedule when warmups are disabled', async () => {
+    const createObjectReminder = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { id: TARGET_ID },
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      webPushSubscriptions: {
+        hasAnyForUserId: vi.fn().mockResolvedValue(false),
+        saveSubscription: vi.fn().mockResolvedValue(undefined),
+      },
+      channelPreferences: {
+        getChannelCards: vi.fn().mockResolvedValue([]),
+        updatePreference: vi.fn().mockResolvedValue(undefined),
+      },
+      systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
+      topicChannelPrefs: {
+        listByUserId: vi.fn().mockResolvedValue([]),
+        upsert: vi.fn().mockResolvedValue(undefined),
+      },
+      contentSections: {
+        getBySlug: vi.fn().mockResolvedValue({
+          slug: 'warmups',
+          isVisible: true,
+          systemParentCode: 'warmups',
+        }),
+        getRedirectNewSlugForOldSlug: vi.fn().mockResolvedValue(null),
+      },
+      reminders: {
+        listRulesByUser: vi.fn().mockResolvedValue([]),
+        createObjectReminder,
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await subscribePatientWebPush(
+      request('https://app.example.test/api/patient/web-push/subscribe', {
+        endpoint: 'https://push.example.test/subscription',
+        keys: { p256dh: 'p256dh', auth: 'auth' },
+        platform: 'pwa',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(createObjectReminder).not.toHaveBeenCalled();
   });
 
   it.each([
