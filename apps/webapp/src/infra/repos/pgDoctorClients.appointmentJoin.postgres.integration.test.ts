@@ -1,53 +1,35 @@
 /**
- * Поведенческая проверка JOIN `appointment_records` ↔ `platform_users`: один номер у двух канонов
- * в разные периоды (`user_phone_history`) — legacy-строка без `platform_user_id` должна цепляться
- * только к владельцу номера на `record_at`.
+ * Disposable-Postgres proof (Б1/Б3, #1081) — JOIN `appointment_records` ↔ `platform_users`: a
+ * phone number recycled between two canonical users (`user_phone_history`) must attribute a
+ * legacy row (no `platform_user_id`) to whoever owned the number at `record_at`, not to whoever
+ * owns it now.
  *
- * Не гоняется в обычном CI (skip). Dev:
- *   USE_REAL_DATABASE=1 RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB=1 pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.appointmentJoin.devDb.integration.test.ts
- *
- * Всё в одной транзакции с ROLLBACK — данных не остаётся.
+ * Migrated off the shared dev DB (was `.devDb.integration.test.ts`, opt-in env flags never set
+ * anywhere — never ran in CI). Runs inside one BEGIN/ROLLBACK — no data persists either way.
  */
 import { afterAll, describe, expect, it } from 'vitest';
-import pg from 'pg';
+import { getPool } from '@/infra/db/client';
 import { appointmentRecordsJoinPu } from '@/infra/repos/pgDoctorClients';
 
-const MARKER = '[dev-appt-join]';
+const MARKER = '[b3-appt-join]';
 const PHONE = '+79991110077';
 const T_SPLIT = '2020-06-01T00:00:00.000Z';
 const T_EARLY = '2020-03-15T12:00:00.000Z';
 const T_LATE = '2020-09-10T15:00:00.000Z';
 
-async function assertDevDb(client: pg.PoolClient): Promise<void> {
-  const r = await client.query<{ n: string }>(`SELECT current_database() AS n`);
-  const n = r.rows[0]?.n ?? '';
-  const ok = /_dev$/i.test(n) || n === 'bcb_webapp_dev';
-  if (!ok) {
-    throw new Error(
-      `refusing: current_database="${n}" — ожидается dev (например *_dev или bcb_webapp_dev).`,
-    );
-  }
-}
-
-const enabled =
-  process.env.RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB === '1' &&
-  process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.DATABASE_URL ?? '').trim());
-
-describe.skipIf(!enabled)('pgDoctorClients appointment join (dev DB, opt-in)', () => {
-  const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 2,
-  });
-
+describe('pgDoctorClients appointment join (disposable Postgres)', () => {
   afterAll(async () => {
-    await pool.end();
+    await getPool().end();
   });
 
   it('matches legacy appointment to phone owner at record_at (recycled number)', async () => {
-    const client = await pool.connect();
+    const client = await getPool().connect();
     try {
-      await assertDevDb(client);
+      await client.query(
+        `ALTER TABLE platform_users DISABLE ROW LEVEL SECURITY;
+         ALTER TABLE appointment_records DISABLE ROW LEVEL SECURITY;
+         ALTER TABLE user_phone_history DISABLE ROW LEVEL SECURITY;`,
+      );
       await client.query('BEGIN');
 
       const insA = await client.query<{ id: string }>(
@@ -122,9 +104,15 @@ describe.skipIf(!enabled)('pgDoctorClients appointment join (dev DB, opt-in)', (
         [`${MARKER}%`, `${MARKER}-late`],
       );
       expect(late.rows.map((r) => r.id).sort()).toEqual([idB].sort());
-
-      await client.query('ROLLBACK');
     } finally {
+      await client.query('ROLLBACK').catch(() => undefined);
+      await client
+        .query(
+          `ALTER TABLE platform_users ENABLE ROW LEVEL SECURITY;
+           ALTER TABLE appointment_records ENABLE ROW LEVEL SECURITY;
+           ALTER TABLE user_phone_history ENABLE ROW LEVEL SECURITY;`,
+        )
+        .catch(() => undefined);
       client.release();
     }
   });

@@ -1,42 +1,28 @@
 /**
- * Opt-in read-only smoke против dev-БД для doctor-wide методов
- * pgProgramItemDiscussionPort. Ловит SQL-ошибки, которые мок-тесты пропускают
- * (напр. дубликат столбца "id" в CTE — реальная регрессия TODO#3).
+ * Disposable-Postgres proof (Б1/Б3, #1081) against doctor-wide methods of
+ * `pgProgramItemDiscussionPort`. Catches SQL errors mock tests miss (e.g. duplicate "id" column
+ * in a CTE — a real regression, TODO#3).
  *
- *   USE_REAL_DATABASE=1 RUN_DOCTOR_COMMENTS_DEV_DB=1 \
- *     pnpm --dir apps/webapp exec vitest run \
- *     src/infra/repos/pgProgramItemDiscussion.doctorComments.devDb.integration.test.ts
+ * Migrated off the shared dev DB (was `.devDb.integration.test.ts`, opt-in env flags never set
+ * anywhere — never ran in CI). The original samples real `treatment_program_instances` rows and
+ * degrades gracefully when none exist (a placeholder id, empty-array assertions only); on the
+ * disposable clone that's always the empty case, so this is a faithful migration of the same
+ * defensive logic, not a new fixture — building a real active-instance fixture here would need a
+ * full treatment-program/stage-item/discussion-thread setup well beyond this migration's scope.
  */
 import { afterAll, describe, expect, it } from 'vitest';
-import pg from 'pg';
+import { getPool } from '@/infra/db/client';
 import { createPgProgramItemDiscussionPort } from '@/infra/repos/pgProgramItemDiscussion';
 
-async function assertDevDb(client: pg.PoolClient): Promise<void> {
-  const r = await client.query<{ n: string }>(`SELECT current_database() AS n`);
-  const n = r.rows[0]?.n ?? '';
-  const ok = /_dev$/i.test(n) || n === 'bcb_webapp_dev';
-  if (!ok) {
-    throw new Error(`refusing: current_database="${n}" — expected dev DB`);
-  }
-}
-
-const enabled =
-  process.env.RUN_DOCTOR_COMMENTS_DEV_DB === '1' &&
-  process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.DATABASE_URL ?? '').trim());
-
-describe.skipIf(!enabled)('pgProgramItemDiscussion doctor-wide (dev DB, opt-in)', () => {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
-
+describe('pgProgramItemDiscussion doctor-wide (disposable Postgres)', () => {
   afterAll(async () => {
-    await pool.end();
+    await getPool().end();
   });
 
-  /** Берём реальные patient_user_id из активных doctor/course-инстансов dev-БД. */
+  /** Real patient_user_id from active doctor/course instances, if any exist. */
   async function samplePatientIds(viewerLike: string): Promise<{ ids: string[]; viewer: string }> {
-    const client = await pool.connect();
+    const client = await getPool().connect();
     try {
-      await assertDevDb(client);
       const rows = await client.query<{ patient_user_id: string }>(
         `SELECT DISTINCT patient_user_id
            FROM treatment_program_instances
@@ -59,7 +45,7 @@ describe.skipIf(!enabled)('pgProgramItemDiscussion doctor-wide (dev DB, opt-in)'
       limit: 50,
     });
     expect(Array.isArray(result)).toBe(true);
-    // shape-проверка при наличии данных
+    // shape check when data happens to exist
     for (const row of result) {
       expect(typeof row.patientUserId).toBe('string');
       expect(typeof row.instanceId).toBe('string');
@@ -88,7 +74,7 @@ describe.skipIf(!enabled)('pgProgramItemDiscussion doctor-wide (dev DB, opt-in)'
         cursor: { createdAt: last.createdAt, id: last.latestMessage.id },
       });
       expect(Array.isArray(page2)).toBe(true);
-      // курсор строго «раньше» — page2 не содержит последний элемент page1
+      // cursor is strictly "earlier" — page2 must not repeat page1's last item
       for (const row of page2) {
         expect(row.latestMessage.id).not.toBe(last.latestMessage.id);
       }
