@@ -6,6 +6,7 @@ import type {
   OutgoingIntent,
 } from '../../../kernel/contracts/index.js';
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
+import { assertOutboundMessagePolicy } from '../../adapters/outboundMessagePolicy.js';
 import { processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
 
 type GateRow = {
@@ -20,7 +21,11 @@ type GateRow = {
 
 const OCCURRENCE_ID = 'd21-occurrence';
 
-function row(channel: 'telegram' | 'max' | 'web_push' | 'email', generation = 2): OutgoingDeliveryQueueRow {
+function row(
+  channel: 'telegram' | 'max' | 'web_push' | 'email',
+  generation = 2,
+  policy: 'valid' | 'missing' | 'wrong' = 'valid',
+): OutgoingDeliveryQueueRow {
   const intent: OutgoingIntent = {
     type: 'message.send',
     meta: {
@@ -28,6 +33,17 @@ function row(channel: 'telegram' | 'max' | 'web_push' | 'email', generation = 2)
       occurredAt: '2026-08-02T12:00:00.000Z',
       source: channel,
       userId: '42',
+      ...(policy === 'missing' ? {} : { outboundMessageClass: 'routine_product' as const }),
+      ...(policy === 'missing'
+        ? {}
+        : {
+            outboundCapability:
+              policy === 'wrong'
+                ? ('operator_alert' as const)
+                : channel === 'web_push'
+                  ? ('app_push' as const)
+                  : ('essential_delivery' as const),
+          }),
     },
     payload: {
       recipient:
@@ -76,8 +92,9 @@ function harness(
   gate: GateRow,
   options: { emailRateLimited?: boolean; deliveryResult?: DeliverySendResult } = {},
 ) {
-  const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) =>
-    options.deliveryResult ?? {
+  const dispatchOutgoing = vi.fn(async (intent: OutgoingIntent) => {
+    assertOutboundMessagePolicy(intent);
+    return options.deliveryResult ?? {
       telegramMessageId: 7,
       maxMessageId: 'm-7',
       webPushOutcome: {
@@ -86,11 +103,12 @@ function harness(
         errors: 0,
         deactivated: 0,
       },
-    },
-  );
+    };
+  });
   const writes: Array<{ type: string; params: Record<string, unknown> }> = [];
   const queueSent: string[] = [];
   const queueRetryable: string[] = [];
+  const queueDead: Array<{ id: string; error: string }> = [];
   const db: DbPort = {
     async query<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
       if (sql.includes('occurrence.delivery_generation AS current_generation')) {
@@ -110,6 +128,12 @@ function harness(
       if (sql.includes("SET status = 'failed_retryable'")) {
         queueRetryable.push(String(params?.at(-1) ?? ''));
       }
+      if (sql.includes("SET status = 'dead'")) {
+        queueDead.push({
+          error: String(params?.at(-3) ?? ''),
+          id: String(params?.at(-1) ?? ''),
+        });
+      }
       return { rows: [] as T[] };
     },
     async tx<T>(fn: (tx: DbPort) => Promise<T>): Promise<T> {
@@ -122,6 +146,7 @@ function harness(
     writes,
     queueSent,
     queueRetryable,
+    queueDead,
     writePort: {
       async writeDb(mutation: { type: string; params: Record<string, unknown> }) {
         writes.push(mutation);
@@ -141,6 +166,21 @@ const allowedGate: GateRow = {
 };
 
 describe('D21 reminder delivery generation gate', () => {
+  it.each([
+    ['missing', 'missing'],
+    ['wrong', 'wrong'],
+  ] as const)(
+    'fails closed through the real outbound policy when queued reminder markers are %s',
+    async (_label, policy) => {
+      const h = harness(allowedGate);
+      await processOutgoingDeliveryRow(row('web_push', 2, policy), h as never);
+      expect(h.queueSent).toEqual([]);
+      expect(h.queueDead).toEqual([
+        { id: 'queue-web_push-2', error: 'OUTBOUND_MESSAGE_POLICY_DENIED' },
+      ]);
+    },
+  );
+
   it.each([
     ['stale generation', { ...allowedGate, current_generation: 3 }],
     ['done/skip', { ...allowedGate, terminal_action: true }],

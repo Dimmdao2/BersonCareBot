@@ -10,7 +10,12 @@ import type { DueReminderOccurrence, ReminderRuleRecord } from '../../../contrac
 import type { DeliveryTargetsFetchResult } from '../../../contracts/notificationChannels.js';
 
 const { enqueue } = vi.hoisted(() => ({
-  enqueue: vi.fn(async (_db: unknown, _input: { eventId: string }) => true),
+  enqueue: vi.fn(
+    async (
+      _db: unknown,
+      _input: { eventId: string; channel: string; payloadJson: Record<string, unknown> },
+    ) => true,
+  ),
 }));
 
 vi.mock('../../../../infra/db/client.js', () => ({
@@ -238,6 +243,12 @@ describe('D21 unified reminder dispatcher', () => {
           deliveryGeneration: 3,
           channel: 'web_push',
           deliveryLogId: 'rdl:occ-d21:g3:web_push',
+          intent: expect.objectContaining({
+            meta: expect.objectContaining({
+              outboundMessageClass: 'routine_product',
+              outboundCapability: 'app_push',
+            }),
+          }),
         }),
       }),
     );
@@ -264,6 +275,27 @@ describe('D21 unified reminder dispatcher', () => {
       'rem:occ-d21:g3:max',
       'rem:occ-d21:g3:telegram',
     ]);
+    expect(
+      enqueue.mock.calls.map((call) => ({
+        channel: call[1].channel,
+        meta: (call[1].payloadJson.intent as { meta: Record<string, unknown> }).meta,
+      })),
+    ).toEqual([
+      {
+        channel: 'telegram',
+        meta: expect.objectContaining({
+          outboundMessageClass: 'routine_product',
+          outboundCapability: 'essential_delivery',
+        }),
+      },
+      {
+        channel: 'max',
+        meta: expect.objectContaining({
+          outboundMessageClass: 'routine_product',
+          outboundCapability: 'essential_delivery',
+        }),
+      },
+    ]);
   });
 
   it('queues verified email as an independent occurrence-generation leg', async () => {
@@ -281,6 +313,10 @@ describe('D21 unified reminder dispatcher', () => {
           platformUserId: PLATFORM_USER,
           deliveryLogId: 'rdl:occ-d21:g3:email',
           intent: expect.objectContaining({
+            meta: expect.objectContaining({
+              outboundMessageClass: 'routine_product',
+              outboundCapability: 'essential_delivery',
+            }),
             payload: expect.objectContaining({
               recipient: { email: 'patient@example.test' },
               subject: 'Разминка',

@@ -571,6 +571,8 @@ export async function handleReminders(
             eventId,
             occurredAt: dueNowIso,
             source: channel,
+            outboundMessageClass: 'routine_product' as const,
+            outboundCapability: 'essential_delivery' as const,
             ...(occ.userId ? { userId: occ.userId } : {}),
           },
           payload: {
@@ -644,6 +646,8 @@ export async function handleReminders(
                 eventId,
                 occurredAt: dueNowIso,
                 source: channel,
+                outboundMessageClass: 'routine_product',
+                outboundCapability: 'app_push',
                 ...(occ.userId ? { userId: occ.userId } : {}),
               },
               payload: {
@@ -704,6 +708,8 @@ export async function handleReminders(
                 eventId,
                 occurredAt: dueNowIso,
                 source: channel,
+                outboundMessageClass: 'routine_product',
+                outboundCapability: 'essential_delivery',
                 ...(occ.userId ? { userId: occ.userId } : {}),
               },
               payload: {
