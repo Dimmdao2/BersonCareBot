@@ -153,3 +153,12 @@ D30, tariff/CMS/billing, or DEV/TEST/PROD was touched or targeted for a live che
 workstream's scope per `WORK_ORDER.md`). Working tree is clean (`git status` → nothing to commit)
 before and after this audit; only a disposable, throwaway PostgreSQL 16 instance under `/tmp` was
 used and torn down (`pg_ctl stop` + `rm -rf`). No push performed.
+
+## Root land finalization
+
+После land D30/0328 root переименовал временный файл без изменения SQL-тела в
+`0329_integrator_login_delivery_capabilities_local.sql` и добавил journal entry
+`idx=327`, `when=1793539230033`. На синхронизированном дереве повторно прошли journal sync,
+legacy migration freeze, webapp/integrator typecheck, targeted login-delivery tests, raw-SQL census
+(`production debt: 0`), DB/queue chokepoints и `git diff --check`. Упоминания `9999` выше сохранены как
+исторически точное описание состояния, которое аудировал независимый агент.

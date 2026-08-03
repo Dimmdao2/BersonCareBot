@@ -1,4 +1,4 @@
--- TEMPORARY HIGH LOCAL NUMBER — root assigns the final sequential number at land.
+-- Final sequential migration number assigned by root after D30/0328 land.
 -- Track D (docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md): the integrator
 -- request-path login must never receive SELECT on public.system_settings to answer "is this
 -- auth channel enabled" / "is this platform integration available", and must never receive
