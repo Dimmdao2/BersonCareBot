@@ -136,7 +136,9 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Submit phone' }));
 
     await waitFor(() => expect(screen.getByTestId('otp-code-form')).toBeInTheDocument());
-    expect(screen.getByTestId('otp-code-form')).toHaveTextContent('код, отправленный вам в Telegram');
+    expect(screen.getByTestId('otp-code-form')).toHaveTextContent(
+      'код, отправленный вам в Telegram',
+    );
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       '/api/auth/check-phone',
       '/api/auth/phone/start',
@@ -144,7 +146,9 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
   });
 
   it('uses the authenticated messenger-bind door for profile binding without checking entered-phone bindings', async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      () => new Promise<Response>(() => undefined),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     render(
@@ -160,5 +164,15 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
     expect(await screen.findByRole('button', { name: 'Telegram' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Max' })).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Telegram' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('/api/auth/phone/messenger-bind/start');
+    expect(JSON.parse(String(init?.body))).toEqual({
+      phone: '+79991234567',
+      channelCode: 'telegram',
+      purpose: 'profile_bind',
+    });
   });
 });
