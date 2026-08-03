@@ -1618,6 +1618,259 @@ describe('Р-14: immediate paid upgrade', () => {
   });
 });
 
+// B0.3/#1057 — a repeat upgrade to the SAME tariff after the invoice was closed (provider
+// rejection/expiry -> `failed`, or an operator's `POST /.../payments/{id}/cancel` -> `void`) must
+// not hand back the dead `providerCheckoutUrl` it once had: `service.ts:265` used to key reuse
+// purely off `providerCheckoutUrl` being non-null, a field that is written once and never cleared,
+// so it said nothing about whether the PSP would still accept a payment. Live TEST reproduction:
+// SAAS_BILLING_PLAN.md B0.3, invoice `9ed3f0cf-…` — YooKassa opened straight into «Успешно» with no
+// card form.
+describe('B0.3/#1057: повторный апгрейд на тот же тариф после закрытия заказа не отдаёт мёртвую ссылку', () => {
+  function createUpgradeRepository() {
+    return createInMemorySaasBillingRepository({
+      tariffs: [
+        { id: 'basic', name: 'Базовый', priceMinor: 10_000, currency: 'RUB', billingPeriod: 'month' },
+        { id: 'pro', name: 'Про', priceMinor: 20_000, currency: 'RUB', billingPeriod: 'month' },
+      ],
+    });
+  }
+
+  function upgradeService(
+    repository: ReturnType<typeof createInMemorySaasBillingRepository>,
+    createIntent: ReturnType<typeof vi.fn>,
+  ) {
+    return createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-16T12:00:00.000Z'),
+      getTariffTransition: async () => ({
+        currentTariffId: 'basic',
+        targetTariffId: 'pro',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+  }
+
+  /** Seeds a REAL paid period (assign -> renewal invoice -> webhook capture), same as the other
+   *  upgrade suites above — `assignManualTariff` alone leaves `requireOwnTariffBillingSubscription`
+   *  without a period until something reads/writes the `paid_subscription` row. Runs through its own
+   *  throwaway provider mock so it doesn't pollute the test's own `createIntent` call count. */
+  async function seedOrg(
+    repository: ReturnType<typeof createInMemorySaasBillingRepository>,
+    organizationId: string,
+  ) {
+    const seedService = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({
+        createIntent: async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+          providerIntentRef: `provider-seed-${input.subjectRef}`,
+          checkoutUrl: `https://pay.example/seed-${input.subjectRef}`,
+        }),
+      }) as never,
+      now: () => new Date('2026-08-01T00:00:00.000Z'),
+    });
+    await seedService.assignManualTariff({
+      organizationId,
+      tariffId: 'basic',
+      audit: { actorId: 'admin', reason: 'seed paid period' },
+    });
+    const seedInvoice = await seedService.createOwnTariffRenewalInvoice(organizationId);
+    await seedService.captureSaasBillingProviderWebhookEvent({
+      organizationId,
+      saasBillingInvoiceId: seedInvoice.id,
+      providerId: 'yookassa',
+      verified: {
+        idempotencyKey: `seed-capture-${organizationId}`,
+        eventType: 'payment.succeeded',
+        amountMinor: seedInvoice.amountMinor,
+        payload: { currency: seedInvoice.currency },
+      },
+    });
+  }
+
+  it('пока заказ ещё открыт (draft/pending) — повтор отдаёт ТУ ЖЕ ссылку без нового вызова провайдера', async () => {
+    const repository = createUpgradeRepository();
+    await seedOrg(repository, 'org-b03-reuse');
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.subjectRef}`,
+      checkoutUrl: `https://pay.example/${input.subjectRef}`,
+    }));
+    const service = upgradeService(repository, createIntent);
+
+    const first = await service.scheduleOwnTariffChange({
+      organizationId: 'org-b03-reuse',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    const second = await service.scheduleOwnTariffChange({
+      organizationId: 'org-b03-reuse',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    if (first.outcome !== 'checkout' || second.outcome !== 'checkout') throw new Error('checkout expected');
+
+    expect(second.invoice.id).toBe(first.invoice.id);
+    expect(second.invoice.providerCheckoutUrl).toBe(first.invoice.providerCheckoutUrl);
+    expect(createIntent).toHaveBeenCalledOnce();
+  });
+
+  it('после отмены (void) закрытого заказа повтор открывает НОВЫЙ платёж, а не отдаёт мёртвую ссылку', async () => {
+    const repository = createUpgradeRepository();
+    await seedOrg(repository, 'org-b03-void');
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${createIntent.mock.calls.length}`,
+      checkoutUrl: `https://pay.example/upgrade-${createIntent.mock.calls.length}`,
+    }));
+    const service = upgradeService(repository, createIntent);
+
+    const first = await service.scheduleOwnTariffChange({
+      organizationId: 'org-b03-void',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    if (first.outcome !== 'checkout') throw new Error('checkout expected');
+
+    // The clinic's browser opens the provider's page for a stuck order; an operator cancels the
+    // invoice the same way the live TEST run did (`POST /api/admin/saas-billing/payments/{id}/cancel`).
+    const cancelled = await service.cancelSaasBillingInvoice({
+      saasBillingInvoiceId: first.invoice.id,
+      actorId: 'admin',
+      reason: 'stuck upgrade invoice',
+    });
+    expect(cancelled).toMatchObject({ outcome: 'cancelled', invoice: { status: 'void' } });
+
+    const repeat = await service.scheduleOwnTariffChange({
+      organizationId: 'org-b03-void',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    if (repeat.outcome !== 'checkout') throw new Error('checkout expected');
+
+    // Same period row (the guard against a second open upgrade invoice for this period still
+    // holds), but a FRESH provider order and a FRESH link — never the voided one.
+    expect(repeat.invoice.id).toBe(first.invoice.id);
+    expect(repeat.invoice.status).toBe('pending');
+    expect(repeat.invoice.providerCheckoutUrl).not.toBe(first.invoice.providerCheckoutUrl);
+    expect(repeat.invoice.providerIdempotencyKey).not.toBe(first.invoice.providerIdempotencyKey);
+    expect(repeat.invoice.providerIdempotencyKey).toMatch(/^saas_tariff_upgrade_retry:/);
+    expect(createIntent).toHaveBeenCalledTimes(2);
+  });
+
+  it('гонка двух повторов после отмены резервирует ОДИН новый заказ у провайдера', async () => {
+    let resolveSecondIntent: ((value: { providerIntentRef: string; checkoutUrl: string }) => void) | undefined;
+    let calls = 0;
+    const createIntent = vi.fn(() => {
+      calls += 1;
+      if (calls === 1) {
+        return Promise.resolve({ providerIntentRef: 'provider-initial', checkoutUrl: 'https://pay.example/initial' });
+      }
+      return new Promise<{ providerIntentRef: string; checkoutUrl: string }>((resolve) => {
+        resolveSecondIntent = resolve;
+      });
+    });
+    const repository = createUpgradeRepository();
+    await seedOrg(repository, 'org-b03-race');
+    const service = upgradeService(repository, createIntent);
+
+    const first = await service.scheduleOwnTariffChange({
+      organizationId: 'org-b03-race',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    if (first.outcome !== 'checkout') throw new Error('checkout expected');
+    await service.cancelSaasBillingInvoice({
+      saasBillingInvoiceId: first.invoice.id,
+      actorId: 'admin',
+      reason: 'stuck upgrade invoice',
+    });
+
+    const racedFirst = service.scheduleOwnTariffChange({
+      organizationId: 'org-b03-race',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    const racedSecond = service.scheduleOwnTariffChange({
+      organizationId: 'org-b03-race',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    await vi.waitFor(() => expect(createIntent).toHaveBeenCalledTimes(2));
+    resolveSecondIntent?.({ providerIntentRef: 'provider-race', checkoutUrl: 'https://pay.example/race' });
+    const [outcomeA, outcomeB] = await Promise.all([racedFirst, racedSecond]);
+    if (outcomeA.outcome !== 'checkout' || outcomeB.outcome !== 'checkout') {
+      throw new Error('checkout expected');
+    }
+
+    // Same convention as the existing concurrent-create test above (`Р-14: immediate paid
+    // upgrade`): only ONE of the two racers claims the reopened row and actually calls the
+    // provider; the other returns immediately with the still-unclaimed row. What matters for
+    // "converges on one order" is a single provider call reserving a single invoice id — not that
+    // both promises individually carry the finished link.
+    expect(createIntent).toHaveBeenCalledTimes(2);
+    expect(outcomeA.invoice.id).toBe(first.invoice.id);
+    expect(outcomeB.invoice.id).toBe(first.invoice.id);
+    const claimant = [outcomeA, outcomeB].find((outcome) => outcome.invoice.providerCheckoutUrl);
+    expect(claimant?.invoice.providerCheckoutUrl).toBe('https://pay.example/race');
+  });
+
+  it('оплаченный инвойс никогда не переоткрывается на повторный апгрейд', async () => {
+    const createIntent = vi.fn(async () => ({
+      providerIntentRef: 'should-not-be-called',
+      checkoutUrl: 'https://pay.example/should-not-be-called',
+    }));
+    const prepareSaasBillingFailedInvoiceForManualCheckout = vi.fn();
+    const paidInvoice: SaasBillingInvoice = {
+      ...invoice,
+      id: 'invoice-paid-upgrade',
+      status: 'paid',
+      providerId: 'mock',
+      providerInvoiceRef: 'provider-already-paid',
+      providerCheckoutUrl: 'https://pay.example/already-paid',
+    };
+    const service = createSaasBillingService({
+      repository: {
+        requireOwnTariffBillingSubscription: async () => ({
+          saasBillingSubscriptionId: 'subscription-1',
+          currentTariffId: 'basic',
+          tariffId: 'basic',
+          billingPeriod: 'month' as const,
+          savedPaymentMethodId: null,
+          currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+          currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+        }),
+        createProratedTariffUpgradeInvoice: async () => ({
+          outcome: 'checkout' as const,
+          invoice: paidInvoice,
+          created: false,
+        }),
+        prepareSaasBillingFailedInvoiceForManualCheckout,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      getTariffTransition: async () => ({
+        currentTariffId: 'basic',
+        targetTariffId: 'pro',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+
+    const result = await service.scheduleOwnTariffChange({
+      organizationId: 'org-paid-guard',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+
+    if (result.outcome !== 'checkout') throw new Error('checkout expected');
+    expect(result.invoice).toMatchObject({ id: 'invoice-paid-upgrade', status: 'paid' });
+    expect(createIntent).not.toHaveBeenCalled();
+    expect(prepareSaasBillingFailedInvoiceForManualCheckout).not.toHaveBeenCalled();
+  });
+});
+
 describe('webhook replay completes one durable paid-period action', () => {
   it('retries the invoice action when the process fails after event dedupe', async () => {
     let eventRecorded = false;

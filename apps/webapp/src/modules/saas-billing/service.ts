@@ -262,9 +262,20 @@ export function createSaasBillingService(dependencies: {
     });
     if (result.outcome === 'scheduled') return null;
     const { invoice, created } = result;
-    if (!created && invoice.providerCheckoutUrl) return invoice;
+    // B0.3 — `providerCheckoutUrl` is written once and never cleared, so its mere presence says
+    // nothing about whether the PSP will still accept a payment against it. `status` is the field
+    // the provider's own webhooks (capture/fail) and an admin cancel actually drive, so it is the
+    // authoritative "is this order still open" signal we have; `draft`/`pending` are the only
+    // states in which the checkout link we handed out can still be paid.
+    const invoiceStillPayable = invoice.status === 'draft' || invoice.status === 'pending';
+    if (!created && invoiceStillPayable && invoice.providerCheckoutUrl) return invoice;
     let checkoutInvoice = invoice;
-    if (!created && invoice.status === 'failed') {
+    // `failed` (the PSP closed the order, e.g. it expired/was declined) and `void` (an operator
+    // cancelled a stuck invoice, `POST /api/admin/saas-billing/payments/{id}/cancel`) both leave a
+    // dead checkout URL behind under the SAME deterministic idempotency key — a repeat upgrade to
+    // this tariff must reopen the row for a fresh provider order, never hand back that dead link.
+    // `paid` is deliberately excluded: a genuinely paid invoice must never be reopened.
+    if (!created && (invoice.status === 'failed' || invoice.status === 'void')) {
       checkoutInvoice = await dependencies.repository.prepareSaasBillingFailedInvoiceForManualCheckout({
         saasBillingInvoiceId: invoice.id,
         organizationId: input.organizationId,
