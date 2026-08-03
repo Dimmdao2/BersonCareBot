@@ -795,3 +795,81 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.
 **Выход:** клиника может оплатить тариф через существующий provider layer в mock-режиме на test; когда владелец
 даст реальные ключи, включение — это просто смена `providerId` в Settings, без нового кода.
+
+      **Продолжение 04.08, задача #1057/#1069 «применить, задеплоить, закрыть платёж».** Ветка
+      `wt/billing-live-vat` в момент старта равна `feat/doctor-ui-rebuild` (`a4e8674dd`) — миграции 0344-0352
+      уже на ней (включая 0349/0350, ранее не отражённые в state брифа).
+
+      _Шаг 1 — DEV._ `bash deploy/host/migrate-dev.sh --preflight` → PASS, `--execute` → PASS. Проверено
+      по базе, не по слову раннера: `app.apply_paid_saas_billing_tariff` существует, `proowner=app_owner`;
+      `saas_organization_trials` содержит `discount_ends_at`/`post_trial_behavior`/`post_trial_tariff_id`
+      (0346/0350); все четыре ключа `0347` (`vk_id_application_id`, `vk_id_client_secret`,
+      `vk_id_redirect_uri`, `operator_alert_fallback_email`) есть в `system_settings`. Журнал:
+      `apps/webapp/db/drizzle-migrations/meta/_journal.json` idx 342-350 (миграции 0344-0352), одним батчем,
+      `__drizzle_migrations` id 354-364.
+
+      _Шаг 2 — TEST._ `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` → `exit 0`. Лог:
+      `/home/dev/.local/state/bersoncarebot/deploy-logs/deploy-test-20260803T214143Z-460975.log`. Все
+      закрывающие гейты `OK` (specialist-owner seam, 162/162 SECURITY DEFINER pinned, clinical_test_measure
+      write-lock, platform org-members ACL, quota ACL, SaaS billing foundation grants/RLS, A-1 anon-reachable
+      surface). Единственный некритичный WARN — тот же E1 post-runtime isolation coverage gate, что и в
+      принятом деплое 03.08 20:39 (`«diagnostic-only on TEST, deploy CONTINUES»`) — не новый, не блокирующий.
+      `GET /api/health` → `{"ok":true,"db":"up"}`.
+
+      _Шаг 3 — живой платёж, `Точка Здоровья`._ Пароли доктора/админа/пациента на TEST сведены заново на
+      свежие случайные значения тем же санкционированным путём, что и в `TEST_PASSWORD_INCIDENT_2026-08-03.md`
+      (`converge-saas-smoke-login-passwords.mjs --apply-test-from-stdin`, значения нигде не печатались и
+      удалены из `/tmp` в конце прогона; владелец 03.08 — «на пароли на тесте мне насрать»). Вход
+      `dimmdao@yandex.ru` → `200`. `PATCH /api/clinic/billing {tariffId: КЛИНИКА}` → `200`, **новый**
+      `checkoutUrl` (`orderId=32032059-…`, НЕ мёртвая ссылка `3202e004-…` из 03.08) — идемпотентность апгрейда
+      (`service.ts:265`, дефект прошлого прогона) **уже починена в этой ветке**: код теперь ротирует ключ и
+      переоткрывает инвойс при `status IN ('failed','void')` (`service.ts:264-296`, найдено чтением, не
+      предположено). Инвойс `9ed3f0cf-…` переоткрыт в БД: `status=pending`,
+      `provider_invoice_ref=32032059-…`. Оплачен headless Chromium (Playwright 1.61.0 из глобального npm,
+      `/home/dev/.nvm/.../lib/node_modules/playwright`) официальной тестовой картой ЮKassa
+      `4111111111111111`, `12/30`, `123` — страница провайдера отдала «Успешно», `1 992,14 ₽`.
+
+      **Вебхук пришёл** (`nginx access.log`: `POST /api/payments/saas-webhook/yookassa` дважды, `00:49:50` и
+      `00:50:00` МСК) — но оба раза `500`. `journalctl -u bersoncarebot-webapp-test`:
+      `Error: saas_billing_tariff_apply_failed` из `apps/webapp/src/infra/repos/pgSaasBilling.ts:126` — сам
+      аксессор `app.apply_paid_saas_billing_tariff` вернул `applied=false`.
+
+      **Новый, ранее не описанный дефект найден, не потроган.** `captureSaasBillingPaymentSucceeded`
+      (`pgSaasBilling.ts:958`) целиком, включая `UPDATE saas_billing_invoices SET status='paid' …` (строка
+      988), выполняется внутри голого `getDrizzle().transaction(async (tx) => {…})`. RLS-контекст организации
+      (`app.principal_context`, который читает `app.current_org_id()`) устанавливается только оберткой
+      `pool.query` (`installPrincipalAwarePoolQuery`, `webappPoolProvider.ts`) — а drizzle-транзакция получает
+      клиента через голый `pool.connect()` (или `routedConnect` — тот же голый `connect()` с выбором staff/
+      nonstaff пула, без installDbPrincipal) и гоняет все стейтменты транзакции на нём напрямую, ни разу не
+      проходя через `pool.query`. Значит `app.current_org_id()` внутри ЭТОЙ транзакции — всегда `NULL`, и RLS-
+      политика `saas_billing_invoices_staff_capture_update` (`organization_id = app.current_org_id()`) молча
+      фильтрует `UPDATE … SET status='paid'` в 0 строк — инвойс так и остаётся `pending`, и последующий вызов
+      `app.apply_paid_saas_billing_tariff(...)` (который по конструкции применяет тариф только когда
+      `status='paid'`) корректно, безопасно отказывает. Проверено не только чтением: ручной прогон той же
+      последовательности (`SET ROLE app_staff` без установки org-контекста → `UPDATE … → UPDATE 0` → аксессор
+      → `applied=false`) в отдельной ROLLBACK-транзакции воспроизвёл идентичную сигнатуру отказа. В репозитории
+      уже есть парный хелпер именно для этого класса пробела —
+      `apps/webapp/src/infra/db/drizzleMutationTx.ts` (`runInDrizzleMutationTransaction` /
+      `applyCurrentDrizzlePrincipalToTransaction`), сделанный для batch-mutation пути, но
+      `captureSaasBillingPaymentSucceeded` его не использует (и сам хелпер выставляет старый GUC `app.org`, а
+      не строку `app.principal_context`, которую реально читает текущий `app.current_org_id()` — так что даже
+      прямое подключение этого хелпера здесь не гарантированно чинит, нужна отдельная проверка).
+
+      По обязательному стоп-правилу задачи код не менялся, триггер/RLS-политика/грант не трогались, вебхук не
+      подделывался, PROD не трогался. Транзакция откатилась чисто: `GET /api/clinic/billing` подтвердил —
+      `9ed3f0cf-…` остался `pending`, `paidAt=null`, тариф `Точка Здоровья` остался СТАРТ, лишних строк в
+      `saas_billing_provider_events` не осталось (обе неудачные попытки откатились целиком вместе со своей
+      записью события).
+
+      _Шаг 4 — две страницы владельца._ `GET /app/account?tab=notifications` под `dimmdao@yandex.ru`
+      (doctor/владелец клиники) → `200`, рендерит «Уведомления». `GET /app/admin/app-settings` под
+      `dimmdao@gmail.com` (global admin) → `200`, рендерит «Настройки приложения» вместе с четырьмя ключами
+      `0347`. Обе — реальный HTML с ожидаемым содержимым, не error-boundary.
+
+      **Итог этого прогона:** миграции применены на DEV и подтверждены по базе; TEST задеплоен зелёным (кроме
+      известного некритичного E1 warn); идемпотентность апгрейда починена и подтверждена живым свежим
+      чекаутом; реальный тестовый платёж ЮKassa прошёл («Успешно», `1 992,14 ₽`, `orderId=32032059-…`) и
+      вебхук реально дошёл — но капчер не применился из-за нового, точно локализованного дефекта в
+      `captureSaasBillingPaymentSucceeded` (RLS org-контекст не устанавливается на соединении drizzle-
+      транзакции). **Клиника по-прежнему не может оплатить тариф на TEST end-to-end.** Обе страницы владельца
+      — `200`, рендерятся штатно.
