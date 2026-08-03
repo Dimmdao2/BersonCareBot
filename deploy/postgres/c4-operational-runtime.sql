@@ -859,6 +859,18 @@ BEGIN
   END IF;
 END
 $c4_reminder_transactional_email_cooldown_acl$;
+
+-- 0338 creates this worker-facing claim-time revalidation capability after the original C4
+-- inventory. C4 deliberately rebuilds the managed-role ACL surface from an exact allow-list on
+-- every TEST deploy, so it must rehydrate and register this grant when the function exists.
+DO $c4_patient_reminder_materialization_acl$
+BEGIN
+  IF to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION app.revalidate_patient_reminder_delivery_materialization(uuid)
+      TO app_operational_delivery_worker;
+  END IF;
+END
+$c4_patient_reminder_materialization_acl$;
 GRANT USAGE ON SCHEMA app TO
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
   :"c4_scheduler_login_role", :"c4_media_worker_login_role";
@@ -1225,6 +1237,10 @@ WITH managed(role_name) AS (VALUES
   SELECT 'function', 'app.record_reminder_transactional_email_cooldown(uuid)', 'EXECUTE',
     'app_operational_delivery_worker', false
   WHERE to_regprocedure('app.record_reminder_transactional_email_cooldown(uuid)') IS NOT NULL
+  UNION ALL
+  SELECT 'function', 'app.revalidate_patient_reminder_delivery_materialization(uuid)', 'EXECUTE',
+    'app_operational_delivery_worker', false
+  WHERE to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)') IS NOT NULL
 ), unexpected AS (SELECT * FROM actual EXCEPT SELECT * FROM expected),
 missing AS (SELECT * FROM expected EXCEPT SELECT * FROM actual)
 SELECT 1 / (

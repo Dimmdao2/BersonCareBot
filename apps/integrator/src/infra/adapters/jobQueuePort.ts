@@ -10,6 +10,7 @@ import {
   completeMessageRetryJob,
   enqueueMessageRetryJob,
   failMessageRetryJob,
+  reclaimStaleMessageRetryJobProcessing,
   rescheduleMessageRetryJob,
 } from '../db/repos/jobQueue.js';
 
@@ -143,7 +144,10 @@ function toDeliveryJob(row: {
   };
 }
 
-export type PostgresJobQueue = QueuePort & JobQueuePort;
+export type PostgresJobQueue = QueuePort &
+  JobQueuePort & {
+    reclaimStaleProcessing(staleAfterMinutes: number): Promise<number>;
+  };
 
 export function createPostgresJobQueue(input: {
   db: DbPort;
@@ -201,6 +205,10 @@ export function createPostgresJobQueue(input: {
     async claimDueJobs(limit: number): Promise<DeliveryJob[]> {
       const rows = await claimDueMessageRetryJobs(input.db, limit);
       return rows.map(toDeliveryJob);
+    },
+
+    async reclaimStaleProcessing(staleAfterMinutes: number): Promise<number> {
+      return reclaimStaleMessageRetryJobProcessing(input.db, staleAfterMinutes);
     },
 
     async completeJob(jobId: string): Promise<void> {

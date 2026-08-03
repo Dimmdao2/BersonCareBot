@@ -35,6 +35,14 @@ describe('D30 Ш4 patient reminder materialization capabilities', () => {
       'utf8',
     );
     await run(migrationSql);
+    const ownershipRepairSql = await readFile(
+      new URL(
+        '../../../db/drizzle-migrations/0340_test_secdef_ownership_repair_local.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    await run(ownershipRepairSql);
     for (const table of [
       'public.be_organizations',
       'public.platform_users',
@@ -336,42 +344,147 @@ describe('D30 Ш4 patient reminder materialization capabilities', () => {
     expect(replay.rows[0]).toEqual({ delivery_generation: 1, materializable: false });
   });
 
+  it('owns all four materialization capabilities as app_owner, not the migration-runner role', async () => {
+    const functions = await run<{
+      name: string;
+      security_definer: boolean;
+      owner: string;
+    }>(
+      `SELECT
+         procedure.proname AS name,
+         procedure.prosecdef AS security_definer,
+         owner_role.rolname AS owner
+       FROM pg_proc AS procedure
+       INNER JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+       INNER JOIN pg_roles AS owner_role ON owner_role.oid = procedure.proowner
+       WHERE namespace.nspname = 'app'
+         AND procedure.proname IN (
+           'patient_reminder_materialization_fingerprint',
+           'upsert_patient_reminder_occurrence_plan',
+           'mark_patient_reminder_occurrence_queued',
+           'revalidate_patient_reminder_delivery_materialization'
+         )
+       ORDER BY procedure.proname`,
+    );
+    expect(functions.rows).toHaveLength(4);
+    for (const row of functions.rows) {
+      expect(row).toMatchObject({ security_definer: true, owner: 'app_owner' });
+    }
+  });
+
   it('grants only exact capability execution to locked runtime roles', async () => {
     const grants = await run<{
       staff_upsert: boolean;
+      staff_mark_queued: boolean;
       worker_revalidate: boolean;
       public_revalidate: boolean;
+      staff_fingerprint: boolean;
+      worker_fingerprint: boolean;
+      public_fingerprint: boolean;
     }>(
       `SELECT
          has_function_privilege('app_staff', 'app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz)', 'EXECUTE') AS staff_upsert,
+         has_function_privilege('app_staff', 'app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'EXECUTE') AS staff_mark_queued,
          has_function_privilege('app_operational_delivery_worker', 'app.revalidate_patient_reminder_delivery_materialization(uuid)', 'EXECUTE') AS worker_revalidate,
          EXISTS (
            SELECT 1 FROM information_schema.routine_privileges
            WHERE routine_schema = 'app'
              AND routine_name = 'revalidate_patient_reminder_delivery_materialization'
              AND grantee = 'PUBLIC' AND privilege_type = 'EXECUTE'
-         ) AS public_revalidate`,
+         ) AS public_revalidate,
+         has_function_privilege('app_staff', 'app.patient_reminder_materialization_fingerprint(text,text)', 'EXECUTE') AS staff_fingerprint,
+         has_function_privilege('app_operational_delivery_worker', 'app.patient_reminder_materialization_fingerprint(text,text)', 'EXECUTE') AS worker_fingerprint,
+         EXISTS (
+           SELECT 1 FROM information_schema.routine_privileges
+           WHERE routine_schema = 'app'
+             AND routine_name = 'patient_reminder_materialization_fingerprint'
+             AND grantee = 'PUBLIC' AND privilege_type = 'EXECUTE'
+         ) AS public_fingerprint`,
     );
     expect(grants.rows[0]).toEqual({
       staff_upsert: true,
+      staff_mark_queued: true,
       worker_revalidate: true,
       public_revalidate: false,
+      staff_fingerprint: false,
+      worker_fingerprint: false,
+      public_fingerprint: false,
     });
 
+    const executeAcl = await run<{ signature: string; grantee: string }>(
+      `SELECT procedure.oid::regprocedure::text AS signature,
+              COALESCE(grantee.rolname, privilege.grantee::text) AS grantee
+       FROM pg_proc AS procedure
+       CROSS JOIN LATERAL aclexplode(
+         COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+       ) AS privilege
+       LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+       WHERE procedure.oid IN (
+         to_regprocedure('app.patient_reminder_materialization_fingerprint(text,text)'),
+         to_regprocedure('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz)'),
+         to_regprocedure('app.mark_patient_reminder_occurrence_queued(text,integer,text[])'),
+         to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)')
+       )
+         AND privilege.privilege_type = 'EXECUTE'
+       ORDER BY signature, grantee`,
+    );
+    expect(executeAcl.rows).toEqual([
+      {
+        signature: 'app.mark_patient_reminder_occurrence_queued(text,integer,text[])',
+        grantee: 'app_owner',
+      },
+      {
+        signature: 'app.mark_patient_reminder_occurrence_queued(text,integer,text[])',
+        grantee: 'app_staff',
+      },
+      {
+        signature: 'app.patient_reminder_materialization_fingerprint(text,text)',
+        grantee: 'app_owner',
+      },
+      {
+        signature: 'app.revalidate_patient_reminder_delivery_materialization(uuid)',
+        grantee: 'app_operational_delivery_worker',
+      },
+      {
+        signature: 'app.revalidate_patient_reminder_delivery_materialization(uuid)',
+        grantee: 'app_owner',
+      },
+      {
+        signature:
+          'app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)',
+        grantee: 'app_owner',
+      },
+      {
+        signature:
+          'app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)',
+        grantee: 'app_staff',
+      },
+    ]);
+
+    // app_owner (the SECURITY DEFINER function owner, since migration 0340) needs SELECT/INSERT/UPDATE
+    // on this table to execute the upsert/mark-queued bodies; that is the owner's own exact internal
+    // need, not a caller capability. Direct callers (app_staff and everyone else) still get none --
+    // the only path to this table for a caller is through the four narrow EXECUTE capabilities above.
     const directOccurrenceWrites = await run<{
+      owner_select: boolean;
       owner_insert: boolean;
       owner_update: boolean;
       staff_insert: boolean;
+      staff_select: boolean;
     }>(
       `SELECT
+         has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'SELECT') AS owner_select,
          has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'INSERT') AS owner_insert,
          has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'UPDATE') AS owner_update,
-         has_table_privilege('app_staff', 'integrator.user_reminder_occurrences', 'INSERT') AS staff_insert`,
+         has_table_privilege('app_staff', 'integrator.user_reminder_occurrences', 'INSERT') AS staff_insert,
+         has_table_privilege('app_staff', 'integrator.user_reminder_occurrences', 'SELECT') AS staff_select`,
     );
     expect(directOccurrenceWrites.rows[0]).toEqual({
-      owner_insert: false,
-      owner_update: false,
+      owner_select: true,
+      owner_insert: true,
+      owner_update: true,
       staff_insert: false,
+      staff_select: false,
     });
   });
 });

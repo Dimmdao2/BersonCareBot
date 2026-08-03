@@ -1120,6 +1120,11 @@ WITH required(tbl, priv) AS (
     ('integrator.user_reminder_occurrences', 'SELECT'),
     ('integrator.user_reminder_occurrences', 'UPDATE'),
     ('integrator.user_reminder_occurrences', 'DELETE'),
+    -- Migration 0340 (reservation 0340, ownership repair): app.upsert_patient_reminder_occurrence_plan
+    -- and app.mark_patient_reminder_occurrence_queued INSERT and UPDATE this table from inside their
+    -- now-correctly-app_owner-owned SECURITY DEFINER body; SELECT/UPDATE/DELETE above already came
+    -- from the c4-operational-runtime.sql overlay, INSERT is new and granted directly by 0340 itself.
+    ('integrator.user_reminder_occurrences', 'INSERT'),
     -- 0256 staff-security self password action: the body reads user_id for its exact self-principal
     -- predicate and updates only that credentials row. Runtime callers retain no direct table grant.
     ('public.user_password_credentials', 'SELECT'),
@@ -1461,7 +1466,26 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # and read/write only that principal's public.user_pins row. The migration and the canonical
   # overlays revoke app_patient table/column privileges and the old target-UUID functions, then grant
   # only these two identity-self capabilities; app_owner's required user_pins grants are pinned above.
-  local expected_secdef_count=155
+  # 155 (unmeasured after this) -> 154 (2026-08-03, TEST closure, reservation 0340): 0337 is ACL-only
+  # (count-neutral) and 0339 adds app.revalidate_appointment_reminder_materialization(uuid) with an
+  # explicit `ALTER FUNCTION ... OWNER TO app_owner`. 0338, landed the same wave, created four more
+  # SECURITY DEFINER capabilities --
+  # app.patient_reminder_materialization_fingerprint(text,text),
+  # app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz),
+  # app.mark_patient_reminder_occurrence_queued(text,integer,text[]) and
+  # app.revalidate_patient_reminder_delivery_materialization(uuid) -- but never executed the matching
+  # `ALTER FUNCTION ... OWNER TO app_owner` for any of them, so all four stayed owned by the
+  # migration-runner role (bersoncarebot_test) instead of app_owner. This gate caught it live: TEST
+  # measured actual=154 against the stale expected=155, and a read-only ownership query confirmed all
+  # four 0338 functions are `prosecdef` but owned by bersoncarebot_test. Their EXECUTE ACLs were
+  # already exact (owner-only for the fingerprint helper, app_staff for the two staff writers,
+  # app_operational_delivery_worker for the revalidation worker) -- only ownership was wrong.
+  # 154 -> 158 (2026-08-03, migration 0340, this reservation): forward-only repair, `ALTER FUNCTION
+  # ... OWNER TO app_owner` for all four 0338 functions plus a re-assertion of their unchanged exact
+  # ACLs. This is a measured value (154 + these exact four), not recomputed arithmetic; the dedicated
+  # ownership/ACL wall right below re-checks the same four functions by name so a future silent
+  # ownership regression on just these four cannot hide behind an otherwise-correct whole-class count.
+  local expected_secdef_count=158
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1563,6 +1587,70 @@ SELECT (
     echo "FATAL: organization mechanic lifecycle door exact ACL did not take effect." >&2
     echo "       Expected app_owner ownership with SECURITY DEFINER and plain EXECUTE only for" >&2
     echo "       app_owner, app_staff and app_patient." >&2
+    exit 1
+  }
+
+  # Migration 0340 (reservation 0340, TEST closure 2026-08-03): named ownership/ACL wall for the four
+  # 0338 patient-reminder-materialization functions, independent of the whole-class count above. A
+  # future change that keeps the class count numerically balanced (e.g. drops one app_owner function
+  # while silently regressing one of these four back to a non-app_owner owner) would not FATAL the
+  # count gate above but must FATAL here by name.
+  local patient_reminder_materialization_ownership_acl_ok
+  patient_reminder_materialization_ownership_acl_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH targets(signature, expected_grantee) AS (
+  VALUES
+    ('app.patient_reminder_materialization_fingerprint(text,text)', 'app_owner'),
+    ('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)', 'app_owner'),
+    ('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamp with time zone)', 'app_staff'),
+    ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'app_owner'),
+    ('app.mark_patient_reminder_occurrence_queued(text,integer,text[])', 'app_staff'),
+    ('app.revalidate_patient_reminder_delivery_materialization(uuid)', 'app_owner'),
+    ('app.revalidate_patient_reminder_delivery_materialization(uuid)', 'app_operational_delivery_worker')
+), actual AS (
+  SELECT routine.oid::regprocedure::text AS signature,
+    COALESCE(grantee.rolname, privilege.grantee::text) AS grantee
+  FROM pg_proc AS routine
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(routine.proacl, acldefault('f', routine.proowner))
+  ) AS privilege
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+  WHERE routine.oid IN (
+    to_regprocedure('app.patient_reminder_materialization_fingerprint(text,text)'),
+    to_regprocedure('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz)'),
+    to_regprocedure('app.mark_patient_reminder_occurrence_queued(text,integer,text[])'),
+    to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)')
+  )
+    AND privilege.privilege_type = 'EXECUTE'
+), expected AS (
+  SELECT signature, expected_grantee AS grantee FROM targets
+)
+SELECT (
+  to_regprocedure('app.patient_reminder_materialization_fingerprint(text,text)') IS NOT NULL
+  AND to_regprocedure('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz)') IS NOT NULL
+  AND to_regprocedure('app.mark_patient_reminder_occurrence_queued(text,integer,text[])') IS NOT NULL
+  AND to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)') IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_proc AS routine
+    WHERE routine.oid IN (
+      to_regprocedure('app.patient_reminder_materialization_fingerprint(text,text)'),
+      to_regprocedure('app.upsert_patient_reminder_occurrence_plan(text,text,uuid,uuid,text,timestamptz)'),
+      to_regprocedure('app.mark_patient_reminder_occurrence_queued(text,integer,text[])'),
+      to_regprocedure('app.revalidate_patient_reminder_delivery_materialization(uuid)')
+    )
+      AND (pg_get_userbyid(routine.proowner) <> 'app_owner' OR NOT routine.prosecdef)
+  )
+  AND NOT EXISTS (
+    (SELECT * FROM actual EXCEPT SELECT * FROM expected)
+    UNION ALL
+    (SELECT * FROM expected EXCEPT SELECT * FROM actual)
+  )
+)::text;
+")"
+  [ "$patient_reminder_materialization_ownership_acl_ok" = "true" ] || {
+    echo "FATAL: patient-reminder-materialization (0338/0340) SECURITY DEFINER ownership or exact ACL is wrong." >&2
+    echo "       Expected app_owner ownership + SECURITY DEFINER on all four functions; PUBLIC EXECUTE" >&2
+    echo "       on none of them; app_staff EXECUTE only on the two staff writers; and" >&2
+    echo "       app_operational_delivery_worker EXECUTE only on the worker-facing revalidation." >&2
     exit 1
   }
 
