@@ -1037,7 +1037,7 @@ WITH required(tbl, priv) AS (
     -- 0295/0302/0306 app_owner capabilities added after the 123-function baseline. Each row below
     -- comes directly from a live function body; ON CONFLICT writes require both INSERT and UPDATE.
     ('public.saas_billing_subscriptions', 'SELECT'),
-    -- 0342 (#1057 B0.3): app.resolve_saas_billing_invoice_for_webhook(text,text) is the bootstrap
+    -- 0343 (#1057 B0.3): app.resolve_saas_billing_invoice_for_webhook(text,text) is the bootstrap
     -- webhook's invoice-by-provider-ref lookup, read-only, before the organization is known.
     ('public.saas_billing_invoices', 'SELECT'),
     ('public.system_settings', 'SELECT'),
@@ -1488,7 +1488,7 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # ACLs. This is a measured value (154 + these exact four), not recomputed arithmetic; the dedicated
   # ownership/ACL wall right below re-checks the same four functions by name so a future silent
   # ownership regression on just these four cannot hide behind an otherwise-correct whole-class count.
-  # 158 -> 159 (2026-08-03, migration 0342, #1057 B0.3): one new function,
+  # 158 -> 159 (2026-08-03, migration 0343, #1057 B0.3): one new function,
   # app.resolve_saas_billing_invoice_for_webhook(text,text), the bootstrap webhook's invoice
   # lookup by provider ref. Its one table dependency (SELECT on saas_billing_invoices) is the new
   # row added to the required-grant set immediately above.

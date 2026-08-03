@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0342 — the lead assigns the final number at merge.
+-- Final migration number 0343 — 0342 was taken by the D27 equal-rights login migration that landed first.
 -- #1057 B0.3: the live YooKassa webhook arrived for the first time 03.08 and failed
 -- `permission denied for table saas_billing_invoices`. `POST /api/payments/saas-webhook/[provider]`
 -- resolves its invoice by provider ref BEFORE the organization is known (bootstrap principal — see
