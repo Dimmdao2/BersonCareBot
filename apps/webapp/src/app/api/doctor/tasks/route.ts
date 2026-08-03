@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   entitlementMutationRefusalResponse,
+  requireEntitlementForRead,
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
@@ -24,6 +25,8 @@ export async function GET(request: Request) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
   const { session } = gate.ctx;
+  const entitlement = await requireEntitlementForRead(gate.ctx, 'specialist_tasks');
+  if (!entitlement.ok) return entitlement.response;
 
   const url = new URL(request.url);
   const includeCompleted = url.searchParams.get('includeCompleted') === '1';

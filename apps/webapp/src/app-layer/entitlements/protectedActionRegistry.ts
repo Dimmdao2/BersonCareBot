@@ -759,6 +759,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     serviceBoundary: 'deps.systemSettings.updateSetting',
   },
   {
+    id: 'specialist-tasks.list',
+    mechanic: 'specialist_tasks',
+    file: 'src/app/api/doctor/tasks/route.ts',
+    exportName: 'GET',
+    method: 'GET',
+    authContext: 'requireDoctorWorkspaceApiContext',
+    guard: 'requireEntitlementForRead',
+    serviceBoundary: 'deps.specialistTasks.listForOwner',
+  },
+  {
     id: 'specialist-tasks.create',
     mechanic: 'specialist_tasks',
     file: 'src/app/api/doctor/tasks/route.ts',
@@ -767,6 +777,16 @@ export const PROTECTED_ACTION_MAPPINGS = [
     authContext: 'requireDoctorWorkspaceApiContext',
     guard: 'requireEntitlementForMutation',
     serviceBoundary: 'deps.specialistTasks.create',
+  },
+  {
+    id: 'specialist-tasks.patient.list',
+    mechanic: 'specialist_tasks',
+    file: 'src/app/api/doctor/clients/[userId]/tasks/route.ts',
+    exportName: 'GET',
+    method: 'GET',
+    authContext: 'requireDoctorWorkspaceApiContext',
+    guard: 'requireEntitlementForRead',
+    serviceBoundary: 'deps.specialistTasks.listPatientTasks',
   },
   {
     id: 'specialist-tasks.patient.create',
@@ -1423,16 +1443,6 @@ export const PROTECTED_ACTION_EXEMPTIONS = [
     file: 'src/app/app/doctor/clinical-tests/actionsInline.ts',
     exportName: 'unarchiveClinicalTestInline',
     reason: 'clinical-test catalog is built into treatment programs — never tariff-gated',
-  },
-  {
-    file: 'src/app/api/doctor/tasks/route.ts',
-    exportName: 'GET',
-    reason: 'read route',
-  },
-  {
-    file: 'src/app/api/doctor/clients/[userId]/tasks/route.ts',
-    exportName: 'GET',
-    reason: 'read route',
   },
   {
     file: 'src/app/api/admin/booking-engine/prepayment-policies/route.ts',
