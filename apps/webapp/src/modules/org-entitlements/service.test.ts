@@ -64,6 +64,7 @@ describe('registration tariff policy archive wall', () => {
     downgradePolicies: {},
     includedSeats: 1,
     additionalSeatPriceMinor: null,
+    discountedPriceMinor: null,
     isActive: true,
   };
 
@@ -254,7 +255,6 @@ describe('org entitlement mechanic classes', () => {
       setTrialPolicy: async () => {},
       setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
-      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
     const constructor = createPlatformEntitlementsService(platformPort);
     const tariff = await constructor.createTariff(
@@ -278,6 +278,7 @@ describe('org entitlement mechanic classes', () => {
         downgradePolicies: {},
         includedSeats: 3,
         additionalSeatPriceMinor: null,
+        discountedPriceMinor: null,
         isActive: true,
       },
       { actorId: 'admin', reason: '' },
@@ -423,7 +424,6 @@ describe('org entitlement mechanic classes', () => {
       setTrialPolicy: async () => {},
       setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
-      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
     const constructor = createPlatformEntitlementsService(platformPort);
 
@@ -453,6 +453,7 @@ describe('org entitlement mechanic classes', () => {
         downgradePolicies: {},
         includedSeats: 1,
         additionalSeatPriceMinor: null,
+        discountedPriceMinor: null,
         isActive: true,
       },
       { actorId: 'admin', reason: '' },
@@ -719,6 +720,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       downgradePolicies: {},
       includedSeats: 1,
       additionalSeatPriceMinor: null,
+      discountedPriceMinor: null,
       isActive: true,
       createdAt: '2026-07-30T00:00:00.000Z',
       updatedAt: '2026-07-30T00:00:00.000Z',
@@ -917,7 +919,6 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       setTrialPolicy: async () => {},
       setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
-      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
     return { port, assignCalls };
   }
@@ -1021,7 +1022,6 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
       setTrialPolicy: async () => {},
       setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
-      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
     const service = createPlatformEntitlementsService(platformPort);
 
@@ -1041,6 +1041,7 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
           downgradePolicies: {},
           includedSeats: 1,
           additionalSeatPriceMinor: null,
+          discountedPriceMinor: null,
           isActive: true,
         },
         { actorId: null, reason: '' },
@@ -1070,6 +1071,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       downgradePolicies: {},
       includedSeats: 1,
       additionalSeatPriceMinor: null,
+      discountedPriceMinor: null,
       isActive: true,
       ...overrides,
     };
@@ -1098,7 +1100,6 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       setTrialPolicy: async () => {},
       setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
-      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
   }
 
@@ -1273,7 +1274,6 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
       setTrialPolicy: async () => {},
       setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
-      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     };
     const service = createPlatformEntitlementsService(platformPort);
     const candidateTariff = {
@@ -1370,6 +1370,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       downgradePolicies: {},
       includedSeats: 1,
       additionalSeatPriceMinor: null,
+      discountedPriceMinor: null,
       isActive: true,
       ...overrides,
     };
@@ -1404,7 +1405,6 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       setTrialPolicy: async () => {},
       setRegistrationTariffPolicy: async () => {},
       startTrial: async () => null,
-      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     } as unknown as PlatformEntitlementsPort;
     return createPlatformEntitlementsService(port);
   }
@@ -1537,10 +1537,12 @@ describe('§5a item 2.6a / #1069 §2.13 — клиники без тарифа �
 
 /**
  * §5a item 2.6a — «стартовый тариф с триалом настраивается в админке» (owner 31.07). The trial
- * policy is a stored record, so which tariff a new clinic gets, for how long and what happens
- * afterwards are all operator values. These tests pin that nothing here is chosen in code.
+ * policy is a stored record, so its duration, discount window and what happens afterwards are all
+ * operator values (Т5, owner 03.08: the trial no longer carries its own tariff — see
+ * saas_registration_tariff_policy for the separate "which tariff" setting). These tests pin that
+ * nothing here is chosen in code.
  */
-describe('§5a item 2.6a — стартовый тариф с триалом настраивается, а не зашит', () => {
+describe('§5a item 2.6a — политика триала настраивается, а не зашита', () => {
   function trialPort(saved: TrialPolicy[]): PlatformEntitlementsPort {
     return {
       listTariffs: async () => [],
@@ -1561,14 +1563,12 @@ describe('§5a item 2.6a — стартовый тариф с триалом н�
         saved.push(policy);
       },
       startTrial: async () => null,
-      extendTrial: async () => ({ endsAt: '2026-08-01T00:00:00.000Z' }),
     } as unknown as PlatformEntitlementsPort;
   }
 
   const policy = (overrides: Partial<TrialPolicy> = {}): TrialPolicy => ({
-    tariffId: '95200000-0000-4000-8000-000000000010',
     durationDays: 21,
-    graceDays: 5,
+    discountWindowDays: 5,
     startEvent: 'organization_created',
     postTrialBehavior: 'read_only',
     postTrialTariffId: null,
@@ -1576,9 +1576,9 @@ describe('§5a item 2.6a — стартовый тариф с триалом н�
     ...overrides,
   });
 
-  // Breakage: the starting tariff, its length or its post-trial behaviour stops round-tripping —
+  // Breakage: the trial length, discount window or its post-trial behaviour stops round-tripping —
   // i.e. something in code decides it instead of the admin screen.
-  it('stores the starting tariff, its length and its post-trial behaviour as operator values', async () => {
+  it('stores the trial length, discount window and post-trial behaviour as operator values', async () => {
     const saved: TrialPolicy[] = [];
     const service = createPlatformEntitlementsService(trialPort(saved));
 
@@ -1586,8 +1586,8 @@ describe('§5a item 2.6a — стартовый тариф с триалом н�
     expect(await service.getTrialPolicy()).toEqual(policy());
 
     const other = policy({
-      tariffId: '95200000-0000-4000-8000-000000000099',
       durationDays: 3,
+      discountWindowDays: 10,
       postTrialBehavior: 'tariff',
       postTrialTariffId: '95200000-0000-4000-8000-000000000077',
     });
@@ -1595,13 +1595,122 @@ describe('§5a item 2.6a — стартовый тариф с триалом н�
     expect(await service.getTrialPolicy()).toEqual(other);
   });
 
-  // Breakage: a missing trial length or start event is filled in by the code instead of refused.
+  // Breakage: a missing trial length, discount window or start event is filled in by the code
+  // instead of refused.
   it.each([
     ['trial_duration_invalid', policy({ durationDays: 0 })],
+    ['trial_discount_window_invalid', policy({ discountWindowDays: -1 })],
     ['trial_start_event_required', policy({ startEvent: '  ' })],
     ['trial_post_tariff_required', policy({ postTrialBehavior: 'tariff', postTrialTariffId: null })],
   ])('refuses an unset trial value with %s', async (error, invalid) => {
     const service = createPlatformEntitlementsService(trialPort([]));
     expect(() => service.setTrialPolicy(invalid, { actorId: 'admin', reason: '' })).toThrow(error);
+  });
+});
+
+describe('§5a #1069 Т5 (owner 03.08) — the trial is one-time per organization, on whatever tariff it has', () => {
+  const tariffInput = (
+    overrides: Partial<Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>> = {},
+  ): Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'> => ({
+    name: 'Т',
+    description: '',
+    priceMinor: 1000,
+    currency: 'RUB',
+    billingPeriod: 'month',
+    mechanics: {},
+    quotas: {},
+    systemAccessPolicy: null,
+    mechanicAccessPolicies: {},
+    downgradePolicies: {},
+    includedSeats: 1,
+    additionalSeatPriceMinor: null,
+    discountedPriceMinor: null,
+    isActive: true,
+    ...overrides,
+  });
+
+  // Breakage: an organization that already used its one trial gets a second one after it is
+  // assigned or chooses a DIFFERENT tariff — i.e. the trial re-fires per tariff instead of once
+  // per organization.
+  it('does not start a second trial once the organization already has one, even on a later, different tariff', async () => {
+    const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    const audit = { actorId: 'admin', reason: '' };
+    const organizationId = 'org-1';
+
+    const firstTariff = await service.createTariff(tariffInput({ name: 'First' }), audit);
+    const secondTariff = await service.createTariff(tariffInput({ name: 'Second' }), audit);
+    await service.setTrialPolicy(
+      {
+        durationDays: 14,
+        discountWindowDays: 3,
+        startEvent: 'organization_provisioned',
+        postTrialBehavior: 'blocked',
+        postTrialTariffId: null,
+        isActive: true,
+      },
+      audit,
+    );
+
+    await service.assignTariff(organizationId, firstTariff.id, audit);
+    const started = await service.startTrial(organizationId, audit);
+    expect(started?.created).toBe(true);
+
+    // The organization's first tariff changes — the person picked (or was assigned) a different
+    // one. This must NOT be a second trial: every later tariff is paid immediately.
+    await service.assignTariff(organizationId, secondTariff.id, audit);
+    const secondAttempt = await service.startTrial(organizationId, audit);
+
+    expect(secondAttempt?.created).toBe(false);
+    expect(secondAttempt?.endsAt).toBe(started?.endsAt);
+  });
+});
+
+describe('§5a #1069 Т8 (owner 03.08) — discounted price is explicit per tariff, no percent fallback', () => {
+  function tariffInput(
+    overrides: Partial<Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>> = {},
+  ): Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'> {
+    return {
+      name: 'Тест',
+      description: '',
+      priceMinor: 1000,
+      currency: 'RUB',
+      billingPeriod: 'month',
+      mechanics: {},
+      quotas: {},
+      systemAccessPolicy: null,
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      includedSeats: 1,
+      additionalSeatPriceMinor: null,
+      discountedPriceMinor: null,
+      isActive: true,
+      ...overrides,
+    };
+  }
+
+  // Breakage: a tariff without an explicit discounted price gets one anyway (a global percent
+  // fallback reappearing) — the owner closed that: "тарифов всё-таки 3-4, а не десятки".
+  it('gives no discount when the tariff has no explicit discounted price, and stores an explicit one', async () => {
+    const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    const audit = { actorId: 'admin', reason: '' };
+
+    const withoutDiscount = await service.createTariff(tariffInput(), audit);
+    expect(withoutDiscount.discountedPriceMinor).toBeNull();
+
+    const withDiscount = await service.createTariff(
+      tariffInput({ discountedPriceMinor: 700 }),
+      audit,
+    );
+    expect(withDiscount.discountedPriceMinor).toBe(700);
+  });
+
+  it('refuses a negative discounted price instead of silently clamping it', () => {
+    const service = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    expect(() =>
+      service.createTariff(tariffInput({ discountedPriceMinor: -1 }), {
+        actorId: 'admin',
+        reason: '',
+      }),
+    ).toThrow('tariff_discounted_price_invalid');
   });
 });

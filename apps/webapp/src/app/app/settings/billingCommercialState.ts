@@ -10,8 +10,12 @@ function formatRuDate(iso: string): string {
  * Human-readable commercial access state for the owner-facing «Тариф и биллинг» tab. Never
  * surfaces the raw `source`/`lifecycle` enum values to the owner — Defect #2 2026-07-25: the tab
  * used to always render a hardcoded "no tariff connected" sentence regardless of the organization's
- * actual state. Order of checks matters: `grace`/`blocked`/`read_only` are lifecycle outcomes that
- * can only be reached via a trial, so they are checked before the plain `source === "trial"` case.
+ * actual state. Order of checks matters: `blocked`/`read_only` are lifecycle outcomes that can only
+ * be reached via a trial, so they are checked before the plain `source === "trial"` case.
+ *
+ * #1069 Т5-Т8 (owner 03.08): there is no more `grace` outcome here — once the trial ends, the
+ * post-trial rule applies immediately. A separate discount-payment window may be open in parallel,
+ * but it never changes access and has no place in this access-state message.
  */
 export function describeCommercialAccessState(access: EffectiveOrgCommercialAccess): string {
   // #1069 §2.13 (owner 01.08): «единственное что надо это какой выбран или назначен тариф… нет
@@ -19,11 +23,6 @@ export function describeCommercialAccessState(access: EffectiveOrgCommercialAcce
   // tariff-less organization with no active trial is simply unassigned.
   if (access.tariffId === null) {
     return 'Тариф не назначен — доступа нет. Выберите тариф в админке, чтобы вернуть работу кабинета.';
-  }
-  if (access.lifecycle === 'grace') {
-    return access.trialGraceEndsAt
-      ? `Пробный период завершён — включён льготный период до ${formatRuDate(access.trialGraceEndsAt)}.`
-      : 'Пробный период завершён — включён льготный период.';
   }
   if (access.lifecycle === 'blocked') {
     return 'Доступ заблокирован — обратитесь к администратору платформы.';

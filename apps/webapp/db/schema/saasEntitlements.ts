@@ -68,6 +68,12 @@ export const saasTariffs = pgTable(
      * created. Never a code default — set explicitly per tariff by the platform admin.
      */
     additionalSeatPriceMinor: integer('additional_seat_price_minor'),
+    /**
+     * Триал и льготный период — owner 03.08 (Т8): the exact discounted price for THIS tariff's
+     * grace-period payment window, in the tariff's own `currency`. No global percent fallback —
+     * `null` simply gives no discount; a stored value must be nonnegative.
+     */
+    discountedPriceMinor: integer('discounted_price_minor'),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -84,6 +90,10 @@ export const saasTariffs = pgTable(
     check(
       'saas_tariffs_additional_seat_price_nonnegative_check',
       sql`${table.additionalSeatPriceMinor} IS NULL OR ${table.additionalSeatPriceMinor} >= 0`,
+    ),
+    check(
+      'saas_tariffs_discounted_price_nonnegative_check',
+      sql`${table.discountedPriceMinor} IS NULL OR ${table.discountedPriceMinor} >= 0`,
     ),
     check(
       'saas_tariffs_billing_period_check',
@@ -139,14 +149,26 @@ export const saasOrgEntitlementOverrides = pgTable(
   ],
 );
 
-/** Singleton, platform-global trial policy. Values are operator-configured data, never product defaults. */
+/**
+ * Singleton, platform-global trial policy. Values are operator-configured data, never product
+ * defaults.
+ *
+ * Триал и льготный период — owner 03.08 (Т5): the trial is a one-time period on the organization's
+ * FIRST tariff, whatever it is — auto-assigned via {@link saasRegistrationTariffPolicy} or chosen by
+ * the person. It is no longer bound to its own tariff (there is no `tariffId` here): the tariff
+ * during a trial is whichever one the organization actually ends up with.
+ */
 export const saasTrialPolicy = pgTable(
   'saas_trial_policy',
   {
     key: text().primaryKey().default('global').notNull(),
-    tariffId: uuid('tariff_id').notNull(),
     durationDays: integer('duration_days').notNull(),
-    graceDays: integer('grace_days').notNull(),
+    /**
+     * Т6 — length of the discount-payment window that opens once the trial ends, orthogonal to
+     * access (see {@link saasOrganizationTrials.discountEndsAt}). Not the removed trial-extension
+     * `graceDays`: that column and its access-extending behavior are gone, not repurposed.
+     */
+    discountWindowDays: integer('discount_window_days').default(0).notNull(),
     startEvent: text('start_event').notNull(),
     postTrialBehavior: text('post_trial_behavior').notNull(),
     postTrialTariffId: uuid('post_trial_tariff_id'),
@@ -161,18 +183,13 @@ export const saasTrialPolicy = pgTable(
   },
   (table) => [
     foreignKey({
-      columns: [table.tariffId],
-      foreignColumns: [saasTariffs.id],
-      name: 'saas_trial_policy_tariff_id_fkey',
-    }).onDelete('restrict'),
-    foreignKey({
       columns: [table.postTrialTariffId],
       foreignColumns: [saasTariffs.id],
       name: 'saas_trial_policy_post_trial_tariff_id_fkey',
     }).onDelete('restrict'),
     check('saas_trial_policy_key_check', sql`${table.key} = 'global'`),
     check('saas_trial_policy_duration_check', sql`${table.durationDays} > 0`),
-    check('saas_trial_policy_grace_check', sql`${table.graceDays} >= 0`),
+    check('saas_trial_policy_discount_window_check', sql`${table.discountWindowDays} >= 0`),
     check('saas_trial_policy_start_event_check', sql`length(btrim(${table.startEvent})) > 0`),
     check(
       'saas_trial_policy_post_behavior_check',
@@ -215,7 +232,17 @@ export const saasRegistrationTariffPolicy = pgTable(
   ],
 );
 
-/** One immutable trial identity per organization; dates may only move through audited platform operations. */
+/**
+ * One immutable trial identity per organization (the organization-uidx below is what makes the
+ * trial one-time per organization — Т5); dates may only move through audited platform operations.
+ *
+ * `tariffId` is the organization's actual first tariff (auto-assigned via
+ * {@link saasRegistrationTariffPolicy} or already assigned to the organization) — the trial no
+ * longer carries its own separate tariff. `discountEndsAt` (Т6) is the discount-payment window;
+ * it runs in parallel with whatever the post-trial rule does and never extends access — access
+ * always ends at `endsAt`. This replaces the removed `graceEndsAt` trial-extension column outright,
+ * not a repurposing of it.
+ */
 export const saasOrganizationTrials = pgTable(
   'saas_organization_trials',
   {
@@ -224,11 +251,10 @@ export const saasOrganizationTrials = pgTable(
     tariffId: uuid('tariff_id').notNull(),
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true, mode: 'string' }).notNull(),
-    graceEndsAt: timestamp('grace_ends_at', { withTimezone: true, mode: 'string' }).notNull(),
+    discountEndsAt: timestamp('discount_ends_at', { withTimezone: true, mode: 'string' }).notNull(),
     postTrialBehavior: text('post_trial_behavior').notNull(),
     postTrialTariffId: uuid('post_trial_tariff_id'),
     status: text().default('active').notNull(),
-    extensionCount: integer('extension_count').default(0).notNull(),
     createdBy: uuid('created_by'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -239,7 +265,7 @@ export const saasOrganizationTrials = pgTable(
   },
   (table) => [
     unique('saas_organization_trials_organization_uidx').on(table.organizationId),
-    index('idx_saas_organization_trials_lifecycle').on(table.status, table.graceEndsAt),
+    index('idx_saas_organization_trials_lifecycle').on(table.status, table.endsAt),
     index('idx_saas_organization_trials_org_updated').on(table.organizationId, table.updatedAt),
     foreignKey({
       columns: [table.organizationId],
@@ -258,9 +284,8 @@ export const saasOrganizationTrials = pgTable(
     }).onDelete('restrict'),
     check(
       'saas_organization_trials_dates_check',
-      sql`${table.startedAt} < ${table.endsAt} AND ${table.endsAt} <= ${table.graceEndsAt}`,
+      sql`${table.startedAt} < ${table.endsAt} AND ${table.endsAt} <= ${table.discountEndsAt}`,
     ),
-    check('saas_organization_trials_extension_count_check', sql`${table.extensionCount} >= 0`),
     check(
       'saas_organization_trials_status_check',
       sql`${table.status} = ANY (ARRAY['active'::text, 'ended'::text])`,

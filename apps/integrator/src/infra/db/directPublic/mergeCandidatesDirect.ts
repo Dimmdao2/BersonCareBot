@@ -1,54 +1,23 @@
 /**
  * A3 — real `mergeCandidateIds` hook for the D1 direct-public writers, wired to
- * `mergePlatformUsersInTransaction` from `@bersoncare/platform-merge` (the SAME package the integrator
- * already uses for `user.phone.link` — see `apps/integrator/src/infra/db/repos/messengerPhonePublicBind.ts`).
+ * `collapseIdentityProjectionCandidates` from `@bersoncare/platform-merge` (D15b/2: the SAME cascade
+ * the webapp's `pgUserProjection.mergeCandidates` uses — one shared implementation, not two copies
+ * of the same sort-and-merge loop).
  *
- * Mirrors `apps/webapp/src/infra/repos/pgUserProjection.ts`'s `mergeCandidates`: sort candidate ids,
- * repeatedly merge the first pair (`pickMergeTargetId` after `enrichPickMergeCandidatesWithBookingCounts`)
- * via `mergePlatformUsersInTransaction(..., reason: "projection")` until one canonical id remains. Any
- * merge the underlying function rejects as unsafe throws `MergeConflictError` / `MergeDependentConflictError`
- * (from `@bersoncare/platform-merge`) — this function does NOT catch those; callers (writePort.ts) decide
- * how to handle the ambiguity, matching how the webapp's `events.ts` lets the same errors bubble up to
- * `acceptAfterMergeConflict` (log + swallow, no write) instead of silently picking a candidate.
+ * Any merge the underlying function rejects as unsafe throws `MergeConflictError` /
+ * `MergeDependentConflictError` (from `@bersoncare/platform-merge`) — this function does NOT catch
+ * those; callers (writePort.ts) decide how to handle the ambiguity, matching how the webapp's
+ * `events.ts` lets the same errors bubble up to `acceptAfterMergeConflict` (log + swallow, no write)
+ * instead of silently picking a candidate.
  */
-import { sql } from 'drizzle-orm';
 import {
-  enrichPickMergeCandidatesWithBookingCounts,
-  mergePlatformUsersInTransaction,
+  collapseIdentityProjectionCandidates,
   MergeConflictError,
   MergeDependentConflictError,
-  pickMergeTargetId,
-  type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
 } from '@bersoncare/platform-merge';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
 import { DirectPublicWriteError } from './writeIdentityAndPreferencesDirect.js';
-
-async function loadCandidateForMerge(
-  txDb: DbPort,
-  id: string,
-): Promise<PickMergeTargetCandidate | null> {
-  const r = await runIntegratorSql<{
-    id: string;
-    phone_normalized: string | null;
-    integrator_user_id: string | null;
-    created_at: Date | string;
-  }>(
-    txDb,
-    sql`SELECT id::text AS id, phone_normalized, integrator_user_id::text AS integrator_user_id, created_at
-     FROM public.platform_users
-     WHERE id = ${id}::uuid AND merged_into_id IS NULL`,
-  );
-  const row = r.rows[0];
-  if (!row) return null;
-  return {
-    id: row.id,
-    phone_normalized: row.phone_normalized,
-    integrator_user_id: row.integrator_user_id,
-    created_at: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
-  };
-}
 
 /** Real merge-candidate collapse for D1 direct writes — pass as `deps.mergeCandidateIds`. */
 export async function mergeCandidateIdsViaPlatformMerge(
@@ -60,30 +29,26 @@ export async function mergeCandidateIdsViaPlatformMerge(
   ];
   if (uniq.length === 0) throw new DirectPublicWriteError('no_platform_user_candidate');
 
-  let ids = [...uniq].sort();
-  while (ids.length > 1) {
-    const id0 = ids[0]!;
-    const id1 = ids[1]!;
-    const a = await loadCandidateForMerge(txDb, id0);
-    const b = await loadCandidateForMerge(txDb, id1);
-    if (!a || !b) {
-      throw new DirectPublicWriteError('ambiguous_platform_user_candidates', { candidateIds: ids });
-    }
-    const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(
+  try {
+    return await collapseIdentityProjectionCandidates(
       txDb as PlatformMergeDbClient,
-      a,
-      b,
-    );
-    const { target, duplicate } = pickMergeTargetId(ea, eb);
-    await mergePlatformUsersInTransaction(
-      txDb as PlatformMergeDbClient,
-      target,
-      duplicate,
+      uniq,
       'projection',
     );
-    ids = ids.filter((x) => x !== duplicate);
+  } catch (err) {
+    // Pre-merge "row missing" ambiguity (two distinct rows, one vanished between candidate
+    // collection and merge) — preserve the D1 scaffold's own error code for this specific case;
+    // real merge-policy rejections (conflicting phone/bookings/etc.) pass through unchanged.
+    if (
+      err instanceof MergeConflictError &&
+      err.message === 'collapseIdentityProjectionCandidates: row missing'
+    ) {
+      throw new DirectPublicWriteError('ambiguous_platform_user_candidates', {
+        candidateIds: err.candidateIds,
+      });
+    }
+    throw err;
   }
-  return ids[0]!;
 }
 
 /**

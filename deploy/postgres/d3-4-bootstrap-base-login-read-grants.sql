@@ -220,7 +220,11 @@ SELECT format('REVOKE EXECUTE ON FUNCTION app.is_max_bot_configured() FROM %I', 
 WHERE to_regprocedure('app.is_max_bot_configured()') IS NOT NULL \gexec
 SELECT format('REVOKE EXECUTE ON FUNCTION app.read_saas_billing_payment_provider() FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.read_saas_billing_payment_provider()') IS NOT NULL \gexec
--- 0343: WHERE-guarded, same as the other post-2026-07-25 additions above -- absent function
+-- 0342 (#1057 B0.3): WHERE-guarded like its saas-billing sibling immediately above, so a DB that
+-- predates 0342 is a no-op rather than a FATAL.
+SELECT format('REVOKE EXECUTE ON FUNCTION app.resolve_saas_billing_invoice_for_webhook(text, text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.resolve_saas_billing_invoice_for_webhook(text, text)') IS NOT NULL \gexec
+-- 0351: WHERE-guarded, same as the other post-2026-07-25 additions above -- absent function
 -- (migration 0343 not yet applied) is a no-op rather than an error.
 SELECT format('REVOKE EXECUTE ON FUNCTION app.read_webapp_preauth_provider_setting(text) FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.read_webapp_preauth_provider_setting(text)') IS NOT NULL \gexec
@@ -636,6 +640,11 @@ WHERE to_regprocedure('app.is_max_bot_configured()') IS NOT NULL \gexec
 -- The fixed-key function exposes no arbitrary setting selector and no table grant.
 SELECT format('GRANT EXECUTE ON FUNCTION app.read_saas_billing_payment_provider() TO %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.read_saas_billing_payment_provider()') IS NOT NULL \gexec
+-- 0342 (#1057 B0.3): once the signature is verified, the same webhook resolves its invoice by
+-- provider ref, still before the organization is known. Narrow SECURITY DEFINER resolver, no table
+-- grant to this login — see the migration's own header for the full trace.
+SELECT format('GRANT EXECUTE ON FUNCTION app.resolve_saas_billing_invoice_for_webhook(text, text) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.resolve_saas_billing_invoice_for_webhook(text, text)') IS NOT NULL \gexec
 -- TEST owner findings 2026-08-03 (D1): oauth/start, oauth/callback/{yandex,google,apple} and
 -- telegram-login all read an OAuth/Telegram credential before a session exists. The fixed-key
 -- function exposes exactly those 12 keys, never a caller-controlled key, never table access.

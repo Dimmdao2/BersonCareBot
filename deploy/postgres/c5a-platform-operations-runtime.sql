@@ -310,6 +310,15 @@ DECLARE
     'saas_billing_subscriptions',
     'saas_billing_invoices'
   ];
+  -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent runs under SET ROLE app_staff
+  -- (runWithDbOrganizationPrincipal); capture never touches saas_billing_accounts, and never
+  -- creates an invoice/subscription row, only reads (row-locking) and updates one the
+  -- clinic-billing door already created.
+  staff_capture_relation_names constant text[] := ARRAY[
+    'saas_billing_subscriptions',
+    'saas_billing_invoices',
+    'saas_billing_provider_events'
+  ];
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -325,6 +334,18 @@ BEGIN
       'REVOKE ALL PRIVILEGES ON TABLE public.%I FROM app_staff',
       relation_name
     );
+    IF relation_name = ANY(staff_capture_relation_names) THEN
+      EXECUTE format(
+        'GRANT SELECT, UPDATE ON TABLE public.%I TO app_staff',
+        relation_name
+      );
+    END IF;
+    IF relation_name = 'saas_billing_provider_events' THEN
+      EXECUTE format(
+        'GRANT INSERT ON TABLE public.%I TO app_staff',
+        relation_name
+      );
+    END IF;
     EXECUTE format(
       'REVOKE DELETE ON TABLE public.%I FROM app_platform_settings',
       relation_name
@@ -365,6 +386,40 @@ BEGIN
       relation_name || '_staff_select',
       relation_name
     );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_staff_capture_select',
+      relation_name
+    );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_staff_capture_update',
+      relation_name
+    );
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      relation_name || '_staff_capture_insert',
+      relation_name
+    );
+    IF relation_name = ANY(staff_capture_relation_names) THEN
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR SELECT TO app_staff USING (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
+        relation_name || '_staff_capture_select',
+        relation_name
+      );
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR UPDATE TO app_staff USING (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()) WITH CHECK (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
+        relation_name || '_staff_capture_update',
+        relation_name
+      );
+    END IF;
+    IF relation_name = 'saas_billing_provider_events' THEN
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR INSERT TO app_staff WITH CHECK (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
+        relation_name || '_staff_capture_insert',
+        relation_name
+      );
+    END IF;
     EXECUTE format(
       'DROP POLICY IF EXISTS %I ON public.%I',
       relation_name || '_clinic_billing_select',
@@ -708,18 +763,21 @@ BEGIN
   SELECT policy.*
   INTO v_policy
   FROM public.saas_trial_policy AS policy
-  INNER JOIN public.saas_tariffs AS tariff
-    ON tariff.id = policy.tariff_id
-   AND tariff.is_active
   WHERE policy.key = 'global'
     AND policy.is_active
     AND policy.start_event = 'organization_provisioned'
   LIMIT 1
   FOR UPDATE OF policy;
-  IF NOT FOUND THEN
-    -- No active trial policy is configured on this platform (owner has not set one). Whether the
-    -- organization instead gets a direct starting tariff is governed by the independent
-    -- registration-tariff setting above -- never a hardcoded value.
+  -- #1069 Т3/Т5 (owner 03.08): the trial no longer carries its own tariff_id -- it is a one-time
+  -- period on the organization's FIRST tariff, whatever it is. Without a registration tariff there
+  -- is nothing yet to attach a trial to (the person picks one themselves; wiring a trial into that
+  -- later self-choice is a separate slice), so this falls through to the same no-trial outcome as
+  -- no active policy at all.
+  IF NOT FOUND OR v_registration_tariff_id IS NULL THEN
+    -- No active trial policy is configured on this platform (owner has not set one), or there is no
+    -- tariff yet for a trial to apply to. Whether the organization instead gets a direct starting
+    -- tariff is governed by the independent registration-tariff setting above -- never a hardcoded
+    -- value.
     IF v_registration_tariff_id IS NOT NULL THEN
       UPDATE public.be_organizations
       SET tariff_id = v_registration_tariff_id,
@@ -747,12 +805,12 @@ BEGIN
 
   v_started_at := clock_timestamp();
   INSERT INTO public.saas_organization_trials (
-    organization_id, tariff_id, started_at, ends_at, grace_ends_at,
+    organization_id, tariff_id, started_at, ends_at, discount_ends_at,
     post_trial_behavior, post_trial_tariff_id, status, created_by
   ) VALUES (
-    v_organization_id, v_policy.tariff_id, v_started_at,
+    v_organization_id, v_registration_tariff_id, v_started_at,
     v_started_at + make_interval(days => v_policy.duration_days),
-    v_started_at + make_interval(days => v_policy.duration_days + v_policy.grace_days),
+    v_started_at + make_interval(days => v_policy.duration_days + v_policy.discount_window_days),
     v_policy.post_trial_behavior, v_policy.post_trial_tariff_id, 'active', v_patient_user_id
   )
   ON CONFLICT (organization_id) DO NOTHING
@@ -762,7 +820,7 @@ BEGIN
   END IF;
 
   UPDATE public.be_organizations
-  SET tariff_id = v_policy.tariff_id,
+  SET tariff_id = v_registration_tariff_id,
       updated_at = now()
   WHERE id = v_organization_id;
 
@@ -774,9 +832,9 @@ BEGIN
       'reason', 'automatic organization provisioning trial',
       'before', NULL,
       'after', jsonb_build_object(
-        'tariffId', v_policy.tariff_id,
+        'tariffId', v_registration_tariff_id,
         'durationDays', v_policy.duration_days,
-        'graceDays', v_policy.grace_days,
+        'discountWindowDays', v_policy.discount_window_days,
         'startEvent', v_policy.start_event,
         'postTrialBehavior', v_policy.post_trial_behavior,
         'postTrialTariffId', v_policy.post_trial_tariff_id
@@ -1166,7 +1224,8 @@ BEGIN
   ), role_oids AS (
     SELECT
       (SELECT oid FROM pg_roles WHERE rolname = 'app_clinic_billing') AS clinic_billing_oid,
-      (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid
+      (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid,
+      (SELECT oid FROM pg_roles WHERE rolname = 'app_staff') AS staff_oid
   ), expected_table_acl(relation_name, grantee, privilege_type, is_grantable) AS (
     SELECT relation_name, owner_name, privilege_type, false
     FROM relations
@@ -1186,9 +1245,25 @@ BEGIN
     SELECT 'saas_billing_subscriptions', 'app_owner', 'SELECT', false
     WHERE to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)') IS NOT NULL
     UNION
+    -- 0343 (#1057 B0.3) grants this supporting read to its own app_owner SECURITY DEFINER resolver.
+    SELECT 'saas_billing_invoices', 'app_owner', 'SELECT', false
+    WHERE to_regprocedure('app.resolve_saas_billing_invoice_for_webhook(text,text)') IS NOT NULL
+    UNION
     SELECT relation_name, 'app_platform_settings', privilege_type, false
     FROM relations
     CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+    UNION
+    -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent runs under SET ROLE app_staff
+    -- (runWithDbOrganizationPrincipal). Capture never touches saas_billing_accounts, and never
+    -- creates an invoice/subscription row -- only reads (row-locking) and updates one the
+    -- clinic-billing door already created -- so no app_staff ACL there and no INSERT here.
+    SELECT relation_name, 'app_staff', 'SELECT', false FROM relations
+    WHERE relation_name <> 'saas_billing_accounts'
+    UNION
+    SELECT relation_name, 'app_staff', 'UPDATE', false FROM relations
+    WHERE relation_name <> 'saas_billing_accounts'
+    UNION
+    SELECT 'saas_billing_provider_events', 'app_staff', 'INSERT', false
   ), actual_table_acl AS (
     SELECT
       relations.relation_name,
@@ -1273,6 +1348,47 @@ BEGIN
         )
     ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
     WHERE relations.relation_name <> 'saas_billing_provider_events'
+    UNION ALL
+    -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent's org-scoped SELECT/UPDATE on the
+    -- capture path's tables; saas_billing_accounts is untouched by capture, so excluded here.
+    SELECT
+      relations.relation_name,
+      relations.relation_name || expected_policy.suffix,
+      true,
+      expected_policy.command::"char",
+      expected_policy.roles,
+      expected_policy.using_expression,
+      expected_policy.check_expression
+    FROM relations
+    CROSS JOIN role_oids
+    CROSS JOIN LATERAL (
+      VALUES
+        (
+          '_staff_capture_select',
+          'r'::"char",
+          ARRAY[role_oids.staff_oid]::oid[],
+          '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+          NULL::text
+        ),
+        (
+          '_staff_capture_update',
+          'w'::"char",
+          ARRAY[role_oids.staff_oid]::oid[],
+          '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+          '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
+        )
+    ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
+    WHERE relations.relation_name <> 'saas_billing_accounts'
+    UNION ALL
+    SELECT
+      'saas_billing_provider_events',
+      'saas_billing_provider_events_staff_capture_insert',
+      true,
+      'a'::"char",
+      ARRAY[role_oids.staff_oid]::oid[],
+      NULL::text,
+      '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
+    FROM role_oids
   ), actual_policy_inventory AS (
     SELECT
       relations.relation_name,

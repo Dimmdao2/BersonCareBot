@@ -1,4 +1,5 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { logger } from '@/app-layer/logging/logger';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -22,6 +23,7 @@ const bodySchema = z.object({
 
 const INVALID_CREDENTIALS_MESSAGE =
   'Email или пароль неверны. Проверьте данные или восстановите пароль.';
+const SERVER_ERROR_MESSAGE = 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.';
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-password/login:POST', request);
@@ -55,110 +57,125 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
-  }
-
-  const emailNorm = normalizeEmail(parsed.data.email);
-  const deps = buildAppDeps();
-  const altchaProof = await deps.passwordAltcha.verify(emailNorm, parsed.data.altcha);
-
-  const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(
-    emailNorm,
-    parsed.data.password,
-    altchaProof,
-    parsed.data.altcha !== undefined,
-  );
-  if (!pwd.ok) {
     return NextResponse.json(
       {
         ok: false,
-        error: 'invalid_credentials',
-        message: INVALID_CREDENTIALS_MESSAGE,
-        retryAfterSeconds: pwd.retryAfterSeconds,
-        captchaRequired: pwd.captchaRequired,
-        captchaRefreshRequired: pwd.captchaRefreshRequired,
+        error: 'invalid_body',
+        message: 'Данные введены неверно. Проверьте их и повторите действие.',
       },
-      {
-        status: 401,
-        ...(pwd.retryAfterSeconds > 0
-          ? { headers: { 'Retry-After': String(pwd.retryAfterSeconds) } }
-          : {}),
-      },
+      { status: 400 },
     );
   }
 
-  enterStaffSecuritySelfPrincipal(pwd.userId, 'api/auth/email-password/login:primary-verified');
-  if (!pwd.emailVerified) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'email_not_verified',
-        message: 'Email не подтверждён. Подтвердите адрес и повторите вход.',
-      },
-      { status: 409 },
+  try {
+    const emailNorm = normalizeEmail(parsed.data.email);
+    const deps = buildAppDeps();
+    const altchaProof = await deps.passwordAltcha.verify(emailNorm, parsed.data.altcha);
+
+    const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(
+      emailNorm,
+      parsed.data.password,
+      altchaProof,
+      parsed.data.altcha !== undefined,
     );
-  }
+    if (!pwd.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'invalid_credentials',
+          message: INVALID_CREDENTIALS_MESSAGE,
+          retryAfterSeconds: pwd.retryAfterSeconds,
+          captchaRequired: pwd.captchaRequired,
+          captchaRefreshRequired: pwd.captchaRefreshRequired,
+        },
+        {
+          status: 401,
+          ...(pwd.retryAfterSeconds > 0
+            ? { headers: { 'Retry-After': String(pwd.retryAfterSeconds) } }
+            : {}),
+        },
+      );
+    }
 
-  let sessionUser = await deps.userByPhone.findByUserId(pwd.userId);
-  if (!sessionUser) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'invalid_credentials',
-        message: INVALID_CREDENTIALS_MESSAGE,
-      },
-      { status: 401 },
-    );
-  }
+    enterStaffSecuritySelfPrincipal(pwd.userId, 'api/auth/email-password/login:primary-verified');
+    if (!pwd.emailVerified) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'email_not_verified',
+          message: 'Email не подтверждён. Подтвердите адрес и повторите вход.',
+        },
+        { status: 409 },
+      );
+    }
 
-  const envRole = resolveRoleFromEnv({
-    phone: sessionUser.phone,
-    telegramId: sessionUser.bindings.telegramId,
-    maxId: sessionUser.bindings.maxId,
-  });
-  const effectiveRole = reconcileDbRoleWithEnvRole(sessionUser.role, envRole);
-  if (sessionUser.role !== effectiveRole) {
-    await deps.userProjection.updateRole(sessionUser.userId, effectiveRole);
-    sessionUser = { ...sessionUser, role: effectiveRole };
-  }
+    let sessionUser = await deps.userByPhone.findByUserId(pwd.userId);
+    if (!sessionUser) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'invalid_credentials',
+          message: INVALID_CREDENTIALS_MESSAGE,
+        },
+        { status: 401 },
+      );
+    }
 
-  let security = await deps.staffSecurity.getStatus();
-  let recoveringSpecialistSignup = false;
-  if (!security) {
-    const signupIntent =
-      await deps.organizationProvisioning.getLatestSpecialistSignupIntentForUser();
-    if (signupIntent) {
-      recoveringSpecialistSignup = true;
-      try {
-        security = await deps.staffSecurity.ensureProfile();
-      } catch {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'security_setup_pending',
-            message: 'Не удалось подготовить защищённый вход. Повторите попытку позже.',
-          },
-          { status: 503 },
-        );
+    const envRole = resolveRoleFromEnv({
+      phone: sessionUser.phone,
+      telegramId: sessionUser.bindings.telegramId,
+      maxId: sessionUser.bindings.maxId,
+    });
+    const effectiveRole = reconcileDbRoleWithEnvRole(sessionUser.role, envRole);
+    if (sessionUser.role !== effectiveRole) {
+      await deps.userProjection.updateRole(sessionUser.userId, effectiveRole);
+      sessionUser = { ...sessionUser, role: effectiveRole };
+    }
+
+    let security = await deps.staffSecurity.getStatus();
+    let recoveringSpecialistSignup = false;
+    if (!security) {
+      const signupIntent =
+        await deps.organizationProvisioning.getLatestSpecialistSignupIntentForUser();
+      if (signupIntent) {
+        recoveringSpecialistSignup = true;
+        try {
+          security = await deps.staffSecurity.ensureProfile();
+        } catch {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: 'security_setup_pending',
+              message: 'Не удалось подготовить защищённый вход. Повторите попытку позже.',
+            },
+            { status: 503 },
+          );
+        }
       }
     }
-  }
-  const authenticatedUser = recoveringSpecialistSignup
-    ? { ...sessionUser, role: 'doctor' as const }
-    : sessionUser;
-  const prepared = await prepareVerifiedPrimaryLoginWithStatus({
-    user: authenticatedUser,
-    security,
-    staffSecurity: deps.staffSecurity,
-  });
-  if (prepared.factorRequired) {
-    return NextResponse.json({ ok: true, factorRequired: true });
-  }
+    const authenticatedUser = recoveringSpecialistSignup
+      ? { ...sessionUser, role: 'doctor' as const }
+      : sessionUser;
+    const prepared = await prepareVerifiedPrimaryLoginWithStatus({
+      user: authenticatedUser,
+      security,
+      staffSecurity: deps.staffSecurity,
+    });
+    if (prepared.factorRequired) {
+      return NextResponse.json({ ok: true, factorRequired: true });
+    }
 
-  await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
-  return NextResponse.json({
-    ok: true,
-    redirectTo: getRedirectPathForRole(sessionUser.role),
-    role: authenticatedUser.role,
-  });
+    await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
+    return NextResponse.json({
+      ok: true,
+      redirectTo: getRedirectPathForRole(sessionUser.role),
+      role: authenticatedUser.role,
+    });
+  } catch (error) {
+    logger.error({ error }, '[auth/email-password/login] unhandled failure');
+    return NextResponse.json(
+      { ok: false, error: 'server_error', message: SERVER_ERROR_MESSAGE },
+      { status: 500 },
+    );
+  }
 }

@@ -6,22 +6,16 @@ import { getPool } from '@/infra/db/client';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
-import { findCanonicalUserIdByChannelBinding } from '@/infra/repos/pgCanonicalPlatformUser';
+import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
 import {
-  MergeConflictError,
-  MergeDependentConflictError,
-} from '@/infra/repos/platformUserMergeErrors';
-import {
-  mergePlatformUsersInTransaction,
-  pickMergeTargetId,
-  enrichPickMergeCandidatesWithBookingCounts,
-} from '@/infra/repos/pgPlatformUserMerge';
+  upsertIdentityProjection,
+  collapseIdentityProjectionCandidates,
+} from '@bersoncare/platform-merge';
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from '@/modules/platform-access/trustedPhonePolicy';
 import type { PoolClient } from 'pg';
-import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
 import {
   findPlatformUserIdWithEmailConflict,
@@ -111,118 +105,19 @@ export type UserProjectionPort = {
   ) => Promise<string | null>;
 };
 
-type PuRow = {
-  id: string;
-  phone_normalized: string | null;
-  integrator_user_id: string | null;
-  merged_into_id: string | null;
-  display_name: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  created_at: Date;
-};
-
-async function loadPuRow(client: PoolClient, id: string): Promise<PuRow | null> {
-  const r = await txPgText<PuRow>(
-    client,
-    `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, merged_into_id,
-            display_name, first_name, last_name, email, created_at
-     FROM platform_users WHERE id = $1::uuid`,
-    [id],
-  );
-  return r.rows[0] ?? null;
-}
-
 /**
- * Collapse duplicate canonical `platform_users` rows referenced by integrator/messenger resolution (Phase B).
+ * Collapse duplicate canonical `platform_users` rows referenced by integrator/messenger resolution
+ * (Phase B) — delegates to the shared `@bersoncare/platform-merge` cascade (D15b/2: the SAME
+ * implementation the integrator's `mergeCandidateIdsViaPlatformMerge` uses, not a parallel copy).
  */
 export async function mergeCanonicalPlatformUserCandidates(
   client: PoolClient,
   candidateIds: string[],
   reason: 'projection' | 'phone_bind',
 ): Promise<string> {
-  return mergeCandidates(client, candidateIds, reason);
-}
-
-async function mergeCandidates(
-  client: PoolClient,
-  candidateIds: string[],
-  reason: 'projection' | 'phone_bind',
-): Promise<string> {
   const uniq = [...new Set(candidateIds)].filter(Boolean);
   if (uniq.length === 0) throw new MergeConflictError('mergeCandidates: empty', candidateIds);
-  if (uniq.length === 1) return uniq[0]!;
-  let ids = [...uniq].sort();
-  while (ids.length > 1) {
-    const id0 = ids[0]!;
-    const id1 = ids[1]!;
-    const a = await loadPuRow(client, id0);
-    const b = await loadPuRow(client, id1);
-    if (!a || !b) throw new MergeConflictError('mergeCandidates: row missing', ids);
-    const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(client, a, b);
-    const { target, duplicate } = pickMergeTargetId(ea, eb);
-    try {
-      await mergePlatformUsersInTransaction(client, target, duplicate, reason);
-    } catch (e) {
-      if (e instanceof MergeDependentConflictError) throw e;
-      if (e instanceof MergeConflictError) throw e;
-      throw e;
-    }
-    ids = ids.filter((x) => x !== duplicate);
-  }
-  return ids[0]!;
-}
-
-async function collectCandidateIds(
-  client: PoolClient,
-  params: {
-    integratorUserId: string;
-    phoneNormalized?: string;
-    channelCode?: string;
-    externalId?: string;
-  },
-): Promise<string[]> {
-  const ids: string[] = [];
-  const byInt = await txPgText<{ id: string }>(
-    client,
-    `SELECT id FROM platform_users
-     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
-     LIMIT 3`,
-    [params.integratorUserId],
-  );
-  if (byInt.rows.length > 1)
-    throw new MergeConflictError(
-      'ambiguous integrator_user_id match',
-      byInt.rows.map((r) => r.id),
-    );
-  if (byInt.rows[0]) ids.push(byInt.rows[0].id);
-  // Phone match is intentional for signed integrator webhook: payload asserts this user owns the number
-  // (may merge a row without patient_phone_trust_at; UPDATE path then sets trust when phone is supplied).
-  if (params.phoneNormalized) {
-    const byPhone = await txPgText<{ id: string }>(
-      client,
-      `SELECT id FROM platform_users
-       WHERE phone_normalized = $1 AND merged_into_id IS NULL
-       LIMIT 3`,
-      [params.phoneNormalized],
-    );
-    if (byPhone.rows.length > 1)
-      throw new MergeConflictError(
-        'ambiguous phone_normalized match',
-        byPhone.rows.map((r) => r.id),
-      );
-    if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
-  }
-  if (params.channelCode && params.externalId) {
-    const ch = await findCanonicalUserIdByChannelBinding(
-      getWebappSqlFromPgClient(client),
-      params.channelCode,
-      params.externalId,
-    );
-    if (ch) ids.push(ch);
-  }
-  return [...new Set(ids)];
+  return collapseIdentityProjectionCandidates(client, uniq, reason);
 }
 
 async function upsertFromProjectionTx(
@@ -238,101 +133,8 @@ async function upsertFromProjectionTx(
     externalId?: string;
   },
 ): Promise<string> {
-  let candidateIds = await collectCandidateIds(client, {
-    integratorUserId: params.integratorUserId,
-    phoneNormalized: params.phoneNormalized,
-    channelCode: params.channelCode,
-    externalId: params.externalId,
-  });
-
-  let userId: string;
-
-  if (candidateIds.length === 0) {
-    const displayName = params.displayName ?? '';
-    const ins = await txPgText<{ id: string }>(
-      client,
-      `INSERT INTO platform_users (
-         integrator_user_id, phone_normalized, display_name, first_name, last_name, email,
-         patient_phone_trust_at
-       )
-       VALUES (
-         $1::bigint, $2, $3, $4, $5, $6,
-         CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN now() ELSE NULL END
-       ) RETURNING id`,
-      [
-        params.integratorUserId,
-        params.phoneNormalized ?? null,
-        displayName,
-        params.firstName ?? null,
-        params.lastName ?? null,
-        params.email ?? null,
-      ],
-    );
-    userId = ins.rows[0]!.id;
-  } else {
-    userId = await mergeCandidates(client, candidateIds, 'projection');
-    await txPgText(
-      client,
-      `UPDATE platform_users SET
-         display_name = CASE
-           WHEN $2::text IS NOT NULL
-            AND trim($2::text) <> ''
-            AND $3::text IS NOT NULL
-            AND trim($3::text) <> ''
-            AND $4::text IS NOT NULL
-            AND trim($4::text) <> ''
-           THEN $2::text
-           WHEN (display_name IS NULL OR trim(display_name) = '')
-            AND $2::text IS NOT NULL
-            AND trim($2::text) <> ''
-           THEN $2::text
-           ELSE display_name
-         END,
-         first_name = CASE
-           WHEN $8::text IN ('telegram', 'max') THEN COALESCE(first_name, $3::text)
-           ELSE COALESCE($3::text, first_name)
-         END,
-         last_name = CASE
-           WHEN $8::text IN ('telegram', 'max') THEN COALESCE(last_name, $4::text)
-           ELSE COALESCE($4::text, last_name)
-         END,
-         email = COALESCE($5::text, email),
-         phone_normalized = COALESCE($6::text, phone_normalized),
-         patient_phone_trust_at = CASE
-           WHEN $6::text IS NOT NULL AND trim($6::text) <> '' THEN now()
-           ELSE patient_phone_trust_at
-         END,
-         integrator_user_id = COALESCE(integrator_user_id, $7::bigint),
-         updated_at = now()
-       WHERE id = $1::uuid`,
-      [
-        userId,
-        params.displayName ?? null,
-        params.firstName ?? null,
-        params.lastName ?? null,
-        params.email ?? null,
-        params.phoneNormalized ?? null,
-        params.integratorUserId,
-        params.channelCode ?? null,
-      ],
-    );
-  }
-
-  if (params.channelCode && params.externalId) {
-    const insBinding = await txPgText<{ user_id: string | null }>(
-      client,
-      `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-       VALUES ($1::uuid, $2, $3)
-       ON CONFLICT (channel_code, external_id) DO NOTHING
-       RETURNING user_id`,
-      [userId, params.channelCode, params.externalId],
-    );
-    if (insBinding.rows.length > 0) {
-      await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, params.channelCode);
-    }
-  }
-
-  return userId;
+  const { platformUserId } = await upsertIdentityProjection(client, params);
+  return platformUserId;
 }
 
 export const pgUserProjectionPort: UserProjectionPort = {

@@ -21,9 +21,24 @@ export const loadStaffAccountPageContext = cache(async (): Promise<StaffAccountP
   ) {
     return { session, workspaceContext: null };
   }
-  const resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
-    platformUserId: session.user.userId,
-  });
+  // `requireStaffAccountPage()` above already resolved this exact fact once, inside
+  // `stampDbPrincipalFromSession`: a doctor-class session with no organization membership
+  // stamps the identity-self DB wall (app_patient), which deliberately holds no grant on
+  // `be_organization_members` — that table is staff/platform-only. A membership can only be
+  // added by a separate action, never appear mid-request, so a second lookup under that
+  // narrower wall cannot discover a different answer than the first one already reached; it can
+  // only fail closed on the table grant instead of returning the same "no membership" result.
+  // Reproduced live on TEST 2026-08-03: this second lookup 500'd with "permission denied for
+  // table be_organization_members" the moment the identity-self fallback above started running
+  // for the global admin's own account page.
+  let resolution;
+  try {
+    resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
+      platformUserId: session.user.userId,
+    });
+  } catch {
+    return { session, workspaceContext: null };
+  }
 
   if (!resolution.ok) {
     return { session, workspaceContext: null };

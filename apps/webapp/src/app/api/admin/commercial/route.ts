@@ -74,13 +74,14 @@ const tariffInputSchema = z.object({
   includedSeats: z.number().int().nonnegative(),
   /** §5a item 5.1 — null means overage past includedSeats stays hard-blocked (§5.2, unchanged). */
   additionalSeatPriceMinor: z.number().int().nonnegative().nullable(),
+  /** Т8 — exact discounted price for this tariff's discount-payment window; null gives no discount. */
+  discountedPriceMinor: z.number().int().nonnegative().nullable(),
   isActive: z.boolean(),
 });
 
 const trialPolicySchema = z.object({
-  tariffId: z.string().uuid(),
   durationDays: z.number().int().positive(),
-  graceDays: z.number().int().nonnegative(),
+  discountWindowDays: z.number().int().nonnegative(),
   startEvent: z.string().trim().min(1),
   postTrialBehavior: z.enum(['read_only', 'blocked', 'tariff']),
   postTrialTariffId: z.string().uuid().nullable(),
@@ -140,12 +141,6 @@ const operationSchema = z.discriminatedUnion('action', [
     reason: reasonSchema,
   }),
   z.object({ action: z.literal('start_trial'), organizationId: uuidSchema, reason: reasonSchema }),
-  z.object({
-    action: z.literal('extend_trial'),
-    organizationId: uuidSchema,
-    days: z.number().int().positive().max(3650),
-    reason: reasonSchema,
-  }),
 ]);
 
 type TariffInput = Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>;
@@ -228,9 +223,6 @@ export async function POST(request: Request) {
         break;
       case 'start_trial':
         result = await service.startTrial(operation.organizationId, audit);
-        break;
-      case 'extend_trial':
-        result = await service.extendTrial(operation.organizationId, operation.days, audit);
         break;
     }
     return NextResponse.json({ ok: true, result });

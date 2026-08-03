@@ -63,3 +63,18 @@ export {
 
 export { enrichMessengerBindAuditDetailsFields } from './messengerBindAuditEnrichment.js';
 export type { EnrichMessengerBindAuditDetailsArgs } from './messengerBindAuditEnrichment.js';
+
+export type {
+  IdentityProjectionInput,
+  IdentityProjectionResult,
+} from './identityProjectionWrite.js';
+
+export {
+  collectIdentityProjectionCandidates,
+  collapseIdentityProjectionCandidates,
+  upsertIdentityProjection,
+  insertIdentityProjection,
+  enrichIdentityProjection,
+  upsertChannelBindingForProjection,
+  seedChannelPreferencesDefaultsForProjection,
+} from './identityProjectionWrite.js';

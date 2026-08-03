@@ -1,3 +1,4 @@
+-- Final migration number 0351 — assigned at merge (0343 was taken by the billing branch).
 -- TEST owner findings 2026-08-03, defect 1 (docs/_TODO/runs/billing/TEST_OWNER_FINDINGS_2026-08-03.md
 -- §1б): GET /api/auth/oauth/start 500'd with an EMPTY body -- journalctl showed
 -- "permission denied for table system_settings" (42501). A pre-login request never SET ROLEs into

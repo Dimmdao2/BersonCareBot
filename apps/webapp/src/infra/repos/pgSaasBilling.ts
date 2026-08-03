@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
@@ -108,6 +109,23 @@ async function readTariffSnapshotForPeriod(
   return row.snapshot;
 }
 
+// B0.3 (#1057): `promotePaidInvoice` and the tariff-upgrade branch of `captureSaasBillingPaymentSucceeded`
+// run under `SET ROLE app_staff` (`runWithDbOrganizationPrincipal`), where the guard trigger
+// `app.reject_staff_commercial_organization_update()` unconditionally rejects a direct
+// `be_organizations.tariff_id` write. Route it through the narrow SECURITY DEFINER accessor instead
+// (`0346`): it re-derives the tariff from the invoice row itself and refuses anything not paid/matching.
+async function applyPaidSaasBillingTariff(
+  tx: Transaction,
+  saasBillingInvoiceId: string,
+  organizationId: string,
+): Promise<void> {
+  const result = await tx.execute(
+    sql`SELECT app.apply_paid_saas_billing_tariff(${saasBillingInvoiceId}::uuid, ${organizationId}::uuid) AS applied`,
+  );
+  const row = result.rows[0] as { applied: boolean } | undefined;
+  if (!row?.applied) throw new Error('saas_billing_tariff_apply_failed');
+}
+
 async function upsertSaasBillingAccount(
   tx: Transaction,
   organizationId: string,
@@ -150,7 +168,7 @@ async function promotePaidInvoice(
     cancelledAt: null, currentPeriodStartsAt: invoice.servicePeriodStartsAt,
     currentPeriodEndsAt: invoice.servicePeriodEndsAt, tariffSnapshot, updatedAt: new Date().toISOString(),
   }).where(eq(saasBillingSubscriptions.id, subscription.id));
-  await tx.update(beOrganizations).set({ tariffId: invoice.tariffId }).where(eq(beOrganizations.id, organizationId));
+  await applyPaidSaasBillingTariff(tx, invoice.id, organizationId);
   if (subscription.pendingTariffId !== null) {
     await tx.insert(adminAuditLog).values({
       organizationId,
@@ -167,12 +185,10 @@ async function promotePaidInvoice(
       status: 'ok',
     });
   }
-  // A first real tariff payment replaces any active trial in the same transaction as the period;
-  // otherwise a paid clinic could later be treated as still trial-bound.
-  if (subscription.currentPeriodEndsAt === null) {
-    await tx.update(saasOrganizationTrials).set({ status: 'ended', updatedAt: new Date().toISOString() })
-      .where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, 'active')));
-  }
+  // A first real tariff payment replaces any active trial in the same transaction as the period.
+  // `applyPaidSaasBillingTariff` above (0350) already ends it -- `app_staff` (this transaction's
+  // role) never held UPDATE on saas_organization_trials, so a direct write here always failed
+  // 42501; folded into the same SECURITY DEFINER accessor instead of granting it.
   return true;
 }
 
@@ -1027,10 +1043,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               updatedAt: new Date().toISOString(),
             })
             .where(eq(saasBillingSubscriptions.id, subscription.id));
-          await tx
-            .update(beOrganizations)
-            .set({ tariffId: invoice.tariffId })
-            .where(eq(beOrganizations.id, input.organizationId));
+          await applyPaidSaasBillingTariff(tx, invoice.id, input.organizationId);
         } else if (invoice.servicePeriodStartsAt <= input.paidAt) {
           await promotePaidInvoice(tx, invoice, input.organizationId);
         }
@@ -1041,18 +1054,29 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       });
     },
 
+    // B0.3 (#1057): runs under the bootstrap principal, before the organization is known — the
+    // plain table SELECT this used to be is unreachable there (only `app_clinic_billing` can read
+    // `saas_billing_invoices`, and the bootstrap connection never becomes it). Read through the
+    // narrow SECURITY DEFINER resolver instead; it returns only the four fields this lookup needs.
     async findSaasBillingInvoiceByProviderRef({ providerId, providerInvoiceRef }) {
-      const [row] = await getDrizzle()
-        .select()
-        .from(saasBillingInvoices)
-        .where(
-          and(
-            eq(saasBillingInvoices.providerId, providerId),
-            eq(saasBillingInvoices.providerInvoiceRef, providerInvoiceRef),
-          ),
-        )
-        .limit(1);
-      return row ? toSaasBillingInvoice(row) : null;
+      const result = await runWebappPgText<{
+        id: string;
+        organization_id: string;
+        amount_minor: number;
+        currency: string;
+      }>(
+        `SELECT * FROM app.resolve_saas_billing_invoice_for_webhook($1::text, $2::text)`,
+        [providerId, providerInvoiceRef],
+      );
+      const row = result.rows[0];
+      return row
+        ? {
+            id: row.id,
+            organizationId: row.organization_id,
+            amountMinor: row.amount_minor,
+            currency: row.currency,
+          }
+        : null;
     },
 
     /** К4 — same join as `createSaasBillingInvoice`; amount/description/expiry are admin input, not derived. */

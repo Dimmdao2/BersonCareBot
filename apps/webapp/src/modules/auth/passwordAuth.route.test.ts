@@ -231,6 +231,22 @@ describe('email/password login HTTP boundary', () => {
     });
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
+
+  it('returns a typed our-side failure instead of an empty body when an unhandled exception hits the DB', async () => {
+    fakes.verifyPassword.mockRejectedValueOnce(
+      new Error('permission denied for table platform_users'),
+    );
+
+    const response = await login(request());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'server_error',
+      message: 'Не удалось войти из-за сбоя на нашей стороне. Повторите попытку позже.',
+    });
+    expect(fakes.setSession).not.toHaveBeenCalled();
+  });
 });
 
 describe('voluntary staff TOTP and recovery HTTP boundaries', () => {

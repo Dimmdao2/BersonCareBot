@@ -1012,6 +1012,13 @@ WITH required(tbl, priv) AS (
     ('public.email_challenges', 'DELETE'),
     ('public.be_organizations', 'INSERT'),
     ('public.be_organizations', 'SELECT'),
+    -- 0348 (#1057 B0.3): app.apply_paid_saas_billing_tariff(uuid,uuid) writes tariff_id from inside
+    -- a SECURITY DEFINER call so the app_staff-only guard trigger
+    -- (app.reject_staff_commercial_organization_update) does not fire. app_owner already holds
+    -- table-level UPDATE here (deploy/postgres/patient-invites-rls.sql, U3B) -- pinned as a required
+    -- row now that a real code path depends on it, so a future REVOKE fails this gate instead of
+    -- surfacing live on the next paid webhook capture.
+    ('public.be_organizations', 'UPDATE'),
     ('public.be_organization_members', 'SELECT'),
     ('public.be_organization_members', 'INSERT'),
     ('public.platform_users', 'SELECT'),
@@ -1037,6 +1044,9 @@ WITH required(tbl, priv) AS (
     -- 0295/0302/0306 app_owner capabilities added after the 123-function baseline. Each row below
     -- comes directly from a live function body; ON CONFLICT writes require both INSERT and UPDATE.
     ('public.saas_billing_subscriptions', 'SELECT'),
+    -- 0343 (#1057 B0.3): app.resolve_saas_billing_invoice_for_webhook(text,text) is the bootstrap
+    -- webhook's invoice-by-provider-ref lookup, read-only, before the organization is known.
+    ('public.saas_billing_invoices', 'SELECT'),
     ('public.system_settings', 'SELECT'),
     -- Track D login/delivery capabilities: the provider-failure function returns the touched row
     -- and performs INSERT ... ON CONFLICT. UPDATE stays column-scoped and is asserted separately.
@@ -1485,12 +1495,30 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # ACLs. This is a measured value (154 + these exact four), not recomputed arithmetic; the dedicated
   # ownership/ACL wall right below re-checks the same four functions by name so a future silent
   # ownership regression on just these four cannot hide behind an otherwise-correct whole-class count.
-  # 158 -> 159 (2026-08-03, migration 0343, TEST owner findings D1): one new app_owner-owned
+  # 158 -> 159 (2026-08-03, migration 0343, #1057 B0.3): one new function,
+  # app.resolve_saas_billing_invoice_for_webhook(text,text), the bootstrap webhook's invoice
+  # lookup by provider ref. Its one table dependency (SELECT on saas_billing_invoices) is the new
+  # row added to the required-grant set immediately above.
+  # 159 -> 160 (2026-08-03, migration 0342, #987 D27 F5/F6, merged in from feat/doctor-ui-rebuild
+  # after this constant was last bumped): one new function,
+  # app.find_platform_user_ids_by_any_confirmed_email(text), used by
+  # email_password_find_login_candidate and email_auth_find_email_owner_conflict to resolve a
+  # login/conflict through any confirmed email, not only the primary. Its two table dependencies,
+  # SELECT on public.platform_users and SELECT on public.user_oauth_bindings, are both already
+  # in the required-grant set above (rows for platform_users and user_oauth_bindings pinned by
+  # earlier auth functions) -- no new GRANT needed, this is a book-keeping-only bump caught live
+  # by this gate (measured actual=160 against the stale expected=159).
+  # 160 -> 161 (2026-08-03, migration 0348, #1057 B0.3): one new function,
+  # app.apply_paid_saas_billing_tariff(uuid,uuid), the capture path's paid-tariff apply accessor.
+  # No new required-grant row for its SELECT on saas_billing_invoices (already pinned by 0343); its
+  # UPDATE on be_organizations is a pre-existing app_owner privilege, now pinned as a required row
+  # immediately above.
+  # 161 -> 162 (2026-08-03, migration 0351, TEST owner findings D1): one new app_owner-owned
   # function, app.read_webapp_preauth_provider_setting(text) -- fixed-key pre-auth OAuth/Telegram
   # credential accessor for oauth/start, oauth/callback/{yandex,google,apple} and telegram-login.
-  # It only reads public.system_settings, already required for app_owner in the VALUES list above
-  # (`('public.system_settings', 'SELECT')`), so no new row was needed there -- only this count.
-  local expected_secdef_count=159
+  # It only reads public.system_settings, already required for app_owner in the VALUES list above,
+  # so no new grant row is needed -- only this count.
+  local expected_secdef_count=162
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1659,7 +1687,7 @@ SELECT (
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (114 required table grants + 5 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (116 required table grants + 5 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){
@@ -1873,7 +1901,8 @@ WITH expected(relation_name) AS (
 ), role_oids AS (
   SELECT
     (SELECT oid FROM pg_roles WHERE rolname = 'app_clinic_billing') AS clinic_billing_oid,
-    (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid
+    (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid,
+    (SELECT oid FROM pg_roles WHERE rolname = 'app_staff') AS staff_oid
 ), expected_table_acl(relation_name, grantee, privilege_type, is_grantable) AS (
   SELECT relation_name, owner_name, privilege_type, false
   FROM relations
@@ -1893,9 +1922,28 @@ WITH expected(relation_name) AS (
   SELECT 'saas_billing_subscriptions', 'app_owner', 'SELECT', false
   WHERE to_regprocedure('app.saas_billing_effective_tariff(uuid,uuid)') IS NOT NULL
   UNION
+  -- 0343 (#1057 B0.3) grants this supporting read to its own app_owner SECURITY DEFINER
+  -- resolver, same idiom as the subscriptions row above. This row was missing from this gate
+  -- since 0343 landed -- caught live: applying 0343 to a fully-migrated DEV left an unexpected
+  -- app_owner/SELECT/saas_billing_invoices ACL entry this assertion did not yet expect.
+  SELECT 'saas_billing_invoices', 'app_owner', 'SELECT', false
+  WHERE to_regprocedure('app.resolve_saas_billing_invoice_for_webhook(text,text)') IS NOT NULL
+  UNION
   SELECT relation_name, 'app_platform_settings', privilege_type, false
   FROM relations
   CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+  UNION
+  -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent runs under SET ROLE app_staff
+  -- (runWithDbOrganizationPrincipal). Capture never touches saas_billing_accounts, and never
+  -- creates an invoice/subscription row -- only reads (row-locking) and updates one the
+  -- clinic-billing door already created -- so no app_staff ACL there and no INSERT here.
+  SELECT relation_name, 'app_staff', 'SELECT', false FROM relations
+  WHERE relation_name <> 'saas_billing_accounts'
+  UNION
+  SELECT relation_name, 'app_staff', 'UPDATE', false FROM relations
+  WHERE relation_name <> 'saas_billing_accounts'
+  UNION
+  SELECT 'saas_billing_provider_events', 'app_staff', 'INSERT', false
 ), actual_table_acl AS (
   SELECT
     relations.relation_name,
@@ -1980,6 +2028,47 @@ WITH expected(relation_name) AS (
       )
   ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
   WHERE relations.relation_name <> 'saas_billing_provider_events'
+  UNION ALL
+  -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent's org-scoped SELECT/UPDATE on the
+  -- capture path's tables; saas_billing_accounts is untouched by capture, so it is excluded here.
+  SELECT
+    relations.relation_name,
+    relations.relation_name || expected_policy.suffix,
+    true,
+    expected_policy.command::\"char\",
+    expected_policy.roles,
+    expected_policy.using_expression,
+    expected_policy.check_expression
+  FROM relations
+  CROSS JOIN role_oids
+  CROSS JOIN LATERAL (
+    VALUES
+      (
+        '_staff_capture_select',
+        'r'::\"char\",
+        ARRAY[role_oids.staff_oid]::oid[],
+        '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+        NULL::text
+      ),
+      (
+        '_staff_capture_update',
+        'w'::\"char\",
+        ARRAY[role_oids.staff_oid]::oid[],
+        '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+        '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
+      )
+  ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
+  WHERE relations.relation_name <> 'saas_billing_accounts'
+  UNION ALL
+  SELECT
+    'saas_billing_provider_events',
+    'saas_billing_provider_events_staff_capture_insert',
+    true,
+    'a'::\"char\",
+    ARRAY[role_oids.staff_oid]::oid[],
+    NULL::text,
+    '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text
+  FROM role_oids
 ), actual_policy_inventory AS (
   SELECT
     relations.relation_name,
@@ -2039,7 +2128,9 @@ SELECT (
   [ "$ok" = "true" ] || {
     echo "FATAL: SaaS billing foundation exact grants/RLS inventory did not take effect." >&2
     echo "       Expected organization-scoped app_clinic_billing SELECT plus account/subscription/invoice INSERT+UPDATE," >&2
-    echo "       the app_owner subscription read, no app_staff table ACL," >&2
+    echo "       the app_owner subscription read," >&2
+    echo "       0344 organization-scoped app_staff SELECT+UPDATE on subscriptions/invoices and" >&2
+    echo "       SELECT+INSERT+UPDATE on provider_events only (no app_staff ACL on accounts)," >&2
     echo "       platform SELECT/INSERT/UPDATE, exact policies," >&2
     echo "       signed-context install/current-org/release helpers, no additional policies," >&2
     echo "       and ENABLE+FORCE RLS on all four tables." >&2

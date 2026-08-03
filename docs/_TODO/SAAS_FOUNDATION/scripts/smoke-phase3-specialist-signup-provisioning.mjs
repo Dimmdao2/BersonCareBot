@@ -429,14 +429,64 @@ function installCanonicalSchema() {
     });
   }
   // The existing U3S disposable baseline stops at the registration-policy migrations; load the
-  // current repository port against the four later tariff-shape columns it selects.
+  // current repository port against the five later tariff-shape columns it selects (the fifth,
+  // discounted_price_minor, is #1069/migration 0346 -- the live Drizzle schema selects it on every
+  // saas_tariffs read, including pgPlatformEntitlements.archiveTariff used later in this proof).
   psql(`
 ALTER TABLE public.saas_tariffs
   ADD COLUMN IF NOT EXISTS system_access_policy jsonb,
   ADD COLUMN IF NOT EXISTS mechanic_access_policies jsonb NOT NULL DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS downgrade_policies jsonb NOT NULL DEFAULT '{}'::jsonb,
-  ADD COLUMN IF NOT EXISTS additional_seat_price_minor integer;
+  ADD COLUMN IF NOT EXISTS additional_seat_price_minor integer,
+  ADD COLUMN IF NOT EXISTS discounted_price_minor integer;
 `, { label: 'complete disposable tariff shape for the registration policy port race' });
+  // #1069 (2026-08-03): migration 0346 dropped saas_trial_policy.tariff_id/grace_days and
+  // saas_organization_trials.grace_ends_at/extension_count outright and added
+  // discount_window_days/discount_ends_at -- the currently-loaded `c5aPlatformOperations` overlay's
+  // `app.start_provisioned_organization_trial()` already reads/writes only the new columns.
+  // 0346 itself is out of this disposable baseline's numeric range, so patch the same two tables to
+  // 0346's shape directly (same idiom as the tariff-shape patch above), rather than pull in 0346's
+  // unrelated access-door function rewrites this proof never calls.
+  psql(`
+ALTER TABLE public.saas_trial_policy
+  DROP COLUMN IF EXISTS tariff_id,
+  DROP COLUMN IF EXISTS grace_days,
+  ADD COLUMN IF NOT EXISTS discount_window_days integer DEFAULT 0 NOT NULL;
+-- 0225's saas_tariffs_current_patient_capability_read policy reads trial.grace_ends_at directly,
+-- which blocks the DROP COLUMN below with 2BP01 dependent_objects_still_exist (same real bug
+-- migration 0349 reconciles against the shared DEV/TEST databases -- see its header). Redefine the
+-- policy against trial.ends_at first, same CASE shape, before dropping the column it depended on.
+DROP POLICY IF EXISTS saas_tariffs_current_patient_capability_read ON public.saas_tariffs;
+CREATE POLICY saas_tariffs_current_patient_capability_read ON public.saas_tariffs
+  FOR SELECT
+  USING (
+    app.current_org_id() IS NOT NULL
+    AND app.current_patient_user_id() IS NOT NULL
+    AND EXISTS (
+      SELECT 1
+      FROM public.be_organizations AS organization
+      INNER JOIN public.org_enrollments AS enrollment
+        ON enrollment.organization_id = organization.id
+       AND enrollment.platform_user_id = app.current_patient_user_id()
+       AND enrollment.status = 'active'
+      LEFT JOIN public.saas_organization_trials AS trial
+        ON trial.organization_id = organization.id
+       AND trial.status = 'active'
+      WHERE organization.id = app.current_org_id()
+        AND organization.is_active = true
+        AND saas_tariffs.id = CASE
+          WHEN trial.id IS NULL THEN organization.tariff_id
+          WHEN statement_timestamp() <= trial.ends_at THEN trial.tariff_id
+          WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id
+          ELSE trial.tariff_id
+        END
+    )
+  );
+ALTER TABLE public.saas_organization_trials
+  ADD COLUMN IF NOT EXISTS discount_ends_at timestamptz,
+  DROP COLUMN IF EXISTS grace_ends_at,
+  DROP COLUMN IF EXISTS extension_count;
+`, { label: 'complete disposable trial/discount-window shape for migration 0346' });
   psqlFile(paths.ownerProvisioningOverlay, {
     label: 'apply canonical specialist owner provisioning overlay',
   });
@@ -942,16 +992,21 @@ INSERT INTO public.saas_tariffs (
   true
 );
 INSERT INTO public.saas_trial_policy (
-  key, tariff_id, duration_days, grace_days, start_event, post_trial_behavior, is_active
+  key, duration_days, discount_window_days, start_event, post_trial_behavior, is_active
 ) VALUES (
   'global',
-  ${quoteLiteral(trialTariffId)}::uuid,
   14,
   3,
   'organization_provisioned',
   'read_only',
   true
 );
+-- #1069 (2026-08-03): app.start_provisioned_organization_trial() no longer reads a tariff off
+-- the trial policy itself -- it sources the organization's first tariff from
+-- saas_registration_tariff_policy and only starts a trial when that resolves to a real tariff.
+-- Without this row every provisioning call below falls through to the no-tariff/no-trial branch.
+INSERT INTO public.saas_registration_tariff_policy (key, tariff_id)
+VALUES ('global', ${quoteLiteral(trialTariffId)}::uuid);
 INSERT INTO public.platform_users (id, display_name, role, updated_at, email_verified_at) VALUES
 ${values};
 INSERT INTO public.be_organizations (id, title)
@@ -1249,7 +1304,7 @@ SELECT json_build_object(
   'trial_tariff', (SELECT tariff_id FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'trial_status', (SELECT status FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'trial_duration_days', (SELECT EXTRACT(EPOCH FROM (ends_at - started_at)) / 86400 FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
-  'trial_grace_days', (SELECT EXTRACT(EPOCH FROM (grace_ends_at - ends_at)) / 86400 FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
+  'trial_discount_window_days', (SELECT EXTRACT(EPOCH FROM (discount_ends_at - ends_at)) / 86400 FROM public.saas_organization_trials WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid),
   'trial_audit_events', (SELECT count(*) FROM public.admin_audit_log WHERE organization_id = ${quoteLiteral(receipt.organizationId)}::uuid AND action = 'saas_trial_start')
 )::text;
 `),
@@ -1274,7 +1329,7 @@ SELECT json_build_object(
   assert(row.trial_tariff === trialTariffId, 'trial must snapshot the configured tariff');
   assert(row.trial_status === 'active', 'newly provisioned trial must be active');
   assert(Number(row.trial_duration_days) === 14, 'trial must use the configured duration');
-  assert(Number(row.trial_grace_days) === 3, 'trial must use the configured grace period');
+  assert(Number(row.trial_discount_window_days) === 3, 'trial must use the configured discount window');
   assert(row.trial_audit_events === 1, 'trial assignment must emit exactly one audit event');
 }
 
