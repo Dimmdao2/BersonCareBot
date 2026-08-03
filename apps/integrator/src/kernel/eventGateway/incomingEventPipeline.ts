@@ -46,7 +46,7 @@ export type IncomingEventPipelineDeps = {
   /**
    * Как `tryConsumeStart` в `channelUsers`: не обрабатывать повторный «голый» /start чаще чем раз в
    * `TELEGRAM_START_DEBOUNCE_SECONDS` (два разных `update_id`; gateway по fingerprint это не режет).
-   * Deep link (`start.link`, `start.setphone`, …) не дедуплицируется здесь.
+   * Deep link (`start.link`, `start.phoneauth`, …) не дедуплицируется здесь.
    */
   telegramStartDedup?: (telegramUserId: number) => Promise<boolean>;
 };

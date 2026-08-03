@@ -569,6 +569,52 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       500 → обычный Error, 2xx не затронут); `pnpm --dir apps/webapp typecheck`, scoped ESLint, `git diff --check`
       — чисто. Живой TEST-прогон (карта/webhook) для этого фикса ещё не проводился — пункт «клиника может
       оплатить тариф» остаётся открытым до него; починка снимает именно 24-часовую блокировку повторной попытки.
+      **Живой TEST-прогон фикса 03.08, продолжение того же дня (branch `wt/billing-live-vat`).**
+      Deploy: `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` → `exit 0`, лог
+      `deploy-test-20260803T134252Z-3861838.log`. Единственная не-`ok` строка — диагностический
+      `E1 post-runtime coverage/read gate` (`saas_isolation_post_runtime_gate_active_unexplained_before_coverage`);
+      это известный warn-not-fatal-on-TEST гейт ([[test-deploy-isolation-gate-and-resolve]]), деплой продолжился
+      сервисы не останавливались, FORCE-RLS wall assertion прошла отдельно и строго.
+      Пароли трёх существующих TEST-аккаунтов (clinic owner `dimmdao@yandex.ru` — тот же owner org
+      «Точка Здоровья» `a0000000-0000-4000-8000-000000000001`, что и в прогоне выше; global admin
+      `dimmdao@gmail.com`; один client-fixture) сведены тем же классом операции, что и утром (случайные
+      TEST-only значения, без печати email/password, через
+      `converge-saas-smoke-login-passwords.mjs --apply-test-from-stdin` под `sudo -u postgres`) —
+      `changed=3`. Обычный сессионный маршрут: `POST /api/auth/email-password/login` → `200`; `GET
+      /api/clinic/billing` → `200`, draft-инвойс `e13b2c92-5693-463f-8c3a-274cd198bcf7` без изменений с утра.
+      `POST /api/clinic/billing` (retry) → `500 saas_billing_invoice_failed`; следующий `GET` подтвердил, что
+      **идемпотентный ключ РОТИРОВАН** — `providerIdempotencyKey` сменился с утреннего
+      `saas_tariff_renewal:78295d73…` на `saas_tariff_refused_retry:d5c8967a30c471dc8a74d38d8341f1b201ceea467f2f38ca8397e337ac1d7c13`
+      — прямое живое доказательство, что фикс `6259357de` действует на реальном провайдере, не только в тестах.
+      Повторный вызов того же продуктового пути (`saasBilling.createOwnTariffRenewalInvoice` через существующий
+      `runWithDbClinicBillingPrincipal`, вызван из одноразового диагностического скрипта — не новый продуктовый
+      код, скрипт удалён после использования) на этот раз дошёл до провайдера: invoice перешёл в `status=pending`,
+      `providerInvoiceRef=3202b0cd-000f-5001-8000-1177d722639f`,
+      `providerCheckoutUrl=https://yoomoney.ru/checkout/payments/v2/contract?orderId=3202b0cd-000f-5001-8000-1177d722639f`.
+      Открыт настоящий чекаут ЮKassa headless-браузером (playwright, кэшированный chromium) — страница подтвердила
+      тестовый магазин («Это тестовый платёж», сумма `800 ₽` = `amountMinor 80000`, совпадает с ценой тарифа
+      СТАРТ). Оплачено официальной тестовой картой ЮKassa (Visa, без 3-D Secure) `4111111111111111`, срок `12/30`,
+      CVC `123` — значения взяты с официальной страницы ЮKassa
+      `https://yookassa.ru/developers/payment-acceptance/testing-and-going-live/testing?lang=ru#test-bank-card`,
+      не придуманы. Страница ответила «Успешно», редирект на
+      `.../v2/success?orderId=3202b0cd-000f-5001-8000-1177d722639f`, код платежа совпадает с `providerInvoiceRef`.
+      Статус на стороне провайдера подтверждён отдельно (не по нашим логам): вызов адаптерного
+      `listPayments` за `2026-08-03` вернул для `3202b0cd-000f-5001-8000-1177d722639f`
+      `{status: "succeeded", amountMinor: 80000, currency: "RUB"}` — платёж реально прошёл у ЮKassa.
+      ⚠️ **Вебхук НЕ пришёл.** Час спустя `GET /api/clinic/billing` всё ещё отдаёт тот же инвойс
+      `status=pending`, `paidAt=null`, `providerEvents=[]`; `nginx` `access.log` (текущий и все ротированные
+      `access.log.*.gz`) на TEST не содержит **ни одного** запроса ни к `/api/payments/saas-webhook/*`, ни к
+      `/api/payments/webhook/*` за всю историю ротации — не только для этого платежа, вообще никогда. Причина
+      не в коде: официальная документация ЮKassa по тестированию прямо говорит, что для тестовых уведомлений
+      URL «нужно прописать в настройках тестового магазина в личном кабинете» — это разовая настройка на
+      стороне мерчант-кабинета ЮKassa, а не что-то, что включает наш код или деплой. Подделать уведомление,
+      чтобы обойти это, запрещено правилом задачи (это стёрло бы разницу между «провайдер принял» и «наш вебхук
+      настроен») и физически отклонилось бы IP-allowlist адаптера (`YOOKASSA_IPV4_ALLOWLIST`), не пройдя auth.
+      **Вердикт живого прогона 03.08 (продолжение): платёж реально прошёл у провайдера (`succeeded`, 800₽), но
+      клиника ещё не может завершить оплату тарифа НА TEST end-to-end, потому что тестовый магазин ЮKassa не
+      настроен слать HTTP-уведомления на наш `saas-webhook` адрес — это владельческая настройка личного кабинета
+      ЮKassa, не открытый в коде дефект.** Идемпотентность (сам B0.3-регресс) доказана исправленной живым
+      прогоном. Код не менялся, push не делался, PROD не трогался.
 
 **Проверка:** state-machine + idempotency тесты; подписанный webhook success/replay/forgery/amount-mismatch;
 capture/refund integration тест на mock-адаптере; secret redaction scan; checkout UI RTL/E2E.

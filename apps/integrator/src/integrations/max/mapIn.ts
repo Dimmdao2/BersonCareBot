@@ -277,18 +277,16 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
     let action: string;
     let linkSecret: string | undefined;
     let authSecret: string | undefined;
-    let phoneFromStart: string | undefined;
     if (trimmedStart.startsWith('/start')) {
       const dictAction = getActionFromText(text);
       const p = parseMessengerStartCommand(trimmedStart, dictAction);
       action = p.action;
       if (p.linkSecret !== undefined) linkSecret = p.linkSecret;
       if (p.authSecret !== undefined) authSecret = p.authSecret;
-      if (p.phone !== undefined) phoneFromStart = p.phone;
     } else {
       action = getActionFromText(text);
     }
-    const phoneOut = phoneFromStart ?? contactPhone ?? undefined;
+    const phoneOut = contactPhone ?? undefined;
     const replyToMid = getReplyToMessageIdFromMaxMessage(msg);
     const update: IncomingMessageUpdate = {
       kind: 'message',
@@ -344,7 +342,6 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       action: p.action,
       ...(p.linkSecret !== undefined ? { linkSecret: p.linkSecret } : {}),
       ...(p.authSecret !== undefined ? { authSecret: p.authSecret } : {}),
-      ...(p.phone !== undefined ? { phone: p.phone } : {}),
       ...(typeof (msg?.sender?.username ?? body.user?.username) === 'string'
         ? { channelUsername: (msg?.sender?.username ?? body.user?.username) as string }
         : {}),

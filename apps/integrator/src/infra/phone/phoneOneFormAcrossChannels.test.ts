@@ -68,31 +68,16 @@ function maxContactPhone(written: string): string | undefined {
   return update && update.kind === 'message' ? update.phone : undefined;
 }
 
-/** Тот же человек вошёл по deep-link `/start setphone_…` (Telegram и MAX разбирают его одинаково). */
-function maxStartLinkPhone(written: string): string | undefined {
-  const body = {
-    update_type: 'message_created',
-    message: {
-      sender: { user_id: MAX_USER_ID },
-      recipient: { chat_id: 500100 },
-      body: { mid: 'mid-2', text: `/start setphone_${encodeURIComponent(written)}` },
-    },
-  } as unknown as MaxUpdateValidated;
-  const update = fromMax(body, '');
-  return update && update.kind === 'message' ? update.phone : undefined;
-}
-
 describe('один номер — одна строка, из какого бы канала он ни пришёл', () => {
   it.each(SAME_NUMBER_AS_WRITTEN)(
-    'дано: номер записан как «%s» → когда он приходит из Telegram, из MAX и по ссылке входа → тогда это ОДИН И ТОТ ЖЕ человек',
+    'дано: номер записан как «%s» → когда он приходит из Telegram и из MAX → тогда это ОДИН И ТОТ ЖЕ человек',
     (written) => {
       // арбитр: в normalizeTelegramContactPhone убрать ветку `onlyDigits.startsWith('8')` —
       // человек, приславший 8XXX, станет вторым аккаунтом
       expect({
         telegram: telegramContactPhone(written),
         max: maxContactPhone(written),
-        startLink: maxStartLinkPhone(written),
-      }).toEqual({ telegram: E164, max: E164, startLink: E164 });
+      }).toEqual({ telegram: E164, max: E164 });
     },
   );
 

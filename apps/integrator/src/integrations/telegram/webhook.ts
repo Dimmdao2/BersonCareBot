@@ -200,7 +200,7 @@ async function resolveTelegramIntegratorUserId(
   }
 }
 
-/** Exported for tests (contact ownership, setphone deep link). */
+/** Exported for tests (contact ownership). */
 export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
   if (body.callback_query) {
     return incomingCallbackUpdateFromTelegramCallbackQuery(body.callback_query);
@@ -220,16 +220,13 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
     let action = dictionaryAction;
     let linkSecretFromStart: string | null = null;
     let authSecretFromStart: string | null = null;
-    let phoneFromSetphoneStart: string | null = null;
     if (trimmedText.startsWith('/start')) {
       const p = parseMessengerStartCommand(trimmedText, dictionaryAction);
       action = p.action;
       if (p.linkSecret !== undefined) linkSecretFromStart = p.linkSecret;
       if (p.authSecret !== undefined) authSecretFromStart = p.authSecret;
-      if (p.phone !== undefined) phoneFromSetphoneStart = p.phone;
     }
     const relayMessageType = getMessageTypeFromTelegramMessage(body.message);
-    const phoneOut = phoneFromSetphoneStart ?? normalizedPhone;
     const replyToRaw = (body.message as { reply_to_message?: { message_id?: number } })
       .reply_to_message;
     const replyToMessageId =
@@ -246,7 +243,7 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       action,
       ...(linkSecretFromStart ? { linkSecret: linkSecretFromStart } : {}),
       ...(authSecretFromStart ? { authSecret: authSecretFromStart } : {}),
-      ...(phoneOut ? { phone: phoneOut } : {}),
+      ...(normalizedPhone ? { phone: normalizedPhone } : {}),
       ...(contactOwnedBySender && typeof contact.phone_number === 'string'
         ? { contactPhone: contact.phone_number }
         : {}),
@@ -319,8 +316,6 @@ export async function processTelegramUpdate(
             action: incoming.action ?? '',
             linkSecretPresent:
               typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
-            phoneFromDeepLink:
-              incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
           },
         },
         '[telegram] /start classified',
