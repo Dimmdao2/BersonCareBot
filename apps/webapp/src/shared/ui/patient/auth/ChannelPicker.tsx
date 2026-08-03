@@ -35,7 +35,7 @@ const PRIMARY_META: Record<
   sms: { label: 'Получить код по SMS', aria: 'Получить код по SMS' },
 };
 
-/** Выбор канала доставки OTP в вебе: Telegram / Max / email при наличии; SMS отключён. */
+/** Public channel picker: the global channel list never reflects bindings of the entered phone. */
 export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProps) {
   const primary = pickPrimaryOtpChannelPublic(methods);
   const [expanded, setExpanded] = useState(false);
@@ -113,9 +113,7 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
                     ? 'Telegram'
                     : ch === 'max'
                       ? 'Max'
-                      : methods.emailAddress
-                        ? `Email (${methods.emailAddress})`
-                        : 'Email';
+                      : 'Email';
                 const aria = PRIMARY_META[ch].aria;
                 return (
                   <Button

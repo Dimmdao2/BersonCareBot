@@ -18,7 +18,7 @@ import {
   filterAuthMethodsByChannelPolicy,
   isOtpChannelAvailablePublic,
   OTP_PUBLIC_OTHER_CHANNELS_ORDER,
-  pickOtpChannelWithPreferencePublic,
+  pickPrimaryOtpChannelPublic,
   type AuthChannelUiPolicy,
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
@@ -137,7 +137,6 @@ export type AuthFlowStep =
   | 'phone_login'
   | 'phone'
   | 'email_password'
-  | 'new_user_foreign'
   | 'foreign_no_otp_channel'
   | 'choose_channel'
   | 'code';
@@ -152,14 +151,14 @@ function hasPublicWebOtpChannel(methods: AuthMethodsPayload): boolean {
   );
 }
 
-function otpDescription(channel: OtpChannel, emailAddress?: string): string {
+function otpDescription(channel: OtpChannel): string {
   switch (channel) {
     case 'telegram':
       return 'Введите код, отправленный вам в Telegram.';
     case 'max':
       return 'Введите код, отправленный вам в Max.';
     case 'email':
-      return `Введите код, отправленный вам${emailAddress ? ` на ${emailAddress}` : ' на email'}.`;
+      return 'Введите код, отправленный вам на email.';
     default:
       return 'Введите код, отправленный вам.';
   }
@@ -193,7 +192,7 @@ function buildAlternatives(
       continue;
     }
     result.push({
-      label: `Получить код на email${methods.emailAddress ? ` (${methods.emailAddress})` : ''}`,
+      label: 'Получить код на email',
       onClick: async () => {
         await onChoose('email');
       },
@@ -263,7 +262,6 @@ export function AuthFlowV2({
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState<string | null>(null);
   const [methods, setMethods] = useState<AuthMethodsPayload | null>(null);
-  const [exists, setExists] = useState(false);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
   const [smsStartCooldownSec, setSmsStartCooldownSec] = useState(0);
@@ -1272,9 +1270,7 @@ export function AuthFlowV2({
     try {
       const checkPhoneResult = await fetchJsonSafe<{
         ok?: boolean;
-        exists?: boolean;
         methods?: AuthMethodsPayload;
-        preferredOtpChannel?: OtpChannel | null;
       }>('/api/auth/check-phone', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -1290,24 +1286,15 @@ export function AuthFlowV2({
         return;
       }
       setPhone(normalized);
-      setExists(Boolean(data.exists));
       const allowedMethods = filterAuthMethodsByChannelPolicy(data.methods, authChannelPolicy);
       setMethods(allowedMethods);
-      if (!data.exists) {
-        setStep(hasPublicWebOtpChannel(allowedMethods) ? 'choose_channel' : 'new_user_foreign');
+      const primary = pickPrimaryOtpChannelPublic(allowedMethods);
+      if (primary == null) {
+        setStep('foreign_no_otp_channel');
       } else {
-        const primary = pickOtpChannelWithPreferencePublic(
-          allowedMethods,
-          data.preferredOtpChannel,
-        );
-        const hasPublicChannel = hasPublicWebOtpChannel(allowedMethods);
-        if (primary == null) {
-          setStep(hasPublicChannel ? 'choose_channel' : 'foreign_no_otp_channel');
-        } else {
-          const outcome = await startPhoneOtp(primary, 'auto', normalized);
-          if (outcome.kind !== 'ok') {
-            setStep('choose_channel');
-          }
+        const outcome = await startPhoneOtp(primary, 'auto', normalized);
+        if (outcome.kind !== 'ok') {
+          setStep('choose_channel');
         }
       }
     } finally {
@@ -2603,70 +2590,11 @@ export function AuthFlowV2({
     );
   }
 
-  if (step === 'new_user_foreign' && methods) {
-    return (
-      <div id="auth-flow-v2-new-user-foreign" className={cn(authFlowShellClass, 'text-left')}>
-        <p className={authStepMutedParagraphClass}>
-          В Mini App код приходит только в привязанный чат Telegram или Max. SMS отключён. Привязать
-          бота можно в профиле после входа на сайте по email или OAuth.
-        </p>
-        {hasWebOauthAlternatives ? (
-          <div className="flex w-full flex-col items-center gap-2">
-            {oauthProviders.yandex ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth('yandex')}
-              >
-                Яндекс
-              </Button>
-            ) : null}
-            {oauthProviders.google ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth('google')}
-              >
-                Google
-              </Button>
-            ) : null}
-            {showAppleFallback ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth('apple')}
-              >
-                Apple
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-        <Button
-          type="button"
-          variant="link"
-          className={authLinkButtonClass}
-          onClick={() => {
-            goBackToEntry();
-          }}
-        >
-          Изменить номер
-        </Button>
-      </div>
-    );
-  }
-
   if (step === 'foreign_no_otp_channel' && methods) {
     return (
       <div id="auth-flow-v2-foreign-no-otp" className={cn(authFlowShellClass, 'text-left')}>
         <p className={authStepMutedParagraphClass}>
-          Для этого номера нет привязанного способа доставить код в Mini App. Откройте сайт и
-          войдите по email или OAuth — затем привяжите бота в профиле.
+          Сейчас нет доступного способа отправить код. Откройте сайт и войдите по email или OAuth.
         </p>
         {hasWebOauthAlternatives ? (
           <div className="flex w-full flex-col items-center gap-2">
@@ -2769,7 +2697,7 @@ export function AuthFlowV2({
           retryAfterSeconds={retryAfterSeconds}
           supportContactHref={supportContactHref}
           submitLabel="Войти"
-          description={otpDescription(otpChannel, methods.emailAddress)}
+          description={otpDescription(otpChannel)}
           alternatives={alternatives}
           onConfirm={async (code) => {
             engageInteractive();
@@ -2862,10 +2790,10 @@ export function AuthFlowV2({
             return { kind: 'error' as const, message: data.message ?? 'Не удалось отправить код' };
           }}
           onBack={() => {
-            if (exists || hasPublicWebOtpChannel(methods)) {
+            if (hasPublicWebOtpChannel(methods)) {
               setStep('choose_channel');
             } else {
-              setStep('new_user_foreign');
+              setStep('foreign_no_otp_channel');
             }
           }}
         />
