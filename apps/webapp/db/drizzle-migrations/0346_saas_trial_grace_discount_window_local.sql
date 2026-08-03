@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0344 — the lead assigns the final number at merge.
+-- Final migration number 0346 — assigned at merge (0344 and 0345 were taken by the billing branch that landed first).
 -- #1069 "Триал и льготный период" — owner decision 03.08 (Т5-Т8):
 --   1. The trial extension is removed ("продление самого триала — бессмыслица"): once the trial
 --      ends, the post-trial rule (blocked / read_only / tariff) applies IMMEDIATELY, not after an
