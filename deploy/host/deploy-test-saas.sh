@@ -1002,7 +1002,7 @@ assert_app_owner_secdef_table_grants_complete(){
   # disposable PostgreSQL cluster and runs a burst of CPU/IO-heavy script activity) -- consistent with a
   # genuine settle/visibility gap wider than 5x2s=10s at that specific closure position, not a code bug.
   # Widened the retry budget rather than the grant: same idiom, longer window.
-  local missing="" operator_incidents_ok="" cms_pages_serialization_token_ok="" access_door_acl_ok="" _secdef_grants_attempt
+  local missing="" operator_incidents_ok="" operator_incident_mutation_columns_ok="" cms_pages_serialization_token_ok="" access_door_acl_ok="" _secdef_grants_attempt
   for _secdef_grants_attempt in 1 2 3 4 5 6 7 8 9 10; do
     missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 WITH required(tbl, priv) AS (
@@ -1038,6 +1038,10 @@ WITH required(tbl, priv) AS (
     -- comes directly from a live function body; ON CONFLICT writes require both INSERT and UPDATE.
     ('public.saas_billing_subscriptions', 'SELECT'),
     ('public.system_settings', 'SELECT'),
+    -- Track D login/delivery capabilities: the provider-failure function returns the touched row
+    -- and performs INSERT ... ON CONFLICT. UPDATE stays column-scoped and is asserted separately.
+    ('public.operator_incidents', 'SELECT'),
+    ('public.operator_incidents', 'INSERT'),
     ('public.app_runtime_settings', 'SELECT'),
     ('public.booking_cities', 'SELECT'),
     ('public.clinical_test_measure_kinds', 'SELECT'),
@@ -1168,6 +1172,12 @@ WHERE NOT has_table_privilege('app_owner', tbl, priv);
     operator_incidents_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sent_at', 'UPDATE')::text;
 ")"
+    operator_incident_mutation_columns_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT bool_and(has_column_privilege(
+  'app_owner', 'public.operator_incidents', required_column, 'UPDATE'
+))::text
+FROM unnest(ARRAY['last_seen_at', 'occurrence_count', 'error_detail']) AS required_column;
+")"
     cms_pages_serialization_token_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at', 'UPDATE')::text;
 ")"
@@ -1176,6 +1186,7 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
     # grant was always present, but "$operator_incidents_ok" = "t" could never be satisfied.
     [ -z "$missing" ] \
       && [ "$operator_incidents_ok" = "true" ] \
+      && [ "$operator_incident_mutation_columns_ok" = "true" ] \
       && [ "$cms_pages_serialization_token_ok" = "true" ] \
       && break
     sleep 3
@@ -1187,6 +1198,10 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   }
   [ "$operator_incidents_ok" = "true" ] || {
     echo "FATAL: app_owner is missing UPDATE (alert_sent_at) on public.operator_incidents" >&2
+    exit 1
+  }
+  [ "$operator_incident_mutation_columns_ok" = "true" ] || {
+    echo "FATAL: app_owner is missing column-scoped UPDATE (last_seen_at, occurrence_count, error_detail) on public.operator_incidents" >&2
     exit 1
   }
   [ "$cms_pages_serialization_token_ok" = "true" ] || {
@@ -1413,7 +1428,20 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # capabilities, two dedicated clinic-bot binding/resolution functions, pending-occurrence cancel,
   # and the unified mute action. Their exact table grants are pinned above. C4 reapplies the one
   # previously missing capability grant: DELETE on integrator.user_reminder_occurrences.
-  local expected_secdef_count=144
+  # 144 -> 148 (2026-08-03, #987 Track D login/delivery closure): exactly four new functions were
+  # measured against the last green TEST deployment (00ddf35bd, 144/144) and the current catalog:
+  # app.read_integrator_auth_channel_setting(text),
+  # app.read_integrator_platform_integration_availability(),
+  # app.open_or_touch_operator_incident(text,text,text,text,text), and
+  # app.read_outgoing_delivery_reclaim_config(). The first, second and fourth read only fixed
+  # public.system_settings keys, whose app_owner SELECT is already pinned above. The incident
+  # capability needs operator_incidents SELECT+INSERT plus column-scoped UPDATE on last_seen_at,
+  # occurrence_count and error_detail; those grants are reapplied by c4-operational-runtime.sql and
+  # pinned above. integrator-server-runtime-config.sql and c4-operational-runtime.sql independently
+  # assert the final exact EXECUTE sets: API login only for the first two, API login + delivery worker
+  # for incident open/touch, and delivery worker only for reclaim config (besides owner EXECUTE).
+  # Migration 0327 merely replays 0318's existing payment-provider function and is count-neutral.
+  local expected_secdef_count=148
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1518,7 +1546,7 @@ SELECT (
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (95 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (114 required table grants + 5 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){
