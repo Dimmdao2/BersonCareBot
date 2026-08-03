@@ -195,6 +195,26 @@ describe('D30 Ш4 patient reminder materialization capabilities', () => {
     expect(current.rows[0]?.current).toBe(true);
 
     await run(
+      `UPDATE public.outgoing_delivery_queue
+       SET payload_json = jsonb_set(
+         payload_json,
+         '{intent,payload,recipient,chatId}',
+         '9999'::jsonb,
+         true
+       )
+       WHERE event_id = $1`,
+      [eventId],
+    );
+    const forgedRecipient = await run<{ current: boolean }>(
+      'SELECT app.revalidate_patient_reminder_delivery_materialization($1) AS current',
+      [inserted.rows[0]?.id],
+    );
+    expect(
+      forgedRecipient.rows[0]?.current,
+      'the exact gate must validate the provider recipient, not only sibling externalId metadata',
+    ).toBe(false);
+
+    await run(
       `UPDATE public.user_channel_bindings SET external_id = '2002'
        WHERE user_id = $1 AND channel_code = 'telegram'`,
       [patient],
@@ -278,6 +298,22 @@ describe('D30 Ш4 patient reminder materialization capabilities', () => {
       staff_upsert: true,
       worker_revalidate: true,
       public_revalidate: false,
+    });
+
+    const directOccurrenceWrites = await run<{
+      owner_insert: boolean;
+      owner_update: boolean;
+      staff_insert: boolean;
+    }>(
+      `SELECT
+         has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'INSERT') AS owner_insert,
+         has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'UPDATE') AS owner_update,
+         has_table_privilege('app_staff', 'integrator.user_reminder_occurrences', 'INSERT') AS staff_insert`,
+    );
+    expect(directOccurrenceWrites.rows[0]).toEqual({
+      owner_insert: false,
+      owner_update: false,
+      staff_insert: false,
     });
   });
 });
