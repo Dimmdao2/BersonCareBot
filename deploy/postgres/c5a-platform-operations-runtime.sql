@@ -68,6 +68,8 @@ GRANT SELECT ON TABLE public.be_organizations TO app_staff;
 -- catalog and its own organization assignment to derive amounts; the policies below keep the
 -- organization read tenant-scoped and the catalog read-only.
 GRANT SELECT ON TABLE public.saas_tariffs, public.be_organizations TO app_clinic_billing;
+GRANT SELECT ON TABLE public.saas_organization_trials,
+  public.saas_org_entitlement_overrides TO app_clinic_billing;
 
 -- A-6 / #1007 (docs/_TODO/NIGHT_PLAN_2026-07-26.md): `clinical_test_measure_kinds` has no
 -- `organization_id` at all -- the owner's FINAL scope decision (2026-06-17,
@@ -497,6 +499,15 @@ CREATE POLICY saas_organization_trials_staff_current_org_read
     AND app.current_org_id() IS NOT NULL
     AND organization_id = app.current_org_id()
   );
+DROP POLICY IF EXISTS saas_organization_trials_clinic_billing_current_org_read
+  ON public.saas_organization_trials;
+CREATE POLICY saas_organization_trials_clinic_billing_current_org_read
+  ON public.saas_organization_trials
+  FOR SELECT TO app_clinic_billing
+  USING (
+    app.current_org_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+  );
 
 ALTER TABLE public.saas_org_entitlement_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_org_entitlement_overrides FORCE ROW LEVEL SECURITY;
@@ -511,6 +522,15 @@ CREATE POLICY saas_org_entitlement_overrides_staff_current_org_read
   USING (
     app.is_staff()
     AND app.current_org_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+  );
+DROP POLICY IF EXISTS saas_org_entitlement_overrides_clinic_billing_current_org_read
+  ON public.saas_org_entitlement_overrides;
+CREATE POLICY saas_org_entitlement_overrides_clinic_billing_current_org_read
+  ON public.saas_org_entitlement_overrides
+  FOR SELECT TO app_clinic_billing
+  USING (
+    app.current_org_id() IS NOT NULL
     AND organization_id = app.current_org_id()
   );
 
