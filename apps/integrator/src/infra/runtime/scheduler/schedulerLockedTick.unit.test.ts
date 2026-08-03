@@ -44,6 +44,38 @@ describe('scheduler leader cadence', () => {
     expect(onOrganizationTickError).toHaveBeenCalledWith(organizationError);
   });
 
+  it('contains a rejected organization error reporter and allows the next sweep', async () => {
+    const unhandledRejection = vi.fn();
+    process.on('unhandledRejection', unhandledRejection);
+    try {
+      const runOrganizationTicks = vi.fn().mockRejectedValue(new Error('organization rejected'));
+      const onOrganizationTickError = vi.fn().mockRejectedValue(new Error('reporter rejected'));
+      const coordinator = createSchedulerLockedTickCoordinator({
+        assertLockStillHeld: vi.fn(async () => undefined),
+        runOrganizationTicks,
+        runOperatorHealthProbeTick: vi.fn(async () => false),
+        onOrganizationTickError,
+      });
+
+      await coordinator.runTick();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await coordinator.waitForOrganizationTick();
+
+      expect(unhandledRejection).not.toHaveBeenCalled();
+      expect(runOrganizationTicks).toHaveBeenCalledTimes(1);
+
+      await coordinator.runTick();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await coordinator.waitForOrganizationTick();
+
+      expect(unhandledRejection).not.toHaveBeenCalled();
+      expect(runOrganizationTicks).toHaveBeenCalledTimes(2);
+      expect(onOrganizationTickError).toHaveBeenCalledTimes(2);
+    } finally {
+      process.off('unhandledRejection', unhandledRejection);
+    }
+  });
+
   it('keeps health cadence moving while one slow organization sweep is behind a barrier', async () => {
     const sweep = deferred();
     const runOrganizationTicks = vi.fn(() => sweep.promise);

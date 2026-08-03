@@ -34,7 +34,12 @@ export function createSchedulerLockedTickCoordinator(
     });
     const tracked = started
       .catch(async (error: unknown) => {
-        await deps.onOrganizationTickError(error);
+        try {
+          await deps.onOrganizationTickError(error);
+        } catch {
+          // This is the terminal background-task boundary. The callback already owns reporting;
+          // its own failure must not become an unhandled rejection or pin single-flight forever.
+        }
       })
       .finally(() => {
         if (organizationTickInFlight === tracked) organizationTickInFlight = null;
