@@ -111,7 +111,15 @@ which addresses may log in (§2 is a different question and is not in this slice
 covering: OAuth address linked earlier than the profile address, profile address linked earlier, and an account
 with no verified address at all.
 
-### F5 addendum — the owner closed развилка №6 on 2026-08-03
+### F5 addendum — SUPERSEDED IN PART on 2026-08-03 (read the F6 section below first)
+
+⛔ The paragraph below recorded «the owner closed развилка №6: login by the primary email only». Later the same day
+the owner **reopened** that fork as an explicit open question (see §2a item 7 of the scheme) while ruling on
+everything else. What still stands from it: the OAuth overwrite of the primary email must go, and the login code
+goes to the primary. What does NOT stand: any rule limiting login to one contact — that is now the owner's open
+gate and must not be built.
+
+### F5 (original text, kept for provenance)
 
 Owner, verbatim: «для входа используется одна почта — основная. Та которая привязана первой. Я думаю что пока
 этого хватит, и чтобы возможность привязывать дополнительные адреса давала почту для восстановления, но не для
@@ -142,3 +150,41 @@ So F5 grows by two concrete requirements, on top of «the code always goes to th
 
 Out of scope: phones and messengers as login identifiers — развилка №6 stays open for them, the owner spoke about
 email only. Do not touch that.
+
+---
+
+## F6 — OAuth contact resolution (THIRD SLICE, owner-ruled 2026-08-03)
+
+Authority: `IDENTITY_AND_MERGE_SCHEME.md` **§2a** — the owner dictated the whole table there, including the exact
+Russian message for the conflict case. Read it before touching anything; it supersedes any earlier note about
+one-email login.
+
+Источник оракула: `IDENTITY_AND_MERGE_SCHEME.md` §2a — «но вот что точно надо — это убрать перезапись основной
+почты при входе через OAuth», плюс шесть пронумерованных случаев владельца.
+
+Implement cases 1–6 exactly as written, at the existing chokepoint `oauthWebLoginResolve.ts` plus its ports — do
+not add a second resolver:
+
+1. Same email → log in; the OAuth sign-in **confirms** that address the same way a code does.
+2. Neither the provider's email nor its phone is registered → create a new account (today's behavior).
+3. Provider gives both contacts and one of them matches → the other is **added to that account and becomes
+   confirmed**.
+4. Email matches, phone differs → the provider's phone is added as an additional (spare) contact.
+5. Phone matches, email differs → the provider's email is added as an additional (spare) contact.
+6. The two contacts belong to **different accounts** → refuse the login and show exactly:
+   «Конфликт контактных данных, войдите в систему по подтвержденному телефону или email. Для устранения конфликта
+   напишите в службу поддержки», with a button to support chat. Decide and state in your report how that button
+   works for a person who is not signed in, given that D-12 forbids anonymous support — either route it to the
+   existing public support path or name the exception; do not choose silently.
+
+Hard constraint from the same ruling: **remove the unconditional primary-email overwrite**
+(`pgOAuthUserResolve.ts:13-28`). The primary is set only when the account has none; every later address is added,
+never substituted.
+
+⛔ Do NOT build anything for item 7 (equal-rights login across all registered contacts, or a per-binding
+identification/recovery switch). That is an open owner gate. Adding contacts as confirmed (cases 3–5) is required;
+deciding whether they may authenticate is not this slice's business — leave today's lookup behavior untouched
+there and say so.
+
+Tests must cover each of the six cases as behavior, plus: two consecutive OAuth sign-ins with different provider
+addresses leave the primary unchanged.
