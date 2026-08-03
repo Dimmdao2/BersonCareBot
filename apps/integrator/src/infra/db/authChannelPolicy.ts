@@ -1,8 +1,7 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../kernel/contracts/index.js';
-import {
-  extractSystemSettingInnerValue,
-  fetchPublicSystemSettingValueJson,
-} from './publicSystemSettings.js';
+import { runIntegratorSql } from './runIntegratorSql.js';
+import { parseSystemSettingTrueLiteral } from './publicSystemSettings.js';
 
 export type AuthChannel = 'email' | 'sms' | 'telegram' | 'max';
 
@@ -13,24 +12,32 @@ const SETTING_BY_CHANNEL: Readonly<Record<AuthChannel, string>> = {
   max: 'auth_max_enabled',
 };
 
-const DEFAULT_BY_CHANNEL: Readonly<Record<AuthChannel, boolean>> = {
-  email: true,
-  sms: false,
-  telegram: true,
-  max: true,
-};
+/**
+ * Fixed allowlist capability for the four global auth-channel enable flags. The integrator
+ * runtime login receives EXECUTE on the function, never table SELECT.
+ */
+async function fetchAuthChannelSettingValueJson(
+  db: DbPort,
+  key: string,
+): Promise<unknown | null> {
+  const result = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT app.read_integrator_auth_channel_setting(${key}) AS value_json`,
+  );
+  return result.rows[0]?.value_json ?? null;
+}
 
-/** Canonical auth-channel policy read from public.system_settings with registry-compatible defaults. */
+/**
+ * Canonical auth-channel policy: a missing row, an unreadable row, and an explicit `false` are
+ * all the same safe default — disabled. Only an explicit `true` (or the string `'true'`) enables
+ * the channel; a read failure (denied/unreachable) fails closed the same way.
+ */
 export async function isAuthChannelEnabled(db: DbPort, channel: AuthChannel): Promise<boolean> {
   try {
-    const valueJson = await fetchPublicSystemSettingValueJson(
-      db,
-      SETTING_BY_CHANNEL[channel],
-      'admin',
-    );
-    const inner = extractSystemSettingInnerValue(valueJson);
-    return typeof inner === 'boolean' ? inner : DEFAULT_BY_CHANNEL[channel];
+    const valueJson = await fetchAuthChannelSettingValueJson(db, SETTING_BY_CHANNEL[channel]);
+    if (valueJson === null) return false;
+    return parseSystemSettingTrueLiteral(valueJson);
   } catch {
-    return DEFAULT_BY_CHANNEL[channel];
+    return false;
   }
 }

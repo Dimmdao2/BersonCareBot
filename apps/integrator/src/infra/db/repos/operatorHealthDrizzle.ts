@@ -3,7 +3,9 @@
  */
 import { and, eq, isNull, like, sql } from 'drizzle-orm';
 import { operatorIncidents, operatorJobStatus } from '@bersoncare/operator-db-schema';
+import { createDbPort } from '../client.js';
 import { getIntegratorDrizzle } from '../drizzle.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 const ERROR_DETAIL_MAX = 900;
 
@@ -28,42 +30,27 @@ function truncateDetail(detail: string | null | undefined): string | null {
 
 /**
  * Открыть инцидент или увеличить счётчик при совпадении открытого dedup_key (partial unique index).
+ *
+ * Goes through the narrow `app.open_or_touch_operator_incident` SECURITY DEFINER capability
+ * instead of direct table INSERT/UPDATE: the integrator API login and the delivery worker
+ * receive EXECUTE on this function only, never ambient DML on `public.operator_incidents`.
  */
 export async function openOrTouchOperatorIncident(
   input: OpenOperatorIncidentInput,
 ): Promise<OpenOrTouchIncidentResult> {
-  const db = getIntegratorDrizzle();
   const errorDetail = truncateDetail(input.errorDetail);
-
-  const rows = await db
-    .insert(operatorIncidents)
-    .values({
-      dedupKey: input.dedupKey,
-      direction: input.direction,
-      integration: input.integration,
-      errorClass: input.errorClass,
-      errorDetail,
-    })
-    .onConflictDoUpdate({
-      target: [operatorIncidents.dedupKey],
-      targetWhere: sql`${operatorIncidents.resolvedAt} IS NULL`,
-      set: {
-        lastSeenAt: sql`now()` as unknown as string,
-        occurrenceCount: sql`${operatorIncidents.occurrenceCount} + 1`,
-        errorDetail:
-          sql`coalesce(excluded.error_detail, ${operatorIncidents.errorDetail})` as unknown as string,
-      },
-    })
-    .returning({
-      id: operatorIncidents.id,
-      occurrenceCount: operatorIncidents.occurrenceCount,
-    });
-
-  const row = rows[0];
+  const result = await runIntegratorSql<{ id: string; occurrence_count: number }>(
+    createDbPort(),
+    sql`SELECT id, occurrence_count
+        FROM app.open_or_touch_operator_incident(
+          ${input.dedupKey}, ${input.direction}, ${input.integration}, ${input.errorClass}, ${errorDetail}
+        )`,
+  );
+  const row = result.rows[0];
   if (!row) {
     throw new Error('openOrTouchOperatorIncident: empty returning');
   }
-  return { id: row.id, occurrenceCount: row.occurrenceCount };
+  return { id: row.id, occurrenceCount: row.occurrence_count };
 }
 
 export async function markOperatorIncidentAlertSent(incidentId: string): Promise<void> {

@@ -21,6 +21,12 @@ REVOKE EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
 REVOKE EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_integrator_auth_channel_setting(text)
+  FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability()
+  FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
+  FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.release_principal_context()
   FROM :"integrator_runtime_config_role";
 \echo 'Integrator server-runtime config grants DOWN complete.'
@@ -77,6 +83,9 @@ SELECT 1 / (
   AND to_regprocedure(
     'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'
   ) IS NOT NULL
+  AND to_regprocedure('app.read_integrator_auth_channel_setting(text)') IS NOT NULL
+  AND to_regprocedure('app.read_integrator_platform_integration_availability()') IS NOT NULL
+  AND to_regprocedure('app.open_or_touch_operator_incident(text,text,text,text,text)') IS NOT NULL
   AND to_regprocedure('app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)') IS NOT NULL
   AND to_regprocedure('app.release_principal_context()') IS NOT NULL
 )::int AS integrator_server_runtime_config_preflight;
@@ -107,6 +116,9 @@ ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;
 ALTER FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_auth_channel_setting(text) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_platform_integration_availability() OWNER TO app_owner;
+ALTER FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text) OWNER TO app_owner;
 
 -- 0244_public_app_base_url_runtime_setting registered app_base_url in the projection at
 -- audience='public' for the anonymous landing page. The unique index backing this projection is
@@ -244,6 +256,104 @@ $delivery_audit_acl_scrub$;
 REVOKE ALL ON FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) FROM PUBLIC, app_staff, app_patient, app_worker;
+-- Track D (docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md): reset the three
+-- new capabilities exactly as strictly as the ones above, since CREATE OR REPLACE preserves an
+-- existing function ACL across replays.
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_auth_channel_setting(text)
+  FROM :"integrator_runtime_config_role" CASCADE;
+DO $auth_channel_acl_scrub$
+DECLARE
+  v_grantee_oid oid;
+  v_grantee_name text;
+BEGIN
+  FOR v_grantee_oid, v_grantee_name IN
+    SELECT DISTINCT privilege.grantee, role.rolname
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
+    WHERE procedure.oid = 'app.read_integrator_auth_channel_setting(text)'::regprocedure
+      AND privilege.grantee <> procedure.proowner
+  LOOP
+    IF v_grantee_oid = 0 THEN
+      EXECUTE
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_auth_channel_setting(text) FROM PUBLIC CASCADE';
+    ELSE
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_auth_channel_setting(text) FROM %I CASCADE',
+        v_grantee_name
+      );
+    END IF;
+  END LOOP;
+END
+$auth_channel_acl_scrub$;
+REVOKE ALL ON FUNCTION app.read_integrator_auth_channel_setting(text)
+  FROM PUBLIC, app_staff, app_patient, app_worker;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_platform_integration_availability()
+  FROM :"integrator_runtime_config_role" CASCADE;
+DO $platform_availability_acl_scrub$
+DECLARE
+  v_grantee_oid oid;
+  v_grantee_name text;
+BEGIN
+  FOR v_grantee_oid, v_grantee_name IN
+    SELECT DISTINCT privilege.grantee, role.rolname
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
+    WHERE procedure.oid = 'app.read_integrator_platform_integration_availability()'::regprocedure
+      AND privilege.grantee <> procedure.proowner
+  LOOP
+    IF v_grantee_oid = 0 THEN
+      EXECUTE
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_platform_integration_availability() FROM PUBLIC CASCADE';
+    ELSE
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_platform_integration_availability() FROM %I CASCADE',
+        v_grantee_name
+      );
+    END IF;
+  END LOOP;
+END
+$platform_availability_acl_scrub$;
+REVOKE ALL ON FUNCTION app.read_integrator_platform_integration_availability()
+  FROM PUBLIC, app_staff, app_patient, app_worker;
+REVOKE ALL PRIVILEGES ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
+  FROM :"integrator_runtime_config_role" CASCADE;
+DO $incident_open_acl_scrub$
+DECLARE
+  v_grantee_oid oid;
+  v_grantee_name text;
+BEGIN
+  FOR v_grantee_oid, v_grantee_name IN
+    SELECT DISTINCT privilege.grantee, role.rolname
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
+    WHERE procedure.oid = 'app.open_or_touch_operator_incident(text,text,text,text,text)'::regprocedure
+      AND privilege.grantee <> procedure.proowner
+  LOOP
+    IF v_grantee_oid = 0 THEN
+      EXECUTE
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.open_or_touch_operator_incident(text,text,text,text,text) FROM PUBLIC CASCADE';
+    ELSE
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.open_or_touch_operator_incident(text,text,text,text,text) FROM %I CASCADE',
+        v_grantee_name
+      );
+    END IF;
+  END LOOP;
+END
+$incident_open_acl_scrub$;
+-- Granted to app_operational_delivery_worker separately by deploy/postgres/c4-operational-runtime.sql;
+-- that grant is a different managed role and is not touched by this scrub.
+REVOKE ALL ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
+  FROM PUBLIC, app_staff, app_patient, app_worker;
 REVOKE EXECUTE ON FUNCTION
   app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text),
   app.current_org_id(),
@@ -263,6 +373,12 @@ GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
 GRANT EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_integrator_auth_channel_setting(text)
+  TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability()
+  TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
+  TO :"integrator_runtime_config_role";
 -- Bootstrap/infra cleanup runs before any SET ROLE. Scoped install/release runs after the
 -- classified app_staff/app_patient switch and remains granted through those roles by P2-B.
 GRANT EXECUTE ON FUNCTION app.release_principal_context()
@@ -435,6 +551,132 @@ SELECT 1 / (
     'app_worker',
     'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
     'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.read_integrator_auth_channel_setting(text)',
+    'EXECUTE'
+  )
+  AND (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.read_integrator_auth_channel_setting(text)'::regprocedure
+      AND procedure.prosecdef
+      AND owner.rolname = 'app_owner'
+      AND privilege.grantee IN (procedure.proowner, runtime_role.oid)
+      AND privilege.privilege_type = 'EXECUTE'
+      AND NOT privilege.is_grantable
+  ) = 2
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.read_integrator_auth_channel_setting(text)'::regprocedure
+      AND (
+        privilege.grantee NOT IN (procedure.proowner, runtime_role.oid)
+        OR privilege.privilege_type <> 'EXECUTE'
+        OR privilege.is_grantable
+      )
+  )
+  AND NOT has_function_privilege('app_staff', 'app.read_integrator_auth_channel_setting(text)', 'EXECUTE')
+  AND NOT has_function_privilege('app_patient', 'app.read_integrator_auth_channel_setting(text)', 'EXECUTE')
+  AND NOT has_function_privilege('app_worker', 'app.read_integrator_auth_channel_setting(text)', 'EXECUTE')
+  AND has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.read_integrator_platform_integration_availability()',
+    'EXECUTE'
+  )
+  AND (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.read_integrator_platform_integration_availability()'::regprocedure
+      AND procedure.prosecdef
+      AND owner.rolname = 'app_owner'
+      AND privilege.grantee IN (procedure.proowner, runtime_role.oid)
+      AND privilege.privilege_type = 'EXECUTE'
+      AND NOT privilege.is_grantable
+  ) = 2
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.read_integrator_platform_integration_availability()'::regprocedure
+      AND (
+        privilege.grantee NOT IN (procedure.proowner, runtime_role.oid)
+        OR privilege.privilege_type <> 'EXECUTE'
+        OR privilege.is_grantable
+      )
+  )
+  AND NOT has_function_privilege(
+    'app_staff', 'app.read_integrator_platform_integration_availability()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_patient', 'app.read_integrator_platform_integration_availability()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_worker', 'app.read_integrator_platform_integration_availability()', 'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.open_or_touch_operator_incident(text,text,text,text,text)',
+    'EXECUTE'
+  )
+  AND (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.open_or_touch_operator_incident(text,text,text,text,text)'::regprocedure
+      AND procedure.prosecdef
+      AND owner.rolname = 'app_owner'
+      AND privilege.grantee IN (procedure.proowner, runtime_role.oid)
+      AND privilege.privilege_type = 'EXECUTE'
+      AND NOT privilege.is_grantable
+  ) = 2
+  -- app_operational_delivery_worker also holds EXECUTE (granted by c4-operational-runtime.sql),
+  -- so this function's unexpected-grantee check must allow that third, non-owner grantee.
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN runtime_role
+    LEFT JOIN pg_roles AS delivery_worker ON delivery_worker.rolname = 'app_operational_delivery_worker'
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.open_or_touch_operator_incident(text,text,text,text,text)'::regprocedure
+      AND (
+        privilege.grantee NOT IN (procedure.proowner, runtime_role.oid, COALESCE(delivery_worker.oid, runtime_role.oid))
+        OR privilege.privilege_type <> 'EXECUTE'
+        OR privilege.is_grantable
+      )
+  )
+  AND NOT has_function_privilege(
+    'app_staff', 'app.open_or_touch_operator_incident(text,text,text,text,text)', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_patient', 'app.open_or_touch_operator_incident(text,text,text,text,text)', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_worker', 'app.open_or_touch_operator_incident(text,text,text,text,text)', 'EXECUTE'
   )
   AND has_function_privilege(
     :'integrator_runtime_config_role',

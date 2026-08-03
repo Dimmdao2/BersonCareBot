@@ -1,12 +1,11 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import {
   getCurrentDatabasePrincipal,
   runWithInfraPrincipal,
 } from '../principal/organizationPrincipal.js';
-import {
-  extractSystemSettingInnerValue,
-  fetchPublicSystemSettingValueJson,
-} from './publicSystemSettings.js';
+import { extractSystemSettingInnerValue } from './publicSystemSettings.js';
+import { runIntegratorSql } from './runIntegratorSql.js';
 
 export const PLATFORM_INTEGRATION_IDS = [
   'telegram',
@@ -55,6 +54,18 @@ export function parsePlatformIntegrationAvailability(
 }
 
 /**
+ * Fixed single-key capability for the global platform-integration availability registry. The
+ * integrator runtime login receives EXECUTE on the function, never table SELECT.
+ */
+async function fetchPlatformIntegrationAvailabilityValueJson(db: DbPort): Promise<unknown | null> {
+  const result = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT app.read_integrator_platform_integration_availability() AS value_json`,
+  );
+  return result.rows[0]?.value_json ?? null;
+}
+
+/**
  * Background/M2M delivery (queue worker, signed webhook auth-code sends) runs with no
  * request-scoped principal. The registry is a global admin setting (`organization_id IS
  * NULL`), so resolve that legitimate no-principal case through the same allowlisted infra
@@ -62,8 +73,7 @@ export function parsePlatformIntegrationAvailability(
  * locked-mode "principal required" error below.
  */
 function readAvailabilityValueJson(db: DbPort): Promise<unknown> {
-  const fetch = () =>
-    fetchPublicSystemSettingValueJson(db, 'platform_integration_availability', 'admin');
+  const fetch = () => fetchPlatformIntegrationAvailabilityValueJson(db);
   if (getCurrentDatabasePrincipal()) return fetch();
   return runWithInfraPrincipal({ source: 'delivery-handler' }, fetch);
 }
