@@ -26,8 +26,11 @@
 | `GET /app/tg` | Telegram Mini App | то же, но surface жёстко задан `telegram` (без cookie/`ctx`) | `apps/webapp/src/app/app/tg/page.tsx:8` |
 | `GET /app/max` | Max Mini App | то же, surface жёстко `max` | `apps/webapp/src/app/app/max/page.tsx` (симметрично tg) |
 | `GET /app/(role-login)/patient/login` | пациент по прямой ссылке роли | тот же `AppEntryRsc`, но `roleLoginPortal="patient"` — после входа не-пациента редиректит в его хаб с тостом "доступ запрещён" | `apps/webapp/src/app/app/(role-login)/patient/login/page.tsx` |
-| `GET /app/(role-login)/doctor/login` | специалист/клиника | `roleLoginPortal="doctor"`, показывает `RoleLoginPortalHeader` | `apps/webapp/src/app/app/(role-login)/doctor/login/page.tsx` |
+| `GET /app/(role-login)/doctor/login` | специалист/клиника (роль `doctor` — клиника-админ и специалист делят одну роль, см. ниже) | `roleLoginPortal="doctor"`, показывает `RoleLoginPortalHeader` | `apps/webapp/src/app/app/(role-login)/doctor/login/page.tsx` |
 | `GET /app/(role-login)/admin/login` | платформенный админ | `roleLoginPortal="admin"` | `apps/webapp/src/app/app/(role-login)/admin/login/page.tsx` |
+| **Реальный путь на три строки выше** — middleware-редирект | любой, у кого нет сессии, но открыл защищённый `/app/patient/**`, `/app/doctor/**`, `/app/admin/**` (в т.ч. по PWA-ярлыку — `manifest.ts` даёт `start_url:'/app/patient'`, `staffPwaManifest.ts` даёт `/app/doctor`) | 302 на `getRoleLoginPath(portal)` с `?next=<исходный путь>` — это и есть основной способ, которым живые пользователи попадают на три страницы выше, а не прямые ссылки | `apps/webapp/src/proxy.ts:74-90` (`portalForAppPath`, `isRoleLoginPath`) |
+| `GET /app/clinic/invites/accept?token=` | приглашённый в команду клиники (сотрудник/специалист) | **отдельный, полностью самостоятельный OTP-экран** — не рендерит ни `AuthFlowV2`, ни `PhoneMessengerAuthFlow` | `apps/webapp/src/app/app/clinic/invites/accept/page.tsx`, `InviteAcceptClient.tsx`; создаётся клиникой через `apps/webapp/src/app/api/clinic/invites/route.ts` |
+| `GET /join/[continuation]` и `GET /join/start` | пациент, приглашённый врачом в портал | тоже отдельный самостоятельный OTP-экран; `join/start` берёт токен из URL-фрагмента (`#…`, не хвост пути — чтобы не улетал в лог сервера) и меняет на continuation-cookie | `apps/webapp/src/app/join/[continuation]/page.tsx`, `JoinPatientClient.tsx`, `apps/webapp/src/app/join/start/page.tsx`, `JoinStartClient.tsx`; создаётся врачом через `apps/webapp/src/app/api/doctor/patients/[userId]/portal-invite/route.ts` |
 | `?t=`/`?token=` JWT от интегратора (диплинк бота) | пользователь, пришедший по ссылке из Telegram/Max-бота вне mini app | `AuthBootstrap` меняет токен на сессию через `/api/auth/exchange`, минуя экран | `AuthBootstrap.tsx:668-778` (`postTokenExchange`) |
 | Telegram/Max `initData` (внутри mini app) | пользователь уже открыл бота как mini app | тихий POST на `/api/auth/telegram-init` или `/api/auth/max-init` → редирект без единого клика; при отказе (`access_denied`, `max_unavailable`, timeout) — см. §3 | `AuthBootstrap.tsx:469-666`, `AuthBootstrap.tsx:626-666` |
 | `?intent=specialist` / `?devView=registration` на `/app` | будущий специалист по маркетинговой ссылке | сразу открывает форму регистрации кабинета (`emailAuthMode='specialist_signup'`) | `AuthBootstrap.tsx:162-166`, `AuthFlowV2.tsx:939-962` |
@@ -37,10 +40,14 @@
 | `/api/auth/dev-bypass?token=dev:*`, `/api/auth/dev-public?view=clinic-registration` | только дев-режим (`ALLOW_DEV_AUTH_BYPASS=true`) | мгновенный вход без провайдера/пароля, роль зависит от токена | `AppEntryLoginContent.tsx:68-105` |
 | Восстановление пароля / первичная установка пароля («забыли пароль?») | сотрудник клиники с почтовым логином | тот же экран, без ухода со страницы: код на sessionStorage-состоянии, не отдельная ссылка | `AuthFlowV2.tsx:718-766` (`submitForgotPassword`), хранение — `authFlowPendingStorage.ts:184-199` |
 
-Инвайт-ссылок для регистрации в клинику **не найдено**: специалист сам создаёт кабинет и slug
-(`AuthFlowV2.tsx:939-1099`); отдельного приглашения нет (искал `invite` в `modules/auth/**`,
-`app/api/auth/**`, `app/app/auth/**` — совпадения только в лимитах и портах email/OTP, не в
-сценарии приглашения).
+**Поправка после второго прохода.** Первая версия этого документа утверждала «инвайт-ссылок не
+найдено» — это было неверно: искал `invite` только в `modules/auth/**`, `app/api/auth/**`,
+`app/app/auth/**`, а сами инвайты живут в `app/api/clinic/invites/**` и `app/api/join/**`, вне
+проверенных путей. Оба инвайт-потока (клиника → сотрудник, врач → пациент) существуют, оба —
+готовые самостоятельные экраны, независимые от `AuthFlowV2`/`PhoneMessengerAuthFlow` (см. таблицу
+выше). Самостоятельная регистрация специалиста без приглашения (`AuthFlowV2.tsx:939-1099`,
+`specialist_signup`) — это отдельный, третий путь: специалист сам создаёт кабинет и slug, без
+инвайта вообще.
 
 ---
 
@@ -48,7 +55,15 @@
 
 ```mermaid
 flowchart TD
-    Start(["Человек открывает /app, /app/tg, /app/max\nили ссылку роли (patient/doctor/admin)"]) --> Boot["AuthBootstrap:\nклассификация входа"]
+    Start(["Человек открывает /app, /app/tg, /app/max\nили защищённый /app/{patient,doctor,admin}/* без сессии"]) --> Proxy{"proxy.ts:\nэто защищённый\nролевой путь?"}
+    Proxy -->|"да, сессии нет"| RoleLogin["302 на роль-логин\n?next=&lt;куда шёл&gt;"]
+    RoleLogin --> Boot
+    Proxy -->|"нет, это /app общий"| Boot["AuthBootstrap:\nклассификация входа"]
+
+    InviteClinic(["Ссылка-приглашение в клинику\n/app/clinic/invites/accept?token="]) --> InviteClinicFlow["Отдельный OTP-экран\n(не AuthFlowV2)"]
+    InviteClinicFlow -->|ok| Hub
+    InvitePatient(["Ссылка-приглашение пациента\n/join/start → /join/[continuation]"]) --> InvitePatientFlow["Отдельный OTP-экран\n(не AuthFlowV2)"]
+    InvitePatientFlow -->|ok| Hub
 
     Boot -->|"есть активная сессия"| Hub["Редирект в свой хаб\n(patient/doctor/admin)"]
     Boot -->|"есть ?t=/?token= JWT"| Exchange["POST /api/auth/exchange"]
@@ -214,6 +229,12 @@ apps/webapp/src/modules/auth/publicAuthSnapshot.ts:12-22
 `AuthFlowV2`, физически не спрашивает сервер про VK. Кнопку некуда было бы подключить без правки
 этого снимка.
 
+**Не путать с другим VK в репозитории:** `apps/integrator/src/integrations/vk/index.ts` и
+`.../vk/config.ts` — это отключённый (`enabled: false`) шаблон интеграции с **сообществом VK как
+мессенджер-каналом** (входящие/исходящие сообщения от имени группы VK), не имеет отношения к VK ID
+OAuth-входу и от него дальше по готовности — это незаполненный шаблон, а не готовый, но
+неподключённый код.
+
 ### 5.2. Telegram Login Widget — компонент существует, нигде не импортируется
 
 `apps/webapp/src/shared/ui/patient/auth/TelegramLoginButton.tsx` определяет полноценный React-
@@ -228,14 +249,31 @@ apps/webapp/src/modules/auth/publicAuthSnapshot.ts:12-22
 через mini app (`initData`) или через код в мессенджере (`PhoneMessengerAuthFlow`), не через этот
 виджет.
 
-### 5.3. Больше кандидатов «готово, но не на экране» не найдено
+### 5.3. PIN-вход — третий случай «сервер готов, экрана нет»
+
+`authChannelPolicy.ts:109` объявляет `IndependentAuthMethod = 'passkey' | 'pin'` — passkey и PIN
+управляются одной и той же функцией `isIndependentAuthMethodEnabled(method)`
+(`authChannelPolicy.ts:117-121`), с одинаковыми по форме тоглами
+(`auth_passkey_enabled`/`auth_pin_enabled`). `POST /api/auth/pin/login`
+(`apps/webapp/src/app/api/auth/pin/login/route.ts:22-38`) — рабочий обработчик: номер + 4-значный
+PIN → `verifyPinForLogin` → сессия, механика один в один с passkey-входом.
+
+Passkey подключён насквозь: `AuthFlowV2.tsx:220` (`passkeyEnabled` в пропах),
+`AuthFlowV2.tsx:329`, `AuthFlowV2.tsx:2477-2487` (кнопка) — и `publicAuthSnapshot.ts` спрашивает
+`isIndependentAuthMethodEnabled('passkey')` в прогнозе. PIN — нет: `PrefetchedPublicAuthConfig`
+не содержит `pinEnabled`, `publicAuthSnapshot.ts` никогда не зовёт `isIndependentAuthMethodEnabled('pin')`,
+и `/api/auth/pin/login` не вызывается ни из одного файла `shared/ui/patient/auth/**`.
+Единственный клиент PIN-API в репозитории — `apps/webapp/src/app/app/patient/profile/PinSection.tsx`,
+но это **экран настройки PIN после входа** («Задайте PIN для быстрого входа по номеру телефона»),
+а не экран входа: он готовит PIN на будущее, которое пока не наступило — вход по PIN нигде не
+предлагается.
+
+### 5.4. Больше кандидатов «готово, но не на экране» не найдено
 
 Проверены остальные флаги `authChannelPolicy` (`telegram`, `max`, `sms`, `email`) и
 `OTP_PUBLIC_OTHER_CHANNELS_ORDER` / `OTP_OTHER_CHANNELS_ORDER` — все они читаются и в `AuthFlowV2`,
-и в `PhoneMessengerAuthFlow`. Passkey (`passkeyEnabled`) подключён с обеих сторон
-(`AuthFlowV2.tsx:2477-2487`). Отдельных «висящих» серверных модулей `modules/auth/**`
-без клиентского потребителя, кроме VK ID и Telegram Login Widget, не обнаружено — проверялось
-сопоставлением списка файлов `modules/auth/*.ts` с грепом их имён экспортов в `shared/ui/**`.
+и в `PhoneMessengerAuthFlow`. Отдельных «висящих» серверных модулей `modules/auth/**`
+без клиентского потребителя, кроме перечисленных в §5.1-5.3, не обнаружено.
 
 ---
 
@@ -277,3 +315,19 @@ apps/webapp/src/modules/auth/publicAuthSnapshot.ts:12-22
 куда редиректит после входа. Владелец видит уже как есть — вопрос не в объединении (это не отдельные
 экраны с разным кодом), а в том, устраивает ли текущее визуальное различие ролевых порталов, или
 нужен явный выбор роли на едином экране `/app` вместо трёх URL.
+
+**В6. PIN-вход: включать наравне с passkey или снять недостроенное?**
+Сервер и тоглы готовы один в один с passkey (§5.3), профильный экран уже предлагает пользователю
+«задать PIN для быстрого входа» — то есть человек настраивает то, чем потом не может
+воспользоваться. Это либо забытый последний шаг (тогда цена включения та же, что у passkey: один
+проп + один вызов в `publicAuthSnapshot.ts`), либо решение сознательно отложить PIN и тогда стоит
+поправить текст в `PinSection.tsx`, чтобы не обещать пользователю то, чего нет.
+
+**В7. Инвайт-экраны (клиника→сотрудник, врач→пациент) — сводить к общему auth-компоненту или
+оставить отдельными?**
+Оба инвайт-потока — самостоятельные OTP-экраны, не переиспользующие ни `AuthFlowV2`, ни
+`PhoneMessengerAuthFlow`, со своими API (`/api/clinic/invites/*`, `/api/join/*`). Это не то же
+самое дублирование, что провайдеры в §4.1 (разные сценарии, не один и тот же факт в разных местах),
+но владельцу стоит явно решить: это два оправданных отдельных экрана (человек уже знает контекст —
+его пригласили, ему не нужен полный выбор способа входа) или ещё один кандидат на сведение к общей
+механике, когда дойдёт очередь до самого входа.
