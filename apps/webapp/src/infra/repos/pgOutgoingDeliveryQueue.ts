@@ -13,6 +13,7 @@ function queueValues(delivery: ReadyOutgoingDelivery) {
   const botMarkerRequired = delivery.channel === 'telegram' || delivery.channel === 'max';
   const specialist = delivery.kind === 'specialist_task_reminder';
   const reminder = delivery.kind === 'reminder_dispatch';
+  const appointment = delivery.kind === 'appointment_reminder';
   return {
     organizationId: delivery.organizationId,
     eventId: delivery.eventId,
@@ -33,11 +34,25 @@ function queueValues(delivery: ReadyOutgoingDelivery) {
         : {}),
       intent: delivery.intent,
       ...(specialist ? { successOutcome: delivery.successOutcome } : {}),
+      ...(appointment
+        ? {
+            appointmentId: delivery.appointmentId,
+            generationStartAt: delivery.generationStartAt,
+            dueAt: delivery.dueAt,
+            ...(delivery.messengerLadder
+              ? { messengerLadder: delivery.messengerLadder, messengerStepIndex: 0 }
+              : {}),
+          }
+        : {}),
       ...(specialist && botMarkerRequired ? { bookkeeping: { botMarkerRequired: true } } : {}),
     },
     status: 'pending',
     attemptCount: 0,
-    maxAttempts: specialist ? 6 : delivery.maxAttempts,
+    maxAttempts: specialist
+      ? 6
+      : appointment
+        ? (delivery.messengerLadder?.length ?? 1)
+        : delivery.maxAttempts,
     nextRetryAt: delivery.nextRetryAt,
     lastError: null,
     deadAt: null,
@@ -64,9 +79,12 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
           target: outgoingDeliveryQueue.eventId,
           set: {
             organizationId: values.organizationId,
+            kind: values.kind,
+            channel: values.channel,
             payloadJson: values.payloadJson,
             status: values.status,
             attemptCount: values.attemptCount,
+            maxAttempts: values.maxAttempts,
             nextRetryAt: values.nextRetryAt,
             lastError: null,
             deadAt: null,
@@ -92,6 +110,21 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
       const predicates = [
         eq(outgoingDeliveryQueue.kind, 'specialist_task_reminder'),
         like(outgoingDeliveryQueue.eventId, `specialist-task:${input.taskId}:%`),
+        inArray(outgoingDeliveryQueue.status, [...TERMINALIZABLE_STATUSES]),
+      ];
+      if (input.exceptEventIds && input.exceptEventIds.length > 0) {
+        predicates.push(notInArray(outgoingDeliveryQueue.eventId, [...input.exceptEventIds]));
+      }
+      await tx
+        .update(outgoingDeliveryQueue)
+        .set({ status: 'dead', deadAt: sql`now()`, lastError: input.reason, updatedAt: sql`now()` })
+        .where(and(...predicates));
+    },
+
+    async terminalizeUnsentAppointmentReminders(tx, input): Promise<void> {
+      const predicates = [
+        eq(outgoingDeliveryQueue.kind, 'appointment_reminder'),
+        sql`${outgoingDeliveryQueue.payloadJson}->>'appointmentId' = ${input.appointmentId}`,
         inArray(outgoingDeliveryQueue.status, [...TERMINALIZABLE_STATUSES]),
       ];
       if (input.exceptEventIds && input.exceptEventIds.length > 0) {

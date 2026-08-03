@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
@@ -114,6 +115,15 @@ describe('D7 signed reminder callback capabilities', () => {
     client = await pool.connect();
     const database = await run<{ name: string }>('SELECT current_database() AS name');
     expect(database.rows[0]?.name).toMatch(/^pbt_/);
+
+    const cutoverMigrationSql = await readFile(
+      new URL(
+        '../../../db/drizzle-migrations/9995_d30_appointment_reminder_queue_cutover_local.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    await run(cutoverMigrationSql);
 
     await setFixtureRls(false);
     await run('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
@@ -575,16 +585,31 @@ describe('D7 signed reminder callback capabilities', () => {
        INNER JOIN pg_roles AS owner_role ON owner_role.oid = procedure.proowner
        WHERE namespace.nspname = 'app'
          AND procedure.proname IN (
-           'patient_snooze_reminder_occurrence', 'patient_done_reminder_occurrence', 'patient_set_reminder_mute',
+           'patient_snooze_reminder_occurrence', 'patient_skip_reminder_occurrence',
+           'patient_done_reminder_occurrence', 'patient_set_reminder_mute',
            'patient_disable_reminder_messenger_topic', 'patient_reminder_notification_settings'
          )
        ORDER BY procedure.proname`,
     );
-    expect(functions.rows).toHaveLength(5);
+    expect(functions.rows).toHaveLength(6);
+    const occurrenceOwner = await run<{ owner: string }>(
+      `SELECT pg_catalog.pg_get_userbyid(class.relowner) AS owner
+       FROM pg_catalog.pg_class AS class
+       INNER JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
+       WHERE namespace.nspname = 'integrator'
+         AND class.relname = 'user_reminder_occurrences'`,
+    );
+    const occurrenceCapabilities = new Set([
+      'patient_snooze_reminder_occurrence',
+      'patient_skip_reminder_occurrence',
+      'patient_done_reminder_occurrence',
+    ]);
     for (const row of functions.rows) {
       expect(row).toMatchObject({
         security_definer: true,
-        owner: 'app_owner',
+        owner: occurrenceCapabilities.has(row.name)
+          ? occurrenceOwner.rows[0]?.owner
+          : 'app_owner',
         patient_execute: true,
         public_execute: false,
       });
@@ -598,6 +623,9 @@ describe('D7 signed reminder callback capabilities', () => {
       public_insert: boolean;
       public_update: boolean;
       public_delete: boolean;
+      app_owner_select: boolean;
+      app_owner_update: boolean;
+      app_owner_delete: boolean;
     }>(
       `SELECT
          has_table_privilege('app_patient', 'integrator.user_reminder_occurrences', 'SELECT') AS patient_select,
@@ -607,7 +635,10 @@ describe('D7 signed reminder callback capabilities', () => {
          has_table_privilege('public', 'integrator.user_reminder_occurrences', 'SELECT') AS public_select,
          has_table_privilege('public', 'integrator.user_reminder_occurrences', 'INSERT') AS public_insert,
          has_table_privilege('public', 'integrator.user_reminder_occurrences', 'UPDATE') AS public_update,
-         has_table_privilege('public', 'integrator.user_reminder_occurrences', 'DELETE') AS public_delete`,
+         has_table_privilege('public', 'integrator.user_reminder_occurrences', 'DELETE') AS public_delete,
+         has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'SELECT') AS app_owner_select,
+         has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'UPDATE') AS app_owner_update,
+         has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'DELETE') AS app_owner_delete`,
     );
     expect(tableGrants.rows).toEqual([
       {
@@ -619,6 +650,9 @@ describe('D7 signed reminder callback capabilities', () => {
         public_insert: false,
         public_update: false,
         public_delete: false,
+        app_owner_select: false,
+        app_owner_update: false,
+        app_owner_delete: false,
       },
     ]);
   });

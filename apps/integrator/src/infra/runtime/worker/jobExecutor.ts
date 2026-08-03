@@ -71,6 +71,10 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
       eventId: baseMeta.eventId,
       occurredAt: baseMeta.occurredAt,
       source: baseMeta.source,
+      // This adapter is the trusted server-side compatibility boundary for rows already
+      // persisted before the unified queue cutover. Never copy capability markers from JSON.
+      outboundMessageClass: 'routine_product',
+      outboundCapability: 'essential_delivery',
     },
     payload: {
       ...asRecord(baseIntent.payload),

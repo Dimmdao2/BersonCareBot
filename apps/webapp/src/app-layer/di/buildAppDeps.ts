@@ -138,6 +138,8 @@ import { pgLfkDiaryPort } from '@/infra/repos/pgLfkDiary';
 import { purgeAllDiaryDataForUserPg } from '@/infra/repos/pgDiaryPurge';
 import { readReminderWebappNotifyGate } from '@/infra/repos/pgReminderWebappNotifyGate';
 import { loadPlatformUserChannelBindings } from '@/infra/repos/loadPlatformUserChannelBindings';
+import { createPgAppointmentReminderMaterializationPort } from '@/infra/repos/pgAppointmentReminderMaterialization';
+import type { AppointmentReminderMaterializationPort } from '@/modules/booking-notifications/appointmentReminderMaterializationPort';
 import {
   createNoOpReminderTransactionalEmailCooldownPort,
   createPgReminderTransactionalEmailCooldownPort,
@@ -1363,6 +1365,13 @@ const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
 const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort, {
   webPushHasSubscription: (userId) => webPushSubscriptionsPort.hasAnyForUserId(userId),
 });
+const appointmentReminderMaterialization: AppointmentReminderMaterializationPort = !inMemoryRepos
+  ? createPgAppointmentReminderMaterializationPort()
+  : {
+      async replaceGeneration(input) {
+        return { current: true, inserted: input.deliveries.length };
+      },
+    };
 const mediaService = createMediaService(mediaStoragePort);
 const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
@@ -1764,6 +1773,8 @@ function _buildAppDeps() {
         integratorUserId?: string;
       }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
     },
+    appointmentReminderMaterialization,
+    appDisplayTimeZone: getAppDisplayTimeZone,
     topicChannelPrefs: topicChannelPrefsPort,
     staffUsers: staffUsersPort,
     patientNotificationTopics: patientNotificationTopicsPort,
