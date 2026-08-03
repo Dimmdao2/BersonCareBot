@@ -196,6 +196,7 @@ describe('SaasBillingOverview paid-seat invoice', () => {
       <SaasBillingOverview
         billing={{
           organizationId: 'org-1',
+          billingEmail: null,
           subscriptions: [],
           providerEvents: [],
           invoices: [

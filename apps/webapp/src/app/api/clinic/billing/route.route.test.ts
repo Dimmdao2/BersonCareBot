@@ -24,6 +24,7 @@ describe('/api/clinic/billing tariff change', () => {
   const getOwnTariffChangeState = vi.fn();
   const scheduleOwnTariffChange = vi.fn();
   const cancelOwnTariffChange = vi.fn();
+  const updateOwnBillingEmail = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,6 +38,7 @@ describe('/api/clinic/billing tariff change', () => {
         getOwnTariffChangeState,
         scheduleOwnTariffChange,
         cancelOwnTariffChange,
+        updateOwnBillingEmail,
       },
     });
   });
@@ -80,6 +82,28 @@ describe('/api/clinic/billing tariff change', () => {
       ok: false,
       error: 'saas_billing_tariff_downgrade_blocked',
       blocks: [{ mechanic: 'branches', reason: 'quota_exceeded' }],
+    });
+  });
+
+  it('stores the clinic receipt email through the own billing principal', async () => {
+    updateOwnBillingEmail.mockResolvedValue('payer@example.test');
+
+    const response = await PATCH(
+      new Request('http://test/api/clinic/billing', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'billing_contact', billingEmail: 'PAYER@example.test' }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      billingEmail: 'payer@example.test',
+    });
+    expect(updateOwnBillingEmail).toHaveBeenCalledWith({
+      organizationId,
+      billingEmail: 'PAYER@example.test',
     });
   });
 
@@ -266,5 +290,19 @@ describe('POST /api/clinic/billing own-tariff renewal', () => {
       error: 'saas_billing_payment_provider_unavailable',
     });
     expect(createOwnTariffRenewalInvoice).toHaveBeenCalledWith(organizationId);
+  });
+
+  it('names an incomplete fiscal setup instead of hiding it as an invoice failure', async () => {
+    createOwnTariffRenewalInvoice.mockRejectedValue(
+      new Error('saas_billing_receipt_vat_code_missing'),
+    );
+
+    const response = await POST(new Request('http://test/api/clinic/billing', { method: 'POST' }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'saas_billing_receipt_vat_code_missing',
+    });
   });
 });

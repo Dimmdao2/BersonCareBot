@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
@@ -21,6 +23,9 @@ const ERROR_LABELS: Record<string, string> = {
   saas_billing_tariff_upgrade_not_more_expensive: 'Этот тариф не является повышением.',
   saas_billing_upgrade_no_remaining_period: 'Оплаченный период уже завершился. Оформите следующий период.',
   saas_billing_no_active_paid_subscription: 'Для смены тарифа нужен действующий оплаченный период.',
+  saas_billing_receipt_email_missing: 'Укажите email для чека и сохраните его.',
+  saas_billing_receipt_vat_code_missing:
+    'Оплата пока недоступна: администратор платформы должен указать ставку НДС для чека.',
 };
 
 function formatError(code: string | undefined): string {
@@ -51,13 +56,46 @@ export type ClinicTariffChangeState = {
   pendingEffectiveAt: string | null;
 };
 
-export function PayTariffButton({ tariffChange }: { tariffChange: ClinicTariffChangeState }) {
+export function PayTariffButton({
+  tariffChange,
+  billingEmail: initialBillingEmail,
+}: {
+  tariffChange: ClinicTariffChangeState;
+  billingEmail: string | null;
+}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTariffId, setSelectedTariffId] = useState(
     tariffChange.pendingTariffId ?? tariffChange.currentTariffId ?? '',
   );
   const [pendingTariffId, setPendingTariffId] = useState(tariffChange.pendingTariffId);
+  const [billingEmail, setBillingEmail] = useState(initialBillingEmail ?? '');
+  const [savedBillingEmail, setSavedBillingEmail] = useState(initialBillingEmail ?? '');
+
+  async function saveBillingEmail() {
+    setPending(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/clinic/billing', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'billing_contact', billingEmail }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { ok: true; billingEmail: string }
+        | { ok: false; error?: string }
+        | null;
+      if (!body?.ok) setError('Проверьте email для чека.');
+      else {
+        setBillingEmail(body.billingEmail);
+        setSavedBillingEmail(body.billingEmail);
+      }
+    } catch {
+      setError('Не удалось сохранить email для чека.');
+    } finally {
+      setPending(false);
+    }
+  }
 
   async function handlePay() {
     setPending(true);
@@ -123,6 +161,29 @@ export function PayTariffButton({ tariffChange }: { tariffChange: ClinicTariffCh
 
   return (
     <div className="space-y-1.5">
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <Label htmlFor="saas-billing-email">Email для чека</Label>
+          <Input
+            id="saas-billing-email"
+            type="email"
+            value={billingEmail}
+            onChange={(event) => setBillingEmail(event.target.value)}
+          />
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={saveBillingEmail}
+          disabled={
+            pending ||
+            !billingEmail.trim() ||
+            billingEmail.trim().toLowerCase() === savedBillingEmail
+          }
+        >
+          Сохранить
+        </Button>
+      </div>
       <Select value={selectedTariffId} onValueChange={(value) => setSelectedTariffId(value ?? '')}>
         <SelectTrigger
           className="w-full"
@@ -147,7 +208,15 @@ export function PayTariffButton({ tariffChange }: { tariffChange: ClinicTariffCh
           <Button size="sm" variant="ghost" onClick={cancelChange} disabled={pending}>Отменить</Button>
         </div>
       ) : null}
-      <Button size="sm" onClick={handlePay} disabled={pending}>
+      <Button
+        size="sm"
+        onClick={handlePay}
+        disabled={
+          pending ||
+          !savedBillingEmail ||
+          billingEmail.trim().toLowerCase() !== savedBillingEmail
+        }
+      >
         {pending ? 'Готовим ссылку на оплату…' : 'Оплатить тариф'}
       </Button>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
