@@ -7,6 +7,7 @@ import {
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
+import { resolvePatientOrganizationIdForRsc } from '../../booking/bookingCatalogRsc';
 
 type Props = { searchParams: Promise<{ patientPackageId?: string }> };
 
@@ -15,8 +16,9 @@ export default async function PatientPackagePayPage({ searchParams }: Props) {
   if (!patientPackageId?.trim()) redirect(routePaths.patientBooking);
   const session = await getOptionalPatientSession();
   if (!session) redirect(routePaths.patient);
-  const organizationId = await buildAppDeps().memberships?.resolvePatientPackageOrganizationId(
-    patientPackageId.trim(),
+  const organizationId = await resolvePatientOrganizationIdForRsc(
+    buildAppDeps(),
+    session.user.userId,
   );
   if (!organizationId) redirect(routePaths.patientBooking);
   await requireEntitlementForPage({ organizationId }, 'subscriptions');

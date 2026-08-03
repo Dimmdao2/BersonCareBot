@@ -638,6 +638,14 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 5. **Абонементы.** Основа — `wt/subscriptions-entitlement-visibility`; старый неполный subscriptions-срез из
    `wt/mailings-subscriptions-entitlements` не переносится. Выключение запрещает только продажу нового абонемента;
    купленное продолжает работать. Новая онлайн-покупка проверяет одновременно `subscriptions` и `payments`.
+   Реализовано и принято 03.08: `b5e89203e` добавил совместный тарифный контроль, `4b17a067b` закрыл найденные
+   аудитом обходы в продаже администратором и повторной выдаче checkout-ссылки, `a409a9081` убрал небезопасное
+   определение клиники по UUID абонемента под ролью пациента и связал покупку/детали/статус с уже существующим
+   выбором активной клиники. Один независимый аудит последнего этапа — PASS. Живой TEST после деплоя
+   `deploy-test-20260803T053218Z-2944826.log`: обычный врач `/api/me` → `200`; история пациента до и после попытки
+   покупки → `200`; новый временный платный абонемент при `payments=disabled` → `403`, `mechanic=payments`;
+   временный объект архивирован, override `subscriptions` удалён. Полный SaaS-биллинг этим не закрывается:
+   реальный checkout/card/webhook ЮKassa остаётся в `SAAS_BILLING_PLAN.md` B0.3.
 6. **Рассылки.** Из `wt/mailings-subscriptions-entitlements` переносится только mailings-срез. Выключение запрещает
    создание и отправку новой рассылки; история отправленного остаётся на чтение. Абонементы этим переносом не
    затрагиваются.
@@ -1056,16 +1064,19 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 - [-] ~~**4.1** Клинические тесты и наборы; при выключении системные группы тестов исчезают и из программы лечения.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: «Клинические тесты будут частью программы. Они просто есть в принципе. Просто убери это в интерфейсе, убери из списка настраиваемых механик». Проверка этого commit: `pnpm --dir apps/webapp exec vitest --run --reporter=verbose src/app/api/doctor/clinicalTestsBuiltInProgram.route.test.ts src/app/api/admin/commercial/route.route.test.ts src/app/app/admin/commercial/CommercialConstructorClient.ui.test.tsx src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 4 файла / 16 тестов green; `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts`.
 - [-] ~~**4.2** Онлайн-анкета.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-08-02: недостроенную отдельную форму и ведущие в неё кнопки удалить; не перенаправлять их в обычную запись. Существующая запись остаётся отдельным неизменённым путём. Исторические строки `online_intake_*` остаются в БД до отдельного решения о сроке хранения.
-- [ ] **4.3** Задачи специалиста.
-- [ ] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две.
-      Частично закрыт реальный clinic-разрыв: `doctor_statistics` скрывает KPI записей в
-      `/app/doctor/schedule` и блок «Источники публичных записей» в его настройках, не гейтит
-      публичную запись и не меняет attribution. Dedicated clinic route `/app/doctor/analytics` и
-      patient-facing surface этой механики отсутствуют (одноимённые analytics-файлы принадлежат
-      platform operator); до появления такого пути полный пункт не закрыт. Evidence: schedule
-      page/shell → `getMechanicSurfaceVisibility(..., 'doctor_statistics')`; behavior tests
-      `ScheduleCalendarTab.ui.test.tsx` и `BookingPublicAttributionSection.ui.test.tsx`; временное снятие
-      KPI visibility guard красит первый тест.
+- [x] **4.3** Задачи специалиста. — Пять операций записи уже были подключены к общему тарифному порту; интерфейс скрывал недоступный раздел и сохранял чтение в состоянии `read_only`. Единственный независимый аудит дал PASS, но живая TEST-проверка нашла реальный обход: при выключенной механике прямой `GET /api/doctor/tasks?limit=20` возвращал врачу 4 задачи. Исправление `5da0d5d8a` закрыло оба прямых пути чтения (`/api/doctor/tasks` и `/api/doctor/clients/[userId]/tasks`) и не даёт скрытому дашборду загружать эти данные. Проверка `pnpm --dir apps/webapp exec vitest --run src/app/api/doctor/tasks/specialistTasksEntitlement.route.test.ts src/app/app/doctor/specialistTasksEntitlement.ui.test.tsx src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` → 3 файла / 25 тестов; `pnpm --dir apps/webapp typecheck`, `pnpm --dir apps/webapp exec eslint ...`, `git diff --check` → PASS. TEST deploy: `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` → exit 0, лог `deploy-test-20260803T054625Z-2972918.log`. Живой путь врача: при временно включённой механике создание и чтение → 200, созданная задача присутствует; после удаления override чтение и создание → 403 `entitlement_required`, `mechanic=specialist_tasks`; временная задача удалена, исходное отсутствие override восстановлено.
+- [x] **4.4** Статистика кабинета вместе с источниками записи — одна механика, не две. — Механика
+      `doctor_statistics` управляет двумя существующими поверхностями врача внутри «Расписания»: KPI записей и
+      блоком «Источники публичных записей»; отдельный новый экран и пациентская поверхность для клинической
+      статистики не создавались. Первичный независимый аудит подтвердил UI и отсутствие влияния на календарь,
+      публичную запись, attribution и платежи, но живая TEST-проверка нашла прямой обход обоих скрытых GET. Единственный
+      fixer `6fc81feb1` поставил `requireEntitlementForRead` до чтения KPI/БД и заменил ложный
+      `DECLARED_NO_SURFACE` двумя честными registry mappings. Targeted: 7 файлов / 63 теста; прежние UI-regressions:
+      3 файла / 5 тестов; typecheck, scoped lint и diff-check PASS. TEST deploy:
+      `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` → exit 0, лог
+      `deploy-test-20260803T060809Z-3023052.log`. Живой обычный врач при выключенной механике: KPI GET → 403
+      `entitlement_required`, attribution GET → 403 `entitlement_required`, оба с
+      `mechanic=doctor_statistics`; тот же calendar GET → 200 с событиями. Повторный blind audit не запускался.
 - [-] ~~**4.5** Проактивные подсказки.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 31.07: «Проактивных подсказок не будет вовсе — механика вычёркивается. Вместо неё появится ИИ-помощник... Медицинских подсказок платформа не даёт — это не медицинское приложение» (`QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §3, решение владельца 31.07 п.3).
 - [x] **4.6** Предоплата при записи; правила отмены не трогать. — `booking_prepayment` остаётся единственной записью `booking-prepayment.policy.upsert` в protected-action registry; disabled/unconfigured скрывает clinic settings и отказывает PUT до `upsertPrepaymentPolicy`, read_only сохраняет существующую public prepayment только если отдельная механика `payments` допускает новый платёж, disabled создаёт обычную confirmed booking без intent. Evidence 2026-08-02: `pnpm --dir apps/webapp exec vitest run --project=route src/app/api/admin/booking-engine/prepayment-policies/route.route.test.ts` (7 passed); `pnpm --dir apps/webapp exec vitest run --project=ui src/app/app/settings/BookingPrepaymentSection.ui.test.tsx` (4 passed); `pnpm --dir apps/webapp exec vitest run --project=fast src/modules/patient-booking/canonicalCreate.d14.test.ts` (5 passed); `pnpm --dir apps/webapp exec vitest run --project=unit src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` (8 passed); `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp lint`; `git diff --check`.
 - [ ] **4.7** Курсы · CMS · каталог и пакеты упражнений · абонементы · приём оплат · платная подписка пациента ·

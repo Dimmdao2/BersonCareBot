@@ -19,6 +19,9 @@ import { POST } from './route';
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const patientUserId = '22222222-2222-4222-822222222222';
 const catalogPackageId = '33333333-3333-4333-8333-333333333333';
+const patientOrganization = {
+  resolveActiveOrganizationForPatient: vi.fn().mockResolvedValue({ ok: true, organizationId }),
+};
 
 describe('POST /api/booking/memberships/purchase', () => {
   beforeEach(() => {
@@ -40,9 +43,9 @@ describe('POST /api/booking/memberships/purchase', () => {
     async (state, error) => {
       const purchaseCatalogPackageForPatient = vi.fn();
       fakes.buildAppDeps.mockReturnValue({
+        patientOrganization,
         orgEntitlements: { resolveMechanicAccess: async () => ({ state, warning: null }) },
         memberships: {
-          resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
           purchaseCatalogPackageForPatient,
         },
       });
@@ -67,11 +70,11 @@ describe('POST /api/booking/memberships/purchase', () => {
   it('keeps the patient purchase flow available with full subscriptions access', async () => {
     const purchaseCatalogPackageForPatient = vi.fn().mockResolvedValue({ id: 'package-1' });
     fakes.buildAppDeps.mockReturnValue({
+      patientOrganization,
       orgEntitlements: {
         resolveMechanicAccess: async () => ({ state: 'full_access', warning: null }),
       },
       memberships: {
-        resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
         getCatalogPackage: vi.fn().mockResolvedValue({ id: catalogPackageId, priceMinor: 1000 }),
         purchaseCatalogPackageForPatient,
       },
@@ -99,6 +102,7 @@ describe('POST /api/booking/memberships/purchase', () => {
   ] as const)('does not create a paid package when payments are %s', async (state, error) => {
     const purchaseCatalogPackageForPatient = vi.fn();
     fakes.buildAppDeps.mockReturnValue({
+      patientOrganization,
       orgEntitlements: {
         resolveMechanicAccess: async (_organizationId: string, mechanic: string) => ({
           state: mechanic === 'payments' ? state : 'full_access',
@@ -106,7 +110,6 @@ describe('POST /api/booking/memberships/purchase', () => {
         }),
       },
       memberships: {
-        resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
         getCatalogPackage: vi.fn().mockResolvedValue({ id: catalogPackageId, priceMinor: 1000 }),
         purchaseCatalogPackageForPatient,
       },
@@ -131,6 +134,7 @@ describe('POST /api/booking/memberships/purchase', () => {
   it('keeps a free package available when online payments are disabled', async () => {
     const purchaseCatalogPackageForPatient = vi.fn().mockResolvedValue({ id: 'free-package' });
     fakes.buildAppDeps.mockReturnValue({
+      patientOrganization,
       orgEntitlements: {
         resolveMechanicAccess: async (_organizationId: string, mechanic: string) => ({
           state: mechanic === 'payments' ? 'disabled' : 'full_access',
@@ -138,7 +142,6 @@ describe('POST /api/booking/memberships/purchase', () => {
         }),
       },
       memberships: {
-        resolveCatalogPackageOrganizationId: vi.fn().mockResolvedValue(organizationId),
         getCatalogPackage: vi.fn().mockResolvedValue({ id: catalogPackageId, priceMinor: 0 }),
         purchaseCatalogPackageForPatient,
       },

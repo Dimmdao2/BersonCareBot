@@ -243,9 +243,6 @@ function membershipsHarness() {
   }
 
   const port = {
-    async resolveCatalogPackageOrganizationId(id: string) {
-      return id === SUBSCRIPTION_PACKAGE_ID ? ORGANIZATION_ID : null;
-    },
     async offerCatalogPackageToPatient() {
       return patientPackage;
     },

@@ -7,7 +7,7 @@ const fakes = vi.hoisted(() => ({
   getMechanicMutationAvailability: vi.fn(),
   requireEntitlementForPage: vi.fn(),
   getOptionalPatientSession: vi.fn(),
-  resolvePatientPackageOrganizationId: vi.fn(),
+  resolvePatientOrganizationIdForRsc: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ redirect: fakes.redirect }));
@@ -18,12 +18,9 @@ vi.mock('@/app-layer/guards/requireEntitlement', () => ({
 vi.mock('@/app-layer/guards/requireRole', () => ({
   getOptionalPatientSession: fakes.getOptionalPatientSession,
 }));
-vi.mock('@/app-layer/di/buildAppDeps', () => ({
-  buildAppDeps: () => ({
-    memberships: {
-      resolvePatientPackageOrganizationId: fakes.resolvePatientPackageOrganizationId,
-    },
-  }),
+vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: () => ({}) }));
+vi.mock('../../booking/bookingCatalogRsc', () => ({
+  resolvePatientOrganizationIdForRsc: fakes.resolvePatientOrganizationIdForRsc,
 }));
 vi.mock('./PatientPackagePayClient', () => ({
   PatientPackagePayClient: ({ patientPackageId }: { patientPackageId: string }) => patientPackageId,
@@ -37,7 +34,7 @@ const patientPackageId = '22222222-2222-4222-8222-222222222222';
 beforeEach(() => {
   vi.clearAllMocks();
   fakes.getOptionalPatientSession.mockResolvedValue({ user: { userId: 'patient-user' } });
-  fakes.resolvePatientPackageOrganizationId.mockResolvedValue(organizationId);
+  fakes.resolvePatientOrganizationIdForRsc.mockResolvedValue(organizationId);
   fakes.requireEntitlementForPage.mockResolvedValue(undefined);
   fakes.getMechanicMutationAvailability.mockImplementation(
     async (_context: unknown, mechanic: string) => ({ available: mechanic !== 'payments' }),

@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
 import { and, desc, eq } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { requireEntitlementForRead } from '@/app-layer/guards/requireEntitlement';
 import { beAppointments } from '../../../../../../db/schema/bookingEngine';
 import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 
 export async function GET(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
+
+  const entitlement = await requireEntitlementForRead(
+    { organizationId: gate.ctx.organizationId },
+    'doctor_statistics',
+  );
+  if (!entitlement.ok) return entitlement.response;
 
   const url = new URL(request.url);
   const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit') ?? '20') || 20));

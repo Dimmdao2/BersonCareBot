@@ -4,6 +4,9 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requireDoctorWorkspaceApiContext: vi.fn(),
   requireEntitlementForMutation: vi.fn(),
+  requireEntitlementForRead: vi.fn(),
+  listForOwner: vi.fn(),
+  listPatientTasks: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
@@ -18,6 +21,7 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
 }));
 vi.mock('@/app-layer/guards/requireEntitlement', () => ({
   requireEntitlementForMutation: fakes.requireEntitlementForMutation,
+  requireEntitlementForRead: fakes.requireEntitlementForRead,
   entitlementMutationRefusalResponse: (mechanic: string, action: string) =>
     new Response(
       JSON.stringify({
@@ -33,10 +37,13 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: <T>(...args: unknown[]): T => (args.at(-1) as () => T)(),
 }));
 
-import { POST as createPatientTask } from '@/app/api/doctor/clients/[userId]/tasks/route';
+import {
+  GET as listPatientTasks,
+  POST as createPatientTask,
+} from '@/app/api/doctor/clients/[userId]/tasks/route';
 import { POST as completeTask } from '@/app/api/doctor/tasks/[taskId]/complete/route';
 import { DELETE as deleteTask, PATCH as updateTask } from '@/app/api/doctor/tasks/[taskId]/route';
-import { POST as createGlobalTask } from '@/app/api/doctor/tasks/route';
+import { GET as listGlobalTasks, POST as createGlobalTask } from '@/app/api/doctor/tasks/route';
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000001069';
 const DOCTOR_ID = '00000000-0000-4000-8000-000000002069';
@@ -87,6 +94,17 @@ beforeEach(() => {
     ok: false,
     response: new Response(null, { status: 403 }),
   });
+  fakes.requireEntitlementForRead.mockResolvedValue({
+    ok: false,
+    response: new Response(
+      JSON.stringify({
+        ok: false,
+        error: 'entitlement_required',
+        mechanic: 'specialist_tasks',
+      }),
+      { status: 403, headers: { 'content-type': 'application/json' } },
+    ),
+  });
   fakes.getClientIdentityForOrganization.mockResolvedValue({ userId: PATIENT_ID });
   fakes.getByIdForOwner.mockResolvedValue(task);
   fakes.create.mockResolvedValue(task);
@@ -98,12 +116,53 @@ beforeEach(() => {
       getClientIdentityForOrganization: fakes.getClientIdentityForOrganization,
     },
     specialistTasks: {
+      listForOwner: fakes.listForOwner,
+      listPatientTasks: fakes.listPatientTasks,
       create: fakes.create,
       update: fakes.update,
       delete: fakes.delete,
       complete: fakes.complete,
       getByIdForOwner: fakes.getByIdForOwner,
     },
+  });
+});
+
+describe('specialist task tariff reads', () => {
+  const calls = [
+    {
+      read: fakes.listForOwner,
+      invoke: () => listGlobalTasks(new Request('https://app.example.test/api/doctor/tasks')),
+    },
+    {
+      read: fakes.listPatientTasks,
+      invoke: () =>
+        listPatientTasks(
+          new Request('https://app.example.test/api/doctor/clients/' + PATIENT_ID + '/tasks'),
+          patientParams(),
+        ),
+    },
+  ];
+
+  it.each(calls)('refuses a direct read when specialist tasks are disabled', async ({ invoke, read }) => {
+    const response = await invoke();
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'entitlement_required',
+      mechanic: 'specialist_tasks',
+    });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it.each(calls)('keeps existing tasks readable in read-only mode', async ({ invoke, read }) => {
+    fakes.requireEntitlementForRead.mockResolvedValue({ ok: true });
+    read.mockResolvedValue([task]);
+
+    const response = await invoke();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, tasks: [task] });
+    expect(read).toHaveBeenCalledOnce();
   });
 });
 

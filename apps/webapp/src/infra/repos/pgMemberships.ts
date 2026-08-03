@@ -241,16 +241,6 @@ export function createPgMembershipsPort(): MembershipsPort {
       };
     },
 
-    async resolveCatalogPackageOrganizationId(id) {
-      const db = getMembershipsDb();
-      const rows = await db
-        .select({ organizationId: beSubscriptionPackages.organizationId })
-        .from(beSubscriptionPackages)
-        .where(eq(beSubscriptionPackages.id, id))
-        .limit(1);
-      return rows[0]?.organizationId ?? null;
-    },
-
     async upsertCatalogPackage(input: UpsertSubscriptionPackageInput) {
       const run = async (db: MembershipsDb) => {
         const now = new Date().toISOString();
@@ -324,16 +314,6 @@ export function createPgMembershipsPort(): MembershipsPort {
       if (!row) return null;
       const itemsMap = await loadPackageItems([id]);
       return mapPatientPackage(row, itemsMap.get(id) ?? []);
-    },
-
-    async resolvePatientPackageOrganizationId(id) {
-      const db = getMembershipsDb();
-      const rows = await db
-        .select({ organizationId: bePatientPackages.organizationId })
-        .from(bePatientPackages)
-        .where(eq(bePatientPackages.id, id))
-        .limit(1);
-      return rows[0]?.organizationId ?? null;
     },
 
     async listPatientPackagesForUser(platformUserId, organizationId, statuses) {
