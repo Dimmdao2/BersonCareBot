@@ -85,4 +85,9 @@ export const inMemoryChannelPreferencesPort: ChannelPreferencesPort = {
     const p = m.get(channelCode)!;
     m.set(channelCode, { ...p, isPreferredForAuth: true });
   },
+
+  async getDefaultAuthOtpChannel() {
+    // In-memory port has no binding/verification timestamps to derive a "first verified" channel from.
+    return null;
+  },
 };

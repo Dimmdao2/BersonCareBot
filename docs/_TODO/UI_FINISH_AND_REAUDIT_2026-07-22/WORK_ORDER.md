@@ -818,6 +818,30 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       one schema, while the independent per-IP limiter still applies to every request; provider failure/exception
       remains only as a fixed server log event without email/OTP. A server-enforced minimum response floor covers the
       fast path; arbitrary provider latency remains open for D27-C/D30 durable delivery.
+      **CURRENT PARTIAL 03.08 (D27-B1):** прежний бриф D27-B1 прямо запрещал делать провенанс-дефолт «первый
+      бот, подтвердивший номер» и требовал оставить автоматическую лестницу Telegram → Max → email → SMS в
+      `/api/auth/phone/start` — это противоречило §3.1-3.2 схемы и переписано по прямому владельческому
+      требованию (не додумывать лестницу, реализовать реальный дефолт). Сделано: `pickPrimaryOtpChannel` /
+      `pickOtpChannelWithPreference` (мёртвая лестница без вызовов) удалены из `otpChannelUi.ts`;
+      `channelPreferences.resolveAuthOtpChannel` — явный `is_preferred_for_auth`, иначе дефолт вычисляется как
+      самый ранний из (привязка Telegram/Max `user_channel_bindings.created_at`, `platform_users.email_verified_at`)
+      — «первый подтвердивший канал»; email-дефолт при вычислении дополнительно проверяет `patient_phone_trust_at`
+      этого номера. `/api/auth/phone/start` automatic-branch больше не перебирает каналы по лестнице: либо
+      явный/дефолтный канал, либо SMS-bootstrap только когда ни того ни другого нет и SMS доступен для номера;
+      если резолвнутый канал не enabled+configured — тишина (не подмена другим каналом). Настройка «отправлять код
+      сюда» — `AuthOtpChannelPreference.tsx` (профиль пациента) переведена с radio на `<Select>` (§22 displayLabel
+      через авто-сбор items), список — только configured+enabled+linked каналы, значение — явный выбор либо
+      вычисленный дефолт; ранее скрытая (см. `profile.md`) — перемонтирована в `page.tsx` независимо от PIN
+      (PIN остаётся скрыт отдельным TODO). §3.3 («другим способом» показывает все configured+enabled каналы
+      независимо от привязки, единая формулировка) уже удовлетворялось `check-phone`/`ChannelPicker` — добавлен
+      прямой тест `ChannelPicker.ui.test.tsx` поверх существующего `checkPhoneEnumeration.route.test.ts`. §3.4
+      (несколько почт, основная первая привязанная) — в текущей модели у аккаунта ровно один `platform_users.email`;
+      многопочтовости ещё не существует ни в одном write-path (появится вместе с D26-слиянием) — не чинится
+      сейчас, это не разрыв, а отсутствующая пока возможность. Тесты:
+      `phoneStartFallback.route.test.ts` (обновлён под новую схему + новый тест приоритета resolved-канала над
+      SMS), `channel-preferences/service.test.ts` (новый, resolveAuthOtpChannel precedence),
+      `ChannelPicker.ui.test.tsx` (новый). D27-B1 закрыт этим доказательством; открыты D27-C (durable delivery
+      queue), D27-D/E (полный экран выбора каналов — бриф уже есть, `D27DE_LOGIN_CODE_SCREEN_BRIEF_2026-08-03.md`).
       **CURRENT PARTIAL 03.08 (D27-D/E):** существующий browser phone-code screen дополнен верхним «Войти иначе»
       и полным списком глобально configured+enabled каналов в «Подтвердить другим способом»; результат отправки
       нейтрален для известного и неизвестного номера, email добавляет только подсказку про «Спам». Поведенческое
@@ -838,8 +862,12 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
 
 ### 3.5 Track E — принятые решения без своего трека
 
-- [ ] **E1 — админка: включить канал можно только настроенный.** По решению **Р-E1** (§2.5): флажок включения
+- [x] **E1 — админка: включить канал можно только настроенный.** По решению **Р-E1** (§2.5): флажок включения
       недоступен без настройки, иконка-предупреждение с подсказкой «канал не настроен».
+      _Доказательство: `PlatformAuthChannelPolicySection.tsx` — `LabeledSwitch` для канала/OAuth-провайдера
+      теперь `disabled` также когда `!configured` (пока выключен — включить нельзя), рядом `TriangleAlert` с
+      `Tooltip` «Канал не настроен» вместо прежнего статического текста-предупреждения под тумблером (owner
+      ruling 07-24 заменена более новым 31.07)._
 - [ ] **E2 — кнопка «отписаться от темы».** По решению **Р-E2** (§2.5): в каждом письме рассылки и рассылочном
       сообщении бота, плюс быстрый доступ к настройке на экране рассылок. Открытое: касается ли служебных
       сообщений бота (развилка №3 схемы) — решить перед закрытием пункта.

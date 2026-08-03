@@ -113,22 +113,27 @@ export async function POST(request: Request) {
   const user = await deps.userByPhone.findByPhone(normalized);
 
   let delivery: PhoneOtpDelivery | undefined;
+  // Automatic public login никогда не перебирает каналы по жёсткой лестнице (искоренено 31.07,
+  // IDENTITY_AND_MERGE_SCHEME.md §3.1-3.2): код уходит либо в явно выбранный человеком канал
+  // настроек, либо в канал, впервые подтвердивший номер; SMS — только bootstrap, когда ни того
+  // ни другого нет (например регистрация нового номера, для которого ещё нечего "предпочитать").
+  let automaticChannel: typeof deliveryChannel | null = null;
   if (automaticPublicLogin) {
     const effectivePolicy = await getClientVisibleAuthChannelPolicy();
-    if (isRuMobile(normalized) && effectivePolicy.sms) {
-      deliveryChannel = 'sms';
-      delivery = { channel: 'sms' };
-    } else if (effectivePolicy.email) {
-      deliveryChannel = 'email';
-      const lookupUserId = user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID;
-      const [email, phoneTrusted] = await Promise.all([
-        deps.userByPhone.getVerifiedEmailForUser(lookupUserId),
-        deps.userByPhone.isPhoneTrustedForUser(lookupUserId),
-      ]);
-      if (user && email && phoneTrusted) {
-        deliveryChannel = 'email';
-        delivery = { channel: 'email', email };
+    const lookupUserId = user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID;
+    const resolved = await deps.channelPreferences.resolveAuthOtpChannel(lookupUserId);
+    if (resolved && effectivePolicy[resolved]) {
+      deliveryChannel = resolved;
+      automaticChannel = resolved;
+      if (resolved === 'email') {
+        // Почта доставляет код по телефонному входу, только если этот номер действительно
+        // доверен аккаунту — иначе это была бы утечка «есть почта» через попытку входа чужим номером.
+        const phoneTrusted = await deps.userByPhone.isPhoneTrustedForUser(lookupUserId);
+        if (!phoneTrusted) automaticChannel = null;
       }
+    } else if (isRuMobile(normalized) && effectivePolicy.sms) {
+      deliveryChannel = 'sms';
+      automaticChannel = 'sms';
     }
   }
 
@@ -199,7 +204,7 @@ export async function POST(request: Request) {
         }
       : undefined;
 
-  if (!automaticPublicLogin) {
+  if (!automaticPublicLogin || automaticChannel != null) {
     if (deliveryChannel === 'sms') {
       delivery = { channel: 'sms' };
     } else if (deliveryChannel === 'telegram') {

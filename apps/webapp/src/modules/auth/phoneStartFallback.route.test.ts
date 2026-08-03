@@ -25,6 +25,7 @@ const fakes = vi.hoisted(() => ({
   recordRegistrationSuccess: vi.fn(),
   isChannelEnabled: vi.fn<(channel: string) => Promise<boolean>>(),
   getClientVisiblePolicy: vi.fn<() => Promise<AuthChannelPolicy>>(),
+  resolveAuthOtpChannel: vi.fn<(userId: string) => Promise<'sms' | 'telegram' | 'max' | 'email' | null>>(),
   getPhoneChallenge: vi.fn<(challengeId: string) => Promise<PhoneChallengePayload | null>>(),
   confirmPhoneAuth: vi.fn<(challengeId: string, code: string) => Promise<ConfirmPhoneAuthResult>>(),
   checkConfirmRateLimit:
@@ -80,6 +81,9 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       getPhoneChallenge: fakes.getPhoneChallenge,
       confirmPhoneAuth: fakes.confirmPhoneAuth,
     },
+    channelPreferences: {
+      resolveAuthOtpChannel: fakes.resolveAuthOtpChannel,
+    },
   }),
 }));
 
@@ -130,6 +134,7 @@ beforeEach(() => {
   fakes.findByPhone.mockResolvedValue(user);
   fakes.getVerifiedEmail.mockResolvedValue('verified@example.test');
   fakes.isPhoneTrusted.mockResolvedValue(true);
+  fakes.resolveAuthOtpChannel.mockResolvedValue(null);
   fakes.getPhoneChallenge.mockResolvedValue(null);
   fakes.confirmPhoneAuth.mockResolvedValue({ ok: false, code: 'expired_code' });
   fakes.checkConfirmRateLimit.mockResolvedValue({ limited: false });
@@ -173,7 +178,7 @@ afterEach(() => {
 });
 
 describe('phone login automatic delivery fallback', () => {
-  it('uses SMS first when the platform channel and the entered number allow it', async () => {
+  it('bootstraps via SMS when no preferred/default channel is resolved', async () => {
     const response = await finishResponse(
       startPhone(
         request({
@@ -203,13 +208,14 @@ describe('phone login automatic delivery fallback', () => {
     expect(fakes.getVerifiedEmail).not.toHaveBeenCalled();
   });
 
-  it('falls back to a verified email without exposing whether the phone has an account', async () => {
+  it('uses the resolved default channel (email) without exposing whether the phone has an account', async () => {
     fakes.getClientVisiblePolicy.mockResolvedValue({
       email: true,
       sms: false,
       telegram: false,
       max: false,
     });
+    fakes.resolveAuthOtpChannel.mockResolvedValue('email');
     const delivered = await finishResponse(
       startPhone(
         request({
@@ -278,7 +284,7 @@ describe('phone login automatic delivery fallback', () => {
     expect(fakes.recordRegistrationSuccess).not.toHaveBeenCalled();
   });
 
-  it('skips enabled but unconfigured SMS and uses the next effective channel', async () => {
+  it('uses the resolved default channel when SMS is not effectively available', async () => {
     fakes.isChannelEnabled.mockResolvedValue(true);
     fakes.getClientVisiblePolicy.mockResolvedValue({
       email: true,
@@ -286,6 +292,7 @@ describe('phone login automatic delivery fallback', () => {
       telegram: false,
       max: false,
     });
+    fakes.resolveAuthOtpChannel.mockResolvedValue('email');
 
     await finishResponse(
       startPhone(
@@ -312,6 +319,7 @@ describe('phone login automatic delivery fallback', () => {
       telegram: false,
       max: false,
     });
+    fakes.resolveAuthOtpChannel.mockResolvedValue('email');
     fakes.isPhoneTrusted.mockResolvedValue(false);
 
     await finishResponse(
@@ -335,6 +343,29 @@ describe('phone login automatic delivery fallback', () => {
         }),
       }),
     );
+  });
+
+  it('prefers the resolved channel (telegram) over SMS bootstrap even when SMS is available', async () => {
+    fakes.findByPhone.mockResolvedValue({ ...user, bindings: { telegramId: 'tg-1005' } });
+    fakes.resolveAuthOtpChannel.mockResolvedValue('telegram');
+
+    await finishResponse(
+      startPhone(
+        request({
+          phone: '+79991234567',
+          channel: 'web',
+          chatId: 'browser-1005',
+          purpose: 'login',
+        }),
+      ),
+    );
+
+    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
+      '+79991234567',
+      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
+      expect.objectContaining({ delivery: { channel: 'telegram', recipientId: 'tg-1005' } }),
+    );
+    expect(fakes.getVerifiedEmail).not.toHaveBeenCalled();
   });
 
   it('does not resolve before the public response floor', async () => {

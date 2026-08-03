@@ -172,4 +172,23 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
       );
     });
   },
+
+  async getDefaultAuthOtpChannel(userId) {
+    const result = await runWebappPgText<{ code: string }>(
+      `SELECT code FROM (
+         SELECT channel_code AS code, created_at AS at
+         FROM user_channel_bindings
+         WHERE user_id = $1::uuid AND channel_code IN ('telegram', 'max')
+         UNION ALL
+         SELECT 'email' AS code, email_verified_at AS at
+         FROM platform_users
+         WHERE id = $1::uuid AND email_verified_at IS NOT NULL
+       ) first_verified
+       ORDER BY at ASC
+       LIMIT 1`,
+      [userId],
+    );
+    const code = result.rows[0]?.code;
+    return code === 'telegram' || code === 'max' || code === 'email' ? code : null;
+  },
 };

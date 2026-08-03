@@ -6,10 +6,11 @@
 
 1. **Hero** — ФИО (`InlineEditField`), телефон (ссылка «Привязать» / «Изменить» → `/app/patient/bind-phone?next=…`), email (`EmailAccountPanel`).
 2. **Мессенджеры** — всегда `ConnectMessengersBlock` (Telegram / MAX, сетка 2 колонки).
-3. **Уведомления** — ссылки «Настройка» и «Расписание» (`/app/patient/notifications/settings`, `/app/patient/reminders`).
-4. **Календарный пояс (UTC / IANA)** — `PatientCalendarTimezoneSection` (всегда видимая секция под уведомлениями).
-5. **Удаление данных дневника** — согласие → OTP на привязанный номер.
-6. **Выход** — форма POST `/api/auth/logout` (не показывается в контексте бота).
+3. **Вход по телефону** — `AuthOtpChannelPreference`: выпадающий список configured+enabled+linked каналов, дефолт вычисляется (`channelPreferences.resolveAuthOtpChannel`) как явный выбор либо канал, впервые подтвердивший номер (`IDENTITY_AND_MERGE_SCHEME.md` §3.1).
+4. **Уведомления** — ссылки «Настройка» и «Расписание» (`/app/patient/notifications/settings`, `/app/patient/reminders`).
+5. **Календарный пояс (UTC / IANA)** — `PatientCalendarTimezoneSection` (всегда видимая секция под уведомлениями).
+6. **Удаление данных дневника** — согласие → OTP на привязанный номер.
+7. **Выход** — форма POST `/api/auth/logout` (не показывается в контексте бота).
 
 Server action `updateDisplayName` обновляет `platform_users.display_name` через `userProjection`.
 
@@ -21,15 +22,15 @@ Server action `updateDisplayName` обновляет `platform_users.display_nam
 
 ### Возврат PIN UI
 
-Механизм PIN **не удалён из кодовой базы**, только скрыт со страницы профиля:
+Механизм PIN **не удалён из кодовой базы**, только скрыт со страницы профиля (`AuthOtpChannelPreference`
+восстановлена отдельно — D27-B1, не зависит от PIN):
 
-- Компоненты: `PinSection.tsx`, `AuthOtpChannelPreference.tsx`.
-- Server action: `setPreferredAuthOtpChannelAction` в `actions.ts`.
+- Компоненты: `PinSection.tsx`.
 - API: `/api/auth/pin/{set,verify,login}/*`, `userPins`, `isDiaryPurgePinReauthValid` в `modules/auth/service.ts`.
 
 Чтобы вернуть UI и двухфакторную защиту удаления дневника:
 
-1. В `page.tsx` снова импортировать и отрендерить `<PinSection>` и `<AuthOtpChannelPreference>`; восстановить `deps.userPins.getByUserId` и вычисление `authOtpOptions` / `initialAuthOtpSelection`.
+1. В `page.tsx` снова импортировать и отрендерить `<PinSection>`; восстановить `deps.userPins.getByUserId`.
 2. В `DiaryDataPurgeSection` вернуть шаг PIN: состояние `"intro" | "pin" | "otp"` и блок с `PinInput` + `/api/auth/pin/verify`.
 3. В `purge-otp/start/route.ts` и `purge/route.ts` вернуть проверку `isDiaryPurgePinReauthValid(session)` перед отправкой OTP / финальным удалением (см. маркеры `// SECURITY:` в этих файлах).
 
