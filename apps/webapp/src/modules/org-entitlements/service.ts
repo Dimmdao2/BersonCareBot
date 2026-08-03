@@ -595,6 +595,13 @@ export async function resolveOwnTariffTransition(
       ? targetTariff
       : await port.getActiveTariffById(currentTariffId)
     : null;
+  const priceAppliesNextPeriod =
+    currentTariff !== null &&
+    currentTariff.priceMinor !== null &&
+    targetTariff.priceMinor !== null &&
+    currentTariff.currency === targetTariff.currency &&
+    currentTariff.billingPeriod === targetTariff.billingPeriod &&
+    targetTariff.priceMinor < currentTariff.priceMinor;
   return {
     currentTariffId,
     targetTariffId: targetTariff.id,
@@ -606,6 +613,7 @@ export async function resolveOwnTariffTransition(
           blockableMechanics: ['clinic_team', 'branches', 'patient_count'],
         })
       : { blocks: [], appliesNextPeriod: false }),
+    ...(priceAppliesNextPeriod ? { priceAppliesNextPeriod: true as const } : {}),
   };
 }
 

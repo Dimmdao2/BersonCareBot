@@ -389,26 +389,22 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       переехали в вебапп по правилу 5.1.1; чужой арендатор получает отказ. `message_drafts` осталось локальным
       эфемерным состоянием интегратора. **ПРИЗЕМЛЕНО** `d1319c5d3`; лид принял product ownership handoff и
       отдельно отнёс отсутствующее call-site покрытие к открытому D20 level 4 — это не откат D4.
-- [ ] **D5 — правила напоминаний.** `public.reminder_rules` — единственный бизнес-источник и для CRUD, и для
+- [x] **D5 — правила напоминаний.** `public.reminder_rules` — единственный бизнес-источник и для CRUD, и для
       чтения планировщиком.
       **Сведение 02.08 выполнено:** ветка пересобрана как `wt/trackd-d5-salvage`, прошла один независимый аудит и
-      один fixer по сохранённому oracle, затем приземлена `e96ea7ef6`. Фактический DEV data cutover отдельно остаётся
-      открытым по CURRENT-блоку ниже; поэтому чекбокс D5 пока не закрыт.
+      один fixer по сохранённому oracle, затем приземлена `e96ea7ef6`.
       **Сделана write-сторона 2026-07-25** (`384e7ca29`): `reminder.rule.upserted` снят, `writePort.ts`
       (`reminders.rule.upsert`) пишет `public.reminder_rules` напрямую через
       `directPublic/writeReminderRulesDirect.ts` с полным паритетом полей (`linked_object_type/id`,
       `custom_title/text`, `schedule_data`, `reminder_intent`, `quiet_hours_*`, `notification_topic_code`) и
       правильным `organization_id`. Гранты по колонкам применены и проверены на TEST, изоляция арендаторов
       доказана живьём в откатываемых транзакциях.
-      **CURRENT 03.08 — код принят, DEV data cutover не применился:** product `66d218d2f`, независимый аудит
-      `d68b0b617`, saved-oracle fix `dca053c14`, land `e96ea7ef6` перевели scheduler-read на
-      `public.reminder_rules`; disposable PostgreSQL доказал parity/FK/history. Но read-only сверка фактической DEV
-      history выявила, что SHA256 migration 0312 отсутствует в `drizzle.__drizzle_migrations`, хотя более поздние
-      migration применены через `when=1793539230026`; live FK всё ещё ссылается на
-      `integrator.user_reminder_rules(id) ON DELETE CASCADE`. Причина — 0312 поздно попала в journal с `when` ниже
-      уже применённого максимума и была молча пропущена Drizzle. Старую frozen 0312 не менять: D5 остаётся `[ ]`
-      до нового forward migration по `TRACK_D_D5_FORWARD_MIGRATION_REPAIR_BRIEF.md`, независимого acceptance,
-      land и DEV apply. `integrator.user_reminder_rules` до этого не удалять. PROD не затрагивался.
+      **DEV cutover закрыт 03.08:** пропущенная frozen `0312` восстановлена forward migration `0323`, correction
+      `d5542d8ee`, land `78780b505`. `bash deploy/host/migrate-dev.sh --preflight && bash
+      deploy/host/migrate-dev.sh --execute` — PASS; повторный runner: `count=326`, `direct=320`, `reconciled=6`.
+      Read-only postcheck подтвердил FK occurrence → `public.reminder_rules` с `ON DELETE RESTRICT`, scheduler
+      использует platform identity и не содержит bot-only filter. Временные `BYPASSRLS` и membership `app_owner`
+      сняты. Legacy-таблица удаляется только своим D10/D30 consumer-drain шагом; PROD не затрагивался.
 - [x] **D6 — жизненный цикл напоминаний, доставка и гранты контента.** ✅ **ЗАКРЫТО 31.07** (`d2b206cb5`):
       история несостоявшихся occurrence больше не теряется — истечение «осиротевших» публикует то же
       идемпотентное событие завершения, миграция `0282` добирает потерянные строки (fail-closed без времени
@@ -703,10 +699,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       роль и совпадает ли она с тем, что ассертит деплой; не появилось ли новых прямых импортов между деревьями
       приложений вместо пакета. Закрывается правкой документа (или явной записью «расхождений нет»), а не устным
       «всё сошлось».
-      - [ ] **D19a — после закрытия D18 заново перемерить import allowlist и запретить новый обход.** По каждой
+      - [x] **D19a — после закрытия D18 заново перемерить import allowlist и запретить новый обход.** По каждой
             оставшейся записи доказать, что это composition-root/public port boundary, либо удалить обход;
             результат закрепить structural gate, который ловит direct/alias/dynamic import и re-export, а не
-            новым вечным allowlist. Точный census и команда входят в evidence D19.
+            новым вечным allowlist. Точный census и команда: `D19A_IMPORT_BOUNDARY_EVIDENCE_2026-08-03.md`.
 
 #### Пункты D20–D39
 

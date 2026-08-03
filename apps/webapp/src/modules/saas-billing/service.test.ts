@@ -4,7 +4,12 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 import { createSaasBillingService, SaasBillingTariffDowngradeBlockedError } from './service';
-import type { TariffDowngradeBlock } from '@/modules/org-entitlements/service';
+import {
+  resolveOwnTariffTransition,
+  type TariffDowngradeBlock,
+} from '@/modules/org-entitlements/service';
+import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
+import type { Tariff } from '@/modules/org-entitlements/types';
 import type {
   SaasBillingInvoice,
   SaasBillingManualAssignmentTransactionPort,
@@ -308,21 +313,6 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
     expect(appendManualAssignmentAudit).toHaveBeenCalledWith(expect.objectContaining({
       action: 'saas_tariff_change_cancelled', after: { pendingTariffId: null },
     }));
-  });
-
-  it('refuses a self-service upgrade until the charge policy is decided', async () => {
-    const { setManualSaasBillingSubscription, createIntent } = scheduledService();
-    const upgradeService = createSaasBillingService({
-      repository: {} as SaasBillingRepositoryPort,
-      settings: { getSaasBillingPaymentProviderValue: async () => null },
-      resolvePaymentProvider: () => ({ createIntent }) as never,
-      getTariffTransition: async () => ({ currentTariffId: 'tariff-current', targetTariffId: 'tariff-big', blocks: [], appliesNextPeriod: false }),
-    });
-
-    await expect(upgradeService.scheduleOwnTariffChange({ organizationId: 'org', tariffId: 'tariff-big', actorId: 'actor' }))
-      .rejects.toThrow('saas_billing_upgrade_charge_policy_unresolved');
-    expect(setManualSaasBillingSubscription).not.toHaveBeenCalled();
-    expect(createIntent).not.toHaveBeenCalled();
   });
 
   it('rechecks the same transition before issuing a renewal intent', async () => {
@@ -1235,6 +1225,394 @@ describe('Р-14: manual platform assignment preserves the paid boundary', () => 
       tariffId: 'tariff-current',
       period: existingPeriod,
       pendingTariffId: null,
+    });
+  });
+});
+
+describe('Р-14: immediate paid upgrade', () => {
+  it('keeps the old snapshot until capture, then applies the new one once without moving the paid boundary', async () => {
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [
+        { id: 'basic', name: 'Базовый', priceMinor: 10_000, currency: 'RUB', billingPeriod: 'month' },
+        { id: 'pro', name: 'Про', priceMinor: 20_000, currency: 'RUB', billingPeriod: 'month' },
+      ],
+    });
+    const seed = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({
+        createIntent: async () => ({
+          providerIntentRef: 'provider-initial',
+          checkoutUrl: 'https://pay.example/initial',
+        }),
+      }) as never,
+      now: () => new Date('2026-08-01T00:00:00.000Z'),
+    });
+    await seed.assignManualTariff({
+      organizationId: 'org-upgrade',
+      tariffId: 'basic',
+      audit: { actorId: 'admin', reason: 'seed paid period' },
+    });
+    const initial = await seed.createOwnTariffRenewalInvoice('org-upgrade');
+    await seed.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-upgrade',
+      saasBillingInvoiceId: initial.id,
+      providerId: 'yookassa',
+      verified: {
+        idempotencyKey: 'initial-capture',
+        eventType: 'payment.succeeded',
+        amountMinor: 10_000,
+        payload: { currency: 'RUB' },
+      },
+    });
+
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.amountMinor}`,
+      checkoutUrl: `https://pay.example/${input.amountMinor}`,
+    }));
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-16T12:00:00.000Z'),
+      getTariffTransition: async () => ({
+        currentTariffId: 'basic',
+        targetTariffId: 'pro',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+
+    const [first, second] = await Promise.all([
+      service.scheduleOwnTariffChange({
+        organizationId: 'org-upgrade',
+        tariffId: 'pro',
+        actorId: 'owner',
+      }),
+      service.scheduleOwnTariffChange({
+        organizationId: 'org-upgrade',
+        tariffId: 'pro',
+        actorId: 'owner',
+      }),
+    ]);
+    if (first.outcome !== 'checkout' || second.outcome !== 'checkout') throw new Error('checkout expected');
+    expect(first.invoice.amountMinor).toBe(5_000);
+    expect(second.invoice.id).toBe(first.invoice.id);
+    expect(createIntent).toHaveBeenCalledOnce();
+
+    const mismatch = await service.resolveSaasBillingInvoiceForWebhook({
+      providerId: 'yookassa',
+      verified: {
+        intentRef: 'provider-5000',
+        amountMinor: 5_001,
+        payload: { currency: 'RUB' },
+      },
+    });
+    expect(mismatch).toEqual({ outcome: 'mismatch', field: 'amount' });
+    expect(
+      (await service.getOrganizationBillingOverview('org-upgrade')).subscriptions.find(
+        (row) => row.source === 'paid_subscription',
+      ),
+    ).toMatchObject({
+      tariffId: 'basic',
+      tariffSnapshot: { id: 'basic' },
+    });
+
+    const captured = await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-upgrade',
+      saasBillingInvoiceId: first.invoice.id,
+      providerId: 'yookassa',
+      verified: {
+        idempotencyKey: 'upgrade-capture-1',
+        eventType: 'payment.succeeded',
+        amountMinor: 5_000,
+        payload: { currency: 'RUB' },
+      },
+    });
+    const replayed = await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-upgrade',
+      saasBillingInvoiceId: first.invoice.id,
+      providerId: 'yookassa',
+      verified: {
+        idempotencyKey: 'upgrade-capture-replay',
+        eventType: 'payment.succeeded',
+        amountMinor: 5_000,
+        payload: { currency: 'RUB' },
+      },
+    });
+    expect(captured.captured).toBe(true);
+    expect(replayed.captured).toBe(false);
+    expect(
+      (await service.getOrganizationBillingOverview('org-upgrade')).subscriptions.find(
+        (row) => row.source === 'paid_subscription',
+      ),
+    ).toMatchObject({
+      tariffId: 'pro',
+      tariffSnapshot: { id: 'pro' },
+      currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
+      currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
+    });
+
+    await service.createOwnTariffRenewalInvoice('org-upgrade');
+    expect(createIntent.mock.calls[1]?.[0]).toMatchObject({ amountMinor: 20_000, currency: 'RUB' });
+  });
+
+  it('classifies the change against the paid snapshot after the live current-tariff price changes', async () => {
+    let clock = new Date('2026-08-01T00:00:00.000Z');
+    const tariff = (
+      id: string,
+      priceMinor: number,
+    ): Tariff & { priceMinor: number; currency: string } => ({
+      id,
+      name: id,
+      description: '',
+      priceMinor,
+      currency: 'RUB',
+      billingPeriod: 'month',
+      mechanics: {},
+      quotas: {},
+      systemAccessPolicy: null,
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      includedSeats: 1,
+      additionalSeatPriceMinor: null,
+      isActive: true,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
+    const currentTariff = tariff('basic', 10_000);
+    const targetTariff = tariff('pro', 15_000);
+    const entitlements: OrgEntitlementsPort = {
+      resolveCabinetAccess: async () => ({
+        state: 'full_access',
+        policySource: 'system',
+        warning: null,
+      }),
+      resolveMechanicAccess: async (_organizationId, mechanic) => ({
+        mechanic,
+        state: 'full_access',
+        policySource: 'system',
+        warning: null,
+      }),
+      getSnapshot: async () => ({
+        tariff: {
+          id: currentTariff.id,
+          name: currentTariff.name,
+          mechanics: currentTariff.mechanics,
+          quotas: currentTariff.quotas,
+          systemAccessPolicy: currentTariff.systemAccessPolicy,
+          mechanicAccessPolicies: currentTariff.mechanicAccessPolicies,
+          includedSeats: currentTariff.includedSeats,
+        },
+        overrides: [],
+        access: { lifecycle: 'active', tariffId: currentTariff.id, source: 'assignment' },
+      }),
+      getTariffForOrg: async () => currentTariff,
+      getActiveTariffById: async (tariffId) =>
+        tariffId === currentTariff.id
+          ? currentTariff
+          : tariffId === targetTariff.id
+            ? targetTariff
+            : null,
+      listOverrides: async () => [],
+      getEffectiveCommercialAccess: async () => ({
+        lifecycle: 'active',
+        tariffId: currentTariff.id,
+        source: 'assignment',
+      }),
+      getEnforcedQuotaUsage: async () => ({}),
+      getOwnQuotaUsage: async () => ({}),
+    };
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [currentTariff, targetTariff],
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({
+        createIntent: async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+          providerIntentRef: `provider-${input.subjectRef}`,
+          checkoutUrl: `https://pay.example/${input.subjectRef}`,
+        }),
+      }) as never,
+      now: () => clock,
+      getTariffTransition: (organizationId, tariffId) =>
+        resolveOwnTariffTransition(entitlements, organizationId, tariffId),
+    });
+
+    await service.assignManualTariff({
+      organizationId: 'org-live-price-change',
+      tariffId: currentTariff.id,
+      audit: { actorId: 'admin', reason: 'seed paid period' },
+    });
+    const current = await service.createOwnTariffRenewalInvoice('org-live-price-change');
+    await service.captureSaasBillingProviderWebhookEvent({
+      organizationId: 'org-live-price-change',
+      saasBillingInvoiceId: current.id,
+      providerId: 'yookassa',
+      verified: {
+        idempotencyKey: 'capture-current-before-live-price-change',
+        eventType: 'payment.succeeded',
+        amountMinor: current.amountMinor,
+        payload: { currency: current.currency },
+      },
+    });
+
+    currentTariff.priceMinor = 20_000;
+    clock = new Date('2026-08-16T12:00:00.000Z');
+    const result = await service.scheduleOwnTariffChange({
+      organizationId: 'org-live-price-change',
+      tariffId: targetTariff.id,
+      actorId: 'owner',
+    });
+
+    expect(result).toMatchObject({ outcome: 'checkout', invoice: { amountMinor: 2_500 } });
+  });
+
+  it('charges the next full period at the new price when an old-tariff renewal was paid early', async () => {
+    let clock = new Date('2026-08-01T00:00:00.000Z');
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.subjectRef}`,
+      checkoutUrl: `https://pay.example/${input.subjectRef}`,
+    }));
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [
+        { id: 'basic', name: 'Базовый', priceMinor: 10_000, currency: 'RUB', billingPeriod: 'month' },
+        { id: 'pro', name: 'Про', priceMinor: 20_000, currency: 'RUB', billingPeriod: 'month' },
+      ],
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => clock,
+      getTariffTransition: async () => ({
+        currentTariffId: 'basic',
+        targetTariffId: 'pro',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+    const capture = (invoice: SaasBillingInvoice, eventId: string) =>
+      service.captureSaasBillingProviderWebhookEvent({
+        organizationId: 'org-early-renewal-upgrade',
+        saasBillingInvoiceId: invoice.id,
+        providerId: 'yookassa',
+        verified: {
+          idempotencyKey: eventId,
+          eventType: 'payment.succeeded',
+          amountMinor: invoice.amountMinor,
+          payload: { currency: invoice.currency },
+        },
+      });
+
+    await service.assignManualTariff({
+      organizationId: 'org-early-renewal-upgrade',
+      tariffId: 'basic',
+      audit: { actorId: 'admin', reason: 'seed paid period' },
+    });
+    const current = await service.createOwnTariffRenewalInvoice('org-early-renewal-upgrade');
+    await capture(current, 'capture-current');
+
+    clock = new Date('2026-08-16T12:00:00.000Z');
+    const earlyRenewal = await service.createOwnTariffRenewalInvoice('org-early-renewal-upgrade');
+    await capture(earlyRenewal, 'capture-early-renewal');
+    const upgrade = await service.scheduleOwnTariffChange({
+      organizationId: 'org-early-renewal-upgrade',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    if (upgrade.outcome !== 'checkout') throw new Error('checkout expected');
+    expect(upgrade.invoice).toMatchObject({
+      amountMinor: 15_000,
+      tariffSnapshot: { upgrade_future_period_adjustment_minor: 10_000 },
+    });
+    await capture(upgrade.invoice, 'capture-upgrade');
+
+    clock = new Date('2026-09-01T00:00:00.000Z');
+    await service.runDueSaasBillingRenewals();
+    const overview = await service.getOrganizationBillingOverview('org-early-renewal-upgrade');
+    expect(overview.invoices.find((invoice) => invoice.id === earlyRenewal.id)).toMatchObject({
+      amountMinor: 10_000,
+      tariffId: 'pro',
+      tariffSnapshot: { id: 'pro' },
+    });
+    expect(createIntent.mock.calls.map(([input]) => input.amountMinor)).toEqual([
+      10_000,
+      10_000,
+      15_000,
+    ]);
+    expect(overview.subscriptions.find((row) => row.source === 'paid_subscription')).toMatchObject({
+      tariffId: 'pro',
+      tariffSnapshot: { id: 'pro' },
+    });
+  });
+
+  it('does not apply an old-period upgrade capture to a later paid period at the old price', async () => {
+    let clock = new Date('2026-08-01T00:00:00.000Z');
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [
+        { id: 'basic', name: 'Базовый', priceMinor: 10_000, currency: 'RUB', billingPeriod: 'month' },
+        { id: 'pro', name: 'Про', priceMinor: 20_000, currency: 'RUB', billingPeriod: 'month' },
+      ],
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({
+        createIntent: async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+          providerIntentRef: `provider-${input.subjectRef}`,
+          checkoutUrl: `https://pay.example/${input.subjectRef}`,
+        }),
+      }) as never,
+      now: () => clock,
+      getTariffTransition: async () => ({
+        currentTariffId: 'basic',
+        targetTariffId: 'pro',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+    const capture = (invoice: SaasBillingInvoice, eventId: string) =>
+      service.captureSaasBillingProviderWebhookEvent({
+        organizationId: 'org-stale-upgrade',
+        saasBillingInvoiceId: invoice.id,
+        providerId: 'yookassa',
+        verified: {
+          idempotencyKey: eventId,
+          eventType: 'payment.succeeded',
+          amountMinor: invoice.amountMinor,
+          payload: { currency: invoice.currency },
+        },
+      });
+
+    await service.assignManualTariff({
+      organizationId: 'org-stale-upgrade',
+      tariffId: 'basic',
+      audit: { actorId: 'admin', reason: 'seed paid period' },
+    });
+    const current = await service.createOwnTariffRenewalInvoice('org-stale-upgrade');
+    await capture(current, 'capture-current');
+
+    clock = new Date('2026-08-16T12:00:00.000Z');
+    const upgrade = await service.scheduleOwnTariffChange({
+      organizationId: 'org-stale-upgrade',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    if (upgrade.outcome !== 'checkout') throw new Error('checkout expected');
+
+    clock = new Date('2026-09-01T00:00:00.000Z');
+    const nextPeriod = await service.createOwnTariffRenewalInvoice('org-stale-upgrade');
+    await capture(nextPeriod, 'capture-next-period');
+    await capture(upgrade.invoice, 'capture-stale-upgrade');
+
+    const overview = await service.getOrganizationBillingOverview('org-stale-upgrade');
+    expect(overview.subscriptions.find((row) => row.source === 'paid_subscription')).toMatchObject({
+      tariffId: 'basic',
+      tariffSnapshot: { id: 'basic' },
+      currentPeriodStartsAt: '2026-09-01T00:00:00.000Z',
+      currentPeriodEndsAt: '2026-10-01T00:00:00.000Z',
     });
   });
 });

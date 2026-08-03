@@ -7,6 +7,7 @@
 import { cache } from 'react';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
+import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
 import {
   getCurrentSession,
   exchangeIntegratorToken,
@@ -1391,6 +1392,7 @@ async function listAppointmentHistoryForPhone(
 /** Возвращает объект со всеми сервисами приложения для использования на страницах и в API. */
 function _buildAppDeps() {
   ensureAuthModulePortsBound();
+  ensureSystemSettingsConfigAdapterBound();
   const doctorClients = createDoctorClientsService({
     clientsPort: doctorClientsPort,
     getUpcomingAppointments,

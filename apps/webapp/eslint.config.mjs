@@ -14,9 +14,7 @@ export default [
   },
   ...(Array.isArray(nextConfig) ? nextConfig : [nextConfig]),
 
-  // ─── Clean architecture: modules must not reach into infra directly ───
-  // Legacy violations are allowlisted below; new code MUST go through ports/DI.
-  // See: docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LEGACY_CLEANUP_BACKLOG.md
+  // ─── Clean architecture: modules and routes must not reach into infra directly ───
   {
     files: ['src/modules/**/*.ts', 'src/modules/**/*.tsx'],
     ignores: ['src/modules/**/*.test.ts', 'src/modules/**/*.test.tsx'],
@@ -75,23 +73,6 @@ export default [
           message: 'Route handlers must not dynamically import infra/db or infra/repos directly.',
         },
       ],
-    },
-  },
-
-  // ─── Файлы, которым исключение из границ слоёв ещё нужно (долг, LEGACY_CLEANUP_BACKLOG.md) ───
-  // Список только сокращается, новых записей не заводим: правило — делать сразу как надо, то есть
-  // переводить вызов на порт в том же заходе, а не вписывать файл сюда. Из прежних двадцати записей
-  // восемь оказались мёртвыми: пять файлов не импортировали из infra ничего, один файл давно удалён,
-  // три тянули логгер и очередь к интегратору, а не базу — правило их и не запрещало.
-  {
-    files: [
-      'src/modules/auth/service.ts',
-      'src/modules/integrator/events.ts',
-      'src/modules/system-settings/configAdapter.ts',
-    ],
-    rules: {
-      'no-restricted-imports': 'off',
-      'no-restricted-syntax': 'off',
     },
   },
 

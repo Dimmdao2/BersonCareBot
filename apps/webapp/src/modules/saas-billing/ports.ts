@@ -7,6 +7,8 @@ export type SaasBillingSource = 'manual' | 'paid_subscription';
 export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expired' | 'cancelled';
 export type SaasBillingInvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'void';
 export type SaasBillingInvoiceKind = 'tariff_period' | 'seat_overage';
+/** Existing `tariff_period` rows that are a paid-period upgrade use this visible, durable description. */
+export const SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION = 'Доплата за повышение тарифа';
 /** К2 — `pending` until the provider webhook confirms it; `failed` frees the amount for a retry. */
 export type SaasBillingRefundStatus = 'pending' | 'succeeded' | 'failed' | 'canceled';
 
@@ -30,6 +32,8 @@ export type SaasBillingSubscription = {
   currentPeriodEndsAt: string | null;
   graceEndsAt: string | null;
   readOnlyEndsAt: string | null;
+  /** Immutable current paid-period tariff snapshot; null only when no paid period exists. */
+  tariffSnapshot: Record<string, unknown> | null;
   paidAdditionalSeats: number;
 };
 
@@ -344,6 +348,21 @@ export type SaasBillingRepositoryPort = {
     servicePeriodStartsAt: string;
     servicePeriodEndsAt: string;
   }): Promise<{ invoice: SaasBillingInvoice; created: boolean }>;
+  /**
+   * Locks the current paid subscription, derives both tariff prices and the exact remaining time,
+   * then creates at most one checkout invoice for its immediate upgrade.
+   */
+  createProratedTariffUpgradeInvoice(input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    targetTariffId: string;
+    asOf: string;
+    providerId: string;
+    providerIdempotencyKey: string;
+  }): Promise<
+    | { outcome: 'checkout'; invoice: SaasBillingInvoice; created: boolean }
+    | { outcome: 'scheduled' }
+  >;
   attachSaasBillingInvoiceProviderIntent(input: {
     saasBillingInvoiceId: string;
     providerInvoiceRef: string;
@@ -445,6 +464,7 @@ export type SaasBillingRepositoryPort = {
     tariffId: string;
     billingPeriod: SaasBillingPeriod;
     /** Existing paid period is the renewal anchor; `null` only before the first payment. */
+    currentPeriodStartsAt: string | null;
     currentPeriodEndsAt: string | null;
     /** К6 — lets the caller decide whether THIS payment still needs `save_payment_method: true`. */
     savedPaymentMethodId: string | null;

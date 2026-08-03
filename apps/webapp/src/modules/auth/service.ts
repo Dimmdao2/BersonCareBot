@@ -64,6 +64,7 @@ import {
 } from '@bersoncare/db-principal';
 import { isDevAuthBypassEnabled } from './devBypassPolicy';
 import type { DevBypassStaffWorkspaceKind } from './devBypassClinicAdminWorkspaceReconciliation';
+import { requireSessionUserPort } from './sessionUserPort';
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -181,8 +182,7 @@ async function resolveSessionIdentityAgainstDb(
       user.userId,
       'getCurrentSession:identity-self',
       async () => {
-        const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
-        return pgUserByPhonePort.findByUserId(user.userId);
+        return requireSessionUserPort().findByUserId(user.userId);
       },
     );
     // `null` here covers a deleted row AND an archived one (D2 — see findByUserId).
@@ -218,8 +218,7 @@ async function withFreshSessionEpoch(session: AppSession): Promise<AppSession> {
     session.user.userId,
     'auth/persistNewAuthSession:identity-self',
     async () => {
-      const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
-      return pgUserByPhonePort.findByUserId(session.user.userId);
+      return requireSessionUserPort().findByUserId(session.user.userId);
     },
   );
   if (!fresh || typeof fresh.sessionEpoch !== 'number') {
@@ -544,8 +543,7 @@ async function applyDevBypassPlatformUserPhoneInDb(
     await import('@/modules/auth/devBypassPlatformUserPhonePort');
   await applyDevBypassPlatformUserPhoneInDb(user.userId, user.role, phone);
 
-  const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
-  const fresh = await pgUserByPhonePort.findByUserId(user.userId);
+  const fresh = await requireSessionUserPort().findByUserId(user.userId);
   // Keep explicit dev bypass role from token preset even if DB row still has stale role.
   return fresh ? { ...fresh, role: user.role } : { ...user, phone };
 }
@@ -614,8 +612,7 @@ export async function exchangeIntegratorToken(
       // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
       if (env.DATABASE_URL?.trim() && isPlatformUserUuid(subTrim)) {
         enterStaffSecuritySelfPrincipal(subTrim, 'auth/exchange:signed-platform-self');
-        const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
-        const fromDb = await pgUserByPhonePort.findByUserId(subTrim);
+        const fromDb = await requireSessionUserPort().findByUserId(subTrim);
         if (!fromDb) {
           if (process.env.NODE_ENV !== 'test') {
             console.info('[auth/exchange] uuid_sub_no_platform_row');
@@ -1090,10 +1087,7 @@ async function getCurrentSessionWithPrincipalMode(
         session.user.userId,
         'getCurrentSession:verified-email-role-resolution',
         async () => {
-          const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
-          return (
-            (await pgUserByPhonePort.getVerifiedEmailForUser(session.user.userId)) ?? undefined
-          );
+          return (await requireSessionUserPort().getVerifiedEmailForUser(session.user.userId)) ?? undefined;
         },
       );
     } catch {
@@ -1165,8 +1159,7 @@ export async function clearSession(): Promise<void> {
         decoded.user.userId,
         'auth/clearSession:self',
         async () => {
-          const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
-          await pgUserByPhonePort.invalidateSessionsForSelf();
+          await requireSessionUserPort().invalidateSessionsForSelf();
         },
       );
     } catch {

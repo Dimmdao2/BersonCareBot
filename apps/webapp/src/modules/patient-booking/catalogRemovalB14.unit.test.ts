@@ -144,6 +144,12 @@ function bookingDeps(): CanonicalBookingDeps {
           attributionJson: {},
         };
       },
+      async getSpecialistAppointmentReminderSettings() {
+        return {
+          allowedPresetIds: ['day_before'],
+          defaultPresetId: 'day_before',
+        };
+      },
     } as unknown as CanonicalBookingDeps['bookingEngine'],
     bookingScheduling: {
       async resolveCanonicalInPersonContext() {

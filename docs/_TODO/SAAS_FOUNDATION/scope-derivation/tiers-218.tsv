@@ -40,6 +40,7 @@ INFRA|integrator.integration_data_quality_incidents
 INFRA|integrator.projection_outbox
 INFRA|integrator.schema_migrations
 INFRA|public.auth_rate_limit_events
+INFRA|public.clinic_dedicated_bot_bindings
 INFRA|public.clinical_test_measure_kinds
 INFRA|public.email_otp_locks
 INFRA|public.idempotency_keys
@@ -59,6 +60,7 @@ INFRA|public.saas_trial_policy
 INFRA|public.saas_registration_tariff_policy
 INFRA|public.webapp_schema_migrations
 LEGACY|integrator.message_retry_jobs
+LEGACY|integrator.user_reminder_rules
 LEGACY|public.appointment_records
 LEGACY|public.booking_cities
 LEGACY|public.patient_bookings
@@ -213,7 +215,6 @@ SCOPED|public.treatment_program_template_stage_groups
 SCOPED|public.treatment_program_template_stage_items
 SCOPED|public.treatment_program_template_stages
 SCOPED|public.treatment_program_templates
-SCOPED|public.webapp_reminder_occurrences
 TELEMETRY|public.media_playback_stats_hourly
 TELEMETRY|public.product_analytics_hourly
 TELEMETRY|public.saas_isolation_coverage_runs
