@@ -360,7 +360,6 @@ VALUES
   ('public', 'user_notification_topics', 'SELECT, INSERT, UPDATE'),
   ('public', 'user_oauth_bindings', 'SELECT'),
   ('public', 'user_phone_history', 'SELECT'),
-  ('public', 'user_pins', 'SELECT, INSERT'),
   ('public', 'user_web_push_subscriptions', 'SELECT, INSERT, UPDATE, DELETE');
 
 \if :{?p0_5b_grants_down}
@@ -435,7 +434,6 @@ ORDER BY schema_name, table_name
 -- "Column-level restrictions (app_patient)" for the table-by-table rationale (2026-07-11 gpt-5.6-sol
 -- audit fix, taskdb #655).
 GRANT UPDATE ("calendar_timezone", "reminder_muted_until") ON TABLE "public"."platform_users" TO app_patient;
-GRANT UPDATE ("pin_hash") ON TABLE "public"."user_pins" TO app_patient;
 GRANT INSERT ("organization_id", "branch_id", "room_id", "specialist_id", "service_id", "platform_user_id", "start_at", "end_at", "duration_minutes", "source", "status", "original_start_at", "reschedule_count", "phone_normalized", "attribution_json", "created_at", "updated_at") ON TABLE "public"."be_appointments" TO app_patient;
 GRANT UPDATE ("status", "updated_at", "start_at", "end_at", "duration_minutes", "branch_id", "room_id", "specialist_id", "service_id", "original_start_at", "reschedule_count") ON TABLE "public"."be_appointments" TO app_patient;
 GRANT UPDATE ("value_text") ON TABLE "public"."be_booking_form_submissions" TO app_patient;
@@ -496,6 +494,20 @@ SELECT format(
 )
 FROM pg_attribute
 WHERE attrelid = 'public.user_oauth_bindings'::regclass
+  AND attnum > 0
+  AND NOT attisdropped
+\gexec
+
+-- PIN hashes and lockout counters stay table-invisible to app_patient; authenticated access uses identity-self SECURITY DEFINER functions with no target UUID.
+REVOKE ALL PRIVILEGES ON TABLE "public"."user_pins" FROM app_patient;
+SELECT format(
+  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_patient',
+  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
+  'public',
+  'user_pins'
+)
+FROM pg_attribute
+WHERE attrelid = 'public.user_pins'::regclass
   AND attnum > 0
   AND NOT attisdropped
 \gexec

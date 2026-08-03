@@ -2245,14 +2245,15 @@ assert_staff_security_self_runtime_acl_ready(){
   # The account-security guard deliberately has no clinic membership: it stamps the exact session
   # platform_user_id as a patient/self principal. The routed pool therefore uses the nonstaff base
   # login and SET ROLE app_patient. Exercise that exact transport/role transition here, then pin
-  # only the four functions needed before/during TOTP start:
+  # only the account-security functions needed before/during TOTP start and PIN self-service:
   #   - get_staff_security_session_state: reads the caller's profile during session resolution;
   #   - ensure_staff_security_profile: inserts the exact signed self row when absent;
   #   - get_staff_security_profile: reads only that self row;
   #   - save_pending_staff_totp: writes only that row's encrypted pending factor secret.
-  # All remain existing table-owner SECURITY DEFINER functions from 0215/the canonical overlay.
-  # No new function or GRANT is introduced here; the current exact count is owned by the
-  # app_owner SECURITY DEFINER gate above.
+  #   - auth_user_pin_read_self/auth_user_pin_upsert_self: read/write only the signed user's PIN row
+  #     and accept no target UUID. The old UUID accessors remain bootstrap-login-only.
+  # All are table-owner SECURITY DEFINER functions from migrations/the canonical overlay. This gate
+  # verifies their exact runtime reachability; it does not grant privileges itself.
   ready="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=\"\${DATABASE_URL_NONSTAFF:-\${DATABASE_URL:-}}\" && [ -n \"\$db_url\" ] && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"
 RESET ROLE;
 SET ROLE app_patient;
@@ -2263,6 +2264,10 @@ SELECT (
   AND has_function_privilege(current_user, 'app.ensure_staff_security_profile()', 'EXECUTE')
   AND has_function_privilege(current_user, 'app.get_staff_security_profile()', 'EXECUTE')
   AND has_function_privilege(current_user, 'app.save_pending_staff_totp(text)', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.auth_user_pin_read_self()', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.auth_user_pin_upsert_self(text)', 'EXECUTE')
+  AND NOT has_function_privilege(current_user, 'app.auth_user_pin_read(uuid)', 'EXECUTE')
+  AND NOT has_function_privilege(current_user, 'app.auth_user_pin_upsert(uuid,text)', 'EXECUTE')
   AND NOT has_table_privilege(
     current_user,
     'public.staff_security_profiles',
@@ -2273,6 +2278,16 @@ SELECT (
     'public.staff_security_profiles',
     'SELECT,INSERT,UPDATE,REFERENCES'
   )
+  AND NOT has_table_privilege(
+    current_user,
+    'public.user_pins',
+    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+  )
+  AND NOT has_any_column_privilege(
+    current_user,
+    'public.user_pins',
+    'SELECT,INSERT,UPDATE,REFERENCES'
+  )
 )::text;
 \"" | tail -n 1)"
   # `psql -tAc` with a multi-statement string also echoes the RESET/SET command tags, so the raw capture
@@ -2281,10 +2296,10 @@ SELECT (
   # line — the SELECT result — and keep comparing exactly, not with a substring match.
   [ "$ready" = "true" ] || {
     echo "FATAL: webapp TEST account-security self runtime ACL is not exact" >&2
-    echo "       Expected nonstaff login -> SET ROLE app_patient -> four narrow functions, with no vault table privilege." >&2
+    echo "       Expected nonstaff login -> SET ROLE app_patient -> narrow TOTP/PIN self functions, no target-UUID PIN functions, and no vault/PIN table privilege." >&2
     exit 1
   }
-  echo "   account-security self runtime ACL: OK (app_patient 4 function EXECUTEs; vault table invisible)"
+  echo "   account-security self runtime ACL: OK (target-free PIN self access; vault/PIN tables invisible)"
 }
 
 assert_test_health_ok(){

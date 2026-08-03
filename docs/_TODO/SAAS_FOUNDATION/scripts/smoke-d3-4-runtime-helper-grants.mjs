@@ -155,6 +155,10 @@ const functionSignatures = [
   .concat([
     'app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)',
     'app.reset_principal_context()',
+    'app.auth_user_pin_read(uuid)',
+    'app.auth_user_pin_upsert(uuid, text)',
+    'app.auth_user_pin_read_self()',
+    'app.auth_user_pin_upsert_self(text)',
   ])
   .filter(
     (signature) =>
@@ -504,6 +508,12 @@ RESET SESSION AUTHORIZATION;
 SELECT 1 / has_function_privilege(${quoteLiteral(staffRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE'))::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(patientRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE'))::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.auth_user_pin_read(uuid)', 'EXECUTE')::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.auth_user_pin_upsert(uuid,text)', 'EXECUTE')::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.auth_user_pin_read_self()', 'EXECUTE'))::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.auth_user_pin_upsert_self(text)', 'EXECUTE'))::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(patientRole)}, 'app.auth_user_pin_read(uuid)', 'EXECUTE'))::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(patientRole)}, 'app.auth_user_pin_upsert(uuid,text)', 'EXECUTE'))::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE'))::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(mediaRole)}, 'app.release_principal_context()', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)', 'EXECUTE'))::int;

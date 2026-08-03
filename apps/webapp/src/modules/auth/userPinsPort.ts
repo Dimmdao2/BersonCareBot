@@ -8,7 +8,9 @@ export type UserPinRecord = {
 
 export type UserPinsPort = {
   getByUserId(userId: string): Promise<UserPinRecord | null>;
+  getForCurrentPrincipal(userId: string): Promise<UserPinRecord | null>;
   upsertPinHash(userId: string, pinHash: string): Promise<void>;
+  upsertPinHashForCurrentPrincipal(userId: string, pinHash: string): Promise<void>;
   /**
    * Увеличить число неудачных попыток; при достижении maxAttempts выставить lockedUntil.
    * Возвращает актуальные значения после обновления.

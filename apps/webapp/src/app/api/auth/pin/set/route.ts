@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   const pinHash = await hashPin(pin);
-  await deps.userPins.upsertPinHash(session.user.userId, pinHash);
+  await deps.userPins.upsertPinHashForCurrentPrincipal(session.user.userId, pinHash);
 
   return NextResponse.json({ ok: true });
 }

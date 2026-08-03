@@ -232,6 +232,10 @@ SELECT format('REVOKE EXECUTE ON FUNCTION app.password_credentials_upsert_self(t
 WHERE to_regprocedure('app.password_credentials_upsert_self(text,text)') IS NOT NULL \gexec
 SELECT format('REVOKE EXECUTE ON FUNCTION app.set_staff_security_self_password_hash(text) FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.set_staff_security_self_password_hash(text)') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.auth_user_pin_read_self() FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.auth_user_pin_read_self()') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.auth_user_pin_upsert_self(text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.auth_user_pin_upsert_self(text)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.is_organization_slug_available(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
@@ -637,6 +641,12 @@ WHERE to_regprocedure('app.password_credentials_upsert_self(text,text)') IS NOT 
 -- 0274 retires the legacy reset function: it bypasses the atomic account+identifier state.
 SELECT format('REVOKE EXECUTE ON FUNCTION app.set_staff_security_self_password_hash(text) FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.set_staff_security_self_password_hash(text)') IS NOT NULL \gexec
+-- Authenticated PIN presence/setup runs only after SET ROLE app_patient and uses target-free
+-- identity-self capabilities. The bare bootstrap login must keep only the exact-UUID login helpers.
+SELECT format('REVOKE EXECUTE ON FUNCTION app.auth_user_pin_read_self() FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.auth_user_pin_read_self()') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.auth_user_pin_upsert_self(text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.auth_user_pin_upsert_self(text)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.is_organization_slug_available(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO :"d3_4_bootstrap_base_role";

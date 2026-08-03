@@ -170,11 +170,9 @@ export function getAppStaffGrantTables() {
 //     and reminder_muted_until (pgReminderRules.ts). No other column has a traced patient-session
 //     write path -- everything else (role, is_blocked, trust/merge/verification/identity fields)
 //     stays out of the grant entirely, not just SELECT-only-by-omission.
-//   - public.user_pins: SELECT + INSERT (whole-table) + a COLUMN-LEVEL UPDATE grant restricted to
-//     pin_hash. PinSection.tsx (patient profile) + pgUserPins.ts upsert (`/api/auth/pin/set`) confirms
-//     the patient's own session writes pin_hash. attempts_failed/locked_until implement the PIN
-//     brute-force lockout counters (incrementFailed/resetAttempts) -- excluded from the patient grant
-//     so a patient session cannot self-reset its own lockout after failed PIN guesses.
+//   - public.user_pins is deliberately absent. Authenticated reads and writes use identity-self
+//     SECURITY DEFINER capabilities that accept no target UUID; pre-session PIN login uses separate
+//     exact-UUID bootstrap capabilities on the bare nonstaff login.
 //   - public.user_channel_preferences: SELECT (whole-table) + COLUMN-LEVEL INSERT/UPDATE (see
 //     patientColumnGrants below). 2026-07-11 second-pass exhaustive sweep (taskdb #655, this task,
 //     gpt-5.6-sol finding): this table also carries `is_preferred_for_auth` (which channel receives
@@ -218,7 +216,6 @@ const appPatientBootstrapTables = [
   { qualifiedName: 'public.platform_user_contacts', privileges: 'SELECT' },
   { qualifiedName: 'public.user_phone_history', privileges: 'SELECT' },
   { qualifiedName: 'public.user_oauth_bindings', privileges: 'SELECT' },
-  { qualifiedName: 'public.user_pins', privileges: 'SELECT, INSERT' },
   { qualifiedName: 'public.user_channel_bindings', privileges: 'SELECT' },
   // user_channel_preferences: SELECT-only at table level -- the INSERT/UPDATE this table gets are
   // column-restricted, see patientColumnGrants below (is_preferred_for_auth excluded).
@@ -249,6 +246,11 @@ const appPatientSensitiveBootstrapRevokes = [
     qualifiedName: 'public.user_oauth_bindings',
     reason:
       'D3.5: OAuth bindings stay table-invisible to app_patient; patient code uses app.current_patient_has_web_oauth_binding() for boolean presence only.',
+  },
+  {
+    qualifiedName: 'public.user_pins',
+    reason:
+      'PIN hashes and lockout counters stay table-invisible to app_patient; authenticated access uses identity-self SECURITY DEFINER functions with no target UUID.',
   },
 ];
 
@@ -634,10 +636,6 @@ export const appPatientColumnGrants = [
     privilege: 'UPDATE',
     columns: ['calendar_timezone', 'reminder_muted_until'],
   },
-
-  // user_pins: attempts_failed/locked_until are the brute-force lockout counters; a patient session
-  // must not be able to self-reset its own lockout.
-  { qualifiedName: 'public.user_pins', privilege: 'UPDATE', columns: ['pin_hash'] },
 
   // be_appointments: excludes payment_ref/package_usage_ref (staff/webhook-only bookkeeping) and
   // deleted_at (Rubitime-sync soft-delete) from both INSERT and UPDATE -- everything else here is
