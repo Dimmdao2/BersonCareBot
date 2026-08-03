@@ -29,6 +29,17 @@ export async function POST(request: Request) {
   }
   const entitlement = await requireEntitlementForMutation({ organizationId }, 'subscriptions');
   if (!entitlement.ok) return entitlement.response;
+  const catalogPackage = await withExplicitOrganizationPrincipal(
+    { organizationId, source: 'api/booking/memberships/purchase:catalog-read' },
+    () => deps.memberships!.getCatalogPackage(parsed.data.subscriptionPackageId, organizationId),
+  );
+  if (!catalogPackage) {
+    return NextResponse.json({ ok: false, error: 'catalog_package_not_found' }, { status: 404 });
+  }
+  if (catalogPackage.priceMinor > 0) {
+    const paymentsEntitlement = await requireEntitlementForMutation({ organizationId }, 'payments');
+    if (!paymentsEntitlement.ok) return paymentsEntitlement.response;
+  }
   try {
     const pkg = await withExplicitOrganizationPrincipal(
       { organizationId, source: 'api/booking/memberships/purchase:POST' },

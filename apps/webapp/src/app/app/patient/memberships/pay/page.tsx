@@ -20,7 +20,12 @@ export default async function PatientPackagePayPage({ searchParams }: Props) {
   );
   if (!organizationId) redirect(routePaths.patientBooking);
   await requireEntitlementForPage({ organizationId }, 'subscriptions');
-  const availability = await getMechanicMutationAvailability({ organizationId }, 'subscriptions');
-  if (!availability.available) redirect(routePaths.patientBooking);
+  const [subscriptionsAvailability, paymentsAvailability] = await Promise.all([
+    getMechanicMutationAvailability({ organizationId }, 'subscriptions'),
+    getMechanicMutationAvailability({ organizationId }, 'payments'),
+  ]);
+  if (!subscriptionsAvailability.available || !paymentsAvailability.available) {
+    redirect(routePaths.patientBooking);
+  }
   return <PatientPackagePayClient patientPackageId={patientPackageId.trim()} />;
 }
