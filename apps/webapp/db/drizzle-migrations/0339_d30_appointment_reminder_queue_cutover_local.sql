@@ -1,5 +1,4 @@
 -- D30 Ш7 stages 1-4 only: race-safe appointment-reminder revalidation and ladder transition.
--- Temporary branch number. Assign the final number/journal entry only after integration sync.
 
 GRANT SELECT ON TABLE public.be_appointments, public.user_channel_bindings,
   public.user_channel_preferences, public.user_notification_topics,
