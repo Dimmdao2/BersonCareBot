@@ -1,10 +1,3 @@
 {
-  "advisories": [
-    {
-      "id": "GHSA-mh99-v99m-4gvg",
-      "package": "brace-expansion",
-      "reason": "Reachable only through eslint's own glob matching at lint time; dev dependency; no patched 1.x exists and @eslint/eslintrc still pins minimatch@^3.1.5; forcing >=5.0.8 breaks eslint because the v5 CJS export is an object, not a callable.",
-      "reviewBy": "2026-10-27"
-    }
-  ]
+ "advisories": []
 }

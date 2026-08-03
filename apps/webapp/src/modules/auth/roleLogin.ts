@@ -30,6 +30,26 @@ export function portalForAppPath(pathname: string): RoleLoginPortal | null {
   return null;
 }
 
+/**
+ * Platform (global-admin) pages that still live under the `doctor` portal's URL prefix, each
+ * guarded by `requirePlatformOperationsPage` in `app/app/(global-admin)/doctor/layout.tsx`
+ * (`platformNavLinks.ts` documents the pending move to `/app/admin/*`, slices 5-7). A global admin
+ * can never hold `role === 'doctor'` (`resolveLaunchCapabilities`), so without this exact allowlist
+ * `roleCanUsePortal` permanently denies its own click on these pages — TEST owner findings
+ * 2026-08-03, D2. Every other `/app/doctor/*` path (patients, appointments, ...) stays doctor-only.
+ */
+const DOCTOR_PORTAL_PLATFORM_OPERATIONS_PATHS = [
+  '/app/doctor/analytics',
+  '/app/doctor/booking-merge',
+  '/app/doctor/usage',
+] as const;
+
+export function isDoctorPortalPlatformOperationsPath(pathname: string): boolean {
+  return DOCTOR_PORTAL_PLATFORM_OPERATIONS_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+}
+
 export function isRoleLoginPath(pathname: string): boolean {
   const portal = portalForAppPath(pathname);
   return portal !== null && pathname === getRoleLoginPath(portal);

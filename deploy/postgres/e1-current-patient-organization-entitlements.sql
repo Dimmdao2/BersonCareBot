@@ -3,6 +3,16 @@
 -- with the lifecycle/quota projection, now extended with owner access policy and its time anchor.
 -- Replaying 0219 after 0225 is invalid because
 -- PostgreSQL cannot change a function return type through CREATE OR REPLACE.
+--
+-- #1057 B0.3 (2026-08-03): this overlay's body had drifted since 0225 -- migration 0346 (#1069)
+-- removed the trial-extension `grace` lifecycle stage and `saas_organization_trials.grace_ends_at`
+-- outright, and 0346's own body already reads `trial.ends_at` plus the paid-period anchor via
+-- `app.saas_billing_effective_tariff`. This overlay still read `trial.grace_ends_at` directly, so
+-- deploying after 0346/0349 hard-failed with `column trial.grace_ends_at does not exist` (confirmed
+-- live on TEST 2026-08-03) -- and, short of that crash, would have silently reverted the function
+-- to its pre-0278+ body every deploy despite the return TABLE shape being unchanged since 0225 (the
+-- signature assertion below only checks columns/types, not body logic, so it would have kept
+-- passing). Body below is copied verbatim from 0346/0349's current definition.
 \set ON_ERROR_STOP on
 
 DROP FUNCTION IF EXISTS app.read_current_patient_organization_entitlements();
@@ -53,32 +63,38 @@ BEGIN
     INNER JOIN exact_context ON exact_context.id = trial.organization_id
     WHERE trial.status = 'active'
     LIMIT 1
+  ), paid_period AS (
+    SELECT max(subscription.current_period_ends_at) AS period_ends_at
+    FROM public.saas_billing_subscriptions AS subscription
+    INNER JOIN exact_context ON exact_context.id = subscription.organization_id
+    WHERE subscription.status = ANY (ARRAY['active', 'expired'])
+      AND subscription.current_period_ends_at IS NOT NULL
   ), effective AS (
     SELECT
       context.id AS organization_id,
       CASE
         WHEN trial.id IS NULL THEN context.tariff_id
-        WHEN v_now <= trial.grace_ends_at THEN trial.tariff_id
+        WHEN v_now <= trial.ends_at THEN trial.tariff_id
         WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id
         ELSE trial.tariff_id
       END AS tariff_id,
+      -- #1069 Т5-Т8: the trial-extension `grace` lifecycle stage is removed — the post-trial rule
+      -- applies the instant `ends_at` passes, not after a further access-extending window.
       CASE
         WHEN trial.id IS NULL THEN 'active'
         WHEN v_now <= trial.ends_at THEN 'active'
-        WHEN v_now <= trial.grace_ends_at THEN 'grace'
         WHEN trial.post_trial_behavior = 'tariff' THEN 'active'
         ELSE trial.post_trial_behavior
       END AS lifecycle,
-      -- #1069 §2.13 — no raw state to branch on any more; without a trial the source is always a
-      -- plain assignment.
       CASE
         WHEN trial.id IS NULL THEN 'assignment'
-        WHEN v_now > trial.grace_ends_at AND trial.post_trial_behavior = 'tariff' THEN 'post_trial_tariff'
+        WHEN v_now > trial.ends_at AND trial.post_trial_behavior = 'tariff' THEN 'post_trial_tariff'
         ELSE 'trial'
       END AS access_source,
-      trial.ends_at AS degradation_started_at
+      COALESCE(trial.ends_at, paid_period.period_ends_at) AS degradation_started_at
     FROM exact_context AS context
     LEFT JOIN active_trial AS trial ON true
+    LEFT JOIN paid_period ON true
   )
   SELECT
     tariff.mechanics,
@@ -96,7 +112,7 @@ BEGIN
     effective.access_source,
     effective.degradation_started_at
   FROM effective
-  LEFT JOIN public.saas_tariffs AS tariff ON tariff.id = effective.tariff_id
+  LEFT JOIN LATERAL app.saas_billing_effective_tariff(effective.organization_id, effective.tariff_id) AS tariff ON true
   LEFT JOIN public.saas_org_entitlement_overrides AS entitlement_override
     ON entitlement_override.organization_id = effective.organization_id
    AND (entitlement_override.expires_at IS NULL OR entitlement_override.expires_at > v_now)
@@ -150,7 +166,7 @@ CREATE POLICY saas_tariffs_current_patient_capability_read ON public.saas_tariff
         AND organization.is_active = true
         AND saas_tariffs.id = CASE
           WHEN trial.id IS NULL THEN organization.tariff_id
-          WHEN statement_timestamp() <= trial.grace_ends_at THEN trial.tariff_id
+          WHEN statement_timestamp() <= trial.ends_at THEN trial.tariff_id
           WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id
           ELSE trial.tariff_id
         END

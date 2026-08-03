@@ -1,8 +1,10 @@
+import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   findCanonicalUserIdByPhone,
   resolveCanonicalUserId,
 } from '@/infra/repos/pgCanonicalPlatformUser';
+import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
 import type {
   CreateOAuthPlatformUserInput,
   OAuthUserResolvePort,
@@ -10,21 +12,78 @@ import type {
   UpsertOAuthBindingResult,
 } from '@/modules/auth/oauthUserResolvePort';
 
+/**
+ * IDENTITY_AND_MERGE_SCHEME.md §2a (owner, 03.08): "убрать перезапись основной почты при входе
+ * через OAuth" — the primary is set once, from whichever verified email arrives first (OTP,
+ * registration, or an earlier OAuth sign-in), and never reassigned by a later OAuth sign-in.
+ * The `email IS NULL` guard on the first UPDATE is that fix: a later, DIFFERENT provider address
+ * is still recorded, just as a confirmed secondary via `upsertOAuthBinding`'s `user_oauth_bindings`
+ * row, not here.
+ *
+ * §2a case 1 separately requires that an OAuth sign-in confirms an address the account already
+ * holds ("успешный OAuth-вход является подтверждением адреса наравне с кодом") — e.g. someone
+ * registered by email+password and never finished the verification challenge. The second UPDATE
+ * below covers exactly that: it only ever touches `email_verified_at`, never the primary email
+ * value, so it cannot reassign the primary (F5 stays intact) and is idempotent (no-op once
+ * already verified).
+ */
 async function applyVerifiedOAuthEmail(
   userId: string,
   emailRaw: string | null,
   emailTrusted: boolean,
 ): Promise<void> {
   if (!emailTrusted || !emailRaw?.trim()) return;
+  const email = emailRaw.trim();
   await runWebappPgText(
     `UPDATE platform_users
      SET email = $2::text,
          email_normalized = lower(btrim($2::text)),
-         email_verified_at = COALESCE(email_verified_at, now()),
+         email_verified_at = now(),
          updated_at = now()
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [userId, emailRaw.trim()],
+     WHERE id = $1::uuid AND merged_into_id IS NULL AND email IS NULL`,
+    [userId, email],
   );
+  await runWebappPgText(
+    `UPDATE platform_users
+     SET email_verified_at = now(),
+         updated_at = now()
+     WHERE id = $1::uuid AND merged_into_id IS NULL
+       AND email_verified_at IS NULL
+       AND lower(btrim(email)) = lower(btrim($2::text))`,
+    [userId, email],
+  );
+}
+
+async function findUserIdsByAnyConfirmedEmail(emailNorm: string): Promise<string[]> {
+  const r = await runWebappPgText<{ user_id: string }>(
+    `SELECT user_id::text AS user_id
+     FROM app.find_platform_user_ids_by_any_confirmed_email($1)`,
+    [emailNorm],
+  );
+  return r.rows.map((row) => row.user_id);
+}
+
+async function getActivePhoneForUser(userId: string): Promise<string | null> {
+  const r = await runWebappPgText<{ phone_normalized: string | null }>(
+    `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid AND merged_into_id IS NULL`,
+    [userId],
+  );
+  const phone = r.rows[0]?.phone_normalized;
+  return typeof phone === 'string' && phone.trim() ? phone : null;
+}
+
+async function addSparePhoneContact(userId: string, phoneNorm: string): Promise<void> {
+  const pool = getPool();
+  await runWebappPgText(
+    `UPDATE platform_users SET phone_normalized = $2::text, updated_at = now()
+     WHERE id = $1::uuid AND merged_into_id IS NULL`,
+    [userId, phoneNorm],
+  );
+  await applyPlatformUserPhoneHistoryTransition(pool, {
+    platformUserId: userId,
+    newPhoneNormalized: phoneNorm,
+    source: 'oauth',
+  });
 }
 
 async function findUserIdsByVerifiedEmail(emailNorm: string): Promise<string[]> {
@@ -109,6 +168,9 @@ export const pgOAuthUserResolvePort: OAuthUserResolvePort = {
   applyVerifiedOAuthEmail,
   findUserIdsByVerifiedEmail,
   findActiveUserIdsByEmail,
+  findUserIdsByAnyConfirmedEmail,
+  getActivePhoneForUser,
+  addSparePhoneContact,
   createOAuthPlatformUser,
   upsertOAuthBinding,
 };

@@ -501,27 +501,36 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       аутентификации, вход в ОДИН аккаунт по любому его подтверждённому контакту, и всё работает.
       Обоснование порядка и замеры — `runs/integrator-cleanup/IDENTITY_DB_SPLIT_RESEARCH_2026-08-03.md` §6 и
       `IDENTITY_AND_MERGE_SCHEME.md` §2b.
-      - [ ] **D15b/1 — живой замер перед работой.** Правда ли RLS выключена на `platform_users` сегодня;
+      - [x] **D15b/1 — живой замер перед работой.** ✅ 03.08, `ff359cff6`, land `ee59d00e6`; документ
+            `runs/integrator-cleanup/D15B1_IDENTITY_CENSUS_2026-08-03.md`. ⚠️ Перепись ОПРОВЕРГЛА три числа,
+            которые лид внёс сюда по грепу схемы — исправлены ниже по тексту. Подтверждено и расширено: RLS на
+            `platform_users` выключена на DEV и TEST, и роль `app_patient` без RLS читает ЛЮБУЮ строку, включая
+            пациентов чужой клиники — это ещё и обход тенантной границы, а не только PII без стены.
+            Прежняя формулировка шага: Правда ли RLS выключена на `platform_users` сегодня;
             поколоночная перепись читателей (ФИО против контактов); классификация 46 внешних ключей на
             `platform_users.id` — какие относятся к обвязке входа, какие к медицине. Ничего не меняется.
-      - [ ] **D15b/2 — D25: интегратор перестаёт писать идентичность** (11 файлов, включая сырые
-            `directPublic/writeIdentityAndPreferencesDirect`, `mergeCandidatesDirect`, `channelUsers`,
-            `mergeIntegratorUsers`). Интегратор остаётся транспортом: доставляет коды и запросы контакта,
-            принимает доверенные контакты. Живая проверка обязательна: первый вебхук НОВОГО пользователя.
+      - [x] **D15b/2 — D25: интегратор перестаёт писать идентичность.** ✅ 03.08, `5137e8c68`, land `2c1cd63fb`: одна реализация записи в `packages/platform-merge/src/identityProjectionWrite.ts`, её зовут оба приложения; каскад слияния кандидатов тоже сведён с двух копий к одной; мёртвый `writeNotificationTopicsDirect` удалён. Место общего пакета — §2d схемы: это write-engine, не порт. Живая проверка двумя вебхуками на DEV — за лидом после apply. ⚠️ ЧИСЛО ИСПРАВЛЕНО ПЕРЕПИСЬЮ D15b/1:
+            не «11 файлов», а **3 места записи**, и они в пакете `packages/platform-merge/*`, которого этот план
+            не называл; два из четырёх файлов, названных здесь прежде (`channelUsers.ts`, `mergeIntegratorUsers.ts`),
+            идентичность не пишут вообще. Интегратор остаётся транспортом: доставляет коды и запросы контакта,
+            принимает доверенные контакты. **Живая проверка обязана гонять ДВА вебхука, а не один:** первый
+            создаёт персону и привязывает канал, а слияние и доверие к телефону происходят только на втором
+            (ответ на запрос контакта) — это тоже находка переписи.
       - [ ] **D15b/3 — один порт идентичности в вебаппе.** 16 репозиториев `src/infra`, пишущих
             `platform_users`, схлопываются в один модуль; ~12 файлов, ходящих к таблице мимо `infra`,
             заводятся под него.
       - [ ] **D15b/4 — RLS на `platform_users`.** Делается ПОСЛЕ 2 и 3: пока таблицу пишут 27 мест из двух
             приложений, форму политики нельзя даже определить.
       - [ ] **D15b/5 — ФИО в `user_identity`** (5 колонок, 17 читателей в `infra`). `id` остаётся ключом
-            аккаунта, 46 внешних ключей не двигаются. Репетиция механики выноса на дешёвой таблице.
+            аккаунта, внешние ключи не двигаются. Репетиция механики выноса на дешёвой таблице.
       - [ ] **D15b/6 — контакты в `user_contacts`** (36 читателей в `infra`). Не перенос, а сборка из ЧЕТЫРЁХ
             мест: колонки `platform_users`, `user_oauth_bindings.email`, `user_phone_history`,
             `user_channel_bindings`. Уникальные индексы переезжают вместе — они держат «один контакт = один
             аккаунт». Равноправный вход переводится на эту таблицу.
       - [ ] **D15b/7 — псевдоним — НЕ В ЭТОМ ОБЪЁМЕ.** Решение принимается после D15b/6 (владелец 03.08).
-            Замер на будущее: ~12 клинических таблиц с прямым ключом, 15 колонок `platform_user_id`/
-            `patient_user_id`, и предикаты RLS всех 157 SCOPED-таблиц. Единственный необратимый шаг.
+            Замер на будущее ⚠️ ИСПРАВЛЕН ПЕРЕПИСЬЮ: не «46 ключей», а **130 FK-constraint'ов от 104 таблиц**;
+            классификация по трём группам и спорные случаи — в документе переписи. Плюс предикаты RLS всех
+            157 SCOPED-таблиц. Единственный необратимый шаг.
 - [ ] **D10a — один журнал доставки и одна очередь.** Решение — **Р-D10a** (§2.3): журнал попыток —
       `public.notification_delivery_attempts`, `integrator.delivery_attempt_logs` сносится; очередь —
       `public.outgoing_delivery_queue`, `integrator.message_retry_jobs` вырезается, недостающие поля добираются
@@ -926,6 +935,39 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       migration carries no GRANT statement). Preflight and execute both PASS; ran from the worktree by
       copying `.env.dev`/`.env` from the main checkout per the shared-DEV-DB recipe (same target database,
       no product code touched, no push).
+      **CURRENT PARTIAL 03.08 (D27 F5/F6, wt/trackd-d27de-login-code-screen, migration `0342`, not yet
+      applied to any environment):** F5 (§3.4/§2a) — `applyVerifiedOAuthEmail` (`pgOAuthUserResolve.ts`) no
+      longer overwrites the primary unconditionally: the `UPDATE` now runs only `WHERE email IS NULL`; a
+      later OAuth address stays a confirmed secondary in `user_oauth_bindings` (already written there, just
+      never read back as one before). Test: `oauthWebLoginResolve.unit.test.ts` → "F5 invariant".
+      F6 (§2a) — the owner's six cases live in one shared helper, `oauthContactResolve.ts`, used by BOTH
+      `oauthWebLoginResolve.ts` (google/apple) and `oauthYandexResolve.ts` (not a second resolver — the
+      matching rules are centralized, each resolver keeps its own create/bind orchestration). Cases 1/2
+      unchanged in substance; case 3/5 (email added as a confirmed spare) already worked through the
+      existing `upsertOAuthBinding` write — this slice adds the conflict check that must run first; case 4
+      (phone added as a spare) is a new writer, `addSparePhoneContact`, and only fires when the matched
+      account has NO existing active phone — `user_phone_history` allows at most one active phone per
+      account today (`uq_user_phone_history_user_active`), so a second confirmed phone next to an existing
+      different one is NOT written; that is a real schema limit, not a bug, and its removal is D15a/D15b
+      territory, not this slice's. Case 6 (conflict) — `resolveOAuthContactOwners` returns `contact_conflict`;
+      the `/app` screen renders the owner's verbatim message plus a support-chat button (see below). New
+      migration `0342` (SECURITY DEFINER `app.find_platform_user_ids_by_any_confirmed_email`, primary OR
+      confirmed OAuth-linked secondary) is used by `email_password_find_login_candidate`,
+      `email_auth_find_email_owner_conflict`, and `pgEmailPasswordLookup` — one function so equal-rights
+      login (§2a item 7) and the OAuth resolver's own email lookup share the exact same rule; plus `'oauth'`
+      added to `user_phone_history.source`'s check constraint (case 4 only). Tests:
+      `oauthWebLoginResolve.unit.test.ts` (all six cases + the F5 invariant + the pre-existing ambiguous-email
+      guard), `pgEmailPasswordLookup.test.ts` (a confirmed secondary contact resolves to
+      `verified_with_password`, same as a verified primary).
+      **Support button / D-12 decision:** reused the login screen's ALREADY-existing public, signed-out-safe
+      support path (`routePaths.loginContactSupport` / the `supportContactHref` prop `AuthBootstrap` already
+      receives for its unauthenticated specialist-signup-unavailable screen) — no new anonymous-support
+      exception was created; D-12 already carved this one out for this exact screen.
+      Still open: D27-B/C (preference UI, durable delivery queue); the contact list UI with per-contact
+      removal (separate slice — the owner chose "an honest list with delete", not a per-binding identify/
+      recover switch; the automatic-binding timestamp it needs already exists, `user_oauth_bindings.
+      created_at`); a genuine second confirmed phone next to an existing different one (structural limit
+      above, D15a/D15b); migration `0342` has not been applied to any environment by this slice.
 - [ ] **D28 — отзыв подтверждения вместе с номером.** Решение — **Р-D28** (§2.3).
 - [ ] **D29 — ФИО только кириллицей, автоподстановка имени отменяется.** Решение — **Р-D29** (§2.3). Это не
       только проверка ввода: сегодня имя приезжает из внешнего профиля мессенджеров и OAuth.

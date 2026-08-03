@@ -41,7 +41,23 @@ export async function stampDbPrincipalFromSession(
       const resolved = await organizationMembershipService.resolveOrganizationForUser({
         platformUserId: session.user.userId,
       });
-      if (!resolved.ok) return;
+      if (!resolved.ok) {
+        // A global admin holds no organization membership row, so resolution above always
+        // misses for it — that is the expected, common case here, not an error. Leaving the
+        // ambient principal unset left every such session on the bare "bootstrap" pool for the
+        // rest of the request: reproduced live on TEST 2026-08-03, `/app/account?tab=notifications`
+        // 500'd with "permission denied for table user_web_push_subscriptions" (digest
+        // 1641640286) because nothing here ever stamped a principal for it. The identity-self
+        // wall (same one `enterStaffSecuritySelfPrincipal` already uses for the account page's
+        // security tab) covers exactly a session's own personal-data tables — web push
+        // subscriptions, channel/topic notification prefs, profile fields — with no
+        // organization required, which is everything a role without a membership can reach.
+        enterWithDbPatientPrincipal({
+          platformUserId: session.user.userId,
+          source: `${source}:doctor-role-no-org-self`,
+        });
+        return;
+      }
       enterWithDbStaffPrincipal({
         organizationId: resolved.context.organizationId,
         platformUserId: session.user.userId,

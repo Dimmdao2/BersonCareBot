@@ -63,7 +63,6 @@ const TRIAL_STATUS_LABELS: Record<
   string
 > = {
   active: 'Активен',
-  grace: 'Льготный период',
   expired: 'Истёк',
   ended: 'Завершён',
 };
@@ -77,6 +76,12 @@ type TariffDraft = {
   includedSeats: string;
   /** §5a item 5.1 — empty means overage past includedSeats stays hard-blocked (§5.2, unchanged). */
   additionalSeatPriceRub: string;
+  /**
+   * Т8 — exact discounted price for this tariff's discount-payment window. No editor in this
+   * constructor yet (a separate slice); carried through unchanged so re-saving an existing tariff
+   * here never silently wipes it.
+   */
+  discountedPriceMinor: number | null;
   isActive: boolean;
   mechanics: Record<OrgMechanic, boolean>;
   quotas: TariffQuotaMap;
@@ -151,6 +156,7 @@ function emptyTariffDraft(): TariffDraft {
     // минимум». A prefilled value the owner sees and changes, not a runtime substitution.
     includedSeats: '1',
     additionalSeatPriceRub: '',
+    discountedPriceMinor: null,
     isActive: true,
     mechanics: emptyMechanics(),
     quotas: {},
@@ -170,6 +176,7 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     includedSeats: tariff.includedSeats === null ? '' : String(tariff.includedSeats),
     additionalSeatPriceRub:
       tariff.additionalSeatPriceMinor === null ? '' : String(tariff.additionalSeatPriceMinor / 100),
+    discountedPriceMinor: tariff.discountedPriceMinor,
     isActive: tariff.isActive,
     mechanics: Object.fromEntries(
       CONSTRUCTOR_MECHANICS.map((mechanic) => [mechanic, tariff.mechanics[mechanic] === true]),
@@ -549,16 +556,14 @@ export function CommercialConstructorClient() {
   const [overrideEnabled, setOverrideEnabled] = useState(true);
   const [overrideQuota, setOverrideQuota] = useState<TariffQuota | null>(null);
   const [overrideExpiresAt, setOverrideExpiresAt] = useState('');
-  const [trialTariffId, setTrialTariffId] = useState('');
   const [trialDuration, setTrialDuration] = useState('');
-  const [trialGrace, setTrialGrace] = useState('');
+  const [trialDiscountWindow, setTrialDiscountWindow] = useState('');
   const [trialStartEvent, setTrialStartEvent] = useState<TrialPolicy['startEvent']>('');
   const [postTrialBehavior, setPostTrialBehavior] =
     useState<TrialPolicy['postTrialBehavior'] | null>(null);
   const [postTrialTariffId, setPostTrialTariffId] = useState('none');
   const [trialActive, setTrialActive] = useState(false);
   const [registrationTariffId, setRegistrationTariffId] = useState('none');
-  const [extensionDays, setExtensionDays] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -584,18 +589,16 @@ export function CommercialConstructorClient() {
   useEffect(() => {
     const policy = state.trialPolicy;
     if (!policy) {
-      setTrialTariffId('');
       setTrialDuration('');
-      setTrialGrace('');
+      setTrialDiscountWindow('');
       setTrialStartEvent('');
       setPostTrialBehavior(null);
       setPostTrialTariffId('none');
       setTrialActive(false);
       return;
     }
-    setTrialTariffId(policy.tariffId);
     setTrialDuration(String(policy.durationDays));
-    setTrialGrace(String(policy.graceDays));
+    setTrialDiscountWindow(String(policy.discountWindowDays));
     setTrialStartEvent(policy.startEvent);
     setPostTrialBehavior(policy.postTrialBehavior);
     setPostTrialTariffId(policy.postTrialTariffId ?? 'none');
@@ -619,14 +622,13 @@ export function CommercialConstructorClient() {
   const assignmentEndsTrial = Boolean(
     selectedOrganization?.trial && selectedOrganization.trial.status !== 'ended',
   );
+  // #1069 Т3/Т5 (owner 03.08): the trial applies to whatever tariff the organization already has —
+  // assign one first (above) before a trial can start.
   const canStartTrial = Boolean(
-    selectedOrganization && selectedOrganization.trial === null && state.trialPolicy?.isActive,
-  );
-  const canExtendTrial = Boolean(
-    selectedOrganization?.trial?.status === 'active' &&
-    Date.parse(selectedOrganization.trial.endsAt) > Date.now() &&
-    Number.isSafeInteger(Number(extensionDays)) &&
-    Number(extensionDays) > 0,
+    selectedOrganization &&
+      selectedOrganization.tariffId &&
+      selectedOrganization.trial === null &&
+      state.trialPolicy?.isActive,
   );
 
   useEffect(() => {
@@ -689,7 +691,10 @@ export function CommercialConstructorClient() {
       name: tariff.name,
       description: tariff.description,
       priceMinor: Number.isFinite(price) ? price : null,
-      currency: price === null && additionalSeatPrice === null ? null : 'RUB',
+      currency:
+        price === null && additionalSeatPrice === null && tariff.discountedPriceMinor === null
+          ? null
+          : 'RUB',
       billingPeriod: tariff.billingPeriod,
       mechanics: tariff.mechanics,
       quotas: tariff.quotas,
@@ -698,6 +703,7 @@ export function CommercialConstructorClient() {
       downgradePolicies: tariff.downgradePolicies,
       includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
       additionalSeatPriceMinor: Number.isFinite(additionalSeatPrice) ? additionalSeatPrice : null,
+      discountedPriceMinor: tariff.discountedPriceMinor,
       isActive: tariff.isActive,
     };
     await mutate(
@@ -1085,10 +1091,7 @@ export function CommercialConstructorClient() {
                     {state.tariffs.find((item) => item.id === selectedOrganization.trial?.tariffId)
                       ?.name ?? 'не найден'}
                   </p>
-                  <p>
-                    До {new Date(selectedOrganization.trial.endsAt).toLocaleString('ru-RU')}, grace
-                    до {new Date(selectedOrganization.trial.graceEndsAt).toLocaleString('ru-RU')}
-                  </p>
+                  <p>До {new Date(selectedOrganization.trial.endsAt).toLocaleString('ru-RU')}</p>
                 </>
               ) : (
                 <p>Триал не запускался.</p>
@@ -1246,29 +1249,6 @@ export function CommercialConstructorClient() {
             >
               Запустить триал
             </Button>
-            <div className="space-y-1">
-              <Label htmlFor="extension-days">Продлить, дней</Label>
-              <Input
-                id="extension-days"
-                className="w-28"
-                type="number"
-                min="1"
-                value={extensionDays}
-                onChange={(event) => setExtensionDays(event.target.value)}
-              />
-            </div>
-            <Button
-              variant="outline"
-              disabled={busy || !organizationId || !canExtendTrial}
-              onClick={() =>
-                void mutate(
-                  { action: 'extend_trial', organizationId, days: Number(extensionDays), reason },
-                  'Триал продлён',
-                )
-              }
-            >
-              Продлить
-            </Button>
           </div>
         </DoctorSection>
       </TabsContent>
@@ -1349,9 +1329,8 @@ export function CommercialConstructorClient() {
                 {
                   action: 'set_trial_policy',
                   policy: {
-                    tariffId: trialTariffId,
                     durationDays: Number(trialDuration),
-                    graceDays: Number(trialGrace),
+                    discountWindowDays: Number(trialDiscountWindow),
                     startEvent: trialStartEvent,
                     postTrialBehavior,
                     postTrialTariffId:
@@ -1369,28 +1348,6 @@ export function CommercialConstructorClient() {
             <DoctorSectionHeader className="md:col-span-2">
               <DoctorSectionTitle>Правило для новых организаций</DoctorSectionTitle>
             </DoctorSectionHeader>
-            <div className="space-y-1">
-              <Label>Тариф триала</Label>
-              <Select
-                value={trialTariffId}
-                onValueChange={(value) => {
-                  if (value) setTrialTariffId(value);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите тариф" />
-                </SelectTrigger>
-                <SelectContent>
-                  {state.tariffs
-                    .filter((item) => item.isActive)
-                    .map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-1">
               <Label htmlFor="trial-start-event">Событие старта</Label>
               <Input
@@ -1411,13 +1368,13 @@ export function CommercialConstructorClient() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="trial-grace">Льготный период, дней</Label>
+              <Label htmlFor="trial-grace">Льготный период на оплату со скидкой, дней</Label>
               <Input
                 id="trial-grace"
                 type="number"
                 min="0"
-                value={trialGrace}
-                onChange={(event) => setTrialGrace(event.target.value)}
+                value={trialDiscountWindow}
+                onChange={(event) => setTrialDiscountWindow(event.target.value)}
               />
             </div>
             <div className="space-y-1">
@@ -1495,7 +1452,7 @@ export function CommercialConstructorClient() {
             <div className="md:col-span-2">
               <Button
                 type="submit"
-                disabled={busy || !trialTariffId || !trialStartEvent.trim() || !postTrialBehavior}
+                disabled={busy || !trialStartEvent.trim() || !postTrialBehavior}
               >
                 Сохранить правило
               </Button>
