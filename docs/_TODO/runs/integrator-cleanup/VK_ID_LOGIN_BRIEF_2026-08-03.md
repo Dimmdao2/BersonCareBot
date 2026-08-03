@@ -1,5 +1,8 @@
 # VK ID — make the login method real
 
+**СВЕДЕНО в `docs/ARCHITECTURE/AUTH_AND_IDENTITY_CANON.md` 04.08** (раздел «Способы входа») — виджет-решение и
+итоговая конфигурация ниже перенесены в канон в сжатом виде.
+
 Rules: `AGENTS.md` — Маршрут, CORE rules, §2/§3/§4 (integration config lives in the DB, never in env),
 §5, §10/§10a/§10b, §21, §24. Language: internal work is English; UI copy is Russian.
 
