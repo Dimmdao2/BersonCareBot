@@ -325,25 +325,33 @@ export function createDbWritePort(
           // `buildChannelAnchorWriter` below: that's the integrator's own channel-profile bookkeeping
           // (`identities`/channel anchor), not the webapp canon, and is out of this decision's scope.
           try {
-            await writeIdentityAndPreferencesDirect(
-              db,
-              {
-                channelCode,
-                externalId,
-                firstName: null,
-                lastName: null,
-                displayName: null,
-              },
-              {
-                writeChannelAnchor: buildChannelAnchorWriter(
-                  resource,
+            // D15b/4 fix (access sweep 2026-08-04, ACCESS_SWEEP_2026-08-04.md "Топ находка"): this
+            // writes `public.platform_users`/`user_channel_bindings` directly (see
+            // writeIdentityAndPreferencesDirect.ts). Under the bare "integrator" principal
+            // (`app_patient`, org set, `patient_user_id` NULL) every `platform_users` FORCE-RLS policy
+            // denies it — reads come back silently empty, writes get permission-denied. Same
+            // `runDirectPublicWriteWithOrgPrincipal` idiom as the D3-D5 direct writes below.
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              writeIdentityAndPreferencesDirect(
+                db,
+                {
+                  channelCode,
                   externalId,
-                  username,
-                  firstName,
-                  lastName,
-                ),
-                mergeCandidateIds: mergeCandidateIdsViaPlatformMerge,
-              },
+                  firstName: null,
+                  lastName: null,
+                  displayName: null,
+                },
+                {
+                  writeChannelAnchor: buildChannelAnchorWriter(
+                    resource,
+                    externalId,
+                    username,
+                    firstName,
+                    lastName,
+                  ),
+                  mergeCandidateIds: mergeCandidateIdsViaPlatformMerge,
+                },
+              ),
             );
           } catch (err) {
             if (err instanceof DirectPublicWriteError && err.code === 'channel_anchor_unresolved') {
@@ -402,45 +410,52 @@ export function createDbWritePort(
             let applied = false;
             let phoneLinkEarly: DbWriteDbResult | undefined;
             let platformUserIdForLog: string | undefined;
-            await db.tx(async (txDb) => {
-              if (resource === 'max') {
-                await ensureIdentityForMessenger(txDb, {
-                  resource: 'max',
-                  externalId: channelUserId,
-                });
-              }
-              const idPeek = await runIntegratorSql<{ user_id: string }>(
-                txDb,
-                sql`SELECT i.user_id::text AS user_id
+            // Same D15b/4 fix as `user.upsert` above: `applyMessengerPhonePublicBind` writes
+            // `public.platform_users`/`user_channel_bindings` directly and is RLS-denied under the
+            // bare "integrator" principal. The integrator-local statements in this same tx
+            // (`ensureIdentityForMessenger`/`setUserPhone` — `integrator.identities`/`integrator.users`,
+            // neither RLS'd) are unaffected by running under `app_staff` for the tx's duration.
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              db.tx(async (txDb) => {
+                if (resource === 'max') {
+                  await ensureIdentityForMessenger(txDb, {
+                    resource: 'max',
+                    externalId: channelUserId,
+                  });
+                }
+                const idPeek = await runIntegratorSql<{ user_id: string }>(
+                  txDb,
+                  sql`SELECT i.user_id::text AS user_id
                  FROM identities i
                  WHERE i.resource = ${resource} AND i.external_id = ${channelUserId}
                  LIMIT 1`,
-              );
-              const rawUid = idPeek.rows[0]?.user_id ?? null;
-              if (!rawUid) {
-                phoneLinkEarly = {
-                  userPhoneLinkApplied: false,
-                  phoneLinkReason: 'no_integrator_identity',
-                };
-                return;
-              }
-              const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
-              const { platformUserId } = await applyMessengerPhonePublicBind(txDb, {
-                channelCode: resource,
-                externalId: channelUserId,
-                phoneNormalized,
-                canonicalIntegratorUserId: canonicalUid,
-              });
-              platformUserIdForLog = platformUserId;
-              const outcome = await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
-              if (outcome === 'failed') {
-                throw new MessengerPhoneLinkError('db_transient_failure');
-              }
-              if (outcome === 'noop_conflict') {
-                throw new MessengerPhoneLinkError('legacy_contacts_conflict');
-              }
-              applied = true;
-            });
+                );
+                const rawUid = idPeek.rows[0]?.user_id ?? null;
+                if (!rawUid) {
+                  phoneLinkEarly = {
+                    userPhoneLinkApplied: false,
+                    phoneLinkReason: 'no_integrator_identity',
+                  };
+                  return;
+                }
+                const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
+                const { platformUserId } = await applyMessengerPhonePublicBind(txDb, {
+                  channelCode: resource,
+                  externalId: channelUserId,
+                  phoneNormalized,
+                  canonicalIntegratorUserId: canonicalUid,
+                });
+                platformUserIdForLog = platformUserId;
+                const outcome = await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
+                if (outcome === 'failed') {
+                  throw new MessengerPhoneLinkError('db_transient_failure');
+                }
+                if (outcome === 'noop_conflict') {
+                  throw new MessengerPhoneLinkError('legacy_contacts_conflict');
+                }
+                applied = true;
+              }),
+            );
             if (phoneLinkEarly) {
               logger.warn(
                 {
@@ -484,20 +499,25 @@ export function createDbWritePort(
                 'bind_tx_fail',
               );
               if (err.code !== 'db_transient_failure') {
-                void recordMessengerPhoneBindBlocked({
-                  db,
-                  ...(getDispatchPort ? { getDispatchPort } : {}),
-                  reason: err.code,
-                  candidateIds: err.candidateIds,
-                  details: {
-                    channelCode: resource,
-                    externalId: channelUserId,
-                    phoneSuffix,
-                    ...(asNonEmptyString(mutation.params.correlationId)
-                      ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
-                      : {}),
-                  },
-                }).catch(() => {});
+                // Same D15b/4 fix: `admin_audit_log` insert/update, also RLS-scoped by
+                // `organization_id` (`saas_org_dormant_p0_8_3`) — denied under the bare integrator
+                // principal, blocked entirely for `app_patient` (no grant at all).
+                void runDirectPublicWriteWithOrgPrincipal(() =>
+                  recordMessengerPhoneBindBlocked({
+                    db,
+                    ...(getDispatchPort ? { getDispatchPort } : {}),
+                    reason: err.code,
+                    candidateIds: err.candidateIds,
+                    details: {
+                      channelCode: resource,
+                      externalId: channelUserId,
+                      phoneSuffix,
+                      ...(asNonEmptyString(mutation.params.correlationId)
+                        ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
+                        : {}),
+                    },
+                  }),
+                ).catch(() => {});
               }
               if (err.code === 'db_transient_failure') {
                 return {
