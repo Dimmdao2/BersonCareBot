@@ -75,7 +75,11 @@ describe('commercial constructor access ladder', () => {
     expect(screen.getByText('Терпение: дней')).toBeInTheDocument();
     // The agent's single "number of warnings" is gone; уведомления — это список владельца.
     expect(screen.queryByText('Предупреждений')).not.toBeInTheDocument();
-    expect(screen.getByText('Уведомления')).toBeInTheDocument();
+    // Т3 (owner 04.08) — templates no longer live inline in the tariff form; they moved to their
+    // own «Уведомления» tab, so the row editor is absent here.
+    expect(
+      screen.queryByRole('button', { name: 'Добавить уведомление' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('Только чтение: дней')).toBeInTheDocument();
     expect(screen.getByText('Затем')).toBeInTheDocument();
     expect(screen.queryByText(/квот/i)).not.toBeInTheDocument();
@@ -140,14 +144,6 @@ describe('commercial constructor access ladder', () => {
     );
     expect(openSelect).not.toBeNull();
     await user.click(within(openSelect!).getByRole('option', { name: 'Только чтение' }));
-    // §5a item 2.6a — the owner adds notification rows himself; there is no fixed number.
-    await user.click(screen.getAllByRole('button', { name: 'Добавить уведомление' })[0]!);
-    fireEvent.change(screen.getByLabelText('Доступ к системе: уведомление 1: срок'), {
-      target: { value: '-2' },
-    });
-    fireEvent.change(screen.getByLabelText('Доступ к системе: уведомление 1: текст'), {
-      target: { value: 'Оплатите {{тариф}} до {{дата}}' },
-    });
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitFor(() =>
@@ -157,13 +153,7 @@ describe('commercial constructor access ladder', () => {
           systemAccessPolicy: {
             graceDays: 6,
             readOnlyDays: 4,
-            notifications: [
-              {
-                offsetDays: -2,
-                condition: 'payment_failed',
-                template: 'Оплатите {{тариф}} до {{дата}}',
-              },
-            ],
+            notifications: [],
             terminalState: 'disabled',
           },
           mechanicAccessPolicies: {
@@ -181,12 +171,95 @@ describe('commercial constructor access ladder', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Тариф с политикой/ }));
 
     expect(screen.getByLabelText('Доступ к системе: Терпение: дней')).toHaveValue(6);
-    expect(screen.getByLabelText('Доступ к системе: уведомление 1: срок')).toHaveValue(-2);
-    expect(screen.getByLabelText('Доступ к системе: уведомление 1: текст')).toHaveValue(
-      'Оплатите {{тариф}} до {{дата}}',
-    );
     expect(screen.getByLabelText('Онлайн-запись: Только чтение: дней')).toHaveValue(5);
     expect(screen.getByLabelText('Онлайн-запись: Затем')).toHaveTextContent('Только чтение');
+  });
+
+  // Т2/Т3/Т7 (owner 04.08) — templates move to their own tab with a full editor; this proves the
+  // tab picks up an existing tariff's notification rows (all seven conditions offered, template
+  // text rendered by the rich editor) and that editing the deadline round-trips without touching
+  // the owner's template text.
+  it('edits an existing notification row from the separate Уведомления tab, template preserved', async () => {
+    const user = userEvent.setup();
+    let submitted: Record<string, unknown> | null = null;
+    const existingTariff = {
+      id: '11111111-1111-4111-8111-111111111177',
+      name: 'Тариф с триггерами',
+      description: '',
+      priceMinor: null,
+      currency: null,
+      billingPeriod: 'month',
+      mechanics: {},
+      quotas: {},
+      systemAccessPolicy: {
+        graceDays: 6,
+        readOnlyDays: 4,
+        notifications: [
+          { offsetDays: -2, condition: 'payment_failed', template: 'Оплатите {{тариф}} до {{дата}}' },
+        ],
+        terminalState: 'disabled',
+      },
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      includedSeats: 1,
+      additionalSeatPriceMinor: null,
+      discountedPriceMinor: null,
+      isActive: true,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          submitted = JSON.parse(String(init.body)) as Record<string, unknown>;
+          return { ok: true, json: async () => ({ ok: true, result: {} }) };
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            tariffs: [existingTariff],
+            organizations: [],
+            trialPolicy: null,
+            registrationTariffPolicy: { tariffId: null },
+          }),
+        };
+      }),
+    );
+
+    render(<CommercialConstructorClient />);
+    await user.click(await screen.findByRole('tab', { name: 'Уведомления' }));
+    await user.click(await screen.findByRole('button', { name: /Тариф с триггерами/ }));
+
+    // The row's template renders through the rich editor, not a stub — the owner's text is really there.
+    expect(await screen.findByText(/Оплатите/)).toBeInTheDocument();
+    // Т2/Т7 — all seven conditions are offered, not just the payment pair.
+    expect(
+      screen.getByLabelText('Доступ к системе: уведомление 1: условие'),
+    ).toHaveTextContent('Ошибка оплаты');
+
+    fireEvent.change(screen.getByLabelText('Доступ к системе: уведомление 1: срок'), {
+      target: { value: '-5' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(submitted).toMatchObject({
+        action: 'update_tariff',
+        tariff: {
+          systemAccessPolicy: {
+            notifications: [
+              {
+                offsetDays: -5,
+                condition: 'payment_failed',
+                template: 'Оплатите {{тариф}} до {{дата}}',
+              },
+            ],
+          },
+        },
+      }),
+    );
   });
 
   it('never offers "full access" as a ladder terminal state (§5a stage 4b.2 — exactly two values)', async () => {
