@@ -340,14 +340,17 @@ export async function startEmailChallenge(
     codeHash,
     expiresAt,
     purpose,
+    code,
   });
   // D27-C: enqueue onto the durable delivery queue instead of awaiting the provider here. This is
   // what takes provider latency out of the public request (the D27-A2 timing oracle) and what
   // makes a delivery failure visible to the operator instead of the person at the screen — see
   // enqueueAuthEmailOtpDelivery / outgoingDeliveryWorker's auth_email_otp branch. A failure here
   // means the ENQUEUE itself failed (DB outage), not that the provider rejected the code.
+  // D27-C fix round 2: the queue-facing port only carries the challenge id — recipient/code/subject
+  // are composed DB-side from the row just written above (app.email_auth_enqueue_otp_delivery).
   try {
-    await enqueueEmailOtpDelivery({ eventId: `auth-otp:email:${challengeId}`, email, code });
+    await enqueueEmailOtpDelivery({ challengeId });
   } catch (err) {
     if (isEmailOtpDebugEnabled()) {
       // Opt-in dev aid: tolerate enqueue failure (no DB delivery queue reachable). Code logged above.

@@ -3,12 +3,14 @@
  * instead of awaiting the provider inside the public request. Kept separate from
  * `EmailAuthDbPort` (challenge storage) and `EmailSendPort` (the in-memory/no-DB test fallback,
  * which still sends synchronously) — a distinct concern gets its own port, not a widened one.
+ *
+ * D27-C fix round 2: the only input is the challenge id. Recipient, code, subject and idempotency
+ * key are all derived DB-side from `public.email_challenges` (`app.email_auth_enqueue_otp_delivery`,
+ * migration 0363) — this port never carries message content, so there is nothing here for a caller
+ * to forge.
  */
 export type EnqueueEmailOtpDeliveryInput = {
-  /** Idempotency key for `outgoing_delivery_queue.event_id` — one row per challenge issuance. */
-  eventId: string;
-  email: string;
-  code: string;
+  challengeId: string;
 };
 
 export type EmailOtpDeliveryQueuePort = {

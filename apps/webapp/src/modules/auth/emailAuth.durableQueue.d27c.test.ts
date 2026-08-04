@@ -80,15 +80,16 @@ describe('D27-C: startEmailChallenge enqueues onto the durable queue instead of 
     expect(result).toMatchObject({ ok: true, challengeId: 'challenge-1' });
     expect(sendCode).not.toHaveBeenCalled();
     expect(enqueue).toHaveBeenCalledTimes(1);
-    expect(enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventId: 'auth-otp:email:challenge-1',
-        email: EMAIL,
-      }),
+    // D27-C fix round 2: the port carries only the challenge id -- recipient/code/subject are
+    // composed DB-side from public.email_challenges (app.email_auth_enqueue_otp_delivery), never
+    // passed through this call. See emailOtpDeliveryQueuePort.ts.
+    expect(enqueue).toHaveBeenCalledWith({ challengeId: 'challenge-1' });
+    // The raw code is still a required part of what startEmailChallenge writes to the DB (the
+    // worker sends it later) but it now travels via insertEmailChallenge's `code` field, not the
+    // enqueue port -- confirm it was actually passed through there instead.
+    expect(db.insertEmailChallenge).toHaveBeenCalledWith(
+      expect.objectContaining({ code: expect.any(String) }),
     );
-    // The raw code is a required part of the enqueue payload (the worker sends it later) but must
-    // never be logged or asserted verbatim here beyond confirming it was actually passed through.
-    expect(typeof enqueue.mock.calls[0]?.[0]?.code).toBe('string');
     expect(db.deleteEmailChallengeById).not.toHaveBeenCalled();
     expect(db.upsertEmailSendCooldown).toHaveBeenCalledWith(USER_ID, EMAIL);
   });

@@ -111,17 +111,28 @@ BEGIN
 END
 $preferred_auth_channel_grant$;
 
--- D27-C correction (2026-08-04, migration 0360): `app.email_auth_enqueue_otp_delivery` is called
--- from `startEmailChallenge` under a `bootstrap` principal, the same pre-session pool as
--- `release_principal_context`/`get_preferred_auth_channel_code` above -- current_user is the bare
--- NOINHERIT login here, never `app_patient`. The migration itself grants EXECUTE to `app_patient`
--- (same as every other `app.email_auth_*` accessor), which is necessary but not sufficient on DEV:
--- live reproduction (POST /api/auth/email-otp/start under DB_PRINCIPAL_CONTEXT_MODE=locked) hit
--- `permission denied for function email_auth_enqueue_otp_delivery` until this direct grant landed.
+-- D27-C correction (2026-08-04, migration 0360, superseded by fix round 2 / migration 0363):
+-- `app.email_auth_enqueue_otp_delivery` is called from `startEmailChallenge` under a `bootstrap`
+-- principal, the same pre-session pool as `release_principal_context`/`get_preferred_auth_channel_code`
+-- above -- current_user is the bare NOINHERIT login here, never `app_patient`. The migration itself
+-- grants EXECUTE to `app_patient` (same as every other `app.email_auth_*` accessor), which is
+-- necessary but not sufficient on DEV: live reproduction (POST /api/auth/email-otp/start under
+-- DB_PRINCIPAL_CONTEXT_MODE=locked) hit `permission denied for function
+-- email_auth_enqueue_otp_delivery` until this direct grant landed.
+--
+-- Fix round 2 (migration 0363) narrowed the accessor to a single `uuid` argument (no more
+-- caller-built payload) and added a second bootstrap-reachable accessor,
+-- `email_auth_set_email_challenge_delivery_code`, that stamps the plaintext OTP onto the challenge
+-- row right after insert -- same pre-session pool, same NOINHERIT gap, same direct-grant need. Round
+-- 2's live verification (2026-08-04) hit the identical `permission denied` on THIS accessor until
+-- both grants below were added; the round-1 5-arg signature no longer exists (DROPped by 0363).
 DO $enqueue_otp_delivery_grant$
 BEGIN
-  IF to_regprocedure('app.email_auth_enqueue_otp_delivery(text,jsonb,integer,timestamptz,smallint)') IS NOT NULL THEN
-    EXECUTE 'GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(text,jsonb,integer,timestamptz,smallint) TO bcb_dev_runtime_nonstaff_login';
+  IF to_regprocedure('app.email_auth_enqueue_otp_delivery(uuid)') IS NOT NULL THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid) TO bcb_dev_runtime_nonstaff_login';
+  END IF;
+  IF to_regprocedure('app.email_auth_set_email_challenge_delivery_code(uuid,text)') IS NOT NULL THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION app.email_auth_set_email_challenge_delivery_code(uuid,text) TO bcb_dev_runtime_nonstaff_login';
   END IF;
 END
 $enqueue_otp_delivery_grant$;

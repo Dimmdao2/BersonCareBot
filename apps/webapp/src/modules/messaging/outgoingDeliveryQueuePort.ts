@@ -72,30 +72,16 @@ export type PatientReminderReadyOutgoingDelivery = {
   platformUserId: string;
 };
 
-/**
- * D27-C: durable auth-code email delivery. Platform-level (no organizationId), like
- * OperatorHealthDigestReadyOutgoingDelivery — a login code is not tenant-scoped work. `priority`
- * keeps it off the same claim order as ordinary mailings/reminders (see `outgoing_delivery_queue.
- * priority`, migration 0359): the durable queue is shared on purpose (one queue, not a second),
- * but a person waiting for a code must not queue behind a broadcast.
- */
-export type AuthEmailOtpReadyOutgoingDelivery = {
-  organizationId: null;
-  eventId: string;
-  kind: 'auth_email_otp';
-  channel: 'email';
-  intent: OutgoingIntent;
-  maxAttempts: number;
-  nextRetryAt: string;
-  priority: number;
-};
+// D27-C fix round 2: `auth_email_otp` no longer goes through this generic write port. Its enqueue
+// is a single narrow SECURITY DEFINER call (`app.email_auth_enqueue_otp_delivery`, migration 0363)
+// that composes the row itself from `public.email_challenges` — there is no caller-built
+// `ReadyOutgoingDelivery` envelope for it anymore. See pgAuthEmailOtpDeliveryQueue.ts.
 
 export type ReadyOutgoingDelivery =
   | SpecialistTaskReadyOutgoingDelivery
   | OperatorHealthDigestReadyOutgoingDelivery
   | PatientReminderReadyOutgoingDelivery
-  | AppointmentReminderReadyOutgoingDelivery
-  | AuthEmailOtpReadyOutgoingDelivery;
+  | AppointmentReminderReadyOutgoingDelivery;
 
 /** The only webapp write seam for `public.outgoing_delivery_queue`. */
 export type OutgoingDeliveryQueueWritePort<TransactionClient> = {

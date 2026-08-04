@@ -908,6 +908,13 @@ export const emailChallenges = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
+    /**
+     * D27-C fix round 2: one-shot plaintext OTP for delivery composition only (never used for
+     * verification, which stays on codeHash). Written by startEmailChallenge right after insert,
+     * nulled by app.email_auth_enqueue_otp_delivery the moment it's queued. Format-locked to 6
+     * digits by a CHECK constraint (migration 0363).
+     */
+    pendingDeliveryCode: text('pending_delivery_code'),
   },
   (table) => [
     index('idx_email_challenges_expires_at').using(

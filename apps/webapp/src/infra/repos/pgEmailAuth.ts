@@ -75,6 +75,7 @@ export async function insertEmailChallenge(params: {
   codeHash: string;
   expiresAt: number;
   purpose: EmailChallengePurpose;
+  code: string;
 }): Promise<string> {
   const ins = await runWebappPgText<{ id: string }>(
     `SELECT app.email_auth_insert_email_challenge($1::uuid, $2, $3, $4::bigint)::text AS id`,
@@ -89,6 +90,13 @@ export async function insertEmailChallenge(params: {
     challengeId,
     params.purpose,
   ]);
+  // D27-C fix round 2: same idiom -- the plaintext code is stamped via its own accessor right after
+  // insert, so app.email_auth_enqueue_otp_delivery (migration 0363) can compose the delivery email
+  // from the row instead of accepting it as a caller-supplied payload.
+  await runWebappPgText(
+    'SELECT app.email_auth_set_email_challenge_delivery_code($1::uuid, $2)',
+    [challengeId, params.code],
+  );
   return challengeId;
 }
 

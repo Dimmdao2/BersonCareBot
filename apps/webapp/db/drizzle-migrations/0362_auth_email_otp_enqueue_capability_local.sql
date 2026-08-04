@@ -22,7 +22,7 @@
 -- organization_id=NULL inside the function body (never caller-supplied), and can only INSERT a fresh
 -- row -- no UPDATE/DELETE path exists through it. The caller supplies only the fields that vary per
 -- OTP issuance: the idempotency event_id, the message payload, retry/priority bookkeeping.
-CREATE FUNCTION app.email_auth_enqueue_otp_delivery(
+CREATE OR REPLACE FUNCTION app.email_auth_enqueue_otp_delivery(
   p_event_id text,
   p_payload_json jsonb,
   p_max_attempts integer,

@@ -54,6 +54,13 @@ export type EmailAuthDbPort = {
     codeHash: string;
     expiresAt: number;
     purpose: EmailChallengePurpose;
+    /**
+     * D27-C fix round 2: plaintext OTP, stamped onto the new row (email_challenges.
+     * pending_delivery_code) right after insert -- same request, same idiom as the purpose stamp
+     * immediately below it. Delivery composes the email from this column instead of accepting it
+     * as a caller-supplied payload (app.email_auth_enqueue_otp_delivery, migration 0363).
+     */
+    code: string;
   }) => Promise<string>;
   deleteEmailChallengeById: (challengeId: string) => Promise<void>;
   upsertEmailSendCooldown: (userId: string, emailNormalized: string) => Promise<void>;
