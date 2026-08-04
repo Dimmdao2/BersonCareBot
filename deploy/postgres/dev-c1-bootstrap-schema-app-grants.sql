@@ -94,6 +94,23 @@ BEGIN
 END
 $is_staff_grant$;
 
+-- 2026-08-04 (login-fix): phone/start's automatic-channel resolution
+-- (resolveAuthOtpChannel -> pgChannelPreferences.getPreferredAuthChannelCode) now calls
+-- `app.get_preferred_auth_channel_code(uuid)` (migration 0357) instead of a direct
+-- `SELECT ... FROM user_channel_preferences` -- the direct SELECT is exactly the `permission denied
+-- for table user_channel_preferences` (42501) TEST reproduced live 2026-08-04 03:59:18 on this same
+-- pre-session pool. The new accessor is `app_owner`-owned (BYPASSRLS) and grants EXECUTE to
+-- `app_patient`/`app_staff` directly in its migration, but the DEV nonstaff runtime login is NOINHERIT
+-- (see the guard above) and needs its own explicit grant, same as `release_principal_context` above.
+DO $preferred_auth_channel_grant$
+BEGIN
+  IF to_regprocedure('app.get_preferred_auth_channel_code(uuid)') IS NOT NULL THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION app.get_preferred_auth_channel_code(uuid) TO bcb_dev_runtime_nonstaff_login';
+    EXECUTE 'GRANT EXECUTE ON FUNCTION app.get_preferred_auth_channel_code(uuid) TO bcb_dev_runtime_staff_login';
+  END IF;
+END
+$preferred_auth_channel_grant$;
+
 DO $assertions$
 BEGIN
   IF NOT has_schema_privilege('bcb_dev_runtime_nonstaff_login', 'app', 'USAGE')

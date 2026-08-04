@@ -2479,6 +2479,20 @@
       "when": 1793539230101,
       "tag": "0355_platform_users_rls_d15b4_comment_reconcile_local",
       "breakpoints": true
+    },
+    {
+      "idx": 354,
+      "version": "7",
+      "when": 1793539230102,
+      "tag": "0356_platform_users_definer_owner_app_owner_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 355,
+      "version": "7",
+      "when": 1793539230103,
+      "tag": "0357_preferred_auth_channel_public_accessor_local",
+      "breakpoints": true
     }
   ]
 }
