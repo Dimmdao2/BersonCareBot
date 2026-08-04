@@ -96,6 +96,25 @@ describe('media upload received-object door', () => {
     ).toMatchObject({ ok: false, error: 'file_signature_mismatch' });
   });
 
+  it('rejects an SVG renamed to a .png with a matching declared mime: content wins over filename', () => {
+    const intentResult = validateUploadIntent({
+      filename: 'logo.png',
+      mimeType: 'image/png',
+      sizeBytes: 34,
+      policyId: 'cms',
+    });
+    if (!intentResult.ok) throw new Error('fixture intent rejected');
+    const svgBody = new TextEncoder().encode('<svg onload="alert(1)"></svg>');
+    expect(
+      validateReceivedUpload({
+        intent: intentResult.value,
+        contentLength: 34,
+        contentType: 'image/png',
+        firstBytes: svgBody,
+      }),
+    ).toMatchObject({ ok: false, error: 'file_signature_mismatch' });
+  });
+
   it('does not let a TypeScript cast mint the received-object capability', () => {
     expect(() => assertReceivedUpload({} as ReceivedUpload)).toThrow(
       'invalid_received_upload_capability',
