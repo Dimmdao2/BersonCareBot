@@ -47,6 +47,7 @@
     "media-preview:tick": "tsx scripts/media-preview-process-tick.ts",
     "video-hls-backfill-legacy": "tsx scripts/video-hls-backfill-legacy.ts",
     "backfill-treatment-program-editor-draft-snapshots": "tsx scripts/backfill-treatment-program-editor-draft-snapshots.ts",
+    "backfill-patient-specialist-links": "tsx scripts/backfill-patient-specialist-links.ts",
     "fio:download-russiannames": "node scripts/fio-backfill/download-russiannames-dataset.mjs",
     "fio:owner-reviewed-test:hash": "tsx scripts/fio-backfill/apply-owner-reviewed-fio-test.ts hash",
     "fio:owner-reviewed-test:seal": "tsx scripts/fio-backfill/apply-owner-reviewed-fio-test.ts seal",
