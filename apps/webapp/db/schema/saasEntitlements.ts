@@ -49,6 +49,11 @@ export const saasTariffs = pgTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'::jsonb`),
+    /** §T3 (owner 03.08) — this tariff's marketing letters; see `MailingTemplate`. */
+    mailingTemplates: jsonb('mailing_templates')
+      .$type<Record<string, unknown>[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     /**
      * C4A — included specialist seats for the `clinic_team` mechanic. §5a item 2.6a (owner 31.07):
      * the tariff constructor refuses to SAVE without this number, so "empty" is only reachable for

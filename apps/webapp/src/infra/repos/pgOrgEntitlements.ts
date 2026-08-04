@@ -8,6 +8,7 @@ import type {
   AccessLifecyclePolicy,
   CabinetAccessResolution,
   EffectiveOrgCommercialAccess,
+  MailingTemplate,
   MechanicAccessResolution,
   MechanicAccessPolicyMap,
   OrgEntitlementSnapshot,
@@ -74,6 +75,7 @@ function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
     systemAccessPolicy: row.systemAccessPolicy as AccessLifecyclePolicy | null,
     mechanicAccessPolicies: row.mechanicAccessPolicies as MechanicAccessPolicyMap,
     downgradePolicies: row.downgradePolicies as Tariff['downgradePolicies'],
+    mailingTemplates: row.mailingTemplates as MailingTemplate[],
   };
 }
 

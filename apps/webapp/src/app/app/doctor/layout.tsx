@@ -12,7 +12,10 @@ import {
   getMechanicSurfaceVisibility,
 } from '@/app-layer/guards/requireEntitlement';
 import { cabinetGraceWarningMessages } from '@/app-layer/guards/cabinetAccessGate';
-import { accessNotificationBillingVariables } from '@/modules/org-entitlements/accessNotifications';
+import {
+  ACCESS_NOTIFICATION_VARIABLES,
+  accessNotificationBillingVariables,
+} from '@/modules/org-entitlements/accessNotifications';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import {
@@ -116,10 +119,12 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   // §5a item 2.6a — the banner shows the OWNER's notification texts, rendered from his ladder.
   // The variable map is open: a placeholder this shell cannot fill stays visible instead of
   // silently blanking, so an unsupplied variable is a defect the owner can see in his own text.
+  // §T3 — `satisfies` pins these keys to `ACCESS_NOTIFICATION_VARIABLES`, the same list the admin
+  // editor shows as a hint, so the two can never drift apart.
   const accessNotificationVariables = {
     клиника: organization?.title ?? '',
     тариф: tariffName ?? '',
-  };
+  } satisfies Partial<Record<(typeof ACCESS_NOTIFICATION_VARIABLES)[number]['name'], string>>;
   // One system-level ladder produces the same text for every mechanic it covers, so identical
   // lines are collapsed — the owner wrote one notification, he sees it once.
   const accessWarnings = [

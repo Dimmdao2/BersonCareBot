@@ -10,6 +10,7 @@ import {
   type AccessNotificationCondition,
   type AccessTerminalState,
   type DowngradePolicyMap,
+  type MailingTemplate,
   type MechanicAccessPolicyMap,
   type MechanicDowngradePolicy,
   type OrgMechanic,
@@ -21,6 +22,10 @@ import {
 } from '@/modules/org-entitlements/types';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
 import {
+  ACCESS_NOTIFICATION_VARIABLES,
+  renderAccessNotification,
+} from '@/modules/org-entitlements/accessNotifications';
+import {
   DoctorSection,
   DoctorSectionHeader,
   DoctorSectionTitle,
@@ -29,6 +34,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
+import { MarkdownContent } from '@/shared/ui/doctor/markdown/MarkdownContent';
 import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import {
   Select,
@@ -39,6 +45,14 @@ import {
 } from '@/shared/ui/doctor/primitives/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+
+/** §T3 preview — sample values so an admin sees a rendered letter, not raw `{{тариф}}` tokens. */
+const MAILING_PREVIEW_VARIABLES: Record<string, string> = {
+  клиника: 'Демоклиника',
+  тариф: 'Стандарт',
+  сумма: '4 900',
+  дата_начала_периода_автооплаты: '01.09.2026',
+};
 
 type CommercialState = {
   tariffs: Tariff[];
@@ -90,11 +104,20 @@ type TariffDraft = {
   systemAccessPolicy: AccessPolicyDraft | null;
   mechanicAccessPolicies: Partial<Record<OrgMechanic, AccessPolicyDraft>>;
   downgradePolicies: DowngradePolicyMap;
+  /** §T3 — this tariff's marketing letters, edited on the «Рассылки» tab. */
+  mailingTemplates: MailingTemplate[];
 };
 
 type AccessNotificationDraft = {
   offsetDays: string;
   condition: AccessNotificationCondition;
+  /** §T3 — the row points at a template on this tariff; null means none chosen yet. */
+  templateId: string | null;
+  /**
+   * Carried through unedited: a pre-Т3 row's already-shipped text when `templateId` is null (see
+   * `AccessNotificationRule.template` in types.ts), overwritten server-side once a template is
+   * chosen. Never rendered as an editable field — the letter itself is written on the «Рассылки» tab.
+   */
   template: string;
 };
 
@@ -172,6 +195,7 @@ function emptyTariffDraft(): TariffDraft {
     systemAccessPolicy: null,
     mechanicAccessPolicies: {},
     downgradePolicies: {},
+    mailingTemplates: [],
   };
 }
 
@@ -201,6 +225,7 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
       ]),
     ),
     downgradePolicies: tariff.downgradePolicies,
+    mailingTemplates: tariff.mailingTemplates,
   };
 }
 
@@ -211,6 +236,7 @@ function accessPolicyToDraft(policy: AccessLifecyclePolicy): AccessPolicyDraft {
     notifications: (policy.notifications ?? []).map((rule) => ({
       offsetDays: String(rule.offsetDays),
       condition: rule.condition,
+      templateId: rule.templateId ?? null,
       template: rule.template,
     })),
     terminalState: policy.terminalState,
@@ -230,10 +256,15 @@ function accessPolicyFromDraft(draft: AccessPolicyDraft | null): AccessLifecycle
   }
   const notifications = draft.notifications.map((rule) => {
     const offsetDays = Number(rule.offsetDays);
-    if (!rule.offsetDays.trim() || !Number.isSafeInteger(offsetDays) || !rule.template.trim()) {
-      throw new Error('В каждом уведомлении заполните срок и текст');
+    if (!rule.offsetDays.trim() || !Number.isSafeInteger(offsetDays)) {
+      throw new Error('В каждом уведомлении заполните срок');
     }
-    return { offsetDays, condition: rule.condition, template: rule.template };
+    return {
+      offsetDays,
+      condition: rule.condition,
+      templateId: rule.templateId,
+      template: rule.template,
+    };
   });
   return { graceDays, readOnlyDays, notifications, terminalState: draft.terminalState };
 }
@@ -442,10 +473,13 @@ function AccessPolicyEditor({
 function AccessNotificationsEditor({
   title,
   rows,
+  templates,
   onChange,
 }: {
   title: string;
   rows: AccessNotificationDraft[];
+  /** §T3 — this tariff's letters; the row picks one instead of embedding text. */
+  templates: MailingTemplate[];
   onChange: (rows: AccessNotificationDraft[]) => void;
 }) {
   function update(index: number, patch: Partial<AccessNotificationDraft>) {
@@ -463,7 +497,7 @@ function AccessNotificationsEditor({
           onClick={() =>
             onChange([
               ...rows,
-              { offsetDays: '', condition: 'payment_failed', template: '' },
+              { offsetDays: '', condition: 'payment_failed', templateId: null, template: '' },
             ])
           }
         >
@@ -511,14 +545,42 @@ function AccessNotificationsEditor({
             </Select>
           </div>
           <div className="space-y-1 sm:col-span-2">
-            <MarkdownEditor
-              name={`access-notification-${index}-template`}
-              label="Текст"
-              helpText="Маркетинговый шаблон письма — форматирование и картинки, как в рассылках врача."
-              value={row.template}
-              onChange={(next) => update(index, { template: next })}
-              minHeight={180}
-            />
+            <Label>Шаблон письма</Label>
+            <Select
+              value={row.templateId ?? 'none'}
+              onValueChange={(next) => {
+                if (!next) return;
+                update(index, { templateId: next === 'none' ? null : next });
+              }}
+            >
+              <SelectTrigger
+                aria-label={`${title}: уведомление ${index + 1}: шаблон`}
+                displayLabel={
+                  row.templateId
+                    ? (templates.find((template) => template.id === row.templateId)?.name ??
+                      'Шаблон не найден')
+                    : 'Не выбран'
+                }
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Не выбран</SelectItem>
+                {templates.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Текст письма правится на вкладке «Рассылки».
+            </p>
+            {!row.templateId && row.template.trim() ? (
+              <p className="text-xs text-muted-foreground">
+                Есть старый текст без шаблона (сохранён как есть): «{row.template}»
+              </p>
+            ) : null}
           </div>
           <div className="sm:col-span-2">
             <Button
@@ -598,6 +660,8 @@ export function CommercialConstructorClient() {
   const [postTrialTariffId, setPostTrialTariffId] = useState('none');
   const [trialActive, setTrialActive] = useState(false);
   const [registrationTariffId, setRegistrationTariffId] = useState('none');
+  // §T3 — which of the current tariff's letters is open in the «Рассылки» tab editor.
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -642,6 +706,16 @@ export function CommercialConstructorClient() {
   useEffect(() => {
     setRegistrationTariffId(state.registrationTariffPolicy?.tariffId ?? 'none');
   }, [state.registrationTariffPolicy]);
+
+  // §T3 — switching the selected tariff leaves its editor for a letter that may not exist here.
+  useEffect(() => {
+    setSelectedTemplateId(null);
+  }, [tariff.id]);
+
+  const selectedMailingTemplate = useMemo(
+    () => tariff.mailingTemplates.find((template) => template.id === selectedTemplateId) ?? null,
+    [selectedTemplateId, tariff.mailingTemplates],
+  );
 
   const selectedOrganization = useMemo(
     () => state.organizations.find((organization) => organization.id === organizationId) ?? null,
@@ -745,6 +819,7 @@ export function CommercialConstructorClient() {
       systemAccessPolicy,
       mechanicAccessPolicies,
       downgradePolicies: tariff.downgradePolicies,
+      mailingTemplates: tariff.mailingTemplates,
       includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
       additionalSeatPriceMinor: Number.isFinite(additionalSeatPrice) ? additionalSeatPrice : null,
       discountedPriceMinor: tariff.discountedPriceMinor,
@@ -796,6 +871,7 @@ export function CommercialConstructorClient() {
         <TabsTrigger value="organizations">Организации</TabsTrigger>
         <TabsTrigger value="trial">Триал</TabsTrigger>
         <TabsTrigger value="notifications">Уведомления</TabsTrigger>
+        <TabsTrigger value="mailings">Рассылки</TabsTrigger>
       </TabsList>
       {message ? (
         <p className="text-sm text-muted-foreground" role="status">
@@ -1616,17 +1692,18 @@ export function CommercialConstructorClient() {
           <form className="space-y-4" onSubmit={saveTariff}>
             <DoctorSectionHeader>
               <DoctorSectionTitle>
-                Шаблоны писем{tariff.id ? ` — ${tariff.name}` : ''}
+                Триггеры уведомлений{tariff.id ? ` — ${tariff.name}` : ''}
               </DoctorSectionTitle>
             </DoctorSectionHeader>
             {!tariff.id ? (
               <p className="text-sm text-muted-foreground">
-                Выберите тариф слева, чтобы править его триггеры и тексты.
+                Выберите тариф слева, чтобы править его триггеры.
               </p>
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Полноценный редактор — форматирование и картинки, как в рассылках врача.
+                  Срок, условие и какое письмо уходит. Сами письма правятся на вкладке
+                  «Рассылки» — там полноценный редактор с картинками и форматированием.
                   Льготные триггеры («Льготный период начат/завершён») уходят только тем клиникам,
                   которые ещё не оплатили после триала.
                 </p>
@@ -1634,6 +1711,7 @@ export function CommercialConstructorClient() {
                   <AccessNotificationsEditor
                     title="Доступ к системе"
                     rows={tariff.systemAccessPolicy.notifications}
+                    templates={tariff.mailingTemplates}
                     onChange={(notifications) =>
                       setTariff((current) => ({
                         ...current,
@@ -1660,6 +1738,7 @@ export function CommercialConstructorClient() {
                       key={mechanic}
                       title={`Исключение: ${MECHANIC_REGISTRY[mechanic].label}`}
                       rows={tariff.mechanicAccessPolicies[mechanic]!.notifications}
+                      templates={tariff.mailingTemplates}
                       onChange={(notifications) =>
                         setTariff((current) => {
                           const policy = current.mechanicAccessPolicies[mechanic];
@@ -1689,6 +1768,203 @@ export function CommercialConstructorClient() {
               </>
             )}
           </form>
+        </DoctorSection>
+      </TabsContent>
+
+      <TabsContent
+        value="mailings"
+        className="grid gap-3 xl:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]"
+      >
+        <DoctorSection>
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>Тариф</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          <div className="divide-y divide-border/70">
+            {state.tariffs.length === 0 ? (
+              <p className="px-[18px] py-3 text-sm text-muted-foreground">Тарифы ещё не созданы.</p>
+            ) : null}
+            {state.tariffs.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className="flex w-full items-center justify-between gap-3 px-[18px] py-3 text-left text-base font-normal hover:bg-muted/50"
+                onClick={() => setTariff(tariffToDraft(item))}
+              >
+                <span>{item.name}</span>
+                {tariff.id === item.id ? (
+                  <span className="text-xs text-muted-foreground">Выбран</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          {tariff.id ? (
+            <>
+              <DoctorSectionHeader>
+                <DoctorSectionTitle>Письма — {tariff.name}</DoctorSectionTitle>
+              </DoctorSectionHeader>
+              <div className="divide-y divide-border/70">
+                {tariff.mailingTemplates.length === 0 ? (
+                  <p className="px-[18px] py-3 text-sm text-muted-foreground">Шаблонов ещё нет.</p>
+                ) : null}
+                {tariff.mailingTemplates.map((template) => (
+                  <button
+                    type="button"
+                    key={template.id}
+                    className="flex w-full items-center justify-between gap-3 px-[18px] py-3 text-left text-base font-normal hover:bg-muted/50"
+                    onClick={() => setSelectedTemplateId(template.id)}
+                  >
+                    <span>{template.name || 'Без названия'}</span>
+                    {selectedTemplateId === template.id ? (
+                      <span className="text-xs text-muted-foreground">Выбран</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const id = crypto.randomUUID();
+                  setTariff((current) => ({
+                    ...current,
+                    mailingTemplates: [
+                      ...current.mailingTemplates,
+                      { id, name: '', subject: '', body: '' },
+                    ],
+                  }));
+                  setSelectedTemplateId(id);
+                }}
+              >
+                Новый шаблон
+              </Button>
+            </>
+          ) : null}
+        </DoctorSection>
+
+        <DoctorSection>
+          <DoctorSectionHeader>
+            <DoctorSectionTitle>{selectedMailingTemplate ? 'Письмо' : 'Выберите письмо'}</DoctorSectionTitle>
+          </DoctorSectionHeader>
+          {!tariff.id ? (
+            <p className="text-sm text-muted-foreground">Выберите тариф слева.</p>
+          ) : !selectedMailingTemplate ? (
+            <p className="text-sm text-muted-foreground">
+              Выберите шаблон слева или создайте новый — это письмо для маркетинговой рассылки;
+              привязать его к триггеру можно на вкладке «Уведомления».
+            </p>
+          ) : (
+            <form className="space-y-4" onSubmit={saveTariff}>
+              <div className="space-y-1">
+                <Label htmlFor="mailing-template-name">
+                  Название (для списка выше, получателю не видно)
+                </Label>
+                <Input
+                  id="mailing-template-name"
+                  value={selectedMailingTemplate.name}
+                  onChange={(event) =>
+                    setTariff((current) => ({
+                      ...current,
+                      mailingTemplates: current.mailingTemplates.map((template) =>
+                        template.id === selectedMailingTemplate.id
+                          ? { ...template, name: event.target.value }
+                          : template,
+                      ),
+                    }))
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="mailing-template-subject">Тема письма</Label>
+                <Input
+                  id="mailing-template-subject"
+                  value={selectedMailingTemplate.subject}
+                  onChange={(event) =>
+                    setTariff((current) => ({
+                      ...current,
+                      mailingTemplates: current.mailingTemplates.map((template) =>
+                        template.id === selectedMailingTemplate.id
+                          ? { ...template, subject: event.target.value }
+                          : template,
+                      ),
+                    }))
+                  }
+                />
+              </div>
+              <MarkdownEditor
+                name={`mailing-template-${selectedMailingTemplate.id}-body`}
+                label="Текст письма"
+                helpText="Форматирование и картинки, как в рассылках врача."
+                value={selectedMailingTemplate.body}
+                onChange={(next) =>
+                  setTariff((current) => ({
+                    ...current,
+                    mailingTemplates: current.mailingTemplates.map((template) =>
+                      template.id === selectedMailingTemplate.id ? { ...template, body: next } : template,
+                    ),
+                  }))
+                }
+                minHeight={240}
+              />
+              <div className="space-y-1">
+                <Label>Доступные переменные</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {ACCESS_NOTIFICATION_VARIABLES.map((variable) => (
+                    <span
+                      key={variable.name}
+                      className="rounded-md border border-border/60 bg-muted px-2 py-1 text-xs text-muted-foreground"
+                      title={variable.description}
+                    >
+                      {`{{${variable.name}}}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Предпросмотр (на примерных данных)</Label>
+                <div className="rounded-lg border bg-background p-3 text-sm">
+                  <div className="mb-2 font-medium">
+                    {renderAccessNotification(selectedMailingTemplate.subject, MAILING_PREVIEW_VARIABLES) ||
+                      '(тема не заполнена)'}
+                  </div>
+                  <MarkdownContent
+                    text={renderAccessNotification(selectedMailingTemplate.body, MAILING_PREVIEW_VARIABLES)}
+                    bodyFormat="markdown"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="mailing-template-reason">Причина изменения (необязательно)</Label>
+                <Input
+                  id="mailing-template-reason"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={busy} type="submit">
+                  Сохранить
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    const templateId = selectedMailingTemplate.id;
+                    setTariff((current) => ({
+                      ...current,
+                      mailingTemplates: current.mailingTemplates.filter(
+                        (template) => template.id !== templateId,
+                      ),
+                    }));
+                    setSelectedTemplateId(null);
+                  }}
+                >
+                  Удалить шаблон
+                </Button>
+              </div>
+            </form>
+          )}
         </DoctorSection>
       </TabsContent>
     </Tabs>

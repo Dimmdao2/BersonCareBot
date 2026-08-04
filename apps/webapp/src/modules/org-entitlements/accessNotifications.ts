@@ -22,6 +22,24 @@ type BillingInvoiceForAccessNotification = Pick<
 >;
 
 /**
+ * §T3 (owner 03.08) — "the variables the template may use listed where the person writes (they
+ * cannot guess them)". This is the single source: every name a caller in this codebase actually
+ * substitutes, so the admin editor's hint list is never a second, hand-maintained copy of it. The
+ * template format itself stays open (`renderAccessNotification` accepts any `{{name}}`, owner's
+ * choice) — this list only documents what is CURRENTLY wired to real data.
+ */
+export const ACCESS_NOTIFICATION_VARIABLES = [
+  { name: 'клиника', description: 'Название организации' },
+  { name: 'тариф', description: 'Название тарифа' },
+  { name: 'сумма', description: 'Сумма следующего платежа' },
+  {
+    name: 'дата_начала_периода_автооплаты',
+    description: 'Дата начала следующего оплаченного периода',
+  },
+] as const;
+type KnownAccessNotificationVariable = (typeof ACCESS_NOTIFICATION_VARIABLES)[number]['name'];
+
+/**
  * Supplies payment-specific variables from the already-raised renewal invoice.  The invoice is
  * the billing fact for the next period: unlike the live tariff it has the exact amount and dates
  * that this organization will be charged.  A missing invoice deliberately supplies nothing, so
@@ -30,7 +48,7 @@ type BillingInvoiceForAccessNotification = Pick<
 export function accessNotificationBillingVariables(
   warning: Pick<MechanicAccessWarning, 'periodSource' | 'periodEndsAt'>,
   billing: { invoices: readonly BillingInvoiceForAccessNotification[] } | null,
-): Readonly<Record<string, string>> {
+): Readonly<Partial<Record<KnownAccessNotificationVariable, string>>> {
   if (warning.periodSource !== 'paid_period' || !billing) return {};
 
   const renewalInvoice = billing.invoices.find(

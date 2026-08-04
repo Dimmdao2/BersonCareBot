@@ -35,12 +35,24 @@ const branchStockQuotaSchema = z
 /** Overrides carry the mechanic separately; `assertQuota` in the service rejects a mismatch. */
 const quotaSchema = z.union([storageQuotaSchema, patientStockQuotaSchema, branchStockQuotaSchema]);
 
+// §T3 — a tariff's own list of marketing letters; a notification row below references one by id
+// instead of embedding its text. Shape-only: subject/body are owner data, never inspected here.
+const mailingTemplateSchema = z.object({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  subject: z.string(),
+  body: z.string(),
+});
+
 // §5a item 2.6a — уведомления лестницы: список строк «срок · условие · шаблон», без ограничения
-// на длину. Texts and their variables are data, so the template is only checked for being present.
+// на длину. §T3: the row POINTS AT a template (`templateId`) instead of embedding text; `template`
+// stays present so a pre-T3 row's already-shipped text round-trips unchanged when no template is
+// chosen for it — the service resolves/overwrites it whenever `templateId` is set (see service.ts).
 const accessNotificationSchema = z.object({
   offsetDays: z.number().int(),
   condition: z.enum(ACCESS_NOTIFICATION_CONDITIONS),
-  template: z.string().trim().min(1),
+  templateId: z.string().trim().min(1).nullable(),
+  template: z.string(),
 });
 
 const accessPolicySchema = z.object({
@@ -71,6 +83,7 @@ const tariffInputSchema = z.object({
   systemAccessPolicy: accessPolicySchema.nullable(),
   mechanicAccessPolicies: z.record(z.string(), accessPolicySchema),
   downgradePolicies: z.record(z.string(), downgradePolicySchema),
+  mailingTemplates: z.array(mailingTemplateSchema),
   /** §5a item 2.6a — required: a tariff with no seat count is not a saveable tariff. */
   includedSeats: z.number().int().nonnegative(),
   /** §5a item 5.1 — null means overage past includedSeats stays hard-blocked (§5.2, unchanged). */

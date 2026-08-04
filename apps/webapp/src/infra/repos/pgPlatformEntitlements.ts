@@ -11,6 +11,7 @@ import type {
   AccessLifecyclePolicy,
   DowngradePolicyMap,
   EffectiveOrgCommercialAccess,
+  MailingTemplate,
   MechanicAccessPolicyMap,
   OrgEntitlementOverride,
   RegistrationTariffPolicy,
@@ -68,6 +69,7 @@ function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
     downgradePolicies: withoutLegacyClinicalTestConfiguration(
       row.downgradePolicies,
     ) as DowngradePolicyMap,
+    mailingTemplates: row.mailingTemplates as MailingTemplate[],
   };
 }
 
@@ -160,6 +162,7 @@ function tariffValues(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
     systemAccessPolicy: input.systemAccessPolicy,
     mechanicAccessPolicies: input.mechanicAccessPolicies,
     downgradePolicies: input.downgradePolicies,
+    mailingTemplates: input.mailingTemplates,
     includedSeats: input.includedSeats,
     additionalSeatPriceMinor: input.additionalSeatPriceMinor,
     discountedPriceMinor: input.discountedPriceMinor,

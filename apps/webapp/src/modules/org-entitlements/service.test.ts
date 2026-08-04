@@ -62,6 +62,7 @@ describe('registration tariff policy archive wall', () => {
     systemAccessPolicy: null,
     mechanicAccessPolicies: {},
     downgradePolicies: {},
+    mailingTemplates: [],
     includedSeats: 1,
     additionalSeatPriceMinor: null,
     discountedPriceMinor: null,
@@ -276,6 +277,7 @@ describe('org entitlement mechanic classes', () => {
         systemAccessPolicy: null,
         mechanicAccessPolicies: {},
         downgradePolicies: {},
+        mailingTemplates: [],
         includedSeats: 3,
         additionalSeatPriceMinor: null,
         discountedPriceMinor: null,
@@ -451,6 +453,7 @@ describe('org entitlement mechanic classes', () => {
         systemAccessPolicy: null,
         mechanicAccessPolicies: {},
         downgradePolicies: {},
+        mailingTemplates: [],
         includedSeats: 1,
         additionalSeatPriceMinor: null,
         discountedPriceMinor: null,
@@ -718,6 +721,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
+      mailingTemplates: [],
       includedSeats: 1,
       additionalSeatPriceMinor: null,
       discountedPriceMinor: null,
@@ -1039,6 +1043,7 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
           systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'full_access' },
           mechanicAccessPolicies: {},
           downgradePolicies: {},
+          mailingTemplates: [],
           includedSeats: 1,
           additionalSeatPriceMinor: null,
           discountedPriceMinor: null,
@@ -1069,6 +1074,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
+      mailingTemplates: [],
       includedSeats: 1,
       additionalSeatPriceMinor: null,
       discountedPriceMinor: null,
@@ -1368,6 +1374,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
+      mailingTemplates: [],
       includedSeats: 1,
       additionalSeatPriceMinor: null,
       discountedPriceMinor: null,
@@ -1457,11 +1464,13 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
   });
 
   // Breakage: the notification list stops being pass-through data — a row is dropped, reordered,
-  // its text rewritten, or a maximum count creeps in.
+  // its text rewritten, or a maximum count creeps in. §T3 — every row here has no `templateId`,
+  // so `template` is the pre-Т3 case: carried through exactly as sent, never blanked.
   it('stores the owner notification rows verbatim, however many he wrote', async () => {
     const notifications = Array.from({ length: 7 }, (_unused, index) => ({
       offsetDays: index - 3,
       condition: index % 2 === 0 ? ('payment_failed' as const) : ('payment_succeeded' as const),
+      templateId: null,
       template: `Текст ${index} про {{тариф}}`,
     }));
     const created = await service().createTariff(
@@ -1474,9 +1483,18 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
   });
 
   it.each([
-    ['access_notification_offset_invalid', { offsetDays: 1.5, condition: 'payment_failed' as const, template: 'т' }],
-    ['access_notification_template_required', { offsetDays: 1, condition: 'payment_failed' as const, template: '  ' }],
-    ['access_notification_condition_invalid', { offsetDays: 1, condition: 'выдумка', template: 'т' }],
+    [
+      'access_notification_offset_invalid',
+      { offsetDays: 1.5, condition: 'payment_failed' as const, templateId: null, template: 'т' },
+    ],
+    [
+      'access_notification_condition_invalid',
+      { offsetDays: 1, condition: 'выдумка', templateId: null, template: 'т' },
+    ],
+    [
+      'access_notification_template_id_invalid',
+      { offsetDays: 1, condition: 'payment_failed' as const, templateId: 42, template: 'т' },
+    ],
   ])('refuses a malformed notification row with %s', (error, row) => {
     expect(() =>
       service().createTariff(
@@ -1490,6 +1508,105 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
         }),
         { actorId: null, reason: '' },
       ),
+    ).toThrow(error);
+  });
+
+  // §T3 — a rule POINTS AT a template; a row cannot save while its reference resolves to nothing.
+  it('refuses a notification row whose templateId names no template on the tariff', () => {
+    expect(() =>
+      service().createTariff(
+        tariffInput({
+          mailingTemplates: [{ id: 'letter-1', name: 'Письмо', subject: '', body: '' }],
+          systemAccessPolicy: {
+            graceDays: 1,
+            readOnlyDays: 1,
+            notifications: [
+              { offsetDays: 1, condition: 'payment_failed', templateId: 'letter-missing', template: '' },
+            ],
+            terminalState: 'disabled',
+          },
+        }),
+        { actorId: null, reason: '' },
+      ),
+    ).toThrow('access_notification_template_not_found');
+  });
+
+  // §T3 boundary #4 — a rule with no template chosen keeps saving exactly as before.
+  it('saves a notification row with no template chosen', async () => {
+    const created = await service().createTariff(
+      tariffInput({
+        systemAccessPolicy: {
+          graceDays: 1,
+          readOnlyDays: 1,
+          notifications: [
+            { offsetDays: 1, condition: 'payment_failed', templateId: null, template: '' },
+          ],
+          terminalState: 'disabled',
+        },
+      }),
+      { actorId: null, reason: '' },
+    );
+    expect(created.systemAccessPolicy?.notifications).toEqual([
+      { offsetDays: 1, condition: 'payment_failed', templateId: null, template: '' },
+    ]);
+  });
+
+  // §T3 — the rule POINTS AT the template; its CURRENT body is what gets stored, not a copy typed
+  // into the rule. Editing the letter (a second `updateTariff`) must reach the rule automatically.
+  it('resolves a chosen templateId to that template\'s current body', async () => {
+    const svc = createPlatformEntitlementsService(createInMemoryPlatformEntitlementsPort());
+    const created = await svc.createTariff(
+      tariffInput({
+        mailingTemplates: [
+          { id: 'letter-1', name: 'Напоминание', subject: 'Тема', body: 'Текст про {{тариф}}' },
+        ],
+        systemAccessPolicy: {
+          graceDays: 1,
+          readOnlyDays: 1,
+          notifications: [
+            { offsetDays: -3, condition: 'payment_failed', templateId: 'letter-1', template: '' },
+          ],
+          terminalState: 'disabled',
+        },
+      }),
+      { actorId: null, reason: '' },
+    );
+    expect(created.systemAccessPolicy?.notifications).toEqual([
+      {
+        offsetDays: -3,
+        condition: 'payment_failed',
+        templateId: 'letter-1',
+        template: 'Текст про {{тариф}}',
+      },
+    ]);
+
+    // Editing the letter and re-saving the tariff must reach the rule with no rule edit at all.
+    const updated = await svc.updateTariff(
+      created.id,
+      tariffInput({
+        mailingTemplates: [
+          { id: 'letter-1', name: 'Напоминание', subject: 'Тема', body: 'Новый текст' },
+        ],
+        systemAccessPolicy: created.systemAccessPolicy!,
+      }),
+      { actorId: null, reason: '' },
+    );
+    expect(updated.systemAccessPolicy?.notifications[0]?.template).toBe('Новый текст');
+  });
+
+  it.each([
+    ['mailing_template_id_required', [{ id: '  ', name: 'Т', subject: '', body: '' }]],
+    ['mailing_template_name_required', [{ id: 'x', name: '  ', subject: '', body: '' }]],
+    [
+      'mailing_template_id_duplicate',
+      [
+        { id: 'x', name: 'Один', subject: '', body: '' },
+        { id: 'x', name: 'Два', subject: '', body: '' },
+      ],
+    ],
+  ])('refuses a malformed mailing template with %s', (error, mailingTemplates) => {
+    expect(() =>
+      service().createTariff(tariffInput({ mailingTemplates }), { actorId: null, reason: '' }),
     ).toThrow(error);
   });
 });
@@ -1622,6 +1739,7 @@ describe('§5a #1069 Т5 (owner 03.08) — the trial is one-time per organizatio
     systemAccessPolicy: null,
     mechanicAccessPolicies: {},
     downgradePolicies: {},
+    mailingTemplates: [],
     includedSeats: 1,
     additionalSeatPriceMinor: null,
     discountedPriceMinor: null,
@@ -1680,6 +1798,7 @@ describe('§5a #1069 Т8 (owner 03.08) — discounted price is explicit per tari
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
+      mailingTemplates: [],
       includedSeats: 1,
       additionalSeatPriceMinor: null,
       discountedPriceMinor: null,
