@@ -1097,6 +1097,19 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       инцидент на TEST, не только блокер Ш7-дренажа — нужно отдельное решение/тикет, не D30. Дренаж `4
       stale processing` по-прежнему не выполнен (воркер не дошёл до `jobQueueLoop`); состав `bcb_webapp_dev`
       очереди не изменился. D30 и Ш7 остаются открытыми.
+      **READINESS-PROBE FIX + DEV LIVE DRAIN 04.08 (`wt/d30-drain`):** проба исправлена (виновный коммит
+      `1f9b2f22f`, обе `FOR UPDATE`-строки заменены на `has_function_privilege`-проверку, как у соседней
+      `record_operator_delivery_attempt`); прямой replay всех восьми проб на `bcb_webapp_dev` — PASS. Три
+      новых DEV-only грантовых разрыва, найденных живым прогоном за пределами восьми проб, закрыты
+      (`dev-c8`/`dev-c9`/`dev-c10` в `deploy/postgres/`); `apps/webapp/.env.dev` этого worktree дополнен
+      `DATABASE_URL_DELIVERY_WORKER` (без него `selectPool()` кидает отдельную ошибку ещё до БД). `pnpm run
+      worker:dev` стартует чисто и держит job-queue/projection-outbox/outgoing-delivery loops. Дренаж:
+      `bcb_webapp_dev` legacy-очередь была `20 pending`/`4 processing`/`22 dead`/`67 done` → стала
+      `20 pending`/`0 processing`/`26 dead`/`67 done` — все 4 stale-processing строки слиты (в `dead`, штатно
+      по retry-policy). Полный evidence, включая находку `dev-c10` (возможный TEST-блокер после выката
+      фикса пробы — отдельный вопрос владельцу/лиду) — `D30_SCHEDULER_REVERSAL_PLAN.md` §Ш7, блок
+      «READINESS-PROBE FIX + DEV LIVE DRAIN 04.08». TEST не деплоился. D30 и Ш7 остаются открытыми (точка
+      невозврата ждёт `2026-08-29`+ по due легитимных `pending`-строк).
 
 ### 3.5 Track E — принятые решения без своего трека
 
