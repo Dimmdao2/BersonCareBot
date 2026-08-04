@@ -16,6 +16,7 @@ import {
   isOutgoingDeliveryDispatchErrorRetryable,
   DOCTOR_BROADCAST_INTENT_QUEUE_KIND,
   INBOUND_REPLY_QUEUE_KIND,
+  AUTH_EMAIL_OTP_QUEUE_KIND,
   GENERIC_TRANSPORT_QUEUE_KINDS,
 } from '../../delivery/deliveryContract.js';
 import {
@@ -391,6 +392,35 @@ async function recordInboundReplyDeliveryDeadIncident(
   }
 }
 
+/**
+ * D27-C: a login code that exhausted the fast retry ladder must be visible to the operator, not
+ * only the person at the screen — the public route stays neutral (D27-A2), so this incident is the
+ * ONLY place the failure surfaces. `direction: 'outbound_delivery_provider'` reuses the exact
+ * classification the synchronous /api/bersoncare/send-email path already reports through (see
+ * routes.ts's recordOutboundProviderFailure / relayOutboundRoute.ts's
+ * recordRelayProviderFailureSafely), so this failure feeds the SAME critical-alert/digest cadence
+ * (webapp criticalHealthSignals.ts's OUTBOUND_PROVIDER_FAILURE_DIRECTION) instead of a new one.
+ */
+async function recordAuthEmailOtpDeliveryDeadIncident(
+  row: OutgoingDeliveryQueueRow,
+  safeError: string,
+): Promise<void> {
+  if (row.kind !== AUTH_EMAIL_OTP_QUEUE_KIND) return;
+  try {
+    await recordOperatorFailureIncident({
+      direction: 'outbound_delivery_provider',
+      integration: row.channel,
+      errorClass: classifyOutboundProviderErrorClass(safeError),
+      errorDetail: null,
+    });
+  } catch (err) {
+    logger.warn(
+      { err, rowId: row.id, eventId: row.eventId },
+      'auth_email_otp_delivery_dead_incident_record_failed',
+    );
+  }
+}
+
 async function finalizeOutgoingDeliveryDead(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
@@ -399,6 +429,7 @@ async function finalizeOutgoingDeliveryDead(
 ): Promise<void> {
   await queueMarkDead(db, row.id, safeError);
   await recordInboundReplyDeliveryDeadIncident(row, safeError);
+  await recordAuthEmailOtpDeliveryDeadIncident(row, safeError);
   await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
     const auditId =

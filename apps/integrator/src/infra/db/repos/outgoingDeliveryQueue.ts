@@ -19,6 +19,8 @@ export type OutgoingDeliveryQueueRow = {
   sentAt: string | null;
   deadAt: string | null;
   lastError: string | null;
+  /** Claim-order tiebreaker (migration 0359); optional so existing row fixtures need no touch-up. */
+  priority?: number;
 };
 
 export type EnqueueOutgoingDeliveryInput = {
@@ -200,6 +202,7 @@ export async function claimDueOutgoingDeliveries(
     sent_at: string | null;
     dead_at: string | null;
     last_error: string | null;
+    priority: number;
   }>(
     db,
     sql`WITH due AS (
@@ -207,7 +210,7 @@ export async function claimDueOutgoingDeliveries(
        FROM public.outgoing_delivery_queue
        WHERE status IN ('pending', 'failed_retryable')
          AND next_retry_at <= now()
-       ORDER BY next_retry_at ASC
+       ORDER BY priority DESC, next_retry_at ASC
        LIMIT ${lim}
        FOR UPDATE SKIP LOCKED
      )
@@ -231,7 +234,8 @@ export async function claimDueOutgoingDeliveries(
        q.last_attempt_at::text,
        q.sent_at::text,
        q.dead_at::text,
-       q.last_error`,
+       q.last_error,
+       q.priority`,
   );
   return res.rows.map((r) => ({
     id: r.id,
@@ -247,6 +251,7 @@ export async function claimDueOutgoingDeliveries(
     sentAt: r.sent_at,
     deadAt: r.dead_at,
     lastError: r.last_error,
+    priority: r.priority ?? 0,
   }));
 }
 
@@ -303,11 +308,12 @@ export async function listPendingSpecialistTaskReminderBotMarkers(
     sent_at: string | null;
     dead_at: string | null;
     last_error: string | null;
+    priority: number;
   }>(
     db,
     sql`SELECT id, event_id, kind, channel, payload_json, status,
                attempt_count, max_attempts, next_retry_at::text,
-               last_attempt_at::text, sent_at::text, dead_at::text, last_error
+               last_attempt_at::text, sent_at::text, dead_at::text, last_error, priority
         FROM public.outgoing_delivery_queue
         WHERE status = 'sent'
           AND kind = 'specialist_task_reminder'
@@ -330,6 +336,7 @@ export async function listPendingSpecialistTaskReminderBotMarkers(
     sentAt: row.sent_at,
     deadAt: row.dead_at,
     lastError: row.last_error,
+    priority: row.priority ?? 0,
   }));
 }
 

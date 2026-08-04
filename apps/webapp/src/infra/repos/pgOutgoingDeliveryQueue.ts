@@ -56,6 +56,7 @@ function queueValues(delivery: ReadyOutgoingDelivery) {
     nextRetryAt: delivery.nextRetryAt,
     lastError: null,
     deadAt: null,
+    priority: delivery.kind === 'auth_email_otp' ? delivery.priority : 0,
   };
 }
 
@@ -64,7 +65,11 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
   return {
     async enqueueReady(tx: DrizzleDb, delivery: ReadyOutgoingDelivery): Promise<boolean> {
       const values = queueValues(delivery);
-      if (delivery.kind === 'operator_health_digest') {
+      // Episodic, standalone jobs (not replaceable-in-place): a repeated eventId is idempotency,
+      // never a refresh. auth_email_otp mints a fresh eventId per OTP issuance (see
+      // pgAuthEmailOtpDeliveryQueue.ts), so a conflict here only means a genuine retry of the same
+      // enqueue call, never a newer intent that should overwrite an older one.
+      if (delivery.kind === 'operator_health_digest' || delivery.kind === 'auth_email_otp') {
         const inserted = await tx
           .insert(outgoingDeliveryQueue)
           .values(values)

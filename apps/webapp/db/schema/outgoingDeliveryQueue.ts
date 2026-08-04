@@ -4,6 +4,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -33,6 +34,8 @@ export const outgoingDeliveryQueue = pgTable(
     lastError: text('last_error'),
     failureClass: text('failure_class'),
     reclaimCount: integer('reclaim_count').notNull().default(0),
+    /** Claim-order tiebreaker ahead of next_retry_at — a login code must not queue behind mailings. */
+    priority: smallint('priority').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -42,7 +45,11 @@ export const outgoingDeliveryQueue = pgTable(
   },
   (table) => [
     uniqueIndex('uq_outgoing_delivery_queue_event_id').on(table.eventId),
-    index('idx_outgoing_delivery_queue_due').on(table.status, table.nextRetryAt),
+    index('idx_outgoing_delivery_queue_due').on(
+      table.status,
+      table.priority.desc(),
+      table.nextRetryAt,
+    ),
     index('idx_outgoing_delivery_queue_organization_status_due').on(
       table.organizationId,
       table.status,

@@ -10,7 +10,7 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
-import { startPublicEmailOtpChallenge } from '@/modules/auth/emailOtpPublic';
+import { startPublicEmailOtpChallenge, type StartPublicEmailOtpResult } from '@/modules/auth/emailOtpPublic';
 import { formatOtpRetryAfterMessage } from '@/modules/auth/otpConstants';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
 
@@ -76,19 +76,45 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   const deps = buildAppDeps();
-  let result;
-  try {
-    result = await startPublicEmailOtpChallenge(parsed.data.email, deps.emailOtpPublicDb);
-  } catch {
-    // Do not log the thrown error: provider messages may include email or OTP data. This fixed
-    // event is enough for operators and keeps the public outcome indistinguishable.
-    logger.warn(
-      { route: 'auth/email-otp/start', outcome: 'email_delivery_exception' },
-      'auth/email-otp/start delivery failed',
-    );
+  const pending = startPublicEmailOtpChallenge(parsed.data.email, deps.emailOtpPublicDb);
+  const outcome = await raceAgainstPublicFloor(pending, startedAt);
+
+  if (outcome.kind !== 'settled') {
+    // D27-C: the service call outlived the public response floor. D27-C moved routine delivery
+    // off this path (an enqueue is fast and constant-time), so in practice this only fires if the
+    // call is genuinely stuck (DB outage) -- but the guarantee is structural, not "usually fast":
+    // whatever the call ends up taking must never leak into the public response, the same class of
+    // timing oracle D27-A2 closed for the synchronous path. Answer neutrally now; let the call
+    // settle in the background purely for operator log evidence.
+    if (outcome.kind === 'pending') {
+      void pending.then(
+        (settledResult) => {
+          if (settledResult.ok && settledResult.deliveryFailed) {
+            logger.warn(
+              { route: 'auth/email-otp/start', outcome: 'email_delivery_failed' },
+              'auth/email-otp/start delivery failed',
+            );
+          }
+        },
+        () => {
+          logger.warn(
+            { route: 'auth/email-otp/start', outcome: 'email_delivery_exception' },
+            'auth/email-otp/start delivery failed',
+          );
+        },
+      );
+    } else {
+      // Do not log the thrown error: provider messages may include email or OTP data. This fixed
+      // event is enough for operators and keeps the public outcome indistinguishable.
+      logger.warn(
+        { route: 'auth/email-otp/start', outcome: 'email_delivery_exception' },
+        'auth/email-otp/start delivery failed',
+      );
+    }
     return publicEmailOtpStartAccepted(startedAt, randomUUID(), 60);
   }
 
+  const result = outcome.result;
   if (!result.ok) {
     switch (result.code) {
       case 'invalid_email':
@@ -121,6 +147,51 @@ export async function POST(request: Request) {
   }
 
   return publicEmailOtpStartAccepted(startedAt, result.challengeId, result.retryAfterSeconds ?? 60);
+}
+
+type StartRaceOutcome =
+  | { kind: 'settled'; result: StartPublicEmailOtpResult }
+  | { kind: 'rejected' }
+  | { kind: 'pending' };
+
+/**
+ * Bounds how long this route waits on `startPublicEmailOtpChallenge` to the public response floor
+ * -- never longer, regardless of what the call itself ends up doing. This is deliberately NOT "a
+ * bigger fixed sleep": a fixed delay only moves the timing differential, it does not remove it. A
+ * race with a floor deadline does: the response time is bounded by the floor no matter how long
+ * the call takes, so the call's own latency (provider, DB, anything) structurally cannot leak into
+ * the public response.
+ */
+function raceAgainstPublicFloor(
+  pending: Promise<StartPublicEmailOtpResult>,
+  startedAt: number,
+): Promise<StartRaceOutcome> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const remainingMs = Math.max(
+      0,
+      PUBLIC_EMAIL_OTP_START_MIN_RESPONSE_MS - (Date.now() - startedAt),
+    );
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ kind: 'pending' });
+    }, remainingMs);
+    pending.then(
+      (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ kind: 'settled', result });
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ kind: 'rejected' });
+      },
+    );
+  });
 }
 
 async function publicEmailOtpStartAccepted(

@@ -129,10 +129,11 @@ describe('public email OTP start anti-enumeration', () => {
     expect((await responsePromise).status).toBe(200);
   });
 
-  // Deferred: arbitrary provider latency remains a timing oracle until delivery leaves public request latency.
-  // This is the acceptance test for the D27-C/D30 durable auth delivery queue slice; do not "fix" it with a fixed
-  // sleep, because a constant delay only moves the delta and does not remove the timing class.
-  it.skip('keeps a known address out of a slower response-time class when its provider exceeds the floor', async () => {
+  // D27-C: delivery moved off this request onto the durable outgoing_delivery_queue (see
+  // emailAuth.ts / pgAuthEmailOtpDeliveryQueue.ts), and this route races startPublicEmailOtpChallenge
+  // against the public floor so its own latency structurally cannot leak into the response either
+  // way -- do not "fix" this with a fixed sleep, a constant delay only moves the delta.
+  it('keeps a known address out of a slower response-time class when its provider exceeds the floor', async () => {
     const knownEmail = 'known@example.test';
     const unknownEmail = 'unknown@example.test';
     fakes.startPublicEmailOtpChallenge.mockImplementation((email) => {

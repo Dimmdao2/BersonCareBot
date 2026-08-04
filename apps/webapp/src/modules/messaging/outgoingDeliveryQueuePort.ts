@@ -6,8 +6,8 @@ export type OutgoingIntent = {
     occurredAt: string;
     source: string;
     userId?: string;
-    outboundMessageClass?: 'routine_product' | 'operator_security';
-    outboundCapability?: 'app_push' | 'essential_delivery' | 'operator_alert';
+    outboundMessageClass?: 'routine_product' | 'operator_security' | 'auth_code';
+    outboundCapability?: 'app_push' | 'essential_delivery' | 'operator_alert' | 'auth_code';
   };
   payload: Record<string, unknown>;
 };
@@ -72,11 +72,30 @@ export type PatientReminderReadyOutgoingDelivery = {
   platformUserId: string;
 };
 
+/**
+ * D27-C: durable auth-code email delivery. Platform-level (no organizationId), like
+ * OperatorHealthDigestReadyOutgoingDelivery — a login code is not tenant-scoped work. `priority`
+ * keeps it off the same claim order as ordinary mailings/reminders (see `outgoing_delivery_queue.
+ * priority`, migration 0359): the durable queue is shared on purpose (one queue, not a second),
+ * but a person waiting for a code must not queue behind a broadcast.
+ */
+export type AuthEmailOtpReadyOutgoingDelivery = {
+  organizationId: null;
+  eventId: string;
+  kind: 'auth_email_otp';
+  channel: 'email';
+  intent: OutgoingIntent;
+  maxAttempts: number;
+  nextRetryAt: string;
+  priority: number;
+};
+
 export type ReadyOutgoingDelivery =
   | SpecialistTaskReadyOutgoingDelivery
   | OperatorHealthDigestReadyOutgoingDelivery
   | PatientReminderReadyOutgoingDelivery
-  | AppointmentReminderReadyOutgoingDelivery;
+  | AppointmentReminderReadyOutgoingDelivery
+  | AuthEmailOtpReadyOutgoingDelivery;
 
 /** The only webapp write seam for `public.outgoing_delivery_queue`. */
 export type OutgoingDeliveryQueueWritePort<TransactionClient> = {

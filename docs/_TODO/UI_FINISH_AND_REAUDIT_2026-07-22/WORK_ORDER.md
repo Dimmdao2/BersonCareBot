@@ -1019,6 +1019,32 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       нейтрализация ответов на `email-otp/start` МАСКИРУЕТ настоящий отказ доставки письма — человек видит «код
       отправлен», когда письмо не ушло; это найдено живой диагностикой 03.08 и требует своего решения вместе с
       D27-C.
+      ✅ **D27-C ЗАКРЫТО 04.08 (worktree `wt/d27c-durable-delivery`).** Отправка кода вынесена из
+      `startEmailChallenge` в существующую очередь `public.outgoing_delivery_queue` — второй очереди не заведено.
+      Новый вид `auth_email_otp` разбирает тот же `outgoingDeliveryWorker.ts` (generic transport branch), провайдер
+      зовётся через тот же `dispatchOutgoing` chokepoint, что и прежний синхронный `/api/bersoncare/send-email`.
+      Отложенный тест снят: `email-otp/start/route.route.test.ts` → «keeps a known address out of a slower
+      response-time class…» зелёный — маршрут гоняет `startPublicEmailOtpChallenge` наперегонки с публичным
+      floor'ом (`raceAgainstPublicFloor`), а не растягивает fixed sleep, поэтому latency вызова структурно не
+      протекает в ответ независимо от того, сколько он реально занял. Скорость: задание claim'ится приоритетно —
+      добавлена колонка `outgoing_delivery_queue.priority` (миграция `0359`, временный номер) и
+      `claimDueOutgoingDeliveries` сортирует `priority DESC, next_retry_at ASC`, так что код входа (`priority=100`)
+      не встаёт в очередь за рассылками (`priority=0`) даже при общем backlog'е; замер — верхняя граница задержки
+      «нажатие → доставка воркеру» ограничена одним `pollIntervalMs` (5000мс, `apps/integrator/src/config/
+      appSettings.ts`) плюс временем обработки уже занятой на тот момент строки, доказано живым прогоном
+      `check-d30-outgoing-delivery-claim-concurrency.ts` piece 4g (приоритетная строка забирается первой при
+      одинаковом `next_retry_at`, вопреки более старой строке с меньшим приоритетом). Видимость оператору: отказ,
+      исчерпавший короткую лестницу ретраев (15/60/180с, как у `inbound_reply` — человек ждёт прямо сейчас),
+      открывает `operator_incidents` через `recordOperatorFailureIncident({direction:
+      'outbound_delivery_provider', ...})` — тот же direction, что и прежний синхронный путь, значит тот же
+      critical-alert/digest конвейер `modules/operator-health`, а не новый непросматриваемый канал; публичный ответ
+      остаётся нейтральным (`ok:true`) независимо от исхода. Идемпотентность: `event_id =
+      auth-otp:email:<challengeId>` — повторная отправка по кнопке минтит новый challenge и, значит, новую строку;
+      один и тот же challenge не задваивается. Тесты: `emailAuth.durableQueue.d27c.test.ts` (enqueue вместо
+      синхронной отправки, email_send_failed при провале постановки),
+      `outgoingDeliveryWorker.authEmailOtp.d27c.test.ts` (happy path через chokepoint, инцидент на исчерпании
+      лестницы, reschedule без инцидента пока попытки не исчерпаны). Телефонный OTP не тронут (только почта, как и
+      просил бриф).
 - [x] **D28 — отзыв подтверждения вместе с номером.** Решение — **Р-D28** (§2.3). ✅ 04.08, `65215ae24`,
       land `b4e7b212f`: смена или отзыв номера снимает подтверждение контакта в обоих приложениях — общая
       запись в `packages/platform-merge/src/phoneHistorySync.ts`, её зовут и вебапп, и интегратор. Покрыто

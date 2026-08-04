@@ -2500,6 +2500,13 @@
       "when": 1793539230104,
       "tag": "0358_t3_tariff_mailing_templates_local",
       "breakpoints": true
+    },
+    {
+      "idx": 357,
+      "version": "7",
+      "when": 1793539230105,
+      "tag": "0359_auth_email_otp_delivery_queue_local",
+      "breakpoints": true
     }
   ]
 }
