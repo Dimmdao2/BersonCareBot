@@ -217,6 +217,9 @@ REVOKE EXECUTE ON FUNCTION app.get_public_config_bool(text) FROM :"d3_4_bootstra
 -- than an error; mirrors the same absent-function tolerance the ownership normalization uses.
 SELECT format('REVOKE EXECUTE ON FUNCTION app.is_smtp_outbound_configured() FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.is_smtp_outbound_configured()') IS NOT NULL \gexec
+-- 0357: same absent-function tolerance for the preferred-auth-channel accessor below.
+SELECT format('REVOKE EXECUTE ON FUNCTION app.get_preferred_auth_channel_code(uuid) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.get_preferred_auth_channel_code(uuid)') IS NOT NULL \gexec
 SELECT format('REVOKE EXECUTE ON FUNCTION app.is_sms_provider_configured() FROM %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.is_sms_provider_configured()') IS NOT NULL \gexec
 SELECT format('REVOKE EXECUTE ON FUNCTION app.is_telegram_login_configured() FROM %I', :'d3_4_bootstrap_base_role')
@@ -636,6 +639,11 @@ GRANT EXECUTE ON FUNCTION app.get_public_config_bool(text) TO :"d3_4_bootstrap_b
 -- (older DB, migration 0240 not yet applied) is a no-op rather than a FATAL here.
 SELECT format('GRANT EXECUTE ON FUNCTION app.is_smtp_outbound_configured() TO %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.is_smtp_outbound_configured()') IS NOT NULL \gexec
+-- 0357: phone/start's automatic-channel resolution (resolveAuthOtpChannel) needs the caller's
+-- preferred_for_auth channel_code before a session exists. Narrow SECURITY DEFINER accessor by
+-- exact user id, no table grant to this login (see migration 0357's header for the full trace).
+SELECT format('GRANT EXECUTE ON FUNCTION app.get_preferred_auth_channel_code(uuid) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.get_preferred_auth_channel_code(uuid)') IS NOT NULL \gexec
 SELECT format('GRANT EXECUTE ON FUNCTION app.is_sms_provider_configured() TO %I', :'d3_4_bootstrap_base_role')
 WHERE to_regprocedure('app.is_sms_provider_configured()') IS NOT NULL \gexec
 SELECT format('GRANT EXECUTE ON FUNCTION app.is_telegram_login_configured() TO %I', :'d3_4_bootstrap_base_role')

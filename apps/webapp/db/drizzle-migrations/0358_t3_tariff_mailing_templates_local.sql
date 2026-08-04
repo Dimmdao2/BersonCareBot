@@ -1,4 +1,4 @@
--- TEMPORARY LOCAL MIGRATION NUMBER 0356 — the lead assigns the final number at merge.
+-- Final migration number 0358 — assigned at merge (0356/0357 were taken by branches that landed first).
 -- #1069 Т3 (owner 03.08): "не вижу места где правятся шаблоны... вынес в отдельную вкладку и
 -- правил там через полноценный редактор". Each tariff gets its own list of marketing letters; a
 -- ladder notification row will reference one by id instead of embedding its text.
