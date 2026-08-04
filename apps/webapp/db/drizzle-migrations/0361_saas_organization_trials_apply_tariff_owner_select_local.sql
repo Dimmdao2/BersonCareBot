@@ -1,0 +1,15 @@
+-- TEMPORARY LOCAL MIGRATION NUMBER 0361 -- final number assigned at merge.
+-- #987 CI-from-zero: `pnpm run test:webapp:postgres` reproduced a genuine grant gap left by `0350`.
+-- `0350` added `GRANT UPDATE ON TABLE public.saas_organization_trials TO app_owner;` so
+-- `app.apply_paid_saas_billing_tariff` (SECURITY DEFINER, owned by `app_owner`) could end an
+-- organization's active trial. That UPDATE's own `WHERE organization_id = ... AND status = 'active'`
+-- predicate needs the executing role to be able to READ `organization_id`/`status`, not just write
+-- them -- PostgreSQL's ACL check for `UPDATE ... WHERE <cols>` requires SELECT on the columns the
+-- WHERE clause reads, in addition to UPDATE on the columns it writes. `0350` granted only UPDATE, so
+-- every call reproducibly raised `42501 permission denied for table saas_organization_trials` from
+-- inside the accessor (confirmed live in this disposable-Postgres template:
+-- `SET ROLE app_owner; UPDATE public.saas_organization_trials SET status = 'ended', ... WHERE
+-- organization_id = ... AND status = 'active';` -- fails without this grant, succeeds with it).
+-- Same idiom `0348` already used for `be_organizations` (`GRANT SELECT, UPDATE ...`, not UPDATE
+-- alone) -- `0350` just missed pairing it here.
+GRANT SELECT ON TABLE public.saas_organization_trials TO app_owner;

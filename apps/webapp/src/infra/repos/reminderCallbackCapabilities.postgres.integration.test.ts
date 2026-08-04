@@ -118,7 +118,7 @@ describe('D7 signed reminder callback capabilities', () => {
 
     const cutoverMigrationSql = await readFile(
       new URL(
-        '../../../db/drizzle-migrations/9995_d30_appointment_reminder_queue_cutover_local.sql',
+        '../../../db/drizzle-migrations/0339_d30_appointment_reminder_queue_cutover_local.sql',
         import.meta.url,
       ),
       'utf8',
@@ -640,6 +640,11 @@ describe('D7 signed reminder callback capabilities', () => {
          has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'UPDATE') AS app_owner_update,
          has_table_privilege('app_owner', 'integrator.user_reminder_occurrences', 'DELETE') AS app_owner_delete`,
     );
+    // `app_owner` SELECT/UPDATE here is deliberate (0340): the SECURITY DEFINER writers this test
+    // exercises above (`upsert_patient_reminder_occurrence_plan`, `mark_patient_reminder_occurrence_
+    // queued`) run owned by `app_owner` and read (`SELECT ... FOR UPDATE`) and update this exact
+    // table from inside their body -- narrowed to this one table, DELETE stays denied, and
+    // app_patient/PUBLIC stay with zero direct access.
     expect(tableGrants.rows).toEqual([
       {
         patient_select: false,
@@ -650,8 +655,8 @@ describe('D7 signed reminder callback capabilities', () => {
         public_insert: false,
         public_update: false,
         public_delete: false,
-        app_owner_select: false,
-        app_owner_update: false,
+        app_owner_select: true,
+        app_owner_update: true,
         app_owner_delete: false,
       },
     ]);
