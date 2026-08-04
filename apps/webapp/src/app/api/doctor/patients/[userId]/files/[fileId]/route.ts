@@ -70,8 +70,9 @@ export async function GET(
 /**
  * DELETE /api/doctor/patients/[userId]/files/[fileId]
  *
- * Storage recovery deliberately remains available when the byte quota is exhausted: it removes
- * the canonical row in the same transaction that stages durable S3 cleanup for retry.
+ * Deletes the S3 object before the canonical row: the row is only removed once the object is
+ * confirmed gone (or S3 is disabled). A storage failure returns 502 and keeps the row instead of
+ * claiming success — the object is staged for the shared retry purge in that case.
  */
 export async function DELETE(
   request: Request,
@@ -114,13 +115,16 @@ export async function DELETE(
     }
   }
 
-  const deleted = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.files.delete', () =>
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.files.delete', () =>
     deps.patientFiles.deleteFile(fileId),
   );
-  if (!deleted) {
+  if (result.status === 'not_found') {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  return NextResponse.json({ ok: true, deleted: true, storageCleanupScheduled: true });
+  if (result.status === 'storage_delete_failed') {
+    return NextResponse.json({ ok: false, error: 'storage_delete_failed' }, { status: 502 });
+  }
+  return NextResponse.json({ ok: true, deleted: true });
 }
 
 const patchBodySchema = z
