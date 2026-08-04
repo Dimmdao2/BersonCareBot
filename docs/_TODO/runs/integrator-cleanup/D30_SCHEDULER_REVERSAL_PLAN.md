@@ -556,6 +556,91 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       транзакция для них) — это отдельный, срочный тикет (живой инцидент TEST), не Ш7, и Ш7 не может
       закрыть дренаж, пока он не исправлен где-то.
 
+      **READINESS-PROBE FIX + DEV LIVE DRAIN 04.08 (worktree `wt/d30-drain`):** проба перестала иметь
+      побочные эффекты, воркер стартует на DEV и доходит до рабочего цикла, 4 stale-processing строки
+      слиты. По порядку:
+
+      1. **Виновный коммит:** `1f9b2f22fbb80d47cb8b35625d0df2b03ff8b90b "fix(track-d): revalidate
+         specialist reminder delivery"` (2026-08-03 05:24) — этот коммит добавил в
+         `assertDeliveryWorkerPoolReady` строки, вызывающие `app.revalidate_specialist_task_reminder_
+         materialization`/`app.apply_specialist_task_reminder_success_outcome` НАПРЯМУЮ (не как
+         `has_function_privilege`-проверку прав, как уже сделано для соседней
+         `app.record_operator_delivery_attempt` тремя строками выше) — 17 минут спустя после его выката
+         TEST outgoing-delivery worker ушёл в непрерывный crash-loop (`2026-08-03 05:41`), в котором и
+         оставался на момент этого измерения.
+      2. **Фикс пробы** (`apps/integrator/src/infra/db/operationalPoolReadiness.ts`): обе строки заменены
+         на `SELECT 1 / has_function_privilege(current_user, '<сигнатура>', 'EXECUTE')::int` — та же идиома,
+         что уже стоит для `record_operator_delivery_attempt`. Проверяется ПРАВО звать мутирующую функцию,
+         а не её результат; тела `app.revalidate_specialist_task_reminder_materialization(uuid)`/
+         `app.apply_specialist_task_reminder_success_outcome(uuid)` не тронуты (их `SELECT ... FOR UPDATE`
+         остаётся — это их законный внутренний lock, не проблема пробы). Остальные шесть проб (обе очереди)
+         и обе пробы `assertSchedulerPoolReady` перепроверены построчно на тот же вопрос — ни одна из них не
+         содержит `FOR UPDATE`/мутации; правка не нужна нигде, кроме этих двух строк.
+      3. **Прямой replay всех восьми проб** живой SQL-сессией (`SET ROLE app_operational_delivery_worker;
+         BEGIN READ ONLY; <8 строк из assertDeliveryWorkerPoolReady>; ROLLBACK;` на `bcb_webapp_dev`) —
+         все восемь прошли без ошибки.
+      4. **Новые DEV-only грантовые разрывы, найденные ПОСЛЕ фикса пробы** (проба их не покрывает — они
+         лежат дальше по пути реального старта воркера, не в самих восьми пробах), каждый закрыт минимальным
+         `deploy/postgres/dev-cN-*.sql` той же идиомы (operator-run, guarded, idempotent, exact-edge
+         assertion), что и `dev-c5`/`dev-c6`/`dev-c7`:
+         - **`dev-c8-operational-delivery-worker-remaining-function-grants.sql`** — аудит 04.08 нашёл ДВА
+           разрыва вне восьми проб, оба на пути reclaim-тика: `app.read_outgoing_delivery_reclaim_config()`
+           на DEV **не существовал вовсе** (единственная декларация — `c4-operational-runtime.sql:711-731`,
+           ни одна drizzle-миграция его не создаёт), создан verbatim + выдан EXECUTE
+           `app_operational_delivery_worker`; `app.open_or_touch_operator_incident(...)` уже существовал
+           (migration 0329), но EXECUTE `app_operational_delivery_worker` не был выдан — выдан.
+         - **`dev-c9-integrator-login-release-principal-context-grant.sql`** — НОВЫЙ разрыв, найденный
+           только живым прогоном `pnpm run worker:dev` (не виден ни в одной из восьми проб и не входил в
+           список аудита 04.08): `packages/db-principal` зовёт `app.release_principal_context()` дважды за
+           checkout — на apply ДО `SET ROLE` (как логин `bcb_webapp_dev_user`) и на cleanup ПОСЛЕ `SET ROLE`
+           (как роль `app_operational_delivery_worker`) — обеим не хватало EXECUTE. Тот же класс, что уже
+           чинил `dev-c1` для рантайм-логинов webapp, но для ТРЕТЬЕГО логина (`bcb_webapp_dev_user`,
+           интегратор/воркер) и отдельно для capability-роли. Оба гранта выданы.
+         - **`dev-c10-operational-delivery-worker-platform-integration-availability-grant.sql`** — ЕЩЁ один
+           новый разрыв, тоже найден только живым прогоном (не в восьми пробах, не в списке аудита 04.08):
+           `app.read_integrator_platform_integration_availability()` зовётся на КАЖДОМ dispatch
+           (`apps/integrator/src/app/di.ts:256`) под ролью `app_operational_delivery_worker`, но нигде
+           (включая `c4-operational-runtime.sql`) не был ей выдан — единственный существующий грант
+           (`integrator-server-runtime-config.sql`) идёт другой роли (`integrator_runtime_config_role`,
+           базовый API-логин). **Похоже на пробел в самом каноническом наборе грантов, не только в
+           DEV-провизининге** — на TEST этот вызов ни разу не проверялся живьём, потому что TEST-воркер ни
+           разу не доходил дальше сломанной пробы (см. п.1); после выката фикса из п.2 на TEST велика
+           вероятность того же `permission denied`, если тот грант не добавлен и там. **Отдельный вопрос
+           владельцу/лиду**, не D30: нужно ли расширить канонический `c4-operational-runtime.sql`
+           аналогичным грантом для `app_operational_delivery_worker`/`app_operational_scheduler` перед
+           деплоем фикса на TEST.
+         Кроме грантов, DEV также не хватало ДВУХ вещей вне схемы БД — тоже впервые обнаруженных этим живым
+         прогоном (env, не грант, не код): `apps/webapp/.env.dev` в этом worktree не содержал
+         `DATABASE_URL_DELIVERY_WORKER` вовсе (без него `integratorPoolProvider.ts`'s `selectPool()` кидает
+         `DATABASE_URL_DELIVERY_WORKER is required...` ещё до захода в БД) — добавлен со значением, равным
+         `DATABASE_URL` (тот же общий логин `bcb_webapp_dev_user`, `SET ROLE` дальше берёт на себя членство
+         из `dev-c5`); это gitignored локальный конфиг, не коммитится, но нужен в любом клоне/worktree,
+         который реально поднимает DEV-воркер.
+      5. **Живой дренаж 04.08, DEV (`bcb_webapp_dev`):** после (2)+(4) `pnpm run worker:dev` стартует чисто
+         (`Runtime worker started`, без ошибок кроме двух уже известных tolerated error-tracking-config
+         reads) и доходит до рабочего цикла (job-queue/projection-outbox/outgoing-delivery loops — все три
+         работают параллельно, дожили 20+ секунд без ошибок на втором прогоне). Точный состав очереди
+         `integrator.message_retry_jobs`:
+         - **До:** `20 pending` (due `06–29.08`) / `4 processing` (stale, `updated_at` `25–28.07`) /
+           `22 dead` / `67 done` — 113 всего (то же самое, что RE-MEASURE 04.08 выше).
+         - **После:** `20 pending` / `0 processing` / `26 dead` / `67 done` — 113 всего.
+         Все 4 stale-processing строки (`id 102/131/132/140`) слиты: reclaim вернул их в `pending`, воркер
+         тут же их забрал, `decideRetry` завершил их в `dead` (`attempts_done=1` до этого прогона,
+         `max_attempts=2` → `nextAttempts=2 >= 2` → `complete`, это штатная политика ретраев, а не баг
+         дренажа) с `last_error='permission denied for function
+         read_integrator_platform_integration_availability'` — то есть их последнюю попытку съел разрыв из
+         п.4/dev-c10, найденный и закрытый ТЕМ ЖЕ прогоном, ПОСЛЕ того как они уже стали `dead`. Повторный
+         реролл этих четырёх конкретных строк намеренно не делался — на DEV нет настоящих
+         Telegram/MAX-креденшелов (`TELEGRAM_BOT_TOKEN` пуст, `MAX_ENABLED=false`), так что и честная
+         повторная попытка почти наверняка тоже кончилась бы `dead`, просто по другой причине; `dead` —
+         один из двух исходов, который этот же раздел плана явно ожидал («ушли в `sent`/`dead`»). Точка
+         невозврата (`DROP TABLE`) по-прежнему НЕ приближена: `20 pending` строк с due по `29.08` остаются
+         легитимными и обязаны пройти через legacy-compatibility-consumer, как и раньше.
+      6. **Что осталось вне мандата этого хода:** TEST не деплоился и не трогался (только код+DEV-гранты в
+         этой ветке); выкат фикса из п.2 на TEST плюс решение по п.4/dev-c10 для TEST — шаг лида/владельца.
+         `DROP TABLE integrator.message_retry_jobs` — по-прежнему заблокирован до `2026-08-29`+ по природе
+         `pending`-строк, независимо от готовности воркера.
+
 - [ ] **Ш8. B3 — не в этом плане.** Дренаж `integrator_push_outbox` исчезает вместе с M2M-каналом
       `reminder_rule_upsert` по D5–D7/D25. Здесь фиксируется зависимость, работа не начинается.
 
