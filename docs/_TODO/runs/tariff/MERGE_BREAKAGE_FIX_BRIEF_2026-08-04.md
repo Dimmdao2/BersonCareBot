@@ -6,8 +6,8 @@ Language: internal work is English.
 Authority: this brief (bounded merge breakage, `ORCH_OPS`). `AGENTS.md` §9 makes the full CI gate the condition
 for deploy and merge, so this blocks everything downstream.
 
-Источник оракула: `AGENTS.md` §9 — полный `pnpm run ci` обязателен перед deploy/merge; красный гейт означает, что
-дальше двигаться нельзя, пока причина не разобрана.
+Источник оракула: `AGENTS.md` — «Полный `pnpm run ci` — только перед deploy/merge/repo-level изменением; между
+коммитами — step/phase». Красный гейт означает, что дальше двигаться нельзя, пока причина не разобрана.
 
 ## What broke
 
