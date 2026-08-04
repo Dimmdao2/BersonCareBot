@@ -461,7 +461,7 @@ function AccessNotificationsEditor({
             <Select
               value={row.condition}
               onValueChange={(next) => {
-                if ((ACCESS_NOTIFICATION_CONDITIONS as readonly string[]).includes(next)) {
+                if (next && (ACCESS_NOTIFICATION_CONDITIONS as readonly string[]).includes(next)) {
                   update(index, { condition: next as AccessNotificationCondition });
                 }
               }}
