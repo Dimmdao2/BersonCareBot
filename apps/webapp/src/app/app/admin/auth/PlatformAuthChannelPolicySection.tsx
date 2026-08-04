@@ -16,10 +16,11 @@ import {
   TooltipTrigger,
 } from '@/shared/ui/primitives/tooltip';
 import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
+import { OAUTH_PROVIDER_REGISTRY, type OAuthProvider } from '@/modules/auth/oauthProviderRegistry';
 
 type PolicyKey = keyof AuthChannelUiPolicy;
 type SettingKey = `auth_${PolicyKey}_enabled`;
-type OAuthProviderKey = 'google' | 'yandex' | 'apple';
+type OAuthProviderKey = OAuthProvider;
 type OAuthSettingKey = `auth_oauth_${OAuthProviderKey}_enabled`;
 type IndependentMethodKey = 'passkey';
 type IndependentSettingKey = `auth_${IndependentMethodKey}_enabled`;
@@ -50,15 +51,11 @@ const CHANNELS: ReadonlyArray<{ channel: PolicyKey; label: string; hint: string 
 ];
 
 const OAUTH_PROVIDERS: ReadonlyArray<{ provider: OAuthProviderKey; label: string; hint: string }> =
-  [
-    { provider: 'google', label: 'Google', hint: 'Разрешить вход через Google OAuth.' },
-    { provider: 'yandex', label: 'Яндекс', hint: 'Разрешить вход через Яндекс OAuth.' },
-    {
-      provider: 'apple',
-      label: 'Apple',
-      hint: 'Разрешить Sign in with Apple при настроенных параметрах.',
-    },
-  ];
+  OAUTH_PROVIDER_REGISTRY.map((meta) => ({
+    provider: meta.provider,
+    label: meta.adminLabel,
+    hint: meta.adminHint,
+  }));
 
 const INDEPENDENT_METHODS: ReadonlyArray<{
   method: IndependentMethodKey;
@@ -79,16 +76,12 @@ const EMPTY_CHANNEL_STATUS: ChannelConfigurationStatus = {
   telegram: { enabled: false, configured: false },
   max: { enabled: false, configured: false },
 };
-const EMPTY_OAUTH_POLICY: Record<OAuthProviderKey, boolean> = {
-  google: false,
-  yandex: false,
-  apple: false,
-};
-const EMPTY_OAUTH_STATUS: OAuthConfigurationStatus = {
-  google: { enabled: false, configured: false },
-  yandex: { enabled: false, configured: false },
-  apple: { enabled: false, configured: false },
-};
+const EMPTY_OAUTH_POLICY: Record<OAuthProviderKey, boolean> = Object.fromEntries(
+  OAUTH_PROVIDER_REGISTRY.map((meta) => [meta.provider, false]),
+) as Record<OAuthProviderKey, boolean>;
+const EMPTY_OAUTH_STATUS: OAuthConfigurationStatus = Object.fromEntries(
+  OAUTH_PROVIDER_REGISTRY.map((meta) => [meta.provider, { enabled: false, configured: false }]),
+) as OAuthConfigurationStatus;
 const EMPTY_INDEPENDENT_POLICY: Record<IndependentMethodKey, boolean> = {
   passkey: false,
 };
