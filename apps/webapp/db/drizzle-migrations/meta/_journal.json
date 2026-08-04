@@ -2542,6 +2542,34 @@
       "when": 1793539230109,
       "tag": "0366_saas_tariffs_capability_read_0360_slot_reconcile_local",
       "breakpoints": true
+    },
+    {
+      "idx": 363,
+      "version": "7",
+      "when": 1793539230110,
+      "tag": "0367_auth_email_otp_delivery_queue_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 364,
+      "version": "7",
+      "when": 1793539230111,
+      "tag": "0368_auth_email_otp_enqueue_capability_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 365,
+      "version": "7",
+      "when": 1793539230112,
+      "tag": "0369_auth_email_otp_enqueue_hardening_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 366,
+      "version": "7",
+      "when": 1793539230113,
+      "tag": "0370_auth_email_otp_delivery_ownership_local",
+      "breakpoints": true
     }
   ]
 }

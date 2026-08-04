@@ -6,8 +6,8 @@ export type OutgoingIntent = {
     occurredAt: string;
     source: string;
     userId?: string;
-    outboundMessageClass?: 'routine_product' | 'operator_security';
-    outboundCapability?: 'app_push' | 'essential_delivery' | 'operator_alert';
+    outboundMessageClass?: 'routine_product' | 'operator_security' | 'auth_code';
+    outboundCapability?: 'app_push' | 'essential_delivery' | 'operator_alert' | 'auth_code';
   };
   payload: Record<string, unknown>;
 };
@@ -71,6 +71,11 @@ export type PatientReminderReadyOutgoingDelivery = {
   logText: string;
   platformUserId: string;
 };
+
+// D27-C fix round 2: `auth_email_otp` no longer goes through this generic write port. Its enqueue
+// is a single narrow SECURITY DEFINER call (`app.email_auth_enqueue_otp_delivery`, migration 0363)
+// that composes the row itself from `public.email_challenges` — there is no caller-built
+// `ReadyOutgoingDelivery` envelope for it anymore. See pgAuthEmailOtpDeliveryQueue.ts.
 
 export type ReadyOutgoingDelivery =
   | SpecialistTaskReadyOutgoingDelivery

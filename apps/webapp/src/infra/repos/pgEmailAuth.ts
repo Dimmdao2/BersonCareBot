@@ -75,7 +75,8 @@ export async function insertEmailChallenge(params: {
   codeHash: string;
   expiresAt: number;
   purpose: EmailChallengePurpose;
-}): Promise<string> {
+  code: string;
+}): Promise<{ challengeId: string; deliveryToken: string }> {
   const ins = await runWebappPgText<{ id: string }>(
     `SELECT app.email_auth_insert_email_challenge($1::uuid, $2, $3, $4::bigint)::text AS id`,
     [params.userId, params.email, params.codeHash, params.expiresAt],
@@ -89,7 +90,18 @@ export async function insertEmailChallenge(params: {
     challengeId,
     params.purpose,
   ]);
-  return challengeId;
+  // D27-C fix round 2: same idiom -- the plaintext code is stamped via its own accessor right after
+  // insert, so app.email_auth_enqueue_otp_delivery (migration 0363) can compose the delivery email
+  // from the row instead of accepting it as a caller-supplied payload.
+  // D27-C fix round 3: that accessor now also mints and returns the one-shot ownership token
+  // app.email_auth_enqueue_otp_delivery requires -- it is captured here and never leaves the server
+  // process except via the direct call into enqueueEmailOtpDelivery further up the same request.
+  const codeIns = await runWebappPgText<{ delivery_token: string }>(
+    'SELECT app.email_auth_set_email_challenge_delivery_code($1::uuid, $2) AS delivery_token',
+    [challengeId, params.code],
+  );
+  const deliveryToken = codeIns.rows[0]!.delivery_token;
+  return { challengeId, deliveryToken };
 }
 
 export async function deleteEmailChallengeById(challengeId: string): Promise<void> {

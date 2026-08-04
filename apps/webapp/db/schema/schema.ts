@@ -908,6 +908,26 @@ export const emailChallenges = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
+    /**
+     * D27-C fix round 2: one-shot plaintext OTP for delivery composition only (never used for
+     * verification, which stays on codeHash). Written by startEmailChallenge right after insert,
+     * nulled by app.email_auth_enqueue_otp_delivery the moment it's queued. Format-locked to 6
+     * digits by a CHECK constraint (migration 0363).
+     */
+    pendingDeliveryCode: text('pending_delivery_code'),
+    /**
+     * D27-C fix round 3: one-shot ownership secret minted by
+     * app.email_auth_set_email_challenge_delivery_code, required by
+     * app.email_auth_enqueue_otp_delivery to prove the caller owns this challenge. Nulled out
+     * together with pendingDeliveryCode the moment delivery is queued (migration 0370).
+     */
+    deliveryToken: uuid('delivery_token'),
+    /**
+     * D27-C fix round 3: permanent (never cleared) marker set the moment delivery_token is first
+     * minted -- distinct from deliveryToken/pendingDeliveryCode (which DO get cleared on send) so a
+     * challenge can never be re-claimed after it has already been sent (migration 0370).
+     */
+    deliveryClaimedAt: timestamp('delivery_claimed_at', { withTimezone: true, mode: 'string' }),
   },
   (table) => [
     index('idx_email_challenges_expires_at').using(

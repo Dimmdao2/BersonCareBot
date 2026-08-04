@@ -18,14 +18,23 @@ export type OutgoingDeliveryKind =
   | 'inbound_reply'
   | 'specialist_task_reminder'
   | 'operator_health_digest'
-  | 'appointment_reminder';
+  | 'appointment_reminder'
+  | 'auth_email_otp';
 
 /** Kinds whose rows are already complete transport intents and need no product-specific worker logic. */
 export const GENERIC_TRANSPORT_QUEUE_KINDS = new Set<string>([
   'specialist_task_reminder',
   'operator_health_digest',
   'appointment_reminder',
+  'auth_email_otp',
 ]);
+
+/**
+ * D27-C: durable auth-code email delivery — the person is waiting right now, same class as
+ * `inbound_reply`. Kept separate from `INBOUND_REPLY_QUEUE_KIND` (a distinct queue kind, not a
+ * second inbound-reply row) but shares its fast retry ladder and short attempt budget.
+ */
+export const AUTH_EMAIL_OTP_QUEUE_KIND = 'auth_email_otp' as const satisfies OutgoingDeliveryKind;
 
 export const DOCTOR_BROADCAST_INTENT_QUEUE_KIND =
   'doctor_broadcast_intent' as const satisfies OutgoingDeliveryKind;
@@ -61,15 +70,21 @@ const RETRY_BACKOFF_SEC: readonly number[] = [60, 300, 900, 3600];
  */
 const INBOUND_REPLY_RETRY_BACKOFF_SEC: readonly number[] = [15, 60, 180];
 
+/** Kinds where a human is waiting right now — short ladder instead of the hours-long mailing tail. */
+const FAST_RETRY_QUEUE_KINDS = new Set<string>([INBOUND_REPLY_QUEUE_KIND, AUTH_EMAIL_OTP_QUEUE_KIND]);
+
 function retryBackoffLadderForKind(kind: string | undefined): readonly number[] {
-  return kind === INBOUND_REPLY_QUEUE_KIND ? INBOUND_REPLY_RETRY_BACKOFF_SEC : RETRY_BACKOFF_SEC;
+  return kind !== undefined && FAST_RETRY_QUEUE_KINDS.has(kind)
+    ? INBOUND_REPLY_RETRY_BACKOFF_SEC
+    : RETRY_BACKOFF_SEC;
 }
 
 /**
  * @param failedAttemptNumber — номер завершившейся неудачной попытки (1-based).
  * @param kind — вид строки очереди; влияет только на выбор лестницы (см. `retryBackoffLadderForKind`).
- *   Без указания или для любого вида кроме `inbound_reply` — прежняя общая лестница, поведение
- *   напоминаний/рассылок/операторских алертов не меняется.
+ *   Без указания или для любого вида кроме `FAST_RETRY_QUEUE_KINDS` (`inbound_reply`,
+ *   `auth_email_otp`) — прежняя общая лестница, поведение напоминаний/рассылок/операторских
+ *   алертов не меняется.
  */
 export function retryDelaySecondsAfterFailure(failedAttemptNumber: number, kind?: string): number {
   const ladder = retryBackoffLadderForKind(kind);

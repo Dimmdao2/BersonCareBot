@@ -56,6 +56,7 @@ function queueValues(delivery: ReadyOutgoingDelivery) {
     nextRetryAt: delivery.nextRetryAt,
     lastError: null,
     deadAt: null,
+    priority: 0,
   };
 }
 
@@ -64,6 +65,8 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
   return {
     async enqueueReady(tx: DrizzleDb, delivery: ReadyOutgoingDelivery): Promise<boolean> {
       const values = queueValues(delivery);
+      // Episodic, standalone jobs (not replaceable-in-place): a repeated eventId is idempotency,
+      // never a refresh.
       if (delivery.kind === 'operator_health_digest') {
         const inserted = await tx
           .insert(outgoingDeliveryQueue)

@@ -17,8 +17,8 @@
  *    a crash-looping worker must not keep re-sending the same message on every reclaim.
  *
  * DDL below is the real `public.outgoing_delivery_queue` shape, assembled from migrations 0060,
- * 0107, 0280 and D30's 0328 addition. Runs against its own throwaway PostgreSQL instance; reads no
- * application env and touches no configured DATABASE_URL.
+ * 0107, 0280, D30's 0328 addition and D27-C's 0359 (priority column). Runs against its own
+ * throwaway PostgreSQL instance; reads no application env and touches no configured DATABASE_URL.
  */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -41,6 +41,7 @@ const EXPECTED_PIECES = [
   'piece 4d',
   'piece 4e',
   'piece 4f',
+  'piece 4g',
 ] as const;
 const passedPieces = new Set<string>();
 
@@ -81,6 +82,7 @@ CREATE TABLE public.outgoing_delivery_queue (
   failure_class text,
   reclaim_count integer NOT NULL DEFAULT 0,
   organization_id uuid,
+  priority smallint NOT NULL DEFAULT 0,
   CONSTRAINT outgoing_delivery_queue_status_check CHECK (
     status IN ('pending', 'processing', 'sent', 'failed_retryable', 'dead')
   )
@@ -88,7 +90,7 @@ CREATE TABLE public.outgoing_delivery_queue (
 CREATE UNIQUE INDEX uq_outgoing_delivery_queue_event_id
   ON public.outgoing_delivery_queue (event_id);
 CREATE INDEX idx_outgoing_delivery_queue_due
-  ON public.outgoing_delivery_queue (status, next_retry_at);
+  ON public.outgoing_delivery_queue (status, priority DESC, next_retry_at);
 CREATE TABLE public.platform_users (
   id uuid PRIMARY KEY,
   email text,
@@ -780,6 +782,46 @@ async function main(): Promise<void> {
     reportPiecePass(
       'piece 4f',
       'recipient rebind and topic disable inside the 5s worker window failed closed before provider dispatch; concurrent immediate/cron producers retained one stable event row',
+    );
+
+    // --- Piece 4g: D27-C — a higher-priority row is claimed first at the same next_retry_at -----
+    // A login code (auth_email_otp, priority 100) must not queue behind an ordinary mailing
+    // (priority 0) merely because both became due at the same instant — next_retry_at alone has no
+    // defined tie-break order. Two rows share one timestamp; batchSize=1 must return the
+    // higher-priority one, not whichever the untie-broken scan happened to reach first.
+    const lowPriorityEventId = `d30-priority-low-${randomUUID()}`;
+    const highPriorityEventId = `d30-priority-high-${randomUUID()}`;
+    const sharedDueAt = new Date().toISOString();
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.outgoing_delivery_queue (
+            event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+            next_retry_at, priority
+          ) VALUES (
+            ${lowPriorityEventId}, 'operator_alert', 'telegram', '{}'::jsonb, 'pending', 0, 6,
+            ${sharedDueAt}::timestamptz, 0
+          )`,
+    );
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.outgoing_delivery_queue (
+            event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+            next_retry_at, priority
+          ) VALUES (
+            ${highPriorityEventId}, 'auth_email_otp', 'email', '{}'::jsonb, 'pending', 0, 4,
+            ${sharedDueAt}::timestamptz, 100
+          )`,
+    );
+    const priorityClaim = await runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () =>
+      claimDueOutgoingDeliveries(db, 1),
+    );
+    assert(
+      priorityClaim.length === 1 && priorityClaim[0]?.eventId === highPriorityEventId,
+      `expected the priority-100 row claimed first over the same-instant priority-0 row, got ${JSON.stringify(priorityClaim.map((r) => r.eventId))}`,
+    );
+    reportPiecePass(
+      'piece 4g',
+      'a higher-priority row due at the same instant as a lower-priority row is claimed first',
     );
 
     await closeDb();
