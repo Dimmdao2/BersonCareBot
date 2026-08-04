@@ -10,6 +10,7 @@ import {
   enrichMessengerBindAuditDetailsFields,
   messengerPhoneBindReasonHumanRu,
 } from '@bersoncare/platform-merge';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { DbPort, DispatchPort } from '../../../kernel/contracts/index.js';
 import { env } from '../../../config/env.js';
 import { logger } from '../../observability/logger.js';
@@ -98,6 +99,12 @@ export async function recordMessengerPhoneBindBlocked(input: {
   };
 
   let insertedFirst = false;
+  // D15b/4 (access sweep 2026-08-04): `admin_audit_log` is org-scoped RLS (`saas_org_dormant_p0_8_3`
+  // — `organization_id = app.current_org_id()`), and the retired write here never set the column, so
+  // a row written under the org principal this function now runs under (caller wraps this whole call
+  // in `runDirectPublicWriteWithOrgPrincipal`) would fail its own WITH CHECK. Read the SAME ambient
+  // org id the caller's principal switch used — never guessed, never a different resolution.
+  const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
 
   try {
     await input.db.tx(async (tx) => {
@@ -123,8 +130,8 @@ export async function recordMessengerPhoneBindBlocked(input: {
           try {
             await runIntegratorSql(
               tx,
-              sql`INSERT INTO public.admin_audit_log (actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
-               VALUES (NULL, 'messenger_phone_bind_blocked', ${candidateIds[0] ?? null}, ${conflictKey}, ${JSON.stringify(baseDetails)}::jsonb, 'error', 1, now())`,
+              sql`INSERT INTO public.admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
+               VALUES (${organizationId}::uuid, NULL, 'messenger_phone_bind_blocked', ${candidateIds[0] ?? null}, ${conflictKey}, ${JSON.stringify(baseDetails)}::jsonb, 'error', 1, now())`,
             );
             insertedFirst = true;
           } catch (err) {
@@ -143,8 +150,8 @@ export async function recordMessengerPhoneBindBlocked(input: {
       } else {
         await runIntegratorSql(
           tx,
-          sql`INSERT INTO public.admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
-           VALUES (NULL, 'messenger_phone_bind_anomaly', ${candidateIds[0] ?? null}, NULL, ${JSON.stringify(baseDetails)}::jsonb, 'error')`,
+          sql`INSERT INTO public.admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
+           VALUES (${organizationId}::uuid, NULL, 'messenger_phone_bind_anomaly', ${candidateIds[0] ?? null}, NULL, ${JSON.stringify(baseDetails)}::jsonb, 'error')`,
         );
         insertedFirst = true;
       }
