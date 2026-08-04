@@ -35,6 +35,8 @@ export type StrictPurgeSuccess = {
   details: {
     intakeS3KeyCount: number;
     mediaFileCount: number;
+    /** `patient_files` rows collected for this user (cascade-deleted with `platform_users`; object cleanup handled here). */
+    patientFileS3KeyCount: number;
     s3KeysAttempted: number;
     s3Failures: { key: string; error: string }[];
     integratorCleaned: boolean;
@@ -93,6 +95,7 @@ function buildExternalCleanupAuditDetails(args: {
     messengerBindingsCount: args.messengerBindingsCount,
     artifact: args.artifact,
     mediaDeleted: args.details.mediaRowsDeleted,
+    patientFileS3KeyCount: args.details.patientFileS3KeyCount,
     s3KeysAttempted: args.details.s3KeysAttempted,
     s3Failures: args.details.s3Failures,
     integratorCleaned: args.details.integratorCleaned,
@@ -137,6 +140,7 @@ async function runPostCommitArtifactCleanup(
   const details: PostCommitDetails = {
     intakeS3KeyCount: artifact.intakeS3Keys.length,
     mediaFileCount: artifact.mediaFiles.length,
+    patientFileS3KeyCount: artifact.patientFileS3Keys.length,
     s3KeysAttempted: 0,
     s3Failures: [],
     integratorCleaned: false,
@@ -153,12 +157,15 @@ async function runPostCommitArtifactCleanup(
         artifact.mediaFiles.map((m) => m.s3Key).filter((key): key is string => Boolean(key)),
       ),
     ];
-    const allKeys = [...new Set([...intakeKeys, ...mediaKeys])];
+    const patientFileKeys = [...new Set(artifact.patientFileS3Keys)];
+    const allKeys = [...new Set([...intakeKeys, ...mediaKeys, ...patientFileKeys])];
     details.s3KeysAttempted = allKeys.length;
 
     if (!s3Enabled) {
       details.intakeS3ObjectsNotDeletedBucketDisabled =
-        artifact.intakeS3Keys.length > 0 || artifact.mediaFiles.some((m) => Boolean(m.s3Key));
+        artifact.intakeS3Keys.length > 0 ||
+        artifact.patientFileS3Keys.length > 0 ||
+        artifact.mediaFiles.some((m) => Boolean(m.s3Key));
       for (const m of artifact.mediaFiles) {
         try {
           const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [
@@ -291,7 +298,7 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
   }
 
   const userSnapshot: PurgePlatformUserRow = { ...userBefore };
-  let artifact: PurgeArtifactKeys = { intakeS3Keys: [], mediaFiles: [] };
+  let artifact: PurgeArtifactKeys = { intakeS3Keys: [], mediaFiles: [], patientFileS3Keys: [] };
   let messengerBindings: MessengerBindingForIntegratorCleanup[] = [];
 
   const tx = await startPoolTransaction(pool);

@@ -267,6 +267,11 @@ export type PurgeArtifactKeys = {
   intakeS3Keys: string[];
   /** media_files rows that need post-commit cleanup; `s3Key = null` means DB-only row delete. */
   mediaFiles: { id: string; s3Key: string | null }[];
+  /**
+   * `patient_files` rows for this user (as patient). The row cascade-deletes with `platform_users`,
+   * so its object must be captured here before the webapp DELETE — same treatment as `intakeS3Keys`.
+   */
+  patientFileS3Keys: string[];
 };
 
 /**
@@ -300,7 +305,33 @@ export async function collectPurgeArtifactKeys(
   );
   const mediaFiles = mediaRes.rows.map((r) => ({ id: r.id, s3Key: r.s3_key ?? null }));
 
-  return { intakeS3Keys, mediaFiles };
+  const patientFilesRes = await runPurgeClientPgText<{
+    s3_key: string;
+    media_file_id: string | null;
+  }>(
+    client,
+    `SELECT s3_key, media_file_id::text AS media_file_id
+       FROM patient_files
+      WHERE patient_user_id = $1::uuid`,
+    [userId],
+  );
+  const patientFileS3Keys = patientFilesRes.rows
+    .map((r) => r.s3_key)
+    .filter((k): k is string => typeof k === 'string' && k.length > 0);
+
+  // A patient-file upload co-created via a media-library folder gets its own `media_files` row,
+  // owned by the *uploader* (doctor), not the patient -- so the `uploaded_by` query above misses it.
+  // Same object key as `patientFileS3Keys`; folding it into `mediaFiles` reuses the existing per-key
+  // S3-then-row cleanup instead of a second mechanism.
+  const existingMediaIds = new Set(mediaFiles.map((m) => m.id));
+  for (const row of patientFilesRes.rows) {
+    if (row.media_file_id && !existingMediaIds.has(row.media_file_id)) {
+      mediaFiles.push({ id: row.media_file_id, s3Key: row.s3_key });
+      existingMediaIds.add(row.media_file_id);
+    }
+  }
+
+  return { intakeS3Keys, mediaFiles, patientFileS3Keys };
 }
 
 export type PurgePlatformUserRow = {

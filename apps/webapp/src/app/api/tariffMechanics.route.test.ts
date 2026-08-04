@@ -884,7 +884,7 @@ describe('tariff and platform mutation gates', () => {
   });
 
   it('allows an authorized clinic to delete its patient file and release storage even when file mutations are otherwise denied', async () => {
-    const deleteFile = vi.fn().mockResolvedValue(true);
+    const deleteFile = vi.fn().mockResolvedValue({ status: 'deleted' });
     vi.mocked(buildAppDeps).mockReturnValue({
       doctorClientsPort: {
         getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
@@ -906,9 +906,34 @@ describe('tariff and platform mutation gates', () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       deleted: true,
-      storageCleanupScheduled: true,
     });
     expect(deleteFile).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('reports a storage failure distinctly instead of claiming the file was deleted', async () => {
+    const deleteFile = vi.fn().mockResolvedValue({ status: 'storage_delete_failed' });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: {
+        getFile: vi.fn().mockResolvedValue({ id: USER_ID, patientUserId: TARGET_ID }),
+        deleteFile,
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await deletePatientFile(
+      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'storage_delete_failed',
+    });
   });
 
   it('does not stage deletion when a linked media file is used and the doctor has not confirmed the consequence', async () => {
@@ -944,7 +969,7 @@ describe('tariff and platform mutation gates', () => {
   });
 
   it('deletes a used linked media file only after the doctor explicitly confirms the consequence', async () => {
-    const deleteFile = vi.fn().mockResolvedValue(true);
+    const deleteFile = vi.fn().mockResolvedValue({ status: 'deleted' });
     const findUsage = vi
       .fn()
       .mockResolvedValue([
