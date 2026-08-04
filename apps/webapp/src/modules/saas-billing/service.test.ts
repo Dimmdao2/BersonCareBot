@@ -1374,6 +1374,7 @@ describe('Р-14: immediate paid upgrade', () => {
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
+      mailingTemplates: [],
       includedSeats: 1,
       additionalSeatPriceMinor: null,
       discountedPriceMinor: null,

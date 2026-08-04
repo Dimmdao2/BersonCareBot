@@ -12,6 +12,7 @@ import {
   type OrgEntitlements,
   type OrgQuotaProjection,
   type EffectiveOrgCommercialAccess,
+  type MailingTemplate,
   type MechanicAccessResolution,
   type MechanicClass,
   type OrgEntitlementSnapshot,
@@ -80,7 +81,9 @@ function normalizeQuotaMap(quotas: TariffQuotaMap): TariffQuotaMap {
 /**
  * §5a item 2.6a — a notification row is валиден by its SHAPE only. The number of rows is not
  * bounded («число строк задаёт владелец, ограничений нет»), the offset may point before or after
- * the end of the period, and the text is never inspected: it is the owner's, variables included.
+ * the end of the period. §T3: the text itself is never inspected here (still true) — a row only
+ * carries a `templateId` reference now; whether that reference actually resolves is checked in
+ * `resolveAccessNotification` below, which is the only place with the tariff's template list.
  */
 function assertAccessNotification(rule: AccessNotificationRule): void {
   if (!Number.isSafeInteger(rule.offsetDays)) {
@@ -89,7 +92,64 @@ function assertAccessNotification(rule: AccessNotificationRule): void {
   if (!(ACCESS_NOTIFICATION_CONDITIONS as readonly string[]).includes(rule.condition)) {
     throw new Error('access_notification_condition_invalid');
   }
-  if (!rule.template.trim()) throw new Error('access_notification_template_required');
+  if (
+    rule.templateId !== null &&
+    rule.templateId !== undefined &&
+    typeof rule.templateId !== 'string'
+  ) {
+    throw new Error('access_notification_template_id_invalid');
+  }
+}
+
+/**
+ * §T3 (owner 03.08) — a rule POINTS AT a template; this is the only place the reference gets
+ * resolved into rendered text, so `renderAccessNotification` and every guard reading
+ * `warning.notifications` need no change. `templateId` unset keeps whatever `template` text the
+ * row already had (a pre-Т3 row, or one nobody has pointed at a template yet) — never silently
+ * blanked, per §T3 boundary #4. A set `templateId` gets its template's CURRENT body on every save,
+ * so editing the letter on the «Рассылки» tab reaches every rule pointing at it without touching
+ * the rule. A `templateId` that names nothing (deleted template, stale reference) is refused
+ * outright rather than silently keeping the last-resolved text.
+ */
+function resolveAccessNotification(
+  rule: AccessNotificationRule,
+  templatesById: ReadonlyMap<string, MailingTemplate>,
+): AccessNotificationRule {
+  const templateId = rule.templateId ?? null;
+  if (templateId === null) {
+    return { offsetDays: rule.offsetDays, condition: rule.condition, templateId: null, template: rule.template };
+  }
+  const template = templatesById.get(templateId);
+  if (!template) throw new Error('access_notification_template_not_found');
+  return { offsetDays: rule.offsetDays, condition: rule.condition, templateId, template: template.body };
+}
+
+function resolveAccessPolicyNotifications(
+  policy: AccessLifecyclePolicy,
+  templatesById: ReadonlyMap<string, MailingTemplate>,
+): AccessLifecyclePolicy {
+  return {
+    ...policy,
+    notifications: policy.notifications.map((rule) => resolveAccessNotification(rule, templatesById)),
+  };
+}
+
+/**
+ * §T3 — templates are data (owner-authored subject/body), validated only by SHAPE: an `id` unique
+ * within the tariff (so a rule's `templateId` resolves unambiguously) and a non-empty `name` so
+ * the list stays findable. Subject/body are never inspected — same "text is not code" stance as
+ * notification templates always had.
+ */
+function normalizeMailingTemplates(templates: readonly MailingTemplate[]): MailingTemplate[] {
+  const seenIds = new Set<string>();
+  return templates.map((template) => {
+    if (!template.id.trim()) throw new Error('mailing_template_id_required');
+    if (seenIds.has(template.id)) throw new Error('mailing_template_id_duplicate');
+    seenIds.add(template.id);
+    const name = template.name.trim();
+    if (!name) throw new Error('mailing_template_name_required');
+    return { id: template.id, name, subject: template.subject, body: template.body };
+  });
 }
 
 function assertAccessPolicy(policy: AccessLifecyclePolicy): void {
@@ -163,7 +223,12 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
     }
     if (!input.currency?.trim()) throw new Error('tariff_currency_required');
   }
+  const mailingTemplates = normalizeMailingTemplates(input.mailingTemplates);
+  const templatesById = new Map(mailingTemplates.map((template) => [template.id, template]));
   if (input.systemAccessPolicy) assertAccessPolicy(input.systemAccessPolicy);
+  const systemAccessPolicy = input.systemAccessPolicy
+    ? resolveAccessPolicyNotifications(input.systemAccessPolicy, templatesById)
+    : null;
   const mechanicAccessPolicies = {} as Tariff['mechanicAccessPolicies'];
   for (const [mechanic, policy] of Object.entries(input.mechanicAccessPolicies)) {
     // Owner 02.08: clinical tests are built into treatment programs, not a tariff mechanism.
@@ -175,7 +240,7 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
     if (MECHANIC_REGISTRY[mechanic].class === 'никогда') {
       throw new Error('critical_mechanic_access_policy_forbidden');
     }
-    mechanicAccessPolicies[mechanic] = policy;
+    mechanicAccessPolicies[mechanic] = resolveAccessPolicyNotifications(policy, templatesById);
   }
   const mechanics: Record<string, boolean> = {};
   for (const mechanic of Object.keys(input.mechanics)) {
@@ -202,8 +267,10 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
     currency: input.currency?.trim().toUpperCase() ?? null,
     mechanics,
     quotas: normalizeQuotaMap(input.quotas),
+    systemAccessPolicy,
     mechanicAccessPolicies,
     downgradePolicies,
+    mailingTemplates,
   };
 }
 

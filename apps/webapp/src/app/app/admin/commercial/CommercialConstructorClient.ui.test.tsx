@@ -242,11 +242,11 @@ describe('commercial constructor access ladder', () => {
     );
   });
 
-  // Т2/Т3/Т7 (owner 04.08) — templates move to their own tab with a full editor; this proves the
-  // tab picks up an existing tariff's notification rows (all seven conditions offered, template
-  // text rendered by the rich editor) and that editing the deadline round-trips without touching
-  // the owner's template text.
-  it('edits an existing notification row from the separate Уведомления tab, template preserved', async () => {
+  // Т2/Т3/Т7 (owner 04.08) — Т3 moved the letter itself off the rule row onto its own «Рассылки»
+  // tab; this proves the rule row keeps offset/condition, shows a pre-Т3 row's leftover text
+  // read-only instead of an inline editor, and that editing the deadline round-trips the leftover
+  // text unchanged (never blanked just because no template was chosen for it yet).
+  it('edits an existing notification row from the separate Уведомления tab, legacy text preserved', async () => {
     const user = userEvent.setup();
     let submitted: Record<string, unknown> | null = null;
     const existingTariff = {
@@ -262,12 +262,18 @@ describe('commercial constructor access ladder', () => {
         graceDays: 6,
         readOnlyDays: 4,
         notifications: [
-          { offsetDays: -2, condition: 'payment_failed', template: 'Оплатите {{тариф}} до {{дата}}' },
+          {
+            offsetDays: -2,
+            condition: 'payment_failed',
+            templateId: null,
+            template: 'Оплатите {{тариф}} до {{дата}}',
+          },
         ],
         terminalState: 'disabled',
       },
       mechanicAccessPolicies: {},
       downgradePolicies: {},
+      mailingTemplates: [],
       includedSeats: 1,
       additionalSeatPriceMinor: null,
       discountedPriceMinor: null,
@@ -299,8 +305,9 @@ describe('commercial constructor access ladder', () => {
     await user.click(await screen.findByRole('tab', { name: 'Уведомления' }));
     await user.click(await screen.findByRole('button', { name: /Тариф с триггерами/ }));
 
-    // The row's template renders through the rich editor, not a stub — the owner's text is really there.
+    // No inline editor for the letter any more — the pre-Т3 text shows read-only as a hint instead.
     expect(await screen.findByText(/Оплатите/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Текст')).not.toBeInTheDocument();
     // Т2/Т7 — all seven conditions are offered, not just the payment pair.
     expect(
       screen.getByLabelText('Доступ к системе: уведомление 1: условие'),
@@ -320,6 +327,7 @@ describe('commercial constructor access ladder', () => {
               {
                 offsetDays: -5,
                 condition: 'payment_failed',
+                templateId: null,
                 template: 'Оплатите {{тариф}} до {{дата}}',
               },
             ],
@@ -327,6 +335,165 @@ describe('commercial constructor access ladder', () => {
         },
       }),
     );
+  });
+
+  // §T3 — the rule POINTS AT a template chosen from the Select; this proves picking one submits
+  // its id, not a copy of its text.
+  it('picks a mailing template for a notification row and submits its id', async () => {
+    const user = userEvent.setup();
+    let submitted: Record<string, unknown> | null = null;
+    const existingTariff = {
+      id: '11111111-1111-4111-8111-111111111166',
+      name: 'Тариф с письмом',
+      description: '',
+      priceMinor: null,
+      currency: null,
+      billingPeriod: 'month',
+      mechanics: {},
+      quotas: {},
+      systemAccessPolicy: {
+        graceDays: 1,
+        readOnlyDays: 1,
+        notifications: [
+          { offsetDays: -1, condition: 'payment_failed', templateId: null, template: '' },
+        ],
+        terminalState: 'disabled',
+      },
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      mailingTemplates: [{ id: 'letter-1', name: 'Письмо об оплате', subject: '', body: '' }],
+      includedSeats: 1,
+      additionalSeatPriceMinor: null,
+      discountedPriceMinor: null,
+      isActive: true,
+      createdAt: '2026-08-04T00:00:00.000Z',
+      updatedAt: '2026-08-04T00:00:00.000Z',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          submitted = JSON.parse(String(init.body)) as Record<string, unknown>;
+          return { ok: true, json: async () => ({ ok: true, result: {} }) };
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            tariffs: [existingTariff],
+            organizations: [],
+            trialPolicy: null,
+            registrationTariffPolicy: { tariffId: null },
+          }),
+        };
+      }),
+    );
+
+    render(<CommercialConstructorClient />);
+    await user.click(await screen.findByRole('tab', { name: 'Уведомления' }));
+    await user.click(await screen.findByRole('button', { name: /Тариф с письмом/ }));
+
+    await user.click(screen.getByLabelText('Доступ к системе: уведомление 1: шаблон'));
+    await user.click(await screen.findByRole('option', { name: 'Письмо об оплате' }));
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(submitted).toMatchObject({
+        action: 'update_tariff',
+        tariff: {
+          systemAccessPolicy: {
+            notifications: [expect.objectContaining({ templateId: 'letter-1' })],
+          },
+        },
+      }),
+    );
+  });
+
+  // §T3 — the letter itself is composed on the «Рассылки» tab: subject + rich body, and the
+  // variable hints match what the notification code actually substitutes (accessNotifications.ts).
+  it('composes a mailing template on the Рассылки tab and it round-trips', async () => {
+    const user = userEvent.setup();
+    let submitted: Record<string, unknown> | null = null;
+    let savedTariff: Record<string, unknown> = {
+      id: '11111111-1111-4111-8111-111111111188',
+      name: 'Тариф для писем',
+      description: '',
+      priceMinor: null,
+      currency: null,
+      billingPeriod: 'month',
+      mechanics: {},
+      quotas: {},
+      systemAccessPolicy: null,
+      mechanicAccessPolicies: {},
+      downgradePolicies: {},
+      mailingTemplates: [],
+      includedSeats: 1,
+      additionalSeatPriceMinor: null,
+      discountedPriceMinor: null,
+      isActive: true,
+      createdAt: '2026-08-04T00:00:00.000Z',
+      updatedAt: '2026-08-04T00:00:00.000Z',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          submitted = JSON.parse(String(init.body)) as Record<string, unknown>;
+          savedTariff = { ...savedTariff, ...(submitted.tariff as Record<string, unknown>) };
+          return { ok: true, json: async () => ({ ok: true, result: {} }) };
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            tariffs: [savedTariff],
+            organizations: [],
+            trialPolicy: null,
+            registrationTariffPolicy: { tariffId: null },
+          }),
+        };
+      }),
+    );
+
+    render(<CommercialConstructorClient />);
+    await user.click(await screen.findByRole('tab', { name: 'Рассылки' }));
+    await user.click(await screen.findByRole('button', { name: /Тариф для писем/ }));
+
+    await user.click(screen.getByRole('button', { name: 'Новый шаблон' }));
+    fireEvent.change(screen.getByLabelText(/Название/), {
+      target: { value: 'Письмо про триал' },
+    });
+    fireEvent.change(screen.getByLabelText('Тема письма'), {
+      target: { value: 'Ваш триал начался' },
+    });
+
+    // The variable hints are the exact list the notification code substitutes — never guessed.
+    expect(screen.getByTitle('Название организации')).toHaveTextContent('{{клиника}}');
+    expect(screen.getByTitle('Название тарифа')).toHaveTextContent('{{тариф}}');
+    expect(screen.getByTitle('Сумма следующего платежа')).toHaveTextContent('{{сумма}}');
+    expect(screen.getByTitle('Дата начала следующего оплаченного периода')).toHaveTextContent(
+      '{{дата_начала_периода_автооплаты}}',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(submitted).toMatchObject({
+        action: 'update_tariff',
+        tariff: {
+          mailingTemplates: [
+            expect.objectContaining({
+              name: 'Письмо про триал',
+              subject: 'Ваш триал начался',
+            }),
+          ],
+        },
+      }),
+    );
+
+    // The saved letter is picked up in the list under its new name, not just held as a draft.
+    // (It's also the selected row, so its accessible name carries the "Выбран" badge too.)
+    expect(await screen.findByRole('button', { name: /Письмо про триал/ })).toBeInTheDocument();
   });
 
   it('never offers "full access" as a ladder terminal state (§5a stage 4b.2 — exactly two values)', async () => {

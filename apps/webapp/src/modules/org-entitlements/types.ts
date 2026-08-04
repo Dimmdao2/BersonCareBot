@@ -189,8 +189,35 @@ export type AccessNotificationRule = {
    */
   offsetDays: number;
   condition: AccessNotificationCondition;
-  /** Owner-authored text; `{{variable}}` placeholders are filled from data at render time. */
+  /**
+   * §T3 (owner 03.08): the row points at a {@link MailingTemplate} on the same tariff instead of
+   * embedding the letter. `null`/absent means no letter is chosen yet — the row still holds its
+   * place in the ladder (offset + condition), it just renders nothing. Optional so pre-Т3 rows
+   * (no key at all) keep reading as "no template" without a migration.
+   */
+  templateId?: string | null;
+  /**
+   * The resolved text actually rendered; `{{variable}}` placeholders are filled from data at
+   * render time (unchanged — see `accessNotifications.ts`). When `templateId` is set this is kept
+   * in sync with that template's body on every tariff save; when `templateId` is absent this is
+   * whatever was there before Т3 (never silently cleared, so an already-shipped row keeps working).
+   */
   template: string;
+};
+
+/**
+ * §T3 (owner 03.08): "не вижу места где правятся шаблоны... вынес в отдельную вкладку и правил
+ * там через полноценный редактор". A tariff's own list of marketing letters — composed on the
+ * «Рассылки» tab, referenced by `AccessNotificationRule.templateId` from any of the tariff's
+ * ladders. `id` is client-generated (`crypto.randomUUID()`), same pattern as other admin list rows.
+ */
+export type MailingTemplate = {
+  id: string;
+  /** Internal label so the list stays scannable; never shown to the recipient. */
+  name: string;
+  /** Email subject; supports the same `{{variable}}` placeholders as `body`. */
+  subject: string;
+  body: string;
 };
 
 /**
@@ -274,6 +301,8 @@ export type Tariff = {
   mechanicAccessPolicies: MechanicAccessPolicyMap;
   /** §5a stage 4b.3 — per-mechanic downgrade policy; absent mechanics fall back to `block` (fail-closed). */
   downgradePolicies: DowngradePolicyMap;
+  /** §T3 — this tariff's marketing letters; ladder notification rows reference these by id. */
+  mailingTemplates: MailingTemplate[];
   /**
    * Included specialist seats for `clinic_team`. §5a item 2.6a (owner 31.07): «количество
    * разрешённых специалистов должно быть явно настроено в тарифе, иначе он не сохранится» — a
