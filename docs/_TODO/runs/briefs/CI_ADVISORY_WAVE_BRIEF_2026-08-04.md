@@ -45,3 +45,20 @@ Authority: этот бриф (`ORCH_OPS`). Блокирует деплой: бе
 
 `/home/dev/brain/host-orch/run-tests.sh 'pnpm run ci'` → `exit 0`, в отчёте путь к логу и длительность.
 Один коммит на своей ветке, включая `pnpm-lock.yaml`.
+
+## Разошлось с реальностью (04.08, проверка на этой ветке)
+
+«Измеренное состояние» выше устарело: коммит `4f1e10984` («chore(deps): clear the new advisories by
+bumping to patched versions», Tue Aug 4 00:26:53) уже поднял все четыре пакета внутри мажора —
+`fast-uri` 3.1.4→3.1.5, `hono` 4.12.27→4.12.34, `ip-address` >=10.2.0→>=10.3.1 (лок разрешил 10.4.0),
+`undici` >=7.28.0→>=8.9.0 (лок разрешил 8.10.0) — и `pnpm-lock.yaml` в том же коммите. Этот коммит уже
+предок HEAD текущей ветки (`wt/ci-advisories` от `feat/doctor-ui-rebuild`ых 05:57), т.е. предшествует
+самому брифу (05:57) при том что замер датирован 05:49 — замер, видимо, шёл против неосвежённого
+`node_modules` того прогона, а не против дерева на диске.
+
+Проверено заново с нуля: `pnpm install --frozen-lockfile` (лок не менялся) → `node
+scripts/registry-prod-audit.mjs` → `no known vulnerabilities (all deps, audit-level >= low)` → полный
+`/home/dev/brain/host-orch/run-tests.sh 'pnpm run ci'` → `exit 0`, `479s`
+(`/tmp/full-ci-verify-0804.log`). Рабочее дерево осталось чистым — новых правок пинов/allowlist не
+понадобилось, четвёртый пакет из брифа тоже закрыт тем же коммитом. Аллоулист (`scripts/registry-prod-audit-allowlist.json`)
+не тронут — подавлять нечего.
