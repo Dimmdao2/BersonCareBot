@@ -7,7 +7,10 @@ import {
   InPersonBookingResolveError,
   resolveInPersonBookingContext,
 } from '@/modules/patient-booking/inPersonBookingResolve';
-import { inPersonCreateBodySchema } from '@/modules/patient-booking/inPersonApiSchemas';
+import {
+  contactFioFieldSchema,
+  inPersonCreateBodySchema,
+} from '@/modules/patient-booking/inPersonApiSchemas';
 import {
   jsonError,
   jsonOk,
@@ -28,13 +31,7 @@ const onlineBody = z.object({
   slotEnd: z.string().min(1),
   slotCount: z.coerce.number().int().min(1).max(8).optional(),
   contactName: z.string().min(1),
-  contactFio: z
-    .object({
-      lastName: z.string().trim().min(1),
-      firstName: z.string().trim().min(1),
-      patronymic: z.string().trim().optional(),
-    })
-    .optional(),
+  contactFio: contactFioFieldSchema,
   contactPhone: z.string().min(1),
   contactEmail: z.string().email().optional(),
   formAnswers: z.array(formAnswerSchema).optional(),

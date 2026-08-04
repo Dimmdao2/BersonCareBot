@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { FIO_LATIN_REJECTED_MESSAGE, isCyrillicFioInputOrEmpty } from '@/shared/lib/fio';
 
 const patchPatientSchema = z.object({
   birthDate: z
@@ -22,9 +23,27 @@ const patchPatientSchema = z.object({
     .nullable()
     .optional(),
   gender: z.enum(['male', 'female']).nullable().optional(),
-  displayName: z.string().trim().min(1).max(200).optional(),
-  firstName: z.string().trim().max(200).nullable().optional(),
-  lastName: z.string().trim().max(200).nullable().optional(),
+  displayName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .optional(),
+  firstName: z
+    .string()
+    .trim()
+    .max(200)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .nullable()
+    .optional(),
+  lastName: z
+    .string()
+    .trim()
+    .max(200)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .nullable()
+    .optional(),
 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {

@@ -18,6 +18,7 @@ import {
   type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
+import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
 
 /** Channels for which a fresh binding seeds opted-in broadcast defaults. */
 const CHANNEL_PREFERENCES_SEED_CHANNELS = new Set(['telegram', 'max', 'sms']);
@@ -203,6 +204,17 @@ export async function insertIdentityProjection(
   );
   const id = res.rows[0]?.id;
   if (!id) throw new MergeConflictError('insertIdentityProjection: insert returned no id', []);
+
+  const phoneNormalized = input.phoneNormalized?.trim();
+  if (phoneNormalized) {
+    // D28: brand-new account created with an already-confirmed number — open its first active
+    // `user_phone_history` spell (no prior row to close, unlike `enrichIdentityProjection`).
+    await db.query(
+      `INSERT INTO user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
+       VALUES ($1::uuid, $2::text, now(), NULL, 'projection')`,
+      [id, phoneNormalized],
+    );
+  }
   return id;
 }
 
@@ -229,6 +241,13 @@ export async function enrichIdentityProjection(
     channelCode: string | null;
   },
 ): Promise<void> {
+  const phoneNormalized = input.phoneNormalized?.trim();
+  if (phoneNormalized) {
+    // D28: this UPDATE below is about to (re)set `phone_normalized` for an EXISTING account — close
+    // its previous active confirmation spell (if any, and if the number actually changed) before the
+    // new number lands, so the old number stops appearing confirmed.
+    await syncPlatformUserPhoneHistoryOnConfirm(db, platformUserId, phoneNormalized, 'projection');
+  }
   const upd = await db.query(
     `UPDATE platform_users SET
        display_name = CASE

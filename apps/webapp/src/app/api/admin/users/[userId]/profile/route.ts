@@ -15,12 +15,26 @@ import {
 } from '@/app-layer/guards/requireRole';
 import { resolveCanonicalUserId } from '@/app-layer/platform-user/canonicalPlatformUser';
 import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
-import { normalizeFioPart } from '@/shared/lib/fio';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  isCyrillicFioInputOrEmpty,
+  normalizeFioPart,
+} from '@/shared/lib/fio';
 
 const bodySchema = z
   .object({
-    firstName: z.union([z.string().max(200), z.null()]).optional(),
-    lastName: z.union([z.string().max(200), z.null()]).optional(),
+    firstName: z
+      .union([
+        z.string().max(200).refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE }),
+        z.null(),
+      ])
+      .optional(),
+    lastName: z
+      .union([
+        z.string().max(200).refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE }),
+        z.null(),
+      ])
+      .optional(),
     email: z.union([z.string().email().max(320), z.literal(''), z.null()]).optional(),
     phone: z.union([z.string().max(40), z.null()]).optional(),
   })

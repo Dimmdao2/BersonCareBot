@@ -7,12 +7,30 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { createDoctorClient } from '@/app-layer/doctor/createDoctorClient';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  isCyrillicFioInput,
+  isCyrillicFioInputOrEmpty,
+} from '@/shared/lib/fio';
 
 const bodySchema = z.object({
   requestId: z.string().uuid().optional(),
-  lastName: z.string().min(1).max(200),
-  firstName: z.string().min(1).max(200),
-  patronymic: z.string().max(200).nullable().optional(),
+  lastName: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  firstName: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  patronymic: z
+    .string()
+    .max(200)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .nullable()
+    .optional(),
   phone: z.string().max(100).nullable().optional(),
   email: z.string().max(320).nullable().optional(),
 });

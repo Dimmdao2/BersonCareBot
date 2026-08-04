@@ -9,16 +9,37 @@ import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { hashPin } from '@/modules/auth/pinHash';
 import { getSpecialistSignupEnabled } from '@/modules/auth/specialistSignupRollout';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
-import { formatDoctorFio, normalizeFioPart } from '@/shared/lib/fio';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  formatDoctorFio,
+  isCyrillicFioInput,
+  isCyrillicFioInputOrEmpty,
+  normalizeFioPart,
+} from '@/shared/lib/fio';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 import { validateOrganizationSlugCandidate } from '@/modules/clinic-directory/organizationSlug';
 
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
-  lastName: z.string().trim().min(1).max(100),
-  firstName: z.string().trim().min(1).max(100),
-  patronymic: z.string().trim().max(100).optional(),
+  lastName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  firstName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  patronymic: z
+    .string()
+    .trim()
+    .max(100)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .optional(),
   organizationTitle: z.string().trim().min(1).max(200),
   organizationSlug: z.string().max(512),
 });

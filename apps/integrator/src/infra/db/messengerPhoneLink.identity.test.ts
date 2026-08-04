@@ -39,6 +39,12 @@ type PlatformUserRow = {
 type BindingRow = { channel_code: string; external_id: string; user_id: string };
 type ContactRow = { user_id: string; type: string; value_normalized: string };
 type TopicRow = { user_id: string; topic_code: string; is_enabled: boolean };
+type PhoneHistoryRow = {
+  platform_user_id: string;
+  phone_normalized: string;
+  valid_to: string | null;
+  source: string;
+};
 
 type Tables = {
   identities: IdentityRow[];
@@ -47,6 +53,8 @@ type Tables = {
   bindings: BindingRow[];
   contacts: ContactRow[];
   topics: TopicRow[];
+  /** D28: `user_phone_history` — confirmation ledger kept in sync with `platform_users.phone_normalized`. */
+  phoneHistory: PhoneHistoryRow[];
   /** Модель «legacy-строка контакта не отдаётся»: INSERT … ON CONFLICT … WHERE не задел ни строки. */
   contactsInsertBlocked?: boolean;
 };
@@ -59,6 +67,7 @@ function emptyTables(seed: Partial<Tables> = {}): Tables {
     bindings: [],
     contacts: [],
     topics: [],
+    phoneHistory: [],
     ...seed,
   };
 }
@@ -219,6 +228,23 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       return { rows: [] as T[], rowCount: 1 };
     }
 
+    // --- D28: user_phone_history sync (`syncPlatformUserPhoneHistoryOnConfirm`) -----------------
+    if (q.startsWith('update user_phone_history')) {
+      for (const h of tables.phoneHistory) {
+        if (h.platform_user_id === p[0] && h.valid_to === null) h.valid_to = 'closed';
+      }
+      return { rows: [] as T[], rowCount: 1 };
+    }
+    if (q.startsWith('insert into user_phone_history')) {
+      tables.phoneHistory.push({
+        platform_user_id: p[0]!,
+        phone_normalized: p[1]!,
+        valid_to: null,
+        source: p[2] ?? 'projection',
+      });
+      return rows([]);
+    }
+
     // --- notification topics / прочее -----------------------------------------
     if (q.startsWith('insert into user_notification_topics')) {
       tables.topics.push({ user_id: p[0]!, topic_code: p[1]!, is_enabled: p[2] === 'true' });
@@ -242,6 +268,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
           bindings: tables.bindings,
           contacts: tables.contacts,
           topics: tables.topics,
+          phoneHistory: tables.phoneHistory,
         }),
       ) as Tables;
       try {
@@ -253,6 +280,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
         tables.bindings = snapshot.bindings;
         tables.contacts = snapshot.contacts;
         tables.topics = snapshot.topics;
+        tables.phoneHistory = snapshot.phoneHistory;
         throw err;
       }
     },
