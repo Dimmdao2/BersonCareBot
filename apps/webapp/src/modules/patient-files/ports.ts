@@ -45,6 +45,12 @@ export type CreatePatientFileParams = {
   folderId?: string | null;
 };
 
+export type DeletePatientFileResult =
+  | { status: 'deleted' }
+  | { status: 'not_found' }
+  /** Storage object could not be removed; canonical row was deliberately left intact (retryable). */
+  | { status: 'storage_delete_failed' };
+
 export interface PatientFilesPort {
   listFiles(patientUserId: string, category?: PatientFileCategory): Promise<PatientFileRecord[]>;
   getFile(id: string): Promise<PatientFileRecord | null>;
@@ -56,8 +62,12 @@ export interface PatientFilesPort {
   ): Promise<PatientFileRecord | null>;
   linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null>;
   renameFile(id: string, fileName: string): Promise<PatientFileRecord | null>;
-  /** Removes the canonical row and stages its object for the shared retrying media purge. */
-  deleteFile(id: string): Promise<boolean>;
+  /**
+   * Deletes the storage object first; the canonical row is removed only once that succeeds (or
+   * when S3 is disabled). On a storage failure the row is kept and the object is staged for the
+   * shared retrying media purge instead of reporting a deletion that didn't happen.
+   */
+  deleteFile(id: string): Promise<DeletePatientFileResult>;
   /** Current total bytes stored for the organization; mirrors the `files` quota's live SUM in `createFile`. */
   getStorageUsedBytes(): Promise<number>;
 }

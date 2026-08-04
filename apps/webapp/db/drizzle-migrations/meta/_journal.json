@@ -2098,414 +2098,428 @@
     {
       "idx": 299,
       "version": "7",
+      "when": 1793539220001,
+      "tag": "0359_saas_tariffs_capability_read_grace_ends_at_predrop_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
       "when": 1793539230000,
       "tag": "0299_reference_catalog_seed_owner_local",
       "breakpoints": true
     },
     {
-      "idx": 300,
+      "idx": 301,
       "version": "7",
       "when": 1793539230001,
       "tag": "0300_runtime_settings_values_live_in_db",
       "breakpoints": true
     },
     {
-      "idx": 301,
+      "idx": 302,
       "version": "7",
       "when": 1793539230002,
       "tag": "0301_legacy_runtime_settings_values_live_in_db",
       "breakpoints": true
     },
     {
-      "idx": 302,
+      "idx": 303,
       "version": "7",
       "when": 1793539230003,
       "tag": "0302_public_auth_channel_configured_accessors",
       "breakpoints": true
     },
     {
-      "idx": 303,
+      "idx": 304,
       "version": "7",
       "when": 1793539230004,
       "tag": "0303_remove_platform_staff_2fa_enforcement",
       "breakpoints": true
     },
     {
-      "idx": 304,
+      "idx": 305,
       "version": "7",
       "when": 1793539230005,
       "tag": "0304_retire_legacy_booking_projections_local",
       "breakpoints": true
     },
     {
-      "idx": 305,
+      "idx": 306,
       "version": "7",
       "when": 1793539230006,
       "tag": "0305_tariff_snapshot_access_doors_local",
       "breakpoints": true
     },
     {
-      "idx": 306,
+      "idx": 307,
       "version": "7",
       "when": 1793539230007,
       "tag": "0306_v9b_capability_seams_local",
       "breakpoints": true
     },
     {
-      "idx": 307,
+      "idx": 308,
       "version": "7",
       "when": 1793539230008,
       "tag": "0307_tariff_change_paid_period_local",
       "breakpoints": true
     },
     {
-      "idx": 308,
+      "idx": 309,
       "version": "7",
       "when": 1793539230009,
       "tag": "0308_saas_paid_seat_billing_local",
       "breakpoints": true
     },
     {
-      "idx": 309,
+      "idx": 310,
       "version": "7",
       "when": 1793539230010,
       "tag": "0309_v9b_booking_ownership_local",
       "breakpoints": true
     },
     {
-      "idx": 310,
+      "idx": 311,
       "version": "7",
       "when": 1793539230011,
       "tag": "0310_saas_tariff_boundary_closure_local",
       "breakpoints": true
     },
     {
-      "idx": 311,
+      "idx": 312,
       "version": "7",
       "when": 1793539230012,
       "tag": "0311_clinic_billing_live_payment_path_local",
       "breakpoints": true
     },
     {
-      "idx": 312,
+      "idx": 313,
       "version": "7",
       "when": 1793539230013,
       "tag": "0312_reminder_rules_scheduler_canonical_local",
       "breakpoints": true
     },
     {
-      "idx": 313,
+      "idx": 314,
       "version": "7",
       "when": 1793539230019,
       "tag": "0318_saas_billing_provider_capability_local",
       "breakpoints": true
     },
     {
-      "idx": 314,
+      "idx": 315,
       "version": "7",
       "when": 1793539230020,
       "tag": "0319_integrator_provider_runtime_config_capability_local",
       "breakpoints": true
     },
     {
-      "idx": 315,
+      "idx": 316,
       "version": "7",
       "when": 1793539230021,
       "tag": "0320_tariff_policy_live_progression_local",
       "breakpoints": true
     },
     {
-      "idx": 316,
+      "idx": 317,
       "version": "7",
       "when": 1793539230022,
       "tag": "0316_clinic_dedicated_bot_bindings_local",
       "breakpoints": true
     },
     {
-      "idx": 317,
+      "idx": 318,
       "version": "7",
       "when": 1793539230023,
       "tag": "0314_reminder_callback_capabilities",
       "breakpoints": true
     },
     {
-      "idx": 318,
+      "idx": 319,
       "version": "7",
       "when": 1793539230024,
       "tag": "0321_reminder_callback_operational_occurrence",
       "breakpoints": true
     },
     {
-      "idx": 319,
+      "idx": 320,
       "version": "7",
       "when": 1793539230025,
       "tag": "0317_appointment_reminder_presets_local",
       "breakpoints": true
     },
     {
-      "idx": 320,
+      "idx": 321,
       "version": "7",
       "when": 1793539230026,
       "tag": "0322_unified_reminder_occurrence_local",
       "breakpoints": true
     },
     {
-      "idx": 321,
+      "idx": 322,
       "version": "7",
       "when": 1793539230027,
       "tag": "0323_reminder_rules_scheduler_canonical_forward_local",
       "breakpoints": true
     },
     {
-      "idx": 322,
+      "idx": 323,
       "version": "7",
       "when": 1793539230028,
       "tag": "0324_saas_registration_tariff_policy_walls_forward_local",
       "breakpoints": true
     },
     {
-      "idx": 323,
+      "idx": 324,
       "version": "7",
       "when": 1793539230029,
       "tag": "0325_drop_booking_catalog_and_legacy_projections_forward_local",
       "breakpoints": true
     },
     {
-      "idx": 324,
+      "idx": 325,
       "version": "7",
       "when": 1793539230030,
       "tag": "0326_tariff_snapshot_access_doors_forward_local",
       "breakpoints": true
     },
     {
-      "idx": 325,
+      "idx": 326,
       "version": "7",
       "when": 1793539230031,
       "tag": "0327_saas_billing_provider_capability_forward_local",
       "breakpoints": true
     },
     {
-      "idx": 326,
+      "idx": 327,
       "version": "7",
       "when": 1793539230032,
       "tag": "0328_d30_specialist_task_delivery_queue_local",
       "breakpoints": true
     },
     {
-      "idx": 327,
+      "idx": 328,
       "version": "7",
       "when": 1793539230033,
       "tag": "0329_integrator_login_delivery_capabilities_local",
       "breakpoints": true
     },
     {
-      "idx": 328,
+      "idx": 329,
       "version": "7",
       "when": 1793539230034,
       "tag": "0330_test_ledger_schema_parity_forward_local",
       "breakpoints": true
     },
     {
-      "idx": 329,
+      "idx": 330,
       "version": "7",
       "when": 1793539230035,
       "tag": "0331_test_ledger_0330_race_forward_local",
       "breakpoints": true
     },
     {
-      "idx": 330,
+      "idx": 331,
       "version": "7",
       "when": 1793539230036,
       "tag": "0332_clinic_billing_own_quota_usage_capability_local",
       "breakpoints": true
     },
     {
-      "idx": 331,
+      "idx": 332,
       "version": "7",
       "when": 1793539230037,
       "tag": "0333_d30_specialist_task_delivery_outcome_capability_local",
       "breakpoints": true
     },
     {
-      "idx": 332,
+      "idx": 333,
       "version": "7",
       "when": 1793539230038,
       "tag": "0334_clinic_billing_own_transition_metadata_local",
       "breakpoints": true
     },
     {
-      "idx": 333,
+      "idx": 334,
       "version": "7",
       "when": 1793539230039,
       "tag": "0335_d30_operator_health_digest_queue_local",
       "breakpoints": true
     },
     {
-      "idx": 334,
+      "idx": 335,
       "version": "7",
       "when": 1793539230040,
       "tag": "0336_auth_user_pin_identity_self_local",
       "breakpoints": true
     },
     {
-      "idx": 335,
+      "idx": 336,
       "version": "7",
       "when": 1793539230041,
       "tag": "0337_auth_user_pin_bootstrap_acl_repair_local",
       "breakpoints": true
     },
     {
-      "idx": 336,
+      "idx": 337,
       "version": "7",
       "when": 1793539230042,
       "tag": "0338_d30_patient_reminder_materialization_boundary_local",
       "breakpoints": true
     },
     {
-      "idx": 337,
+      "idx": 338,
       "version": "7",
       "when": 1793539230043,
       "tag": "0339_d30_appointment_reminder_queue_cutover_local",
       "breakpoints": true
     },
     {
-      "idx": 338,
+      "idx": 339,
       "version": "7",
       "when": 1793539230044,
       "tag": "0340_test_secdef_ownership_repair_local",
       "breakpoints": true
     },
     {
-      "idx": 339,
+      "idx": 340,
       "version": "7",
       "when": 1793539230045,
       "tag": "0341_user_phone_history_confirming_channel_local",
       "breakpoints": true
     },
     {
-      "idx": 340,
+      "idx": 341,
       "version": "7",
       "when": 1793539230046,
       "tag": "0342_oauth_confirmed_contact_equal_rights_login_local",
       "breakpoints": true
     },
     {
-      "idx": 341,
+      "idx": 342,
       "version": "7",
       "when": 1793539230047,
       "tag": "0343_saas_billing_webhook_bootstrap_invoice_read_local",
       "breakpoints": true
     },
     {
-      "idx": 342,
+      "idx": 343,
       "version": "7",
       "when": 1793539230048,
       "tag": "0344_saas_billing_webhook_capture_staff_grants_local",
       "breakpoints": true
     },
     {
-      "idx": 343,
+      "idx": 344,
       "version": "7",
       "when": 1793539230049,
       "tag": "0345_saas_billing_webhook_bootstrap_invoice_read_reconcile_local",
       "breakpoints": true
     },
     {
-      "idx": 344,
+      "idx": 345,
       "version": "7",
       "when": 1793539230050,
       "tag": "0346_saas_trial_grace_discount_window_local",
       "breakpoints": true
     },
     {
-      "idx": 345,
+      "idx": 346,
       "version": "7",
       "when": 1793539230051,
       "tag": "0347_admin_settings_page_required_keys_seed_local",
       "breakpoints": true
     },
     {
-      "idx": 346,
+      "idx": 347,
       "version": "7",
       "when": 1793539230052,
       "tag": "0348_saas_billing_paid_tariff_apply_accessor_local",
       "breakpoints": true
     },
     {
-      "idx": 347,
+      "idx": 348,
       "version": "7",
       "when": 1793539230053,
       "tag": "0349_saas_trial_grace_discount_window_reconcile_local",
       "breakpoints": true
     },
     {
-      "idx": 348,
+      "idx": 349,
       "version": "7",
       "when": 1793539230054,
       "tag": "0350_saas_billing_paid_tariff_apply_ends_trial_local",
       "breakpoints": true
     },
     {
-      "idx": 349,
+      "idx": 350,
       "version": "7",
       "when": 1793539230055,
       "tag": "0351_webapp_preauth_oauth_provider_capability_local",
       "breakpoints": true
     },
     {
-      "idx": 350,
+      "idx": 351,
       "version": "7",
       "when": 1793539230056,
       "tag": "0352_vk_id_oauth_provider_local",
       "breakpoints": true
     },
     {
-      "idx": 351,
+      "idx": 352,
       "version": "7",
       "when": 1793539230057,
       "tag": "0353_platform_users_rls_d15b4_local",
       "breakpoints": true
     },
     {
-      "idx": 352,
+      "idx": 353,
       "version": "7",
       "when": 1793539230100,
       "tag": "0354_saas_billing_paid_tariff_apply_found_local",
       "breakpoints": true
     },
     {
-      "idx": 353,
+      "idx": 354,
       "version": "7",
       "when": 1793539230101,
       "tag": "0355_platform_users_rls_d15b4_comment_reconcile_local",
       "breakpoints": true
     },
     {
-      "idx": 354,
+      "idx": 355,
       "version": "7",
       "when": 1793539230102,
       "tag": "0356_platform_users_definer_owner_app_owner_local",
       "breakpoints": true
     },
     {
-      "idx": 355,
+      "idx": 356,
       "version": "7",
       "when": 1793539230103,
       "tag": "0357_preferred_auth_channel_public_accessor_local",
       "breakpoints": true
     },
     {
-      "idx": 356,
+      "idx": 357,
       "version": "7",
       "when": 1793539230104,
       "tag": "0358_t3_tariff_mailing_templates_local",
       "breakpoints": true
     },
     {
-      "idx": 357,
+      "idx": 358,
       "version": "7",
       "when": 1793539230105,
-      "tag": "0359_visibility_stage_a_patient_links_screens_toggle_local",
+      "tag": "0360_saas_tariffs_capability_read_grace_ends_at_predrop_reconcile_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 359,
+      "version": "7",
+      "when": 1793539230106,
+      "tag": "0365_visibility_stage_a_patient_links_screens_toggle_local",
       "breakpoints": true
     }
   ]

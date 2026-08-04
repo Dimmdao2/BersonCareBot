@@ -33,7 +33,8 @@ export const patientFiles = pgTable(
     /** Nullable: присваивается через PATCH «Привязать к визиту» */
     visitId: uuid('visit_id'),
     /** Nullable FK → media_files.id; linked when upload is routed through patient library folder.
-     *  Deletion stages the linked media row for the shared S3 retry purge before removing this row. */
+     *  Deletion removes the linked media row after the S3 object is gone; on a storage failure it
+     *  is staged `pending_delete` for the shared retry purge instead, and this row is kept. */
     mediaFileId: uuid('media_file_id'),
     uploadedByUserId: uuid('uploaded_by_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })

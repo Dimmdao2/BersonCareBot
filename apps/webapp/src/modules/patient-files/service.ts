@@ -4,6 +4,7 @@
  */
 
 import type {
+  DeletePatientFileResult,
   PatientFileCategory,
   PatientFileRecord,
   PatientFilesPort,
@@ -44,7 +45,7 @@ export function createPatientFilesService({ patientFilesPort }: PatientFilesServ
       return patientFilesPort.renameFile(id, fileName);
     },
 
-    async deleteFile(id: string): Promise<boolean> {
+    async deleteFile(id: string): Promise<DeletePatientFileResult> {
       return patientFilesPort.deleteFile(id);
     },
 
