@@ -238,10 +238,15 @@ PREAMBLE=$(cat <<'PRE'
 
 PRE
 )
-setsid nohup bash -c 'printf "%s\n" "$1"; cat "$2"' _ "$PREAMBLE" "$BRIEF" \
-  | setsid nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
+# Преамбула + бриф собираются в ОДИН файл и подаются перенаправлением. Конвейер здесь недопустим:
+# 04.08 подача через `... | setsid node` убила прогон на 4-й минуте — setsid отвязывал только правую
+# часть, левая (фидер) умирала с уборкой shell, закрывала stdin, и порт выходил, не успев записать
+# даже run-record.
+BRIEF_WITH_PREAMBLE=$(mktemp /tmp/orch-brief-XXXXXX.md)
+{ printf '%s\n' "$PREAMBLE"; cat "$BRIEF"; } > "$BRIEF_WITH_PREAMBLE"
+setsid nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
   --role "$ROLE_FOR_PORT" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
-  > "$LOG" 2>&1 &
+  < "$BRIEF_WITH_PREAMBLE" > "$LOG" 2>&1 &
 AGENT_PID=$!
 echo "  pid=$AGENT_PID"
 [ "$ROLE" != auditor-live ] || echo "  ⚠ auditor-live: проверить откат временных production-поломок; допустимы только намеренные test/audit artifacts"
