@@ -8,9 +8,16 @@
  * key are all derived DB-side from `public.email_challenges` (`app.email_auth_enqueue_otp_delivery`,
  * migration 0363) — this port never carries message content, so there is nothing here for a caller
  * to forge.
+ *
+ * D27-C fix round 3: `challengeId` alone let a caller holding any challenge_id (round 2's own PoC
+ * showed this needs no more than knowing the value) force a send or, via the sibling accessor,
+ * overwrite the pending code first. `deliveryToken` is the one-shot ownership secret minted by
+ * `app.email_auth_set_email_challenge_delivery_code` — it never leaves the server process, so a
+ * caller without it cannot act on someone else's challenge.
  */
 export type EnqueueEmailOtpDeliveryInput = {
   challengeId: string;
+  deliveryToken: string;
 };
 
 export type EmailOtpDeliveryQueuePort = {

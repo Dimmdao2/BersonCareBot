@@ -61,7 +61,16 @@ export type EmailAuthDbPort = {
      * as a caller-supplied payload (app.email_auth_enqueue_otp_delivery, migration 0363).
      */
     code: string;
-  }) => Promise<string>;
+  }) => Promise<{
+    challengeId: string;
+    /**
+     * D27-C fix round 3: one-shot ownership secret minted by
+     * app.email_auth_set_email_challenge_delivery_code, required by
+     * app.email_auth_enqueue_otp_delivery to prove the caller is the request that created this
+     * challenge -- never sent to the client, only threaded server-side into enqueueEmailOtpDelivery.
+     */
+    deliveryToken: string;
+  }>;
   deleteEmailChallengeById: (challengeId: string) => Promise<void>;
   upsertEmailSendCooldown: (userId: string, emailNormalized: string) => Promise<void>;
   findEmailChallengeForConfirm: (

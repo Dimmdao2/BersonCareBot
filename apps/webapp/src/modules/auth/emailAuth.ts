@@ -334,7 +334,7 @@ export async function startEmailChallenge(
     console.log(`[DEV] Email OTP code for ${email}: ${code}`);
   }
 
-  const challengeId = await db.insertEmailChallenge({
+  const { challengeId, deliveryToken } = await db.insertEmailChallenge({
     userId,
     email,
     codeHash,
@@ -349,8 +349,10 @@ export async function startEmailChallenge(
   // means the ENQUEUE itself failed (DB outage), not that the provider rejected the code.
   // D27-C fix round 2: the queue-facing port only carries the challenge id — recipient/code/subject
   // are composed DB-side from the row just written above (app.email_auth_enqueue_otp_delivery).
+  // D27-C fix round 3: also carries deliveryToken, the one-shot ownership secret insertEmailChallenge
+  // just minted — never sent to the client, threaded straight from that call into this one.
   try {
-    await enqueueEmailOtpDelivery({ challengeId });
+    await enqueueEmailOtpDelivery({ challengeId, deliveryToken });
   } catch (err) {
     if (isEmailOtpDebugEnabled()) {
       // Opt-in dev aid: tolerate enqueue failure (no DB delivery queue reachable). Code logged above.

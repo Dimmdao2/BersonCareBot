@@ -427,11 +427,13 @@ REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_fo
 -- the email itself from public.email_challenges -- the 5-arg (text, jsonb, integer, timestamptz,
 -- smallint) signature that accepted caller-built message content no longer exists. WHERE-guarded
 -- like the other post-D3.4-vintage additions since this function is new.
+-- D27-C fix round 3 (migration 0370): a required ownership-token argument was added -- the 1-arg
+-- (uuid) signature that trusted a bare challenge_id no longer exists either.
 SELECT format(
-  'REVOKE EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid) FROM %I',
+  'REVOKE EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) FROM %I',
   :'d3_4_bootstrap_base_role'
 )
-WHERE to_regprocedure('app.email_auth_enqueue_otp_delivery(uuid)') IS NOT NULL \gexec
+WHERE to_regprocedure('app.email_auth_enqueue_otp_delivery(uuid, uuid)') IS NOT NULL \gexec
 -- D27-C fix round 2 (migration 0363): stashes the plaintext OTP for delivery composition, called
 -- immediately after insert in the same request -- same bootstrap-reachability requirement as
 -- email_auth_set_email_challenge_purpose above.
@@ -876,12 +878,12 @@ GRANT EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) TO :"d3_4
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) TO :"d3_4_bootstrap_base_role";
--- D27-C fix round 2 (migration 0363): see the matching REVOKE above.
+-- D27-C fix round 2 (migration 0363) / round 3 (migration 0370): see the matching REVOKE above.
 SELECT format(
-  'GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid) TO %I',
+  'GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) TO %I',
   :'d3_4_bootstrap_base_role'
 )
-WHERE to_regprocedure('app.email_auth_enqueue_otp_delivery(uuid)') IS NOT NULL \gexec
+WHERE to_regprocedure('app.email_auth_enqueue_otp_delivery(uuid, uuid)') IS NOT NULL \gexec
 -- D27-C fix round 2 (migration 0363): see the matching REVOKE above.
 SELECT format(
   'GRANT EXECUTE ON FUNCTION app.email_auth_set_email_challenge_delivery_code(uuid, text) TO %I',

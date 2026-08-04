@@ -39,7 +39,10 @@ function fakeDbPort(overrides: Partial<EmailAuthDbPort> = {}): EmailAuthDbPort {
   return {
     findEmailSendCooldown: vi.fn(async () => null),
     deleteEmailChallengesForUser: vi.fn(async () => undefined),
-    insertEmailChallenge: vi.fn(async () => 'challenge-1'),
+    insertEmailChallenge: vi.fn(async () => ({
+      challengeId: 'challenge-1',
+      deliveryToken: 'delivery-token-1',
+    })),
     deleteEmailChallengeById: vi.fn(async () => undefined),
     upsertEmailSendCooldown: vi.fn(async () => undefined),
     findEmailChallengeForConfirm: neverCalled('findEmailChallengeForConfirm'),
@@ -83,7 +86,12 @@ describe('D27-C: startEmailChallenge enqueues onto the durable queue instead of 
     // D27-C fix round 2: the port carries only the challenge id -- recipient/code/subject are
     // composed DB-side from public.email_challenges (app.email_auth_enqueue_otp_delivery), never
     // passed through this call. See emailOtpDeliveryQueuePort.ts.
-    expect(enqueue).toHaveBeenCalledWith({ challengeId: 'challenge-1' });
+    // D27-C fix round 3: also carries deliveryToken, the one-shot ownership secret
+    // insertEmailChallenge minted -- threaded straight through, never touching the client.
+    expect(enqueue).toHaveBeenCalledWith({
+      challengeId: 'challenge-1',
+      deliveryToken: 'delivery-token-1',
+    });
     // The raw code is still a required part of what startEmailChallenge writes to the DB (the
     // worker sends it later) but it now travels via insertEmailChallenge's `code` field, not the
     // enqueue port -- confirm it was actually passed through there instead.

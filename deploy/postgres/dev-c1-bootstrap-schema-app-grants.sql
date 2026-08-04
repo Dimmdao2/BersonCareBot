@@ -126,10 +126,15 @@ $preferred_auth_channel_grant$;
 -- row right after insert -- same pre-session pool, same NOINHERIT gap, same direct-grant need. Round
 -- 2's live verification (2026-08-04) hit the identical `permission denied` on THIS accessor until
 -- both grants below were added; the round-1 5-arg signature no longer exists (DROPped by 0363).
+--
+-- Fix round 3 (migration 0370) added a required ownership-token argument to
+-- `email_auth_enqueue_otp_delivery` (now 2-arg: uuid, uuid) -- the 1-arg signature no longer exists.
+-- `email_auth_set_email_challenge_delivery_code`'s argument types are unchanged (only its return type
+-- moved from void to uuid), so its grant below still targets the same (uuid,text) signature.
 DO $enqueue_otp_delivery_grant$
 BEGIN
-  IF to_regprocedure('app.email_auth_enqueue_otp_delivery(uuid)') IS NOT NULL THEN
-    EXECUTE 'GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid) TO bcb_dev_runtime_nonstaff_login';
+  IF to_regprocedure('app.email_auth_enqueue_otp_delivery(uuid,uuid)') IS NOT NULL THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid,uuid) TO bcb_dev_runtime_nonstaff_login';
   END IF;
   IF to_regprocedure('app.email_auth_set_email_challenge_delivery_code(uuid,text)') IS NOT NULL THEN
     EXECUTE 'GRANT EXECUTE ON FUNCTION app.email_auth_set_email_challenge_delivery_code(uuid,text) TO bcb_dev_runtime_nonstaff_login';
