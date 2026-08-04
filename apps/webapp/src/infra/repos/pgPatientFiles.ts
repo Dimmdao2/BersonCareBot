@@ -9,12 +9,15 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import type {
   CreatePatientFileParams,
+  DeletePatientFileResult,
   PatientFileCategory,
   PatientFileRecord,
   PatientFilesPort,
 } from '@/modules/patient-files/ports';
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
+import { env, isS3MediaEnabled } from '@/config/env';
+import { s3DeleteObject } from '@/infra/s3/client';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { mediaFiles } from '../../../db/schema/schema';
 import { clinicalVisit } from '../../../db/schema/patientClinical';
@@ -277,51 +280,74 @@ export function createPgPatientFilesPort(): PatientFilesPort {
       return row ? mapRow(row) : null;
     },
 
-    async deleteFile(id: string): Promise<boolean> {
+    async deleteFile(id: string): Promise<DeletePatientFileResult> {
       const organizationId = currentPrincipalOrganizationId();
-      return runDrizzleMutationTransaction(async (tx) => {
-        const [file] = await tx
-          .select()
-          .from(patientFiles)
-          .where(and(eq(patientFiles.id, id), eq(patientFiles.organizationId, organizationId)))
-          .limit(1);
-        if (!file) return false;
+      const db = getDrizzle();
+      const [file] = await db
+        .select()
+        .from(patientFiles)
+        .where(and(eq(patientFiles.id, id), eq(patientFiles.organizationId, organizationId)))
+        .limit(1);
+      if (!file) return { status: 'not_found' };
 
+      const stageForRetry = () =>
+        runDrizzleMutationTransaction(async (tx) => {
+          if (file.mediaFileId) {
+            await tx
+              .update(mediaFiles)
+              .set({ status: 'pending_delete' })
+              .where(
+                and(
+                  eq(mediaFiles.id, file.mediaFileId),
+                  eq(mediaFiles.organizationId, organizationId),
+                ),
+              );
+          } else {
+            await tx.insert(mediaFiles).values({
+              organizationId,
+              originalName: file.fileName,
+              displayName: file.fileName,
+              storedPath: file.s3Key,
+              s3Key: file.s3Key,
+              mimeType: file.mimeType,
+              sizeBytes: file.sizeBytes,
+              uploadedBy: file.uploadedByUserId,
+              status: 'pending_delete',
+              previewStatus: 'skipped',
+            });
+          }
+        });
+
+      if (isS3MediaEnabled(env)) {
+        try {
+          await s3DeleteObject(file.s3Key);
+        } catch {
+          // An orphaned row (recoverable, retryable) beats an orphaned object with no row left to
+          // find it. Keep patient_files intact and stage the object for the shared retry purge
+          // instead of reporting a deletion that didn't happen.
+          await stageForRetry();
+          return { status: 'storage_delete_failed' };
+        }
+      }
+
+      const deleted = await runDrizzleMutationTransaction(async (tx) => {
         if (file.mediaFileId) {
-          // The durable media lifecycle owns S3-first deletion and retries. Staging it before
-          // removing the canonical row makes quota release atomic with a recoverable cleanup job.
           await tx
-            .update(mediaFiles)
-            .set({ status: 'pending_delete' })
+            .delete(mediaFiles)
             .where(
               and(
                 eq(mediaFiles.id, file.mediaFileId),
                 eq(mediaFiles.organizationId, organizationId),
               ),
             );
-        } else {
-          // Legacy patient_files rows predate the media-library link. Make a minimal lifecycle
-          // record instead of doing an unretryable direct S3 delete.
-          await tx.insert(mediaFiles).values({
-            organizationId,
-            originalName: file.fileName,
-            displayName: file.fileName,
-            storedPath: file.s3Key,
-            s3Key: file.s3Key,
-            mimeType: file.mimeType,
-            sizeBytes: file.sizeBytes,
-            uploadedBy: file.uploadedByUserId,
-            status: 'pending_delete',
-            previewStatus: 'skipped',
-          });
         }
-
-        const deleted = await tx
+        const rows = await tx
           .delete(patientFiles)
           .where(and(eq(patientFiles.id, id), eq(patientFiles.organizationId, organizationId)))
           .returning({ id: patientFiles.id });
-        return deleted.length === 1;
+        return rows.length === 1;
       });
+      return deleted ? { status: 'deleted' } : { status: 'not_found' };
     },
 
     async getStorageUsedBytes(): Promise<number> {
