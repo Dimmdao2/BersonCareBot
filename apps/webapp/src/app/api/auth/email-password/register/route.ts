@@ -20,8 +20,10 @@ import {
 } from '@/modules/auth/passwordEligibility';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
   isCyrillicFioInput,
   isCyrillicFioInputOrEmpty,
+  isFioLatinRejection,
   normalizeFioPart,
 } from '@/shared/lib/fio';
 
@@ -81,7 +83,14 @@ export async function POST(request: Request) {
       contactValue: null,
       errorCode: 'invalid_body',
     });
-    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'invalid_body',
+        ...(isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {}),
+      },
+      { status: 400 },
+    );
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);

@@ -130,7 +130,7 @@ export function usePublicCreateBooking() {
         });
         let res = registration;
         let json = (await registration.json().catch(() => ({}))) as {
-          ok?: boolean; challengeId?: string; error?: string;
+          ok?: boolean; challengeId?: string; error?: string; message?: string;
         };
         if (json.error === 'duplicate_email') {
           res = await fetch('/api/auth/email-otp/start', {
@@ -141,7 +141,11 @@ export function usePublicCreateBooking() {
           json = (await res.json().catch(() => ({}))) as typeof json;
         }
         if (!res.ok || json.ok !== true || !json.challengeId) {
-          setError(json.error === 'rate_limited' ? 'Слишком много попыток. Попробуйте позже.' : 'Не удалось отправить код подтверждения.');
+          setError(
+            json.error === 'rate_limited'
+              ? 'Слишком много попыток. Попробуйте позже.'
+              : (json.message ?? 'Не удалось отправить код подтверждения.'),
+          );
           return false;
         }
         setVerificationPrompt({ proofMethod: 'email', challengeId: json.challengeId, expiresInSeconds: 600, contact: email });

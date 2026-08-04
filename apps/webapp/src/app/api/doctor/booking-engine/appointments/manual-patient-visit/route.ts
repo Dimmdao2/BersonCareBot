@@ -16,8 +16,10 @@ import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
 import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
   isCyrillicFioInput,
   isCyrillicFioInputOrEmpty,
+  isFioLatinRejection,
 } from '@/shared/lib/fio';
 
 const identitySchema = z.object({
@@ -78,7 +80,14 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'invalid_body',
+        ...(isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {}),
+      },
+      { status: 400 },
+    );
   }
 
   const { ctx } = gate;

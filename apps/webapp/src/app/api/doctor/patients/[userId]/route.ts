@@ -14,7 +14,12 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { FIO_LATIN_REJECTED_MESSAGE, isCyrillicFioInputOrEmpty } from '@/shared/lib/fio';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
+  isCyrillicFioInputOrEmpty,
+  isFioLatinRejection,
+} from '@/shared/lib/fio';
 
 const patchPatientSchema = z.object({
   birthDate: z
@@ -95,7 +100,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
   const parsed = patchPatientSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'validation_error', issues: parsed.error.issues },
+      {
+        ok: false,
+        error: 'validation_error',
+        issues: parsed.error.issues,
+        ...(isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {}),
+      },
       { status: 422 },
     );
   }

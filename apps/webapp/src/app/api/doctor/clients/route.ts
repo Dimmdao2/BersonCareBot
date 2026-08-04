@@ -9,8 +9,10 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
   isCyrillicFioInput,
   isCyrillicFioInputOrEmpty,
+  isFioLatinRejection,
 } from '@/shared/lib/fio';
 
 const bodySchema = z.object({
@@ -41,7 +43,14 @@ export async function POST(request: Request) {
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'invalid_body',
+        ...(isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {}),
+      },
+      { status: 400 },
+    );
   }
   const noContact = !parsed.data.phone?.trim() && !parsed.data.email?.trim();
   if (noContact && !parsed.data.requestId) {

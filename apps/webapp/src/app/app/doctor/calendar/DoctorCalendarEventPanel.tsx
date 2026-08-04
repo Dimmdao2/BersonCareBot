@@ -487,9 +487,10 @@ function DoctorCalendarEventPanelInner({
                 const json = (await res.json()) as {
                   ok?: boolean;
                   error?: string;
+                  message?: string;
                   appointment?: { id?: string };
                 };
-                setMessage(json.ok ? 'Создано' : panelErrorLabel(json.error));
+                setMessage(json.ok ? 'Создано' : (json.message ?? panelErrorLabel(json.error)));
                 if (json.ok) {
                   createManualRequestIdRef.current = crypto.randomUUID();
                   // R16: после создания (есть id) добавляем staff-коммент отдельным запросом.

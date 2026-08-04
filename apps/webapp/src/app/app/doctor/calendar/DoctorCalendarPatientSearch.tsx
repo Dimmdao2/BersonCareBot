@@ -202,19 +202,22 @@ export function DoctorCalendarPatientSearch({
       const data = (await response.json()) as {
         ok?: boolean;
         error?: string;
+        message?: string;
         client?: CalendarPatientOption;
       };
       if (!response.ok || !data.ok || !data.client) {
         setCreateError(
-          data.error === 'invalid_fio'
-            ? 'Укажите фамилию и имя'
-            : data.error === 'invalid_phone'
-              ? 'Неверный телефон'
-              : data.error === 'invalid_email'
-                ? 'Неверный email'
-                : data.error === 'email_conflict'
-                  ? 'Email уже занят'
-                  : 'Не удалось создать',
+          data.message
+            ? data.message
+            : data.error === 'invalid_fio'
+              ? 'Укажите фамилию и имя'
+              : data.error === 'invalid_phone'
+                ? 'Неверный телефон'
+                : data.error === 'invalid_email'
+                  ? 'Неверный email'
+                  : data.error === 'email_conflict'
+                    ? 'Email уже занят'
+                    : 'Не удалось создать',
         );
         return;
       }

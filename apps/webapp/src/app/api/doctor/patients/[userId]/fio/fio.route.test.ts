@@ -26,6 +26,7 @@ vi.mock('@bersoncare/db-principal', () => ({
   runWithDbOrganizationPrincipal: <T>(_organizationId: string, callback: () => T): T => callback(),
 }));
 
+import { FIO_LATIN_REJECTED_TEXT } from '@/shared/lib/fio';
 import { PATCH as updateFioRoute } from './route';
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000d0029';
@@ -82,14 +83,15 @@ beforeEach(() => {
 });
 
 describe('PATCH /api/doctor/patients/[userId]/fio — D29 Cyrillic-only', () => {
-  it('rejects a Latin first name — no write happens', async () => {
+  it('rejects a Latin first name — no write happens, and the screen gets a human RU sentence, not the bare error code', async () => {
     const res = await updateFioRoute(patchRequest({ firstName: 'Ivan' }), {
       params: Promise.resolve({ userId: PATIENT_ID }),
     });
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { ok: boolean; error: string };
+    const body = (await res.json()) as { ok: boolean; error: string; message?: string };
     expect(body.ok).toBe(false);
     expect(body.error).toBe('validation_error');
+    expect(body.message).toBe(FIO_LATIN_REJECTED_TEXT);
     expect(fakes.setPatientNames).not.toHaveBeenCalled();
   });
 
