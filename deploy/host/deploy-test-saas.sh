@@ -1572,7 +1572,34 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # credential accessor for oauth/start, oauth/callback/{yandex,google,apple} and telegram-login.
   # It only reads public.system_settings, already required for app_owner in the VALUES list above,
   # so no new grant row is needed -- only this count.
-  local expected_secdef_count=162
+  # 162 -> 176 (2026-08-04, wt/overlay-owner, eaafe46d9 + this deploy): night-wave migrations
+  # 0356/0357 (platform_users FORCE-RLS login fix) net +14 app_owner-owned SECURITY DEFINER
+  # functions. Confirmed by ownership history per function, not by accepting the raw delta:
+  #   - 10 get their FIRST-EVER `OWNER TO app_owner` in 0356 (previously default/migrator-owned):
+  #     app.bump_platform_user_session_epoch_self(), app.email_auth_verify_user_email(uuid,text),
+  #     app.email_otp_public_delete_unverified_registration(uuid),
+  #     app.email_otp_public_find_or_create_user(text), app.email_otp_public_find_user_by_email(text),
+  #     app.email_otp_public_register_patient(text,text,text,text),
+  #     app.email_password_delete_unverified_registration(uuid),
+  #     app.email_password_find_login_candidate(text),
+  #     app.email_password_register_pending(text,text,text,text,text,text),
+  #     app.propagate_staff_session_version_to_session_epoch().
+  #   - 3 more move to app_owner from the integrator.user_reminder_occurrences table-owner role
+  #     (0339's deliberate narrowing) in 0356 -- also net-new to app_owner:
+  #     app.patient_done_reminder_occurrence(text), app.patient_skip_reminder_occurrence(uuid,text,text),
+  #     app.patient_snooze_reminder_occurrence(uuid,text,integer).
+  #   - 1 genuinely new function, app.get_preferred_auth_channel_code(uuid), added by 0357 already
+  #     owned by app_owner.
+  #   - 2 of 0356's fifteen were ALREADY app_owner before 0356 touched them --
+  #     app.is_platform_registration_analytics_user_excluded(uuid) (app_owner since migration 0261) and
+  #     app.list_platform_organization_members(uuid) (app_owner since migration 0267) -- so 0356's
+  #     ALTER on them is a no-op and contributes zero here.
+  # 10 + 3 + 1 = 14, exactly the measured delta (176 actual vs the stale 162). All fourteen only touch
+  # tables already in the required-grant set above (platform_users, reminder_occurrence_history,
+  # phone/email challenge tables) via functions reviewed when 0356/0357/0339 were authored -- no new
+  # required-grant row needed, this is a book-keeping-only bump caught live by this gate (measured
+  # actual=176 against the stale expected=162), same class as the 159 -> 160 bump above.
+  local expected_secdef_count=176
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -2293,7 +2320,22 @@ WHERE NOT has_table_privilege('$DB', tbl, priv);
   # number lands on 29 here too is coincidence, not vindication: this value is arrived at by
   # measurement after the real ordering fix, with the arithmetic above, not by guessing a constant
   # that would make the gate pass.
-  local expected_db_owner_anon_secdef=29
+  #
+  # 29 -> 21 (2026-08-04, wt/overlay-owner, eaafe46d9 + this deploy): the login-fix overlay-ownership
+  # regression fix (assert_login_fix_definer_owners_pinned above) moves exactly 8 of migration 0356's
+  # fifteen functions OFF $DB ownership for good. Before the fix, organization-member-invites-rls.sql
+  # and specialist-signup-public-bootstrap-rls.sql DROP+CREATE'd them back onto $DB (the migrator
+  # role) on every single deploy; they are now pinned to app_owner instead:
+  #   app.email_otp_public_find_user_by_email(text), app.email_otp_public_find_or_create_user(text),
+  #   app.email_otp_public_register_patient(text,text,text,text),
+  #   app.email_otp_public_delete_unverified_registration(uuid), app.email_auth_verify_user_email(uuid,text),
+  #   app.email_password_register_pending(text,text,text,text,text,text),
+  #   app.email_password_delete_unverified_registration(uuid), app.email_password_find_login_candidate(text).
+  # All eight were bootstrap-role-reachable (anon-reachable) $DB-owned functions counted in the old 29
+  # baseline; none of app_owner's fourteen net-new functions (see the app_owner secdef-count gate's
+  # 162 -> 176 entry) are $DB-owned, so this delta is exactly -8. 29 - 8 = 21, matching measured
+  # actual=21.
+  local expected_db_owner_anon_secdef=21
   local expected_telemetry_owner_anon_secdef=1
   local actual_db_owner_anon_secdef actual_telemetry_owner_anon_secdef
   for _db_owner_secdef_attempt in 1 2 3; do
