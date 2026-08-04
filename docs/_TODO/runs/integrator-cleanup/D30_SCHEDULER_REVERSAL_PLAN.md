@@ -427,6 +427,73 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       `pnpm --dir apps/integrator run check:d30-no-legacy-message-retry-producers` → PASS. Окружения не
       затрагивались. Это candidate evidence, не zero-drain evidence: legacy table/consumer остаются, `[x]` не
       ставится, а drop запрещён до наблюдаемого post-cutover zero-write периода.
+      **STALE NOTE 04.08:** формулировка «unlanded worktree `wt/trackd-d30-sh7-drain`» выше устарела —
+      этот worktree слит в `feat/doctor-ui-rebuild` коммитом `657b9b3bb` ещё 03.08 10:18, код (reclaim-фикс)
+      в ветке с того момента. Candidate-статус остаётся верным по другой причине — см. ниже: смерженный код
+      ни разу не выполнялся на живом DEV.
+      **RE-MEASURE 04.08 (без изменений кода, только замер + одна DEV-only попытка живого прогона):**
+      Точный повторный запрос к `integrator.message_retry_jobs` на `bcb_webapp_dev`: `20 pending` (due
+      `06–29.08`, все — старые appointment-строки booking-reminder, `eventId` вида
+      `booking-reminder:<bookingId>:24h`), `4 processing` (stale с `25–28.07`, `updated_at` не двигался),
+      `22 dead`, `67 done` — те же 113 всего, состав не изменился. `max(created_at)` по всей таблице —
+      `2026-07-24 10:51`, т.е. **10+ суток без единой новой строки** на момент замера (`now()` `2026-08-04`).
+      Это ломает прежний ритм (строки шли пачками каждые 2–14 дней с марта по 24.07) и совпадает с
+      cutover — **zero-write период подтверждён измерением**, а не только фактом что гейт-скрипт `check:d30-
+      no-legacy-message-retry-producers` проходит. Статически перепроверено дополнительно:
+      `bookingLifecycleRoute.ts` (источник а) больше нигде не вызывает `message.retry.enqueue`/
+      `firstTryAt`/`message.deliver` для напоминаний — несёт `reminderPlan` в webapp M2M
+      (`materializeAppointmentReminders` → `appointment-reminders/materialize` → `prepareAppointmentReminder
+      Deliveries` → `kind: 'appointment_reminder'` в `public.outgoing_delivery_queue`), путь проверен от
+      integrator-стороны до webapp-стороны по коду. Источник (б) — общий `message.retry.enqueue`/
+      `message.deliver` через `deps.queuePort` — по коду всё ещё маршрутизируется в
+      `createPostgresJobQueue` → `enqueueMessageRetryJob` (legacy), но в живых данных ни одной строки этого
+      вида после cutover нет: за 10+ суток ничего не enqueue-илось этим путём вообще (не только appointment-
+      reminder-ами) — то есть источник (б) на DEV просто не был активирован в измеряемое окно, а не
+      «доказанно мигрирован»; закрытие источника (б) в коде (снос `jobQueue.ts`/`jobQueuePort.ts`/`message.
+      retry.enqueue` целиком, по разделу 3 «Что вырезается») в этот проход не делалось — вне бюджета хода,
+      см. блокер ниже.
+
+      **Попытка живого дренажа 04.08 — заблокирована окружением, не кодом.** Reclaim-фикс (`a521ca4d2`/
+      `638b7b9cb`) корректен и смержен, но чтобы 4 зависшие `processing`-строки реально вернулись в `pending`
+      и (раз их due уже в прошлом) тут же ушли в `sent`/`dead`, нужен живой процесс `apps/integrator`
+      worker — на DEV сейчас **ни одного процесса worker не запущено** (порты `4200`/`5200` оба закрыты;
+      PID, ошибочно принятый по имени команды за зависший DEV-worker, оказался посторонним контейнером
+      `tgcarebot_legacy/app_worker`, не относящимся к этому репозиторию — проверено `docker inspect`,
+      отброшено). Попытка поднять `pnpm run worker:dev` штатно упала на старте:
+      `assertDeliveryWorkerPoolReady` (readiness-проба перед стартом обоих циклов, общая для legacy- и
+      unified-путей) выполняет `SELECT resolution FROM app.resolve_outgoing_delivery_scope(...)` и падает
+      `permission denied for function resolve_outgoing_delivery_scope` (`SQLSTATE 42501`) — так же для
+      `app.revalidate_specialist_task_reminder_materialization`/`app.apply_specialist_task_reminder_success_
+      outcome`. Причина — единственная сконфигурированная на DEV прикладная роль `bcb_webapp_dev_user` не
+      состоит в `app_operational_delivery_worker`, которой эти SECURITY DEFINER функции выданы миграциями
+      `0260`/`0333`/`0328`/`0335`/`c4-operational-runtime.sql`; проверено `pg_auth_members` — DEV на сегодня
+      **вообще не имеет** узких operational-логинов по семьям процессов (delivery/scheduler/diagnostic),
+      которые есть у TEST (`bcb_test_operational_delivery_login` и соседи). Попытка выдать роль
+      DEV-only командой `GRANT app_operational_delivery_worker TO bcb_webapp_dev_user` отклонена самой
+      Postgres: `permission denied to grant role ... only roles with the ADMIN option may grant this` — у
+      прикладной роли `.env` нет административных прав на этот грант, а поднимать привилегии через
+      `sudo -u postgres` в этом ходе не стал: это не D30-код, а несогласованная правка модели грантов
+      (той самой, где `app.resolve_outgoing_delivery_scope` — часть пина SECURITY DEFINER `105`,
+      раздел 2a/комментарий миграции `0260`), решение по которой не входит в мой мандат этого хода.
+      **Это не регрессия Ш7** — то же самое случилось бы на DEV и без merge из `wt/trackd-d30-sh7-drain`:
+      DEV, судя по всему, ни разу не запускал `apps/integrator` worker с тех пор как в webapp
+      `DB_PRINCIPAL_CONTEXT_MODE=locked` стал требовать раздельных operational-логинов по ролям.
+
+      **Вывод по гейту Ш7 на 04.08:** закрыть точку невозврата нельзя, и вот по каким именно причинам, а не
+      «пока не готово»:
+      1. **4 stale processing строки не дренированы** — фикс существует и смержен, но не может выполниться:
+         блокер — отсутствие DEV operational-логина `app_operational_delivery_worker`, вне скоупа/мандата
+         этого хода (нужен либо owner/инфра-доступ выдать грант, либо явное решение — не гонять этот worker
+         на DEV вовсе и переносить проверку на TEST).
+      2. **20 pending строк — легитимные будущие напоминания** (due `06–29.08.2026`), их нельзя ни выбросить,
+         ни форсировать раньше срока; по своей природе они обязаны пройти через legacy-compatibility-consumer
+         (тот самый, который «Ш7» и предлагает снести) — то есть даже при исправном worker раньше
+         **2026-08-29** таблицу дропать нельзя чисто по времени созревания последней due-строки.
+      3. Zero-write период подтверждён (см. re-measure выше) и продолжает копиться сам по себе.
+      **Следующий шаг, не входящий в этот ход:** owner-решение по operational DEV-логинам (создать по
+      образцу TEST или явно решить не гонять DEV-worker) → как только он сможет стартовать, дать одному
+      тику отработать reclaim → добить 4 строки до `sent`/`dead` → держать `pending=0` до `2026-08-29`+ →
+      только тогда закрывать `DROP TABLE`/снос кода источника (б) отдельным audited шагом.
 
 - [ ] **Ш8. B3 — не в этом плане.** Дренаж `integrator_push_outbox` исчезает вместе с M2M-каналом
       `reminder_rule_upsert` по D5–D7/D25. Здесь фиксируется зависимость, работа не начинается.
