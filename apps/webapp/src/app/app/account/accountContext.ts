@@ -59,6 +59,7 @@ export const loadStaffAccountPageContext = cache(async (): Promise<StaffAccountP
       canManageOrganization: context.canManageOrganization,
       canManageAllSpecialists: context.canManageAllSpecialists,
       canAccessClinicalWorkspace,
+      doctorScreensDisabled: context.doctorScreensDisabled,
       selectedSpecialistId: context.canManageAllSpecialists ? null : context.specialistId,
     },
   };

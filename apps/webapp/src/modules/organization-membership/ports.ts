@@ -11,6 +11,8 @@ export type OrganizationMembership = {
   role: OrganizationMembershipRole;
   specialistId: string | null;
   status: OrganizationMembershipStatus;
+  /** Personal override, owner (04.08): "отключить У СЕБЯ" — a flag on the row, not the org. */
+  doctorScreensDisabled: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -46,4 +48,5 @@ export type OrganizationMembershipPort = {
     organizationId: string;
     specialistId: string;
   }): Promise<OrganizationSpecialistDirectoryRecord | null>;
+  setDoctorScreensDisabled(params: { membershipId: string; disabled: boolean }): Promise<void>;
 };

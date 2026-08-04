@@ -285,6 +285,7 @@ export type DoctorWorkspaceAccessContext = {
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
   canAccessClinicalWorkspace: boolean;
+  doctorScreensDisabled: boolean;
   capabilities: readonly LaunchCapability[];
 };
 
@@ -385,6 +386,7 @@ async function resolveDoctorWorkspaceAccessContext(
       canManageOrganization: context.canManageOrganization,
       canManageAllSpecialists: context.canManageAllSpecialists,
       canAccessClinicalWorkspace,
+      doctorScreensDisabled: context.doctorScreensDisabled,
       capabilities: Array.from(
         resolveLaunchCapabilities({
           sessionRole: session.user.role,

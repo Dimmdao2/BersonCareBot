@@ -18,6 +18,7 @@ export type OrganizationMembershipContext = {
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
   canAccessClinicalWorkspace?: boolean;
+  doctorScreensDisabled: boolean;
 };
 
 export type OrganizationResolution =
@@ -30,8 +31,9 @@ function canManageOrganization(role: OrganizationMembershipRole): boolean {
 
 function canAccessClinicalWorkspace(membership: OrganizationMembership): boolean {
   return (
-    (membership.role === 'owner' || membership.role === 'doctor') &&
-    membership.specialistId !== null
+    (membership.role === 'owner' || membership.role === 'admin' || membership.role === 'doctor') &&
+    membership.specialistId !== null &&
+    !membership.doctorScreensDisabled
   );
 }
 
@@ -46,6 +48,7 @@ function toMembershipContext(membership: OrganizationMembership): OrganizationMe
     canManageOrganization: canManage,
     canManageAllSpecialists: canManage,
     canAccessClinicalWorkspace: canAccessClinicalWorkspace(membership),
+    doctorScreensDisabled: membership.doctorScreensDisabled,
   };
 }
 
@@ -86,6 +89,18 @@ export function createOrganizationMembershipService(deps: {
     async hasActiveMembership(platformUserId: string, organizationId: string): Promise<boolean> {
       const memberships = await deps.membershipPort.listActiveByPlatformUser(platformUserId);
       return memberships.some((membership) => membership.organizationId === organizationId);
+    },
+
+    /**
+     * §5: an admin/owner with a bound specialist may disable its own clinical-workspace screens.
+     * `membershipId` must come from the caller's own resolved context, never from client input —
+     * that is what keeps this scoped to "у себя" and unable to touch another person's row.
+     */
+    async setOwnDoctorScreensDisabled(params: {
+      membershipId: string;
+      disabled: boolean;
+    }): Promise<void> {
+      await deps.membershipPort.setDoctorScreensDisabled(params);
     },
   };
 }

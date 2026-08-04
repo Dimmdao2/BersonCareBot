@@ -158,6 +158,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     canManageOrganization: workspaceAccess.canManageOrganization,
     canManageAllSpecialists: workspaceAccess.canManageAllSpecialists,
     canAccessClinicalWorkspace: workspaceAccess.canAccessClinicalWorkspace,
+    doctorScreensDisabled: workspaceAccess.doctorScreensDisabled,
     selectedSpecialistId: workspaceAccess.canManageAllSpecialists
       ? null
       : workspaceAccess.specialistId,

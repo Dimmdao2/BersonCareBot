@@ -45,6 +45,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
     canManageOrganization: workspace.canManageOrganization,
     canManageAllSpecialists: workspace.canManageAllSpecialists,
     canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
+    doctorScreensDisabled: workspace.doctorScreensDisabled,
     selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
   };
 

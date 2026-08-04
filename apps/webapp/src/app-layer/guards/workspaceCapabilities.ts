@@ -23,6 +23,9 @@ export type TrustedWorkspaceCapabilityFacts = {
   specialistId?: string | null;
   canManageOrganization?: boolean;
   canAccessClinicalWorkspace?: boolean;
+  /** Personal override, owner (04.08): "отключить У СЕБЯ" — used only when the caller has not
+   * already resolved {@link canAccessClinicalWorkspace} itself. */
+  doctorScreensDisabled?: boolean;
 };
 
 /**
@@ -62,8 +65,11 @@ export function resolveLaunchCapabilities(
 
   const canAccessClinicalWorkspace =
     facts.canAccessClinicalWorkspace ??
-    ((facts.membershipRole === 'owner' || facts.membershipRole === 'doctor') &&
-      facts.specialistId != null);
+    ((facts.membershipRole === 'owner' ||
+      facts.membershipRole === 'admin' ||
+      facts.membershipRole === 'doctor') &&
+      facts.specialistId != null &&
+      !facts.doctorScreensDisabled);
   if (canAccessClinicalWorkspace) {
     capabilities.add('clinical.workspace');
   }

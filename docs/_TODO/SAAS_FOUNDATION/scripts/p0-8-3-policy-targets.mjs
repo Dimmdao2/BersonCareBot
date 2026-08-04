@@ -91,6 +91,7 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   'public.patient_merge_candidates',
   'public.patient_payment',
   'public.patient_practice_completions',
+  'public.patient_specialist_links',
   'public.product_analytics_events_recent',
   'public.product_analytics_user_hourly',
   'public.product_push_notifications',

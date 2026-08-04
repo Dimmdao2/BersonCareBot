@@ -209,6 +209,7 @@ VALUES
   ('public', 'patient_merge_candidates', 'SCOPED'),
   ('public', 'patient_payment', 'SCOPED'),
   ('public', 'patient_practice_completions', 'SCOPED'),
+  ('public', 'patient_specialist_links', 'SCOPED'),
   ('public', 'phone_challenges', 'BOOTSTRAP'),
   ('public', 'phone_messenger_bind_secrets', 'BOOTSTRAP'),
   ('public', 'platform_user_contacts', 'BOOTSTRAP'),
