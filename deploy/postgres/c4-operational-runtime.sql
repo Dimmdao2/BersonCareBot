@@ -506,107 +506,10 @@ GRANT UPDATE (last_seen_at, occurrence_count, error_detail) ON TABLE public.oper
 GRANT INSERT ON TABLE integrator.delivery_attempt_logs TO app_owner;
 GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
 
--- This body must stay byte-identical to the latest drizzle-migrations definition of the same
--- function (currently 0367_auth_email_otp_delivery_queue_local.sql): reapply_c4_operational_runtime_overlays
--- runs this file via psql -f AFTER `pnpm migrate` in every post-migration closure, so a stale copy
--- here silently overwrites the migration's fix on every deploy. Found 04.08: this branch was missing
--- 'auth_email_otp' after 0367 added it, which quarantined every login-code queue row as
--- TENANT_SCOPE_UNSUPPORTED_QUEUE_KIND on TEST post-deploy even though the migration itself was correct.
-CREATE OR REPLACE FUNCTION app.resolve_outgoing_delivery_scope(p_queue_id uuid)
-RETURNS TABLE(queue_kind text, organization_id uuid, resolution text)
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $function$
-DECLARE
-  queue_payload jsonb;
-  stored_organization_id uuid;
-  v_occurrence_id text;
-  v_broadcast_audit_id uuid;
-  v_incident_id uuid;
-  occurrence_org uuid;
-  rule_org uuid;
-BEGIN
-  SELECT queue.kind, queue.organization_id, queue.payload_json
-  INTO queue_kind, stored_organization_id, queue_payload
-  FROM public.outgoing_delivery_queue AS queue
-  WHERE queue.id = p_queue_id;
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT NULL::text, NULL::uuid, 'queue_not_found'::text;
-    RETURN;
-  END IF;
-
-  IF stored_organization_id IS NOT NULL THEN
-    RETURN QUERY SELECT queue_kind, stored_organization_id, 'tenant'::text;
-    RETURN;
-  END IF;
-
-  IF queue_kind = 'operator_alert' THEN
-    IF COALESCE(queue_payload ->> 'incidentId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'invalid_incident_id'::text;
-      RETURN;
-    END IF;
-    v_incident_id := (queue_payload ->> 'incidentId')::uuid;
-    IF NOT EXISTS (SELECT 1 FROM public.operator_incidents AS incident WHERE incident.id = v_incident_id) THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'incident_not_found'::text;
-      RETURN;
-    END IF;
-    RETURN QUERY SELECT queue_kind, NULL::uuid, 'operator_global'::text;
-    RETURN;
-  END IF;
-
-  IF queue_kind IN ('inbound_reply', 'operator_health_digest', 'auth_email_otp') THEN
-    RETURN QUERY SELECT queue_kind, NULL::uuid, 'operator_global'::text;
-    RETURN;
-  END IF;
-
-  IF queue_kind = 'reminder_dispatch' THEN
-    IF COALESCE(queue_payload ->> 'occurrenceId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'invalid_occurrence_id'::text;
-      RETURN;
-    END IF;
-    v_occurrence_id := queue_payload ->> 'occurrenceId';
-    SELECT occurrence.organization_id, rule.organization_id
-    INTO occurrence_org, rule_org
-    FROM integrator.user_reminder_occurrences AS occurrence
-    LEFT JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
-    WHERE occurrence.id = v_occurrence_id;
-    IF NOT FOUND THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'occurrence_not_found'::text;
-    ELSIF occurrence_org IS NOT NULL AND rule_org IS NOT NULL AND occurrence_org <> rule_org THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'ambiguous_organization'::text;
-    ELSIF COALESCE(occurrence_org, rule_org) IS NULL THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'organization_missing'::text;
-    ELSE
-      RETURN QUERY SELECT queue_kind, COALESCE(occurrence_org, rule_org), 'tenant'::text;
-    END IF;
-    RETURN;
-  END IF;
-
-  IF queue_kind = 'doctor_broadcast_intent' THEN
-    IF COALESCE(queue_payload ->> 'broadcastAuditId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'invalid_broadcast_audit_id'::text;
-      RETURN;
-    END IF;
-    v_broadcast_audit_id := (queue_payload ->> 'broadcastAuditId')::uuid;
-    SELECT audit.organization_id
-    INTO organization_id
-    FROM public.broadcast_audit AS audit
-    WHERE audit.id = v_broadcast_audit_id;
-    IF NOT FOUND THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'broadcast_audit_not_found'::text;
-    ELSIF organization_id IS NULL THEN
-      RETURN QUERY SELECT queue_kind, NULL::uuid, 'organization_missing'::text;
-    ELSE
-      RETURN QUERY SELECT queue_kind, organization_id, 'tenant'::text;
-    END IF;
-    RETURN;
-  END IF;
-
-  RETURN QUERY SELECT queue_kind, NULL::uuid, 'unsupported_queue_kind'::text;
-END
-$function$;
+-- app.resolve_outgoing_delivery_scope is owned by the webapp drizzle migration ledger (latest body in
+-- apps/webapp/db/drizzle-migrations/*). This overlay pins owner/ACL only. Never recreate the body here:
+-- reapply_c4_operational_runtime_overlays runs AFTER pnpm migrate, and a stale CREATE OR REPLACE
+-- silently reverts migration fixes (found 04.08: missing auth_email_otp quarantined every login OTP).
 ALTER FUNCTION app.resolve_outgoing_delivery_scope(uuid) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.resolve_outgoing_delivery_scope(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.resolve_outgoing_delivery_scope(uuid) FROM
@@ -784,62 +687,7 @@ REVOKE ALL ON FUNCTION app.revalidate_specialist_task_reminder_materialization(u
 GRANT EXECUTE ON FUNCTION app.revalidate_specialist_task_reminder_materialization(uuid)
   TO app_operational_delivery_worker;
 
-CREATE OR REPLACE FUNCTION app.list_scheduler_reminder_organization_ids()
-RETURNS SETOF uuid
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $function$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM integrator.user_reminder_occurrences AS occurrence
-    JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
-    WHERE occurrence.status IN ('planned', 'queued')
-      AND occurrence.organization_id IS NOT NULL
-      AND rule.organization_id IS NOT NULL
-      AND occurrence.organization_id <> rule.organization_id
-  ) THEN
-    RAISE EXCEPTION 'scheduler reminder work contains conflicting organization ownership'
-      USING ERRCODE = '23514';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-    FROM public.reminder_rules AS rule
-    WHERE rule.is_enabled = true
-      AND rule.integrator_user_id IS NOT NULL
-      AND rule.organization_id IS NULL
-  ) OR EXISTS (
-    SELECT 1
-    FROM integrator.user_reminder_occurrences AS occurrence
-    LEFT JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
-    WHERE occurrence.status IN ('planned', 'queued')
-      AND COALESCE(occurrence.organization_id, rule.organization_id) IS NULL
-  ) THEN
-    RAISE EXCEPTION 'scheduler reminder work contains rows without organization ownership'
-      USING ERRCODE = '23514';
-  END IF;
-
-  RETURN QUERY
-  SELECT candidate.organization_id
-  FROM (
-    SELECT rule.organization_id
-    FROM public.reminder_rules AS rule
-    WHERE rule.is_enabled = true
-      AND rule.integrator_user_id IS NOT NULL
-      AND rule.organization_id IS NOT NULL
-    UNION
-    SELECT COALESCE(occurrence.organization_id, rule.organization_id) AS organization_id
-    FROM integrator.user_reminder_occurrences AS occurrence
-    LEFT JOIN public.reminder_rules AS rule ON rule.integrator_rule_id = occurrence.rule_id
-    WHERE occurrence.status IN ('planned', 'queued')
-      AND COALESCE(occurrence.organization_id, rule.organization_id) IS NOT NULL
-  ) AS candidate
-  ORDER BY candidate.organization_id;
-END
-$function$;
+-- app.list_scheduler_reminder_organization_ids is owned by the webapp drizzle migration ledger; only ACL here.
 ALTER FUNCTION app.list_scheduler_reminder_organization_ids() OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.list_scheduler_reminder_organization_ids() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.list_scheduler_reminder_organization_ids() FROM
@@ -847,25 +695,7 @@ REVOKE ALL ON FUNCTION app.list_scheduler_reminder_organization_ids() FROM
   app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
 GRANT EXECUTE ON FUNCTION app.list_scheduler_reminder_organization_ids() TO app_operational_scheduler;
 
-CREATE OR REPLACE FUNCTION app.read_media_worker_runtime_setting(p_key text)
-RETURNS jsonb
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $function$
-  SELECT setting.value_json
-  FROM public.app_runtime_settings AS setting
-  WHERE p_key IN (
-      'video_hls_pipeline_enabled', 'video_watermark_enabled',
-      'error_tracking_enabled', 'error_tracking_dsn'
-    )
-    AND setting.key = p_key
-    AND setting.scope = 'admin'
-    AND setting.audience = 'server'
-    AND setting.organization_id IS NULL
-  LIMIT 1
-$function$;
+-- app.read_media_worker_runtime_setting is owned by the webapp drizzle migration ledger; only ACL here.
 ALTER FUNCTION app.read_media_worker_runtime_setting(text) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.read_media_worker_runtime_setting(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_media_worker_runtime_setting(text) FROM
