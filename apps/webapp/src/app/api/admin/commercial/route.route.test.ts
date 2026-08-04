@@ -31,8 +31,8 @@ const paymentPolicy = {
   graceDays: 2,
   readOnlyDays: 3,
   notifications: [
-    { offsetDays: -3, condition: 'payment_failed', template: 'Оплатите {{тариф}}' },
-    { offsetDays: 1, condition: 'payment_succeeded', template: 'Спасибо, {{клиника}}' },
+    { offsetDays: -3, condition: 'payment_failed', templateId: null, template: 'Оплатите {{тариф}}' },
+    { offsetDays: 1, condition: 'payment_succeeded', templateId: null, template: 'Спасибо, {{клиника}}' },
   ],
   terminalState: 'disabled',
 } as const;
@@ -124,6 +124,7 @@ describe('/api/admin/commercial tariff persistence', () => {
               branding: brandingPolicy,
             },
             downgradePolicies: {},
+            mailingTemplates: [],
             includedSeats: 1,
             additionalSeatPriceMinor: null,
             discountedPriceMinor: null,
@@ -165,6 +166,7 @@ describe('/api/admin/commercial tariff persistence', () => {
             systemAccessPolicy: null,
             mechanicAccessPolicies: { clinical_tests: brandingPolicy },
             downgradePolicies: { clinical_tests: 'block' },
+            mailingTemplates: [],
             includedSeats: 1,
             additionalSeatPriceMinor: null,
             discountedPriceMinor: null,

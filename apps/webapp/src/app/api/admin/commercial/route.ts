@@ -51,7 +51,7 @@ const mailingTemplateSchema = z.object({
 const accessNotificationSchema = z.object({
   offsetDays: z.number().int(),
   condition: z.enum(ACCESS_NOTIFICATION_CONDITIONS),
-  templateId: z.string().trim().min(1).nullable(),
+  templateId: z.string().trim().min(1).nullable().optional(),
   template: z.string(),
 });
 
