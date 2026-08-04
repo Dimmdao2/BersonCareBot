@@ -32,8 +32,12 @@ export function assertDeliveryWorkerPoolReady(): Promise<void> {
     "SELECT resolution FROM app.resolve_outgoing_delivery_scope('00000000-0000-4000-8000-000000000000'::uuid)",
     "SELECT app.operator_incident_alert_already_sent('00000000-0000-4000-8000-000000000000'::uuid)",
     "SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE')::int",
-    "SELECT app.revalidate_specialist_task_reminder_materialization('00000000-0000-4000-8000-000000000000'::uuid)",
-    "SELECT app.apply_specialist_task_reminder_success_outcome('00000000-0000-4000-8000-000000000000'::uuid)",
+    // revalidate_specialist_task_reminder_materialization and apply_specialist_task_reminder_success_outcome
+    // both take `SELECT ... FOR UPDATE` inside, which cannot run in this probe's READ ONLY transaction on
+    // any environment (PostgreSQL rejects FOR UPDATE under READ ONLY unconditionally). Readiness can only
+    // check the EXECUTE grant, the same way record_operator_delivery_attempt is checked above.
+    "SELECT 1 / has_function_privilege(current_user, 'app.revalidate_specialist_task_reminder_materialization(uuid)', 'EXECUTE')::int",
+    "SELECT 1 / has_function_privilege(current_user, 'app.apply_specialist_task_reminder_success_outcome(uuid)', 'EXECUTE')::int",
   ]);
 }
 
