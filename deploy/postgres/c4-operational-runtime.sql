@@ -506,6 +506,12 @@ GRANT UPDATE (last_seen_at, occurrence_count, error_detail) ON TABLE public.oper
 GRANT INSERT ON TABLE integrator.delivery_attempt_logs TO app_owner;
 GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
 
+-- This body must stay byte-identical to the latest drizzle-migrations definition of the same
+-- function (currently 0367_auth_email_otp_delivery_queue_local.sql): reapply_c4_operational_runtime_overlays
+-- runs this file via psql -f AFTER `pnpm migrate` in every post-migration closure, so a stale copy
+-- here silently overwrites the migration's fix on every deploy. Found 04.08: this branch was missing
+-- 'auth_email_otp' after 0367 added it, which quarantined every login-code queue row as
+-- TENANT_SCOPE_UNSUPPORTED_QUEUE_KIND on TEST post-deploy even though the migration itself was correct.
 CREATE OR REPLACE FUNCTION app.resolve_outgoing_delivery_scope(p_queue_id uuid)
 RETURNS TABLE(queue_kind text, organization_id uuid, resolution text)
 LANGUAGE plpgsql
@@ -550,7 +556,7 @@ BEGIN
     RETURN;
   END IF;
 
-  IF queue_kind IN ('inbound_reply', 'operator_health_digest') THEN
+  IF queue_kind IN ('inbound_reply', 'operator_health_digest', 'auth_email_otp') THEN
     RETURN QUERY SELECT queue_kind, NULL::uuid, 'operator_global'::text;
     RETURN;
   END IF;
