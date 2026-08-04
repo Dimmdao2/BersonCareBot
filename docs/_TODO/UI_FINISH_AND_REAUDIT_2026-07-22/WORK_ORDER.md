@@ -1058,6 +1058,19 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       провизионить DEV operational-логины (delivery/scheduler/diagnostic) по образцу TEST, или DEV
       сознательно не гоняет этот worker и живая проверка Ш7-дренажа переносится на TEST. D30 и Ш7 остаются
       открытыми.
+      **DEV-worker unblock 04.08:** членство выдано каноническим DEV-only расширением (`dev-c5`/`dev-c6`/
+      `dev-c7` в `deploy/postgres/`, детали и обоснование — `D30_SCHEDULER_REVERSAL_PLAN.md` §Ш7 блок «DEV-
+      worker unblock 04.08»); все три найденных грант-блокера закрыты. Но воркер всё ещё не стартует —
+      **новый, более серьёзный и не-DEV-специфичный баг**: `assertDeliveryWorkerPoolReady` оборачивает все
+      восемь readiness-проб в одну `BEGIN READ ONLY`, а две из них (`revalidate_specialist_task_reminder_
+      materialization`/`apply_specialist_task_reminder_success_outcome`) делают `SELECT ... FOR UPDATE` —
+      несовместимо с read-only транзакцией структурно, на любом окружении. Тот же сбой **прямо сейчас
+      держит в crash-loop TEST outgoing-delivery worker** — непрерывно с `2026-08-03 05:41` (комментарий
+      `1f9b2f22f`) по `2026-08-04 07:33`, 8080+ повторов в PostgreSQL-логе. Чинить код (тело функции или
+      `probeReadOnly()`) вне мандата грантового DEV-хода. **Срочный отдельный вопрос владельцу:** это живой
+      инцидент на TEST, не только блокер Ш7-дренажа — нужно отдельное решение/тикет, не D30. Дренаж `4
+      stale processing` по-прежнему не выполнен (воркер не дошёл до `jobQueueLoop`); состав `bcb_webapp_dev`
+      очереди не изменился. D30 и Ш7 остаются открытыми.
 
 ### 3.5 Track E — принятые решения без своего трека
 

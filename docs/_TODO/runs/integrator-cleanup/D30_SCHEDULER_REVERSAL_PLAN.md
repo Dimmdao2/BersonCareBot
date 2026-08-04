@@ -495,6 +495,67 @@ TypeScript, а не регуляркой по тексту** (`.cursor/rules/tes
       тику отработать reclaim → добить 4 строки до `sent`/`dead` → держать `pending=0` до `2026-08-29`+ →
       только тогда закрывать `DROP TABLE`/снос кода источника (б) отдельным audited шагом.
 
+      **DEV-worker unblock 04.08 (owner-gate closed, drain still blocked — new code-level finding):**
+      владелец дал ответ на предыдущую развилку сам ходом: DEV membership выдано каноническим путём, а не
+      ручным `GRANT`. Канонический wrapper (`deploy/host/provision-c4-operational-runtime.sql` +
+      `c4-operational-runtime.sql`) на DEV неприменим буквально: он требует четыре РАЗЛИЧНЫХ
+      operator-provisioned LOGIN-роли из `/opt/env/bersoncarebot/*.{prod,test}`, а DEV использует одну
+      общую `bcb_webapp_dev_user` для webapp и integrator (`LOCAL_DEV_AND_AGENT_TESTING.md` §1) — и
+      `CREATE OR REPLACE FUNCTION` в теле overlay трогает тела функций, что вне мандата DEV-хода. Вместо
+      обходного пути — три новых DEV-only файла той же canonical idiom, что уже установлена
+      `dev-c0-runtime-logins.sql`/`dev-c4-runtime-table-grants.sql` (operator-run, guarded, idempotent,
+      exact-edge assertion), каждый сведён вручную к буквальным `GRANT`/`REVOKE`, объявленным в уже
+      закоммиченных overlay-файлах — ничего не выдумано:
+      - `dev-c5-operational-delivery-worker-membership.sql` — `bcb_webapp_dev_user` получает ровно
+        SET-only membership в `app_operational_delivery_worker` (тот самый недостающий грант из
+        RE-MEASURE 04.08 выше). Применено.
+      - `dev-c6-saas-telemetry-owner-update-grant.sql` — второй, независимо найденный блокер: старт
+        воркера требует `assertWorkerIsolationTelemetryWriterReady` (активен, т.к.
+        `DB_PRINCIPAL_CONTEXT_MODE=locked` наследуется в integrator-процесс из `webapp/.env.dev` по
+        дизайну `loadEnv.ts`), которая вызывает `app.report_saas_isolation_event` → `INSERT ... ON
+        CONFLICT DO UPDATE` в `public.saas_isolation_event_hourly`. `saas_telemetry_owner` на DEV не
+        получил `UPDATE` (только `INSERT/SELECT/DELETE`), потому что канонический overlay
+        `saas-isolation-telemetry.sql` объявляет полный `ALTER TABLE ... OWNER TO saas_telemetry_owner`,
+        который на DEV не прогонялся ни разу. Минимальная правка — не передача владения (шире мандата),
+        а один точечный `GRANT UPDATE`. Применено.
+      - `dev-c7-operational-delivery-worker-schema-table-grants.sql` — третий блокер: после (1) и (2)
+        `assertDeliveryWorkerPoolReady` упал `permission denied for schema integrator` — DEV на момент
+        измерения ни разу не запускал часть `c4-operational-runtime.sql`, которая выдаёт
+        capability-ролям `USAGE ON SCHEMA app/integrator` и `SELECT, UPDATE` на
+        `integrator.projection_outbox`/`integrator.message_retry_jobs`/`public.outgoing_delivery_queue` —
+        существовали только `GRANT EXECUTE` на функции из миграций 0260/0328/0333/0335, но не
+        schema/table-слой самого overlay. Пять `GRANT`, взятых дословно из
+        `c4-operational-runtime.sql`, применены только к `app_operational_delivery_worker` (остальные три
+        capability-роли не тронуты).
+
+      После (1)+(2)+(3) прямой replay всех восьми `assertDeliveryWorkerPoolReady`-проб (та же
+      `SET ROLE app_operational_delivery_worker`, та же обёртка `BEGIN READ ONLY ... ROLLBACK`, что и в
+      `operationalPoolReadiness.ts`) показал: шесть проб проходят. Седьмая —
+      `app.revalidate_specialist_task_reminder_materialization` — падает `cannot execute SELECT FOR UPDATE
+      in a read-only transaction`: тело функции (`0333_d30_specialist_task_delivery_outcome_capability_
+      local.sql:229`) делает `SELECT ... FOR UPDATE`, а `probeReadOnly()` в
+      `apps/integrator/src/infra/db/operationalPoolReadiness.ts` оборачивает ВСЕ восемь проб в одну
+      `BEGIN READ ONLY` транзакцию — это структурная несовместимость PostgreSQL (FOR UPDATE запрещён в
+      read-only транзакции независимо от числа строк), а не грант и не окружение DEV. **Это не DEV-специфично:**
+      тот же запрос с тем же текстом ошибки живёт в проде PostgreSQL-логе TEST (`bcb_test_operational_
+      delivery_login@bersoncarebot_test`) непрерывно, каждые ~10с, с `2026-08-03 05:41` (через 17 минут
+      после `1f9b2f22f "fix(track-d): revalidate specialist reminder delivery"`) по `2026-08-04 07:33`
+      (замер) — **8080+ повторов, TEST outgoing-delivery worker в crash-loop 24+ часа**, из-за этой же
+      пробы, не из-за D30. `apply_specialist_task_reminder_success_outcome` — восьмая проба, с тем же `FOR
+      UPDATE` в теле (`0333:320`) — не дошла до проверки (транзакция уже aborted), но обречена по той же
+      причине.
+      **Вывод:** DEV-worker НЕ стартует в этом ходе — не из-за грантов (все три найденных грант-блокера
+      закрыты), а из-за отдельного, более серьёзного и явно более старшего по времени бага в самой пробе
+      готовности, который **прямо сейчас держит в даунтайме TEST**, независимо от D30/Ш7. Чинить тело
+      функции или `probeReadOnly()` — вне мандата этого DEV-grants-хода (код приложения, не грант, и
+      "TEST трогать не нужно"). Дренаж `4 stale processing` **не выполнен**: воркер ни разу не дошёл до
+      `jobQueueLoop`, состав очереди `bcb_webapp_dev` не изменился (`20 pending`/`4 processing`/`22
+      dead`/`67 done`, `max(created_at)` по-прежнему `2026-07-24 10:51`). Точка невозврата (`DROP TABLE`)
+      не приближена и не затронута. **Owner-вопрос:** кому чинить `probeReadOnly`/`revalidate_specialist_
+      task_reminder_materialization` (не READ ONLY проба FOR UPDATE-функций, или отдельная не-read-only
+      транзакция для них) — это отдельный, срочный тикет (живой инцидент TEST), не Ш7, и Ш7 не может
+      закрыть дренаж, пока он не исправлен где-то.
+
 - [ ] **Ш8. B3 — не в этом плане.** Дренаж `integrator_push_outbox` исчезает вместе с M2M-каналом
       `reminder_rule_upsert` по D5–D7/D25. Здесь фиксируется зависимость, работа не начинается.
 
