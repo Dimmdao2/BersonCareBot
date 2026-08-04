@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   CreatePatientFileParams,
+  DeletePatientFileResult,
   PatientFileCategory,
   PatientFileRecord,
   PatientFilesPort,
@@ -12,10 +13,17 @@ import type {
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
 
 const store: Map<string, PatientFileRecord> = new Map();
+let nextDeleteFails = false;
 
 /** @internal Vitest: reset between tests. */
 export function __resetInMemoryPatientFilesForTest() {
   store.clear();
+  nextDeleteFails = false;
+}
+
+/** @internal Vitest: simulate a storage delete failure for the next `deleteFile` call. */
+export function __setNextDeleteFileStorageFailureForTest(fails: boolean) {
+  nextDeleteFails = fails;
 }
 
 export const inMemoryPatientFilesPort: PatientFilesPort = {
@@ -76,8 +84,14 @@ export const inMemoryPatientFilesPort: PatientFilesPort = {
     return updated;
   },
 
-  async deleteFile(id: string): Promise<boolean> {
-    return store.delete(id);
+  async deleteFile(id: string): Promise<DeletePatientFileResult> {
+    if (!store.has(id)) return { status: 'not_found' };
+    if (nextDeleteFails) {
+      nextDeleteFails = false;
+      return { status: 'storage_delete_failed' };
+    }
+    store.delete(id);
+    return { status: 'deleted' };
   },
 
   async getStorageUsedBytes(): Promise<number> {
