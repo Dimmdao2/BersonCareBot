@@ -35,7 +35,7 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
       <AuthFlowV2
         nextParam={null}
         prefetchedAuthConfig={{
-          oauthProviders: { yandex: false, google: false, apple: false },
+          oauthProviders: { yandex: false, google: false, vk: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
           specialistSignupEnabled: false,
@@ -118,7 +118,7 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
       <AuthFlowV2
         nextParam={null}
         prefetchedAuthConfig={{
-          oauthProviders: { yandex: false, google: false, apple: false },
+          oauthProviders: { yandex: false, google: false, vk: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
           specialistSignupEnabled: false,
@@ -281,7 +281,7 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
       <AuthFlowV2
         nextParam={null}
         prefetchedAuthConfig={{
-          oauthProviders: { yandex: true, google: false, apple: false },
+          oauthProviders: { yandex: true, google: false, vk: false, apple: false },
           telegramBotUsername: null,
           maxBotOpenUrl: null,
           specialistSignupEnabled: false,
