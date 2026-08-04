@@ -966,6 +966,60 @@ SELECT
   echo "   specialist-owner provisioning seam: OK (app_owner pinned, be_organizations FORCE RLS intact)"
 }
 
+assert_login_fix_definer_owners_pinned(){
+  # 2026-08-04 live regression: migration 0356 re-homed 15 platform_users SECURITY DEFINER
+  # accessors from the migrator role to app_owner so they can see FORCE-RLS platform_users (see
+  # 0356's header). Two closure overlays that run AFTER every migration --
+  # organization-member-invites-rls.sql and specialist-signup-public-bootstrap-rls.sql -- DROP+CREATE
+  # eight of those fifteen and, before this gate existed, re-derived their owner from "current owner
+  # of a related table" (the migrator role), silently reverting 0356 on every single deploy. TEST
+  # measured all eight back on bersoncarebot_test, reading zero platform_users rows, with no red gate
+  # anywhere. Both overlays now pin app_owner explicitly for their migration-0356 functions; this is
+  # the exact-signature check that catches a future regression of the same shape (a new DROP+CREATE
+  # or a reintroduced dynamic-owner ALTER) instead of relying on the whole-class count below, which
+  # only proves a total is right, not that these specific fifteen are among the ones counted.
+  local violations
+  violations="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH pinned_functions(signature) AS (
+  VALUES
+    ('app.bump_platform_user_session_epoch_self()'),
+    ('app.email_auth_verify_user_email(uuid,text)'),
+    ('app.email_otp_public_delete_unverified_registration(uuid)'),
+    ('app.email_otp_public_find_or_create_user(text)'),
+    ('app.email_otp_public_find_user_by_email(text)'),
+    ('app.email_otp_public_register_patient(text,text,text,text)'),
+    ('app.email_password_delete_unverified_registration(uuid)'),
+    ('app.email_password_find_login_candidate(text)'),
+    ('app.email_password_register_pending(text,text,text,text,text,text)'),
+    ('app.is_platform_registration_analytics_user_excluded(uuid)'),
+    ('app.list_platform_organization_members(uuid)'),
+    ('app.patient_done_reminder_occurrence(text)'),
+    ('app.patient_skip_reminder_occurrence(uuid,text,text)'),
+    ('app.patient_snooze_reminder_occurrence(uuid,text,integer)'),
+    ('app.propagate_staff_session_version_to_session_epoch()'),
+    ('app.get_preferred_auth_channel_code(uuid)')
+)
+SELECT string_agg(
+  target.signature || ' owned by ' || COALESCE(pg_get_userbyid(procedure.proowner), '<missing>'),
+  '; '
+  ORDER BY target.signature
+)
+FROM pinned_functions AS target
+LEFT JOIN pg_proc AS procedure ON procedure.oid = to_regprocedure(target.signature)
+WHERE to_regprocedure(target.signature) IS NULL
+   OR pg_get_userbyid(procedure.proowner) <> 'app_owner';
+")"
+  if [ -n "$violations" ]; then
+    echo "FATAL: migration 0356/0357 login-fix functions are not pinned to app_owner: $violations" >&2
+    echo "       A post-migration overlay reverted ownership (DROP+CREATE or ALTER ... OWNER TO a" >&2
+    echo "       dynamic table-owner ident) -- see organization-member-invites-rls.sql and" >&2
+    echo "       specialist-signup-public-bootstrap-rls.sql. Under FORCE RLS this silently kills" >&2
+    echo "       public email/password login (bootstrap role reads zero platform_users rows)." >&2
+    exit 1
+  fi
+  echo "   login-fix (0356/0357) definer owners: OK (all pinned to app_owner)"
+}
+
 assert_app_owner_secdef_table_grants_complete(){
   # Whole-class gate (independent audit finding, taskdb follow-up): app_owner is NOLOGIN+BYPASSRLS,
   # so it never trips a row-security check -- but BYPASSRLS does NOT substitute for the base
@@ -2641,6 +2695,8 @@ run_strict_post_migration_closure(){
   run_closure_gate "U3S specialist signup/provisioning smoke" run_specialist_signup_provisioning_smoke
   log "specialist-owner provisioning seam pin (app_owner + be_organizations FORCE RLS)"
   run_closure_gate "specialist-owner provisioning seam pin" assert_specialist_owner_provisioning_seam_pinned
+  log "login-fix (0356/0357) definer owners pinned to app_owner (2026-08-04 overlay-revert regression)"
+  run_closure_gate "login-fix definer owners pinned" assert_login_fix_definer_owners_pinned
   log "app_owner SECURITY DEFINER table-grant completeness (whole-class gate)"
   run_closure_gate "app_owner SECURITY DEFINER table-grant completeness" assert_app_owner_secdef_table_grants_complete
   log "clinical_test_measure_kinds write-lock closure pin (H-7 / #1040, detects a guarded skip)"

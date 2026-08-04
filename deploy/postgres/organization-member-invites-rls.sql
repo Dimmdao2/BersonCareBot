@@ -961,10 +961,19 @@ COMMENT ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigi
 COMMENT ON FUNCTION app.email_auth_set_email_challenge_purpose(uuid, text) IS
   'C-2 step 4: stamps the purpose an email challenge was minted for, immediately after app.email_auth_insert_email_challenge creates it. A NEW accessor rather than widening insert''s pinned 4-arg signature.';
 
-ALTER FUNCTION app.email_otp_public_find_user_by_email(text) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_otp_public_find_or_create_user(text) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_otp_public_register_patient(text, text, text, text) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_otp_public_delete_unverified_registration(uuid) OWNER TO :organization_member_invites_owner_ident;
+-- These four are migration 0356's canonical app_owner set (platform_users FORCE-RLS login fix):
+-- DROP+CREATE above makes a brand-new function object, so it must pin app_owner explicitly here,
+-- the same way the rest of this file already does for lookup_pending_org_invite/accept_org_invite
+-- and email_otp_public_consume_latest_challenge just below. Deriving from
+-- :organization_member_invites_owner_ident (the migrator role that owns `organization_member_invites`)
+-- is exactly the revert this pin exists to stop -- confirmed live on TEST: every deploy silently
+-- handed these back to the migrator, which FORCE RLS then blocks from platform_users, and email
+-- login always answered "code sent" without sending. See migration 0356's header for the reviewed
+-- app_owner scope this mirrors.
+ALTER FUNCTION app.email_otp_public_find_user_by_email(text) OWNER TO app_owner;
+ALTER FUNCTION app.email_otp_public_find_or_create_user(text) OWNER TO app_owner;
+ALTER FUNCTION app.email_otp_public_register_patient(text, text, text, text) OWNER TO app_owner;
+ALTER FUNCTION app.email_otp_public_delete_unverified_registration(uuid) OWNER TO app_owner;
 ALTER FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_otp_public_consume_latest_challenge(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) OWNER TO :organization_member_invites_owner_ident;
@@ -977,7 +986,9 @@ ALTER FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) OWNER TO :o
 ALTER FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_email_owner_conflict(uuid, text) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_auth_verify_user_email(uuid, text) OWNER TO :organization_member_invites_owner_ident;
+-- Also migration 0356's canonical app_owner set -- same DROP+CREATE-resets-owner reasoning as the
+-- four above.
+ALTER FUNCTION app.email_auth_verify_user_email(uuid, text) OWNER TO app_owner;
 ALTER FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
