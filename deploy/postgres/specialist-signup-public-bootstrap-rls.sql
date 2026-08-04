@@ -92,6 +92,10 @@ DROP FUNCTION IF EXISTS app.get_public_config_bool(text);
 SELECT (
   EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient')
   AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_staff')
+  -- Required because email_password_register_pending/_delete_unverified_registration/
+  -- _find_login_candidate below are now pinned explicitly to app_owner (migration 0356's
+  -- canonical set) instead of a derived table-owner ident.
+  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND rolbypassrls AND NOT rolcanlogin)
   AND EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'app')
   AND to_regclass('public.system_settings') IS NOT NULL
   AND to_regclass('public.platform_users') IS NOT NULL
@@ -440,7 +444,14 @@ $$;
 COMMENT ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) IS
   'Narrow SECURITY DEFINER for public structured email/password pending registration. Derives display_name and allows only client/doctor roles; no app_patient table DML grants.';
 
-ALTER FUNCTION app.email_password_register_pending(text, text, text, text, text, text) OWNER TO :specialist_signup_platform_users_owner_ident;
+-- Migration 0356's canonical app_owner set (platform_users FORCE-RLS login fix): DROP+CREATE above
+-- makes a brand-new function object, so it must pin app_owner explicitly, not derive from
+-- :specialist_signup_platform_users_owner_ident/:specialist_signup_password_credentials_owner_ident
+-- (the migrator role that owns these tables) -- that derivation is exactly the revert this pin
+-- exists to stop. Confirmed live on TEST: every deploy silently handed these three back to the
+-- migrator, which FORCE RLS then blocks from platform_users, and email/password login always failed
+-- pre-session. See migration 0356's header for the reviewed app_owner scope this mirrors.
+ALTER FUNCTION app.email_password_register_pending(text, text, text, text, text, text) OWNER TO app_owner;
 
 CREATE OR REPLACE FUNCTION app.email_password_delete_unverified_registration(p_user_id uuid)
 RETURNS void
@@ -459,7 +470,8 @@ $$;
 COMMENT ON FUNCTION app.email_password_delete_unverified_registration(uuid) IS
   'Narrow rollback accessor for failed public email/password registration; deletes only unverified client/doctor canonical users.';
 
-ALTER FUNCTION app.email_password_delete_unverified_registration(uuid) OWNER TO :specialist_signup_platform_users_owner_ident;
+-- Also migration 0356's canonical app_owner set -- same reasoning as email_password_register_pending above.
+ALTER FUNCTION app.email_password_delete_unverified_registration(uuid) OWNER TO app_owner;
 
 CREATE OR REPLACE FUNCTION app.email_password_find_user_id_by_email_challenge(p_challenge_id uuid)
 RETURNS uuid
@@ -497,7 +509,8 @@ $$;
 COMMENT ON FUNCTION app.email_password_find_login_candidate(text) IS
   'Narrow pre-auth email/password login lookup. It exposes one candidate only to the application so password verification stays in Node without granting credential-table access.';
 
-ALTER FUNCTION app.email_password_find_login_candidate(text) OWNER TO :specialist_signup_password_credentials_owner_ident;
+-- Also migration 0356's canonical app_owner set -- same reasoning as email_password_register_pending above.
+ALTER FUNCTION app.email_password_find_login_candidate(text) OWNER TO app_owner;
 
 -- Retire the former caller-targeted overload before exposing the self-scoped replacement.
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
