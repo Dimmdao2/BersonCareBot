@@ -20,7 +20,7 @@ describe('D30 Ш7 appointment reminder atomic delivery capability', () => {
     expect(database.rows[0]?.name).toMatch(/^pbt_/);
     const migration = await readFile(
       new URL(
-        '../../../db/drizzle-migrations/9995_d30_appointment_reminder_queue_cutover_local.sql',
+        '../../../db/drizzle-migrations/0339_d30_appointment_reminder_queue_cutover_local.sql',
         import.meta.url,
       ),
       'utf8',

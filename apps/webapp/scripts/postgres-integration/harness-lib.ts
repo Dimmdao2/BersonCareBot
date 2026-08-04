@@ -566,7 +566,17 @@ export async function buildTemplateDatabase(): Promise<BuiltTemplate> {
     const applicationRoles = discoverApplicationRoleNames(schemaText, migrationsDir);
     if (applicationRoles.length > 0) {
       const createRolesSql = applicationRoles
-        .map((role) => `CREATE ROLE ${quoteIdent(role)} NOLOGIN NOINHERIT NOBYPASSRLS;`)
+        // `app_owner` is BYPASSRLS on every real DEV/TEST/PROD cluster (provisioned outside the
+        // migration chain -- see `deploy/host/deploy-test-saas.sh`'s `CREATE ROLE app_owner NOLOGIN
+        // BYPASSRLS` and its own post-deploy gate asserting `rolbypassrls`). Migrations re-home
+        // SECURITY DEFINER accessors onto it under FORCE RLS tables (e.g. `platform_users`) on that
+        // assumption -- a NOBYPASSRLS `app_owner` here silently returns zero rows instead of raising,
+        // diverging from every real environment this harness exists to stand in for.
+        .map((role) =>
+          role === 'app_owner'
+            ? `CREATE ROLE ${quoteIdent(role)} NOLOGIN NOINHERIT BYPASSRLS;`
+            : `CREATE ROLE ${quoteIdent(role)} NOLOGIN NOINHERIT NOBYPASSRLS;`,
+        )
         // Migrations transfer function ownership to some of these roles (e.g. `ALTER FUNCTION ...
         // OWNER TO app_owner`), which PostgreSQL only allows a role that can `SET ROLE` to the
         // target -- membership is enough even without INHERIT.
