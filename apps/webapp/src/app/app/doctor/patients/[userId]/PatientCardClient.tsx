@@ -265,7 +265,8 @@ export function PatientCardClient({
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        setFioError((json as { error?: string })?.error ?? 'Ошибка сохранения');
+        const body = json as { error?: string; message?: string } | null;
+        setFioError(body?.message ?? body?.error ?? 'Ошибка сохранения');
         return;
       }
       // Apply local override to avoid page reload

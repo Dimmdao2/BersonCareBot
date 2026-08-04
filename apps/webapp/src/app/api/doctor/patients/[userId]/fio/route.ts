@@ -15,7 +15,9 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
   isCyrillicFioInputOrEmpty,
+  isFioLatinRejection,
   normalizeFioPart,
 } from '@/shared/lib/fio';
 
@@ -68,7 +70,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'validation_error', issues: parsed.error.issues },
+      {
+        ok: false,
+        error: 'validation_error',
+        issues: parsed.error.issues,
+        ...(isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {}),
+      },
       { status: 422 },
     );
   }

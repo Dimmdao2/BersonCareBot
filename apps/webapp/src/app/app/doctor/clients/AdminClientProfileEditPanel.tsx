@@ -73,7 +73,11 @@ export function AdminClientProfileEditPanel({
           credentials: 'include',
           body: JSON.stringify(body),
         });
-        const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        const json = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          message?: string;
+        };
         if (!res.ok || json.ok !== true) {
           if (res.status === 409 && json.error === 'email_conflict') {
             setError('Такой email уже занят другим пользователем.');
@@ -84,7 +88,7 @@ export function AdminClientProfileEditPanel({
           } else if (json.error === 'forbidden') {
             setError('Нужны роль admin и режим администратора.');
           } else {
-            setError(json.error ?? `Ошибка сохранения (${res.status})`);
+            setError(json.message ?? json.error ?? `Ошибка сохранения (${res.status})`);
           }
           setPending(false);
           return;

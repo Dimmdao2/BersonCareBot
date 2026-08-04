@@ -13,8 +13,10 @@ import { formatOtpRetryAfterMessage } from '@/modules/auth/otpConstants';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
   isCyrillicFioInput,
   isCyrillicFioInputOrEmpty,
+  isFioLatinRejection,
 } from '@/shared/lib/fio';
 
 const bodySchema = z.object({
@@ -79,7 +81,11 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse((await request.json().catch(() => null)) as unknown);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: 'invalid_fio', message: 'Укажите фамилию и имя' },
+      {
+        ok: false,
+        error: 'invalid_fio',
+        message: isFioLatinRejection(parsed) ? FIO_LATIN_REJECTED_TEXT : 'Укажите фамилию и имя',
+      },
       { status: 400 },
     );
   }

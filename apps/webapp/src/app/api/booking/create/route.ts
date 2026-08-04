@@ -17,6 +17,7 @@ import {
   mapApiError,
   type ApiErrorLiteralRules,
 } from '@/shared/http/apiResponse';
+import { FIO_LATIN_REJECTED_TEXT, isFioLatinRejection } from '@/shared/lib/fio';
 
 const formAnswerSchema = z.object({
   fieldKey: z.string().min(1),
@@ -91,7 +92,11 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return jsonError('invalid_body', {}, { status: 400 });
+    return jsonError(
+      'invalid_body',
+      isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {},
+      { status: 400 },
+    );
   }
 
   const deps = buildAppDeps();

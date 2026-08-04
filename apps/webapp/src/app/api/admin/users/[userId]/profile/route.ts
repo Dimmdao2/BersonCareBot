@@ -17,7 +17,9 @@ import { resolveCanonicalUserId } from '@/app-layer/platform-user/canonicalPlatf
 import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
+  FIO_LATIN_REJECTED_TEXT,
   isCyrillicFioInputOrEmpty,
+  isFioLatinRejection,
   normalizeFioPart,
 } from '@/shared/lib/fio';
 
@@ -76,7 +78,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   if (!parsed.success) {
     const empty = parsed.error.issues.some((i) => i.message === 'empty_patch');
     return NextResponse.json(
-      { ok: false, error: empty ? 'empty_patch' : 'invalid_body' },
+      {
+        ok: false,
+        error: empty ? 'empty_patch' : 'invalid_body',
+        ...(isFioLatinRejection(parsed) ? { message: FIO_LATIN_REJECTED_TEXT } : {}),
+      },
       { status: 400 },
     );
   }

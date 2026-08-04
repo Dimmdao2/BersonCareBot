@@ -467,7 +467,9 @@ function currentLocalDateTimeValue(clockToleranceMinutes = 0): string {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-function manualVisitErrorLabel(error: string | undefined): string {
+function manualVisitErrorLabel(result: { error?: string; message?: string }): string {
+  if (result.message) return result.message;
+  const error = result.error;
   if (error === 'invalid_phone') return 'Проверьте номер телефона.';
   if (error === 'invalid_email') return 'Проверьте email.';
   if (error === 'invalid_fio') return 'Укажите фамилию и имя.';
@@ -564,10 +566,11 @@ function NewClientDialog({ patientSingularLabel }: NewClientDialogProps) {
       const result = (await response.json()) as {
         ok?: boolean;
         error?: string;
+        message?: string;
         client?: { id?: string };
       };
       if (!response.ok || !result.ok || !result.client?.id) {
-        setError(manualVisitErrorLabel(result.error));
+        setError(manualVisitErrorLabel(result));
         return;
       }
       setOpen(false);

@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+
 export type StructuredFio = {
   lastName: string | null;
   firstName: string | null;
@@ -133,6 +135,19 @@ export function isCyrillicFioInputOrEmpty(value: string): boolean {
 
 /** Shared rejection message code for the `.refine()` calls above — one string, not one per call site. */
 export const FIO_LATIN_REJECTED_MESSAGE = 'fio_latin_rejected';
+
+/** Human-readable RU text for {@link FIO_LATIN_REJECTED_MESSAGE} — the one wording every screen shows. */
+export const FIO_LATIN_REJECTED_TEXT = 'Фамилия, имя и отчество вводятся кириллицей.';
+
+/** Whether a failed `.safeParse()` of a schema using the `.refine()`s above failed specifically on the
+ * Cyrillic-only rule (vs. some other validation issue) — so call sites can attach {@link FIO_LATIN_REJECTED_TEXT}
+ * without duplicating the check per route. */
+export function isFioLatinRejection(parsed: z.ZodSafeParseResult<unknown>): boolean {
+  return (
+    !parsed.success &&
+    parsed.error.issues.some((issue) => issue.message === FIO_LATIN_REJECTED_MESSAGE)
+  );
+}
 
 function likelyPatronymicBySuffix(value: string): boolean {
   const key = dictionaryKey(value);

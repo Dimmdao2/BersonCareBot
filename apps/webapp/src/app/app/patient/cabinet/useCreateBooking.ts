@@ -74,6 +74,7 @@ export function useCreateBooking() {
       const json = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
+        message?: string;
         redirectTo?: string;
         booking?: PatientBookingRecord;
       };
@@ -82,7 +83,7 @@ export function useCreateBooking() {
           setError(null);
           return false;
         }
-        setError(mapBookingCreateErrorCodeToRu(json.error));
+        setError(json.message ?? mapBookingCreateErrorCodeToRu(json.error));
         return false;
       }
       return json.booking;
