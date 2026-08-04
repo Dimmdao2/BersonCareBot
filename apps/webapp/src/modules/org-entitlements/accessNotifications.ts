@@ -146,6 +146,20 @@ export type OrgLifecycleNotificationAnchors = {
  * outright (their anchor is treated as absent), not just filtered after the fact, so a stale
  * `discountEndsAt` left over from before payment can never resurface a "льгота заканчивается" text
  * to a clinic that already paid.
+ *
+ * `offsetDays` keeps `dueAccessNotifications`'s sign convention unchanged (negative = before the
+ * anchor instant, positive = after), it is only the anchor per condition that moves:
+ *   - `registration`               → `registeredAt`  (first login into the cabinet)
+ *   - `trial_started`               → `trialStartedAt`
+ *   - `trial_ended`                 → `trialEndsAt`
+ *   - `discount_period_started`     → `trialEndsAt`   (the window opens exactly when the trial ends)
+ *   - `discount_period_ended`       → `discountEndsAt` (the window's own end)
+ * Т7's second email — «скидка скоро закончится» — is a WARNING, so the row for
+ * `discount_period_ended` needs a NEGATIVE `offsetDays`: it must fire before the window closes,
+ * not after. There is nothing in the schema, the constructor validation or the admin form (the
+ * "Срок, дней" input has no `min`) that special-cases sign per condition — a negative offset is
+ * already configurable for any row today; it was only this module's own test fixture that had it
+ * backwards.
  */
 export function dueLifecycleNotifications(input: {
   notifications: readonly AccessNotificationRule[];
