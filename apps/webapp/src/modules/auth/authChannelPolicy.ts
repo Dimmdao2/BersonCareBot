@@ -2,6 +2,7 @@ import {
   getPublicAuthChannelConfigured,
   getPublicRuntimeBool,
 } from '@/modules/system-settings/configAdapter';
+import { OAUTH_PROVIDERS, type OAuthProvider } from '@/modules/auth/oauthProviderRegistry';
 
 export type AuthChannel = 'email' | 'sms' | 'telegram' | 'max';
 
@@ -57,7 +58,7 @@ export async function getClientVisibleAuthChannelPolicy(): Promise<AuthChannelPo
  * The independent admin toggle (`auth_oauth_*_enabled`) is decoupled from credential presence.
  * "Configured" is the credential-derived public projection maintained by the DB trigger.
  */
-export type OAuthProvider = 'google' | 'yandex' | 'apple' | 'vk';
+export type { OAuthProvider };
 export type OAuthProviderDetail = Readonly<{ enabled: boolean; configured: boolean }>;
 export type OAuthProviderPolicyDetail = Readonly<Record<OAuthProvider, OAuthProviderDetail>>;
 
@@ -93,9 +94,8 @@ export async function isOAuthProviderEnabled(provider: OAuthProvider): Promise<b
 
 /** Admin-only detail view for the OAuth toggles (raw toggle + configuration status). */
 export async function getOAuthProviderPolicyDetail(): Promise<OAuthProviderPolicyDetail> {
-  const providers: readonly OAuthProvider[] = ['google', 'yandex', 'apple', 'vk'];
   const entries = await Promise.all(
-    providers.map(async (provider) => {
+    OAUTH_PROVIDERS.map(async (provider) => {
       const [enabled, configured] = await Promise.all([
         getPublicRuntimeBool(OAUTH_TOGGLE_SETTING_BY_PROVIDER[provider], 'public_auth_config'),
         isOAuthProviderConfigured(provider),

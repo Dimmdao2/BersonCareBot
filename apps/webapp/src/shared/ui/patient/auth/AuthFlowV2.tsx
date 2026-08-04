@@ -23,6 +23,13 @@ import {
 } from '@/modules/auth/otpChannelUi';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
+import {
+  EMPTY_OAUTH_PROVIDER_FLAGS,
+  hasAnyOAuthProvider,
+  OAUTH_PROVIDER_REGISTRY,
+  type OAuthProvider,
+  type OAuthProviderFlags,
+} from '@/modules/auth/oauthProviderRegistry';
 import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage';
 import { ChannelPicker } from '@/shared/ui/patient/auth/ChannelPicker';
 import {
@@ -213,10 +220,8 @@ function withContactSupportReturn(
     : `${raw}?from=${encodeURIComponent(fromParam)}`;
 }
 
-type OauthProviderFlags = { yandex: boolean; google: boolean; apple: boolean };
-
 export type PrefetchedPublicAuthConfig = {
-  oauthProviders: OauthProviderFlags;
+  oauthProviders: OAuthProviderFlags;
   passkeyEnabled?: boolean;
   telegramBotUsername: string | null;
   maxBotOpenUrl: string | null;
@@ -254,11 +259,8 @@ export function AuthFlowV2({
   const [step, setStep] = useState<AuthFlowStep>('entry_loading');
   const pendingHydratedRef = useRef(false);
   const initialDevViewAppliedRef = useRef(false);
-  const [oauthProviders, setOauthProviders] = useState<OauthProviderFlags>({
-    yandex: false,
-    google: false,
-    apple: false,
-  });
+  const [oauthProviders, setOauthProviders] =
+    useState<OAuthProviderFlags>(EMPTY_OAUTH_PROVIDER_FLAGS);
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState<string | null>(null);
   const [methods, setMethods] = useState<AuthMethodsPayload | null>(null);
@@ -336,7 +338,7 @@ export function AuthFlowV2({
 
   useEffect(() => {
     if (isMessengerMiniAppHost()) {
-      setOauthProviders({ yandex: false, google: false, apple: false });
+      setOauthProviders(EMPTY_OAUTH_PROVIDER_FLAGS);
       if (messengerPhoneEnabled) {
         setStep('phone');
       } else {
@@ -346,13 +348,9 @@ export function AuthFlowV2({
       return;
     }
 
-    const oauth = prefetchedAuthConfig?.oauthProviders ?? {
-      yandex: false,
-      google: false,
-      apple: false,
-    };
+    const oauth = prefetchedAuthConfig?.oauthProviders ?? EMPTY_OAUTH_PROVIDER_FLAGS;
     setOauthProviders(oauth);
-    const oauthOn = oauth.yandex || oauth.google || oauth.apple || passkeyEnabled;
+    const oauthOn = hasAnyOAuthProvider(oauth) || passkeyEnabled;
     if (!emailOtpEnabled) setEmailAuthMode('password_login');
     setStep(oauthOn ? 'oauth_first' : 'email_password');
   }, [prefetchedAuthConfig, emailOtpEnabled, messengerPhoneEnabled, passkeyEnabled]);
@@ -389,16 +387,15 @@ export function AuthFlowV2({
       setEmailAuthMode('password_login');
       return;
     }
+    const prefetchedOauthReturn: 'oauth_first' | 'email_password' = hasAnyOAuthProvider(
+      prefetchedAuthConfig?.oauthProviders,
+    )
+      ? 'oauth_first'
+      : 'email_password';
     if (p.mode === 'register_verify') {
       engageInteractive();
       setStep('email_password');
-      setEmailPasswordReturn(
-        prefetchedAuthConfig?.oauthProviders?.yandex ||
-          prefetchedAuthConfig?.oauthProviders?.google ||
-          prefetchedAuthConfig?.oauthProviders?.apple
-          ? 'oauth_first'
-          : 'email_password',
-      );
+      setEmailPasswordReturn(prefetchedOauthReturn);
       setEmailLoginEmail(p.email);
       setEmailRegLastName(p.lastName ?? '');
       setEmailRegFirstName(p.firstName ?? '');
@@ -417,13 +414,7 @@ export function AuthFlowV2({
       }
       engageInteractive();
       setStep('email_password');
-      setEmailPasswordReturn(
-        prefetchedAuthConfig?.oauthProviders?.yandex ||
-          prefetchedAuthConfig?.oauthProviders?.google ||
-          prefetchedAuthConfig?.oauthProviders?.apple
-          ? 'oauth_first'
-          : 'email_password',
-      );
+      setEmailPasswordReturn(prefetchedOauthReturn);
       setEmailLoginEmail(p.email);
       setSpecialistSignupLastName(p.lastName ?? '');
       setSpecialistSignupFirstName(p.firstName ?? '');
@@ -438,13 +429,7 @@ export function AuthFlowV2({
     } else if (p.mode === 'password_reset') {
       engageInteractive();
       setStep('email_password');
-      setEmailPasswordReturn(
-        prefetchedAuthConfig?.oauthProviders?.yandex ||
-          prefetchedAuthConfig?.oauthProviders?.google ||
-          prefetchedAuthConfig?.oauthProviders?.apple
-          ? 'oauth_first'
-          : 'email_password',
-      );
+      setEmailPasswordReturn(prefetchedOauthReturn);
       setEmailAuthMode('login');
       setPwRecoveryPhase('reset_code');
       setPwRecoveryPurpose('reset');
@@ -453,7 +438,7 @@ export function AuthFlowV2({
     }
   }, [step, prefetchedAuthConfig, engageInteractive, specialistSignupEnabled, emailOtpEnabled]);
 
-  const startOauth = async (provider: 'yandex' | 'google' | 'apple') => {
+  const startOauth = async (provider: OAuthProvider) => {
     engageInteractive();
     setLoading(true);
     try {
@@ -491,7 +476,11 @@ export function AuthFlowV2({
     }
   };
 
-  const showOauthRow = oauthProviders.yandex || oauthProviders.google;
+  /** Основной ряд — все провайдеры реестра кроме Apple, показанные когда включены и настроены. */
+  const mainRowOauthProviders = OAUTH_PROVIDER_REGISTRY.filter(
+    (meta) => meta.provider !== 'apple' && oauthProviders[meta.provider],
+  );
+  const showOauthRow = mainRowOauthProviders.length > 0;
   /** Apple в основном ряду только если нет Яндекса и Google — иначе основной набор провайдеров без Apple (продуктовое правило). */
   const showAppleFallback =
     oauthProviders.apple && !oauthProviders.yandex && !oauthProviders.google;
@@ -2485,28 +2474,18 @@ export function AuthFlowV2({
               Войти по ключу доступа
             </Button>
           ) : null}
-          {oauthProviders.yandex ? (
+          {mainRowOauthProviders.map((meta) => (
             <Button
+              key={meta.provider}
               type="button"
               variant="outline"
               className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
               disabled={loading}
-              onClick={() => void startOauth('yandex')}
+              onClick={() => void startOauth(meta.provider)}
             >
-              Войти через Яндекс
+              {meta.loginLabel}
             </Button>
-          ) : null}
-          {oauthProviders.google ? (
-            <Button
-              type="button"
-              variant="outline"
-              className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-              disabled={loading}
-              onClick={() => void startOauth('google')}
-            >
-              Войти через Google
-            </Button>
-          ) : null}
+          ))}
           {showAppleFallback ? (
             <Button
               type="button"
@@ -2601,28 +2580,18 @@ export function AuthFlowV2({
         </p>
         {hasWebOauthAlternatives ? (
           <div className="flex w-full flex-col items-center gap-2">
-            {oauthProviders.yandex ? (
+            {mainRowOauthProviders.map((meta) => (
               <Button
+                key={meta.provider}
                 type="button"
                 variant="outline"
                 className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
                 disabled={loading}
-                onClick={() => void startOauth('yandex')}
+                onClick={() => void startOauth(meta.provider)}
               >
-                Яндекс
+                {meta.shortLabel}
               </Button>
-            ) : null}
-            {oauthProviders.google ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth('google')}
-              >
-                Google
-              </Button>
-            ) : null}
+            ))}
             {showAppleFallback ? (
               <Button
                 type="button"
