@@ -650,6 +650,20 @@ REVOKE ALL ON FUNCTION app.mark_operator_incident_alert_sent(uuid) FROM
   app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
 GRANT EXECUTE ON FUNCTION app.mark_operator_incident_alert_sent(uuid) TO app_operational_delivery_worker;
 
+-- Despite its operator-era name, every kind the outgoing-delivery worker processes (reminders,
+-- broadcasts, inbound replies, operator alerts, ...) logs its attempt through this one function:
+-- `createOperatorAwareDeliveryAttemptWritePort` routes ANY delivery.attempt.log write made under
+-- the `worker:outgoing-delivery-tick` infra principal here, unconditionally, because that principal
+-- has no other table/function privilege for `integrator.delivery_attempt_logs`. The original
+-- validation assumed every caller was an `operator_alert` row (`op-inc:` eventId prefix, telegram/max
+-- only, `queue.kind = 'operator_alert'`), so any other kind's audit write was rejected with
+-- 'invalid operator delivery attempt audit input' right after its delivery had already succeeded —
+-- the failure was swallowed by the caller's best-effort catch, leaving the queue's attempt journal
+-- silently empty for its entire non-operator-alert volume (found 04.08, common to the whole queue,
+-- not specific to any one delivery kind). Fixed by validating provenance against ANY matching
+-- `outgoing_delivery_queue` row instead of one hardcoded to `operator_alert`, and widening the
+-- channel set to the full one `dispatchOutgoing` can pass. `p_attempt BETWEEN 1 AND 100` was never
+-- the actual failure — every caller already sends a literal `1` — and stays as-is.
 CREATE OR REPLACE FUNCTION app.record_operator_delivery_attempt(
   p_intent_event_id text,
   p_channel text,
@@ -663,10 +677,11 @@ VOLATILE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $function$
+DECLARE
+  v_queue_kind text;
 BEGIN
   IF length(COALESCE(p_intent_event_id, '')) NOT BETWEEN 1 AND 240
-    OR p_intent_event_id NOT LIKE 'op-inc:%'
-    OR p_channel NOT IN ('telegram', 'max')
+    OR p_channel NOT IN ('telegram', 'max', 'email', 'sms', 'smsc', 'web_push')
     OR p_status NOT IN ('success', 'failed')
     OR p_attempt NOT BETWEEN 1 AND 100
     OR length(COALESCE(p_reason, '')) > 500
@@ -677,13 +692,12 @@ BEGIN
   THEN
     RAISE EXCEPTION 'invalid operator delivery attempt audit input' USING ERRCODE = '23514';
   END IF;
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.outgoing_delivery_queue AS queue
-    WHERE queue.kind = 'operator_alert'
-      AND queue.channel = p_channel
-      AND queue.payload_json #>> '{intent,meta,eventId}' = p_intent_event_id
-  ) THEN
+  SELECT queue.kind INTO v_queue_kind
+  FROM public.outgoing_delivery_queue AS queue
+  WHERE queue.channel = p_channel
+    AND queue.payload_json #>> '{intent,meta,eventId}' = p_intent_event_id
+  LIMIT 1;
+  IF v_queue_kind IS NULL THEN
     RAISE EXCEPTION 'operator delivery attempt has no exact queue source' USING ERRCODE = '23514';
   END IF;
   INSERT INTO integrator.delivery_attempt_logs (
@@ -692,7 +706,7 @@ BEGIN
   ) VALUES (
     'message.send', p_intent_event_id, NULL, p_channel, p_status,
     p_attempt, p_reason,
-    jsonb_build_object('kind', 'operator_alert', 'channel', p_channel),
+    jsonb_build_object('kind', v_queue_kind, 'channel', p_channel),
     clock_timestamp()
   );
 END
