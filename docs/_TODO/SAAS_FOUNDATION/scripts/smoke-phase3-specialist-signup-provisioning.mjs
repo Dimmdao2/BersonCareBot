@@ -429,16 +429,18 @@ function installCanonicalSchema() {
     });
   }
   // The existing U3S disposable baseline stops at the registration-policy migrations; load the
-  // current repository port against the five later tariff-shape columns it selects (the fifth,
-  // discounted_price_minor, is #1069/migration 0346 -- the live Drizzle schema selects it on every
-  // saas_tariffs read, including pgPlatformEntitlements.archiveTariff used later in this proof).
+  // current repository port against the six later tariff-shape columns it selects (the fifth,
+  // discounted_price_minor, is #1069/migration 0346; the sixth, mailing_templates, is #1069/
+  // migration 0358 -- the live Drizzle schema selects both on every saas_tariffs read, including
+  // pgPlatformEntitlements.archiveTariff used later in this proof).
   psql(`
 ALTER TABLE public.saas_tariffs
   ADD COLUMN IF NOT EXISTS system_access_policy jsonb,
   ADD COLUMN IF NOT EXISTS mechanic_access_policies jsonb NOT NULL DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS downgrade_policies jsonb NOT NULL DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS additional_seat_price_minor integer,
-  ADD COLUMN IF NOT EXISTS discounted_price_minor integer;
+  ADD COLUMN IF NOT EXISTS discounted_price_minor integer,
+  ADD COLUMN IF NOT EXISTS mailing_templates jsonb NOT NULL DEFAULT '[]'::jsonb;
 `, { label: 'complete disposable tariff shape for the registration policy port race' });
   // #1069 (2026-08-03): migration 0346 dropped saas_trial_policy.tariff_id/grace_days and
   // saas_organization_trials.grace_ends_at/extension_count outright and added
