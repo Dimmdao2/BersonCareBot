@@ -197,6 +197,7 @@ VALUES
   ('public', 'patient_merge_candidates'),
   ('public', 'patient_payment'),
   ('public', 'patient_practice_completions'),
+  ('public', 'patient_specialist_links'),
   ('public', 'phone_challenges'),
   ('public', 'phone_messenger_bind_secrets'),
   ('public', 'phone_otp_locks'),

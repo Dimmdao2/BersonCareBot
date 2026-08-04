@@ -1054,6 +1054,15 @@ CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."patient_practice_completion
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."patient_practice_completions" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "user_id" = app.current_patient_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "user_id" = app.current_patient_user_id()))));
 \endif
 
+-- public.patient_specialist_links (saas_org_dormant_p0_8_3)
+ALTER TABLE "public"."patient_specialist_links" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."patient_specialist_links";
+\if :phase4_enforce_locked_context
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."patient_specialist_links" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
+\else
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."patient_specialist_links" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
+\endif
+
 -- public.platform_user_contacts (saas_bootstrap_hybrid_p0_8_6)
 ALTER TABLE "public"."platform_user_contacts" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "public"."platform_user_contacts";

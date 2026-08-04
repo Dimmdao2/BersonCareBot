@@ -31,9 +31,16 @@ describe('collectPurgeArtifactKeys — patient_files (disposable Postgres)', () 
     } finally {
       client.release();
     }
+    // The AFTER INSERT reference-catalog seed trigger (`0184`) is SECURITY DEFINER as `app_owner`,
+    // which this disposable-Postgres harness does not grant catalog-table access to (that grant is
+    // a deploy/postgres overlay, not part of the migration chain) -- disable it for this
+    // unrelated-to-catalogs fixture insert, same as every other test in this suite that inserts a
+    // fresh `be_organizations` row.
+    await getPool().query('ALTER TABLE be_organizations DISABLE TRIGGER USER');
     const org = await getPool().query<{ id: string }>(
-      `INSERT INTO be_organizations (title) VALUES ('purge fixture org') RETURNING id`,
+      `INSERT INTO be_organizations (id, title) VALUES (gen_random_uuid(), 'purge fixture org') RETURNING id`,
     );
+    await getPool().query('ALTER TABLE be_organizations ENABLE TRIGGER USER');
     organizationId = org.rows[0]!.id;
   });
 

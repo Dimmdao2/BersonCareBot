@@ -58,5 +58,10 @@ export function createInMemoryOrganizationMembershipPort(): OrganizationMembersh
         ) ?? null
       );
     },
+
+    async setDoctorScreensDisabled({ membershipId, disabled }) {
+      const row = rows.find((candidate) => candidate.id === membershipId);
+      if (row) row.doctorScreensDisabled = disabled;
+    },
   };
 }

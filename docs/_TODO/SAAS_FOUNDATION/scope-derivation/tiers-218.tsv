@@ -177,6 +177,7 @@ SCOPED|public.patient_lfk_assignments
 SCOPED|public.patient_merge_candidates
 SCOPED|public.patient_payment
 SCOPED|public.patient_practice_completions
+SCOPED|public.patient_specialist_links
 SCOPED|public.product_analytics_events_recent
 SCOPED|public.product_analytics_user_hourly
 SCOPED|public.product_push_notifications

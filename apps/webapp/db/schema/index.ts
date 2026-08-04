@@ -35,6 +35,7 @@ export * from './bookingMemberships';
 export * from './bookingScheduling';
 export * from './bookingClientProfile';
 export * from './patientMergeCandidate';
+export * from './patientSpecialistLinks';
 export * from './platformUserContacts';
 export * from './programItemDiscussion';
 export * from './specialistTasks';

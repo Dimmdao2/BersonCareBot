@@ -70,6 +70,7 @@ P0.4.P3	public.patient_lfk_assignments	patient_org	add nullable organization_id;
 P0.4.P1	public.patient_merge_candidates	already_direct_org	already has organization_id NOT NULL and org/status index; P0.4.P1 validates it instead of adding another column
 P0.4.P1	public.patient_payment	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P4	public.patient_practice_completions	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.VIS	public.patient_specialist_links	already_direct_org	already has organization_id NOT NULL from creation (0359, VISIBILITY_MODEL_DESIGN_2026-08-04 stage A); dormant access-link table, not yet read by any query
 P0.4.P7	public.product_analytics_events_recent	user_org	add nullable organization_id; backfill from user key where present
 P0.4.P7	public.product_analytics_user_hourly	user_org	add nullable organization_id; backfill from user key where present
 P0.4.P7	public.product_push_notifications	user_org	add nullable organization_id; backfill from target user membership/enrollment

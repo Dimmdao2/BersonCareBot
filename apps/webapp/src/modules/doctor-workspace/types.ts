@@ -12,6 +12,7 @@ export type DoctorWorkspaceContext = {
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
   canAccessClinicalWorkspace?: boolean;
+  doctorScreensDisabled: boolean;
   selectedSpecialistId: string | null;
 };
 

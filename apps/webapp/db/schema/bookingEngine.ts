@@ -220,6 +220,7 @@ export const beOrganizationMembers = pgTable(
     role: text().notNull(),
     specialistId: uuid('specialist_id'),
     status: text().default('active').notNull(),
+    doctorScreensDisabled: boolean('doctor_screens_disabled').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

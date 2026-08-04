@@ -43,6 +43,7 @@ function mapOrganizationMembershipRow(row: OrganizationMembershipRow): Organizat
     role: parseOrganizationMembershipRole(row.role),
     specialistId: row.specialistId,
     status: parseOrganizationMembershipStatus(row.status),
+    doctorScreensDisabled: row.doctorScreensDisabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -55,6 +56,7 @@ type OrganizationMemberDirectoryRow = {
   role: string;
   specialistId: string | null;
   status: string;
+  doctorScreensDisabled: boolean;
   createdAt: string;
   updatedAt: string;
   displayName: string | null;
@@ -67,6 +69,7 @@ type PlatformOrganizationMemberDirectoryRow = {
   role: string;
   specialist_id: string | null;
   status: string;
+  doctor_screens_disabled: boolean;
   created_at: string;
   updated_at: string;
   display_name: string | null;
@@ -82,6 +85,7 @@ function mapOrganizationMemberDirectoryRow(
     role: parseOrganizationMembershipRole(row.role),
     specialistId: row.specialistId,
     status: parseOrganizationMembershipStatus(row.status),
+    doctorScreensDisabled: row.doctorScreensDisabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     displayName: row.displayName?.trim() || null,
@@ -138,6 +142,7 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           role: beOrganizationMembers.role,
           specialistId: beOrganizationMembers.specialistId,
           status: beOrganizationMembers.status,
+          doctorScreensDisabled: beOrganizationMembers.doctorScreensDisabled,
           createdAt: beOrganizationMembers.createdAt,
           updatedAt: beOrganizationMembers.updatedAt,
           displayName: platformUsers.displayName,
@@ -158,6 +163,7 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           membership_role AS role,
           specialist_id::text AS specialist_id,
           membership_status AS status,
+          doctor_screens_disabled,
           created_at::text AS created_at,
           updated_at::text AS updated_at,
           display_name
@@ -171,6 +177,7 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           role: row.role,
           specialistId: row.specialist_id,
           status: row.status,
+          doctorScreensDisabled: row.doctor_screens_disabled,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
           displayName: row.display_name,
@@ -188,6 +195,7 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           role: beOrganizationMembers.role,
           specialistId: beOrganizationMembers.specialistId,
           status: beOrganizationMembers.status,
+          doctorScreensDisabled: beOrganizationMembers.doctorScreensDisabled,
           createdAt: beOrganizationMembers.createdAt,
           updatedAt: beOrganizationMembers.updatedAt,
           displayName: platformUsers.displayName,
@@ -224,6 +232,14 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
         )
         .orderBy(asc(beSpecialists.sortOrder), asc(beSpecialists.fullName));
       return rows[0] ? mapOrganizationSpecialistDirectoryRow(rows[0]) : null;
+    },
+
+    async setDoctorScreensDisabled({ membershipId, disabled }) {
+      const db = getDrizzle();
+      await db
+        .update(beOrganizationMembers)
+        .set({ doctorScreensDisabled: disabled, updatedAt: sql`now()` })
+        .where(eq(beOrganizationMembers.id, membershipId));
     },
   };
 }
