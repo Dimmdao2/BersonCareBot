@@ -997,7 +997,19 @@ ALTER FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid,
 -- final (challenge_id uuid, delivery_token uuid) shape -- stale here since 0369/0370 replaced the
 -- original (text, jsonb, integer, timestamptz, smallint) form; this line was never updated to match,
 -- so `--post-migration-closure` failed live on TEST with "function ... does not exist" (2026-08-04).
-ALTER FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
+--
+-- OWNER: app_owner, NOT the migrator role. Migration 0370 ends with an explicit
+-- `ALTER FUNCTION ... OWNER TO app_owner` for this function and its `set_email_challenge_delivery_code`
+-- sibling; pinning the migrator role here would silently override the migration on every deploy --
+-- the exact regression shape that `assert_login_fix_definer_owners_pinned` was added to catch earlier
+-- the same day for eight sibling accessors. Two consequences, both wanted: the pair stays owned by one
+-- role instead of splitting (the sibling is already app_owner, nothing re-pins it), and the DB-owner
+-- role does not gain a new anon-reachable SECURITY DEFINER function -- the open owner-plan item A-1
+-- stage 2/3 is "the DB-owner role must own zero anon-reachable definers", so growing that count is
+-- movement away from it, not book-keeping. app_owner already holds every privilege this body needs on
+-- TEST (email_challenges SELECT/UPDATE/DELETE, outgoing_delivery_queue INSERT/SELECT/UPDATE, the last
+-- one added by 0370 itself); email_challenges is not FORCE-RLS, so ownership carries no read risk here.
+ALTER FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) OWNER TO app_owner;
 
 REVOKE ALL ON FUNCTION app.email_otp_public_find_user_by_email(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_otp_public_find_or_create_user(text) FROM PUBLIC;

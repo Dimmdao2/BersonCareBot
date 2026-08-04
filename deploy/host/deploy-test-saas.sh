@@ -997,7 +997,14 @@ WITH pinned_functions(signature) AS (
     ('app.patient_skip_reminder_occurrence(uuid,text,text)'),
     ('app.patient_snooze_reminder_occurrence(uuid,text,integer)'),
     ('app.propagate_staff_session_version_to_session_epoch()'),
-    ('app.get_preferred_auth_channel_code(uuid)')
+    ('app.get_preferred_auth_channel_code(uuid)'),
+    -- D27-C (migrations 0369/0370, added 2026-08-04): the login-code delivery pair. Same shape of
+    -- regression as the fifteen above -- organization-member-invites-rls.sql carries a resurrection
+    -- ALTER for the enqueue accessor and, on its first version, re-pinned it to the migrator role right
+    -- after 0370 set app_owner. Named here so a future overlay edit fails by signature instead of only
+    -- shifting a whole-class count from one gate to another.
+    ('app.email_auth_set_email_challenge_delivery_code(uuid,text)'),
+    ('app.email_auth_enqueue_otp_delivery(uuid,uuid)')
 )
 SELECT string_agg(
   target.signature || ' owned by ' || COALESCE(pg_get_userbyid(procedure.proowner), '<missing>'),
@@ -1604,19 +1611,19 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # phone/email challenge tables) via functions reviewed when 0356/0357/0339 were authored -- no new
   # required-grant row needed, this is a book-keeping-only bump caught live by this gate (measured
   # actual=176 against the stale expected=162), same class as the 159 -> 160 bump above.
-  # 176 -> 177 (2026-08-04, #987 D27-C durable delivery, TEST deploy of feat/doctor-ui-rebuild): one
-  # genuinely new app_owner function, app.email_auth_set_email_challenge_delivery_code(uuid,text)
-  # (migration 0369, D27-C fix round 2). It only UPDATEs public.email_challenges.pending_delivery_code,
-  # and app_owner UPDATE on public.email_challenges is already in the required-grant set above -- no new
-  # row needed. Migrations 0367-0370's other functions net zero here:
-  # app.email_auth_enqueue_otp_delivery evolves (text,jsonb,integer,timestamptz,smallint) -> (uuid) ->
-  # its final (uuid,uuid) shape across 0368/0369/0370, each step DROPping the prior signature and
-  # re-asserting `OWNER TO app_owner`, but organization-member-invites-rls.sql's resurrection-check ALTER
-  # (same class as the email_auth_*/email_otp_public_* set) re-pins it to the migrator role
-  # immediately after, same as its siblings -- so it is $DB-owned, not app_owner-owned, by the time this
-  # gate runs (see the DB-owner anon-reachable gate's 21 -> 22 entry below). Measured live: actual=177
-  # against the stale expected=176, book-keeping-only bump, same class as the 159 -> 160 bump above.
-  local expected_secdef_count=177
+  # 176 -> 178 (2026-08-04, #987 D27-C durable delivery). TWO genuinely new app_owner functions from
+  # migrations 0369/0370, not one: app.email_auth_set_email_challenge_delivery_code(uuid,text) and
+  # app.email_auth_enqueue_otp_delivery(uuid,uuid). Both only touch tables already in the required-grant
+  # set above (email_challenges UPDATE; outgoing_delivery_queue INSERT, granted by 0370 itself) -- no new
+  # row needed.
+  #
+  # CORRECTION of the first attempt at this bump (same day): it read 177 and explained the missing
+  # function as "$DB-owned, exactly as designed", because organization-member-invites-rls.sql re-pinned
+  # the enqueue accessor to the migrator role right after 0370's own `OWNER TO app_owner`. That is not a
+  # design, it is two sources of truth disagreeing about one object -- the same shape
+  # assert_login_fix_definer_owners_pinned was added to catch earlier the same day. The overlay now pins
+  # app_owner, so the function counts here and NOT in the DB-owner anon-reachable gate below.
+  local expected_secdef_count=178
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -2353,18 +2360,14 @@ WHERE NOT has_table_privilege('$DB', tbl, priv);
   # 162 -> 176 entry) are $DB-owned, so this delta is exactly -8. 29 - 8 = 21, matching measured
   # actual=21.
   #
-  # 21 -> 22 (2026-08-04, #987 D27-C durable delivery, TEST deploy of feat/doctor-ui-rebuild):
-  # app.email_auth_enqueue_otp_delivery(uuid,uuid) (migration 0370's final shape) is $DB-owned --
-  # organization-member-invites-rls.sql's resurrection-check ALTER re-pins it to the migrator role
-  # immediately after migrate, same as its email_auth_*/email_otp_public_* siblings above (see the
-  # app_owner secdef-count gate's 176 -> 177 entry) -- and EXECUTE-granted to the bootstrap role by that
-  # same overlay, exactly as designed: it is the pre-auth accessor an anonymous login-code request calls.
-  # Its one table dependency, UPDATE on public.email_challenges (nulling pending_delivery_code once
-  # queued) plus its INSERT into the outgoing delivery queue, are both already covered by the
-  # required-privilege set in (a) via its email_auth_* siblings -- no new row needed. Measured live:
-  # actual=22 against the stale expected=21, book-keeping-only bump, same class as the 29 -> 21 entry
-  # above.
-  local expected_db_owner_anon_secdef=22
+  # 21 -> 21 (2026-08-04, #987 D27-C durable delivery): UNCHANGED, deliberately. The first attempt at
+  # this bump set 22 for app.email_auth_enqueue_otp_delivery(uuid,uuid), accepting that the closure
+  # overlay re-pinned it from app_owner (set by migration 0370) to the migrator role. The overlay was
+  # corrected instead: the function is app_owner-owned, so it never enters this class. Growing this
+  # number is not book-keeping -- the open owner-plan item A-1 stage 2/3 is "the DB-owner role must own
+  # zero anon-reachable definers", and every increment here moves away from it. If a future change
+  # really must add one, it needs a stated reason for why that function cannot be app_owner-owned.
+  local expected_db_owner_anon_secdef=21
   local expected_telemetry_owner_anon_secdef=1
   local actual_db_owner_anon_secdef actual_telemetry_owner_anon_secdef
   for _db_owner_secdef_attempt in 1 2 3; do
