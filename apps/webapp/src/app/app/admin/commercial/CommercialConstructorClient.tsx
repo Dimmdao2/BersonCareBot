@@ -287,7 +287,9 @@ const ACCESS_TERMINAL_STATE_LABELS: Record<AccessTerminalState, string> = {
 function describeAccessPolicy(policy: AccessPolicyDraft | null): string {
   if (!policy) return 'не настроен';
   const terminal = policy.terminalState ? ACCESS_TERMINAL_STATE_LABELS[policy.terminalState] : '—';
-  return `терпение ${policy.graceDays || 0} дн., только чтение ${policy.readOnlyDays || 0} дн., затем ${terminal}`;
+  const grace = policy.graceDays.trim() ? policy.graceDays : '—';
+  const readOnly = policy.readOnlyDays.trim() ? policy.readOnlyDays : '—';
+  return `терпение ${grace} дн., только чтение ${readOnly} дн., затем ${terminal}`;
 }
 
 /**
