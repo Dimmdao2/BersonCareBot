@@ -134,13 +134,15 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   },
 
   async getPreferredAuthChannelCode(userId) {
-    const result = await runWebappPgText<{ channel_code: string }>(
-      `SELECT channel_code FROM user_channel_preferences
-       WHERE ${userMatchSql(1)} AND is_preferred_for_auth = true
-       LIMIT 1`,
+    // Pre-session callers (phone/start's automatic-channel resolution) reach this before a
+    // principal/role is established, so this goes through the narrow SECURITY DEFINER accessor
+    // (migration 0357) rather than a direct table SELECT -- the bootstrap login has no table grant
+    // on `user_channel_preferences` and a direct SELECT raises 42501 there.
+    const result = await runWebappPgText<{ get_preferred_auth_channel_code: string | null }>(
+      `SELECT app.get_preferred_auth_channel_code($1::uuid)`,
       [userId],
     );
-    const code = result.rows[0]?.channel_code as ChannelCode | undefined;
+    const code = result.rows[0]?.get_preferred_auth_channel_code as ChannelCode | undefined;
     if (code != null && !isChannelAllowedForPreferredAuth(code)) return null;
     return code ?? null;
   },
