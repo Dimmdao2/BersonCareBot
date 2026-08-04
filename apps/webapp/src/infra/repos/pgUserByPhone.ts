@@ -251,7 +251,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
         const bindingLock = await runIdentityClientPgText(
           client,
-          `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE`,
+          `SELECT app.auth_phone_bind_lock_channel_binding($1, $2) AS user_id`,
           [channelCode, parsedContext.chatId],
         );
 
@@ -394,25 +394,20 @@ export const pgUserByPhonePort: UserByPhonePort = {
         }
 
         if (key) {
-          const insB = await runIdentityClientPgText(
+          const insB = await runIdentityClientPgText<{
+            inserted: boolean;
+            user_id: string | null;
+          }>(
             client,
-            `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (channel_code, external_id) DO NOTHING
-           RETURNING user_id`,
+            `SELECT inserted, owner_user_id AS user_id
+           FROM app.auth_phone_bind_upsert_channel_binding($1::uuid, $2, $3)`,
             [userId, channelCode, parsedContext.chatId],
           );
-          if (insB.rows.length > 0) {
+          const bindOutcome = insB.rows[0];
+          if (bindOutcome?.inserted === true && bindOutcome.user_id) {
             await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, channelCode);
           } else {
-            const o = await runIdentityClientPgText(
-              client,
-              `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE`,
-              [channelCode, parsedContext.chatId],
-            );
-            const other = o.rows[0]
-              ? parseIdentityRow(userIdRowSchema, o.rows[0], 'binding_conflict').user_id
-              : null;
+            const other = bindOutcome?.user_id ?? null;
             if (!other) {
               throw new MergeConflictError('createOrBind: binding row missing after conflict', [
                 userId,

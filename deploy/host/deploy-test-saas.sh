@@ -1616,6 +1616,9 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # app.email_auth_enqueue_otp_delivery(uuid,uuid). Both only touch tables already in the required-grant
   # set above (email_challenges UPDATE; outgoing_delivery_queue INSERT, granted by 0370 itself) -- no new
   # row needed.
+  # 178 -> 180 (2026-08-05, isolation card fix): app.auth_phone_bind_lock_channel_binding(text,text) and
+  # app.auth_phone_bind_upsert_channel_binding(uuid,text,text) from migration 0371. Both only touch
+  # user_channel_bindings, already in the required-grant set via other app_owner accessors.
   #
   # CORRECTION of the first attempt at this bump (same day): it read 177 and explained the missing
   # function as "$DB-owned, exactly as designed", because organization-member-invites-rls.sql re-pinned
@@ -1623,7 +1626,7 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # design, it is two sources of truth disagreeing about one object -- the same shape
   # assert_login_fix_definer_owners_pinned was added to catch earlier the same day. The overlay now pins
   # app_owner, so the function counts here and NOT in the DB-owner anon-reachable gate below.
-  local expected_secdef_count=178
+  local expected_secdef_count=180
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -2039,11 +2042,11 @@ WITH expected(relation_name) AS (
   CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
   UNION
   -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent runs under SET ROLE app_staff
-  -- (runWithDbOrganizationPrincipal). Capture never touches saas_billing_accounts, and never
-  -- creates an invoice/subscription row -- only reads (row-locking) and updates one the
-  -- clinic-billing door already created -- so no app_staff ACL there and no INSERT here.
+  -- (runWithDbOrganizationPrincipal). Capture never creates an invoice/subscription row -- only reads
+  -- (row-locking) and updates one the clinic-billing door already created. 0371 adds the matching
+  -- org-scoped SELECT on saas_billing_accounts for getOrganizationBillingOverview; staff UPDATE on
+  -- accounts remains excluded.
   SELECT relation_name, 'app_staff', 'SELECT', false FROM relations
-  WHERE relation_name <> 'saas_billing_accounts'
   UNION
   SELECT relation_name, 'app_staff', 'UPDATE', false FROM relations
   WHERE relation_name <> 'saas_billing_accounts'
@@ -2135,7 +2138,8 @@ WITH expected(relation_name) AS (
   WHERE relations.relation_name <> 'saas_billing_provider_events'
   UNION ALL
   -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent's org-scoped SELECT/UPDATE on the
-  -- capture path's tables; saas_billing_accounts is untouched by capture, so it is excluded here.
+  -- capture path's tables. 0371 adds staff_capture_select on saas_billing_accounts; staff UPDATE on
+  -- accounts is still excluded below.
   SELECT
     relations.relation_name,
     relations.relation_name || expected_policy.suffix,
@@ -2164,6 +2168,7 @@ WITH expected(relation_name) AS (
       )
   ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
   WHERE relations.relation_name <> 'saas_billing_accounts'
+     OR expected_policy.suffix = '_staff_capture_select'
   UNION ALL
   SELECT
     'saas_billing_provider_events',
