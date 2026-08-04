@@ -992,6 +992,9 @@ ALTER FUNCTION app.email_auth_verify_user_email(uuid, text) OWNER TO app_owner;
 ALTER FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
+-- D27-C correction (migration 0360): resurrection check for the narrow bootstrap-reachable enqueue
+-- accessor, same class as the email_auth_*/email_otp_public_* set above.
+ALTER FUNCTION app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint) OWNER TO :organization_member_invites_owner_ident;
 
 REVOKE ALL ON FUNCTION app.email_otp_public_find_user_by_email(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_otp_public_find_or_create_user(text) FROM PUBLIC;
@@ -1013,6 +1016,7 @@ REVOKE ALL ON FUNCTION app.email_auth_verify_user_email(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_user_by_email(text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) TO app_patient;
@@ -1034,6 +1038,7 @@ GRANT EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) TO app_pa
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint) TO app_patient;
 \endif
 
 COMMIT;

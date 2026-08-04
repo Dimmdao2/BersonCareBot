@@ -111,6 +111,21 @@ BEGIN
 END
 $preferred_auth_channel_grant$;
 
+-- D27-C correction (2026-08-04, migration 0360): `app.email_auth_enqueue_otp_delivery` is called
+-- from `startEmailChallenge` under a `bootstrap` principal, the same pre-session pool as
+-- `release_principal_context`/`get_preferred_auth_channel_code` above -- current_user is the bare
+-- NOINHERIT login here, never `app_patient`. The migration itself grants EXECUTE to `app_patient`
+-- (same as every other `app.email_auth_*` accessor), which is necessary but not sufficient on DEV:
+-- live reproduction (POST /api/auth/email-otp/start under DB_PRINCIPAL_CONTEXT_MODE=locked) hit
+-- `permission denied for function email_auth_enqueue_otp_delivery` until this direct grant landed.
+DO $enqueue_otp_delivery_grant$
+BEGIN
+  IF to_regprocedure('app.email_auth_enqueue_otp_delivery(text,jsonb,integer,timestamptz,smallint)') IS NOT NULL THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(text,jsonb,integer,timestamptz,smallint) TO bcb_dev_runtime_nonstaff_login';
+  END IF;
+END
+$enqueue_otp_delivery_grant$;
+
 DO $assertions$
 BEGIN
   IF NOT has_schema_privilege('bcb_dev_runtime_nonstaff_login', 'app', 'USAGE')

@@ -2507,6 +2507,13 @@
       "when": 1793539230105,
       "tag": "0359_auth_email_otp_delivery_queue_local",
       "breakpoints": true
+    },
+    {
+      "idx": 358,
+      "version": "7",
+      "when": 1793539230106,
+      "tag": "0360_auth_email_otp_enqueue_capability_local",
+      "breakpoints": true
     }
   ]
 }

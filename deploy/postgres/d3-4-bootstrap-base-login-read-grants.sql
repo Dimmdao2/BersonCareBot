@@ -423,6 +423,14 @@ REVOKE EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) FROM :"d
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) FROM :"d3_4_bootstrap_base_role";
+-- D27-C correction (migration 0360): narrow bootstrap-reachable enqueue accessor for
+-- outgoing_delivery_queue -- kind/channel/organization_id are fixed inside the function body, never
+-- caller-supplied. WHERE-guarded like the other post-D3.4-vintage additions since this function is new.
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint) FROM %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint)') IS NOT NULL \gexec
 -- 0248 (C-2 decaying OTP lockout): same bootstrap-reachability requirement as its email_auth_find_*
 -- siblings above -- checkEmailOtpLock() is the first DB call inside startEmailChallenge(), which the
 -- forgot-password flow (api/auth/email-password/forgot) calls under a bootstrap-stamped principal
@@ -859,6 +867,12 @@ GRANT EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) TO :"d3_4
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) TO :"d3_4_bootstrap_base_role";
+-- D27-C correction (migration 0360): see the matching REVOKE above.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint) TO %I',
+  :'d3_4_bootstrap_base_role'
+)
+WHERE to_regprocedure('app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint)') IS NOT NULL \gexec
 -- 0248 (C-2 decaying OTP lockout): see the matching REVOKE above for why this needs the same
 -- bootstrap reachability as its email_auth_find_* siblings immediately above it.
 SELECT format(

@@ -65,11 +65,25 @@ export function createPgOutgoingDeliveryQueueWritePort(): OutgoingDeliveryQueueW
   return {
     async enqueueReady(tx: DrizzleDb, delivery: ReadyOutgoingDelivery): Promise<boolean> {
       const values = queueValues(delivery);
+      // D27-C correction (migration 0360): auth_email_otp is enqueued from the public login route's
+      // bootstrap principal (app_patient after SET ROLE), which has no direct table grant on
+      // outgoing_delivery_queue -- and never will (the table has no RLS, so a bare grant would let
+      // that context insert a row of ANY kind, e.g. forge a doctor_broadcast_intent). Route this one
+      // kind through the narrow SECURITY DEFINER accessor instead; every other kind below still goes
+      // through the direct Drizzle insert under the staff-context pool, which already has the grant.
+      if (delivery.kind === 'auth_email_otp') {
+        const result = await tx.execute(
+          sql`SELECT app.email_auth_enqueue_otp_delivery(
+            ${delivery.eventId}::text, ${JSON.stringify(values.payloadJson)}::jsonb,
+            ${values.maxAttempts}::integer, ${values.nextRetryAt}::timestamptz, ${delivery.priority}::smallint
+          ) AS inserted`,
+        );
+        const row = result.rows[0] as { inserted?: boolean } | undefined;
+        return row?.inserted === true;
+      }
       // Episodic, standalone jobs (not replaceable-in-place): a repeated eventId is idempotency,
-      // never a refresh. auth_email_otp mints a fresh eventId per OTP issuance (see
-      // pgAuthEmailOtpDeliveryQueue.ts), so a conflict here only means a genuine retry of the same
-      // enqueue call, never a newer intent that should overwrite an older one.
-      if (delivery.kind === 'operator_health_digest' || delivery.kind === 'auth_email_otp') {
+      // never a refresh.
+      if (delivery.kind === 'operator_health_digest') {
         const inserted = await tx
           .insert(outgoingDeliveryQueue)
           .values(values)

@@ -1019,6 +1019,14 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       нейтрализация ответов на `email-otp/start` МАСКИРУЕТ настоящий отказ доставки письма — человек видит «код
       отправлен», когда письмо не ушло; это найдено живой диагностикой 03.08 и требует своего решения вместе с
       D27-C.
+      ⚠️ **СТАТУС НИЖЕ БЫЛ ПРЕЖДЕВРЕМЕННЫМ.** Независимый `d27c-audit-20260804` дал FAIL по первому же пункту
+      брифа («дошло ли письмо вообще»): `enqueueAuthEmailOtpDelivery` падал `permission denied for table
+      outgoing_delivery_queue` (ни одна анонимно-достижимая роль не получала INSERT), и воркер не стартовал
+      (`FOR UPDATE` внутри `BEGIN READ ONLY`). Коррекция (та же ветка, миграция `0360` + узкий SECURITY DEFINER
+      `app.email_auth_enqueue_otp_delivery` + перенесённый worker-readiness фикс `770485aa5`) закрыла оба разрыва
+      живым прогоном на DEV под `DB_PRINCIPAL_CONTEXT_MODE=locked` — см. `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`,
+      строка коррекции сразу после FAIL-вердикта. Абзац ниже описывает архитектуру верно; факт «доставлено» в нём
+      был не доказан до коррекции.
       ✅ **D27-C ЗАКРЫТО 04.08 (worktree `wt/d27c-durable-delivery`).** Отправка кода вынесена из
       `startEmailChallenge` в существующую очередь `public.outgoing_delivery_queue` — второй очереди не заведено.
       Новый вид `auth_email_otp` разбирает тот же `outgoingDeliveryWorker.ts` (generic transport branch), провайдер
