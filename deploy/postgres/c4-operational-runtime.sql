@@ -738,6 +738,20 @@ REVOKE ALL ON FUNCTION app.open_or_touch_operator_incident(text, text, text, tex
 GRANT EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
   TO app_operational_delivery_worker;
 
+-- app.read_integrator_platform_integration_availability is owned by the webapp drizzle migration
+-- ledger (migration 0329), like app.open_or_touch_operator_incident above; only its grant to this
+-- capability role lives here. deploy/postgres/integrator-server-runtime-config.sql independently
+-- grants the same function to the integrator API base login for a different call site -- that grant
+-- runs earlier in the deploy and is untouched by this one. This capability role's grant was missing
+-- from the canonical set entirely: apps/integrator/src/app/di.ts calls it under
+-- app_operational_delivery_worker on every dispatch attempt, which TEST never reached before the
+-- readiness-probe FOR-UPDATE crash-loop fix landed (2026-08-04, #987).
+REVOKE ALL ON FUNCTION app.read_integrator_platform_integration_availability() FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability()
+  TO app_operational_delivery_worker;
+
 REVOKE ALL ON FUNCTION app.apply_specialist_task_reminder_success_outcome(uuid) FROM
   app_staff, app_patient, app_worker,
   app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
@@ -1021,6 +1035,26 @@ SELECT 1 / (
     'app.open_or_touch_operator_incident(text,text,text,text,text)',
     'EXECUTE'
   )
+  AND has_function_privilege(
+    'app_operational_delivery_worker',
+    'app.read_integrator_platform_integration_availability()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_diagnostic',
+    'app.read_integrator_platform_integration_availability()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_scheduler',
+    'app.read_integrator_platform_integration_availability()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_media_worker',
+    'app.read_integrator_platform_integration_availability()',
+    'EXECUTE'
+  )
   AND NOT has_function_privilege(
     'app_operational_diagnostic',
     'app.read_outgoing_delivery_reclaim_config()',
@@ -1204,6 +1238,7 @@ WITH managed(role_name) AS (VALUES
   ('function','app.record_operator_delivery_attempt(text,text,text,integer,text)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.read_outgoing_delivery_reclaim_config()','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.open_or_touch_operator_incident(text,text,text,text,text)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.read_integrator_platform_integration_availability()','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.revalidate_specialist_task_reminder_materialization(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.apply_specialist_task_reminder_success_outcome(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('schema','app','USAGE','app_operational_scheduler',false),

@@ -1507,8 +1507,13 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # capability needs operator_incidents SELECT+INSERT plus column-scoped UPDATE on last_seen_at,
   # occurrence_count and error_detail; those grants are reapplied by c4-operational-runtime.sql and
   # pinned above. integrator-server-runtime-config.sql and c4-operational-runtime.sql independently
-  # assert the final exact EXECUTE sets: API login only for the first two, API login + delivery worker
-  # for incident open/touch, and delivery worker only for reclaim config (besides owner EXECUTE).
+  # assert the final exact EXECUTE sets: API login only for the auth-channel setting reader, API
+  # login + delivery worker for incident open/touch AND for platform-integration-availability (the
+  # delivery-worker grant on the latter was missing from the canonical set until 2026-08-04, #987 —
+  # apps/integrator/src/app/di.ts calls it on every dispatch attempt under
+  # app_operational_delivery_worker; TEST never reached that call path before the readiness-probe
+  # FOR-UPDATE crash-loop fix landed the same day), and delivery worker only for reclaim config
+  # (besides owner EXECUTE).
   # Migration 0327 merely replays 0318's existing payment-provider function and is count-neutral.
   # 148 -> 149 (2026-08-03, #1057 live checkout): migration 0332 adds exactly one reviewed
   # app_owner SECURITY DEFINER capability,
