@@ -39,6 +39,7 @@ export default async function DoctorSchedulePage({ searchParams }: Props) {
     canManageOrganization: workspace.canManageOrganization,
     canManageAllSpecialists: workspace.canManageAllSpecialists,
     canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
+    doctorScreensDisabled: workspace.doctorScreensDisabled,
     selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
   };
   const [directory, doctorStatisticsVisibility] = await Promise.all([

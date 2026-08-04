@@ -19,6 +19,7 @@ export default async function ManagementLayout({ children }: { children: ReactNo
     canManageOrganization: workspace.canManageOrganization,
     canManageAllSpecialists: workspace.canManageAllSpecialists,
     canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
+    doctorScreensDisabled: workspace.doctorScreensDisabled,
     selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
   };
 

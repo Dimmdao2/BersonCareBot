@@ -16,6 +16,7 @@ export async function GET() {
     specialistId: gate.ctx.specialistId,
     canManageOrganization: gate.ctx.canManageOrganization,
     canManageAllSpecialists: gate.ctx.canManageAllSpecialists,
+    doctorScreensDisabled: gate.ctx.doctorScreensDisabled,
     selectedSpecialistId: gate.ctx.canManageAllSpecialists ? null : gate.ctx.specialistId,
   };
   const directory = await buildAppDeps().doctorWorkspace.listDirectory(context);

@@ -3,6 +3,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getDoctorAccountTimezone } from '@/app-layer/doctor/accountTimezone';
 import { DoctorAccountEmailSection } from '@/app/app/settings/DoctorAccountEmailSection';
 import { DoctorNotificationChannelsSection } from '@/app/app/settings/DoctorNotificationChannelsSection';
+import { DoctorScreensToggleSection } from '@/app/app/settings/DoctorScreensToggleSection';
 import { DoctorTimezoneSection } from '@/app/app/settings/DoctorTimezoneSection';
 import { SettingsForm } from '@/app/app/settings/SettingsForm';
 import { buildDoctorNotificationTopicModels } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
@@ -149,6 +150,11 @@ export default async function AccountPage({
         <DoctorTimezoneSection
           initialTimezone={await getDoctorAccountTimezone(session.user.userId)}
         />
+        {workspaceContext?.canManageOrganization && workspaceContext.specialistId != null ? (
+          <DoctorScreensToggleSection
+            initialDisabled={workspaceContext.doctorScreensDisabled}
+          />
+        ) : null}
         {workspaceContext?.canAccessClinicalWorkspace ? (
           <SettingsForm
             patientLabel="пациент"

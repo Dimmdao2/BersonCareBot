@@ -82,6 +82,7 @@ const doctorContext: DoctorWorkspaceAccessContext = {
   canManageOrganization: false,
   canManageAllSpecialists: false,
   canAccessClinicalWorkspace: true,
+  doctorScreensDisabled: false,
   capabilities: ['clinical.workspace'],
 };
 
