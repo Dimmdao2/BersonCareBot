@@ -992,9 +992,12 @@ ALTER FUNCTION app.email_auth_verify_user_email(uuid, text) OWNER TO app_owner;
 ALTER FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
--- D27-C correction (migration 0360): resurrection check for the narrow bootstrap-reachable enqueue
--- accessor, same class as the email_auth_*/email_otp_public_* set above.
-ALTER FUNCTION app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint) OWNER TO :organization_member_invites_owner_ident;
+-- D27-C correction (migration 0370): resurrection check for the narrow bootstrap-reachable enqueue
+-- accessor, same class as the email_auth_*/email_otp_public_* set above. Signature tracks 0370's
+-- final (challenge_id uuid, delivery_token uuid) shape -- stale here since 0369/0370 replaced the
+-- original (text, jsonb, integer, timestamptz, smallint) form; this line was never updated to match,
+-- so `--post-migration-closure` failed live on TEST with "function ... does not exist" (2026-08-04).
+ALTER FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
 
 REVOKE ALL ON FUNCTION app.email_otp_public_find_user_by_email(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_otp_public_find_or_create_user(text) FROM PUBLIC;
@@ -1016,7 +1019,7 @@ REVOKE ALL ON FUNCTION app.email_auth_verify_user_email(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_user_by_email(text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) TO app_patient;
@@ -1038,7 +1041,7 @@ GRANT EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) TO app_pa
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) TO app_patient;
 \endif
 
 COMMIT;
