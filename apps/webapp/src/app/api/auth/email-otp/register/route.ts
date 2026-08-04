@@ -11,12 +11,32 @@ import {
 import { startPublicEmailOtpRegistration } from '@/modules/auth/emailOtpPublic';
 import { formatOtpRetryAfterMessage } from '@/modules/auth/otpConstants';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  isCyrillicFioInput,
+  isCyrillicFioInputOrEmpty,
+} from '@/shared/lib/fio';
 
 const bodySchema = z.object({
   email: z.string().min(1),
-  lastName: z.string().trim().min(1).max(100),
-  firstName: z.string().trim().min(1).max(100),
-  patronymic: z.string().trim().max(100).optional(),
+  lastName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  firstName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  patronymic: z
+    .string()
+    .trim()
+    .max(100)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .optional(),
 });
 
 const EMAIL_OTP_REGISTER_FALLBACK_CLIENT_KEY = 'email_otp_register:missing_x_real_ip';

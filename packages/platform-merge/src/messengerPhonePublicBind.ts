@@ -11,6 +11,7 @@ import {
   type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
+import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
 
 /** Any client with `.query` compatible with `pg` / integrator `DbPort` inside a transaction. */
 export type MessengerPhoneBindDb = PlatformMergeDbClient;
@@ -285,6 +286,7 @@ export async function applyMessengerPhonePublicBind(
   }
 
   try {
+    await syncPlatformUserPhoneHistoryOnConfirm(db, platformUserId, phoneNormalized, 'messenger');
     const upd = await db.query(
       `UPDATE public.platform_users SET
          phone_normalized = $2,

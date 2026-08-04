@@ -14,12 +14,30 @@ import { appointmentReminderPlanForPreset } from '@/modules/booking-notification
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
 import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  isCyrillicFioInput,
+  isCyrillicFioInputOrEmpty,
+} from '@/shared/lib/fio';
 
 const identitySchema = z.object({
   requestId: z.string().uuid(),
-  lastName: z.string().min(1).max(200),
-  firstName: z.string().min(1).max(200),
-  patronymic: z.string().max(200).nullable().optional(),
+  lastName: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  firstName: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  patronymic: z
+    .string()
+    .max(200)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .nullable()
+    .optional(),
   phone: z.string().max(100).nullable().optional(),
   email: z.string().max(320).nullable().optional(),
 });

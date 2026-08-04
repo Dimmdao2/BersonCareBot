@@ -13,12 +13,34 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { normalizeFioPart } from '@/shared/lib/fio';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  isCyrillicFioInputOrEmpty,
+  normalizeFioPart,
+} from '@/shared/lib/fio';
 
 const bodySchema = z.object({
-  firstName: z.string().trim().max(200).nullable().optional(),
-  lastName: z.string().trim().max(200).nullable().optional(),
-  patronymic: z.string().trim().max(200).nullable().optional(),
+  firstName: z
+    .string()
+    .trim()
+    .max(200)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .nullable()
+    .optional(),
+  lastName: z
+    .string()
+    .trim()
+    .max(200)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .nullable()
+    .optional(),
+  patronymic: z
+    .string()
+    .trim()
+    .max(200)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .nullable()
+    .optional(),
   birthDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

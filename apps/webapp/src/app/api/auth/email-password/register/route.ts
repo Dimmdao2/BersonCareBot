@@ -18,14 +18,34 @@ import {
   isPasswordEligibleRole,
   PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR,
 } from '@/modules/auth/passwordEligibility';
-import { normalizeFioPart } from '@/shared/lib/fio';
+import {
+  FIO_LATIN_REJECTED_MESSAGE,
+  isCyrillicFioInput,
+  isCyrillicFioInputOrEmpty,
+  normalizeFioPart,
+} from '@/shared/lib/fio';
 
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
-  lastName: z.string().trim().min(1).max(100),
-  firstName: z.string().trim().min(1).max(100),
-  patronymic: z.string().trim().max(100).optional(),
+  lastName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  firstName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .refine(isCyrillicFioInput, { message: FIO_LATIN_REJECTED_MESSAGE }),
+  patronymic: z
+    .string()
+    .trim()
+    .max(100)
+    .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
+    .optional(),
 });
 
 const LOG_BASE = {

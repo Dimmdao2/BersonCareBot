@@ -112,6 +112,28 @@ function hasLatinOrMixed(value: string): boolean {
   return /[A-Za-z]/.test(value);
 }
 
+/**
+ * D29 (`IDENTITY_AND_MERGE_SCHEME.md` §6): ФИО принимается только кириллицей — для соло-специалиста,
+ * сотрудника клиники и пациента (название клиники/локации сюда не относится, латиница для них разрешена).
+ * Rejects empty/whitespace-only input and any input containing a Latin letter. Existing already-stored
+ * Latin names are NOT touched by this — it only gates NEW input at write boundaries; `normalizeFioPart`
+ * (used for display formatting of possibly-legacy data too) stays permissive on purpose.
+ */
+export function isCyrillicFioInput(value: string): boolean {
+  const normalized = normalizeNameInput(value);
+  if (!normalized) return false;
+  return !hasLatinOrMixed(normalized);
+}
+
+/** Same rule as {@link isCyrillicFioInput}, but lets an empty/whitespace-only value through — for
+ * optional FIO fields (e.g. patronymic) where "not provided" must stay a valid input. */
+export function isCyrillicFioInputOrEmpty(value: string): boolean {
+  return value.trim() === '' || isCyrillicFioInput(value);
+}
+
+/** Shared rejection message code for the `.refine()` calls above — one string, not one per call site. */
+export const FIO_LATIN_REJECTED_MESSAGE = 'fio_latin_rejected';
+
 function likelyPatronymicBySuffix(value: string): boolean {
   const key = dictionaryKey(value);
   return /(вич|вна|ич|ична|оглы|кызы)$/.test(key);

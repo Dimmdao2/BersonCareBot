@@ -78,3 +78,6 @@ export {
   upsertChannelBindingForProjection,
   seedChannelPreferencesDefaultsForProjection,
 } from './identityProjectionWrite.js';
+
+export type { PhoneHistorySyncSource } from './phoneHistorySync.js';
+export { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';

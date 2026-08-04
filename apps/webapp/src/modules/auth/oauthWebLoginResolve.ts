@@ -93,7 +93,9 @@ export async function resolveUserIdForWebOAuthLogin(
     if (!userId) {
       // Case 2: neither contact is registered anywhere -> new account.
       accountOutcome = 'created';
-      const display = (input.displayName?.trim() || emailRaw || phoneNorm || sub).slice(0, 500);
+      // D29 (owner, 31.07): the provider's own profile name is no longer autofilled into the
+      // account — the person types their name at registration; fall straight to email/phone/sub.
+      const display = (emailRaw || phoneNorm || sub).slice(0, 500);
       const emailVerifiedAt = emailTrusted ? new Date() : null;
       userId = await db.createOAuthPlatformUser({
         phoneNorm,

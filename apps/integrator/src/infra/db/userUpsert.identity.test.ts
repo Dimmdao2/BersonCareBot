@@ -19,6 +19,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
+import { upsertIdentityProjection } from '@bersoncare/platform-merge';
 
 type IdentityRow = { resource: string; external_id: string; user_id: string };
 type UserRow = { id: string; merged_into_user_id: string | null };
@@ -34,6 +35,12 @@ type PlatformUserRow = {
 type BindingRow = { channel_code: string; external_id: string; user_id: string };
 type ChannelPrefRow = { user_id: string; channel_code: string };
 type ContactRow = { user_id: string; type: string; value_normalized: string };
+type PhoneHistoryRow = {
+  platform_user_id: string;
+  phone_normalized: string;
+  valid_to: string | null;
+  source: string;
+};
 
 type Tables = {
   identities: IdentityRow[];
@@ -42,6 +49,7 @@ type Tables = {
   bindings: BindingRow[];
   channelPrefs: ChannelPrefRow[];
   contacts: ContactRow[];
+  phoneHistory: PhoneHistoryRow[];
 };
 
 function emptyTables(seed: Partial<Tables> = {}): Tables {
@@ -52,6 +60,7 @@ function emptyTables(seed: Partial<Tables> = {}): Tables {
     bindings: [],
     channelPrefs: [],
     contacts: [],
+    phoneHistory: [],
     ...seed,
   };
 }
@@ -163,7 +172,26 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
         return rows(hit.map((u) => ({ id: u.id })));
       }
       const hit = live.find((u) => u.id === p[0]);
-      return rows(hit ? [{ id: hit.id }] : []);
+      return rows(hit ? [{ id: hit.id, phone_normalized: hit.phone_normalized }] : []);
+    }
+
+    // --- D28: user_phone_history sync (`syncPlatformUserPhoneHistoryOnConfirm`) --------------------
+    if (q.startsWith('update user_phone_history')) {
+      for (const h of tables.phoneHistory) {
+        if (h.platform_user_id === p[0] && h.valid_to === null) h.valid_to = 'closed';
+      }
+      return { rows: [] as T[], rowCount: 1 };
+    }
+    if (q.startsWith('insert into user_phone_history')) {
+      tables.phoneHistory.push({
+        platform_user_id: p[0]!,
+        phone_normalized: p[1]!,
+        valid_to: null,
+        // `insertIdentityProjection`'s direct insert has no bound source param (literal `'projection'`
+        // in the SQL); `syncPlatformUserPhoneHistoryOnConfirm`'s insert binds it as $3.
+        source: p[2] ?? 'projection',
+      });
+      return rows([]);
     }
     if (q.startsWith('insert into platform_users')) {
       const id = `pu-new-${tables.platformUsers.length + 1}`;
@@ -350,6 +378,89 @@ describe('два вебхука подряд: создание на первом
     expect(tables.platformUsers[0]!.phone_normalized).toBe('+79170000022');
     expect(tables.contacts).toEqual([
       { user_id: integratorUserId, type: 'phone', value_normalized: '+79170000022' },
+    ]);
+  });
+});
+
+describe('D28: отзыв подтверждения вместе с номером (WORK_ORDER.md §Р-D28)', () => {
+  it('дано: человек уже подтвердил телефон A → когда тот же канал подтверждает НОВЫЙ телефон B → тогда активная запись A закрывается, конфликта для будущего владельца A не будет', async () => {
+    const tables = emptyTables({
+      identities: [{ resource: 'telegram', external_id: '999', user_id: '7000' }],
+      users: [{ id: '7000', merged_into_user_id: null }],
+      platformUsers: [
+        {
+          id: 'pu-existing',
+          integrator_user_id: '7000',
+          phone_normalized: '+79180000011',
+          display_name: 'Пётр Сидоров',
+          first_name: 'Пётр',
+          last_name: 'Сидоров',
+          merged_into_id: null,
+        },
+      ],
+      bindings: [{ channel_code: 'telegram', external_id: '999', user_id: 'pu-existing' }],
+      phoneHistory: [
+        {
+          platform_user_id: 'pu-existing',
+          phone_normalized: '+79180000011',
+          valid_to: null,
+          source: 'messenger',
+        },
+      ],
+    });
+    const db = makeDb(tables);
+    const writePort = createDbWritePort({ db, authChannelPolicy: async () => true });
+
+    const linkResult = await writePort.writeDb({
+      type: 'user.phone.link',
+      params: { resource: 'telegram', channelUserId: '999', phoneNormalized: '+79170000099' },
+    });
+
+    expect(linkResult).toEqual({ userPhoneLinkApplied: true });
+    expect(tables.platformUsers[0]!.phone_normalized).toBe('+79170000099');
+
+    // Old number's active confirmation is gone — a different future owner of it could confirm it
+    // without hitting `uq_user_phone_history_phone_active` (§Р-D28: «значит конфликта не будет»).
+    expect(
+      tables.phoneHistory.some(
+        (h) => h.phone_normalized === '+79180000011' && h.valid_to === null,
+      ),
+    ).toBe(false);
+    // The new number is the account's one active spell.
+    expect(tables.phoneHistory.filter((h) => h.valid_to === null)).toEqual([
+      {
+        platform_user_id: 'pu-existing',
+        phone_normalized: '+79170000099',
+        valid_to: null,
+        source: 'messenger',
+      },
+    ]);
+  });
+
+  it('дано: брошенный номер без какой-либо истории → когда с ним создаётся новый канонический человек через `upsertIdentityProjection` → тогда сразу открывается его первая активная запись подтверждения (иначе снятие/замена этого номера позже некому будет закрыть)', async () => {
+    // `writePort.ts`'s own `user.upsert` case never forwards a phone (Telegram/MAX webhooks don't
+    // carry one) — this exercises the shared `@bersoncare/platform-merge` entry point directly, the
+    // same one webapp's OAuth/email-projection callers use when a phone IS known on first creation.
+    const tables = emptyTables();
+    const db = makeDb(tables);
+
+    const result = await upsertIdentityProjection(db, {
+      integratorUserId: '9000',
+      phoneNormalized: '+79000000055',
+      displayName: 'Анна Кузнецова',
+      firstName: 'Анна',
+      lastName: 'Кузнецова',
+    });
+
+    const pu = tables.platformUsers.find((u) => u.id === result.platformUserId);
+    expect(pu?.phone_normalized).toBe('+79000000055');
+    expect(tables.phoneHistory).toEqual([
+      {
+        platform_user_id: result.platformUserId,
+        phone_normalized: '+79000000055',
+        valid_to: null,
+        source: 'projection',
+      },
     ]);
   });
 });

@@ -318,19 +318,21 @@ export function createDbWritePort(
           const channelCode: DirectPublicChannelCode = resource === 'max' ? 'max' : 'telegram';
           // D1: ONE tx writes the retained channel anchor PLUS the canonical public.platform_users /
           // user_channel_bindings directly — replaces the `user.upserted` HTTP projection fanout.
+          //
+          // D29 (owner, 31.07): the canonical ФИО (`platform_users.first_name`/`last_name`, and the
+          // `display_name` derived from them) is no longer autofilled from the channel's own profile —
+          // the person types it at registration. `firstName`/`lastName` still go to
+          // `buildChannelAnchorWriter` below: that's the integrator's own channel-profile bookkeeping
+          // (`identities`/channel anchor), not the webapp canon, and is out of this decision's scope.
           try {
             await writeIdentityAndPreferencesDirect(
               db,
               {
                 channelCode,
                 externalId,
-                firstName,
-                lastName,
-                // Same displayName the removed projection payload used to send. The webapp enrich path
-                // (pgUserProjection.ts:276-289) DOES overwrite an existing display_name when
-                // displayName+firstName+lastName are all non-empty (structured triple wins); otherwise
-                // it only fills a currently-empty display_name — see enrichPlatformUser for the parity SQL.
-                displayName: [lastName, firstName].filter(Boolean).join(' ') || null,
+                firstName: null,
+                lastName: null,
+                displayName: null,
               },
               {
                 writeChannelAnchor: buildChannelAnchorWriter(
