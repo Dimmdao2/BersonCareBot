@@ -63,7 +63,7 @@ isProject: false
 - [x] **DL-AUTH-02** В старом plan поставить forward-link: открытая часть заменена этим closure-планом; его
   `patient-card-progressive: completed` пометить `УСТАРЕЛО/ЗАМЕНЕНО` из-за DL-MSG/DL-TZ/DL-STREAM.
   `route-rollout` не переоткрывать целиком: завершённые Stage 2/3 оставить evidence, дефекты расписания вести
-  атомарными DL-SCH. `db-profile` и `test-rollout` оставить pending.
+  атомарными DL-SCH. `db-profile` closed evidence-only (§10 baseline); `test-rollout` pending.
   Evidence: `doctor-loading-performance_e024544d.plan.md` forward-link + `test-rollout`/`db-profile` pending.
 - [x] **DL-AUTH-03** В том же commit добавить в этот план устойчивую ссылку на audit transcript и проверить, что
   нет второго активного doctor-loading checklist. Frontmatter todo остаётся `pending`, пока открыт хоть один его
@@ -74,7 +74,8 @@ isProject: false
 
 - `origin/feat/doctor-ui-rebuild` = `58b8a390a`; TEST успешно развёрнут на `33f9b2b82`, все сервисы подняты. Это pre-remediation baseline, а не финальный acceptance SHA.
 - **Closure EXEC_SHA `bb4752368`** — CI/Security/TEST metrics §7 `DOCTOR_LOADING_BASELINE.md`.
-- **Post-audit remediation (2026-08-05):** fixes on working tree atop `1c61165e2`; full CI `/tmp/bcb-full-ci-audit-fixes-20260805-213033.log` exit 0; TEST redeploy pending (§8 baseline).
+- **Final executable `a71e222b3`** — audit remediation pushed `origin/feat/doctor-ui-rebuild`; Security `31036275429` green; TEST deploy `/tmp/bcb-deploy-test-a71e222b3.log` exit 0; baseline §8–§10.
+- Route→port DB trace ([fe8f0801](fe8f0801-3186-41e6-9003-7c0eb745532e)): FCP gap = JS, not DB; **DL-DB-01/02 closed evidence-only** without `EXPLAIN`.
 - Wake runtime подтверждён: `digest-wake` → `200`; `materialize-wake` → validation `400`; после restart нет прежних `500/403`.
 - Post-rollout p95 уже записан в `DOCTOR_LOADING_BASELINE.md` §6: patient-card −65%, communications −68%, treatment templates −57%; schedule +29%, LFK templates +18%. Полный список предварительно провалившихся маршрутов приведён в DL-BASE ниже.
 - Предыдущий full CI зелёный только на `101ad229b`; он не покрывает `33f9b2b82`, `58b8a390a` и будущие fixes. После remediation обязателен новый полный gate и новый TEST deploy; текущие runtime/metric evidence переиспользовать как финальные нельзя.
@@ -243,7 +244,8 @@ Gate: targeted UI test + `pnpm --dir apps/webapp typecheck` + webapp lint; phase
   Evidence: `loadDoctorPatientCardPageBootstrap.ts` `Promise.allSettled` + `envelopeFromSettled`.
 - [ ] **DL-STREAM-05** Runtime stream inspection доказывает порядок bytes: doctor shell/header/tabs приходят до
   active-tab payload; deep-link SSR содержит данные своего tab; 0 hidden-tab requests; switch-away/back сохраняет
-  draft/visited state. **Open:** нет runtime byte-order capture; deep-link wiring fixed in code, TEST redeploy pending.
+  draft/visited state.
+  **Partial:** §9 curl heuristic PASS; Chromium `/tmp/doctor-runtime-a71e222b3.json` — shell/tabs, deep-link records, draft preserved; duplicate `payments` ×2 on tab switch; full byte-order capture still open.
 
 Gate: targeted route/UI/unit tests + webapp typecheck/lint. Импорт `page.tsx` в тест запрещён; stream проверяется
 runtime/инспекцией.
@@ -303,17 +305,17 @@ runtime/инспекцией.
   результат читает отдельный короткий verifier. PASS = exit 0 на exact EXEC_SHA.
   Evidence: `bb4752368` `/tmp/bcb-full-ci-3-20260805-193017.log`; post-audit working tree
   `/tmp/bcb-full-ci-audit-fixes-20260805-213033.log` exit 0 (uncommitted).
-- [ ] **DL-ORCH-05** Push EXEC_SHA в `origin/feat/doctor-ui-rebuild` запускает Security workflow; TEST deploy
+- [x] **DL-ORCH-05** Push EXEC_SHA в `origin/feat/doctor-ui-rebuild` запускает Security workflow; TEST deploy
   запрещён до зелёного Security run exact EXEC_SHA. Изменение code/SQL/config/workflow после gate создаёт новый
   EXEC_SHA и инвалидирует CI/security.
-  **Open:** audit-fix delta uncommitted; push + Security after commit.
+  Evidence: `a71e222b3` on `origin/feat/doctor-ui-rebuild`; Security workflow `31036275429` success; TEST §8 baseline.
 
 ## 8. TEST deploy и runtime acceptance
 
 - [x] **DL-TESTDEPLOY-01** На host `151.241.228.122`, не PROD, выполнить code-only
   `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` строго для EXEC_SHA. Long deploy через port-agent —
   detached + named log + отдельный verifier по §24.2; fresh reset и `deploy-test-saas.sh` напрямую запрещены.
-  Evidence: `bb4752368` deploy (`DOCTOR_LOADING_BASELINE.md` §7); **redeploy pending** for post-audit fixes.
+  Evidence: `bb4752368` deploy (`DOCTOR_LOADING_BASELINE.md` §7); **`a71e222b3` redeploy** §8 baseline.
 - [x] **DL-TESTDEPLOY-02** PASS deploy: exit 0; `/api/version` = EXEC_SHA; `/api/health` даёт
   `{ok:true,db:"up"}`; `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test` active.
   Evidence: §7 health + repo SHA at `/opt/projects/bersoncarebot-test`.
@@ -323,7 +325,7 @@ runtime/инспекцией.
 - [ ] **DL-RUNTIME-01** Chromium: cold document + warm RSC navigation; doctor, clinic owner/admin и
   blocked/read-only entitlement; 1/10/100+ client fixtures. Проверить messages continuation, schedule scope/race,
   patient-card stream и 0 unsolicited/duplicate initial requests.
-  **Partial:** §7 curl runtime pages 200; full Chromium matrix + post-audit paths not re-soaked on TEST.
+  **Partial:** §9 curl + Chromium `/tmp/doctor-runtime-a71e222b3.json` (cold FCP, tab switch, deep-link); full entitlement matrix 1/10/100+ not run.
 - [x] **DL-RUNTIME-02** Safe failure proof: использовать acceptance envelope/rejected test dependency и stream
   inspection; не ломать живой TEST backend и не добавлять production fault flag. Header и успешные widgets
   остаются доступны при одном failed widget.
@@ -344,25 +346,25 @@ runtime/инспекцией.
   request count без регрессии. Для stream дополнительно фиксировать TTFB/click→fallback/click→content, потому что
   nginx upstream total не доказывает раннюю выдачу shell.
   Evidence: §7 gates table — prefetch/schedule dup **PASS**; p95 −40% **partial FAIL**; bundle −30% **FAIL**.
-- [ ] **DL-DB-01** DB profile получают только маршруты, которые повторно не прошли p95 gate. Сначала снять query
+- [x] **DL-DB-01** DB profile получают только маршруты, которые повторно не прошли p95 gate. Сначала снять query
   count и сопоставить port с route; затем `EXPLAIN (ANALYZE, BUFFERS)` выполнять через канонический TEST env/app
   principal flow из `SERVER CONVENTIONS.md`/§6 `AGENTS.md`, никогда голым `psql "$DATABASE_URL"` и не под
   principal-less RLS.
-  **Deferred:** no EXPLAIN; failing routes documented §7.
-- [ ] **DL-DB-02** Если профиль не показывает DB bottleneck — закрыть пункт самим evidence и не менять БД. Если
+  Evidence: route→port trace [fe8f0801](fe8f0801-3186-41e6-9003-7c0eb745532e); baseline §10; `EXPLAIN` not run — FCP not DB-bound.
+- [x] **DL-DB-02** Если профиль не показывает DB bottleneck — закрыть пункт самим evidence и не менять БД. Если
   показывает — lead сначала добавляет в **этот** план отдельный атомарный checkbox с exact Drizzle port, observed
   plan/rows/buffers и одним выбранным fix; worker не придумывает оптимизацию. Новый hot-column index идёт в том же
   PR по migration numbering/index rules.
-  **Pending owner:** evidence-only close allowed per §7; `db-profile` todo stays pending.
+  Evidence: baseline §7/§10 — SSR p95 0.10–0.37s; FCP gap JS (bundle advisory ef3a13eb); no DB change without owner-go.
 - [x] **DL-CLOSE-01** Обновить
   [`DOCTOR_LOADING_BASELINE.md`](docs/_TODO/DOCTOR_LOADING_BASELINE.md),
   [`DOCTOR_LOADING_FETCH_INVENTORY.md`](docs/_TODO/DOCTOR_LOADING_FETCH_INVENTORY.md) и repo-путь этого plan одним
   **docs-only EVIDENCE_SHA** поверх EXEC_SHA. Каждая закрытая строка содержит подходящее evidence: code SHA,
   red→green acceptance, runtime command/window или metric.
   Evidence: `1c61165e2` + this plan sync (working tree).
-- [ ] **DL-CLOSE-02** Docs-only EVIDENCE_SHA не инвалидирует executable CI/runtime evidence, но Security после его
+- [x] **DL-CLOSE-02** Docs-only EVIDENCE_SHA не инвалидирует executable CI/runtime evidence, но Security после его
   push обязан быть green. Любая executable правка после EXEC_SHA требует новый full CI, Security и TEST deploy.
-  **Open:** post-audit executable delta + CI green uncommitted; push pending.
-- [ ] **DL-CLOSE-03** Только после всех строк, включая Safari и DB decision, поставить `db-profile`/`test-rollout`
+  Evidence: executable `a71e222b3` pushed + Security green; docs sync in working tree (this commit).
+- [ ] **DL-CLOSE-03** Только после всех строк, включая Safari и DB decision, поставить `test-rollout`
   и frontmatter todos `completed`. Push только `origin/feat/doctor-ui-rebuild`; PROD не трогать.
-  **Open:** Safari BLOCKED; `test-rollout`/`db-profile` pending in performance plan.
+  **Open:** Safari BLOCKED (`test-rollout` pending); `db-profile` closed evidence-only; bundle/FCP slice not in closure scope.

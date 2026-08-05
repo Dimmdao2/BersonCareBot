@@ -38,14 +38,14 @@
 
 Stage 1 evidence: [`DOCTOR_LOADING_BASELINE.md`](./DOCTOR_LOADING_BASELINE.md) — nginx `bersoncare_webapp_detailed` on `test.bersoncare.ru`, route upstream p50/p95, cron noise, first-load JS from deployed TEST `.next` manifests.
 
-**Closure EXEC_SHA `bb4752368` (2026-08-05, TEST):**
+**Closure EXEC_SHA `a71e222b3` (2026-08-05, TEST):**
 
 | Inventory rule | Verified |
 |----------------|----------|
-| `/patients` — no unsolicited patient-detail document before intent | **PASS** — 0 detail URIs in nginx window after list GET only (`DOCTOR_LOADING_BASELINE.md` §7) |
-| Schedule `tab=cal` with SSR bootstrap — no repeat settings/feed/KPI on warm document | **PASS** on `bb4752368` §7; post-audit `ssrLoadKeyRef` + StrictMode UI test (baseline §8) — TEST redeploy pending |
-| Patient card overview messages — read-only snapshot, no `conversations/ensure` on SSR | **PASS** — `messages-snapshot/route.ts` + `messagesSnapshot.route.test.ts` |
-| Patient card — inactive tabs not loaded until visit; deep-link `?tab=` matches client | **PASS** — `page.tsx` `initialTab={activeTab}`; `tabPromise` before shell await (`DOCTOR_LOADING_BASELINE.md` §8) |
-| Schedule scope change triggers new load; stale generation ignored; Strict Mode SSR skip | **PASS** — `ScheduleCalendarTab.ui.test.tsx` (StrictMode SSR + scope + stale feed/KPI/list row) |
+| `/patients` — no unsolicited patient-detail document before intent | **PASS** — 0 detail URIs (`DOCTOR_LOADING_BASELINE.md` §9) |
+| Schedule `tab=cal` — no repeat settings/feed/KPI on warm document | **PASS** — 0 `/api/doctor/schedule*` on warm reload (§9) |
+| Patient card messages — read-only snapshot, no ensure on SSR | **PASS** — `messages-snapshot/route.ts` + `messagesSnapshot.route.test.ts` |
+| Patient card — deep-link `?tab=`, shell/tab before heavy tab bytes | **PASS** — §8 code + §9 stream heuristic |
+| Schedule StrictMode SSR skip, scope/stale generation | **PASS** — `ScheduleCalendarTab.ui.test.tsx` |
 
-**Post-audit working tree (2026-08-05):** full CI green `/tmp/bcb-full-ci-audit-fixes-20260805-213033.log`; closure plan synced in `.cursor/plans/doctor-loading-closure_9a07581d.plan.md`.
+**Still BLOCKED:** real Safari soak (DL-RUNTIME-03); full Chromium entitlement matrix (DL-RUNTIME-01 partial). **FCP:** DB not primary lever — baseline §10 (route→port trace fe8f0801); bundle lazy-load slice pending.

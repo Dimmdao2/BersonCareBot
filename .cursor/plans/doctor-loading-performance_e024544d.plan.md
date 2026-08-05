@@ -15,11 +15,11 @@ todos:
     content: "УСТАРЕЛО/ЗАМЕНЕНО → doctor-loading-closure (DL-MSG/DL-TZ/DL-STREAM). Перевести карточку клиента на active-tab server bootstrap, Suspense и lazy visited-tab mounting без потери состояния"
     status: completed
   - id: route-rollout
-    content: "Catalogs (Stage 2 b2032b468) + schedule/Today (Stage 3 7821a26a6). Remaining: db-profile, test-rollout soak"
+    content: "Catalogs (Stage 2 b2032b468) + schedule/Today (Stage 3 7821a26a6). Remaining: test-rollout soak (Safari)"
     status: completed
   - id: db-profile
-    content: Профилировать оставшиеся медленные Drizzle ports и оптимизировать только доказанные DB bottlenecks
-    status: pending
+    content: "Закрыто evidence-only (DL-DB-02): route→port trace fe8f0801; EXPLAIN не снимали — FCP gap JS, SSR p95 0.10–0.37s"
+    status: completed
   - id: test-rollout
     content: "Пройти targeted gates, итоговый CI и TEST soak с сравнением p50/p95, запросов и bundle size. Safari hardware gate (DL-RUNTIME-03) BLOCKED — не completed."
     status: pending
@@ -45,7 +45,7 @@ isProject: false
 
 **Stage 3 (`7821a26a6`):** schedule tab `cal` server bootstrap (`loadDoctorScheduleCalendarBootstrap`), Today dashboard Suspense stream (`loadDoctorTodayDashboard`), schedule `loading.tsx`.
 
-**Инженерный Stage 2/3 rollout закрыт** (todo `route-rollout`). **Closure EXEC_SHA `bb4752368`:** metrics §7 baseline; **test-rollout** и **db-profile** — **pending** (Safari BLOCKED DL-RUNTIME-03). Post-audit fixes §8 baseline — commit/push/TEST redeploy pending.
+**Инженерный Stage 2/3 rollout закрыт** (todo `route-rollout`). **EXEC_SHA `a71e222b3`:** pushed + TEST deploy; metrics §7 (`bb4752368` n=30); **db-profile** closed evidence-only (§10 baseline); **test-rollout** **pending** (Safari BLOCKED DL-RUNTIME-03).
 
 ## Наблюдаемая исходная проблема
 

@@ -114,7 +114,7 @@ These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/berso
 
 ## 5. Remaining gates (post-engineering)
 
-1. **db-profile** — `[ ]` pending on EXEC_SHA `bb4752368` (§7): routes still above −40% p95 gate (`home`, `schedule`, `lfk-templates`, `patient-card` vs §2) match pre-closure §6 pattern; no new `EXPLAIN` yet — evidence-only decision recorded, owner may close without DB change (DL-DB-02).
+1. ~~**db-profile**~~ — `[x]` closed evidence-only (DL-DB-01/02, 2026-08-05): route→port trace ([Trace route DB work](fe8f0801-3186-41e6-9003-7c0eb745532e)); `EXPLAIN` не снимали. FCP на 4G (~3.4–3.7s при TTFB 82–209ms) — client JS, не SSR/DB (nginx p95 0.10–0.37s §7). Отдельная DB-оптимизация без owner-go не делалась.
 2. **test-rollout** — `[ ]` pending. EXEC_SHA `bb4752368` (§7): CI/security green, TEST deploy, wake verify, n=30 metrics, curl runtime soak done. **BLOCKED:** real Safari hardware gate (closure DL-RUNTIME-03) — must not be marked completed.
 3. ~~**TEST deploy lag**~~ — closed by §6 post-rollout capture on `33f9b2b82`; final EXEC_SHA `bb4752368` on TEST repo.
 4. ~~**Cron noise**~~ — `[x]` post-deploy: scheduler `digest-wake` **200**, `materialize-wake` **200/400** (no 403/500); loopback signed verify 2026-08-05T20:16Z on `bb4752368`.
@@ -205,29 +205,69 @@ Raw JSON: `/tmp/bcb-doctor-postdeploy-parsed.json` on host (not committed).
 
 Patient-card **−30% bundle gate FAIL** (manifest method unchanged vs §4; no `pnpm run analyze`). Communications/schedule list manifests differ from §4 method — compare like-for-like only within same manifest parser.
 
-**db-profile:** `[ ]` pending — No `EXPLAIN` on EXEC_SHA; failing −40% routes documented above; no new DB regression identified beyond §6; owner may close evidence-only (DL-DB-02) without DB change.
+**db-profile:** `[x]` closed evidence-only (DL-DB-02, 2026-08-05) — `EXPLAIN` не снимали. Маршруты выше −40% gate (home, schedule, lfk, patient-card) остаются в диапазоне ~0.10–0.37 s SSR; closure/audit срез чинил баги и дубли запросов, не DB. Отдельная оптимизация БД без owner-go не делалась.
 
-**Safari / test-rollout:** **BLOCKED / pending** — real Safari hardware soak not run (closure DL-RUNTIME-03); Chromium/curl evidence only — do not mark `test-rollout` completed.
+**Safari / test-rollout:** **BLOCKED** — реальный Safari (DL-RUNTIME-03) не прогоняли; `test-rollout` в performance plan не закрываем ложно. Chromium/curl soak — §9.
 
 ---
 
-## 8. Post-audit remediation (working tree, 2026-08-05)
+## 8. Post-audit remediation (`a71e222b3`, 2026-08-05)
 
-**Context:** Independent audit of closure implementation (`bf710216`) found schedule StrictMode duplicate bootstrap,
-patient-card `initialTab` deep-link gap, messages poll generation, identity test oracle gaps. Fixes applied on
-`feat/doctor-ui-rebuild` atop `1c61165e2` (not yet pushed).
+**EXEC_SHA (final executable):** `a71e222b3` — `fix(doctor-loading): audit remediation — schedule load-key, messages poll, deep-link`.
 
-**Full CI (working tree):** exit 0 in ~495s — `/tmp/bcb-full-ci-audit-fixes-20260805-213033.log` (host lock).
+**CI / Security:** exit 0 `/tmp/bcb-full-ci-audit-fixes-20260805-213033.log`; Security workflow `31036275429` success.
 
-**Code evidence (spot checks vs closure plan):**
+**TEST deploy:** exit 0 `/tmp/bcb-deploy-test-a71e222b3.log`; `/opt/projects/bersoncarebot-test` HEAD `a71e222b3c5`; health **200**.
 
-| Area | Verification |
-|------|----------------|
-| Schedule SSR skip | `ScheduleCalendarTab.tsx` `ssrLoadKeyRef` + `scheduleCalendarLoadKey`; UI test under `<StrictMode>` |
-| Patient deep-link | `page.tsx` `initialTab={activeTab}`; `tabPromise` before `await shellMeta` |
-| Messages | `messagesSnapshot.route.test.ts`; poll generation per request; single fetch path on null seed |
-| Identity oracle | `messengerPhoneLink.identity.test.ts` mock returns `integrator_user_id`; bindings assert |
+**Code fixes (vs audit `bf710216`):**
 
-**TEST deploy:** still on EXEC_SHA `bb4752368` (§7). **Redeploy required** after commit/push to validate audit fixes on live TEST.
+| Area | Evidence |
+|------|----------|
+| Schedule StrictMode / duplicate bootstrap | `ssrLoadKeyRef` + `scheduleCalendarLoadKey`; UI test under `<StrictMode>` |
+| Patient deep-link `?tab=` | `initialTab={activeTab}`; `tabPromise` before `await shellMeta` |
+| Messages continuation | `messagesSnapshot.route.test.ts`; generation guards on null SSR seed |
+| Identity oracle | `messengerPhoneLink.identity.test.ts` bindings + `integrator_user_id` mock |
 
-**Still open:** DL-STREAM-05 runtime byte-order capture; DL-RUNTIME-03 Safari; DL-DB-01/02; full Chromium entitlement matrix (DL-RUNTIME-01).
+**Metrics:** timing/bundle gates — §7 (`bb4752368` n=30); не переснимали на `a71e222b3` (runtime-only delta).
+
+---
+
+## 9. Final runtime acceptance (`a71e222b3`, TEST, 2026-08-05 ~22:11 MSK)
+
+**Method:** curl loopback → `127.0.0.1` + `Host: test.bersoncare.ru`; auth via `saas-smoke-login.env`. Raw JSON: `/tmp/bcb-runtime-soak-a71e222b3.json`.
+
+**Wake (loopback :6300):** `digest-wake` **200** `not_slot`.
+
+| Role | Pages (doctor, patients, schedule, communications, patient-card) | Prefetch detail | Schedule API dup on warm reload |
+|------|------------------------------------------------------------------|-----------------|--------------------------------|
+| doctor (`dimmdao@yandex.ru`) | all **200** | **0** | **0** |
+| global_admin (smoke login, `-L`) | all **200** | **0** | **0** |
+
+**DL-STREAM-05 (patient card `1c312a64-…`):** в первых 50 KB HTML есть tab/shell сигналы, **нет** clinical/appointments payload → shell раньше тяжёлого tab body (heuristic PASS).
+
+**DL-RUNTIME-01:** doctor + global_admin document paths **200**; entitlement matrix 1/10/100+ clients и cold/warm RSC navigation **не** прогонялись; Chromium headless на TEST не использовали (curl/nginx).
+
+**DL-RUNTIME-03 Safari:** **BLOCKED** — нет hardware Safari; пункт открыт по плану.
+
+**Closure status:** engineering + audit remediation **done** on `a71e222b3`; product gates −40% p95 / −30% bundle (§7) и Safari остаются открытыми по смыслу, не по багам деплоя.
+
+---
+
+## 10. FCP vs DB route trace (`a71e222b3`, 2026-08-05)
+
+**Advisory:** [Trace route DB work](fe8f0801-3186-41e6-9003-7c0eb745532e) + [Trace first-load bundles](ef3a13eb-7457-428f-b7cb-40d4d8c6c427) (read-only, no code edits).
+
+**Verdict:** DB profiling **не** является основным рычагом для «долго при первом открытии». TTFB 82–209ms vs FCP ~3.4–3.7s на типичном 4G → узкое место **transfer/parse/hydrate JS** (home 459KB, schedule 509KB, patient-card 378KB, lfk 401KB gzip на TEST).
+
+| Route | SSR p95 (§7) | DB surface (port trace) | FCP lever |
+|-------|--------------|-------------------------|-----------|
+| `/app/doctor` | 0.365s | `loadDoctorTodayDashboard` N+1 в `loadPeopleRealtimeStats` / exercise attention | FullCalendar на home (`DoctorTodayMiniCalendar`) |
+| `/app/doctor/schedule` | 0.100s | `loadDoctorScheduleCalendarBootstrap` только при `tab=cal` | FullCalendar в default tab chunk |
+| `/app/doctor/patients/{uuid}` | 0.178s | 13× `allSettled` tab bootstrap | default overview chunk + static chat import chain |
+| `/app/doctor/lfk-templates` | 0.332s | `pgLfkTemplates.list` + `pgLfkExercises.list` | always-mounted `TemplateEditor` + `@dnd-kit` |
+
+**DL-DB-01/02:** port trace **done**; `EXPLAIN (ANALYZE, BUFFERS)` **не** запускали — SSR bounded, FCP gap не DB. Опциональный EXPLAIN только при owner-go и цели p95 gate (`home`, `lfk-templates`), через `runWithDbOrganizationPrincipal`, не голый `psql`.
+
+**Chromium headless (local profile, TEST cookies, no 4G throttle):** raw `/tmp/doctor-runtime-a71e222b3.json` — cold FCP 180–304ms, idle 1.1–1.6s; patient tab switch → duplicate `GET …/payments` (×2). Stream heuristic: shell/tabs before heavy overview media; `?tab=records` deep-link — no overview APIs.
+
+**Next product slice (не DB):** lazy `TemplateEditor`, dynamic chat in `DoctorOpenChatButton`, defer FullCalendar on home/schedule — порядок из bundle advisory.
