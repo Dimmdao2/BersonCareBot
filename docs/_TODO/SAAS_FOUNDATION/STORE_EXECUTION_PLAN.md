@@ -1,6 +1,8 @@
 # УСТАРЕЛ / SUPERSEDED — Store / Tariff / Entitlements execution plan
 
 > **Не исполнять как текущий план.** P0 facts могут использоваться как historical implementation evidence.
+> **Форвард-ссылка (2026-08-05):** канон **магазина упражнений** —
+> [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md). P3 ниже не исполнять.
 > **Форвард-ссылка (2026-08-01, tariff-plan-triage):** актуальный текущий план тарифов/entitlements/квот —
 > [`TARIFFS_PAYMENTS_ADMIN_PLAN.md`](./TARIFFS_PAYMENTS_ADMIN_PLAN.md) §5a; биллинг/оплата — отдельно
 > [`SAAS_BILLING_PLAN.md`](./SAAS_BILLING_PLAN.md) (owner-решение 30.07 «не смешивать»). Старая ссылка на
@@ -10,7 +12,7 @@
 > capability) сохранён дословно в `TARIFFS_PAYMENTS_ADMIN_PLAN.md` пункте **4.7**, не потерян.
 > Актуальные требования: [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
 > §P4. Manual-tariff/no-billing first cut и конечный boolean mechanic list
-> больше не являются product contract; store — future capability, own/base library должны работать независимо.
+> больше не являются product contract; store — отдельный канон `EXERCISE_STORE_PLAN.md`.
 
 > **2026-07-27 checkbox pass, corrected 2026-07-29.** The shipped P1.b/P2 requirements are `[x]` with
 > anchored symbol/heading evidence. P3/P4/P5 requirements with a real successor are prose pointers under §6.4.
@@ -95,14 +97,9 @@ WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exac
 
 ## P3 — admin-curated exercise store (packages)
 
-~~Global admin assembles platform exercises (currently GLOBAL, `modules/lfk-exercises`) into sellable PACKAGES
-  (extend `modules/lfk-templates` ordered-set primitive; or a new `saas_exercise_packages`). Admin-curated ONLY.~~ — ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §8B / S4-3 — «После активации C5D добавить platform package entity с commercial metadata, price/currency/access duration».
-~~Grant-based access: a clinic whose tariff includes `exercise_packages` (+ specific packages) gets READ access to
-  those packages/exercises via grants — **files are NEVER copied** (reference/grant, per owner). Reuse the content
-  `entitlements`/grant pattern.~~ — ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §8B / S4-3 — «Эволюционировать `content_access_grants_webapp` и `modules/entitlements` для org target».
-~~Media pipeline unchanged (global). Gate the clinic-facing package browse behind `exercise_packages` entitlement.~~ — ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §8B / S4-3 — «Добавить no-copy invariant: package grant/order не создаёт `lfk_exercises`, `lfk_exercise_media`, `media_files`»; «`exercise_packages` mechanic и specific package grant проверяются раздельно».
-- Verify: admin creates a package; a clinic with the entitlement sees it (read), a clinic without does not; no file copy.
-- 🔴 OPUS CHECK: cross-tenant — a clinic without the grant cannot read package/exercise media (no leak); grant is read-only.
+ВЕДЁТСЯ В [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) — канон магазина упражнений (2026-08-05).
+Исторический указатель на архивный S4-3 снят: эскиз владельца расширил модель (авторы, модерация, витрина,
+выплаты). No-copy / grant-проекция и base packs через тарифный рубильник сохранены в новом каноне §2.
 
 ## P4 — per-clinic analytics for the global admin
 

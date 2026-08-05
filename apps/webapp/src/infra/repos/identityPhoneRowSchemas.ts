@@ -109,6 +109,23 @@ export const userIdRowSchema = z.object({
   user_id: z.string(),
 });
 
+/** Scalar lock-accessor row: one row always, `user_id` null means no binding. */
+export const nullableLockedBindingUserIdRowSchema = z.object({
+  user_id: z.string().nullable(),
+});
+
+/**
+ * Map `app.auth_phone_bind_lock_channel_binding` result to an existing owner id.
+ * Unlike a table `SELECT … FOR UPDATE`, the accessor always returns one row.
+ */
+export function lockedBindingUserIdFromAccessorRow(row: unknown): string | null {
+  const parsed = nullableLockedBindingUserIdRowSchema.safeParse(row);
+  if (!parsed.success) {
+    throw new Error('binding_lock: invalid row shape');
+  }
+  return parsed.data.user_id;
+}
+
 export const platformUserIdRowSchema = z.object({
   id: z.string(),
 });

@@ -15,8 +15,8 @@
 
 | Область | Приёмник(и) | Открытых пунктов | Проверка 5 пунктов против кода |
 |---|---|---|---|
-| **Тарифы и биллинг** | `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a (тарифы/квоты) + `SAAS_BILLING_PLAN.md` (биллинг — по прямому требованию владельца 30.07 не смешивать) | 29 + 3 | 3 OPEN, 1 PARTIAL (подтверждён), 1 **ложный `[x]`-claim**: «B0.1 закрыт тестом» — теста нет вообще |
-| **Стены арендатора и изоляция** | `SAAS_ENFORCE_ROADMAP.md` (общий) + `ISOLATION_PROVISIONING_REMEDIATION_PLAN_2026-07-24.md` (под-область provisioning) | 29 + 10 | 1 OPEN, 2 PARTIAL, 2 OPEN (provisioning) — все 5 корректно открыты, ни одного ложного |
+| **Тарифы и биллинг** | `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a (тарифы/квоты) + `SAAS_BILLING_PLAN.md` (биллинг — по прямому требованию владельца 30.07 не смешивать) | ~22 + ~0 product | **delta 2026-08-05:** #1057/#B0.3 закрыты на TEST (`wt/pay-close`); Checkout UI и capture — `[x]` в billing-плане; в tariffs-плане открыты §5a квоты/лестница и Phase 5 fixtures |
+| **Стены арендатора и изоляция** | `SAAS_ENFORCE_ROADMAP.md` (общий) + `ISOLATION_PROVISIONING_REMEDIATION_PLAN_2026-07-24.md` (под-область provisioning) | 29 + 10 | DEV diagnostics contour закрыт 05.08 (`549058465`, `0371`, `provision-dev-saas-diagnostics.sh`); provisioning A–F по-прежнему открыты |
 | **Настройки и их разделение** | `SAAS_S5_SETTINGS_ROOT_SPLIT.md` | 32 | 5 PARTIAL — инфраструктура реально существует (`isFlagEnabled`, `RuntimeConfigAudience`, `resolveOrgEntitlements`), но не сведена в единый contract, как в плане; ни одного полностью готового, ни одного полностью выдуманного |
 | **Справочник клиник и границы организации** | `SAAS_S6_CLINIC_DIRECTORY_AND_ORG_BOUNDARY.md` | 36 | 4 OPEN (подтверждены), 1 **стухший `[ ]`** — typed principal без `any` уже сделан, чек-бокс не проставлен |
 | **Приглашение и заведение пациента** | `PATIENT_INVITE_AND_MANUAL_CREATION_DESIGN.md` | 18 | 4 из 5 **DONE** (реализовано под другими именами функций, чем в плане) + 1 OPEN (email-конфликт → merge-candidates не подключён) |
@@ -49,9 +49,10 @@
 | `MECHANICS_TABLE_FOR_OWNER.md` | дизайн | описательная таблица; **0 входящих ссылок в репо** — сирота, проверить нужность |
 | `CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md` | дизайн | источник фактов для §5 Phase 4 приёмника, оставить |
 | `SAAS_BILLING_PRACTICE_RESEARCH_2026-07-27.md` | дизайн | источник фактов для приёмника-биллинга, оставить |
-| `STORE_EXECUTION_PLAN.md` | замен → TARIFFS_PAYMENTS_ADMIN_PLAN.md + SAAS_BILLING_PLAN.md | архив (форвард-ссылка уже проставлена) |
-| `STORE_P0_ENTITLEMENTS_PLAN.md` | замен → TARIFFS_PAYMENTS_ADMIN_PLAN.md | архив (форвард-ссылка уже проставлена) |
-| `S4_0_S4_1_CONTRACT_INVENTORY.md` | замен → TARIFFS_PAYMENTS_ADMIN_PLAN.md (через архивную линию S4) | архив |
+| `STORE_EXECUTION_PLAN.md` | замен → `EXERCISE_STORE_PLAN.md` (магазин) + `TARIFFS_PAYMENTS_ADMIN_PLAN.md` + `SAAS_BILLING_PLAN.md` | архив (форвард-ссылка уже проставлена) |
+| `STORE_P0_ENTITLEMENTS_PLAN.md` | замен → `TARIFFS_PAYMENTS_ADMIN_PLAN.md` | архив (форвард-ссылка уже проставлена) |
+| `EXERCISE_STORE_PLAN.md` | живой | **канон магазина упражнений** (2026-08-05); не смешивать с тарифами |
+| `S4_0_S4_1_CONTRACT_INVENTORY.md` | замен → `TARIFFS_PAYMENTS_ADMIN_PLAN.md` (через архивную линию S4) | архив |
 
 ### Стены арендатора и изоляция
 

@@ -44,6 +44,7 @@ import {
 import {
   bindingsFromRows,
   emailVerifiedRowSchema,
+  lockedBindingUserIdFromAccessorRow,
   parseChannelContext,
   parseIdentityRow,
   parseUserRole,
@@ -52,7 +53,6 @@ import {
   platformUserPhoneRoleRowSchema,
   platformUserSessionRowSchema,
   puMergeRowSchema,
-  userIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
 import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
@@ -255,14 +255,12 @@ export const pgUserByPhonePort: UserByPhonePort = {
           [channelCode, parsedContext.chatId],
         );
 
-        if (bindingLock.rows.length > 0) {
-          let userId = parseIdentityRow(
-            userIdRowSchema,
-            bindingLock.rows[0],
-            'binding_lock',
-          ).user_id;
-          const canonicalId = (await resolveCanonicalUserId(getWebappSqlFromPgClient(client), userId)) ?? userId;
-          userId = canonicalId;
+        // Accessor always returns one row; null user_id means no binding (unlike table SELECT).
+        const lockedBindingUserId = lockedBindingUserIdFromAccessorRow(bindingLock.rows[0]);
+        if (lockedBindingUserId) {
+          let userId =
+            (await resolveCanonicalUserId(getWebappSqlFromPgClient(client), lockedBindingUserId)) ??
+            lockedBindingUserId;
           const displayName = parsedContext.displayName ?? normalized;
           await runIdentityClientPgText(
             client,

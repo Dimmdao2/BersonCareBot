@@ -504,6 +504,25 @@ bash deploy/host/migrate-dev.sh --execute
 Для канонической `bcb_webapp_dev` используйте wrapper выше: он проверяет точную локальную БД и запускает общие
 pending migrations без reset/restore.
 
+### 6.6 SaaS diagnostics contour (System Health / isolation telemetry)
+
+`migrate-dev.sh` **не** ставит telemetry/health overlays и **не** перенакатывает d3-4 bootstrap grants.
+Для карточек «Всё состояние» / `saasIsolation` и для phone-bind accessors после `0371` на DEV нужен
+отдельный read-only operator login (как на TEST), не расширение обычного `DATABASE_URL`.
+
+1. В `apps/webapp/.env.dev` задать `SAAS_ISOLATION_OPERATOR_DATABASE_URL` на `bcb_webapp_dev` с отдельным login
+   (имя содержит `operator`, пример закомментирован в `apps/webapp/.env.example`; пароль ≥ 32 байт; **не коммитить**).
+2. После миграций и при смене operator URL:
+
+```bash
+bash deploy/host/provision-dev-saas-diagnostics.sh
+```
+
+Скрипт: provisioning operator LOGIN + `CONNECT`, telemetry/health overlays, `GRANT EXECUTE` bootstrap-логину на
+`app.auth_phone_bind_*` (иначе `createOrBind` под bare NOINHERIT nonstaff получает `42501` на функции).
+
+3. Перезапустить webapp, чтобы pool подхватил env.
+
 ---
 
 ## 7. Автотесты (не путать с живым UI)

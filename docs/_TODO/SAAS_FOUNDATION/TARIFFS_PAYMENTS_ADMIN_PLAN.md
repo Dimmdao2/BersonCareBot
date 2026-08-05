@@ -10,9 +10,11 @@
 > Phase 1-3 практически полностью и местами **превысила** формулировку плана (единый резолвер вырос в
 > read/mutation/Server-Action/Page адаптеры с 4-состояниями `active/read_only/blocked` вместо плоского on/off;
 > платформенный UI получил не временное размещение внутри doctor-сайдбара, а полностью отдельный `/app/admin/*`
-> shell с собственной навигацией — то, что план явно откладывал как scope воркстрима U9). Phase 4 (SaaS billing) и
-> Phase 5 (интеграционная приёмка) подтверждены как реально ОТКРЫТЫЕ — `modules/saas-billing`, `saas_billing_*`
-> схема, `saas-webhook` роут не существуют нигде в репозитории (проверено `grep`/`find`, не по памяти). Итог:
+> shell с собственной навигацией — то, что план явно откладывал как scope воркстрима U9). **Phase 4 (SaaS billing)
+> переехала в `SAAS_BILLING_PLAN.md` (#1057) и закрыта на TEST end-to-end 04.08** (`wt/pay-close`, merge
+> `d1b8a1718`). Phase 5 (интеграционная приёмка) и §5a (квоты/механики/лестница) — **открыты здесь**.
+> Итог reconciliation 2026-07-27 сохранён ниже; **delta 2026-08-05:** строки «Phase 4 не существует» / «checkout
+> не существует» в Phase 5 и DoD — **устарели**, см. пометки у соответствующих пунктов.
 > **20 из 44 боксов отмечены `[x]`** (с пруфом commit/file:line/перепрогнанный зелёный тест — большинство Phase 1-3),
 > **24 остаются открытыми** `[ ]` (в основном Phase 4/5 целиком + два открытых пункта внутри Phase 3 — trial policy
 > при provisioning и NULL-org migration mapping). Часть ticked-боксов помечена ДУБЛЬ-СЛИТ: функциональность есть,
@@ -55,8 +57,9 @@
 
 - Берём из `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` только S4-0/S4-1/S4-2 (registry, chokepoint, admin tariff UI) и
   урезанную S4-4 (biллинг поверх существующих PSP — только tariff subscription, БЕЗ store package orders).
-- **НЕ берём** S4-3 (store packages) и S4-5 (platform analytics) — они остаются в S4-doc как отдельная, не
-  отменённая, но отложенная работа. Этот документ их не планирует и не трогает.
+- **НЕ берём** S4-3 (store packages) и S4-5 (platform analytics). S4-5 остаётся отложенной вне этого документа.
+  **Магазин упражнений (бывший S4-3) с 2026-08-05 ведётся только в**
+  [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) — не планировать и не исполнять магазин из этого файла.
 - «У админа хотя бы базово + чат техподдержки» — это **отдельная карточка #808** (см.
   [`OWNER_RULINGS_2026-07-17.md:37`](./OWNER_RULINGS_2026-07-17.md)), **не входит** в этот документ.
 - Биллинг: «платёжная система уже есть и почти готова — не удалять, не переписывать, достраивать; ключи владелец
@@ -154,7 +157,7 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
 | Кнопка «Пересчитать» абонемент          | Существует и работает — [`PatientPackageCard.tsx:165-177`](../../../apps/webapp/src/app/app/doctor/clients/PatientPackageCard.tsx), [`recalc/route.ts:12-48`](../../../apps/webapp/src/app/api/doctor/booking-engine/patient-packages/[id]/recalc/route.ts)                                                                                                                                                                                                                                                       | Владелец §11 закрыт фактом, см. [`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:278-293`](./SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md); в этом документе не переоткрывается                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | PSP adapters                            | 5 реальных адаптеров за одним портом: mock/yookassa/tinkoff/cloudpayments/alfabank — [`paymentProviderRegistry.ts:8-46`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts), [`providerPort.ts:11-34`](../../../apps/webapp/src/modules/payments/providerPort.ts)                                                                                                                                                                                                                                | Не трогать/не переписывать (владелец §1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Существующий платёжный ledger           | Org-scoped `bePrepaymentPolicies`/intents/payments/refunds, статусные enum'ы — [`bookingPayments.ts:1-60`](../../../apps/webapp/db/schema/bookingPayments.ts); сервис на 577 строк — [`payments/service.ts:1-577`](../../../apps/webapp/src/modules/payments/service.ts)                                                                                                                                                                                                                                          | Это **booking/patient commerce** (предоплата визита, покупка пакета/продукта пациентом) — НЕ платформенный биллинг клиники за тариф. Разные домены, не смешивать (владелец не разделял эти два явно, но это уже задокументировано в S4 §2 и остаётся верным)                                                                                                                                                                                                                                                                                                                                                           |
-| Webhook                                 | Подписанный, per-org, резолвит организацию из intent перед capture — [`webhook/[provider]/route.ts:1-65`](../../../apps/webapp/src/app/api/payments/webhook/[provider]/route.ts). Есть и второй sibling: [`patient-acquiring-webhook/[provider]/route.ts`](../../../apps/webapp/src/app/api/payments/patient-acquiring-webhook/[provider]/route.ts) (FIN-02: bootstrap principal → provider config → verifyWebhook → org-scoped обработка) — ближайший прецедент по shape для нового saas-webhook route (Phase 4) | Работает только для booking/patient intents; платформенного (tariff subscription) webhook пути нет                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Webhook                                 | Подписанный, per-org, резолвит организацию из intent перед capture — [`webhook/[provider]/route.ts:1-65`](../../../apps/webapp/src/app/api/payments/webhook/[provider]/route.ts). Есть и второй sibling: [`patient-acquiring-webhook/[provider]/route.ts`](../../../apps/webapp/src/app/api/payments/patient-acquiring-webhook/[provider]/route.ts) (FIN-02: bootstrap principal → provider config → verifyWebhook → org-scoped обработка) — ближайший прецедент по shape для нового saas-webhook route (Phase 4) | Booking/patient intents — как было. **SaaS tariff webhook:** ✅ `api/payments/saas-webhook/[provider]/route.ts` (`f2167c1d0`), live TEST 04.08 `wt/pay-close` |
 | Payment config UI                       | `booking_payment_providers`/`booking_payment_enabled` в `ALLOWED_KEYS` — [`system-settings/types.ts:112,123`](../../../apps/webapp/src/modules/system-settings/types.ts); секция настроек — [`BookingPaymentsSection.tsx`](../../../apps/webapp/src/app/app/settings/BookingPaymentsSection.tsx) (283 строки); PATCH-обработка ключа — [`admin/settings/route.ts:218,679`](../../../apps/webapp/src/app/api/admin/settings/route.ts)                                                                              | Это **per-clinic** booking merchant config. Платформенного (SaaS billing) merchant-ключа нет                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Patient package pay client              | Завершает оплату только через мок — `POST /api/booking/memberships/payments/mock-complete` — [`PatientPackagePayClient.tsx:45`](../../../apps/webapp/src/app/app/patient/memberships/pay/PatientPackagePayClient.tsx)                                                                                                                                                                                                                                                                                             | Не в scope этого документа (patient-facing, не SaaS billing), но подтверждает: mock-путь уже есть и используется как штатный fallback без ключей — та же модель подходит для SaaS billing keyless-режима                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Settings root split (S5)                | Existing partial slice: `app_runtime_settings`, migration [`0186_app_runtime_settings.sql`](../../../apps/webapp/db/drizzle-migrations/0186_app_runtime_settings.sql), `pgAppRuntimeSettings` and provider. **`app_runtime_settings_audit` does not exist**; it remains S5-1 work. S5-0 reality lock is logged in [`SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md`](./SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md); S5-1—S5-7 are not complete.                                                                                       | This does **not** change the domain for `saas_billing_payment_provider`: the runtime store is patient-safe and credentials remain restricted in `system_settings` by design.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -186,7 +189,8 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
 
 **Вне scope (явно не трогать в этой работе):**
 
-- Store packages / `exercise_packages`/`exercise_catalog` grants (S4-3, `STORE_EXECUTION_PLAN.md` P3) — остаются resolver-only.
+- Store packages / магазин упражнений — канон [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md); из этого
+  тарифного плана не строить. Исторически: S4-3 / `STORE_EXECUTION_PLAN.md` P3.
 - Platform analytics / per-clinic dashboards (S4-5, P4) и аналитика специалиста (#800).
 - Карточка #808 (базовый admin-минимум + чат техподдержки).
 - Лендинг/два входа (#807), инвайты/календарь (#801, #806), `/book/{slug}` (#805) — параллельные карточки, отдельные файлы.
@@ -492,27 +496,28 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       — ЧАСТИЧНО заложено: API/UI-механика (create/update/archive tariff, assign, override, полный mechanic-грид)
       реально существует и протестирована (46 зелёных тестов между `pgPlatformEntitlements.*.test.ts`,
       `api/admin/commercial/route.test.ts`, `CommercialConstructorClient.test.tsx`, `org-entitlements/service.test.ts`
-      — перепрогнаны в рамках этой сверки). «Видит billing state» — нет, поскольку billing (Phase 4) не существует.
+      — перепрогнаны в рамках этой сверки). «Видит billing state» — ✅ через `GET /api/clinic/billing` +
+      `BillingSection.tsx` / `SaasBillingOverview` (read + checkout); live TEST 04.08 `wt/pay-close`.
       Живой click-through с demo-организациями в рамках этой сверки не проводился.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Clinic A проходит checkout mock/recorded-provider flow, получает tariff access».
 - Clinic A проходит mock checkout, получает активную подписку на тариф; clinic B её не видит/не затронута.
-      — НЕ СДЕЛАНО: checkout не существует (Phase 4).
+      — ✅ **ЗАКРЫТО 04.08 на TEST** (реальный YooKassa checkout, не mock): `SAAS_BILLING_PLAN.md` запись
+      `#1057`/`wt/pay-close`; mock-checkout как acceptance path **отменён** решением B0.3 01.08.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Payment negatives: duplicate checkout/webhook, forged signature/org ID, wrong amount/currency, unknown provider ref»; «Entitlement negatives обязательны.»
 - Negatives: unauthenticated, doctor вместо global_admin на `/api/admin/tariffs` (403), forged org id, forged
       webhook signature, amount mismatch, replay, mechanic OFF при активной подписке (доступ всё равно закрыт по
       entitlement, подписка не значит automatic mechanic override).
       — ЧАСТИЧНО: unauthenticated/wrong-role 403 покрыт тестом (`api/admin/commercial/route.test.ts:49-54`,
-      mocked-guard unit test, не живой E2E). Forged webhook/amount-mismatch/replay/mechanic-OFF-during-subscription —
-      не применимы, пока saas-webhook и подписка не существуют.
+      mocked-guard unit test, не живой E2E). Forged webhook/amount-mismatch/replay — unit + live TEST 04.08
+      (`saasWebhook.route.test.ts`, `wt/pay-close`); mechanic-OFF-during-subscription E2E на demo-fixtures не гонялись.
 - [-] ~~Полный regression sweep: existing org сохраняют compatibility access до owner-approved mapping; после
       отдельного mapping apply ни одна организация не теряет доступ вопреки preview.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
       01.08 решением Р-12: compatibility behavior и owner-approved mapping удалены из целевой модели.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`».
 - Один финальный `pnpm install --frozen-lockfile && pnpm run ci` после всех фаз — не гонять full CI после
       каждого шага.
-      — НЕ СДЕЛАНО в рамках этой сверки (запускались только точечные `vitest run` на затронутые файлы, по правилу
-      «scoped tests per change, full CI once at end» — полный `pnpm run ci` разумен только после Phase 4/5, которых
-      ещё нет).
+      — НЕ СДЕЛАНО в рамках этой сверки (запускались только точечные `vitest run` на затронутые файлы). Phase 4
+      billing закрыт 04.08; финальный full CI после Phase 5/fixtures — ещё открыт.
 
 **Выход:** тарифы, единый chokepoint, admin-грид и SaaS billing (keyless-safe) работают на тестовом сервере;
 демонстрируемо владельцу.
@@ -539,7 +544,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 | №              | Решение (дословно)                                                                                                                                                                                                                                                                                                                            | Дата  | Состояние                                                                                                          | Где работа |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
 | **Р-1**        | «У нас должна быть настройка — какой тариф выдаётся при регистрации. Если настройка пустая — значит тариф человек выбирает. И также настройка, какой даётся триал после регистрации — он и подключается» ⛔ Не зашивать стартовый тариф в код провижининга и не выводить «по флажку внутри тарифа». Пустая настройка — легальное состояние    | 31.07 | ✅ сделано, стена закрыта                                                                                          | 2.6a       |
-| **Р-2**        | «переменная даёт цифру и число. Какими словами это видит клиника, решает шаблон»                                                                                                                                                                                                                                                              | 31.07 | ⏳ ждёт данных биллинга                                                                                            | 2.6a       |
+| **Р-2**        | «переменная даёт цифру и число. Какими словами это видит клиника, решает шаблон»                                                                                                                                                                                                                                                              | 31.07 | ⏳ частично: billing overview + шаблоны уведомлений есть; полная лестница §5a — открыта                                                                                            | 2.6a       |
 | **Р-3**        | «надо настраивать частоту и количество уведомлений с текстами, причём надо возможность добавлять разные шаблоны — первое напоминание, второе предупреждение, третье ещё одно, но с другими сроками, потом уведомление о режиме только чтения и так далее»                                                                                     | 31.07 | ✅ сделано                                                                                                         | 2.6a       |
 | **Р-4**        | «количество разрешённых специалистов должно быть явно настроено в тарифе, иначе он не сохранится», при создании «по умолчанию пусть ставится одно — это разумный минимум»                                                                                                                                                                     | 31.07 | ✅ сделано                                                                                                         | 2.6a       |
 | **Р-5**        | «нет доступа и нет никаких механик вне тарифа; либо есть закончившийся тариф, либо отсутствует регистрация; при регистрации сразу даётся тариф с триалом, который настраивается в админке»                                                                                                                                                    | 31.07 | ✅ сделано                                                                                                         | 2.13       |
@@ -1505,7 +1510,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine».
 - SaaS billing проходит полный цикл (checkout → capture → активная `saas_billing_subscription` → expiry/refund)
       на mock-адаптере; реальные ключи подключаются сменой настройки, без нового кода.
-      — НЕ СДЕЛАНО: весь Phase 4 открыт (см. выше), цикла не существует.
+      — ✅ **ЗАКРЫТО 04.08 на TEST** (YooKassa, не mock): `SAAS_BILLING_PLAN.md` #1057/`wt/pay-close`, merge
+      `d1b8a1718`. Mock-адаптер как product surface удалён (B0.3). Автоматический expiry/refund lifecycle — хвост §5a.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Clinic B не видит tariff override, invoice или analytics A»; «Payment negatives: duplicate checkout/webhook, forged signature/org ID»; «После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`».
 - A/B изоляция и security negatives (Phase 5) закрыты на тестовом сервере; один финальный CI gate зелёный.
       — НЕ СДЕЛАНО: Phase 5 открыт (см. выше), финальный `pnpm run ci` в рамках этой сверки не запускался.
@@ -1515,12 +1521,11 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       уже явно разделяют owner ruling vs инженерный выбор («Порядок фаз... не решение владельца», «риск §8.1/8.2...»)
       — на вид соблюдается, но формального пруфа (commit/тест) для этого пункта не существует по своей природе, оставлено
       открытым до отдельной ревизии документа целиком.
-- [ ] UI-фазы (Phase 3/4) размещены в верных zone-ID (`PLAT-02`/`PLAT-03`/`PLAT-05`/`MGMT-08`, §0a), не в старом
+- [x] UI-фазы (Phase 3/4) размещены в верных zone-ID (`PLAT-02`/`PLAT-03`/`PLAT-05`/`MGMT-08`, §0a), не в старом
       doctorNavLinks-кластере «Настройки», и не дублируют/не блокируют будущий U9 platform shell.
-      — ЧАСТИЧНО: Phase 3-половина ГОТОВА и превышает требование — `/app/admin/commercial` живёт в отдельном
-      platform-shell (`platformNavLinks.ts`), не в `doctorNavLinks.ts` «Настройки», и фактически уже реализует часть
-      U9-цели (не просто «не блокирует»). Phase 4-половина (`MGMT-05`/`MGMT-08` billing UI) не существует вовсе —
-      пункт как целое (Phase 3 И Phase 4) не может быть закрыт, пока Phase 4 не начата.
+      — Phase 3 — ГОТОВО (`/app/admin/commercial`, `platformNavLinks.ts`). Phase 4 clinic UI — ГОТОВО:
+      `BillingSection.tsx` + `PayTariffButton` + `/api/clinic/billing` (MGMT-08); global PLAT-05 provider UI —
+      существующий экран «Платежи» global admin. Детали — `SAAS_BILLING_PLAN.md`.
 
 ## 7. Execution log
 

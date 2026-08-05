@@ -10,6 +10,11 @@
 
 **Стык с планом тарифов, чтобы планы не разъехались:**
 
+> **Reconciliation 2026-08-05:** B0.3/B0.3a и live TEST checkout→webhook→capture закрыты (`wt/pay-close`, merge
+> `d1b8a1718`). #1057 → taskdb `done`. Открытые хвосты billing: backfill legacy manual tariff →
+> `saas_billing_subscriptions`, поле `webhookSecret` в admin UI, matching upgrade-инвойса по target tariff,
+> автоматическая лестница §5a (owner T1/T9/T10).
+
 - счёт клиники = цена тарифа + дополнительные специалисты сверх базы (поле цены задаёт владелец в конструкторе тарифов);
 - ступень лестницы доступа — «терпение», «только чтение», «выключено» — включается от коммерческого состояния
   организации, которое ведёт биллинг; сами длительности и конечное состояние настраивает владелец в тарифе
@@ -372,8 +377,7 @@
       написания 27.07, устарел после коммитов того же дня): `saas-billing/settings.ts:3`
       `DEFAULT_SAAS_BILLING_PAYMENT_PROVIDER_ID = 'mock'`; читается и потребляется —
       `service.ts:29-44` `resolvePaymentProvider()` выбирает провайдера по этому id из настройки. UI/webhook для
-      **приёма** оплаты по нему по-прежнему не существуют (см. пункты «Checkout UI» и SaaS webhook ниже — те
-      остаются открытыми отдельно).
+      checkout/webhook/capture закрыты 04.08 (`wt/pay-close`); дефолтный provider id в registry — provider-backed, не mock.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Добавить SaaS webhook route под bootstrap principal: load global provider config → verify signature/status».
 - `POST /api/payments/saas-webhook/[provider]` (новый, отдельный от booking-webhook) под bootstrap principal:
       load global config → verify signature/status через существующий `verifyWebhook` → resolve invoice /
@@ -431,29 +435,20 @@ their code». Поэтому мировая практика для Node — **�
 Следствие для плана: **интеграцию проверяем против тестового магазина, а не против мока** — мок
 остаётся только для юнит-уровня. ⛔ **Гейт владельца:** нужны `shopId` и `secretKey` тестового
 магазина; кладутся в `system_settings`, не в env.
-- [ ] Checkout UI — **другая зона от Phase 3.** Clinic-facing план/usage/инвойсы/оплата = **`MGMT-08` Plan, usage
-      and billing** («Current plan, limits, invoices, recovery | Owner; delegated view/pay if explicitly allowed», см.
-      §0a) — внутри обычного tenant-дерева `/app/doctor/**` (не в `(global-admin)` route group из Phase 3). Новая
-      страница/секция под clinic settings/organization area; возвращает provider checkout URL; return page сверяет
-      invoice/order по server-derived org, никогда не берёт сумму/tariff/target org от клиента.
-      — НЕ СДЕЛАНО как SaaS-checkout, но соседняя READ-ONLY поверхность в той же MGMT-08 зоне уже существует:
-      `apps/webapp/src/app/app/settings/BillingSection.tsx` (+ `billingCommercialState.ts`, вкладка `"billing"` в
-      `settingsTabs.ts`) показывает название тарифа, human-readable commercial-state и грид всех механик — но БЕЗ
-      checkout/invoice/payment-history/upgrade (`grep -in "invoice\|checkout\|payment history"` на обоих файлах —
-      ничего), с явным комментарием в коде: «No tariff-change UI here by design — that stays with the platform
-      administrator» (commit `60b43d757`). Живой скриншот этой страницы — `runs/screenshots/billing-real.png`
-      (25.07, видны все 15 механик со статусом «Включено»). Это НЕ закрывает пункт плана (нет ни одного элемента
-      checkout), но следующая реализация Phase 4 должна расширить/заменить этот компонент, а не дублировать новый.
+- [x] **Checkout UI (MGMT-08).** Clinic-facing plan/usage/инвойсы/оплата на вкладке «Тариф и биллинг»
+      (`settingsTabs.ts` → `BillingSection.tsx`): `PayTariffButton.tsx` (checkout URL через `POST/PATCH
+      /api/clinic/billing`), `AutopayToggleButton.tsx`, overview/invoices через `SaasBillingOverview` +
+      `SaasBillingOverviewSection`. Старый текст «только read-only без checkout» устарел с `60b43d757`.
+      Доказательство: live TEST end-to-end 04.08 (`wt/pay-close`, merge `d1b8a1718`); unit/UI —
+      `PayTariffButton.ui.test.tsx`, `route.route.test.ts`; product fix `549058465`.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Tariff capture активирует/продлевает source=`paid_subscription`; expiry/cancel/refund завершает только этот source.»
-- Успешный capture продлевает `source="paid_subscription"`; expiry/cancel/refund завершает только этот source;
+- [x] Успешный capture продлевает `source="paid_subscription"`; expiry/cancel/refund завершает только этот source;
       manual global-admin assignment не перетирается истёкшей подпиской молча.
-      — НЕ СДЕЛАНО: зависит от несуществующего billing-модуля.
-      — **УТОЧНЕНО 08-01: модуль уже существует, вызывающего пути capture по-прежнему нет.**
-      `saas-billing/service.ts:114-142` `createRenewalSaasBillingInvoice()` создаёт invoice и провайдерский intent,
-      но ни один route/action её не вызывает (`grep -rn "createRenewalSaasBillingInvoice" apps/webapp/src` — только
-      определение в `service.ts`). `source="paid_subscription"` в схеме объявлен
-      (`SAAS_BILLING_SOURCE_VALUES`), но ни одна строка в продуктовом коде его не устанавливает — только `"manual"`
-      через `assignManualTariff()`. Пункт остаётся открытым по существу.
+      — НЕ СДЕЛАНО (08-01): модуль без capture-пути — **устарело.**
+      — ✅ **ЗАКРЫТО 04.08:** `captureSaasBillingPaymentSucceeded` / webhook → paid subscription + compatibility
+      projection; checkout routes вызывают `createRenewalSaasBillingInvoice` и seat-overage checkout.
+      Доказательство: `pgSaasBillingCapture.postgres.integration.test.ts`, live TEST `wt/pay-close` (merge
+      `d1b8a1718`); первичный текст про «только manual через assignManualTariff» — история до pay-close.
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «До кода зафиксировать subscription state machine минимум для».
 - Деградация при `expired`/`past_due` — сверить с каноном 4-состояний entitlement denial (`upgrade/grace/
 read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md),
@@ -462,8 +457,9 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       — ЧАСТИЧНО заложен фундамент: `checkEntitlement()` в `requireEntitlement.ts:19-38` уже различает
       `active`/`read_only`/`blocked` lifecycle (не `upgrade`/`grace` полностью, 3 из 4 состояний канона) и протестирован
       (`requireEntitlement.test.ts` кейсы «allows reads in read-only lifecycle but rejects mutations», «allows recovery
-      reads in blocked lifecycle»). Но САМА подписка/её state machine, которая переводила бы lifecycle по `expired`/
-      `past_due`, не существует — фундамент для потребления есть, источника события (billing) нет.
+      reads in blocked lifecycle»). Автоматический перевод lifecycle по `expired`/`past_due`/refund и полная
+      лестница §5a — **остаются открытыми** (см. `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a этап 2, owner T1/T9/T10);
+      capture/refund-путь billing уже пишет subscription rows.
 
 - [x] **Фискализация: объект `receipt` в платеже и возврате.** Заведено ПРЯМЫМ распоряжением владельца 27.07:
       «И облачную кассу будем подключать» → на уточнение «поле `receipt` в платеже» — **«делай конечно как надо.

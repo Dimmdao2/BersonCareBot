@@ -311,13 +311,16 @@ DECLARE
     'saas_billing_invoices'
   ];
   -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent runs under SET ROLE app_staff
-  -- (runWithDbOrganizationPrincipal); capture never touches saas_billing_accounts, and never
-  -- creates an invoice/subscription row, only reads (row-locking) and updates one the
-  -- clinic-billing door already created.
+  -- (runWithDbOrganizationPrincipal); capture never creates an invoice/subscription row, only reads
+  -- (row-locking) and updates one the clinic-billing door already created.
+  -- 0371: getOrganizationBillingOverview needs org-scoped SELECT on saas_billing_accounts (no UPDATE).
   staff_capture_relation_names constant text[] := ARRAY[
     'saas_billing_subscriptions',
     'saas_billing_invoices',
     'saas_billing_provider_events'
+  ];
+  staff_capture_select_only_relation_names constant text[] := ARRAY[
+    'saas_billing_accounts'
   ];
 BEGIN
   IF EXISTS (
@@ -337,6 +340,11 @@ BEGIN
     IF relation_name = ANY(staff_capture_relation_names) THEN
       EXECUTE format(
         'GRANT SELECT, UPDATE ON TABLE public.%I TO app_staff',
+        relation_name
+      );
+    ELSIF relation_name = ANY(staff_capture_select_only_relation_names) THEN
+      EXECUTE format(
+        'GRANT SELECT ON TABLE public.%I TO app_staff',
         relation_name
       );
     END IF;
@@ -410,6 +418,12 @@ BEGIN
       EXECUTE format(
         'CREATE POLICY %I ON public.%I FOR UPDATE TO app_staff USING (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()) WITH CHECK (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
         relation_name || '_staff_capture_update',
+        relation_name
+      );
+    ELSIF relation_name = ANY(staff_capture_select_only_relation_names) THEN
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR SELECT TO app_staff USING (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())',
+        relation_name || '_staff_capture_select',
         relation_name
       );
     END IF;
@@ -1254,11 +1268,11 @@ BEGIN
     CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
     UNION
     -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent runs under SET ROLE app_staff
-    -- (runWithDbOrganizationPrincipal). Capture never touches saas_billing_accounts, and never
-    -- creates an invoice/subscription row -- only reads (row-locking) and updates one the
-    -- clinic-billing door already created -- so no app_staff ACL there and no INSERT here.
+    -- (runWithDbOrganizationPrincipal). Capture never creates an invoice/subscription row -- only reads
+    -- (row-locking) and updates one the clinic-billing door already created. 0371 adds the matching
+    -- org-scoped SELECT on saas_billing_accounts for getOrganizationBillingOverview; staff UPDATE on
+    -- accounts remains excluded.
     SELECT relation_name, 'app_staff', 'SELECT', false FROM relations
-    WHERE relation_name <> 'saas_billing_accounts'
     UNION
     SELECT relation_name, 'app_staff', 'UPDATE', false FROM relations
     WHERE relation_name <> 'saas_billing_accounts'
@@ -1350,7 +1364,8 @@ BEGIN
     WHERE relations.relation_name <> 'saas_billing_provider_events'
     UNION ALL
     -- 0344 (#1057 B0.3): captureSaasBillingProviderWebhookEvent's org-scoped SELECT/UPDATE on the
-    -- capture path's tables; saas_billing_accounts is untouched by capture, so excluded here.
+    -- capture path's tables. 0371 adds staff_capture_select on saas_billing_accounts; staff UPDATE on
+    -- accounts is still excluded below.
     SELECT
       relations.relation_name,
       relations.relation_name || expected_policy.suffix,
@@ -1379,6 +1394,7 @@ BEGIN
         )
     ) AS expected_policy(suffix, command, roles, using_expression, check_expression)
     WHERE relations.relation_name <> 'saas_billing_accounts'
+       OR expected_policy.suffix = '_staff_capture_select'
     UNION ALL
     SELECT
       'saas_billing_provider_events',

@@ -66,6 +66,9 @@ COMMENT ON FUNCTION app.email_auth_set_email_challenge_delivery_code(uuid, text)
 -- content -- DROP it outright rather than CREATE OR REPLACE (which would only add an overload and leave
 -- the vulnerable 5-arg version reachable).
 DROP FUNCTION IF EXISTS app.email_auth_enqueue_otp_delivery(text, jsonb, integer, timestamptz, smallint);
+-- Idempotent re-apply: if this 1-arg form already exists (ledger lost after renumber / partial
+-- apply), bare CREATE FUNCTION raises SQLSTATE 42723. DROP first, same idiom as 0370's signature swap.
+DROP FUNCTION IF EXISTS app.email_auth_enqueue_otp_delivery(uuid);
 
 CREATE FUNCTION app.email_auth_enqueue_otp_delivery(p_challenge_id uuid)
 RETURNS boolean

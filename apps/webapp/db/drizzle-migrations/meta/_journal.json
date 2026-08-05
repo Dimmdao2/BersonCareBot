@@ -2577,6 +2577,20 @@
       "when": 1793539230114,
       "tag": "0371_phone_bind_billing_accounts_isolation_fix_local",
       "breakpoints": true
+    },
+    {
+      "idx": 368,
+      "version": "7",
+      "when": 1793539230115,
+      "tag": "0372_phone_bind_lock_channel_allowlist_align_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 369,
+      "version": "7",
+      "when": 1793539230116,
+      "tag": "0373_auth_email_otp_enqueue_hardening_idempotent_reconcile_local",
+      "breakpoints": true
     }
   ]
 }

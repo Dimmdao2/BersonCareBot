@@ -7,6 +7,10 @@
 > раньше; часть уже сделана, часть отменена решениями владельца 30.07 (агент не решает, что ограничивать; лестница
 > состояний настраивается владельцем; чтение тоже ограничивается скрытием раздела). Файл сохранён только до построчной
 > сверки — пункт 6a.4 плана. Не брать отсюда работу, не сверившись с §5a.
+>
+> **2026-08-05:** канон **магазина упражнений** (бывший §8B / S4-3) —
+> [`docs/_TODO/SAAS_FOUNDATION/EXERCISE_STORE_PLAN.md`](../../_TODO/SAAS_FOUNDATION/EXERCISE_STORE_PLAN.md).
+> Чек-листы §8B ниже не исполнять; актуальные пункты перенесены/переосмыслены в новом плане.
 
 > План этапа 4 из [`SEQUENCE.md`](./SEQUENCE.md). При конфликте старых формулировок с
 > [`OWNER_RULINGS_2026-07-15.md`](./OWNER_RULINGS_2026-07-15.md) приоритет имеют дословные рулинги владельца.
@@ -342,9 +346,14 @@ service/port` с `file:line` для каждого реального action. Д
 **Выход C4D:** private organization library и новая platform base library сосуществуют без смешивания ownership;
 магазин не нужен для выполнения или приёмки этого этапа.
 
-## 8B. S4-3 — future store packages (deferred; только после активации C5D)
+## 8B. S4-3 — future store packages (DEFERRED → канон 2026-08-05)
 
-**Execution gate:** этот checklist не берётся агентом автоматически после S4-2/C4D и не входит в launch acceptance.
+> **НЕ ИСПОЛНЯТЬ.** Канон магазина:
+> [`docs/_TODO/SAAS_FOUNDATION/EXERCISE_STORE_PLAN.md`](../../_TODO/SAAS_FOUNDATION/EXERCISE_STORE_PLAN.md).
+> Ниже — исторический чек-лист 30.07; пункты либо перенесены в новый план (ES-1…ES-5), либо переосмыслены эскизом
+> владельца 05.08 (авторы, модерация, витрина, выплаты).
+
+**Execution gate (historical):** этот checklist не берётся агентом автоматически после S4-2/C4D и не входит в launch acceptance.
 Начало разрешено только после owner decisions по commerce/licensing/moderation и явной активации C5D. До этого
 исполняются только own-only + platform-base ownership пункты C4D, перечисленные в общем roadmap.
 

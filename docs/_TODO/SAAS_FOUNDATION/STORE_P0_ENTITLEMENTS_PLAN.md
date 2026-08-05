@@ -3,6 +3,8 @@
 > **Статус:** historical P0 checklist, не текущий product plan. Реализованные schema/resolver facts переиспользуются,
 > но product defaults, конечный mechanic list и `manual tariff / no billing` заменены
 > [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md).
+> **Форвард (2026-08-05):** магазин упражнений —
+> [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md). P0 entitlements к витрине/авторам не относится.
 > **Форвард-ссылка (2026-08-01, tariff-plan-triage):** актуальный текущий план тарифов/entitlements/квот —
 > [`TARIFFS_PAYMENTS_ADMIN_PLAN.md`](./TARIFFS_PAYMENTS_ADMIN_PLAN.md) §5a; биллинг/оплата — отдельно
 > [`SAAS_BILLING_PLAN.md`](./SAAS_BILLING_PLAN.md). Старая ссылка на архивированный

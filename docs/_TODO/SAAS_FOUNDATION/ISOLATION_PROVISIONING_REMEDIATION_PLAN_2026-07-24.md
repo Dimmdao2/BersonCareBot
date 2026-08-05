@@ -101,6 +101,18 @@ silent-empty; изоляция не ослаблена.
 - [⬜] **E3. Триаж `missing_principal` (webapp, 1–3/час)** — непринципалённый bootstrap-путь под strict FORCE (класс #815):
   подтвердить, что это ожидаемые bootstrap-чтения, покрыть/объяснить. · Проверка: сопоставить операции с bootstrap-роутами. · Доказательство: код-роут + событие.
 
+## G. DEV diagnostics contour (System Health / isolation telemetry)
+
+Цель: на локальной `bcb_webapp_dev` curated System Health и `saasIsolation` не ложатся из-за отсутствия operator
+login/overlays и не смешивают grant-дыры с product isolation.
+
+- [x] **G1. Канонический DEV provisioning operator + overlays + migration 0371.** `render-saas-isolation-operator-
+  provisioning.mjs` принимает `bcb_webapp_dev`; `deploy/host/provision-dev-saas-diagnostics.sh`; миграция
+  `0371_phone_bind_billing_accounts_isolation_fix_local.sql`; канон в `LOCAL_DEV_AND_AGENT_TESTING.md` §6.6.
+  Доказательство: plan `dev_diagnostics_contour_fix_3f919f34` (все todos completed); product fix `549058465`
+  (role_pool_mismatch на phone-bind/billing overview); acceptance — curated SELECT от operator, unexplained=0
+  после coverage CLI.
+
 ## F. Прод-катовер (чтобы всё это исполнилось на большом переезде)
 
 Цель: split-роли + ВСЕ гранты + оверлеи применяются детерминированно, репетируются на копии прода ДО живого.
