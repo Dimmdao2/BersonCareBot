@@ -126,9 +126,21 @@ function defaultDateRange(
   return { from: today, to: addDays(today, 13) };
 }
 
+type BookingSchedulingServiceDependencies = {
+  /**
+   * 3.2: physically refuses a `booking` write unless a passing mutation decision already ran in
+   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'booking') => void;
+};
+
 export function createBookingSchedulingService(
   port: BookingSchedulingPort,
+  dependencies: BookingSchedulingServiceDependencies = {},
 ): BookingSchedulingService {
+  function assertBookingWriteClearance(): void {
+    dependencies.assertWriteClearance?.('booking');
+  }
   return {
     resolvePublicBookingOrganization(input) {
       return port.resolvePublicBookingOrganization(input);
@@ -229,6 +241,7 @@ export function createBookingSchedulingService(
 
     createScheduleBlock(input) {
       if (!input.organizationId) throw new Error('organization_id_required');
+      assertBookingWriteClearance();
       return port.createScheduleBlock({
         organizationId: input.organizationId,
         specialistId: input.specialistId ?? null,
@@ -243,6 +256,7 @@ export function createBookingSchedulingService(
     },
 
     deleteScheduleBlock(blockId, organizationId) {
+      assertBookingWriteClearance();
       return port.deleteScheduleBlock(organizationId, blockId);
     },
 

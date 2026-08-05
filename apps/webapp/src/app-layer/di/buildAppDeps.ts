@@ -363,6 +363,7 @@ import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemory
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
+import { wrapSystemSettingsServiceWithTariffMechanicWriteClearance } from '@/app-layer/entitlements/mechanicSettingsWriteClearance';
 import {
   wrapContentPagesPortWithWriteClearance,
   wrapContentSectionsPortWithWriteClearance,
@@ -675,7 +676,9 @@ const bookingSchedulingPort =
     ? createPgBookingSchedulingPort(() => bookingEngineCorePort.getDefaultOrganizationId())
     : null;
 const bookingSchedulingService = bookingSchedulingPort
-  ? createBookingSchedulingService(bookingSchedulingPort)
+  ? createBookingSchedulingService(bookingSchedulingPort, {
+      assertWriteClearance: assertMechanicWriteClearance,
+    })
   : null;
 const bookingCalendarPort = !inMemoryRepos ? createPgBookingCalendarPort() : null;
 const bookingCalendarService =
@@ -745,6 +748,7 @@ const remindersService = createRemindersService(reminderRulesPort, {
   journal: reminderJournalPort,
   webPushSubscriptions: webPushSubscriptionsPort,
   contentSections: contentSectionsPort,
+  assertWriteClearance: assertMechanicWriteClearance,
 });
 const mediaStoragePort =
   !inMemoryRepos && isS3MediaEnabled(env) ? createS3MediaStoragePort() : mockMediaStoragePort;
@@ -782,8 +786,11 @@ const systemSettingsServiceBase = createSystemSettingsService(systemSettingsPort
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
 });
-const systemSettingsService = wrapSystemSettingsServiceWithPatientHomeWriteClearance(
-  systemSettingsServiceBase,
+const systemSettingsService = wrapSystemSettingsServiceWithTariffMechanicWriteClearance(
+  wrapSystemSettingsServiceWithPatientHomeWriteClearance(
+    systemSettingsServiceBase,
+    assertMechanicWriteClearance,
+  ),
   assertMechanicWriteClearance,
 );
 const specialistTasksPort = !inMemoryRepos
@@ -912,9 +919,10 @@ const paymentsService =
           : undefined,
         onAppointmentPaymentConfirmed,
         syncServicePrepaymentApplicable: async (serviceId, applicable) => {
+          if (!bookingEngineCorePort) return;
           const svc = await bookingEngineService.services.getService(serviceId);
           if (!svc) return;
-          await bookingEngineService.services.upsertService({
+          await bookingEngineCorePort.upsertService({
             organizationId: svc.organizationId,
             id: svc.id,
             title: svc.title,
@@ -931,6 +939,7 @@ const paymentsService =
             sortOrder: svc.sortOrder,
           });
         },
+        assertWriteClearance: assertMechanicWriteClearance,
       })
     : null;
 
@@ -1196,6 +1205,7 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
       input,
     );
   },
+  assertWriteClearance: assertMechanicWriteClearance,
 });
 const coursesService = createCoursesService({
   courses: coursesPort,

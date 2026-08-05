@@ -66,6 +66,11 @@ export function createTreatmentProgramInstanceService(deps: {
     closingInstanceId: string;
     organizationId: string;
   }) => Promise<void>;
+  /**
+   * 3.2: physically refuses a `promo` write unless a passing mutation decision already ran in
+   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'promo') => void;
 }) {
   const { instances, templates, snapshots, itemRefs, testAttempts } = deps;
   const events = deps.events;
@@ -350,6 +355,7 @@ export function createTreatmentProgramInstanceService(deps: {
       actorUserId: string | null;
       organizationId: string;
     }) {
+      deps.assertWriteClearance?.('promo');
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {
         throw new Error('Промо-программа не настроена');

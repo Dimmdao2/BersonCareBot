@@ -1,0 +1,64 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  MechanicWriteClearanceRequiredError,
+  assertMechanicWriteClearance,
+  enterWithMechanicWriteClearance,
+  runWithoutMechanicWriteClearance,
+} from '@/app-layer/entitlements/mechanicWriteClearance';
+import { wrapSystemSettingsServiceWithTariffMechanicWriteClearance } from './mechanicSettingsWriteClearance';
+import { PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY } from '@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate';
+
+function buildWrappedService() {
+  const updateSetting = vi.fn(async (..._args: unknown[]) => ({ id: 'row-1' }) as never);
+  const base = {
+    getSetting: vi.fn(async () => null),
+    updateSetting,
+    updateSettingIfUnchanged: vi.fn(async () => null),
+  };
+  const wrapped = wrapSystemSettingsServiceWithTariffMechanicWriteClearance(
+    base,
+    assertMechanicWriteClearance,
+  );
+  return { wrapped, updateSetting };
+}
+
+describe('tariff mechanic settings write clearance — 3.2 physical door', () => {
+  it('refuses booking_payment_enabled write without payments clearance', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        wrapped.updateSetting('booking_payment_enabled', 'admin', { value: true }, 'user-1', {
+          organizationId: 'org-1',
+        }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('refuses google_refresh_token write without external_calendar clearance', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        wrapped.updateSetting('google_refresh_token', 'admin', { value: 'token' }, 'user-1', {
+          organizationId: 'org-1',
+        }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('proceeds for promo template key once promo was cleared', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      enterWithMechanicWriteClearance('promo');
+      await wrapped.updateSetting(
+        PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY,
+        'admin',
+        { value: '44444444-4444-4444-8444-444444444444' },
+        'user-1',
+        { organizationId: 'org-1' },
+      );
+    });
+    expect(updateSetting).toHaveBeenCalledOnce();
+  });
+});

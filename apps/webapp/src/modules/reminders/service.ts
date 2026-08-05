@@ -22,6 +22,8 @@ import {
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
 } from './reminderIntervalBounds';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
+import { isWarmupsContentSectionReminderRule } from './warmupsReminderRuleMatch';
 
 export type { ReminderCategory, ReminderRule } from './types';
 
@@ -81,6 +83,11 @@ export type RemindersServiceDeps = {
   journal?: ReminderJournalPort;
   webPushSubscriptions?: WebPushSubscriptionsPort;
   contentSections?: ReminderIntentSectionLookup;
+  /**
+   * 3.2: physically refuses a `warmups` write on warmup-linked reminder rules unless a passing
+   * mutation decision already ran in this request.
+   */
+  assertWriteClearance?: (mechanic: 'warmups') => void;
 };
 
 function validateSchedule(s: ReminderUpdateSchedule): string | null {
@@ -181,6 +188,10 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       const rules = await port.listByPlatformUserWithObjects(platformUserId);
       const target = rules.find((r) => r.id === ruleId);
       if (!target) return { ok: false, error: 'not_found' };
+
+      if (isWarmupsContentSectionReminderRule(target, DEFAULT_WARMUPS_SECTION_SLUG)) {
+        deps?.assertWriteClearance?.('warmups');
+      }
 
       if (data.customTitle !== undefined || data.customText !== undefined) {
         // Legacy API: PATCH customTitle/customText для существующих `linkedObjectType=custom` (UI edit снят).

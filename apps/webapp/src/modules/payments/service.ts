@@ -71,6 +71,11 @@ export function createPaymentsService(deps: {
   /** Canonical tariff decision for creating new patient payment intents. Existing intents remain readable/capturable. */
   canCreatePaymentIntent?: (organizationId: string) => Promise<boolean>;
   syncServicePrepaymentApplicable?: (serviceId: string, applicable: boolean) => Promise<void>;
+  /**
+   * 3.2: physically refuses mechanic writes unless a passing mutation decision already ran in
+   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'payments' | 'booking_prepayment') => void;
 }) {
   async function loadSettings(organizationId?: string): Promise<BookingPaymentSettings> {
     return deps.config.getBookingPaymentSettings(organizationId);
@@ -301,6 +306,7 @@ export function createPaymentsService(deps: {
     },
 
     async upsertPrepaymentPolicy(input: Parameters<PaymentsPort['upsertPrepaymentPolicy']>[0]) {
+      deps.assertWriteClearance?.('booking_prepayment');
       const row = await deps.port.upsertPrepaymentPolicy(input);
       if (input.serviceId && deps.syncServicePrepaymentApplicable) {
         await deps.syncServicePrepaymentApplicable(
@@ -376,6 +382,7 @@ export function createPaymentsService(deps: {
       providerId?: string;
       returnUrl: string;
     }) {
+      deps.assertWriteClearance?.('payments');
       const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error('payments_disabled');
       const provider = resolveActiveProvider(settings, input.providerId);
@@ -440,6 +447,7 @@ export function createPaymentsService(deps: {
       providerId?: string;
       returnUrl: string;
     }) {
+      deps.assertWriteClearance?.('payments');
       const settings = await loadSettings(input.organizationId);
       if (!settings.enabled) throw new Error('payments_disabled');
       const provider = resolveActiveProvider(settings, input.providerId);

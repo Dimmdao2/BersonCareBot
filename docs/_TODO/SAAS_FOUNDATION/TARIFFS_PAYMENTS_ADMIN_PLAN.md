@@ -1077,9 +1077,21 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       src/modules/org-branding/service.mechanicWriteClearance.test.ts
       src/modules/notif-templates/notifTemplatesService.mechanicWriteClearance.test.ts
       src/modules/specialist-tasks/service.mechanicWriteClearance.test.ts` — 5 файлов / 11 тестов PASS.
-      **Ещё открыто:** `booking` (services/slots/schedule-blocks), `warmups` (`reminders.updateRule`),
-      `booking_prepayment`, `promo`, `external_calendar`, `payments`/delivery keys в admin settings PATCH;
-      намеренно без двери: `patient_card`, `patient_app`, `patient_diaries`; store-deferred;
+      **Добор 05.08 (#1069, booking + warmups + prepayment + promo + calendar + payments):**
+      `bookingEngineService.services` (`upsertService`/`deactivateService`), `bookingSchedulingService`
+      (`createScheduleBlock`/`deleteScheduleBlock`), `remindersService.updateRule` на warmup-linked rules,
+      `paymentsService` (`upsertPrepaymentPolicy` → `booking_prepayment`, `createAppointmentPaymentIntent`/
+      `createPackagePaymentIntent` → `payments`), `treatmentProgramInstance.refreshActivePromoProgramsFromDefaultTemplate`
+      (`promo`), `wrapSystemSettingsServiceWithTariffMechanicWriteClearance` на `deps.systemSettings` для
+      `booking_payment_*`, `google_*`, promo template key и clinic delivery keys. Доказательство:
+      `pnpm --dir apps/webapp exec vitest run
+      src/modules/booking-engine/service.mechanicWriteClearance.test.ts
+      src/modules/booking-scheduling/service.mechanicWriteClearance.test.ts
+      src/modules/reminders/service.mechanicWriteClearance.test.ts
+      src/modules/payments/service.mechanicWriteClearance.test.ts
+      src/modules/treatment-program/instance-service.mechanicWriteClearance.test.ts
+      src/app-layer/entitlements/mechanicSettingsWriteClearance.mechanicWriteClearance.test.ts` — 6 файлов / 15 тестов PASS.
+      **Ещё открыто:** намеренно без двери: `patient_card`, `patient_app`, `patient_diaries`; store-deferred;
       `custom_domain` (`DECLARED_NO_SURFACE`).
 - [ ] **3.3** Реестр защищённых точек перестаёт врать: ни одного исключения, прикрывающего реальную запись. Ложное
       исключение хуже отсутствующего — проверка покрытия на нём зеленеет.

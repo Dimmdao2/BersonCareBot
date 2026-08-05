@@ -68,11 +68,13 @@ function buildCatalogService() {
     getPatientAppointmentReminderPreference: vi.fn(),
   } as unknown as BookingEngineCorePort;
 
+  const upsertService = port.upsertService as ReturnType<typeof vi.fn>;
+
   const service = createBookingEngineService(port, {
     assertWriteClearance: assertMechanicWriteClearance,
     getLocationPaletteSetting: async () => ({ physicalPalette: ['#AABBCC'], online: '#112233' }),
   });
-  return { service, createPhysicalBranchWithDefaultColor };
+  return { service, createPhysicalBranchWithDefaultColor, upsertService };
 }
 
 describe('booking-engine catalog — 3.2 physical door (branches)', () => {
@@ -106,5 +108,69 @@ describe('booking-engine catalog — 3.2 physical door (branches)', () => {
       expect(branch.id).toBe('branch-1');
     });
     expect(createPhysicalBranchWithDefaultColor).toHaveBeenCalledOnce();
+  });
+});
+
+describe('booking-engine services — 3.2 physical door (booking)', () => {
+  it('refuses upsertService when no booking mutation decision ran first', async () => {
+    const { service, upsertService } = buildCatalogService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        service.services.upsertService({
+          organizationId: ORG_ID,
+          title: 'Услуга',
+          durationMinutes: 60,
+          bufferAfterMinutes: 0,
+          priceMinor: 1000,
+          isActive: true,
+          prepaymentApplicable: false,
+          usableInPackages: false,
+          onlinePaymentApplicable: false,
+          publicWidgetVisible: true,
+          adminManualOnly: false,
+          sortOrder: 10,
+        }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(upsertService).not.toHaveBeenCalled();
+  });
+
+  it('proceeds once the mutation guard cleared booking for this continuation', async () => {
+    const { service, upsertService } = buildCatalogService();
+    upsertService.mockResolvedValue({
+      id: 'service-1',
+      organizationId: ORG_ID,
+      title: 'Услуга',
+      description: null,
+      durationMinutes: 60,
+      bufferAfterMinutes: 0,
+      priceMinor: 1000,
+      isActive: true,
+      prepaymentApplicable: false,
+      usableInPackages: false,
+      onlinePaymentApplicable: false,
+      publicWidgetVisible: true,
+      adminManualOnly: false,
+      sortOrder: 10,
+    });
+    await runWithoutMechanicWriteClearance(async () => {
+      enterWithMechanicWriteClearance('booking');
+      const row = await service.services.upsertService({
+        organizationId: ORG_ID,
+        title: 'Услуга',
+        durationMinutes: 60,
+        bufferAfterMinutes: 0,
+        priceMinor: 1000,
+        isActive: true,
+        prepaymentApplicable: false,
+        usableInPackages: false,
+        onlinePaymentApplicable: false,
+        publicWidgetVisible: true,
+        adminManualOnly: false,
+        sortOrder: 10,
+      });
+      expect(row.id).toBe('service-1');
+    });
+    expect(upsertService).toHaveBeenCalledOnce();
   });
 });

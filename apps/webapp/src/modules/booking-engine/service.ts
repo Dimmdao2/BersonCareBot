@@ -45,10 +45,10 @@ function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
 type BookingEngineServiceDependencies = {
   getLocationPaletteSetting?: () => Promise<unknown>;
   /**
-   * 3.2: physically refuses a branches write unless a passing `branches` mutation decision already ran in
+   * 3.2: physically refuses a mechanic write unless a passing mutation decision already ran in
    * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
    */
-  assertWriteClearance?: (mechanic: 'branches') => void;
+  assertWriteClearance?: (mechanic: 'branches' | 'booking') => void;
 };
 
 export function createBookingEngineService(
@@ -217,7 +217,7 @@ export function createBookingEngineService(
     ...engine,
     organization: createOrganizationFacade(port),
     catalog: createCatalogFacade(port, dependencies),
-    services: createServiceAvailabilityFacade(port),
+    services: createServiceAvailabilityFacade(port, dependencies),
   };
 }
 
@@ -304,12 +304,27 @@ function createCatalogFacade(
   };
 }
 
-function createServiceAvailabilityFacade(port: ServiceAvailabilityPort) {
+function createServiceAvailabilityFacade(
+  port: ServiceAvailabilityPort,
+  dependencies: BookingEngineServiceDependencies,
+) {
+  function assertBookingWriteClearance(): void {
+    dependencies.assertWriteClearance?.('booking');
+  }
+
   return {
     listServices: port.listServices.bind(port),
     getService: port.getService.bind(port),
-    upsertService: port.upsertService.bind(port),
-    deactivateService: port.deactivateService.bind(port),
+    async upsertService(
+      input: Parameters<ServiceAvailabilityPort['upsertService']>[0],
+    ) {
+      assertBookingWriteClearance();
+      return port.upsertService(input);
+    },
+    async deactivateService(id: string) {
+      assertBookingWriteClearance();
+      return port.deactivateService(id);
+    },
     upsertSpecialistServiceAvailability: port.upsertSpecialistServiceAvailability.bind(port),
     listSpecialistServiceAvailability: port.listSpecialistServiceAvailability.bind(port),
     deactivateSpecialistServiceAvailability:
