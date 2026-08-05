@@ -46,7 +46,13 @@ vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: runWebappPgTextMock,
   runPgPoolPgText: runPgPoolPgTextMock,
   getWebappSqlFromPgClient: vi.fn(() => ({})),
-  getWebappSqlDb: vi.fn(() => ({})),
+  getWebappSqlDb: vi.fn(() => ({
+    insert: () => ({
+      values: () => ({
+        returning: async () => [{ id: OAUTH_USER_ID }],
+      }),
+    }),
+  })),
 }));
 
 vi.mock('@/infra/repos/pgCanonicalPlatformUser', () => ({
@@ -122,8 +128,6 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
 
 describe('D15b/5 MF-2 — pgOAuthUserResolve createOAuthPlatformUser dual-write', () => {
   it('mirrors FIO into user_identity after OAuth platform user insert', async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: OAUTH_USER_ID }] });
-
     const userId = await pgOAuthUserResolvePort.createOAuthPlatformUser({
       phoneNorm: null,
       display: 'Иван Иванов',
@@ -136,9 +140,7 @@ describe('D15b/5 MF-2 — pgOAuthUserResolve createOAuthPlatformUser dual-write'
     expect(syncMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID);
     expect(syncContactsMirrorMock).toHaveBeenCalledOnce();
     expect(syncContactsMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID);
-    const [insertSql] = runWebappPgTextMock.mock.calls[0] as [string];
-    expect(insertSql).toContain('INSERT INTO platform_users');
-    expect(insertSql).toContain('display_name');
+    expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 });
 

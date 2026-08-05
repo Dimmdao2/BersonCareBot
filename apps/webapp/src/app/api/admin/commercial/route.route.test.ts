@@ -23,7 +23,7 @@ vi.mock('@bersoncare/db-principal', () => ({
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createPlatformEntitlementsService } from '@/modules/org-entitlements/service';
 import { PLATFORM_OPERATIONS_DB_SOURCE } from '@/shared/security/platformOperationsPrincipal';
-import { saasTariffs } from '../../../../../db/schema/saasEntitlements';
+import { saasTariffs, saasBillingPeriods } from '../../../../../db/schema/saasEntitlements';
 import { GET, POST } from './route';
 
 const tariffId = '95200000-0000-4000-8000-000000000010';
@@ -57,9 +57,26 @@ beforeEach(() => {
     source: PLATFORM_OPERATIONS_DB_SOURCE,
   });
 
+  const selectableBillingPeriod = {
+    code: 'month',
+    label: 'Month',
+    months: 1,
+    isSelectable: true,
+    sortOrder: 0,
+    createdAt: '2026-07-30T00:00:00.000Z',
+    updatedAt: '2026-07-30T00:00:00.000Z',
+  };
+  const billingPeriodRows = () => [selectableBillingPeriod];
+  const billingPeriodSelect = () => ({
+    where: () => ({
+      limit: async () => billingPeriodRows(),
+    }),
+    orderBy: async () => billingPeriodRows(),
+  });
   const db = {
     select: () => ({
       from: (table: unknown) => {
+        if (table === saasBillingPeriods) return billingPeriodSelect();
         if (table !== saasTariffs) throw new Error('unexpected_select_table');
         return {
           orderBy: async () => (storedTariff ? [storedTariff] : []),
@@ -69,6 +86,19 @@ beforeEach(() => {
     transaction: async <T>(callback: (tx: unknown) => Promise<T>) => callback(tx),
   };
   const tx = {
+    select: () => ({
+      from: (table: unknown) => {
+        if (table === saasBillingPeriods) return billingPeriodSelect();
+        if (table !== saasTariffs) throw new Error('unexpected_tx_select_table');
+        return {
+          where: () => ({
+            limit: () => ({
+              for: async () => (storedTariff ? [storedTariff] : []),
+            }),
+          }),
+        };
+      },
+    }),
     insert: (table: unknown) => {
       if (table !== saasTariffs) {
         return { values: async () => undefined };
@@ -97,6 +127,15 @@ beforeEach(() => {
     listOrganizations: async () => [],
     getTrialPolicy: async () => null,
     getRegistrationTariffPolicy: async () => ({ tariffId: null }),
+    getPaidPeriodPolicy: async () => null,
+    listBillingPeriods: async () => [
+      {
+        code: selectableBillingPeriod.code,
+        label: selectableBillingPeriod.label,
+        months: selectableBillingPeriod.months,
+        isSelectable: selectableBillingPeriod.isSelectable,
+      },
+    ],
   });
   fakes.buildAppDeps.mockReturnValue({ platformEntitlements: service });
 });
