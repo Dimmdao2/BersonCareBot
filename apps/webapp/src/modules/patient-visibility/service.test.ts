@@ -20,7 +20,8 @@ import {
   resetInMemoryPatientVisibilityLinksForTests,
 } from '@/infra/repos/inMemoryPatientVisibilityLinks';
 import type { PatientVisibilityActor } from './ports';
-import { buildPatientVisibilityPredicate, createPatientVisibilityService } from './service';
+import { buildPatientVisibilityPredicate } from '@/infra/repos/patientVisibilityPredicateSql';
+import { createPatientVisibilityService } from './service';
 
 const ORG_A = '11111111-1111-4111-8111-111111111111';
 const ORG_B = '22222222-2222-4222-8222-222222222222';
