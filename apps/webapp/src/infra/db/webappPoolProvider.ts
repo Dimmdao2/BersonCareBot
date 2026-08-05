@@ -7,6 +7,7 @@ import {
   clearDbPrincipalFromConnection,
   type DbPrincipal,
   getCurrentDbPrincipal,
+  isWebappLockedInfraCronSource,
 } from '@bersoncare/db-principal';
 import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
 import { classifyPostgresIsolationDenial } from '@/infra/db/saasIsolationDbFailureReporting';
@@ -151,7 +152,8 @@ function choosePoolKindForPrincipal(
     principal?.kind === 'organization' ||
     principal?.kind === 'staff' ||
     principal?.kind === 'clinicBilling' ||
-    principal?.kind === 'platform'
+    principal?.kind === 'platform' ||
+    (principal?.kind === 'infra' && isWebappLockedInfraCronSource(principal.source))
       ? 'staff'
       : 'nonstaff';
 

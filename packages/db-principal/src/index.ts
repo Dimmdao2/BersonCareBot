@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHmac, randomUUID } from 'node:crypto';
+import { isWebappLockedInfraCronSource } from './webappLockedInfraCronSources.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /**
@@ -759,7 +760,10 @@ export function assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
   if (!principal) {
     throw new Error('DB principal context is required before scoped DB access in locked mode');
   }
-  if (principal.kind === 'infra') {
+  if (
+    principal.kind === 'infra' &&
+    !isWebappLockedInfraCronSource(principal.source)
+  ) {
     throw new Error(
       'DB infra principal is not allowed to use the webapp request DB pool in locked mode',
     );
@@ -1023,6 +1027,13 @@ async function applySignedDbPrincipal(
     await releaseSignedDbPrincipal(client, options);
     console.warn('DB principal context is missing before scoped DB access in shadow mode');
     return false;
+  }
+
+  if (principal.kind === 'infra' && isWebappLockedInfraCronSource(principal.source)) {
+    await client.query('RESET ROLE');
+    await client.query(`SET ROLE ${DB_PRINCIPAL_STAFF_ROLE}`);
+    await clearDbPrincipalConfig(client, 'connection');
+    return true;
   }
 
   if (principal.kind === 'bootstrap' || principal.kind === 'infra') {
@@ -1388,3 +1399,8 @@ export function createSaasIsolationBackgroundReporter(input: {
   report.inspectTransportStatus = inspectTransportStatus;
   return report;
 }
+
+export {
+  WEBAPP_LOCKED_INFRA_CRON_SOURCES,
+  isWebappLockedInfraCronSource,
+} from './webappLockedInfraCronSources.js';

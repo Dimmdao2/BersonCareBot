@@ -56,14 +56,40 @@ Raw JSON (same numbers): captured to `/tmp/bcb-doctor-baseline.json` on host dur
 
 ---
 
-## 3. Background noise (not fixed in Stage 1)
+## 3. Background noise (ops slice 2026-08-05)
 
-Integrator cron on TEST emits ~every 5s:
+Integrator scheduler on TEST (~5s poll) was hitting signed webapp wakes and polluting
+`/var/log/nginx/bersoncare-test-webapp-access.log`.
+
+| Wake | Symptom | Root cause | Fix (feat branch) |
+|------|---------|------------|-------------------|
+| `POST /api/integrator/patient-reminders/materialize-wake` | **403** `csrf_origin_forbidden` | Path missing from `INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS` — integrator M2M POST classified as browser mutation | Added path to `csrfOrigin.ts` |
+| `POST /api/integrator/operator-health/digest-wake` | **500** `internal_error` | `enterWithDbInfraPrincipal` on webapp request pool with `DB_PRINCIPAL_CONTEXT_MODE=locked` (TEST `webapp.test`) — infra principal fail-closed by design until cron sources allowlisted | `WEBAPP_LOCKED_INFRA_CRON_SOURCES` in `@bersoncare/db-principal`: allowlisted infra cron → staff pool + `SET ROLE app_staff` |
+
+M2M signature and `INTEGRATOR_SHARED_SECRET` parity on TEST were already correct (`match=yes` on host). Scheduler retries digest wake every poll when `runFixedCadenceWake` throws because the bucket never completes.
+
+**Post-deploy verify (loopback, secrets from `/opt/env/bersoncarebot/webapp.test`):**
+
+```bash
+# digest-wake — expect 200 {"ok":true,...} not 500
+node -e '...signed POST to http://127.0.0.1:6300/api/integrator/operator-health/digest-wake...'
+
+# materialize-wake — expect 200/400 (org payload), not 403 csrf
+node -e '...signed POST to http://127.0.0.1:6300/api/integrator/patient-reminders/materialize-wake...'
+```
+
+Evidence tests: `packages/db-principal/test/webapp-locked-infra-cron.test.mjs`, `apps/webapp/src/middleware/csrfOrigin.test.ts`.
+
+---
+
+## 3a. Background noise (Stage 1 baseline — superseded by §3)
+
+Integrator cron on TEST emitted ~every 5s (pre-fix):
 
 - `POST /api/integrator/patient-reminders/materialize-wake` → **403**
 - `POST /api/integrator/operator-health/digest-wake` → **500**
 
-These hit the same nginx vhost (webapp proxy) and pollute `/var/log/nginx/bersoncare-test-webapp-access.log` tail (~44 lines in window during capture). Treat as measurement noise until ops slice §6 of plan.
+These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/bersoncare-test-webapp-access.log` tail (~44 lines in window during capture). Treat as measurement noise until ops slice §6 of plan.
 
 ---
 

@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal,
+  applyDbPrincipalToConnection,
+  createDbInfraPrincipal,
+  isWebappLockedInfraCronSource,
+} from '../dist/index.js';
+
+test('recognizes signed scheduler digest wake source', () => {
+  assert.equal(
+    isWebappLockedInfraCronSource('api/integrator/operator-health/digest-wake:POST'),
+    true,
+  );
+});
+
+test('allows allowlisted infra principal on webapp request pool in locked mode', () => {
+  const principal = createDbInfraPrincipal({
+    source: 'api/integrator/operator-health/digest-wake:POST',
+  });
+  assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principal, { mode: 'locked' });
+});
+
+test('still rejects unknown infra principal on webapp request pool in locked mode', () => {
+  const principal = createDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' });
+  assert.throws(
+    () =>
+      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principal, {
+        mode: 'locked',
+      }),
+    /not allowed to use the webapp request DB pool in locked mode/,
+  );
+});
+
+test('installs app_staff for allowlisted infra cron in locked mode', async () => {
+  const queries = [];
+  const client = {
+    query: async (sql) => {
+      queries.push(sql);
+      return { rows: [] };
+    },
+  };
+  const principal = createDbInfraPrincipal({
+    source: 'api/integrator/operator-health/digest-wake:POST',
+  });
+  const applied = await applyDbPrincipalToConnection(client, principal, {
+    mode: 'locked',
+    signer: { secret: 'test-signing-secret-32chars-min' },
+  });
+  assert.equal(applied, true);
+  assert.ok(queries.some((sql) => sql === 'RESET ROLE'));
+  assert.ok(queries.some((sql) => sql === 'SET ROLE app_staff'));
+});
