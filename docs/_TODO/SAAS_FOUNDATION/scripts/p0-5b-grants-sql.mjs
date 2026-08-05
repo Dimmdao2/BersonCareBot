@@ -77,11 +77,15 @@ const migrationOnlyTables = new Set([
 //   would bypass their reviewed SECURITY DEFINER boundaries.
 // - saas_registration_tariff_policy (0291) is walled the same way as its sister saas_trial_policy
 //   below: RLS FORCE with no app_staff policy, owned entirely by app_platform_settings.
+// - saas_paid_period_policy / saas_billing_periods (0376): c5a-platform-operations-runtime.sql owns
+//   app_platform_settings DML and explicit REVOKE FROM app_staff; P0.5b must not re-grant them.
 const overlayManagedAppStaffTables = new Set([
   'public.organization_member_invites',
   'public.patient_invites',
+  'public.saas_billing_periods',
   'public.saas_org_entitlement_overrides',
   'public.saas_organization_trials',
+  'public.saas_paid_period_policy',
   'public.saas_registration_tariff_policy',
   'public.saas_tariffs',
   'public.saas_trial_policy',
