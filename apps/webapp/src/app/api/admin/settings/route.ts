@@ -316,7 +316,7 @@ const PROMO_ENTITLEMENT_SETTING_KEYS = new Set([
   'patient_default_promo_treatment_program_template_id',
 ]);
 
-const CUSTOM_DOMAIN_ENTITLEMENT_SETTING_KEYS = new Set([ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]);
+const CUSTOM_DOMAIN_ENTITLEMENT_SETTING_KEYS = new Set<string>([ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]);
 
 function redactWebPushVapidForAudit(envelope: unknown): unknown {
   if (envelope === null || typeof envelope !== 'object') return envelope;

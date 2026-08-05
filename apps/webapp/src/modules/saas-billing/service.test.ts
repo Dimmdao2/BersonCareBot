@@ -234,13 +234,17 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
         }) as never,
         runManualAssignmentTransaction: (work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<unknown>) => work({
           loadManualAssignmentState: async () => ({
-            organization: { tariffId: 'tariff-current' }, activeTrial: null,
+            organization: { tariffId: 'tariff-current' },
+            organizationTrialConsumed: true,
+            activeTrial: null,
             manualSaasBillingSubscription: {
               id: 'subscription', tariffId: 'tariff-current', status: 'active',
               currentPeriodStartsAt: '2026-08-01T00:00:00.000Z', currentPeriodEndsAt: '2026-09-01T00:00:00.000Z', pendingTariffId: null,
             },
           }),
           requireActiveTariff: async () => ({ billingPeriod: 'month' as const }),
+          getActiveTrialPolicy: async () => null,
+          startOrganizationTrial: vi.fn(),
           setManualSaasBillingSubscription,
           updateOrganizationTariffAssignment: vi.fn(), endActiveTrial: vi.fn(), appendManualAssignmentAudit,
         }),
@@ -289,13 +293,17 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
         }) as never,
         runManualAssignmentTransaction: (work: (transaction: SaasBillingManualAssignmentTransactionPort) => Promise<unknown>) => work({
           loadManualAssignmentState: async () => ({
-            organization: { tariffId: 'tariff-current' }, activeTrial: null,
+            organization: { tariffId: 'tariff-current' },
+            organizationTrialConsumed: true,
+            activeTrial: null,
             manualSaasBillingSubscription: {
               id: 'subscription', tariffId: 'tariff-current', status: 'active',
               currentPeriodStartsAt: '2026-08-01T00:00:00.000Z', currentPeriodEndsAt: '2026-09-01T00:00:00.000Z', pendingTariffId: 'tariff-small',
             },
           }),
           requireActiveTariff: async () => ({ billingPeriod: 'month' as const }),
+          getActiveTrialPolicy: async () => null,
+          startOrganizationTrial: vi.fn(),
           setManualSaasBillingSubscription,
           updateOrganizationTariffAssignment: vi.fn(), endActiveTrial: vi.fn(), appendManualAssignmentAudit,
         }),
@@ -1304,6 +1312,7 @@ function assignmentTransactionForAcceptance(
   const transaction = {
     loadManualAssignmentState: async () => ({
       organization: { tariffId: current.tariffId },
+      organizationTrialConsumed: true,
       activeTrial: null,
       manualSaasBillingSubscription: current,
     }),
