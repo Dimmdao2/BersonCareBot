@@ -186,6 +186,35 @@ export const platformUsers = pgTable(
   ],
 );
 
+/** D15b/5: FIO identity slice (dual-write phase; platform_users columns remain during cutover). */
+export const userIdentity = pgTable(
+  'user_identity',
+  {
+    platformUserId: uuid('platform_user_id').primaryKey().notNull(),
+    firstName: text('first_name'),
+    lastName: text('last_name'),
+    patronymic: text('patronymic'),
+    displayName: text('display_name').default('').notNull(),
+    birthDate: date('birth_date'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_user_identity_birth_date')
+      .using('btree', table.birthDate.asc().nullsLast().op('date_ops'))
+      .where(sql`(birth_date IS NOT NULL)`),
+    foreignKey({
+      columns: [table.platformUserId],
+      foreignColumns: [platformUsers.id],
+      name: 'user_identity_platform_user_id_fkey',
+    }).onDelete('cascade'),
+  ],
+);
+
 /** Password login credentials (OAuth-only users have no row). */
 export const userPasswordCredentials = pgTable(
   'user_password_credentials',

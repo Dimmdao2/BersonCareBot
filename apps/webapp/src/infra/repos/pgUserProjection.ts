@@ -10,6 +10,7 @@ import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
 import {
   upsertIdentityProjection,
   collapseIdentityProjectionCandidates,
+  syncUserIdentityFioMirror,
 } from '@bersoncare/platform-merge';
 import {
   TrustedPatientPhoneSource,
@@ -312,6 +313,10 @@ export const pgUserProjectionPort: UserProjectionPort = {
             newPhoneNormalized: pn,
             source: 'admin',
           });
+        }
+
+        if (patch.firstName !== undefined || patch.lastName !== undefined) {
+          await syncUserIdentityFioMirror(client, platformUserId);
         }
 
         return { ok: true as const };

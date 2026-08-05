@@ -79,5 +79,7 @@ export {
   seedChannelPreferencesDefaultsForProjection,
 } from './identityProjectionWrite.js';
 
+export { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
+
 export type { PhoneHistorySyncSource } from './phoneHistorySync.js';
 export { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';

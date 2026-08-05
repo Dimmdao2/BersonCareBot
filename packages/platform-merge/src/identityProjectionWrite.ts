@@ -19,6 +19,7 @@ import {
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
 import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
+import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 
 /** Channels for which a fresh binding seeds opted-in broadcast defaults. */
 const CHANNEL_PREFERENCES_SEED_CHANNELS = new Set(['telegram', 'max', 'sms']);
@@ -215,6 +216,7 @@ export async function insertIdentityProjection(
       [id, phoneNormalized],
     );
   }
+  await syncUserIdentityFioMirror(db, id);
   return id;
 }
 
@@ -293,6 +295,7 @@ export async function enrichIdentityProjection(
       platformUserId,
     ]);
   }
+  await syncUserIdentityFioMirror(db, platformUserId);
 }
 
 /** Low-level channel-binding upsert — see {@link insertIdentityProjection} for why this is exported. */

@@ -39,3 +39,4 @@ GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_identity_bootstrap;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_identity_bootstrap;
 
 GRANT SELECT, INSERT, UPDATE ON TABLE public.platform_users TO app_identity_bootstrap;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.user_identity TO app_identity_bootstrap;

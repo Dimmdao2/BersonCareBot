@@ -2612,6 +2612,13 @@
       "when": 1793539230119,
       "tag": "0376_tariff_billing_periods_post_paid_policy_local",
       "breakpoints": true
+    },
+    {
+      "idx": 373,
+      "version": "7",
+      "when": 1793539230120,
+      "tag": "0377_user_identity_d15b5_local",
+      "breakpoints": true
     }
   ]
 }

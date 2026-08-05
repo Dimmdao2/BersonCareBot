@@ -101,17 +101,29 @@ async function loadSessionIdentityUser(
   const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
     options.includeSecurityFactor
-      ? `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+      ? `SELECT pu.id,
+                COALESCE(ui.display_name, pu.display_name) AS display_name,
+                COALESCE(ui.first_name, pu.first_name) AS first_name,
+                COALESCE(ui.last_name, pu.last_name) AS last_name,
+                COALESCE(ui.patronymic, pu.patronymic) AS patronymic,
+                pu.role, pu.phone_normalized,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived,
                 COALESCE(sss.factor_required, false) AS security_factor_required
          FROM platform_users pu
+         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
          LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
          WHERE pu.id = $1`
-      : `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+      : `SELECT pu.id,
+                COALESCE(ui.display_name, pu.display_name) AS display_name,
+                COALESCE(ui.first_name, pu.first_name) AS first_name,
+                COALESCE(ui.last_name, pu.last_name) AS last_name,
+                COALESCE(ui.patronymic, pu.patronymic) AS patronymic,
+                pu.role, pu.phone_normalized,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived
          FROM platform_users pu
+         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
          WHERE pu.id = $1`,
     [canonicalId],
   );
