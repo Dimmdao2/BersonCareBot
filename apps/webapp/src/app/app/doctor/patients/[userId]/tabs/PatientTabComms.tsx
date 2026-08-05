@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { DoctorClientEmbeddedChat } from '@/app/app/doctor/clients/DoctorClientEmbeddedChat';
 import { DoctorProgramInstanceDiscussionDialog } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramInstanceDiscussionDialog';
 import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import { pickOpenTreatmentProgramInstance } from '../../treatmentProgramInstanceOpen';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
@@ -36,7 +37,7 @@ const CHAT_CARD_HEIGHT = 'h-[min(65vh,580px)]';
 export function PatientTabComms({ userId, initialProgramInstances }: Props) {
   const ssrActive =
     initialProgramInstances != null
-      ? (initialProgramInstances.find((i) => i.status !== 'completed') ?? null)
+      ? (pickOpenTreatmentProgramInstance(initialProgramInstances) ?? null)
       : undefined;
   const [activeInstance, setActiveInstance] = useState<TreatmentProgramInstanceSummary | null>(
     ssrActive !== undefined ? ssrActive : null,
@@ -56,7 +57,7 @@ export function PatientTabComms({ userId, initialProgramInstances }: Props) {
       .then((data: { ok?: boolean; items?: TreatmentProgramInstanceSummary[] }) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.items)) {
-          const active = data.items.find((i) => i.status !== 'completed') ?? null;
+          const active = pickOpenTreatmentProgramInstance(data.items) ?? null;
           setActiveInstance(active);
         }
       })

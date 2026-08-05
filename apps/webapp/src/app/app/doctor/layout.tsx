@@ -1,213 +1,46 @@
 /**
- * Layout раздела кабинета специалиста (/app/doctor).
- * Шапка на всю ширину; на md+ под ней слева меню разделов (`DoctorAdminSidebar`), справа контент.
+ * /app/doctor/layout.tsx — thin shell: delegates request-local bootstrap to loadDoctorWorkspaceShell.
  */
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import '../../styles/doctor.css';
-import {
-  entitlementGraceWarningMessages,
-  getMechanicSurfaceVisibility,
-} from '@/app-layer/guards/requireEntitlement';
-import { cabinetGraceWarningMessages, cabinetLifecycleWarningMessages } from '@/app-layer/guards/cabinetAccessGate';
-import {
-  ACCESS_NOTIFICATION_VARIABLES,
-  accessNotificationBillingVariables,
-  organizationHasPaidSinceTrial,
-} from '@/modules/org-entitlements/accessNotifications';
-import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { getCurrentSession } from '@/modules/auth/service';
-import {
-  hasLaunchCapability,
-  resolveLaunchCapabilities,
-} from '@/app-layer/guards/workspaceCapabilities';
 import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
+import { loadDoctorWorkspaceShell } from './loadDoctorWorkspaceShell';
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 
-function getValueJson<T>(valueJson: unknown, fallback: T): T {
-  if (
-    valueJson !== null &&
-    typeof valueJson === 'object' &&
-    'value' in (valueJson as Record<string, unknown>)
-  ) {
-    return (valueJson as Record<string, unknown>).value as T;
-  }
-  return fallback;
-}
-
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
-  // Platform URLs live under `/app/admin/**` (renamed from `/app/platform/**` by owner ruling
-  // 2026-07-26; see doctorRouteRedirects.ts) and, until slices 5-7 finish moving them, still
-  // partly under `(global-admin)/doctor/**` — both outside this clinical layout. Keep the
-  // historical `/app/doctor` entry as a non-looping platform landing rather than allowing a
-  // platform principal to render a clinical child beneath this shell.
-  const currentSession = await getCurrentSession();
-  if (
-    currentSession &&
-    hasLaunchCapability(
-      resolveLaunchCapabilities({
-        sessionRole: currentSession.user.role,
-      }),
-      'platform.operations',
-    )
-  ) {
-    redirect('/app/admin/system-health');
-  }
-  const workspaceAccess = await requireOrganizationWorkspaceContext();
-  const session = workspaceAccess.session;
+  const shell = await loadDoctorWorkspaceShell();
+  const { session, workspaceAccess } = shell;
+
   if (!workspaceAccess.canAccessClinicalWorkspace && !workspaceAccess.canManageOrganization) {
-    // Only a self-signup owner with the already-provisioned specialist card can be in the
-    // progressive 2FA-first-run state. Let that request reach the root onboarding page; every
-    // clinical child has its own workspace guard.
-    if (workspaceAccess.membershipRole === 'owner' && workspaceAccess.specialistId !== null) {
+    if (shell.canRenderClinicalChildren) {
       return children;
     }
     redirect('/app/settings?tab=organization');
   }
-  const deps = buildAppDeps();
-  const [organization, doctorSettings, effectiveBranding] = await Promise.all([
-    deps.bookingEngine
-      ? deps.bookingEngine.organization.getOrganization(workspaceAccess.organizationId)
-      : Promise.resolve(null),
-    deps.systemSettings.listSettingsByScope('doctor', {
-      organizationId: workspaceAccess.organizationId,
-    }),
-    // UX-05 B2: the staff shell brand mark is resolved server-side only — the client never
-    // supplies the effective logo URL or organization name (BRANDING_DOMAIN_CONTRACT.md §3.6).
-    // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
-    deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
-  ]);
-  const [
-    coursesVisibility,
-    promoVisibility,
-    cmsVisibility,
-    patientHomeTodayVisibility,
-    entitlementSnapshot,
-    cabinetAccess,
-    lifecycleAnchors,
-  ] =
-    await Promise.all([
-      getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
-      getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
-      getMechanicSurfaceVisibility(workspaceAccess, 'cms_pages'),
-      getMechanicSurfaceVisibility(workspaceAccess, 'patient_home_today'),
-      deps.orgEntitlements.getSnapshot(workspaceAccess.organizationId).catch(() => null),
-      // The cabinet is its own ladder subject (§5a/2.1a). Reaching this layout already means entry is
-      // open, so the only thing left to show is the `терпение` countdown for the cabinet itself.
-      deps.orgEntitlements.resolveCabinetAccess(workspaceAccess.organizationId).catch(() => null),
-      deps.orgEntitlements
-        .prepareLifecycleNotificationContext(workspaceAccess.organizationId)
-        .catch(() => null),
-    ]);
-  // The workspace guard installs the ordinary staff principal. Billing tables require the narrower
-  // own-clinic billing principal, and this role switch must not overlap the entitlement reads above.
-  // Unavailable billing data still degrades to the owner's visible placeholders below.
-  const billingOverview = await runWithDbClinicBillingPrincipal(
-    {
-      organizationId: workspaceAccess.organizationId,
-      platformUserId: session.user.userId,
-      source: 'doctor-layout-billing-warning-read',
-    },
-    () => deps.saasBilling.getOrganizationBillingOverview(workspaceAccess.organizationId),
-  ).catch(() => null);
-  const tariffName = entitlementSnapshot?.tariff?.name ?? null;
-  const coursesEnabled = coursesVisibility.specialistNavigation;
-  const promoEnabled = promoVisibility.specialistNavigation;
-  const cmsEnabled = cmsVisibility.specialistNavigation;
-  const patientHomeTodayEnabled = patientHomeTodayVisibility.specialistNavigation;
-  // §5a item 2.6a — the banner shows the OWNER's notification texts, rendered from his ladder.
-  // The variable map is open: a placeholder this shell cannot fill stays visible instead of
-  // silently blanking, so an unsupplied variable is a defect the owner can see in his own text.
-  // §T3 — `satisfies` pins these keys to `ACCESS_NOTIFICATION_VARIABLES`, the same list the admin
-  // editor shows as a hint, so the two can never drift apart.
-  const accessNotificationVariables = {
-    клиника: organization?.title ?? '',
-    тариф: tariffName ?? '',
-  } satisfies Partial<Record<(typeof ACCESS_NOTIFICATION_VARIABLES)[number]['name'], string>>;
-  const systemNotifications = entitlementSnapshot?.tariff?.systemAccessPolicy?.notifications ?? [];
-  const hasPaidSinceTrial = organizationHasPaidSinceTrial(
-    lifecycleAnchors?.trialEndsAt ?? null,
-    billingOverview,
-  );
-  // One system-level ladder produces the same text for every mechanic it covers, so identical
-  // lines are collapsed — the owner wrote one notification, he sees it once.
-  const accessWarnings = [
-    ...(cabinetAccess?.warning
-      ? cabinetGraceWarningMessages(cabinetAccess.warning, {
-          ...accessNotificationVariables,
-          ...accessNotificationBillingVariables(cabinetAccess.warning, billingOverview),
-        })
-      : []),
-    ...cabinetLifecycleWarningMessages({
-      notifications: systemNotifications,
-      anchors: lifecycleAnchors ?? {
-        registeredAt: null,
-        trialStartedAt: null,
-        trialEndsAt: null,
-        discountEndsAt: null,
-      },
-      hasPaidSinceTrial,
-      variables: accessNotificationVariables,
-    }),
-    ...new Set(
-      [coursesVisibility, promoVisibility, cmsVisibility].flatMap((visibility) =>
-        visibility.warning
-          ? entitlementGraceWarningMessages(visibility.warning, {
-              ...accessNotificationVariables,
-              ...accessNotificationBillingVariables(visibility.warning, billingOverview),
-            })
-          : [],
-      ),
-    ),
-  ];
-  const shellBrand = {
-    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'BersonCare',
-    logoUrl: effectiveBranding?.paid.logoUrl ?? null,
-  };
-  const workspaceContext: DoctorWorkspaceContext = {
-    organizationId: workspaceAccess.organizationId,
-    organizationName: organization?.title ?? null,
-    membershipId: workspaceAccess.membershipId,
-    membershipRole: workspaceAccess.membershipRole,
-    specialistId: workspaceAccess.specialistId,
-    canManageOrganization: workspaceAccess.canManageOrganization,
-    canManageAllSpecialists: workspaceAccess.canManageAllSpecialists,
-    canAccessClinicalWorkspace: workspaceAccess.canAccessClinicalWorkspace,
-    doctorScreensDisabled: workspaceAccess.doctorScreensDisabled,
-    selectedSpecialistId: workspaceAccess.canManageAllSpecialists
-      ? null
-      : workspaceAccess.specialistId,
-  };
-  // P0.11.3: patient_label is PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
-  const patientLabel = getValueJson(
-    doctorSettings.find((x) => x.key === 'patient_label')?.valueJson,
-    'пациент',
-  );
+
   return (
     <DoctorWorkspaceShell
       isPlatformOperator={session.user.role === 'admin'}
       userRole={session.user.role}
       userDisplayName={session.user.displayName}
-      patientLabel={String(patientLabel)}
-      workspaceContext={workspaceContext}
-      coursesEnabled={coursesEnabled}
-      promoEnabled={promoEnabled}
-      cmsEnabled={cmsEnabled}
-      patientHomeTodayEnabled={patientHomeTodayEnabled}
-      brand={shellBrand}
+      patientLabel={shell.patientLabel}
+      workspaceContext={shell.workspaceContext}
+      coursesEnabled={shell.coursesEnabled}
+      promoEnabled={shell.promoEnabled}
+      cmsEnabled={shell.cmsEnabled}
+      patientHomeTodayEnabled={shell.patientHomeTodayEnabled}
+      brand={shell.shellBrand}
     >
-      {accessWarnings.length > 0 ? (
+      {shell.accessWarnings.length > 0 ? (
         <div
           className="m-3 space-y-1 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
           role="alert"
         >
-          {accessWarnings.map((warning) => (
+          {shell.accessWarnings.map((warning) => (
             <p key={warning}>{warning}</p>
           ))}
         </div>

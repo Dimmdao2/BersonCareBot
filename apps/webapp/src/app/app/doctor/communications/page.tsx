@@ -21,33 +21,38 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
 
   const deps = buildAppDeps();
 
-  const [badges, audience, displayIana] = await Promise.all([
+  const [badges, displayIana] = await Promise.all([
     loadDoctorCommunicationsBadges(deps),
-    loadDoctorAnalyticsAudience(),
     getAppDisplayTimeZone(),
   ]);
 
-  const excludedUserIds = audience?.excludedUserIds ?? [];
+  let commentsData: Awaited<ReturnType<typeof loadDoctorExerciseCommentsForTab>> | null = null;
+  let patients: Awaited<ReturnType<typeof loadDoctorCommentPatients>> | null = null;
 
-  const [commentsData, patients] = await Promise.all([
-    withDoctorWorkspacePrincipal(workspace, () =>
-      loadDoctorExerciseCommentsForTab(deps, {
-        viewerUserId: session.user.userId,
-        organizationId: workspace.organizationId,
-        excludedUserIds,
-      }),
-    ),
-    withDoctorWorkspacePrincipal(workspace, () =>
-      loadDoctorCommentPatients(
-        {
-          doctorClientsPort: deps.doctorClientsPort,
-          programItemDiscussion: deps.programItemDiscussion,
-        },
-        { viewerUserId: session.user.userId, organizationId: workspace.organizationId },
-        { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
+  if (initialTab === 'comments') {
+    const audience = await loadDoctorAnalyticsAudience();
+    const excludedUserIds = audience?.excludedUserIds ?? [];
+
+    [commentsData, patients] = await Promise.all([
+      withDoctorWorkspacePrincipal(workspace, () =>
+        loadDoctorExerciseCommentsForTab(deps, {
+          viewerUserId: session.user.userId,
+          organizationId: workspace.organizationId,
+          excludedUserIds,
+        }),
       ),
-    ),
-  ]);
+      withDoctorWorkspacePrincipal(workspace, () =>
+        loadDoctorCommentPatients(
+          {
+            doctorClientsPort: deps.doctorClientsPort,
+            programItemDiscussion: deps.programItemDiscussion,
+          },
+          { viewerUserId: session.user.userId, organizationId: workspace.organizationId },
+          { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
+        ),
+      ),
+    ]);
+  }
 
   return (
     <DoctorCommunicationsShell
@@ -55,13 +60,17 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
       mailingsMutationAvailable={mailingsMutationAvailability.available}
       badges={badges}
       displayIana={displayIana}
-      initialTabData={{
-        comments: {
-          feed: commentsData,
-          patients,
-          displayIana,
-        },
-      }}
+      initialTabData={
+        initialTab === 'comments' && commentsData
+          ? {
+              comments: {
+                feed: commentsData,
+                patients,
+                displayIana,
+              },
+            }
+          : undefined
+      }
     />
   );
 }

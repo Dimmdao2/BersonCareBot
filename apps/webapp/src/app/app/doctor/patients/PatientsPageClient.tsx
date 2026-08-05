@@ -745,6 +745,7 @@ function PatientsContent({
   onSearchInput,
   onMobileFiltersOpenChange,
 }: PatientsContentProps) {
+  const router = useRouter();
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
   const activeCategory: ClientCategory = 'all';
@@ -980,17 +981,21 @@ function PatientsContent({
               <ul
                 ref={listRef}
                 id="doctor-patients-list"
-                className={`${doctorDnaFlatListClass} ${doctorDnaFlatListInsetClass} min-h-0 flex-1 overflow-y-auto`}
+                className={`${doctorDnaFlatListClass} ${doctorDnaFlatListInsetClass} min-h-0 flex-1 overflow-y-auto [content-visibility:auto]`}
                 onScroll={(event) => onListScroll(event.currentTarget.scrollTop)}
               >
                 {filtered.map((c, index) => {
                   const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
                   const programOrSupervision = c.isOnSupport === true || c.activeTreatmentProgram;
+                  const cardHref = patientCardHrefWithReturnTo(c.userId, workspaceState);
                   return (
                     <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
                       <Link
                         id={`doctor-patients-card-${c.userId}`}
-                        href={patientCardHrefWithReturnTo(c.userId, workspaceState)}
+                        href={cardHref}
+                        prefetch={false}
+                        onMouseEnter={() => router.prefetch(cardHref)}
+                        onFocus={() => router.prefetch(cardHref)}
                         className={cn(
                           buttonVariants({ variant: 'ghost' }),
                           doctorDnaFlatListRowClass,

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 import { NextResponse } from 'next/server';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import {
@@ -27,6 +28,7 @@ import {
   type LaunchCapability,
 } from './workspaceCapabilities';
 import { isCabinetEntryBlocked } from './cabinetAccessGate';
+import { resolveCabinetAccessRequestLocal } from './cabinetAccessRequestLocal';
 
 export async function requireSession(returnPath?: string): Promise<AppSession> {
   const session = await getCurrentSession();
@@ -412,49 +414,50 @@ type CabinetGateOptions = { allowCabinetRecovery?: boolean };
 
 async function cabinetEntryIsBlocked(organizationId: string): Promise<boolean> {
   try {
-    return isCabinetEntryBlocked(
-      await buildAppDeps().orgEntitlements.resolveCabinetAccess(organizationId),
-    );
+    return isCabinetEntryBlocked(await resolveCabinetAccessRequestLocal(organizationId));
   } catch {
     // The cabinet door is a security/commercial boundary. An unavailable resolver cannot open it.
     return true;
   }
 }
 
+const requireOrganizationWorkspaceContextRequestLocal = cache(
+  async (allowCabinetRecovery: boolean): Promise<DoctorWorkspaceAccessContext> => {
+    ensureDbPrincipalContext({ source: 'requireOrganizationWorkspaceContext:pending' });
+    const session = await requireSession();
+    if (!canAccessDoctor(session.user.role)) {
+      redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+    }
+    const accountCapabilities = resolveLaunchCapabilities({
+      sessionRole: session.user.role,
+    });
+    if (hasLaunchCapability(accountCapabilities, 'platform.operations')) {
+      redirect('/app/admin/system-health');
+    }
+    const resolved = await resolveDoctorWorkspaceAccessContext(session);
+    if (!resolved.ok) {
+      // A staff account without an active organization still owns its personal account.
+      redirect(routePaths.account);
+    }
+    if (
+      !contextHasCapability(resolved.ctx, 'organization.management') &&
+      !contextHasCapability(resolved.ctx, 'clinical.workspace')
+    ) {
+      redirect(routePaths.account);
+    }
+    stampStaffPrincipal(resolved.ctx, 'requireOrganizationWorkspaceContext');
+    if (!allowCabinetRecovery && (await cabinetEntryIsBlocked(resolved.ctx.organizationId))) {
+      redirect(`${routePaths.settings}?tab=billing`);
+    }
+    return resolved.ctx;
+  },
+);
+
 /** Resolves an organization membership and enforces the separate cabinet-entry ladder. */
 export async function requireOrganizationWorkspaceContext(
   options: CabinetGateOptions = {},
 ): Promise<DoctorWorkspaceAccessContext> {
-  ensureDbPrincipalContext({ source: 'requireOrganizationWorkspaceContext:pending' });
-  const session = await requireSession();
-  if (!canAccessDoctor(session.user.role)) {
-    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
-  }
-  const accountCapabilities = resolveLaunchCapabilities({
-    sessionRole: session.user.role,
-  });
-  if (hasLaunchCapability(accountCapabilities, 'platform.operations')) {
-    redirect('/app/admin/system-health');
-  }
-  const resolved = await resolveDoctorWorkspaceAccessContext(session);
-  if (!resolved.ok) {
-    // A staff account without an active organization still owns its personal account.
-    redirect(routePaths.account);
-  }
-  if (
-    !contextHasCapability(resolved.ctx, 'organization.management') &&
-    !contextHasCapability(resolved.ctx, 'clinical.workspace')
-  ) {
-    redirect(routePaths.account);
-  }
-  stampStaffPrincipal(resolved.ctx, 'requireOrganizationWorkspaceContext');
-  if (
-    !options.allowCabinetRecovery &&
-    (await cabinetEntryIsBlocked(resolved.ctx.organizationId))
-  ) {
-    redirect(`${routePaths.settings}?tab=billing`);
-  }
-  return resolved.ctx;
+  return requireOrganizationWorkspaceContextRequestLocal(options.allowCabinetRecovery ?? false);
 }
 
 /** One-organization management surface: owner/admin capability, independent from specialist binding. */

@@ -7,6 +7,7 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doc
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
 import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import { pickOpenTreatmentProgramInstance } from '../../treatmentProgramInstanceOpen';
 import { PatientProgramPanelLoader } from './program/PatientProgramPanelLoader';
 import { ProgramHistoryModal } from './program/ProgramHistoryModal';
 
@@ -30,23 +31,13 @@ export function PatientTabProgram({
   const programHref = (instanceId: string) =>
     `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(instanceId)}`;
 
-  // PROG-50: warm the (heavy, library-fetching) program-editor route as soon as we know the
-  // active instance — even while this tab is still CSS-hidden — so the eventual tab-click
-  // navigation is near-instant instead of showing a «Загрузка программы…» wait.
-  const knownActiveInstanceId =
-    initialProgramInstances?.find((i) => i.status !== 'completed')?.id ?? null;
-  useEffect(() => {
-    if (knownActiveInstanceId) router.prefetch(programHref(knownActiveInstanceId));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [knownActiveInstanceId, userId]);
-
   // PROG-01: if active program exists, navigate directly to its editor.
   // Guard: only trigger when this tab is actually visible — without this guard the
   // component mounts (even when CSS-hidden) and fires router.push unconditionally.
   useEffect(() => {
     if (!active) return;
     if (initialProgramInstances != null) {
-      const activeInstance = initialProgramInstances.find((i) => i.status !== 'completed');
+      const activeInstance = pickOpenTreatmentProgramInstance(initialProgramInstances);
       if (activeInstance) {
         router.push(programHref(activeInstance.id));
         return;
@@ -61,7 +52,7 @@ export function PatientTabProgram({
       .then((data: { ok?: boolean; items?: TreatmentProgramInstanceSummary[] }) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.items)) {
-          const activeInst = data.items.find((i) => i.status !== 'completed');
+          const activeInst = pickOpenTreatmentProgramInstance(data.items);
           if (activeInst) {
             router.push(programHref(activeInst.id));
             return;
@@ -79,8 +70,7 @@ export function PatientTabProgram({
   }, [userId, router, active, initialProgramInstances]);
 
   if (!programCheckDone) {
-    // Skeleton mirroring the editor (toolbar + stage cards) — shown only briefly while the
-    // prefetched program route resolves; reads as intentional rather than a bare loading line.
+    // Skeleton mirroring the editor (toolbar + stage cards) — shown while the program route loads.
     return (
       <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
         <div className="flex items-center justify-between gap-2">

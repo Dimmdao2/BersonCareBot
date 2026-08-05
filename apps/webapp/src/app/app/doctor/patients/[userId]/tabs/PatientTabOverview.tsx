@@ -18,8 +18,18 @@ import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientS
 import type { ActiveComplaint, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
-import type { SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
+import { serializeSupportMessage, type SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import type { DoctorPatientProgramActivity } from '@/app/app/doctor/patients/loadDoctorPatientProgramActivity';
+import type { DoctorPatientExerciseCalendarDay } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
+import type { DoctorPatientMessagesSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientMessagesSnapshot';
+import type {
+  TreatmentProgramInstanceSummary,
+  TreatmentProgramInstanceDetail,
+} from '@/modules/treatment-program/types';
+import {
+  deriveOverviewProgramWidgetFromDetail,
+  pickOpenTreatmentProgramInstance,
+} from '../../treatmentProgramInstanceOpen';
 import { parseCatalogMediaRows } from '@/app/app/patient/treatment/stageItemSnapshot';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
 import {
@@ -538,6 +548,14 @@ type Props = {
   initialAppointments?: PatientAppointmentItem[] | null;
   /** SSR-provided patient packages. When present, skips the client-side fetch. */
   initialPackages?: PackageItem[] | null;
+  /** SSR program instances list — skips client list fetch on overview. */
+  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
+  /** SSR open program detail — skips client detail fetch on overview. */
+  initialProgramInstanceDetail?: TreatmentProgramInstanceDetail | null;
+  /** SSR exercise calendar for the visible month on first paint. */
+  initialExerciseCalendarDays?: DoctorPatientExerciseCalendarDay[] | null;
+  /** Read-only chat snapshot — no conversations/ensure on mount. */
+  initialMessagesSnapshot?: DoctorPatientMessagesSnapshot | null;
   membershipsVisible?: boolean;
   /** SSR-provided effective support policy. Passed to DoctorClientSupportPanel to skip its fetch. */
   initialSupportEffectivePolicy?:
@@ -546,6 +564,63 @@ type Props = {
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
 };
+
+function resolveProgramSeedFields(
+  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null,
+  initialProgramInstanceDetail?: TreatmentProgramInstanceDetail | null,
+): Pick<
+  OverviewData,
+  | 'programStatus'
+  | 'programTitle'
+  | 'programStages'
+  | 'programCurrentStage'
+  | 'programCurrentStageIndex'
+> {
+  if (initialProgramInstanceDetail) {
+    return deriveOverviewProgramWidgetFromDetail(initialProgramInstanceDetail);
+  }
+  if (initialProgramInstances != null) {
+    const open = pickOpenTreatmentProgramInstance(initialProgramInstances);
+    if (!open) {
+      return {
+        programStatus: 'empty',
+        programTitle: null,
+        programStages: [],
+        programCurrentStage: null,
+        programCurrentStageIndex: 0,
+      };
+    }
+    return {
+      programStatus: 'loading',
+      programTitle: open.title,
+      programStages: [],
+      programCurrentStage: null,
+      programCurrentStageIndex: 0,
+    };
+  }
+  return {
+    programStatus: 'loading',
+    programTitle: null,
+    programStages: [],
+    programCurrentStage: null,
+    programCurrentStageIndex: 0,
+  };
+}
+
+function isOverviewBootstrapComplete(
+  membershipsVisible: boolean,
+  initialPackages: PackageItem[] | null | undefined,
+  initialProgramInstances: TreatmentProgramInstanceSummary[] | null | undefined,
+  initialProgramInstanceDetail: TreatmentProgramInstanceDetail | null | undefined,
+  initialMessagesSnapshot: DoctorPatientMessagesSnapshot | null | undefined,
+): boolean {
+  if (initialMessagesSnapshot == null) return false;
+  if (membershipsVisible && initialPackages == null) return false;
+  if (initialProgramInstances == null) return false;
+  const open = pickOpenTreatmentProgramInstance(initialProgramInstances);
+  if (open != null && initialProgramInstanceDetail == null) return false;
+  return true;
+}
 
 /** Derive SSR-seeded OverviewData fields from initial props (all client-fetch-only fields start at loading). */
 function buildSsrSeedData(
@@ -556,6 +631,10 @@ function buildSsrSeedData(
   programActivity: DoctorPatientProgramActivity,
   appointments: PatientAppointmentItem[],
   initialPackages?: PackageItem[] | null,
+  initialExerciseCalendarDays?: DoctorPatientExerciseCalendarDay[] | null,
+  initialMessagesSnapshot?: DoctorPatientMessagesSnapshot | null,
+  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null,
+  initialProgramInstanceDetail?: TreatmentProgramInstanceDetail | null,
 ): OverviewData {
   const complaints = clinicalState.complaints;
   const clinicalStatus: WidgetStatus = complaints.length === 0 ? 'empty' : 'ok';
@@ -600,6 +679,11 @@ function buildSsrSeedData(
   const packageStatus: WidgetStatus =
     initialPackages == null ? 'loading' : activePackage === null ? 'empty' : 'ok';
 
+  const programSeed = resolveProgramSeedFields(
+    initialProgramInstances,
+    initialProgramInstanceDetail,
+  );
+
   return {
     clinicalStatus,
     complaints,
@@ -610,21 +694,23 @@ function buildSsrSeedData(
     packageStatus,
     activePackage,
     activePackages,
-    programStatus: 'loading' as WidgetStatus,
-    programTitle: null,
-    programStages: [],
-    programCurrentStage: null,
-    programCurrentStageIndex: 0,
+    programStatus: programSeed.programStatus,
+    programTitle: programSeed.programTitle,
+    programStages: programSeed.programStages,
+    programCurrentStage: programSeed.programCurrentStage,
+    programCurrentStageIndex: programSeed.programCurrentStageIndex,
     programActivity,
     notesStatus,
     notes: notesList,
     tasksStatus,
     tasks: tasksList,
-    calendarStatus: 'loading' as WidgetStatus,
-    calendarDays: [],
-    messagesStatus: 'loading' as WidgetStatus,
-    messages: [],
-    unreadFromUserCount: 0,
+    calendarStatus: initialExerciseCalendarDays != null ? 'ok' : ('loading' as WidgetStatus),
+    calendarDays: initialExerciseCalendarDays ?? [],
+    messagesStatus: initialMessagesSnapshot != null ? 'ok' : ('loading' as WidgetStatus),
+    messages: initialMessagesSnapshot
+      ? initialMessagesSnapshot.messages.map(serializeSupportMessage)
+      : [],
+    unreadFromUserCount: initialMessagesSnapshot?.unreadFromUserCount ?? 0,
   };
 }
 
@@ -638,6 +724,10 @@ export function PatientTabOverview({
   initialProgramActivity,
   initialAppointments,
   initialPackages,
+  initialProgramInstances,
+  initialProgramInstanceDetail,
+  initialExerciseCalendarDays,
+  initialMessagesSnapshot,
   membershipsVisible = true,
   initialSupportEffectivePolicy,
   specialistTasksAvailable,
@@ -666,6 +756,10 @@ export function PatientTabOverview({
         initialProgramActivity,
         initialAppointments,
         initialPackages,
+        initialExerciseCalendarDays,
+        initialMessagesSnapshot,
+        initialProgramInstances,
+        initialProgramInstanceDetail,
       );
     }
     return null;
@@ -708,6 +802,26 @@ export function PatientTabOverview({
 
   // Separate effect: calendar only — re-runs when userId or calYear/calMonth changes
   useEffect(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    if (
+      initialExerciseCalendarDays != null &&
+      calYear === currentYear &&
+      calMonth === currentMonth
+    ) {
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              calendarStatus: 'ok',
+              calendarDays: initialExerciseCalendarDays,
+            }
+          : prev,
+      );
+      return;
+    }
+
     let active = true;
     // Mark loading before fetching
     setData((prev) => (prev ? { ...prev, calendarStatus: 'loading', calendarDays: [] } : prev));
@@ -726,7 +840,7 @@ export function PatientTabOverview({
     return () => {
       active = false;
     };
-  }, [userId, calYear, calMonth]);
+  }, [userId, calYear, calMonth, initialExerciseCalendarDays]);
 
   useEffect(() => {
     if (!membershipsVisible) return;
@@ -761,6 +875,20 @@ export function PatientTabOverview({
   }, [userId, membershipsVisible]);
 
   useEffect(() => {
+    if (
+      hasSsrData &&
+      ssrSeedRef.current === userId &&
+      isOverviewBootstrapComplete(
+        membershipsVisible,
+        initialPackages,
+        initialProgramInstances,
+        initialProgramInstanceDetail,
+        initialMessagesSnapshot,
+      )
+    ) {
+      return;
+    }
+
     let active = true;
 
     // patient-packages: skip when SSR data provided
@@ -775,20 +903,27 @@ export function PatientTabOverview({
             .then((r) => (r.ok ? (r.json() as Promise<PackagesApiResponse>) : null))
             .catch(() => null);
 
-    const fetchProgram = fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, {
-      credentials: 'include',
-    })
-      .then((r) => (r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null))
-      .catch(() => null);
+    const fetchProgram =
+      initialProgramInstances != null
+        ? Promise.resolve({
+            ok: true,
+            items: initialProgramInstances,
+          } as ProgramInstancesApiResponse)
+        : fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, {
+            credentials: 'include',
+          })
+            .then((r) => (r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null))
+            .catch(() => null);
 
-    const fetchMessages = fetch(`/api/doctor/messages/conversations/ensure`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ patientUserId: userId }),
-    })
-      .then((r) => (r.ok ? (r.json() as Promise<MessagesApiResponse>) : null))
-      .catch(() => null);
+    const fetchMessages =
+      initialMessagesSnapshot != null
+        ? Promise.resolve({
+            ok: true,
+            conversationId: initialMessagesSnapshot.conversationId ?? undefined,
+            messages: initialMessagesSnapshot.messages.map(serializeSupportMessage),
+            unreadFromUserCount: initialMessagesSnapshot.unreadFromUserCount,
+          } as MessagesApiResponse)
+        : Promise.resolve(null as MessagesApiResponse | null);
 
     // Conditionally fetch SSR-covered data only when SSR props were not provided
     const fetchClinical =
@@ -952,12 +1087,21 @@ export function PatientTabOverview({
         if (!programList) {
           programStatus = 'error';
         } else {
-          const activeInstance = (programList.items ?? []).find((i) => i.status === 'active');
+          const activeInstance = pickOpenTreatmentProgramInstance(programList.items ?? []);
           if (!activeInstance) {
             programStatus = 'empty';
+          } else if (
+            initialProgramInstanceDetail &&
+            initialProgramInstanceDetail.id === activeInstance.id
+          ) {
+            const seeded = deriveOverviewProgramWidgetFromDetail(initialProgramInstanceDetail);
+            programStatus = seeded.programStatus;
+            programTitle = seeded.programTitle;
+            programStages = seeded.programStages;
+            programCurrentStage = seeded.programCurrentStage;
+            programCurrentStageIndex = seeded.programCurrentStageIndex;
           } else {
             programTitle = activeInstance.title;
-            // Fetch detail for stages+items
             try {
               const detailRes = await fetch(
                 `/api/doctor/treatment-program-instances/${activeInstance.id}`,
@@ -966,21 +1110,12 @@ export function PatientTabOverview({
               if (detailRes.ok) {
                 const detail = (await detailRes.json()) as TreatmentInstanceDetailResponse;
                 if (detail.ok && detail.item) {
-                  // Filter out system stage-0 ("Этап 0 / Общие рекомендации") from display
-                  programStages = (detail.item.stages ?? []).filter((s) => s.sortOrder > 0);
-                  // Current stage = last in_progress, fallback to last available
-                  const inProgress = programStages.find((s) => s.status === 'in_progress');
-                  const available = programStages.find((s) => s.status === 'available');
-                  programCurrentStage = inProgress ?? available ?? programStages[0] ?? null;
-                  if (programCurrentStage) {
-                    programCurrentStageIndex = programStages.findIndex(
-                      (s) => s.id === programCurrentStage!.id,
-                    );
-                    if (programCurrentStageIndex < 0) programCurrentStageIndex = 0;
-                  }
-                  // An active instance can legitimately contain only stage 0 (for example a new blank plan).
-                  // "empty" means that no active instance exists, not that its pipeline is still empty.
-                  programStatus = 'ok';
+                  const seeded = deriveOverviewProgramWidgetFromDetail(detail.item);
+                  programStatus = seeded.programStatus;
+                  programTitle = seeded.programTitle;
+                  programStages = seeded.programStages;
+                  programCurrentStage = seeded.programCurrentStage;
+                  programCurrentStageIndex = seeded.programCurrentStageIndex;
                 }
               }
             } catch {

@@ -31,6 +31,7 @@ export function ReferencesSidebar({
                 <li key={link.href}>
                   <Link
                     href={link.href}
+                    prefetch={false}
                     className={cn(
                       'flex items-center rounded-md border border-transparent px-2 py-2 text-sm hover:bg-muted',
                       active &&
@@ -54,6 +55,7 @@ export function ReferencesSidebar({
             <li key={cat.id}>
               <Link
                 href={href}
+                prefetch={false}
                 className={cn(
                   'flex items-center justify-between rounded-md border border-transparent px-2 py-2 text-sm hover:bg-muted',
                   active &&

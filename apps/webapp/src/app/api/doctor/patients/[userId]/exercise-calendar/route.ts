@@ -14,22 +14,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-
-const FALLBACK_IANA = 'UTC';
+import {
+  currentPatientExerciseCalendarMonthRange,
+  loadDoctorPatientExerciseCalendar,
+} from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
-
-function currentMonthRange(): { from: string; to: string } {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth(); // 0-indexed
-  const firstDay = new Date(Date.UTC(year, month, 1));
-  const lastDay = new Date(Date.UTC(year, month + 1, 0));
-  return {
-    from: firstDay.toISOString().slice(0, 10),
-    to: lastDay.toISOString().slice(0, 10),
-  };
-}
 
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
@@ -63,16 +53,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     fromDate = fromResult.data;
     toDate = toResult.data;
   } else {
-    const range = currentMonthRange();
-    fromDate = range.from;
-    toDate = range.to;
+    fromDate = currentPatientExerciseCalendarMonthRange().from;
+    toDate = currentPatientExerciseCalendarMonthRange().to;
   }
-
-  // listSessionsInRange uses [fromCompletedAt, toCompletedAtExclusive)
-  // so we add 1 day to toDate to make it inclusive on the last day.
-  const toExclusive = new Date(toDate);
-  toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
-  const toCompletedAtExclusive = toExclusive.toISOString().slice(0, 10);
 
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
@@ -82,61 +65,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
   if (!identity) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  const patientUserId = identity.userId;
 
-  // Resolve patient's local timezone for program_action_log date bucketing.
-  // Falls back to UTC when the patient hasn't set a timezone yet.
-  const patientIana =
-    (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? FALLBACK_IANA;
-
-  // Fetch all three sources in parallel:
-  //  1. lfk_sessions — personal LFK diary sessions (manual complexes in bot/app)
-  //  2. patient_practice_completions — standalone content-page completions (non-warmup)
-  //  3. program_action_log (done) — treatment program exercise completions (primary source)
-  const [sessions, practiceCompletions, programDoneItems] = await Promise.all([
-    deps.diaries.listLfkSessionsInRange({
-      userId: patientUserId,
-      organizationId: gate.ctx.organizationId,
-      fromCompletedAt: fromDate,
-      toCompletedAtExclusive,
-    }),
-    deps.patientPractice.listByUserInUtcRange(
-      patientUserId,
-      fromDate,
-      toCompletedAtExclusive,
-      gate.ctx.organizationId,
-    ),
-    deps.programActionLog.listDoneItemsByLocalDateInWindowForPatient({
-      patientUserId,
-      organizationId: gate.ctx.organizationId,
-      windowStartUtcIso: fromDate,
-      windowEndUtcExclusiveIso: toCompletedAtExclusive,
-      displayIana: patientIana,
-    }),
-  ]);
-
-  // Aggregate: count per local calendar day
-  // completedAt may be "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm:ss..."
-  const counts = new Map<string, number>();
-  for (const session of sessions) {
-    const day = session.completedAt.slice(0, 10);
-    counts.set(day, (counts.get(day) ?? 0) + 1);
-  }
-  for (const completion of practiceCompletions) {
-    // Skip warmup-only sources — only exercise completions count for the calendar
-    if (completion.source === 'daily_warmup') continue;
-    const day = completion.completedAt.slice(0, 10);
-    counts.set(day, (counts.get(day) ?? 0) + 1);
-  }
-  // Each row in programDoneItems is a unique (localDate, itemId) pair from program_action_log.
-  // Count unique items per day as the "completedCount" contribution.
-  for (const item of programDoneItems) {
-    counts.set(item.localDate, (counts.get(item.localDate) ?? 0) + 1);
-  }
-
-  const days = Array.from(counts.entries())
-    .map(([date, completedCount]) => ({ date, completedCount }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const days = await loadDoctorPatientExerciseCalendar(deps, gate.ctx, identity.userId, {
+    from: fromDate,
+    to: toDate,
+  });
 
   return NextResponse.json({ ok: true, days });
 }

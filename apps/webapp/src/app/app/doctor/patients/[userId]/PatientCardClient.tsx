@@ -6,14 +6,15 @@
  *
  * Header: FIO display with inline edit. All other editing lives in the «Учётка» tab.
  */
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import type { AnamnesisState, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { Comorbidity } from '@/modules/patient-comorbidities/ports';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import type { DoctorPatientProgramActivity } from '../loadDoctorPatientProgramActivity';
-import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import type { TreatmentProgramInstanceSummary, TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -33,18 +34,59 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { formatDoctorFio } from '@/shared/lib/fio';
-import { PatientTabOverview } from './tabs/PatientTabOverview';
-import { PatientTabKarta } from './tabs/PatientTabKarta';
-import { PatientTabProgram } from './tabs/PatientTabProgram';
-import { PatientTabRecords } from './tabs/PatientTabRecords';
-import { PatientTabFiles, type FileRecord } from './tabs/PatientTabFiles';
-import { PatientTabAccount, type SupplementaryContact } from './tabs/PatientTabAccount';
-import { PatientTabComms } from './tabs/PatientTabComms';
-import { PatientTabFinances, type FinancesInitialData } from './tabs/PatientTabFinances';
+import type { DoctorPatientExerciseCalendarDay } from '../loadDoctorPatientExerciseCalendar';
+import type { DoctorPatientMessagesSnapshot } from '../loadDoctorPatientMessagesSnapshot';
 import type { ApiPackage, PaymentItem, AppointmentPrefill } from './tabs/PatientTabRecords';
+import type { FileRecord } from './tabs/PatientTabFiles';
+import type { SupplementaryContact } from './tabs/PatientTabAccount';
+import type { FinancesInitialData } from './tabs/PatientTabFinances';
 import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
 import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
 import { PatientPortalInviteControls } from './PatientPortalInviteControls';
+
+function PatientTabPanelLoading() {
+  return (
+    <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
+      <div className="h-24 animate-pulse rounded-lg bg-muted/70" />
+      <span className="sr-only">Загрузка вкладки…</span>
+    </div>
+  );
+}
+
+const patientTabDynamicOptions = { loading: () => <PatientTabPanelLoading /> };
+
+const PatientTabOverview = dynamic(
+  () => import('./tabs/PatientTabOverview').then((m) => ({ default: m.PatientTabOverview })),
+  patientTabDynamicOptions,
+);
+const PatientTabKarta = dynamic(
+  () => import('./tabs/PatientTabKarta').then((m) => ({ default: m.PatientTabKarta })),
+  patientTabDynamicOptions,
+);
+const PatientTabProgram = dynamic(
+  () => import('./tabs/PatientTabProgram').then((m) => ({ default: m.PatientTabProgram })),
+  patientTabDynamicOptions,
+);
+const PatientTabRecords = dynamic(
+  () => import('./tabs/PatientTabRecords').then((m) => ({ default: m.PatientTabRecords })),
+  patientTabDynamicOptions,
+);
+const PatientTabFiles = dynamic(
+  () => import('./tabs/PatientTabFiles').then((m) => ({ default: m.PatientTabFiles })),
+  patientTabDynamicOptions,
+);
+const PatientTabAccount = dynamic(
+  () => import('./tabs/PatientTabAccount').then((m) => ({ default: m.PatientTabAccount })),
+  patientTabDynamicOptions,
+);
+const PatientTabComms = dynamic(
+  () => import('./tabs/PatientTabComms').then((m) => ({ default: m.PatientTabComms })),
+  patientTabDynamicOptions,
+);
+const PatientTabFinances = dynamic(
+  () => import('./tabs/PatientTabFinances').then((m) => ({ default: m.PatientTabFinances })),
+  patientTabDynamicOptions,
+);
 
 type Props = {
   cardHeader: PatientCardHeader | null;
@@ -85,6 +127,12 @@ type Props = {
     inviteId: string | null;
     expiresAt: string | null;
   };
+  /** SSR exercise calendar for the current month on the Обзор tab. */
+  initialExerciseCalendarDays?: DoctorPatientExerciseCalendarDay[] | null;
+  /** Read-only chat snapshot for the Обзор tab (no conversation ensure on mount). */
+  initialMessagesSnapshot?: DoctorPatientMessagesSnapshot | null;
+  /** SSR open program detail for the Обзор tab program widget. */
+  initialProgramInstanceDetail?: TreatmentProgramInstanceDetail | null;
   /** Whether the viewer is an admin — gates the «Администрирование» section in PatientTabAccount. */
   isAdmin?: boolean;
   specialistTasksAvailable: boolean;
@@ -157,6 +205,9 @@ export function PatientCardClient({
   initialPaymentsSummary,
   initialSupportEffectivePolicy,
   initialPortalState = { status: 'not_activated', inviteId: null, expiresAt: null },
+  initialExerciseCalendarDays,
+  initialMessagesSnapshot,
+  initialProgramInstanceDetail,
   isAdmin = false,
   specialistTasksAvailable,
   specialistTasksReadable,
@@ -167,6 +218,9 @@ export function PatientCardClient({
       ? (initialTab as TabId)
       : 'overview';
   const [activeTab, setActiveTab] = useState<TabId>(resolvedInitialTab);
+  const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<TabId>>(
+    () => new Set<TabId>([resolvedInitialTab]),
+  );
   const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(
     createVisitFrom ?? null,
   );
@@ -174,6 +228,16 @@ export function PatientCardClient({
   const [pendingPrefillLocation, setPendingPrefillLocation] = useState<string | null>(null);
   const [pendingPrefillService, setPendingPrefillService] = useState<string | null>(null);
   const [pendingPrefillDurationMin, setPendingPrefillDurationMin] = useState<number | null>(null);
+
+  const selectTab = useCallback((tab: TabId) => {
+    setActiveTab(tab);
+    setVisitedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
+  }, []);
 
   // FIO inline edit state
   const [fioEditing, setFioEditing] = useState(false);
@@ -196,20 +260,20 @@ export function PatientCardClient({
 
   // Auto-switch to karta tab when opening with createVisitFrom URL param
   useEffect(() => {
-    if (createVisitFrom) setActiveTab('karta');
-  }, [createVisitFrom]);
+    if (createVisitFrom) selectTab('karta');
+  }, [createVisitFrom, selectTab]);
 
   // Listen for cross-tab navigation events dispatched by child tabs (e.g. «Оформить визит» → Карта)
   useEffect(() => {
     function handleOpenTab(e: Event) {
       const tab = (e as CustomEvent<{ tab: string }>).detail?.tab as TabId | undefined;
       if (tab && PATIENT_TABS.some((t) => t.id === tab)) {
-        setActiveTab(tab);
+        selectTab(tab);
       }
     }
     window.addEventListener('patient:open-tab', handleOpenTab);
     return () => window.removeEventListener('patient:open-tab', handleOpenTab);
-  }, []);
+  }, [selectTab]);
 
   if (!header) {
     return (
@@ -288,9 +352,11 @@ export function PatientCardClient({
   const hasTelegram = Boolean(identity.bindings.telegramId);
   const hasMax = Boolean(identity.bindings.maxId);
   const hasEmail = Boolean(identity.email);
-  // Чат доступен, если привязан канал ИЛИ уже есть переписка (история сообщений):
-  // сообщение сохранится в любом случае, привязанному каналу уйдёт ещё и пуш.
-  const hasChat = hasTelegram || hasMax || identity.hasConversation;
+  const hasConversationSignal =
+    identity.hasConversation ||
+    initialMessagesSnapshot?.conversationId != null ||
+    (initialMessagesSnapshot?.messages?.length ?? 0) > 0;
+  const chatButtonHighlighted = hasTelegram || hasMax || hasConversationSignal;
 
   return (
     <div className="flex flex-col gap-3">
@@ -466,12 +532,11 @@ export function PatientCardClient({
                   variant="ghost"
                   size="icon"
                   title="Открыть чат"
-                  disabled={!hasChat}
                   className={cn(
                     'h-6 w-6 rounded-md border text-xs',
-                    hasChat
+                    chatButtonHighlighted
                       ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
-                      : 'border-transparent bg-muted/30 text-muted-foreground/40',
+                      : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
                   )}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
@@ -481,7 +546,7 @@ export function PatientCardClient({
                   size="icon"
                   title={hasTelegram ? 'Открыть коммуникации: Telegram' : 'Telegram не привязан'}
                   disabled={!hasTelegram}
-                  onClick={() => setActiveTab('comms')}
+                  onClick={() => selectTab('comms')}
                   className={cn(
                     'h-6 w-6 rounded-md border text-xs',
                     hasTelegram
@@ -496,7 +561,7 @@ export function PatientCardClient({
                   size="icon"
                   title={hasMax ? 'Открыть коммуникации: MAX' : 'MAX не привязан'}
                   disabled={!hasMax}
-                  onClick={() => setActiveTab('comms')}
+                  onClick={() => selectTab('comms')}
                   className={cn(
                     'h-6 w-6 rounded-md border text-xs',
                     hasMax
@@ -543,7 +608,7 @@ export function PatientCardClient({
               <Button
                 key={tab.id}
                 variant="ghost"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => selectTab(tab.id)}
                 className={cn(
                   'h-auto gap-1 rounded-md px-3 py-1 text-sm font-medium',
                   activeTab === tab.id
@@ -573,26 +638,34 @@ export function PatientCardClient({
       {/* ================================================================
           TAB PANELS — rendered once, hidden when not active.
       ================================================================ */}
-      <div className={cn(activeTab !== 'overview' && 'hidden')}>
-        <PatientTabOverview
-          userId={identity.userId}
-          header={header}
-          onTabSwitch={(tab) => setActiveTab(tab as TabId)}
-          initialClinicalState={initialClinicalState}
-          initialVisits={initialVisits}
-          initialNotes={initialNotes}
-          initialTasks={initialTasks}
-          initialProgramActivity={initialProgramActivity}
-          initialAppointments={initialAppointments}
-          initialPackages={initialPackages}
-          membershipsVisible={membershipsVisible}
-          initialSupportEffectivePolicy={initialSupportEffectivePolicy}
-          specialistTasksAvailable={specialistTasksAvailable}
-          specialistTasksReadable={specialistTasksReadable}
-        />
-      </div>
-      <div className={cn(activeTab !== 'karta' && 'hidden')}>
-        <PatientTabKarta
+      {/* TAB PANELS — mount on first visit, keep mounted while hidden. */}
+      {visitedTabs.has('overview') ? (
+        <div className={cn(activeTab !== 'overview' && 'hidden')}>
+          <PatientTabOverview
+            userId={identity.userId}
+            header={header}
+            onTabSwitch={(tab) => selectTab(tab as TabId)}
+            initialClinicalState={initialClinicalState}
+            initialVisits={initialVisits}
+            initialNotes={initialNotes}
+            initialTasks={initialTasks}
+            initialProgramActivity={initialProgramActivity}
+            initialAppointments={initialAppointments}
+            initialPackages={initialPackages}
+            initialProgramInstances={initialProgramInstances}
+            initialProgramInstanceDetail={initialProgramInstanceDetail}
+            initialExerciseCalendarDays={initialExerciseCalendarDays}
+            initialMessagesSnapshot={initialMessagesSnapshot}
+            membershipsVisible={membershipsVisible}
+            initialSupportEffectivePolicy={initialSupportEffectivePolicy}
+            specialistTasksAvailable={specialistTasksAvailable}
+            specialistTasksReadable={specialistTasksReadable}
+          />
+        </div>
+      ) : null}
+      {visitedTabs.has('karta') ? (
+        <div className={cn(activeTab !== 'karta' && 'hidden')}>
+          <PatientTabKarta
           userId={identity.userId}
           header={header}
           pendingAppointmentId={pendingAppointmentId}
@@ -612,8 +685,10 @@ export function PatientCardClient({
           initialAnamnesis={initialAnamnesis}
           initialComorbidities={initialComorbidities}
         />
-      </div>
-      <div className={cn(activeTab !== 'program' && 'hidden')}>
+        </div>
+      ) : null}
+      {visitedTabs.has('program') ? (
+        <div className={cn(activeTab !== 'program' && 'hidden')}>
         {embeddedProgramContent ?? (
           <PatientTabProgram
             userId={identity.userId}
@@ -622,8 +697,10 @@ export function PatientCardClient({
             initialProgramInstances={initialProgramInstances}
           />
         )}
-      </div>
-      <div className={cn(activeTab !== 'records' && 'hidden')}>
+        </div>
+      ) : null}
+      {visitedTabs.has('records') ? (
+        <div className={cn(activeTab !== 'records' && 'hidden')}>
         <PatientTabRecords
           userId={identity.userId}
           header={header}
@@ -632,22 +709,26 @@ export function PatientCardClient({
             setPendingPrefillLocation(prefill.location ?? null);
             setPendingPrefillService(prefill.service ?? null);
             setPendingPrefillDurationMin(prefill.durationMin ?? null);
-            setActiveTab('karta');
+            selectTab('karta');
           }}
           initialAppointments={initialAppointments}
           initialPackages={initialPackages}
           membershipsVisible={membershipsVisible}
           initialPaymentsSummary={initialPaymentsSummary}
         />
-      </div>
-      <div className={cn(activeTab !== 'files' && 'hidden')}>
+        </div>
+      ) : null}
+      {visitedTabs.has('files') ? (
+        <div className={cn(activeTab !== 'files' && 'hidden')}>
         <PatientTabFiles
           userId={identity.userId}
           header={header}
           initialFiles={initialFiles ?? undefined}
         />
-      </div>
-      <div className={cn(activeTab !== 'account' && 'hidden')}>
+        </div>
+      ) : null}
+      {visitedTabs.has('account') ? (
+        <div className={cn(activeTab !== 'account' && 'hidden')}>
         <PatientTabAccount
           userId={identity.userId}
           header={header}
@@ -655,14 +736,18 @@ export function PatientCardClient({
           initialSupplementaryContacts={initialSupplementaryContacts}
           isAdmin={isAdmin}
         />
-      </div>
-      <div className={cn(activeTab !== 'comms' && 'hidden')}>
+        </div>
+      ) : null}
+      {visitedTabs.has('comms') ? (
+        <div className={cn(activeTab !== 'comms' && 'hidden')}>
         <PatientTabComms
           userId={identity.userId}
           initialProgramInstances={initialProgramInstances}
         />
-      </div>
-      <div className={cn(activeTab !== 'finances' && 'hidden')}>
+        </div>
+      ) : null}
+      {visitedTabs.has('finances') ? (
+        <div className={cn(activeTab !== 'finances' && 'hidden')}>
         <PatientTabFinances
           userId={identity.userId}
           initialData={initialFinancesData}
@@ -670,7 +755,8 @@ export function PatientCardClient({
           membershipsVisible={membershipsVisible}
           membershipMutationsAllowed={membershipMutationsAllowed}
         />
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
