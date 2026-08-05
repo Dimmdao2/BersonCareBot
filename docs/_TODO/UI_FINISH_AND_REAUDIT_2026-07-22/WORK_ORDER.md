@@ -641,6 +641,15 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             которые он и так правит по своей причине, и называет конверсию в отчёте отдельной строкой, чтобы
             аудитор отличал её от правки логики. ⛔ Соседние файлы не открывать «раз уж мы тут»: этап расползётся
             и аудит перестанет понимать, что он проверяет.
+            **ПРОГРЕСС 05.08 (#987):** D15b-touched `pgCanonicalPlatformUser.ts` — все 10 `runWebappPgText`
+            убраны, запросы на Drizzle (`platformUsers`/`userContacts`/`userIdentity`/`userChannelBindings`);
+            integrator `platformUserDeliveryPhone.ts` — `sql` fragment → Drizzle select через новый узкий
+            `platformUsers` в `integratorPublicProduct.ts`; `writePort.ts` — три inline identity/conversation
+            lookup вынесены в `getIntegratorUserIdByResourceAndExternalId` / `getConversationUserIdentityId`
+            (inline SQL в writePort = 0). `pnpm --dir apps/integrator typecheck` зелёный. Остаток touched-path:
+            `platformUserByChannel.ts` (recursive CTE), `userContactsMirrorWrite.ts` (platform-merge raw
+            `.query()`), `pgOAuthUserResolve.ts` и прочие D15b readers с `runWebappPgText`; `directPublic/*`
+            — sql через порт, отдельный объём.
       - [x] **D18c — перепись остатка и снятие списка исключений, последним.** Когда вырезано всё, что вырезается:
             перепись поимённо с классификацией «миграция / законная обёртка / чистить», чистка остатка, список
             до нуля. Пункт закрывается тем, что проверка перестаёт находить исключения, а не отчётом.

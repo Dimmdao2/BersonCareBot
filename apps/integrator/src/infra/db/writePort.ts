@@ -8,13 +8,11 @@ import type {
   QueuePort,
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
-import { sql } from 'drizzle-orm';
 import { appSettings } from '../../config/appSettings.js';
 import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
-import { runIntegratorSql } from './runIntegratorSql.js';
-import { setUserPhone, setUserState, upsertUser } from './repos/channelUsers.js';
+import { setUserPhone, setUserState, upsertUser, getIntegratorUserIdByResourceAndExternalId } from './repos/channelUsers.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
   applyMessengerPhonePublicBind,
@@ -24,6 +22,7 @@ import { recordMessengerPhoneBindBlocked } from './repos/messengerPhoneBindAudit
 import {
   cancelDraftByIdentity,
   ensureIdentityForMessenger,
+  getConversationUserIdentityId,
   insertConversation,
   insertConversationMessage,
   setConversationState,
@@ -192,11 +191,7 @@ function buildChannelAnchorWriter(
       integratorUserId = row?.id ?? null;
     } else {
       await ensureIdentityForMessenger(txDb, { resource: 'max', externalId });
-      const identityRes = await runIntegratorSql<{ user_id: string }>(
-        txDb,
-        sql`SELECT user_id::text AS user_id FROM identities WHERE resource = ${resource} AND external_id = ${externalId} LIMIT 1`,
-      );
-      integratorUserId = identityRes.rows[0]?.user_id ?? null;
+      integratorUserId = await getIntegratorUserIdByResourceAndExternalId(txDb, resource, externalId);
     }
     if (!integratorUserId) return null;
     const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, integratorUserId);
@@ -423,14 +418,11 @@ export function createDbWritePort(
                     externalId: channelUserId,
                   });
                 }
-                const idPeek = await runIntegratorSql<{ user_id: string }>(
+                const rawUid = await getIntegratorUserIdByResourceAndExternalId(
                   txDb,
-                  sql`SELECT i.user_id::text AS user_id
-                 FROM identities i
-                 WHERE i.resource = ${resource} AND i.external_id = ${channelUserId}
-                 LIMIT 1`,
+                  resource,
+                  channelUserId,
                 );
-                const rawUid = idPeek.rows[0]?.user_id ?? null;
                 if (!rawUid) {
                   phoneLinkEarly = {
                     userPhoneLinkApplied: false,
@@ -630,11 +622,7 @@ export function createDbWritePort(
               openedAt,
               lastMessageAt,
             });
-            const convRow = await runIntegratorSql<{ user_identity_id: string }>(
-              txDb,
-              sql`SELECT user_identity_id::text AS user_identity_id FROM conversations WHERE id = ${id}`,
-            );
-            const rawIdentityId = convRow.rows[0]?.user_identity_id ?? null;
+            const rawIdentityId = await getConversationUserIdentityId(txDb, id);
             resolvedIntegratorUserId =
               rawIdentityId != null
                 ? await resolveCanonicalUserIdFromIdentityId(txDb, rawIdentityId)

@@ -3,6 +3,7 @@ import {
   bookingCalendarMap,
   deliveryAttemptLogs,
   orgEnrollments,
+  platformUsers,
   reminderRules,
 } from './schema/integratorPublicProduct.js';
 import {
@@ -18,6 +19,7 @@ export const integratorDrizzleSchema = {
   bookingCalendarMap,
   deliveryAttemptLogs,
   orgEnrollments,
+  platformUsers,
   reminderRules,
   projectionOutbox,
   messageRetryJobs,

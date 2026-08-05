@@ -78,6 +78,14 @@ export const deliveryAttemptLogs = pgTable(
   ],
 );
 
+/** Narrow `public.platform_users` slice for integrator delivery/lookup repos (D18b). */
+export const platformUsers = pgTable('platform_users', {
+  id: uuid().primaryKey().notNull(),
+  phoneNormalized: text('phone_normalized'),
+  integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
+  mergedIntoId: uuid('merged_into_id'),
+});
+
 /** Existing public enrollment table, mapped narrowly for shared direct-writer actor resolution. */
 export const orgEnrollments = pgTable('org_enrollments', {
   platformUserId: uuid('platform_user_id').notNull(),

@@ -1,12 +1,32 @@
-import { runWebappPgText, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
-import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
+import { and, asc, eq, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
+import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
+import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import {
-  CONTACTS,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
-} from '@/infra/repos/userContactsSql';
+  platformUsers,
+  userChannelBindings,
+  userContacts,
+  userIdentity,
+} from '../../../db/schema/schema';
 
 /** Max hops when following merged_into_id (cycle protection). */
 export const MAX_MERGE_CHAIN_DEPTH = 5;
+
+function pickUniqueCanonicalId(
+  rows: { id: string }[],
+  logMessage: string,
+  logContext?: Record<string, unknown>,
+): string | null {
+  if (rows.length === 0) return null;
+  if (rows.length > 1) {
+    console.error(logMessage, {
+      count: rows.length,
+      ids: rows.map((x) => x.id),
+      ...logContext,
+    });
+    return null;
+  }
+  return rows[0]!.id;
+}
 
 /**
  * Follow merged_into_id chain to the canonical platform user id.
@@ -24,12 +44,12 @@ export async function followMergedIntoChain(
       return startId;
     }
     seen.add(current);
-    const r = await runWebappPgText<{ merged_into_id: string | null }>(
-      `SELECT merged_into_id FROM platform_users WHERE id = $1`,
-      [current],
-      db,
-    );
-    const next = r.rows[0]?.merged_into_id ?? null;
+    const rows = await db
+      .select({ mergedIntoId: platformUsers.mergedIntoId })
+      .from(platformUsers)
+      .where(eq(platformUsers.id, current))
+      .limit(1);
+    const next = rows[0]?.mergedIntoId ?? null;
     if (next == null) return current;
     current = next;
   }
@@ -50,18 +70,20 @@ export async function selectPlatformUserById(
   db: WebappSqlExecutor,
   userId: string,
 ): Promise<PlatformUserRow | null> {
-  const r = await runWebappPgText<PlatformUserRow>(
-    `SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized,
-            pu.integrator_user_id::text AS integrator_user_id, pu.merged_into_id,
-            ${FIO.displayName} AS display_name, pu.role
-     FROM platform_users pu
-     ${USER_IDENTITY_FIO_JOIN}
-     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
-     WHERE pu.id = $1`,
-    [userId],
-    db,
-  );
-  return r.rows[0] ?? null;
+  const rows = await db
+    .select({
+      id: platformUsers.id,
+      phone_normalized: drizzlePrimaryPhoneCol,
+      integrator_user_id: sql<string | null>`${platformUsers.integratorUserId}::text`,
+      merged_into_id: platformUsers.mergedIntoId,
+      display_name: sql<string>`COALESCE(${userIdentity.displayName}, ${platformUsers.displayName})`,
+      role: platformUsers.role,
+    })
+    .from(platformUsers)
+    .leftJoin(userIdentity, eq(userIdentity.platformUserId, platformUsers.id))
+    .where(eq(platformUsers.id, userId))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 /** Resolve to canonical id; returns null if user row missing. */
@@ -80,45 +102,37 @@ export async function findCanonicalUserIdByPhone(
   db: WebappSqlExecutor,
   phoneNormalized: string,
 ): Promise<string | null> {
-  const r = await runWebappPgText<{ id: string }>(
-    `SELECT uc.platform_user_id AS id
-     FROM user_contacts uc
-     INNER JOIN platform_users pu ON pu.id = uc.platform_user_id
-     WHERE uc.contact_kind = 'phone'
-       AND uc.value_normalized = $1
-       AND pu.merged_into_id IS NULL
-     ORDER BY pu.created_at ASC
-     LIMIT 3`,
-    [phoneNormalized],
-    db,
+  const viaContacts = await db
+    .select({ id: userContacts.platformUserId })
+    .from(userContacts)
+    .innerJoin(platformUsers, eq(platformUsers.id, userContacts.platformUserId))
+    .where(
+      and(
+        eq(userContacts.contactKind, 'phone'),
+        eq(userContacts.valueNormalized, phoneNormalized),
+        isNull(platformUsers.mergedIntoId),
+      ),
+    )
+    .orderBy(asc(platformUsers.createdAt))
+    .limit(3);
+  const fromContacts = pickUniqueCanonicalId(
+    viaContacts,
+    '[canonical] multiple canonical rows for phone via user_contacts (redacted)',
   );
-  if (r.rows.length > 0) {
-    if (r.rows.length > 1) {
-      console.error('[canonical] multiple canonical rows for phone via user_contacts (redacted)', {
-        count: r.rows.length,
-        ids: r.rows.map((x) => x.id),
-      });
-      return null;
-    }
-    return r.rows[0]!.id;
-  }
-  const legacy = await runWebappPgText<{ id: string }>(
-    `SELECT id FROM platform_users
-     WHERE phone_normalized = $1 AND merged_into_id IS NULL
-     ORDER BY created_at ASC
-     LIMIT 3`,
-    [phoneNormalized],
-    db,
-  );
-  if (legacy.rows.length === 0) return null;
-  if (legacy.rows.length > 1) {
-    console.error('[canonical] multiple canonical rows for phone (redacted)', {
-      count: legacy.rows.length,
-      ids: legacy.rows.map((x) => x.id),
-    });
-    return null;
-  }
-  return legacy.rows[0]!.id;
+  if (fromContacts != null) return fromContacts;
+
+  const legacy = await db
+    .select({ id: platformUsers.id })
+    .from(platformUsers)
+    .where(
+      and(
+        eq(platformUsers.phoneNormalized, phoneNormalized),
+        isNull(platformUsers.mergedIntoId),
+      ),
+    )
+    .orderBy(asc(platformUsers.createdAt))
+    .limit(3);
+  return pickUniqueCanonicalId(legacy, '[canonical] multiple canonical rows for phone (redacted)');
 }
 
 /** Exactly one canonical row per integrator id. */
@@ -126,23 +140,20 @@ export async function findCanonicalUserIdByIntegratorId(
   db: WebappSqlExecutor,
   integratorUserId: string,
 ): Promise<string | null> {
-  const r = await runWebappPgText<{ id: string }>(
-    `SELECT id FROM platform_users
-     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
-     ORDER BY created_at ASC
-     LIMIT 3`,
-    [integratorUserId],
-    db,
-  );
-  if (r.rows.length === 0) return null;
-  if (r.rows.length > 1) {
-    console.error('[canonical] multiple canonical rows for integrator_user_id', {
-      integratorUserId,
-      ids: r.rows.map((x) => x.id),
-    });
-    return null;
-  }
-  return r.rows[0].id;
+  const rows = await db
+    .select({ id: platformUsers.id })
+    .from(platformUsers)
+    .where(
+      and(
+        eq(sql`${platformUsers.integratorUserId}`, sql`${integratorUserId}::bigint`),
+        isNull(platformUsers.mergedIntoId),
+      ),
+    )
+    .orderBy(asc(platformUsers.createdAt))
+    .limit(3);
+  return pickUniqueCanonicalId(rows, '[canonical] multiple canonical rows for integrator_user_id', {
+    integratorUserId,
+  });
 }
 
 /**
@@ -153,46 +164,44 @@ export async function findTrustedCanonicalUserIdByPhone(
   db: WebappSqlExecutor,
   phoneNormalized: string,
 ): Promise<string | null> {
-  const r = await runWebappPgText<{ id: string }>(
-    `SELECT uc.platform_user_id AS id
-     FROM user_contacts uc
-     INNER JOIN platform_users pu ON pu.id = uc.platform_user_id
-     WHERE uc.contact_kind = 'phone'
-       AND uc.is_primary = true
-       AND uc.value_normalized = $1
-       AND uc.confirmed_at IS NOT NULL
-       AND pu.merged_into_id IS NULL
-     ORDER BY pu.created_at ASC
-     LIMIT 3`,
-    [phoneNormalized],
-    db,
-  );
-  if (r.rows.length > 0) {
-    if (r.rows.length > 1) {
-      console.error('[canonical] multiple trusted canonical rows for phone via user_contacts (redacted)', {
-        count: r.rows.length,
-      });
-      return null;
-    }
-    return r.rows[0]!.id;
+  const viaContacts = await db
+    .select({ id: userContacts.platformUserId })
+    .from(userContacts)
+    .innerJoin(platformUsers, eq(platformUsers.id, userContacts.platformUserId))
+    .where(
+      and(
+        eq(userContacts.contactKind, 'phone'),
+        eq(userContacts.isPrimary, true),
+        eq(userContacts.valueNormalized, phoneNormalized),
+        isNotNull(userContacts.confirmedAt),
+        isNull(platformUsers.mergedIntoId),
+      ),
+    )
+    .orderBy(asc(platformUsers.createdAt))
+    .limit(3);
+  if (viaContacts.length > 0) {
+    return pickUniqueCanonicalId(
+      viaContacts,
+      '[canonical] multiple trusted canonical rows for phone via user_contacts (redacted)',
+    );
   }
-  const legacy = await runWebappPgText<{ id: string }>(
-    `SELECT id FROM platform_users
-     WHERE phone_normalized = $1 AND merged_into_id IS NULL
-       AND patient_phone_trust_at IS NOT NULL
-     ORDER BY created_at ASC
-     LIMIT 3`,
-    [phoneNormalized],
-    db,
+
+  const legacy = await db
+    .select({ id: platformUsers.id })
+    .from(platformUsers)
+    .where(
+      and(
+        eq(platformUsers.phoneNormalized, phoneNormalized),
+        isNull(platformUsers.mergedIntoId),
+        isNotNull(platformUsers.patientPhoneTrustAt),
+      ),
+    )
+    .orderBy(asc(platformUsers.createdAt))
+    .limit(3);
+  return pickUniqueCanonicalId(
+    legacy,
+    '[canonical] multiple trusted canonical rows for phone (redacted)',
   );
-  if (legacy.rows.length === 0) return null;
-  if (legacy.rows.length > 1) {
-    console.error('[canonical] multiple trusted canonical rows for phone (redacted)', {
-      count: legacy.rows.length,
-    });
-    return null;
-  }
-  return legacy.rows[0]!.id;
 }
 
 export async function findCanonicalUserIdByChannelBinding(
@@ -200,30 +209,34 @@ export async function findCanonicalUserIdByChannelBinding(
   channelCode: string,
   externalId: string,
 ): Promise<string | null> {
-  const r = await runWebappPgText<{ user_id: string }>(
-    `SELECT uc.platform_user_id AS user_id
-     FROM user_contacts uc
-     INNER JOIN platform_users pu ON pu.id = uc.platform_user_id
-     WHERE uc.contact_kind = 'channel'
-       AND uc.channel_code = $1
-       AND uc.value_normalized = $2
-       AND pu.merged_into_id IS NULL
-     LIMIT 1`,
-    [channelCode, externalId],
-    db,
-  );
-  if (r.rows[0]?.user_id) return r.rows[0].user_id;
-  const legacy = await runWebappPgText<{ user_id: string }>(
-    `SELECT ucb.user_id
-     FROM user_channel_bindings ucb
-     INNER JOIN platform_users pu ON pu.id = ucb.user_id
-     WHERE ucb.channel_code = $1 AND ucb.external_id = $2
-       AND pu.merged_into_id IS NULL
-     LIMIT 1`,
-    [channelCode, externalId],
-    db,
-  );
-  return legacy.rows[0]?.user_id ?? null;
+  const viaContacts = await db
+    .select({ user_id: userContacts.platformUserId })
+    .from(userContacts)
+    .innerJoin(platformUsers, eq(platformUsers.id, userContacts.platformUserId))
+    .where(
+      and(
+        eq(userContacts.contactKind, 'channel'),
+        eq(userContacts.channelCode, channelCode),
+        eq(userContacts.valueNormalized, externalId),
+        isNull(platformUsers.mergedIntoId),
+      ),
+    )
+    .limit(1);
+  if (viaContacts[0]?.user_id) return viaContacts[0].user_id;
+
+  const legacy = await db
+    .select({ user_id: userChannelBindings.userId })
+    .from(userChannelBindings)
+    .innerJoin(platformUsers, eq(platformUsers.id, userChannelBindings.userId))
+    .where(
+      and(
+        eq(userChannelBindings.channelCode, channelCode),
+        eq(userChannelBindings.externalId, externalId),
+        isNull(platformUsers.mergedIntoId),
+      ),
+    )
+    .limit(1);
+  return legacy[0]?.user_id ?? null;
 }
 
 export type CandidateIds = {

@@ -1,6 +1,7 @@
-import { sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { platformUsers } from '../schema/integratorPublicProduct.js';
 
 /**
  * Resolves `phone_normalized` for integrator delivery-targets lookup.
@@ -12,19 +13,22 @@ export async function getPhoneNormalizedForDeliveryLookup(
 ): Promise<string | null> {
   const trimmed = userKey.trim();
   if (!trimmed) return null;
-  const res = await runIntegratorSql<{ phone_normalized: string | null }>(
-    db,
-    sql`SELECT phone_normalized
-        FROM public.platform_users
-        WHERE merged_into_id IS NULL
-          AND phone_normalized IS NOT NULL
-          AND trim(phone_normalized) <> ''
-          AND (
-            id::text = ${trimmed}
-            OR (integrator_user_id IS NOT NULL AND integrator_user_id::text = ${trimmed})
-          )
-        LIMIT 1`,
-  );
-  const raw = res.rows[0]?.phone_normalized;
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select({ phoneNormalized: platformUsers.phoneNormalized })
+    .from(platformUsers)
+    .where(
+      and(
+        isNull(platformUsers.mergedIntoId),
+        isNotNull(platformUsers.phoneNormalized),
+        sql`trim(${platformUsers.phoneNormalized}) <> ''`,
+        or(
+          eq(sql`${platformUsers.id}::text`, trimmed),
+          eq(sql`${platformUsers.integratorUserId}::text`, trimmed),
+        ),
+      ),
+    )
+    .limit(1);
+  const raw = rows[0]?.phoneNormalized;
   return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
 }

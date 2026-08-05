@@ -697,6 +697,23 @@ export async function getIdentityIdByResourceAndExternalId(
   return row?.id ?? null;
 }
 
+/** Resolves integrator `users.id` for a messenger channel identity row. */
+export async function getIntegratorUserIdByResourceAndExternalId(
+  db: DbPort,
+  resource: string,
+  externalId: string,
+): Promise<string | null> {
+  const res = await runIntegratorSql<{ user_id: string }>(
+    db,
+    sql`SELECT i.user_id::text AS user_id
+        FROM identities i
+        WHERE i.resource = ${resource} AND i.external_id = ${externalId}
+        LIMIT 1`,
+  );
+  const row = res.rows[0];
+  return row?.user_id ?? null;
+}
+
 /**
  * Links phone to a channel user via integrator `contacts` (messenger-labeled row). Canonical
  * patient phone for webapp remains `public.platform_users`; keep purge + `integrator_linked_phone_source`
@@ -710,19 +727,8 @@ export async function setUserPhone(
   phoneNormalized: string,
   resource: string = 'telegram',
 ): Promise<SetUserPhoneOutcome> {
-  const idRes = await runIntegratorSql<{ user_id: string }>(
-    db,
-    sql`
-    SELECT i.user_id::text AS user_id
-    FROM identities i
-    WHERE i.resource = ${resource}
-      AND i.external_id = ${channelUserId}
-    LIMIT 1
-  `,
-  );
-  const rawUserId = idRes.rows[0]?.user_id;
+  const rawUserId = await getIntegratorUserIdByResourceAndExternalId(db, resource, channelUserId);
   if (!rawUserId) return 'failed';
-
   const userId = await resolveCanonicalIntegratorUserId(db, rawUserId);
 
   await runIntegratorSql(

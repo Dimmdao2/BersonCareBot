@@ -410,6 +410,18 @@ export async function getOpenConversationByIdentity(
   return res.rows[0] ?? null;
 }
 
+/** Lightweight lookup for projection fanout after `insertConversation`. */
+export async function getConversationUserIdentityId(
+  db: DbPort,
+  conversationId: string,
+): Promise<string | null> {
+  const res = await runIntegratorSql<{ user_identity_id: string }>(
+    db,
+    sql`SELECT user_identity_id::text AS user_identity_id FROM conversations WHERE id = ${conversationId} LIMIT 1`,
+  );
+  return res.rows[0]?.user_identity_id ?? null;
+}
+
 export async function getConversationById(
   db: DbPort,
   input: { id: string },
