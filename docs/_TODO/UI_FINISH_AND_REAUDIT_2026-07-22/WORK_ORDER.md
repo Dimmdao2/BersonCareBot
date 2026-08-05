@@ -573,6 +573,15 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             мест: колонки `platform_users`, `user_oauth_bindings.email`, `user_phone_history`,
             `user_channel_bindings`. Уникальные индексы переезжают вместе — они держат «один контакт = один
             аккаунт». Равноправный вход переводится на эту таблицу.
+            🟡 **#987 slice 1 (this commit):** migration `0379_user_contacts_d15b6_local.sql` — table +
+            backfill from four sources + unique indexes (`uq_user_contacts_phone`/`email`/`channel`) + RLS
+            mirror `user_identity`; `syncUserContactsMirror` in platform-merge; dual-write on projection
+            insert/enrich, merge, `pgUserByPhone`, `pgPhoneHistory`, `pgOAuthUserResolve`; helper
+            `userContactsSql.ts` (`CONTACTS` / `USER_CONTACTS_PRIMARY_PHONE_LATERAL`); login paths
+            `findCanonicalUserIdByPhone`, `findCanonicalUserIdByChannelBinding`, session phone COALESCE in
+            `pgUserByPhone`, `find_platform_user_ids_by_any_confirmed_email` → `user_contacts`.
+            **Остаётся slice 2:** migrate remaining census §2.1 contact readers (~36 infra) + dual-write on
+            all contact writers; drop legacy unique indexes — не в этом коммите.
       - [ ] **D15b/7 — псевдоним — НЕ В ЭТОМ ОБЪЁМЕ.** Решение принимается после D15b/6 (владелец 03.08).
             Замер на будущее ⚠️ ИСПРАВЛЕН ПЕРЕПИСЬЮ: не «46 ключей», а **130 FK-constraint'ов от 104 таблиц**;
             классификация по трём группам и спорные случаи — в документе переписи. Плюс предикаты RLS всех

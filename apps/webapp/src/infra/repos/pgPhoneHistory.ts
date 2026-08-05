@@ -5,6 +5,7 @@ import {
 } from '@bersoncare/db-principal';
 import type { Pool, PoolClient } from 'pg';
 import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
 
 /** F6 case 4 (§2a, migration 0342): 'oauth' — phone added as a confirmed contact by an OAuth
  *  provider that returned it alongside an already-matched email (never a login identifier). */
@@ -56,4 +57,5 @@ export async function applyPlatformUserPhoneHistoryTransition(
       db,
     );
   }
+  await syncUserContactsMirrorWebapp(client, opts.platformUserId);
 }

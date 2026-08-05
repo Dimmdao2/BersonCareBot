@@ -215,6 +215,62 @@ export const userIdentity = pgTable(
   ],
 );
 
+/** D15b/6: assembled contact index (dual-write phase; four source tables remain during cutover). */
+export const userContacts = pgTable(
+  'user_contacts',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    platformUserId: uuid('platform_user_id').notNull(),
+    contactKind: text('contact_kind').notNull(),
+    channelCode: text('channel_code'),
+    valueNormalized: text('value_normalized').notNull(),
+    isPrimary: boolean('is_primary').default(false).notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'string' }),
+    sourceOrigin: text('source_origin').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_user_contacts_user').on(table.platformUserId),
+    index('idx_user_contacts_lookup_phone')
+      .on(table.valueNormalized)
+      .where(sql`(contact_kind = 'phone'::text)`),
+    index('idx_user_contacts_lookup_email')
+      .on(table.valueNormalized)
+      .where(sql`(contact_kind = 'email'::text)`),
+    uniqueIndex('uq_user_contacts_phone')
+      .on(table.valueNormalized)
+      .where(sql`(contact_kind = 'phone'::text)`),
+    uniqueIndex('uq_user_contacts_email')
+      .on(table.valueNormalized)
+      .where(sql`(contact_kind = 'email'::text)`),
+    uniqueIndex('uq_user_contacts_channel')
+      .on(table.channelCode, table.valueNormalized)
+      .where(sql`(contact_kind = 'channel'::text)`),
+    foreignKey({
+      columns: [table.platformUserId],
+      foreignColumns: [platformUsers.id],
+      name: 'user_contacts_platform_user_id_fkey',
+    }).onDelete('cascade'),
+    check(
+      'user_contacts_kind_check',
+      sql`contact_kind = ANY (ARRAY['phone'::text, 'email'::text, 'channel'::text])`,
+    ),
+    check(
+      'user_contacts_source_origin_check',
+      sql`source_origin = ANY (ARRAY['platform_users'::text, 'oauth_binding'::text, 'phone_history'::text, 'channel_binding'::text])`,
+    ),
+    check(
+      'user_contacts_channel_shape_check',
+      sql`((contact_kind = 'channel'::text) AND (channel_code IS NOT NULL)) OR ((contact_kind <> 'channel'::text) AND (channel_code IS NULL))`,
+    ),
+  ],
+);
+
 /** Password login credentials (OAuth-only users have no row). */
 export const userPasswordCredentials = pgTable(
   'user_password_credentials',

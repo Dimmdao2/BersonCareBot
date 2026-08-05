@@ -57,6 +57,11 @@ import {
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
 import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
 import {
+  CONTACTS,
+  syncUserContactsMirrorWebapp,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
+import {
   FIO,
   syncUserIdentityFioMirrorWebapp,
   USER_IDENTITY_FIO_JOIN,
@@ -111,12 +116,13 @@ async function loadSessionIdentityUser(
                 ${FIO.firstName} AS first_name,
                 ${FIO.lastName} AS last_name,
                 ${FIO.patronymic} AS patronymic,
-                pu.role, pu.phone_normalized,
+                pu.role, ${CONTACTS.phoneNormalized} AS phone_normalized,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived,
                 COALESCE(sss.factor_required, false) AS security_factor_required
          FROM platform_users pu
          ${USER_IDENTITY_FIO_JOIN}
+         ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
          LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
          WHERE pu.id = $1`
       : `SELECT pu.id,
@@ -124,11 +130,12 @@ async function loadSessionIdentityUser(
                 ${FIO.firstName} AS first_name,
                 ${FIO.lastName} AS last_name,
                 ${FIO.patronymic} AS patronymic,
-                pu.role, pu.phone_normalized,
+                pu.role, ${CONTACTS.phoneNormalized} AS phone_normalized,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived
          FROM platform_users pu
          ${USER_IDENTITY_FIO_JOIN}
+         ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
          WHERE pu.id = $1`,
     [canonicalId],
   );
@@ -293,6 +300,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
             [displayName, userId],
           );
           await syncUserIdentityFioMirrorWebapp(client, userId);
+          await syncUserContactsMirrorWebapp(client, userId);
           if (options?.phoneNumberProven === true) {
             trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
             await markPatientPhoneTrusted(client, userId);
@@ -388,6 +396,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
             [displayName, userId],
           );
           await syncUserIdentityFioMirrorWebapp(client, userId);
+          await syncUserContactsMirrorWebapp(client, userId);
         } else {
           wasCreated = true;
           const insert = await runIdentityClientPgText(
@@ -409,6 +418,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
             confirmingChannel: options?.confirmingChannel,
           });
           await syncUserIdentityFioMirrorWebapp(client, userId);
+          await syncUserContactsMirrorWebapp(client, userId);
         }
 
         if (key) {

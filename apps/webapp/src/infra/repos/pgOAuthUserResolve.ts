@@ -1,5 +1,6 @@
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
+import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
   findCanonicalUserIdByPhone,
@@ -53,6 +54,7 @@ async function applyVerifiedOAuthEmail(
        AND lower(btrim(email)) = lower(btrim($2::text))`,
     [userId, email],
   );
+  await syncUserContactsMirrorWebapp(getPool(), userId);
 }
 
 async function findUserIdsByAnyConfirmedEmail(emailNorm: string): Promise<string[]> {
@@ -138,6 +140,7 @@ async function createOAuthPlatformUser(input: CreateOAuthPlatformUserInput): Pro
   );
   const userId = ins.rows[0]!.id;
   await syncUserIdentityFioMirrorWebapp(getPool(), userId);
+  await syncUserContactsMirrorWebapp(getPool(), userId);
   return userId;
 }
 
@@ -151,6 +154,7 @@ async function upsertOAuthBinding(
   );
   const row = bind.rows[0];
   if (row?.inserted === true) {
+    await syncUserContactsMirrorWebapp(getPool(), input.userId);
     return { inserted: true };
   }
   const ownerId = row?.user_id;

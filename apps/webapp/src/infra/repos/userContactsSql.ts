@@ -1,0 +1,70 @@
+import type { PoolClient, QueryResultRow } from 'pg';
+import { sql } from 'drizzle-orm';
+import { syncUserContactsMirror } from '@bersoncare/platform-merge';
+import type { PlatformMergeDbClient } from '@bersoncare/platform-merge';
+import {
+  getWebappSqlFromPgClient,
+  runWebappPgText,
+  type WebappSqlExecutor,
+} from '@/infra/db/runWebappSql';
+import { platformUsers, userContacts } from '../../../db/schema/schema';
+
+/** Lateral join for primary phone on `platform_users` aliased as `pu`. */
+export const USER_CONTACTS_PRIMARY_PHONE_LATERAL = `LEFT JOIN LATERAL (
+  SELECT uc.value_normalized
+  FROM user_contacts uc
+  WHERE uc.platform_user_id = pu.id
+    AND uc.contact_kind = 'phone'
+    AND uc.is_primary = true
+  LIMIT 1
+) uc_pri_phone ON true`;
+
+/** Lateral join for primary email on `platform_users` aliased as `pu`. */
+export const USER_CONTACTS_PRIMARY_EMAIL_LATERAL = `LEFT JOIN LATERAL (
+  SELECT uc.value_normalized
+  FROM user_contacts uc
+  WHERE uc.platform_user_id = pu.id
+    AND uc.contact_kind = 'email'
+    AND uc.is_primary = true
+  LIMIT 1
+) uc_pri_email ON true`;
+
+/** COALESCE primary contact columns; requires {@link USER_CONTACTS_PRIMARY_PHONE_LATERAL} / email lateral. */
+export const CONTACTS = {
+  phoneNormalized: 'COALESCE(uc_pri_phone.value_normalized, pu.phone_normalized)',
+  emailNormalized: 'COALESCE(uc_pri_email.value_normalized, pu.email_normalized)',
+} as const;
+
+function toMergeDbClient(executor: WebappSqlExecutor | PoolClient): PlatformMergeDbClient {
+  const db =
+    'release' in executor && typeof (executor as PoolClient).release === 'function'
+      ? getWebappSqlFromPgClient(executor as PoolClient)
+      : (executor as WebappSqlExecutor);
+  return {
+    query: async <R extends QueryResultRow = QueryResultRow>(
+      text: string,
+      params?: unknown[],
+    ) => {
+      const r = await runWebappPgText<R>(text, params ?? [], db);
+      return { rows: r.rows, rowCount: r.rowCount };
+    },
+  };
+}
+
+/** Rebuild `user_contacts` from four sources after a contact write (D15b/6 dual-write). */
+export async function syncUserContactsMirrorWebapp(
+  executor: WebappSqlExecutor | PoolClient,
+  platformUserId: string,
+): Promise<void> {
+  await syncUserContactsMirror(toMergeDbClient(executor), platformUserId);
+}
+
+/** Drizzle COALESCE for primary phone when `userContacts` is joined for the user. */
+export const drizzlePrimaryPhoneCol = sql<string | null>`COALESCE(
+  (SELECT ${userContacts.valueNormalized} FROM ${userContacts}
+   WHERE ${userContacts.platformUserId} = ${platformUsers.id}
+     AND ${userContacts.contactKind} = 'phone'
+     AND ${userContacts.isPrimary} = true
+   LIMIT 1),
+  ${platformUsers.phoneNormalized}
+)`;

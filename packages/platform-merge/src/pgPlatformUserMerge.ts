@@ -1,5 +1,6 @@
 import type { QueryResultRow } from 'pg';
 import { mergeLogger as logger } from './mergeLogger.js';
+import { syncUserContactsMirror } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 import type { ManualMergeResolution } from './manualMergeResolution.js';
 import { assertManualMergeResolutionIds } from './manualMergeResolution.js';
@@ -632,6 +633,7 @@ export async function mergePlatformUsersInTransaction(
   );
 
   await syncUserIdentityFioMirror(client, targetId);
+  await syncUserContactsMirror(client, targetId);
 
   const mergeContactsSaved = await persistMergeLosingContacts(
     client,
@@ -639,6 +641,7 @@ export async function mergePlatformUsersInTransaction(
     collectMergeLosingContacts(a, b, manualResolution),
   );
   await pruneIdentityPlatformUserContactsAfterMerge(client, targetId);
+  await syncUserContactsMirror(client, targetId);
 
   await client.query(
     `UPDATE platform_users SET

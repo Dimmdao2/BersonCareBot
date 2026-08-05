@@ -19,6 +19,7 @@ import {
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
 import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
+import { syncUserContactsMirror } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 
 /** Channels for which a fresh binding seeds opted-in broadcast defaults. */
@@ -217,6 +218,7 @@ export async function insertIdentityProjection(
     );
   }
   await syncUserIdentityFioMirror(db, id);
+  await syncUserContactsMirror(db, id);
   return id;
 }
 
@@ -296,6 +298,7 @@ export async function enrichIdentityProjection(
     ]);
   }
   await syncUserIdentityFioMirror(db, platformUserId);
+  await syncUserContactsMirror(db, platformUserId);
 }
 
 /** Low-level channel-binding upsert — see {@link insertIdentityProjection} for why this is exported. */

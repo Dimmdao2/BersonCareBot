@@ -80,6 +80,7 @@ export {
 } from './identityProjectionWrite.js';
 
 export { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
+export { syncUserContactsMirror } from './userContactsMirrorWrite.js';
 
 export type { PhoneHistorySyncSource } from './phoneHistorySync.js';
 export { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
