@@ -122,11 +122,11 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
   документ строит backend/API/data-слой (Phase 1-3), которым U9 воспользуется для финального единого platform shell;
   этот документ **не берёт на себя** полную переборку shell/навигации — это scope U9, отдельная инициатива. Phase 3
   UI здесь — промежуточное, IA-совместимое размещение (верные zone-ID, верный route-namespace), не финальный shell.
-- **Entitlement denial имеет 4 состояния в каноне** (`upgrade/grace/read-only/blocked`), не просто вкл/выкл —
-  [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md). Phase 1-2 этого
-  документа сознательно строят только бинарный `entitlement_required` (403) — этого достаточно для scope #751
-  (тариф либо даёт механику, либо нет). Полная деградация `grace`/`read-only` при истечении подписки — задача Phase 4
-  (см. правку там), не переоткрывается как пробел здесь.
+- **Entitlement denial — устаревшая ссылка на 4 состояния** (`upgrade/grace/read-only/blocked`) в
+  [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md) **заменено → §5a-0
+  Р-9 / Р-12 / пункт 2.13** (01.08): конечных состояний доступа **два** — «только чтение» и «выключено»; четырёх
+  состояний нет. Phase 1-2 этого документа сознательно строили бинарный `entitlement_required` (403); полная
+  лестница — §5a этап 2–3, не Phase 4 billing-only.
 - **Платформенная cross-org операция обязана идти через выделенный capability/port, без org-membership fallback** —
   [`ROLE_CAPABILITY_MATRIX.md:38,73`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md): «tariff editing
   is platform capability»; «Dedicated platform capability/port before query or mutation; no organization membership
@@ -190,7 +190,9 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
 **Вне scope (явно не трогать в этой работе):**
 
 - Store packages / магазин упражнений — канон [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md); из этого
-  тарифного плана не строить. Исторически: S4-3 / `STORE_EXECUTION_PLAN.md` P3.
+  тарифного плана не строить. Исторически: S4-3 / `STORE_EXECUTION_PLAN.md` P3. Когда этап 2 store-плана заменит
+  `exercise_catalog`/`exercise_packages` на `platform_base_packs`, тем же коммитом синхронизировать mechanic map
+  и открытые чекбоксы этого документа; до того текущие ключи остаются фактом кода.
 - Platform analytics / per-clinic dashboards (S4-5, P4) и аналитика специалиста (#800).
 - Карточка #808 (базовый admin-минимум + чат техподдержки).
 - Лендинг/два входа (#807), инвайты/календарь (#801, #806), `/book/{slug}` (#805) — параллельные карточки, отдельные файлы.
@@ -443,7 +445,8 @@ trialPolicy }` одним payload'ом (`route.ts:99-104`), тем же гейт
       `apps/webapp/src/shared/ui/doctor/platformNavLinks.ts:36` — `{ id: "commercial", label: "Тарифы и триал",
 href: "/app/admin/commercial", accessTier: "global_admin" }`, плоский platform-only список (не смешан с
       doctor-навигацией вообще, не просто «не в кластере Настройки»).
-- [x] **Содержимое страницы = PLAT-03 (список тарифов + форма имя/цена/период + чекбокс-грид всех 14 механик) и
+- [x] **Содержимое страницы = PLAT-03 (список тарифов + форма имя/цена/период + чекбокс-грид всех 15 механик
+      конструктора, включая `clinic_team`) и
       PLAT-02 (назначение тарифа клинике + override-редактор)...**
       — ГОТОВО: `apps/webapp/src/app/app/admin/commercial/CommercialConstructorClient.tsx` реализует форму
       имя/цена/период/mechanics-грид + список тарифов + назначение организации + override-редактор + trial-policy
@@ -971,6 +974,14 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       direct reads. POST invite, DELETE revoke и POST seat overage отказывают до port/payment вызова; bodyless
       tariff renewal остаётся billing-recovery путём. Evidence: `TeamSection.ui.test.tsx`, clinic invite/member/
       billing route tests и `requireEntitlementReadOnlyRefusesWrites.test.ts` (targeted suite, 02.08).
+      **Добор 05.08 (#1069, stock-механики `branches` + `patient_count`):** POST создания филиала больше не
+      проверяет `booking` — гейт идёт по `branches` (`branches/route.ts`); PATCH/DELETE филиала и POST создания
+      пациента (`doctor/clients/route.ts`) получили `requireEntitlementForMutation` до write-порта; реактивация
+      филиала (`isActive: false → true`) проходит атомарную квоту в `pgBookingEngine.upsertBranch`; ложная запись
+      `DECLARED_NO_SURFACE.patient_count` снята, в реестр добавлены `branches.update`, `branches.deactivate`,
+      `patient-count.client.create`. Доказательство: `pnpm --dir apps/webapp exec vitest run
+      src/app-layer/guards/requireEntitlementReadOnlyRefusesWrites.test.ts
+      src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 2 файла / 18 тестов PASS.
 - [x] **3.1a** ✅ ЗАКРЫТО 30.07 (`a2f973530`). Ранний `return { ok: true }` для чтения снят ещё коммитом лестницы
       `380b7aa39`; недоставало доказательства поведением — теперь есть: у клиники выключены курсы → пациентский
       список отдаёт 403 и обработчик не вызывается. Лид проверил снятием защиты: возврат ветки «read → ok» роняет
@@ -1034,6 +1045,17 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       чтобы дверь жизненного цикла жила отдельно от неё и переживала её удаление (см. 3.1d).
 - [ ] **3.2** Механический запрет обхода: дойти до записи данных механики мимо порта нельзя. Тем же приёмом, что уже
       применён в репозитории для принципала, плюс падающий тест на неклассифицированную ручку.
+      **Добор 05.08 (#1069, stock-механики):** `assertMechanicWriteClearance` уже был на `courses`; теперь
+      `buildAppDeps.ts` инжектит ту же дверь в `bookingEngineService.catalog` (`branches`:
+      `createPhysicalBranch`/`upsertBranch` физических филиалов/`deactivateBranch`; online-location по-прежнему
+      идёт через raw port под `booking`), `patientOrganization.createManualOrganizationClient` (`patient_count`) и
+      `organizationInvites.createInvite`/`revokeInvite` (`clinic_team`). Доказательство:
+      `pnpm --dir apps/webapp exec vitest run
+      src/modules/courses/service.mechanicWriteClearance.test.ts
+      src/modules/booking-engine/service.mechanicWriteClearance.test.ts
+      src/modules/patient-organization/service.mechanicWriteClearance.test.ts
+      src/modules/organization-invites/service.mechanicWriteClearance.test.ts` — 4 файла / 8 тестов PASS.
+      **Ещё открыто:** остальные гейтящиеся write-поверхности из реестра (mailings, cms, subscriptions, files, …).
 - [ ] **3.3** Реестр защищённых точек перестаёт врать: ни одного исключения, прикрывающего реальную запись. Ложное
       исключение хуже отсутствующего — проверка покрытия на нём зеленеет.
 - [x] **3.4** ✅ **УТОЧНЕНО 08-01 (`wt/tariff-plan-triage`): СДЕЛАНО**, с одной сознательной поправкой к тексту.

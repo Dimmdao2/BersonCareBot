@@ -26,7 +26,14 @@ function isExpired(invite: Pick<OrganizationInviteRecord, 'expiresAt'>): boolean
   return new Date(invite.expiresAt).getTime() <= Date.now();
 }
 
-export function createOrganizationInvitesService(deps: { invitesPort: OrganizationInvitesPort }) {
+export function createOrganizationInvitesService(deps: {
+  invitesPort: OrganizationInvitesPort;
+  /**
+   * 3.2: physically refuses a write unless a passing `clinic_team` mutation decision already ran in
+   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'clinic_team') => void;
+}) {
   return {
     async createInvite(input: {
       organizationId: string;
@@ -34,6 +41,7 @@ export function createOrganizationInvitesService(deps: { invitesPort: Organizati
       role: OrganizationInviteRole;
       createdByPlatformUserId: string;
     }): Promise<CreateOrganizationInviteResult & { token?: string }> {
+      deps.assertWriteClearance?.('clinic_team');
       const invitedEmail = normalizeEmail(input.email);
       if (!invitedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) {
         throw new Error('invalid_email');
@@ -75,6 +83,7 @@ export function createOrganizationInvitesService(deps: { invitesPort: Organizati
     },
 
     async revokeInvite(input: { organizationId: string; inviteId: string }): Promise<boolean> {
+      deps.assertWriteClearance?.('clinic_team');
       return deps.invitesPort.revokePendingByOrganization(input);
     },
 

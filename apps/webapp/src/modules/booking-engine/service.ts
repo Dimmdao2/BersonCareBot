@@ -13,7 +13,7 @@ import type {
   TransitionAppointmentStatusInput,
 } from './types';
 import { resolveBookingLocationPalette } from './locationPalette';
-import { setBuiltInOnlineLocationState } from './onlineLocation';
+import { isReservedOnlineLocationIdentity, setBuiltInOnlineLocationState } from './onlineLocation';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ONLINE_SLOT_MINUTE_MS = 60_000;
@@ -44,6 +44,11 @@ function assertAppointmentStatus(s: string): asserts s is AppointmentStatus {
 
 type BookingEngineServiceDependencies = {
   getLocationPaletteSetting?: () => Promise<unknown>;
+  /**
+   * 3.2: physically refuses a branches write unless a passing `branches` mutation decision already ran in
+   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'branches') => void;
 };
 
 export function createBookingEngineService(
@@ -232,6 +237,10 @@ function createCatalogFacade(
   port: OrganizationCatalogPort,
   dependencies: BookingEngineServiceDependencies,
 ) {
+  function assertBranchesWriteClearance(): void {
+    dependencies.assertWriteClearance?.('branches');
+  }
+
   async function locationPalette() {
     const stored = dependencies.getLocationPaletteSetting
       ? await dependencies.getLocationPaletteSetting()
@@ -248,13 +257,21 @@ function createCatalogFacade(
       assertUuid(id);
       return port.getBranch(id);
     },
-    upsertBranch: port.upsertBranch.bind(port),
+    async upsertBranch(
+      input: Parameters<OrganizationCatalogPort['upsertBranch']>[0],
+    ) {
+      if (!isReservedOnlineLocationIdentity(input)) {
+        assertBranchesWriteClearance();
+      }
+      return port.upsertBranch(input);
+    },
     async createPhysicalBranch(
       input: Omit<
         Parameters<OrganizationCatalogPort['createPhysicalBranchWithDefaultColor']>[0],
         'physicalPalette'
       >,
     ) {
+      assertBranchesWriteClearance();
       const palette = await locationPalette();
       return port.createPhysicalBranchWithDefaultColor({
         ...input,
@@ -269,7 +286,10 @@ function createCatalogFacade(
       const palette = await locationPalette();
       return setBuiltInOnlineLocationState(port, { ...input, defaultColor: palette.online });
     },
-    deactivateBranch: port.deactivateBranch.bind(port),
+    async deactivateBranch(id: string) {
+      assertBranchesWriteClearance();
+      return port.deactivateBranch(id);
+    },
     listRooms: port.listRooms.bind(port),
     getRoom: port.getRoom.bind(port),
     upsertRoom: port.upsertRoom.bind(port),

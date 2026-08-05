@@ -600,7 +600,10 @@ const orgBrandingService = createOrgBrandingService({
     resolveMechanicAccess(orgEntitlementsPort, organizationId, 'branding'),
 });
 const patientOrganizationService = !inMemoryRepos
-  ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
+  ? createPatientOrganizationService({
+      port: createPgPatientOrganizationPort(),
+      assertWriteClearance: assertMechanicWriteClearance,
+    })
   : null;
 const organizationProvisioningPort = !inMemoryRepos
   ? createPgOrganizationProvisioningPort()
@@ -623,6 +626,7 @@ const organizationInvitesPort = !inMemoryRepos
   : createInMemoryOrganizationInvitesPort();
 const organizationInvitesService = createOrganizationInvitesService({
   invitesPort: organizationInvitesPort,
+  assertWriteClearance: assertMechanicWriteClearance,
 });
 const saasBillingRepository = !inMemoryRepos
   ? createPgSaasBillingRepository()
@@ -657,6 +661,7 @@ const bookingEngineService = bookingEnginePort
         systemSettingsService
           .getSetting('booking_location_default_palette', 'admin', { organizationId: null })
           .then((row) => row?.valueJson ?? null),
+      assertWriteClearance: assertMechanicWriteClearance,
     })
   : null;
 const bookingSchedulingPort =

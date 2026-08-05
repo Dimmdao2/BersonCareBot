@@ -563,12 +563,43 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       if (input.id) {
         const id = input.id;
         const row = await runWebappTransaction(async (tx) => {
+          const [existing] = await tx
+            .select({
+              organizationId: beBranches.organizationId,
+              isActive: beBranches.isActive,
+            })
+            .from(beBranches)
+            .where(eq(beBranches.id, id))
+            .limit(1);
+          if (!existing) return null;
+
+          const nextIsActive = input.isActive ?? existing.isActive;
+          const reactivating = existing.isActive === false && nextIsActive === true;
+          if (reactivating) {
+            await transactionQuotaPort.withinLock(
+              tx,
+              { organizationId: existing.organizationId, mechanic: 'branches' },
+              (quota) =>
+                quota.assertStockAvailable(async () => {
+                  const usage = await runWebappPgText<{ used_value: number }>(
+                    `SELECT count(*)::int AS used_value
+                     FROM be_branches
+                     WHERE organization_id = $1
+                       AND is_active = true`,
+                    [existing.organizationId],
+                    tx,
+                  );
+                  return usage.rows[0]?.used_value ?? 0;
+                }),
+            );
+          }
+
           const patch: Partial<typeof beBranches.$inferInsert> = {
             title: input.title,
             cityCode: input.cityCode,
             address: input.address ?? null,
             timezone: input.timezone ?? 'Europe/Moscow',
-            isActive: input.isActive,
+            isActive: nextIsActive,
             sortOrder: input.sortOrder,
             updatedAt: now,
           };

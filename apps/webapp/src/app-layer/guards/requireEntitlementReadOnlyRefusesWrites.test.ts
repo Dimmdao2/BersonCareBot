@@ -15,6 +15,9 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: vi.fn(),
   requireClinicManagementApiContext: vi.fn(),
 }));
+vi.mock('@/app/api/admin/booking-engine/_requireAdminBookingEngine', () => ({
+  requireClinicManagementBookingEngine: vi.fn(),
+}));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, _source: string, fn: () => T): T => fn()),
 }));
@@ -31,10 +34,13 @@ import {
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
 } from '@/app-layer/guards/requireRole';
+import { requireClinicManagementBookingEngine } from '@/app/api/admin/booking-engine/_requireAdminBookingEngine';
 import { POST as createCourse } from '@/app/api/doctor/courses/route';
 import { PATCH as updateCourse } from '@/app/api/doctor/courses/[id]/route';
 import { DELETE as revokeClinicInvite } from '@/app/api/clinic/invites/[id]/route';
 import { POST as createClinicInvite } from '@/app/api/clinic/invites/route';
+import { POST as createBranch } from '@/app/api/admin/booking-engine/branches/route';
+import { POST as createDoctorClientRoute } from '@/app/api/doctor/clients/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { togglePatientHomeBlockVisibility } from '@/app/app/settings/patient-home/actions';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
@@ -74,6 +80,17 @@ beforeEach(() => {
   vi.mocked(requireClinicManagementApiContext).mockResolvedValue({
     ok: true,
     ctx: workspace,
+  } as never);
+  vi.mocked(requireClinicManagementBookingEngine).mockResolvedValue({
+    ok: true,
+    ctx: {
+      organizationId: ORG_ID,
+      service: {
+        catalog: {
+          createPhysicalBranch: vi.fn(),
+        },
+      },
+    },
   } as never);
 });
 
@@ -159,6 +176,52 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
     expect(revokeInvitePort).not.toHaveBeenCalled();
+  });
+
+  it('refuses creating a branch and never calls the write port', async () => {
+    const createPhysicalBranch = vi.fn();
+    vi.mocked(requireClinicManagementBookingEngine).mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORG_ID,
+        service: { catalog: { createPhysicalBranch } },
+      },
+    } as never);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: readOnlyOrgEntitlementsPort('read_only'),
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await createBranch(
+      request('https://app.example.test/api/admin/booking-engine/branches', {
+        title: 'Филиал',
+        cityCode: 'spb',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
+    expect(createPhysicalBranch).not.toHaveBeenCalled();
+  });
+
+  it('refuses creating a patient card and never calls the write port', async () => {
+    const createManualOrganizationClient = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: readOnlyOrgEntitlementsPort('read_only'),
+      patientOrganization: { createManualOrganizationClient },
+      emailSetupAccess: { requestContactEmailSetup: vi.fn() },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await createDoctorClientRoute(
+      request('https://app.example.test/api/doctor/clients', {
+        requestId: '33333333-3333-4333-8333-333333333333',
+        lastName: 'Иванов',
+        firstName: 'Иван',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
+    expect(createManualOrganizationClient).not.toHaveBeenCalled();
   });
 
   it('refuses connecting an external calendar and never reaches the OAuth config', async () => {

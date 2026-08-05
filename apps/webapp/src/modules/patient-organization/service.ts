@@ -49,7 +49,14 @@ function toOrganizationSummaries(
   return [...byId.values()];
 }
 
-export function createPatientOrganizationService(deps: { port: PatientOrganizationPort }) {
+export function createPatientOrganizationService(deps: {
+  port: PatientOrganizationPort;
+  /**
+   * 3.2: physically refuses a write unless a passing `patient_count` mutation decision already ran in
+   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'patient_count') => void;
+}) {
   async function resolveActiveOrganizationForPatient(
     platformUserId: string,
     options: ResolvePatientOrganizationOptions = {},
@@ -127,6 +134,7 @@ export function createPatientOrganizationService(deps: { port: PatientOrganizati
     async createManualOrganizationClient(
       input: Parameters<PatientOrganizationPort['createManualOrganizationClient']>[0],
     ) {
+      deps.assertWriteClearance?.('patient_count');
       return deps.port.createManualOrganizationClient(input);
     },
     resolveActiveOrganizationForPatient,
