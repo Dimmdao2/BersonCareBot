@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 
 export async function findPublicBookingNameCollisionCandidates(input: {
   pool: Pool;
@@ -8,13 +9,14 @@ export async function findPublicBookingNameCollisionCandidates(input: {
 }): Promise<string[]> {
   const result = await runPgPoolPgText<{ id: string }>(
     input.pool,
-    `SELECT id
-       FROM platform_users
-      WHERE merged_into_id IS NULL
-        AND role = 'client'
-        AND id <> $1::uuid
-        AND (phone_normalized IS NULL OR trim(phone_normalized) = '')
-        AND lower(trim(display_name)) = lower(trim($2))
+    `SELECT pu.id
+       FROM platform_users pu
+       ${USER_IDENTITY_FIO_JOIN}
+      WHERE pu.merged_into_id IS NULL
+        AND pu.role = 'client'
+        AND pu.id <> $1::uuid
+        AND (pu.phone_normalized IS NULL OR trim(pu.phone_normalized) = '')
+        AND lower(trim(${FIO.displayName})) = lower(trim($2))
       LIMIT 5`,
     [input.anchorUserId, input.contactName],
   );

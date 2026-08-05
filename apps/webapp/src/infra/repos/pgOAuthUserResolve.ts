@@ -1,5 +1,6 @@
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
+import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
   findCanonicalUserIdByPhone,
   resolveCanonicalUserId,
@@ -135,7 +136,9 @@ async function createOAuthPlatformUser(input: CreateOAuthPlatformUserInput): Pro
      RETURNING id`,
     [input.phoneNorm, input.display, input.emailRaw, input.emailVerifiedAt],
   );
-  return ins.rows[0]!.id;
+  const userId = ins.rows[0]!.id;
+  await syncUserIdentityFioMirrorWebapp(getPool(), userId);
+  return userId;
 }
 
 async function upsertOAuthBinding(

@@ -292,6 +292,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
            WHERE id = $2`,
             [displayName, userId],
           );
+          await syncUserIdentityFioMirrorWebapp(client, userId);
           if (options?.phoneNumberProven === true) {
             trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
             await markPatientPhoneTrusted(client, userId);
