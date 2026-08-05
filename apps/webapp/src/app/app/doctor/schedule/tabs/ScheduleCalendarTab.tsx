@@ -1032,7 +1032,7 @@ export function ScheduleCalendarTab({
       skipInitialClientLoadRef.current = false;
       return;
     }
-    load();
+    queueMicrotask(() => load());
   }, [view, anchorDate, branchId, serviceId, scheduleScope, load]);
 
   useEffect(() => {
