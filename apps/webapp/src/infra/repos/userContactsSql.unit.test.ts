@@ -28,7 +28,9 @@ describe('userContactsSql — D15b/6 COALESCE contract', () => {
   });
 
   it('syncUserContactsMirror rebuilds from four source tables', async () => {
-    const query = vi.fn(async () => ({ rows: [], rowCount: 1 }));
+    const query = vi.fn(
+      async (_sql: string, _params?: unknown[]) => ({ rows: [] as never[], rowCount: 1 }),
+    );
     const userId = '00000000-0000-4000-8000-0000000d0c10';
 
     await syncUserContactsMirror({ query }, userId);

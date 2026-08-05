@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { sql } from 'drizzle-orm';
-import { syncUserContactsMirror } from '@bersoncare/platform-merge';
+import { syncUserContactsMirror, type MergeSqlExecutor } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
   runWebappSql,
@@ -56,15 +56,19 @@ function resolveWebappSqlExecutor(executor: WebappSqlExecutor | PoolClient): Web
   return executor as WebappSqlExecutor;
 }
 
+function webappMergeSqlExecutor(db: WebappSqlExecutor): MergeSqlExecutor {
+  return {
+    executeSql: (fragment) => runWebappSql(db, fragment),
+  };
+}
+
 /** Rebuild `user_contacts` from four sources after a contact write (D15b/6 dual-write). */
 export async function syncUserContactsMirrorWebapp(
   executor: WebappSqlExecutor | PoolClient,
   platformUserId: string,
 ): Promise<void> {
   const db = resolveWebappSqlExecutor(executor);
-  await syncUserContactsMirror({
-    executeSql: (fragment) => runWebappSql(db, fragment),
-  }, platformUserId);
+  await syncUserContactsMirror(webappMergeSqlExecutor(db), platformUserId);
 }
 
 /** Drizzle COALESCE for primary phone when `userContacts` is joined for the user. */

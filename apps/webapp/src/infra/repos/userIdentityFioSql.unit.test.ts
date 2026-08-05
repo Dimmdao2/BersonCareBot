@@ -16,7 +16,9 @@ describe('userIdentityFioSql — D15b/5 COALESCE contract', () => {
   });
 
   it('syncUserIdentityFioMirror copies all five FIO columns from platform_users', async () => {
-    const query = vi.fn(async () => ({ rows: [], rowCount: 1 }));
+    const query = vi.fn(
+      async (_sql: string, _params?: unknown[]) => ({ rows: [] as never[], rowCount: 1 }),
+    );
     const userId = '00000000-0000-4000-8000-0000000d0f10';
 
     await syncUserIdentityFioMirror({ query }, userId);

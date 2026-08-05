@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { eq, sql } from 'drizzle-orm';
-import { syncUserIdentityFioMirror } from '@bersoncare/platform-merge';
+import { syncUserIdentityFioMirror, type MergeSqlExecutor } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
   runWebappSql,
@@ -31,15 +31,19 @@ function resolveWebappSqlExecutor(executor: WebappSqlExecutor | PoolClient): Web
   return executor as WebappSqlExecutor;
 }
 
+function webappMergeSqlExecutor(db: WebappSqlExecutor): MergeSqlExecutor {
+  return {
+    executeSql: (fragment) => runWebappSql(db, fragment),
+  };
+}
+
 /** Mirror FIO from `platform_users` into `user_identity` after a write (D15b/5 dual-write). */
 export async function syncUserIdentityFioMirrorWebapp(
   executor: WebappSqlExecutor | PoolClient,
   platformUserId: string,
 ): Promise<void> {
   const db = resolveWebappSqlExecutor(executor);
-  await syncUserIdentityFioMirror({
-    executeSql: (fragment) => runWebappSql(db, fragment),
-  }, platformUserId);
+  await syncUserIdentityFioMirror(webappMergeSqlExecutor(db), platformUserId);
 }
 
 /** Drizzle LEFT JOIN target: `userIdentity.platformUserId = platformUsers.id`. */

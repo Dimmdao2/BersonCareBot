@@ -82,5 +82,8 @@ export {
 export { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 export { syncUserContactsMirror } from './userContactsMirrorWrite.js';
 
+export type { MergeSqlExecutor } from './mergeSql.js';
+export { runMergeSql, runMergePgText, mergeDbClientToSqlExecutor } from './mergeSql.js';
+
 export type { PhoneHistorySyncSource } from './phoneHistorySync.js';
 export { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';

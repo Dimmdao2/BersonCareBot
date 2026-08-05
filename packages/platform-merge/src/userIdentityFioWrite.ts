@@ -1,13 +1,13 @@
 import { sql } from 'drizzle-orm';
 import type { PlatformMergeDbClient } from './pgPlatformUserMerge.js';
-import { runMergeSql } from './mergeSql.js';
+import { runMergeSql, type MergeSqlExecutor } from './mergeSql.js';
 
 /**
  * D15b/5 dual-write: mirror FIO columns from `platform_users` into `user_identity`.
  * Called after every identity projection write while columns still live on both tables.
  */
 export async function syncUserIdentityFioMirror(
-  db: PlatformMergeDbClient,
+  db: PlatformMergeDbClient | MergeSqlExecutor,
   platformUserId: string,
 ): Promise<void> {
   await runMergeSql(

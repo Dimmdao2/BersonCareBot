@@ -1,13 +1,13 @@
 import { sql } from 'drizzle-orm';
 import type { PlatformMergeDbClient } from './pgPlatformUserMerge.js';
-import { runMergeSql } from './mergeSql.js';
+import { runMergeSql, type MergeSqlExecutor } from './mergeSql.js';
 
 /**
  * D15b/6 dual-write: rebuild `user_contacts` for one user from the four source tables.
  * Called after contact writes while legacy columns/bindings remain authoritative.
  */
 export async function syncUserContactsMirror(
-  db: PlatformMergeDbClient,
+  db: PlatformMergeDbClient | MergeSqlExecutor,
   platformUserId: string,
 ): Promise<void> {
   await runMergeSql(
@@ -86,7 +86,7 @@ export async function syncUserContactsMirror(
 
 /** Remove duplicate mirror rows before rebuilding target contacts (post-D15b/6 uniqueness on user_contacts). */
 export async function clearDuplicateUserContactsBeforeTargetMirror(
-  db: PlatformMergeDbClient,
+  db: PlatformMergeDbClient | MergeSqlExecutor,
   duplicateId: string,
 ): Promise<void> {
   await runMergeSql(

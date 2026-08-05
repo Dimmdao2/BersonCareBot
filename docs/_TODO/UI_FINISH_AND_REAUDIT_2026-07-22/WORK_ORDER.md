@@ -668,7 +668,9 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             `mergeContactFallback.ts`, `pgPlatformUserMerge.ts` — все production `.query()` → `runMergeSql` /
             `runMergePgText` (единственный `.query` остался в адаптере `mergeDbClientToSqlExecutor`).
             `pnpm --dir packages/platform-merge typecheck` и `pnpm --dir apps/integrator typecheck` зелёные;
-            `vitest run --project unit userContactsSql.unit.test.ts` 4/4. **Остаток D18b touched-path:**
+            `vitest run --project unit userContactsSql.unit.test.ts userIdentityFioSql.unit.test.ts` 6/6;
+            `pnpm --dir apps/webapp typecheck` зелёный (MergeSqlExecutor export + typed test mocks).
+            **Остаток D18b touched-path:**
             `directPublic/*` и прочие не-touched webapp/integrator файлы с `runWebappPgText`/`.query` —
             отдельный объём до pre-TEST Track D.
       - [x] **D18c — перепись остатка и снятие списка исключений, последним.** Когда вырезано всё, что вырезается:
