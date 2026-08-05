@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { resolveCommercialAccess } from './commercialAccessComputation';
 import { resolveAccess } from './pgOrgEntitlements';
 import { effectiveAccessForPlatform } from './pgPlatformEntitlements';
 
@@ -69,5 +70,76 @@ describe.each([
     const oneYearPastEnds = ENDS_AT_MS + 365 * 86_400_000;
     expect(resolve('blocked', oneYearPastEnds).lifecycle).toBe('blocked');
     expect(resolve('read_only', oneYearPastEnds).lifecycle).toBe('read_only');
+  });
+});
+
+const PERIOD_ENDS_AT = '2026-07-01T00:00:00.000Z';
+const PERIOD_ENDS_AT_MS = Date.parse(PERIOD_ENDS_AT);
+const POST_PAID_TARIFF_ID = '10000000-0000-4000-8000-000000000003';
+
+function paidPeriod(behavior: 'read_only' | 'blocked' | 'tariff') {
+  return {
+    periodEndsAt: PERIOD_ENDS_AT,
+    postPaidPeriodBehavior: behavior,
+    postPaidPeriodTariffId: behavior === 'tariff' ? POST_PAID_TARIFF_ID : null,
+  };
+}
+
+describe.each([
+  [
+    'resolveAccess (staff/org snapshot)',
+    (behavior: 'read_only' | 'blocked' | 'tariff', now: number) =>
+      resolveAccess({
+        organizationTariffId: TARIFF_ID,
+        trial: null,
+        paidPeriod: paidPeriod(behavior),
+        now,
+      }),
+  ],
+  [
+    'effectiveAccessForPlatform (admin console)',
+    (behavior: 'read_only' | 'blocked' | 'tariff', now: number) =>
+      effectiveAccessForPlatform({
+        tariffId: TARIFF_ID,
+        trial: null,
+        paidPeriod: paidPeriod(behavior),
+        now,
+      }),
+  ],
+  [
+    'resolveCommercialAccess (shared resolver)',
+    (behavior: 'read_only' | 'blocked' | 'tariff', now: number) =>
+      resolveCommercialAccess({
+        organizationTariffId: TARIFF_ID,
+        trial: null,
+        paidPeriod: paidPeriod(behavior),
+        now,
+      }),
+  ],
+])('%s — post-paid period policy', (_label, resolve) => {
+  it('keeps full active access while the paid period has not ended yet', () => {
+    const access = resolve('read_only', PERIOD_ENDS_AT_MS - 1000);
+    expect(access.lifecycle).toBe('active');
+    expect(access.source).toBe('assignment');
+    expect(access.tariffId).toBe(TARIFF_ID);
+  });
+
+  it('applies read_only the instant the paid period ends', () => {
+    const access = resolve('read_only', PERIOD_ENDS_AT_MS + 1000);
+    expect(access.lifecycle).toBe('read_only');
+    expect(access.source).toBe('assignment');
+    expect(access.degradationStartedAt).toBe(PERIOD_ENDS_AT);
+  });
+
+  it('applies blocked the instant the paid period ends', () => {
+    const access = resolve('blocked', PERIOD_ENDS_AT_MS + 1000);
+    expect(access.lifecycle).toBe('blocked');
+  });
+
+  it('applies the configured post-paid tariff the instant the paid period ends', () => {
+    const access = resolve('tariff', PERIOD_ENDS_AT_MS + 1000);
+    expect(access.lifecycle).toBe('active');
+    expect(access.source).toBe('post_paid_period_tariff');
+    expect(access.tariffId).toBe(POST_PAID_TARIFF_ID);
   });
 });

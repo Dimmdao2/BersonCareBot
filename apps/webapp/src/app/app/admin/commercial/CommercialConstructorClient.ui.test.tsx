@@ -491,4 +491,25 @@ describe('commercial constructor access ladder', () => {
       screen.getByText(/Отдельная настройка от стартового тарифа выше/),
     ).toBeInTheDocument();
   });
+
+  it('loads when the API omits billingPeriods and paidPeriodPolicy', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          tariffs: [],
+          organizations: [],
+          trialPolicy: null,
+          registrationTariffPolicy: { tariffId: null },
+        }),
+      })),
+    );
+
+    render(<CommercialConstructorClient />);
+
+    await screen.findByRole('button', { name: 'Создать' });
+    expect(screen.getByLabelText('Мест специалистов')).toHaveValue(1);
+  });
 });

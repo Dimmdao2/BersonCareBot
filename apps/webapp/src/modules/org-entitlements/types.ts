@@ -406,7 +406,7 @@ export type EffectiveOrgCommercialAccess = {
   lifecycle: OrgCommercialLifecycleState;
   tariffId: string | null;
   /** #1069 §2.13 — the org's one fact is which tariff is assigned; `source` only says WHICH clock produced it. */
-  source: 'assignment' | 'trial' | 'post_trial_tariff';
+  source: 'assignment' | 'trial' | 'post_trial_tariff' | 'post_paid_period_tariff';
   /**
    * Present only when this access derives from an active organization trial (`source === "trial"`,
    * or a lifecycle of `blocked`/`read_only` reached via a trial). Owner-facing displays (settings

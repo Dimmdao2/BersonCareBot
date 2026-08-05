@@ -648,7 +648,14 @@ export function CommercialConstructorClient() {
     const response = await fetch('/api/admin/commercial', { cache: 'no-store' });
     const payload = (await response.json()) as CommercialState & { ok?: boolean; error?: string };
     if (!response.ok) throw new Error(payload.error ?? 'commercial_state_load_failed');
-    setState(payload);
+    setState({
+      tariffs: payload.tariffs ?? [],
+      organizations: payload.organizations ?? [],
+      trialPolicy: payload.trialPolicy ?? null,
+      registrationTariffPolicy: payload.registrationTariffPolicy ?? { tariffId: null },
+      billingPeriods: payload.billingPeriods ?? [],
+      paidPeriodPolicy: payload.paidPeriodPolicy ?? null,
+    });
   }, []);
 
   useEffect(() => {

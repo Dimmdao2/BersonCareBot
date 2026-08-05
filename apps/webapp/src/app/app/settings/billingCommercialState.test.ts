@@ -25,4 +25,26 @@ describe('§5a stage 6.1 — read-only names what exactly it forbids', () => {
     expect(message).toContain('заблокирован');
     expect(message).not.toContain('льгот');
   });
+
+  it('reads a lapsed paid period as read-only, not as an active tariff', () => {
+    const message = describeCommercialAccessState({
+      lifecycle: 'read_only',
+      tariffId: 'tariff',
+      source: 'assignment',
+      degradationStartedAt: '2026-07-01T00:00:00.000Z',
+    });
+
+    expect(message).toContain('создавать и менять нельзя');
+    expect(message).not.toContain('Тариф активен');
+  });
+
+  it('reads a post-paid tariff switch as an active tariff', () => {
+    const message = describeCommercialAccessState({
+      lifecycle: 'active',
+      tariffId: 'fallback-tariff',
+      source: 'post_paid_period_tariff',
+    });
+
+    expect(message).toBe('Тариф активен.');
+  });
 });

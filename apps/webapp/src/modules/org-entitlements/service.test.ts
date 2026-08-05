@@ -36,6 +36,8 @@ import {
 
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
+import { resolveAccess } from '@/infra/repos/pgOrgEntitlements';
+import { effectiveAccessForPlatform } from '@/infra/repos/pgPlatformEntitlements';
 
 const PLATFORM_BILLING_PORT_STUBS = {
   listBillingPeriods: async () => [],
@@ -1803,6 +1805,122 @@ describe('§5a #1069 Т5 (owner 03.08) — the trial is one-time per organizatio
 
     expect(secondAttempt?.created).toBe(false);
     expect(secondAttempt?.endsAt).toBe(started?.endsAt);
+  });
+});
+
+describe('#1069 T9 — billing period catalog rejects retired day for new tariffs', () => {
+  it('refuses createTariff when billingPeriod is not selectable in the catalog', async () => {
+    const port = createInMemoryPlatformEntitlementsPort();
+    port.listBillingPeriods = async () => [
+      { code: 'day', label: 'День (снят)', months: 1, isSelectable: false, sortOrder: 0 },
+      { code: 'month', label: 'Месяц', months: 1, isSelectable: true, sortOrder: 10 },
+    ];
+    const service = createPlatformEntitlementsService({
+      ...port,
+      ...PLATFORM_BILLING_PORT_STUBS,
+      listBillingPeriods: port.listBillingPeriods,
+    });
+
+    await expect(
+      service.createTariff(
+        {
+          name: 'Day tariff',
+          description: '',
+          priceMinor: 1000,
+          currency: 'RUB',
+          billingPeriod: 'day',
+          mechanics: {},
+          quotas: {},
+          systemAccessPolicy: null,
+          mechanicAccessPolicies: {},
+          downgradePolicies: {},
+          mailingTemplates: [],
+          includedSeats: 1,
+          additionalSeatPriceMinor: null,
+          discountedPriceMinor: null,
+          isActive: true,
+        },
+        { actorId: 'admin', reason: 'test' },
+      ),
+    ).rejects.toThrow('tariff_billing_period_invalid');
+  });
+});
+
+describe('#1069 T10 — global paid-period policy validation and commercial access', () => {
+  it('refuses tariff behavior without a post-paid tariff id', () => {
+    const service = createPlatformEntitlementsService({
+      ...createInMemoryPlatformEntitlementsPort(),
+      ...PLATFORM_BILLING_PORT_STUBS,
+    });
+
+    expect(() =>
+      service.setPaidPeriodPolicy(
+        { postPaidPeriodBehavior: 'tariff', postPaidPeriodTariffId: null, isActive: true },
+        { actorId: 'admin', reason: 'test' },
+      ),
+    ).toThrow('paid_period_post_tariff_required');
+  });
+
+  it('refuses a post-paid tariff id when behavior is not tariff', () => {
+    const service = createPlatformEntitlementsService({
+      ...createInMemoryPlatformEntitlementsPort(),
+      ...PLATFORM_BILLING_PORT_STUBS,
+    });
+
+    expect(() =>
+      service.setPaidPeriodPolicy(
+        {
+          postPaidPeriodBehavior: 'read_only',
+          postPaidPeriodTariffId: '11111111-1111-4111-8111-111111111111',
+          isActive: true,
+        },
+        { actorId: 'admin', reason: 'test' },
+      ),
+    ).toThrow('paid_period_post_tariff_forbidden');
+  });
+});
+
+describe('#1069 MF-1 — TS effectiveAccess after paid period end', () => {
+  const organizationTariffId = '10000000-0000-4000-8000-000000000001';
+  const periodEndsAt = '2026-07-01T00:00:00.000Z';
+  const pastPeriod = Date.parse(periodEndsAt) + 86_400_000;
+
+  it('resolveAccess degrades to read_only when the paid period ended under read_only policy', () => {
+    expect(
+      resolveAccess({
+        organizationTariffId,
+        trial: null,
+        paidPeriod: {
+          periodEndsAt,
+          postPaidPeriodBehavior: 'read_only',
+          postPaidPeriodTariffId: null,
+        },
+        now: pastPeriod,
+      }),
+    ).toMatchObject({
+      lifecycle: 'read_only',
+      source: 'assignment',
+      tariffId: organizationTariffId,
+      degradationStartedAt: periodEndsAt,
+    });
+  });
+
+  it('effectiveAccessForPlatform mirrors the same post-paid degradation for admin list', () => {
+    expect(
+      effectiveAccessForPlatform({
+        tariffId: organizationTariffId,
+        trial: null,
+        paidPeriod: {
+          periodEndsAt,
+          postPaidPeriodBehavior: 'blocked',
+          postPaidPeriodTariffId: null,
+        },
+        now: pastPeriod,
+      }),
+    ).toMatchObject({
+      lifecycle: 'blocked',
+      source: 'assignment',
+    });
   });
 });
 

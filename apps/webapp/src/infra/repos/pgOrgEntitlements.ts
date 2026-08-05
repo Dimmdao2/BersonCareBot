@@ -1,8 +1,13 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  resolveCommercialAccess,
+  type CommercialAccessPaidPeriodInput,
+  type CommercialAccessTrialInput,
+} from '@/infra/repos/commercialAccessComputation';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type {
   AccessLifecyclePolicy,
@@ -18,9 +23,11 @@ import type {
   TariffQuotaMap,
 } from '@/modules/org-entitlements/types';
 import { beBranches, beOrganizations } from '../../../db/schema/bookingEngine';
+import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
+  saasPaidPeriodPolicy,
   saasTariffs,
 } from '../../../db/schema/saasEntitlements';
 
@@ -142,46 +149,16 @@ async function readCurrentPatientSnapshot(
 
 export function resolveAccess(input: {
   organizationTariffId: string | null;
-  trial: {
-    tariffId: string;
-    endsAt: string;
-    postTrialBehavior: string;
-    postTrialTariffId: string | null;
-  } | null;
+  trial: CommercialAccessTrialInput;
+  paidPeriod?: CommercialAccessPaidPeriodInput;
   now: number;
 }): EffectiveOrgCommercialAccess {
-  const { trial } = input;
-  if (!trial) {
-    return {
-      lifecycle: 'active',
-      tariffId: input.organizationTariffId,
-      source: 'assignment',
-    };
-  }
-  const trialDates = {
-    trialEndsAt: trial.endsAt,
-    degradationStartedAt: trial.endsAt,
-  };
-  if (input.now <= new Date(trial.endsAt).getTime()) {
-    return { lifecycle: 'active', tariffId: trial.tariffId, source: 'trial', ...trialDates };
-  }
-  // #1069 Т5-Т8 (owner 03.08): the post-trial rule applies the instant `endsAt` passes — no
-  // further access-extending `grace` stage. The discount-payment window runs in parallel and never
-  // changes access.
-  if (trial.postTrialBehavior === 'tariff') {
-    return {
-      lifecycle: 'active',
-      tariffId: trial.postTrialTariffId,
-      source: 'post_trial_tariff',
-      ...trialDates,
-    };
-  }
-  return {
-    lifecycle: trial.postTrialBehavior === 'blocked' ? 'blocked' : 'read_only',
-    tariffId: trial.tariffId,
-    source: 'trial',
-    ...trialDates,
-  };
+  return resolveCommercialAccess({
+    organizationTariffId: input.organizationTariffId,
+    trial: input.trial,
+    paidPeriod: input.paidPeriod ?? null,
+    now: input.now,
+  });
 }
 
 type EffectiveTariffRow = {
@@ -229,24 +206,60 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
       .limit(1);
     if (!organization) throw new Error('organization_not_found');
 
-    const [trial] = await tx
-      .select({
-        tariffId: saasOrganizationTrials.tariffId,
-        endsAt: saasOrganizationTrials.endsAt,
-        postTrialBehavior: saasOrganizationTrials.postTrialBehavior,
-        postTrialTariffId: saasOrganizationTrials.postTrialTariffId,
-      })
-      .from(saasOrganizationTrials)
-      .where(
-        and(
-          eq(saasOrganizationTrials.organizationId, organizationId),
-          eq(saasOrganizationTrials.status, 'active'),
+    const [trial, paidPolicyRow, subscriptionPeriodRow] = await Promise.all([
+      tx
+        .select({
+          tariffId: saasOrganizationTrials.tariffId,
+          endsAt: saasOrganizationTrials.endsAt,
+          postTrialBehavior: saasOrganizationTrials.postTrialBehavior,
+          postTrialTariffId: saasOrganizationTrials.postTrialTariffId,
+        })
+        .from(saasOrganizationTrials)
+        .where(
+          and(
+            eq(saasOrganizationTrials.organizationId, organizationId),
+            eq(saasOrganizationTrials.status, 'active'),
+          ),
+        )
+        .limit(1),
+      tx
+        .select({
+          postPaidPeriodBehavior: saasPaidPeriodPolicy.postPaidPeriodBehavior,
+          postPaidPeriodTariffId: saasPaidPeriodPolicy.postPaidPeriodTariffId,
+        })
+        .from(saasPaidPeriodPolicy)
+        .where(
+          and(eq(saasPaidPeriodPolicy.key, 'global'), eq(saasPaidPeriodPolicy.isActive, true)),
+        )
+        .limit(1),
+      tx
+        .select({
+          periodEndsAt: sql<string | null>`max(${saasBillingSubscriptions.currentPeriodEndsAt})`,
+        })
+        .from(saasBillingSubscriptions)
+        .where(
+          and(
+            eq(saasBillingSubscriptions.organizationId, organizationId),
+            inArray(saasBillingSubscriptions.status, ['active', 'expired']),
+            isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
+          ),
         ),
-      )
-      .limit(1);
+    ]);
+    const paidPeriod: CommercialAccessPaidPeriodInput =
+      paidPolicyRow[0] && subscriptionPeriodRow[0]?.periodEndsAt
+        ? {
+            periodEndsAt: subscriptionPeriodRow[0].periodEndsAt,
+            postPaidPeriodBehavior: paidPolicyRow[0].postPaidPeriodBehavior as
+              | 'read_only'
+              | 'blocked'
+              | 'tariff',
+            postPaidPeriodTariffId: paidPolicyRow[0].postPaidPeriodTariffId,
+          }
+        : null;
     const access = resolveAccess({
       organizationTariffId: organization.tariffId,
-      trial: trial ?? null,
+      trial: trial[0] ?? null,
+      paidPeriod,
       now: Date.now(),
     });
     const tariff = access.tariffId

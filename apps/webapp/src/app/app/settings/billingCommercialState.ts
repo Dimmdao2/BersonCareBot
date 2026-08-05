@@ -35,6 +35,9 @@ export function describeCommercialAccessState(access: EffectiveOrgCommercialAcce
       ? `Пробный период активен до ${formatRuDate(access.trialEndsAt)}.`
       : 'Пробный период активен.';
   }
-  // "assignment" or "post_trial_tariff" with lifecycle "active" — a real tariff is in force.
+  if (access.source === 'post_trial_tariff' || access.source === 'post_paid_period_tariff') {
+    return 'Тариф активен.';
+  }
+  // Plain assignment with lifecycle "active" — a real tariff is in force.
   return 'Тариф активен.';
 }

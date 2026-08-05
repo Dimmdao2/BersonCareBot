@@ -1,7 +1,11 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  resolveCommercialAccess,
+  type CommercialAccessPaidPeriodInput,
+} from '@/infra/repos/commercialAccessComputation';
 import type {
   PlatformEntitlementsPort,
   PlatformMutationAudit,
@@ -203,36 +207,24 @@ function assertPlatformOperationsPrincipal(): void {
 export function effectiveAccessForPlatform(input: {
   tariffId: string | null;
   trial: typeof saasOrganizationTrials.$inferSelect | null;
+  paidPeriod?: CommercialAccessPaidPeriodInput;
   now: number;
 }): EffectiveOrgCommercialAccess {
-  const trial = input.trial?.status === 'active' ? input.trial : null;
-  if (!trial) {
-    return {
-      lifecycle: 'active',
-      tariffId: input.tariffId,
-      source: 'assignment',
-    };
-  }
-  if (input.now <= new Date(trial.endsAt).getTime()) {
-    return {
-      lifecycle: 'active',
-      tariffId: trial.tariffId,
-      source: 'trial',
-      degradationStartedAt: trial.endsAt,
-    };
-  }
-  // #1069 Т5-Т8 (owner 03.08): the post-trial rule applies the instant `endsAt` passes — there is
-  // no further access-extending `grace` stage. The discount-payment window (`discountEndsAt`) runs
-  // in parallel and never appears here; it does not change access.
-  if (trial.postTrialBehavior === 'tariff') {
-    return { lifecycle: 'active', tariffId: trial.postTrialTariffId, source: 'post_trial_tariff' };
-  }
-  return {
-    lifecycle: trial.postTrialBehavior === 'blocked' ? 'blocked' : 'read_only',
-    tariffId: trial.tariffId,
-    source: 'trial',
-    degradationStartedAt: trial.endsAt,
-  };
+  const trial =
+    input.trial?.status === 'active'
+      ? {
+          tariffId: input.trial.tariffId,
+          endsAt: input.trial.endsAt,
+          postTrialBehavior: input.trial.postTrialBehavior,
+          postTrialTariffId: input.trial.postTrialTariffId,
+        }
+      : null;
+  return resolveCommercialAccess({
+    organizationTariffId: input.tariffId,
+    trial,
+    paidPeriod: input.paidPeriod ?? null,
+    now: input.now,
+  });
 }
 
 function effectiveTrialStatus(
@@ -328,7 +320,8 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async listOrganizations() {
       assertPlatformOperationsPrincipal();
       return getDrizzle().transaction(async (tx) => {
-        const [organizations, trials, overrides, manualSaasBillingRows] = await Promise.all([
+        const [organizations, trials, overrides, manualSaasBillingRows, paidPolicyRow, subscriptionPeriodRows] =
+          await Promise.all([
           tx
             .select({
               id: beOrganizations.id,
@@ -354,6 +347,29 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
                 eq(saasBillingSubscriptions.status, 'active'),
               ),
             ),
+          tx
+            .select({
+              postPaidPeriodBehavior: saasPaidPeriodPolicy.postPaidPeriodBehavior,
+              postPaidPeriodTariffId: saasPaidPeriodPolicy.postPaidPeriodTariffId,
+            })
+            .from(saasPaidPeriodPolicy)
+            .where(
+              and(eq(saasPaidPeriodPolicy.key, 'global'), eq(saasPaidPeriodPolicy.isActive, true)),
+            )
+            .limit(1),
+          tx
+            .select({
+              organizationId: saasBillingSubscriptions.organizationId,
+              periodEndsAt: sql<string>`max(${saasBillingSubscriptions.currentPeriodEndsAt})`,
+            })
+            .from(saasBillingSubscriptions)
+            .where(
+              and(
+                inArray(saasBillingSubscriptions.status, ['active', 'expired']),
+                isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
+              ),
+            )
+            .groupBy(saasBillingSubscriptions.organizationId),
         ]);
         const trialByOrg = new Map(trials.map((trial) => [trial.organizationId, trial]));
         const overridesByOrg = new Map<string, OrgEntitlementOverride[]>();
@@ -376,11 +392,28 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
               { tariffId: row.pendingTariffId as string, effectiveAt: row.currentPeriodEndsAt as string },
             ]),
         );
+        const periodEndsByOrg = new Map(
+          subscriptionPeriodRows.map((row) => [row.organizationId, row.periodEndsAt]),
+        );
+        const globalPaidPolicy = paidPolicyRow[0] ?? null;
         return organizations.map((organization) => {
           const trial = trialByOrg.get(organization.id) ?? null;
+          const periodEndsAt = periodEndsByOrg.get(organization.id);
+          const paidPeriod: CommercialAccessPaidPeriodInput =
+            globalPaidPolicy && periodEndsAt
+              ? {
+                  periodEndsAt,
+                  postPaidPeriodBehavior: globalPaidPolicy.postPaidPeriodBehavior as
+                    | 'read_only'
+                    | 'blocked'
+                    | 'tariff',
+                  postPaidPeriodTariffId: globalPaidPolicy.postPaidPeriodTariffId,
+                }
+              : null;
           const effectiveAccess = effectiveAccessForPlatform({
             tariffId: organization.tariffId,
             trial,
+            paidPeriod,
             now,
           });
           return {
