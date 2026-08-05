@@ -575,12 +575,18 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             аккаунт». Равноправный вход переводится на эту таблицу.
             ✅ **#987 slice 1 (`c698e703d`):** migration `0379_user_contacts_d15b6_local.sql` — table +
             backfill + unique indexes + RLS; `syncUserContactsMirror`; login paths; initial dual-write.
-            ✅ **#987 slice 2 (this commit):** census §2.1 infra contact readers → `userContactsSql`
+            ✅ **#987 slice 2 (`50bdcb705`):** census §2.1 infra contact readers → `userContactsSql`
             (`CONTACTS`/`CONTACTS_HAS_PHONE`/`CONTACTS_NO_PHONE`/laterals/`drizzlePrimary*Col`/`primaryPhoneCoalesceFor`);
             dual-write completed on writers (`pgUserProjection`, `pgEmailAuth`, `pgEmailSetupFlowPort`,
             `pgDoctorClientCreate`, `pgIdentityResolution`, `pgChannelLinkStart`/`Claim`, …);
             purge deletes `user_contacts`. Доказательство: `rg` census files import `userContactsSql`;
             `vitest run --project unit userContactsSql.unit.test.ts d15b5FioDualWriteGaps.unit.test.ts` 8/8.
+            ✅ **#987 slice 3 (`a80997914` + this commit):** audit MF messenger bind — mirror after both
+            `user_channel_bindings` INSERT paths (`pgPhoneMessengerBind`); trusted phone lookup
+            (`findTrustedCanonicalUserIdByPhone`) and public booking resolve (`pgPublicBookingUserResolve`)
+            read via `user_contacts` assembly + dual-write mirrors on create. Доказательство:
+            `d15b6PhoneMessengerBindMirror.unit.test.ts` 2/2;
+            `pgCanonicalPlatformUser.unit.test.ts` + `pgPublicBookingUserResolve.unit.test.ts` 4/4.
             Drop legacy unique indexes — не в этом коммите.
       - [ ] **D15b/7 — псевдоним — НЕ В ЭТОМ ОБЪЁМЕ.** Решение принимается после D15b/6 (владелец 03.08).
             Замер на будущее ⚠️ ИСПРАВЛЕН ПЕРЕПИСЬЮ: не «46 ключей», а **130 FK-constraint'ов от 104 таблиц**;
@@ -903,9 +909,12 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
 - [ ] **D25 — идентичность: интегратору остаётся только доставка входа.** Решение — **Р-D25** (§2.3). Это же
       закрывает 13 спорных сценариев переписи D12b. Реализуется по `IDENTITY_AND_MERGE_SCHEME.md` шагами D15b,
       до D17.
-      ⚠️ **ЧАСТИЧНО 03.08:** D15b/2 закрыл запись идентичности из integrator (`5137e8c68`, land `2c1cd63fb`) —
-      одна реализация в `packages/platform-merge/src/identityProjectionWrite.ts`. Остаются D15b/5–6 (схема
-      `user_identity`/`user_contacts`) и полный cutover читателей.
+      ⚠️ **ЧАСТИЧНО 03.08–05.08:** D15b/2 закрыл запись идентичности из integrator (`5137e8c68`, land
+      `2c1cd63fb`) — одна реализация в `packages/platform-merge/src/identityProjectionWrite.ts`.
+      D15b/5–6 закрыты (`#987` slices 1–3): `user_identity`/`user_contacts` схема, infra reader
+      cutover, dual-write writers, trusted-phone + public-booking resolve paths. Остаётся: drop legacy
+      unique indexes на `platform_users` (после dual-write стабилизации), D15b/7 псевдоним (вне объёма),
+      живая двухвебхуковая проверка D15b/2 — за лидом.
 - [ ] **D26 — слияние аккаунтов переписывается как ИНСТРУМЕНТ ПОДДЕРЖКИ, нынешний мерж вырезается.** Решение —
       **Р-D26** (§2.3). Автослияние остаётся только для аккаунта БЕЗ какой-либо медицинской истории (визиты,
       записи на приём, программы врача, любое сообщение человека в чат любой клиники за любой срок). Полномочия

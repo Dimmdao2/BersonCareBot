@@ -1,5 +1,10 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDrizzleOrMutationTx } from '@/infra/db/drizzleMutationTx';
+import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
+import {
+  drizzlePrimaryPhoneCol,
+  syncUserContactsMirrorWebapp,
+} from '@/infra/repos/userContactsSql';
 import { platformUsers } from '../../../db/schema/schema';
 
 /**
@@ -24,9 +29,7 @@ export async function resolveOrCreateTrustedPatientUserByPhone(
   const existing = await db
     .select({ id: platformUsers.id })
     .from(platformUsers)
-    .where(
-      and(eq(platformUsers.phoneNormalized, phoneNormalized), isNull(platformUsers.mergedIntoId)),
-    )
+    .where(and(eq(drizzlePrimaryPhoneCol, phoneNormalized), isNull(platformUsers.mergedIntoId)))
     .limit(2);
   if (existing.length > 1) return { userId: null, created: false };
   if (existing[0]) return { userId: existing[0].id, created: false };
@@ -40,5 +43,10 @@ export async function resolveOrCreateTrustedPatientUserByPhone(
       patientPhoneTrustAt: phoneProven ? new Date().toISOString() : null,
     })
     .returning({ id: platformUsers.id });
-  return { userId: inserted[0]?.id ?? null, created: inserted[0] != null };
+  const userId = inserted[0]?.id ?? null;
+  if (!userId) return { userId: null, created: false };
+
+  await syncUserIdentityFioMirrorWebapp(db, userId);
+  await syncUserContactsMirrorWebapp(db, userId);
+  return { userId, created: true };
 }

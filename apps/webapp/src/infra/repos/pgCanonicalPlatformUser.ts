@@ -154,6 +154,29 @@ export async function findTrustedCanonicalUserIdByPhone(
   phoneNormalized: string,
 ): Promise<string | null> {
   const r = await runWebappPgText<{ id: string }>(
+    `SELECT uc.platform_user_id AS id
+     FROM user_contacts uc
+     INNER JOIN platform_users pu ON pu.id = uc.platform_user_id
+     WHERE uc.contact_kind = 'phone'
+       AND uc.is_primary = true
+       AND uc.value_normalized = $1
+       AND uc.confirmed_at IS NOT NULL
+       AND pu.merged_into_id IS NULL
+     ORDER BY pu.created_at ASC
+     LIMIT 3`,
+    [phoneNormalized],
+    db,
+  );
+  if (r.rows.length > 0) {
+    if (r.rows.length > 1) {
+      console.error('[canonical] multiple trusted canonical rows for phone via user_contacts (redacted)', {
+        count: r.rows.length,
+      });
+      return null;
+    }
+    return r.rows[0]!.id;
+  }
+  const legacy = await runWebappPgText<{ id: string }>(
     `SELECT id FROM platform_users
      WHERE phone_normalized = $1 AND merged_into_id IS NULL
        AND patient_phone_trust_at IS NOT NULL
@@ -162,14 +185,14 @@ export async function findTrustedCanonicalUserIdByPhone(
     [phoneNormalized],
     db,
   );
-  if (r.rows.length === 0) return null;
-  if (r.rows.length > 1) {
+  if (legacy.rows.length === 0) return null;
+  if (legacy.rows.length > 1) {
     console.error('[canonical] multiple trusted canonical rows for phone (redacted)', {
-      count: r.rows.length,
+      count: legacy.rows.length,
     });
     return null;
   }
-  return r.rows[0]!.id;
+  return legacy.rows[0]!.id;
 }
 
 export async function findCanonicalUserIdByChannelBinding(
