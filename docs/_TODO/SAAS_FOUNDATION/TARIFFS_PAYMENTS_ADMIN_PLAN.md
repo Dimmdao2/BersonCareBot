@@ -1252,8 +1252,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       `mechanic_access_policies` для ladder. Остаётся: `system_access_policy` + наследование всеми механиками.
       ⛔ **УСТАРЕЛО / ОШИБКА АГЕНТА:** «собственная настройка у механики остаётся только там, где без неё нельзя».
 - [x] **Т2. Триггеры уведомлений — registration / trial started / trial ended.** ✅ #1069: пять lifecycle-условий
-      в каноническом списке (`79280dc3f`); runtime wiring — `prepare_organization_lifecycle_notification_context`
-      (миграция `0378`, `cabinet_first_entered_at`), `cabinetLifecycleWarningMessages` → баннер
+      в каноническом списке (`79280dc3f`); runtime wiring — `ef45212c3` (`prepare_organization_lifecycle_notification_context`,
+      миграция `0378`, `cabinet_first_entered_at`), `cabinetLifecycleWarningMessages` → баннер
       `apps/webapp/src/app/app/doctor/layout.tsx`; тесты `cabinetAccessGate.lifecycle.test.ts`.
 - [x] **Т3. Шаблоны писем — отдельная вкладка «Рассылки».** ✅ `f9c57cd70` (`MailingTemplate`, `templateId`,
       `CommercialConstructorClient` вкладка «Рассылки»); audit `99e0db223` PASS.
@@ -1328,7 +1328,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       `billingPeriodCatalog.ts`; миграция `0376_tariff_billing_periods_post_paid_policy_local.sql`.
 
 - [x] **Т7. Два новых триггера уведомлений: льготный период начат / завершён.** ✅ #1069: `discount_period_started` /
-      `discount_period_ended` в том же runtime wiring, что Т2; `organizationHasPaidSinceTrial` подавляет оба
+      `discount_period_ended` в том же runtime wiring (`ef45212c3`), что Т2; `organizationHasPaidSinceTrial` подавляет оба
       для оплативших после триала; семантика отрицательного offset — `5d47bb73d`; тесты
       `accessNotifications.test.ts`, `cabinetAccessGate.lifecycle.test.ts`.
 - [x] **Т8. Как задаётся скидка.** ✅ закрыто 03.08: `saas_tariffs.discounted_price_minor` — явная льготная цена у каждого тарифа, глобального процента нет по решению владельца; «тариф без льготной цены скидки не даёт» покрыто тестом. Владелец назвал два варианта — процент со скидкой и округлением, либо точная
