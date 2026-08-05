@@ -1441,6 +1441,15 @@ BEGIN
     SELECT 'saas_billing_invoices', 'app_owner', 'SELECT', false
     WHERE to_regprocedure('app.resolve_saas_billing_invoice_for_webhook(text,text)') IS NOT NULL
     UNION
+    -- 0375 (#1069 T5): choose_organization_first_tariff SECURITY DEFINER accessor.
+    SELECT 'saas_billing_accounts', 'app_owner', privilege_type, false
+    FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+    WHERE to_regprocedure('app.choose_organization_first_tariff(uuid,uuid)') IS NOT NULL
+    UNION
+    SELECT 'saas_billing_subscriptions', 'app_owner', privilege_type, false
+    FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+    WHERE to_regprocedure('app.choose_organization_first_tariff(uuid,uuid)') IS NOT NULL
+    UNION
     SELECT relation_name, 'app_platform_settings', privilege_type, false
     FROM relations
     CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
