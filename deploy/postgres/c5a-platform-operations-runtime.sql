@@ -1070,12 +1070,14 @@ BEGIN
   ELSE
     GRANT SELECT ON TABLE public.saas_paid_period_policy TO app_owner;
     GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_paid_period_policy TO app_platform_settings;
+    REVOKE ALL ON TABLE public.saas_paid_period_policy FROM app_staff;
   END IF;
 
   IF to_regclass('public.saas_billing_periods') IS NULL THEN
     RAISE WARNING '0376: public.saas_billing_periods does not exist on this database -- skipping billing-periods grants.';
   ELSE
     GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_periods TO app_platform_settings;
+    REVOKE ALL ON TABLE public.saas_billing_periods FROM app_staff;
   END IF;
 
   IF to_regclass('public.saas_paid_period_policy') IS NOT NULL

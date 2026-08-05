@@ -218,8 +218,6 @@ VALUES
   ('public', 'reminder_journal'),
   ('public', 'reminder_occurrence_history'),
   ('public', 'reminder_rules'),
-  ('public', 'saas_billing_periods'),
-  ('public', 'saas_paid_period_policy'),
   ('public', 'specialist_tasks'),
   ('public', 'support_conversation_messages'),
   ('public', 'support_conversations'),
