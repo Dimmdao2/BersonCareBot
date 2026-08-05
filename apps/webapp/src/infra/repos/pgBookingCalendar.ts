@@ -14,7 +14,8 @@ import {
 } from '../../../db/schema/bookingScheduling';
 import { bePaymentIntents } from '../../../db/schema/bookingPayments';
 import { bePackageUsages, bePatientPackages } from '../../../db/schema/bookingMemberships';
-import { patientBookings, platformUsers } from '../../../db/schema/schema';
+import { patientBookings, platformUsers, userIdentity } from '../../../db/schema/schema';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import type { BookingCalendarPort } from '@/modules/booking-calendar/ports';
 import type {
   CalendarAppointmentEvent,
@@ -248,9 +249,9 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           branchColor: beBranches.color,
           roomTitle: beRooms.title,
           serviceTitle: beClinicServices.title,
-          patientDisplayName: platformUsers.displayName,
-          patientFirstName: platformUsers.firstName,
-          patientLastName: platformUsers.lastName,
+          patientDisplayName: drizzleFioCols.displayName,
+          patientFirstName: drizzleFioCols.firstName,
+          patientLastName: drizzleFioCols.lastName,
           patientPhone: platformUsers.phoneNormalized,
         })
         .from(beAppointments)
@@ -259,6 +260,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
         .leftJoin(beRooms, eq(beRooms.id, beAppointments.roomId))
         .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
         .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+        .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
         .where(and(...conds))
         .orderBy(asc(beAppointments.startAt));
 

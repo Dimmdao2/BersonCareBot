@@ -1,4 +1,5 @@
 import { runWebappPgText, type WebappSqlExecutor } from '@/infra/db/runWebappSql';
+import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 
 /** Max hops when following merged_into_id (cycle protection). */
 export const MAX_MERGE_CHAIN_DEPTH = 5;
@@ -46,9 +47,11 @@ export async function selectPlatformUserById(
   userId: string,
 ): Promise<PlatformUserRow | null> {
   const r = await runWebappPgText<PlatformUserRow>(
-    `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, merged_into_id,
-            display_name, role
-     FROM platform_users WHERE id = $1`,
+    `SELECT pu.id, pu.phone_normalized, pu.integrator_user_id::text AS integrator_user_id, pu.merged_into_id,
+            ${FIO.displayName} AS display_name, pu.role
+     FROM platform_users pu
+     ${USER_IDENTITY_FIO_JOIN}
+     WHERE pu.id = $1`,
     [userId],
     db,
   );

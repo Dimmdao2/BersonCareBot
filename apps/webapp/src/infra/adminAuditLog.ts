@@ -7,6 +7,7 @@ import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { Pool, PoolClient } from 'pg';
 import { ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS } from '@/modules/admin/adminAuditListQuery';
 import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { logger } from '@/infra/logging/logger';
 
@@ -488,10 +489,10 @@ export async function listAdminAuditLog(
   // wall asserts that invariant). A platform principal has no organization id, so keep the
   // global audit query on admin_audit_log alone. Organization staff retain the actor-name join.
   const actorDisplayNameSql = principalOrganizationId
-    ? 'pu.display_name AS actor_display_name'
+    ? `${FIO.displayName} AS actor_display_name`
     : 'NULL::text AS actor_display_name';
   const actorJoinSql = principalOrganizationId
-    ? 'LEFT JOIN platform_users pu ON pu.id = l.actor_id'
+    ? `LEFT JOIN platform_users pu ON pu.id = l.actor_id ${USER_IDENTITY_FIO_JOIN}`
     : '';
 
   const countRes = await runWebappPgText<{ n: string }>(

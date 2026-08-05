@@ -34,7 +34,8 @@ import {
   beSpecialists,
 } from '../../../db/schema/bookingEngine';
 import { clinicalVisit } from '../../../db/schema/patientClinical';
-import { platformUsers } from '../../../db/schema/schema';
+import { platformUsers, userIdentity } from '../../../db/schema/schema';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import { pickPreferredSsaId } from '@/modules/booking-scheduling/ssaResolve';
 import { isChainFree } from '@/modules/booking-scheduling/computeSlots';
 import { listBookingBusyIntervals } from '@/infra/repos/pgBookingScheduling';
@@ -443,13 +444,14 @@ async function loadManualPatientForReplay(
   const [patient] = await tx
     .select({
       userId: platformUsers.id,
-      displayName: platformUsers.displayName,
-      lastName: platformUsers.lastName,
-      firstName: platformUsers.firstName,
-      patronymic: platformUsers.patronymic,
+      displayName: drizzleFioCols.displayName,
+      lastName: drizzleFioCols.lastName,
+      firstName: drizzleFioCols.firstName,
+      patronymic: drizzleFioCols.patronymic,
       phoneNormalized: platformUsers.phoneNormalized,
     })
     .from(platformUsers)
+    .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
     .where(and(eq(platformUsers.id, userId), isNull(platformUsers.mergedIntoId)))
     .limit(1);
   const [relationship] = await tx

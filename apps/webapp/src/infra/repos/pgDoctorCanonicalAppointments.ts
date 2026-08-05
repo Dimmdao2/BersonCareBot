@@ -23,7 +23,8 @@ import {
 } from '../../../db/schema/bookingPolicies';
 import { beAppointments, beBranches, beClinicServices } from '../../../db/schema/bookingEngine';
 import { bePackageUsages, bePatientPackages } from '../../../db/schema/bookingMemberships';
-import { platformUsers } from '../../../db/schema/schema';
+import { platformUsers, userIdentity } from '../../../db/schema/schema';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import { resolveAppointmentStatsBounds } from '@/modules/doctor-appointments/resolveAppointmentStatsBounds';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { localDayRangeBoundsIso } from '@/shared/datetime/localDayRangeBounds';
@@ -155,10 +156,10 @@ const listSelect = {
   phoneNormalized: beAppointments.phoneNormalized,
   attributionJson: beAppointments.attributionJson,
   platformUserId: beAppointments.platformUserId,
-  displayName: platformUsers.displayName,
-  firstName: platformUsers.firstName,
-  lastName: platformUsers.lastName,
-  patronymic: platformUsers.patronymic,
+  displayName: drizzleFioCols.displayName,
+  firstName: drizzleFioCols.firstName,
+  lastName: drizzleFioCols.lastName,
+  patronymic: drizzleFioCols.patronymic,
   serviceTitle: beClinicServices.title,
   branchTitle: beBranches.title,
   packageUsageRef: beAppointments.packageUsageRef,
@@ -200,6 +201,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .select(listSelect)
           .from(beAppointments)
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
           .leftJoin(bePackageUsages, packageUsageJoinCond())
@@ -223,6 +225,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .select(listSelect)
           .from(beAppointments)
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
           .leftJoin(bePackageUsages, packageUsageJoinCond())
@@ -243,6 +246,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .select(listSelect)
           .from(beAppointments)
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
           .leftJoin(bePackageUsages, packageUsageJoinCond())
@@ -261,6 +265,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .select(listSelect)
           .from(beAppointments)
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
           .leftJoin(bePackageUsages, packageUsageJoinCond())
@@ -282,6 +287,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .select(listSelect)
           .from(beAppointments)
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
           .leftJoin(bePackageUsages, packageUsageJoinCond())
@@ -295,6 +301,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .select(listSelect)
           .from(beAppointments)
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
           .leftJoin(bePackageUsages, packageUsageJoinCond())
@@ -314,6 +321,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .select(listSelect)
           .from(beAppointments)
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
           .leftJoin(bePackageUsages, packageUsageJoinCond())

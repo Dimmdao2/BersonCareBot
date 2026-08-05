@@ -15,6 +15,7 @@ import {
   normalizeTestAccountIdentifiersValue,
   type TestAccountIdentifiers,
 } from '@/modules/system-settings/testAccounts';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import {
   hourlyDimsFromEvent,
   shouldUpdateUserHourly,
@@ -41,7 +42,7 @@ import {
   productAnalyticsUserHourly,
   productPushNotifications,
 } from '../../../db/schema/productAnalytics';
-import { platformUsers } from '../../../db/schema/schema';
+import { platformUsers, userIdentity } from '../../../db/schema/schema';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 
@@ -434,11 +435,12 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         const userRows = await db
           .select({
             id: platformUsers.id,
-            displayName: platformUsers.displayName,
-            firstName: platformUsers.firstName,
-            lastName: platformUsers.lastName,
+            displayName: drizzleFioCols.displayName,
+            firstName: drizzleFioCols.firstName,
+            lastName: drizzleFioCols.lastName,
           })
           .from(platformUsers)
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
           .where(inArray(platformUsers.id, userIds));
         for (const row of userRows) {
           const firstLast = [row.firstName?.trim(), row.lastName?.trim()]

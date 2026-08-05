@@ -10,8 +10,8 @@ import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
 import {
   upsertIdentityProjection,
   collapseIdentityProjectionCandidates,
-  syncUserIdentityFioMirror,
 } from '@bersoncare/platform-merge';
+import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
@@ -148,11 +148,19 @@ export const pgUserProjectionPort: UserProjectionPort = {
     }
     if (vals.length === 0) return;
     vals.push(params.phoneNormalized);
-    await runWebappPgText(
-      `UPDATE platform_users SET ${sets.join(', ')}
-       WHERE phone_normalized = $${idx + 1} AND merged_into_id IS NULL`,
-      vals,
-    );
+    const pool = getPool();
+    await withPoolTransaction(pool, async (client) => {
+      const updated = await txPgText<{ id: string }>(
+        client,
+        `UPDATE platform_users SET ${sets.join(', ')}
+         WHERE phone_normalized = $${idx + 1} AND merged_into_id IS NULL
+         RETURNING id`,
+        vals,
+      );
+      for (const row of updated.rows) {
+        await syncUserIdentityFioMirrorWebapp(client, row.id);
+      }
+    });
   },
 
   async upsertNotificationTopics(params) {
@@ -316,7 +324,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
         }
 
         if (patch.firstName !== undefined || patch.lastName !== undefined) {
-          await syncUserIdentityFioMirror(client, platformUserId);
+          await syncUserIdentityFioMirrorWebapp(client, platformUserId);
         }
 
         return { ok: true as const };

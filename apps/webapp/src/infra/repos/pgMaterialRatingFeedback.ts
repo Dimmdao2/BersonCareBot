@@ -1,7 +1,8 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { patientContentRatingFeedback } from '../../../db/schema/patientContentRatingFeedback';
-import { platformUsers } from '../../../db/schema/schema';
+import { platformUsers, userIdentity } from '../../../db/schema/schema';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import type { MaterialRatingFeedbackPort } from '@/modules/material-rating-feedback/ports';
 import {
   MATERIAL_RATING_FEEDBACK_REASON_CODES,
@@ -66,11 +67,12 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
           reasonCodes: patientContentRatingFeedback.reasonCodes,
           comment: patientContentRatingFeedback.comment,
           createdAt: patientContentRatingFeedback.createdAt,
-          displayName: platformUsers.displayName,
+          displayName: drizzleFioCols.displayName,
           phoneNormalized: platformUsers.phoneNormalized,
         })
         .from(patientContentRatingFeedback)
         .leftJoin(platformUsers, eq(platformUsers.id, patientContentRatingFeedback.userId))
+        .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
         .where(
           and(
             eq(patientContentRatingFeedback.organizationId, organizationId),
@@ -131,11 +133,12 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
           reasonCodes: patientContentRatingFeedback.reasonCodes,
           comment: patientContentRatingFeedback.comment,
           createdAt: patientContentRatingFeedback.createdAt,
-          displayName: platformUsers.displayName,
+          displayName: drizzleFioCols.displayName,
           phoneNormalized: platformUsers.phoneNormalized,
         })
         .from(patientContentRatingFeedback)
         .leftJoin(platformUsers, eq(platformUsers.id, patientContentRatingFeedback.userId))
+        .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
         .where(
           and(
             eq(patientContentRatingFeedback.organizationId, organizationId),

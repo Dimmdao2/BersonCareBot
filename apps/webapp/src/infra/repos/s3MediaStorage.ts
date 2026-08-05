@@ -206,8 +206,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         getWebappSqlDb(),
         sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
-              NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
-              NULLIF(TRIM(pu.display_name), '')
+              NULLIF(TRIM(CONCAT_WS(' ', COALESCE(ui.first_name, pu.first_name), COALESCE(ui.last_name, pu.last_name))), ''),
+              NULLIF(TRIM(COALESCE(ui.display_name, pu.display_name)), '')
             ) AS uploaded_by_name,
             m.created_at,
             m.preview_status, m.preview_sm_key, m.preview_md_key,
@@ -217,6 +217,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
+         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
          WHERE m.id = ${id}::uuid
            AND m.organization_id = ${organizationId}::uuid
            AND ${mediaReadableStatusPredicateM}`,
@@ -357,8 +358,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         getWebappSqlDb(),
         sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
-              NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
-              NULLIF(TRIM(pu.display_name), '')
+              NULLIF(TRIM(CONCAT_WS(' ', COALESCE(ui.first_name, pu.first_name), COALESCE(ui.last_name, pu.last_name))), ''),
+              NULLIF(TRIM(COALESCE(ui.display_name, pu.display_name)), '')
             ) AS uploaded_by_name,
             m.created_at, m.s3_key, m.folder_id,
             m.preview_status, m.preview_sm_key, m.preview_md_key,
@@ -369,6 +370,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             COUNT(*) OVER()::text AS total_count
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
+         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
          WHERE ${whereSql} AND m.s3_key IS NOT NULL
          ORDER BY ${orderBy}
          LIMIT ${limit} OFFSET ${offset}`,

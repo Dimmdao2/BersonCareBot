@@ -555,8 +555,20 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             `pgAdminPlatformUserStats.ts` — `docs/_TODO/runs/integrator-cleanup/D15B4_PLATFORM_USERS_RLS_REPORT.md`.
             typecheck обоих приложений чист, journal-sync и migrator self-test зелёные, TS-код не менялся.
             TEST-деплой не выполнялся (граница ветки) — следующий шаг ведущего.
-      - [ ] **D15b/5 — ФИО в `user_identity`** (5 колонок, 17 читателей в `infra`). `id` остаётся ключом
+      - [x] **D15b/5 — ФИО в `user_identity`** (5 колонок, 17 читателей в `infra`). `id` остаётся ключом
             аккаунта, внешние ключи не двигаются. Репетиция механики выноса на дешёвой таблице.
+            ✅ `#987` slice 1 `6da6759a3` (migration `0377_user_identity_d15b5_local.sql`, drizzle
+            `userIdentity`, `syncUserIdentityFioMirror` in platform-merge, projection dual-write, session
+            COALESCE in `pgUserByPhone`) + slice 2 (this commit): shared helper
+            `apps/webapp/src/infra/repos/userIdentityFioSql.ts` (`USER_IDENTITY_FIO_JOIN` / `FIO` /
+            `drizzleFioCols`); все census §2.1 infra FIO-читатели переведены на
+            `LEFT JOIN user_identity` + COALESCE; dual-write после каждого infra/platform-merge FIO-writer
+            (`pgDoctorClients`, `pgUserProjection`, `pgIdentityResolution`, `pgPhoneMessengerBind`,
+            `pgDoctorClientCreate`, `identityProjectionWrite`, `pgPlatformUserMerge`). Исключения по замеру:
+            `autoMergeScalarEffective.ts` (JS mirror merge-preview, не DB-reader); `pgDoctorClientCreate`
+            `.returning()` — echo только что записали. Доказательство: `rg platformUsers\.(displayName|…)`
+            по `apps/webapp/src/infra` → один файл с `.returning()`; `fio.route.test.ts` 4/4;
+            journal-sync + migrator self-test зелёные; typecheck без ошибок в затронутых файлах.
       - [ ] **D15b/6 — контакты в `user_contacts`** (36 читателей в `infra`). Не перенос, а сборка из ЧЕТЫРЁХ
             мест: колонки `platform_users`, `user_oauth_bindings.email`, `user_phone_history`,
             `user_channel_bindings`. Уникальные индексы переезжают вместе — они держат «один контакт = один

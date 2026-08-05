@@ -1,4 +1,5 @@
 import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import {
   MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
   resolveAdminStatsLocalRange,
@@ -100,13 +101,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
-               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.start_at::text AS event_at,
                'Визит'::text AS event_label
              FROM be_appointments a
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz
@@ -127,13 +129,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
-               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.start_at::text AS event_at,
                'Отменённый визит'::text AS event_label
              FROM be_appointments a
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz
@@ -154,13 +157,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
-               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.created_at::text AS event_at,
                'Запись создана'::text AS event_label
              FROM be_appointments a
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
              WHERE a.organization_id = $1::uuid
                AND a.created_at >= $2::timestamptz
                AND a.created_at < $3::timestamptz${CANONICAL_PURGED_FILTER_SQL}
@@ -180,7 +184,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
-               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                c.created_at::text AS event_at,
                'Отмена'::text AS event_label
@@ -188,6 +192,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              INNER JOIN be_appointments a ON a.id = c.appointment_id
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
              WHERE c.organization_id = $1::uuid
                AND c.created_at >= $2::timestamptz
                AND c.created_at < $3::timestamptz${CANONICAL_PURGED_FILTER_SQL}
@@ -207,7 +212,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
-               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                r.created_at::text AS event_at,
                'Перенос'::text AS event_label
@@ -215,6 +220,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              INNER JOIN be_appointments a ON a.id = r.appointment_id
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
              WHERE r.organization_id = $1::uuid
                AND r.created_at >= $2::timestamptz
                AND r.created_at < $3::timestamptz
@@ -230,16 +236,17 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -250,11 +257,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -263,7 +271,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.email_verified_at IS NULL
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -274,11 +282,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -286,7 +295,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.email_verified_at IS NULL
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -297,11 +306,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -309,7 +319,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND NOT ${sqlActiveMaxBinding('pu.id')}
                AND pu.email_verified_at IS NULL
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -320,11 +330,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -332,7 +343,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND NOT ${sqlActiveTelegramBinding('pu.id')}
                AND pu.email_verified_at IS NULL
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -343,11 +354,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -355,7 +367,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND (pu.phone_normalized IS NULL OR btrim(pu.phone_normalized) = '')
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -366,11 +378,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -378,7 +391,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND ${sqlActiveTelegramBinding('pu.id')}
                AND NOT ${sqlActiveMaxBinding('pu.id')}
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -389,11 +402,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -401,7 +415,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND ${sqlActiveMaxBinding('pu.id')}
                AND NOT ${sqlActiveTelegramBinding('pu.id')}
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -412,11 +426,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -425,7 +440,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND btrim(pu.phone_normalized) <> ''
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
-             ORDER BY pu.display_name ASC, pu.id ASC
+             ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
             clientEx.params,
           );
@@ -440,7 +455,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
+               COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                pcanon.phone_normalized,
                pu.created_at::text AS event_at,
                'Регистрация'::text AS event_label
@@ -466,7 +481,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
+               COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                pcanon.phone_normalized,
                pu.merged_at::text AS event_at,
                'Слияние'::text AS event_label
@@ -493,7 +508,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT * FROM (
                SELECT
                  COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-                 pcanon.display_name,
+                 COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                  pcanon.phone_normalized,
                  pu.created_at::text AS event_at,
                  'Регистрация'::text AS event_label
@@ -506,7 +521,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                UNION ALL
                SELECT
                  COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-                 pcanon.display_name,
+                 COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                  pcanon.phone_normalized,
                  pu.merged_at::text AS event_at,
                  'Слияние'::text AS event_label
@@ -534,13 +549,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
-               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.start_at::text AS event_at,
                'Запись сегодня'::text AS event_label
              FROM be_appointments a
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at <= $3::timestamptz
@@ -564,13 +580,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
-               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.start_at::text AS event_at,
                'Запись на неделе'::text AS event_label
              FROM be_appointments a
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz
@@ -590,13 +607,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
-               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(COALESCE(ui_pcanon.display_name, pcanon.display_name), NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
                COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.updated_at::text AS event_at,
                'Отмена'::text AS event_label
              FROM be_appointments a
              LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN user_identity ui_pcanon ON ui_pcanon.platform_user_id = pcanon.id
              WHERE a.organization_id = $1::uuid
                AND a.status = ANY($2::text[])
                AND a.updated_at >= NOW() - interval '30 days'${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
@@ -616,7 +634,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                ucb.bot_blocked_at::text AS event_at,
                'Бот заблокирован'::text AS event_label
@@ -646,7 +664,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(rr.platform_user_id, pu.id)::text AS user_id,
-               pcanon.display_name,
+               COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                pcanon.phone_normalized,
                MAX(roh.occurred_at)::text AS event_at,
                '${eventLabel}'::text AS event_label
@@ -676,7 +694,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                e.user_id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                MAX(e.occurred_at)::text AS event_at,
                'Push open'::text AS event_label
@@ -685,7 +703,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              WHERE e.event_type = 'push_open'
                AND e.user_id IS NOT NULL
                AND e.occurred_at >= (NOW() - ($1::integer * interval '1 hour'))${ex.andSql}
-             GROUP BY e.user_id, pu.display_name, pu.phone_normalized
+             GROUP BY e.user_id, ${FIO.displayName}, pu.phone_normalized
              ORDER BY MAX(e.occurred_at) DESC, e.user_id ASC
              LIMIT $2::int OFFSET $3::int`,
             ex.params,
@@ -701,7 +719,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
-               pu.display_name,
+               ${FIO.displayName} AS display_name,
                pu.phone_normalized,
                s.first_at::text AS event_at,
                'Первая привязка канала'::text AS event_label
@@ -733,9 +751,9 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           'pu.id',
         );
         const r = await runWebappPgText<ListRow>(
-          `SELECT
+          `           SELECT
              pu.id::text AS user_id,
-             pu.display_name,
+             ${FIO.displayName} AS display_name,
              pu.phone_normalized,
              s.first_at::text AS event_at,
              'Первая привязка канала'::text AS event_label
@@ -747,6 +765,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              GROUP BY ucb.user_id
            ) s
            INNER JOIN platform_users pu ON pu.id = s.user_id
+           ${USER_IDENTITY_FIO_JOIN}
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false

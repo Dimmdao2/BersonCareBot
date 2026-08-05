@@ -4,6 +4,7 @@
  */
 import type { Pool } from 'pg';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { checkIntegratorCanonicalPair } from '@/infra/integrations/integratorUserMergeM2mClient';
 import {
   effectiveAutoMergedDisplayName,
@@ -957,9 +958,9 @@ export async function searchMergeCandidates(
         pu.id::text ILIKE $${p}
         OR pu.phone_normalized ILIKE $${p}
         OR pu.email ILIKE $${p}
-        OR pu.display_name ILIKE $${p}
-        OR pu.first_name ILIKE $${p}
-        OR pu.last_name ILIKE $${p}
+        OR ${FIO.displayName} ILIKE $${p}
+        OR ${FIO.firstName} ILIKE $${p}
+        OR ${FIO.lastName} ILIKE $${p}
         OR pu.integrator_user_id::text ILIKE $${p}
         OR EXISTS (
           SELECT 1 FROM user_channel_bindings ucb
@@ -976,12 +977,13 @@ export async function searchMergeCandidates(
       WHERE id = $1::uuid
     )
     SELECT pu.id,
-           pu.display_name,
+           ${FIO.displayName} AS display_name,
            pu.phone_normalized,
            pu.email,
            pu.integrator_user_id::text AS integrator_user_id,
            pu.created_at
     FROM platform_users pu, anchor
+    ${USER_IDENTITY_FIO_JOIN}
     WHERE pu.id <> anchor.id
       AND pu.role = 'client'
       AND pu.merged_into_id IS NULL
@@ -1030,21 +1032,22 @@ export async function searchMergeUsersForManualMerge(
   const lim = Math.min(Math.max(1, limit), 100);
   const sql = `
     SELECT pu.id,
-           pu.display_name,
+           ${FIO.displayName} AS display_name,
            pu.phone_normalized,
            pu.email,
            pu.integrator_user_id::text AS integrator_user_id,
            pu.created_at
     FROM platform_users pu
+    ${USER_IDENTITY_FIO_JOIN}
     WHERE pu.role = 'client'
       AND pu.merged_into_id IS NULL
       AND (
         pu.id::text ILIKE $1
         OR pu.phone_normalized ILIKE $1
         OR pu.email ILIKE $1
-        OR pu.display_name ILIKE $1
-        OR pu.first_name ILIKE $1
-        OR pu.last_name ILIKE $1
+        OR ${FIO.displayName} ILIKE $1
+        OR ${FIO.firstName} ILIKE $1
+        OR ${FIO.lastName} ILIKE $1
         OR pu.integrator_user_id::text ILIKE $1
         OR EXISTS (
           SELECT 1 FROM user_channel_bindings ucb

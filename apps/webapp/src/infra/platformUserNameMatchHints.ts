@@ -6,6 +6,7 @@
  * tune limits if the `platform_users` table grows large.
  */
 import type { Pool } from 'pg';
+import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 
 export const NAME_MATCH_HINTS_DISCLAIMER =
@@ -108,15 +109,16 @@ export async function buildNameMatchHintsReport(
     base AS (
       SELECT
         pu.id,
-        pu.display_name,
-        pu.first_name,
-        pu.last_name,
+        ${FIO.displayName} AS display_name,
+        ${FIO.firstName} AS first_name,
+        ${FIO.lastName} AS last_name,
         pu.phone_normalized,
         pu.integrator_user_id::text AS integrator_user_id,
         pu.created_at,
-        lower(trim(both from regexp_replace(coalesce(pu.first_name, ''), '[[:space:]]+', ' ', 'g'))) AS nf,
-        lower(trim(both from regexp_replace(coalesce(pu.last_name, ''), '[[:space:]]+', ' ', 'g'))) AS nl
+        lower(trim(both from regexp_replace(coalesce(${FIO.firstName}, ''), '[[:space:]]+', ' ', 'g'))) AS nf,
+        lower(trim(both from regexp_replace(coalesce(${FIO.lastName}, ''), '[[:space:]]+', ' ', 'g'))) AS nl
       FROM platform_users pu
+      ${USER_IDENTITY_FIO_JOIN}
       WHERE pu.role = 'client'
         AND pu.merged_into_id IS NULL
         ${phoneFilter}

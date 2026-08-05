@@ -31,6 +31,11 @@ import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/id
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import {
+  FIO,
+  syncUserIdentityFioMirrorWebapp,
+  USER_IDENTITY_FIO_JOIN,
+} from '@/infra/repos/userIdentityFioSql';
 
 async function collectMessengerResolutionCandidates(
   client: PoolClient,
@@ -63,7 +68,10 @@ async function loadSessionUserForId(
 ): Promise<SessionUser> {
   const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
-    'SELECT display_name, role, phone_normalized FROM platform_users WHERE id = $1',
+    `SELECT ${FIO.displayName} AS display_name, pu.role, pu.phone_normalized
+     FROM platform_users pu
+     ${USER_IDENTITY_FIO_JOIN}
+     WHERE pu.id = $1`,
     [canonicalId],
   );
   const u = userRow.rows[0]
@@ -123,6 +131,7 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
                WHERE id = $1::uuid`,
               [userId, dn],
             );
+            await syncUserIdentityFioMirrorWebapp(client, userId);
           }
           if (process.env.NODE_ENV !== 'test') {
             console.info(
@@ -146,6 +155,7 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
             'insert_platform_user',
           ).id;
           insertedNewPlatformUser = true;
+          await syncUserIdentityFioMirrorWebapp(client, userId);
         }
         const insBinding = await runIdentityClientPgText(
           client,

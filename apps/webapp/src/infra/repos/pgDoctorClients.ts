@@ -28,6 +28,12 @@ import {
 } from '@/infra/repos/pgDoctorPatientSupport';
 import { appendSqlExcludeUserIds } from '@/modules/analytics/analyticsAudience';
 import {
+  FIO,
+  FIO_SELECT,
+  syncUserIdentityFioMirrorWebapp,
+  USER_IDENTITY_FIO_JOIN,
+} from '@/infra/repos/userIdentityFioSql';
+import {
   sqlActiveMaxBinding,
   sqlActiveTelegramBinding,
   sqlMessengerBotBlocked,
@@ -281,8 +287,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           ? `COALESCE(is_archived, false) = true`
           : `COALESCE(is_archived, false) = false`;
       const listBaseParams: unknown[] = [];
-      let listBase = `SELECT id, display_name, first_name, last_name, patronymic, phone_normalized, created_at, email, email_verified_at
+      let listBase = `SELECT pu.id, ${FIO_SELECT}, pu.phone_normalized, pu.created_at, pu.email, pu.email_verified_at
          FROM platform_users pu
+         ${USER_IDENTITY_FIO_JOIN}
          WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${archivedClause}`;
       if (organizationId) {
         listBaseParams.push(organizationId);
@@ -801,13 +808,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         birth_date: string | null;
         gender: string | null;
       }>(
-        `SELECT id, display_name, first_name, last_name, patronymic, phone_normalized, email, email_verified_at,
-                COALESCE(is_blocked, false) AS is_blocked,
-                COALESCE(is_archived, false) AS is_archived,
-                role,
-                birth_date::text AS birth_date,
-                gender
-         FROM platform_users WHERE id = $1::uuid`,
+        `SELECT pu.id, ${FIO_SELECT}, pu.phone_normalized, pu.email, pu.email_verified_at,
+                COALESCE(pu.is_blocked, false) AS is_blocked,
+                COALESCE(pu.is_archived, false) AS is_archived,
+                pu.role,
+                ${FIO.birthDate}::text AS birth_date,
+                pu.gender
+         FROM platform_users pu
+         ${USER_IDENTITY_FIO_JOIN}
+         WHERE pu.id = $1::uuid`,
         [canonicalId],
       );
       const ur = userRow.rows[0];
@@ -1204,12 +1213,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
       const userRow = await runWebappPgText(
-        `SELECT id, display_name, phone_normalized, created_at,
-                first_name, last_name, email, email_verified_at,
-                COALESCE(is_blocked, false) AS is_blocked,
-                blocked_reason,
-                COALESCE(is_archived, false) AS is_archived
-         FROM platform_users WHERE id = $1`,
+        `SELECT pu.id, ${FIO.displayName} AS display_name, pu.phone_normalized, pu.created_at,
+                ${FIO.firstName} AS first_name, ${FIO.lastName} AS last_name, pu.email, pu.email_verified_at,
+                COALESCE(pu.is_blocked, false) AS is_blocked,
+                pu.blocked_reason,
+                COALESCE(pu.is_archived, false) AS is_archived
+         FROM platform_users pu
+         ${USER_IDENTITY_FIO_JOIN}
+         WHERE pu.id = $1`,
         [canonicalId],
       );
       if (userRow.rows.length === 0) return null;
@@ -1327,14 +1338,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async setPatientBirthDate(userId: string, birthDate: string | null): Promise<void> {
-      await runWebappTransaction((tx) =>
-        runWebappPgText(
+      await runWebappTransaction(async (tx) => {
+        await runWebappPgText(
           `UPDATE platform_users SET birth_date = $2::date, updated_at = now()
            WHERE id = $1::uuid AND role = 'client'`,
           [userId, birthDate],
           tx,
-        ),
-      );
+        );
+        await syncUserIdentityFioMirrorWebapp(tx, userId);
+      });
     },
 
     async setPatientGender(userId: string, gender: 'male' | 'female' | null): Promise<void> {
@@ -1378,14 +1390,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           ${firstNameExpr},
           ${patronymicExpr}
         ), ''), '')`);
-      await runWebappTransaction((tx) =>
-        runWebappPgText(
+      await runWebappTransaction(async (tx) => {
+        await runWebappPgText(
           `UPDATE platform_users SET ${sets.join(', ')}, updated_at = now()
            WHERE id = $1::uuid AND role = 'client'`,
           params,
           tx,
-        ),
-      );
+        );
+        await syncUserIdentityFioMirrorWebapp(tx, userId);
+      });
     },
 
     async getPatientPhysical(userId: string) {

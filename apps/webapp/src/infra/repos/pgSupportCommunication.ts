@@ -8,6 +8,7 @@
 import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import {
@@ -647,10 +648,10 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           COALESCE(last_personal.personal_msg_at, sc.created_at)::text AS last_message_at,
           sc.closed_at::text,
           sc.close_reason,
-          pu.display_name,
-          pu.first_name,
-          pu.last_name,
-          pu.patronymic,
+          ${FIO.displayName} AS display_name,
+          ${FIO.firstName} AS first_name,
+          ${FIO.lastName} AS last_name,
+          ${FIO.patronymic} AS patronymic,
           pu.phone_normalized,
           sc.channel_external_id,
           last_personal.last_msg_text AS last_message_text,
@@ -658,6 +659,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           COALESCE(unread.unread_from_user_count, 0)::int AS unread_from_user_count
          FROM support_conversations sc
          LEFT JOIN platform_users pu ON pu.id = sc.platform_user_id
+         ${USER_IDENTITY_FIO_JOIN}
          LEFT JOIN LATERAL (
            SELECT m.text AS last_msg_text, m.sender_role AS last_sender_role, m.created_at AS personal_msg_at
            FROM support_conversation_messages m

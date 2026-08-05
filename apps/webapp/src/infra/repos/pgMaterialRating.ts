@@ -263,12 +263,13 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
                 mr.stars,
                 mr.updated_at::text AS updated_at,
                 COALESCE(
-                  NULLIF(trim(pu.display_name), ''),
+                  NULLIF(trim(COALESCE(ui.display_name, pu.display_name)), ''),
                   NULLIF(trim(pu.phone_normalized), ''),
                   mr.user_id::text
                 ) AS display_label
          FROM material_ratings mr
          LEFT JOIN platform_users pu ON pu.id = mr.user_id
+         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
          WHERE mr.organization_id = $1::uuid
            AND mr.target_kind = $2 AND mr.target_id = $3::uuid
            AND mr.updated_at >= $4::timestamptz

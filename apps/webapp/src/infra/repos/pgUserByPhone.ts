@@ -56,6 +56,11 @@ import {
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
 import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import {
+  FIO,
+  syncUserIdentityFioMirrorWebapp,
+  USER_IDENTITY_FIO_JOIN,
+} from '@/infra/repos/userIdentityFioSql';
 
 async function markPatientPhoneTrusted(client: PoolClient, userId: string): Promise<void> {
   const db = getWebappSqlFromPgClient(client);
@@ -102,28 +107,28 @@ async function loadSessionIdentityUser(
   const userRow = await runIdentityPoolPgText(
     options.includeSecurityFactor
       ? `SELECT pu.id,
-                COALESCE(ui.display_name, pu.display_name) AS display_name,
-                COALESCE(ui.first_name, pu.first_name) AS first_name,
-                COALESCE(ui.last_name, pu.last_name) AS last_name,
-                COALESCE(ui.patronymic, pu.patronymic) AS patronymic,
+                ${FIO.displayName} AS display_name,
+                ${FIO.firstName} AS first_name,
+                ${FIO.lastName} AS last_name,
+                ${FIO.patronymic} AS patronymic,
                 pu.role, pu.phone_normalized,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived,
                 COALESCE(sss.factor_required, false) AS security_factor_required
          FROM platform_users pu
-         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
+         ${USER_IDENTITY_FIO_JOIN}
          LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
          WHERE pu.id = $1`
       : `SELECT pu.id,
-                COALESCE(ui.display_name, pu.display_name) AS display_name,
-                COALESCE(ui.first_name, pu.first_name) AS first_name,
-                COALESCE(ui.last_name, pu.last_name) AS last_name,
-                COALESCE(ui.patronymic, pu.patronymic) AS patronymic,
+                ${FIO.displayName} AS display_name,
+                ${FIO.firstName} AS first_name,
+                ${FIO.lastName} AS last_name,
+                ${FIO.patronymic} AS patronymic,
                 pu.role, pu.phone_normalized,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived
          FROM platform_users pu
-         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
+         ${USER_IDENTITY_FIO_JOIN}
          WHERE pu.id = $1`,
     [canonicalId],
   );
@@ -381,6 +386,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
            WHERE id = $2`,
             [displayName, userId],
           );
+          await syncUserIdentityFioMirrorWebapp(client, userId);
         } else {
           wasCreated = true;
           const insert = await runIdentityClientPgText(
@@ -401,6 +407,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
             source: 'otp',
             confirmingChannel: options?.confirmingChannel,
           });
+          await syncUserIdentityFioMirrorWebapp(client, userId);
         }
 
         if (key) {

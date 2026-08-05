@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 
 const EMPTY = 'Имя не указано';
 
@@ -13,7 +14,10 @@ export async function fetchMergePartyDisplayLabels(
 ): Promise<{ targetDisplayName: string; duplicateDisplayName: string }> {
   const r = await runPgPoolPgText<{ id: string; display_name: string | null }>(
     pool,
-    `SELECT id::text AS id, display_name FROM platform_users WHERE id IN ($1::uuid, $2::uuid)`,
+    `SELECT pu.id::text AS id, ${FIO.displayName} AS display_name
+     FROM platform_users pu
+     ${USER_IDENTITY_FIO_JOIN}
+     WHERE pu.id IN ($1::uuid, $2::uuid)`,
     [targetId, duplicateId],
   );
   const norm = (s: string | null | undefined) => {

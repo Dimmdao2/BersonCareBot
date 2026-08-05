@@ -12,7 +12,8 @@ import {
   ORGANIZATION_MEMBERSHIP_ROLES,
   ORGANIZATION_MEMBERSHIP_STATUSES,
 } from '@/modules/organization-membership/ports';
-import { platformUsers } from '../../../db/schema/schema';
+import { platformUsers, userIdentity } from '../../../db/schema/schema';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import { beOrganizationMembers, beSpecialists } from '../../../db/schema/bookingEngine';
 
 type OrganizationMembershipRow = typeof beOrganizationMembers.$inferSelect;
@@ -145,10 +146,11 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           doctorScreensDisabled: beOrganizationMembers.doctorScreensDisabled,
           createdAt: beOrganizationMembers.createdAt,
           updatedAt: beOrganizationMembers.updatedAt,
-          displayName: platformUsers.displayName,
+          displayName: drizzleFioCols.displayName,
         })
         .from(beOrganizationMembers)
         .leftJoin(platformUsers, eq(platformUsers.id, beOrganizationMembers.platformUserId))
+        .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
         .where(eq(beOrganizationMembers.organizationId, organizationId))
         .orderBy(asc(beOrganizationMembers.createdAt), asc(beOrganizationMembers.platformUserId));
       return rows.map(mapOrganizationMemberDirectoryRow);
@@ -198,10 +200,11 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
           doctorScreensDisabled: beOrganizationMembers.doctorScreensDisabled,
           createdAt: beOrganizationMembers.createdAt,
           updatedAt: beOrganizationMembers.updatedAt,
-          displayName: platformUsers.displayName,
+          displayName: drizzleFioCols.displayName,
         })
         .from(beOrganizationMembers)
         .leftJoin(platformUsers, eq(platformUsers.id, beOrganizationMembers.platformUserId))
+        .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
         .where(
           and(
             eq(beOrganizationMembers.organizationId, organizationId),

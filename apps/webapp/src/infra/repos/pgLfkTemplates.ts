@@ -229,7 +229,7 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
               'kind', 'patient_lfk_assignment_client',
               'id', pla.id::text,
               'title', ct.title || ' — ' || COALESCE(
-                NULLIF(btrim(pu.display_name), ''),
+                NULLIF(btrim(COALESCE(ui.display_name, pu.display_name)), ''),
                 NULLIF(btrim(pu.phone_normalized), ''),
                 'пациент'
               ),
@@ -238,6 +238,7 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             FROM patient_lfk_assignments pla
             INNER JOIN lfk_complex_templates ct ON ct.id = pla.template_id
             LEFT JOIN platform_users pu ON pu.id = pla.patient_user_id
+            LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
             WHERE pla.template_id = $1::uuid
               AND pla.organization_id = ${ORG_ID_EXPR}
               AND ct.organization_id = ${ORG_ID_EXPR}

@@ -1,7 +1,9 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
+import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import { formatDoctorFio, normalizeFioPart } from '@/shared/lib/fio';
-import { platformUsers, userPhoneHistory } from '../../../db/schema/schema';
+import { platformUsers, userIdentity, userPhoneHistory } from '../../../db/schema/schema';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 
 export type ResolveOrCreateDoctorClientByPhoneInput = {
   phoneNormalized: string | null;
@@ -73,6 +75,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
         patronymic: platformUsers.patronymic,
       });
     if (!inserted) throw new DoctorClientIdentityError('create_failed');
+    await syncUserIdentityFioMirrorWebapp(tx, inserted.id);
     return {
       userId: inserted.id,
       displayName: inserted.displayName,
@@ -90,13 +93,14 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       .select({
         id: platformUsers.id,
         role: platformUsers.role,
-        displayName: platformUsers.displayName,
-        lastName: platformUsers.lastName,
-        firstName: platformUsers.firstName,
-        patronymic: platformUsers.patronymic,
+        displayName: drizzleFioCols.displayName,
+        lastName: drizzleFioCols.lastName,
+        firstName: drizzleFioCols.firstName,
+        patronymic: drizzleFioCols.patronymic,
         phoneNormalized: platformUsers.phoneNormalized,
       })
       .from(platformUsers)
+      .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
       .where(
         and(eq(platformUsers.phoneNormalized, phoneNormalized), isNull(platformUsers.mergedIntoId)),
       )
@@ -198,6 +202,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     phoneNormalized,
     source: 'admin',
   });
+  await syncUserIdentityFioMirrorWebapp(tx, inserted.id);
 
   return {
     userId: inserted.id,

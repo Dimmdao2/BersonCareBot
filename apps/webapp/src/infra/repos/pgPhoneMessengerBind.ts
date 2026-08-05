@@ -18,6 +18,7 @@ import {
 } from '@/infra/adminAuditLog';
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
@@ -271,6 +272,7 @@ async function applyMessengerContactPreOtpImpl(
       source: 'messenger',
       confirmingChannel: channelCode,
     });
+    await syncUserIdentityFioMirrorWebapp(client, userId);
   }
 
   if (bindingOwner.rows.length > 0) {

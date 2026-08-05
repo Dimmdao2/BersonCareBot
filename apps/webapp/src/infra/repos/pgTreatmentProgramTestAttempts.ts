@@ -3,7 +3,8 @@ import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { clinicalTests } from '../../../db/schema/clinicalTests';
-import { platformUsers } from '../../../db/schema/schema';
+import { platformUsers, userIdentity } from '../../../db/schema/schema';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import {
   treatmentProgramInstances as instanceTable,
   treatmentProgramInstanceStageItems as itemTable,
@@ -497,7 +498,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           instanceStageItemId: attemptTable.instanceStageItemId,
           testTitle: clinicalTests.title,
           patientUserId: instanceTable.patientUserId,
-          patientDisplayName: platformUsers.displayName,
+          patientDisplayName: drizzleFioCols.displayName,
         })
         .from(resultTable)
         .innerJoin(attemptTable, eq(resultTable.attemptId, attemptTable.id))
@@ -506,6 +507,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
         .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))
         .innerJoin(platformUsers, eq(platformUsers.id, instanceTable.patientUserId))
+        .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
         .where(
           and(pendingEvaluationGlobalWhere(organizationId), inArray(attemptTable.id, attemptIds)),
         )

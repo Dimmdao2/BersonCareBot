@@ -1,7 +1,8 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { mediaFolders, platformUsers } from '../../../db/schema/schema';
+import { mediaFolders, platformUsers, userIdentity } from '../../../db/schema/schema';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import {
   CLIENT_FILES_ROOT_FOLDER_NAME,
   CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY,
@@ -124,13 +125,14 @@ async function resolvePatientDisplayNameAndPhone(
   const db = getDrizzle();
   const [row] = await db
     .select({
-      firstName: platformUsers.firstName,
-      lastName: platformUsers.lastName,
-      patronymic: platformUsers.patronymic,
-      displayName: platformUsers.displayName,
+      firstName: drizzleFioCols.firstName,
+      lastName: drizzleFioCols.lastName,
+      patronymic: drizzleFioCols.patronymic,
+      displayName: drizzleFioCols.displayName,
       phoneNormalized: platformUsers.phoneNormalized,
     })
     .from(platformUsers)
+    .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
     .where(eq(platformUsers.id, patientUserId))
     .limit(1);
   if (!row) return { displayName: 'Клиент', phoneNormalized: null };
