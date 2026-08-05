@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Suspense, use, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
 import type { ReferenceItem } from '@/modules/references/types';
@@ -64,10 +64,14 @@ const LIST_ROW_VISIBILITY_STYLE = {
   containIntrinsicSize: '52px',
 } as const;
 
-type Props = {
-  initialItems: Recommendation[];
+type RecommendationsBootstrap = {
+  items: Recommendation[];
   initialSelectedId: string | null;
   initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null;
+};
+
+type Props = {
+  listPromise: Promise<RecommendationsBootstrap>;
   initialViewMode: RecommendationsViewMode;
   viewLockedByUrl: boolean;
   initialTitleSort: RecommendationTitleSort | null;
@@ -83,6 +87,28 @@ type Props = {
     invalidDomainQuery?: boolean;
   };
 };
+
+function CatalogSplitLayoutSkeleton() {
+  return (
+    <div className="hidden gap-3 lg:grid lg:grid-cols-2">
+      <div className="rounded-xl border border-border bg-card p-3">
+        <div className="mb-3 h-8 animate-pulse rounded-md bg-muted/50" />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="h-40 animate-pulse rounded-md bg-muted/40" />
+          ))}
+        </div>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="h-10 animate-pulse rounded-md bg-muted/50" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function desktopRecommendationsTileColumns(count: number): number {
   if (count <= 3) return 3;
@@ -211,9 +237,7 @@ type RecommendationCatalogFiltersMerged = Props['filters'] & {
 };
 
 function RecommendationsContent({
-  initialItems,
-  initialSelectedId,
-  initialSelectedUsageSnapshot,
+  listPromise,
   viewMode,
   toolbarViewMode,
   desktopSelectedId,
@@ -230,9 +254,7 @@ function RecommendationsContent({
   filterToolbarLayout,
   onFilterToolbarLayoutChange,
 }: {
-  initialItems: Recommendation[];
-  initialSelectedId: string | null;
-  initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null;
+  listPromise: Promise<RecommendationsBootstrap>;
   viewMode: RecommendationsViewMode;
   toolbarViewMode: RecommendationsViewMode;
   desktopSelectedId: string | null;
@@ -249,6 +271,11 @@ function RecommendationsContent({
   filterToolbarLayout: DoctorCatalogToolbarLayout;
   onFilterToolbarLayoutChange: (layout: DoctorCatalogToolbarLayout) => void;
 }) {
+  const bootstrap = use(listPromise);
+  const initialItems = bootstrap.items;
+  const initialSelectedId = bootstrap.initialSelectedId;
+  const initialSelectedUsageSnapshot = bootstrap.initialSelectedUsageSnapshot;
+
   useEffect(() => {
     if (!initialSelectedId) return;
     const found = initialItems.find((r) => r.id === initialSelectedId);
@@ -524,9 +551,7 @@ function RecommendationsContent({
 }
 
 export function RecommendationsPageClient({
-  initialItems,
-  initialSelectedId,
-  initialSelectedUsageSnapshot,
+  listPromise,
   initialViewMode,
   viewLockedByUrl,
   initialTitleSort,
@@ -585,25 +610,25 @@ export function RecommendationsPageClient({
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
 
   return (
-    <RecommendationsContent
-      initialItems={initialItems}
-      initialSelectedId={initialSelectedId}
-      initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
-      viewMode={viewMode}
-      toolbarViewMode={toolbarViewMode}
-      desktopSelectedId={desktopSelectedId}
-      mobileSheet={mobileSheet}
-      isListPending={isListPending}
-      setDesktopSelectedId={setDesktopSelectedId}
-      setMobileSheet={setMobileSheet}
-      toggleViewMode={toggleViewMode}
-      changeTitleSort={changeTitleSort}
-      domainFilterItems={domainFilterItems}
-      domainCatalogItems={domainCatalogItems}
-      bodyRegionIdToCode={bodyRegionIdToCode}
-      filters={mergedFilters}
-      filterToolbarLayout={filterToolbarLayout}
-      onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
-    />
+    <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
+      <RecommendationsContent
+        listPromise={listPromise}
+        viewMode={viewMode}
+        toolbarViewMode={toolbarViewMode}
+        desktopSelectedId={desktopSelectedId}
+        mobileSheet={mobileSheet}
+        isListPending={isListPending}
+        setDesktopSelectedId={setDesktopSelectedId}
+        setMobileSheet={setMobileSheet}
+        toggleViewMode={toggleViewMode}
+        changeTitleSort={changeTitleSort}
+        domainFilterItems={domainFilterItems}
+        domainCatalogItems={domainCatalogItems}
+        bodyRegionIdToCode={bodyRegionIdToCode}
+        filters={mergedFilters}
+        filterToolbarLayout={filterToolbarLayout}
+        onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
+      />
+    </Suspense>
   );
 }

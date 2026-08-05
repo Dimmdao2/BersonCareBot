@@ -1,5 +1,5 @@
 import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
-import type { RecommendationUsageSnapshot } from '@/modules/recommendations/types';
+import type { Recommendation, RecommendationUsageSnapshot } from '@/modules/recommendations/types';
 import { parseRecommendationCatalogSsrQuery } from '@/modules/recommendations/recommendationCatalogSsrQuery';
 import {
   RECOMMENDATION_TYPE_CATEGORY_CODE,
@@ -31,6 +31,12 @@ type PageProps = {
   }>;
 };
 
+type RecommendationsBootstrap = {
+  items: Recommendation[];
+  initialSelectedId: string | null;
+  initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null;
+};
+
 export default async function DoctorRecommendationsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
   const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
@@ -60,32 +66,35 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
     bodyRegionItems,
     catalogQuery.regionCodeForCatalog,
   );
-  const items = await deps.recommendations.listRecommendations({
-    search: null,
-    archiveScope,
-    regionRefId: regionRefIdForList,
-  });
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const rawSelected = typeof sp.selected === 'string' ? sp.selected.trim() : '';
-  const initialSelectedId =
-    rawSelected && items.some((r) => r.id === rawSelected) ? rawSelected : null;
-  let initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null = null;
-  if (initialSelectedId != null) {
-    initialSelectedUsageSnapshot =
-      await deps.recommendations.getRecommendationUsage(initialSelectedId);
-  }
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
     typeof sp.view === 'string' ? sp.view : undefined,
   );
+
+  const listPromise: Promise<RecommendationsBootstrap> = deps.recommendations
+    .listRecommendations({
+      search: null,
+      archiveScope,
+      regionRefId: regionRefIdForList,
+    })
+    .then(async (items) => {
+      const initialSelectedId =
+        rawSelected && items.some((r) => r.id === rawSelected) ? rawSelected : null;
+      let initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null = null;
+      if (initialSelectedId != null) {
+        initialSelectedUsageSnapshot =
+          await deps.recommendations.getRecommendationUsage(initialSelectedId);
+      }
+      return { items, initialSelectedId, initialSelectedUsageSnapshot };
+    });
 
   return (
     <DoctorAppShell title="Рекомендации" user={session.user} backHref="/app/doctor">
       <DoctorPageHeader title="Рекомендации" />
       <RecommendationsPageClient
-        initialItems={items}
-        initialSelectedId={initialSelectedId}
-        initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
+        listPromise={listPromise}
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}

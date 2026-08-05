@@ -1,10 +1,6 @@
 import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
-import type {
-  CalendarEvent,
-  CalendarFilterMeta,
-  WorkingBounds,
-} from '@/modules/booking-calendar/types';
+import type { CalendarFilterMeta } from '@/modules/booking-calendar/types';
 import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import {
   resolveDoctorScheduleScopeState,
@@ -12,42 +8,20 @@ import {
   type DoctorScheduleScopeState,
   type ResolvedDoctorScheduleScope,
 } from '@/modules/doctor-schedule/scope';
-import {
-  parseCalendarDoctorSettings,
-  type CalendarDoctorSettings,
-} from './scheduleCalendarSettings';
+import { parseCalendarDoctorSettings } from './scheduleCalendarSettings';
 import {
   resolveScheduleCalAnchorDate,
   resolveScheduleCalView,
   scheduleCalViewToApiView,
   visibleRange,
-  type ScheduleCalV26View,
 } from './scheduleCalendarRange';
+import type {
+  ScheduleCalendarBootstrap,
+  ScheduleCalendarFeedSnapshot,
+} from './scheduleCalendarBootstrapTypes';
 
-export type ScheduleCalendarFeedSnapshot = {
-  ok: true;
-  view: string;
-  anchorDate: string;
-  timeZone: string;
-  events: CalendarEvent[];
-  filters: CalendarFilterMeta;
-  readSource?: 'canonical';
-  showWorkingHours: boolean;
-  workingBounds?: WorkingBounds | null;
-  resolvedScope: ResolvedDoctorScheduleScope;
-};
-
-export type ScheduleCalendarBootstrap = {
-  fetchedAt: string;
-  view: ScheduleCalV26View;
-  anchorDate: string;
-  branchId: string | null;
-  serviceId: string | null;
-  scheduleScope: DoctorScheduleScopeState;
-  calendar: ScheduleCalendarFeedSnapshot;
-  kpis: ScheduleKpis | null;
-  settings: CalendarDoctorSettings;
-};
+export type { ScheduleCalendarBootstrap, ScheduleCalendarFeedSnapshot } from './scheduleCalendarBootstrapTypes';
+export { isScheduleCalendarBootstrap } from './scheduleCalendarBootstrapTypes';
 
 type Deps = ReturnType<typeof buildAppDeps>;
 
@@ -187,19 +161,4 @@ export async function loadDoctorScheduleCalendarBootstrap(input: {
     // Degrade to client fetch — shell/settings still render.
     return null;
   }
-}
-
-export function isScheduleCalendarBootstrap(
-  value: unknown,
-): value is ScheduleCalendarBootstrap {
-  if (!value || typeof value !== 'object') return false;
-  const v = value as ScheduleCalendarBootstrap;
-  return (
-    typeof v.fetchedAt === 'string' &&
-    typeof v.view === 'string' &&
-    typeof v.anchorDate === 'string' &&
-    v.calendar != null &&
-    typeof v.calendar === 'object' &&
-    v.calendar.ok === true
-  );
 }

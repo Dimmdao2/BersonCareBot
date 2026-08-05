@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { Suspense, use, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
 import { ClipboardList } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import type {
@@ -28,6 +28,7 @@ import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
 import { DoctorCatalogMasterListRow } from '@/shared/ui/doctor/DoctorCatalogMasterListRow';
+import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
 import {
   TreatmentProgramConstructorClient,
   type TreatmentProgramLibraryPickers,
@@ -39,6 +40,7 @@ import { templateListPreviewToPreviewUi } from '@/shared/ui/doctor/media/mediaPr
 import { DoctorCatalogInvalidPubArchToast } from '@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast';
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { TreatmentProgramTemplateStatusBadge } from './TreatmentProgramTemplateStatusBadge';
+import { loadTreatmentProgramLibrary } from './loadTreatmentProgramLibrary';
 
 /** Краткая строка счётчиков + подпись для aria (список шаблонов). */
 function templateListCountsText(
@@ -98,9 +100,30 @@ function TreatmentProgramTemplateRowPreviewMedia({
   );
 }
 
+function CatalogSplitLayoutSkeleton() {
+  return (
+    <div className="hidden gap-3 lg:grid lg:grid-cols-2">
+      <div className="rounded-xl border border-border bg-card p-3">
+        <div className="mb-3 h-8 animate-pulse rounded-md bg-muted/50" />
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="h-12 animate-pulse rounded-md bg-muted/40" />
+          ))}
+        </div>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="h-10 animate-pulse rounded-md bg-muted/50" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type Props = {
-  templates: TreatmentProgramTemplate[];
-  library: TreatmentProgramLibraryPickers;
+  templatesPromise: Promise<TreatmentProgramTemplate[]>;
   initialSelectedId: string | null;
   filters: {
     q: string;
@@ -109,41 +132,49 @@ type Props = {
   initialTitleSort: 'asc' | 'desc' | null;
 };
 
-export function TreatmentProgramTemplatesPageClient({
-  templates,
-  library,
+type ContentProps = Props & {
+  titleSort: CatalogMasterTitleSort | null;
+  setTitleSort: (next: CatalogMasterTitleSort | null) => void;
+  isListPending: boolean;
+  startListTransition: (fn: () => void) => void;
+  formKey: string;
+};
+
+function TreatmentProgramTemplatesContent({
+  templatesPromise,
   initialSelectedId,
   filters,
-  initialTitleSort,
-}: Props) {
+  titleSort,
+  setTitleSort,
+  isListPending,
+  startListTransition,
+  formKey,
+}: ContentProps) {
   const router = useRouter();
-  const formKey = useId();
-  const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
+  const templates = use(templatesPromise);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TreatmentProgramTemplate | null>(null);
   const [detail, setDetail] = useState<TreatmentProgramTemplateDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [library, setLibrary] = useState<TreatmentProgramLibraryPickers | null>(null);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
   const detailFetchGenRef = useRef(0);
-  const [isListPending, startListTransition] = useTransition();
+  const libraryFetchGenRef = useRef(0);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
 
   useEffect(() => {
-    setTitleSort(initialTitleSort);
-  }, [initialTitleSort]);
-
-  useEffect(() => {
     queueMicrotask(() => {
-      if (initialSelectedId) {
-        const found = templates.find((t) => t.id === initialSelectedId);
-        if (found) {
-          setCreating(false);
-          setSelectedId(found.id);
-          setMobileSheet(found);
-        }
+      if (!initialSelectedId) return;
+      const found = templates.find((t) => t.id === initialSelectedId);
+      if (found) {
+        setCreating(false);
+        setSelectedId(found.id);
+        setMobileSheet(found);
       }
     });
   }, [initialSelectedId, templates]);
@@ -174,6 +205,35 @@ export function TreatmentProgramTemplatesPageClient({
       setTitleSort(next);
     });
   };
+
+  // Prefetch constructor library in parallel with detail when a template is selected.
+  useEffect(() => {
+    if (!selected?.id) return;
+    if (library) return;
+    const gen = ++libraryFetchGenRef.current;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled || gen !== libraryFetchGenRef.current) return;
+      setLibraryLoading(true);
+      setLibraryError(null);
+    });
+    void loadTreatmentProgramLibrary()
+      .then((lib) => {
+        if (cancelled || gen !== libraryFetchGenRef.current) return;
+        setLibrary(lib);
+      })
+      .catch(() => {
+        if (cancelled || gen !== libraryFetchGenRef.current) return;
+        setLibraryError('Не удалось загрузить библиотеку конструктора');
+      })
+      .finally(() => {
+        if (cancelled || gen !== libraryFetchGenRef.current) return;
+        setLibraryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id, library]);
 
   useEffect(() => {
     const id = selected?.id;
@@ -230,13 +290,19 @@ export function TreatmentProgramTemplatesPageClient({
     displayList.length === 0 ? (
       <p className={doctorCatalogListEmptyClass}>Нет шаблонов по заданным условиям.</p>
     ) : (
-      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-        {displayList.map((t) => {
+      <VirtualizedItemGrid
+        items={displayList}
+        columns={1}
+        estimatedRowHeight={56}
+        overscan={4}
+        keyExtractor={(t) => t.id}
+        containerClassName="h-full min-h-0"
+        gridClassName="gap-1 pb-1"
+        renderItem={(t) => {
           const active = activeId === t.id;
           const counts = templateListCountsText(t.stageCount, t.itemCount);
           return (
             <DoctorCatalogMasterListRow
-              key={t.id}
               active={active}
               onPick={() => onPick(t)}
               previewInner={
@@ -260,40 +326,53 @@ export function TreatmentProgramTemplatesPageClient({
               }
             />
           );
-        })}
-      </ul>
+        }}
+      />
     );
 
-  const rightInner = detailLoading ? (
-    <p className="text-sm text-muted-foreground">Загрузка конструктора…</p>
-  ) : detailError ? (
-    <p className="text-sm text-destructive">{detailError}</p>
-  ) : detail && selected ? (
-    <TreatmentProgramConstructorClient
-      templateId={selected.id}
-      initialDetail={detail}
-      library={library}
-      onArchived={() => {
-        router.refresh();
-        setCreating(false);
-        setSelectedId(null);
-        setMobileSheet(null);
-        setDetail(null);
-      }}
-    />
-  ) : (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm font-medium text-foreground">Новый шаблон программы</p>
-      <p className="text-sm text-muted-foreground">
-        Задайте название и откройте конструктор этапов.
-      </p>
-      <NewTemplateForm
-        showCancelLink={false}
-        showStatusField={false}
-        titleInputId="tpl-title-catalog-inline"
-      />
-    </div>
-  );
+  const rightInner = (() => {
+    if (!selected) {
+      return (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium text-foreground">Новый шаблон программы</p>
+          <p className="text-sm text-muted-foreground">
+            Задайте название и откройте конструктор этапов.
+          </p>
+          <NewTemplateForm
+            showCancelLink={false}
+            showStatusField={false}
+            titleInputId="tpl-title-catalog-inline"
+          />
+        </div>
+      );
+    }
+    if (detailLoading || libraryLoading) {
+      return <p className="text-sm text-muted-foreground">Загрузка конструктора…</p>;
+    }
+    if (detailError) {
+      return <p className="text-sm text-destructive">{detailError}</p>;
+    }
+    if (libraryError) {
+      return <p className="text-sm text-destructive">{libraryError}</p>;
+    }
+    if (detail && library) {
+      return (
+        <TreatmentProgramConstructorClient
+          templateId={selected.id}
+          initialDetail={detail}
+          library={library}
+          onArchived={() => {
+            router.refresh();
+            setCreating(false);
+            setSelectedId(null);
+            setMobileSheet(null);
+            setDetail(null);
+          }}
+        />
+      );
+    }
+    return <p className="text-sm text-muted-foreground">Загрузка конструктора…</p>;
+  })();
 
   const desktopRight = <CatalogRightPane className="h-full">{rightInner}</CatalogRightPane>;
 
@@ -332,67 +411,98 @@ export function TreatmentProgramTemplatesPageClient({
   );
 
   return (
+    <DoctorCatalogPageLayout toolbar={toolbar}>
+      <CatalogSplitLayout
+        className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
+        left={
+          <CatalogLeftPane
+            stickySplit={false}
+            stickyToolbarRows={1}
+            className="h-full"
+            headerSlot={
+              <DoctorCatalogListSortHeader
+                summaryLine={
+                  displayList.length === 0 ? 'Нет шаблонов' : `Шаблонов: ${displayList.length}`
+                }
+                titleSort={titleSortForHeader}
+                onTitleSortChange={changeTitleSort}
+                catalogPubArch={mergedFilters.listPubArch}
+                archiveScopeExtraParams={{
+                  titleSort: mergedFilters.titleSort,
+                }}
+              />
+            }
+          >
+            <div
+              className={cn(
+                'min-h-0 flex-1 overflow-hidden transition-opacity',
+                isListPending && 'opacity-80',
+              )}
+              aria-busy={isListPending}
+            >
+              {renderRows(
+                (t) => {
+                  setCreating(false);
+                  setSelectedId(t.id);
+                  setMobileSheet(t);
+                },
+                creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
+              )}
+            </div>
+          </CatalogLeftPane>
+        }
+        right={desktopRight}
+        mobileView={mobileDetailOpen ? 'detail' : 'list'}
+        mobileBackSlot={
+          mobileDetailOpen ? (
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => {
+                setMobileSheet(null);
+                setCreating(false);
+              }}
+            >
+              ← Назад
+            </Button>
+          ) : null
+        }
+      />
+    </DoctorCatalogPageLayout>
+  );
+}
+
+export function TreatmentProgramTemplatesPageClient({
+  templatesPromise,
+  initialSelectedId,
+  filters,
+  initialTitleSort,
+}: Props) {
+  const formKey = useId();
+  const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
+  const [isListPending, startListTransition] = useTransition();
+
+  useEffect(() => {
+    setTitleSort(initialTitleSort);
+  }, [initialTitleSort]);
+
+  return (
     <>
       <DoctorCatalogInvalidPubArchToast />
-      <DoctorCatalogPageLayout toolbar={toolbar}>
-        <CatalogSplitLayout
-          className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
-          left={
-            <CatalogLeftPane
-              stickySplit={false}
-              stickyToolbarRows={1}
-              className="h-full"
-              headerSlot={
-                <DoctorCatalogListSortHeader
-                  summaryLine={
-                    displayList.length === 0 ? 'Нет шаблонов' : `Шаблонов: ${displayList.length}`
-                  }
-                  titleSort={titleSortForHeader}
-                  onTitleSortChange={changeTitleSort}
-                  catalogPubArch={mergedFilters.listPubArch}
-                  archiveScopeExtraParams={{
-                    titleSort: mergedFilters.titleSort,
-                  }}
-                />
-              }
-            >
-              <div
-                className={cn(
-                  'min-h-0 flex-1 overflow-hidden transition-opacity',
-                  isListPending && 'opacity-80',
-                )}
-                aria-busy={isListPending}
-              >
-                {renderRows(
-                  (t) => {
-                    setCreating(false);
-                    setSelectedId(t.id);
-                    setMobileSheet(t);
-                  },
-                  creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
-                )}
-              </div>
-            </CatalogLeftPane>
-          }
-          right={desktopRight}
-          mobileView={mobileDetailOpen ? 'detail' : 'list'}
-          mobileBackSlot={
-            mobileDetailOpen ? (
-              <Button
-                variant="ghost"
-                type="button"
-                className="mb-2 h-9 px-2"
-                onClick={() => {
-                  setMobileSheet(null);
-                  setCreating(false);
-                }}
-              >
-                ← Назад
-              </Button>
-            ) : null
-          }
+      <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
+        <TreatmentProgramTemplatesContent
+          templatesPromise={templatesPromise}
+          initialSelectedId={initialSelectedId}
+          filters={filters}
+          initialTitleSort={initialTitleSort}
+          titleSort={titleSort}
+          setTitleSort={setTitleSort}
+          isListPending={isListPending}
+          startListTransition={startListTransition}
+          formKey={formKey}
         />
-      </DoctorCatalogPageLayout>
+      </Suspense>
     </>
   );
 }

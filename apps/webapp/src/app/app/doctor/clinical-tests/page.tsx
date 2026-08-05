@@ -17,6 +17,7 @@ import {
   assessmentKindWriteAllowSet,
   referenceItemsToAssessmentKindFilterDto,
 } from '@/modules/tests/clinicalTestAssessmentKind';
+import type { ClinicalTest, ClinicalTestUsageSnapshot } from '@/modules/tests/types';
 import type { ClinicalTestTitleSort } from './ClinicalTestsPageClient';
 
 type PageProps = {
@@ -29,6 +30,12 @@ type PageProps = {
     assessment?: string;
     status?: string;
   }>;
+};
+
+type ClinicalTestsBootstrap = {
+  items: ClinicalTest[];
+  initialSelectedId: string | null;
+  initialSelectedUsageSnapshot: ClinicalTestUsageSnapshot | null;
 };
 
 export default async function DoctorClinicalTestsPage({ searchParams }: PageProps) {
@@ -61,25 +68,30 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
     bodyRegionItems,
     regionParsed.regionCode,
   );
-  const items = await deps.clinicalTests.listClinicalTests({
-    search: null,
-    archiveScope,
-    regionRefId: regionRefIdForList,
-  });
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const rawSelected = typeof sp.selected === 'string' ? sp.selected.trim() : '';
-  const initialSelectedId =
-    rawSelected && items.some((t) => t.id === rawSelected) ? rawSelected : null;
-  const initialSelectedUsageSnapshot =
-    initialSelectedId != null
-      ? await deps.clinicalTests.getClinicalTestUsage(initialSelectedId)
-      : null;
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
     typeof sp.view === 'string' ? sp.view : undefined,
   );
 
   const assessmentKindFilterItems = referenceItemsToAssessmentKindFilterDto(assessmentRefItems);
+
+  const listPromise: Promise<ClinicalTestsBootstrap> = deps.clinicalTests
+    .listClinicalTests({
+      search: null,
+      archiveScope,
+      regionRefId: regionRefIdForList,
+    })
+    .then(async (items) => {
+      const initialSelectedId =
+        rawSelected && items.some((t) => t.id === rawSelected) ? rawSelected : null;
+      const initialSelectedUsageSnapshot =
+        initialSelectedId != null
+          ? await deps.clinicalTests.getClinicalTestUsage(initialSelectedId)
+          : null;
+      return { items, initialSelectedId, initialSelectedUsageSnapshot };
+    });
 
   const { ClinicalTestsPageClient } = await clinicalTestsClientPromise;
 
@@ -87,9 +99,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
     <DoctorAppShell title="Клинические тесты" user={session.user} backHref="/app/doctor">
       <DoctorPageHeader title="Клинические тесты" />
       <ClinicalTestsPageClient
-        initialItems={items}
-        initialSelectedId={initialSelectedId}
-        initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
+        listPromise={listPromise}
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}

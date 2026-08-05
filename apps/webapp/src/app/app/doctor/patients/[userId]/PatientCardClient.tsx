@@ -53,39 +53,37 @@ function PatientTabPanelLoading() {
   );
 }
 
-const patientTabDynamicOptions = { loading: () => <PatientTabPanelLoading /> };
-
 const PatientTabOverview = dynamic(
   () => import('./tabs/PatientTabOverview').then((m) => ({ default: m.PatientTabOverview })),
-  patientTabDynamicOptions,
+  { loading: () => <PatientTabPanelLoading /> },
 );
 const PatientTabKarta = dynamic(
   () => import('./tabs/PatientTabKarta').then((m) => ({ default: m.PatientTabKarta })),
-  patientTabDynamicOptions,
+  { loading: () => <PatientTabPanelLoading /> },
 );
 const PatientTabProgram = dynamic(
   () => import('./tabs/PatientTabProgram').then((m) => ({ default: m.PatientTabProgram })),
-  patientTabDynamicOptions,
+  { loading: () => <PatientTabPanelLoading /> },
 );
 const PatientTabRecords = dynamic(
   () => import('./tabs/PatientTabRecords').then((m) => ({ default: m.PatientTabRecords })),
-  patientTabDynamicOptions,
+  { loading: () => <PatientTabPanelLoading /> },
 );
 const PatientTabFiles = dynamic(
   () => import('./tabs/PatientTabFiles').then((m) => ({ default: m.PatientTabFiles })),
-  patientTabDynamicOptions,
+  { loading: () => <PatientTabPanelLoading /> },
 );
 const PatientTabAccount = dynamic(
   () => import('./tabs/PatientTabAccount').then((m) => ({ default: m.PatientTabAccount })),
-  patientTabDynamicOptions,
+  { loading: () => <PatientTabPanelLoading /> },
 );
 const PatientTabComms = dynamic(
   () => import('./tabs/PatientTabComms').then((m) => ({ default: m.PatientTabComms })),
-  patientTabDynamicOptions,
+  { loading: () => <PatientTabPanelLoading /> },
 );
 const PatientTabFinances = dynamic(
   () => import('./tabs/PatientTabFinances').then((m) => ({ default: m.PatientTabFinances })),
-  patientTabDynamicOptions,
+  { loading: () => <PatientTabPanelLoading /> },
 );
 
 type Props = {

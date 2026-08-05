@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Suspense, use, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import type { ExerciseLoadType, ExerciseMedia } from '@/modules/lfk-exercises/types';
 import type { Template } from '@/modules/lfk-templates/types';
@@ -22,6 +22,7 @@ import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
 import { DoctorCatalogMasterListRow } from '@/shared/ui/doctor/DoctorCatalogMasterListRow';
+import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
@@ -40,14 +41,18 @@ import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 
-type Props = {
-  templates: Template[];
-  initialSelectedId?: string | null;
+type ExerciseCatalogBundle = {
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
   exerciseMetaById: Record<
     string,
     { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
   >;
+};
+
+type Props = {
+  templatesPromise: Promise<Template[]>;
+  exerciseCatalogPromise: Promise<ExerciseCatalogBundle>;
+  initialSelectedId?: string | null;
   bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
@@ -58,33 +63,59 @@ type Props = {
   initialTitleSort: 'asc' | 'desc' | null;
 };
 
-export function LfkTemplatesPageClient({
-  templates,
+function CatalogSplitLayoutSkeleton() {
+  return (
+    <div className="hidden gap-3 lg:grid lg:grid-cols-2">
+      <div className="rounded-xl border border-border bg-card p-3">
+        <div className="mb-3 h-8 animate-pulse rounded-md bg-muted/50" />
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="h-12 animate-pulse rounded-md bg-muted/40" />
+          ))}
+        </div>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="h-10 animate-pulse rounded-md bg-muted/50" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type ContentProps = Props & {
+  titleSort: CatalogMasterTitleSort | null;
+  setTitleSort: (next: CatalogMasterTitleSort | null) => void;
+  isListPending: boolean;
+  startListTransition: (fn: () => void) => void;
+  filterToolbarLayout: DoctorCatalogToolbarLayout;
+  onFilterToolbarLayoutChange: (layout: DoctorCatalogToolbarLayout) => void;
+};
+
+function LfkTemplatesContent({
+  templatesPromise,
+  exerciseCatalogPromise,
   initialSelectedId = null,
-  exerciseCatalog,
-  exerciseMetaById,
   bodyRegionIdToCode,
   filters,
-  initialTitleSort,
-}: Props) {
+  titleSort,
+  setTitleSort,
+  isListPending,
+  startListTransition,
+  filterToolbarLayout,
+  onFilterToolbarLayoutChange,
+}: ContentProps) {
   const router = useRouter();
-  const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
+  const templates = use(templatesPromise);
+  const { exerciseCatalog, exerciseMetaById } = use(exerciseCatalogPromise);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
-  const [isListPending, startListTransition] = useTransition();
-  const [filterToolbarLayout, setFilterToolbarLayout] =
-    useState<DoctorCatalogToolbarLayout>('compact');
-  const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
-    setFilterToolbarLayout(layout);
-  }, []);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
-
-  useEffect(() => {
-    setTitleSort(initialTitleSort);
-  }, [initialTitleSort]);
 
   useEffect(() => {
     if (!initialSelectedId) return;
@@ -185,8 +216,15 @@ export function LfkTemplatesPageClient({
     displayList.length === 0 ? (
       <p className={doctorCatalogListEmptyClass}>Нет комплексов по заданным условиям.</p>
     ) : (
-      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-        {displayList.map((t) => {
+      <VirtualizedItemGrid
+        items={displayList}
+        columns={1}
+        estimatedRowHeight={56}
+        overscan={4}
+        keyExtractor={(t) => t.id}
+        containerClassName="h-full min-h-0"
+        gridClassName="gap-1 pb-1"
+        renderItem={(t) => {
           const active = activeId === t.id;
           const rowN = t.exerciseCount ?? t.exercises.length;
           const thumbs = (t.exerciseThumbnails ?? []).map(exerciseMediaToPreviewUi);
@@ -219,7 +257,6 @@ export function LfkTemplatesPageClient({
             );
           return (
             <DoctorCatalogMasterListRow
-              key={t.id}
               active={active}
               onPick={() => onPick(t)}
               previewInner={previewInner}
@@ -233,8 +270,8 @@ export function LfkTemplatesPageClient({
               }
             />
           );
-        })}
-      </ul>
+        }}
+      />
     );
 
   const desktopRight = (
@@ -315,69 +352,109 @@ export function LfkTemplatesPageClient({
   };
 
   return (
+    <DoctorCatalogPageLayout toolbar={toolbar}>
+      <CatalogSplitLayout
+        className={cn(
+          filterToolbarLayout === 'expanded'
+            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+        )}
+        left={
+          <CatalogLeftPane
+            stickySplit={false}
+            stickyToolbarRows={1}
+            className="h-full"
+            headerSlot={
+              <DoctorCatalogListSortHeader
+                summaryLine={
+                  displayList.length === 0
+                    ? 'Нет комплексов'
+                    : `Комплексов: ${displayList.length}`
+                }
+                titleSort={titleSortForHeader}
+                onTitleSortChange={changeTitleSort}
+                catalogPubArch={mergedFilters.listPubArch}
+                archiveScopeExtraParams={{
+                  titleSort: mergedFilters.titleSort,
+                }}
+              />
+            }
+          >
+            <div
+              className={cn(
+                'min-h-0 flex-1 overflow-hidden transition-opacity',
+                isListPending && 'opacity-80',
+              )}
+              aria-busy={isListPending}
+            >
+              {renderRows(
+                (t) => pickRow(t.id),
+                creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
+              )}
+            </div>
+          </CatalogLeftPane>
+        }
+        right={desktopRight}
+        mobileView={mobileDetailOpen ? 'detail' : 'list'}
+        mobileBackSlot={
+          mobileDetailOpen ? (
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => {
+                setMobileSheet(null);
+                setCreating(false);
+              }}
+            >
+              ← Назад
+            </Button>
+          ) : null
+        }
+      />
+    </DoctorCatalogPageLayout>
+  );
+}
+
+export function LfkTemplatesPageClient({
+  templatesPromise,
+  exerciseCatalogPromise,
+  initialSelectedId = null,
+  bodyRegionIdToCode,
+  filters,
+  initialTitleSort,
+}: Props) {
+  const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
+  const [isListPending, startListTransition] = useTransition();
+  const [filterToolbarLayout, setFilterToolbarLayout] =
+    useState<DoctorCatalogToolbarLayout>('compact');
+  const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
+    setFilterToolbarLayout(layout);
+  }, []);
+
+  useEffect(() => {
+    setTitleSort(initialTitleSort);
+  }, [initialTitleSort]);
+
+  return (
     <>
       <DoctorCatalogInvalidPubArchToast />
-      <DoctorCatalogPageLayout toolbar={toolbar}>
-        <CatalogSplitLayout
-          className={cn(
-            filterToolbarLayout === 'expanded'
-              ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
-              : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-          )}
-          left={
-            <CatalogLeftPane
-              stickySplit={false}
-              stickyToolbarRows={1}
-              className="h-full"
-              headerSlot={
-                <DoctorCatalogListSortHeader
-                  summaryLine={
-                    displayList.length === 0
-                      ? 'Нет комплексов'
-                      : `Комплексов: ${displayList.length}`
-                  }
-                  titleSort={titleSortForHeader}
-                  onTitleSortChange={changeTitleSort}
-                  catalogPubArch={mergedFilters.listPubArch}
-                  archiveScopeExtraParams={{
-                    titleSort: mergedFilters.titleSort,
-                  }}
-                />
-              }
-            >
-              <div
-                className={cn(
-                  'min-h-0 flex-1 overflow-hidden transition-opacity',
-                  isListPending && 'opacity-80',
-                )}
-                aria-busy={isListPending}
-              >
-                {renderRows(
-                  (t) => pickRow(t.id),
-                  creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
-                )}
-              </div>
-            </CatalogLeftPane>
-          }
-          right={desktopRight}
-          mobileView={mobileDetailOpen ? 'detail' : 'list'}
-          mobileBackSlot={
-            mobileDetailOpen ? (
-              <Button
-                variant="ghost"
-                type="button"
-                className="mb-2 h-9 px-2"
-                onClick={() => {
-                  setMobileSheet(null);
-                  setCreating(false);
-                }}
-              >
-                ← Назад
-              </Button>
-            ) : null
-          }
+      <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
+        <LfkTemplatesContent
+          templatesPromise={templatesPromise}
+          exerciseCatalogPromise={exerciseCatalogPromise}
+          initialSelectedId={initialSelectedId}
+          bodyRegionIdToCode={bodyRegionIdToCode}
+          filters={filters}
+          initialTitleSort={initialTitleSort}
+          titleSort={titleSort}
+          setTitleSort={setTitleSort}
+          isListPending={isListPending}
+          startListTransition={startListTransition}
+          filterToolbarLayout={filterToolbarLayout}
+          onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
         />
-      </DoctorCatalogPageLayout>
+      </Suspense>
     </>
   );
 }

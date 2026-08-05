@@ -1,4 +1,3 @@
-import { Suspense } from 'react';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -28,6 +27,7 @@ type PageProps = {
     status?: string;
     arch?: string;
     pub?: string;
+    selected?: string;
   }>;
 };
 
@@ -41,22 +41,17 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
 
   const initialTitleSort = sp.titleSort === 'asc' || sp.titleSort === 'desc' ? sp.titleSort : null;
   const listPubArch: DoctorCatalogPubArchQuery = parseDoctorCatalogPubArchQuery(sp);
+  const initialSelectedId =
+    typeof sp.selected === 'string' && sp.selected.trim() ? sp.selected.trim() : null;
 
   const deps = buildAppDeps();
   const [includePlatformPackages, includePlatformExercises] = await Promise.all([
     requireEntitlementForReadAction(workspace, 'exercise_packages'),
     requireEntitlementForReadAction(workspace, 'exercise_catalog'),
   ]);
-  const [rawList, exercises, bodyRegionItems, loadTypeRefItems] = await Promise.all([
-    deps.lfkTemplates.listTemplates({
-      includeExerciseDetails: true,
-      includePlatformBase: includePlatformPackages.ok,
-      ...lfkTemplateFilterFromPubArch(listPubArch),
-    }),
-    deps.lfkExercises.listExercises({
-      includeArchived: false,
-      includePlatformBase: includePlatformExercises.ok,
-    }),
+
+  // Lightweight filter refs block shell minimally; heavy lists stream via promise-props.
+  const [bodyRegionItems, loadTypeRefItems] = await Promise.all([
     deps.references.listActiveItemsByCategoryCode('body_region'),
     deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
   ]);
@@ -66,39 +61,51 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
     loadAllow,
   );
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
-  const exerciseMetaById: Record<
-    string,
-    { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
-  > = {};
-  for (const e of exercises) {
-    exerciseMetaById[e.id] = { regionRefIds: e.regionRefIds, loadType: e.loadType };
-  }
 
-  const exerciseCatalog = exercises.map((e) => ({
-    id: e.id,
-    title: e.title,
-    firstMedia: e.media[0] ?? null,
-  }));
+  const templatesPromise = deps.lfkTemplates.listTemplates({
+    includeExerciseDetails: true,
+    includePlatformBase: includePlatformPackages.ok,
+    ...lfkTemplateFilterFromPubArch(listPubArch),
+  });
+
+  const exerciseCatalogPromise = deps.lfkExercises
+    .listExercises({
+      includeArchived: false,
+      includePlatformBase: includePlatformExercises.ok,
+    })
+    .then((exercises) => {
+      const exerciseMetaById: Record<
+        string,
+        { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
+      > = {};
+      for (const e of exercises) {
+        exerciseMetaById[e.id] = { regionRefIds: e.regionRefIds, loadType: e.loadType };
+      }
+      const exerciseCatalog = exercises.map((e) => ({
+        id: e.id,
+        title: e.title,
+        firstMedia: e.media[0] ?? null,
+      }));
+      return { exerciseCatalog, exerciseMetaById };
+    });
 
   return (
     <DoctorAppShell title="Комплексы" user={session.user} backHref="/app/doctor">
       <DoctorPageHeader title="Комплексы" />
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Загрузка…</p>}>
-        <LfkTemplatesPageClient
-          templates={rawList}
-          exerciseCatalog={exerciseCatalog}
-          exerciseMetaById={exerciseMetaById}
-          bodyRegionIdToCode={bodyRegionIdToCode}
-          filters={{
-            q,
-            regionCode: regionParsed.regionCode,
-            loadType,
-            listPubArch,
-            ...doctorCatalogClientFilterUrlHints(sp),
-          }}
-          initialTitleSort={initialTitleSort}
-        />
-      </Suspense>
+      <LfkTemplatesPageClient
+        templatesPromise={templatesPromise}
+        exerciseCatalogPromise={exerciseCatalogPromise}
+        initialSelectedId={initialSelectedId}
+        bodyRegionIdToCode={bodyRegionIdToCode}
+        filters={{
+          q,
+          regionCode: regionParsed.regionCode,
+          loadType,
+          listPubArch,
+          ...doctorCatalogClientFilterUrlHints(sp),
+        }}
+        initialTitleSort={initialTitleSort}
+      />
     </DoctorAppShell>
   );
 }

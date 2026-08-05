@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Suspense, use, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import type { TestSet, TestSetUsageSnapshot } from '@/modules/tests/types';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
+import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
@@ -42,11 +43,15 @@ import type { ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
 import { TestSetForm } from './TestSetForm';
 import { TestSetMasterListStatusBadge } from './TestSetMasterListStatusBadge';
 
-type Props = {
-  initialSets: TestSet[];
+type TestSetsBootstrap = {
+  items: TestSet[];
   initialSelectedId: string | null;
   initialSelectedUsageSnapshot: TestSetUsageSnapshot | null;
   clinicalTestsLibrary: ClinicalTestLibraryPickRow[];
+};
+
+type Props = {
+  listPromise: Promise<TestSetsBootstrap>;
   bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
@@ -55,24 +60,55 @@ type Props = {
   };
 };
 
-export function TestSetsPageClient({
-  initialSets,
-  initialSelectedId,
-  initialSelectedUsageSnapshot,
-  clinicalTestsLibrary,
+function CatalogSplitLayoutSkeleton() {
+  return (
+    <div className="hidden gap-3 lg:grid lg:grid-cols-2">
+      <div className="rounded-xl border border-border bg-card p-3">
+        <div className="mb-3 h-8 animate-pulse rounded-md bg-muted/50" />
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="h-12 animate-pulse rounded-md bg-muted/40" />
+          ))}
+        </div>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="h-10 animate-pulse rounded-md bg-muted/50" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TestSetsContent({
+  listPromise,
   bodyRegionIdToCode,
   filters,
-}: Props) {
-  const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(null);
-  const [isListPending, startListTransition] = useTransition();
+  titleSort,
+  setTitleSort,
+  isListPending,
+  startListTransition,
+  filterToolbarLayout,
+  onFilterToolbarLayoutChange,
+}: Props & {
+  titleSort: CatalogMasterTitleSort | null;
+  setTitleSort: (next: CatalogMasterTitleSort | null) => void;
+  isListPending: boolean;
+  startListTransition: (fn: () => void) => void;
+  filterToolbarLayout: DoctorCatalogToolbarLayout;
+  onFilterToolbarLayoutChange: (layout: DoctorCatalogToolbarLayout) => void;
+}) {
+  const bootstrap = use(listPromise);
+  const initialSets = bootstrap.items;
+  const initialSelectedId = bootstrap.initialSelectedId;
+  const initialSelectedUsageSnapshot = bootstrap.initialSelectedUsageSnapshot;
+  const clinicalTestsLibrary = bootstrap.clinicalTestsLibrary;
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TestSet | null>(null);
-  const [filterToolbarLayout, setFilterToolbarLayout] =
-    useState<DoctorCatalogToolbarLayout>('compact');
-  const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
-    setFilterToolbarLayout(layout);
-  }, []);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
@@ -137,8 +173,15 @@ export function TestSetsPageClient({
     displayList.length === 0 ? (
       <p className={doctorCatalogListEmptyClass}>Нет наборов по заданным условиям.</p>
     ) : (
-      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-        {displayList.map((s) => {
+      <VirtualizedItemGrid
+        items={displayList}
+        columns={1}
+        estimatedRowHeight={56}
+        overscan={4}
+        keyExtractor={(s) => s.id}
+        containerClassName="h-full min-h-0"
+        gridClassName="gap-1 pb-1"
+        renderItem={(s) => {
           const active = activeId === s.id;
           const sortedItems = [...s.items].sort((a, b) => a.sortOrder - b.sortOrder);
           const previewItems = sortedItems.filter((it) => Boolean(it.test.previewMedia?.mediaUrl));
@@ -174,7 +217,6 @@ export function TestSetsPageClient({
             );
           return (
             <DoctorCatalogMasterListRow
-              key={s.id}
               active={active}
               onPick={() => {
                 setCreating(false);
@@ -192,8 +234,8 @@ export function TestSetsPageClient({
               }
             />
           );
-        })}
-      </ul>
+        }}
+      />
     );
 
   const rightInner = (
@@ -270,71 +312,97 @@ export function TestSetsPageClient({
   );
 
   return (
+    <DoctorCatalogPageLayout toolbar={toolbar}>
+      <CatalogSplitLayout
+        className={cn(
+          filterToolbarLayout === 'expanded'
+            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+        )}
+        left={
+          <CatalogLeftPane
+            stickySplit={false}
+            stickyToolbarRows={1}
+            className="h-full"
+            headerSlot={
+              <DoctorCatalogListSortHeader
+                summaryLine={
+                  displayList.length === 0 ? 'Нет наборов' : `Наборов: ${displayList.length}`
+                }
+                titleSort={titleSortForHeader}
+                onTitleSortChange={changeTitleSort}
+                catalogPubArch={mergedFilters.listPubArch}
+                archiveScopeExtraParams={{
+                  titleSort: mergedFilters.titleSort,
+                }}
+              />
+            }
+          >
+            <div
+              className={cn(
+                'min-h-0 flex-1 overflow-hidden transition-opacity',
+                isListPending && 'opacity-80',
+              )}
+              aria-busy={isListPending}
+            >
+              {renderRows(
+                (s) => {
+                  setCreating(false);
+                  setSelectedId(s.id);
+                  setMobileSheet(s);
+                },
+                creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
+              )}
+            </div>
+          </CatalogLeftPane>
+        }
+        right={desktopRight}
+        mobileView={mobileDetailOpen ? 'detail' : 'list'}
+        mobileBackSlot={
+          mobileDetailOpen ? (
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => {
+                setMobileSheet(null);
+                setCreating(false);
+              }}
+            >
+              ← Назад
+            </Button>
+          ) : null
+        }
+      />
+    </DoctorCatalogPageLayout>
+  );
+}
+
+export function TestSetsPageClient({ listPromise, bodyRegionIdToCode, filters }: Props) {
+  const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(null);
+  const [isListPending, startListTransition] = useTransition();
+  const [filterToolbarLayout, setFilterToolbarLayout] =
+    useState<DoctorCatalogToolbarLayout>('compact');
+  const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
+    setFilterToolbarLayout(layout);
+  }, []);
+
+  return (
     <>
       <DoctorCatalogInvalidPubArchToast />
-      <DoctorCatalogPageLayout toolbar={toolbar}>
-        <CatalogSplitLayout
-          className={cn(
-            filterToolbarLayout === 'expanded'
-              ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
-              : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-          )}
-          left={
-            <CatalogLeftPane
-              stickySplit={false}
-              stickyToolbarRows={1}
-              className="h-full"
-              headerSlot={
-                <DoctorCatalogListSortHeader
-                  summaryLine={
-                    displayList.length === 0 ? 'Нет наборов' : `Наборов: ${displayList.length}`
-                  }
-                  titleSort={titleSortForHeader}
-                  onTitleSortChange={changeTitleSort}
-                  catalogPubArch={mergedFilters.listPubArch}
-                  archiveScopeExtraParams={{
-                    titleSort: mergedFilters.titleSort,
-                  }}
-                />
-              }
-            >
-              <div
-                className={cn(
-                  'min-h-0 flex-1 overflow-hidden transition-opacity',
-                  isListPending && 'opacity-80',
-                )}
-                aria-busy={isListPending}
-              >
-                {renderRows(
-                  (s) => {
-                    setCreating(false);
-                    setSelectedId(s.id);
-                    setMobileSheet(s);
-                  },
-                  creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
-                )}
-              </div>
-            </CatalogLeftPane>
-          }
-          right={desktopRight}
-          mobileView={mobileDetailOpen ? 'detail' : 'list'}
-          mobileBackSlot={
-            mobileDetailOpen ? (
-              <Button
-                variant="ghost"
-                type="button"
-                className="mb-2 h-9 px-2"
-                onClick={() => {
-                  setMobileSheet(null);
-                  setCreating(false);
-                }}
-              >
-                ← Назад
-              </Button>
-            ) : null
-          }
+      <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
+        <TestSetsContent
+          listPromise={listPromise}
+          bodyRegionIdToCode={bodyRegionIdToCode}
+          filters={filters}
+          titleSort={titleSort}
+          setTitleSort={setTitleSort}
+          isListPending={isListPending}
+          startListTransition={startListTransition}
+          filterToolbarLayout={filterToolbarLayout}
+          onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
         />
-      </DoctorCatalogPageLayout>
+      </Suspense>
     </>
   );
 }

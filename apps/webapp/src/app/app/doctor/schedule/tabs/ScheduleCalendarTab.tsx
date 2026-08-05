@@ -64,7 +64,7 @@ import {
 import {
   isScheduleCalendarBootstrap,
   type ScheduleCalendarFeedSnapshot,
-} from '../loadDoctorScheduleCalendarBootstrap';
+} from '../scheduleCalendarBootstrapTypes';
 import {
   resolveScheduleCalAnchorDate,
   resolveScheduleCalView,

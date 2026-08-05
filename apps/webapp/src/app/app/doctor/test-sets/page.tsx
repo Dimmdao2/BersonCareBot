@@ -7,7 +7,8 @@ import {
 } from '@/shared/lib/doctorCatalogListStatus';
 import { parseDoctorCatalogRegionQueryParam } from '@/shared/lib/doctorCatalogRegionQuery';
 import { doctorCatalogClientFilterUrlHints } from '@/shared/lib/doctorCatalogClientUrlSync';
-import { clinicalTestLibraryRows } from './clinicalTestLibraryRows';
+import type { TestSet, TestSetUsageSnapshot } from '@/modules/tests/types';
+import { clinicalTestLibraryRows, type ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
 import { TestSetsPageClient } from './TestSetsPageClient';
 
 type PageProps = {
@@ -22,6 +23,13 @@ type PageProps = {
   }>;
 };
 
+type TestSetsBootstrap = {
+  items: TestSet[];
+  initialSelectedId: string | null;
+  initialSelectedUsageSnapshot: TestSetUsageSnapshot | null;
+  clinicalTestsLibrary: ClinicalTestLibraryPickRow[];
+};
+
 export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
   const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
@@ -32,31 +40,34 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
 
   const listPubArch = parseDoctorCatalogPubArchQuery(sp);
-
-  const [items, bodyRegionItems] = await Promise.all([
-    deps.testSets.listTestSets(testSetListFilterFromPubArch(listPubArch)),
-    deps.references.listActiveItemsByCategoryCode('body_region'),
-  ]);
-  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
-
-  const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({
-    archiveScope: 'active',
-  });
-  const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
+  const bodyRegionItemsPromise = deps.references.listActiveItemsByCategoryCode('body_region');
 
   const raw = typeof sp.selected === 'string' ? sp.selected.trim() : '';
-  const initialSelectedId = raw && items.some((s) => s.id === raw) ? raw : null;
-  const initialSelectedUsageSnapshot =
-    initialSelectedId != null ? await deps.testSets.getTestSetUsage(initialSelectedId) : null;
+
+  const listPromise: Promise<TestSetsBootstrap> = Promise.all([
+    deps.testSets.listTestSets(testSetListFilterFromPubArch(listPubArch)),
+    deps.clinicalTests.listClinicalTests({ archiveScope: 'active' }),
+  ]).then(async ([items, clinicalTestsForPicker]) => {
+    const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
+    const initialSelectedId = raw && items.some((s) => s.id === raw) ? raw : null;
+    const initialSelectedUsageSnapshot =
+      initialSelectedId != null ? await deps.testSets.getTestSetUsage(initialSelectedId) : null;
+    return {
+      items,
+      initialSelectedId,
+      initialSelectedUsageSnapshot,
+      clinicalTestsLibrary,
+    };
+  });
+
+  const bodyRegionItems = await bodyRegionItemsPromise;
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   return (
     <DoctorAppShell title="Наборы тестов" user={session.user} backHref="/app/doctor">
       <DoctorPageHeader title="Наборы тестов" />
       <TestSetsPageClient
-        initialSets={items}
-        initialSelectedId={initialSelectedId}
-        initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
-        clinicalTestsLibrary={clinicalTestsLibrary}
+        listPromise={listPromise}
         bodyRegionIdToCode={bodyRegionIdToCode}
         filters={{
           q,
