@@ -175,13 +175,20 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
           firstName: platformUsers.firstName,
           patronymic: platformUsers.patronymic,
         });
-      return row ?? null;
+      if (!row) return null;
+      await savepointTx.insert(userPhoneHistory).values({
+        platformUserId: row.id,
+        organizationId,
+        phoneNormalized,
+        source: 'admin',
+      });
+      await syncUserIdentityFioMirrorWebapp(savepointTx, row.id);
+      await syncUserContactsMirrorWebapp(savepointTx, row.id);
+      return row;
     });
   } catch (error) {
-    // Strong identifiers intentionally use DEFERRABLE uniqueness for canonical merge transactions.
-    // PostgreSQL therefore cannot use phone_normalized as an ON CONFLICT arbiter. The nested
-    // transaction is a savepoint: a concurrent phone insert rolls back only this attempt, leaving
-    // the outer patient/enrollment/appointment transaction usable for the canonical re-read below.
+    // After 0380 uniqueness lives on user_contacts (mirror sync), not platform_users.phone_normalized.
+    // The savepoint rolls back insert + mirror attempt; outer TX re-reads the concurrent owner.
     if (!isPhoneUniqueViolation(error)) throw error;
     const concurrent = await findByPhone();
     if (!concurrent) throw error;
@@ -200,15 +207,6 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   }
 
   if (!inserted) throw new DoctorClientIdentityError('create_failed');
-
-  await tx.insert(userPhoneHistory).values({
-    platformUserId: inserted.id,
-    organizationId,
-    phoneNormalized,
-    source: 'admin',
-  });
-  await syncUserIdentityFioMirrorWebapp(tx, inserted.id);
-  await syncUserContactsMirrorWebapp(tx, inserted.id);
 
   return {
     userId: inserted.id,

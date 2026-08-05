@@ -41,6 +41,13 @@ type PhoneHistoryRow = {
   valid_to: string | null;
   source: string;
 };
+type UserContactRow = {
+  platform_user_id: string;
+  contact_kind: string;
+  channel_code: string | null;
+  value_normalized: string;
+  is_primary: boolean;
+};
 
 type Tables = {
   identities: IdentityRow[];
@@ -50,6 +57,7 @@ type Tables = {
   channelPrefs: ChannelPrefRow[];
   contacts: ContactRow[];
   phoneHistory: PhoneHistoryRow[];
+  userContacts: UserContactRow[];
 };
 
 function emptyTables(seed: Partial<Tables> = {}): Tables {
@@ -61,6 +69,7 @@ function emptyTables(seed: Partial<Tables> = {}): Tables {
     channelPrefs: [],
     contacts: [],
     phoneHistory: [],
+    userContacts: [],
     ...seed,
   };
 }
@@ -161,18 +170,79 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
     if (q.startsWith('insert into user_notification_topics')) return rows([]);
 
     // --- canonical platform_users ------------------------------------------------------------------
+    if (q.includes('from user_contacts uc') && q.includes("contact_kind = 'phone'")) {
+      const hits = tables.userContacts
+        .filter(
+          (uc) =>
+            uc.contact_kind === 'phone' &&
+            uc.value_normalized === p[0] &&
+            uc.platform_user_id !== p[1],
+        )
+        .map((uc) => {
+          const pu = tables.platformUsers.find(
+            (u) => u.id === uc.platform_user_id && u.merged_into_id === null,
+          );
+          return pu ? { id: pu.id } : null;
+        })
+        .filter(Boolean);
+      return rows(hits.slice(0, 1) as { id: string }[]);
+    }
+    if (q.startsWith('delete from user_contacts')) {
+      const before = tables.userContacts.length;
+      tables.userContacts = tables.userContacts.filter((uc) => uc.platform_user_id !== p[0]);
+      return { rows: [] as T[], rowCount: before - tables.userContacts.length };
+    }
+    if (q.startsWith('insert into user_contacts')) {
+      const pu = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
+      if (!pu?.phone_normalized) return { rows: [] as T[], rowCount: 0 };
+      const conflict = tables.userContacts.find(
+        (uc) => uc.contact_kind === 'phone' && uc.value_normalized === pu.phone_normalized,
+      );
+      if (conflict && conflict.platform_user_id !== pu.id) {
+        const err = Object.assign(new Error('uq_user_contacts_phone'), {
+          code: '23505',
+          constraint: 'uq_user_contacts_phone',
+        });
+        throw err;
+      }
+      tables.userContacts = tables.userContacts.filter((uc) => uc.platform_user_id !== pu.id);
+      tables.userContacts.push({
+        platform_user_id: pu.id,
+        contact_kind: 'phone',
+        channel_code: null,
+        value_normalized: pu.phone_normalized,
+        is_primary: true,
+      });
+      return { rows: [] as T[], rowCount: 1 };
+    }
+
     if (q.includes('from platform_users')) {
       const live = tables.platformUsers.filter((u) => u.merged_into_id === null);
+      if (q.includes('existing_int_uid')) {
+        const hit = live.find((u) => u.id === p[0]);
+        return rows(hit ? [{ existing_int_uid: hit.integrator_user_id }] : []);
+      }
       if (q.includes('integrator_user_id = $1')) {
         const hit = live.filter((u) => u.integrator_user_id === p[0]);
         return rows(hit.map((u) => ({ id: u.id })));
       }
       if (q.includes('phone_normalized = $1')) {
-        const hit = live.filter((u) => u.phone_normalized === p[0]);
+        const hit = live.filter((u) => u.phone_normalized === p[0] && u.id !== (p[1] ?? null));
         return rows(hit.map((u) => ({ id: u.id })));
       }
       const hit = live.find((u) => u.id === p[0]);
-      return rows(hit ? [{ id: hit.id, phone_normalized: hit.phone_normalized }] : []);
+      return rows(
+        hit
+          ? [
+              {
+                id: hit.id,
+                phone_normalized: hit.phone_normalized,
+                integrator_user_id: hit.integrator_user_id,
+                created_at: new Date('2026-01-01T00:00:00.000Z'),
+              },
+            ]
+          : [],
+      );
     }
 
     // --- D28: user_phone_history sync (`syncPlatformUserPhoneHistoryOnConfirm`) --------------------

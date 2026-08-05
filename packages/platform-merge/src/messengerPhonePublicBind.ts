@@ -12,6 +12,7 @@ import {
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
 import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
+import { syncUserContactsMirror } from './userContactsMirrorWrite.js';
 
 /** Any client with `.query` compatible with `pg` / integrator `DbPort` inside a transaction. */
 export type MessengerPhoneBindDb = PlatformMergeDbClient;
@@ -83,13 +84,55 @@ async function findOtherPlatformUserWithSamePhone(
   excludeId: string,
   phoneNormalized: string,
 ): Promise<string | null> {
-  const r = await db.query<{ id: string }>(
+  const fromContacts = await db.query<{ id: string }>(
+    `SELECT uc.platform_user_id::text AS id
+     FROM public.user_contacts uc
+     INNER JOIN public.platform_users pu ON pu.id = uc.platform_user_id
+     WHERE uc.contact_kind = 'phone'
+       AND uc.value_normalized = $1
+       AND pu.merged_into_id IS NULL
+       AND uc.platform_user_id <> $2::uuid
+     LIMIT 1`,
+    [phoneNormalized, excludeId],
+  );
+  if (fromContacts.rows[0]?.id) return fromContacts.rows[0].id;
+
+  const legacy = await db.query<{ id: string }>(
     `SELECT id::text FROM public.platform_users
      WHERE phone_normalized = $1 AND merged_into_id IS NULL AND id <> $2::uuid
      LIMIT 1`,
     [phoneNormalized, excludeId],
   );
-  return r.rows[0]?.id ?? null;
+  return legacy.rows[0]?.id ?? null;
+}
+
+function isUserContactsPhoneUniqueViolation(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  if (!('code' in err) || !('constraint' in err)) return false;
+  return err.code === '23505' && err.constraint === 'uq_user_contacts_phone';
+}
+
+async function writeConfirmedPhoneAndMirror(
+  db: MessengerPhoneBindDb,
+  platformUserId: string,
+  phoneNormalized: string,
+  canonicalIntegratorUserId: string,
+): Promise<void> {
+  await syncPlatformUserPhoneHistoryOnConfirm(db, platformUserId, phoneNormalized, 'messenger');
+  const upd = await db.query(
+    `UPDATE public.platform_users SET
+       phone_normalized = $2,
+       patient_phone_trust_at = now(),
+       integrator_user_id = COALESCE(integrator_user_id, $3::bigint),
+       updated_at = now()
+     WHERE id = $1::uuid
+       AND merged_into_id IS NULL`,
+    [platformUserId, phoneNormalized, canonicalIntegratorUserId],
+  );
+  if ((upd.rowCount ?? 0) < 1) {
+    throw new MessengerPhoneLinkError('db_transient_failure');
+  }
+  await syncUserContactsMirror(db as PlatformMergeDbClient, platformUserId);
 }
 
 async function findOtherPlatformUserWithSameIntegrator(
@@ -285,33 +328,49 @@ export async function applyMessengerPhonePublicBind(
     if (!changed) break;
   }
 
-  try {
-    await syncPlatformUserPhoneHistoryOnConfirm(db, platformUserId, phoneNormalized, 'messenger');
-    const upd = await db.query(
-      `UPDATE public.platform_users SET
-         phone_normalized = $2,
-         patient_phone_trust_at = now(),
-         integrator_user_id = COALESCE(integrator_user_id, $3::bigint),
-         updated_at = now()
-       WHERE id = $1::uuid
-         AND merged_into_id IS NULL`,
-      [platformUserId, phoneNormalized, canonicalIntegratorUserId],
-    );
-    if ((upd.rowCount ?? 0) < 1) {
-      throw new MessengerPhoneLinkError('db_transient_failure');
+  for (let writeAttempt = 0; writeAttempt < 2; writeAttempt++) {
+    try {
+      await writeConfirmedPhoneAndMirror(
+        db,
+        platformUserId,
+        phoneNormalized,
+        canonicalIntegratorUserId,
+      );
+      return { platformUserId };
+    } catch (err) {
+      if (err instanceof MessengerPhoneLinkError) throw err;
+      if (isUserContactsPhoneUniqueViolation(err)) {
+        const otherPhone = await findOtherPlatformUserWithSamePhone(
+          db,
+          platformUserId,
+          phoneNormalized,
+        );
+        if (!otherPhone) {
+          throw new MessengerPhoneLinkError('phone_owned_by_other_user', {
+            cause: err,
+            candidateIds: [platformUserId],
+          });
+        }
+        try {
+          await mergePairIfDistinct(db, platformUserId, otherPhone);
+        } catch (mergeErr) {
+          if (mergeErr instanceof MessengerPhoneLinkError) throw mergeErr;
+          throw mapMergeFailure(mergeErr, [platformUserId, otherPhone]);
+        }
+        await reboundFromChannel();
+        continue;
+      }
+      const pg = err as { code?: string };
+      if (pg.code === '23505') {
+        throw new MessengerPhoneLinkError('channel_already_bound_to_other_user', {
+          cause: err,
+          candidateIds: [platformUserId],
+        });
+      }
+      logger.error({ err }, '[messengerPhone] public phone write or user_contacts mirror failed');
+      throw new MessengerPhoneLinkError('db_transient_failure', { cause: err });
     }
-  } catch (err) {
-    if (err instanceof MessengerPhoneLinkError) throw err;
-    const pg = err as { code?: string };
-    if (pg.code === '23505') {
-      throw new MessengerPhoneLinkError('channel_already_bound_to_other_user', {
-        cause: err,
-        candidateIds: [platformUserId],
-      });
-    }
-    logger.error({ err }, '[messengerPhone] public platform_users UPDATE failed');
-    throw new MessengerPhoneLinkError('db_transient_failure', { cause: err });
   }
 
-  return { platformUserId };
+  throw new MessengerPhoneLinkError('db_transient_failure', { candidateIds: [platformUserId] });
 }

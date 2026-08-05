@@ -45,6 +45,13 @@ type PhoneHistoryRow = {
   valid_to: string | null;
   source: string;
 };
+type UserContactRow = {
+  platform_user_id: string;
+  contact_kind: string;
+  channel_code: string | null;
+  value_normalized: string;
+  is_primary: boolean;
+};
 
 type Tables = {
   identities: IdentityRow[];
@@ -55,6 +62,8 @@ type Tables = {
   topics: TopicRow[];
   /** D28: `user_phone_history` — confirmation ledger kept in sync with `platform_users.phone_normalized`. */
   phoneHistory: PhoneHistoryRow[];
+  /** D15b/6: assembled contact mirror (`user_contacts`). */
+  userContacts: UserContactRow[];
   /** Модель «legacy-строка контакта не отдаётся»: INSERT … ON CONFLICT … WHERE не задел ни строки. */
   contactsInsertBlocked?: boolean;
 };
@@ -68,6 +77,7 @@ function emptyTables(seed: Partial<Tables> = {}): Tables {
     contacts: [],
     topics: [],
     phoneHistory: [],
+    userContacts: [],
     ...seed,
   };
 }
@@ -157,6 +167,53 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       if (exists) return rows([]);
       tables.bindings.push({ user_id: p[0]!, channel_code: p[1]!, external_id: p[2]! });
       return rows([{ user_id: p[0] }]);
+    }
+
+    // --- D15b/6: user_contacts mirror + canonical phone lookup ----------------------------
+    if (q.includes('from user_contacts uc') && q.includes("contact_kind = 'phone'")) {
+      const hits = tables.userContacts
+        .filter(
+          (uc) =>
+            uc.contact_kind === 'phone' &&
+            uc.value_normalized === p[0] &&
+            uc.platform_user_id !== p[1],
+        )
+        .map((uc) => {
+          const pu = tables.platformUsers.find(
+            (u) => u.id === uc.platform_user_id && u.merged_into_id === null,
+          );
+          return pu ? { id: pu.id } : null;
+        })
+        .filter(Boolean);
+      return rows(hits.slice(0, 1) as { id: string }[]);
+    }
+    if (q.startsWith('delete from user_contacts')) {
+      const before = tables.userContacts.length;
+      tables.userContacts = tables.userContacts.filter((uc) => uc.platform_user_id !== p[0]);
+      return { rows: [] as T[], rowCount: before - tables.userContacts.length };
+    }
+    if (q.startsWith('insert into user_contacts')) {
+      const pu = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
+      if (!pu?.phone_normalized) return { rows: [] as T[], rowCount: 0 };
+      const conflict = tables.userContacts.find(
+        (uc) => uc.contact_kind === 'phone' && uc.value_normalized === pu.phone_normalized,
+      );
+      if (conflict && conflict.platform_user_id !== pu.id) {
+        const err = Object.assign(new Error('uq_user_contacts_phone'), {
+          code: '23505',
+          constraint: 'uq_user_contacts_phone',
+        });
+        throw err;
+      }
+      tables.userContacts = tables.userContacts.filter((uc) => uc.platform_user_id !== pu.id);
+      tables.userContacts.push({
+        platform_user_id: pu.id,
+        contact_kind: 'phone',
+        channel_code: null,
+        value_normalized: pu.phone_normalized,
+        is_primary: true,
+      });
+      return { rows: [] as T[], rowCount: 1 };
     }
 
     // --- canonical platform_users ---------------------------------------------
@@ -269,6 +326,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
           contacts: tables.contacts,
           topics: tables.topics,
           phoneHistory: tables.phoneHistory,
+          userContacts: tables.userContacts,
         }),
       ) as Tables;
       try {
@@ -281,6 +339,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
         tables.contacts = snapshot.contacts;
         tables.topics = snapshot.topics;
         tables.phoneHistory = snapshot.phoneHistory;
+        tables.userContacts = snapshot.userContacts;
         throw err;
       }
     },
@@ -400,6 +459,15 @@ describe('привязка телефона: в чей аккаунт он по�
     expect(result).toEqual({ userPhoneLinkApplied: true });
     expect(tables.platformUsers[0]!.phone_normalized).toBe(PHONE);
     expect(tables.contacts).toEqual([{ user_id: '1000', type: 'phone', value_normalized: PHONE }]);
+    expect(tables.userContacts).toEqual([
+      {
+        platform_user_id: 'pu-a',
+        contact_kind: 'phone',
+        channel_code: null,
+        value_normalized: PHONE,
+        is_primary: true,
+      },
+    ]);
   });
 
   it('дано: интеграторская учётка слита в другую → когда привязка → тогда телефон уходит ЦЕЛЕВОЙ учётке, не исчезнувшей', async () => {
@@ -453,6 +521,36 @@ describe('привязка телефона: в чей аккаунт он по�
         .filter((u) => u.merged_into_id === null && u.phone_normalized === PHONE)
         .map((u) => u.id),
     ).toEqual(['pu-b']);
+  });
+
+  it('дано: владелец номера только в user_contacts (legacy колонка пуста) → тогда телефон НЕ дописывается второму аккаунту', async () => {
+    const tables = emptyTables({
+      identities: [{ resource: 'telegram', external_id: '555', user_id: '1000' }],
+      users: [{ id: '1000', merged_into_user_id: null }],
+      platformUsers: [
+        { id: 'pu-a', phone_normalized: null, integrator_user_id: '1000', merged_into_id: null },
+        { id: 'pu-b', phone_normalized: null, integrator_user_id: '900', merged_into_id: null },
+      ],
+      userContacts: [
+        {
+          platform_user_id: 'pu-b',
+          contact_kind: 'phone',
+          channel_code: null,
+          value_normalized: PHONE,
+          is_primary: true,
+        },
+      ],
+      bindings: [{ channel_code: 'telegram', external_id: '555', user_id: 'pu-a' }],
+    });
+    const db = makeDb(tables);
+
+    const result = await linkPhone(db, { externalId: '555', phone: PHONE });
+
+    expect(result).toMatchObject({ userPhoneLinkApplied: false });
+    expect(tables.platformUsers.find((u) => u.id === 'pu-a')?.phone_normalized).toBeNull();
+    expect(
+      tables.userContacts.filter((uc) => uc.contact_kind === 'phone' && uc.value_normalized === PHONE),
+    ).toHaveLength(1);
   });
 
   it('дано: строку контакта отдать нельзя (она за другим человеком) → тогда отказ назван и КАНОНИЧЕСКАЯ запись телефона откачена', async () => {
