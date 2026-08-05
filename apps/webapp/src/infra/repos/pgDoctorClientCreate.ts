@@ -1,6 +1,10 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
+import {
+  drizzlePrimaryPhoneCol,
+  syncUserContactsMirrorWebapp,
+} from '@/infra/repos/userContactsSql';
 import { formatDoctorFio, normalizeFioPart } from '@/shared/lib/fio';
 import { platformUsers, userIdentity, userPhoneHistory } from '../../../db/schema/schema';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
@@ -76,6 +80,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       });
     if (!inserted) throw new DoctorClientIdentityError('create_failed');
     await syncUserIdentityFioMirrorWebapp(tx, inserted.id);
+    await syncUserContactsMirrorWebapp(tx, inserted.id);
     return {
       userId: inserted.id,
       displayName: inserted.displayName,
@@ -97,12 +102,12 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
         lastName: drizzleFioCols.lastName,
         firstName: drizzleFioCols.firstName,
         patronymic: drizzleFioCols.patronymic,
-        phoneNormalized: platformUsers.phoneNormalized,
+        phoneNormalized: drizzlePrimaryPhoneCol,
       })
       .from(platformUsers)
       .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
       .where(
-        and(eq(platformUsers.phoneNormalized, phoneNormalized), isNull(platformUsers.mergedIntoId)),
+        and(eq(drizzlePrimaryPhoneCol, phoneNormalized), isNull(platformUsers.mergedIntoId)),
       )
       .limit(1);
     return row ?? null;
@@ -203,6 +208,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     source: 'admin',
   });
   await syncUserIdentityFioMirrorWebapp(tx, inserted.id);
+  await syncUserContactsMirrorWebapp(tx, inserted.id);
 
   return {
     userId: inserted.id,

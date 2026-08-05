@@ -2,6 +2,7 @@
 import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { platformUsers } from '../../../db/schema/schema';
 import { getWebappSqlDb } from '@/infra/db/runWebappSql';
+import { drizzlePrimaryEmailCol, drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 
 export async function findPlatformUserIdWithEmailConflict(
   canonicalId: string,
@@ -14,8 +15,8 @@ export async function findPlatformUserIdWithEmailConflict(
       and(
         ne(platformUsers.id, canonicalId),
         isNull(platformUsers.mergedIntoId),
-        isNotNull(platformUsers.email),
-        sql`lower(trim(${platformUsers.email})) = lower(trim(${email}))`,
+        isNotNull(drizzlePrimaryEmailCol),
+        eq(drizzlePrimaryEmailCol, email.trim().toLowerCase()),
       ),
     )
     .limit(1);
@@ -33,8 +34,8 @@ export async function findPlatformUserIdWithPhoneConflict(
       and(
         ne(platformUsers.id, canonicalId),
         isNull(platformUsers.mergedIntoId),
-        isNotNull(platformUsers.phoneNormalized),
-        eq(platformUsers.phoneNormalized, phoneNormalized),
+        isNotNull(drizzlePrimaryPhoneCol),
+        eq(drizzlePrimaryPhoneCol, phoneNormalized),
       ),
     )
     .limit(1);

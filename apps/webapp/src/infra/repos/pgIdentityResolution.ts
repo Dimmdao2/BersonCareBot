@@ -36,6 +36,11 @@ import {
   syncUserIdentityFioMirrorWebapp,
   USER_IDENTITY_FIO_JOIN,
 } from '@/infra/repos/userIdentityFioSql';
+import {
+  CONTACTS,
+  syncUserContactsMirrorWebapp,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
 
 async function collectMessengerResolutionCandidates(
   client: PoolClient,
@@ -68,9 +73,10 @@ async function loadSessionUserForId(
 ): Promise<SessionUser> {
   const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
-    `SELECT ${FIO.displayName} AS display_name, pu.role, pu.phone_normalized
+    `SELECT ${FIO.displayName} AS display_name, pu.role, ${CONTACTS.phoneNormalized} AS phone_normalized
      FROM platform_users pu
      ${USER_IDENTITY_FIO_JOIN}
+     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
      WHERE pu.id = $1`,
     [canonicalId],
   );
@@ -156,6 +162,7 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
           ).id;
           insertedNewPlatformUser = true;
           await syncUserIdentityFioMirrorWebapp(client, userId);
+          await syncUserContactsMirrorWebapp(client, userId);
         }
         const insBinding = await runIdentityClientPgText(
           client,
@@ -167,6 +174,7 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
         );
         if (insBinding.rows.length > 0) {
           await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, parsed.channelCode);
+          await syncUserContactsMirrorWebapp(client, userId);
           if (insertedNewPlatformUser) {
             accountOutcome = 'created';
           }

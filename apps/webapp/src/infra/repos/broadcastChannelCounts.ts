@@ -10,8 +10,10 @@ import { getWebappSqlDb } from '@/infra/db/runWebappSql';
 import {
   platformUsers,
   userChannelBindings,
+  userContacts,
   userWebPushSubscriptions,
 } from '../../../db/schema/schema';
+import { drizzlePrimaryEmailCol, drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import type {
   BroadcastChannelCounts,
   BroadcastChannelCountsPort,
@@ -36,21 +38,25 @@ export function createPgBroadcastChannelCountsPort(): BroadcastChannelCountsPort
           WHERE channel_code = 'max'
         `),
         db.execute<{ cnt: string }>(sql`
-          SELECT COUNT(*)::text AS cnt
-          FROM platform_users
-          WHERE phone_normalized IS NOT NULL
-            AND merged_into_id IS NULL
+          SELECT COUNT(DISTINCT uc.platform_user_id)::text AS cnt
+          FROM ${userContacts} uc
+          INNER JOIN ${platformUsers} pu ON pu.id = uc.platform_user_id
+          WHERE uc.contact_kind = 'phone'
+            AND uc.is_primary = true
+            AND pu.merged_into_id IS NULL
         `),
         db.execute<{ cnt: string }>(sql`
           SELECT COUNT(DISTINCT user_id)::text AS cnt
           FROM user_web_push_subscriptions
         `),
         db.execute<{ cnt: string }>(sql`
-          SELECT COUNT(*)::text AS cnt
-          FROM platform_users
-          WHERE email_verified_at IS NOT NULL
-            AND email_normalized IS NOT NULL
-            AND merged_into_id IS NULL
+          SELECT COUNT(DISTINCT uc.platform_user_id)::text AS cnt
+          FROM ${userContacts} uc
+          INNER JOIN ${platformUsers} pu ON pu.id = uc.platform_user_id
+          WHERE uc.contact_kind = 'email'
+            AND uc.is_primary = true
+            AND pu.email_verified_at IS NOT NULL
+            AND pu.merged_into_id IS NULL
         `),
       ]);
 
@@ -98,7 +104,7 @@ export function createPgBroadcastChannelCountsPort(): BroadcastChannelCountsPort
           .where(
             and(
               inArray(platformUsers.id, ids),
-              isNotNull(platformUsers.phoneNormalized),
+              isNotNull(drizzlePrimaryPhoneCol),
               isNull(platformUsers.mergedIntoId),
             ),
           ),
@@ -113,7 +119,7 @@ export function createPgBroadcastChannelCountsPort(): BroadcastChannelCountsPort
             and(
               inArray(platformUsers.id, ids),
               isNotNull(platformUsers.emailVerifiedAt),
-              isNotNull(platformUsers.emailNormalized),
+              isNotNull(drizzlePrimaryEmailCol),
               isNull(platformUsers.mergedIntoId),
             ),
           ),

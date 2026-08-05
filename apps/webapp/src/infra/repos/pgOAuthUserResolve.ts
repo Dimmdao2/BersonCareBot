@@ -1,6 +1,10 @@
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
-import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
+import {
+  CONTACTS,
+  syncUserContactsMirrorWebapp,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
   findCanonicalUserIdByPhone,
@@ -68,7 +72,10 @@ async function findUserIdsByAnyConfirmedEmail(emailNorm: string): Promise<string
 
 async function getActivePhoneForUser(userId: string): Promise<string | null> {
   const r = await runWebappPgText<{ phone_normalized: string | null }>(
-    `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid AND merged_into_id IS NULL`,
+    `SELECT ${CONTACTS.phoneNormalized} AS phone_normalized
+     FROM platform_users pu
+     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+     WHERE pu.id = $1::uuid AND pu.merged_into_id IS NULL`,
     [userId],
   );
   const phone = r.rows[0]?.phone_normalized;

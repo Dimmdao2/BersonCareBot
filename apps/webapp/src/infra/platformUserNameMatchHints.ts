@@ -7,6 +7,11 @@
  */
 import type { Pool } from 'pg';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
+import {
+  CONTACTS,
+  CONTACTS_NO_PHONE,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 
 export const NAME_MATCH_HINTS_DISCLAIMER =
@@ -101,9 +106,7 @@ export async function buildNameMatchHintsReport(
 ): Promise<NameMatchHintsReport> {
   const { missingPhone, limitGroups, limitMembersPerGroup, limitSwappedPairs } = opts;
 
-  const phoneFilter = missingPhone
-    ? `AND (pu.phone_normalized IS NULL OR trim(pu.phone_normalized) = '')`
-    : '';
+  const phoneFilter = missingPhone ? `AND ${CONTACTS_NO_PHONE}` : '';
 
   const baseCte = `
     base AS (
@@ -112,13 +115,14 @@ export async function buildNameMatchHintsReport(
         ${FIO.displayName} AS display_name,
         ${FIO.firstName} AS first_name,
         ${FIO.lastName} AS last_name,
-        pu.phone_normalized,
+        ${CONTACTS.phoneNormalized} AS phone_normalized,
         pu.integrator_user_id::text AS integrator_user_id,
         pu.created_at,
         lower(trim(both from regexp_replace(coalesce(${FIO.firstName}, ''), '[[:space:]]+', ' ', 'g'))) AS nf,
         lower(trim(both from regexp_replace(coalesce(${FIO.lastName}, ''), '[[:space:]]+', ' ', 'g'))) AS nl
       FROM platform_users pu
       ${USER_IDENTITY_FIO_JOIN}
+      ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
       WHERE pu.role = 'client'
         AND pu.merged_into_id IS NULL
         ${phoneFilter}

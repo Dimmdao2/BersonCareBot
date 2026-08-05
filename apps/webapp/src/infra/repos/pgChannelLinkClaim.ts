@@ -8,6 +8,11 @@ import {
 } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
+import {
+  CONTACTS,
+  syncUserContactsMirrorWebapp,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
 
 export class ChannelLinkClaimRejectedError extends Error {
   readonly reason: string;
@@ -34,8 +39,10 @@ export async function classifyChannelBindingOwnerForLink(
     phone_normalized: string | null;
     role: string | null;
   }>(
-    `SELECT merged_into_id::text AS merged_into_id, phone_normalized, role::text AS role
-     FROM platform_users WHERE id = $1::uuid`,
+    `SELECT merged_into_id::text AS merged_into_id, ${CONTACTS.phoneNormalized} AS phone_normalized, role::text AS role
+     FROM platform_users pu
+     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+     WHERE pu.id = $1::uuid`,
     [stubUserId],
     db,
   );
@@ -273,4 +280,7 @@ export async function claimMessengerChannelBindingInTransaction(
     [secretRowId],
     db,
   );
+
+  await syncUserContactsMirrorWebapp(client, tokenUserId);
+  await syncUserContactsMirrorWebapp(client, stubUserId);
 }

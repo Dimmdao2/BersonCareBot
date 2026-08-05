@@ -1,5 +1,13 @@
 import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
-import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
+import {
+  findCanonicalUserIdByChannelBinding,
+  resolveCanonicalUserId,
+} from '@/infra/repos/pgCanonicalPlatformUser';
+import {
+  CONTACTS,
+  syncUserContactsMirrorWebapp,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
 
 export async function replaceChannelLinkSecret(params: {
   userId: string;
@@ -23,7 +31,10 @@ export async function loadPlatformPhoneBindingInfo(
 ): Promise<{ needsPhone: boolean; phoneNormalized?: string }> {
   const canonical = await resolveCanonicalUserId(getWebappSqlDb(), userId);
   const result = await runWebappPgText<{ phone_normalized: string | null }>(
-    `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid`,
+    `SELECT ${CONTACTS.phoneNormalized} AS phone_normalized
+     FROM platform_users pu
+     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+     WHERE pu.id = $1::uuid`,
     [canonical],
   );
   const phone = result.rows[0]?.phone_normalized;
@@ -67,6 +78,13 @@ export async function loadChannelBindingUserId(params: {
   channelCode: 'telegram' | 'max';
   externalId: string;
 }): Promise<string | null> {
+  const db = getWebappSqlDb();
+  const viaContacts = await findCanonicalUserIdByChannelBinding(
+    db,
+    params.channelCode,
+    params.externalId,
+  );
+  if (viaContacts) return viaContacts;
   const result = await runWebappPgText<{ user_id: string }>(
     `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2`,
     [params.channelCode, params.externalId],
@@ -97,4 +115,5 @@ export async function insertChannelBinding(params: {
      VALUES ($1, $2, $3)`,
     [params.userId, params.channelCode, params.externalId],
   );
+  await syncUserContactsMirrorWebapp(getWebappSqlDb(), params.userId);
 }

@@ -9,6 +9,10 @@ import { getPool } from '@/infra/db/client';
 import { getIntegratorPurgePoolProvider } from '@/infra/db/integratorPurgePoolProvider';
 import { startPoolTransaction } from '@/infra/db/withClient';
 import { runPurgeClientPgText, runPurgePoolPgText } from '@/infra/platformUserPurgeSql';
+import {
+  CONTACTS,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
 
 function trimEnv(name: string): string {
   return process.env[name]?.trim() ?? '';
@@ -107,6 +111,7 @@ async function deleteSymptomAndLfkDiaryForUser(client: PoolClient, userId: strin
 }
 
 const IDENTITY_TABLES: { table: string; column: string }[] = [
+  { table: 'user_contacts', column: 'platform_user_id' },
   { table: 'user_channel_bindings', column: 'user_id' },
   { table: 'user_pins', column: 'user_id' },
   { table: 'login_tokens', column: 'user_id' },
@@ -557,8 +562,10 @@ export async function purgePlatformUserByPlatformId(
 async function loadPurgeUserRow(db: Pool, id: string): Promise<PurgePlatformUserRow | null> {
   const userRes = await runPurgePoolPgText<PurgePlatformUserRow>(
     db,
-    `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, role
-     FROM platform_users WHERE id = $1`,
+    `SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.integrator_user_id::text AS integrator_user_id, pu.role
+     FROM platform_users pu
+     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+     WHERE pu.id = $1`,
     [id],
   );
   return userRes.rows[0] ?? null;

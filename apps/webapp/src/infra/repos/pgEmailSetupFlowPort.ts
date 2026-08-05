@@ -1,5 +1,10 @@
 /** Wave 3 phase 15B — domain SQL via `runWebappPgText`; TX on `applyEmailSetupCompletion`. */
 import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import {
+  CONTACTS,
+  syncUserContactsMirrorWebapp,
+  USER_CONTACTS_PRIMARY_EMAIL_LATERAL,
+} from '@/infra/repos/userContactsSql';
 import type { EmailSetupFlowPort } from '@/modules/auth/emailSetupFlow/ports';
 
 export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
@@ -11,12 +16,13 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
       has_password: boolean;
     }>(
       `SELECT pu.email,
-              pu.email_normalized,
+              ${CONTACTS.emailNormalized} AS email_normalized,
               pu.email_verified_at,
               EXISTS (
                 SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id
               ) AS has_password
        FROM platform_users pu
+       ${USER_CONTACTS_PRIMARY_EMAIL_LATERAL}
        WHERE pu.id = $1::uuid
          AND pu.merged_into_id IS NULL
        LIMIT 1`,
@@ -71,6 +77,8 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
           tx.rollback();
           return { ok: false, reason: 'token_consume_failed' as const };
         }
+
+        await syncUserContactsMirrorWebapp(tx, userId);
 
         return { ok: true as const };
       });

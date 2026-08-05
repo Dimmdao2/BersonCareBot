@@ -1,6 +1,10 @@
 import { getPool } from '@/infra/db/client';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
+import {
+  CONTACTS,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
 import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
 import type { PlatformAccessCanonRow, PlatformAccessPort } from '@/modules/platform-access/ports';
 
@@ -24,11 +28,12 @@ export const pgPlatformAccessPort: PlatformAccessPort = {
     const credentialsSql = credentialPresenceSql();
     const r = await runWebappPgText<PlatformAccessCanonRow>(
       `SELECT pu.role,
-              pu.phone_normalized,
+              ${CONTACTS.phoneNormalized} AS phone_normalized,
               pu.patient_phone_trust_at,
               pu.email_verified_at,
               ${credentialsSql}
        FROM platform_users pu
+       ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
        WHERE pu.id = $1::uuid`,
       [canonicalUserId],
     );

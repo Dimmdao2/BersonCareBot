@@ -1,6 +1,12 @@
 import { runWebappPgText } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import {
+  CONTACTS,
+  CONTACTS_HAS_PHONE,
+  CONTACTS_NO_PHONE,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
+import {
   MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
   resolveAdminStatsLocalRange,
 } from '@/modules/admin-platform-stats/registrationTimeRange';
@@ -237,11 +243,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -258,16 +265,16 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND pu.phone_normalized IS NOT NULL
-               AND btrim(pu.phone_normalized) <> ''
+               AND ${CONTACTS_HAS_PHONE}
                AND pu.email_verified_at IS NULL
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
@@ -283,15 +290,16 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND (pu.phone_normalized IS NULL OR btrim(pu.phone_normalized) = '')
+               AND ${CONTACTS_NO_PHONE}
                AND pu.email_verified_at IS NULL
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
@@ -307,11 +315,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -331,11 +340,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -355,16 +365,17 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND pu.email_verified_at IS NOT NULL
-               AND (pu.phone_normalized IS NULL OR btrim(pu.phone_normalized) = '')
+               AND ${CONTACTS_NO_PHONE}
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY display_name ASC, pu.id ASC
@@ -379,11 +390,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -403,11 +415,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -427,17 +440,17 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                NULL::text AS event_at,
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND pu.email_verified_at IS NOT NULL
-               AND pu.phone_normalized IS NOT NULL
-               AND btrim(pu.phone_normalized) <> ''
+               AND ${CONTACTS_HAS_PHONE}
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY display_name ASC, pu.id ASC
@@ -635,10 +648,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                ucb.bot_blocked_at::text AS event_at,
                'Бот заблокирован'::text AS event_label
              FROM platform_users pu
+             ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              INNER JOIN user_channel_bindings ucb
                ON ucb.user_id = pu.id
               AND ucb.channel_code = $1::text
@@ -695,15 +710,17 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                e.user_id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                MAX(e.occurred_at)::text AS event_at,
                'Push open'::text AS event_label
              FROM product_analytics_events_recent e
              INNER JOIN platform_users pu ON pu.id = e.user_id
+             ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE e.event_type = 'push_open'
                AND e.user_id IS NOT NULL
                AND e.occurred_at >= (NOW() - ($1::integer * interval '1 hour'))${ex.andSql}
-             GROUP BY e.user_id, ${FIO.displayName}, pu.phone_normalized
+             GROUP BY e.user_id, ${FIO.displayName}, ${CONTACTS.phoneNormalized}
              ORDER BY MAX(e.occurred_at) DESC, e.user_id ASC
              LIMIT $2::int OFFSET $3::int`,
             ex.params,
@@ -720,7 +737,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             `SELECT
                pu.id::text AS user_id,
                ${FIO.displayName} AS display_name,
-               pu.phone_normalized,
+               ${CONTACTS.phoneNormalized} AS phone_normalized,
                s.first_at::text AS event_at,
                'Первая привязка канала'::text AS event_label
              FROM (
@@ -731,6 +748,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                GROUP BY ucb.user_id
              ) s
              INNER JOIN platform_users pu ON pu.id = s.user_id
+             ${USER_IDENTITY_FIO_JOIN}
+             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -754,7 +773,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           `           SELECT
              pu.id::text AS user_id,
              ${FIO.displayName} AS display_name,
-             pu.phone_normalized,
+             ${CONTACTS.phoneNormalized} AS phone_normalized,
              s.first_at::text AS event_at,
              'Первая привязка канала'::text AS event_label
            FROM (
@@ -766,6 +785,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
            ) s
            INNER JOIN platform_users pu ON pu.id = s.user_id
            ${USER_IDENTITY_FIO_JOIN}
+           ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false

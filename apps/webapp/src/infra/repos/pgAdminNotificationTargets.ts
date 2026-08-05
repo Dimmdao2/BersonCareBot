@@ -1,4 +1,8 @@
 import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  CONTACTS,
+  USER_CONTACTS_PRIMARY_LATERALS,
+} from '@/infra/repos/userContactsSql';
 
 export type AdminNotificationTargets = {
   telegram: string[];
@@ -28,8 +32,11 @@ type AdminNotificationTargetRow = {
  */
 export async function loadAdminNotificationTargetsFromDb(): Promise<AdminNotificationTargets> {
   const result = await runWebappPgText<AdminNotificationTargetRow>(
-    `SELECT pu.phone_normalized, pu.email_normalized, ucb.channel_code, ucb.external_id
+    `SELECT ${CONTACTS.phoneNormalized} AS phone_normalized,
+            ${CONTACTS.emailNormalized} AS email_normalized,
+            ucb.channel_code, ucb.external_id
        FROM platform_users pu
+       ${USER_CONTACTS_PRIMARY_LATERALS}
        LEFT JOIN user_channel_bindings ucb
          ON ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
       WHERE pu.role = 'admin'

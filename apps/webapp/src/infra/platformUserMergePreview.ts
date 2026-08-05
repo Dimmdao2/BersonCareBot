@@ -5,6 +5,10 @@
 import type { Pool } from 'pg';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
+import {
+  CONTACTS,
+  USER_CONTACTS_PRIMARY_LATERALS,
+} from '@/infra/repos/userContactsSql';
 import { checkIntegratorCanonicalPair } from '@/infra/integrations/integratorUserMergeM2mClient';
 import {
   effectiveAutoMergedDisplayName,
@@ -558,8 +562,8 @@ async function loadPlatformUser(
 ): Promise<MergePreviewPlatformUserRow | null> {
   const r = await runPgPoolPgText<MergePreviewPlatformUserRow>(
     pool,
-    `SELECT id,
-            phone_normalized,
+    `SELECT pu.id,
+            ${CONTACTS.phoneNormalized} AS phone_normalized,
             integrator_user_id::text AS integrator_user_id,
             merged_into_id,
             display_name,
@@ -576,8 +580,9 @@ async function loadPlatformUser(
             blocked_at,
             blocked_reason,
             blocked_by::text AS blocked_by
-     FROM platform_users
-     WHERE id = $1::uuid`,
+     FROM platform_users pu
+     ${USER_CONTACTS_PRIMARY_LATERALS}
+     WHERE pu.id = $1::uuid`,
     [id],
   );
   return r.rows[0] ?? null;
@@ -956,7 +961,7 @@ export async function searchMergeCandidates(
     qFilter = `
       AND (
         pu.id::text ILIKE $${p}
-        OR pu.phone_normalized ILIKE $${p}
+        OR ${CONTACTS.phoneNormalized} ILIKE $${p}
         OR pu.email ILIKE $${p}
         OR ${FIO.displayName} ILIKE $${p}
         OR ${FIO.firstName} ILIKE $${p}
@@ -972,23 +977,25 @@ export async function searchMergeCandidates(
 
   const sql = `
     WITH anchor AS (
-      SELECT id, phone_normalized, email, integrator_user_id
-      FROM platform_users
-      WHERE id = $1::uuid
+      SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.email, pu.integrator_user_id
+      FROM platform_users pu
+      ${USER_CONTACTS_PRIMARY_LATERALS}
+      WHERE pu.id = $1::uuid
     )
     SELECT pu.id,
            ${FIO.displayName} AS display_name,
-           pu.phone_normalized,
+           ${CONTACTS.phoneNormalized} AS phone_normalized,
            pu.email,
            pu.integrator_user_id::text AS integrator_user_id,
            pu.created_at
     FROM platform_users pu, anchor
     ${USER_IDENTITY_FIO_JOIN}
+    ${USER_CONTACTS_PRIMARY_LATERALS}
     WHERE pu.id <> anchor.id
       AND pu.role = 'client'
       AND pu.merged_into_id IS NULL
       AND (
-        (anchor.phone_normalized IS NOT NULL AND pu.phone_normalized IS NOT DISTINCT FROM anchor.phone_normalized)
+        (anchor.phone_normalized IS NOT NULL AND ${CONTACTS.phoneNormalized} IS NOT DISTINCT FROM anchor.phone_normalized)
         OR (
           anchor.email IS NOT NULL AND pu.email IS NOT NULL
           AND lower(trim(pu.email)) = lower(trim(anchor.email))
@@ -1033,17 +1040,18 @@ export async function searchMergeUsersForManualMerge(
   const sql = `
     SELECT pu.id,
            ${FIO.displayName} AS display_name,
-           pu.phone_normalized,
+           ${CONTACTS.phoneNormalized} AS phone_normalized,
            pu.email,
            pu.integrator_user_id::text AS integrator_user_id,
            pu.created_at
     FROM platform_users pu
     ${USER_IDENTITY_FIO_JOIN}
+    ${USER_CONTACTS_PRIMARY_LATERALS}
     WHERE pu.role = 'client'
       AND pu.merged_into_id IS NULL
       AND (
         pu.id::text ILIKE $1
-        OR pu.phone_normalized ILIKE $1
+        OR ${CONTACTS.phoneNormalized} ILIKE $1
         OR pu.email ILIKE $1
         OR ${FIO.displayName} ILIKE $1
         OR ${FIO.firstName} ILIKE $1

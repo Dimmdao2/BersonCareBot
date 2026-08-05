@@ -5,12 +5,21 @@ import type { Pool } from 'pg';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const syncMirrorMock = vi.hoisted(() => vi.fn());
+const syncContactsMirrorMock = vi.hoisted(() => vi.fn());
 const runIdentityClientPgTextMock = vi.hoisted(() => vi.fn());
 const runIdentityPoolPgTextMock = vi.hoisted(() => vi.fn());
 const withPoolTransactionMock = vi.hoisted(() => vi.fn());
 const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runPgPoolPgTextMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@/infra/repos/userContactsSql', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/infra/repos/userContactsSql')>();
+  return {
+    ...actual,
+    syncUserContactsMirrorWebapp: syncContactsMirrorMock,
+  };
+});
 
 vi.mock('@/infra/repos/userIdentityFioSql', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/infra/repos/userIdentityFioSql')>();
@@ -65,6 +74,7 @@ const OAUTH_USER_ID = '00000000-0000-4000-8000-0000000d0002';
 beforeEach(() => {
   vi.clearAllMocks();
   syncMirrorMock.mockResolvedValue(undefined);
+  syncContactsMirrorMock.mockResolvedValue(undefined);
 });
 
 describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
@@ -101,6 +111,8 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
 
     expect(syncMirrorMock).toHaveBeenCalledOnce();
     expect(syncMirrorMock).toHaveBeenCalledWith(fakeClient, LOCKED_USER_ID);
+    expect(syncContactsMirrorMock).toHaveBeenCalledOnce();
+    expect(syncContactsMirrorMock).toHaveBeenCalledWith(fakeClient, LOCKED_USER_ID);
     const updateCall = runIdentityClientPgTextMock.mock.calls.find(
       ([, sql]) => typeof sql === 'string' && sql.includes('UPDATE platform_users'),
     );
@@ -122,6 +134,8 @@ describe('D15b/5 MF-2 — pgOAuthUserResolve createOAuthPlatformUser dual-write'
     expect(userId).toBe(OAUTH_USER_ID);
     expect(syncMirrorMock).toHaveBeenCalledOnce();
     expect(syncMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID);
+    expect(syncContactsMirrorMock).toHaveBeenCalledOnce();
+    expect(syncContactsMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID);
     const [insertSql] = runWebappPgTextMock.mock.calls[0] as [string];
     expect(insertSql).toContain('INSERT INTO platform_users');
     expect(insertSql).toContain('display_name');
@@ -143,5 +157,23 @@ describe('D15b/5 MF-3 — pgPublicBookingMergeCandidates COALESCE reader', () =>
     expect(sql).toContain(USER_IDENTITY_FIO_JOIN);
     expect(sql).toContain(FIO.displayName);
     expect(sql).not.toMatch(/lower\(trim\(display_name\)\)/);
+  });
+
+  it('treats missing phone via user_contacts COALESCE, not platform_users.phone_normalized only', async () => {
+    const { CONTACTS_NO_PHONE, USER_CONTACTS_PRIMARY_PHONE_LATERAL } = await import(
+      '@/infra/repos/userContactsSql'
+    );
+    runPgPoolPgTextMock.mockResolvedValueOnce({ rows: [] });
+
+    await findPublicBookingNameCollisionCandidates({
+      pool: {} as Pool,
+      anchorUserId: '00000000-0000-4000-8000-0000000d0003',
+      contactName: 'Пётр Петров',
+    });
+
+    const [, sql] = runPgPoolPgTextMock.mock.calls[0] as [unknown, string, unknown[]];
+    expect(sql).toContain(USER_CONTACTS_PRIMARY_PHONE_LATERAL);
+    expect(sql).toContain(CONTACTS_NO_PHONE);
+    expect(sql).not.toMatch(/pu\.phone_normalized IS NULL/);
   });
 });

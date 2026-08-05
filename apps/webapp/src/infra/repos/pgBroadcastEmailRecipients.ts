@@ -10,6 +10,8 @@
 import { sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { drizzleSqlUuidInList } from '@/modules/analytics/analyticsAudience';
+import { drizzlePrimaryEmailCol } from '@/infra/repos/userContactsSql';
+import { platformUsers } from '../../../db/schema/schema';
 import type { BroadcastEmailRecipientsPort } from '@/modules/doctor-broadcasts/fanOutBroadcastEmail';
 
 export function createPgBroadcastEmailRecipientsPort(): BroadcastEmailRecipientsPort {
@@ -19,12 +21,12 @@ export function createPgBroadcastEmailRecipientsPort(): BroadcastEmailRecipients
 
       const db = getDrizzle();
       const result = await db.execute<{ id: string; email_normalized: string }>(sql`
-        SELECT id::text, email_normalized
-        FROM platform_users
-        WHERE id IN (${drizzleSqlUuidInList(userIds)})
-          AND email_normalized IS NOT NULL
-          AND email_verified_at IS NOT NULL
-          AND merged_into_id IS NULL
+        SELECT pu.id::text, ${drizzlePrimaryEmailCol} AS email_normalized
+        FROM ${platformUsers} pu
+        WHERE pu.id IN (${drizzleSqlUuidInList(userIds)})
+          AND ${drizzlePrimaryEmailCol} IS NOT NULL
+          AND pu.email_verified_at IS NOT NULL
+          AND pu.merged_into_id IS NULL
       `);
 
       const map = new Map<string, string>();

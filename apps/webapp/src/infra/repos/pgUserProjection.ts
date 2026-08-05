@@ -5,13 +5,20 @@
 import { getPool } from '@/infra/db/client';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
 import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
 import {
   upsertIdentityProjection,
   collapseIdentityProjectionCandidates,
 } from '@bersoncare/platform-merge';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
+import {
+  CONTACTS,
+  syncUserContactsMirrorWebapp,
+  USER_CONTACTS_PRIMARY_EMAIL_LATERAL,
+  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+} from '@/infra/repos/userContactsSql';
+import { findCanonicalUserIdByPhone } from '@/infra/repos/pgCanonicalPlatformUser';
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
@@ -93,8 +100,10 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
   async findByIntegratorId(integratorUserId) {
     const result = await runWebappPgText<{ id: string; phone_normalized: string | null }>(
-      `SELECT id, phone_normalized FROM platform_users
-       WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL`,
+      `SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized
+       FROM platform_users pu
+       ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+       WHERE pu.integrator_user_id = $1::bigint AND pu.merged_into_id IS NULL`,
       [integratorUserId],
     );
     if (result.rows.length === 0) return null;
@@ -103,14 +112,8 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async findByPhoneNormalized(phoneNormalized) {
-    const result = await runWebappPgText<{ id: string }>(
-      `SELECT id FROM platform_users
-       WHERE phone_normalized = $1 AND merged_into_id IS NULL
-       LIMIT 1`,
-      [phoneNormalized],
-    );
-    const row = result.rows[0];
-    return row ? { platformUserId: row.id } : null;
+    const platformUserId = await findCanonicalUserIdByPhone(getWebappSqlDb(), phoneNormalized);
+    return platformUserId ? { platformUserId } : null;
   },
 
   async updatePhone(platformUserId, phoneNormalized) {
@@ -160,6 +163,11 @@ export const pgUserProjectionPort: UserProjectionPort = {
       for (const row of updated.rows) {
         await syncUserIdentityFioMirrorWebapp(client, row.id);
       }
+      if (params.email !== undefined) {
+        for (const row of updated.rows) {
+          await syncUserContactsMirrorWebapp(client, row.id);
+        }
+      }
     });
   },
 
@@ -197,7 +205,13 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const result = await runWebappPgText<{
       email: string | null;
       email_verified_at: Date | string | null;
-    }>('SELECT email, email_verified_at FROM platform_users WHERE id = $1', [platformUserId]);
+    }>(
+      `SELECT pu.email, pu.email_verified_at
+       FROM platform_users pu
+       ${USER_CONTACTS_PRIMARY_EMAIL_LATERAL}
+       WHERE pu.id = $1`,
+      [platformUserId],
+    );
     if (result.rows.length === 0) {
       return { email: null, emailVerifiedAt: null };
     }
@@ -227,6 +241,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
        WHERE id = $1::uuid AND role IN ('doctor', 'admin') AND merged_into_id IS NULL`,
       [platformUserId],
     );
+    await syncUserContactsMirrorWebapp(getPool(), platformUserId);
     return { ok: true as const };
   },
 
@@ -325,6 +340,13 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
         if (patch.firstName !== undefined || patch.lastName !== undefined) {
           await syncUserIdentityFioMirrorWebapp(client, platformUserId);
+        }
+
+        if (
+          patch.phoneNormalized !== undefined ||
+          patch.email !== undefined
+        ) {
+          await syncUserContactsMirrorWebapp(client, platformUserId);
         }
 
         return { ok: true as const };

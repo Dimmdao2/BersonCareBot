@@ -30,6 +30,7 @@ import { beAppointments, orgEnrollments } from '../../../db/schema/bookingEngine
 import { clinicalVisit } from '../../../db/schema/patientClinical';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
+import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 
 type ActiveOrganizationRow = {
   organization_id: string;
@@ -154,7 +155,7 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
                   lastName: drizzleFioCols.lastName,
                   firstName: drizzleFioCols.firstName,
                   patronymic: drizzleFioCols.patronymic,
-                  phoneNormalized: platformUsers.phoneNormalized,
+                  phoneNormalized: drizzlePrimaryPhoneCol,
                 })
                 .from(platformUsers)
                 .leftJoin(userIdentity, drizzleUserIdentityFioJoin)

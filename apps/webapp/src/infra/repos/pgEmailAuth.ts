@@ -3,8 +3,10 @@ import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 import {
   runWebappPgText,
   runWebappTransaction,
+  getWebappSqlDb,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
+import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
 import {
   MergeConflictError,
   MergeDependentConflictError,
@@ -159,6 +161,7 @@ export async function findEmailOwnerConflict(userId: string, email: string): Pro
 
 export async function verifyUserEmail(userId: string, email: string): Promise<void> {
   await runWebappPgText('SELECT app.email_auth_verify_user_email($1::uuid, $2)', [userId, email]);
+  await syncUserContactsMirrorWebapp(getWebappSqlDb(), userId);
 }
 
 export async function claimVerifiedEmail(

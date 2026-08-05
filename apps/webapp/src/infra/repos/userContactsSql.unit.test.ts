@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { syncUserContactsMirror } from '@bersoncare/platform-merge';
 import {
   CONTACTS,
+  CONTACTS_NO_PHONE,
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
 } from '@/infra/repos/userContactsSql';
 
@@ -14,6 +15,16 @@ describe('userContactsSql — D15b/6 COALESCE contract', () => {
     expect(CONTACTS.phoneNormalized).toContain('pu.phone_normalized');
     expect(USER_CONTACTS_PRIMARY_PHONE_LATERAL).toContain('user_contacts');
     expect(USER_CONTACTS_PRIMARY_PHONE_LATERAL).toContain("contact_kind = 'phone'");
+  });
+
+  it('prefers user_contacts primary email before platform_users.email_normalized', () => {
+    expect(CONTACTS.emailNormalized).toMatch(/^COALESCE\(uc_pri_email\./);
+    expect(CONTACTS.emailNormalized).toContain('pu.email_normalized');
+  });
+
+  it('CONTACTS_NO_PHONE uses COALESCE primary phone expression', () => {
+    expect(CONTACTS_NO_PHONE).toContain('uc_pri_phone');
+    expect(CONTACTS_NO_PHONE).not.toMatch(/pu\.phone_normalized IS NULL/);
   });
 
   it('syncUserContactsMirror rebuilds from four source tables', async () => {
