@@ -54,6 +54,7 @@ import {
   enrichDoctorBroadcastIntentIfNeeded,
   type DoctorBroadcastMenuWorkerDeps,
 } from './doctorBroadcastIntentMenu.js';
+import { runWithOutgoingDeliveryWorkerAuditContext } from './outgoingDeliveryWorkerAuditContext.js';
 import {
   isReminderTransactionalEmailRateLimited,
   recordReminderTransactionalEmailSent,
@@ -1058,6 +1059,15 @@ export async function processClaimedOutgoingDeliveryRow(
 }
 
 async function processClaimedOutgoingDeliveryRowInner(
+  row: OutgoingDeliveryQueueRow,
+  deps: OutgoingDeliveryWorkerDeps,
+): Promise<void> {
+  return runWithOutgoingDeliveryWorkerAuditContext(async () => {
+    await processClaimedOutgoingDeliveryRowScoped(row, deps);
+  });
+}
+
+async function processClaimedOutgoingDeliveryRowScoped(
   row: OutgoingDeliveryQueueRow,
   deps: OutgoingDeliveryWorkerDeps,
 ): Promise<void> {

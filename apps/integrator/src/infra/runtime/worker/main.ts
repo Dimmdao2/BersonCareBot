@@ -39,13 +39,14 @@ async function startWorker(): Promise<void> {
   await assertDeliveryWorkerPoolReady();
   const projectionDb = createDbPort();
   const deliveryDb = createDbPort();
-  const deliveryWritePort = createDbWritePort({ db: deliveryDb });
+  const deliveryTenantWritePort = createDbWritePort({ db: deliveryDb });
+  const deliveryWritePort = createOperatorAwareDeliveryAttemptWritePort({
+    db: deliveryDb,
+    tenantWritePort: deliveryTenantWritePort,
+  });
   const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps({
-    dispatchAttemptWritePort: createOperatorAwareDeliveryAttemptWritePort({
-      db: deliveryDb,
-      tenantWritePort: deliveryWritePort,
-    }),
+    dispatchAttemptWritePort: deliveryWritePort,
   });
   const webappEvents = createWebappEventsPort({
     getAppBaseUrl: async () => env.APP_BASE_URL,

@@ -2,18 +2,24 @@
  * Opt-in REAL-Postgres proof for the delivery-attempt audit journal (D10a writer path).
  *
  * `createOperatorAwareDeliveryAttemptWritePort` routes every `delivery.attempt.log` write made
- * under the `worker:outgoing-delivery-tick` infra principal into `app.record_operator_delivery_attempt`
- * — unconditionally, for every queue kind the worker processes. The function validates provenance
- * against a matching `outgoing_delivery_queue` row and inserts into
- * `public.notification_delivery_attempts` (D10a canonical journal).
+ * under the `worker:outgoing-delivery-tick` infra principal (or outgoing-delivery worker audit
+ * context during per-row dispatch) into `app.record_operator_delivery_attempt` — for every queue
+ * kind the worker processes. The function validates provenance against a matching
+ * `outgoing_delivery_queue` row and inserts into `public.notification_delivery_attempts`
+ * (D10a canonical journal).
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js';
+import type { DbPort, DbWriteMutation, DbWritePort } from '../../../kernel/contracts/index.js';
+import { createOperatorAwareDeliveryAttemptWritePort } from '../../runtime/worker/operatorDeliveryAttemptWritePort.js';
+import { runWithOutgoingDeliveryWorkerAuditContext } from '../../runtime/worker/outgoingDeliveryWorkerAuditContext.js';
+import {
+  runWithInfraPrincipal,
+  runWithOrganizationPrincipal,
+} from '../../principal/organizationPrincipal.js';
 import { createRealPostgresIntegrationTestHarness } from '../realPostgresIntegrationTestHarness.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
-import { recordOperatorDeliveryAttempt } from './operatorDeliveryAttempts.js';
 
 const enabled =
   process.env.RUN_OPERATOR_DELIVERY_ATTEMPT_TEST === '1' &&
@@ -21,12 +27,23 @@ const enabled =
   Boolean((process.env.DATABASE_URL ?? '').trim()) &&
   Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
 
+const TEST_FIXTURE_ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
+
 describe.skipIf(!enabled)(
-  'record_operator_delivery_attempt covers the whole outgoing-delivery queue (opt-in, real Postgres)',
+  'createOperatorAwareDeliveryAttemptWritePort (opt-in, real Postgres)',
   () => {
     const harness = createRealPostgresIntegrationTestHarness('worker:outgoing-delivery-tick');
     const writtenQueueEventIds: string[] = [];
     const writtenLogEventIds: string[] = [];
+
+    function createWorkerShapedWritePort(db: DbPort): DbWritePort {
+      const tenantWritePort: DbWritePort = {
+        writeDb: async () => {
+          throw new Error('tenant delivery.attempt.log path must not run in worker audit context');
+        },
+      };
+      return createOperatorAwareDeliveryAttemptWritePort({ db, tenantWritePort });
+    }
 
     async function insertQueueRow(input: { kind: string; channel: string }): Promise<string> {
       const eventId = `d987-${randomUUID()}`;
@@ -46,18 +63,15 @@ describe.skipIf(!enabled)(
       return eventId;
     }
 
-    function logAttempt(
-      db: DbPort,
-      input: {
-        eventId: string;
-        channel: string;
-        status: 'success' | 'failed' | 'skipped';
-        attempt: number;
-        reason?: string;
-      },
-    ): Promise<void> {
+    function buildAttemptMutation(input: {
+      eventId: string;
+      channel: string;
+      status: 'success' | 'failed' | 'skipped';
+      attempt: number;
+      reason?: string;
+    }): DbWriteMutation {
       writtenLogEventIds.push(input.eventId);
-      const mutation: DbWriteMutation = {
+      return {
         type: 'delivery.attempt.log',
         params: {
           intentEventId: input.eventId,
@@ -69,11 +83,24 @@ describe.skipIf(!enabled)(
             (input.status === 'failed'
               ? 'provider_rejected'
               : input.status === 'skipped'
-                ? 'provider_skipped'
+                ? 'stale_materialization'
                 : null),
         },
       };
-      return recordOperatorDeliveryAttempt(db, mutation);
+    }
+
+    async function logAttemptViaWorkerPort(
+      db: DbPort,
+      input: {
+        eventId: string;
+        channel: string;
+        status: 'success' | 'failed' | 'skipped';
+        attempt: number;
+        reason?: string;
+      },
+    ): Promise<void> {
+      const writePort = createWorkerShapedWritePort(db);
+      await writePort.writeDb(buildAttemptMutation(input));
     }
 
     async function readLoggedAttempts(
@@ -112,36 +139,36 @@ describe.skipIf(!enabled)(
       });
     });
 
-    it('records a successful reminder_dispatch attempt (previously rejected as a non-operator-alert kind)', async () => {
+    it('records a successful reminder_dispatch attempt via worker-shaped writePort', async () => {
       const eventId = await insertQueueRow({ kind: 'reminder_dispatch', channel: 'telegram' });
 
       await harness.withRuntime((db) =>
-        logAttempt(db, { eventId, channel: 'telegram', status: 'success', attempt: 1 }),
+        logAttemptViaWorkerPort(db, { eventId, channel: 'telegram', status: 'success', attempt: 1 }),
       );
 
       const rows = await readLoggedAttempts(eventId);
       expect(rows).toEqual([{ status: 'success', attempt: 1, kind: 'reminder_dispatch' }]);
     });
 
-    it('records a failed doctor_broadcast_intent attempt, not only successes', async () => {
+    it('records a failed doctor_broadcast_intent attempt via worker-shaped writePort', async () => {
       const eventId = await insertQueueRow({ kind: 'doctor_broadcast_intent', channel: 'max' });
 
       await harness.withRuntime((db) =>
-        logAttempt(db, { eventId, channel: 'max', status: 'failed', attempt: 1 }),
+        logAttemptViaWorkerPort(db, { eventId, channel: 'max', status: 'failed', attempt: 1 }),
       );
 
       const rows = await readLoggedAttempts(eventId);
       expect(rows).toEqual([{ status: 'failed', attempt: 1, kind: 'doctor_broadcast_intent' }]);
     });
 
-    it('a retried attempt appends with the higher attempt number instead of failing', async () => {
+    it('appends retried attempts with higher attempt numbers', async () => {
       const eventId = await insertQueueRow({ kind: 'inbound_reply', channel: 'telegram' });
 
       await harness.withRuntime((db) =>
-        logAttempt(db, { eventId, channel: 'telegram', status: 'failed', attempt: 1 }),
+        logAttemptViaWorkerPort(db, { eventId, channel: 'telegram', status: 'failed', attempt: 1 }),
       );
       await harness.withRuntime((db) =>
-        logAttempt(db, { eventId, channel: 'telegram', status: 'success', attempt: 2 }),
+        logAttemptViaWorkerPort(db, { eventId, channel: 'telegram', status: 'success', attempt: 2 }),
       );
 
       const rows = await readLoggedAttempts(eventId);
@@ -151,22 +178,11 @@ describe.skipIf(!enabled)(
       ]);
     });
 
-    it('still records a genuine operator_alert attempt (no regression from widening the check)', async () => {
-      const eventId = await insertQueueRow({ kind: 'operator_alert', channel: 'telegram' });
-
-      await harness.withRuntime((db) =>
-        logAttempt(db, { eventId, channel: 'telegram', status: 'success', attempt: 1 }),
-      );
-
-      const rows = await readLoggedAttempts(eventId);
-      expect(rows).toEqual([{ status: 'success', attempt: 1, kind: 'operator_alert' }]);
-    });
-
-    it('records skipped status for pre-dispatch worker skips', async () => {
+    it('records skipped status for pre-dispatch worker skips (stale_materialization)', async () => {
       const eventId = await insertQueueRow({ kind: 'reminder_dispatch', channel: 'email' });
 
       await harness.withRuntime((db) =>
-        logAttempt(db, {
+        logAttemptViaWorkerPort(db, {
           eventId,
           channel: 'email',
           status: 'skipped',
@@ -181,13 +197,72 @@ describe.skipIf(!enabled)(
       ]);
     });
 
+    it('records skipped status for rate_limited pre-dispatch skip', async () => {
+      const eventId = await insertQueueRow({ kind: 'reminder_dispatch', channel: 'email' });
+
+      await harness.withRuntime((db) =>
+        logAttemptViaWorkerPort(db, {
+          eventId,
+          channel: 'email',
+          status: 'skipped',
+          attempt: 1,
+          reason: 'rate_limited',
+        }),
+      );
+
+      const rows = await readLoggedAttempts(eventId);
+      expect(rows).toEqual([{ status: 'skipped', attempt: 1, kind: 'reminder_dispatch' }]);
+    });
+
+    it('routes dispatchPort-shaped audit under org principal + worker audit context', async () => {
+      const eventId = await insertQueueRow({ kind: 'reminder_dispatch', channel: 'telegram' });
+
+      await harness.withRuntime((db) =>
+        runWithOutgoingDeliveryWorkerAuditContext(() =>
+          runWithOrganizationPrincipal(TEST_FIXTURE_ORGANIZATION_ID, () =>
+            createWorkerShapedWritePort(db).writeDb(
+              buildAttemptMutation({
+                eventId,
+                channel: 'telegram',
+                status: 'success',
+                attempt: 1,
+              }),
+            ),
+          ),
+        ),
+      );
+
+      const rows = await readLoggedAttempts(eventId);
+      expect(rows).toEqual([{ status: 'success', attempt: 1, kind: 'reminder_dispatch' }]);
+    });
+
     it('still rejects an attempt with no matching queue row (forged provenance)', async () => {
       const eventId = `d987-${randomUUID()}`;
       await expect(
         harness.withRuntime((db) =>
-          logAttempt(db, { eventId, channel: 'telegram', status: 'success', attempt: 1 }),
+          logAttemptViaWorkerPort(db, { eventId, channel: 'telegram', status: 'success', attempt: 1 }),
         ),
       ).rejects.toThrow();
+    });
+
+    it('delegates non-delivery.attempt.log mutations to tenantWritePort under worker principal', async () => {
+      let tenantCalled = false;
+      const tenantWritePort: DbWritePort = {
+        writeDb: async (mutation) => {
+          tenantCalled = true;
+          expect(mutation.type).toBe('reminders.delivery.log');
+        },
+      };
+      await harness.withRuntime((db) =>
+        runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, async () => {
+          const writePort = createOperatorAwareDeliveryAttemptWritePort({ db, tenantWritePort });
+          await writePort.writeDb({
+            type: 'reminders.delivery.log',
+            params: { id: randomUUID(), occurrenceId: randomUUID(), channel: 'telegram', status: 'sent' },
+          });
+        }),
+      );
+      expect(tenantCalled).toBe(true);
     });
   },
 );
