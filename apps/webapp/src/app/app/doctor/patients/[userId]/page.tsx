@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils';
 import { PatientCardClient } from './PatientCardClient';
 import { sanitizePatientListReturnHref } from '../patientListWorkspaceState';
 import {
-  loadDoctorPatientCardPageBootstrap,
+  loadDoctorPatientCardShellMeta,
+  loadDoctorPatientCardTabBootstrap,
   resolvePatientCardTab,
 } from '../loadDoctorPatientCardPageBootstrap';
 
@@ -44,7 +45,13 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   }
 
   const activeTab = resolvePatientCardTab(typeof sp.tab === 'string' ? sp.tab : undefined);
-  const bootstrap = await loadDoctorPatientCardPageBootstrap(
+  const shellMeta = await loadDoctorPatientCardShellMeta(
+    deps,
+    workspace,
+    identity.userId,
+    activeTab,
+  );
+  const tabPromise = loadDoctorPatientCardTabBootstrap(
     deps,
     workspace,
     identity.userId,
@@ -74,33 +81,10 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       />
       <section className={doctorPageStackClass}>
         <PatientCardClient
-          cardHeader={bootstrap.cardHeader}
-          initialTab={activeTab}
+          shellMeta={shellMeta}
+          tabPromise={tabPromise}
           createVisitFrom={createVisitFrom}
           visitDate={visitDate}
-          initialClinicalState={bootstrap.initialClinicalState}
-          initialVisits={bootstrap.initialVisits}
-          initialNotes={bootstrap.initialNotes}
-          initialTasks={bootstrap.initialTasks}
-          specialistTasksAvailable={bootstrap.specialistTasksAvailable}
-          specialistTasksReadable={bootstrap.specialistTasksReadable}
-          initialProgramActivity={bootstrap.initialProgramActivity}
-          initialAppointments={bootstrap.initialAppointments}
-          initialProgramInstances={bootstrap.initialProgramInstances}
-          initialFiles={bootstrap.initialFiles}
-          initialAnamnesis={bootstrap.initialAnamnesis}
-          initialComorbidities={bootstrap.initialComorbidities}
-          initialFinancesData={bootstrap.initialFinancesData}
-          initialSupplementaryContacts={bootstrap.initialSupplementaryContacts}
-          initialPackages={bootstrap.initialPackages}
-          membershipsVisible={bootstrap.membershipsVisible}
-          membershipMutationsAllowed={bootstrap.membershipMutationAllowed}
-          initialPaymentsSummary={bootstrap.initialPaymentsSummary}
-          initialSupportEffectivePolicy={bootstrap.initialSupportEffectivePolicy}
-          initialPortalState={bootstrap.initialPortalState ?? undefined}
-          initialExerciseCalendarDays={bootstrap.initialExerciseCalendarDays}
-          initialMessagesSnapshot={bootstrap.initialMessagesSnapshot}
-          initialProgramInstanceDetail={bootstrap.initialProgramInstanceDetail}
           isAdmin={session.user.role === 'admin'}
         />
       </section>

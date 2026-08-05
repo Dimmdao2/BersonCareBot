@@ -9,7 +9,6 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
-  getMechanicMutationAvailability,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -21,6 +20,10 @@ import { buildTreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-
 import { TreatmentProgramInstanceDetailClient } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient';
 import { PatientCardClient } from '../../PatientCardClient';
 import { patientCardHref } from '../../../patientCardHref';
+import {
+  loadDoctorPatientCardShellMeta,
+  loadDoctorPatientCardTabBootstrap,
+} from '../../../loadDoctorPatientCardPageBootstrap';
 
 type Props = {
   params: Promise<{ userId: string; instanceId: string }>;
@@ -47,12 +50,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const deps = buildAppDeps();
   const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
     .ok;
-  const [specialistTasksAvailability, specialistTasksRead] = await Promise.all([
-    getMechanicMutationAvailability(workspace, 'specialist_tasks'),
-    requireEntitlementForReadAction(workspace, 'specialist_tasks'),
-  ]);
-  const specialistTasksAvailable = specialistTasksAvailability.available;
-  const specialistTasksReadable = specialistTasksRead.ok;
 
   let detail;
   try {
@@ -134,6 +131,9 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
 
   const patientCardTabHref = patientCardHref(userId, { tab: 'program' });
 
+  const shellMeta = await loadDoctorPatientCardShellMeta(deps, workspace, userId, 'program');
+  const tabPromise = loadDoctorPatientCardTabBootstrap(deps, workspace, userId, 'program');
+
   const embeddedEditor = (
     <TreatmentProgramInstanceDetailClient
       patientProfileHref={patientCardTabHref}
@@ -161,11 +161,10 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     >
       <section className={doctorPageStackClass}>
         <PatientCardClient
-          cardHeader={cardHeader}
+          shellMeta={shellMeta}
+          tabPromise={tabPromise}
           initialTab="program"
           embeddedProgramContent={embeddedEditor}
-          specialistTasksAvailable={specialistTasksAvailable}
-          specialistTasksReadable={specialistTasksReadable}
         />
       </section>
     </DoctorAppShell>

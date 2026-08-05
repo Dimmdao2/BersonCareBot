@@ -38,3 +38,8 @@ d926f2a08ec3bf9d12fa786a52b2a5244c0de49d:docs/MAX_SETUP.md:curl-auth-header:65
 # Agent-rule examples that describe secret-safe operational commands.
 dc4ca2a4e3fcff04c75c0cda4682903f53b30a46:.cursor/rules/pre-push-ci.mdc:generic-api-key:18
 dc4ca2a4e3fcff04c75c0cda4682903f53b30a46:AGENTS.md:generic-api-key:517
+
+# 2026-08-05 doctor-loading closure: historical test fixtures (HEAD uses dynamic/non-secret literals).
+f7db88013ad8e342e192959ef50cabe679c0acff:packages/db-principal/test/webapp-locked-infra-cron.test.mjs:generic-api-key:48
+35fba2479d52143eb7f15daa3f7a5dbe905b825f:apps/webapp/src/infra/repos/reminderCallbackCapabilities.postgres.integration.test.ts:generic-api-key:110
+928fe9ceeb6e307f20e83e8efbd3518a71ec6502:apps/webapp/src/infra/payments/paymentProviderIdentity.unit.test.ts:generic-api-key:26

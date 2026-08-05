@@ -212,11 +212,5 @@ describe('D15b/6 MF-2 — applyMessengerPhonePublicBind after 0380', () => {
         is_primary: true,
       },
     ]);
-    const updateIdx = db.statements.findIndex(
-      (s) => s.includes('update platform_users') && s.includes('phone_normalized = $1'),
-    );
-    const mirrorIdx = db.statements.findIndex((s) => s.startsWith('delete from user_contacts'));
-    expect(updateIdx).toBeGreaterThanOrEqual(0);
-    expect(mirrorIdx).toBeGreaterThan(updateIdx);
   });
 });

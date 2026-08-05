@@ -752,7 +752,8 @@ export function ScheduleCalendarTab({
 }: ScheduleTabProps) {
   const bootstrap = isScheduleCalendarBootstrap(initialData) ? initialData : null;
   const skipInitialClientLoadRef = useRef(Boolean(bootstrap));
-  const settingsSeededRef = useRef(Boolean(bootstrap));
+  const settingsSeededRef = useRef(Boolean(bootstrap?.settings));
+  const loadGenerationRef = useRef(0);
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -903,9 +904,10 @@ export function ScheduleCalendarTab({
   // ─── Data loading ──────────────────────────────────────────────────────────
 
   const loadFeed = useCallback(
-    (overrideView?: CalV26View, overrideAnchor?: string) => {
+    (overrideView?: CalV26View, overrideAnchor?: string, generation?: number) => {
       const v = overrideView ?? view;
       const anchor = overrideAnchor ?? anchorDate;
+      const gen = generation ?? ++loadGenerationRef.current;
 
       startTransition(async () => {
         try {
@@ -927,6 +929,7 @@ export function ScheduleCalendarTab({
           });
           const res = await fetch(`${API_BASE}/calendar?${qs}`);
           const raw = await res.text();
+          if (gen !== loadGenerationRef.current) return;
           if (!raw.trim()) {
             setError(res.ok ? 'load_failed' : `load_failed_${res.status}`);
             return;
@@ -938,6 +941,7 @@ export function ScheduleCalendarTab({
             setError('load_failed');
             return;
           }
+          if (gen !== loadGenerationRef.current) return;
           if (!res.ok || !json.ok) {
             setError(json.error ?? 'load_failed');
             return;
@@ -951,6 +955,7 @@ export function ScheduleCalendarTab({
             resolveCalendarCreateFieldValue(json.filters.services, null, prev),
           );
         } catch {
+          if (gen !== loadGenerationRef.current) return;
           setError('network_error');
         }
       });
@@ -959,10 +964,11 @@ export function ScheduleCalendarTab({
   );
 
   const loadKpis = useCallback(
-    (v: CalV26View, anchor: string) => {
+    (v: CalV26View, anchor: string, generation?: number) => {
       // KPI are a doctor_statistics surface and are also hidden in the day view.
       if (!doctorStatisticsEnabled || v === 'day') return;
 
+      const gen = generation ?? loadGenerationRef.current;
       const { from, to } = visibleRange(v, anchor, timeZone);
       setKpisLoading(true);
 
@@ -977,13 +983,16 @@ export function ScheduleCalendarTab({
       )
         .then((res) => res.json())
         .then((json: { ok: boolean; kpis: ScheduleKpis }) => {
+          if (gen !== loadGenerationRef.current) return;
           if (json.ok && json.kpis) setKpis(json.kpis);
         })
         .catch(() => {
           // Деградация: показываем последние известные KPI
         })
         .finally(() => {
-          setKpisLoading(false);
+          if (gen === loadGenerationRef.current) {
+            setKpisLoading(false);
+          }
         });
     },
     [branchId, doctorStatisticsEnabled, serviceId, timeZone, scheduleScope],
@@ -991,11 +1000,16 @@ export function ScheduleCalendarTab({
 
   // Parallel load: feed + kpis
   const load = useCallback(() => {
-    loadFeed();
-    loadKpis(view, anchorDate);
+    const generation = ++loadGenerationRef.current;
+    loadFeed(undefined, undefined, generation);
+    loadKpis(view, anchorDate, generation);
   }, [loadFeed, loadKpis, view, anchorDate]);
 
   useEffect(() => {
+    if (settingsSeededRef.current) {
+      settingsSeededRef.current = false;
+      return;
+    }
     let cancelled = false;
     void fetch('/api/doctor/settings')
       .then((res) => (res.ok ? res.json() : null))
@@ -1014,9 +1028,12 @@ export function ScheduleCalendarTab({
   }, []);
 
   useEffect(() => {
+    if (skipInitialClientLoadRef.current) {
+      skipInitialClientLoadRef.current = false;
+      return;
+    }
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, anchorDate, branchId, serviceId]);
+  }, [view, anchorDate, branchId, serviceId, scheduleScope, load]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -1354,8 +1371,9 @@ export function ScheduleCalendarTab({
       if (!res.ok || !json.ok) {
         return { ok: false, error: json.error ?? `load_failed_${res.status}` };
       }
-      await loadFeed();
-      loadKpis(view, anchorDate);
+      const generation = ++loadGenerationRef.current;
+      await loadFeed(undefined, undefined, generation);
+      loadKpis(view, anchorDate, generation);
       return { ok: true };
     },
     [loadFeed, loadKpis, view, anchorDate],

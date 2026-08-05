@@ -11,7 +11,7 @@
  * Pattern mirrors PatientTabRecords.tsx / PatientTabKarta.tsx.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
@@ -20,8 +20,14 @@ import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
 import { serializeSupportMessage, type SerializedSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 import type { DoctorPatientProgramActivity } from '@/app/app/doctor/patients/loadDoctorPatientProgramActivity';
-import type { DoctorPatientExerciseCalendarDay } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
+import type { DoctorPatientExerciseCalendarSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 import type { DoctorPatientMessagesSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientMessagesSnapshot';
+import type { BootstrapEnvelope } from '@/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap';
+import {
+  isBootstrapEnvelopeFailed,
+  unwrapBootstrapEnvelope,
+} from '@/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap';
+import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import type {
   TreatmentProgramInstanceSummary,
   TreatmentProgramInstanceDetail,
@@ -180,6 +186,9 @@ interface CalendarDay {
 
 interface ExerciseCalendarApiResponse {
   ok: boolean;
+  iana?: string;
+  from?: string;
+  to?: string;
   days: CalendarDay[];
 }
 
@@ -537,37 +546,45 @@ function CalendarCell({ day }: { day: CalendarCellData }) {
 // ---------------------------------------------------------------------------
 
 type Props = {
+  active?: boolean;
   userId: string;
   header?: PatientCardHeader;
   onTabSwitch?: (tab: string) => void;
-  initialClinicalState?: ClinicalState | null;
-  initialVisits?: Visit[] | null;
-  initialNotes?: DoctorNoteRow[] | null;
-  initialTasks?: SpecialistTaskRow[] | null;
-  initialProgramActivity?: DoctorPatientProgramActivity | null;
-  initialAppointments?: PatientAppointmentItem[] | null;
+  initialClinicalState?: BootstrapEnvelope<ClinicalState> | null;
+  initialVisits?: BootstrapEnvelope<Visit[]> | null;
+  initialNotes?: BootstrapEnvelope<DoctorNoteRow[]> | null;
+  initialTasks?: BootstrapEnvelope<SpecialistTaskRow[]> | null;
+  initialProgramActivity?: BootstrapEnvelope<DoctorPatientProgramActivity> | null;
+  initialAppointments?: BootstrapEnvelope<PatientAppointmentItem[]> | null;
   /** SSR-provided patient packages. When present, skips the client-side fetch. */
-  initialPackages?: PackageItem[] | null;
+  initialPackages?: BootstrapEnvelope<PackageItem[]> | null;
   /** SSR program instances list — skips client list fetch on overview. */
-  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
+  initialProgramInstances?: BootstrapEnvelope<TreatmentProgramInstanceSummary[]> | null;
   /** SSR open program detail — skips client detail fetch on overview. */
-  initialProgramInstanceDetail?: TreatmentProgramInstanceDetail | null;
-  /** SSR exercise calendar for the visible month on first paint. */
-  initialExerciseCalendarDays?: DoctorPatientExerciseCalendarDay[] | null;
+  initialProgramInstanceDetail?: BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null;
+  /** SSR exercise calendar snapshot for the visible month on first paint. */
+  initialExerciseCalendarSnapshot?: BootstrapEnvelope<DoctorPatientExerciseCalendarSnapshot> | null;
   /** Read-only chat snapshot — no conversations/ensure on mount. */
-  initialMessagesSnapshot?: DoctorPatientMessagesSnapshot | null;
+  initialMessagesSnapshot?: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null;
   membershipsVisible?: boolean;
   /** SSR-provided effective support policy. Passed to DoctorClientSupportPanel to skip its fetch. */
   initialSupportEffectivePolicy?:
-    | import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy
+    | BootstrapEnvelope<
+        import('@/modules/doctor-clients/supportPolicy').PatientProgramInteractionPolicy | null
+      >
     | null;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
 };
 
+function monthPartsFromIsoDate(isoDate: string): { year: number; month: number } {
+  const [year, month] = isoDate.split('-').map((part) => Number(part));
+  return { year, month };
+}
+
 function resolveProgramSeedFields(
-  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null,
-  initialProgramInstanceDetail?: TreatmentProgramInstanceDetail | null,
+  initialProgramInstances?: BootstrapEnvelope<TreatmentProgramInstanceSummary[]> | null,
+  initialProgramInstanceDetail?: BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null,
 ): Pick<
   OverviewData,
   | 'programStatus'
@@ -576,11 +593,13 @@ function resolveProgramSeedFields(
   | 'programCurrentStage'
   | 'programCurrentStageIndex'
 > {
-  if (initialProgramInstanceDetail) {
-    return deriveOverviewProgramWidgetFromDetail(initialProgramInstanceDetail);
+  const programInstanceDetail = unwrapBootstrapEnvelope(initialProgramInstanceDetail);
+  if (programInstanceDetail) {
+    return deriveOverviewProgramWidgetFromDetail(programInstanceDetail);
   }
+  const programInstances = unwrapBootstrapEnvelope(initialProgramInstances);
   if (initialProgramInstances != null) {
-    const open = pickOpenTreatmentProgramInstance(initialProgramInstances);
+    const open = pickOpenTreatmentProgramInstance(programInstances ?? []);
     if (!open) {
       return {
         programStatus: 'empty',
@@ -609,16 +628,29 @@ function resolveProgramSeedFields(
 
 function isOverviewBootstrapComplete(
   membershipsVisible: boolean,
-  initialPackages: PackageItem[] | null | undefined,
-  initialProgramInstances: TreatmentProgramInstanceSummary[] | null | undefined,
-  initialProgramInstanceDetail: TreatmentProgramInstanceDetail | null | undefined,
-  initialMessagesSnapshot: DoctorPatientMessagesSnapshot | null | undefined,
+  initialPackages: BootstrapEnvelope<PackageItem[]> | null | undefined,
+  initialProgramInstances: BootstrapEnvelope<TreatmentProgramInstanceSummary[]> | null | undefined,
+  initialProgramInstanceDetail: BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null | undefined,
+  initialMessagesSnapshot: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null | undefined,
 ): boolean {
-  if (initialMessagesSnapshot == null) return false;
-  if (membershipsVisible && initialPackages == null) return false;
-  if (initialProgramInstances == null) return false;
-  const open = pickOpenTreatmentProgramInstance(initialProgramInstances);
-  if (open != null && initialProgramInstanceDetail == null) return false;
+  if (initialMessagesSnapshot == null || isBootstrapEnvelopeFailed(initialMessagesSnapshot)) {
+    return false;
+  }
+  if (membershipsVisible && (initialPackages == null || isBootstrapEnvelopeFailed(initialPackages))) {
+    return false;
+  }
+  if (initialProgramInstances == null || isBootstrapEnvelopeFailed(initialProgramInstances)) {
+    return false;
+  }
+  const open = pickOpenTreatmentProgramInstance(
+    unwrapBootstrapEnvelope(initialProgramInstances) ?? [],
+  );
+  if (
+    open != null &&
+    (initialProgramInstanceDetail == null || isBootstrapEnvelopeFailed(initialProgramInstanceDetail))
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -630,11 +662,11 @@ function buildSsrSeedData(
   tasks: SpecialistTaskRow[],
   programActivity: DoctorPatientProgramActivity,
   appointments: PatientAppointmentItem[],
-  initialPackages?: PackageItem[] | null,
-  initialExerciseCalendarDays?: DoctorPatientExerciseCalendarDay[] | null,
-  initialMessagesSnapshot?: DoctorPatientMessagesSnapshot | null,
-  initialProgramInstances?: TreatmentProgramInstanceSummary[] | null,
-  initialProgramInstanceDetail?: TreatmentProgramInstanceDetail | null,
+  initialPackages?: BootstrapEnvelope<PackageItem[]> | null,
+  initialExerciseCalendarSnapshot?: BootstrapEnvelope<DoctorPatientExerciseCalendarSnapshot> | null,
+  initialMessagesSnapshot?: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null,
+  initialProgramInstances?: BootstrapEnvelope<TreatmentProgramInstanceSummary[]> | null,
+  initialProgramInstanceDetail?: BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null,
 ): OverviewData {
   const complaints = clinicalState.complaints;
   const clinicalStatus: WidgetStatus = complaints.length === 0 ? 'empty' : 'ok';
@@ -674,15 +706,24 @@ function buildSsrSeedData(
   });
   const tasksStatus: WidgetStatus = 'ok';
 
-  const activePackages = normalizeActivePackages(initialPackages);
+  const activePackages = normalizeActivePackages(unwrapBootstrapEnvelope(initialPackages));
   const activePackage: PackageItem | null = activePackages[0] ?? null;
   const packageStatus: WidgetStatus =
-    initialPackages == null ? 'loading' : activePackage === null ? 'empty' : 'ok';
+    initialPackages == null
+      ? 'loading'
+      : isBootstrapEnvelopeFailed(initialPackages)
+        ? 'error'
+        : activePackage === null
+          ? 'empty'
+          : 'ok';
 
   const programSeed = resolveProgramSeedFields(
     initialProgramInstances,
     initialProgramInstanceDetail,
   );
+
+  const exerciseCalendarSnapshot = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
+  const messagesSnapshot = unwrapBootstrapEnvelope(initialMessagesSnapshot);
 
   return {
     clinicalStatus,
@@ -704,17 +745,26 @@ function buildSsrSeedData(
     notes: notesList,
     tasksStatus,
     tasks: tasksList,
-    calendarStatus: initialExerciseCalendarDays != null ? 'ok' : ('loading' as WidgetStatus),
-    calendarDays: initialExerciseCalendarDays ?? [],
-    messagesStatus: initialMessagesSnapshot != null ? 'ok' : ('loading' as WidgetStatus),
-    messages: initialMessagesSnapshot
-      ? initialMessagesSnapshot.messages.map(serializeSupportMessage)
-      : [],
-    unreadFromUserCount: initialMessagesSnapshot?.unreadFromUserCount ?? 0,
+    calendarStatus:
+      initialExerciseCalendarSnapshot == null
+        ? ('loading' as WidgetStatus)
+        : isBootstrapEnvelopeFailed(initialExerciseCalendarSnapshot)
+          ? 'error'
+          : 'ok',
+    calendarDays: exerciseCalendarSnapshot?.days ?? [],
+    messagesStatus:
+      initialMessagesSnapshot == null
+        ? ('loading' as WidgetStatus)
+        : isBootstrapEnvelopeFailed(initialMessagesSnapshot)
+          ? 'error'
+          : 'ok',
+    messages: messagesSnapshot ? messagesSnapshot.messages.map(serializeSupportMessage) : [],
+    unreadFromUserCount: messagesSnapshot?.unreadFromUserCount ?? 0,
   };
 }
 
 export function PatientTabOverview({
+  active = true,
   userId,
   onTabSwitch,
   initialClinicalState,
@@ -726,37 +776,45 @@ export function PatientTabOverview({
   initialPackages,
   initialProgramInstances,
   initialProgramInstanceDetail,
-  initialExerciseCalendarDays,
+  initialExerciseCalendarSnapshot,
   initialMessagesSnapshot,
   membershipsVisible = true,
   initialSupportEffectivePolicy,
   specialistTasksAvailable,
   specialistTasksReadable,
 }: Props) {
+  const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
   const [calView, setCalView] = useState<'month' | 'week'>('month');
-  // Calendar month navigation — starts at current month, cannot go into future
-  const nowForCal = new Date();
-  const [calYear, setCalYear] = useState(nowForCal.getFullYear());
-  const [calMonth, setCalMonth] = useState(nowForCal.getMonth() + 1); // 1-based
+  const initialCalParts = seededExerciseCalendar
+    ? monthPartsFromIsoDate(seededExerciseCalendar.from)
+    : monthPartsFromIsoDate(new Date().toISOString().slice(0, 10));
+  const [calYear, setCalYear] = useState(initialCalParts.year);
+  const [calMonth, setCalMonth] = useState(initialCalParts.month);
   const [programStageOffset, setProgramStageOffset] = useState(0);
   const [data, setData] = useState<OverviewData | null>(() => {
+    const clinicalState = unwrapBootstrapEnvelope(initialClinicalState);
+    const visits = unwrapBootstrapEnvelope(initialVisits);
+    const notes = unwrapBootstrapEnvelope(initialNotes);
+    const tasks = unwrapBootstrapEnvelope(initialTasks);
+    const programActivity = unwrapBootstrapEnvelope(initialProgramActivity);
+    const appointments = unwrapBootstrapEnvelope(initialAppointments);
     if (
-      initialClinicalState != null &&
-      initialVisits != null &&
-      initialNotes != null &&
-      initialTasks != null &&
-      initialProgramActivity != null &&
-      initialAppointments != null
+      clinicalState != null &&
+      visits != null &&
+      notes != null &&
+      tasks != null &&
+      programActivity != null &&
+      appointments != null
     ) {
       return buildSsrSeedData(
-        initialClinicalState,
-        initialVisits,
-        initialNotes,
-        initialTasks,
-        initialProgramActivity,
-        initialAppointments,
+        clinicalState,
+        visits,
+        notes,
+        tasks,
+        programActivity,
+        appointments,
         initialPackages,
-        initialExerciseCalendarDays,
+        initialExerciseCalendarSnapshot,
         initialMessagesSnapshot,
         initialProgramInstances,
         initialProgramInstanceDetail,
@@ -765,13 +823,19 @@ export function PatientTabOverview({
     return null;
   });
   const [loadedUserId, setLoadedUserId] = useState<string | null>(() => {
+    const clinicalState = unwrapBootstrapEnvelope(initialClinicalState);
+    const visits = unwrapBootstrapEnvelope(initialVisits);
+    const notes = unwrapBootstrapEnvelope(initialNotes);
+    const tasks = unwrapBootstrapEnvelope(initialTasks);
+    const programActivity = unwrapBootstrapEnvelope(initialProgramActivity);
+    const appointments = unwrapBootstrapEnvelope(initialAppointments);
     if (
-      initialClinicalState != null &&
-      initialVisits != null &&
-      initialNotes != null &&
-      initialTasks != null &&
-      initialProgramActivity != null &&
-      initialAppointments != null
+      clinicalState != null &&
+      visits != null &&
+      notes != null &&
+      tasks != null &&
+      programActivity != null &&
+      appointments != null
     ) {
       return userId;
     }
@@ -789,41 +853,35 @@ export function PatientTabOverview({
   const [taskSaving, setTaskSaving] = useState(false);
 
   const hasSsrData =
-    initialClinicalState != null &&
-    initialVisits != null &&
-    initialNotes != null &&
-    initialTasks != null &&
-    initialProgramActivity != null &&
-    initialAppointments != null;
+    unwrapBootstrapEnvelope(initialClinicalState) != null &&
+    unwrapBootstrapEnvelope(initialVisits) != null &&
+    unwrapBootstrapEnvelope(initialNotes) != null &&
+    unwrapBootstrapEnvelope(initialTasks) != null &&
+    unwrapBootstrapEnvelope(initialProgramActivity) != null &&
+    unwrapBootstrapEnvelope(initialAppointments) != null;
 
   // Track whether we've seeded SSR data for the current userId to avoid
   // overwriting mutation-triggered setData calls on re-render.
   const ssrSeedRef = useRef<string | null>(hasSsrData ? userId : null);
 
-  // Separate effect: calendar only — re-runs when userId or calYear/calMonth changes
   useEffect(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    if (
-      initialExerciseCalendarDays != null &&
-      calYear === currentYear &&
-      calMonth === currentMonth
-    ) {
+    const seeded = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
+    if (!seeded) return;
+    const { year, month } = monthPartsFromIsoDate(seeded.from);
+    if (calYear === year && calMonth === month) {
       setData((prev) =>
         prev
           ? {
               ...prev,
               calendarStatus: 'ok',
-              calendarDays: initialExerciseCalendarDays,
+              calendarDays: seeded.days,
             }
           : prev,
       );
       return;
     }
 
-    let active = true;
-    // Mark loading before fetching
+    let cancelled = false;
     setData((prev) => (prev ? { ...prev, calendarStatus: 'loading', calendarDays: [] } : prev));
     const { from, to } = monthRangeFor(calYear, calMonth);
     fetch(`/api/doctor/patients/${userId}/exercise-calendar?from=${from}&to=${to}`, {
@@ -832,15 +890,15 @@ export function PatientTabOverview({
       .then((r) => (r.ok ? (r.json() as Promise<ExerciseCalendarApiResponse>) : null))
       .catch(() => null)
       .then((calendar) => {
-        if (!active) return;
+        if (cancelled) return;
         const calendarDays = calendar?.days ?? [];
         const calendarStatus: WidgetStatus = !calendar ? 'error' : 'ok';
         setData((prev) => (prev ? { ...prev, calendarStatus, calendarDays } : prev));
       });
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [userId, calYear, calMonth, initialExerciseCalendarDays]);
+  }, [userId, calYear, calMonth, initialExerciseCalendarSnapshot]);
 
   useEffect(() => {
     if (!membershipsVisible) return;
@@ -895,35 +953,46 @@ export function PatientTabOverview({
     const fetchPackages =
       !membershipsVisible
         ? Promise.resolve(null)
-        : initialPackages != null
-        ? Promise.resolve({ ok: true, packages: initialPackages } as PackagesApiResponse)
-        : fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
-            credentials: 'include',
-          })
-            .then((r) => (r.ok ? (r.json() as Promise<PackagesApiResponse>) : null))
-            .catch(() => null);
+        : initialPackages?.ok
+          ? Promise.resolve({
+              ok: true,
+              packages: initialPackages.value,
+            } as PackagesApiResponse)
+          : initialPackages != null && isBootstrapEnvelopeFailed(initialPackages)
+            ? Promise.resolve(null)
+            : fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
+                credentials: 'include',
+              })
+                .then((r) => (r.ok ? (r.json() as Promise<PackagesApiResponse>) : null))
+                .catch(() => null);
 
     const fetchProgram =
-      initialProgramInstances != null
+      initialProgramInstances?.ok
         ? Promise.resolve({
             ok: true,
-            items: initialProgramInstances,
+            items: initialProgramInstances.value,
           } as ProgramInstancesApiResponse)
-        : fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, {
-            credentials: 'include',
-          })
-            .then((r) => (r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null))
-            .catch(() => null);
+        : initialProgramInstances != null && isBootstrapEnvelopeFailed(initialProgramInstances)
+          ? Promise.resolve(null)
+          : fetch(`/api/doctor/clients/${userId}/treatment-program-instances`, {
+              credentials: 'include',
+            })
+              .then((r) => (r.ok ? (r.json() as Promise<ProgramInstancesApiResponse>) : null))
+              .catch(() => null);
 
     const fetchMessages =
-      initialMessagesSnapshot != null
+      initialMessagesSnapshot?.ok
         ? Promise.resolve({
             ok: true,
-            conversationId: initialMessagesSnapshot.conversationId ?? undefined,
-            messages: initialMessagesSnapshot.messages.map(serializeSupportMessage),
-            unreadFromUserCount: initialMessagesSnapshot.unreadFromUserCount,
+            conversationId: initialMessagesSnapshot.value.conversationId ?? undefined,
+            messages: initialMessagesSnapshot.value.messages.map(serializeSupportMessage),
+            unreadFromUserCount: initialMessagesSnapshot.value.unreadFromUserCount,
           } as MessagesApiResponse)
-        : Promise.resolve(null as MessagesApiResponse | null);
+        : initialMessagesSnapshot != null && isBootstrapEnvelopeFailed(initialMessagesSnapshot)
+          ? Promise.resolve(null as MessagesApiResponse | null)
+          : fetch(`/api/doctor/patients/${userId}/messages-snapshot`, { credentials: 'include' })
+              .then((r) => (r.ok ? (r.json() as Promise<MessagesApiResponse>) : null))
+              .catch(() => null);
 
     // Conditionally fetch SSR-covered data only when SSR props were not provided
     const fetchClinical =
@@ -989,12 +1058,13 @@ export function PatientTabOverview({
         let complaints: ActiveComplaint[];
         let clinicalStatus: WidgetStatus;
         let symptomSeries: SymptomSeries[];
-        if (usingSsrForClinical && initialClinicalState != null && initialVisits != null) {
-          complaints = initialClinicalState.complaints;
+        if (usingSsrForClinical && unwrapBootstrapEnvelope(initialClinicalState) != null && unwrapBootstrapEnvelope(initialVisits) != null) {
+          const visits = unwrapBootstrapEnvelope(initialVisits)!;
+          complaints = unwrapBootstrapEnvelope(initialClinicalState)!.complaints;
           clinicalStatus = complaints.length === 0 ? 'empty' : 'ok';
           symptomSeries = buildSymptomSeries(
             complaints,
-            initialVisits.map((v) => ({
+            visits.map((v) => ({
               id: v.id,
               date: v.date,
               type: v.type,
@@ -1018,8 +1088,10 @@ export function PatientTabOverview({
         let controlDays: number | null;
         let controlDate: string | null;
         let appointmentsStatus: WidgetStatus;
-        if (usingSsrForClinical && initialAppointments != null) {
-          const upcomingAppts = initialAppointments.filter((a) => a.status === 'upcoming');
+        if (usingSsrForClinical && unwrapBootstrapEnvelope(initialAppointments) != null) {
+          const upcomingAppts = unwrapBootstrapEnvelope(initialAppointments)!.filter(
+            (a) => a.status === 'upcoming',
+          );
           upcomingAppts.sort(
             (a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime(),
           );
@@ -1052,8 +1124,8 @@ export function PatientTabOverview({
         // --- Notes (from SSR or fetch) ---
         let notesList: DoctorNoteRow[];
         let notesStatus: WidgetStatus;
-        if (usingSsrForClinical && initialNotes != null) {
-          notesList = initialNotes;
+        if (usingSsrForClinical && unwrapBootstrapEnvelope(initialNotes) != null) {
+          notesList = unwrapBootstrapEnvelope(initialNotes)!;
           notesStatus = 'ok';
         } else {
           notesList = notes?.notes ?? [];
@@ -1063,8 +1135,8 @@ export function PatientTabOverview({
         // --- Tasks (from SSR or fetch) ---
         let tasksList: SpecialistTaskRow[];
         let tasksStatus: WidgetStatus;
-        if (usingSsrForClinical && initialTasks != null) {
-          tasksList = initialTasks.filter((t) => !t.completedAt);
+        if (usingSsrForClinical && unwrapBootstrapEnvelope(initialTasks) != null) {
+          tasksList = unwrapBootstrapEnvelope(initialTasks)!.filter((t) => !t.completedAt);
           tasksStatus = 'ok';
         } else {
           tasksList = (tasks?.tasks ?? []).filter((t) => !t.completedAt);
@@ -1088,13 +1160,11 @@ export function PatientTabOverview({
           programStatus = 'error';
         } else {
           const activeInstance = pickOpenTreatmentProgramInstance(programList.items ?? []);
+          const seededProgramDetail = unwrapBootstrapEnvelope(initialProgramInstanceDetail);
           if (!activeInstance) {
             programStatus = 'empty';
-          } else if (
-            initialProgramInstanceDetail &&
-            initialProgramInstanceDetail.id === activeInstance.id
-          ) {
-            const seeded = deriveOverviewProgramWidgetFromDetail(initialProgramInstanceDetail);
+          } else if (seededProgramDetail && seededProgramDetail.id === activeInstance.id) {
+            const seeded = deriveOverviewProgramWidgetFromDetail(seededProgramDetail);
             programStatus = seeded.programStatus;
             programTitle = seeded.programTitle;
             programStages = seeded.programStages;
@@ -1127,8 +1197,8 @@ export function PatientTabOverview({
 
         // --- Program activity (from SSR or fetch) ---
         let programActivity: DoctorPatientProgramActivity | null;
-        if (usingSsrForClinical && initialProgramActivity != null) {
-          programActivity = initialProgramActivity;
+        if (usingSsrForClinical && unwrapBootstrapEnvelope(initialProgramActivity) != null) {
+          programActivity = unwrapBootstrapEnvelope(initialProgramActivity);
         } else {
           programActivity = programActivityRes?.activity ?? null;
         }
@@ -1174,6 +1244,42 @@ export function PatientTabOverview({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, membershipsVisible]);
+
+  const messagesPollGenerationRef = useRef(0);
+
+  const pollMessages = useCallback(async () => {
+    const generation = messagesPollGenerationRef.current;
+    try {
+      const res = await fetch(`/api/doctor/patients/${userId}/messages-snapshot`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as MessagesApiResponse;
+      if (generation !== messagesPollGenerationRef.current) return;
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              messagesStatus: 'ok',
+              messages: json.messages ?? [],
+              unreadFromUserCount: json.unreadFromUserCount ?? 0,
+            }
+          : prev,
+      );
+    } catch {
+      // keep previous snapshot
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    messagesPollGenerationRef.current += 1;
+    if (initialMessagesSnapshot?.ok) return;
+    if (initialMessagesSnapshot == null || !isBootstrapEnvelopeFailed(initialMessagesSnapshot)) {
+      void pollMessages();
+    }
+  }, [userId, initialMessagesSnapshot, pollMessages]);
+
+  useMessagePolling(pollMessages, active && Boolean(userId), 16000, false);
 
   const isStale = loadedUserId !== userId;
   const isLoading = isStale || data === null;
@@ -1882,7 +1988,7 @@ export function PatientTabOverview({
           <span className={doctorSectionTitleClass}>Сопровождение</span>
           <DoctorClientSupportPanel
             patientUserId={userId}
-            initialEffectivePolicy={initialSupportEffectivePolicy}
+            initialEffectivePolicy={unwrapBootstrapEnvelope(initialSupportEffectivePolicy)}
           />
         </div>
 

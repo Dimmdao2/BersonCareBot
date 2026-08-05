@@ -62,7 +62,9 @@ export function isIdentityMergeAmbiguityError(err: unknown): boolean {
   if (err instanceof MergeConflictError || err instanceof MergeDependentConflictError) return true;
   if (err instanceof DirectPublicWriteError) {
     return (
-      err.code === 'ambiguous_platform_user_candidates' || err.code === 'no_platform_user_candidate'
+      err.code === 'ambiguous_platform_user_candidates' ||
+      err.code === 'no_platform_user_candidate' ||
+      err.code === 'channel_anchor_owned_by_other_user'
     );
   }
   return false;

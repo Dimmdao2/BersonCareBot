@@ -88,6 +88,7 @@ export type WriteIdentityAndPreferencesResult = {
 
 export type DirectPublicWriteFailureCode =
   | 'channel_anchor_unresolved'
+  | 'channel_anchor_owned_by_other_user'
   | 'ambiguous_platform_user_candidates'
   | 'no_platform_user_candidate'
   | 'platform_user_write_failed';
@@ -164,6 +165,11 @@ export async function collectPlatformUserCandidates(
     return await collectIdentityProjectionCandidatesShared(txDb as PlatformMergeDbClient, input);
   } catch (err) {
     if (err instanceof MergeConflictError) {
+      if (err.message === 'channel_anchor_owned_by_other_user') {
+        throw new DirectPublicWriteError('channel_anchor_owned_by_other_user', {
+          candidateIds: err.candidateIds,
+        });
+      }
       throw new DirectPublicWriteError('ambiguous_platform_user_candidates', {
         candidateIds: err.candidateIds,
       });

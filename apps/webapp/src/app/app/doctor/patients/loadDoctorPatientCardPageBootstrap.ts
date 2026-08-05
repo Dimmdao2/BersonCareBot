@@ -10,8 +10,9 @@ import { toDoctorSupplementaryContacts } from '@/modules/platform-user-contacts/
 import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
 import { loadDoctorPatientProgramActivity } from './loadDoctorPatientProgramActivity';
 import {
-  currentPatientExerciseCalendarMonthRange,
+  currentPatientExerciseCalendarMonthRangeInIana,
   loadDoctorPatientExerciseCalendar,
+  type DoctorPatientExerciseCalendarSnapshot,
 } from './loadDoctorPatientExerciseCalendar';
 import { loadDoctorPatientMessagesSnapshot } from './loadDoctorPatientMessagesSnapshot';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
@@ -45,34 +46,58 @@ export function resolvePatientCardTab(tab: string | undefined): PatientCardTabId
   return 'overview';
 }
 
+export type BootstrapEnvelope<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: 'load_failed' };
+
+export function envelopeFromSettled<T>(result: PromiseSettledResult<T>): BootstrapEnvelope<T> {
+  if (result.status === 'fulfilled') return { ok: true, value: result.value };
+  return { ok: false, error: 'load_failed' };
+}
+
 type Deps = ReturnType<typeof buildAppDeps>;
 
-export type DoctorPatientCardPageBootstrap = {
+export type DoctorPatientCardShellMeta = {
   activeTab: PatientCardTabId;
   membershipMutationAllowed: boolean;
   membershipsVisible: boolean;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
   cardHeader: Awaited<ReturnType<Deps['doctorClients']['getPatientCardHeader']>>;
-  initialClinicalState: Awaited<ReturnType<Deps['patientClinical']['getClinicalState']>> | null;
-  initialVisits: Awaited<ReturnType<Deps['patientClinical']['listVisits']>> | null;
-  initialNotes: Awaited<ReturnType<Deps['doctorNotes']['listForUser']>> | null;
-  initialTasks: Awaited<ReturnType<Deps['specialistTasks']['listPatientTasks']>> | null;
-  initialProgramActivity: Awaited<ReturnType<typeof loadDoctorPatientProgramActivity>> | null;
-  initialAppointments: Awaited<
-    ReturnType<Deps['doctorClientsPort']['listPatientAppointments']>
+};
+
+export type DoctorPatientCardTabBootstrap = {
+  initialClinicalState: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['patientClinical']['getClinicalState']>>
   > | null;
-  initialProgramInstances: Awaited<
-    ReturnType<Deps['treatmentProgramInstance']['listForPatientClinicalView']>
+  initialVisits: BootstrapEnvelope<Awaited<ReturnType<Deps['patientClinical']['listVisits']>>> | null;
+  initialNotes: BootstrapEnvelope<Awaited<ReturnType<Deps['doctorNotes']['listForUser']>>> | null;
+  initialTasks: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['specialistTasks']['listPatientTasks']>>
+  > | null;
+  initialProgramActivity: BootstrapEnvelope<
+    Awaited<ReturnType<typeof loadDoctorPatientProgramActivity>>
+  > | null;
+  initialAppointments: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['doctorClientsPort']['listPatientAppointments']>>
+  > | null;
+  initialProgramInstances: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['treatmentProgramInstance']['listForPatientClinicalView']>>
   > | null;
   initialFiles:
-    | Array<
-        Awaited<ReturnType<Deps['patientFiles']['listFiles']>>[number] & { previewUrl: null }
+    | BootstrapEnvelope<
+        Array<
+          Awaited<ReturnType<Deps['patientFiles']['listFiles']>>[number] & { previewUrl: null }
+        >
       >
     | null;
-  initialAnamnesis: Awaited<ReturnType<Deps['patientClinical']['getAnamnesis']>> | null;
-  initialComorbidities: Awaited<ReturnType<Deps['patientComorbidities']['listActive']>> | null;
-  initialFinancesData: {
+  initialAnamnesis: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['patientClinical']['getAnamnesis']>>
+  > | null;
+  initialComorbidities: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['patientComorbidities']['listActive']>>
+  > | null;
+  initialFinancesData: BootstrapEnvelope<{
     timeline: Array<{
       id: string;
       occurredAt: string;
@@ -86,27 +111,29 @@ export type DoctorPatientCardPageBootstrap = {
     }>;
     totalCashMinor: number;
     totalAcquiringMinor: number;
-  } | null;
-  initialSupplementaryContacts: Awaited<
-    ReturnType<typeof toDoctorSupplementaryContacts>
-  > | null;
-  initialPackages: Array<{
-    id: string;
-    displayNumber?: number | null;
-    title: string;
-    status: string;
-    soldAt?: string | null;
-    validUntil: string | null;
-    balance: {
-      items: Array<{
-        quantityInitial: number;
-        remaining: number;
-        displayRemaining: number;
-        serviceTitle: string | null;
-      }>;
-    };
   }> | null;
-  initialPaymentsSummary: {
+  initialSupplementaryContacts: BootstrapEnvelope<
+    Awaited<ReturnType<typeof toDoctorSupplementaryContacts>>
+  > | null;
+  initialPackages: BootstrapEnvelope<
+    Array<{
+      id: string;
+      displayNumber?: number | null;
+      title: string;
+      status: string;
+      soldAt?: string | null;
+      validUntil: string | null;
+      balance: {
+        items: Array<{
+          quantityInitial: number;
+          remaining: number;
+          displayRemaining: number;
+          serviceTitle: string | null;
+        }>;
+      };
+    }>
+  > | null;
+  initialPaymentsSummary: BootstrapEnvelope<{
     payments: Array<{
       id: string;
       amountMinor: number;
@@ -119,13 +146,42 @@ export type DoctorPatientCardPageBootstrap = {
       createdAt: string;
     }>;
     totalPaidMinor: number;
-  } | null;
-  initialSupportEffectivePolicy: PatientProgramInteractionPolicy | null;
-  initialPortalState: Awaited<ReturnType<Deps['patientInvites']['getPortalStatus']>> | null;
-  initialExerciseCalendarDays: Awaited<ReturnType<typeof loadDoctorPatientExerciseCalendar>> | null;
-  initialMessagesSnapshot: Awaited<ReturnType<typeof loadDoctorPatientMessagesSnapshot>> | null;
-  /** Open program instance detail for overview widget (stages/items). */
-  initialProgramInstanceDetail: TreatmentProgramInstanceDetail | null;
+  }> | null;
+  initialSupportEffectivePolicy: BootstrapEnvelope<PatientProgramInteractionPolicy | null> | null;
+  initialPortalState: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['patientInvites']['getPortalStatus']>>
+  > | null;
+  initialExerciseCalendarSnapshot: BootstrapEnvelope<DoctorPatientExerciseCalendarSnapshot> | null;
+  initialMessagesSnapshot: BootstrapEnvelope<
+    Awaited<ReturnType<typeof loadDoctorPatientMessagesSnapshot>>
+  > | null;
+  initialProgramInstanceDetail: BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null;
+};
+
+/** @deprecated Combined bootstrap — prefer shell meta + tab bootstrap for progressive load. */
+export type DoctorPatientCardPageBootstrap = DoctorPatientCardShellMeta &
+  DoctorPatientCardTabBootstrap;
+
+const NULL_TAB_BOOTSTRAP: DoctorPatientCardTabBootstrap = {
+  initialClinicalState: null,
+  initialVisits: null,
+  initialNotes: null,
+  initialTasks: null,
+  initialProgramActivity: null,
+  initialAppointments: null,
+  initialProgramInstances: null,
+  initialFiles: null,
+  initialAnamnesis: null,
+  initialComorbidities: null,
+  initialFinancesData: null,
+  initialSupplementaryContacts: null,
+  initialPackages: null,
+  initialPaymentsSummary: null,
+  initialSupportEffectivePolicy: null,
+  initialPortalState: null,
+  initialExerciseCalendarSnapshot: null,
+  initialMessagesSnapshot: null,
+  initialProgramInstanceDetail: null,
 };
 
 function shapePackages(
@@ -215,13 +271,10 @@ function buildFinancesTimeline(
   return { timeline, totalCashMinor, totalAcquiringMinor };
 }
 
-export async function loadDoctorPatientCardPageBootstrap(
-  deps: Deps,
+async function loadMembershipMeta(
   workspace: DoctorWorkspaceAccessContext,
-  patientUserId: string,
   activeTab: PatientCardTabId,
-): Promise<DoctorPatientCardPageBootstrap> {
-  const session = workspace.session;
+) {
   const membershipAccess = await getMechanicSurfaceVisibility(workspace, 'subscriptions');
   const membershipMutation = membershipAccess.specialistNavigation
     ? await getMechanicMutationAvailability(workspace, 'subscriptions')
@@ -232,88 +285,92 @@ export async function loadDoctorPatientCardPageBootstrap(
   );
   const specialistTasksRead = await requireEntitlementForReadAction(workspace, 'specialist_tasks');
 
-  const cardHeaderPromise = deps.doctorClients.getPatientCardHeader(patientUserId);
-
-  const membershipMeta = {
+  return {
     activeTab,
     membershipMutationAllowed: membershipMutation.available,
     membershipsVisible: membershipAccess.specialistNavigation,
     specialistTasksAvailable: specialistTasksAvailability.available,
     specialistTasksReadable: specialistTasksRead.ok,
+    membershipAccess,
   };
+}
 
-  const nullTabData = {
-    initialClinicalState: null,
-    initialVisits: null,
-    initialNotes: null,
-    initialTasks: null,
-    initialProgramActivity: null,
-    initialAppointments: null,
-    initialProgramInstances: null,
-    initialFiles: null,
-    initialAnamnesis: null,
-    initialComorbidities: null,
-    initialFinancesData: null,
-    initialSupplementaryContacts: null,
-    initialPackages: null,
-    initialPaymentsSummary: null,
-    initialSupportEffectivePolicy: null,
-    initialPortalState: null,
-    initialExerciseCalendarDays: null,
-    initialMessagesSnapshot: null,
-    initialProgramInstanceDetail: null,
+export async function loadDoctorPatientCardShellMeta(
+  deps: Deps,
+  workspace: DoctorWorkspaceAccessContext,
+  patientUserId: string,
+  activeTab: PatientCardTabId,
+): Promise<DoctorPatientCardShellMeta> {
+  const [membershipMeta, cardHeader] = await Promise.all([
+    loadMembershipMeta(workspace, activeTab),
+    deps.doctorClients.getPatientCardHeader(patientUserId),
+  ]);
+
+  return {
+    activeTab: membershipMeta.activeTab,
+    membershipMutationAllowed: membershipMeta.membershipMutationAllowed,
+    membershipsVisible: membershipMeta.membershipsVisible,
+    specialistTasksAvailable: membershipMeta.specialistTasksAvailable,
+    specialistTasksReadable: membershipMeta.specialistTasksReadable,
+    cardHeader,
   };
+}
 
-  const loadClinicalBundle = async () => {
-    const [clinicalState, visits] = await Promise.all([
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientClinical.getClinicalState(patientUserId),
-      ),
-      withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId)),
-    ]);
-    return { clinicalState, visits };
-  };
+export async function loadDoctorPatientCardTabBootstrap(
+  deps: Deps,
+  workspace: DoctorWorkspaceAccessContext,
+  patientUserId: string,
+  activeTab: PatientCardTabId,
+): Promise<DoctorPatientCardTabBootstrap> {
+  const session = workspace.session;
+  const membershipMeta = await loadMembershipMeta(workspace, activeTab);
+  const { membershipAccess, specialistTasksReadable } = membershipMeta;
 
-  const loadProgramInstances = async () =>
+  const loadClinicalState = () =>
+    withDoctorWorkspacePrincipal(workspace, () =>
+      deps.patientClinical.getClinicalState(patientUserId),
+    );
+
+  const loadVisits = () =>
+    withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId));
+
+  const loadProgramInstances = () =>
     withDoctorWorkspacePrincipal(workspace, () =>
       deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId),
     ).then((instances) =>
       instances.filter((instance) => instance.organizationId === workspace.organizationId),
     );
 
-  const loadProgramBundle = async () => {
+  const loadProgramInstanceDetail = async () => {
     const programInstances = await loadProgramInstances();
     const openInstance = pickOpenTreatmentProgramInstance(programInstances);
-    if (!openInstance) {
-      return { programInstances, initialProgramInstanceDetail: null as TreatmentProgramInstanceDetail | null };
-    }
+    if (!openInstance) return null;
     const detail = await withDoctorWorkspacePrincipal(workspace, () =>
       deps.treatmentProgramInstance.getInstanceById(openInstance.id),
     );
-    const initialProgramInstanceDetail =
-      detail && detail.organizationId === workspace.organizationId ? detail : null;
-    return { programInstances, initialProgramInstanceDetail };
+    return detail && detail.organizationId === workspace.organizationId ? detail : null;
   };
 
   if (activeTab === 'overview') {
     const [
-      cardHeader,
-      clinicalBundle,
-      notes,
-      tasks,
-      programActivity,
-      appointments,
-      programBundle,
-      portalState,
-      supportPolicy,
-      packagesRaw,
-      exerciseCalendarDays,
-      messagesSnapshot,
-    ] = await Promise.all([
-      cardHeaderPromise,
-      loadClinicalBundle(),
+      clinicalStateResult,
+      visitsResult,
+      notesResult,
+      tasksResult,
+      programActivityResult,
+      appointmentsResult,
+      programInstancesResult,
+      programInstanceDetailResult,
+      portalStateResult,
+      supportPolicyResult,
+      packagesResult,
+      exerciseCalendarResult,
+      messagesSnapshotResult,
+    ] = await Promise.allSettled([
+      loadClinicalState(),
+      loadVisits(),
       deps.doctorNotes.listForUser(patientUserId),
-      specialistTasksRead.ok
+      specialistTasksReadable
         ? deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false)
         : Promise.resolve([]),
       loadDoctorPatientProgramActivity(
@@ -325,7 +382,8 @@ export async function loadDoctorPatientCardPageBootstrap(
         },
       ),
       deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
-      loadProgramBundle(),
+      loadProgramInstances(),
+      loadProgramInstanceDetail(),
       withDoctorWorkspacePrincipal(workspace, () =>
         deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
       ),
@@ -337,75 +395,80 @@ export async function loadDoctorPatientCardPageBootstrap(
             .listPatientPackagesForUser(patientUserId, workspace.organizationId)
             .catch(() => null)
         : Promise.resolve(null),
-      loadDoctorPatientExerciseCalendar(
-        deps,
-        workspace,
-        patientUserId,
-        currentPatientExerciseCalendarMonthRange(),
-      ),
+      (async () => {
+        const patientIana =
+          (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? 'UTC';
+        return loadDoctorPatientExerciseCalendar(
+          deps,
+          workspace,
+          patientUserId,
+          currentPatientExerciseCalendarMonthRangeInIana(patientIana),
+        );
+      })(),
       withDoctorWorkspacePrincipal(workspace, () =>
         loadDoctorPatientMessagesSnapshot(deps, patientUserId, workspace.organizationId),
       ),
     ]);
 
-    const { programInstances, initialProgramInstanceDetail } = programBundle;
+    const packagesValue =
+      packagesResult.status === 'fulfilled' ? shapePackages(packagesResult.value) : null;
 
     return {
-      ...membershipMeta,
-      cardHeader,
-      ...nullTabData,
-      initialClinicalState: clinicalBundle.clinicalState,
-      initialVisits: clinicalBundle.visits,
-      initialNotes: notes,
-      initialTasks: tasks,
-      initialProgramActivity: programActivity,
-      initialAppointments: appointments,
-      initialProgramInstances: programInstances,
-      initialPortalState: portalState,
-      initialSupportEffectivePolicy: supportPolicy,
-      initialPackages: shapePackages(packagesRaw),
-      initialExerciseCalendarDays: exerciseCalendarDays,
-      initialMessagesSnapshot: messagesSnapshot,
-      initialProgramInstanceDetail,
+      ...NULL_TAB_BOOTSTRAP,
+      initialClinicalState: envelopeFromSettled(clinicalStateResult),
+      initialVisits: envelopeFromSettled(visitsResult),
+      initialNotes: envelopeFromSettled(notesResult),
+      initialTasks: envelopeFromSettled(tasksResult),
+      initialProgramActivity: envelopeFromSettled(programActivityResult),
+      initialAppointments: envelopeFromSettled(appointmentsResult),
+      initialProgramInstances: envelopeFromSettled(programInstancesResult),
+      initialProgramInstanceDetail: envelopeFromSettled(programInstanceDetailResult),
+      initialPortalState: envelopeFromSettled(portalStateResult),
+      initialSupportEffectivePolicy:
+        supportPolicyResult.status === 'fulfilled'
+          ? { ok: true, value: supportPolicyResult.value }
+          : { ok: false, error: 'load_failed' },
+      initialPackages:
+        packagesResult.status === 'fulfilled'
+          ? { ok: true, value: packagesValue ?? [] }
+          : { ok: false, error: 'load_failed' },
+      initialExerciseCalendarSnapshot: envelopeFromSettled(exerciseCalendarResult),
+      initialMessagesSnapshot: envelopeFromSettled(messagesSnapshotResult),
     };
   }
 
   if (activeTab === 'karta') {
-    const [cardHeader, clinicalBundle, anamnesis, comorbidities] = await Promise.all([
-      cardHeaderPromise,
-      loadClinicalBundle(),
-      withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId)),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientComorbidities.listActive(patientUserId),
-      ),
-    ]);
+    const [clinicalStateResult, visitsResult, anamnesisResult, comorbiditiesResult] =
+      await Promise.allSettled([
+        loadClinicalState(),
+        loadVisits(),
+        withDoctorWorkspacePrincipal(workspace, () =>
+          deps.patientClinical.getAnamnesis(patientUserId),
+        ),
+        withDoctorWorkspacePrincipal(workspace, () =>
+          deps.patientComorbidities.listActive(patientUserId),
+        ),
+      ]);
+
     return {
-      ...membershipMeta,
-      cardHeader,
-      ...nullTabData,
-      initialClinicalState: clinicalBundle.clinicalState,
-      initialVisits: clinicalBundle.visits,
-      initialAnamnesis: anamnesis,
-      initialComorbidities: comorbidities,
+      ...NULL_TAB_BOOTSTRAP,
+      initialClinicalState: envelopeFromSettled(clinicalStateResult),
+      initialVisits: envelopeFromSettled(visitsResult),
+      initialAnamnesis: envelopeFromSettled(anamnesisResult),
+      initialComorbidities: envelopeFromSettled(comorbiditiesResult),
     };
   }
 
   if (activeTab === 'program') {
-    const [cardHeader, programInstances] = await Promise.all([
-      cardHeaderPromise,
-      loadProgramInstances(),
-    ]);
+    const programInstancesResult = await Promise.allSettled([loadProgramInstances()]);
     return {
-      ...membershipMeta,
-      cardHeader,
-      ...nullTabData,
-      initialProgramInstances: programInstances,
+      ...NULL_TAB_BOOTSTRAP,
+      initialProgramInstances: envelopeFromSettled(programInstancesResult[0]!),
     };
   }
 
   if (activeTab === 'records') {
-    const [cardHeader, appointments, packagesRaw, paymentsSummary] = await Promise.all([
-      cardHeaderPromise,
+    const [appointmentsResult, packagesResult, paymentsSummaryResult] = await Promise.allSettled([
       deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
       membershipAccess.specialistNavigation && deps.memberships
         ? deps.memberships
@@ -416,114 +479,166 @@ export async function loadDoctorPatientCardPageBootstrap(
         deps.patientPayments.listPaymentsWithSummary(patientUserId),
       ),
     ]);
-    const patientPaymentRows = paymentsSummary.payments;
+
+    const paymentsSummary =
+      paymentsSummaryResult.status === 'fulfilled' ? paymentsSummaryResult.value : null;
+    const patientPaymentRows = paymentsSummary?.payments ?? [];
+
     return {
-      ...membershipMeta,
-      cardHeader,
-      ...nullTabData,
-      initialAppointments: appointments,
-      initialPackages: shapePackages(packagesRaw),
-      initialPaymentsSummary: {
-        payments: patientPaymentRows.map((p) => ({
-          id: p.id,
-          amountMinor: p.amountMinor,
-          currency: p.currency,
-          kind: p.kind as 'cash' | 'acquiring',
-          status: p.status,
-          comment: p.comment ?? null,
-          service: p.service ?? null,
-          visitId: p.visitId ?? null,
-          createdAt: p.createdAt,
-        })),
-        totalPaidMinor: paymentsSummary.totalPaidMinor,
-      },
+      ...NULL_TAB_BOOTSTRAP,
+      initialAppointments: envelopeFromSettled(appointmentsResult),
+      initialPackages:
+        packagesResult.status === 'fulfilled'
+          ? { ok: true, value: shapePackages(packagesResult.value) ?? [] }
+          : { ok: false, error: 'load_failed' },
+      initialPaymentsSummary:
+        paymentsSummaryResult.status === 'fulfilled' && paymentsSummary
+          ? {
+              ok: true,
+              value: {
+                payments: patientPaymentRows.map((p) => ({
+                  id: p.id,
+                  amountMinor: p.amountMinor,
+                  currency: p.currency,
+                  kind: p.kind as 'cash' | 'acquiring',
+                  status: p.status,
+                  comment: p.comment ?? null,
+                  service: p.service ?? null,
+                  visitId: p.visitId ?? null,
+                  createdAt: p.createdAt,
+                })),
+                totalPaidMinor: paymentsSummary.totalPaidMinor,
+              },
+            }
+          : { ok: false, error: 'load_failed' },
     };
   }
 
   if (activeTab === 'files') {
-    const [cardHeader, fileRecords] = await Promise.all([
-      cardHeaderPromise,
+    const fileRecordsResult = await Promise.allSettled([
       withDoctorWorkspacePrincipal(workspace, () => deps.patientFiles.listFiles(patientUserId)),
     ]);
+    const files =
+      fileRecordsResult[0]?.status === 'fulfilled'
+        ? fileRecordsResult[0].value.map((f) => ({ ...f, previewUrl: null }))
+        : null;
     return {
-      ...membershipMeta,
-      cardHeader,
-      ...nullTabData,
-      initialFiles: fileRecords.map((f) => ({ ...f, previewUrl: null })),
+      ...NULL_TAB_BOOTSTRAP,
+      initialFiles:
+        fileRecordsResult[0]?.status === 'fulfilled' && files
+          ? { ok: true, value: files }
+          : { ok: false, error: 'load_failed' },
     };
   }
 
   if (activeTab === 'account') {
-    const [cardHeader, rawContactRows, portalState] = await Promise.all([
-      cardHeaderPromise,
+    const [rawContactRowsResult, portalStateResult] = await Promise.allSettled([
       deps.platformUserContacts.listForPlatformUser(patientUserId),
       withDoctorWorkspacePrincipal(workspace, () =>
         deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
       ),
     ]);
-    const initialSupplementaryContacts = cardHeader
-      ? toDoctorSupplementaryContacts(rawContactRows, {
-          phone: cardHeader.identity.phone,
-          email: cardHeader.identity.email,
-        })
-      : rawContactRows.map((r) => ({
-          id: r.id,
-          contactType: r.contactType,
-          value: r.value,
-          source: r.source,
-        }));
+    const cardHeader = await deps.doctorClients.getPatientCardHeader(patientUserId);
+    const rawContactRows =
+      rawContactRowsResult.status === 'fulfilled' ? rawContactRowsResult.value : null;
+    const initialSupplementaryContacts = rawContactRows
+      ? cardHeader
+        ? toDoctorSupplementaryContacts(rawContactRows, {
+            phone: cardHeader.identity.phone,
+            email: cardHeader.identity.email,
+          })
+        : rawContactRows.map((r) => ({
+            id: r.id,
+            contactType: r.contactType,
+            value: r.value,
+            source: r.source,
+          }))
+      : null;
+
     return {
-      ...membershipMeta,
-      cardHeader,
-      ...nullTabData,
-      initialSupplementaryContacts,
-      initialPortalState: portalState,
+      ...NULL_TAB_BOOTSTRAP,
+      initialSupplementaryContacts:
+        rawContactRowsResult.status === 'fulfilled' && initialSupplementaryContacts
+          ? { ok: true, value: initialSupplementaryContacts }
+          : { ok: false, error: 'load_failed' },
+      initialPortalState: envelopeFromSettled(portalStateResult),
     };
   }
 
   if (activeTab === 'comms') {
-    const [cardHeader, programInstances] = await Promise.all([
-      cardHeaderPromise,
-      loadProgramInstances(),
-    ]);
+    const programInstancesResult = await Promise.allSettled([loadProgramInstances()]);
     return {
-      ...membershipMeta,
-      cardHeader,
-      ...nullTabData,
-      initialProgramInstances: programInstances,
+      ...NULL_TAB_BOOTSTRAP,
+      initialProgramInstances: envelopeFromSettled(programInstancesResult[0]!),
     };
   }
 
   if (activeTab === 'finances') {
-    const [cardHeader, paymentsSummary, appointments, packagesRaw, historyEvents] = await Promise.all([
-      cardHeaderPromise,
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientPayments.listPaymentsWithSummary(patientUserId),
-      ),
-      deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
-      membershipAccess.specialistNavigation && deps.memberships
-        ? deps.memberships
-            .listPatientPackagesForUser(patientUserId, workspace.organizationId)
-            .catch(() => null)
-        : Promise.resolve(null),
-      deps.payments
-        ? deps.payments
-            .listPaymentHistoryForUser(patientUserId, workspace.organizationId)
-            .catch(() => [])
-        : Promise.resolve([]),
-    ]);
-    const patientPaymentRows = paymentsSummary.payments;
-    const finances = buildFinancesTimeline(patientPaymentRows, historyEvents);
+    const [paymentsSummaryResult, appointmentsResult, packagesResult, historyEventsResult] =
+      await Promise.allSettled([
+        withDoctorWorkspacePrincipal(workspace, () =>
+          deps.patientPayments.listPaymentsWithSummary(patientUserId),
+        ),
+        deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
+        membershipAccess.specialistNavigation && deps.memberships
+          ? deps.memberships
+              .listPatientPackagesForUser(patientUserId, workspace.organizationId)
+              .catch(() => null)
+          : Promise.resolve(null),
+        deps.payments
+          ? deps.payments
+              .listPaymentHistoryForUser(patientUserId, workspace.organizationId)
+              .catch(() => [])
+          : Promise.resolve([]),
+      ]);
+
+    const paymentsSummary =
+      paymentsSummaryResult.status === 'fulfilled' ? paymentsSummaryResult.value : null;
+    const historyEvents =
+      historyEventsResult.status === 'fulfilled' ? historyEventsResult.value : [];
+    const patientPaymentRows = paymentsSummary?.payments ?? [];
+    const finances =
+      paymentsSummaryResult.status === 'fulfilled' && paymentsSummary
+        ? buildFinancesTimeline(patientPaymentRows, historyEvents)
+        : null;
+
     return {
-      ...membershipMeta,
-      cardHeader,
-      ...nullTabData,
-      initialAppointments: appointments,
-      initialPackages: shapePackages(packagesRaw),
-      initialFinancesData: finances,
+      ...NULL_TAB_BOOTSTRAP,
+      initialAppointments: envelopeFromSettled(appointmentsResult),
+      initialPackages:
+        packagesResult.status === 'fulfilled'
+          ? { ok: true, value: shapePackages(packagesResult.value) ?? [] }
+          : { ok: false, error: 'load_failed' },
+      initialFinancesData:
+        finances != null ? { ok: true, value: finances } : { ok: false, error: 'load_failed' },
     };
   }
 
-  const cardHeader = await cardHeaderPromise;
-  return { ...membershipMeta, cardHeader, ...nullTabData };
+  return { ...NULL_TAB_BOOTSTRAP };
+}
+
+export function unwrapBootstrapEnvelope<T>(
+  envelope: BootstrapEnvelope<T> | null | undefined,
+): T | null {
+  if (!envelope?.ok) return null;
+  return envelope.value;
+}
+
+export function isBootstrapEnvelopeFailed(
+  envelope: BootstrapEnvelope<unknown> | null | undefined,
+): boolean {
+  return envelope != null && !envelope.ok;
+}
+
+export async function loadDoctorPatientCardPageBootstrap(
+  deps: Deps,
+  workspace: DoctorWorkspaceAccessContext,
+  patientUserId: string,
+  activeTab: PatientCardTabId,
+): Promise<DoctorPatientCardPageBootstrap> {
+  const [shellMeta, tabBootstrap] = await Promise.all([
+    loadDoctorPatientCardShellMeta(deps, workspace, patientUserId, activeTab),
+    loadDoctorPatientCardTabBootstrap(deps, workspace, patientUserId, activeTab),
+  ]);
+  return { ...shellMeta, ...tabBootstrap };
 }

@@ -820,8 +820,6 @@ describe('чужой якорь канала при записи идентич�
   // каноническому — отказывать явным кодом (например `channel_anchor_owned_by_other_user`), как
   // уже делает `applyMessengerPhonePublicBind` для похожего случая.
   it('дано: канал привязан к чужому аккаунту, а своего у человека ещё нет → тогда ЯВНЫЙ отказ, и настройки НЕ уходят в чужой аккаунт (план: D20_INTEGRATOR_MAP.md, Уровень 1 п.6)', async () => {
-    // ФАКТ на сегодня (не то, что проверяет этот тест): отказа в коде нет — единственным
-    // кандидатом становится чужой аккаунт, и настройки молча пишутся в него.
     const tables = emptyTables({
       platformUsers: [
         { id: 'pu-b', phone_normalized: null, integrator_user_id: '900', merged_into_id: null },
@@ -841,8 +839,9 @@ describe('чужой якорь канала при записи идентич�
     ).catch((err: unknown) => err);
 
     expect(failure).toBeInstanceOf(DirectPublicWriteError);
+    expect((failure as DirectPublicWriteError).code).toBe('channel_anchor_owned_by_other_user');
+    expect((failure as DirectPublicWriteError).candidateIds).toEqual(['pu-b']);
     expect(tables.topics).toEqual([]);
-    // Аккаунт B остаётся аккаунтом B — ничьи настройки в него не попали.
     expect(tables.platformUsers[0]!.integrator_user_id).toBe('900');
   });
 });

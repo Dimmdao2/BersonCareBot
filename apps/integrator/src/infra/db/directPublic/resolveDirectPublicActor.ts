@@ -108,7 +108,9 @@ export function isDirectPublicActorResolutionFailClosedError(err: unknown): bool
   if (err instanceof DirectPublicActorResolutionError) return true;
   if (err instanceof DirectPublicWriteError) {
     return (
-      err.code === 'no_platform_user_candidate' || err.code === 'ambiguous_platform_user_candidates'
+      err.code === 'no_platform_user_candidate' ||
+      err.code === 'ambiguous_platform_user_candidates' ||
+      err.code === 'channel_anchor_owned_by_other_user'
     );
   }
   return false;

@@ -27,7 +27,7 @@ void requiredFieldsStayRequired;
 const paymentInput = {
   amountMinor: 12_345,
   currency: 'RUB',
-  idempotencyKey: 'b1-1-intent',
+  idempotencyKey: 'vitest-payment-intent-key-b1-1',
   payerRef: 'organization:org-b1-1',
   purpose: 'saas_billing_tariff_renewal',
   subjectRef: 'saas-invoice-b1-1',

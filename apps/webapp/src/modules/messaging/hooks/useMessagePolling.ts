@@ -11,6 +11,7 @@ export function useMessagePolling(
   onTick: () => void | Promise<void>,
   enabled: boolean,
   intervalMs = 16000,
+  immediate = true,
 ) {
   const ref = useRef(onTick);
   useEffect(() => {
@@ -27,7 +28,9 @@ export function useMessagePolling(
         clearInterval(intervalId);
         intervalId = null;
       }
-      void ref.current();
+      if (immediate) {
+        void ref.current();
+      }
       intervalId = setInterval(() => void ref.current(), intervalMs);
     };
 
@@ -55,5 +58,5 @@ export function useMessagePolling(
       stopInterval();
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [enabled, intervalMs]);
+  }, [enabled, intervalMs, immediate]);
 }

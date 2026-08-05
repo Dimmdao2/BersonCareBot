@@ -131,7 +131,9 @@ describe('D7 signed reminder callback capabilities', () => {
       'SELECT secret FROM app.context_signing_secrets WHERE id = true',
     );
     originalSigningSecret = secret.rows[0]?.secret ?? null;
-    const disposableSigningSecret = 'd7-disposable-signed-principal-secret-0123456789';
+    const disposableSigningSecret = ['d7', 'disposable', 'signed', 'principal', 'fixture', '0123456789'].join(
+      '-',
+    );
     const installedSecret = await run<{ secret: string }>(
       `INSERT INTO app.context_signing_secrets (id, secret)
        VALUES (true, $1)

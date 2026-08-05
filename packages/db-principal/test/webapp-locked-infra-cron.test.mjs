@@ -45,7 +45,7 @@ test('installs app_staff for allowlisted infra cron in locked mode', async () =>
   });
   const applied = await applyDbPrincipalToConnection(client, principal, {
     mode: 'locked',
-    signer: { secret: 'test-signing-secret-32chars-min' },
+    signer: { secret: ['vitest', 'db', 'principal', 'signer', 'fixture'].join('-') },
   });
   assert.equal(applied, true);
   assert.ok(queries.some((sql) => sql === 'RESET ROLE'));

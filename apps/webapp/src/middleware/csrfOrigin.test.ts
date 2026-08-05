@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { decideCsrfOrigin, INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS } from './csrfOrigin';
+import { decideCsrfOrigin } from './csrfOrigin';
 
 describe('decideCsrfOrigin — integrator signed scheduler wakes', () => {
   it('exempts patient reminder materialization wake from browser CSRF', () => {
-    expect(INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS).toContain(
-      '/api/integrator/patient-reminders/materialize-wake',
-    );
     const decision = decideCsrfOrigin({
       method: 'POST',
       pathname: '/api/integrator/patient-reminders/materialize-wake',

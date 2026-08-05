@@ -1,6 +1,6 @@
 /**
  * GET /api/doctor/patients/[userId]/exercise-calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
- * → { ok: true, days: [{ date: "YYYY-MM-DD", completedCount: number }] }
+ * → { ok: true, iana, from, to, days: [{ date: "YYYY-MM-DD", completedCount: number }] }
  *
  * Exercise-completion calendar for the «Обзор» tab of the Patient card.
  * Defaults to the first..last day of the current calendar month when from/to
@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
-  currentPatientExerciseCalendarMonthRange,
+  currentPatientExerciseCalendarMonthRangeInIana,
   loadDoctorPatientExerciseCalendar,
 } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 
@@ -34,8 +34,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
   const rawFrom = url.searchParams.get('from');
   const rawTo = url.searchParams.get('to');
 
-  let fromDate: string;
-  let toDate: string;
+  let fromDate: string | undefined;
+  let toDate: string | undefined;
 
   if (rawFrom || rawTo) {
     const fromResult = dateSchema.safeParse(rawFrom);
@@ -52,9 +52,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     }
     fromDate = fromResult.data;
     toDate = toResult.data;
-  } else {
-    fromDate = currentPatientExerciseCalendarMonthRange().from;
-    toDate = currentPatientExerciseCalendarMonthRange().to;
   }
 
   const deps = buildAppDeps();
@@ -66,10 +63,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
-  const days = await loadDoctorPatientExerciseCalendar(deps, gate.ctx, identity.userId, {
+  const patientIana =
+    (await deps.patientCalendarTimezone.getIanaForUser(identity.userId)) ?? 'UTC';
+  if (!fromDate || !toDate) {
+    const current = currentPatientExerciseCalendarMonthRangeInIana(patientIana);
+    fromDate = current.from;
+    toDate = current.to;
+  }
+
+  const snapshot = await loadDoctorPatientExerciseCalendar(deps, gate.ctx, identity.userId, {
     from: fromDate,
     to: toDate,
   });
 
-  return NextResponse.json({ ok: true, days });
+  return NextResponse.json({ ok: true, ...snapshot });
 }

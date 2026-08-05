@@ -122,6 +122,11 @@ export async function collectIdentityProjectionCandidates(
 ): Promise<string[]> {
   const ids: string[] = [];
 
+  let integratorMatched = false;
+  let phoneMatched = false;
+  let channelCandidateId: string | null = null;
+  let channelCandidateIntegratorId: string | null = null;
+
   const byInt = await runMergeSql<{ id: string }>(
     db,
     sql`SELECT id::text AS id FROM platform_users
@@ -134,7 +139,10 @@ export async function collectIdentityProjectionCandidates(
       byInt.rows.map((r) => r.id),
     );
   }
-  if (byInt.rows[0]) ids.push(byInt.rows[0].id);
+  if (byInt.rows[0]) {
+    integratorMatched = true;
+    ids.push(byInt.rows[0].id);
+  }
 
   const phoneNormalized = trimmedOrNull(params.phoneNormalized);
   if (phoneNormalized) {
@@ -150,21 +158,38 @@ export async function collectIdentityProjectionCandidates(
         byPhone.rows.map((r) => r.id),
       );
     }
-    if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
+    if (byPhone.rows[0]) {
+      phoneMatched = true;
+      ids.push(byPhone.rows[0].id);
+    }
   }
 
   const channelCode = trimmedOrNull(params.channelCode);
   const externalId = trimmedOrNull(params.externalId);
   if (channelCode && externalId) {
-    const byChannel = await runMergeSql<{ user_id: string }>(
+    const byChannel = await runMergeSql<{ user_id: string; integrator_user_id: string | null }>(
       db,
-      sql`SELECT pu.id::text AS user_id
+      sql`SELECT pu.id::text AS user_id, pu.integrator_user_id::text AS integrator_user_id
        FROM user_channel_bindings ucb
        INNER JOIN platform_users pu ON pu.id = ucb.user_id
        WHERE ucb.channel_code = ${channelCode} AND ucb.external_id = ${externalId} AND pu.merged_into_id IS NULL
        LIMIT 1`,
     );
-    if (byChannel.rows[0]) ids.push(byChannel.rows[0].user_id);
+    if (byChannel.rows[0]) {
+      channelCandidateId = byChannel.rows[0].user_id;
+      channelCandidateIntegratorId = byChannel.rows[0].integrator_user_id;
+      ids.push(byChannel.rows[0].user_id);
+    }
+  }
+
+  if (
+    !integratorMatched &&
+    !phoneMatched &&
+    channelCandidateId &&
+    channelCandidateIntegratorId !== null &&
+    channelCandidateIntegratorId !== params.integratorUserId
+  ) {
+    throw new MergeConflictError('channel_anchor_owned_by_other_user', [channelCandidateId]);
   }
 
   return [...new Set(ids)];
