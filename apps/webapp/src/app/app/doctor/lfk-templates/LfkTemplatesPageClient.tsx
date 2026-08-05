@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Suspense, use, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -30,16 +31,31 @@ import {
 } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
 import { LfkTemplatePreviewPanel } from './LfkTemplatePreviewPanel';
 import { buildLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
-import { TemplateEditor } from './TemplateEditor';
 import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
 import { DoctorCatalogInvalidPubArchToast } from '@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+
+/** @dnd-kit editor — только при create/select, не на cold first paint списка. */
+const TemplateEditor = dynamic(
+  () => import('./TemplateEditor').then((mod) => mod.TemplateEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+        <div className="h-8 animate-pulse rounded-md bg-muted/50" />
+        <div className="h-24 animate-pulse rounded-md bg-muted/40" />
+        <div className="h-40 animate-pulse rounded-md bg-muted/40" />
+      </div>
+    ),
+  },
+);
 
 type ExerciseCatalogBundle = {
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
@@ -276,24 +292,21 @@ function LfkTemplatesContent({
 
   const desktopRight = (
     <CatalogRightPane className="h-full">
-      {/* Черновик «новый комплекс» держим смонтированным, чтобы не терять state при выборе строки в списке. */}
-      <div
-        className={cn('flex min-h-0 flex-1 flex-col', selected && 'hidden')}
-        aria-hidden={Boolean(selected)}
-      >
-        <TemplateEditor
-          key="new-lfk-template"
-          template={null}
-          exerciseCatalog={exerciseCatalog}
-          listPreserveQuery={listPreserveQuery}
-          onCreated={(id) => {
-            setCreating(false);
-            setSelectedId(id);
-            router.refresh();
-          }}
-        />
-      </div>
-      {selected ? (
+      {creating ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <TemplateEditor
+            key="new-lfk-template"
+            template={null}
+            exerciseCatalog={exerciseCatalog}
+            listPreserveQuery={listPreserveQuery}
+            onCreated={(id) => {
+              setCreating(false);
+              setSelectedId(id);
+              router.refresh();
+            }}
+          />
+        </div>
+      ) : selected ? (
         <div className="flex min-h-0 flex-1 flex-col">
           {selected.ownerKind === 'platform' ? (
             <LfkTemplatePreviewPanel template={selected} />
@@ -306,7 +319,11 @@ function LfkTemplatesContent({
             />
           )}
         </div>
-      ) : null}
+      ) : (
+        <DoctorEmptyState size="sm" className="justify-center p-6">
+          Выберите комплекс в списке или нажмите «Создать».
+        </DoctorEmptyState>
+      )}
     </CatalogRightPane>
   );
 

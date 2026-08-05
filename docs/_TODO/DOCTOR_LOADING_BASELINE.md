@@ -274,15 +274,12 @@ Patient-card **−30% bundle gate FAIL** (manifest method unchanged vs §4; no `
 
 | P0 | Маршрут | Файлы | Est. −gzip | Статус |
 |----|---------|-------|------------|--------|
-| 1 | lfk-templates | `LfkTemplatesPageClient.tsx` — не монтировать `TemplateEditor` до create/select | ~80–120KB | open |
-| 2 | patient-card (+ home/schedule panel) | `DoctorOpenChatButton.tsx` — `next/dynamic` chat chunk | ~40–70KB | **code** `DoctorOpenChatButton.tsx` |
-| 3 | home | `DoctorTodayMiniCalendar.tsx` — убрать/отложить FullCalendar с first paint | ~100–180KB | open |
-| 3b | home (мин.) | `TodayMiniCalendarWithModal.tsx` — dynamic только `DoctorCalendarEventPanel` | ~30–50KB | open |
-| 4–5 | schedule | `ScheduleCalendarTab.tsx` — dynamic event panel / FC grid | med | open |
+| 1 | lfk-templates | `LfkTemplatesPageClient.tsx` — `TemplateEditor` только create/select + `next/dynamic` | ~80–120KB | **done** |
+| 2 | patient-card (+ home/schedule panel) | `DoctorOpenChatButton.tsx` — `next/dynamic` chat chunk | ~40–70KB | **done** |
+| 3 | home | `TodayMiniCalendarWithModal.tsx` — defer FC + list shell; dynamic event panel | ~100–180KB | **done** |
+| 4–5 | schedule | `ScheduleFullCalendarHost` + dynamic event/reschedule panels | med | **done** |
 
-**Bundle gate:** patient-card −30% **FAIL** (manifest +0.4% §7); `patient-card-progressive` todo = streaming code only, **не** bundle acceptance.
-
-**Проверка после slice:** compressed JS / manifest на TEST, не только nginx p95.
+**Bundle gate:** patient-card −30% был FAIL на `a71e222b3` (§7); после FCP slice нужен re-measure gzip/manifest на TEST (не только nginx p95).
 
 ---
 

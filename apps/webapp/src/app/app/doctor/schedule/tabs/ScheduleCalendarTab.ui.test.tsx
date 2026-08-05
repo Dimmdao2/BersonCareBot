@@ -16,6 +16,14 @@ vi.mock('@fullcalendar/timegrid', () => ({ default: {} }));
 vi.mock('@fullcalendar/interaction', () => ({ default: {} }));
 vi.mock('@fullcalendar/luxon3', () => ({ default: {} }));
 vi.mock('@fullcalendar/core/locales/ru', () => ({ default: {} }));
+vi.mock('./ScheduleFullCalendarHost', () => ({
+  ScheduleFullCalendarHost: forwardRef(function ScheduleFullCalendarHostMock(
+    _props: unknown,
+    _ref: unknown,
+  ) {
+    return <div data-testid="full-calendar" />;
+  }),
+}));
 vi.mock('../../calendar/DoctorCalendarEventPanel', () => ({
   DoctorCalendarEventPanel: ({
     startInCreate,

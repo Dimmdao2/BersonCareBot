@@ -1,10 +1,12 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import { DateTime } from 'luxon';
 import { Dialog, DialogContent } from '@/shared/ui/doctor/primitives/dialog';
-import { DoctorCalendarEventPanel } from './calendar/DoctorCalendarEventPanel';
-import { DoctorTodayMiniCalendar } from './DoctorTodayMiniCalendar';
+import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import Link from 'next/link';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
 import type {
   CalendarAppointmentEvent,
@@ -30,6 +32,52 @@ const EMPTY_ACTIVE_FILTERS: CalendarCreateActiveFilters = {
   serviceId: null,
 };
 
+function TodayMiniCalendarShellFallback({
+  appointments,
+  todayDateLabel,
+}: {
+  appointments: TodayAppointmentItem[];
+  todayDateLabel: string;
+}) {
+  return (
+    <DoctorSection id="doctor-today-mini-calendar">
+      <div className="flex items-center justify-between gap-2">
+        <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
+        <Link href="/app/doctor/schedule?tab=calendar" className={buttonVariants({ size: 'sm' })}>
+          Открыть расписание
+        </Link>
+      </div>
+      {appointments.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Записей на сегодня нет</p>
+      ) : (
+        <ul className="space-y-1 text-sm" aria-label="Записи на сегодня">
+          {appointments.map((appt) => (
+            <li key={appt.id}>
+              <a href={appt.href} className="text-primary hover:underline">
+                {appt.time} · {appt.clientLabel}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-2 h-48 animate-pulse rounded-lg border border-border bg-muted/30" />
+    </DoctorSection>
+  );
+}
+
+/** FullCalendar + plugins — отдельный chunk после shell «Сегодня». */
+const DoctorTodayMiniCalendar = dynamic(
+  () => import('./DoctorTodayMiniCalendar').then((mod) => mod.DoctorTodayMiniCalendar),
+  { ssr: false },
+);
+
+/** Event panel — только после клика по записи. */
+const DoctorCalendarEventPanel = dynamic(
+  () =>
+    import('./calendar/DoctorCalendarEventPanel').then((mod) => mod.DoctorCalendarEventPanel),
+  { ssr: false },
+);
+
 type CalendarApiResponse = {
   ok: boolean;
   events?: CalendarEvent[];
@@ -50,9 +98,9 @@ type Props = {
 /**
  * Mini-calendar for «Сегодня» with a full appointment modal.
  *
- * Fetch canonical `CalendarAppointmentEvent` objects client-side (same API as
- * `ScheduleCalendarTab`) and pass the full event object directly to
- * `DoctorCalendarEventPanel` — no re-fetch, no cross-source ID mismatch.
+ * FullCalendar and the event panel load as separate chunks so cold FCP of
+ * `/app/doctor` is not blocked on the calendar stack. Until FC arrives, SSR
+ * appointment list is shown as the visible shell.
  */
 export function TodayMiniCalendarWithModal({
   appointments,
@@ -65,11 +113,11 @@ export function TodayMiniCalendarWithModal({
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
+  const [showFc, setShowFc] = useState(false);
 
   const todayIso =
     DateTime.now().setZone(displayIana).toISODate() ?? new Date().toISOString().slice(0, 10);
 
-  /** Fetch canonical appointment events for today from the booking-engine calendar API. */
   function fetchTodayEvents(onDone?: () => void) {
     const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
     fetch(`${API_BASE}/calendar?${qs}`)
@@ -90,7 +138,6 @@ export function TodayMiniCalendarWithModal({
       });
   }
 
-  // Fetch canonical calendar events on mount so FC uses canonical IDs.
   useEffect(() => {
     let cancelled = false;
     const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
@@ -115,23 +162,35 @@ export function TodayMiniCalendarWithModal({
     };
   }, [todayIso]);
 
+  // Defer FC mount one tick so shell/list paints first (FCP), then hydrate calendar.
+  useEffect(() => {
+    const id = window.setTimeout(() => setShowFc(true), 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
   function handleChanged() {
     setSelected(null);
-    // Re-fetch after an action (reschedule, cancel, etc.) to keep the calendar fresh.
     fetchTodayEvents();
   }
 
   return (
     <>
-      <DoctorTodayMiniCalendar
-        appointments={appointments}
-        calendarEvents={calendarEvents}
-        nowMinutes={nowMinutes}
-        todayDateLabel={todayDateLabel}
-        displayIana={displayIana}
-        workingBounds={workingBounds}
-        onCanonicalEventClick={(appt) => setSelected(appt)}
-      />
+      {showFc ? (
+        <DoctorTodayMiniCalendar
+          appointments={appointments}
+          calendarEvents={calendarEvents}
+          nowMinutes={nowMinutes}
+          todayDateLabel={todayDateLabel}
+          displayIana={displayIana}
+          workingBounds={workingBounds}
+          onCanonicalEventClick={(appt) => setSelected(appt)}
+        />
+      ) : (
+        <TodayMiniCalendarShellFallback
+          appointments={appointments}
+          todayDateLabel={todayDateLabel}
+        />
+      )}
 
       <Dialog
         open={selected !== null}

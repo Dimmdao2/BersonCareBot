@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { Calendar, List, Search } from 'lucide-react';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -17,24 +18,14 @@ import {
 } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
-import { DoctorCalendarEventPanel } from '../../calendar/DoctorCalendarEventPanel';
-import {
-  DoctorCalendarRescheduleDialog,
-  type PendingReschedule,
-} from '../../calendar/DoctorCalendarRescheduleDialog';
+import type { PendingReschedule } from '../../calendar/DoctorCalendarRescheduleDialog';
 import { DoctorCalendarToolbarFilter } from '../../calendar/DoctorCalendarToolbarFilter';
 import { resolveCalendarCreateFieldValue } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import {
   appointmentStatusLabel,
   isCancelledAppointmentStatus,
 } from '@/modules/booking-calendar/appointmentStatusLabels';
-import FullCalendar from '@fullcalendar/react';
-type FullCalendarInstance = InstanceType<typeof FullCalendar>;
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import luxonPlugin from '@fullcalendar/luxon3';
-import ruLocale from '@fullcalendar/core/locales/ru';
+import type FullCalendar from '@fullcalendar/react';
 import type { CalendarOptions as FullCalendarOptions } from '@fullcalendar/core';
 import type {
   CalendarAppointmentEvent,
@@ -76,6 +67,32 @@ import {
   parseCalendarDoctorSettings,
   type CalendarDoctorSettings,
 } from '../scheduleCalendarSettings';
+
+type FullCalendarInstance = InstanceType<typeof FullCalendar>;
+
+const DoctorCalendarEventPanel = dynamic(
+  () =>
+    import('../../calendar/DoctorCalendarEventPanel').then((mod) => mod.DoctorCalendarEventPanel),
+  { ssr: false },
+);
+
+const DoctorCalendarRescheduleDialog = dynamic(
+  () =>
+    import('../../calendar/DoctorCalendarRescheduleDialog').then(
+      (mod) => mod.DoctorCalendarRescheduleDialog,
+    ),
+  { ssr: false },
+);
+
+const ScheduleFullCalendarHost = dynamic(
+  () => import('./ScheduleFullCalendarHost').then((mod) => mod.ScheduleFullCalendarHost),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[28rem] animate-pulse rounded-lg border border-border bg-muted/30" />
+    ),
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1979,10 +1996,8 @@ export function ScheduleCalendarTab({
                   padding-bottom: 0.125rem;
                 }
               `}</style>
-              <FullCalendar
-                ref={calendarRef}
-                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
-                locale={ruLocale}
+              <ScheduleFullCalendarHost
+                calendarRef={calendarRef}
                 key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${slotMinTime}:${slotMaxTime}`}
                 initialView={fcInitialView}
                 views={fcViews}

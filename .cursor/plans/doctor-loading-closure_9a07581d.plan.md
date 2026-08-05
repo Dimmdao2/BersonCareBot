@@ -370,4 +370,4 @@ runtime/инспекцией.
 - [x] **DL-CLOSE-03** Только после всех строк, включая Safari и DB decision, поставить `test-rollout`
   и frontmatter todos `completed`. Push только `origin/feat/doctor-ui-rebuild`; PROD не трогать.
   Evidence: Safari owner 2026-08-05; DB evidence-only closed; `test-rollout`/`test-runtime` todos completed.
-  Product gates −40% p95 / −30% bundle (§7) и bundle lazy-load (§10) — открыты по смыслу, не блокер closure deploy.
+  Product gates −40% p95 (§7) remain measured FAIL; FCP P0 lazy-load code landed (§10 baseline) — gzip re-measure on TEST after deploy.

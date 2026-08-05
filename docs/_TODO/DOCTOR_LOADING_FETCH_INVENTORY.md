@@ -48,4 +48,4 @@ Stage 1 evidence: [`DOCTOR_LOADING_BASELINE.md`](./DOCTOR_LOADING_BASELINE.md) �
 | Patient card — deep-link `?tab=`, shell/tab before heavy tab bytes | **PASS** — §8 code + §9 stream heuristic |
 | Schedule StrictMode SSR skip, scope/stale generation | **PASS** — `ScheduleCalendarTab.ui.test.tsx` |
 
-**Still partial:** full Chromium entitlement matrix (DL-RUNTIME-01). **Safari:** `[x]` owner soak §11. **FCP:** P0 slice §10 (P0-2 chat dynamic in code); bundle −30% gate open.
+**Still partial:** full Chromium entitlement matrix (DL-RUNTIME-01). **Safari:** `[x]` owner soak §11. **FCP P0:** `[x]` code done §10 (chat/LFK/home FC/schedule FC host); re-measure gzip on TEST pending.
