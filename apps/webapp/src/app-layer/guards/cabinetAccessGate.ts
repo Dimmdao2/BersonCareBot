@@ -1,9 +1,12 @@
 import type { CabinetAccessResolution } from '@/modules/org-entitlements/types';
+import type { AccessNotificationRule } from '@/modules/org-entitlements/types';
 import {
   accessNotificationConditionFor,
   dueAccessNotifications,
+  dueLifecycleNotifications,
   renderAccessNotification,
 } from '@/modules/org-entitlements/accessNotifications';
+import type { OrgLifecycleNotificationAnchors } from '@/modules/org-entitlements/accessNotifications';
 
 /** Only the terminal cabinet block closes product entry; billing recovery is handled by callers. */
 export function isCabinetEntryBlocked(access: CabinetAccessResolution): boolean {
@@ -32,4 +35,23 @@ export function cabinetGraceWarningMessages(
     now,
     condition,
   }).map((rule) => renderAccessNotification(rule.template, variables));
+}
+
+/**
+ * Т2/Т7 — lifecycle notification rows from the system ladder. Unlike {@link cabinetGraceWarningMessages}
+ * these fire on registration/trial/discount-window anchors and may show while access is still full.
+ */
+export function cabinetLifecycleWarningMessages(input: {
+  notifications: readonly AccessNotificationRule[];
+  anchors: OrgLifecycleNotificationAnchors;
+  hasPaidSinceTrial: boolean;
+  variables: Readonly<Record<string, string>>;
+  now?: Date;
+}): string[] {
+  return dueLifecycleNotifications({
+    notifications: input.notifications,
+    anchors: input.anchors,
+    now: input.now ?? new Date(),
+    hasPaidSinceTrial: input.hasPaidSinceTrial,
+  }).map((rule) => renderAccessNotification(rule.template, input.variables));
 }

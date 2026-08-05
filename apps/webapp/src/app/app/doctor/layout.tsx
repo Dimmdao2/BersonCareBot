@@ -11,10 +11,11 @@ import {
   entitlementGraceWarningMessages,
   getMechanicSurfaceVisibility,
 } from '@/app-layer/guards/requireEntitlement';
-import { cabinetGraceWarningMessages } from '@/app-layer/guards/cabinetAccessGate';
+import { cabinetGraceWarningMessages, cabinetLifecycleWarningMessages } from '@/app-layer/guards/cabinetAccessGate';
 import {
   ACCESS_NOTIFICATION_VARIABLES,
   accessNotificationBillingVariables,
+  organizationHasPaidSinceTrial,
 } from '@/modules/org-entitlements/accessNotifications';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
@@ -89,6 +90,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     patientHomeTodayVisibility,
     entitlementSnapshot,
     cabinetAccess,
+    lifecycleAnchors,
   ] =
     await Promise.all([
       getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
@@ -99,6 +101,9 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       // The cabinet is its own ladder subject (§5a/2.1a). Reaching this layout already means entry is
       // open, so the only thing left to show is the `терпение` countdown for the cabinet itself.
       deps.orgEntitlements.resolveCabinetAccess(workspaceAccess.organizationId).catch(() => null),
+      deps.orgEntitlements
+        .prepareLifecycleNotificationContext(workspaceAccess.organizationId)
+        .catch(() => null),
     ]);
   // The workspace guard installs the ordinary staff principal. Billing tables require the narrower
   // own-clinic billing principal, and this role switch must not overlap the entitlement reads above.
@@ -125,6 +130,11 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     клиника: organization?.title ?? '',
     тариф: tariffName ?? '',
   } satisfies Partial<Record<(typeof ACCESS_NOTIFICATION_VARIABLES)[number]['name'], string>>;
+  const systemNotifications = entitlementSnapshot?.tariff?.systemAccessPolicy?.notifications ?? [];
+  const hasPaidSinceTrial = organizationHasPaidSinceTrial(
+    lifecycleAnchors?.trialEndsAt ?? null,
+    billingOverview,
+  );
   // One system-level ladder produces the same text for every mechanic it covers, so identical
   // lines are collapsed — the owner wrote one notification, he sees it once.
   const accessWarnings = [
@@ -134,6 +144,17 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
           ...accessNotificationBillingVariables(cabinetAccess.warning, billingOverview),
         })
       : []),
+    ...cabinetLifecycleWarningMessages({
+      notifications: systemNotifications,
+      anchors: lifecycleAnchors ?? {
+        registeredAt: null,
+        trialStartedAt: null,
+        trialEndsAt: null,
+        discountEndsAt: null,
+      },
+      hasPaidSinceTrial,
+      variables: accessNotificationVariables,
+    }),
     ...new Set(
       [coursesVisibility, promoVisibility, cmsVisibility].flatMap((visibility) =>
         visibility.warning

@@ -393,5 +393,19 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
         clinic_team: numericQuotaUsage(usage.clinic_team_used, 'clinic_team'),
       };
     },
+    async prepareLifecycleNotificationContext(organizationId) {
+      const result = await runWebappPgText<{ payload: Record<string, string | null> }>(
+        `SELECT app.prepare_organization_lifecycle_notification_context($1::uuid) AS payload`,
+        [organizationId],
+      );
+      const payload = result.rows[0]?.payload;
+      if (!payload) throw new Error('lifecycle_notification_context_unavailable');
+      return {
+        registeredAt: payload.registeredAt ?? null,
+        trialStartedAt: payload.trialStartedAt ?? null,
+        trialEndsAt: payload.trialEndsAt ?? null,
+        discountEndsAt: payload.discountEndsAt ?? null,
+      };
+    },
   };
 }

@@ -19,6 +19,7 @@ import type {
   TariffQuotaMap,
   TrialPolicy,
 } from './types';
+import type { OrgLifecycleNotificationAnchors } from './accessNotifications';
 
 export type OrgEntitlementsPort = {
   /** Separate system-level ladder for entry to the organization's cabinet (§5a/2.1a). */
@@ -65,6 +66,13 @@ export type OrgEntitlementsPort = {
    * access to member, invite, patient or file rows and cannot supply another organization id.
    */
   getOwnQuotaUsage(organizationId: string): Promise<Partial<Record<OrgMechanic, number>>>;
+  /**
+   * #1069 T2 — records the org's first doctor-cabinet entry (idempotent) and returns lifecycle
+   * anchors for notification due-date calculation.
+   */
+  prepareLifecycleNotificationContext(
+    organizationId: string,
+  ): Promise<OrgLifecycleNotificationAnchors>;
 };
 
 export type PlatformMutationAudit = { actorId: string | null; reason: string };

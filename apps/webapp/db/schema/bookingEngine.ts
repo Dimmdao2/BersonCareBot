@@ -85,6 +85,11 @@ export const beOrganizations = pgTable(
      * builder to avoid a circular import with db/schema/saasEntitlements.ts.
      */
     tariffId: uuid('tariff_id'),
+    /** #1069 T2 — first staff entry into the doctor cabinet; set once, idempotently. */
+    cabinetFirstEnteredAt: timestamp('cabinet_first_entered_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

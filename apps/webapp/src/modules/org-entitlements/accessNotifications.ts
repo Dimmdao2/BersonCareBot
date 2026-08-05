@@ -7,7 +7,7 @@
  * variables in this file: the templates come from the tariff, the variables come from the caller's
  * data map, and adding a new variable never touches this code.
  */
-import type { SaasBillingInvoiceReadRow } from '@/modules/saas-billing/ports';
+import type { SaasBillingInvoiceReadRow, SaasBillingSubscriptionReadRow } from '@/modules/saas-billing/ports';
 import type {
   AccessNotificationCondition,
   AccessNotificationRule,
@@ -218,4 +218,49 @@ export function dueLifecycleNotifications(input: {
       condition,
     });
   });
+}
+
+type BillingPaidSinceTrialInput = {
+  invoices: readonly Pick<
+    SaasBillingInvoiceReadRow,
+    'status' | 'invoiceKind' | 'paidAt' | 'servicePeriodStartsAt'
+  >[];
+  subscriptions: readonly Pick<
+    SaasBillingSubscriptionReadRow,
+    'status' | 'source' | 'currentPeriodStartsAt'
+  >[];
+};
+
+/**
+ * Т7 — «только тем кто ещё не купил после завершения триала». True once the organization has a
+ * paid tariff-period invoice or an active paid subscription whose current period starts at or
+ * after the trial end.
+ */
+export function organizationHasPaidSinceTrial(
+  trialEndsAt: string | null,
+  billing: BillingPaidSinceTrialInput | null,
+): boolean {
+  if (!trialEndsAt || !billing) return false;
+  const trialEndMs = new Date(trialEndsAt).getTime();
+  if (!Number.isFinite(trialEndMs)) return false;
+
+  if (
+    billing.invoices.some(
+      (invoice) =>
+        invoice.invoiceKind === 'tariff_period' &&
+        invoice.status === 'paid' &&
+        invoice.paidAt != null &&
+        new Date(invoice.paidAt).getTime() >= trialEndMs,
+    )
+  ) {
+    return true;
+  }
+
+  return billing.subscriptions.some(
+    (subscription) =>
+      subscription.source === 'paid_subscription' &&
+      subscription.status === 'active' &&
+      subscription.currentPeriodStartsAt != null &&
+      new Date(subscription.currentPeriodStartsAt).getTime() >= trialEndMs,
+  );
 }

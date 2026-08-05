@@ -33,5 +33,13 @@ export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
     async getOwnQuotaUsage() {
       return {};
     },
+    async prepareLifecycleNotificationContext() {
+      return {
+        registeredAt: null,
+        trialStartedAt: null,
+        trialEndsAt: null,
+        discountEndsAt: null,
+      };
+    },
   };
 }

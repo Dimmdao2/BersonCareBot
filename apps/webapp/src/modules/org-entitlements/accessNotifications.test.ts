@@ -4,6 +4,7 @@ import {
   accessNotificationVariables,
   dueAccessNotifications,
   dueLifecycleNotifications,
+  organizationHasPaidSinceTrial,
   renderAccessNotification,
 } from './accessNotifications';
 import type { AccessNotificationRule, MechanicAccessWarning } from './types';
@@ -256,5 +257,93 @@ describe('lifecycle notification triggers (Т2/Т7)', () => {
       hasPaidSinceTrial: false,
     });
     expect(due).toEqual([]);
+  });
+});
+
+describe('organizationHasPaidSinceTrial', () => {
+  const trialEndsAt = '2026-08-15T00:00:00.000Z';
+
+  it('is false before any post-trial payment exists', () => {
+    expect(
+      organizationHasPaidSinceTrial(trialEndsAt, {
+        invoices: [],
+        subscriptions: [{ source: 'manual', status: 'active', currentPeriodStartsAt: '2026-08-01T00:00:00.000Z' }],
+      }),
+    ).toBe(false);
+  });
+
+  it('is true after a paid tariff-period invoice post-trial', () => {
+    expect(
+      organizationHasPaidSinceTrial(trialEndsAt, {
+        invoices: [
+          {
+            invoiceKind: 'tariff_period',
+            status: 'paid',
+            paidAt: '2026-08-16T00:00:00.000Z',
+            servicePeriodStartsAt: '2026-08-15T00:00:00.000Z',
+          },
+        ],
+        subscriptions: [],
+      }),
+    ).toBe(true);
+  });
+
+  it('is true with an active paid subscription starting at trial end', () => {
+    expect(
+      organizationHasPaidSinceTrial(trialEndsAt, {
+        invoices: [],
+        subscriptions: [
+          {
+            source: 'paid_subscription',
+            status: 'active',
+            currentPeriodStartsAt: '2026-08-15T00:00:00.000Z',
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('organizationHasPaidSinceTrial', () => {
+  const trialEndsAt = '2026-08-15T00:00:00.000Z';
+
+  it('is false before any post-trial payment exists', () => {
+    expect(
+      organizationHasPaidSinceTrial(trialEndsAt, {
+        invoices: [],
+        subscriptions: [{ source: 'manual', status: 'active', currentPeriodStartsAt: '2026-08-01T00:00:00.000Z' }],
+      }),
+    ).toBe(false);
+  });
+
+  it('is true after a paid tariff-period invoice post-trial', () => {
+    expect(
+      organizationHasPaidSinceTrial(trialEndsAt, {
+        invoices: [
+          {
+            invoiceKind: 'tariff_period',
+            status: 'paid',
+            paidAt: '2026-08-16T00:00:00.000Z',
+            servicePeriodStartsAt: '2026-08-15T00:00:00.000Z',
+          },
+        ],
+        subscriptions: [],
+      }),
+    ).toBe(true);
+  });
+
+  it('is true with an active paid subscription starting at trial end', () => {
+    expect(
+      organizationHasPaidSinceTrial(trialEndsAt, {
+        invoices: [],
+        subscriptions: [
+          {
+            source: 'paid_subscription',
+            status: 'active',
+            currentPeriodStartsAt: '2026-08-15T00:00:00.000Z',
+          },
+        ],
+      }),
+    ).toBe(true);
   });
 });

@@ -2619,6 +2619,13 @@
       "when": 1793539230120,
       "tag": "0377_user_identity_d15b5_local",
       "breakpoints": true
+    },
+    {
+      "idx": 374,
+      "version": "7",
+      "when": 1793539230121,
+      "tag": "0378_organization_cabinet_first_entry_local",
+      "breakpoints": true
     }
   ]
 }
