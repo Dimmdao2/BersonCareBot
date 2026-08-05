@@ -40,13 +40,11 @@
 
 ## Результат
 
-_(заполняется по факту прогона)_
-
-- [ ] деплой на TEST выполнен
+- [x] деплой на TEST выполнен — `0e14d534c`, exit 0 (05.08)
 - [ ] тариф с лестницей заведён, значения записаны сюда
-- [ ] ступень «терпение» — доказательство
-- [ ] ступень «только чтение» — доказательство, включая пациентскую сторону
-- [ ] ступень «выключено» — доказательство
+- [x] ступень «терпение» — **DB на TEST** (`grace_cabinet`/`grace_mechanic_booking`, trial `ends_at=now()-1d`)
+- [x] ступень «только чтение» — **DB** (`read_only_*`, trial `ends_at=now()-8d`); пациентская сторона **не снята**
+- [x] ступень «выключено» — **DB** (`disabled_*`, trial `ends_at=now()-11d`); UI не снят
 - [ ] критичные механики не тронуты ни на одной ступени
 - [ ] включение вернуло всё в прежнем виде
 
@@ -179,3 +177,42 @@ _(заполняется по факту прогона)_
 `/dev/null` (`crw-rw-rw- root root 1,3`), из-за чего `git diff` по ним падает с
 `unsupported file type`. Побочный эффект: `deploy/host/migrate-dev.sh` отказывает на этом же файле
 (`FATAL: safe migration env path guard failed`) ещё до проверки прав.
+
+### Прогон 05.08 (агент): DB-доказательство на TEST, UI owner-blocked
+
+**Контекст:** deploy `0e14d534c` exit 0; цель — §7.3 без owner-password, если возможно.
+
+**Путь 1 — fixture seed + UI:** не прошёл.
+
+1. `SELECT count(*) FROM platform_users WHERE email LIKE '%saas-fixture%'` на `bersoncarebot_test` → **0**.
+2. `pnpm --dir apps/webapp run seed:saas-test-walkthrough` с `SAAS_TEST_FIXTURE_ENV_FILE=/opt/env/bersoncarebot/saas-test-fixture.env`
+   и `DATABASE_URL` из `/opt/env/bersoncarebot/webapp.test` (через `sudo`, env не печатался) →
+   `permission denied for table platform_users` (`bcb_test_worker_login`).
+3. `node deploy/host/mint-smoke-session.mjs --check` → `refs_fixture_missing` (нет `/run/bersoncarebot/saas-smoke.fixture`).
+4. `GET https://test.bersoncare.ru/api/auth/dev-bypass?token=dev:admin` → 303 без `Set-Cookie` (как в прогоне 31.07).
+
+**Путь 2 — DB/SQL на `bersoncarebot_test`:** три ступени лестницы подтверждены (транзакция `ROLLBACK`, данных не оставлено).
+
+Команды (секреты маскированы; env не цитируется):
+
+```bash
+sudo -u postgres psql -d bersoncarebot_test -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+-- tariff: graceDays=7, readOnlyDays=3, terminalState=disabled
+-- org: da6a96cb-8e94-4ec2-99da-2258bda0ce4d ("Тест Клиника")
+-- trial post_trial_behavior=blocked; ends_at shifted: now()-1d / -8d / -11d
+-- principal: INSERT app.principal_context + SET LOCAL ROLE app_staff
+-- calls: app.resolve_organization_cabinet_access(uuid)
+--        app.resolve_organization_mechanic_access(uuid,'booking')
+ROLLBACK;
+SQL
+```
+
+| Сдвиг `ends_at` | cabinet `state` | booking `state` | `mutation_allowed` |
+| --- | --- | --- | --- |
+| `now() - 1 day` | `grace` (`next_state=read_only`) | `grace` | `true` |
+| `now() - 8 days` | `read_only` | `read_only` | `false` |
+| `now() - 11 days` | `disabled` | `disabled` | `false` |
+
+**Не снято для закрытия §7.3:** конструктор тарифа глазами, баннер уведомлений, отказы записи с русским текстом,
+пациентская сторона, quota/число, включение обратно. Для этого нужен owner UI-login (fixture packet или smoke refs).

@@ -1603,7 +1603,23 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       Пункт обязателен ДО 7.3: иначе живой прогон показывает только триальную ветку и выдаёт её за оплату.
 - [ ] **7.3** Деплой на TEST и живой прогон: настроить тариф с лестницей, назначить клинике и увидеть все три ступени —
       терпение, только чтение, выключено — на одной механике и на одном числе. **Pre-TEST gate:** это и есть
-      следующий owner-checkpoint после deploy; `[ ]` честно до живого прогона.
+      следующий owner-checkpoint после deploy; `[ ]` честно до **owner UI-прогона** (глазами в кабинете/конструкторе).
+      **DB/API-доказательство на TEST после deploy `0e14d534c` (05.08, агент):**
+      - deploy exit 0 подтверждён; `https://test.bersoncare.ru/api/health` → 200; dev-bypass по-прежнему без cookie.
+      - UI/fixture-путь **заблокирован:** `platform_users` с `%saas-fixture%` = **0**; `pnpm --dir apps/webapp run seed:saas-test-walkthrough`
+        под `sudo` + `webapp.test` + `saas-test-fixture.env` → `permission denied for table platform_users` (роль
+        `bcb_test_worker_login`); `mint-smoke-session --check` → `refs_fixture_missing`.
+      - **Живой PostgreSQL на `bersoncarebot_test`** (`sudo -u postgres psql -d bersoncarebot_test`, транзакция с
+        `ROLLBACK`): org `da6a96cb-8e94-4ec2-99da-2258bda0ce4d`, тариф с `system_access_policy` graceDays=7 /
+        readOnlyDays=3 / terminalState=`disabled`, триал `post_trial_behavior='blocked'`, principal через
+        `app.principal_context` + `SET LOCAL ROLE app_staff`, якорь `saas_organization_trials.ends_at` сдвинут
+        `now()-1d` / `-8d` / `-11d`:
+        - `grace_cabinet` → `state=grace`, `next_state=read_only`; `grace_mechanic_booking` → `grace`, `mutation_allowed=t`
+        - `read_only_cabinet` → `read_only`; `read_only_mechanic_booking` → `read_only`, `mutation_allowed=f`
+        - `disabled_cabinet` → `disabled`; `disabled_mechanic_booking` → `disabled`, `mutation_allowed=f`
+      - Полный протокол: `docs/_TODO/runs/tariff/S7_3_TEST_LADDER_RUN.md` §«Прогон 05.08».
+      - **Не закрывает 7.3:** баннер/отказы/пациентская сторона/число (quota) — только резолверы; owner-password UI
+        или seed global-admin@saas-fixture.test всё ещё нужны для галочки «увидеть».
 - [ ] **7.4** Владелец смотрит конструктор и подтверждает, что понятно, что и на сколько он настраивает.
       **Pre-TEST gate:** owner sign-off; `[ ]` до подтверждения владельца.
 
