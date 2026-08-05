@@ -277,7 +277,7 @@ function PlatformPaymentsSummarySection({
                       {row.invoiceKind === 'seat_overage' ? 'Дополнительные места' : row.tariffName}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
-                      {BILLING_PERIOD_LABELS[row.tariffBillingPeriod]}
+                      {BILLING_PERIOD_LABELS(row.tariffBillingPeriod)}
                     </td>
                     <td className="px-3 py-2">{row.count}</td>
                     <td className="px-3 py-2 font-medium">
@@ -700,7 +700,7 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
     );
     setCurrency((prev) => selectedTariff.currency ?? prev);
     setDescription((prev) =>
-      prev ? prev : `${selectedTariff.name}, ${BILLING_PERIOD_LABELS[selectedTariff.billingPeriod]}`,
+      prev ? prev : `${selectedTariff.name}, ${BILLING_PERIOD_LABELS(selectedTariff.billingPeriod)}`,
     );
   }, [selectedTariff]);
 

@@ -38,9 +38,9 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
       PROTECTED_ACTION_MAPPINGS.some(
         (mapping) =>
           mapping.id === 'mechanic-settings.patch' &&
-          (Array.isArray(mapping.mechanic)
-            ? mapping.mechanic.includes('custom_domain')
-            : mapping.mechanic === 'custom_domain'),
+          (Array.isArray(mapping.mechanic) ? mapping.mechanic : [mapping.mechanic]).some(
+            (m) => m === 'custom_domain',
+          ),
       ),
     ).toBe(true);
     expect(PROTECTED_ACTION_MAPPINGS.map((mapping) => mapping.id)).not.toContain(

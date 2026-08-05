@@ -57,5 +57,5 @@ export async function applyPlatformUserPhoneHistoryTransition(
       db,
     );
   }
-  await syncUserContactsMirrorWebapp(client, opts.platformUserId);
+  await syncUserContactsMirrorWebapp(db, opts.platformUserId);
 }

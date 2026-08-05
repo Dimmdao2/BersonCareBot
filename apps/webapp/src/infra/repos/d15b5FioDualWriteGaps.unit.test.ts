@@ -128,7 +128,7 @@ describe('D15b/5 MF-2 — pgOAuthUserResolve createOAuthPlatformUser dual-write'
       phoneNorm: null,
       display: 'Иван Иванов',
       emailRaw: 'ivan@example.com',
-      emailVerifiedAt: new Date().toISOString(),
+      emailVerifiedAt: new Date(),
     });
 
     expect(userId).toBe(OAUTH_USER_ID);
