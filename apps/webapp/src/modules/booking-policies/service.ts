@@ -12,13 +12,38 @@ import {
   type ReschedulePolicy,
 } from './types';
 
-export function createBookingPoliciesService(port: BookingPoliciesPort) {
+type BookingPoliciesServiceDependencies = {
+  /**
+   * 3.2: physically refuses a `booking` write unless a passing mutation decision already ran in
+   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'booking') => void;
+};
+
+export function createBookingPoliciesService(
+  port: BookingPoliciesPort,
+  dependencies: BookingPoliciesServiceDependencies = {},
+) {
+  function assertBookingWriteClearance(): void {
+    dependencies.assertWriteClearance?.('booking');
+  }
+
   return {
     listCancellationPolicies: (organizationId: string) =>
       port.listCancellationPolicies(organizationId),
     listReschedulePolicies: (organizationId: string) => port.listReschedulePolicies(organizationId),
-    upsertCancellationPolicy: port.upsertCancellationPolicy.bind(port),
-    upsertReschedulePolicy: port.upsertReschedulePolicy.bind(port),
+    async upsertCancellationPolicy(
+      input: Parameters<BookingPoliciesPort['upsertCancellationPolicy']>[0],
+    ) {
+      assertBookingWriteClearance();
+      return port.upsertCancellationPolicy(input);
+    },
+    async upsertReschedulePolicy(
+      input: Parameters<BookingPoliciesPort['upsertReschedulePolicy']>[0],
+    ) {
+      assertBookingWriteClearance();
+      return port.upsertReschedulePolicy(input);
+    },
     resolveCancellationPolicy: (ctx: PolicyAppointmentContext) =>
       port.resolveCancellationPolicy(ctx),
     resolveReschedulePolicy: (ctx: PolicyAppointmentContext) => port.resolveReschedulePolicy(ctx),

@@ -1120,10 +1120,23 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       src/modules/booking-scheduling/service.mechanicWriteClearance.test.ts
       src/modules/reminders/service.mechanicWriteClearance.test.ts
       src/modules/treatment-program/instance-service.mechanicWriteClearance.test.ts` — 4 файла / 15 тестов PASS.
-      **Ещё открыто (§3.2):** booking tail без guard/door: `policies`, `form-fields`, `scheduling-settings`,
-      `specialist-rooms`, `organizations` POST. Намеренно без двери: `patient_card`, `patient_app`, `patient_diaries`;
-      `exercise_catalog`/`exercise_packages` — owner 05.08: клинические каталоги ЛФК не режутся тарифом, только
-      platform-library visibility; `patient_app_paid_subscription` — store-deferred.
+      **Добор 05.08 (#1069, booking tail closure):** service-двери на `bookingPolicies`
+      (`upsertCancellationPolicy`/`upsertReschedulePolicy`), `bookingForm.upsertAdminField`,
+      `bookingEngine.organization.upsertOrganization`; route-guards на `policies` POST, `form-fields`
+      POST, `scheduling-settings` PUT, `specialist-rooms` POST, `organizations` POST;
+      `booking_min_notice_hours`/`booking_max_consecutive_slot_hours` → `booking` в
+      `mechanicSettingsWriteClearance` (scheduling-settings PUT пишет их через `systemSettings`).
+      `setSpecialistRoom` — дверь уже была на catalog, добавлен только route-guard. Доказательство:
+      `pnpm --dir apps/webapp exec vitest run
+      src/modules/booking-policies/service.mechanicWriteClearance.test.ts
+      src/modules/booking-form/service.mechanicWriteClearance.test.ts
+      src/modules/booking-engine/service.mechanicWriteClearance.test.ts
+      src/app-layer/entitlements/mechanicSettingsWriteClearance.mechanicWriteClearance.test.ts
+      src/app/api/admin/booking-engine/policies/route.route.test.ts` — 5 файлов / 11 тестов PASS.
+      **Ещё открыто (§3.2):** нет — booking tail из census закрыт. Намеренно без двери:
+      `patient_card`, `patient_app`, `patient_diaries`; `exercise_catalog`/`exercise_packages` —
+      owner 05.08: клинические каталоги ЛФК не режутся тарифом, только platform-library visibility;
+      `patient_app_paid_subscription` — store-deferred.
       **Закрыто 05.08 (#1069):** `custom_domain` — per-org ключ `org_custom_domain_hostname`, PATCH
       `/api/admin/settings` + `assertMechanicWriteClearance('custom_domain')`; снят с `DECLARED_NO_SURFACE`.
 - [ ] **3.3** Реестр защищённых точек перестаёт врать: ни одного исключения, прикрывающего реальную запись. Ложное

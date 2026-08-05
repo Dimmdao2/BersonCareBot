@@ -707,7 +707,11 @@ const bookingCalendarService =
 const clientHistoryPort = !inMemoryRepos ? createPgClientHistoryPort() : inMemoryClientHistoryPort;
 const clientHistoryService = createClientHistoryService(clientHistoryPort);
 const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
-const bookingFormService = bookingFormPort ? createBookingFormService(bookingFormPort) : null;
+const bookingFormService = bookingFormPort
+  ? createBookingFormService(bookingFormPort, {
+      assertWriteClearance: assertMechanicWriteClearance,
+    })
+  : null;
 const patientMergeCandidatePort = !inMemoryRepos ? createPgPatientMergeCandidatePort() : null;
 const patientMergeCandidateService = patientMergeCandidatePort
   ? createPatientMergeCandidateService(patientMergeCandidatePort)
@@ -718,7 +722,9 @@ const platformUserContactsPort = !inMemoryRepos
 const platformUserContactsService = createPlatformUserContactsService(platformUserContactsPort);
 const bookingPoliciesPort = !inMemoryRepos ? createPgBookingPoliciesPort() : null;
 const bookingPoliciesService = bookingPoliciesPort
-  ? createBookingPoliciesService(bookingPoliciesPort)
+  ? createBookingPoliciesService(bookingPoliciesPort, {
+      assertWriteClearance: assertMechanicWriteClearance,
+    })
   : null;
 const bookingAppointmentLifecyclePort = !inMemoryRepos
   ? createPgBookingAppointmentLifecyclePort()

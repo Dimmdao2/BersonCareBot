@@ -215,13 +215,20 @@ export function createBookingEngineService(
 
   return {
     ...engine,
-    organization: createOrganizationFacade(port),
+    organization: createOrganizationFacade(port, dependencies),
     catalog: createCatalogFacade(port, dependencies),
     services: createServiceAvailabilityFacade(port, dependencies),
   };
 }
 
-function createOrganizationFacade(port: OrganizationPort) {
+function createOrganizationFacade(
+  port: OrganizationPort,
+  dependencies: BookingEngineServiceDependencies,
+) {
+  function assertBookingWriteClearance(): void {
+    dependencies.assertWriteClearance?.('booking');
+  }
+
   return {
     getDefaultOrganizationId: () => port.getDefaultOrganizationId(),
     getOrganization: (id: string) => {
@@ -229,7 +236,10 @@ function createOrganizationFacade(port: OrganizationPort) {
       return port.getOrganization(id);
     },
     listOrganizations: () => port.listOrganizations(),
-    upsertOrganization: port.upsertOrganization.bind(port),
+    async upsertOrganization(input: Parameters<OrganizationPort['upsertOrganization']>[0]) {
+      assertBookingWriteClearance();
+      return port.upsertOrganization(input);
+    },
   };
 }
 

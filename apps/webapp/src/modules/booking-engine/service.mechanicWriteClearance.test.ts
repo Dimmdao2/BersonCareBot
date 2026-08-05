@@ -75,7 +75,7 @@ function buildCatalogService() {
     assertWriteClearance: assertMechanicWriteClearance,
     getLocationPaletteSetting: async () => ({ physicalPalette: ['#AABBCC'], online: '#112233' }),
   });
-  return { service, createPhysicalBranchWithDefaultColor, upsertService, upsertSpecialist };
+  return { service, createPhysicalBranchWithDefaultColor, upsertService, upsertSpecialist, port };
 }
 
 describe('booking-engine catalog — 3.2 physical door (branches)', () => {
@@ -189,5 +189,39 @@ describe('booking-engine services — 3.2 physical door (booking)', () => {
       ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
     });
     expect(upsertSpecialist).not.toHaveBeenCalled();
+  });
+});
+
+describe('booking-engine organization — 3.2 physical door (booking)', () => {
+  it('refuses upsertOrganization when no booking mutation decision ran first', async () => {
+    const { service, port } = buildCatalogService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        service.organization.upsertOrganization({
+          id: ORG_ID,
+          title: 'Клиника',
+          isActive: true,
+          sortOrder: 0,
+        }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(port.upsertOrganization).not.toHaveBeenCalled();
+  });
+});
+
+describe('booking-engine specialist-rooms — 3.2 physical door (booking)', () => {
+  it('refuses setSpecialistRoom when no booking mutation decision ran first', async () => {
+    const { service, port } = buildCatalogService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        service.catalog.setSpecialistRoom({
+          organizationId: ORG_ID,
+          specialistId: '22222222-2222-4222-8222-222222222222',
+          roomId: '33333333-3333-4333-8333-333333333333',
+          isActive: true,
+        }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(port.setSpecialistRoom).not.toHaveBeenCalled();
   });
 });

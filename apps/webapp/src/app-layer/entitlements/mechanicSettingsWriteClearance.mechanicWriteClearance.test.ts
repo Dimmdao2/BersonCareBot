@@ -24,6 +24,29 @@ function buildWrappedService() {
 }
 
 describe('tariff mechanic settings write clearance — 3.2 physical door', () => {
+  it('refuses booking_min_notice_hours write without booking clearance', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        wrapped.updateSetting('booking_min_notice_hours', 'admin', { value: 2 }, 'user-1', {
+          organizationId: 'org-1',
+        }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('proceeds for booking_min_notice_hours once booking was cleared', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      enterWithMechanicWriteClearance('booking');
+      await wrapped.updateSetting('booking_min_notice_hours', 'admin', { value: 2 }, 'user-1', {
+        organizationId: 'org-1',
+      });
+    });
+    expect(updateSetting).toHaveBeenCalledOnce();
+  });
+
   it('refuses booking_payment_enabled write without payments clearance', async () => {
     const { wrapped, updateSetting } = buildWrappedService();
     await runWithoutMechanicWriteClearance(async () => {

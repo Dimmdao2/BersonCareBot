@@ -1,7 +1,22 @@
 import type { BookingFormPort, BookingFormService } from './ports';
 import { validateBookingFormAnswers } from './validateAnswers';
 
-export function createBookingFormService(port: BookingFormPort): BookingFormService {
+type BookingFormServiceDependencies = {
+  /**
+   * 3.2: physically refuses a `booking` write unless a passing mutation decision already ran in
+   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'booking') => void;
+};
+
+export function createBookingFormService(
+  port: BookingFormPort,
+  dependencies: BookingFormServiceDependencies = {},
+): BookingFormService {
+  function assertBookingWriteClearance(): void {
+    dependencies.assertWriteClearance?.('booking');
+  }
+
   return {
     async validateAnswers(organizationId, audience, answers, profilePrefill) {
       const fields = await port.listActiveFields(organizationId, audience);
@@ -20,7 +35,8 @@ export function createBookingFormService(port: BookingFormPort): BookingFormServ
       return port.listAllFieldsAdmin(organizationId);
     },
 
-    upsertAdminField(organizationId, input) {
+    async upsertAdminField(organizationId, input) {
+      assertBookingWriteClearance();
       return port.upsertFieldAdmin(organizationId, input);
     },
   };

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 
@@ -70,6 +71,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const parsed = upsertBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
