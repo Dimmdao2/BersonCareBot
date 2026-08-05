@@ -364,25 +364,15 @@ export async function loadDoctorTodayDashboard(
   const clientAudience = scopedAudience;
   const [
     todayRaw,
-    weekRaw,
-    monthRaw,
     unreadConversations,
     unreadTotal,
     onSupportListRaw,
   ] = await Promise.all([
-    // #9: use statsRange so cancelled appointments are included in today/week lists
-    // (statsRange = same date window as range, but no status filter → includes cancelled)
+    // #9: use statsRange so cancelled appointments are included in today lists
     deps.doctorAppointments.listAppointmentsForSpecialist(
       { kind: 'statsRange', range: 'today' },
       scopedAudience,
     ),
-    deps.doctorAppointments.listAppointmentsForSpecialist(
-      { kind: 'statsRange', range: 'week' },
-      scopedAudience,
-    ),
-    deps.loadMonthAppointments
-      ? deps.loadMonthAppointments()
-      : Promise.resolve([] as AppointmentRow[]),
     deps.messaging.doctorSupport.listOpenConversations({
       unreadOnly: true,
       limit: 3,
@@ -398,6 +388,11 @@ export async function loadDoctorTodayDashboard(
       clientAudience,
     ),
   ]);
+
+  // Week/month lists are only needed for the owner-deferred right KPI row.
+  // Keep empty arrays on the first-screen path to avoid extra appointment scans.
+  const weekRaw: AppointmentRow[] = [];
+  const monthRaw: AppointmentRow[] = [];
 
   const peopleListRaw =
     preferences.peopleListMode === 'recent_visits'

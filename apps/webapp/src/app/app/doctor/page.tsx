@@ -1,6 +1,7 @@
 /**
  * Главная страница кабинета специалиста («/app/doctor») — экран «Сегодня».
  */
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -10,8 +11,6 @@ import {
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { loadAdminRegistrationFailureAttention } from '@/app-layer/product-analytics/loadAdminRegistrationFailureAttention';
-import { loadAdminDoctorTodayHealthBanner } from '@/modules/operator-health/adminDoctorTodayHealthBanner';
 import { deriveWorkingBounds, pickWorkingHours } from '@/modules/booking-scheduling/computeSlots';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
@@ -26,6 +25,9 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { doctorSectionCardClass } from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
+import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
 import { DoctorTodayDashboard } from './DoctorTodayDashboard';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
 
@@ -82,6 +84,82 @@ async function loadTodayWorkingBounds(
   }
 }
 
+function DoctorTodayDashboardFallback() {
+  return (
+    <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
+      <div className="h-5 w-32 animate-pulse rounded-md bg-muted" />
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="h-40 animate-pulse rounded-lg bg-muted/70" />
+        <div className="h-40 animate-pulse rounded-lg bg-muted/70" />
+      </div>
+      <span className="sr-only">Загрузка…</span>
+    </div>
+  );
+}
+
+async function DoctorTodayDashboardSection({
+  workspace,
+}: {
+  workspace: Awaited<ReturnType<typeof requireOrganizationWorkspaceContext>>;
+}) {
+  const session = workspace.session;
+  const deps = buildAppDeps();
+
+  const [displayIana, audience, todayPreferencesRow, specialistTasksAvailability, specialistTasksRead] =
+    await Promise.all([
+      getAppDisplayTimeZone(),
+      loadDoctorAnalyticsAudience(),
+      deps.systemSettings.getSetting(DOCTOR_TODAY_PREFERENCES_KEY, 'doctor', {
+        organizationId: workspace.organizationId,
+      }),
+      getMechanicMutationAvailability(workspace, 'specialist_tasks'),
+      requireEntitlementForReadAction(workspace, 'specialist_tasks'),
+    ]);
+
+  const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
+  const specialistTasksAvailable = specialistTasksAvailability.available;
+  const specialistTasksReadable = specialistTasksRead.ok;
+  const workspaceAudience = {
+    includeTestAccounts: audience.includeTestAccounts,
+    excludedUserIds: audience.excludedUserIds,
+    organizationId: workspace.organizationId,
+  };
+
+  const [data, todayWorkingBounds] = await Promise.all([
+    withDoctorWorkspacePrincipal(workspace, () =>
+      loadDoctorTodayDashboard(
+        {
+          doctorAppointments: deps.doctorAppointments,
+          doctorClients: deps.doctorClientsPort,
+          messaging: deps.messaging,
+          specialistTasks: specialistTasksReadable ? deps.specialistTasks : undefined,
+          specialistOwnerUserId: specialistTasksReadable ? session.user.userId : undefined,
+          doctorUserId: session.user.userId,
+          organizationId: workspace.organizationId,
+          treatmentProgramProgress: deps.treatmentProgramProgress,
+          treatmentProgramInstance: deps.treatmentProgramInstance,
+          programItemDiscussion: deps.programItemDiscussion,
+          programActionLog: deps.programActionLog,
+          displayIana,
+        },
+        workspaceAudience,
+        todayPreferences,
+      ),
+    ),
+    loadTodayWorkingBounds(deps, displayIana, workspace.organizationId),
+  ]);
+
+  return (
+    <DoctorTodayDashboard
+      data={data}
+      displayIana={displayIana}
+      todayWorkingBounds={todayWorkingBounds}
+      specialistTasksAvailable={specialistTasksAvailable}
+      specialistTasksReadable={specialistTasksReadable}
+    />
+  );
+}
+
 export default async function DoctorPage() {
   const workspace = await requireOrganizationWorkspaceContext();
   const session = workspace.session;
@@ -103,85 +181,15 @@ export default async function DoctorPage() {
       </DoctorAppShell>
     );
   }
-  const deps = buildAppDeps();
-  const displayIana = await getAppDisplayTimeZone();
-  const audience = await loadDoctorAnalyticsAudience();
-  const todayPreferencesRow = await deps.systemSettings.getSetting(
-    DOCTOR_TODAY_PREFERENCES_KEY,
-    'doctor',
-    { organizationId: workspace.organizationId },
-  );
-  const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
-  const [specialistTasksAvailability, specialistTasksRead] = await Promise.all([
-    getMechanicMutationAvailability(workspace, 'specialist_tasks'),
-    requireEntitlementForReadAction(workspace, 'specialist_tasks'),
-  ]);
-  const specialistTasksAvailable = specialistTasksAvailability.available;
-  const specialistTasksReadable = specialistTasksRead.ok;
-  const workspaceAudience = {
-    includeTestAccounts: audience.includeTestAccounts,
-    excludedUserIds: audience.excludedUserIds,
-    organizationId: workspace.organizationId,
-  };
-  const [data, kpiStats, dashboardMetrics, todayWorkingBounds] = await Promise.all([
-    withDoctorWorkspacePrincipal(workspace, () =>
-      loadDoctorTodayDashboard(
-        {
-          doctorAppointments: deps.doctorAppointments,
-          doctorClients: deps.doctorClientsPort,
-          messaging: deps.messaging,
-          specialistTasks: specialistTasksReadable ? deps.specialistTasks : undefined,
-          specialistOwnerUserId: specialistTasksReadable ? session.user.userId : undefined,
-          doctorUserId: session.user.userId,
-          organizationId: workspace.organizationId,
-          treatmentProgramProgress: deps.treatmentProgramProgress,
-          treatmentProgramInstance: deps.treatmentProgramInstance,
-          programItemDiscussion: deps.programItemDiscussion,
-          programActionLog: deps.programActionLog,
-          displayIana,
-          loadMonthAppointments: () =>
-            deps.doctorAppointments.listAppointmentsForSpecialist(
-              { kind: 'recordsInCalendarMonth' },
-              workspaceAudience,
-            ),
-        },
-        workspaceAudience,
-        todayPreferences,
-      ),
-    ),
-    deps.doctorStats.getStats(workspaceAudience),
-    deps.doctorAppointments.getDashboardAppointmentMetrics({
-      excludedUserIds: audience.excludedUserIds,
-      organizationId: workspace.organizationId,
-    }),
-    // §1.2: рабочие границы сегодняшнего дня для мини-календаря
-    loadTodayWorkingBounds(deps, displayIana, workspace.organizationId),
-  ]);
-  const [adminHealthBanner, adminRegistrationFailureBanner] =
-    session.user.role === 'admin'
-      ? await Promise.all([
-          loadAdminDoctorTodayHealthBanner(),
-          loadAdminRegistrationFailureAttention(),
-        ])
-      : [undefined, undefined];
 
   return (
     <DoctorAppShell title="Сегодня" user={session.user}>
-      <DoctorTodayDashboard
-        data={data}
-        kpiStats={kpiStats}
-        // #9: count == modal list count. lists now include cancelled (statsRange).
-        // Derive counts directly from the list so card and modal always agree.
-        appointmentsTodayCount={data.todayAppointments.length}
-        weekAppointmentsCount={data.weekAppointments.length}
-        monthAppointmentCount={dashboardMetrics.recordsInCalendarMonthTotal}
-        displayIana={displayIana}
-        adminHealthBanner={adminHealthBanner}
-        adminRegistrationFailureBanner={adminRegistrationFailureBanner}
-        todayWorkingBounds={todayWorkingBounds}
-        specialistTasksAvailable={specialistTasksAvailable}
-        specialistTasksReadable={specialistTasksReadable}
-      />
+      <div className="flex flex-col gap-3">
+        {session.user.role === 'admin' ? <DoctorTodayAdminBannersSuspense /> : null}
+        <Suspense fallback={<DoctorTodayDashboardFallback />}>
+          <DoctorTodayDashboardSection workspace={workspace} />
+        </Suspense>
+      </div>
     </DoctorAppShell>
   );
 }

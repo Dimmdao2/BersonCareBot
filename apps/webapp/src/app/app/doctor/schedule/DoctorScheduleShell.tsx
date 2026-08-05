@@ -103,6 +103,8 @@ export type DoctorScheduleShellProps = {
   scheduleScopeBootstrap: DoctorScheduleScopeBootstrap;
   /** Server-resolved visibility of clinic statistics and booking attribution. */
   doctorStatisticsEnabled: boolean;
+  /** SSR bootstrap for the initially visible tab only (e.g. cal feed/KPI/settings). */
+  initialTabData?: Partial<Record<ScheduleTabId, unknown>>;
 };
 
 /**
@@ -125,6 +127,7 @@ export function DoctorScheduleShell({
   paymentsReadOnly,
   scheduleScopeBootstrap,
   doctorStatisticsEnabled,
+  initialTabData,
 }: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
     if (initialTab) return initialTab;
@@ -137,7 +140,8 @@ export function DoctorScheduleShell({
   const [activeTab, setActiveTab] = useState<ScheduleTabId>(resolvedInit);
   const activeTabRef = useRef(activeTab);
 
-  const [mountedTabs, setMountedTabs] = useState<ReadonlySet<ScheduleTabId>>(
+  // Mount on first visit, keep mounted while hidden (visitedTabs / keepMounted).
+  const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<ScheduleTabId>>(
     () => new Set<ScheduleTabId>([resolvedInit]),
   );
 
@@ -166,7 +170,7 @@ export function DoctorScheduleShell({
       const params = new URLSearchParams(window.location.search);
       const tab = scheduleTabFromQuery(params.get('tab'));
       setActiveTab(tab);
-      setMountedTabs((prev) => new Set([...prev, tab]));
+      setVisitedTabs((prev) => new Set([...prev, tab]));
       setDeepLinks(readDeepLinksFromSearchParams(params));
     };
     window.addEventListener('popstate', handlePopState);
@@ -191,7 +195,7 @@ export function DoctorScheduleShell({
   const handleTabChange = useCallback(
     (tabId: ScheduleTabId) => {
       setActiveTab(tabId);
-      setMountedTabs((prev) => new Set([...prev, tabId]));
+      setVisitedTabs((prev) => new Set([...prev, tabId]));
       window.history.replaceState(null, '', buildTabUrl(tabId, deepLinksRef.current[tabId] ?? {}));
     },
     [buildTabUrl],
@@ -227,7 +231,7 @@ export function DoctorScheduleShell({
         tabs={<ScheduleTabsNav activeTab={activeTab} onTabClick={handleTabChange} />}
       />
       {SCHEDULE_TAB_REGISTRY.map((entry) => {
-        if (!mountedTabs.has(entry.id)) return null;
+        if (!visitedTabs.has(entry.id)) return null;
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;
         return (
@@ -240,7 +244,7 @@ export function DoctorScheduleShell({
             <TabComponent
               deepLinkParams={deepLinks[tabId] ?? {}}
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}
-              initialData={undefined}
+              initialData={initialTabData?.[tabId]}
               isActive={tabId === activeTab}
               initialTimeZone={initialTimeZone}
               paymentsVisible={paymentsVisible}

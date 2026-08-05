@@ -61,6 +61,21 @@ import {
   type DoctorScheduleScopeState,
   type ResolvedDoctorScheduleScope,
 } from '@/modules/doctor-schedule/scope';
+import {
+  isScheduleCalendarBootstrap,
+  type ScheduleCalendarFeedSnapshot,
+} from '../loadDoctorScheduleCalendarBootstrap';
+import {
+  resolveScheduleCalAnchorDate,
+  resolveScheduleCalView,
+  visibleRange,
+  type ScheduleCalV26View,
+} from '../scheduleCalendarRange';
+import {
+  DEFAULT_CALENDAR_SETTINGS,
+  parseCalendarDoctorSettings,
+  type CalendarDoctorSettings,
+} from '../scheduleCalendarSettings';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -88,7 +103,7 @@ function rescheduleErrorLabel(error: string | undefined): string {
 
 // View types for the v26 calendar tab switcher (3days / weekgrid / month / day(drill-down))
 // "feed" removed in batch-1
-type CalV26View = '3days' | 'weekgrid' | 'month' | 'day';
+type CalV26View = ScheduleCalV26View;
 
 // Render mode: calendar (FullCalendar) or list (grouped by day)
 type RenderMode = 'calendar' | 'list';
@@ -97,17 +112,8 @@ type RenderMode = 'calendar' | 'list';
 // Types
 // ---------------------------------------------------------------------------
 
-type CalendarResponse = {
+type CalendarResponse = Omit<ScheduleCalendarFeedSnapshot, 'ok'> & {
   ok: boolean;
-  view: string;
-  anchorDate: string;
-  timeZone: string;
-  events: CalendarEvent[];
-  filters: CalendarFilterMeta;
-  readSource?: 'canonical';
-  showWorkingHours: boolean;
-  workingBounds?: WorkingBounds | null;
-  resolvedScope: ResolvedDoctorScheduleScope;
   error?: string;
 };
 
@@ -116,25 +122,9 @@ type NearestWindowResponse = {
   window: { from: string; to: string } | null;
 };
 
-type CalendarDoctorSettings = {
-  defaultWindowStartMinute: number;
-  defaultWindowEndMinute: number;
-  defaultBranchId: string | null;
-  defaultServiceId: string | null;
-  defaultSpecialistId: string | null;
-};
-
 type CalendarDraftSlot = {
   start: string;
   end: string;
-};
-
-const DEFAULT_CALENDAR_SETTINGS: CalendarDoctorSettings = {
-  defaultWindowStartMinute: DEFAULT_WINDOW_MIN,
-  defaultWindowEndMinute: DEFAULT_WINDOW_MAX,
-  defaultBranchId: null,
-  defaultServiceId: null,
-  defaultSpecialistId: null,
 };
 
 const EMPTY_SCHEDULE_SCOPE_BOOTSTRAP: DoctorScheduleScopeBootstrap = {
@@ -173,60 +163,6 @@ function toFcDate(value: string, zone: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: visibleRange
-// ---------------------------------------------------------------------------
-
-/**
- * Вычисляет видимый диапазон для каждого вида.
- * Это единый источник истины для KPI и list-view.
- */
-export function visibleRange(
-  view: CalV26View,
-  anchor: string,
-  tz: string,
-): { from: string; to: string } {
-  const dt = DateTime.fromISO(anchor, { zone: tz });
-
-  if (view === '3days') {
-    // Сегодня + 2 дня вперёд
-    const from = dt.startOf('day');
-    const to = dt.startOf('day').plus({ days: 3 });
-    return {
-      from: from.toISO() ?? anchor,
-      to: to.toISO() ?? anchor,
-    };
-  }
-
-  if (view === 'weekgrid') {
-    // Пн–вс
-    const from = dt.startOf('week'); // Luxon: пн=1
-    const to = dt.endOf('week').startOf('day').plus({ days: 1 });
-    return {
-      from: from.toISO() ?? anchor,
-      to: to.toISO() ?? anchor,
-    };
-  }
-
-  if (view === 'month') {
-    // 1-е..последнее (календарный месяц; overflow-дни не входят)
-    const from = dt.startOf('month');
-    const to = dt.endOf('month').startOf('day').plus({ days: 1 });
-    return {
-      from: from.toISO() ?? anchor,
-      to: to.toISO() ?? anchor,
-    };
-  }
-
-  // day
-  const from = dt.startOf('day');
-  const to = dt.startOf('day').plus({ days: 1 });
-  return {
-    from: from.toISO() ?? anchor,
-    to: to.toISO() ?? anchor,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Helper: period label
 // ---------------------------------------------------------------------------
 
@@ -262,21 +198,12 @@ function periodLabel(view: CalV26View, anchorDate: string, zone: string): string
 // Helper: resolve view from deep-link
 // ---------------------------------------------------------------------------
 
-function resolveView(raw: string | undefined): CalV26View {
-  if (raw === '3days' || raw === 'weekgrid' || raw === 'month' || raw === 'day') return raw;
-  // Owner ruling 2026-07-18 (OWNER_REVIEW §3): clean desktop entry/reload defaults to
-  // week, not 3 days, when no explicit view is chosen via deep-link.
-  return 'weekgrid';
-}
+const resolveView = resolveScheduleCalView;
+const resolveAnchorDate = resolveScheduleCalAnchorDate;
 
 function resolveRenderMode(raw: string | undefined): RenderMode {
   if (raw === 'list') return 'list';
   return 'calendar';
-}
-
-function resolveAnchorDate(raw: string | undefined, timeZone: string): string {
-  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  return DateTime.now().setZone(timeZone).toISODate() ?? '2026-01-01';
 }
 
 function buildQuery(params: Record<string, string | null | undefined>): string {
@@ -290,47 +217,6 @@ function buildQuery(params: Record<string, string | null | undefined>): string {
 // ---------------------------------------------------------------------------
 // Helper: slot min/max from workingBounds
 // ---------------------------------------------------------------------------
-
-function getSettingValue(rows: Array<{ key: string; valueJson: unknown }>, key: string): unknown {
-  const valueJson = rows.find((row) => row.key === key)?.valueJson;
-  if (valueJson && typeof valueJson === 'object' && 'value' in valueJson) {
-    return (valueJson as { value?: unknown }).value;
-  }
-  return null;
-}
-
-function parseCalendarDoctorSettings(
-  rows: Array<{ key: string; valueJson: unknown }>,
-): CalendarDoctorSettings {
-  const windowValue = getSettingValue(rows, 'booking_calendar_default_window');
-  let defaultWindowStartMinute = DEFAULT_WINDOW_MIN;
-  let defaultWindowEndMinute = DEFAULT_WINDOW_MAX;
-  if (windowValue && typeof windowValue === 'object') {
-    const obj = windowValue as { startMinute?: unknown; endMinute?: unknown };
-    if (typeof obj.startMinute === 'number' && typeof obj.endMinute === 'number') {
-      defaultWindowStartMinute = Math.max(0, Math.min(1439, Math.round(obj.startMinute)));
-      defaultWindowEndMinute = Math.max(
-        defaultWindowStartMinute + 30,
-        Math.min(24 * 60, Math.round(obj.endMinute)),
-      );
-    }
-  }
-  const defaultBranchRaw = getSettingValue(rows, 'booking_calendar_default_branch_id');
-  const defaultServiceRaw = getSettingValue(rows, 'booking_calendar_default_service_id');
-  const defaultSpecialistRaw = getSettingValue(rows, 'booking_calendar_default_specialist_id');
-  return {
-    defaultWindowStartMinute,
-    defaultWindowEndMinute,
-    defaultBranchId:
-      typeof defaultBranchRaw === 'string' && defaultBranchRaw.trim() ? defaultBranchRaw : null,
-    defaultServiceId:
-      typeof defaultServiceRaw === 'string' && defaultServiceRaw.trim() ? defaultServiceRaw : null,
-    defaultSpecialistId:
-      typeof defaultSpecialistRaw === 'string' && defaultSpecialistRaw.trim()
-        ? defaultSpecialistRaw
-        : null,
-  };
-}
 
 /**
  * Диапазон часовой сетки = дефолтное окно 09:00–19:00, которое при необходимости
@@ -858,26 +744,39 @@ function RightPanelEmptyStub({ branchId, scheduleScope }: RightPanelEmptyStubPro
 export function ScheduleCalendarTab({
   deepLinkParams,
   onDeepLinkChange,
+  initialData,
   isActive,
   initialTimeZone,
   scheduleScopeBootstrap,
   doctorStatisticsEnabled,
 }: ScheduleTabProps) {
+  const bootstrap = isScheduleCalendarBootstrap(initialData) ? initialData : null;
+  const skipInitialClientLoadRef = useRef(Boolean(bootstrap));
+  const settingsSeededRef = useRef(Boolean(bootstrap));
+
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
-  const [view, setViewState] = useState<CalV26View>(() => resolveView(deepLinkParams.view));
-  const [anchorDate, setAnchorDateState] = useState<string>(() =>
-    resolveAnchorDate(deepLinkParams.date, timeZone),
+  const [view, setViewState] = useState<CalV26View>(
+    () => bootstrap?.view ?? resolveView(deepLinkParams.view),
   );
-  const [branchId, setBranchIdState] = useState<string | null>(deepLinkParams.location ?? null);
-  const [serviceId, setServiceIdState] = useState<string | null>(deepLinkParams.service ?? null);
+  const [anchorDate, setAnchorDateState] = useState<string>(
+    () => bootstrap?.anchorDate ?? resolveAnchorDate(deepLinkParams.date, timeZone),
+  );
+  const [branchId, setBranchIdState] = useState<string | null>(
+    () => bootstrap?.branchId ?? deepLinkParams.location ?? null,
+  );
+  const [serviceId, setServiceIdState] = useState<string | null>(
+    () => bootstrap?.serviceId ?? deepLinkParams.service ?? null,
+  );
   const scopeBootstrap = scheduleScopeBootstrap ?? EMPTY_SCHEDULE_SCOPE_BOOTSTRAP;
-  const [scheduleScope, setScheduleScope] = useState<DoctorScheduleScopeState>(() =>
-    resolveDoctorScheduleScopeState(
-      scopeBootstrap,
-      deepLinkParams.scope,
-      deepLinkParams.specialist,
-    ),
+  const [scheduleScope, setScheduleScope] = useState<DoctorScheduleScopeState>(
+    () =>
+      bootstrap?.scheduleScope ??
+      resolveDoctorScheduleScopeState(
+        scopeBootstrap,
+        deepLinkParams.scope,
+        deepLinkParams.specialist,
+      ),
   );
   // drill-down: where to go back after drill-down day ("from" deep-link)
   const [drillBackView, setDrillBackView] = useState<CalV26View | null>(
@@ -889,9 +788,9 @@ export function ScheduleCalendarTab({
   );
 
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
-  const [data, setData] = useState<CalendarResponse | null>(null);
+  const [data, setData] = useState<CalendarResponse | null>(() => bootstrap?.calendar ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [kpis, setKpis] = useState<ScheduleKpis | null>(null);
+  const [kpis, setKpis] = useState<ScheduleKpis | null>(() => bootstrap?.kpis ?? null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
@@ -907,8 +806,9 @@ export function ScheduleCalendarTab({
   const [draftSlot, setDraftSlot] = useState<CalendarDraftSlot | null>(null);
   const [createFormDirty, setCreateFormDirty] = useState(false);
   const lastSelectAtRef = useRef(0);
-  const [calendarSettings, setCalendarSettings] =
-    useState<CalendarDoctorSettings>(DEFAULT_CALENDAR_SETTINGS);
+  const [calendarSettings, setCalendarSettings] = useState<CalendarDoctorSettings>(
+    () => bootstrap?.settings ?? DEFAULT_CALENDAR_SETTINGS,
+  );
   const [pending, startTransition] = useTransition();
 
   // R34: подтверждение переноса (drag/resize) перед применением.

@@ -3,9 +3,6 @@
 import { CircleHelp, Dumbbell, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
-import type { AdminRegistrationFailureAttention } from '@/app-layer/product-analytics/loadAdminRegistrationFailureAttention';
-import type { AdminDoctorTodayHealthBanner } from '@/modules/operator-health/adminDoctorTodayHealthBanner';
-import type { DoctorStatsState } from '@/modules/doctor-stats/service';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   doctorDnaFlatListClass,
@@ -34,14 +31,7 @@ import {
 
 type Props = {
   data: TodayDashboardData;
-  kpiStats: DoctorStatsState;
-  appointmentsTodayCount: number;
-  /** #9: explicit week count so it equals the modal list length (includes cancelled). */
-  weekAppointmentsCount?: number;
-  monthAppointmentCount: number;
   displayIana: string;
-  adminHealthBanner?: AdminDoctorTodayHealthBanner;
-  adminRegistrationFailureBanner?: AdminRegistrationFailureAttention;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
   /**
@@ -66,13 +56,10 @@ function peopleItemName(client: TodayDashboardData['people'][number]): string {
 export function DoctorTodayDashboard({
   data,
   displayIana,
-  adminHealthBanner,
-  adminRegistrationFailureBanner,
   todayWorkingBounds,
   specialistTasksAvailable,
   specialistTasksReadable,
 }: Props) {
-  // Вычисляем серверное время в бизнес-таймзоне для mini-calendar и карточки приёма
   const nowDt = DateTime.now().setZone(displayIana);
   const nowMinutes = nowDt.hour * 60 + nowDt.minute;
   const todayIso = nowDt.toISODate() ?? new Date().toISOString().slice(0, 10);
@@ -82,44 +69,10 @@ export function DoctorTodayDashboard({
 
   return (
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
-      {/* Per-page шапка (S1/D2): заголовок + важное (здоровье системы) + ссылка на аналитику */}
-      <DoctorPageHeader
-        id="doctor-today-header"
-        title="Сегодня"
-        info={
-          adminHealthBanner?.show ? (
-            <Link
-              id="doctor-today-health-attention"
-              href={adminHealthBanner.href}
-              className={
-                adminHealthBanner.tone === 'stop'
-                  ? 'inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive no-underline hover:bg-destructive/15'
-                  : 'inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-900 no-underline hover:bg-amber-500/15 dark:text-amber-100'
-              }
-            >
-              {adminHealthBanner.title}
-            </Link>
-          ) : undefined
-        }
-      />
+      <DoctorPageHeader id="doctor-today-header" title="Сегодня" />
 
-      {/* Баннер сбоя регистрации — остаётся отдельным блоком под шапкой */}
-      {adminRegistrationFailureBanner?.show ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-          <Link
-            href={adminRegistrationFailureBanner.href}
-            className={`${doctorInlineLinkClass} font-medium`}
-          >
-            {adminRegistrationFailureBanner.title}
-          </Link>
-        </div>
-      ) : null}
-
-      {/* Двухколоночная раскладка: левое полотно | правое полотно */}
       <div id="doctor-today-two-panes" className="grid gap-3 md:grid-cols-2 md:items-start">
-        {/* ───── Левое полотно: входящий рабочий поток ───── */}
         <div id="doctor-today-left-pane" className="flex flex-col gap-3">
-          {/* Компактные KPI входящего рабочего потока. */}
           <DoctorTodayLeftKpiRow
             pendingTestsTotal={data.pendingProgramTestsTotal}
             unreadConversations={data.unreadConversations}
@@ -131,7 +84,6 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
           />
 
-          {/* §1.3: Задачи — поднять над «На сопровождении» */}
           <DoctorGlobalTasksSection
             initialTasks={data.globalOpenTasks}
             initialTasksTotal={data.globalOpenTasksTotal}
@@ -142,7 +94,6 @@ export function DoctorTodayDashboard({
             readable={specialistTasksReadable}
           />
 
-          {/* Configurable people list: exact on-support or recent-visit semantics. */}
           <DoctorSection id="doctor-today-section-people">
             <DoctorSectionHeader>
               <DoctorSectionTitle>{peopleListTitle}</DoctorSectionTitle>
@@ -252,15 +203,9 @@ export function DoctorTodayDashboard({
               </>
             )}
           </DoctorSection>
-
         </div>
 
-        {/* ───── Правое полотно: приём и время ───── */}
         <div id="doctor-today-right-pane" className="flex flex-col gap-3">
-          {/* Owner-deferred: appointment KPI row is intentionally not rendered;
-              DoctorTodayRightKpiRow remains intact for a later product decision. */}
-
-          {/* §1.1: Мини-календарь — первое содержимое правой колонки. */}
           <TodayMiniCalendarWithModal
             appointments={data.todayAppointments}
             nowMinutes={nowMinutes}
