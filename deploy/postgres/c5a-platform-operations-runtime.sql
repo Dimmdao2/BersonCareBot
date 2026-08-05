@@ -1057,16 +1057,53 @@ $function$
 END
 $c5a_choose_organization_first_tariff_accessor$;
 
--- 0376 (#1069 T10): resolve_organization_* accessors read the global post-paid-period policy.
-DO $c5a_saas_paid_period_policy_grant$
+-- 0376 (#1069 T9/T10): catalog + global post-paid-period policy.
+-- app_owner SELECT: SECURITY DEFINER resolve_organization_* / patient entitlement readers.
+-- app_platform_settings SELECT/INSERT/UPDATE: commercial constructor + clinics list
+-- (listOrganizations reads saas_paid_period_policy; listBillingPeriods reads saas_billing_periods).
+-- Without these, TEST global-admin pages /app/admin/clinics and /app/admin/commercial 500 with
+-- SQLSTATE 42501 → role_pool_mismatch telemetry and empty/non-JSON client bodies.
+DO $c5a_saas_0376_commercial_catalog_grants$
 BEGIN
   IF to_regclass('public.saas_paid_period_policy') IS NULL THEN
-    RAISE WARNING '0376: public.saas_paid_period_policy does not exist on this database -- skipping the app_owner SELECT grant.';
-    RETURN;
+    RAISE WARNING '0376: public.saas_paid_period_policy does not exist on this database -- skipping paid-period-policy grants.';
+  ELSE
+    GRANT SELECT ON TABLE public.saas_paid_period_policy TO app_owner;
+    GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_paid_period_policy TO app_platform_settings;
   END IF;
-  GRANT SELECT ON TABLE public.saas_paid_period_policy TO app_owner;
+
+  IF to_regclass('public.saas_billing_periods') IS NULL THEN
+    RAISE WARNING '0376: public.saas_billing_periods does not exist on this database -- skipping billing-periods grants.';
+  ELSE
+    GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_periods TO app_platform_settings;
+  END IF;
+
+  IF to_regclass('public.saas_paid_period_policy') IS NOT NULL
+     AND NOT (
+       has_table_privilege('app_owner', 'public.saas_paid_period_policy', 'SELECT')
+       AND has_table_privilege('app_platform_settings', 'public.saas_paid_period_policy', 'SELECT')
+       AND has_table_privilege('app_platform_settings', 'public.saas_paid_period_policy', 'INSERT')
+       AND has_table_privilege('app_platform_settings', 'public.saas_paid_period_policy', 'UPDATE')
+       AND NOT has_table_privilege('app_staff', 'public.saas_paid_period_policy', 'SELECT')
+       AND NOT has_table_privilege('app_staff', 'public.saas_paid_period_policy', 'INSERT')
+       AND NOT has_table_privilege('app_staff', 'public.saas_paid_period_policy', 'UPDATE')
+     ) THEN
+    RAISE EXCEPTION '0376: saas_paid_period_policy grants for app_owner/app_platform_settings are incomplete';
+  END IF;
+
+  IF to_regclass('public.saas_billing_periods') IS NOT NULL
+     AND NOT (
+       has_table_privilege('app_platform_settings', 'public.saas_billing_periods', 'SELECT')
+       AND has_table_privilege('app_platform_settings', 'public.saas_billing_periods', 'INSERT')
+       AND has_table_privilege('app_platform_settings', 'public.saas_billing_periods', 'UPDATE')
+       AND NOT has_table_privilege('app_staff', 'public.saas_billing_periods', 'SELECT')
+       AND NOT has_table_privilege('app_staff', 'public.saas_billing_periods', 'INSERT')
+       AND NOT has_table_privilege('app_staff', 'public.saas_billing_periods', 'UPDATE')
+     ) THEN
+    RAISE EXCEPTION '0376: saas_billing_periods grants for app_platform_settings are incomplete';
+  END IF;
 END
-$c5a_saas_paid_period_policy_grant$;
+$c5a_saas_0376_commercial_catalog_grants$;
 
 -- app.current_org_id() / app.is_staff() for app_platform_settings — and why the grant has to live
 -- HERE and not in a migration.
