@@ -246,7 +246,7 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
           return { ok: false, error: 'idempotency_conflict' };
         }
         const pg = pgConstraint(error);
-        if (pg.code === '23505' && pg.constraint === 'uq_platform_users_email_normalized_active') {
+        if (pg.code === '23505' && pg.constraint === 'uq_user_contacts_email') {
           return { ok: false, error: 'email_conflict' };
         }
         return { ok: false, error: 'create_failed' };

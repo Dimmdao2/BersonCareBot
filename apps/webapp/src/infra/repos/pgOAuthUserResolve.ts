@@ -113,7 +113,7 @@ async function findUserIdsByVerifiedEmail(emailNorm: string): Promise<string[]> 
 
 async function findActiveUserIdsByEmail(emailNorm: string): Promise<string[]> {
   // Same as findUserIdsByVerifiedEmail but WITHOUT the email_verified_at filter — mirrors the
-  // uq_platform_users_email_normalized_active constraint so we link instead of INSERT-colliding.
+  // uq_user_contacts_email uniqueness so we link instead of INSERT-colliding.
   const byEmail = await runWebappPgText<{ id: string }>(
     `SELECT id FROM platform_users
      WHERE merged_into_id IS NULL

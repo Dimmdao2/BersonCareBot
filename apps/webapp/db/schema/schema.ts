@@ -173,16 +173,12 @@ export const platformUsers = pgTable(
       foreignColumns: [table.id],
       name: 'platform_users_merged_into_id_fkey',
     }).onDelete('set null'),
-    unique('platform_users_phone_normalized_key').on(table.phoneNormalized),
     unique('platform_users_integrator_user_id_key').on(table.integratorUserId),
     check('platform_users_no_self_merge', sql`(merged_into_id IS NULL) OR (merged_into_id <> id)`),
     check(
       'platform_users_role_check',
       sql`role = ANY (ARRAY['client'::text, 'doctor'::text, 'admin'::text])`,
     ),
-    uniqueIndex('uq_platform_users_email_normalized_active')
-      .using('btree', table.emailNormalized.asc().nullsLast().op('text_ops'))
-      .where(sql`(merged_into_id IS NULL AND email_normalized IS NOT NULL)`),
   ],
 );
 

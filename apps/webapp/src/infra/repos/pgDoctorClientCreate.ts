@@ -37,7 +37,7 @@ export class DoctorClientIdentityError extends Error {
 function isPhoneUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   if (!('code' in error) || !('constraint' in error)) return false;
-  return error.code === '23505' && error.constraint === 'platform_users_phone_normalized_key';
+  return error.code === '23505' && error.constraint === 'uq_user_contacts_phone';
 }
 
 /** Canonical staff-entered phone identity writer. The caller owns the outer Drizzle transaction. */

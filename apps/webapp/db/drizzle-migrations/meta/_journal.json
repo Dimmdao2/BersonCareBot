@@ -2633,6 +2633,13 @@
       "when": 1793539230122,
       "tag": "0379_user_contacts_d15b6_local",
       "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1793539230123,
+      "tag": "0380_drop_platform_users_contact_unique_d15b6_local",
+      "breakpoints": true
     }
   ]
 }

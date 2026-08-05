@@ -78,3 +78,11 @@ export async function syncUserContactsMirror(
     [platformUserId],
   );
 }
+
+/** Remove duplicate mirror rows before rebuilding target contacts (post-D15b/6 uniqueness on user_contacts). */
+export async function clearDuplicateUserContactsBeforeTargetMirror(
+  db: PlatformMergeDbClient,
+  duplicateId: string,
+): Promise<void> {
+  await db.query(`DELETE FROM user_contacts WHERE platform_user_id = $1::uuid`, [duplicateId]);
+}

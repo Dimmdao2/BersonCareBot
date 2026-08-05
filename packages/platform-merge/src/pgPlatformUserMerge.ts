@@ -1,6 +1,6 @@
 import type { QueryResultRow } from 'pg';
 import { mergeLogger as logger } from './mergeLogger.js';
-import { syncUserContactsMirror } from './userContactsMirrorWrite.js';
+import { syncUserContactsMirror, clearDuplicateUserContactsBeforeTargetMirror } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 import type { ManualMergeResolution } from './manualMergeResolution.js';
 import { assertManualMergeResolutionIds } from './manualMergeResolution.js';
@@ -197,9 +197,7 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
 
-  await client.query(
-    `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
-  );
+  await client.query(`SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`);
 
   const lockRes = await client.query<PuRow>(
     `SELECT id, phone_normalized, patient_phone_trust_at, integrator_user_id::text AS integrator_user_id, merged_into_id,
@@ -623,6 +621,7 @@ export async function mergePlatformUsersInTransaction(
   }
 
   await clearDuplicateEmailBeforeTargetNormalization(client, duplicateId);
+  await clearDuplicateUserContactsBeforeTargetMirror(client, duplicateId);
 
   await client.query(
     `UPDATE platform_users SET email_normalized = CASE
@@ -1224,7 +1223,7 @@ async function assertOpenTestAttemptsSafe(
 
 /**
  * Clears duplicate email before target `email_normalized` recompute so two canonical rows
- * cannot temporarily share `uq_platform_users_email_normalized_active`.
+ * cannot temporarily share the same confirmed email in `user_contacts`.
  */
 async function clearDuplicateEmailBeforeTargetNormalization(
   client: PlatformMergeDbClient,

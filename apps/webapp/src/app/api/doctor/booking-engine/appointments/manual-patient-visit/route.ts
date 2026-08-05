@@ -252,7 +252,7 @@ export async function POST(request: Request) {
     }
     if (
       message === 'email_conflict' ||
-      (pg.code === '23505' && pg.constraint === 'uq_platform_users_email_normalized_active')
+      (pg.code === '23505' && pg.constraint === 'uq_user_contacts_email')
     ) {
       return NextResponse.json({ ok: false, error: 'email_conflict' }, { status: 409 });
     }

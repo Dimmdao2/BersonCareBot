@@ -270,7 +270,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
       withPoolTransaction(pool, async (client) => {
         await runIdentityClientPgText(
           client,
-          `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
+          `SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`,
         );
 
         const bindingLock = await runIdentityClientPgText(

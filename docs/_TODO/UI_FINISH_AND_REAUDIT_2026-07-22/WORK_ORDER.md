@@ -587,7 +587,15 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             read via `user_contacts` assembly + dual-write mirrors on create. Доказательство:
             `d15b6PhoneMessengerBindMirror.unit.test.ts` 2/2;
             `pgCanonicalPlatformUser.unit.test.ts` + `pgPublicBookingUserResolve.unit.test.ts` 4/4.
-            Drop legacy unique indexes — не в этом коммите.
+            ✅ **#987 slice 4 (this commit):** migration
+            `0380_drop_platform_users_contact_unique_d15b6_local.sql` — fail-closed phone/email mirror
+            parity, then drop `platform_users_phone_normalized_key` and
+            `uq_platform_users_email_normalized_active`; uniqueness enforced on `user_contacts` only.
+            Merge clears duplicate `user_contacts` before target mirror; 23505 handlers →
+            `uq_user_contacts_phone` / `uq_user_contacts_email`. Доказательство:
+            `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`;
+            `node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --self-test`;
+            `pnpm --dir apps/webapp test -- userContactsSql.unit.test.ts d15b5FioDualWriteGaps.unit.test.ts pgCanonicalPlatformUser.unit.test.ts pgPublicBookingUserResolve.unit.test.ts`.
       - [ ] **D15b/7 — псевдоним — НЕ В ЭТОМ ОБЪЁМЕ.** Решение принимается после D15b/6 (владелец 03.08).
             Замер на будущее ⚠️ ИСПРАВЛЕН ПЕРЕПИСЬЮ: не «46 ключей», а **130 FK-constraint'ов от 104 таблиц**;
             классификация по трём группам и спорные случаи — в документе переписи. Плюс предикаты RLS всех
@@ -911,9 +919,9 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       до D17.
       ⚠️ **ЧАСТИЧНО 03.08–05.08:** D15b/2 закрыл запись идентичности из integrator (`5137e8c68`, land
       `2c1cd63fb`) — одна реализация в `packages/platform-merge/src/identityProjectionWrite.ts`.
-      D15b/5–6 закрыты (`#987` slices 1–3): `user_identity`/`user_contacts` схема, infra reader
-      cutover, dual-write writers, trusted-phone + public-booking resolve paths. Остаётся: drop legacy
-      unique indexes на `platform_users` (после dual-write стабилизации), D15b/7 псевдоним (вне объёма),
+      D15b/5–6 закрыты (`#987` slices 1–4): `user_identity`/`user_contacts` схема, infra reader
+      cutover, dual-write writers, trusted-phone + public-booking resolve paths, legacy contact
+      unique indexes dropped from `platform_users`. Остаётся: D15b/7 псевдоним (вне объёма),
       живая двухвебхуковая проверка D15b/2 — за лидом.
 - [ ] **D26 — слияние аккаунтов переписывается как ИНСТРУМЕНТ ПОДДЕРЖКИ, нынешний мерж вырезается.** Решение —
       **Р-D26** (§2.3). Автослияние остаётся только для аккаунта БЕЗ какой-либо медицинской истории (визиты,

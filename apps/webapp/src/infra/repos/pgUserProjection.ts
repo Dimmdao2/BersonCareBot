@@ -40,10 +40,7 @@ function txPgText<T = unknown>(
 }
 
 function deferPlatformUserUniqueConstraints(client: PoolClient) {
-  return txPgText(
-    client,
-    `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
-  );
+  return txPgText(client, `SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`);
 }
 
 class PatchAdminClientProfileNoRowsError extends Error {
