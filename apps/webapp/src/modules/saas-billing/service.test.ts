@@ -1872,6 +1872,132 @@ describe('B0.3/#1057: повторный апгрейд на тот же тар�
   });
 });
 
+// #1057 — `createProratedTariffUpgradeInvoice` must reuse an open upgrade invoice only when the
+// target tariff matches; otherwise a stale draft for tariff A blocks checkout for tariff B.
+describe('#1057: open upgrade invoice scoped to target tariff', () => {
+  function createUpgradeRepository() {
+    return createInMemorySaasBillingRepository({
+      tariffs: [
+        { id: 'basic', name: 'Базовый', priceMinor: 10_000, currency: 'RUB', billingPeriod: 'month' },
+        { id: 'clinic', name: 'Клиника', priceMinor: 15_000, currency: 'RUB', billingPeriod: 'month' },
+        { id: 'pro', name: 'Про', priceMinor: 20_000, currency: 'RUB', billingPeriod: 'month' },
+      ],
+    });
+  }
+
+  async function seedOrg(
+    repository: ReturnType<typeof createInMemorySaasBillingRepository>,
+    organizationId: string,
+  ) {
+    const seedService = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({
+        createIntent: async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+          providerIntentRef: `provider-seed-${input.subjectRef}`,
+          checkoutUrl: `https://pay.example/seed-${input.subjectRef}`,
+        }),
+      }) as never,
+      now: () => new Date('2026-08-01T00:00:00.000Z'),
+    });
+    await seedService.assignManualTariff({
+      organizationId,
+      tariffId: 'basic',
+      audit: { actorId: 'admin', reason: 'seed paid period' },
+    });
+    const seedInvoice = await seedService.createOwnTariffRenewalInvoice(organizationId);
+    await seedService.captureSaasBillingProviderWebhookEvent({
+      organizationId,
+      saasBillingInvoiceId: seedInvoice.id,
+      providerId: 'yookassa',
+      verified: {
+        idempotencyKey: `seed-capture-${organizationId}`,
+        eventType: 'payment.succeeded',
+        amountMinor: seedInvoice.amountMinor,
+        payload: { currency: seedInvoice.currency },
+      },
+    });
+  }
+
+  it('does not reuse an open upgrade invoice for a different target tariff', async () => {
+    const repository = createUpgradeRepository();
+    await seedOrg(repository, 'org-target-tariff-scope');
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.subjectRef}`,
+      checkoutUrl: `https://pay.example/${input.subjectRef}`,
+    }));
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-16T12:00:00.000Z'),
+      getTariffTransition: async (_organizationId, tariffId) => ({
+        currentTariffId: 'basic',
+        targetTariffId: tariffId,
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+
+    const clinicUpgrade = await service.scheduleOwnTariffChange({
+      organizationId: 'org-target-tariff-scope',
+      tariffId: 'clinic',
+      actorId: 'owner',
+    });
+    const proUpgrade = await service.scheduleOwnTariffChange({
+      organizationId: 'org-target-tariff-scope',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    if (clinicUpgrade.outcome !== 'checkout' || proUpgrade.outcome !== 'checkout') {
+      throw new Error('checkout expected');
+    }
+
+    expect(clinicUpgrade.invoice.tariffId).toBe('clinic');
+    expect(proUpgrade.invoice.tariffId).toBe('pro');
+    expect(proUpgrade.invoice.id).not.toBe(clinicUpgrade.invoice.id);
+    expect(createIntent).toHaveBeenCalledTimes(2);
+  });
+
+  it('reuses the open upgrade invoice when the target tariff matches', async () => {
+    const repository = createUpgradeRepository();
+    await seedOrg(repository, 'org-target-tariff-reuse');
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.subjectRef}`,
+      checkoutUrl: `https://pay.example/${input.subjectRef}`,
+    }));
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      now: () => new Date('2026-08-16T12:00:00.000Z'),
+      getTariffTransition: async () => ({
+        currentTariffId: 'basic',
+        targetTariffId: 'pro',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+
+    const first = await service.scheduleOwnTariffChange({
+      organizationId: 'org-target-tariff-reuse',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    const second = await service.scheduleOwnTariffChange({
+      organizationId: 'org-target-tariff-reuse',
+      tariffId: 'pro',
+      actorId: 'owner',
+    });
+    if (first.outcome !== 'checkout' || second.outcome !== 'checkout') {
+      throw new Error('checkout expected');
+    }
+
+    expect(second.invoice.id).toBe(first.invoice.id);
+    expect(createIntent).toHaveBeenCalledOnce();
+  });
+});
+
 describe('webhook replay completes one durable paid-period action', () => {
   it('retries the invoice action when the process fails after event dedupe', async () => {
     let eventRecorded = false;

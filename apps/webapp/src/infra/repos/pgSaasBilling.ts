@@ -762,6 +762,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .where(
             and(
               eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
+              eq(saasBillingInvoices.tariffId, input.targetTariffId),
               eq(saasBillingInvoices.description, SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION),
               inArray(saasBillingInvoices.status, ['draft', 'pending']),
             ),

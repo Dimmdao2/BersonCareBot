@@ -11,9 +11,11 @@
 **Стык с планом тарифов, чтобы планы не разъехались:**
 
 > **Reconciliation 2026-08-05:** B0.3/B0.3a и live TEST checkout→webhook→capture закрыты (`wt/pay-close`, merge
-> `d1b8a1718`). #1057 → taskdb `done`. Открытые хвосты billing: backfill legacy manual tariff →
-> `saas_billing_subscriptions`, поле `webhookSecret` в admin UI, matching upgrade-инвойса по target tariff,
-> автоматическая лестница §5a (owner T1/T9/T10).
+> `d1b8a1718`). #1057 → taskdb `done`. Открытые хвосты billing: автоматическая лестница §5a (owner T1/T9/T10).
+> **05.08 reconcile:** `webhookSecret` в admin UI (`SaasBillingProviderSettings.tsx`) и matching upgrade-инвойса по
+> `targetTariffId` (`pgSaasBilling.ts` / `inMemorySaasBilling.ts`) — закрыты кодом и step-тестами.
+> **05.08:** backfill legacy manual tariff → `saas_billing_subscriptions` — **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ:** спекулятивный
+> хвост, не измеренный разрыв; `assignManualTariff` покрывает назначение.
 
 - счёт клиники = цена тарифа + дополнительные специалисты сверх базы (поле цены задаёт владелец в конструкторе тарифов);
 - ступень лестницы доступа — «терпение», «только чтение», «выключено» — включается от коммерческого состояния

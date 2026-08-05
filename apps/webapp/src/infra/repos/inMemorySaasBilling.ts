@@ -392,6 +392,7 @@ export function createInMemorySaasBillingRepository(
       const openInvoice = [...invoices.values()].find(
         (invoice) =>
           invoice.saasBillingSubscriptionId === subscription.id &&
+          invoice.tariffId === input.targetTariffId &&
           invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
           (invoice.status === 'draft' || invoice.status === 'pending'),
       );

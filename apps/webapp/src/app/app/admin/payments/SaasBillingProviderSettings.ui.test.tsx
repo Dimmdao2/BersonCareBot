@@ -21,6 +21,7 @@ const storedSetting = {
           enabled: true,
           shopId: '1425962',
           apiKey: '[REDACTED]',
+          webhookSecret: '[REDACTED]',
         },
       ],
       payeeRequisites: { vatCode: null, taxSystemCode: null },
@@ -32,7 +33,7 @@ const storedSetting = {
 };
 
 describe('SaasBillingProviderSettings', () => {
-  it('saves a fiscal selection while retaining the stored secret marker', async () => {
+  it('saves a fiscal selection while retaining the stored secret markers', async () => {
     const user = userEvent.setup();
     let patchBody: unknown = null;
     const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -40,7 +41,24 @@ describe('SaasBillingProviderSettings', () => {
         patchBody = JSON.parse(String(init.body)) as unknown;
         return {
           ok: true,
-          text: async () => JSON.stringify({ ok: true, setting: storedSetting }),
+          text: async () =>
+            JSON.stringify({
+              ok: true,
+              setting: {
+                ...storedSetting,
+                valueJson: {
+                  value: {
+                    ...storedSetting.valueJson.value,
+                    providers: [
+                      {
+                        ...storedSetting.valueJson.value.providers[0],
+                        webhookSecret: '[REDACTED]',
+                      },
+                    ],
+                  },
+                },
+              },
+            }),
         };
       }
       return {
@@ -54,8 +72,10 @@ describe('SaasBillingProviderSettings', () => {
 
     expect(await screen.findByDisplayValue('1425962')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Ключ сохранён')).toHaveValue('');
+    expect(screen.getByPlaceholderText('Секрет сохранён')).toHaveValue('');
     await user.click(screen.getByLabelText('НДС в чеке'));
     await user.click(await screen.findByRole('option', { name: '20%' }));
+    await user.type(screen.getByLabelText('Секрет вебхука'), 'fresh-webhook-secret');
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() => expect(patchBody).not.toBeNull());
@@ -63,7 +83,14 @@ describe('SaasBillingProviderSettings', () => {
       key: 'saas_billing_payment_provider',
       value: {
         value: {
-          providers: [{ id: 'yookassa', apiKey: '[REDACTED]', shopId: '1425962' }],
+          providers: [
+            {
+              id: 'yookassa',
+              apiKey: '[REDACTED]',
+              webhookSecret: 'fresh-webhook-secret',
+              shopId: '1425962',
+            },
+          ],
           payeeRequisites: { vatCode: '4', taxSystemCode: null },
         },
       },

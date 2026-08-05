@@ -67,6 +67,7 @@ export function SaasBillingProviderSettings() {
   const [settings, setSettings] = useState<SaasBillingPaymentProviderSettings | null>(null);
   const [shopId, setShopId] = useState('');
   const [newApiKey, setNewApiKey] = useState('');
+  const [newWebhookSecret, setNewWebhookSecret] = useState('');
   const [vatCode, setVatCode] = useState(EMPTY_VALUE);
   const [taxSystemCode, setTaxSystemCode] = useState(EMPTY_VALUE);
   const [loading, setLoading] = useState(true);
@@ -80,6 +81,7 @@ export function SaasBillingProviderSettings() {
     [settings],
   );
   const hasStoredApiKey = provider?.apiKey === '[REDACTED]';
+  const hasStoredWebhookSecret = provider?.webhookSecret === '[REDACTED]';
 
   const applySetting = useCallback((valueJson: unknown) => {
     const parsed = parseSaasBillingPaymentProviderSettings(valueJson);
@@ -89,6 +91,7 @@ export function SaasBillingProviderSettings() {
     setSettings(parsed);
     setShopId(yookassa?.shopId ?? '');
     setNewApiKey('');
+    setNewWebhookSecret('');
     setVatCode(parsed.payeeRequisites.vatCode ?? EMPTY_VALUE);
     setTaxSystemCode(parsed.payeeRequisites.taxSystemCode ?? EMPTY_VALUE);
   }, []);
@@ -128,6 +131,7 @@ export function SaasBillingProviderSettings() {
       }),
       shopId: shopId.trim() || undefined,
       apiKey: newApiKey.trim() || provider?.apiKey,
+      webhookSecret: newWebhookSecret.trim() || provider?.webhookSecret,
     };
     const providers = provider
       ? settings.providers.map((item) => (item.id === nextProvider.id ? nextProvider : item))
@@ -190,6 +194,17 @@ export function SaasBillingProviderSettings() {
                   value={newApiKey}
                   onChange={(event) => setNewApiKey(event.target.value)}
                   placeholder={hasStoredApiKey ? 'Ключ сохранён' : ''}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="saas-yookassa-webhook-secret">Секрет вебхука</Label>
+                <Input
+                  id="saas-yookassa-webhook-secret"
+                  type="password"
+                  value={newWebhookSecret}
+                  onChange={(event) => setNewWebhookSecret(event.target.value)}
+                  placeholder={hasStoredWebhookSecret ? 'Секрет сохранён' : ''}
                   autoComplete="new-password"
                 />
               </div>
