@@ -983,16 +983,16 @@ export function PatientTabOverview({
     const fetchMessages =
       initialMessagesSnapshot?.ok
         ? Promise.resolve({
+            source: 'seed' as const,
             ok: true,
             conversationId: initialMessagesSnapshot.value.conversationId ?? undefined,
             messages: initialMessagesSnapshot.value.messages.map(serializeSupportMessage),
             unreadFromUserCount: initialMessagesSnapshot.value.unreadFromUserCount,
-          } as MessagesApiResponse)
+          })
         : initialMessagesSnapshot != null && isBootstrapEnvelopeFailed(initialMessagesSnapshot)
-          ? Promise.resolve(null as MessagesApiResponse | null)
-          : fetch(`/api/doctor/patients/${userId}/messages-snapshot`, { credentials: 'include' })
-              .then((r) => (r.ok ? (r.json() as Promise<MessagesApiResponse>) : null))
-              .catch(() => null);
+          ? Promise.resolve({ source: 'failed' as const })
+          : // Null seed: one initial read comes from useMessagePolling(immediate=true).
+            Promise.resolve({ source: 'deferred' as const });
 
     // Conditionally fetch SSR-covered data only when SSR props were not provided
     const fetchClinical =
@@ -1204,9 +1204,24 @@ export function PatientTabOverview({
         }
 
         // --- Messages ---
-        const messagesList = messages?.messages ?? [];
-        const unreadFromUserCount = messages?.unreadFromUserCount ?? 0;
-        const messagesStatus: WidgetStatus = !messages ? 'error' : 'ok';
+        let messagesList: MessagesApiResponse['messages'];
+        let unreadFromUserCount: number;
+        let messagesStatus: WidgetStatus;
+        let preserveMessagesFromPrev = false;
+        if (messages.source === 'deferred') {
+          preserveMessagesFromPrev = true;
+          messagesList = [];
+          unreadFromUserCount = 0;
+          messagesStatus = 'loading';
+        } else if (messages.source === 'failed') {
+          messagesList = [];
+          unreadFromUserCount = 0;
+          messagesStatus = 'error';
+        } else {
+          messagesList = messages.messages ?? [];
+          unreadFromUserCount = messages.unreadFromUserCount ?? 0;
+          messagesStatus = 'ok';
+        }
 
         setData((prev) => ({
           // Calendar is managed by its own effect; preserve whatever it already set (or loading default)
@@ -1231,9 +1246,13 @@ export function PatientTabOverview({
           notes: notesList,
           tasksStatus,
           tasks: tasksList,
-          messagesStatus,
-          messages: messagesList,
-          unreadFromUserCount,
+          messagesStatus: preserveMessagesFromPrev
+            ? (prev?.messagesStatus ?? 'loading')
+            : messagesStatus,
+          messages: preserveMessagesFromPrev ? (prev?.messages ?? []) : messagesList,
+          unreadFromUserCount: preserveMessagesFromPrev
+            ? (prev?.unreadFromUserCount ?? 0)
+            : unreadFromUserCount,
         }));
         setLoadedUserId(userId);
       },
@@ -1247,13 +1266,29 @@ export function PatientTabOverview({
 
   const messagesPollGenerationRef = useRef(0);
 
+  useEffect(() => {
+    // Invalidate in-flight polls on identity/seed change without starting a duplicate fetch.
+    messagesPollGenerationRef.current += 1;
+  }, [userId, initialMessagesSnapshot]);
+
   const pollMessages = useCallback(async () => {
-    const generation = messagesPollGenerationRef.current;
+    const generation = ++messagesPollGenerationRef.current;
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/messages-snapshot`, {
         credentials: 'include',
       });
-      if (!res.ok) return;
+      if (generation !== messagesPollGenerationRef.current) return;
+      if (!res.ok) {
+        setData((prev) =>
+          prev && prev.messagesStatus === 'loading'
+            ? {
+                ...prev,
+                messagesStatus: 'error',
+              }
+            : prev,
+        );
+        return;
+      }
       const json = (await res.json()) as MessagesApiResponse;
       if (generation !== messagesPollGenerationRef.current) return;
       setData((prev) =>
@@ -1267,19 +1302,22 @@ export function PatientTabOverview({
           : prev,
       );
     } catch {
-      // keep previous snapshot
+      if (generation !== messagesPollGenerationRef.current) return;
+      setData((prev) =>
+        prev && prev.messagesStatus === 'loading'
+          ? {
+              ...prev,
+              messagesStatus: 'error',
+            }
+          : prev,
+      );
     }
   }, [userId]);
 
-  useEffect(() => {
-    messagesPollGenerationRef.current += 1;
-    if (initialMessagesSnapshot?.ok) return;
-    if (initialMessagesSnapshot == null || !isBootstrapEnvelopeFailed(initialMessagesSnapshot)) {
-      void pollMessages();
-    }
-  }, [userId, initialMessagesSnapshot, pollMessages]);
-
-  useMessagePolling(pollMessages, active && Boolean(userId), 16000, false);
+  // SSR-ok seed: first poll after interval. Null seed: one immediate read via polling.
+  // Failed seed keeps error until a later successful poll.
+  const messagesPollImmediate = initialMessagesSnapshot == null;
+  useMessagePolling(pollMessages, active && Boolean(userId), 16000, messagesPollImmediate);
 
   const isStale = loadedUserId !== userId;
   const isLoading = isStale || data === null;

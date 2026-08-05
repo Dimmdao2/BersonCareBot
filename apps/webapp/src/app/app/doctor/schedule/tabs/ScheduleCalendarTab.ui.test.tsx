@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { forwardRef } from 'react';
+import { forwardRef, StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { ScheduleCalendarBootstrap } from '../scheduleCalendarBootstrapTypes';
@@ -356,19 +356,21 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
     );
 
     render(
-      <ScheduleCalendarTab
-        deepLinkParams={{ view: 'weekgrid', date: '2026-07-30', scope: 'clinic' }}
-        onDeepLinkChange={vi.fn()}
-        isActive={false}
-        initialTimeZone="Europe/Moscow"
-        doctorStatisticsEnabled
-        initialData={makeCalendarBootstrap()}
-        scheduleScopeBootstrap={{
-          ownSpecialistId: OWN_ID,
-          canManageAllSpecialists: true,
-          specialists: [{ id: OWN_ID, displayLabel: 'Свой специалист' }],
-        }}
-      />,
+      <StrictMode>
+        <ScheduleCalendarTab
+          deepLinkParams={{ view: 'weekgrid', date: '2026-07-30', scope: 'clinic' }}
+          onDeepLinkChange={vi.fn()}
+          isActive={false}
+          initialTimeZone="Europe/Moscow"
+          doctorStatisticsEnabled
+          initialData={makeCalendarBootstrap()}
+          scheduleScopeBootstrap={{
+            ownSpecialistId: OWN_ID,
+            canManageAllSpecialists: true,
+            specialists: [{ id: OWN_ID, displayLabel: 'Свой специалист' }],
+          }}
+        />
+      </StrictMode>,
     );
 
     await waitFor(() => expect(screen.getByTestId('cal-kpi-row')).toBeInTheDocument());
@@ -490,7 +492,37 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
             view: 'week',
             anchorDate: '2026-07-30',
             timeZone: 'Europe/Moscow',
-            events: [],
+            events: [
+              {
+                kind: 'appointment',
+                id: 'fresh-appt-1',
+                startAt: '2026-07-30T10:00:00.000Z',
+                endAt: '2026-07-30T11:00:00.000Z',
+                status: 'confirmed',
+                source: 'manual',
+                specialistId: OWN_ID,
+                specialistName: 'Doc',
+                branchId: null,
+                branchTitle: null,
+                branchColor: null,
+                roomId: null,
+                roomTitle: null,
+                serviceId: null,
+                serviceTitle: null,
+                platformUserId: null,
+                patientName: 'Fresh Patient',
+                patientPhone: null,
+                bookingStatus: null,
+                paymentStatus: null,
+                prepaymentPending: false,
+                packageUsageRef: null,
+                packageTitle: null,
+                packageDisplayNumber: null,
+                rescheduleCount: 0,
+                originalStartAt: null,
+                formComments: [],
+              },
+            ],
             filters: { specialists: [], branches: [], rooms: [], services: [] },
             readSource: 'canonical',
             showWorkingHours: true,
@@ -527,7 +559,7 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
 
     render(
       <ScheduleCalendarTab
-        deepLinkParams={{ view: 'weekgrid', date: '2026-07-30', scope: 'clinic' }}
+        deepLinkParams={{ view: 'weekgrid', date: '2026-07-30', scope: 'clinic', render: 'list' }}
         onDeepLinkChange={vi.fn()}
         isActive={false}
         initialTimeZone="Europe/Moscow"
@@ -543,6 +575,7 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
     await waitFor(() => expect(calendarRequestCount).toBe(1));
     fireEvent.click(screen.getByTestId('schedule-scope-mine'));
     await waitFor(() => expect(screen.getByTestId('kpi-recordsInPeriod')).toHaveTextContent('42'));
+    await waitFor(() => expect(screen.getByTestId('list-appt-fresh-appt-1')).toBeInTheDocument());
     expect(screen.queryByTestId('cal-error')).not.toBeInTheDocument();
 
     staleReleases.calendar();
@@ -552,6 +585,9 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
     await waitFor(() => {
       expect(screen.getByTestId('kpi-recordsInPeriod')).toHaveTextContent('42');
     });
+    expect(screen.getByTestId('list-appt-fresh-appt-1')).toBeInTheDocument();
     expect(screen.queryByTestId('cal-error')).not.toBeInTheDocument();
+    // Current generation finished — KPI value remains visible (not stuck in empty loading).
+    expect(screen.getByTestId('cal-kpi-row')).toBeInTheDocument();
   });
 });

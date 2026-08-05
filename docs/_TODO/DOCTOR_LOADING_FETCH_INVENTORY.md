@@ -43,7 +43,9 @@ Stage 1 evidence: [`DOCTOR_LOADING_BASELINE.md`](./DOCTOR_LOADING_BASELINE.md) �
 | Inventory rule | Verified |
 |----------------|----------|
 | `/patients` — no unsolicited patient-detail document before intent | **PASS** — 0 detail URIs in nginx window after list GET only (`DOCTOR_LOADING_BASELINE.md` §7) |
-| Schedule `tab=cal` with SSR bootstrap — no repeat settings/feed/KPI on warm document | **PASS** — 0 `/api/doctor/schedule*` on warm schedule reload |
-| Patient card overview messages — read-only snapshot, no `conversations/ensure` on SSR | **code** — `GET /api/doctor/patients/[userId]/messages-snapshot`; continuation via `useMessagePolling` when `active` |
-| Patient card — inactive tabs not loaded until visit | **code** — shell/tab split + `use(tabPromise)` under `PatientTabPanelLoading` |
-| Schedule scope change triggers new load; stale generation ignored | **tests** — `ScheduleCalendarTab.ui.test.tsx` oracle tests green on `bb4752368` |
+| Schedule `tab=cal` with SSR bootstrap — no repeat settings/feed/KPI on warm document | **PASS** on `bb4752368` §7; post-audit `ssrLoadKeyRef` + StrictMode UI test (baseline §8) — TEST redeploy pending |
+| Patient card overview messages — read-only snapshot, no `conversations/ensure` on SSR | **PASS** — `messages-snapshot/route.ts` + `messagesSnapshot.route.test.ts` |
+| Patient card — inactive tabs not loaded until visit; deep-link `?tab=` matches client | **PASS** — `page.tsx` `initialTab={activeTab}`; `tabPromise` before shell await (`DOCTOR_LOADING_BASELINE.md` §8) |
+| Schedule scope change triggers new load; stale generation ignored; Strict Mode SSR skip | **PASS** — `ScheduleCalendarTab.ui.test.tsx` (StrictMode SSR + scope + stale feed/KPI/list row) |
+
+**Post-audit working tree (2026-08-05):** full CI green `/tmp/bcb-full-ci-audit-fixes-20260805-213033.log`; closure plan synced in `.cursor/plans/doctor-loading-closure_9a07581d.plan.md`.

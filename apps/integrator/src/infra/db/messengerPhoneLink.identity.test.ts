@@ -158,7 +158,17 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       const pu = hit
         ? tables.platformUsers.find((u) => u.id === hit.user_id && u.merged_into_id === null)
         : undefined;
-      return rows(pu ? [{ platform_user_id: pu.id, user_id: pu.id }] : []);
+      return rows(
+        pu
+          ? [
+              {
+                platform_user_id: pu.id,
+                user_id: pu.id,
+                integrator_user_id: pu.integrator_user_id,
+              },
+            ]
+          : [],
+      );
     }
     if (q.startsWith('insert into user_channel_bindings')) {
       const exists = tables.bindings.some(
@@ -810,15 +820,7 @@ describe('чужой якорь канала при записи идентич�
     expect(tables.platformUsers).toEqual([]);
   });
 
-  // ДЕФЕКТ, зарегистрирован против карты (раздел «Порядок написания тестов», Уровень 1, п.6:
-  // «отказ при чужом якоре канала — назван явно, не тихий noop») и решения Р-D20. Оракул — план,
-  // не нынешняя реализация. it.fails — тест ОБЯЗАН падать на нынешнем коде: набор остаётся
-  // зелёным, но дефект виден в отчёте прогона, а не потерян. Минимальная правка (не сделана,
-  // решение владельца, см. `D20_LEVEL1_TESTS_REPORT.md` «Что НЕ покрыто» п.5.2): в
-  // `collectPlatformUserCandidates`/`writeIdentityAndPreferencesDirect` — если единственный
-  // кандидат пришёл ТОЛЬКО из привязки канала и его `integrator_user_id` непуст и не равен
-  // каноническому — отказывать явным кодом (например `channel_anchor_owned_by_other_user`), как
-  // уже делает `applyMessengerPhonePublicBind` для похожего случая.
+  // Fail-closed: foreign channel anchor with no self by-integrator/by-phone match.
   it('дано: канал привязан к чужому аккаунту, а своего у человека ещё нет → тогда ЯВНЫЙ отказ, и настройки НЕ уходят в чужой аккаунт (план: D20_INTEGRATOR_MAP.md, Уровень 1 п.6)', async () => {
     const tables = emptyTables({
       platformUsers: [
@@ -826,6 +828,7 @@ describe('чужой якорь канала при записи идентич�
       ],
       bindings: [{ channel_code: 'telegram', external_id: '555', user_id: 'pu-b' }],
     });
+    const bindingsBefore = structuredClone(tables.bindings);
     const db = makeDb(tables);
 
     const failure = await writeIdentityAndPreferencesDirect(
@@ -842,6 +845,7 @@ describe('чужой якорь канала при записи идентич�
     expect((failure as DirectPublicWriteError).code).toBe('channel_anchor_owned_by_other_user');
     expect((failure as DirectPublicWriteError).candidateIds).toEqual(['pu-b']);
     expect(tables.topics).toEqual([]);
+    expect(tables.bindings).toEqual(bindingsBefore);
     expect(tables.platformUsers[0]!.integrator_user_id).toBe('900');
   });
 });

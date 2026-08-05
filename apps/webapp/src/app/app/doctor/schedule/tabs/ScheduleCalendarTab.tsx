@@ -85,6 +85,25 @@ const API_BASE = '/api/doctor/booking-engine';
 const KPIS_API = '/api/doctor/schedule-kpis';
 const NEAREST_WINDOW_API = '/api/doctor/schedule/nearest-free-window';
 
+/** Stable client load identity — used to absorb SSR bootstrap across Strict Mode remounts. */
+function scheduleCalendarLoadKey(parts: {
+  view: string;
+  anchorDate: string;
+  branchId: string | null;
+  serviceId: string | null;
+  scope: DoctorScheduleScopeState['scope'];
+  specialistId: string | null;
+}): string {
+  return [
+    parts.view,
+    parts.anchorDate,
+    parts.branchId ?? '',
+    parts.serviceId ?? '',
+    parts.scope,
+    parts.specialistId ?? '',
+  ].join('\0');
+}
+
 // #231/#237: окно сетки по умолчанию 9:00–19:00. Хранится в system_settings (scope=doctor,
 // key=booking_calendar_default_window). Настраивается в «Настройки → Календарь».
 // Если записи/рабочие часы выходят за дефолтное окно — сетка только расширяется наружу.
@@ -751,7 +770,20 @@ export function ScheduleCalendarTab({
   doctorStatisticsEnabled,
 }: ScheduleTabProps) {
   const bootstrap = isScheduleCalendarBootstrap(initialData) ? initialData : null;
-  const skipInitialClientLoadRef = useRef(Boolean(bootstrap));
+  /** While current key equals SSR key, skip client load (survives Strict Mode remount). */
+  const ssrLoadKeyRef = useRef(
+    bootstrap
+      ? scheduleCalendarLoadKey({
+          view: bootstrap.view,
+          anchorDate: bootstrap.anchorDate,
+          branchId: bootstrap.branchId,
+          serviceId: bootstrap.serviceId,
+          scope: bootstrap.scheduleScope.scope,
+          specialistId: bootstrap.scheduleScope.specialistId,
+        })
+      : null,
+  );
+  /** SSR settings stay authoritative — never clear, so Strict Mode remount does not refetch. */
   const settingsSeededRef = useRef(Boolean(bootstrap?.settings));
   const loadGenerationRef = useRef(0);
 
@@ -948,12 +980,8 @@ export function ScheduleCalendarTab({
           }
           setData(json);
           setError(null);
-          setBranchIdState((prev) =>
-            resolveCalendarCreateFieldValue(json.filters.branches, null, prev),
-          );
-          setServiceIdState((prev) =>
-            resolveCalendarCreateFieldValue(json.filters.services, null, prev),
-          );
+          // Do not write branchId/serviceId from feed into load-key state — that retriggers
+          // load() in single-branch clinics. Create-form defaults resolve from filters on open.
         } catch {
           if (gen !== loadGenerationRef.current) return;
           setError('network_error');
@@ -1007,7 +1035,6 @@ export function ScheduleCalendarTab({
 
   useEffect(() => {
     if (settingsSeededRef.current) {
-      settingsSeededRef.current = false;
       return;
     }
     let cancelled = false;
@@ -1027,13 +1054,22 @@ export function ScheduleCalendarTab({
     };
   }, []);
 
+  const calendarLoadKey = scheduleCalendarLoadKey({
+    view,
+    anchorDate,
+    branchId,
+    serviceId,
+    scope: scheduleScope.scope,
+    specialistId: scheduleScope.specialistId,
+  });
+
   useEffect(() => {
-    if (skipInitialClientLoadRef.current) {
-      skipInitialClientLoadRef.current = false;
+    if (ssrLoadKeyRef.current !== null && calendarLoadKey === ssrLoadKeyRef.current) {
       return;
     }
+    ssrLoadKeyRef.current = null;
     queueMicrotask(() => load());
-  }, [view, anchorDate, branchId, serviceId, scheduleScope, load]);
+  }, [calendarLoadKey, load]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -1371,12 +1407,9 @@ export function ScheduleCalendarTab({
       if (!res.ok || !json.ok) {
         return { ok: false, error: json.error ?? `load_failed_${res.status}` };
       }
-      const generation = ++loadGenerationRef.current;
-      await loadFeed(undefined, undefined, generation);
-      loadKpis(view, anchorDate, generation);
       return { ok: true };
     },
-    [loadFeed, loadKpis, view, anchorDate],
+    [],
   );
 
   // R34: drag/resize не применяются сразу — открываем диалог подтверждения.

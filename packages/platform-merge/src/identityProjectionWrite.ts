@@ -186,7 +186,8 @@ export async function collectIdentityProjectionCandidates(
     !integratorMatched &&
     !phoneMatched &&
     channelCandidateId &&
-    channelCandidateIntegratorId !== null &&
+    typeof channelCandidateIntegratorId === 'string' &&
+    channelCandidateIntegratorId.length > 0 &&
     channelCandidateIntegratorId !== params.integratorUserId
   ) {
     throw new MergeConflictError('channel_anchor_owned_by_other_user', [channelCandidateId]);

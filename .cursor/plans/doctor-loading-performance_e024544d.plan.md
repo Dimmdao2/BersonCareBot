@@ -19,10 +19,10 @@ todos:
     status: completed
   - id: db-profile
     content: Профилировать оставшиеся медленные Drizzle ports и оптимизировать только доказанные DB bottlenecks
-    status: completed
+    status: pending
   - id: test-rollout
-    content: Пройти targeted gates, итоговый CI и TEST soak с сравнением p50/p95, запросов и bundle size
-    status: completed
+    content: "Пройти targeted gates, итоговый CI и TEST soak с сравнением p50/p95, запросов и bundle size. Safari hardware gate (DL-RUNTIME-03) BLOCKED — не completed."
+    status: pending
 isProject: false
 ---
 
@@ -45,7 +45,7 @@ isProject: false
 
 **Stage 3 (`7821a26a6`):** schedule tab `cal` server bootstrap (`loadDoctorScheduleCalendarBootstrap`), Today dashboard Suspense stream (`loadDoctorTodayDashboard`), schedule `loading.tsx`.
 
-**Инженерный rollout закрыт** (todo `route-rollout`). **Closure EXEC_SHA `bb4752368`:** `db-profile` closed evidence-only (§7 baseline — no EXPLAIN); `test-rollout` closed except **BLOCKED** real Safari soak (`DOCTOR_LOADING_BASELINE.md` §7).
+**Инженерный Stage 2/3 rollout закрыт** (todo `route-rollout`). **Closure EXEC_SHA `bb4752368`:** metrics §7 baseline; **test-rollout** и **db-profile** — **pending** (Safari BLOCKED DL-RUNTIME-03). Post-audit fixes §8 baseline — commit/push/TEST redeploy pending.
 
 ## Наблюдаемая исходная проблема
 

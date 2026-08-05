@@ -131,8 +131,8 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
 
   const patientCardTabHref = patientCardHref(userId, { tab: 'program' });
 
-  const shellMeta = await loadDoctorPatientCardShellMeta(deps, workspace, userId, 'program');
   const tabPromise = loadDoctorPatientCardTabBootstrap(deps, workspace, userId, 'program');
+  const shellMeta = await loadDoctorPatientCardShellMeta(deps, workspace, userId, 'program');
 
   const embeddedEditor = (
     <TreatmentProgramInstanceDetailClient

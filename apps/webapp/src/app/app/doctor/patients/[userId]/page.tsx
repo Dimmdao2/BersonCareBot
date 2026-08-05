@@ -45,13 +45,14 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   }
 
   const activeTab = resolvePatientCardTab(typeof sp.tab === 'string' ? sp.tab : undefined);
-  const shellMeta = await loadDoctorPatientCardShellMeta(
+  // Start tab bootstrap before awaiting shell so Suspense can overlap progressive stream.
+  const tabPromise = loadDoctorPatientCardTabBootstrap(
     deps,
     workspace,
     identity.userId,
     activeTab,
   );
-  const tabPromise = loadDoctorPatientCardTabBootstrap(
+  const shellMeta = await loadDoctorPatientCardShellMeta(
     deps,
     workspace,
     identity.userId,
@@ -83,6 +84,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
         <PatientCardClient
           shellMeta={shellMeta}
           tabPromise={tabPromise}
+          initialTab={activeTab}
           createVisitFrom={createVisitFrom}
           visitDate={visitDate}
           isAdmin={session.user.role === 'admin'}

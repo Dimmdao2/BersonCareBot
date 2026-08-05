@@ -114,8 +114,8 @@ These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/berso
 
 ## 5. Remaining gates (post-engineering)
 
-1. ~~**db-profile**~~ — `[x]` closed on EXEC_SHA `bb4752368` (§7): routes still above −40% p95 gate (`home`, `schedule`, `lfk-templates`, `patient-card` vs §2) match pre-closure §6 pattern; no new `EXPLAIN` — evidence-only close per closure plan DL-DB-02.
-2. ~~**test-rollout**~~ — `[x]` EXEC_SHA `bb4752368` (§7): CI/security green, TEST deploy, wake verify, n=30 metrics, curl runtime soak. **BLOCKED:** real Safari hardware gate (closure DL-RUNTIME-03) — not falsely completed.
+1. **db-profile** — `[ ]` pending on EXEC_SHA `bb4752368` (§7): routes still above −40% p95 gate (`home`, `schedule`, `lfk-templates`, `patient-card` vs §2) match pre-closure §6 pattern; no new `EXPLAIN` yet — evidence-only decision recorded, owner may close without DB change (DL-DB-02).
+2. **test-rollout** — `[ ]` pending. EXEC_SHA `bb4752368` (§7): CI/security green, TEST deploy, wake verify, n=30 metrics, curl runtime soak done. **BLOCKED:** real Safari hardware gate (closure DL-RUNTIME-03) — must not be marked completed.
 3. ~~**TEST deploy lag**~~ — closed by §6 post-rollout capture on `33f9b2b82`; final EXEC_SHA `bb4752368` on TEST repo.
 4. ~~**Cron noise**~~ — `[x]` post-deploy: scheduler `digest-wake` **200**, `materialize-wake` **200/400** (no 403/500); loopback signed verify 2026-08-05T20:16Z on `bb4752368`.
 5. ~~**Acceptance criteria**~~ — measured on EXEC_SHA §7; binary gates: unsolicited patient detail **0** PASS; schedule warm reload **0** duplicate `/api/doctor/schedule*` PASS; p95 −40% **partial** (communications, treatment-program-templates, recommendations PASS; home, schedule, lfk-templates, patient-card FAIL vs §2); patient-card bundle −30% **FAIL** (manifest sum unchanged vs §4).
@@ -205,6 +205,29 @@ Raw JSON: `/tmp/bcb-doctor-postdeploy-parsed.json` on host (not committed).
 
 Patient-card **−30% bundle gate FAIL** (manifest method unchanged vs §4; no `pnpm run analyze`). Communications/schedule list manifests differ from §4 method — compare like-for-like only within same manifest parser.
 
-**db-profile:** No `EXPLAIN` on EXEC_SHA — failing −40% routes documented above; no new DB regression identified beyond §6; closure engineering slice does not add DB work without owner decision.
+**db-profile:** `[ ]` pending — No `EXPLAIN` on EXEC_SHA; failing −40% routes documented above; no new DB regression identified beyond §6; owner may close evidence-only (DL-DB-02) without DB change.
 
-**Safari:** **BLOCKED** — real Safari hardware soak not run (closure DL-RUNTIME-03); Chromium/curl evidence only.
+**Safari / test-rollout:** **BLOCKED / pending** — real Safari hardware soak not run (closure DL-RUNTIME-03); Chromium/curl evidence only — do not mark `test-rollout` completed.
+
+---
+
+## 8. Post-audit remediation (working tree, 2026-08-05)
+
+**Context:** Independent audit of closure implementation (`bf710216`) found schedule StrictMode duplicate bootstrap,
+patient-card `initialTab` deep-link gap, messages poll generation, identity test oracle gaps. Fixes applied on
+`feat/doctor-ui-rebuild` atop `1c61165e2` (not yet pushed).
+
+**Full CI (working tree):** exit 0 in ~495s — `/tmp/bcb-full-ci-audit-fixes-20260805-213033.log` (host lock).
+
+**Code evidence (spot checks vs closure plan):**
+
+| Area | Verification |
+|------|----------------|
+| Schedule SSR skip | `ScheduleCalendarTab.tsx` `ssrLoadKeyRef` + `scheduleCalendarLoadKey`; UI test under `<StrictMode>` |
+| Patient deep-link | `page.tsx` `initialTab={activeTab}`; `tabPromise` before `await shellMeta` |
+| Messages | `messagesSnapshot.route.test.ts`; poll generation per request; single fetch path on null seed |
+| Identity oracle | `messengerPhoneLink.identity.test.ts` mock returns `integrator_user_id`; bindings assert |
+
+**TEST deploy:** still on EXEC_SHA `bb4752368` (§7). **Redeploy required** after commit/push to validate audit fixes on live TEST.
+
+**Still open:** DL-STREAM-05 runtime byte-order capture; DL-RUNTIME-03 Safari; DL-DB-01/02; full Chromium entitlement matrix (DL-RUNTIME-01).
