@@ -25,7 +25,7 @@ todos:
     status: completed
   - id: test-runtime
     content: Задеплоить ровно CI/security-green executable SHA на TEST и пройти health, wake, role/browser/error acceptance
-    status: pending
+    status: completed
   - id: metrics-closeout
     content: Снять сопоставимые p50/p95/request/bundle, профилировать только повторно провалившиеся маршруты и закрыть evidence commit
     status: completed
@@ -63,8 +63,8 @@ isProject: false
 - [x] **DL-AUTH-02** В старом plan поставить forward-link: открытая часть заменена этим closure-планом; его
   `patient-card-progressive: completed` пометить `УСТАРЕЛО/ЗАМЕНЕНО` из-за DL-MSG/DL-TZ/DL-STREAM.
   `route-rollout` не переоткрывать целиком: завершённые Stage 2/3 оставить evidence, дефекты расписания вести
-  атомарными DL-SCH. `db-profile` closed evidence-only (§10 baseline); `test-rollout` pending.
-  Evidence: `doctor-loading-performance_e024544d.plan.md` forward-link + `test-rollout`/`db-profile` pending.
+  атомарными DL-SCH. `db-profile` closed evidence-only (§10 baseline); `test-rollout` closed owner Safari 2026-08-05.
+  Evidence: `doctor-loading-performance_e024544d.plan.md` forward-link; `test-rollout`/`db-profile` completed.
 - [x] **DL-AUTH-03** В том же commit добавить в этот план устойчивую ссылку на audit transcript и проверить, что
   нет второго активного doctor-loading checklist. Frontmatter todo остаётся `pending`, пока открыт хоть один его
   body-checkbox.
@@ -330,8 +330,10 @@ runtime/инспекцией.
   inspection; не ломать живой TEST backend и не добавлять production fault flag. Header и успешные widgets
   остаются доступны при одном failed widget.
   Evidence: `Promise.allSettled` envelopes; route/widget tests; no production fault toggle.
-- [ ] **DL-RUNTIME-03** Настоящий Safari остаётся отдельным hardware gate исходного плана. Эмуляция Chromium его
+- [x] **DL-RUNTIME-03** Настоящий Safari остаётся отдельным hardware gate исходного плана. Эмуляция Chromium его
   не заменяет; без внешнего Safari evidence пункт и весь `test-rollout` остаются BLOCKED, а не ложно completed.
+  Evidence: owner manual soak Safari на TEST `a71e222b3` (2026-08-05): страницы открываются; переходы между страницами
+  владельцу показались «тупящими», но на тот момент общая медлительность системы — объективно сложно оценить.
 
 Успешный pre-remediation deploy `33f9b2b82` и wake evidence — только baseline, не evidence для EXEC_SHA.
 
@@ -365,6 +367,7 @@ runtime/инспекцией.
 - [x] **DL-CLOSE-02** Docs-only EVIDENCE_SHA не инвалидирует executable CI/runtime evidence, но Security после его
   push обязан быть green. Любая executable правка после EXEC_SHA требует новый full CI, Security и TEST deploy.
   Evidence: executable `a71e222b3` pushed + Security green; docs sync in working tree (this commit).
-- [ ] **DL-CLOSE-03** Только после всех строк, включая Safari и DB decision, поставить `test-rollout`
+- [x] **DL-CLOSE-03** Только после всех строк, включая Safari и DB decision, поставить `test-rollout`
   и frontmatter todos `completed`. Push только `origin/feat/doctor-ui-rebuild`; PROD не трогать.
-  **Open:** Safari BLOCKED (`test-rollout` pending); `db-profile` closed evidence-only; bundle/FCP slice not in closure scope.
+  Evidence: Safari owner 2026-08-05; DB evidence-only closed; `test-rollout`/`test-runtime` todos completed.
+  Product gates −40% p95 / −30% bundle (§7) и bundle lazy-load (§10) — открыты по смыслу, не блокер closure deploy.

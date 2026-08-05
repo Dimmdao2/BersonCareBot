@@ -115,7 +115,7 @@ These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/berso
 ## 5. Remaining gates (post-engineering)
 
 1. ~~**db-profile**~~ — `[x]` closed evidence-only (DL-DB-01/02, 2026-08-05): route→port trace ([Trace route DB work](fe8f0801-3186-41e6-9003-7c0eb745532e)); `EXPLAIN` не снимали. FCP на 4G (~3.4–3.7s при TTFB 82–209ms) — client JS, не SSR/DB (nginx p95 0.10–0.37s §7). Отдельная DB-оптимизация без owner-go не делалась.
-2. **test-rollout** — `[ ]` pending. EXEC_SHA `bb4752368` (§7): CI/security green, TEST deploy, wake verify, n=30 metrics, curl runtime soak done. **BLOCKED:** real Safari hardware gate (closure DL-RUNTIME-03) — must not be marked completed.
+2. ~~**test-rollout**~~ — `[x]` closed owner Safari (DL-RUNTIME-03, 2026-08-05): владелец прошёлся по кабинету в Safari на TEST (`a71e222b3`); переходы между страницами показались медленными, но owner: «сейчас всё тупит» — субъективная оценка затруднена. Автоматический curl/Chromium soak — §9.
 3. ~~**TEST deploy lag**~~ — closed by §6 post-rollout capture on `33f9b2b82`; final EXEC_SHA `bb4752368` on TEST repo.
 4. ~~**Cron noise**~~ — `[x]` post-deploy: scheduler `digest-wake` **200**, `materialize-wake` **200/400** (no 403/500); loopback signed verify 2026-08-05T20:16Z on `bb4752368`.
 5. ~~**Acceptance criteria**~~ — measured on EXEC_SHA §7; binary gates: unsolicited patient detail **0** PASS; schedule warm reload **0** duplicate `/api/doctor/schedule*` PASS; p95 −40% **partial** (communications, treatment-program-templates, recommendations PASS; home, schedule, lfk-templates, patient-card FAIL vs §2); patient-card bundle −30% **FAIL** (manifest sum unchanged vs §4).
@@ -207,7 +207,7 @@ Patient-card **−30% bundle gate FAIL** (manifest method unchanged vs §4; no `
 
 **db-profile:** `[x]` closed evidence-only (DL-DB-02, 2026-08-05) — `EXPLAIN` не снимали. Маршруты выше −40% gate (home, schedule, lfk, patient-card) остаются в диапазоне ~0.10–0.37 s SSR; closure/audit срез чинил баги и дубли запросов, не DB. Отдельная оптимизация БД без owner-go не делалась.
 
-**Safari / test-rollout:** **BLOCKED** — реальный Safari (DL-RUNTIME-03) не прогоняли; `test-rollout` в performance plan не закрываем ложно. Chromium/curl soak — §9.
+**Safari / test-rollout:** `[x]` owner Safari soak (DL-RUNTIME-03, 2026-08-05) — владелец проверил в Safari на TEST; переходы между страницами «тупят», но общая медлительность системы затрудняет оценку. Chromium/curl — §9.
 
 ---
 
@@ -247,9 +247,9 @@ Patient-card **−30% bundle gate FAIL** (manifest method unchanged vs §4; no `
 
 **DL-RUNTIME-01:** doctor + global_admin document paths **200**; entitlement matrix 1/10/100+ clients и cold/warm RSC navigation **не** прогонялись; Chromium headless на TEST не использовали (curl/nginx).
 
-**DL-RUNTIME-03 Safari:** **BLOCKED** — нет hardware Safari; пункт открыт по плану.
+**DL-RUNTIME-03 Safari:** `[x]` owner real Safari 2026-08-05 — qualified (см. §11).
 
-**Closure status:** engineering + audit remediation **done** on `a71e222b3`; product gates −40% p95 / −30% bundle (§7) и Safari остаются открытыми по смыслу, не по багам деплоя.
+**Closure status:** engineering + audit remediation **done** on `a71e222b3`; Safari gate closed owner-qualified; product gates −40% p95 / −30% bundle (§7) и bundle lazy-load (§10) — открыты по смыслу перф, не по багам деплоя.
 
 ---
 
@@ -271,3 +271,13 @@ Patient-card **−30% bundle gate FAIL** (manifest method unchanged vs §4; no `
 **Chromium headless (local profile, TEST cookies, no 4G throttle):** raw `/tmp/doctor-runtime-a71e222b3.json` — cold FCP 180–304ms, idle 1.1–1.6s; patient tab switch → duplicate `GET …/payments` (×2). Stream heuristic: shell/tabs before heavy overview media; `?tab=records` deep-link — no overview APIs.
 
 **Next product slice (не DB):** lazy `TemplateEditor`, dynamic chat in `DoctorOpenChatButton`, defer FullCalendar on home/schedule — порядок из bundle advisory.
+
+---
+
+## 11. Owner Safari soak (2026-08-05)
+
+**Owner (чат 2026-08-05):** «я проверял в сафари — можешь пока отметить что пройдено. при переходе по страницам еще тупит, но надо признать что у меня сейчас все тупит так что сложно оценивать».
+
+**Закрывает:** closure DL-RUNTIME-03, performance `test-rollout`, closure `test-runtime` frontmatter todo.
+
+**Qualified PASS:** функциональный soak на реальном Safari hardware; явных регрессий/блокеров closure не названо. Переходы между страницами owner воспринимает как медленные, но с пометкой что общая тормозность окружения делает субъективную оценку скорости неоднозначной — не считается FAIL product gate и не требует отката deploy.

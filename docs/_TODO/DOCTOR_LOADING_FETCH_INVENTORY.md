@@ -48,4 +48,4 @@ Stage 1 evidence: [`DOCTOR_LOADING_BASELINE.md`](./DOCTOR_LOADING_BASELINE.md) �
 | Patient card — deep-link `?tab=`, shell/tab before heavy tab bytes | **PASS** — §8 code + §9 stream heuristic |
 | Schedule StrictMode SSR skip, scope/stale generation | **PASS** — `ScheduleCalendarTab.ui.test.tsx` |
 
-**Still BLOCKED:** real Safari soak (DL-RUNTIME-03); full Chromium entitlement matrix (DL-RUNTIME-01 partial). **FCP:** DB not primary lever — baseline §10 (route→port trace fe8f0801); bundle lazy-load slice pending.
+**Still partial:** full Chromium entitlement matrix (DL-RUNTIME-01). **Safari:** `[x]` owner soak §11. **FCP:** bundle lazy-load slice pending (§10).
