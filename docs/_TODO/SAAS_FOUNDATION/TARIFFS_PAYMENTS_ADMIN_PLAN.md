@@ -791,7 +791,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       цепочку: поломка даёт `service.ts:33 — graceDays (literal): graceDays: BASE (BASE -> GRACE_DAYS = 14)`.
       Обратная сторона проверена тоже: посторонняя именованная константа ложной тревоги не даёт (68 зелёных).
       ⛔ Известная граница, записана в самом гейте: константы, импортированные из ДРУГОГО файла, не резолвятся.
-- [ ] **2.6a** Снять агентские константы, которые сегодня решают за владельца. ⚠️ **ЧАСТИЧНО 31.07**
+- [x] **2.6a** Снять агентские константы, которые сегодня решают за владельца. ✅ **ЗАКРЫТО 05.08 (#1069, measure).**
       (`6b64ba7d8`, `5eb1789d4`, полный CI 398 зелёных). Закрыто: уведомления стали списком владельца (срок ·
       условие · шаблон с переменными) и агентских текстов не осталось нигде, включая предупреждение кабинета
       (`cabinetGraceWarningMessages` рендерит строку владельца); число мест — обязательное поле, тариф без него не
@@ -802,9 +802,11 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       предупреждения; нет счёта — плейсхолдер остаётся видимым, цена live-тарифа не выдумывается. Доказательство:
       `pnpm --dir apps/webapp exec vitest run --project fast src/modules/org-entitlements/accessNotifications.test.ts`
       (9 passed), `pnpm --dir apps/webapp exec vitest run --project ui src/app/app/accessLifecycleSurfaces.ui.test.tsx`
-      (7 passed), `pnpm --dir apps/webapp typecheck`, scoped ESLint и `git diff --check`. **НЕ закрыто, ждёт
-      отдельной работы:** (2) «стартовый тариф с триалом настраивается в админке» — НЕ проверено, что он
-      именно настраивается, а не зашит; отдельного доказательства нет. Действующие требования:
+      (7 passed), `pnpm --dir apps/webapp typecheck`, scoped ESLint и `git diff --check`. **Админ-поверхность
+      стартового тарифа и триала — ЗАКРЫТО (measure 05.08):** вкладка «Триал» в
+      `CommercialConstructorClient.tsx` — `set_registration_tariff_policy` и `set_trial_policy` через
+      `/api/admin/commercial`; UI-тест T5 (`CommercialConstructorClient.ui.test.tsx` — 10 passed); провижининг
+      читает обе DB-policy (Р-7, C5A smoke, land `706e7f52f`). Действующие требования:
 
       · ✅ **ДВЕ НАСТРОЙКИ РАЗВЕДЕНЫ И ЗАКРЫТЫ СТЕНОЙ 01.08.** Настройка стартового тарифа отделена от
         триала (`4ca49ccd8`), таблица `saas_registration_tariff_policy`. Гейт `check-saas-db-regression`
@@ -823,9 +825,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
         этот список не дописан. Отставание списка никем не проверяется. Вопрос владельцу.
       · Действующие решения владельца по этому пункту — **Р-1 · Р-2 · Р-3 · Р-4 · Р-7 · Р-8** в реестре
         §5а-0. Дословные формулировки лежат там и только там; здесь они намеренно не пересказаны.
-        Незакрытым из них остаётся Р-7 (не доказано, что стартовый тариф и его лестница настраиваются, а не
-        зашиты); Р-2 закрыт серверной связкой billing overview → renderer выше.
-        Решения Р-5 и Р-6 переехали в пункт 2.13 — они про то, чего у клиники не бывает, а не про
+        **Р-7 закрыт** (реестр §5а-0 + C5A smoke); **Р-2 закрыт** серверной связкой billing overview → renderer
+        выше. Решения Р-5 и Р-6 переехали в пункт 2.13 — они про то, чего у клиники не бывает, а не про
         константы конструктора.
 
 - [x] **2.6b** `TariffQuotaMap` сегодня физически допускает число только у файлов (`types.ts:110`, `normalizeQuotaMap`
@@ -997,7 +998,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 #### Этап 3. Единая точка исполнения — чтобы дверь была одна
 
-- [ ] **3.1** Все проверки состояния идут через один порт: обработчик спрашивает резолвер, а не проверяет флаги сам. У
+- [x] **3.1** Все проверки состояния идут через один порт: обработчик спрашивает резолвер, а не проверяет флаги сам. ✅
+      **ЗАКРЫТО 05.08 (#1069, measure).** У
       числовых механик проверка остаётся внутри пишущей транзакции под блокировкой (образец — места и файлы).
       `clinic_team` §4: `TeamSection` получает разрешение на mutation через существующий resolver-backed
       `getMechanicMutationAvailability`: в `read_only` остаются списки участников/ожидающих приглашений и видимый
@@ -1012,7 +1014,9 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       `DECLARED_NO_SURFACE.patient_count` снята, в реестр добавлены `branches.update`, `branches.deactivate`,
       `patient-count.client.create`. Доказательство: `pnpm --dir apps/webapp exec vitest run
       src/app-layer/guards/requireEntitlementReadOnlyRefusesWrites.test.ts
-      src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 2 файла / 18 тестов PASS.
+      src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` — 2 файла / 18 тестов PASS;
+      `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts` — 117 actions, zero static bypass;
+      `courses/route.ts` — auth один раз, затем `requireEntitlementFor*`; mailings/cms — `requireEntitlementForMutationAction`.
 - [x] **3.1a** ✅ ЗАКРЫТО 30.07 (`a2f973530`). Ранний `return { ok: true }` для чтения снят ещё коммитом лестницы
       `380b7aa39`; недоставало доказательства поведением — теперь есть: у клиники выключены курсы → пациентский
       список отдаёт 403 и обработчик не вызывается. Лид проверил снятием защиты: возврат ветки «read → ok» роняет
