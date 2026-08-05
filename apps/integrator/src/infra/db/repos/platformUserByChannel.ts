@@ -1,6 +1,36 @@
-import { sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { platformUsers, userChannelBindings } from '../schema/integratorPublicProduct.js';
+
+/** Match webapp canonical merge-chain guard (`pgCanonicalPlatformUser.ts`). */
+const MAX_MERGE_CHAIN_DEPTH = 5;
+
+async function followPlatformUserMergedIntoChain(
+  db: DbPort,
+  startId: string,
+): Promise<string> {
+  const d = getIntegratorDrizzleSession(db);
+  let current = startId;
+  const seen = new Set<string>();
+  for (let depth = 0; depth < MAX_MERGE_CHAIN_DEPTH; depth++) {
+    if (seen.has(current)) {
+      console.warn('[canonical] merged_into_id cycle detected at', current);
+      return startId;
+    }
+    seen.add(current);
+    const rows = await d
+      .select({ mergedIntoId: platformUsers.mergedIntoId })
+      .from(platformUsers)
+      .where(eq(platformUsers.id, current))
+      .limit(1);
+    const next = rows[0]?.mergedIntoId ?? null;
+    if (next == null) return current;
+    current = next;
+  }
+  console.warn('[canonical] merged_into_id chain exceeded max depth from', startId);
+  return current;
+}
 
 /**
  * Канонический `platform_users.id` по привязке мессенджера (public.user_channel_bindings).
@@ -9,26 +39,20 @@ export async function resolveCanonicalPlatformUserIdByChannel(
   db: DbPort,
   input: { channelCode: string; externalId: string },
 ): Promise<string | null> {
-  const res = await runIntegratorSql<{ platform_user_id: string }>(
-    db,
-    sql`
-    WITH RECURSIVE pu_chain AS (
-      SELECT pu.id, pu.merged_into_id
-      FROM public.user_channel_bindings ucb
-      INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
-      WHERE ucb.channel_code = ${input.channelCode}
-        AND ucb.external_id = ${input.externalId}
-      UNION ALL
-      SELECT p.id, p.merged_into_id
-      FROM public.platform_users p
-      INNER JOIN pu_chain c ON p.id = c.merged_into_id
+  const d = getIntegratorDrizzleSession(db);
+  const bindings = await d
+    .select({ userId: userChannelBindings.userId })
+    .from(userChannelBindings)
+    .innerJoin(platformUsers, eq(platformUsers.id, userChannelBindings.userId))
+    .where(
+      and(
+        eq(userChannelBindings.channelCode, input.channelCode),
+        eq(userChannelBindings.externalId, input.externalId),
+      ),
     )
-    SELECT id::text AS platform_user_id
-    FROM pu_chain
-    WHERE merged_into_id IS NULL
-    LIMIT 1
-  `,
-  );
-  const row = res.rows[0];
-  return row?.platform_user_id?.trim() ? row.platform_user_id.trim() : null;
+    .limit(1);
+  const startId = bindings[0]?.userId;
+  if (!startId) return null;
+  const canonical = await followPlatformUserMergedIntoChain(db, startId);
+  return canonical.trim() ? canonical.trim() : null;
 }

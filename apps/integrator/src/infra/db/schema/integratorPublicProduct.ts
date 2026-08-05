@@ -86,6 +86,13 @@ export const platformUsers = pgTable('platform_users', {
   mergedIntoId: uuid('merged_into_id'),
 });
 
+/** Narrow `public.user_channel_bindings` slice for integrator delivery lookup (D18b). */
+export const userChannelBindings = pgTable('user_channel_bindings', {
+  userId: uuid('user_id').notNull(),
+  channelCode: text('channel_code').notNull(),
+  externalId: text('external_id').notNull(),
+});
+
 /** Existing public enrollment table, mapped narrowly for shared direct-writer actor resolution. */
 export const orgEnrollments = pgTable('org_enrollments', {
   platformUserId: uuid('platform_user_id').notNull(),

@@ -646,10 +646,16 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             integrator `platformUserDeliveryPhone.ts` — `sql` fragment → Drizzle select через новый узкий
             `platformUsers` в `integratorPublicProduct.ts`; `writePort.ts` — три inline identity/conversation
             lookup вынесены в `getIntegratorUserIdByResourceAndExternalId` / `getConversationUserIdentityId`
-            (inline SQL в writePort = 0). `pnpm --dir apps/integrator typecheck` зелёный. Остаток touched-path:
-            `platformUserByChannel.ts` (recursive CTE), `userContactsMirrorWrite.ts` (platform-merge raw
-            `.query()`), `pgOAuthUserResolve.ts` и прочие D15b readers с `runWebappPgText`; `directPublic/*`
-            — sql через порт, отдельный объём.
+            (inline SQL в writePort = 0). **ПРОГРЕСС 05.08 (#987, slice 2):** integrator
+            `platformUserByChannel.ts` — recursive CTE → Drizzle select + iterative `merged_into_id` chain
+            (`userChannelBindings` в `integratorPublicProduct.ts`); platform-merge
+            `userContactsMirrorWrite.ts` — raw `.query()` strings → Drizzle `sql` fragments (compiled через
+            `PgDialect`, `drizzle-orm` dep); webapp `pgOAuthUserResolve.ts` — все 10 `runWebappPgText` убраны
+            (Drizzle CRUD + `runWebappSql` только для `app.*` definer RPC). `pnpm --dir apps/integrator
+            typecheck` и `pnpm --dir packages/platform-merge typecheck` зелёные; `pgOAuthUserResolve.ts` без
+            новых TS-ошибок. **Остаток touched-path:** D15b readers — `pgUserProjection.ts`,
+            `pgPatientOrganization.ts`, `userContactsSql.ts`/`userIdentityFioSql.ts` adapters,
+            `userIdentityFioWrite.ts` (platform-merge); `directPublic/*` — sql через порт, отдельный объём.
       - [x] **D18c — перепись остатка и снятие списка исключений, последним.** Когда вырезано всё, что вырезается:
             перепись поимённо с классификацией «миграция / законная обёртка / чистить», чистка остатка, список
             до нуля. Пункт закрывается тем, что проверка перестаёт находить исключения, а не отчётом.

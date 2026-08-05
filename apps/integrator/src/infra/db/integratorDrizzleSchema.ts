@@ -5,6 +5,7 @@ import {
   orgEnrollments,
   platformUsers,
   reminderRules,
+  userChannelBindings,
 } from './schema/integratorPublicProduct.js';
 import {
   contentAccessGrants,
@@ -20,6 +21,7 @@ export const integratorDrizzleSchema = {
   deliveryAttemptLogs,
   orgEnrollments,
   platformUsers,
+  userChannelBindings,
   reminderRules,
   projectionOutbox,
   messageRetryJobs,

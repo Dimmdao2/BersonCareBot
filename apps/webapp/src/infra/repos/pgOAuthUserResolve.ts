@@ -1,9 +1,9 @@
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
-import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import {
-  CONTACTS,
+  drizzlePrimaryPhoneCol,
   syncUserContactsMirrorWebapp,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
 } from '@/infra/repos/userContactsSql';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
@@ -17,6 +17,7 @@ import type {
   UpsertOAuthBindingInput,
   UpsertOAuthBindingResult,
 } from '@/modules/auth/oauthUserResolvePort';
+import { platformUsers } from '../../../db/schema/schema';
 
 /**
  * IDENTITY_AND_MERGE_SCHEME.md §2a (owner, 03.08): "убрать перезапись основной почты при входе
@@ -40,55 +41,64 @@ async function applyVerifiedOAuthEmail(
 ): Promise<void> {
   if (!emailTrusted || !emailRaw?.trim()) return;
   const email = emailRaw.trim();
-  await runWebappPgText(
-    `UPDATE platform_users
-     SET email = $2::text,
-         email_normalized = lower(btrim($2::text)),
-         email_verified_at = now(),
-         updated_at = now()
-     WHERE id = $1::uuid AND merged_into_id IS NULL AND email IS NULL`,
-    [userId, email],
-  );
-  await runWebappPgText(
-    `UPDATE platform_users
-     SET email_verified_at = now(),
-         updated_at = now()
-     WHERE id = $1::uuid AND merged_into_id IS NULL
-       AND email_verified_at IS NULL
-       AND lower(btrim(email)) = lower(btrim($2::text))`,
-    [userId, email],
-  );
-  await syncUserContactsMirrorWebapp(getPool(), userId);
+  const db = getWebappSqlDb();
+  await db
+    .update(platformUsers)
+    .set({
+      email,
+      emailNormalized: email.toLowerCase(),
+      emailVerifiedAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(platformUsers.id, userId),
+        isNull(platformUsers.mergedIntoId),
+        isNull(platformUsers.email),
+      ),
+    );
+  await db
+    .update(platformUsers)
+    .set({
+      emailVerifiedAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(platformUsers.id, userId),
+        isNull(platformUsers.mergedIntoId),
+        isNull(platformUsers.emailVerifiedAt),
+        sql`lower(btrim(${platformUsers.email})) = lower(btrim(${email}::text))`,
+      ),
+    );
+  await syncUserContactsMirrorWebapp(getWebappSqlDb(), userId);
 }
 
 async function findUserIdsByAnyConfirmedEmail(emailNorm: string): Promise<string[]> {
-  const r = await runWebappPgText<{ user_id: string }>(
-    `SELECT user_id::text AS user_id
-     FROM app.find_platform_user_ids_by_any_confirmed_email($1)`,
-    [emailNorm],
+  const r = await runWebappSql<{ user_id: string }>(
+    getWebappSqlDb(),
+    sql`SELECT user_id::text AS user_id
+          FROM app.find_platform_user_ids_by_any_confirmed_email(${emailNorm})`,
   );
   return r.rows.map((row) => row.user_id);
 }
 
 async function getActivePhoneForUser(userId: string): Promise<string | null> {
-  const r = await runWebappPgText<{ phone_normalized: string | null }>(
-    `SELECT ${CONTACTS.phoneNormalized} AS phone_normalized
-     FROM platform_users pu
-     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
-     WHERE pu.id = $1::uuid AND pu.merged_into_id IS NULL`,
-    [userId],
-  );
-  const phone = r.rows[0]?.phone_normalized;
+  const rows = await getWebappSqlDb()
+    .select({ phone_normalized: drizzlePrimaryPhoneCol })
+    .from(platformUsers)
+    .where(and(eq(platformUsers.id, userId), isNull(platformUsers.mergedIntoId)))
+    .limit(1);
+  const phone = rows[0]?.phone_normalized;
   return typeof phone === 'string' && phone.trim() ? phone : null;
 }
 
 async function addSparePhoneContact(userId: string, phoneNorm: string): Promise<void> {
   const pool = getPool();
-  await runWebappPgText(
-    `UPDATE platform_users SET phone_normalized = $2::text, updated_at = now()
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [userId, phoneNorm],
-  );
+  await getWebappSqlDb()
+    .update(platformUsers)
+    .set({ phoneNormalized: phoneNorm, updatedAt: sql`now()` })
+    .where(and(eq(platformUsers.id, userId), isNull(platformUsers.mergedIntoId)));
   await applyPlatformUserPhoneHistoryTransition(pool, {
     platformUserId: userId,
     newPhoneNormalized: phoneNorm,
@@ -97,71 +107,87 @@ async function addSparePhoneContact(userId: string, phoneNorm: string): Promise<
 }
 
 async function findUserIdsByVerifiedEmail(emailNorm: string): Promise<string[]> {
-  const byEmail = await runWebappPgText<{ id: string }>(
-    `SELECT id FROM platform_users
-     WHERE merged_into_id IS NULL
-       AND email_verified_at IS NOT NULL
-       AND (
-         email_normalized = $1
-         OR (email_normalized IS NULL AND lower(trim(COALESCE(email, ''))) = $1)
-       )
-     LIMIT 4`,
-    [emailNorm],
-  );
-  return byEmail.rows.map((row) => row.id);
+  const byEmail = await getWebappSqlDb()
+    .select({ id: platformUsers.id })
+    .from(platformUsers)
+    .where(
+      and(
+        isNull(platformUsers.mergedIntoId),
+        isNotNull(platformUsers.emailVerifiedAt),
+        or(
+          eq(platformUsers.emailNormalized, emailNorm),
+          and(
+            isNull(platformUsers.emailNormalized),
+            sql`lower(trim(COALESCE(${platformUsers.email}, ''))) = ${emailNorm}`,
+          ),
+        ),
+      ),
+    )
+    .limit(4);
+  return byEmail.map((row) => row.id);
 }
 
 async function findActiveUserIdsByEmail(emailNorm: string): Promise<string[]> {
   // Same as findUserIdsByVerifiedEmail but WITHOUT the email_verified_at filter — mirrors the
   // uq_user_contacts_email uniqueness so we link instead of INSERT-colliding.
-  const byEmail = await runWebappPgText<{ id: string }>(
-    `SELECT id FROM platform_users
-     WHERE merged_into_id IS NULL
-       AND (
-         email_normalized = $1
-         OR (email_normalized IS NULL AND lower(trim(COALESCE(email, ''))) = $1)
-       )
-     LIMIT 4`,
-    [emailNorm],
-  );
-  return byEmail.rows.map((row) => row.id);
+  const byEmail = await getWebappSqlDb()
+    .select({ id: platformUsers.id })
+    .from(platformUsers)
+    .where(
+      and(
+        isNull(platformUsers.mergedIntoId),
+        or(
+          eq(platformUsers.emailNormalized, emailNorm),
+          and(
+            isNull(platformUsers.emailNormalized),
+            sql`lower(trim(COALESCE(${platformUsers.email}, ''))) = ${emailNorm}`,
+          ),
+        ),
+      ),
+    )
+    .limit(4);
+  return byEmail.map((row) => row.id);
 }
 
 async function createOAuthPlatformUser(input: CreateOAuthPlatformUserInput): Promise<string> {
-  const ins = await runWebappPgText<{ id: string }>(
-    `INSERT INTO platform_users (
-       phone_normalized, display_name, email, email_normalized, email_verified_at, role, patient_phone_trust_at
-     )
-     VALUES (
-       $1, $2, $3,
-       CASE
-         WHEN $4::timestamptz IS NOT NULL AND COALESCE(btrim($3::text), '') <> ''
-           THEN lower(btrim($3::text))
-         ELSE NULL
-       END,
-       $4, 'client',
-       CASE WHEN $1::text IS NOT NULL AND trim($1::text) <> '' THEN now() ELSE NULL END
-     )
-     RETURNING id`,
-    [input.phoneNorm, input.display, input.emailRaw, input.emailVerifiedAt],
-  );
-  const userId = ins.rows[0]!.id;
-  await syncUserIdentityFioMirrorWebapp(getPool(), userId);
-  await syncUserContactsMirrorWebapp(getPool(), userId);
+  const emailTrimmed = input.emailRaw?.trim() ?? '';
+  const hasVerifiedEmail = input.emailVerifiedAt != null && emailTrimmed !== '';
+  const phoneTrimmed = input.phoneNorm?.trim() ?? '';
+  const hasPhone = phoneTrimmed !== '';
+  const rows = await getWebappSqlDb()
+    .insert(platformUsers)
+    .values({
+      phoneNormalized: input.phoneNorm,
+      displayName: input.display,
+      email: input.emailRaw,
+      emailNormalized: hasVerifiedEmail ? emailTrimmed.toLowerCase() : null,
+      emailVerifiedAt: input.emailVerifiedAt?.toISOString() ?? null,
+      role: 'client',
+      patientPhoneTrustAt: hasPhone ? sql`now()` : null,
+    })
+    .returning({ id: platformUsers.id });
+  const userId = rows[0]!.id;
+  await syncUserIdentityFioMirrorWebapp(getWebappSqlDb(), userId);
+  await syncUserContactsMirrorWebapp(getWebappSqlDb(), userId);
   return userId;
 }
 
 async function upsertOAuthBinding(
   input: UpsertOAuthBindingInput,
 ): Promise<UpsertOAuthBindingResult> {
-  const bind = await runWebappPgText<{ inserted: boolean; user_id: string }>(
-    `SELECT inserted, user_id::text AS user_id
-     FROM app.auth_oauth_upsert_binding($1::uuid, $2::text, $3::text, $4::text)`,
-    [input.userId, input.provider, input.providerUserId, input.emailRaw],
+  const bind = await runWebappSql<{ inserted: boolean; user_id: string }>(
+    getWebappSqlDb(),
+    sql`SELECT inserted, user_id::text AS user_id
+          FROM app.auth_oauth_upsert_binding(
+            ${input.userId}::uuid,
+            ${input.provider},
+            ${input.providerUserId},
+            ${input.emailRaw}
+          )`,
   );
   const row = bind.rows[0];
   if (row?.inserted === true) {
-    await syncUserContactsMirrorWebapp(getPool(), input.userId);
+    await syncUserContactsMirrorWebapp(getWebappSqlDb(), input.userId);
     return { inserted: true };
   }
   const ownerId = row?.user_id;
