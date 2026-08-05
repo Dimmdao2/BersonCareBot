@@ -37,3 +37,13 @@
 ## TEST baseline (timing + bundle)
 
 Stage 1 evidence: [`DOCTOR_LOADING_BASELINE.md`](./DOCTOR_LOADING_BASELINE.md) — nginx `bersoncare_webapp_detailed` on `test.bersoncare.ru`, route upstream p50/p95, cron noise, first-load JS from deployed TEST `.next` manifests.
+
+**Closure EXEC_SHA `bb4752368` (2026-08-05, TEST):**
+
+| Inventory rule | Verified |
+|----------------|----------|
+| `/patients` — no unsolicited patient-detail document before intent | **PASS** — 0 detail URIs in nginx window after list GET only (`DOCTOR_LOADING_BASELINE.md` §7) |
+| Schedule `tab=cal` with SSR bootstrap — no repeat settings/feed/KPI on warm document | **PASS** — 0 `/api/doctor/schedule*` on warm schedule reload |
+| Patient card overview messages — read-only snapshot, no `conversations/ensure` on SSR | **code** — `GET /api/doctor/patients/[userId]/messages-snapshot`; continuation via `useMessagePolling` when `active` |
+| Patient card — inactive tabs not loaded until visit | **code** — shell/tab split + `use(tabPromise)` under `PatientTabPanelLoading` |
+| Schedule scope change triggers new load; stale generation ignored | **tests** — `ScheduleCalendarTab.ui.test.tsx` oracle tests green on `bb4752368` |

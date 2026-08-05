@@ -114,11 +114,11 @@ These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/berso
 
 ## 5. Remaining gates (post-engineering)
 
-1. **db-profile** — no `EXPLAIN`/port profiling yet.
-2. **test-rollout** — `[x]` TEST deploy `33f9b2b82` (2026-08-05), wake verify PASS, p50/p95 vs §2 in §6, local full CI green `101ad229b` (492s, `/tmp/bcb-full-ci-20260805-pass2.log`). Soak/acceptance §7 metrics still open.
-3. ~~**TEST deploy lag**~~ — closed by §6 post-rollout capture on `33f9b2b82`.
-4. ~~**Cron noise**~~ — `[x]` post-deploy: scheduler `digest-wake` **200**, `materialize-wake` **400** (no 403/500 since webapp restart ~18:56 MSK); loopback signed verify 2026-08-05T16:01Z.
-5. **Acceptance criteria** — plan §7 completion metrics (40% p95 reduction, bundle delta, zero unsolicited prefetch) not fully measured yet; see §6 deltas.
+1. ~~**db-profile**~~ — `[x]` closed on EXEC_SHA `bb4752368` (§7): routes still above −40% p95 gate (`home`, `schedule`, `lfk-templates`, `patient-card` vs §2) match pre-closure §6 pattern; no new `EXPLAIN` — evidence-only close per closure plan DL-DB-02.
+2. ~~**test-rollout**~~ — `[x]` EXEC_SHA `bb4752368` (§7): CI/security green, TEST deploy, wake verify, n=30 metrics, curl runtime soak. **BLOCKED:** real Safari hardware gate (closure DL-RUNTIME-03) — not falsely completed.
+3. ~~**TEST deploy lag**~~ — closed by §6 post-rollout capture on `33f9b2b82`; final EXEC_SHA `bb4752368` on TEST repo.
+4. ~~**Cron noise**~~ — `[x]` post-deploy: scheduler `digest-wake` **200**, `materialize-wake` **200/400** (no 403/500); loopback signed verify 2026-08-05T20:16Z on `bb4752368`.
+5. ~~**Acceptance criteria**~~ — measured on EXEC_SHA §7; binary gates: unsolicited patient detail **0** PASS; schedule warm reload **0** duplicate `/api/doctor/schedule*` PASS; p95 −40% **partial** (communications, treatment-program-templates, recommendations PASS; home, schedule, lfk-templates, patient-card FAIL vs §2); patient-card bundle −30% **FAIL** (manifest sum unchanged vs §4).
 
 ---
 
@@ -154,3 +154,57 @@ These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/berso
 Raw JSON: `/tmp/bcb-doctor-postdeploy-parsed.json` on host (not committed).
 
 **Deploy incident (first attempt `101ad229b`):** `c5a-platform-operations-runtime.sql` 0376 grant assertion failed — `saas_paid_period_policy` still on `app_staff` after P0.5b regen. Fixed in `33f9b2b82` (drop from P0.5b staff surface + `REVOKE` in c5a). Services were down between failed and successful deploy (~18:38–18:56 MSK).
+
+---
+
+## 7. Closure EXEC_SHA re-measure (`bb4752368`, 2026-08-05)
+
+**EXEC_SHA:** `bb475236898` at `/opt/projects/bersoncarebot-test` (matches `origin/feat/doctor-ui-rebuild` `bb4752368`). `/api/health` → `{ok:true,db:"up"}`; `/api/version` exposes `buildId` only (use deploy repo SHA for version proof).
+
+**CI / Security (EXEC_SHA):** local `pnpm run ci` exit 0 in 491s (`/tmp/bcb-full-ci-3-20260805-193017.log`); GitHub Security on `bb4752368` green (Gitleaks, Semgrep, Trivy, dependency audit). Local Gitleaks: `no leaks found` with `.gitleaksignore`.
+
+**Wake verify (loopback :6300, 2026-08-05 ~20:16 MSK):**
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `digest-wake` | **200** | `{"ok":true,"sent":false,"reason":"not_slot"}` |
+| `materialize-wake` | **200** | valid org `d0000000-0000-4000-8000-00000000000d`; not 403 |
+| nginx tail | **PASS** | no `digest-wake`/`materialize-wake` **403/500** since deploy |
+
+**Auth / method:** same as §2 (`dimmdao@yandex.ru` + `saas-smoke-login.env`). **Patient card fixture:** `1c312a64-fab8-4b75-b24e-88a1d6ebe4e0` (first UUID in patients HTML — same as §2).
+
+**Timing method:** 1 cold + **30 warm** authenticated GET per route; nginx `upstream_response_time` p50/p95 via nearest-rank on log window starting ~20:21 MSK (`/var/log/nginx/bersoncare-test-webapp-access.log`). Raw JSON: `/tmp/bcb-doctor-exec-sha.json` on host (not committed).
+
+| Route | n | p50 (s) | p95 (s) | §2 p95 | Δ p95 | −40% gate |
+|-------|---|---------|---------|--------|-------|-----------|
+| `/app/doctor` | 31 | 0.301 | 0.365 | 0.388 | −6% | **FAIL** |
+| `/app/doctor/patients` | 33 | 0.164 | 0.197 | 0.169 | +17% | n/a (prefetch gate) |
+| `/app/doctor/patients/{uuid}` | 31 | 0.144 | 0.178 | 0.195 | −9% | **FAIL** |
+| `/app/doctor/schedule` | 31 | 0.088 | 0.100 | 0.087 | +15% | **FAIL** |
+| `/app/doctor/communications` | 31 | 0.053 | 0.067 | 0.196 | −66% | **PASS** |
+| `/app/doctor/treatment-program-templates` | 31 | 0.059 | 0.072 | 0.368 | −80% | **PASS** |
+| `/app/doctor/lfk-templates` | 31 | 0.283 | 0.332 | 0.288 | +15% | **FAIL** |
+| `/app/doctor/recommendations` | 43 | 0.059 | 0.067 | 0.114 | −41% | **PASS** |
+| `/app/doctor/content` | 62 | 0.052 | 0.063 | n/a | n/a | n/a |
+
+**Request inventory (curl, EXEC_SHA):**
+
+| Check | Result |
+|-------|--------|
+| `/app/doctor/patients` unsolicited patient-detail document | **0** |
+| `/app/doctor/schedule?tab=cal` warm reload → `/api/doctor/schedule*` | **0** (SSR seed; no duplicate bootstrap fetch) |
+| Runtime pages (doctor, patients, schedule, communications, patient-card) | all **200** |
+
+**Bundle proxy (deployed `.next` client-reference-manifest.js, uncompressed static chunk sum):**
+
+| Route | Chunks | Bytes | §4 bytes | Δ |
+|-------|--------|-------|----------|---|
+| patient-card | 22 | 1,022,728 | 1,018,664 | +0.4% |
+| home | 22 | 1,355,717 | 1,024,420 | +32% (shared chunk accounting) |
+| patients | 18 | 757,682 | 440,502 | +72% (shared chunk accounting) |
+
+Patient-card **−30% bundle gate FAIL** (manifest method unchanged vs §4; no `pnpm run analyze`). Communications/schedule list manifests differ from §4 method — compare like-for-like only within same manifest parser.
+
+**db-profile:** No `EXPLAIN` on EXEC_SHA — failing −40% routes documented above; no new DB regression identified beyond §6; closure engineering slice does not add DB work without owner decision.
+
+**Safari:** **BLOCKED** — real Safari hardware soak not run (closure DL-RUNTIME-03); Chromium/curl evidence only.

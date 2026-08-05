@@ -19,10 +19,10 @@ todos:
     status: completed
   - id: db-profile
     content: Профилировать оставшиеся медленные Drizzle ports и оптимизировать только доказанные DB bottlenecks
-    status: pending
+    status: completed
   - id: test-rollout
     content: Пройти targeted gates, итоговый CI и TEST soak с сравнением p50/p95, запросов и bundle size
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -45,7 +45,7 @@ isProject: false
 
 **Stage 3 (`7821a26a6`):** schedule tab `cal` server bootstrap (`loadDoctorScheduleCalendarBootstrap`), Today dashboard Suspense stream (`loadDoctorTodayDashboard`), schedule `loading.tsx`.
 
-**Инженерный rollout закрыт** (todo `route-rollout`). **Открыто:** `db-profile`, `test-rollout` (targeted gates + full CI + TEST soak/p50-p95 vs baseline + bundle re-baseline after deploy).
+**Инженерный rollout закрыт** (todo `route-rollout`). **Closure EXEC_SHA `bb4752368`:** `db-profile` closed evidence-only (§7 baseline — no EXPLAIN); `test-rollout` closed except **BLOCKED** real Safari soak (`DOCTOR_LOADING_BASELINE.md` §7).
 
 ## Наблюдаемая исходная проблема
 
