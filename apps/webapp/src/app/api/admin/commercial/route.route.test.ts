@@ -134,6 +134,7 @@ beforeEach(() => {
         label: selectableBillingPeriod.label,
         months: selectableBillingPeriod.months,
         isSelectable: selectableBillingPeriod.isSelectable,
+        sortOrder: selectableBillingPeriod.sortOrder,
       },
     ],
   });
