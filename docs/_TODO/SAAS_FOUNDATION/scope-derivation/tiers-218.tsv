@@ -21,7 +21,9 @@ BOOTSTRAP|public.system_settings
 BOOTSTRAP|public.system_settings_audit
 BOOTSTRAP|public.user_channel_bindings
 BOOTSTRAP|public.user_channel_preferences
+BOOTSTRAP|public.user_contacts
 BOOTSTRAP|public.user_email_setup_tokens
+BOOTSTRAP|public.user_identity
 BOOTSTRAP|public.user_notification_topic_channels
 BOOTSTRAP|public.user_notification_topics
 BOOTSTRAP|public.user_oauth_bindings
@@ -56,8 +58,10 @@ INFRA|public.reference_catalog_baselines
 INFRA|public.reference_catalog_snapshot_receipts
 INFRA|public.schema_migrations
 INFRA|public.saas_tariffs
+INFRA|public.saas_billing_periods
 INFRA|public.saas_trial_policy
 INFRA|public.saas_registration_tariff_policy
+INFRA|public.saas_paid_period_policy
 INFRA|public.webapp_schema_migrations
 LEGACY|integrator.message_retry_jobs
 LEGACY|integrator.user_reminder_rules
