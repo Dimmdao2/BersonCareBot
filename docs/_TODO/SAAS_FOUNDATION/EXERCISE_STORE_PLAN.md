@@ -225,6 +225,13 @@ Cancel recurring pack = не продлевать после already-paid-throug
 
 Кодовый хвост: нынешние `exercise_catalog` / `exercise_packages` как tariff visibility «сырой» platform library — **снять с продуктового смысла** (убрать из конструктора / не гейтить ими личный каталог); заменить/свести к рубильнику базовых наборов.
 
+> **Owner ruling 05.08 (#1069, текущий код до store Track — уже так):** «каталоги лфк не надо резать (личные).
+> Только доступ к платформенным». Замер 05.08: clinic-owned упражнения/комплексы создаются, меняются, листятся и
+> архивируются **без** tariff gate; `exercise_catalog` / `exercise_packages` управляют только
+> `includePlatformBase` (видимость/использование platform rows). Registry: `DECLARED_NO_SURFACE` с текстом
+> «tariff controls platform-library visibility only» (`protectedActionRegistry.ts`). Не путать с будущей заменой на
+> `platform_base_packs` выше — это отдельный этап store-плана, не регресс текущего поведения.
+
 - Base access вычисляется общим resolver динамически: `pack.kind=base AND base_packs mechanic enabled`.
   Не создавать по строке grant на каждый base pack: новый опубликованный base pack должен появиться у всех
   подходящих тарифов без fan-out backfill.

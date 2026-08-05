@@ -283,6 +283,17 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 | `patient_app`                   | нет поверхности (подтверждено: `grep` не находит `patient_app_enabled`/toggle)                                                     | —                                 | resolver-only                         | Не изобретать route; пометить `declared_no_surface`                                                                                     |
 | `exercise_catalog`              | вне scope (store, S4-3)                                                                                                            | —                                 | resolver-only                         | Не трогать в этой работе                                                                                                                |
 | `exercise_packages`             | вне scope (store, S4-3)                                                                                                            | —                                 | resolver-only                         | Не трогать в этой работе                                                                                                                |
+
+> **Owner ruling 05.08 (#1069, замер кода — уже так):** личные/clinic-owned каталоги ЛФК **не режутся**
+> `exercise_catalog` / `exercise_packages`. Оба ключа — только visibility/use **платформенной** библиотеки
+> (`requireEntitlementForReadAction` → `includePlatformBase` на list/get; см. `doctor/exercises/page.tsx`,
+> `doctor/lfk-templates/page.tsx`, `pgLfkExercises.ts`, `pgLfkTemplates.ts`). Запись клиники (создание/редактирование/
+> архив своих упражнений и комплексов) **без** tariff mutation gate — см. `DECLARED_NO_SURFACE` в
+> `protectedActionRegistry.ts` и отсутствие `requireEntitlementForMutation('exercise_catalog')` в
+> `doctor/exercises/actionsShared.ts`. Evidence: `tariffMechanics.route.test.ts` («keeps clinic-owned exercise
+> creation…»), `protectedActionRegistryCoverage.unit.test.ts` («keeps clinic-owned catalog writes out of
+> platform-library tariff gates»), аудит `AUDIT_EXERCISE_PLATFORM_LIBRARY_2026-08-02.md`. Будущая замена ключей на
+> `platform_base_packs` — только по [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) §2.5, не в этом проходе.
 | `patient_app_paid_subscription` | нет поверхности                                                                                                                    | —                                 | resolver-only                         | `declared_no_surface`                                                                                                                   |
 | `branding`                      | нет поверхности                                                                                                                    | —                                 | resolver-only                         | `declared_no_surface`                                                                                                                   |
 | `custom_domain`                 | нет поверхности                                                                                                                    | —                                 | resolver-only                         | `declared_no_surface`                                                                                                                   |
