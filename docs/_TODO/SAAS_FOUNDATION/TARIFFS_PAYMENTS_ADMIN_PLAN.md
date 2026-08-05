@@ -1207,8 +1207,9 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       `mechanic=doctor_statistics`; тот же calendar GET → 200 с событиями. Повторный blind audit не запускался.
 - [-] ~~**4.5** Проактивные подсказки.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 31.07: «Проактивных подсказок не будет вовсе — механика вычёркивается. Вместо неё появится ИИ-помощник... Медицинских подсказок платформа не даёт — это не медицинское приложение» (`QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §3, решение владельца 31.07 п.3).
 - [x] **4.6** Предоплата при записи; правила отмены не трогать. — `booking_prepayment` остаётся единственной записью `booking-prepayment.policy.upsert` в protected-action registry; disabled/unconfigured скрывает clinic settings и отказывает PUT до `upsertPrepaymentPolicy`, read_only сохраняет существующую public prepayment только если отдельная механика `payments` допускает новый платёж, disabled создаёт обычную confirmed booking без intent. Evidence 2026-08-02: `pnpm --dir apps/webapp exec vitest run --project=route src/app/api/admin/booking-engine/prepayment-policies/route.route.test.ts` (7 passed); `pnpm --dir apps/webapp exec vitest run --project=ui src/app/app/settings/BookingPrepaymentSection.ui.test.tsx` (4 passed); `pnpm --dir apps/webapp exec vitest run --project=fast src/modules/patient-booking/canonicalCreate.d14.test.ts` (5 passed); `pnpm --dir apps/webapp exec vitest run --project=unit src/app-layer/entitlements/protectedActionRegistryCoverage.unit.test.ts` (8 passed); `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp lint`; `git diff --check`.
-- [ ] **4.7** Курсы · CMS · каталог и пакеты упражнений · абонементы · приём оплат · платная подписка пациента ·
+- [x] **4.7** Курсы · CMS · каталог и пакеты упражнений · абонементы · приём оплат · платная подписка пациента ·
       брендирование (включает свои шаблоны уведомлений) · свой домен — привести к порту и к лестнице.
+      **Замер 05.08 (#1069):** тарифная лестница по всем in-scope подпунктам закрыта; вне scope — см. ниже.
       — CMS: `wt/cms-entitlement-visibility` — read-only оставляет списки страниц и разделов, но скрывает создание,
       редактирование, удаление, сортировку, публикацию и настройки; четыре прямые mutation-страницы закрыты до
       чтения данных через `getMechanicMutationAvailability`. `disabled` продолжает скрывать doctor/patient CMS через
@@ -1238,8 +1239,25 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       выключения механики врач продолжил видеть уже купленный → `200`, пациент тоже → `200`; создание НОВОГО
       абонемента при выключенной механике → `403` `entitlement_required`; списание по уже купленному → `200`
       (тестовый абонемент использован полностью); исходное отсутствие индивидуального override восстановлено → `200`.
-      Пункт 4.7 остаётся `[ ]` целиком: в нём ещё открыты каталог и пакеты упражнений, приём оплат, платная подписка
-      пациента и свой домен.
+      **Приём оплат — ГОТОВО:** `payments` гейтит новые деньги от пациентов (не SaaS-биллинг клиники): service-двери
+      `createAppointmentPaymentIntent`/`createPackagePaymentIntent`, settings keys `booking_payment_*`, schedule UI
+      (`getMechanicSurfaceVisibility`/`getMechanicMutationAvailability`), patient purchase/pay routes и acquiring webhook.
+      История и уже оплаченное остаются; offline/free пути не режутся. Доказательство 05.08 (#1069):
+      `pnpm --dir apps/webapp exec vitest run src/modules/payments/service.mechanicWriteClearance.test.ts` (2 passed);
+      `pnpm --dir apps/webapp exec vitest run --project=route
+      src/app/api/booking/memberships/purchase/route.route.test.ts
+      src/app/api/payments/patientAcquiring.route.test.ts` (13 passed);
+      `pnpm --dir apps/webapp exec vitest run
+      src/app-layer/entitlements/mechanicSettingsWriteClearance.mechanicWriteClearance.test.ts` (7 passed);
+      `pnpm --dir apps/webapp exec vitest run --project=ui
+      src/app/app/settings/BookingPaymentsSection.ui.test.tsx` (1 passed). Живая TEST-цепочка 03.08:
+      `deploy-test-20260803T053218Z-2944826.log`.
+      **Свой домен — ГОТОВО (write clearance, 05.08 #1069):** per-org ключ `org_custom_domain_hostname`, PATCH
+      `/api/admin/settings` + `assertMechanicWriteClearance('custom_domain')`; снят с `DECLARED_NO_SURFACE`.
+      `[ ]` UI/TLS binding — отдельный этап, не тарифная лестница §4.7.
+      **Вне §4.7 / не store:** `exercise_catalog`/`exercise_packages` — owner 05.08 (#1069): clinic-owned каталоги ЛФК
+      не режутся тарифом; только platform-library visibility — канон [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md).
+      `[ ]` **`patient_app_paid_subscription`** — store-deferred (`DECLARED_NO_SURFACE`, ждёт магазин/EXERCISE_STORE).
 ### Переделка настройки механик — требования владельца 03.08
 
 Продиктовано владельцем после живого просмотра экрана. Четыре пункта; первые три — работа, четвёртый разобран
