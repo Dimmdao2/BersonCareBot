@@ -40,7 +40,9 @@ import type {
   DoctorPatientCardShellMeta,
   DoctorPatientCardTabBootstrap,
 } from '../loadDoctorPatientCardPageBootstrap';
-import { unwrapBootstrapEnvelope } from '../loadDoctorPatientCardPageBootstrap';
+import {
+  unwrapBootstrapEnvelope,
+} from '../doctorPatientCardBootstrapShared';
 import type { ApiPackage, PaymentItem, AppointmentPrefill } from './tabs/PatientTabRecords';
 import type { FileRecord } from './tabs/PatientTabFiles';
 import type { SupplementaryContact } from './tabs/PatientTabAccount';

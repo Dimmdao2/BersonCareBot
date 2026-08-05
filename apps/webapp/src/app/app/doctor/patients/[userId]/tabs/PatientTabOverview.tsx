@@ -22,11 +22,11 @@ import { serializeSupportMessage, type SerializedSupportMessage } from '@/module
 import type { DoctorPatientProgramActivity } from '@/app/app/doctor/patients/loadDoctorPatientProgramActivity';
 import type { DoctorPatientExerciseCalendarSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientExerciseCalendar';
 import type { DoctorPatientMessagesSnapshot } from '@/app/app/doctor/patients/loadDoctorPatientMessagesSnapshot';
-import type { BootstrapEnvelope } from '@/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap';
+import type { BootstrapEnvelope } from '@/app/app/doctor/patients/doctorPatientCardBootstrapShared';
 import {
   isBootstrapEnvelopeFailed,
   unwrapBootstrapEnvelope,
-} from '@/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap';
+} from '@/app/app/doctor/patients/doctorPatientCardBootstrapShared';
 import { useMessagePolling } from '@/modules/messaging/hooks/useMessagePolling';
 import type {
   TreatmentProgramInstanceSummary,
