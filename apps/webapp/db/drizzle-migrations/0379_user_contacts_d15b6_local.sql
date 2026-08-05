@@ -74,7 +74,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.user_contacts (
   platform_user_id, contact_kind, channel_code, value_normalized, is_primary, confirmed_at, source_origin
 )
-SELECT ob.user_id, 'email', ob.provider, lower(btrim(ob.email)), false, ob.created_at, 'oauth_binding'
+SELECT ob.user_id, 'email', NULL, lower(btrim(ob.email)), false, ob.created_at, 'oauth_binding'
 FROM public.user_oauth_bindings ob
 INNER JOIN public.platform_users pu ON pu.id = ob.user_id
 WHERE pu.merged_into_id IS NULL
