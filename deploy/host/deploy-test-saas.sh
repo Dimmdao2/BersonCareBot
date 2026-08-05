@@ -1102,6 +1102,9 @@ WITH required(tbl, priv) AS (
     ('public.saas_tariffs', 'SELECT'),
     ('public.saas_org_entitlement_overrides', 'SELECT'),
     ('public.saas_organization_trials', 'SELECT'),
+    -- 0376 (#1069 T10): app.resolve_organization_mechanic_access(uuid,text) and
+    -- app.resolve_organization_cabinet_access(uuid) read the global post-paid-period policy.
+    ('public.saas_paid_period_policy', 'SELECT'),
     -- 0295/0302/0306 app_owner capabilities added after the 123-function baseline. Each row below
     -- comes directly from a live function body; ON CONFLICT writes require both INSERT and UPDATE.
     ('public.saas_billing_subscriptions', 'SELECT'),
@@ -1626,7 +1629,17 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # design, it is two sources of truth disagreeing about one object -- the same shape
   # assert_login_fix_definer_owners_pinned was added to catch earlier the same day. The overlay now pins
   # app_owner, so the function counts here and NOT in the DB-owner anon-reachable gate below.
-  local expected_secdef_count=180
+  # 180 -> 182 (2026-08-05, #1069 migrations 0375 + 0378): two genuinely new app_owner-owned
+  # SECURITY DEFINER accessors:
+  #   - app.choose_organization_first_tariff(uuid,uuid) (0375 T5) reads/writes be_organizations,
+  #     saas_trial_policy, saas_organization_trials, saas_billing_accounts, saas_billing_subscriptions,
+  #     saas_tariffs and admin_audit_log -- billing-account/subscription app_owner grants are pinned
+  #     in the billing-foundation gate above; the rest are already in the required-grant set.
+  #   - app.prepare_organization_lifecycle_notification_context(uuid) (0378 T2) reads
+  #     saas_organization_trials and UPDATEs be_organizations.cabinet_first_entered_at -- both tables
+  #     already pinned above.
+  # Migrations 0376/0377/0379/0380 only REPLACE existing accessors or add DDL; net zero here.
+  local expected_secdef_count=182
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -2036,6 +2049,15 @@ WITH expected(relation_name) AS (
   -- app_owner/SELECT/saas_billing_invoices ACL entry this assertion did not yet expect.
   SELECT 'saas_billing_invoices', 'app_owner', 'SELECT', false
   WHERE to_regprocedure('app.resolve_saas_billing_invoice_for_webhook(text,text)') IS NOT NULL
+  UNION
+  -- 0375 (#1069 T5): choose_organization_first_tariff SECURITY DEFINER accessor.
+  SELECT 'saas_billing_accounts', 'app_owner', privilege_type, false
+  FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+  WHERE to_regprocedure('app.choose_organization_first_tariff(uuid,uuid)') IS NOT NULL
+  UNION
+  SELECT 'saas_billing_subscriptions', 'app_owner', privilege_type, false
+  FROM unnest(ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]) AS privilege_type
+  WHERE to_regprocedure('app.choose_organization_first_tariff(uuid,uuid)') IS NOT NULL
   UNION
   SELECT relation_name, 'app_platform_settings', privilege_type, false
   FROM relations

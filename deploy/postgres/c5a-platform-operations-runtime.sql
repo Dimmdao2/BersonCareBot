@@ -864,13 +864,24 @@ GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_platform_settings
 GRANT EXECUTE ON FUNCTION app.current_provisioned_owner_organization() TO app_platform_settings;
 
 -- #1069 T5 — first tariff chosen by the clinic owner when registration tariff policy was empty.
-GRANT SELECT ON TABLE public.saas_trial_policy TO app_owner;
-GRANT INSERT ON TABLE public.saas_organization_trials TO app_owner;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_accounts TO app_owner;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_subscriptions TO app_owner;
-GRANT SELECT ON TABLE public.saas_tariffs TO app_owner;
-GRANT INSERT ON TABLE public.admin_audit_log TO app_owner;
+-- Guarded like the Phase 4 billing rehydration above: bounded scratch clusters (U3S smoke) omit
+-- migration 0259, so an unconditional GRANT/CREATE here aborts the whole overlay before
+-- start_provisioned_organization_trial() and the rest of the file can run.
+DO $c5a_choose_organization_first_tariff_accessor$
+BEGIN
+  IF to_regclass('public.saas_billing_accounts') IS NULL THEN
+    RAISE WARNING '0375 T5 (#1069): public.saas_billing_accounts does not exist on this database -- skipping choose_organization_first_tariff grants and accessor. If this table is later created here without rerunning this overlay, the clinic-first-tariff path is missing.';
+    RETURN;
+  END IF;
 
+  GRANT SELECT ON TABLE public.saas_trial_policy TO app_owner;
+  GRANT INSERT ON TABLE public.saas_organization_trials TO app_owner;
+  GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_accounts TO app_owner;
+  GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_subscriptions TO app_owner;
+  GRANT SELECT ON TABLE public.saas_tariffs TO app_owner;
+  GRANT INSERT ON TABLE public.admin_audit_log TO app_owner;
+
+  EXECUTE $create_function$
 CREATE OR REPLACE FUNCTION app.choose_organization_first_tariff(
   p_tariff_id uuid,
   p_actor_id uuid
@@ -1037,11 +1048,25 @@ BEGIN
     'trialId', v_trial_id::text
   );
 END
-$function$;
+$function$
+  $create_function$;
 
-ALTER FUNCTION app.choose_organization_first_tariff(uuid, uuid) OWNER TO app_owner;
-REVOKE ALL ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) TO app_staff;
+  ALTER FUNCTION app.choose_organization_first_tariff(uuid, uuid) OWNER TO app_owner;
+  REVOKE ALL ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) FROM PUBLIC;
+  GRANT EXECUTE ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) TO app_staff;
+END
+$c5a_choose_organization_first_tariff_accessor$;
+
+-- 0376 (#1069 T10): resolve_organization_* accessors read the global post-paid-period policy.
+DO $c5a_saas_paid_period_policy_grant$
+BEGIN
+  IF to_regclass('public.saas_paid_period_policy') IS NULL THEN
+    RAISE WARNING '0376: public.saas_paid_period_policy does not exist on this database -- skipping the app_owner SELECT grant.';
+    RETURN;
+  END IF;
+  GRANT SELECT ON TABLE public.saas_paid_period_policy TO app_owner;
+END
+$c5a_saas_paid_period_policy_grant$;
 
 -- app.current_org_id() / app.is_staff() for app_platform_settings — and why the grant has to live
 -- HERE and not in a migration.
