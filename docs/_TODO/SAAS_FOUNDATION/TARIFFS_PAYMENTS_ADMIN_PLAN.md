@@ -1055,7 +1055,17 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       src/modules/booking-engine/service.mechanicWriteClearance.test.ts
       src/modules/patient-organization/service.mechanicWriteClearance.test.ts
       src/modules/organization-invites/service.mechanicWriteClearance.test.ts` — 4 файла / 8 тестов PASS.
-      **Ещё открыто:** остальные гейтящиеся write-поверхности из реестра (mailings, cms, subscriptions, files, …).
+      **Добор 05.08 (#1069, high-traffic):** та же дверь в `doctorBroadcasts.execute` и
+      `doctorBroadcastComposer.saveDraft` (`mailings`), `wrapContentPagesPortWithWriteClearance` /
+      `wrapContentSectionsPortWithWriteClearance` на `deps.contentPages`/`deps.contentSections`
+      (`cms_pages`/`warmups` по секции), `membershipsService` write-пути (`subscriptions`), `patientFilesService`
+      (`files`: create/confirm/link/rename/delete). Доказательство:
+      `pnpm --dir apps/webapp exec vitest run
+      src/modules/doctor-broadcasts/service.mechanicWriteClearance.test.ts
+      src/app-layer/content/contentWriteClearancePorts.mechanicWriteClearance.test.ts
+      src/modules/memberships/service.mechanicWriteClearance.test.ts
+      src/modules/patient-files/service.mechanicWriteClearance.test.ts` — 4 файла / 8 тестов PASS.
+      **Ещё открыто:** остальные гейтящиеся write-поверхности из реестра (patient_home_today, branding, …).
 - [ ] **3.3** Реестр защищённых точек перестаёт врать: ни одного исключения, прикрывающего реальную запись. Ложное
       исключение хуже отсутствующего — проверка покрытия на нём зеленеет.
 - [x] **3.4** ✅ **УТОЧНЕНО 08-01 (`wt/tariff-plan-triage`): СДЕЛАНО**, с одной сознательной поправкой к тексту.

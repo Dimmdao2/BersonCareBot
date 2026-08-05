@@ -363,6 +363,10 @@ import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemory
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
+import {
+  wrapContentPagesPortWithWriteClearance,
+  wrapContentSectionsPortWithWriteClearance,
+} from '@/app-layer/content/contentWriteClearancePorts';
 import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
@@ -725,6 +729,15 @@ const contentPagesPort = !inMemoryRepos ? createPgContentPagesPort() : inMemoryC
 const contentSectionsPort = !inMemoryRepos
   ? createPgContentSectionsPort()
   : inMemoryContentSectionsPort;
+const contentPagesPortForDeps = wrapContentPagesPortWithWriteClearance(
+  contentPagesPort,
+  contentSectionsPort,
+  assertMechanicWriteClearance,
+);
+const contentSectionsPortForDeps = wrapContentSectionsPortWithWriteClearance(
+  contentSectionsPort,
+  assertMechanicWriteClearance,
+);
 const remindersService = createRemindersService(reminderRulesPort, {
   notifyIntegrator: notifyIntegratorRuleUpdated,
   journal: reminderJournalPort,
@@ -737,7 +750,10 @@ const referencesPort = !inMemoryRepos ? pgReferencesPort : inMemoryReferencesPor
 const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 const patientFilesPort = !inMemoryRepos ? createPgPatientFilesPort() : inMemoryPatientFilesPort;
-const patientFilesService = createPatientFilesService({ patientFilesPort });
+const patientFilesService = createPatientFilesService({
+  patientFilesPort,
+  assertWriteClearance: assertMechanicWriteClearance,
+});
 const patientClinicalPort = !inMemoryRepos
   ? createPgPatientClinicalPort()
   : inMemoryPatientClinicalPort;
@@ -838,6 +854,7 @@ const membershipsService =
         payments: null,
         bookingEngine: bookingEngineService,
         resolveServiceTitle: resolveMembershipServiceTitle,
+        assertWriteClearance: assertMechanicWriteClearance,
       })
     : null;
 
@@ -943,6 +960,7 @@ const membershipsServiceResolved =
         bookingEngine: bookingEngineService,
         resolveServiceTitle: resolveMembershipServiceTitle,
         refreshPackageCalendar: refreshPackageCalendarForAppointment,
+        assertWriteClearance: assertMechanicWriteClearance,
       })
     : membershipsService;
 
@@ -1600,6 +1618,7 @@ function _buildAppDeps() {
     adminPlatformUserStats,
     productAnalytics,
     doctorBroadcasts: createDoctorBroadcastsService({
+      assertWriteClearance: assertMechanicWriteClearance,
       resolveBroadcastAudience: async (filter, channels, category) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
         const { devMode, testAccounts } = await systemSettingsService.getRelayDevContext();
@@ -1680,8 +1699,10 @@ function _buildAppDeps() {
     }),
     doctorBroadcastComposer: {
       loadDraft: (doctorUserId: string) => broadcastDraftPort.loadDraft(doctorUserId),
-      saveDraft: (doctorUserId: string, draft: BroadcastDraft) =>
-        broadcastDraftPort.saveDraft(doctorUserId, draft),
+      saveDraft: (doctorUserId: string, draft: BroadcastDraft) => {
+        assertMechanicWriteClearance('mailings');
+        return broadcastDraftPort.saveDraft(doctorUserId, draft);
+      },
       getChannelCounts: () => broadcastChannelCountsPort.getChannelConnectionCounts(),
       getChannelCountsByAudience: async (filter: BroadcastAudienceFilter) => {
         if (filter === 'all') return broadcastChannelCountsPort.getChannelConnectionCounts();
@@ -1816,8 +1837,8 @@ function _buildAppDeps() {
     reminderJournal: reminderJournalPort,
     reminderProjection: reminderProjectionPort,
     appointmentProjection: appointmentProjectionPort,
-    contentPages: contentPagesPort,
-    contentSections: contentSectionsPort,
+    contentPages: contentPagesPortForDeps,
+    contentSections: contentSectionsPortForDeps,
     userByPhone: userByPhonePort,
     phoneMessengerBind: {
       start: (params: Parameters<typeof startPhoneMessengerBind>[0]) =>

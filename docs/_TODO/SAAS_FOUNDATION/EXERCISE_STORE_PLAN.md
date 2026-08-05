@@ -19,7 +19,7 @@
 | --- | --- |
 | [`STORE_EXECUTION_PLAN.md`](./STORE_EXECUTION_PLAN.md) | УСТАРЕЛ; P0–P2 = historical entitlements/tariff evidence; **P3 магазин → этот файл** |
 | [`STORE_P0_ENTITLEMENTS_PLAN.md`](./STORE_P0_ENTITLEMENTS_PLAN.md) | Historical P0 entitlements; к магазину не относится |
-| [`docs/archive/2026-07-plans/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](../../archive/2026-07-plans/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md) §8B S4-3 | Отложенный чек-лист 30.07; актуальные пункты перенесены/переосмыслены ниже |
+| [`docs/archive/2026-07-plans/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](../../archive/2026-07-plans/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md) §8B S4-3 | Исторический чек-лист 30.07; новая модель ниже, полная матрица соответствия — gate этапов 0/7 |
 | [`TARIFFS_PAYMENTS_ADMIN_PLAN.md`](./TARIFFS_PAYMENTS_ADMIN_PLAN.md) | Тарифы **без** магазина; ссылка на S4-3 заменена указателем сюда |
 | [`OWNER_DECISIONS_FOR_REVIEW.md`](./OWNER_DECISIONS_FOR_REVIEW.md) §«Магазин» 13.07 | Частично superseded: «только admin-curated» расширено эскизом 05.08 (авторы + модерация) |
 | taskdb `#724` | done: трёхуровневая библиотека + «будущий магазин»; сам магазин не строился |
@@ -87,6 +87,7 @@
 | SaaS billing | Есть org subscription, invoices только `tariff_period \| seat_overage`, ЮKassa adapter и webhook | Платёжный транспорт переиспользуется, но текущий invoice header не умеет смешанный счёт «тариф + несколько packs» без line items |
 | Identity/invites | Есть единый `platform_users` и хешированный invite-token flow для персонала | Автор остаётся тем же user; author invite повторяет механизм, но не создаёт membership клиники |
 | Patient snapshots | При назначении элементы программы сохраняют `snapshot` (`treatment_program_instance_stage_items`) | Store-каталоги обязаны читать каноническую карточку; судьбу уже назначенного snapshot нельзя менять молча — см. D2 |
+| Grandfather назначений | Текущий platform-LFK playback сохраняется через ссылку из уже назначенной программы даже после выключения старой механики | Owner-решение 05.08 для store требует другого поведения: store-origin assignment получает явный provenance и после revoke закрывается |
 | Старые content grants | `content_access_grants_webapp` — user/integrator-centric grant с обязательными integrator IDs | Не расширять его до org-store: store access имеет другой субъект и lifecycle |
 
 ### 1.2. Чего ещё нет (разрыв пути человека)
@@ -206,7 +207,8 @@ Cancel recurring pack = не продлевать после already-paid-throug
 
 **Решение для BCB:**
 
-1. **Не** плодить отдельную login-таблицу и не делать второй пароль.
+1. **Не** плодить отдельную login-таблицу и не делать второй пароль. Допущенный в первоначальном эскизе вариант
+   отдельной авторской auth-системы снят ответом владельца 05.08.
 2. Авторская capability = active row в `store_authors`, привязанная к `platform_users`; новый глобальный enum-role/boolean в `platform_users` не нужен.
    Capability появляется **только** после принятия `store_author_invite` от global admin.
 3. Отдельный UI-zone `/app/author/**` (или `/app/store-author/**`) с собственным layout/guards — по аналогии patient/doctor isolation.
@@ -219,6 +221,7 @@ Cancel recurring pack = не продлевать после already-paid-throug
 
 **Решение владельца 05.08:** каталог (свои упражнения/комплексы/…) — **базовая механика платформы**, в тарифе **выключателя каталога нет**.  
 В тарифе один рубильник: **базовые наборы платформы** on/off (если такие наборы есть).
+Канонический mechanic key: `platform_base_packs`.
 
 Кодовый хвост: нынешние `exercise_catalog` / `exercise_packages` как tariff visibility «сырой» platform library — **снять с продуктового смысла** (убрать из конструктора / не гейтить ими личный каталог); заменить/свести к рубильнику базовых наборов.
 
@@ -277,6 +280,11 @@ Resolver учитывает итоговый system lifecycle из тарифо�
 Base access вычисляется динамически. `store_org_pack_access` хранит только paid/perpetual/manual compensation
 sources; revoke одного source не закрывает item, если остаётся другой активный source.
 
+При добавлении store item в лечение instance item получает store provenance (`store_pack_id` или эквивалентный
+typed source). Старые назначения без store provenance сохраняют существующий grandfather-контракт; новые
+store-origin назначения при каждом patient read/playback проходят текущий resolver. Это выполняет решение
+05.08, не ломая исторические назначения, которые создавались до магазина.
+
 ### 2.8. Модерация
 
 Любое авторское изменение состава = новая `store_pack_revision`; цены/режима = новая `store_pack_offer`.
@@ -303,9 +311,10 @@ Archiving canonical item, который входит в published pack, не д
 | Подписка на pack **не** отменена, но кончился оплаченный период **доступа к системе** | действуют **настройки лестницы тарифа** (предупреждение → только чтение → отключение) — магазин свою лестницу **не** хардкодит |
 | Perpetual pack | не истекает по календарю пака; revoke только refund/policy/admin; системная лестница всё равно может ограничить кабинет целиком |
 
-Назначенные программы: snapshot/строка остаётся в БД для истории, но **видимость/playback** проверяет текущий
-store access и после revoke отказывает. D2 решает только, обновляется ли содержимое доступного snapshot при правке
-canonical card. Магазин не изобретает вторую лестницу рядом с тарифной.
+Назначенные программы: snapshot/строка остаётся в БД для истории. Для store-origin assignment его provenance
+заставляет **видимость/playback** проверять текущий store access и после revoke отказывать; legacy assignment без
+store provenance не меняется этим планом. D2 решает только, обновляется ли содержимое доступного snapshot при
+правке canonical card. Магазин не изобретает вторую лестницу рядом с тарифной.
 
 ### 2.10. ЮKassa, налоги, выплаты (п.4 эскиза)
 
@@ -393,7 +402,9 @@ route / page / server action
 
 ### Вопрос 6 — выплаты авторам
 
-**Ответ: сначала А, потом Б.** Сначала начисления на счёт платформы + периодическая/ручная выплата автору; затем сплит ЮKassa.
+**Ответ по смыслу:** сначала settlement ledger — деньги принимает платформа и периодически/вручную выплачивает
+автору; затем ЮKassa Split. Буквы из первоначальных вариантов больше не используются, чтобы не инвертировать
+их с названиями схем в §2.10.
 
 ### Вопрос 7 — состав набора в первой версии
 
@@ -464,7 +475,10 @@ Store и каталоги будут читать одну canonical карто�
 - [x] Вопрос 1 — А (видимость без копирования; фильтр «Наборы») — 2026-08-05.
 - [x] Вопрос 2 — А (один логин + кабинет автора) — 2026-08-05.
 - [x] Вопрос 3 — рубильник только «базовые наборы»; каталог не выключается тарифом — 2026-08-05.
-- [x] Вопросы 4–7 — §3 — 2026-08-05.
+- [x] Вопрос 4 — author ownership, не platform-base — §3 «Вопрос 4», 2026-08-05.
+- [x] Вопрос 5 — store не хардкодит тарифную лестницу — §3 «Вопрос 5», 2026-08-05.
+- [x] Вопрос 6 — settlement ledger, затем Split — §3 «Вопрос 6», 2026-08-05.
+- [x] Вопрос 7 — сразу пять существующих типов — §3 «Вопрос 7», 2026-08-05.
 - [x] `TARIFFS_PAYMENTS_ADMIN_PLAN.md` и `STORE_EXECUTION_PLAN.md` форвардят сюда — evidence: шапки/раздел P3 этих файлов.
 - [x] `CURRENT_AUTHORITY_MAP.md`, `docs/README.md` и `docs/INITIATIVES.md` называют этот файл каноном магазина —
       evidence: строки «Магазин упражнений» / `Exercise store` в этих индексах, 2026-08-05.
@@ -472,7 +486,9 @@ Store и каталоги будут читать одну canonical карто�
       picker/assignment/player callsites и текущая ownership-модель.
 - [ ] По SaaS billing зафиксирован seam миграции header→lines, renewal builder, checkout, webhook, refund,
       idempotency; второй provider/webhook/ledger рядом не проектируется.
-- [ ] D1–D3 имеют ответы либо точную пометку «этот поздний этап не начинать».
+- [ ] D1 имеет ответ до author complimentary access этапа 3.
+- [ ] D2 имеет ответ до patient snapshot acceptance этапа 5.
+- [ ] D3 имеет ответ до recurring billing этапа 4.
 - [ ] Старые S4-3 пункты сопоставлены строка-в-строку с этапами ниже; потерянных owner requirements нет.
 
 **Gate:** inspection report в этом разделе/ссылкой; кода/миграций ещё нет.
@@ -513,7 +529,7 @@ roles в этапе 7, новый DB-test harness без owner-go не стро�
 - [ ] Base pack: author/offer запрещены конструкцией; CRUD/publish/archive — global admin only + immutable audit.
 - [ ] Admin UI: список, карточка, cover, composition editor, preview, publish/archive; existing platform catalog
       pickers переиспользуются.
-- [ ] Tariff registry: один boolean «Базовые наборы платформы»; личные каталоги — always available.
+- [ ] Tariff registry: один boolean `platform_base_packs` («Базовые наборы платформы»); личные каталоги — always available.
 - [ ] Старые `exercise_catalog`/`exercise_packages` удалены из constructor/resolver/callsites и persisted tariff
       data согласованной migration; raw platform item не виден клинике, пока не входит в доступный base pack.
 - [ ] Base access вычисляется resolver динамически, без per-org×pack fan-out rows.
@@ -542,6 +558,8 @@ roles в этапе 7, новый DB-test harness без owner-go не стро�
 - [ ] Author-self resolver даёт автору доступ без оплаты, но не превращает это молча в бесплатный org-wide grant.
 - [ ] `store_pack_offers`: subscription/perpetual, price/currency; global commission — из `system_settings`;
       base pack offers конструктивно невозможны.
+- [ ] Global admin назначает единый commission percent через allowlisted `system_settings` key + Settings UI;
+      диапазон/decimal semantics валидируются одним accessor, per-author override нет.
 - [ ] Composition и offer отправляются/модерируются отдельно; previous published revision/offer живы до approve.
 - [ ] Admin moderation UI показывает diff, verdict/reason и audit trail.
 - [ ] Author не видит покупателей поимённо и не видит чужие packs/финансы.
@@ -594,7 +612,11 @@ renewal без pack line названы до тестов и убиты targeted
 - [ ] Фильтр добавлен на каталоги упражнений, LFK-комплексов, рекомендаций, шаблонов программ и тестов с
       совместимым URL contract.
 - [ ] Изменение canonical карточки сразу видно в store + live catalogs; composition revision остаётся только списком refs.
+- [ ] Picker/assignment сохраняет typed store provenance на instance item; один и тот же item при нескольких
+      sources выбирает/сохраняет доступный source без неявного grandfather.
 - [ ] Отмена/expiry/revoke скрывает items у клиники и клиентов; direct ID, picker и media/playback также отказывают.
+- [ ] `authorizeMediaDelivery`/platform-LFK bridge различают legacy assignment и store-origin assignment:
+      legacy grandfather не переписывается, store-origin после revoke не открывает snapshot/media.
 - [ ] Base tariff OFF скрывает только base-pack content, но не own catalog и не separately paid packs.
 - [ ] Coverage gate ловит новый catalog entrypoint в обход resolver и имеет self-test.
 
@@ -609,7 +631,7 @@ renewal без pack line названы до тестов и убиты targeted
 
 **Цель:** автор видит активные подписки и историю денег; платформа не платит дважды.
 
-- [ ] Global commission percent — одна DB-backed настройка global admin; per-author override не добавлять без нового owner-решения.
+- [ ] Начисление использует одобренный commission snapshot из order line; live-настройка не переписывает старые продажи.
 - [ ] Accrual строится из captured order lines: recurring — за оплаченный период, perpetual — один раз;
       commission/refund/chargeback записываются immutable entries.
 - [ ] Period close идемпотентен; повтор job/manual action не создаёт второе начисление/выплату.
@@ -692,4 +714,5 @@ Base packs можно выпустить после этапов 0–2 и их i
 | 2026-07-13 | Admin-curated packages; no file copy; grant model | `OWNER_DECISIONS_FOR_REVIEW.md` (частично superseded authorship) |
 | 2026-07-17 / 30.07 | Магазин отложен из #751 / S4-3 | `TARIFFS_PAYMENTS_ADMIN_PLAN.md`, S4 triage |
 | 2026-08-05 | Новый канон магазина + эскиз владельца (авторы, витрина, выплаты) | **этот файл** |
-| 2026-08-05 | Ответы владельца: видимость без копий; один логин; рубильник только base packs; owner=author; лестница не хардкодится; payout A→B; все типы = те же сущности | §3 |
+| 2026-08-05 | Ответы владельца: видимость без копий; один логин; рубильник только base packs; owner=author; лестница не хардкодится; payout settlement→Split; все типы = те же сущности | §3 |
+| 2026-08-05 | Повторная сверка с кодом: ownership пяти roots, invoice lines, store provenance против legacy grandfather, один resolver; выявлены D1–D3 | §1–§5 |

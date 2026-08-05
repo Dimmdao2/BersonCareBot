@@ -14,9 +14,17 @@ import type { ReceivedUpload } from '@/modules/media/uploadValidation';
 
 export type PatientFilesServiceDeps = {
   patientFilesPort: PatientFilesPort;
+  /**
+   * 3.2: physically refuses a files write unless a passing `files` mutation decision already ran
+   * in this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'files') => void;
 };
 
-export function createPatientFilesService({ patientFilesPort }: PatientFilesServiceDeps) {
+export function createPatientFilesService({
+  patientFilesPort,
+  assertWriteClearance,
+}: PatientFilesServiceDeps) {
   return {
     async listFiles(
       patientUserId: string,
@@ -30,22 +38,27 @@ export function createPatientFilesService({ patientFilesPort }: PatientFilesServ
     },
 
     async createFile(params: CreatePatientFileParams): Promise<PatientFileRecord> {
+      assertWriteClearance?.('files');
       return patientFilesPort.createFile(params);
     },
 
     async confirmFileUpload(mediaFileId: string, received: ReceivedUpload) {
+      assertWriteClearance?.('files');
       return patientFilesPort.confirmFileUpload(mediaFileId, received);
     },
 
     async linkFileToVisit(id: string, visitId: string): Promise<PatientFileRecord | null> {
+      assertWriteClearance?.('files');
       return patientFilesPort.linkFileToVisit(id, visitId);
     },
 
     async renameFile(id: string, fileName: string): Promise<PatientFileRecord | null> {
+      assertWriteClearance?.('files');
       return patientFilesPort.renameFile(id, fileName);
     },
 
     async deleteFile(id: string): Promise<DeletePatientFileResult> {
+      assertWriteClearance?.('files');
       return patientFilesPort.deleteFile(id);
     },
 

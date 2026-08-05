@@ -54,6 +54,11 @@ export type DoctorBroadcastsServiceDeps = {
    * остаётся видимым, счётчик реальный, но фактическая рассылка guarded).
    */
   fanOutBroadcastEmailDeps?: FanOutBroadcastEmailDeps;
+  /**
+   * 3.2: physically refuses a mailings write unless a passing `mailings` mutation decision already
+   * ran in this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'mailings') => void;
 };
 
 export type DoctorBroadcastExecutionOptions = {
@@ -120,6 +125,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       command: BroadcastCommand,
       options?: DoctorBroadcastExecutionOptions,
     ): Promise<{ auditEntry: BroadcastAuditEntry }> {
+      deps.assertWriteClearance?.('mailings');
       const channels = resolvedChannels(command);
       const resolved = await deps.resolveBroadcastAudience(
         command.audienceFilter,

@@ -124,6 +124,12 @@ export function createMembershipsService(deps: {
   resolveServiceTitle?: (serviceId: string) => Promise<string | null>;
   /** Refreshes GCal after consume / penalty ref update (best-effort). */
   refreshPackageCalendar?: (appointmentId: string) => Promise<void>;
+  /**
+   * 3.2: physically refuses a subscriptions write unless a passing `subscriptions` mutation
+   * decision already ran in this request (injected from `buildAppDeps.ts` as
+   * `assertMechanicWriteClearance`).
+   */
+  assertWriteClearance?: (mechanic: 'subscriptions') => void;
 }) {
   async function refreshPackageCalendarForAppointment(appointmentId: string) {
     if (!deps.refreshPackageCalendar) return;
@@ -188,6 +194,7 @@ export function createMembershipsService(deps: {
     async upsertCatalogPackage(
       input: Parameters<MembershipsPort['upsertCatalogPackage']>[0],
     ): Promise<SubscriptionPackageRecord> {
+      deps.assertWriteClearance?.('subscriptions');
       return deps.port.upsertCatalogPackage(input);
     },
 
@@ -212,6 +219,7 @@ export function createMembershipsService(deps: {
       input: Parameters<MembershipsPort['createManualPatientPackage']>[0],
       options?: MembershipWriteOptions,
     ) {
+      deps.assertWriteClearance?.('subscriptions');
       const title =
         input.title?.trim() ||
         buildManualPatientPackageTitle({
@@ -264,6 +272,7 @@ export function createMembershipsService(deps: {
       },
       options?: MembershipWriteOptions,
     ) {
+      deps.assertWriteClearance?.('subscriptions');
       const pkg = await runMembershipWrite(options, () =>
         deps.port.offerCatalogPackageToPatient(input),
       );
@@ -492,6 +501,7 @@ export function createMembershipsService(deps: {
       platformUserId: string;
       subscriptionPackageId: string;
     }) {
+      deps.assertWriteClearance?.('subscriptions');
       return this.offerCatalogPackageToPatient({
         organizationId: input.organizationId,
         platformUserId: input.platformUserId,
@@ -506,6 +516,7 @@ export function createMembershipsService(deps: {
       appointmentId: string;
       platformUserId: string;
     }) {
+      deps.assertWriteClearance?.('subscriptions');
       return deps.port.runWithPackageLock(
         input.patientPackageId,
         input.organizationId,
@@ -551,6 +562,7 @@ export function createMembershipsService(deps: {
       createdByPlatformUserId?: string | null;
       asPenalty?: boolean;
     }) {
+      deps.assertWriteClearance?.('subscriptions');
       const usages = await deps.port.listUsagesForAppointment(
         input.appointmentId,
         input.organizationId,
@@ -824,6 +836,7 @@ export function createMembershipsService(deps: {
       appointmentId: string;
       createdByPlatformUserId?: string | null;
     }) {
+      deps.assertWriteClearance?.('subscriptions');
       const usages = await deps.port.listUsagesForAppointment(
         input.appointmentId,
         input.organizationId,
@@ -847,6 +860,7 @@ export function createMembershipsService(deps: {
       appointmentId: string;
       createdByPlatformUserId?: string | null;
     }) {
+      deps.assertWriteClearance?.('subscriptions');
       const usages = await deps.port.listUsagesForAppointment(
         input.appointmentId,
         input.organizationId,
@@ -909,6 +923,7 @@ export function createMembershipsService(deps: {
       },
       options?: MembershipWriteOptions,
     ) {
+      deps.assertWriteClearance?.('subscriptions');
       const pkg = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
       if (!pkg) throw new Error('package_not_found');
       if (input.appointmentId) {
@@ -970,6 +985,7 @@ export function createMembershipsService(deps: {
       notes: string | null,
       options?: MembershipWriteOptions,
     ) {
+      deps.assertWriteClearance?.('subscriptions');
       const updated = await runMembershipWrite(options, () =>
         deps.port.updatePatientPackageNotes(patientPackageId, organizationId, notes),
       );
@@ -1066,6 +1082,7 @@ export function createMembershipsService(deps: {
       allowPastUnlink: boolean;
       freeCancelHoursBefore: number;
     }) {
+      deps.assertWriteClearance?.('subscriptions');
       if (!deps.bookingEngine) throw new Error('appointment_not_found');
       const appt = await deps.bookingEngine.getAppointment(input.appointmentId);
       if (!appt || appt.organizationId !== input.organizationId) {
@@ -1145,6 +1162,7 @@ export function createMembershipsService(deps: {
       createdByPlatformUserId?: string | null;
       nowIso?: string;
     }): Promise<{ summary: RecalcPastSessionsSummary; appointmentsToRefresh: string[] }> {
+      deps.assertWriteClearance?.('subscriptions');
       // ST-02: serialize the whole read-balance→debit pass under a per-package lock so two
       // concurrent «Пересчитать» requests can never both read the same balance and double-debit.
       // The pg port runs this inside an advisory-locked transaction; the fake port mutexes it.
