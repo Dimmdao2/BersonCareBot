@@ -241,6 +241,10 @@ function createCatalogFacade(
     dependencies.assertWriteClearance?.('branches');
   }
 
+  function assertBookingWriteClearance(): void {
+    dependencies.assertWriteClearance?.('booking');
+  }
+
   async function locationPalette() {
     const stored = dependencies.getLocationPaletteSetting
       ? await dependencies.getLocationPaletteSetting()
@@ -292,14 +296,34 @@ function createCatalogFacade(
     },
     listRooms: port.listRooms.bind(port),
     getRoom: port.getRoom.bind(port),
-    upsertRoom: port.upsertRoom.bind(port),
-    deactivateRoom: port.deactivateRoom.bind(port),
+    async upsertRoom(input: Parameters<OrganizationCatalogPort['upsertRoom']>[0]) {
+      assertBookingWriteClearance();
+      return port.upsertRoom(input);
+    },
+    async deactivateRoom(id: string) {
+      assertBookingWriteClearance();
+      return port.deactivateRoom(id);
+    },
     listSpecialists: port.listSpecialists.bind(port),
     getSpecialist: port.getSpecialist.bind(port),
-    upsertSpecialist: port.upsertSpecialist.bind(port),
-    deactivateSpecialist: port.deactivateSpecialist.bind(port),
-    setSpecialistLocation: port.setSpecialistLocation.bind(port),
-    setSpecialistRoom: port.setSpecialistRoom.bind(port),
+    async upsertSpecialist(input: Parameters<OrganizationCatalogPort['upsertSpecialist']>[0]) {
+      assertBookingWriteClearance();
+      return port.upsertSpecialist(input);
+    },
+    async deactivateSpecialist(id: string) {
+      assertBookingWriteClearance();
+      return port.deactivateSpecialist(id);
+    },
+    async setSpecialistLocation(
+      input: Parameters<OrganizationCatalogPort['setSpecialistLocation']>[0],
+    ) {
+      assertBookingWriteClearance();
+      return port.setSpecialistLocation(input);
+    },
+    async setSpecialistRoom(input: Parameters<OrganizationCatalogPort['setSpecialistRoom']>[0]) {
+      assertBookingWriteClearance();
+      return port.setSpecialistRoom(input);
+    },
     listSpecialistRooms: port.listSpecialistRooms.bind(port),
   };
 }
@@ -325,12 +349,29 @@ function createServiceAvailabilityFacade(
       assertBookingWriteClearance();
       return port.deactivateService(id);
     },
-    upsertSpecialistServiceAvailability: port.upsertSpecialistServiceAvailability.bind(port),
+    async upsertSpecialistServiceAvailability(
+      input: Parameters<ServiceAvailabilityPort['upsertSpecialistServiceAvailability']>[0],
+    ) {
+      assertBookingWriteClearance();
+      return port.upsertSpecialistServiceAvailability(input);
+    },
     listSpecialistServiceAvailability: port.listSpecialistServiceAvailability.bind(port),
-    deactivateSpecialistServiceAvailability:
-      port.deactivateSpecialistServiceAvailability.bind(port),
-    upsertServiceLocationAvailability: port.upsertServiceLocationAvailability.bind(port),
-    setSoloServiceLocationAvailability: port.setSoloServiceLocationAvailability.bind(port),
+    async deactivateSpecialistServiceAvailability(id: string) {
+      assertBookingWriteClearance();
+      return port.deactivateSpecialistServiceAvailability(id);
+    },
+    async upsertServiceLocationAvailability(
+      input: Parameters<ServiceAvailabilityPort['upsertServiceLocationAvailability']>[0],
+    ) {
+      assertBookingWriteClearance();
+      return port.upsertServiceLocationAvailability(input);
+    },
+    async setSoloServiceLocationAvailability(
+      input: Parameters<ServiceAvailabilityPort['setSoloServiceLocationAvailability']>[0],
+    ) {
+      assertBookingWriteClearance();
+      return port.setSoloServiceLocationAvailability(input);
+    },
     listServiceLocationAvailability: port.listServiceLocationAvailability.bind(port),
   };
 }

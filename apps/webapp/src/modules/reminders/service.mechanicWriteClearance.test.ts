@@ -88,3 +88,63 @@ describe('reminders service — 3.2 physical door (warmups via updateRule)', () 
     expect(updateScheduleAndType).toHaveBeenCalledOnce();
   });
 });
+
+describe('reminders service — 3.2 physical door (warmups via createObjectReminder)', () => {
+  function buildCreateService() {
+    const create = vi.fn(async () => warmupRule());
+    const port = {
+      resolveIntegratorUserId: vi.fn(async () => 'integrator-1'),
+      create,
+    } as unknown as ReminderRulesPort;
+    const service = createRemindersService(port, {
+      assertWriteClearance: assertMechanicWriteClearance,
+      contentSections: {
+        getBySlug: vi.fn(async () => ({ systemParentCode: 'warmups' })),
+      },
+    });
+    return { service, create };
+  }
+
+  it('refuses warmup reminder create when no warmups mutation decision ran first', async () => {
+    const { service, create } = buildCreateService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        service.createObjectReminder(USER_ID, {
+          linkedObjectType: 'content_section',
+          linkedObjectId: DEFAULT_WARMUPS_SECTION_SLUG,
+          schedule: {
+            intervalMinutes: 60,
+            windowStartMinute: 480,
+            windowEndMinute: 1200,
+            daysMask: '1111100',
+          },
+        }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe('reminders service — 3.2 physical door (warmups via deleteReminder)', () => {
+  function buildDeleteService() {
+    const del = vi.fn(async () => true);
+    const port = {
+      listByPlatformUserWithObjects: vi.fn(async () => [warmupRule()]),
+      delete: del,
+    } as unknown as ReminderRulesPort;
+    const service = createRemindersService(port, {
+      assertWriteClearance: assertMechanicWriteClearance,
+    });
+    return { service, del };
+  }
+
+  it('refuses warmup reminder delete when no warmups mutation decision ran first', async () => {
+    const { service, del } = buildDeleteService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(service.deleteReminder(USER_ID, RULE_ID)).rejects.toBeInstanceOf(
+        MechanicWriteClearanceRequiredError,
+      );
+    });
+    expect(del).not.toHaveBeenCalled();
+  });
+});

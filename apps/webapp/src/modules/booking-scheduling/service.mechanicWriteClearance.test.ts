@@ -24,14 +24,16 @@ function buildService() {
     createdByActorId: null,
     createdAt: '2026-08-05T00:00:00.000Z',
   }));
+  const createWorkingHours = vi.fn(async () => ({ id: 'wh-1' }));
   const port = {
     createScheduleBlock,
     deleteScheduleBlock: vi.fn(async () => true),
+    createWorkingHours,
   } as unknown as BookingSchedulingPort;
   const service = createBookingSchedulingService(port, {
     assertWriteClearance: assertMechanicWriteClearance,
   });
-  return { service, createScheduleBlock };
+  return { service, createScheduleBlock, createWorkingHours };
 }
 
 describe('booking-scheduling service — 3.2 physical door (booking)', () => {
@@ -63,5 +65,20 @@ describe('booking-scheduling service — 3.2 physical door (booking)', () => {
       expect(block.id).toBe('block-1');
     });
     expect(createScheduleBlock).toHaveBeenCalledOnce();
+  });
+
+  it('refuses createWorkingHours when no booking mutation decision ran first', async () => {
+    const { service, createWorkingHours } = buildService();
+    runWithoutMechanicWriteClearance(() => {
+      expect(() =>
+        service.createWorkingHours({
+          organizationId: ORG_ID,
+          weekday: 1,
+          startMinute: 540,
+          endMinute: 1080,
+        }),
+      ).toThrow(MechanicWriteClearanceRequiredError);
+    });
+    expect(createWorkingHours).not.toHaveBeenCalled();
   });
 });

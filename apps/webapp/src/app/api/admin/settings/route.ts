@@ -65,6 +65,10 @@ import {
 } from '@/modules/system-settings/webPushVapidPatch';
 import { redactAdminSettingsForClient } from '@/modules/system-settings/webPushVapidRuntime';
 import { normalizePatientDefaultPromoTreatmentProgramTemplatePatch } from '@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate';
+import {
+  normalizeOrgCustomDomainHostnamePatch,
+  ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
+} from '@/modules/system-settings/orgCustomDomainHostname';
 import { normalizeDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import {
   parsePlatformIntegrationAvailabilityEnvelope,
@@ -186,6 +190,7 @@ const ADMIN_SCOPE_KEYS = [
   'operator_health_probe_config',
   'operator_health_projection_thresholds',
   'operator_heartbeat_config',
+  ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
 ] as const;
 
 const DOCTOR_SCOPE_KEYS = [
@@ -233,6 +238,9 @@ const OWNER_ONLY_PATIENT_HOME_KEYS = new Set<string>([
   'patient_home_daily_warmup_repeat_cooldown_minutes',
   'patient_treatment_plan_item_done_repeat_cooldown_minutes',
 ]);
+
+/** Personal domain hostname is an owner-level clinic identity control (UX-05 / owner 05.08). */
+const OWNER_ONLY_CUSTOM_DOMAIN_SETTING_KEYS = new Set<string>([ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]);
 
 const PAYMENT_ENTITLEMENT_SETTING_KEYS = new Set([
   'booking_payment_providers',
@@ -307,6 +315,8 @@ const WARMUPS_ENTITLEMENT_SETTING_KEYS = new Set([
 const PROMO_ENTITLEMENT_SETTING_KEYS = new Set([
   'patient_default_promo_treatment_program_template_id',
 ]);
+
+const CUSTOM_DOMAIN_ENTITLEMENT_SETTING_KEYS = new Set([ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]);
 
 function redactWebPushVapidForAudit(envelope: unknown): unknown {
   if (envelope === null || typeof envelope !== 'object') return envelope;
@@ -597,8 +607,28 @@ export async function PATCH(request: Request) {
       return entitlementMutationRefusalResponse('promo', 'изменить промо-программу');
     }
   }
+  if (CUSTOM_DOMAIN_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === 'clinic') {
+    const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, 'custom_domain');
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse(
+        'custom_domain',
+        'изменить собственный домен клиники',
+      );
+    }
+  }
   if (
     OWNER_ONLY_PATIENT_HOME_KEYS.has(parsed.data.key) &&
+    !allowGlobalSettings &&
+    gate.ctx.kind === 'clinic' &&
+    gate.ctx.workspace.membershipRole !== 'owner'
+  ) {
+    return NextResponse.json(
+      { ok: false, error: 'forbidden_owner_setting', key: parsed.data.key },
+      { status: 403 },
+    );
+  }
+  if (
+    OWNER_ONLY_CUSTOM_DOMAIN_SETTING_KEYS.has(parsed.data.key) &&
     !allowGlobalSettings &&
     gate.ctx.kind === 'clinic' &&
     gate.ctx.workspace.membershipRole !== 'owner'
@@ -813,6 +843,14 @@ export async function PATCH(request: Request) {
       (id) => deps.treatmentProgram.getTemplate(id),
       normalizedValue,
     );
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: checked.error }, { status: 400 });
+    }
+    normalizedValue = checked.valueJson;
+  }
+
+  if (parsed.data.key === ORG_CUSTOM_DOMAIN_HOSTNAME_KEY) {
+    const checked = normalizeOrgCustomDomainHostnamePatch(normalizedValue);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: checked.error }, { status: 400 });
     }

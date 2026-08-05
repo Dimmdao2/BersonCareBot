@@ -1102,10 +1102,29 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       src/modules/payments/service.mechanicWriteClearance.test.ts
       src/modules/treatment-program/instance-service.mechanicWriteClearance.test.ts
       src/app-layer/entitlements/mechanicSettingsWriteClearance.mechanicWriteClearance.test.ts` — 6 файлов / 15 тестов PASS.
-      **Ещё открыто:** намеренно без двери: `patient_card`, `patient_app`, `patient_diaries`; store-deferred;
-      `custom_domain` (`DECLARED_NO_SURFACE`).
+      **Перепись+census 05.08 (#1069):** `code-search` + `buildAppDeps.ts` + `protectedActionRegistry.ts` +
+      `check-s4-entitlement-coverage.ts` (112 mappings, 0 findings). Таблица ниже.
+      **Добор 05.08 (#1069, booking tail):** service-двери на catalog (`rooms`/`specialists`/`availability`) и
+      scheduling (`workingHours`/`workingDays`/`scheduleTemplates`/`bufferMinutes`); route-guards на
+      `availability`, `services/[id]`, `specialists`, `rooms`, `working-hours`, `working-days`,
+      `working-schedule-templates`. Двери warmups: `createObjectReminder`/`deleteReminder`; promo:
+      `ensureDefaultPromoProgramForPatient`. Доказательство: `pnpm --dir apps/webapp exec vitest run
+      src/modules/booking-engine/service.mechanicWriteClearance.test.ts
+      src/modules/booking-scheduling/service.mechanicWriteClearance.test.ts
+      src/modules/reminders/service.mechanicWriteClearance.test.ts
+      src/modules/treatment-program/instance-service.mechanicWriteClearance.test.ts` — 4 файла / 15 тестов PASS.
+      **Ещё открыто (§3.2):** `custom_domain` — owner 05.08: часть branding, дверь обязательна; ложный
+      `DECLARED_NO_SURFACE` снимает отдельный воркер (branding/domain). Booking tail без guard/door:
+      `policies`, `form-fields`, `scheduling-settings`, `specialist-rooms`, `organizations` POST. Намеренно без
+      двери: `patient_card`, `patient_app`, `patient_diaries`; `exercise_catalog`/`exercise_packages` — owner
+      05.08: клинические каталоги ЛФК не режутся тарифом, только platform-library visibility; `patient_app_paid_subscription` — store-deferred.
 - [ ] **3.3** Реестр защищённых точек перестаёт врать: ни одного исключения, прикрывающего реальную запись. Ложное
       исключение хуже отсутствующего — проверка покрытия на нём зеленеет.
+      **Перепись 05.08:** `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts` → PASS;
+      `protectedActionRegistryCoverage.unit.test.ts` → PASS (checker wired в vitest). **Честные
+      `DECLARED_NO_SURFACE`:** `exercise_catalog`/`exercise_packages` (platform visibility only, owner 05.08),
+      `patient_card`/`patient_diaries`/`patient_app`. **Ложное (ещё открыто):** `custom_domain` — owner 05.08
+      отменил «no surface»; write = domain setting в branding, дверь в работе у другого воркера.
 - [x] **3.4** ✅ **УТОЧНЕНО 08-01 (`wt/tariff-plan-triage`): СДЕЛАНО**, с одной сознательной поправкой к тексту.
       Уже сделанные точки контроля переведены на порт: внешний календарь, дневники, разминки, промо (слайс A) и
       начатые клинические тесты (лежат в stash клона: «слайс B прерван на переделке модели 30.07»).

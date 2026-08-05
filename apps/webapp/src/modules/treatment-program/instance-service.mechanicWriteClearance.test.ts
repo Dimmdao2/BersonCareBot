@@ -57,4 +57,13 @@ describe('treatment-program instance service — 3.2 physical door (promo)', () 
     });
     expect(listInstancesWhere).toHaveBeenCalledOnce();
   });
+
+  it('refuses ensureDefaultPromoProgramForPatient when no promo mutation decision ran first', async () => {
+    const { service } = buildService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        service.ensureDefaultPromoProgramForPatient({ patientUserId: '55555555-5555-4555-8555-555555555555' }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+  });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 const upsertBody = z.object({
@@ -63,6 +64,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const parsed = upsertBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success || parsed.data.startMinute >= parsed.data.endMinute) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
@@ -94,6 +97,8 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const parsed = patchBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
@@ -125,6 +130,8 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return NextResponse.json({ ok: false, error: 'missing_id' }, { status: 400 });
   const deps = buildAppDeps();

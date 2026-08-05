@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 /** Список перекрытий (GET) ожидает dateFrom/dateTo (YYYY-MM-DD). */
@@ -90,6 +91,8 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const parsed = putBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });

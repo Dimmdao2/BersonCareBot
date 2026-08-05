@@ -69,12 +69,13 @@ function buildCatalogService() {
   } as unknown as BookingEngineCorePort;
 
   const upsertService = port.upsertService as ReturnType<typeof vi.fn>;
+  const upsertSpecialist = port.upsertSpecialist as ReturnType<typeof vi.fn>;
 
   const service = createBookingEngineService(port, {
     assertWriteClearance: assertMechanicWriteClearance,
     getLocationPaletteSetting: async () => ({ physicalPalette: ['#AABBCC'], online: '#112233' }),
   });
-  return { service, createPhysicalBranchWithDefaultColor, upsertService };
+  return { service, createPhysicalBranchWithDefaultColor, upsertService, upsertSpecialist };
 }
 
 describe('booking-engine catalog — 3.2 physical door (branches)', () => {
@@ -172,5 +173,21 @@ describe('booking-engine services — 3.2 physical door (booking)', () => {
       expect(row.id).toBe('service-1');
     });
     expect(upsertService).toHaveBeenCalledOnce();
+  });
+
+  it('refuses upsertSpecialist when no booking mutation decision ran first', async () => {
+    const { service, upsertSpecialist } = buildCatalogService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        service.catalog.upsertSpecialist({
+          organizationId: ORG_ID,
+          fullName: 'Специалист',
+          description: null,
+          isActive: true,
+          sortOrder: 0,
+        }),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(upsertSpecialist).not.toHaveBeenCalled();
   });
 });

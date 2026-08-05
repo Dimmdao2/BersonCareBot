@@ -5,6 +5,7 @@ import type {
   SystemSettingsWriteOptions,
 } from '@/modules/system-settings/ports';
 import { PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY } from '@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate';
+import { ORG_CUSTOM_DOMAIN_HOSTNAME_KEY } from '@/modules/system-settings/orgCustomDomainHostname';
 
 type SystemSettingsServiceLike = {
   getSetting(
@@ -41,6 +42,7 @@ const TARIFF_MECHANIC_SETTING_KEYS: Partial<Record<string, readonly OrgMechanic[
   clinic_smsc_api_key: ['clinic_sms'],
   clinic_telegram_bot_token: ['clinic_telegram_bot'],
   clinic_max_bot_api_key: ['clinic_max_bot'],
+  [ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]: ['custom_domain'],
 };
 
 function assertTariffMechanicSettingWriteClearance(

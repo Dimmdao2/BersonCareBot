@@ -779,6 +779,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
       'patient_home_today',
       'warmups',
       'promo',
+      'custom_domain',
       'clinic_smtp',
       'clinic_sms',
       'clinic_telegram_bot',
@@ -1563,7 +1564,6 @@ export const DECLARED_NO_SURFACE = {
     'tariff controls platform-library visibility only; clinic-owned template writes are never tariff-gated',
   patient_app: 'code-search: no patient_app_enabled/toggle action',
   patient_app_paid_subscription: 'code-search: no subscription-toggle action',
-  custom_domain: 'code-search: no custom-domain write action',
   // 3.3: class "никогда" mechanics (MECHANIC_REGISTRY) are never tariff-gated by owner decision —
   // patient_card (owner 31.07, see the exemptions below) and patient_diaries (owner 31.07, 4a.4:
   // "дневники у пациентов не отбираем"). No PROTECTED_ACTION_MAPPINGS row for either can ever be

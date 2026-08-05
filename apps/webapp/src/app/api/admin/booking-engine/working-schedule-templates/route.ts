@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 const breakIntervalSchema = z.object({
@@ -48,6 +49,8 @@ export async function GET(_request: Request) {
 export async function POST(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
 
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
@@ -111,6 +114,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'booking');
+  if (!entitlement.ok) return entitlement.response;
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return NextResponse.json({ ok: false, error: 'missing_id' }, { status: 400 });
   const deps = buildAppDeps();

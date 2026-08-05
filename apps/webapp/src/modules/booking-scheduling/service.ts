@@ -273,6 +273,7 @@ export function createBookingSchedulingService(
     createWorkingHours(input) {
       if (!input.organizationId) throw new Error('organization_id_required');
       if (input.startMinute >= input.endMinute) throw new Error('invalid_working_hours_range');
+      assertBookingWriteClearance();
       return port.createWorkingHours({
         organizationId: input.organizationId,
         specialistId: input.specialistId ?? null,
@@ -293,10 +294,12 @@ export function createBookingSchedulingService(
       ) {
         throw new Error('invalid_working_hours_range');
       }
+      assertBookingWriteClearance();
       return port.updateWorkingHours(input);
     },
 
     deactivateWorkingHours(id, organizationId) {
+      assertBookingWriteClearance();
       return port.deactivateWorkingHours(organizationId, id);
     },
 
@@ -315,6 +318,7 @@ export function createBookingSchedulingService(
     },
 
     upsertBufferMinutes(input) {
+      assertBookingWriteClearance();
       return port.upsertBufferMinutes(input);
     },
 
@@ -336,6 +340,7 @@ export function createBookingSchedulingService(
 
     upsertWorkingDays(input) {
       validateUpsertInput(input);
+      assertBookingWriteClearance();
       return port.upsertWorkingDays(input);
     },
 
@@ -344,6 +349,7 @@ export function createBookingSchedulingService(
       assertUuid(input.specialistId, 'specialistId');
       if (!input.dates.length) throw new Error('dates_required');
       for (const d of input.dates) assertDate(d, 'date');
+      assertBookingWriteClearance();
       return port.closeWorkingDays(input);
     },
 
@@ -352,6 +358,7 @@ export function createBookingSchedulingService(
       assertUuid(input.specialistId, 'specialistId');
       if (!input.dates.length) throw new Error('dates_required');
       for (const d of input.dates) assertDate(d, 'date');
+      assertBookingWriteClearance();
       return port.clearWorkingDays(input);
     },
 
@@ -362,10 +369,12 @@ export function createBookingSchedulingService(
 
     createScheduleTemplate(input) {
       validateScheduleTemplateInput(input);
+      assertBookingWriteClearance();
       return port.createScheduleTemplate(input);
     },
 
     deleteScheduleTemplate(id, organizationId) {
+      assertBookingWriteClearance();
       return port.deleteScheduleTemplate(organizationId, id);
     },
 
@@ -376,6 +385,7 @@ export function createBookingSchedulingService(
       if (!dates.length) throw new Error('dates_required');
       for (const d of dates) assertDate(d, 'date');
       assertDateRangeDays(dates);
+      assertBookingWriteClearance();
       const templates = await port.listScheduleTemplates(organizationId);
       const tmpl = templates.find((t) => t.id === templateId);
       if (!tmpl) throw new Error('template_not_found');

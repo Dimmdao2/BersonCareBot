@@ -549,6 +549,8 @@ export const SYSTEM_SETTING_REGISTRY = {
   doctor_phones: restricted('admin', 'global', 'string_list'),
   allowed_phones: restricted('admin', 'global', 'string_list'),
   operator_heartbeat_config: restricted('admin', 'global', 'structured', 'absent'),
+  /** Clinic personal domain hostname intent; part of branding/custom_domain capability (owner 05.08). */
+  org_custom_domain_hostname: runtime('admin', 'per_org', 'authenticated_client', 'string', ''),
 } as const satisfies Record<string, SystemSettingDefinition>;
 
 export type SystemSettingKey = keyof typeof SYSTEM_SETTING_REGISTRY;

@@ -334,6 +334,7 @@ export function createTreatmentProgramInstanceService(deps: {
     },
 
     async ensureDefaultPromoProgramForPatient(input: { patientUserId: string }) {
+      deps.assertWriteClearance?.('promo');
       assertUuid(input.patientUserId);
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {

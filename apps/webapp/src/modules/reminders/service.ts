@@ -337,6 +337,10 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         deps?.contentSections,
       );
 
+      if (reminderIntent === 'warmup') {
+        deps?.assertWriteClearance?.('warmups');
+      }
+
       if (scheduleType === 'slots_v1') {
         let sdInput: SlotsV1ScheduleData | null | undefined = params.scheduleData ?? null;
         if (!sdInput && params.linkedObjectType === 'rehab_program') {
@@ -424,6 +428,14 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       platformUserId: string,
       ruleId: string,
     ): Promise<ServiceResult<{ deletedId: string }>> {
+      const rules = await port.listByPlatformUserWithObjects(platformUserId);
+      const target = rules.find((r) => r.id === ruleId);
+      if (!target) return { ok: false, error: 'not_found' };
+
+      if (isWarmupsContentSectionReminderRule(target, DEFAULT_WARMUPS_SECTION_SLUG)) {
+        deps?.assertWriteClearance?.('warmups');
+      }
+
       const deleted = await port.delete(ruleId, platformUserId);
       if (!deleted) return { ok: false, error: 'not_found' };
       return { ok: true, data: { deletedId: ruleId } };
