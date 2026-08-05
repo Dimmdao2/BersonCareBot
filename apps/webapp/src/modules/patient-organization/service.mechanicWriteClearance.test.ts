@@ -11,7 +11,16 @@ import type { PatientOrganizationPort } from './ports';
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
 function buildService() {
-  const createManualOrganizationClient = vi.fn(async () => ({ ok: true as const, userId: 'user-1' }));
+  const createManualOrganizationClient = vi.fn(async () => ({
+    ok: true as const,
+    userId: 'user-1',
+    displayName: 'Иван Иванов',
+    lastName: 'Иванов',
+    firstName: 'Иван',
+    patronymic: null,
+    phoneNormalized: null,
+    created: true,
+  }));
   const port = {
     listActiveEnrollmentsByPlatformUser: vi.fn(async () => []),
     hasActiveEnrollment: vi.fn(async () => false),
@@ -33,9 +42,13 @@ describe('patient-organization service — 3.2 physical door (patient_count)', (
       await expect(
         service.createManualOrganizationClient({
           organizationId: ORG_ID,
-          requestId: '22222222-2222-4222-8222-222222222222',
+          commandId: '22222222-2222-4222-8222-222222222222',
+          phoneNormalized: null,
           lastName: 'Иванов',
           firstName: 'Иван',
+          patronymic: null,
+          emailRaw: null,
+          emailNormalized: null,
         }),
       ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
     });
@@ -48,11 +61,24 @@ describe('patient-organization service — 3.2 physical door (patient_count)', (
       enterWithMechanicWriteClearance('patient_count');
       const result = await service.createManualOrganizationClient({
         organizationId: ORG_ID,
-        requestId: '22222222-2222-4222-8222-222222222222',
+        commandId: '22222222-2222-4222-8222-222222222222',
+        phoneNormalized: null,
         lastName: 'Иванов',
         firstName: 'Иван',
+        patronymic: null,
+        emailRaw: null,
+        emailNormalized: null,
       });
-      expect(result).toEqual({ ok: true, userId: 'user-1' });
+      expect(result).toEqual({
+        ok: true,
+        userId: 'user-1',
+        displayName: 'Иван Иванов',
+        lastName: 'Иванов',
+        firstName: 'Иван',
+        patronymic: null,
+        phoneNormalized: null,
+        created: true,
+      });
     });
     expect(createManualOrganizationClient).toHaveBeenCalledOnce();
   });

@@ -1642,6 +1642,12 @@ describe('Р-14: immediate paid upgrade', () => {
       }),
       getEnforcedQuotaUsage: async () => ({}),
       getOwnQuotaUsage: async () => ({}),
+      prepareLifecycleNotificationContext: async () => ({
+        registeredAt: null,
+        trialStartedAt: null,
+        trialEndsAt: null,
+        discountEndsAt: null,
+      }),
     };
     const repository = createInMemorySaasBillingRepository({
       tariffs: [currentTariff, targetTariff],

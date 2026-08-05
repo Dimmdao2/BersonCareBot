@@ -14,18 +14,16 @@ function buildService() {
   const createFile = vi.fn(async () => ({
     id: 'file-1',
     patientUserId: PATIENT_USER_ID,
-    category: 'other' as const,
+    category: 'прочее' as const,
     fileName: 'scan.pdf',
     s3Key: 'patient-files/scan.pdf',
     s3Bucket: 'bucket',
     mimeType: 'application/pdf',
     sizeBytes: 1024,
     uploadedByUserId: 'doctor-1',
-    folderId: null,
     visitId: null,
-    uploadStatus: 'pending' as const,
+    mediaFileId: null,
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   }));
   const patientFilesPort = {
     listFiles: vi.fn(async () => []),
@@ -51,14 +49,13 @@ describe('patient-files service — 3.2 physical door (files)', () => {
       await expect(
         service.createFile({
           patientUserId: PATIENT_USER_ID,
-          category: 'other',
+          category: 'прочее',
           fileName: 'scan.pdf',
           s3Key: 'patient-files/scan.pdf',
           s3Bucket: 'bucket',
           mimeType: 'application/pdf',
           sizeBytes: 1024,
           uploadedByUserId: 'doctor-1',
-          folderId: null,
         }),
       ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
     });
@@ -71,14 +68,13 @@ describe('patient-files service — 3.2 physical door (files)', () => {
       enterWithMechanicWriteClearance('files');
       const file = await service.createFile({
         patientUserId: PATIENT_USER_ID,
-        category: 'other',
+        category: 'прочее',
         fileName: 'scan.pdf',
         s3Key: 'patient-files/scan.pdf',
         s3Bucket: 'bucket',
         mimeType: 'application/pdf',
         sizeBytes: 1024,
         uploadedByUserId: 'doctor-1',
-        folderId: null,
       });
       expect(file.id).toBe('file-1');
     });

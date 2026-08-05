@@ -49,11 +49,7 @@ const PLATFORM_BILLING_PORT_STUBS = {
     sortOrder: input.months * 10,
   }),
   getPaidPeriodPolicy: async () => null,
-  setPaidPeriodPolicy: async (policy: {
-    postPaidPeriodBehavior: 'read_only' | 'blocked' | 'tariff';
-    postPaidPeriodTariffId: string | null;
-    isActive: boolean;
-  }) => policy,
+  setPaidPeriodPolicy: async () => {},
 } satisfies Pick<
   PlatformEntitlementsPort,
   'listBillingPeriods' | 'upsertBillingPeriod' | 'getPaidPeriodPolicy' | 'setPaidPeriodPolicy'
@@ -120,9 +116,19 @@ const openCabinet: Pick<OrgEntitlementsPort, 'resolveCabinetAccess'> = {
   }),
 };
 
+const lifecycleNotificationStub: Pick<OrgEntitlementsPort, 'prepareLifecycleNotificationContext'> = {
+  prepareLifecycleNotificationContext: async () => ({
+    registeredAt: null,
+    trialStartedAt: null,
+    trialEndsAt: null,
+    discountEndsAt: null,
+  }),
+};
+
 function snapshotPort(): OrgEntitlementsPort {
   return {
     ...openCabinet,
+    ...lifecycleNotificationStub,
     async resolveMechanicAccess(_organizationId, mechanic) {
       return { mechanic, state: 'full_access', policySource: 'system', warning: null };
     },
@@ -310,6 +316,7 @@ describe('org entitlement mechanic classes', () => {
     );
     const assignedPort: OrgEntitlementsPort = {
       ...openCabinet,
+      ...lifecycleNotificationStub,
       resolveMechanicAccess: async (_organizationId, mechanic) => ({
         mechanic,
         state: 'full_access',
@@ -372,6 +379,7 @@ describe('org entitlement mechanic classes', () => {
     };
     const port: OrgEntitlementsPort = {
       ...openCabinet,
+      ...lifecycleNotificationStub,
       resolveMechanicAccess: async (_organizationId, mechanic) => ({
         mechanic,
         state: 'disabled',
@@ -512,6 +520,7 @@ describe('org entitlement mechanic classes', () => {
     };
     const platformPort: OrgEntitlementsPort = {
       ...openCabinet,
+      ...lifecycleNotificationStub,
       resolveMechanicAccess: async (_organizationId, mechanic) => ({
         mechanic,
         state: 'full_access',
@@ -853,6 +862,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       downgradePolicies: { branches: 'block', patient_count: 'block', files: 'block' },
     });
     const port: OrgEntitlementsPort = {
+      ...lifecycleNotificationStub,
       resolveCabinetAccess: async () => ({ state: 'full_access', policySource: 'system', warning: null }),
       resolveMechanicAccess: async (_organizationId, mechanic) => ({ mechanic, state: 'full_access', policySource: 'system', warning: null }),
       getSnapshot: async () => ({ tariff: currentTariff, overrides: [], access: activeAccess }),
@@ -885,6 +895,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
     const currentTariff = baseTariff({ id: 'expensive', priceMinor: 20_000, currency: 'RUB' });
     const targetTariff = baseTariff({ id: 'cheaper', priceMinor: 10_000, currency: 'RUB' });
     const port: OrgEntitlementsPort = {
+      ...lifecycleNotificationStub,
       resolveCabinetAccess: async () => ({ state: 'full_access', policySource: 'system', warning: null }),
       resolveMechanicAccess: async (_organizationId, mechanic) => ({ mechanic, state: 'full_access', policySource: 'system', warning: null }),
       getSnapshot: async () => ({ tariff: currentTariff, overrides: [], access: activeAccess }),
@@ -1317,6 +1328,7 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
     };
     const orgPort = (usage: number, override: (typeof overrides)[number] | null): OrgEntitlementsPort => ({
       ...openCabinet,
+      ...lifecycleNotificationStub,
       resolveMechanicAccess: async (_organizationId, mechanic) => ({
         mechanic,
         state: 'full_access',

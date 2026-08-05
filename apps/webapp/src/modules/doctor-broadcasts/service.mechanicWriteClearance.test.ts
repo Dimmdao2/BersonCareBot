@@ -6,17 +6,17 @@ import {
   runWithoutMechanicWriteClearance,
 } from '@/app-layer/entitlements/mechanicWriteClearance';
 import { createDoctorBroadcastsService } from './service';
-import type { BroadcastAuditPort, DoctorBroadcastDeliveryCommitPort } from './ports';
+import type { BroadcastAuditEntry, BroadcastAuditPort, BroadcastCommand, DoctorBroadcastDeliveryCommitPort } from './ports';
 
 function buildService() {
-  const commitAuditAndDeliveryQueue = vi.fn(async () => ({
+  const commitAuditAndDeliveryQueue = vi.fn(async (): Promise<BroadcastAuditEntry> => ({
     id: 'audit-1',
     actorId: 'doctor-1',
-    category: 'service' as const,
-    audienceFilter: 'all' as const,
+    category: 'service',
+    audienceFilter: 'all',
     messageTitle: 'Title',
     messageBody: 'Body',
-    channels: ['bot_message'] as const,
+    channels: ['bot_message'],
     previewOnly: false,
     audienceSize: 0,
     deliveryJobsTotal: 0,
@@ -24,9 +24,10 @@ function buildService() {
     sentCount: 0,
     errorCount: 0,
     blockedRecipientCount: 0,
-    createdAt: new Date().toISOString(),
+    executedAt: new Date().toISOString(),
   }));
   const broadcastAuditPort = {
+    append: vi.fn(async (entry) => ({ id: 'audit-1', executedAt: new Date().toISOString(), ...entry })),
     list: vi.fn(async () => []),
   } satisfies BroadcastAuditPort;
   const doctorBroadcastDeliveryCommitPort = {
@@ -42,6 +43,7 @@ function buildService() {
       notificationPrefsByUserId: new Map(),
       deliveryPolicyKind: 'none',
       deliveryPolicyDescriptionRu: '—',
+      webPushEligibleUserIds: new Set<string>(),
     }),
     broadcastAuditPort,
     doctorBroadcastDeliveryCommitPort,
@@ -50,12 +52,12 @@ function buildService() {
   return { service, commitAuditAndDeliveryQueue };
 }
 
-const command = {
-  category: 'service' as const,
-  audienceFilter: 'all' as const,
+const command: BroadcastCommand = {
+  category: 'service',
+  audienceFilter: 'all',
   message: { title: 'Title', body: 'Body' },
   actorId: 'doctor-1',
-  channels: ['bot_message'] as const,
+  channels: ['telegram'],
 };
 
 describe('doctor-broadcasts service — 3.2 physical door (mailings)', () => {

@@ -19,12 +19,20 @@ function buildService() {
     roomId: null,
     startAt: '2026-08-05T10:00:00.000Z',
     endAt: '2026-08-05T11:00:00.000Z',
-    blockType: 'manual' as const,
+    blockType: 'block' as const,
     title: null,
-    createdByActorId: null,
-    createdAt: '2026-08-05T00:00:00.000Z',
   }));
-  const createWorkingHours = vi.fn(async () => ({ id: 'wh-1' }));
+  const createWorkingHours = vi.fn(async () => ({
+    id: 'wh-1',
+    organizationId: ORG_ID,
+    specialistId: null,
+    branchId: null,
+    roomId: null,
+    weekday: 1,
+    startMinute: 540,
+    endMinute: 1080,
+    isActive: true,
+  }));
   const port = {
     createScheduleBlock,
     deleteScheduleBlock: vi.fn(async () => true),
@@ -45,7 +53,7 @@ describe('booking-scheduling service — 3.2 physical door (booking)', () => {
           organizationId: ORG_ID,
           startAt: '2026-08-05T10:00:00.000Z',
           endAt: '2026-08-05T11:00:00.000Z',
-          blockType: 'manual',
+          blockType: 'block',
         }),
       ).toThrow(MechanicWriteClearanceRequiredError);
     });
@@ -60,7 +68,7 @@ describe('booking-scheduling service — 3.2 physical door (booking)', () => {
         organizationId: ORG_ID,
         startAt: '2026-08-05T10:00:00.000Z',
         endAt: '2026-08-05T11:00:00.000Z',
-        blockType: 'manual',
+        blockType: 'block',
       });
       expect(block.id).toBe('block-1');
     });

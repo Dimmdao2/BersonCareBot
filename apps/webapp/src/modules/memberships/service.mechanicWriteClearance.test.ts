@@ -21,10 +21,9 @@ function buildService() {
       priceMinor: 1000,
       currency: 'RUB',
       validityDays: 30,
+      deductionMode: 'manual',
       isActive: true,
       items: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     }),
   );
   const port = {
@@ -43,7 +42,7 @@ function buildService() {
     listUsagesForAppointment: vi.fn(async () => []),
     runWithPackageLock: vi.fn(),
     updatePatientPackageNotes: vi.fn(),
-  } satisfies Partial<MembershipsPort> as MembershipsPort;
+  } as unknown as MembershipsPort;
   const service = createMembershipsService({
     port,
     payments: null,

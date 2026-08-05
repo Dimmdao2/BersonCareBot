@@ -17,12 +17,10 @@ function buildService() {
     serviceId: 'service-1',
     onlineCategory: null,
     mode: 'percent' as const,
-    percent: 50,
-    fixedAmountMinor: null,
+    amountMinor: null,
+    percentBps: 5000,
     currency: 'RUB',
     isActive: true,
-    createdAt: '2026-08-05T00:00:00.000Z',
-    updatedAt: '2026-08-05T00:00:00.000Z',
   }));
   const port = {
     upsertPrepaymentPolicy,
@@ -52,7 +50,7 @@ describe('payments service — 3.2 physical door', () => {
           organizationId: ORG_ID,
           serviceId: 'service-1',
           mode: 'percent',
-          percent: 50,
+          percentBps: 5000,
           currency: 'RUB',
         }),
       ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
@@ -68,7 +66,7 @@ describe('payments service — 3.2 physical door', () => {
         organizationId: ORG_ID,
         serviceId: 'service-1',
         mode: 'percent',
-        percent: 50,
+        percentBps: 5000,
         currency: 'RUB',
       });
       expect(row.id).toBe('policy-1');
