@@ -95,7 +95,9 @@ These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/berso
 
 ## 4. First-load JS (bundle proxy)
 
-**Local `pnpm --dir apps/webapp run build` on feat branch:** blocked at Stage 1 — `PatientCardClient.tsx` `next/dynamic` options must be object literals (build error on current tree). **Fallback:** sum uncompressed static chunk bytes referenced by TEST deploy manifests at `/opt/projects/bersoncarebot-test/apps/webapp/.next` (deployed TEST commit, not necessarily `286db9b91`).
+**Local build gate:** `PatientCardClient.tsx` `next/dynamic` object-literal fix landed in `b2032b468`; `pnpm --dir apps/webapp typecheck` green on feat branch (2026-08-05 acceptance). Full `pnpm --dir apps/webapp run build` / `analyze` not run in this workstream gate — re-baseline after deploy.
+
+**Stage 1 fallback (pre-fix):** sum uncompressed static chunk bytes from TEST deploy manifests at `/opt/projects/bersoncarebot-test/apps/webapp/.next` (deployed TEST commit may lag feat branch):
 
 | Route (client manifest) | Chunks | Uncompressed JS (bytes) | ~KB |
 |-------------------------|--------|-------------------------|-----|
@@ -106,15 +108,14 @@ These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/berso
 | `/app/doctor/communications` | 17 | 398,274 | 389 |
 | `/app/doctor/treatment-program-templates` | 27 | 1,563,672 | 1527 |
 
-`pnpm run analyze` not run (build gate above). Re-baseline bundle after green build + post-rollout deploy.
+`pnpm run analyze` not run. Re-baseline bundle after green build + post-rollout TEST deploy.
 
 ---
 
-## 5. Stage 2 blockers / notes
+## 5. Remaining gates (post-engineering)
 
-1. **route-rollout** — catalog/schedule/home tab-aware server bootstrap not applied.
-2. **db-profile** — no `EXPLAIN`/port profiling yet.
-3. **test-rollout** — no soak, no p50/p95 comparison vs this doc, no full CI.
-4. **Build** — fix `PatientCardClient` dynamic import literals before local bundle/analyze gate.
-5. **TEST deploy lag** — timing captured on live TEST; feature branch may differ until redeploy.
-6. **Cron noise** — materialize-wake/digest-wake errors skew log noise and background load.
+1. **db-profile** — no `EXPLAIN`/port profiling yet.
+2. **test-rollout** — no TEST soak, no p50/p95 comparison vs §2 after deploy, no full `pnpm run ci`.
+3. **TEST deploy lag** — §2 timing is pre-rollout baseline; redeploy feat branch then re-capture upstream p50/p95.
+4. **Cron noise** — fix in `f7db88013` on branch; verify 200 on TEST after deploy (see §3).
+5. **Acceptance criteria** — plan §7 completion metrics (40% p95 reduction, bundle delta, zero unsolicited prefetch) not measured yet.
