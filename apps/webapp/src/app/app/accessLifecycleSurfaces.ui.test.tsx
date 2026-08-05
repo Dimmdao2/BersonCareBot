@@ -297,6 +297,13 @@ beforeEach(() => {
     listOverrides: async () => [],
     getEffectiveCommercialAccess: async () => entitlementSnapshot().access,
     getEnforcedQuotaUsage: async () => ({}),
+    getOwnQuotaUsage: async () => ({}),
+    prepareLifecycleNotificationContext: async () => ({
+      registeredAt: '2026-07-30T12:00:00.000Z',
+      trialStartedAt: '2026-07-01T00:00:00.000Z',
+      trialEndsAt: '2026-07-29T00:00:00.000Z',
+      discountEndsAt: null,
+    }),
   };
   fakes.getCurrentSession.mockResolvedValue(null);
   fakes.requireOrganizationWorkspaceContext.mockResolvedValue({
@@ -343,7 +350,9 @@ beforeEach(() => {
     },
     systemSettings: { listSettingsByScope: async () => [], getSetting: async () => null },
     orgBranding: { resolveEffectiveOrgBranding: async () => null },
-    saasBilling: { getOrganizationBillingOverview: async () => ({ invoices: [] }) },
+    saasBilling: {
+      getOrganizationBillingOverview: async () => ({ invoices: [], subscriptions: [] }),
+    },
     patientOrganization: {},
     contentPages: { listAll: async () => [] },
     contentSections: { listAll: async () => [] },
