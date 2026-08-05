@@ -16,3 +16,9 @@
 | Сегодня (`/app/doctor`) | dashboard bundle | **server** | SSR |
 
 Правило: первый видимый экран по `?tab=` — через `loadDoctorPatientCardPageBootstrap`; без `conversations/ensure` на RSC; ensure только на явном открытии чата.
+
+---
+
+## TEST baseline (timing + bundle)
+
+Stage 1 evidence: [`DOCTOR_LOADING_BASELINE.md`](./DOCTOR_LOADING_BASELINE.md) — nginx `bersoncare_webapp_detailed` on `test.bersoncare.ru`, route upstream p50/p95, cron noise, first-load JS from deployed TEST `.next` manifests.

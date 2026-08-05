@@ -14,6 +14,10 @@ TARGET_ENABLED="/etc/nginx/sites-enabled/test.bersoncare.ru"
 PROJECT_ROOT="/opt/projects/bersoncarebot-test"
 WEBAPP_UPSTREAM="http://127.0.0.1:6300"
 INTEGRATOR_UPSTREAM="http://127.0.0.1:3300"
+WEBAPP_ACCESS_LOG="/var/log/nginx/bersoncare-test-webapp-access.log"
+WEBAPP_LOG_FORMAT="bersoncare_webapp_detailed"
+WEBAPP_LOG_FORMAT_CONF="/etc/nginx/conf.d/bersoncare-webapp-access-log-format.conf"
+REPO_LOG_FORMAT_EXAMPLE="deploy/nginx/bersoncare-webapp-access-log.example.conf"
 A2_CHECKER="docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-a2-nginx-forwarded-host.mjs"
 ACTION="dry-run"
 
@@ -72,6 +76,36 @@ assert_test_only() {
   esac
 }
 
+assert_repo_log_format_example_present() {
+  [ -f "$REPO_LOG_FORMAT_EXAMPLE" ] || fatal "missing repo log format example: $REPO_LOG_FORMAT_EXAMPLE"
+}
+
+ensure_webapp_access_log_format() {
+  local rendered_format
+  rendered_format="$(mktemp /tmp/bcb-test-nginx-log-format.XXXXXX)"
+  awk '
+    /^log_format bersoncare_webapp_detailed/ { in_block=1 }
+    in_block { print }
+    in_block && /;$/ { exit }
+  ' "$REPO_LOG_FORMAT_EXAMPLE" >"$rendered_format"
+  grep -q '^log_format bersoncare_webapp_detailed' "$rendered_format" \
+    || fatal "repo log format example did not render bersoncare_webapp_detailed"
+
+  if [ -f "$WEBAPP_LOG_FORMAT_CONF" ] \
+    && sudo cmp -s "$rendered_format" "$WEBAPP_LOG_FORMAT_CONF"; then
+    echo "   log format unchanged: $WEBAPP_LOG_FORMAT_CONF"
+    rm -f "$rendered_format"
+    return 0
+  fi
+
+  log "install webapp access log format ($WEBAPP_LOG_FORMAT)"
+  local tmp_format
+  tmp_format="$(sudo mktemp "${WEBAPP_LOG_FORMAT_CONF}.tmp.XXXXXX")"
+  sudo install -m 0644 -o root -g root "$rendered_format" "$tmp_format"
+  sudo mv -f -- "$tmp_format" "$WEBAPP_LOG_FORMAT_CONF"
+  rm -f "$rendered_format"
+}
+
 assert_active_test_vhost_present() {
   [ -f "$TARGET_AVAILABLE" ] || fatal "missing TEST nginx config: $TARGET_AVAILABLE"
   [ -e "$TARGET_ENABLED" ] || fatal "missing enabled TEST nginx config: $TARGET_ENABLED"
@@ -102,6 +136,8 @@ server {
     # This host runs nginx < 1.25.1; keep the combined ssl/http2 directive form.
     listen 443 ssl http2;
     server_name test.bersoncare.ru;
+
+    access_log /var/log/nginx/bersoncare-test-webapp-access.log bersoncare_webapp_detailed;
 
     ssl_certificate     /etc/letsencrypt/live/test.bersoncare.ru/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/test.bersoncare.ru/privkey.pem;
@@ -210,6 +246,7 @@ cleanup() {
 trap cleanup EXIT
 
 assert_test_only
+assert_repo_log_format_example_present
 assert_active_test_vhost_present
 render_config "$rendered"
 run_a2_checker_on_file "$rendered"
@@ -221,6 +258,8 @@ if [ "$ACTION" = "dry-run" ]; then
   echo "   apply:  bash deploy/host/apply-test-nginx-webapp.sh --apply"
   exit 0
 fi
+
+ensure_webapp_access_log_format
 
 log "backup active TEST nginx config"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
