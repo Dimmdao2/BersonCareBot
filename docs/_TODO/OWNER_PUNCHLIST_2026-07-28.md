@@ -534,8 +534,10 @@ U3S (#919)**, а не свежий скоуп — помечать так в к�
 140 страниц (`BUILT_BUT_INVISIBLE_2026-07-26.md:74-76`).
 
 **А бэкенд уже работает.** `pgPlatformEntitlements.ts:235-268` `listOrganizations()` отдаёт по каждой
-организации: название, тариф, активность, состояние (`compatibility|no_trial|trial_pending|active` +
-`active|grace|read_only|blocked`), пробный период, переопределения и активную подписку из `saas_billing_*`.
+организации: название, тариф, активность, ~~состояние (`compatibility|no_trial|trial_pending|active` +~~
+~~`active|grace|read_only|blocked`)~~ **УСТАРЕЛО / ЗАМЕНЕНО → Р-12 (01.08), T5–T6 (03.08):** состояния клиники
+`compatibility|no_trial|trial_pending|active` вырезаны; доступ по тарифу/триалу, не по enum lifecycle клиники;
+льготный период — discount window, не продление триала, пробный период, переопределения и активную подписку из `saas_billing_*`.
 Её живьём зовёт `api/admin/commercial/route.ts:97-102`, а на экране это **выпадающий список «Выберите
 организацию»** (`CommercialConstructorClient.tsx:612-613`). Данные под пункт владельца уже собираются.
 

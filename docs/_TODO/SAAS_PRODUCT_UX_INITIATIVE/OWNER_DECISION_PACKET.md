@@ -82,13 +82,17 @@ owner addendum 2026-07-19.
 
 #### C4C5-03 — trial новой организации (P2, S4 §13.2)
 
-- **Resolved 2026-07-19:** trial tariff, duration, grace и post-trial behavior global-admin/data configurable;
+- ~~**Resolved 2026-07-19:** trial tariff, duration, grace и post-trial behavior global-admin/data configurable;
   hardcoded `14+7` superseded. Ровно один trial на organization; overrides/extensions только audited. Начать с
-  простой модели. Точная точка старта и phone-verification channel остаются deferred/non-blocking.
+  простой модели. Точная точка старта и phone-verification channel остаются deferred/non-blocking.~~
+  **УСТАРЕЛО / ЗАМЕНЕНО → T5–T6 (03.08):** trial tariff + grace как продление триала — сняты; trial = duration на
+  первый тариф организации; post-trial сразу; discount window отдельно; один trial на organization; extend trial
+  снят.
 
-- **Вопрос владельцу:** утвердить ли trial, который начинается после подтверждения email и успешного provisioning
+- ~~**Вопрос владельцу:** утвердить ли trial, который начинается после подтверждения email и успешного provisioning
   organization, длится 14 дней, затем даёт 7 дней grace и переводит на admin-configured post-trial tariff; один
-  trial на organization, а extension/override только аудируемые?
+  trial на organization, а extension/override только аудируемые?~~ **УСТАРЕЛО / ЗАМЕНЕНО → T5–T6 (03.08)** — см.
+  `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §«Триал и льготный период».
 - **Рекомендация (не решение):** утвердить эту policy; после trial не удалять данные, branding publication
   отключать, но assets сохранять.
 - **Безопасный default до ответа:** не выдавать молча all-on trial; trial-policy и post-trial commercial changes

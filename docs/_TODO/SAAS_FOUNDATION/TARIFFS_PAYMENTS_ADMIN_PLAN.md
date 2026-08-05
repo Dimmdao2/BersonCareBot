@@ -214,7 +214,9 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
 
 ```
 тариф (admin-конфигурируемые имя/цена/период + typed entitlements/quotas)
-  ├─ trial policy → выбранный global_admin тариф + duration/start/post-trial policy
+  ├─ ~~trial policy → выбранный global_admin тариф + duration/start/post-trial policy~~ **УСТАРЕЛО / ЗАМЕНЕНО → T5–T6
+  │   (03.08):** trial policy = duration + post-trial + discount window; триал накладывается на **первый** тариф
+  │   организации (назначенный или выбранный), не на отдельный «тариф триала»
   ├─ subscription/manual assignment → текущий effective tariff организации
   └─ per-org override → точечное исключение
        └─ requireEntitlement(organizationId, mechanic) — единственный chokepoint
@@ -246,7 +248,10 @@ Definition of Done для этого пункта: `courses/route.ts` вызыв
 
 ### 3.2. Новая организация — owner-configured trial policy, не фиксированный default
 
-- Global admin выбирает любой созданный тариф как trial tariff и отдельно задаёт duration; названия/состав/число
+- ~~Global admin выбирает любой созданный тариф как trial tariff и отдельно задаёт duration~~ **УСТАРЕЛО / ЗАМЕНЕНО →
+  T5 (03.08):** срок триала и первый тариф организации — **две независимые настройки**; триал не «тариф», а
+  однократный период на фактический первый тариф (назначенный или выбранный). Отдельный trial tariff в policy не
+  задаётся; названия/состав/число
   тарифов и срок не seedятся как product truth.
 - До DDL закрыть branch-local gates: trial start event, post-trial/grace/read-only/block behavior и судьбу созданных
   capabilities/data. Неизбранная policy не блокирует tariff registry/chokepoint, но блокирует автоматическое
@@ -392,9 +397,12 @@ write-пути честно помечены `declared_no_surface` (не изо�
 
 ### Phase 3 — global-admin конструктор тарифов + assign-to-org + trial policy
 
-- [x] **Спроектировать backward-compatible trial-policy storage как ссылку на существующий admin-created tariff с
-      duration/start/post-trial полями; не добавлять фиксированный тариф или `is_default` product semantics.**
-      — ГОТОВО: `TrialPolicy` в `apps/webapp/src/modules/org-entitlements/types.ts` и `trialPolicySchema` в
+- [x] ~~**Спроектировать backward-compatible trial-policy storage как ссылку на существующий admin-created tariff с
+      duration/start/post-trial полями; не добавлять фиксированный тариф или `is_default` product semantics.**~~
+      **УСТАРЕЛО КАК ЦЕЛЕВАЯ МОДЕЛЬ / ЗАМЕНЕНО → T5–T6 (03.08):** `saas_trial_policy` без `tariff_id`; триал на первый
+      тариф организации; `grace_days`/`grace_ends_at` сняты — post-trial сразу после `ends_at`, discount window
+      отдельно. Исторический чекбокс закрыт на промежуточной схеме с `tariffId` — не читать как актуальный канон.
+      — ГОТОВО (промежуточная реализация до T5): `TrialPolicy` в `apps/webapp/src/modules/org-entitlements/types.ts` и `trialPolicySchema` в
       `apps/webapp/src/app/api/admin/commercial/route.ts:31-39` требуют `tariffId: uuid()` (ссылка на реальный тариф),
       `durationDays`, `graceDays`, `startEvent: "organization_provisioned"`, `postTrialBehavior`
       (`read_only|blocked|tariff`), `postTrialTariffId`. Никакого `is_default`/hardcoded тарифа в схеме нет.

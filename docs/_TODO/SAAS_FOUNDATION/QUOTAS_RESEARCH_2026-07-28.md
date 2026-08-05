@@ -777,7 +777,9 @@ Safe behavior для `6 used / 3 target`:
 **Слой 2 — что видит и может пользователь при этом состоянии (entitlements).** Отдельные платформы прав
 (Stigg, Schematic) стоят между биллингом и приложением: продуктовая команда меняет доступ к функциям, лимиты и
 персональные исключения **без правки кода**, а триал, его истечение и грейс после истечения моделируются как
-первоклассные состояния. Источники: [Schematic: entitlements для Stripe](https://schematichq.com/blog/entitlements-for-stripe),
+первоклассные состояния. ⛔ **УСТАРЕЛО КАК НАША ПРОДУКТОВАЯ МОДЕЛЬ / ЗАМЕНЕНО → T5–T6 (03.08):** «грейс после
+триала» как продление доступа снят; post-trial вступает сразу; discount window — только цена, не доступ. Канон:
+`TARIFFS_PAYMENTS_ADMIN_PLAN.md` → Т5, Т6; `OWNER_DECISIONS.md` → Т5–Т6. Источники: [Schematic: entitlements для Stripe](https://schematichq.com/blog/entitlements-for-stripe),
 [Stigg: entitlement management system](https://www.stigg.io/blog-posts/entitlement-management-system),
 [Chargebee: entitlement management](https://www.chargebee.com/resources/guides/entitlement-management-for-subscription-businesses/).
 

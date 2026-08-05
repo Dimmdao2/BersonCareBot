@@ -595,10 +595,12 @@ card; запрещено строить временный resolver, второ�
 #### C5 — независимые commercial substages
 
 - **Outcome:** global admin собирает любое число произвольно названных тарифов из boolean entitlements и
-  numeric/unlimited quotas; trial-policy ссылается на выбранный тариф и duration; billing обслуживается на уровне
-  platform operator и organization payer.
-- **C5A — constructor/trial (`#751`):** arbitrary tariffs, typed entitlements/quotas, trial tariff+duration and
-  branch-local post-trial/quota gates.
+  numeric/unlimited quotas; ~~trial-policy ссылается на выбранный тариф и duration~~ **УСТАРЕЛО / ЗАМЕНЕНО → T5
+  (03.08):** trial-policy = duration + post-trial + discount window на **первый** тариф организации; billing
+  обслуживается на уровне platform operator и organization payer.
+- **C5A — constructor/trial (`#751`):** arbitrary tariffs, typed entitlements/quotas, ~~trial tariff+duration and~~
+  **trial duration + post-trial/discount (T5–T6, 03.08), не отдельный trial tariff,** branch-local post-trial/quota
+  gates.
 - **C5B — billing (`#844`, `#845`):** platform operator + organization payer surfaces, subscription lifecycle,
   checkout/invoice, reconciliation, failed payment/grace, upgrade/downgrade, refunds/cancel, receipts/invoices/B2B
   transfer and immutable audit. Оплата услуг пациентом остаётся отдельным commerce contour.
