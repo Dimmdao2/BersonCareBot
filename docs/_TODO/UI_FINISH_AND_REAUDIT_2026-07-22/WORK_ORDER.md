@@ -726,6 +726,13 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       PostgreSQL, что и бизнес-данные, поэтому «сообщение есть ⟺ данные закоммичены» достигается одной
       вставкой в той же транзакции; отдельный релей добавил бы ещё одно место потери. Источник:
       `PLAN_CANON_RESEARCH_REPORT.md` (ветка `wt/plan-canon-research`, клон docs3).
+      ⚠️ **ПРОГРЕСС 05.08 (#987), не закрывает D39 целиком:** замер швов — (1) `public.outgoing_delivery_queue`
+      — уникальный `event_id`, enqueue через `pgOutgoingDeliveryQueueWritePort` / `enqueueOutgoingDeliveryIfAbsent`
+      (`docs/ARCHITECTURE/OUTGOING_DELIVERY_QUEUE.md`); (2) relay-outbound — Postgres `idempotencyPort` + audit
+      PASS `748379f00`; (3) ответ врача — dedup по `integrator_message_id` + `created` gate
+      (`doctorSupportMessagingService.ts`, `sendProgramNoteReply.ts`); (4) eventGateway ingress dedup — порт
+      обязателен по типу (D34 хвост, этот коммит). Пункт остаётся открыт: полный census оставшихся
+      webapp→integrator delivery швов и закрытие чекбокса после независимого аудита.
 
 - [x] **D38 — у каждого переключателя админки есть потребитель, и потребитель один**
       Evidence 2026-08-05: экземпляр 1 (2FA) — `9863f5b5b`, единый предикат
@@ -878,10 +885,9 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       строках; подмена ответа порта на безусловное `acquired: true` красит повторную доставку. Полный прогон
       интегратора 158→160 тестов, зелёный. Доказательство:
       `docs/_TODO/runs/integrator-cleanup/D34_REPORT.md`.
-      **Хвост, вопрос владельцу:** `eventGateway/index.ts:17` — `EventGatewayDeps.idempotencyPort` тоже
-      опционален, и при его отсутствии `handleIncomingEvent` тихо пропускает дедуп целиком (без фолбэка вообще;
-      риск сегодня нулевой — прод всегда передаёт порт). Чинить тем же приёмом (сделать обязательным) или
-      оставить как есть — не решено.
+      ✅ **Хвост закрыт 05.08 (#987):** `EventGatewayDeps.idempotencyPort` обязателен по типу; `createEventGateway`
+      без порта не компилируется; dedup всегда через Postgres-порт (prod уже передавал). Step:
+      `pnpm --dir apps/integrator exec vitest run src/kernel/eventGateway/eventGateway.test.ts`.
 - [x] **D35 — политика отказа доставки: закрыть служебный ответ, а не оставлять его только в логе.** Решение и
       политика — **Р-D35** (§2.3). Строить ничего не нужно — инциденты и durable-очередь уже работают на
       соседних путях, работа в том, чтобы подключить их там, где их нет.

@@ -14,7 +14,8 @@ import { logger, serializeError } from '../../infra/observability/logger.js';
  * Gateway не содержит бизнес-логики: только validate/rate-limit/dedup и вызов pipeline.
  */
 export type EventGatewayDeps = {
-  idempotencyPort?: IdempotencyPort;
+  /** Durable dedup — mandatory (D34/D39); production always wires Postgres `IdempotencyPort`. */
+  idempotencyPort: IdempotencyPort;
   pipeline?: {
     run: (event: IncomingEvent) => Promise<void>;
   };
@@ -25,7 +26,7 @@ export type EventGatewayDeps = {
  * Создает единую входную точку обработки нормализованных событий.
  * Поток: validate -> rateLimit -> dedup -> accepted/rejected/dropped.
  */
-export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
+export function createEventGateway(deps: EventGatewayDeps): EventGateway {
   const { idempotencyPort, pipeline, dedupTtlSec = 900 } = deps;
 
   return {
@@ -54,11 +55,9 @@ export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
         };
       }
 
-      if (idempotencyPort) {
-        const acquired = await idempotencyPort.tryAcquire(dedupKey, dedupTtlSec);
-        if (!acquired) {
-          return { status: 'dropped', dedupKey, reason: 'DUPLICATE' };
-        }
+      const acquired = await idempotencyPort.tryAcquire(dedupKey, dedupTtlSec);
+      if (!acquired) {
+        return { status: 'dropped', dedupKey, reason: 'DUPLICATE' };
       }
 
       if (pipeline) {
