@@ -8,6 +8,7 @@ import {
   type Tariff,
   type TariffQuota,
   type TrialPolicy,
+  type PaidPeriodPolicy,
 } from '@/modules/org-entitlements/types';
 
 const quotaAmountSchema = {
@@ -71,7 +72,7 @@ const tariffInputSchema = z.object({
   description: z.string(),
   priceMinor: z.number().int().nonnegative().nullable(),
   currency: z.string().trim().min(1).nullable(),
-  billingPeriod: z.enum(['day', 'month', 'year']),
+  billingPeriod: z.string().trim().min(1),
   mechanics: z.record(z.string(), z.boolean()),
   quotas: z
     .object({
@@ -107,6 +108,18 @@ const trialPolicySchema = z.object({
 // policy above. `null` is legal: no code default, the person picks a tariff themselves.
 const registrationTariffPolicySchema = z.object({
   tariffId: z.string().uuid().nullable(),
+});
+
+const paidPeriodPolicySchema = z.object({
+  postPaidPeriodBehavior: z.enum(['read_only', 'blocked', 'tariff']),
+  postPaidPeriodTariffId: z.string().uuid().nullable(),
+  isActive: z.boolean(),
+});
+
+const billingPeriodUpsertSchema = z.object({
+  code: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  months: z.number().int().positive(),
 });
 
 // Owner 2026-07-26 (#1003): a reason is recorded on every audit-log row (actor, action, before/after)
@@ -155,6 +168,16 @@ const operationSchema = z.discriminatedUnion('action', [
     policy: registrationTariffPolicySchema,
     reason: reasonSchema,
   }),
+  z.object({
+    action: z.literal('set_paid_period_policy'),
+    policy: paidPeriodPolicySchema,
+    reason: reasonSchema,
+  }),
+  z.object({
+    action: z.literal('upsert_billing_period'),
+    period: billingPeriodUpsertSchema,
+    reason: reasonSchema,
+  }),
   z.object({ action: z.literal('start_trial'), organizationId: uuidSchema, reason: reasonSchema }),
 ]);
 
@@ -165,11 +188,14 @@ export async function GET() {
   if (!gate.ok) return gate.response;
 
   const service = buildAppDeps().platformEntitlements;
-  const [tariffs, organizations, trialPolicy, registrationTariffPolicy] = await Promise.all([
+  const [tariffs, organizations, trialPolicy, registrationTariffPolicy, billingPeriods, paidPeriodPolicy] =
+    await Promise.all([
     service.listTariffs(),
     service.listOrganizations(),
     service.getTrialPolicy(),
     service.getRegistrationTariffPolicy(),
+    service.listBillingPeriods(),
+    service.getPaidPeriodPolicy(),
   ]);
   return NextResponse.json({
     ok: true,
@@ -177,6 +203,8 @@ export async function GET() {
     organizations,
     trialPolicy,
     registrationTariffPolicy,
+    billingPeriods,
+    paidPeriodPolicy,
   });
 }
 
@@ -235,6 +263,12 @@ export async function POST(request: Request) {
         break;
       case 'set_registration_tariff_policy':
         await service.setRegistrationTariffPolicy(operation.policy, audit);
+        break;
+      case 'set_paid_period_policy':
+        await service.setPaidPeriodPolicy(operation.policy as PaidPeriodPolicy, audit);
+        break;
+      case 'upsert_billing_period':
+        result = await service.upsertBillingPeriod(operation.period, audit);
         break;
       case 'start_trial':
         result = await service.startTrial(operation.organizationId, audit);

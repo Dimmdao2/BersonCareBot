@@ -15,6 +15,28 @@ import {
 import { beOrganizations } from './bookingEngine';
 
 /**
+ * #1069 T9 — owner-configurable billing period catalog. New variants are rows here, not TS unions.
+ * Retired codes (e.g. `day`) stay for historical invoice snapshots with `isSelectable = false`.
+ */
+export const saasBillingPeriods = pgTable(
+  'saas_billing_periods',
+  {
+    code: text().primaryKey().notNull(),
+    label: text().notNull(),
+    months: integer().notNull(),
+    isSelectable: boolean('is_selectable').default(true).notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [check('saas_billing_periods_months_check', sql`${table.months} > 0`)],
+);
+
+/**
  * Store P0 — entitlement foundation (dormant). Mirrors
  * deploy/postgres/store-p0-entitlements-rls.sql exactly (RLS/grants live in that overlay, NOT here).
  * See docs/_TODO/SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md.
@@ -100,10 +122,11 @@ export const saasTariffs = pgTable(
       'saas_tariffs_discounted_price_nonnegative_check',
       sql`${table.discountedPriceMinor} IS NULL OR ${table.discountedPriceMinor} >= 0`,
     ),
-    check(
-      'saas_tariffs_billing_period_check',
-      sql`${table.billingPeriod} = ANY (ARRAY['day'::text, 'month'::text, 'year'::text])`,
-    ),
+    foreignKey({
+      columns: [table.billingPeriod],
+      foreignColumns: [saasBillingPeriods.code],
+      name: 'saas_tariffs_billing_period_fkey',
+    }).onDelete('restrict'),
   ],
 );
 
@@ -203,6 +226,43 @@ export const saasTrialPolicy = pgTable(
     check(
       'saas_trial_policy_post_tariff_check',
       sql`(${table.postTrialBehavior} = 'tariff' AND ${table.postTrialTariffId} IS NOT NULL) OR (${table.postTrialBehavior} <> 'tariff' AND ${table.postTrialTariffId} IS NULL)`,
+    ),
+  ],
+);
+
+/**
+ * #1069 T10 — one global rule for organizations whose paid billing period has ended (distinct from
+ * {@link saasTrialPolicy} post-trial behavior).
+ */
+export const saasPaidPeriodPolicy = pgTable(
+  'saas_paid_period_policy',
+  {
+    key: text().primaryKey().default('global').notNull(),
+    postPaidPeriodBehavior: text('post_paid_period_behavior').notNull(),
+    postPaidPeriodTariffId: uuid('post_paid_period_tariff_id'),
+    isActive: boolean('is_active').default(true).notNull(),
+    updatedBy: uuid('updated_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.postPaidPeriodTariffId],
+      foreignColumns: [saasTariffs.id],
+      name: 'saas_paid_period_policy_post_tariff_id_fkey',
+    }).onDelete('restrict'),
+    check('saas_paid_period_policy_key_check', sql`${table.key} = 'global'`),
+    check(
+      'saas_paid_period_policy_post_behavior_check',
+      sql`${table.postPaidPeriodBehavior} = ANY (ARRAY['read_only'::text, 'blocked'::text, 'tariff'::text])`,
+    ),
+    check(
+      'saas_paid_period_policy_post_tariff_check',
+      sql`(${table.postPaidPeriodBehavior} = 'tariff' AND ${table.postPaidPeriodTariffId} IS NOT NULL) OR (${table.postPaidPeriodBehavior} <> 'tariff' AND ${table.postPaidPeriodTariffId} IS NULL)`,
     ),
   ],
 );

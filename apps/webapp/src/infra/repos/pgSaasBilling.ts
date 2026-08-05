@@ -12,7 +12,6 @@ import type {
   SaasBillingRepositoryPort,
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
-import type { SaasBillingPeriod } from '@/modules/saas-billing/paidPeriod';
 import { proratedTariffUpgradeAmountMinor } from '@/modules/saas-billing/proration';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
@@ -26,7 +25,7 @@ import {
   saasBillingRefunds,
   saasBillingSubscriptions,
 } from '../../../db/schema/saasBilling';
-import { saasOrganizationTrials, saasTariffs, saasTrialPolicy } from '../../../db/schema/saasEntitlements';
+import { saasBillingPeriods, saasOrganizationTrials, saasTariffs, saasTrialPolicy } from '../../../db/schema/saasEntitlements';
 import { adminAuditLog } from '../../../db/schema/schema';
 
 type Db = ReturnType<typeof getDrizzle>;
@@ -205,7 +204,8 @@ function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
     !Number.isSafeInteger(priceMinor) ||
     typeof currency !== 'string' ||
     !/^[A-Z]{3}$/.test(currency) ||
-    (billingPeriod !== 'day' && billingPeriod !== 'month' && billingPeriod !== 'year')
+    typeof billingPeriod !== 'string' ||
+    billingPeriod.trim().length === 0
   ) {
     throw new Error('saas_billing_paid_period_snapshot_missing');
   }
@@ -227,6 +227,19 @@ function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown>
 
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
+    async listBillingPeriods() {
+      const rows = await getDrizzle()
+        .select()
+        .from(saasBillingPeriods)
+        .orderBy(saasBillingPeriods.sortOrder, saasBillingPeriods.code);
+      return rows.map((row) => ({
+        code: row.code,
+        label: row.label,
+        months: row.months,
+        isSelectable: row.isSelectable,
+        sortOrder: row.sortOrder,
+      }));
+    },
     async getSaasBillingAccountBillingEmail(organizationId) {
       const [account] = await getDrizzle()
         .select({ billingEmail: saasBillingAccounts.billingEmail })
@@ -618,7 +631,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
               .limit(1);
             if (!tariff) throw new Error('active_tariff_not_found');
-            return { billingPeriod: tariff.billingPeriod as SaasBillingPeriod };
+            return { billingPeriod: tariff.billingPeriod };
           },
           async setManualSaasBillingSubscription({
             organizationId,
@@ -1274,7 +1287,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               tariff_name: string;
               additional_seat_price_minor: number | null;
               currency: string | null;
-              billing_period: 'day' | 'month' | 'year';
+              billing_period: string;
               tariff_snapshot: Record<string, unknown>;
             }
           | undefined;
@@ -1418,7 +1431,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           saasBillingSubscriptionId: row.id,
           currentTariffId: row.tariffId,
           tariffId: targetTariffId,
-          billingPeriod: targetTariff.billingPeriod as SaasBillingPeriod,
+          billingPeriod: targetTariff.billingPeriod,
           savedPaymentMethodId: row.savedPaymentMethodId,
           additionalSeatPriceMinor: targetTariff.additionalSeatPriceMinor,
           currency: targetTariff.currency,
@@ -1455,7 +1468,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .limit(limit);
       return rows.map((row) => ({
         ...row,
-        billingPeriod: row.billingPeriod as SaasBillingPeriod,
+        billingPeriod: row.billingPeriod,
         // `IS NOT NULL` filtered above; the column type stays nullable at the schema level.
         currentPeriodEndsAt: row.currentPeriodEndsAt as string,
       }));

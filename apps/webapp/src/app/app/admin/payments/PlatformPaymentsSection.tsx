@@ -9,6 +9,7 @@ import type {
   SaasBillingReconciliationDiscrepancy,
   SaasBillingRefund,
 } from '@/modules/saas-billing/ports';
+import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
 import {
   Card,
   CardContent,
@@ -143,11 +144,7 @@ function formatAmount(amountMinor: number, currency: string): string {
   }
 }
 
-const BILLING_PERIOD_LABELS: Record<'day' | 'month' | 'year', string> = {
-  day: 'день',
-  month: 'месяц',
-  year: 'год',
-};
+const BILLING_PERIOD_LABELS = formatBillingPeriodLabelRu;
 
 type SummaryApiResponse =
   | { ok: true; summary: SaasBillingPlatformSummary; breakdown: SaasBillingPlatformBreakdownRow[] }
@@ -637,7 +634,7 @@ type TariffOption = {
   name: string;
   priceMinor: number | null;
   currency: string | null;
-  billingPeriod: 'day' | 'month' | 'year';
+  billingPeriod: string;
 };
 
 /** `datetime-local` input value, three days out — a visible, editable default, not a hidden one. */

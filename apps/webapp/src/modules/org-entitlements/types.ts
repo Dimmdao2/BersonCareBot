@@ -288,13 +288,21 @@ export type CabinetAccessResolution = {
   warning: MechanicAccessWarning | null;
 };
 
+export type BillingPeriodOption = {
+  code: string;
+  label: string;
+  months: number;
+  isSelectable: boolean;
+  sortOrder: number;
+};
+
 export type Tariff = {
   id: string;
   name: string;
   description: string;
   priceMinor: number | null;
   currency: string | null;
-  billingPeriod: 'day' | 'month' | 'year';
+  billingPeriod: string;
   mechanics: Record<string, boolean>;
   quotas: TariffQuotaMap;
   systemAccessPolicy: AccessLifecyclePolicy | null;
@@ -374,6 +382,13 @@ export type TrialPolicy = {
   startEvent: TrialStartEvent;
   postTrialBehavior: TrialPostBehavior;
   postTrialTariffId: string | null;
+  isActive: boolean;
+};
+
+/** #1069 T10 — global behavior once a paid billing period ends (distinct from {@link TrialPolicy}). */
+export type PaidPeriodPolicy = {
+  postPaidPeriodBehavior: TrialPostBehavior;
+  postPaidPeriodTariffId: string | null;
   isActive: boolean;
 };
 

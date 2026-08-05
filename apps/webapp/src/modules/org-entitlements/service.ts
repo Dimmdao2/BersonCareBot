@@ -17,6 +17,7 @@ import {
   type MechanicClass,
   type OrgEntitlementSnapshot,
   type OrgMechanic,
+  type PaidPeriodPolicy,
   type RegistrationTariffPolicy,
   type Tariff,
   type TariffQuota,
@@ -276,6 +277,15 @@ function assertTrialPolicy(policy: TrialPolicy): void {
   }
   if (policy.postTrialBehavior !== 'tariff' && policy.postTrialTariffId !== null) {
     throw new Error('trial_post_tariff_forbidden');
+  }
+}
+
+function assertPaidPeriodPolicy(policy: PaidPeriodPolicy): void {
+  if (policy.postPaidPeriodBehavior === 'tariff' && !policy.postPaidPeriodTariffId) {
+    throw new Error('paid_period_post_tariff_required');
+  }
+  if (policy.postPaidPeriodBehavior !== 'tariff' && policy.postPaidPeriodTariffId !== null) {
+    throw new Error('paid_period_post_tariff_forbidden');
   }
 }
 
@@ -721,7 +731,13 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
       };
     },
     listOrganizations: () => port.listOrganizations(),
+    listBillingPeriods: () => port.listBillingPeriods(),
+    upsertBillingPeriod: (
+      input: { code: string; label: string; months: number },
+      audit: PlatformMutationAudit,
+    ) => port.upsertBillingPeriod(input, audit),
     getTrialPolicy: () => port.getTrialPolicy(),
+    getPaidPeriodPolicy: () => port.getPaidPeriodPolicy(),
     getRegistrationTariffPolicy: () => port.getRegistrationTariffPolicy(),
     createTariff: (
       input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
@@ -798,6 +814,10 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     setTrialPolicy: (policy: TrialPolicy, audit: PlatformMutationAudit) => {
       assertTrialPolicy(policy);
       return port.setTrialPolicy(policy, audit);
+    },
+    setPaidPeriodPolicy: (policy: PaidPeriodPolicy, audit: PlatformMutationAudit) => {
+      assertPaidPeriodPolicy(policy);
+      return port.setPaidPeriodPolicy(policy, audit);
     },
     setRegistrationTariffPolicy: (
       policy: RegistrationTariffPolicy,

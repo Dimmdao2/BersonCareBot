@@ -15,6 +15,8 @@ import type {
   MechanicAccessPolicyMap,
   OrgEntitlementOverride,
   RegistrationTariffPolicy,
+  PaidPeriodPolicy,
+  BillingPeriodOption,
   Tariff,
   TariffQuota,
   TariffQuotaMap,
@@ -23,8 +25,10 @@ import type {
 import { beBranches, beOrganizations } from '../../../db/schema/bookingEngine';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import {
+  saasBillingPeriods,
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
+  saasPaidPeriodPolicy,
   saasRegistrationTariffPolicy,
   saasTariffs,
   saasTrialPolicy,
@@ -70,6 +74,24 @@ function toTariff(row: typeof saasTariffs.$inferSelect): Tariff {
       row.downgradePolicies,
     ) as DowngradePolicyMap,
     mailingTemplates: row.mailingTemplates as MailingTemplate[],
+  };
+}
+
+function toPaidPeriodPolicy(row: typeof saasPaidPeriodPolicy.$inferSelect): PaidPeriodPolicy {
+  return {
+    postPaidPeriodBehavior: row.postPaidPeriodBehavior as PaidPeriodPolicy['postPaidPeriodBehavior'],
+    postPaidPeriodTariffId: row.postPaidPeriodTariffId,
+    isActive: row.isActive,
+  };
+}
+
+function toBillingPeriodOption(row: typeof saasBillingPeriods.$inferSelect): BillingPeriodOption {
+  return {
+    code: row.code,
+    label: row.label,
+    months: row.months,
+    isSelectable: row.isSelectable,
+    sortOrder: row.sortOrder,
   };
 }
 
@@ -404,6 +426,63 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
       };
     },
 
+    async listBillingPeriods() {
+      assertPlatformOperationsPrincipal();
+      const rows = await getDrizzle()
+        .select()
+        .from(saasBillingPeriods)
+        .orderBy(saasBillingPeriods.sortOrder, saasBillingPeriods.code);
+      return rows.map(toBillingPeriodOption);
+    },
+
+    async upsertBillingPeriod(input, audit) {
+      assertPlatformOperationsPrincipal();
+      const code = input.code.trim();
+      const label = input.label.trim();
+      if (!code || !label) throw new Error('billing_period_code_label_required');
+      if (!Number.isInteger(input.months) || input.months <= 0) {
+        throw new Error('billing_period_months_invalid');
+      }
+      return getDrizzle().transaction(async (tx) => {
+        const [before] = await tx
+          .select()
+          .from(saasBillingPeriods)
+          .where(eq(saasBillingPeriods.code, code))
+          .limit(1);
+        const values = {
+          code,
+          label,
+          months: input.months,
+          isSelectable: true,
+          sortOrder: before?.sortOrder ?? input.months * 10,
+          updatedAt: new Date().toISOString(),
+        };
+        const [after] = await tx
+          .insert(saasBillingPeriods)
+          .values(values)
+          .onConflictDoUpdate({
+            target: saasBillingPeriods.code,
+            set: {
+              label: values.label,
+              months: values.months,
+              isSelectable: true,
+              updatedAt: values.updatedAt,
+            },
+          })
+          .returning();
+        if (!after) throw new Error('billing_period_upsert_failed');
+        await appendAudit(tx, {
+          audit,
+          action: 'saas_billing_period_upsert',
+          targetId: code,
+          organizationId: null,
+          before: before ?? null,
+          after,
+        });
+        return toBillingPeriodOption(after);
+      });
+    },
+
     async getTrialPolicy() {
       assertPlatformOperationsPrincipal();
       const rows = await getDrizzle()
@@ -412,6 +491,16 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         .where(eq(saasTrialPolicy.key, 'global'))
         .limit(1);
       return rows[0] ? toTrialPolicy(rows[0]) : null;
+    },
+
+    async getPaidPeriodPolicy() {
+      assertPlatformOperationsPrincipal();
+      const rows = await getDrizzle()
+        .select()
+        .from(saasPaidPeriodPolicy)
+        .where(eq(saasPaidPeriodPolicy.key, 'global'))
+        .limit(1);
+      return rows[0] ? toPaidPeriodPolicy(rows[0]) : null;
     },
 
     async getRegistrationTariffPolicy() {
@@ -427,6 +516,12 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async createTariff(input, audit) {
       assertPlatformOperationsPrincipal();
       return getDrizzle().transaction(async (tx) => {
+        const [period] = await tx
+          .select()
+          .from(saasBillingPeriods)
+          .where(eq(saasBillingPeriods.code, input.billingPeriod))
+          .limit(1);
+        if (!period?.isSelectable) throw new Error('tariff_billing_period_invalid');
         const [row] = await tx.insert(saasTariffs).values(tariffValues(input)).returning();
         if (!row) throw new Error('tariff_create_failed');
         await appendAudit(tx, {
@@ -451,6 +546,12 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           .limit(1)
           .for('update');
         if (!before) throw new Error('tariff_not_found');
+        const [period] = await tx
+          .select()
+          .from(saasBillingPeriods)
+          .where(eq(saasBillingPeriods.code, input.billingPeriod))
+          .limit(1);
+        if (!period?.isSelectable) throw new Error('tariff_billing_period_invalid');
         if (before.isActive && !input.isActive) {
           await assertTariffNotUsedByActiveTrialPolicy(tx, id);
           await assertTariffNotUsedByRegistrationTariffPolicy(tx, id);
@@ -601,6 +702,41 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
         await appendAudit(tx, {
           audit,
           action: 'saas_trial_policy_update',
+          targetId: 'global',
+          organizationId: null,
+          before: before ?? null,
+          after,
+        });
+      });
+    },
+
+    async setPaidPeriodPolicy(policy, audit) {
+      assertPlatformOperationsPrincipal();
+      await getDrizzle().transaction(async (tx) => {
+        if (policy.postPaidPeriodTariffId) {
+          await requireActiveTariff(tx, policy.postPaidPeriodTariffId);
+        }
+        const [before] = await tx
+          .select()
+          .from(saasPaidPeriodPolicy)
+          .where(eq(saasPaidPeriodPolicy.key, 'global'))
+          .limit(1);
+        const values = {
+          postPaidPeriodBehavior: policy.postPaidPeriodBehavior,
+          postPaidPeriodTariffId: policy.postPaidPeriodTariffId,
+          isActive: policy.isActive,
+          key: 'global' as const,
+          updatedBy: audit.actorId,
+          updatedAt: new Date().toISOString(),
+        };
+        const [after] = await tx
+          .insert(saasPaidPeriodPolicy)
+          .values(values)
+          .onConflictDoUpdate({ target: saasPaidPeriodPolicy.key, set: values })
+          .returning();
+        await appendAudit(tx, {
+          audit,
+          action: 'saas_paid_period_policy_update',
           targetId: 'global',
           organizationId: null,
           before: before ?? null,

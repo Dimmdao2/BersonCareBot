@@ -2605,6 +2605,13 @@
       "when": 1793539230118,
       "tag": "0375_choose_organization_first_tariff_local",
       "breakpoints": true
+    },
+    {
+      "idx": 372,
+      "version": "7",
+      "when": 1793539230119,
+      "tag": "0376_tariff_billing_periods_post_paid_policy_local",
+      "breakpoints": true
     }
   ]
 }

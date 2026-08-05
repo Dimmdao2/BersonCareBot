@@ -17,6 +17,18 @@ import type {
 } from './ports';
 import { PaymentProviderRequestRefusedError, type PaymentProviderPort } from '@/modules/payments/providerPort';
 import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasBilling';
+import type { BillingPeriodOption } from './billingPeriodCatalog';
+
+const DEFAULT_TEST_BILLING_PERIODS: BillingPeriodOption[] = [
+  { code: 'day', label: 'День', months: 0, isSelectable: false, sortOrder: 0 },
+  { code: 'month', label: 'Месяц', months: 1, isSelectable: true, sortOrder: 10 },
+  { code: 'half_year', label: 'Полгода', months: 6, isSelectable: true, sortOrder: 20 },
+  { code: 'year', label: 'Год', months: 12, isSelectable: true, sortOrder: 30 },
+];
+
+const SAAS_REPO_BILLING_PERIOD_STUB = {
+  listBillingPeriods: async () => DEFAULT_TEST_BILLING_PERIODS,
+} satisfies Pick<SaasBillingRepositoryPort, 'listBillingPeriods'>;
 
 const invoice: SaasBillingInvoice = {
   id: 'invoice-1',
@@ -50,6 +62,8 @@ describe('SaaS billing payment provider availability', () => {
     });
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription-1',
           currentTariffId: 'tariff-1',
@@ -83,6 +97,8 @@ describe('SaaS billing payment provider availability', () => {
     const createSaasBillingInvoice = vi.fn();
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription-1',
           tariffId: 'tariff-1',
@@ -156,6 +172,8 @@ describe('Fiscalized SaaS refunds', () => {
     }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         reserveSaasBillingRefund: async () => ({
           outcome: 'reserved' as const,
           refund: { id: 'refund-1' },
@@ -226,6 +244,8 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
     const createIntent = vi.fn();
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         getOrganizationBillingOverview: async () => ({
           organizationId: 'org',
           subscriptions: [{ source: 'paid_subscription', tariffId: 'tariff-current' }],
@@ -285,6 +305,8 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
     const { setManualSaasBillingSubscription, appendManualAssignmentAudit } = scheduledService();
     const cancelService = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         getOrganizationBillingOverview: async () => ({
           organizationId: 'org',
           subscriptions: [{ source: 'paid_subscription', tariffId: 'tariff-current' }],
@@ -327,6 +349,8 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
     const createIntent = vi.fn();
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription', tariffId: 'tariff-small', billingPeriod: 'month' as const,
           currentTariffId: 'tariff-current',
@@ -405,6 +429,8 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
     }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         createSaasBillingInvoice,
         attachSaasBillingInvoiceProviderIntent,
       } as unknown as SaasBillingRepositoryPort,
@@ -432,6 +458,8 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
     }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         createSaasBillingInvoice: async () => ({ invoice, created: true }),
         getSaasBillingAccountBillingEmail: async () => 'payer@example.test',
         attachSaasBillingInvoiceReceiptSnapshot,
@@ -475,6 +503,8 @@ describe('§5a/2.1c: own-tariff money flow survives the cabinet block', () => {
     const createIntent = vi.fn(async () => ({ providerIntentRef: 'provider-intent-1' }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         createSaasBillingInvoice: async () => ({ invoice, created: true }),
         getSaasBillingAccountBillingEmail: async () => 'payer@example.test',
         attachSaasBillingInvoiceReceiptSnapshot: async () => invoice,
@@ -557,6 +587,8 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
     };
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         runManualAssignmentTransaction: (work: (t: typeof transaction) => Promise<unknown>) =>
           work(transaction),
       } as unknown as SaasBillingRepositoryPort,
@@ -678,6 +710,8 @@ describe('§5a #1069 T5 (owner 03.08) — first tariff attachment gets the one-t
     };
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         runManualAssignmentTransaction: (work: (t: typeof transaction) => Promise<unknown>) =>
           work(transaction),
       } as unknown as SaasBillingRepositoryPort,
@@ -732,6 +766,8 @@ describe('§5a #1069 T5 (owner 03.08) — first tariff attachment gets the one-t
     }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         chooseOrganizationFirstTariff,
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
@@ -836,6 +872,8 @@ describe('К5: повторный тик по тому же периоду не 
 
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         listSaasBillingSubscriptionsDueForRenewal,
         promoteDueSaasBillingPaidInvoice: async () => false,
         createSaasBillingRenewalInvoiceIfAbsent,
@@ -869,6 +907,8 @@ describe('К5: повторный тик по тому же периоду не 
     }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         listSaasBillingSubscriptionsDueForRenewal: async () => [{
           saasBillingSubscriptionId: 'subscription-1',
           organizationId: 'org-1',
@@ -909,6 +949,8 @@ describe('К0: early renewal does not cut the paid period short', () => {
     const attachSaasBillingInvoiceProviderIntent = vi.fn(async () => invoice);
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription-1',
           tariffId: 'tariff-1',
@@ -1180,6 +1222,8 @@ describe('§5.1 paid additional-seat state machine', () => {
     }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription-1',
           tariffId: 'tariff-1',
@@ -1278,6 +1322,8 @@ describe('§5.1 paid additional-seat state machine', () => {
     const resolvePaymentProvider = vi.fn();
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         reserveSaasBillingRefund: async () => ({
           outcome: 'seat_overage_partial_refund_forbidden' as const,
         }),
@@ -1326,6 +1372,7 @@ function assignmentTransactionForAcceptance(
   };
   const service = createSaasBillingService({
     repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
       runManualAssignmentTransaction: (work: (input: typeof transaction) => Promise<unknown>) =>
         work(transaction),
     } as unknown as SaasBillingRepositoryPort,
@@ -2004,6 +2051,8 @@ describe('B0.3/#1057: повторный апгрейд на тот же тар�
     };
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription-1',
           currentTariffId: 'basic',
@@ -2182,6 +2231,8 @@ describe('webhook replay completes one durable paid-period action', () => {
       });
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         captureSaasBillingPaymentSucceeded: async () => {
           eventRecorded = true;
           return markSaasBillingInvoicePaid({});
@@ -2221,6 +2272,8 @@ describe('webhook replay completes one durable paid-period action', () => {
       });
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         captureSaasBillingPaymentSucceeded: async (input: { savedPaymentMethodId: string | null }) => {
           eventRecorded = true;
           await saveSaasBillingSubscriptionPaymentMethod({ savedPaymentMethodId: input.savedPaymentMethodId });
@@ -2595,6 +2648,8 @@ describe('К6: без действующего согласия списание
 
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         listSaasBillingSubscriptionsDueForRenewal: async () => [dueSubscription],
         promoteDueSaasBillingPaidInvoice: async () => false,
         createSaasBillingRenewalInvoiceIfAbsent,
@@ -2656,6 +2711,8 @@ describe('К6: повторный тик с активным автосписа�
 
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         listSaasBillingSubscriptionsDueForRenewal: async () => [dueSubscription],
         promoteDueSaasBillingPaidInvoice: async () => false,
         createSaasBillingRenewalInvoiceIfAbsent,
@@ -2719,6 +2776,8 @@ describe('К6: неудачное автосписание возвращает 
     }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         requireOwnTariffBillingSubscription: async () => ({
           saasBillingSubscriptionId: 'subscription-1',
           currentTariffId: 'tariff-1',
@@ -2760,6 +2819,8 @@ describe('К6: неудачное автосписание возвращает 
     const markSaasBillingInvoiceFailed = vi.fn(async () => ({ ...invoice, status: 'failed' as const }));
     const service = createSaasBillingService({
       repository: {
+      ...SAAS_REPO_BILLING_PERIOD_STUB,
+        ...SAAS_REPO_BILLING_PERIOD_STUB,
         recordSaasBillingProviderEvent,
         markSaasBillingInvoiceFailed,
       } as unknown as SaasBillingRepositoryPort,

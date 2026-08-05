@@ -17,7 +17,8 @@ import type {
   SaasBillingRepositoryPort,
   SaasBillingSettingsReadPort,
 } from './ports';
-import { paidPeriodEndsAt } from './paidPeriod';
+import { paidPeriodEndsAtForCode } from './paidPeriod';
+import { billingPeriodMonthsMap } from './billingPeriodCatalog';
 import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
 import { parseSaasBillingPaymentProviderSettings } from './settings';
 import { buildPartialRefundReceipt, buildSaasBillingReceipt } from './fiscalReceipt';
@@ -53,6 +54,15 @@ const SAAS_SEAT_BILLING_RETURN_URL = `${env.APP_BASE_URL}${routePaths.settings}?
  */
 function deriveSaasBillingIdempotencyKey(parts: ReadonlyArray<string | number>): string {
   return createHash('sha256').update(parts.map(String).join(' ')).digest('hex');
+}
+
+async function paidPeriodEndsAtForBillingCode(
+  repository: SaasBillingRepositoryPort,
+  startsAt: string,
+  billingPeriodCode: string,
+): Promise<string> {
+  const monthsByCode = billingPeriodMonthsMap(await repository.listBillingPeriods());
+  return paidPeriodEndsAtForCode(startsAt, billingPeriodCode, monthsByCode);
 }
 
 /** Structured refusal for the clinic UI; the schedule has no side effect when this is thrown. */
@@ -403,7 +413,11 @@ export function createSaasBillingService(dependencies: {
     const { saasBillingSubscriptionId, billingPeriod } =
       await dependencies.repository.requireOwnTariffBillingSubscription(input.organizationId);
     const servicePeriodStartsAt = now().toISOString();
-    const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
+    const servicePeriodEndsAt = await paidPeriodEndsAtForBillingCode(
+      dependencies.repository,
+      servicePeriodStartsAt,
+      billingPeriod,
+    );
 
     const provider = await resolvePaymentProvider();
     if (!provider.adapter.supportsInvoice) {
@@ -495,7 +509,11 @@ export function createSaasBillingService(dependencies: {
       providerId: provider.providerId,
       providerIdempotencyKey: `saas_seat_overage:${input.organizationId}:${input.requestKey}`,
       servicePeriodStartsAt: periodStart,
-      servicePeriodEndsAt: paidPeriodEndsAt(periodStart, subscription.billingPeriod),
+      servicePeriodEndsAt: await paidPeriodEndsAtForBillingCode(
+        dependencies.repository,
+        periodStart,
+        subscription.billingPeriod,
+      ),
     });
     if (result.outcome !== 'invoice') return result;
     if (result.invoice.providerCheckoutUrl) {
@@ -754,7 +772,8 @@ export function createSaasBillingService(dependencies: {
                   }
                 : {
                     startsAt,
-                    endsAt: paidPeriodEndsAt(
+                    endsAt: await paidPeriodEndsAtForBillingCode(
+                      dependencies.repository,
                       startsAt,
                       (await transaction.requireActiveTariff(input.tariffId)).billingPeriod,
                     ),
@@ -858,7 +877,8 @@ export function createSaasBillingService(dependencies: {
         // §5a item 7.0 arithmetic: the new period starts exactly where the paid one ended, never
         // "now" — a late tick must not hand the clinic extra free days.
         const servicePeriodStartsAt = subscription.currentPeriodEndsAt;
-        const servicePeriodEndsAt = paidPeriodEndsAt(
+        const servicePeriodEndsAt = await paidPeriodEndsAtForBillingCode(
+          dependencies.repository,
           servicePeriodStartsAt,
           subscription.billingPeriod,
         );
@@ -979,7 +999,11 @@ export function createSaasBillingService(dependencies: {
       // A clinic can pay before expiry. The purchased next period begins at the paid boundary,
       // never at the click time, otherwise an early renewal silently cuts off paid days.
       const servicePeriodStartsAt = currentPeriodEndsAt ?? now().toISOString();
-      const servicePeriodEndsAt = paidPeriodEndsAt(servicePeriodStartsAt, billingPeriod);
+      const servicePeriodEndsAt = await paidPeriodEndsAtForBillingCode(
+        dependencies.repository,
+        servicePeriodStartsAt,
+        billingPeriod,
+      );
       // The tariff period itself is the request identity. Time spent on the same checkout must not
       // mint another logical invoice key; a later period has different service boundaries and so
       // naturally receives a different key.

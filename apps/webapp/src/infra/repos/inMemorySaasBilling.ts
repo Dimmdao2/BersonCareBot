@@ -5,17 +5,23 @@ import type {
   SaasBillingRefund,
   SaasBillingRepositoryPort,
   SaasBillingSubscription,
+  TariffBillingPeriodCode,
 } from '@/modules/saas-billing/ports';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
 import { proratedTariffUpgradeAmountMinor } from '@/modules/saas-billing/proration';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
+import type { BillingPeriodOption } from '@/modules/saas-billing/billingPeriodCatalog';
 
-const OPEN_REFUND_STATUSES: SaasBillingRefund['status'][] = ['pending', 'succeeded'];
+const DEFAULT_BILLING_PERIODS: BillingPeriodOption[] = [
+  { code: 'month', label: 'Месяц', months: 1, isSelectable: true, sortOrder: 10 },
+  { code: 'half_year', label: 'Полгода', months: 6, isSelectable: true, sortOrder: 20 },
+  { code: 'year', label: 'Год', months: 12, isSelectable: true, sortOrder: 30 },
+];
 
 function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
   priceMinor: number;
   currency: string;
-  billingPeriod: 'day' | 'month' | 'year';
+  billingPeriod: string;
 } {
   const priceMinor = snapshot?.price_minor;
   const currency = snapshot?.currency;
@@ -25,7 +31,8 @@ function paidPeriodSnapshotPrice(snapshot: Record<string, unknown> | null): {
     !Number.isSafeInteger(priceMinor) ||
     typeof currency !== 'string' ||
     !/^[A-Z]{3}$/.test(currency) ||
-    (billingPeriod !== 'day' && billingPeriod !== 'month' && billingPeriod !== 'year')
+    typeof billingPeriod !== 'string' ||
+    billingPeriod.trim().length === 0
   ) {
     throw new Error('saas_billing_paid_period_snapshot_missing');
   }
@@ -45,6 +52,8 @@ function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown>
   return additionalSeatPriceMinor;
 }
 
+const OPEN_REFUND_STATUSES: SaasBillingRefund['status'][] = ['pending', 'succeeded'];
+
 /** Key = `${organizationId}::${source}` — mirrors the real `(organization_id, source)` unique index,
  *  so `manual` and `paid_subscription` rows for the same org never collide in this fake. */
 function subscriptionKey(
@@ -61,7 +70,7 @@ export function createInMemorySaasBillingRepository(
       name: string;
       priceMinor: number;
       currency: string;
-      billingPeriod: 'day' | 'month' | 'year';
+      billingPeriod: string;
       additionalSeatPriceMinor?: number | null;
     }>;
     trialPolicy?: {
@@ -103,6 +112,9 @@ export function createInMemorySaasBillingRepository(
   }
 
   return {
+    async listBillingPeriods() {
+      return DEFAULT_BILLING_PERIODS;
+    },
     async getSaasBillingAccountBillingEmail(organizationId) {
       return billingEmails.get(organizationId) ?? null;
     },
@@ -270,7 +282,7 @@ export function createInMemorySaasBillingRepository(
           invoiceKind: SaasBillingInvoice['invoiceKind'];
           tariffId: string;
           tariffName: string;
-          tariffBillingPeriod: 'day' | 'month' | 'year';
+          tariffBillingPeriod: TariffBillingPeriodCode;
           currency: string;
           count: number;
           amountMinor: number;

@@ -4,6 +4,7 @@
  */
 import type {
   AccessLifecyclePolicy,
+  BillingPeriodOption,
   CabinetAccessResolution,
   EffectiveOrgCommercialAccess,
   MechanicAccessResolution,
@@ -11,6 +12,7 @@ import type {
   OrgEntitlementSnapshot,
   OrgMechanic,
   OrgEntitlementOverride,
+  PaidPeriodPolicy,
   RegistrationTariffPolicy,
   Tariff,
   TariffQuota,
@@ -94,7 +96,13 @@ export type PlatformOrganizationSummary = {
 export type PlatformEntitlementsPort = {
   listTariffs(): Promise<Tariff[]>;
   listOrganizations(): Promise<PlatformOrganizationSummary[]>;
+  listBillingPeriods(): Promise<BillingPeriodOption[]>;
+  upsertBillingPeriod(
+    input: Pick<BillingPeriodOption, 'code' | 'label' | 'months'>,
+    audit: PlatformMutationAudit,
+  ): Promise<BillingPeriodOption>;
   getTrialPolicy(): Promise<TrialPolicy | null>;
+  getPaidPeriodPolicy(): Promise<PaidPeriodPolicy | null>;
   getRegistrationTariffPolicy(): Promise<RegistrationTariffPolicy>;
   createTariff(
     input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
@@ -134,6 +142,7 @@ export type PlatformEntitlementsPort = {
     audit: PlatformMutationAudit,
   ): Promise<void>;
   setTrialPolicy(policy: TrialPolicy, audit: PlatformMutationAudit): Promise<void>;
+  setPaidPeriodPolicy(policy: PaidPeriodPolicy, audit: PlatformMutationAudit): Promise<void>;
   setRegistrationTariffPolicy(
     policy: RegistrationTariffPolicy,
     audit: PlatformMutationAudit,

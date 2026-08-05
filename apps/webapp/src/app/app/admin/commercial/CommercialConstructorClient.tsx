@@ -14,6 +14,8 @@ import {
   type MechanicDowngradePolicy,
   type OrgMechanic,
   type RegistrationTariffPolicy,
+  type PaidPeriodPolicy,
+  type BillingPeriodOption,
   type Tariff,
   type TariffQuota,
   type TariffQuotaMap,
@@ -58,6 +60,8 @@ type CommercialState = {
   organizations: PlatformOrganizationSummary[];
   trialPolicy: TrialPolicy | null;
   registrationTariffPolicy: RegistrationTariffPolicy;
+  billingPeriods: BillingPeriodOption[];
+  paidPeriodPolicy: PaidPeriodPolicy | null;
 };
 
 type CommercialMutationResult = { created?: boolean; endsAt?: string } | null;
@@ -606,6 +610,8 @@ export function CommercialConstructorClient() {
     organizations: [],
     trialPolicy: null,
     registrationTariffPolicy: { tariffId: null },
+    billingPeriods: [],
+    paidPeriodPolicy: null,
   });
   const [tariff, setTariff] = useState<TariffDraft>(emptyTariffDraft);
   const [reason, setReason] = useState('');
@@ -623,6 +629,14 @@ export function CommercialConstructorClient() {
   const [postTrialTariffId, setPostTrialTariffId] = useState('none');
   const [trialActive, setTrialActive] = useState(false);
   const [registrationTariffId, setRegistrationTariffId] = useState('none');
+  const [postPaidPeriodBehavior, setPostPaidPeriodBehavior] =
+    useState<PaidPeriodPolicy['postPaidPeriodBehavior'] | null>(null);
+  const [postPaidPeriodTariffId, setPostPaidPeriodTariffId] = useState('none');
+  const [paidPeriodPolicyActive, setPaidPeriodPolicyActive] = useState(true);
+  const selectableBillingPeriods = useMemo(
+    () => state.billingPeriods.filter((period) => period.isSelectable),
+    [state.billingPeriods],
+  );
   // §T3 — which of the current tariff's letters is open in the «Рассылки» tab editor.
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -665,6 +679,19 @@ export function CommercialConstructorClient() {
     setPostTrialTariffId(policy.postTrialTariffId ?? 'none');
     setTrialActive(policy.isActive);
   }, [state.trialPolicy]);
+
+  useEffect(() => {
+    const policy = state.paidPeriodPolicy;
+    if (!policy) {
+      setPostPaidPeriodBehavior(null);
+      setPostPaidPeriodTariffId('none');
+      setPaidPeriodPolicyActive(true);
+      return;
+    }
+    setPostPaidPeriodBehavior(policy.postPaidPeriodBehavior);
+    setPostPaidPeriodTariffId(policy.postPaidPeriodTariffId ?? 'none');
+    setPaidPeriodPolicyActive(policy.isActive);
+  }, [state.paidPeriodPolicy]);
 
   useEffect(() => {
     setRegistrationTariffId(state.registrationTariffPolicy?.tariffId ?? 'none');
@@ -896,9 +923,11 @@ export function CommercialConstructorClient() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="day">День</SelectItem>
-                    <SelectItem value="month">Месяц</SelectItem>
-                    <SelectItem value="year">Год</SelectItem>
+                    {selectableBillingPeriods.map((period) => (
+                      <SelectItem key={period.code} value={period.code}>
+                        {period.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1137,9 +1166,13 @@ export function CommercialConstructorClient() {
                 <>
                   <p>Статус триала: {TRIAL_STATUS_LABELS[selectedOrganization.trial.status]}</p>
                   <p>
-                    Тариф триала:{' '}
+                    Тариф на триале:{' '}
                     {state.tariffs.find((item) => item.id === selectedOrganization.trial?.tariffId)
                       ?.name ?? 'не найден'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    ⛔ УСТАРЕЛО → T5: отдельного «тарифа триала» нет — триал на первом тарифе
+                    организации.
                   </p>
                   <p>До {new Date(selectedOrganization.trial.endsAt).toLocaleString('ru-RU')}</p>
                 </>
@@ -1510,6 +1543,116 @@ export function CommercialConstructorClient() {
                 disabled={busy || !trialStartEvent.trim() || !postTrialBehavior}
               >
                 Сохранить правило
+              </Button>
+            </div>
+          </form>
+        </DoctorSection>
+
+        <DoctorSection>
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!postPaidPeriodBehavior) {
+                setMessage('Выберите действие после оплаченного периода');
+                return;
+              }
+              void mutate(
+                {
+                  action: 'set_paid_period_policy',
+                  policy: {
+                    postPaidPeriodBehavior,
+                    postPaidPeriodTariffId:
+                      postPaidPeriodBehavior === 'tariff' && postPaidPeriodTariffId !== 'none'
+                        ? postPaidPeriodTariffId
+                        : null,
+                    isActive: paidPeriodPolicyActive,
+                  },
+                  reason,
+                },
+                'Правило после оплаты сохранено',
+              );
+            }}
+          >
+            <DoctorSectionHeader className="md:col-span-2">
+              <DoctorSectionTitle>После завершения оплаченного периода</DoctorSectionTitle>
+            </DoctorSectionHeader>
+            <p className="text-sm text-muted-foreground md:col-span-2">
+              Одна общая настройка для всех клиник, когда оплаченный период закончился и продления
+              нет. Отдельно от правила «После триала» выше.
+            </p>
+            <div className="space-y-1 md:col-span-2">
+              <Label>Действие</Label>
+              <Select
+                value={postPaidPeriodBehavior ?? 'unset'}
+                onValueChange={(value) => {
+                  if (value === 'read_only' || value === 'blocked' || value === 'tariff') {
+                    setPostPaidPeriodBehavior(value);
+                  }
+                }}
+              >
+                <SelectTrigger
+                  displayLabel={
+                    postPaidPeriodBehavior === 'read_only'
+                      ? 'Только чтение'
+                      : postPaidPeriodBehavior === 'blocked'
+                        ? 'Заблокировать'
+                        : postPaidPeriodBehavior === 'tariff'
+                          ? 'Перейти на другой тариф'
+                          : undefined
+                  }
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="read_only">Только чтение</SelectItem>
+                  <SelectItem value="blocked">Заблокировать</SelectItem>
+                  <SelectItem value="tariff">Перейти на другой тариф</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {postPaidPeriodBehavior === 'tariff' ? (
+              <div className="space-y-1 md:col-span-2">
+                <Label>Тариф после неоплаты</Label>
+                <Select
+                  value={postPaidPeriodTariffId}
+                  onValueChange={(value) => {
+                    if (value) setPostPaidPeriodTariffId(value);
+                  }}
+                >
+                  <SelectTrigger
+                    displayLabel={
+                      postPaidPeriodTariffId === 'none'
+                        ? 'Выберите тариф'
+                        : (state.tariffs.find((item) => item.id === postPaidPeriodTariffId)?.name ??
+                          '')
+                    }
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Выберите тариф</SelectItem>
+                    {state.tariffs
+                      .filter((item) => item.isActive)
+                      .map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            <Label className="flex items-center gap-2 md:col-span-2">
+              <Checkbox
+                checked={paidPeriodPolicyActive}
+                onCheckedChange={(checked) => setPaidPeriodPolicyActive(checked === true)}
+              />
+              Правило активно
+            </Label>
+            <div className="md:col-span-2">
+              <Button type="submit" disabled={busy || !postPaidPeriodBehavior}>
+                Сохранить правило после оплаты
               </Button>
             </div>
           </form>

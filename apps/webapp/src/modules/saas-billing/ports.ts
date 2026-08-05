@@ -1,7 +1,9 @@
 import type { PaymentProviderPort, PaymentReceipt } from '@/modules/payments/providerPort';
 import type { PaymentProviderConfig } from '@/modules/payments/types';
 import type { OrgCommercialLifecycleState } from '@/modules/org-entitlements/types';
-import type { SaasBillingPeriod } from './paidPeriod';
+import type { BillingPeriodOption } from './billingPeriodCatalog';
+
+export type TariffBillingPeriodCode = string;
 
 export type SaasBillingSource = 'manual' | 'paid_subscription';
 export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expired' | 'cancelled';
@@ -50,7 +52,7 @@ export type SaasBillingInvoice = {
   description: string | null;
   amountMinor: number;
   currency: string;
-  tariffBillingPeriod: 'day' | 'month' | 'year';
+  tariffBillingPeriod: TariffBillingPeriodCode;
   tariffSnapshot: Record<string, unknown> | null;
   servicePeriodStartsAt: string;
   servicePeriodEndsAt: string;
@@ -172,7 +174,7 @@ export type SaasBillingPlatformBreakdownRow = {
   invoiceKind: SaasBillingInvoiceKind;
   tariffId: string;
   tariffName: string;
-  tariffBillingPeriod: 'day' | 'month' | 'year';
+  tariffBillingPeriod: TariffBillingPeriodCode;
   currency: string;
   count: number;
   amountMinor: number;
@@ -221,7 +223,7 @@ export type SaasBillingSubscriptionDueForRenewal = {
   organizationId: string;
   tariffId: string;
   pendingTariffId: string | null;
-  billingPeriod: SaasBillingPeriod;
+  billingPeriod: TariffBillingPeriodCode;
   /** The end of the period just paid — the new period's `servicePeriodStartsAt`, never `now()`. */
   currentPeriodEndsAt: string;
   /** К6 — off-session charge target; `null` until a `payment.succeeded` webhook reports one. */
@@ -287,7 +289,7 @@ export type SaasBillingManualAssignmentTransactionPort = {
    * §5a item 7.0 — returns the owner's billing period, because the assignment is what starts the
    * organization's PAID PERIOD and the ladder now measures from its end.
    */
-  requireActiveTariff(tariffId: string): Promise<{ billingPeriod: SaasBillingPeriod }>;
+  requireActiveTariff(tariffId: string): Promise<{ billingPeriod: TariffBillingPeriodCode }>;
   setManualSaasBillingSubscription(input: {
     organizationId: string;
     tariffId: string | null;
@@ -331,6 +333,8 @@ export type SaasBillingManualAssignmentTransactionPort = {
 };
 
 export type SaasBillingRepositoryPort = {
+  /** #1069 T9 — catalog rows backing `saas_tariffs.billing_period`. */
+  listBillingPeriods(): Promise<BillingPeriodOption[]>;
   /** Billing-account contact is the payer email sent to the fiscal receipt. */
   getSaasBillingAccountBillingEmail(organizationId: string): Promise<string | null>;
   updateSaasBillingAccountBillingEmail(input: {
@@ -516,7 +520,7 @@ export type SaasBillingRepositoryPort = {
     /** Tariff currently assigned to the paid subscription; may differ from a scheduled next tariff. */
     currentTariffId: string;
     tariffId: string;
-    billingPeriod: SaasBillingPeriod;
+    billingPeriod: TariffBillingPeriodCode;
     /** Existing paid period is the renewal anchor; `null` only before the first payment. */
     currentPeriodStartsAt: string | null;
     currentPeriodEndsAt: string | null;

@@ -37,6 +37,26 @@ import {
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
 
+const PLATFORM_BILLING_PORT_STUBS = {
+  listBillingPeriods: async () => [],
+  upsertBillingPeriod: async (input: { code: string; label: string; months: number }) => ({
+    code: input.code,
+    label: input.label,
+    months: input.months,
+    isSelectable: true,
+    sortOrder: input.months * 10,
+  }),
+  getPaidPeriodPolicy: async () => null,
+  setPaidPeriodPolicy: async (policy: {
+    postPaidPeriodBehavior: 'read_only' | 'blocked' | 'tariff';
+    postPaidPeriodTariffId: string | null;
+    isActive: boolean;
+  }) => policy,
+} satisfies Pick<
+  PlatformEntitlementsPort,
+  'listBillingPeriods' | 'upsertBillingPeriod' | 'getPaidPeriodPolicy' | 'setPaidPeriodPolicy'
+>;
+
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('next/navigation', () => ({
   notFound: vi.fn(() => {
@@ -232,6 +252,7 @@ describe('org entitlement mechanic classes', () => {
   it('keeps numeric mechanics enabled and resolves their configured limits from a new tariff', async () => {
     let storedTariff: Tariff | null = null;
     const platformPort: PlatformEntitlementsPort = {
+      ...PLATFORM_BILLING_PORT_STUBS,
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
@@ -402,6 +423,7 @@ describe('org entitlement mechanic classes', () => {
   it('accepts owner numbers for stock mechanics without opening numbers for possibility mechanics', async () => {
     let storedTariff: Tariff | null = null;
     const platformPort: PlatformEntitlementsPort = {
+      ...PLATFORM_BILLING_PORT_STUBS,
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
@@ -903,6 +925,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       trial: null,
     };
     const port: PlatformEntitlementsPort = {
+      ...PLATFORM_BILLING_PORT_STUBS,
       listTariffs: async () => [input.currentTariff, input.targetTariff],
       listOrganizations: async () => [organization],
       getTrialPolicy: async () => null,
@@ -1005,6 +1028,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
 describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)', () => {
   it('rejects `full_access` as a configured terminal state', async () => {
     const platformPort: PlatformEntitlementsPort = {
+      ...PLATFORM_BILLING_PORT_STUBS,
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
@@ -1085,6 +1109,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
 
   function servicePort(): PlatformEntitlementsPort {
     return {
+      ...PLATFORM_BILLING_PORT_STUBS,
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
@@ -1257,6 +1282,7 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
       expiresAt: string | null;
     }> = [];
     const platformPort: PlatformEntitlementsPort = {
+      ...PLATFORM_BILLING_PORT_STUBS,
       listTariffs: async () => [],
       listOrganizations: async () => [],
       getTrialPolicy: async () => null,
