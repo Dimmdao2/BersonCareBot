@@ -11,7 +11,9 @@
 **Стык с планом тарифов, чтобы планы не разъехались:**
 
 > **Reconciliation 2026-08-05:** B0.3/B0.3a и live TEST checkout→webhook→capture закрыты (`wt/pay-close`, merge
-> `d1b8a1718`). #1057 → taskdb `done`. Открытые хвосты billing: автоматическая лестница §5a (owner T1/T9/T10).
+> `d1b8a1718`). #1057 → taskdb `done`. **05.08 reconcile:** лестница §5a T1/T9/T10 закрыты в
+> `TARIFFS_PAYMENTS_ADMIN_PLAN.md` (#1069: `20ede5edc`, `ac185efb1`, paid-period policy); открыты только
+> owner-приёмка 7.3/7.4 и billing renewal lifecycle (см. §5a хвост 7.0).
 > **05.08 reconcile:** `webhookSecret` в admin UI (`SaasBillingProviderSettings.tsx`) и matching upgrade-инвойса по
 > `targetTariffId` (`pgSaasBilling.ts` / `inMemorySaasBilling.ts`) — закрыты кодом и step-тестами.
 > **05.08:** backfill legacy manual tariff → `saas_billing_subscriptions` — **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ:** спекулятивный
@@ -460,9 +462,9 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       — ЧАСТИЧНО заложен фундамент: `checkEntitlement()` в `requireEntitlement.ts:19-38` уже различает
       `active`/`read_only`/`blocked` lifecycle (не `upgrade`/`grace` полностью, 3 из 4 состояний канона) и протестирован
       (`requireEntitlement.test.ts` кейсы «allows reads in read-only lifecycle but rejects mutations», «allows recovery
-      reads in blocked lifecycle»). Автоматический перевод lifecycle по `expired`/`past_due`/refund и полная
-      лестница §5a — **остаются открытыми** (см. `TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a этап 2, owner T1/T9/T10);
-      capture/refund-путь billing уже пишет subscription rows.
+      reads in blocked lifecycle»). Автоматический перевод lifecycle по `expired`/`past_due`/refund — **частично**
+      (capture/refund пишет subscription rows); полная paid-period лестница — ✅ T9/T10 (#1069); renewal invoice
+      path — хвост 7.0 в `TARIFFS_PAYMENTS_ADMIN_PLAN.md`.
 
 - [x] **Фискализация: объект `receipt` в платеже и возврате.** Заведено ПРЯМЫМ распоряжением владельца 27.07:
       «И облачную кассу будем подключать» → на уточнение «поле `receipt` в платеже» — **«делай конечно как надо.
