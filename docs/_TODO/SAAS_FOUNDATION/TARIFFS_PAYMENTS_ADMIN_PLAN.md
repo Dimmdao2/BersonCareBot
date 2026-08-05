@@ -1256,9 +1256,14 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       `pnpm --dir apps/webapp exec vitest run --project=ui
       src/app/app/settings/BookingPaymentsSection.ui.test.tsx` (1 passed). Живая TEST-цепочка 03.08:
       `deploy-test-20260803T053218Z-2944826.log`.
-      **Свой домен — ГОТОВО (write clearance, 05.08 #1069):** per-org ключ `org_custom_domain_hostname`, PATCH
-      `/api/admin/settings` + `assertMechanicWriteClearance('custom_domain')`; снят с `DECLARED_NO_SURFACE`.
-      `[ ]` UI/TLS binding — отдельный этап, не тарифная лестница §4.7.
+      **Свой домен — ГОТОВО (write clearance + UI hostname, 05.08 #1069):** per-org ключ
+      `org_custom_domain_hostname`, PATCH `/api/admin/settings` + `assertMechanicWriteClearance('custom_domain')`;
+      снят с `DECLARED_NO_SURFACE`; UI — `OrgCustomDomainSection` на вкладке «Клиника» (`/app/settings`,
+      owner-only, лестница `custom_domain`). Evidence UI 05.08: `pnpm --dir apps/webapp exec vitest run
+      --project=ui src/app/app/settings/OrgCustomDomainSection.ui.test.tsx` (1 passed);
+      `pnpm --dir apps/webapp exec vitest run
+      src/app-layer/entitlements/mechanicSettingsWriteClearance.mechanicWriteClearance.test.ts` (7 passed).
+      `[ ]` TLS/routing binding — ops-only этап, не §4.7.
       **Вне §4.7 / не store:** `exercise_catalog`/`exercise_packages` — owner 05.08 (#1069): clinic-owned каталоги ЛФК
       не режутся тарифом; только platform-library visibility — канон [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md).
       `[ ]` **`patient_app_paid_subscription`** — store-deferred (`DECLARED_NO_SURFACE`, ждёт магазин/EXERCISE_STORE).

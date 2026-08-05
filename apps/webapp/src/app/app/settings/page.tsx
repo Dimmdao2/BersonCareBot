@@ -5,6 +5,7 @@ import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   getMechanicMutationAvailability,
+  getMechanicSurfaceVisibility,
   isMechanicIncluded,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
@@ -35,6 +36,7 @@ import { DoctorTodayPreferencesSection } from './DoctorTodayPreferencesSection';
 import { ClinicSlugSection } from './ClinicSlugSection';
 import { ClinicDeliveryChannelsSection } from './ClinicDeliveryChannelsSection';
 import { OrgBrandingSection } from './OrgBrandingSection';
+import { OrgCustomDomainSection } from './OrgCustomDomainSection';
 import { SettingsForm } from './SettingsForm';
 import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
@@ -136,22 +138,36 @@ export default async function SettingsPage({
       actorPlatformUserId: workspace.session.user.userId,
       hasOrganizationManagementCapability: true,
     };
-    const [doctorSettings, clinicAdminSettings, platformSettings, brandingState, slugState] =
-      await Promise.all([
-        deps.systemSettings.listSettingsByScope('doctor', {
-          organizationId: workspace.organizationId,
-        }),
-        deps.systemSettings.listSettingsByScope('admin', {
-          organizationId: workspace.organizationId,
-        }),
-        deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
-        withDoctorWorkspacePrincipal(workspace, 'app.settings.org-branding.read', () =>
-          deps.orgBranding.getManagementState(brandingCtx),
-        ),
-        workspace.canManageOrganization && deps.clinicDirectory
-          ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
-          : Promise.resolve(null),
-      ]);
+    const canManageCustomDomain = workspace.membershipRole === 'owner' || isGlobalAdmin;
+    const [
+      doctorSettings,
+      clinicAdminSettings,
+      platformSettings,
+      brandingState,
+      slugState,
+      customDomainSurface,
+      customDomainMutation,
+    ] = await Promise.all([
+      deps.systemSettings.listSettingsByScope('doctor', {
+        organizationId: workspace.organizationId,
+      }),
+      deps.systemSettings.listSettingsByScope('admin', {
+        organizationId: workspace.organizationId,
+      }),
+      deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
+      withDoctorWorkspacePrincipal(workspace, 'app.settings.org-branding.read', () =>
+        deps.orgBranding.getManagementState(brandingCtx),
+      ),
+      workspace.canManageOrganization && deps.clinicDirectory
+        ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
+        : Promise.resolve(null),
+      canManageCustomDomain
+        ? getMechanicSurfaceVisibility(workspace, 'custom_domain')
+        : Promise.resolve(null),
+      canManageCustomDomain
+        ? getMechanicMutationAvailability(workspace, 'custom_domain')
+        : Promise.resolve(null),
+    ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
       publishedBrand?.logoMediaReady && publishedBrand.logoMediaId
@@ -258,6 +274,13 @@ export default async function SettingsPage({
             publishedDisplayName={publishedBrand?.displayName ?? null}
             publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
             publishedLogoUrl={publishedLogoUrl}
+          />
+        ) : null}
+        {customDomainSurface?.directUrl ? (
+          <OrgCustomDomainSection
+            key={`${customDomainMutation?.available ? 'write' : 'read'}:${clinicAdminValue('org_custom_domain_hostname')}`}
+            hostname={clinicAdminValue('org_custom_domain_hostname')}
+            mutationAvailable={customDomainMutation?.available === true}
           />
         ) : null}
         {slugState ? (
