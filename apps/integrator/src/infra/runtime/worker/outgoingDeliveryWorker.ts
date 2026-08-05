@@ -54,7 +54,6 @@ import {
   enrichDoctorBroadcastIntentIfNeeded,
   type DoctorBroadcastMenuWorkerDeps,
 } from './doctorBroadcastIntentMenu.js';
-import { recordNotificationDeliveryAttemptBestEffort } from '../../db/repos/notificationDeliveryAttempts.js';
 import {
   isReminderTransactionalEmailRateLimited,
   recordReminderTransactionalEmailSent,
@@ -491,59 +490,32 @@ async function finalizeOutgoingDeliveryDead(
   }
 }
 
-async function recordQueueDeliveryAttempt(
-  db: DbPort,
-  row: OutgoingDeliveryQueueRow,
+async function logQueueDeliveryAttemptBestEffort(
+  writePort: DbWritePort,
   intent: OutgoingIntent,
-  params: {
-    status: 'success' | 'failed' | 'skipped';
-    reason?: string;
-    errorMessage?: string;
-    providerStatusCode?: number;
-  },
+  channel: string,
+  reason: string,
 ): Promise<void> {
-  if (row.kind !== 'reminder_dispatch' && row.channel !== 'telegram' && row.channel !== 'max')
-    return;
-  if (!['telegram', 'max', 'web_push', 'email'].includes(row.channel)) return;
-  const p = row.payloadJson;
-  const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : undefined;
-  const externalId = typeof p.externalId === 'string' ? p.externalId : undefined;
-  const integratorUserId = typeof intent.meta.userId === 'string' ? intent.meta.userId : undefined;
-  const platformUserId =
-    typeof p.platformUserId === 'string' && p.platformUserId.trim().length > 0
-      ? p.platformUserId.trim()
-      : undefined;
-  const topicCode = typeof p.topicCode === 'string' ? p.topicCode : undefined;
-  const broadcastAuditId =
-    typeof row.payloadJson.broadcastAuditId === 'string' &&
-    row.payloadJson.broadcastAuditId.trim().length > 0
-      ? row.payloadJson.broadcastAuditId.trim()
-      : null;
-  const organizationId =
-    row.kind === 'reminder_dispatch' && occurrenceId
-      ? await resolveReminderOccurrenceOrganizationId(db, occurrenceId)
-      : row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND
-        ? broadcastAuditId
-          ? await resolveBroadcastAuditOrganizationId(db, broadcastAuditId)
-          : null
-        : null;
-  await recordNotificationDeliveryAttemptBestEffort(db, {
-    ...(integratorUserId !== undefined ? { integratorUserId } : {}),
-    ...(platformUserId !== undefined ? { userId: platformUserId } : {}),
-    ...(topicCode !== undefined ? { topicCode } : {}),
-    intentType: row.kind === 'reminder_dispatch' ? 'reminder_dispatch' : row.kind,
-    channel: row.channel as 'telegram' | 'max' | 'web_push' | 'email',
-    status: params.status,
-    ...(params.reason !== undefined ? { reason: params.reason } : {}),
-    ...(params.providerStatusCode !== undefined
-      ? { providerStatusCode: params.providerStatusCode }
-      : {}),
-    eventId: row.eventId,
-    ...(occurrenceId !== undefined ? { occurrenceId } : {}),
-    ...(externalId ? { recipientRef: `${row.channel}:${externalId.slice(-4)}` } : {}),
-    ...(params.errorMessage !== undefined ? { errorMessage: params.errorMessage } : {}),
-    organizationId,
-  });
+  try {
+    await writePort.writeDb({
+      type: 'delivery.attempt.log',
+      params: {
+        intentType: intent.type,
+        intentEventId: intent.meta.eventId,
+        correlationId: null,
+        channel,
+        status: 'skipped',
+        attempt: 1,
+        reason,
+        occurredAt: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    logger.warn(
+      { err, eventId: intent.meta.eventId, channel, reason },
+      'queue_delivery_attempt_log_failed',
+    );
+  }
 }
 
 async function finalizeRecipientBlockedBotDelivery(
@@ -560,11 +532,6 @@ async function finalizeRecipientBlockedBotDelivery(
     }),
     channel: row.channel,
     externalId: resolveExternalIdForBotBlockedMarker(row, intent),
-  });
-  await recordQueueDeliveryAttempt(db, row, intent, {
-    status: 'skipped',
-    reason: 'recipient_blocked_bot',
-    errorMessage: safeError,
   });
   await queueMarkDead(db, row.id, safeError, RECIPIENT_BLOCKED_BOT_FAILURE_CLASS);
   await incrementBroadcastAuditBlockedIfDoctorBroadcast(db, row);
@@ -635,7 +602,6 @@ async function handleDispatchFailure(
   err: unknown,
   writePort: DbWritePort,
   intent?: OutgoingIntent,
-  failureEvidence?: { reason?: string; providerStatusCode?: number },
 ): Promise<void> {
   if (
     row.kind !== 'operator_alert' &&
@@ -659,20 +625,6 @@ async function handleDispatchFailure(
   const attempts = row.attemptCount;
   const retryable = isOutgoingDeliveryDispatchErrorRetryable(safe);
   if (!retryable || attempts >= row.maxAttempts) {
-    if (
-      row.kind !== 'operator_alert' &&
-      intent &&
-      (row.kind === 'reminder_dispatch' || row.channel === 'telegram' || row.channel === 'max')
-    ) {
-      await recordQueueDeliveryAttempt(db, row, intent, {
-        status: 'failed',
-        reason: failureEvidence?.reason ?? (retryable ? 'delivery_dead' : 'provider_error'),
-        errorMessage: safe,
-        ...(failureEvidence?.providerStatusCode !== undefined
-          ? { providerStatusCode: failureEvidence.providerStatusCode }
-          : {}),
-      });
-    }
     await finalizeOutgoingDeliveryDead(db, row, safe, writePort);
     return;
   }
@@ -741,7 +693,6 @@ export async function processOutgoingDeliveryRow(
   if (row.kind === INBOUND_REPLY_QUEUE_KIND) {
     try {
       await dispatchOutgoing(intent);
-      await recordQueueDeliveryAttempt(db, row, intent, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
       await queueMarkSent(db, row.id);
     } catch (err) {
@@ -782,10 +733,7 @@ export async function processOutgoingDeliveryRow(
       row.id,
     );
     if (!materializationCurrent) {
-      await recordQueueDeliveryAttempt(db, row, intent, {
-        status: 'skipped',
-        reason: 'stale_materialization',
-      });
+      await logQueueDeliveryAttemptBestEffort(writePort, intent, row.channel, 'stale_materialization');
       await queueMarkSent(db, row.id);
       return;
     }
@@ -799,10 +747,7 @@ export async function processOutgoingDeliveryRow(
         return;
       }
       if (await isReminderTransactionalEmailRateLimited(db, platformUserId)) {
-        await recordQueueDeliveryAttempt(db, row, intent, {
-          status: 'skipped',
-          reason: 'rate_limited',
-        });
+        await logQueueDeliveryAttemptBestEffort(writePort, intent, row.channel, 'rate_limited');
         await queueMarkSent(db, row.id);
         return;
       }
@@ -882,20 +827,10 @@ export async function processOutgoingDeliveryRow(
           const error = new Error(
             `WEB_PUSH_OUTCOME_FAILED:${reason}${providerCode ? `:${providerCode}` : ''}${statusCode !== undefined ? `:${statusCode}` : ''}`,
           );
-          await handleDispatchFailure(db, row, error, writePort, intent, {
-            reason,
-            ...(statusCode !== undefined ? { providerStatusCode: statusCode } : {}),
-          });
+          await handleDispatchFailure(db, row, error, writePort, intent);
           return;
         }
         if (outcome.status === 'skipped') {
-          await recordQueueDeliveryAttempt(db, row, intent, {
-            status: 'skipped',
-            reason: outcome.reason ?? 'provider_skipped',
-            ...(outcome.providerStatusCode !== undefined
-              ? { providerStatusCode: outcome.providerStatusCode }
-              : {}),
-          });
           await queueMarkSent(db, row.id);
           return;
         }
@@ -945,7 +880,6 @@ export async function processOutgoingDeliveryRow(
           params: { occurrenceId, channel },
         });
       });
-      await recordQueueDeliveryAttempt(db, row, intent, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
       await queueMarkSent(db, row.id);
     } catch (err) {
@@ -980,7 +914,6 @@ export async function processOutgoingDeliveryRow(
             })
           : intent;
       await dispatchOutgoing(toSend);
-      await recordQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, toSend);
       await queueMarkSent(db, row.id);
       await runWithBroadcastAuditOrganization(db, broadcastAuditId, (targetDb) =>

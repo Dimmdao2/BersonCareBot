@@ -1,21 +1,11 @@
 /**
- * Opt-in REAL-Postgres proof for the delivery-attempt audit journal bug (found 04.08).
+ * Opt-in REAL-Postgres proof for the delivery-attempt audit journal (D10a writer path).
  *
  * `createOperatorAwareDeliveryAttemptWritePort` routes every `delivery.attempt.log` write made
  * under the `worker:outgoing-delivery-tick` infra principal into `app.record_operator_delivery_attempt`
- * — unconditionally, for every queue kind the worker processes, not just `operator_alert`. Before the
- * fix, that SQL function only accepted rows shaped like an operator alert (`op-inc:` eventId prefix,
- * `telegram`/`max` channel, a matching `outgoing_delivery_queue` row of `kind = 'operator_alert'`), so
- * every other kind's audit write (reminders, broadcasts, inbound replies, ...) was rejected right after
- * its delivery had already succeeded, and the caller's best-effort catch swallowed the failure. Concrete
- * failures this test catches:
- * - a non-operator-alert delivery (e.g. `reminder_dispatch`) leaves no attempt record at all;
- * - a failed delivery is equally unrecorded, so an operator can't see channel degradation;
- * - a retried attempt is rejected instead of appending a new row with the higher attempt number.
- *
- * Fixture writes and cleanup use app_staff. The behavior under test runs under the exact locked
- * worker source, therefore the narrow app_operational_delivery_worker role — the same role that has
- * no other privilege on `integrator.delivery_attempt_logs`.
+ * — unconditionally, for every queue kind the worker processes. The function validates provenance
+ * against a matching `outgoing_delivery_queue` row and inserts into
+ * `public.notification_delivery_attempts` (D10a canonical journal).
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -58,7 +48,13 @@ describe.skipIf(!enabled)(
 
     function logAttempt(
       db: DbPort,
-      input: { eventId: string; channel: string; status: 'success' | 'failed'; attempt: number },
+      input: {
+        eventId: string;
+        channel: string;
+        status: 'success' | 'failed' | 'skipped';
+        attempt: number;
+        reason?: string;
+      },
     ): Promise<void> {
       writtenLogEventIds.push(input.eventId);
       const mutation: DbWriteMutation = {
@@ -68,7 +64,13 @@ describe.skipIf(!enabled)(
           channel: input.channel,
           status: input.status,
           attempt: input.attempt,
-          reason: input.status === 'failed' ? 'provider_rejected' : null,
+          reason:
+            input.reason ??
+            (input.status === 'failed'
+              ? 'provider_rejected'
+              : input.status === 'skipped'
+                ? 'provider_skipped'
+                : null),
         },
       };
       return recordOperatorDeliveryAttempt(db, mutation);
@@ -80,10 +82,10 @@ describe.skipIf(!enabled)(
       const result = await harness.withFixtures((db) =>
         runIntegratorSql<{ status: string; attempt: number; kind: unknown }>(
           db,
-          sql`SELECT status, attempt, payload_json->>'kind' AS kind
-              FROM integrator.delivery_attempt_logs
-              WHERE intent_event_id = ${eventId}
-              ORDER BY attempt`,
+          sql`SELECT status, (metadata->>'attempt')::int AS attempt, intent_type AS kind
+              FROM public.notification_delivery_attempts
+              WHERE event_id = ${eventId}
+              ORDER BY (metadata->>'attempt')::int`,
         ),
       );
       return result.rows;
@@ -104,7 +106,7 @@ describe.skipIf(!enabled)(
         for (const eventId of writtenLogEventIds) {
           await runIntegratorSql(
             db,
-            sql`DELETE FROM integrator.delivery_attempt_logs WHERE intent_event_id = ${eventId}`,
+            sql`DELETE FROM public.notification_delivery_attempts WHERE event_id = ${eventId}`,
           );
         }
       });
@@ -158,6 +160,25 @@ describe.skipIf(!enabled)(
 
       const rows = await readLoggedAttempts(eventId);
       expect(rows).toEqual([{ status: 'success', attempt: 1, kind: 'operator_alert' }]);
+    });
+
+    it('records skipped status for pre-dispatch worker skips', async () => {
+      const eventId = await insertQueueRow({ kind: 'reminder_dispatch', channel: 'email' });
+
+      await harness.withRuntime((db) =>
+        logAttempt(db, {
+          eventId,
+          channel: 'email',
+          status: 'skipped',
+          attempt: 1,
+          reason: 'stale_materialization',
+        }),
+      );
+
+      const rows = await readLoggedAttempts(eventId);
+      expect(rows).toEqual([
+        { status: 'skipped', attempt: 1, kind: 'reminder_dispatch' },
+      ]);
     });
 
     it('still rejects an attempt with no matching queue row (forged provenance)', async () => {

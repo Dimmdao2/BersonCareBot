@@ -13,6 +13,7 @@ import {
   resolveDevRedirect,
 } from '../../shared/devDeliveryRedirect.js';
 import { logger } from '../observability/logger.js';
+import { classifyRecipientBlockedBotError } from '../delivery/recipientBotBlocked.js';
 import {
   getCurrentDatabasePrincipal,
   getCurrentOrganizationPrincipalId,
@@ -123,7 +124,7 @@ async function logDeliveryAttempt(
   writePort: DbWritePort | undefined,
   intent: OutgoingIntent,
   channel: string,
-  status: 'success' | 'failed',
+  status: 'success' | 'failed' | 'skipped',
   attempt: number,
   reason?: string,
 ): Promise<void> {
@@ -162,7 +163,7 @@ function reportDeliveryAttemptAuditPersistFailure(
   auditError: unknown,
   intent: OutgoingIntent,
   channel: string,
-  status: 'success' | 'failed',
+  status: 'success' | 'failed' | 'skipped',
 ): void {
   deliveryAttemptAuditPersistFailureCount += 1;
   const fields = {
@@ -406,26 +407,52 @@ export function createDefaultDispatchPort(deps: {
         }
       } catch (providerError) {
         if (intent.type === 'message.send') {
+          const blocked = classifyRecipientBlockedBotError(providerError, channel);
           try {
             await logDeliveryAttempt(
               deps.writePort,
               intent,
               channel,
-              'failed',
+              blocked ? 'skipped' : 'failed',
               1,
-              'provider_rejected',
+              blocked ? 'recipient_blocked_bot' : 'provider_rejected',
             );
           } catch (auditError) {
-            reportDeliveryAttemptAuditPersistFailure(auditError, intent, channel, 'failed');
+            reportDeliveryAttemptAuditPersistFailure(
+              auditError,
+              intent,
+              channel,
+              blocked ? 'skipped' : 'failed',
+            );
           }
         }
         throw providerError;
       }
       if (intent.type === 'message.send') {
+        const outcome = sendResult?.webPushOutcome;
+        const auditStatus: 'success' | 'failed' | 'skipped' =
+          outcome?.status === 'skipped'
+            ? 'skipped'
+            : outcome?.status === 'failed'
+              ? 'failed'
+              : 'success';
+        const auditReason =
+          auditStatus === 'skipped'
+            ? (outcome?.reason ?? 'provider_skipped')
+            : auditStatus === 'failed'
+              ? 'provider_rejected'
+              : undefined;
         try {
-          await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
+          await logDeliveryAttempt(
+            deps.writePort,
+            intent,
+            channel,
+            auditStatus,
+            1,
+            auditReason,
+          );
         } catch (auditError) {
-          reportDeliveryAttemptAuditPersistFailure(auditError, intent, channel, 'success');
+          reportDeliveryAttemptAuditPersistFailure(auditError, intent, channel, auditStatus);
         }
       }
       return sendResult ?? {};

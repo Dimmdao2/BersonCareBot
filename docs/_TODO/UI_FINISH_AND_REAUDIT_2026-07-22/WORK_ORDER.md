@@ -607,6 +607,11 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       ⚠️ **ПРОГРЕСС 04.08, не закрывает D10a целиком:** merge `84b376f5a` (`wt/delivery-attempt-log`) — журнал
       `integrator.delivery_attempt_logs` снова пишет operator-alert попытки (audit PASS `660c37c01`); целевая
       консолидация в `notification_delivery_attempts` и снос integrator-таблицы — ещё открыты (вместе с D16/D30).
+      ⚠️ **ПРОГРЕСС 05.08 (#987):** `app.record_operator_delivery_attempt` пишет в
+      `public.notification_delivery_attempts` (org/user/topic из queue payload); worker убрал параллельный
+      `recordNotificationDeliveryAttemptBestEffort`; `dispatchPort` логирует web-push skipped/failed и
+      recipient_blocked_bot как skipped. Снос `integrator.delivery_attempt_logs` и `message_retry_jobs` —
+      по-прежнему с D16/D30 после дренажа legacy-очереди (~2026-08-29+ pending на DEV).
       ⛔ Порядок: сначала перевести потребителей метрик и сердцебиения на остающуюся очередь, потом сносить
       лишнее миграцией. Снос вести вместе с D16 и D30 — там же считаются циклы.
 - [x] **D10b — уборка и возврат зависших в очереди доставки.** ✅ **ЗАКРЫТО 31.07** (`4f203d08d`, `94cb2af4c`):
