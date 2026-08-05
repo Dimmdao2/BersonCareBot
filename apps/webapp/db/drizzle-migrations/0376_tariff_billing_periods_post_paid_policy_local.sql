@@ -556,7 +556,12 @@ END
 $function$;
 --> statement-breakpoint
 
-ALTER FUNCTION app.resol--> statement-breakpoint
+ALTER FUNCTION app.resolve_organization_cabinet_access(uuid) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.resolve_organization_cabinet_access(uuid)
+  FROM PUBLIC, app_staff, app_patient;
+GRANT EXECUTE ON FUNCTION app.resolve_organization_cabinet_access(uuid)
+  TO app_staff, app_patient;
+--> statement-breakpoint
 
 CREATE OR REPLACE FUNCTION app.read_current_patient_organization_entitlements()
 RETURNS TABLE (
