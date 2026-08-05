@@ -211,8 +211,6 @@ export const saasTrialPolicy = pgTable(
  * Singleton, platform-global registration policy — §5a item 2.6a (owner 31.07): "какой тариф
  * выдаётся при регистрации" is its OWN setting, independent of {@link saasTrialPolicy}. `tariffId`
  * legally NULL: an empty setting means the person picks a tariff themselves, not a code default.
- * Only takes effect when no trial policy fires for the registration event — a firing trial policy
- * still owns the org's tariff for its own duration, unchanged.
  */
 export const saasRegistrationTariffPolicy = pgTable(
   'saas_registration_tariff_policy',

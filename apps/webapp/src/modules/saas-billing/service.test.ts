@@ -514,13 +514,19 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
       currentPeriodEndsAt?: string | null;
       pendingTariffId?: string | null;
     } | null = null,
+    options: { organizationTrialConsumed?: boolean } = {},
   ) {
     const setManualSaasBillingSubscription = vi.fn(async () => {});
+    const startOrganizationTrial = vi.fn(async () => ({
+      created: true,
+      endsAt: '2026-08-14T09:00:00.000Z',
+    }));
     const transaction = {
       loadManualAssignmentState: async () => ({
         organization: {
           tariffId: current?.tariffId ?? null,
         },
+        organizationTrialConsumed: options.organizationTrialConsumed ?? true,
         activeTrial: null,
         manualSaasBillingSubscription: current
           ? {
@@ -531,6 +537,8 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
             }
           : null,
       }),
+      getActiveTrialPolicy: async () => null,
+      startOrganizationTrial,
       requireActiveTariff: async () => ({ billingPeriod }),
       setManualSaasBillingSubscription,
       updateOrganizationTariffAssignment: async () => ({
@@ -548,7 +556,7 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
       resolvePaymentProvider: () => ({}) as never,
       now: () => new Date('2026-07-31T09:00:00.000Z'),
     });
-    return { service, setManualSaasBillingSubscription };
+    return { service, setManualSaasBillingSubscription, startOrganizationTrial };
   }
 
   // Арбитр: вернуть в `setManualSaasBillingSubscription` вызов без `period` (как было до 7.0) —
@@ -623,6 +631,160 @@ describe('§5a/7.0: назначение тарифа открывает ОПЛ�
       },
       pendingTariffId: 'tariff-small',
     });
+  });
+});
+
+describe('§5a #1069 T5 (owner 03.08) — first tariff attachment gets the one-time trial', () => {
+  const trialPolicy = {
+    durationDays: 14,
+    discountWindowDays: 3,
+    postTrialBehavior: 'blocked',
+    postTrialTariffId: null,
+  };
+
+  function firstTariffTransaction(options: {
+    organizationTrialConsumed?: boolean;
+    trialPolicy?: typeof trialPolicy | null;
+  } = {}) {
+    const setManualSaasBillingSubscription = vi.fn(async () => {});
+    const updateOrganizationTariffAssignment = vi.fn(async () => ({ tariffId: 'tariff-1' }));
+    const startOrganizationTrial = vi.fn(async () => ({
+      created: true,
+      endsAt: '2026-08-14T09:00:00.000Z',
+    }));
+    const appendManualAssignmentAudit = vi.fn(async () => {});
+    const transaction = {
+      loadManualAssignmentState: async () => ({
+        organization: { tariffId: null },
+        organizationTrialConsumed: options.organizationTrialConsumed ?? false,
+        activeTrial: null,
+        manualSaasBillingSubscription: null,
+      }),
+      getActiveTrialPolicy: async () => options.trialPolicy ?? trialPolicy,
+      startOrganizationTrial,
+      requireActiveTariff: async () => ({ billingPeriod: 'month' as const }),
+      setManualSaasBillingSubscription,
+      updateOrganizationTariffAssignment,
+      endActiveTrial: async () => null,
+      appendManualAssignmentAudit,
+    };
+    const service = createSaasBillingService({
+      repository: {
+        runManualAssignmentTransaction: (work: (t: typeof transaction) => Promise<unknown>) =>
+          work(transaction),
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({}) as never,
+      now: () => new Date('2026-07-31T09:00:00.000Z'),
+    });
+    return {
+      service,
+      setManualSaasBillingSubscription,
+      startOrganizationTrial,
+      updateOrganizationTariffAssignment,
+    };
+  }
+
+  // Breakage: the first tariff assignment opens a paid period immediately instead of starting the
+  // configured one-time trial — the owner said «первый раз человек получает триал».
+  it('starts the one-time trial on the first tariff assignment and skips the paid period', async () => {
+    const { service, setManualSaasBillingSubscription, startOrganizationTrial } =
+      firstTariffTransaction();
+
+    await service.assignManualTariff({
+      organizationId: 'org-1',
+      tariffId: 'tariff-1',
+      audit: { actorId: 'operator-1', reason: 'first assign' },
+    });
+
+    expect(startOrganizationTrial).toHaveBeenCalledOnce();
+    expect(setManualSaasBillingSubscription).not.toHaveBeenCalled();
+  });
+
+  // Breakage: a clinic that already consumed its trial gets another one on a later assignment.
+  it('opens the paid period when the organization already consumed its one trial', async () => {
+    const { service, setManualSaasBillingSubscription, startOrganizationTrial } =
+      firstTariffTransaction({ organizationTrialConsumed: true });
+
+    await service.assignManualTariff({
+      organizationId: 'org-1',
+      tariffId: 'tariff-1',
+      audit: { actorId: 'operator-1', reason: 'after trial' },
+    });
+
+    expect(startOrganizationTrial).not.toHaveBeenCalled();
+    expect(setManualSaasBillingSubscription).toHaveBeenCalledOnce();
+  });
+
+  // Breakage: clinic billing first-tariff choice bypasses the trial gate and jumps to payment.
+  it('returns trial_started when clinic chooses the first tariff under an active trial policy', async () => {
+    const chooseOrganizationFirstTariff = vi.fn(async () => ({
+      outcome: 'trial_started' as const,
+      endsAt: '2026-08-14T09:00:00.000Z',
+    }));
+    const service = createSaasBillingService({
+      repository: {
+        chooseOrganizationFirstTariff,
+      } as unknown as SaasBillingRepositoryPort,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({}) as never,
+      getTariffTransition: async () => ({
+        currentTariffId: null,
+        targetTariffId: 'tariff-1',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+
+    const result = await service.scheduleOwnTariffChange({
+      organizationId: 'org-1',
+      tariffId: 'tariff-1',
+      actorId: 'owner-1',
+    });
+
+    expect(result).toMatchObject({
+      outcome: 'trial_started',
+      endsAt: '2026-08-14T09:00:00.000Z',
+    });
+    expect(chooseOrganizationFirstTariff).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      tariffId: 'tariff-1',
+      actorId: 'owner-1',
+    });
+  });
+
+  it('issues checkout when clinic chooses the first tariff after the one-time trial was consumed', async () => {
+    const createIntent = vi.fn(async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
+      providerIntentRef: `provider-${input.subjectRef}`,
+      checkoutUrl: `https://pay.example/${input.subjectRef}`,
+    }));
+    const repository = createInMemorySaasBillingRepository({
+      tariffs: [
+        { id: 'tariff-1', name: 'Базовый', priceMinor: 10_000, currency: 'RUB', billingPeriod: 'month' },
+      ],
+      trialPolicy: null,
+    });
+    const service = createSaasBillingService({
+      repository,
+      settings: { getSaasBillingPaymentProviderValue: async () => null },
+      resolvePaymentProvider: () => ({ createIntent }) as never,
+      getTariffTransition: async () => ({
+        currentTariffId: null,
+        targetTariffId: 'tariff-1',
+        blocks: [],
+        appliesNextPeriod: false,
+      }),
+    });
+
+    const result = await service.scheduleOwnTariffChange({
+      organizationId: 'org-choose-pay',
+      tariffId: 'tariff-1',
+      actorId: 'owner-1',
+    });
+
+    expect(result.outcome).toBe('checkout');
+    if (result.outcome !== 'checkout') throw new Error('checkout expected');
+    expect(result.invoice.providerCheckoutUrl).toBeTruthy();
   });
 });
 

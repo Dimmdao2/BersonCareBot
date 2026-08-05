@@ -782,11 +782,9 @@ BEGIN
     AND policy.start_event = 'organization_provisioned'
   LIMIT 1
   FOR UPDATE OF policy;
-  -- #1069 Т3/Т5 (owner 03.08): the trial no longer carries its own tariff_id -- it is a one-time
-  -- period on the organization's FIRST tariff, whatever it is. Without a registration tariff there
-  -- is nothing yet to attach a trial to (the person picks one themselves; wiring a trial into that
-  -- later self-choice is a separate slice), so this falls through to the same no-trial outcome as
-  -- no active policy at all.
+  -- #1069 T5 (owner 03.08): without a registration tariff there is nothing to trial at provision
+  -- time — the clinic owner chooses later via app.choose_organization_first_tariff(), which applies
+  -- the same one-time trial policy to that first attachment.
   IF NOT FOUND OR v_registration_tariff_id IS NULL THEN
     -- No active trial policy is configured on this platform (owner has not set one), or there is no
     -- tariff yet for a trial to apply to. Whether the organization instead gets a direct starting
@@ -864,6 +862,186 @@ ALTER FUNCTION app.start_provisioned_organization_trial() OWNER TO app_platform_
 REVOKE ALL ON FUNCTION app.start_provisioned_organization_trial() FROM PUBLIC, app_staff, app_patient;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_provisioned_owner_organization() TO app_platform_settings;
+
+-- #1069 T5 — first tariff chosen by the clinic owner when registration tariff policy was empty.
+GRANT SELECT ON TABLE public.saas_trial_policy TO app_owner;
+GRANT INSERT ON TABLE public.saas_organization_trials TO app_owner;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_accounts TO app_owner;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_billing_subscriptions TO app_owner;
+GRANT SELECT ON TABLE public.saas_tariffs TO app_owner;
+GRANT INSERT ON TABLE public.admin_audit_log TO app_owner;
+
+CREATE OR REPLACE FUNCTION app.choose_organization_first_tariff(
+  p_tariff_id uuid,
+  p_actor_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+DECLARE
+  v_organization_id uuid := app.current_org_id();
+  v_policy record;
+  v_started_at timestamptz;
+  v_trial_id uuid;
+  v_has_prior_trial boolean;
+  v_account_id uuid;
+BEGIN
+  IF v_organization_id IS NULL OR NOT app.is_staff() THEN
+    RAISE EXCEPTION 'organization_context_required';
+  END IF;
+
+  PERFORM 1
+  FROM public.be_organizations AS org
+  WHERE org.id = v_organization_id
+    AND org.tariff_id IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'organization_tariff_already_assigned';
+  END IF;
+
+  PERFORM 1
+  FROM public.saas_tariffs AS tariff
+  WHERE tariff.id = p_tariff_id
+    AND tariff.is_active;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'tariff_not_found';
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.saas_organization_trials AS trial
+    WHERE trial.organization_id = v_organization_id
+  )
+  INTO v_has_prior_trial;
+
+  UPDATE public.be_organizations
+  SET tariff_id = p_tariff_id,
+      updated_at = now()
+  WHERE id = v_organization_id;
+
+  INSERT INTO public.saas_billing_accounts AS account (organization_id)
+  VALUES (v_organization_id)
+  ON CONFLICT (organization_id) DO UPDATE
+  SET updated_at = now()
+  RETURNING account.id INTO v_account_id;
+
+  INSERT INTO public.saas_billing_subscriptions AS subscription (
+    organization_id,
+    saas_billing_account_id,
+    tariff_id,
+    source,
+    status,
+    lifecycle_state
+  )
+  VALUES (
+    v_organization_id,
+    v_account_id,
+    p_tariff_id,
+    'paid_subscription',
+    'pending_payment',
+    'active'
+  )
+  ON CONFLICT (organization_id, source) DO UPDATE
+  SET tariff_id = EXCLUDED.tariff_id,
+      status = 'pending_payment',
+      lifecycle_state = 'active',
+      updated_at = now(),
+      current_period_starts_at = NULL,
+      current_period_ends_at = NULL,
+      pending_tariff_id = NULL,
+      tariff_snapshot = NULL;
+
+  INSERT INTO public.admin_audit_log (
+    organization_id, actor_id, action, target_id, details, status
+  ) VALUES (
+    v_organization_id,
+    p_actor_id,
+    'saas_registration_tariff_assign',
+    p_tariff_id::text,
+    jsonb_build_object(
+      'reason', 'clinic first tariff choice',
+      'before', NULL,
+      'after', jsonb_build_object('tariffId', p_tariff_id)
+    ),
+    'ok'
+  );
+
+  IF v_has_prior_trial THEN
+    RETURN jsonb_build_object('outcome', 'payment_required');
+  END IF;
+
+  SELECT policy.*
+  INTO v_policy
+  FROM public.saas_trial_policy AS policy
+  WHERE policy.key = 'global'
+    AND policy.is_active
+  LIMIT 1
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('outcome', 'payment_required');
+  END IF;
+
+  v_started_at := clock_timestamp();
+
+  INSERT INTO public.saas_organization_trials (
+    organization_id, tariff_id, started_at, ends_at, discount_ends_at,
+    post_trial_behavior, post_trial_tariff_id, status, created_by
+  ) VALUES (
+    v_organization_id,
+    p_tariff_id,
+    v_started_at,
+    v_started_at + make_interval(days => v_policy.duration_days),
+    v_started_at + make_interval(days => v_policy.duration_days + v_policy.discount_window_days),
+    v_policy.post_trial_behavior,
+    v_policy.post_trial_tariff_id,
+    'active',
+    p_actor_id
+  )
+  ON CONFLICT (organization_id) DO NOTHING
+  RETURNING id INTO v_trial_id;
+
+  IF v_trial_id IS NULL THEN
+    RETURN jsonb_build_object('outcome', 'payment_required');
+  END IF;
+
+  INSERT INTO public.admin_audit_log (
+    organization_id, actor_id, action, target_id, details, status
+  ) VALUES (
+    v_organization_id,
+    p_actor_id,
+    'saas_trial_start',
+    v_trial_id::text,
+    jsonb_build_object(
+      'reason', 'clinic first tariff choice trial',
+      'before', NULL,
+      'after', jsonb_build_object(
+        'tariffId', p_tariff_id,
+        'durationDays', v_policy.duration_days,
+        'discountWindowDays', v_policy.discount_window_days,
+        'startEvent', v_policy.start_event,
+        'postTrialBehavior', v_policy.post_trial_behavior,
+        'postTrialTariffId', v_policy.post_trial_tariff_id
+      )
+    ),
+    'ok'
+  );
+
+  RETURN jsonb_build_object(
+    'outcome', 'trial_started',
+    'endsAt', (v_started_at + make_interval(days => v_policy.duration_days))::text,
+    'trialId', v_trial_id::text
+  );
+END
+$function$;
+
+ALTER FUNCTION app.choose_organization_first_tariff(uuid, uuid) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.choose_organization_first_tariff(uuid, uuid) TO app_staff;
 
 -- app.current_org_id() / app.is_staff() for app_platform_settings — and why the grant has to live
 -- HERE and not in a migration.

@@ -64,10 +64,21 @@ export function createInMemorySaasBillingRepository(
       billingPeriod: 'day' | 'month' | 'year';
       additionalSeatPriceMinor?: number | null;
     }>;
+    trialPolicy?: {
+      durationDays: number;
+      discountWindowDays: number;
+      postTrialBehavior: string;
+      postTrialTariffId: string | null;
+    } | null;
   } = {},
 ): SaasBillingRepositoryPort {
   const rows = new Map<string, SaasBillingSubscription>();
   const organizationTariffs = new Map<string, string | null>();
+  const organizationTrials = new Map<
+    string,
+    { id: string; tariffId: string; status: 'active' | 'ended'; endsAt: string }
+  >();
+  const trialPolicy = input.trialPolicy ?? null;
   const invoices = new Map<string, SaasBillingInvoice>();
   const events = new Map<string, SaasBillingProviderEventReadRow>();
   const refunds = new Map<string, SaasBillingRefund>();
@@ -123,6 +134,55 @@ export function createInMemorySaasBillingRepository(
           })),
         providerEvents: [...events.values()].filter((row) => row.organizationId === organizationId),
       };
+    },
+
+    async getOrganizationAssignedTariffId(organizationId) {
+      return organizationTariffs.get(organizationId) ?? null;
+    },
+
+    async chooseOrganizationFirstTariff({ organizationId, tariffId, actorId }) {
+      if (organizationTariffs.get(organizationId)) {
+        throw new Error('organization_tariff_already_assigned');
+      }
+      if (!tariffs.has(tariffId)) throw new Error('tariff_not_found');
+      organizationTariffs.set(organizationId, tariffId);
+      const key = subscriptionKey(organizationId, 'paid_subscription');
+      rows.set(key, {
+        id: crypto.randomUUID(),
+        organizationId,
+        saasBillingAccountId: crypto.randomUUID(),
+        tariffId,
+        pendingTariffId: null,
+        source: 'paid_subscription',
+        status: 'pending_payment',
+        lifecycleState: 'active',
+        providerId: null,
+        savedPaymentMethodId: null,
+        autopayConsentedAt: null,
+        autopayConsentText: null,
+        autopayRevokedAt: null,
+        currentPeriodStartsAt: null,
+        currentPeriodEndsAt: null,
+        graceEndsAt: null,
+        readOnlyEndsAt: null,
+        tariffSnapshot: null,
+        paidAdditionalSeats: 0,
+      });
+      void actorId;
+      if (organizationTrials.has(organizationId) || !trialPolicy) {
+        return { outcome: 'payment_required' };
+      }
+      const startedAt = new Date();
+      const endsAt = new Date(
+        startedAt.getTime() + trialPolicy.durationDays * 86_400_000,
+      ).toISOString();
+      organizationTrials.set(organizationId, {
+        id: crypto.randomUUID(),
+        tariffId,
+        status: 'active',
+        endsAt,
+      });
+      return { outcome: 'trial_started', endsAt };
     },
 
     async listActiveTariffChoices() {
@@ -243,11 +303,20 @@ export function createInMemorySaasBillingRepository(
             rows.get(subscriptionKey(organizationId, 'paid_subscription')) ??
             rows.get(subscriptionKey(organizationId, 'manual')) ??
             null;
+          const activeTrial = organizationTrials.get(organizationId) ?? null;
           return {
             organization: {
               tariffId: organizationTariffs.get(organizationId) ?? null,
             },
-            activeTrial: null,
+            organizationTrialConsumed: organizationTrials.has(organizationId),
+            activeTrial:
+              activeTrial?.status === 'active'
+                ? {
+                    id: activeTrial.id,
+                    organizationId,
+                    status: activeTrial.status,
+                  }
+                : null,
             manualSaasBillingSubscription: manual
               ? {
                   id: manual.id,
@@ -259,6 +328,24 @@ export function createInMemorySaasBillingRepository(
                 }
               : null,
           };
+        },
+        async getActiveTrialPolicy() {
+          return trialPolicy;
+        },
+        async startOrganizationTrial({ organizationId, tariffId, policy, audit }) {
+          const existing = organizationTrials.get(organizationId);
+          if (existing) return { created: false, endsAt: existing.endsAt };
+          const startedAt = new Date();
+          const endsAt = new Date(startedAt.getTime() + policy.durationDays * 86_400_000).toISOString();
+          const id = crypto.randomUUID();
+          organizationTrials.set(organizationId, {
+            id,
+            tariffId,
+            status: 'active',
+            endsAt,
+          });
+          void audit;
+          return { created: true, endsAt };
         },
         async requireActiveTariff() {
           return { billingPeriod: 'month' as const };
@@ -320,8 +407,13 @@ export function createInMemorySaasBillingRepository(
           organizationTariffs.set(organizationId, tariffId);
           return { tariffId };
         },
-        async endActiveTrial() {
-          throw new Error('in_memory_saas_billing_trial_missing');
+        async endActiveTrial(trialId) {
+          for (const [organizationId, trial] of organizationTrials) {
+            if (trial.id !== trialId) continue;
+            organizationTrials.set(organizationId, { ...trial, status: 'ended' });
+            return trial;
+          }
+          throw new Error('trial_conversion_conflict');
         },
         async appendManualAssignmentAudit() {},
       });

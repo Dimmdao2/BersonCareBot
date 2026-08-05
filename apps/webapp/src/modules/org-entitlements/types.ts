@@ -378,9 +378,8 @@ export type TrialPolicy = {
 };
 
 /**
- * §5a item 2.6a -- the tariff granted at registration, independent of {@link TrialPolicy}. `null`
- * is a legal value: no code default, the person picks a tariff themselves. Only takes effect when
- * no trial policy fires for the registration event.
+ * §5a item 2.6a — the tariff granted at registration, independent of {@link TrialPolicy}. `null`
+ * is a legal value: no code default, the person picks a tariff themselves.
  */
 export type RegistrationTariffPolicy = {
   tariffId: string | null;

@@ -2598,6 +2598,13 @@
       "when": 1793539230117,
       "tag": "0374_system_access_ladder_only_local",
       "breakpoints": true
+    },
+    {
+      "idx": 371,
+      "version": "7",
+      "when": 1793539230118,
+      "tag": "0375_choose_organization_first_tariff_local",
+      "breakpoints": true
     }
   ]
 }

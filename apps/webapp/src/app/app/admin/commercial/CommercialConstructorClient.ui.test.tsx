@@ -464,9 +464,8 @@ describe('commercial constructor access ladder', () => {
     expect(within(openSelect!).getByRole('option', { name: 'Выключено' })).toBeInTheDocument();
   });
 
-  // Т4/Т1 (owner 03.08) — «на вкладке триала не сказано, что он перебивает»: both selects live on
-  // the same «Триал» tab and must each name the precedence, not just the registration-tariff one.
-  it('names the trial-over-registration precedence on both halves of the Триал tab', async () => {
+  // Т5 (owner 03.08) — registration tariff and trial duration are two independent settings on one tab.
+  it('names the independent registration-tariff and trial-duration settings on the Триал tab', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       'fetch',
@@ -486,10 +485,10 @@ describe('commercial constructor access ladder', () => {
     await user.click(await screen.findByRole('tab', { name: 'Триал' }));
 
     expect(
-      screen.getByText(/оно остаётся в приоритете, пока активно/),
+      screen.getByText(/Отдельная настройка от срока триала ниже/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/перебивает стартовый тариф выше/),
+      screen.getByText(/Отдельная настройка от стартового тарифа выше/),
     ).toBeInTheDocument();
   });
 });

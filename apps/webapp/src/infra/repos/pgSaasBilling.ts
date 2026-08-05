@@ -26,7 +26,7 @@ import {
   saasBillingRefunds,
   saasBillingSubscriptions,
 } from '../../../db/schema/saasBilling';
-import { saasOrganizationTrials, saasTariffs } from '../../../db/schema/saasEntitlements';
+import { saasOrganizationTrials, saasTariffs, saasTrialPolicy } from '../../../db/schema/saasEntitlements';
 import { adminAuditLog } from '../../../db/schema/schema';
 
 type Db = ReturnType<typeof getDrizzle>;
@@ -299,6 +299,33 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       };
     },
 
+    async getOrganizationAssignedTariffId(organizationId) {
+      const [organization] = await getDrizzle()
+        .select({ tariffId: beOrganizations.tariffId })
+        .from(beOrganizations)
+        .where(eq(beOrganizations.id, organizationId))
+        .limit(1);
+      return organization?.tariffId ?? null;
+    },
+
+    async chooseOrganizationFirstTariff({ tariffId, actorId }) {
+      const result = await runWebappPgText<{ payload: unknown }>(
+        `SELECT app.choose_organization_first_tariff($1::uuid, $2::uuid) AS payload`,
+        [tariffId, actorId],
+      );
+      const payload = result.rows[0]?.payload;
+      if (!payload || typeof payload !== 'object' || payload === null) {
+        throw new Error('choose_organization_first_tariff_failed');
+      }
+      const outcome = (payload as { outcome?: string }).outcome;
+      if (outcome === 'trial_started') {
+        const endsAt = (payload as { endsAt?: string }).endsAt;
+        if (!endsAt) throw new Error('choose_organization_first_tariff_failed');
+        return { outcome: 'trial_started', endsAt };
+      }
+      return { outcome: 'payment_required' };
+    },
+
     async listActiveTariffChoices() {
       return getDrizzle()
         .select({ id: saasTariffs.id, name: saasTariffs.name })
@@ -492,6 +519,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 ),
               )
               .limit(1);
+            const [trialIdentity] = await tx
+              .select({ id: saasOrganizationTrials.id })
+              .from(saasOrganizationTrials)
+              .where(eq(saasOrganizationTrials.organizationId, organizationId))
+              .limit(1);
             const [manualSaasBillingSubscription] = await tx
               .select({
                 id: saasBillingSubscriptions.id,
@@ -518,9 +550,66 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               .limit(1);
             return {
               organization,
+              organizationTrialConsumed: Boolean(trialIdentity),
               activeTrial: activeTrial ?? null,
               manualSaasBillingSubscription: manualSaasBillingSubscription ?? null,
             };
+          },
+          async getActiveTrialPolicy() {
+            const [policyRow] = await tx
+              .select({
+                durationDays: saasTrialPolicy.durationDays,
+                discountWindowDays: saasTrialPolicy.discountWindowDays,
+                postTrialBehavior: saasTrialPolicy.postTrialBehavior,
+                postTrialTariffId: saasTrialPolicy.postTrialTariffId,
+              })
+              .from(saasTrialPolicy)
+              .where(and(eq(saasTrialPolicy.key, 'global'), eq(saasTrialPolicy.isActive, true)))
+              .limit(1);
+            return policyRow ?? null;
+          },
+          async startOrganizationTrial({ organizationId, tariffId, policy, audit }) {
+            const startedAt = new Date();
+            const endsAt = new Date(startedAt.getTime() + policy.durationDays * 86_400_000);
+            const discountEndsAt = new Date(
+              endsAt.getTime() + policy.discountWindowDays * 86_400_000,
+            );
+            const [created] = await tx
+              .insert(saasOrganizationTrials)
+              .values({
+                organizationId,
+                tariffId,
+                startedAt: startedAt.toISOString(),
+                endsAt: endsAt.toISOString(),
+                discountEndsAt: discountEndsAt.toISOString(),
+                postTrialBehavior: policy.postTrialBehavior,
+                postTrialTariffId: policy.postTrialTariffId,
+                createdBy: audit.actorId,
+              })
+              .onConflictDoNothing({ target: saasOrganizationTrials.organizationId })
+              .returning({ id: saasOrganizationTrials.id, endsAt: saasOrganizationTrials.endsAt });
+            if (!created) {
+              const [existing] = await tx
+                .select({ endsAt: saasOrganizationTrials.endsAt })
+                .from(saasOrganizationTrials)
+                .where(eq(saasOrganizationTrials.organizationId, organizationId))
+                .limit(1);
+              if (!existing) throw new Error('trial_start_conflict');
+              return { created: false, endsAt: existing.endsAt };
+            }
+            await tx.insert(adminAuditLog).values({
+              organizationId,
+              actorId: audit.actorId,
+              action: 'saas_trial_start',
+              targetId: created.id,
+              details: {
+                reason: audit.reason,
+                before: null,
+                after: created,
+              },
+              status: 'ok',
+            });
+            return { created: true, endsAt: created.endsAt };
           },
           async requireActiveTariff(tariffId) {
             const [tariff] = await tx

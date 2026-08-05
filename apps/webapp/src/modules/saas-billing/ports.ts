@@ -262,6 +262,8 @@ export type SaasBillingManualAssignmentState = {
   organization: {
     tariffId: string | null;
   };
+  /** True once any `saas_organization_trials` row exists — the trial is one-time per org (T5). */
+  organizationTrialConsumed: boolean;
   activeTrial:
     | (Record<string, unknown> & {
         id: string;
@@ -299,6 +301,23 @@ export type SaasBillingManualAssignmentTransactionPort = {
     organizationId: string;
     tariffId: string | null;
   }): Promise<{ tariffId: string | null }>;
+  getActiveTrialPolicy(): Promise<{
+    durationDays: number;
+    discountWindowDays: number;
+    postTrialBehavior: string;
+    postTrialTariffId: string | null;
+  } | null>;
+  startOrganizationTrial(input: {
+    organizationId: string;
+    tariffId: string;
+    policy: {
+      durationDays: number;
+      discountWindowDays: number;
+      postTrialBehavior: string;
+      postTrialTariffId: string | null;
+    };
+    audit: { actorId: string | null; reason: string };
+  }): Promise<{ created: boolean; endsAt: string }>;
   endActiveTrial(trialId: string): Promise<unknown>;
   appendManualAssignmentAudit(input: {
     actorId: string | null;
@@ -319,6 +338,20 @@ export type SaasBillingRepositoryPort = {
     billingEmail: string;
   }): Promise<string>;
   getOrganizationBillingOverview(organizationId: string): Promise<SaasBillingOverview>;
+  /** The organization's own `be_organizations.tariff_id`, not a billing-subscription mirror. */
+  getOrganizationAssignedTariffId(organizationId: string): Promise<string | null>;
+  /**
+   * #1069 T5 — clinic owner's first tariff choice when registration tariff policy was empty.
+   * Runs through `app.choose_organization_first_tariff` under the clinic-billing principal.
+   */
+  chooseOrganizationFirstTariff(input: {
+    organizationId: string;
+    tariffId: string;
+    actorId: string | null;
+  }): Promise<
+    | { outcome: 'trial_started'; endsAt: string }
+    | { outcome: 'payment_required' }
+  >;
   /** Active public tariff names available to the caller's own clinic billing screen. */
   listActiveTariffChoices(): Promise<Array<{ id: string; name: string }>>;
   /** К1 — cross-org payments list for the platform cabinet. Never organization-scoped by design. */

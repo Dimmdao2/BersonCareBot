@@ -61,6 +61,57 @@ export class SaasBillingTariffDowngradeBlockedError extends Error {
     super('saas_billing_tariff_downgrade_blocked');
   }
 }
+
+type ManualAssignmentTransaction = Parameters<
+  Parameters<SaasBillingRepositoryPort['runManualAssignmentTransaction']>[0]
+>[0];
+
+/**
+ * #1069 T5 (owner 03.08): the one-time trial applies to the organization's FIRST tariff — assigned
+ * by the platform or chosen by the clinic — not to every later tariff change.
+ */
+async function assignFirstTariffWithTrialIfEligible(input: {
+  organizationId: string;
+  tariffId: string;
+  audit: { actorId: string | null; reason: string };
+  state: Awaited<ReturnType<ManualAssignmentTransaction['loadManualAssignmentState']>>;
+  transaction: ManualAssignmentTransaction;
+}): Promise<{ created: boolean; endsAt: string } | null> {
+  if (
+    input.state.organization.tariffId !== null ||
+    input.state.organizationTrialConsumed ||
+    input.state.activeTrial
+  ) {
+    return null;
+  }
+  const policy = await input.transaction.getActiveTrialPolicy();
+  if (!policy) return null;
+
+  await input.transaction.updateOrganizationTariffAssignment({
+    organizationId: input.organizationId,
+    tariffId: input.tariffId,
+  });
+  const started = await input.transaction.startOrganizationTrial({
+    organizationId: input.organizationId,
+    tariffId: input.tariffId,
+    policy,
+    audit: input.audit,
+  });
+  await input.transaction.appendManualAssignmentAudit({
+    ...input.audit,
+    action: started.created ? 'saas_trial_start' : 'saas_tariff_assign',
+    targetId: input.organizationId,
+    organizationId: input.organizationId,
+    before: {
+      organization: input.state.organization,
+      trial: input.state.activeTrial,
+      saasBillingSubscription: input.state.manualSaasBillingSubscription,
+    },
+    after: { tariffId: input.tariffId, trial: started },
+  });
+  return started;
+}
+
 export function createSaasBillingService(dependencies: {
   repository: SaasBillingRepositoryPort;
   settings: SaasBillingSettingsReadPort;
@@ -676,6 +727,19 @@ export function createSaasBillingService(dependencies: {
 
         if (input.scheduleOnly) throw new Error('saas_billing_no_active_paid_subscription');
 
+        // #1069 T5 (owner 03.08): first tariff attachment (auto or chosen) starts the one-time trial
+        // when policy is active; paid period opens only after the trial identity is consumed.
+        if (input.tariffId && !input.applyAtNextPeriod) {
+          const trialStarted = await assignFirstTariffWithTrialIfEligible({
+            organizationId: input.organizationId,
+            tariffId: input.tariffId,
+            audit: input.audit,
+            state,
+            transaction,
+          });
+          if (trialStarted) return;
+        }
+
         // §5a item 7.0 — assignment is what STARTS the organization's paid period. Before this the
         // subscription row carried no period at all, so "период кончился и не оплачен" was a state
         // the product could not reach and the ladder had nothing but an expired trial to run on.
@@ -940,9 +1004,11 @@ export function createSaasBillingService(dependencies: {
     async getOwnTariffChangeState(organizationId: string) {
       const overview = await dependencies.repository.getOrganizationBillingOverview(organizationId);
       const subscription = overview.subscriptions.find((row) => row.source === 'paid_subscription') ?? null;
+      const assignedTariffId =
+        await dependencies.repository.getOrganizationAssignedTariffId(organizationId);
       return {
         choices: await dependencies.repository.listActiveTariffChoices(),
-        currentTariffId: subscription?.tariffId ?? null,
+        currentTariffId: subscription?.tariffId ?? assignedTariffId,
         pendingTariffId: subscription?.pendingTariffId ?? null,
         pendingEffectiveAt: subscription?.pendingTariffId ? subscription.currentPeriodEndsAt : null,
       };
@@ -955,6 +1021,21 @@ export function createSaasBillingService(dependencies: {
     }) {
       if (!dependencies.getTariffTransition) throw new Error('saas_billing_tariff_change_unavailable');
       const transition = await dependencies.getTariffTransition(input.organizationId, input.tariffId);
+      if (transition.currentTariffId === null) {
+        const chosen = await dependencies.repository.chooseOrganizationFirstTariff({
+          organizationId: input.organizationId,
+          tariffId: input.tariffId,
+          actorId: input.actorId,
+        });
+        if (chosen.outcome === 'trial_started') {
+          return { outcome: 'trial_started' as const, endsAt: chosen.endsAt };
+        }
+        const invoice = await this.createOwnTariffRenewalInvoice(input.organizationId);
+        if (!invoice.providerCheckoutUrl) {
+          throw new Error('saas_billing_checkout_unavailable');
+        }
+        return { outcome: 'checkout' as const, invoice };
+      }
       if (transition.currentTariffId === input.tariffId) {
         await this.assignManualTariff({
           organizationId: input.organizationId,

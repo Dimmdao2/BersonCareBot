@@ -1325,7 +1325,7 @@ export function CommercialConstructorClient() {
               <DoctorSectionTitle>Стартовый тариф при регистрации</DoctorSectionTitle>
             </DoctorSectionHeader>
             <div className="space-y-1 md:col-span-2">
-              <Label>Тариф, выдаваемый новой клинике сразу (без триала)</Label>
+              <Label>Тариф, выдаваемый новой клинике при регистрации</Label>
               <Select
                 value={registrationTariffId}
                 onValueChange={(value) => {
@@ -1354,8 +1354,8 @@ export function CommercialConstructorClient() {
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground">
-                Применяется только когда для регистрации не сработало правило триала ниже — оно
-                остаётся в приоритете, пока активно.
+                Отдельная настройка от срока триала ниже. Пустое значение — человек сам выбирает
+                первый тариф; при выборе или назначении первого тарифа действует правило триала.
               </p>
             </div>
             <div className="md:col-span-2">
@@ -1399,9 +1399,9 @@ export function CommercialConstructorClient() {
               <DoctorSectionTitle>Правило для новых организаций</DoctorSectionTitle>
             </DoctorSectionHeader>
             <p className="text-sm text-muted-foreground md:col-span-2">
-              Пока это правило активно, оно перебивает стартовый тариф выше: новая организация
-              получает триал на своём первом тарифе, а настройка «Стартовый тариф при регистрации»
-              не читается вовсе. Стартовый тариф применяется только когда правило ниже выключено.
+              Отдельная настройка от стартового тарифа выше. Срок триала не зависит от выбранного
+              тарифа: первый раз — триал на том тарифе, который оказался первым (назначен или
+              выбран); все последующие смены — сразу оплата.
             </p>
             <div className="space-y-1">
               <Label htmlFor="trial-start-event">Событие старта</Label>
