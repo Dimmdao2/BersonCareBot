@@ -7,6 +7,7 @@ import {
 } from '@/app-layer/entitlements/mechanicWriteClearance';
 import { wrapSystemSettingsServiceWithTariffMechanicWriteClearance } from './mechanicSettingsWriteClearance';
 import { PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY } from '@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate';
+import { ORG_CUSTOM_DOMAIN_HOSTNAME_KEY } from '@/modules/system-settings/orgCustomDomainHostname';
 
 function buildWrappedService() {
   const updateSetting = vi.fn(async (..._args: unknown[]) => ({ id: 'row-1' }) as never);
@@ -55,6 +56,37 @@ describe('tariff mechanic settings write clearance — 3.2 physical door', () =>
         PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY,
         'admin',
         { value: '44444444-4444-4444-8444-444444444444' },
+        'user-1',
+        { organizationId: 'org-1' },
+      );
+    });
+    expect(updateSetting).toHaveBeenCalledOnce();
+  });
+
+  it('refuses org_custom_domain_hostname write without custom_domain clearance', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      await expect(
+        wrapped.updateSetting(
+          ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
+          'admin',
+          { value: 'clinic.example.com' },
+          'user-1',
+          { organizationId: 'org-1' },
+        ),
+      ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
+    });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('proceeds for org_custom_domain_hostname once custom_domain was cleared', async () => {
+    const { wrapped, updateSetting } = buildWrappedService();
+    await runWithoutMechanicWriteClearance(async () => {
+      enterWithMechanicWriteClearance('custom_domain');
+      await wrapped.updateSetting(
+        ORG_CUSTOM_DOMAIN_HOSTNAME_KEY,
+        'admin',
+        { value: 'clinic.example.com' },
         'user-1',
         { organizationId: 'org-1' },
       );

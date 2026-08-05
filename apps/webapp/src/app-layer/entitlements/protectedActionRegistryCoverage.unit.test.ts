@@ -30,9 +30,19 @@ describe('DECLARED_NO_SURFACE catches a false "no write surface" claim', () => {
 
   it('keeps clinic-owned catalog writes out of platform-library tariff gates', () => {
     expect(DECLARED_NO_SURFACE).not.toHaveProperty('branding');
+    expect(DECLARED_NO_SURFACE).not.toHaveProperty('custom_domain');
     expect(DECLARED_NO_SURFACE).toHaveProperty('exercise_catalog');
     expect(DECLARED_NO_SURFACE).toHaveProperty('exercise_packages');
     expect(PROTECTED_ACTION_MAPPINGS.some((mapping) => mapping.id === 'branding.save')).toBe(true);
+    expect(
+      PROTECTED_ACTION_MAPPINGS.some(
+        (mapping) =>
+          mapping.id === 'mechanic-settings.patch' &&
+          (Array.isArray(mapping.mechanic)
+            ? mapping.mechanic.includes('custom_domain')
+            : mapping.mechanic === 'custom_domain'),
+      ),
+    ).toBe(true);
     expect(PROTECTED_ACTION_MAPPINGS.map((mapping) => mapping.id)).not.toContain(
       'exercise-catalog.save',
     );

@@ -196,7 +196,9 @@ product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остал
 - Platform analytics / per-clinic dashboards (S4-5, P4) и аналитика специалиста (#800).
 - Карточка #808 (базовый admin-минимум + чат техподдержки).
 - Лендинг/два входа (#807), инвайты/календарь (#801, #806), `/book/{slug}` (#805) — параллельные карточки, отдельные файлы.
-- `branding`, `custom_domain` mechanics — по-прежнему «no surface yet», не изобретать routes ради галочки.
+- `branding` — write-поверхности на порту (`branding.save`, notification templates); `custom_domain` — часть
+  брендинга (owner 05.08), write через per-org ключ `org_custom_domain_hostname` + `mechanic-settings.patch`
+  с дверью `custom_domain`, не `DECLARED_NO_SURFACE`.
 - Любые prod-действия. Только `bersoncarebot_test` / test.bersoncare.ru. Единственное допустимое упоминание «production» — свежий дамп для локальной проверки, если понадобится.
 - Переименование/новый домен — не в этом плане.
 - `.cursor/rules/*`, `AGENTS.md`, CI workflow — не менять без отдельного явного запроса.
@@ -254,12 +256,17 @@ Definition of Done для этого пункта: `courses/route.ts` вызыв
 - Existing org с `tariff_id IS NULL` сначала инвентаризируются. Их compatibility behavior сохраняется до отдельного
   dry-run/backfill решения; агент не назначает им придуманный «Базовый/Legacy» тариф без owner-approved mapping.
 - Compatibility `?? true` должен быть устранён после явного migration gate, но не ценой скрытого изменения доступа.
+- **Owner 05.08 (#1069):** `custom_domain` — не «no surface / never gate»; личное доменное имя клиники — часть
+  брендинга, но write clearance идёт по mechanic `custom_domain` (отдельно от визуального `branding`), через
+  `org_custom_domain_hostname` и `assertMechanicWriteClearance` на `systemSettings.updateSetting`.
 
 ### 3.3. Один effective access contract — не два расходящихся
 
 Compatibility-projection `be_organizations.tariff_id` остаётся источником для P1/P2. S4-4-подобный «источник
 истины между manual assignment и paid subscription» переносится в Phase 4 этого документа (§5.4) в урезанном виде
 (только tariff subscription, без store orders) — см. предупреждение S4 §3 «не держит две расходящиеся истины».
+Реестр: `custom_domain` больше не в `DECLARED_NO_SURFACE`; mapping `mechanic-settings.patch` включает
+`custom_domain`; per-org ключ `org_custom_domain_hostname` зарегистрирован в `SYSTEM_SETTING_REGISTRY` (owner 05.08).
 
 ## 4. Реестр механик — актуальное состояние на 2026-07-17
 
@@ -295,8 +302,8 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 > platform-library tariff gates»), аудит `AUDIT_EXERCISE_PLATFORM_LIBRARY_2026-08-02.md`. Будущая замена ключей на
 > `platform_base_packs` — только по [`EXERCISE_STORE_PLAN.md`](./EXERCISE_STORE_PLAN.md) §2.5, не в этом проходе.
 | `patient_app_paid_subscription` | нет поверхности                                                                                                                    | —                                 | resolver-only                         | `declared_no_surface`                                                                                                                   |
-| `branding`                      | нет поверхности                                                                                                                    | —                                 | resolver-only                         | `declared_no_surface`                                                                                                                   |
-| `custom_domain`                 | нет поверхности                                                                                                                    | —                                 | resolver-only                         | `declared_no_surface`                                                                                                                   |
+| `branding`                      | `saveOrgBranding` + notification templates                                                                                         | action/route                      | ✅ гейтится                           | На порту; `branding` mechanic + 3.2 door                                                                                                |
+| `custom_domain`                 | PATCH `org_custom_domain_hostname` via `/api/admin/settings`                                                                       | route (settings PATCH)            | ✅ гейтится (05.08)                   | `custom_domain` mechanic + 3.2 door; часть брендинга, отдельный mechanic key                                                            |
 
 ## 5. Фазы (инженерный порядок, не решение владельца)
 
@@ -1113,18 +1120,19 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       src/modules/booking-scheduling/service.mechanicWriteClearance.test.ts
       src/modules/reminders/service.mechanicWriteClearance.test.ts
       src/modules/treatment-program/instance-service.mechanicWriteClearance.test.ts` — 4 файла / 15 тестов PASS.
-      **Ещё открыто (§3.2):** `custom_domain` — owner 05.08: часть branding, дверь обязательна; ложный
-      `DECLARED_NO_SURFACE` снимает отдельный воркер (branding/domain). Booking tail без guard/door:
-      `policies`, `form-fields`, `scheduling-settings`, `specialist-rooms`, `organizations` POST. Намеренно без
-      двери: `patient_card`, `patient_app`, `patient_diaries`; `exercise_catalog`/`exercise_packages` — owner
-      05.08: клинические каталоги ЛФК не режутся тарифом, только platform-library visibility; `patient_app_paid_subscription` — store-deferred.
+      **Ещё открыто (§3.2):** booking tail без guard/door: `policies`, `form-fields`, `scheduling-settings`,
+      `specialist-rooms`, `organizations` POST. Намеренно без двери: `patient_card`, `patient_app`, `patient_diaries`;
+      `exercise_catalog`/`exercise_packages` — owner 05.08: клинические каталоги ЛФК не режутся тарифом, только
+      platform-library visibility; `patient_app_paid_subscription` — store-deferred.
+      **Закрыто 05.08 (#1069):** `custom_domain` — per-org ключ `org_custom_domain_hostname`, PATCH
+      `/api/admin/settings` + `assertMechanicWriteClearance('custom_domain')`; снят с `DECLARED_NO_SURFACE`.
 - [ ] **3.3** Реестр защищённых точек перестаёт врать: ни одного исключения, прикрывающего реальную запись. Ложное
       исключение хуже отсутствующего — проверка покрытия на нём зеленеет.
       **Перепись 05.08:** `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts` → PASS;
       `protectedActionRegistryCoverage.unit.test.ts` → PASS (checker wired в vitest). **Честные
       `DECLARED_NO_SURFACE`:** `exercise_catalog`/`exercise_packages` (platform visibility only, owner 05.08),
-      `patient_card`/`patient_diaries`/`patient_app`. **Ложное (ещё открыто):** `custom_domain` — owner 05.08
-      отменил «no surface»; write = domain setting в branding, дверь в работе у другого воркера.
+      `patient_card`/`patient_diaries`/`patient_app`. **`custom_domain` закрыт 05.08 (#1069):** write =
+      `org_custom_domain_hostname` + mechanic door; UI/TLS binding — отдельный этап.
 - [x] **3.4** ✅ **УТОЧНЕНО 08-01 (`wt/tariff-plan-triage`): СДЕЛАНО**, с одной сознательной поправкой к тексту.
       Уже сделанные точки контроля переведены на порт: внешний календарь, дневники, разминки, промо (слайс A) и
       начатые клинические тесты (лежат в stash клона: «слайс B прерван на переделке модели 30.07»).
@@ -1149,8 +1157,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 > `protectedActionRegistry.ts` (коммиты `4d299dc4f`/`6143c7082`/`97847e21f`/`c74fb385d`, все под #1069, 30.07):
 > `clinical_tests` — 9 записей (`route.ts:86`), `online_intake` — 4 (исторический срез до отмены 4.2), `specialist_tasks` — 5, `booking_prepayment` —
 > 1, `branding` — 1, `patient_home_today` («Сегодня» из 4.9) — 2, `courses`/`cms_pages`/`mailings`/`subscriptions` —
-> давно закрыты этапом 2. Единственная механика, у которой поверхности записи по-прежнему честно нет —
-> `custom_domain` (`DECLARED_NO_SURFACE`). Это значит: часть работы «спросить резолвер на путях записи» по многим
+> давно закрыты этапом 2. `custom_domain` закрыт 05.08 (#1069) через `org_custom_domain_hostname` + mechanic door.
+> Это значит: часть работы «спросить резолвер на путях записи» по многим
 > пунктам ниже уже сделана. НЕ сделана и не проверена вторая половина DoD каждого пункта — видимость раздела у
 > ОБЕИХ сторон (специалист и его пациенты), строка в реестре именно с тем именем, что называет пункт, и тест со
 > снятием защиты. Следующий воркер должен по каждому пункту подтвердить именно вторую половину, а не начинать с
