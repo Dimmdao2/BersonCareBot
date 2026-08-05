@@ -1,5 +1,7 @@
 import type { QueryResultRow } from 'pg';
+import { sql } from 'drizzle-orm';
 import { mergeLogger as logger } from './mergeLogger.js';
+import { runMergeSql, runMergePgText } from './mergeSql.js';
 import { syncUserContactsMirror, clearDuplicateUserContactsBeforeTargetMirror } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 import type { ManualMergeResolution } from './manualMergeResolution.js';
@@ -104,20 +106,21 @@ async function dedupeSingletonSymptomTrackingsForMerge(
   duplicateId: string,
   symptomKey: (typeof SINGLETON_SYMPTOM_KEYS)[number],
 ): Promise<void> {
-  await client.query(
-    `WITH tgt AS (
+  await runMergeSql(
+    client,
+    sql`WITH tgt AS (
        SELECT id FROM symptom_trackings
-       WHERE symptom_key = $5::text
+       WHERE symptom_key = ${symptomKey}::text
          AND deleted_at IS NULL
-         AND (platform_user_id = $1::uuid OR user_id = $2::text)
+         AND (platform_user_id = ${targetId}::uuid OR user_id = ${targetId}::text)
        ORDER BY created_at ASC, id ASC
        LIMIT 1
      ),
      dup AS (
        SELECT id FROM symptom_trackings
-       WHERE symptom_key = $5::text
+       WHERE symptom_key = ${symptomKey}::text
          AND deleted_at IS NULL
-         AND (platform_user_id = $3::uuid OR user_id = $4::text)
+         AND (platform_user_id = ${duplicateId}::uuid OR user_id = ${duplicateId}::text)
      )
      UPDATE symptom_entries e
      SET tracking_id = (SELECT id FROM tgt)
@@ -125,23 +128,23 @@ async function dedupeSingletonSymptomTrackingsForMerge(
      WHERE e.tracking_id = dup.id
        AND EXISTS (SELECT 1 FROM tgt)
        AND dup.id IS DISTINCT FROM (SELECT id FROM tgt)`,
-    [targetId, targetId, duplicateId, duplicateId, symptomKey],
   );
 
-  await client.query(
-    `WITH tgt AS (
+  await runMergeSql(
+    client,
+    sql`WITH tgt AS (
        SELECT id FROM symptom_trackings
-       WHERE symptom_key = $5::text
+       WHERE symptom_key = ${symptomKey}::text
          AND deleted_at IS NULL
-         AND (platform_user_id = $1::uuid OR user_id = $2::text)
+         AND (platform_user_id = ${targetId}::uuid OR user_id = ${targetId}::text)
        ORDER BY created_at ASC, id ASC
        LIMIT 1
      ),
      dup AS (
        SELECT id FROM symptom_trackings
-       WHERE symptom_key = $5::text
+       WHERE symptom_key = ${symptomKey}::text
          AND deleted_at IS NULL
-         AND (platform_user_id = $3::uuid OR user_id = $4::text)
+         AND (platform_user_id = ${duplicateId}::uuid OR user_id = ${duplicateId}::text)
      )
      UPDATE symptom_trackings st
      SET is_active = false, deleted_at = now(), updated_at = now()
@@ -149,7 +152,6 @@ async function dedupeSingletonSymptomTrackingsForMerge(
      WHERE st.id = dup.id
        AND EXISTS (SELECT 1 FROM tgt)
        AND dup.id IS DISTINCT FROM (SELECT id FROM tgt)`,
-    [targetId, targetId, duplicateId, duplicateId, symptomKey],
   );
 }
 
@@ -197,16 +199,16 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
 
-  await client.query(`SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`);
+  await runMergeSql(client, sql`SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`);
 
-  const lockRes = await client.query<PuRow>(
-    `SELECT id, phone_normalized, patient_phone_trust_at, integrator_user_id::text AS integrator_user_id, merged_into_id,
+  const lockRes = await runMergeSql<PuRow>(
+    client,
+    sql`SELECT id, phone_normalized, patient_phone_trust_at, integrator_user_id::text AS integrator_user_id, merged_into_id,
             display_name, first_name, last_name, patronymic, email, email_verified_at, role, created_at
      FROM platform_users
-     WHERE id IN ($1::uuid, $2::uuid)
+     WHERE id IN (${targetId}::uuid, ${duplicateId}::uuid)
      ORDER BY id
      FOR UPDATE`,
-    [targetId, duplicateId],
   );
   if (lockRes.rows.length !== 2) {
     throw new MergeConflictError('merge: target or duplicate platform_users row missing', [
@@ -253,9 +255,9 @@ export async function mergePlatformUsersInTransaction(
    * оставил бы id канонического аккаунта.
    */
   if (reason === 'phone_bind' && !manualResolution && pA && !pB && iA && iB && iA !== iB) {
-    await client.query(
-      `UPDATE platform_users SET integrator_user_id = NULL, updated_at = now() WHERE id = $1::uuid`,
-      [duplicateId],
+    await runMergeSql(
+      client,
+      sql`UPDATE platform_users SET integrator_user_id = NULL, updated_at = now() WHERE id = ${duplicateId}::uuid`,
     );
     iB = null;
     logger.info({
@@ -303,75 +305,77 @@ export async function mergePlatformUsersInTransaction(
     await mergeChannelBindingsAuto(client, targetId, duplicateId);
   }
 
-  await client.query(
-    `INSERT INTO user_notification_topics (user_id, topic_code, is_enabled, updated_at)
-     SELECT $1::uuid, topic_code, is_enabled, updated_at
-     FROM user_notification_topics WHERE user_id = $2::uuid
+  await runMergeSql(
+    client,
+    sql`INSERT INTO user_notification_topics (user_id, topic_code, is_enabled, updated_at)
+     SELECT ${targetId}::uuid, topic_code, is_enabled, updated_at
+     FROM user_notification_topics WHERE user_id = ${duplicateId}::uuid
      ON CONFLICT (user_id, topic_code) DO UPDATE SET
        is_enabled = CASE
          WHEN EXCLUDED.updated_at >= user_notification_topics.updated_at THEN EXCLUDED.is_enabled
          ELSE user_notification_topics.is_enabled
        END,
        updated_at = GREATEST(user_notification_topics.updated_at, EXCLUDED.updated_at)`,
-    [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM user_notification_topics WHERE user_id = $1::uuid`, [
-    duplicateId,
-  ]);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_notification_topics WHERE user_id = ${duplicateId}::uuid`,
+  );
 
-  await client.query(
-    `INSERT INTO user_notification_topic_channels (user_id, topic_code, channel_code, is_enabled, updated_at)
-     SELECT $1::uuid, topic_code, channel_code, is_enabled, updated_at
-     FROM user_notification_topic_channels WHERE user_id = $2::uuid
+  await runMergeSql(
+    client,
+    sql`INSERT INTO user_notification_topic_channels (user_id, topic_code, channel_code, is_enabled, updated_at)
+     SELECT ${targetId}::uuid, topic_code, channel_code, is_enabled, updated_at
+     FROM user_notification_topic_channels WHERE user_id = ${duplicateId}::uuid
      ON CONFLICT (user_id, topic_code, channel_code) DO UPDATE SET
        is_enabled = CASE
          WHEN EXCLUDED.updated_at >= user_notification_topic_channels.updated_at THEN EXCLUDED.is_enabled
          ELSE user_notification_topic_channels.is_enabled
        END,
        updated_at = GREATEST(user_notification_topic_channels.updated_at, EXCLUDED.updated_at)`,
-    [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM user_notification_topic_channels WHERE user_id = $1::uuid`, [
-    duplicateId,
-  ]);
-
-  await client.query(
-    `UPDATE support_conversations SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
-  );
-  await client.query(
-    `UPDATE reminder_rules SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
-  );
-  await client.query(
-    `UPDATE content_access_grants_webapp SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
-  );
-  await client.query(`UPDATE doctor_notes SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
-    targetId,
-    duplicateId,
-  ]);
-
-  await client.query(
-    `UPDATE patient_bookings SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
-  );
-  await client.query(
-    `UPDATE appointment_records SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
-  );
-  await client.query(
-    `UPDATE user_phone_history SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
-  );
-  await client.query(
-    `UPDATE online_intake_requests SET user_id = $1::uuid WHERE user_id = $2::uuid`,
-    [targetId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_notification_topic_channels WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  await client.query(
-    `UPDATE patient_lfk_assignments SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`,
-    [targetId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE support_conversations SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE reminder_rules SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE content_access_grants_webapp SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE doctor_notes SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+  );
+
+  await runMergeSql(
+    client,
+    sql`UPDATE patient_bookings SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE appointment_records SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE user_phone_history SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE online_intake_requests SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+  );
+
+  await runMergeSql(
+    client,
+    sql`UPDATE patient_lfk_assignments SET patient_user_id = ${targetId}::uuid WHERE patient_user_id = ${duplicateId}::uuid`,
   );
 
   if (manualResolution) {
@@ -380,60 +384,63 @@ export async function mergePlatformUsersInTransaction(
     await mergeOauthBindingsAuto(client, targetId, duplicateId);
   }
 
-  const pinTarget = await client.query(`SELECT 1 FROM user_pins WHERE user_id = $1::uuid LIMIT 1`, [
-    targetId,
-  ]);
-  const pinDup = await client.query(`SELECT 1 FROM user_pins WHERE user_id = $1::uuid LIMIT 1`, [
-    duplicateId,
-  ]);
+  const pinTarget = await runMergeSql(
+    client,
+    sql`SELECT 1 FROM user_pins WHERE user_id = ${targetId}::uuid LIMIT 1`,
+  );
+  const pinDup = await runMergeSql(
+    client,
+    sql`SELECT 1 FROM user_pins WHERE user_id = ${duplicateId}::uuid LIMIT 1`,
+  );
   if (pinTarget.rows.length === 0 && pinDup.rows.length > 0) {
-    await client.query(`UPDATE user_pins SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
-      targetId,
-      duplicateId,
-    ]);
-  } else {
-    await client.query(`DELETE FROM user_pins WHERE user_id = $1::uuid`, [duplicateId]);
-  }
-
-  await client.query(
-    `UPDATE channel_link_secrets SET user_id = $1::uuid WHERE user_id = $2::uuid`,
-    [targetId, duplicateId],
-  );
-  await client.query(`UPDATE email_challenges SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
-    targetId,
-    duplicateId,
-  ]);
-
-  const pwTarget = await client.query(
-    `SELECT 1 FROM user_password_credentials WHERE user_id = $1::uuid LIMIT 1`,
-    [targetId],
-  );
-  const pwDup = await client.query(
-    `SELECT 1 FROM user_password_credentials WHERE user_id = $1::uuid LIMIT 1`,
-    [duplicateId],
-  );
-  if (pwTarget.rows.length === 0 && pwDup.rows.length > 0) {
-    await client.query(
-      `UPDATE user_password_credentials SET user_id = $1::uuid WHERE user_id = $2::uuid`,
-      [targetId, duplicateId],
+    await runMergeSql(
+      client,
+      sql`UPDATE user_pins SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
     );
   } else {
-    await client.query(`DELETE FROM user_password_credentials WHERE user_id = $1::uuid`, [
-      duplicateId,
-    ]);
+    await runMergeSql(client, sql`DELETE FROM user_pins WHERE user_id = ${duplicateId}::uuid`);
   }
 
-  await client.query(
-    `INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
-     SELECT $1::uuid, email_normalized, last_sent_at
-     FROM email_send_cooldowns WHERE user_id = $2::uuid
+  await runMergeSql(
+    client,
+    sql`UPDATE channel_link_secrets SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE email_challenges SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+  );
+
+  const pwTarget = await runMergeSql(
+    client,
+    sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${targetId}::uuid LIMIT 1`,
+  );
+  const pwDup = await runMergeSql(
+    client,
+    sql`SELECT 1 FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid LIMIT 1`,
+  );
+  if (pwTarget.rows.length === 0 && pwDup.rows.length > 0) {
+    await runMergeSql(
+      client,
+      sql`UPDATE user_password_credentials SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+    );
+  } else {
+    await runMergeSql(
+      client,
+      sql`DELETE FROM user_password_credentials WHERE user_id = ${duplicateId}::uuid`,
+    );
+  }
+
+  await runMergeSql(
+    client,
+    sql`INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
+     SELECT ${targetId}::uuid, email_normalized, last_sent_at
+     FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid
      ON CONFLICT (user_id, email_normalized) DO UPDATE SET
        last_sent_at = GREATEST(email_send_cooldowns.last_sent_at, EXCLUDED.last_sent_at)`,
-    [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM email_send_cooldowns WHERE user_id = $1::uuid`, [duplicateId]);
+  await runMergeSql(client, sql`DELETE FROM email_send_cooldowns WHERE user_id = ${duplicateId}::uuid`);
 
-  await client.query(`DELETE FROM login_tokens WHERE user_id = $1::uuid`, [duplicateId]);
+  await runMergeSql(client, sql`DELETE FROM login_tokens WHERE user_id = ${duplicateId}::uuid`);
 
   await mergeUserChannelPreferences(
     client,
@@ -447,39 +454,39 @@ export async function mergePlatformUsersInTransaction(
   }
 
   // PG cannot infer one type for the same $n used as both ::text and ::uuid — use distinct placeholders.
-  await client.query(
-    `UPDATE symptom_trackings SET user_id = $1::text, platform_user_id = $2::uuid
-     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
-    [targetId, targetId, duplicateId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE symptom_trackings SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
   );
-  await client.query(
-    `UPDATE symptom_entries SET user_id = $1::text, platform_user_id = $2::uuid
-     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
-    [targetId, targetId, duplicateId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE symptom_entries SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
   );
-  await client.query(
-    `UPDATE lfk_complexes SET user_id = $1::text, platform_user_id = $2::uuid
-     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
-    [targetId, targetId, duplicateId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE lfk_complexes SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
   );
-  await client.query(`UPDATE lfk_sessions SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
-    targetId,
-    duplicateId,
-  ]);
-
-  await client.query(
-    `UPDATE message_log SET user_id = $1::text, platform_user_id = $2::uuid
-     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
-    [targetId, targetId, duplicateId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE lfk_sessions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  await client.query(`UPDATE media_files SET uploaded_by = $1::uuid WHERE uploaded_by = $2::uuid`, [
-    targetId,
-    duplicateId,
-  ]);
-  await client.query(
-    `UPDATE media_upload_sessions SET owner_user_id = $1::uuid WHERE owner_user_id = $2::uuid`,
-    [targetId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE message_log SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
+  );
+
+  await runMergeSql(
+    client,
+    sql`UPDATE media_files SET uploaded_by = ${targetId}::uuid WHERE uploaded_by = ${duplicateId}::uuid`,
+  );
+  await runMergeSql(
+    client,
+    sql`UPDATE media_upload_sessions SET owner_user_id = ${targetId}::uuid WHERE owner_user_id = ${duplicateId}::uuid`,
   );
 
   await mergeExtendedUserOwnedData(client, targetId, duplicateId);
@@ -487,7 +494,8 @@ export async function mergePlatformUsersInTransaction(
   if (manualResolution) {
     const f = manualResolution.fields;
     const chosenEmailSql = `CASE WHEN $7::text = 'target' THEN pu.email ELSE dup.email END`;
-    await client.query(
+    await runMergePgText(
+      client,
       `UPDATE platform_users AS pu
        SET
          phone_normalized = CASE WHEN $3::text = 'target' THEN pu.phone_normalized ELSE dup.phone_normalized END,
@@ -514,7 +522,8 @@ export async function mergePlatformUsersInTransaction(
     );
   } else {
     const chosenEmailSql = `COALESCE(pu.email, dup.email)`;
-    await client.query(
+    await runMergePgText(
+      client,
       `UPDATE platform_users AS pu
        SET
          phone_normalized = COALESCE(pu.phone_normalized, dup.phone_normalized),
@@ -623,12 +632,12 @@ export async function mergePlatformUsersInTransaction(
   await clearDuplicateEmailBeforeTargetNormalization(client, duplicateId);
   await clearDuplicateUserContactsBeforeTargetMirror(client, duplicateId);
 
-  await client.query(
-    `UPDATE platform_users SET email_normalized = CASE
+  await runMergeSql(
+    client,
+    sql`UPDATE platform_users SET email_normalized = CASE
        WHEN email IS NOT NULL AND btrim(email) <> '' THEN lower(btrim(email))
        ELSE NULL
-     END WHERE id = $1::uuid`,
-    [targetId],
+     END WHERE id = ${targetId}::uuid`,
   );
 
   await syncUserIdentityFioMirror(client, targetId);
@@ -642,15 +651,15 @@ export async function mergePlatformUsersInTransaction(
   await pruneIdentityPlatformUserContactsAfterMerge(client, targetId);
   await syncUserContactsMirror(client, targetId);
 
-  await client.query(
-    `UPDATE platform_users SET
+  await runMergeSql(
+    client,
+    sql`UPDATE platform_users SET
        phone_normalized = NULL,
        integrator_user_id = NULL,
-       merged_into_id = $1::uuid,
+       merged_into_id = ${targetId}::uuid,
        merged_at = now(),
        updated_at = now()
-     WHERE id = $2::uuid`,
-    [targetId, duplicateId],
+     WHERE id = ${duplicateId}::uuid`,
   );
 
   logger.info(
@@ -670,9 +679,9 @@ async function reassignAllUserChannelBindingsFromDuplicate(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  await client.query(
-    `UPDATE user_channel_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid`,
-    [targetId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE user_channel_bindings SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
   );
 }
 
@@ -682,10 +691,10 @@ async function reassignAllUserOauthBindingsFromDuplicate(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  await client.query(`UPDATE user_oauth_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
-    targetId,
-    duplicateId,
-  ]);
+  await runMergeSql(
+    client,
+    sql`UPDATE user_oauth_bindings SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
+  );
 }
 
 async function mergeChannelBindingsAuto(
@@ -694,7 +703,7 @@ async function mergeChannelBindingsAuto(
   duplicateId: string,
 ): Promise<void> {
   await reassignAllUserChannelBindingsFromDuplicate(client, targetId, duplicateId);
-  await client.query(`DELETE FROM user_channel_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+  await runMergeSql(client, sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`);
 }
 
 async function mergeChannelBindingsManual(
@@ -706,11 +715,11 @@ async function mergeChannelBindingsManual(
   for (const ch of CHANNEL_CODES) {
     const winner = resolution.bindings[ch];
     if (winner === 'both') {
-      const bindingPresence = await client.query<{ user_id: string }>(
-        `SELECT user_id::text AS user_id
+      const bindingPresence = await runMergeSql<{ user_id: string }>(
+        client,
+        sql`SELECT user_id::text AS user_id
          FROM user_channel_bindings
-         WHERE user_id = ANY($1::uuid[]) AND channel_code = $2`,
-        [[targetId, duplicateId], ch],
+         WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[]) AND channel_code = ${ch}`,
       );
       const hasTargetBinding = bindingPresence.rows.some((row) =>
         uuidTextEquals(row.user_id, targetId),
@@ -724,33 +733,33 @@ async function mergeChannelBindingsManual(
           [targetId, duplicateId],
         );
       }
-      await client.query(
-        `UPDATE user_channel_bindings SET user_id = $1::uuid
-         WHERE user_id = $2::uuid AND channel_code = $3`,
-        [targetId, duplicateId, ch],
+      await runMergeSql(
+        client,
+        sql`UPDATE user_channel_bindings SET user_id = ${targetId}::uuid
+         WHERE user_id = ${duplicateId}::uuid AND channel_code = ${ch}`,
       );
-      await client.query(
-        `DELETE FROM user_channel_bindings WHERE user_id = $1::uuid AND channel_code = $2`,
-        [duplicateId, ch],
+      await runMergeSql(
+        client,
+        sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid AND channel_code = ${ch}`,
       );
     } else if (winner === 'target') {
-      await client.query(
-        `DELETE FROM user_channel_bindings WHERE user_id = $1::uuid AND channel_code = $2`,
-        [duplicateId, ch],
+      await runMergeSql(
+        client,
+        sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid AND channel_code = ${ch}`,
       );
     } else {
-      await client.query(
-        `DELETE FROM user_channel_bindings WHERE user_id = $1::uuid AND channel_code = $2`,
-        [targetId, ch],
+      await runMergeSql(
+        client,
+        sql`DELETE FROM user_channel_bindings WHERE user_id = ${targetId}::uuid AND channel_code = ${ch}`,
       );
-      await client.query(
-        `UPDATE user_channel_bindings SET user_id = $1::uuid
-         WHERE user_id = $2::uuid AND channel_code = $3`,
-        [targetId, duplicateId, ch],
+      await runMergeSql(
+        client,
+        sql`UPDATE user_channel_bindings SET user_id = ${targetId}::uuid
+         WHERE user_id = ${duplicateId}::uuid AND channel_code = ${ch}`,
       );
     }
   }
-  await client.query(`DELETE FROM user_channel_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+  await runMergeSql(client, sql`DELETE FROM user_channel_bindings WHERE user_id = ${duplicateId}::uuid`);
 }
 
 async function mergeOauthBindingsAuto(
@@ -759,7 +768,7 @@ async function mergeOauthBindingsAuto(
   duplicateId: string,
 ): Promise<void> {
   await reassignAllUserOauthBindingsFromDuplicate(client, targetId, duplicateId);
-  await client.query(`DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+  await runMergeSql(client, sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`);
 }
 
 async function mergeOauthBindingsManual(
@@ -768,10 +777,10 @@ async function mergeOauthBindingsManual(
   duplicateId: string,
   resolution: ManualMergeResolution,
 ): Promise<void> {
-  const r = await client.query<OauthRow>(
-    `SELECT user_id::text AS user_id, provider, provider_user_id, email, created_at
-     FROM user_oauth_bindings WHERE user_id = ANY($1::uuid[])`,
-    [[targetId, duplicateId]],
+  const r = await runMergeSql<OauthRow>(
+    client,
+    sql`SELECT user_id::text AS user_id, provider, provider_user_id, email, created_at
+     FROM user_oauth_bindings WHERE user_id = ANY(${[targetId, duplicateId]}::uuid[])`,
   );
   const byProvider = new Map<string, OauthRow[]>();
   for (const row of r.rows) {
@@ -786,17 +795,17 @@ async function mergeOauthBindingsManual(
       continue;
     }
     if (!onTarget && onDup) {
-      await client.query(
-        `UPDATE user_oauth_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid AND provider = $3`,
-        [targetId, duplicateId, provider],
+      await runMergeSql(
+        client,
+        sql`UPDATE user_oauth_bindings SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid AND provider = ${provider}`,
       );
       continue;
     }
     if (onTarget && onDup) {
       if (onTarget.provider_user_id === onDup.provider_user_id) {
-        await client.query(
-          `DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid AND provider = $2`,
-          [duplicateId, provider],
+        await runMergeSql(
+          client,
+          sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid AND provider = ${provider}`,
         );
         continue;
       }
@@ -808,23 +817,23 @@ async function mergeOauthBindingsManual(
         );
       }
       if (w === 'target') {
-        await client.query(
-          `DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid AND provider = $2`,
-          [duplicateId, provider],
+        await runMergeSql(
+          client,
+          sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid AND provider = ${provider}`,
         );
       } else {
-        await client.query(
-          `DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid AND provider = $2`,
-          [targetId, provider],
+        await runMergeSql(
+          client,
+          sql`DELETE FROM user_oauth_bindings WHERE user_id = ${targetId}::uuid AND provider = ${provider}`,
         );
-        await client.query(
-          `UPDATE user_oauth_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid AND provider = $3`,
-          [targetId, duplicateId, provider],
+        await runMergeSql(
+          client,
+          sql`UPDATE user_oauth_bindings SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid AND provider = ${provider}`,
         );
       }
     }
   }
-  await client.query(`DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+  await runMergeSql(client, sql`DELETE FROM user_oauth_bindings WHERE user_id = ${duplicateId}::uuid`);
 }
 
 async function mergeUserChannelPreferences(
@@ -834,16 +843,17 @@ async function mergeUserChannelPreferences(
   strategy: 'keep_target' | 'keep_newer' | 'merge',
 ): Promise<void> {
   if (strategy === 'keep_target') {
-    await client.query(
-      `DELETE FROM user_channel_preferences
-       WHERE user_id = $1::text OR platform_user_id = $2::uuid`,
-      [duplicateId, duplicateId],
+    await runMergeSql(
+      client,
+      sql`DELETE FROM user_channel_preferences
+       WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
     );
     return;
   }
 
-  await client.query(
-    `UPDATE user_channel_preferences AS t
+  await runMergeSql(
+    client,
+    sql`UPDATE user_channel_preferences AS t
      SET
        is_enabled_for_messages = CASE
          WHEN d.updated_at > t.updated_at THEN d.is_enabled_for_messages
@@ -859,30 +869,29 @@ async function mergeUserChannelPreferences(
          ELSE t.is_preferred_for_auth
        END,
        updated_at = GREATEST(t.updated_at, d.updated_at),
-       platform_user_id = $1::uuid
+       platform_user_id = ${targetId}::uuid
      FROM user_channel_preferences d
-     WHERE (t.user_id = $2::text OR t.platform_user_id = $3::uuid)
-       AND (d.user_id = $4::text OR d.platform_user_id = $5::uuid)
+     WHERE (t.user_id = ${targetId}::text OR t.platform_user_id = ${targetId}::uuid)
+       AND (d.user_id = ${duplicateId}::text OR d.platform_user_id = ${duplicateId}::uuid)
        AND t.channel_code = d.channel_code`,
-    [targetId, targetId, targetId, duplicateId, duplicateId],
   );
 
-  await client.query(
-    `DELETE FROM user_channel_preferences d
-     WHERE (d.user_id = $1::text OR d.platform_user_id = $2::uuid)
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_channel_preferences d
+     WHERE (d.user_id = ${duplicateId}::text OR d.platform_user_id = ${duplicateId}::uuid)
        AND EXISTS (
          SELECT 1 FROM user_channel_preferences t
-         WHERE (t.user_id = $3::text OR t.platform_user_id = $4::uuid)
+         WHERE (t.user_id = ${targetId}::text OR t.platform_user_id = ${targetId}::uuid)
            AND t.channel_code = d.channel_code
        )`,
-    [duplicateId, duplicateId, targetId, targetId],
   );
 
-  await client.query(
-    `UPDATE user_channel_preferences
-     SET user_id = $1::text, platform_user_id = $2::uuid
-     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
-    [targetId, targetId, duplicateId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE user_channel_preferences
+     SET user_id = ${targetId}::text, platform_user_id = ${targetId}::uuid
+     WHERE user_id = ${duplicateId}::text OR platform_user_id = ${duplicateId}::uuid`,
   );
 }
 
@@ -923,8 +932,8 @@ async function assertSharedPhoneGuard(
       },
     ];
     let sum = 0;
-    for (const { sql, params } of q) {
-      const r = await client.query<{ c: number }>(sql, params);
+    for (const { sql: queryText, params } of q) {
+      const r = await runMergePgText<{ c: number }>(client, queryText, params);
       sum += r.rows[0]?.c ?? 0;
     }
     return sum;
@@ -944,17 +953,17 @@ async function assertPatientBookingsSafeToMerge(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  const overlap = await client.query<{ c: string }>(
-    `SELECT COUNT(*)::text AS c
+  const overlap = await runMergeSql<{ c: string }>(
+    client,
+    sql`SELECT COUNT(*)::text AS c
      FROM patient_bookings pb1
      INNER JOIN patient_bookings pb2
-       ON pb1.platform_user_id = $1::uuid
-      AND pb2.platform_user_id = $2::uuid
+       ON pb1.platform_user_id = ${targetId}::uuid
+      AND pb2.platform_user_id = ${duplicateId}::uuid
       AND pb1.id <> pb2.id
       AND tstzrange(pb1.slot_start, pb1.slot_end, '[)') && tstzrange(pb2.slot_start, pb2.slot_end, '[)')
       AND pb1.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
       AND pb2.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')`,
-    [targetId, duplicateId],
   );
   const n = parseInt(overlap.rows[0]?.c ?? '0', 10);
   if (n > 0) {
@@ -970,17 +979,17 @@ async function assertPatientLfkAssignmentsSafe(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  const r = await client.query<{ c: string }>(
-    `SELECT COUNT(*)::text AS c
+  const r = await runMergeSql<{ c: string }>(
+    client,
+    sql`SELECT COUNT(*)::text AS c
      FROM patient_lfk_assignments a
      INNER JOIN patient_lfk_assignments b
-       ON a.patient_user_id = $1::uuid
-      AND b.patient_user_id = $2::uuid
+       ON a.patient_user_id = ${targetId}::uuid
+      AND b.patient_user_id = ${duplicateId}::uuid
       AND a.organization_id = b.organization_id
       AND a.template_id = b.template_id
       AND a.is_active = true
       AND b.is_active = true`,
-    [targetId, duplicateId],
   );
   const n = parseInt(r.rows[0]?.c ?? '0', 10);
   if (n > 0) {
@@ -1011,7 +1020,8 @@ async function consolidateMatchingPromoProgress(
   targetInstanceId: string,
   duplicateInstanceId: string,
 ): Promise<void> {
-  await client.query(
+  await runMergePgText(
+    client,
     `WITH stage_map AS MATERIALIZED (
        SELECT ts.id AS target_stage_id, ds.id AS duplicate_stage_id
        FROM treatment_program_instance_stages ts
@@ -1096,13 +1106,13 @@ async function assertAutoMergePasswordCredentialsSafe(
   reason: MergePlatformUsersReason,
 ): Promise<void> {
   if (reason === 'manual') return;
-  const credentials = await client.query<{ user_id: string }>(
-    `SELECT user_id::text
+  const credentials = await runMergeSql<{ user_id: string }>(
+    client,
+    sql`SELECT user_id::text
      FROM user_password_credentials
-     WHERE user_id IN ($1::uuid, $2::uuid)
+     WHERE user_id IN (${targetId}::uuid, ${duplicateId}::uuid)
      ORDER BY user_id
      FOR UPDATE`,
-    [targetId, duplicateId],
   );
   if (credentials.rows.length > 1) {
     throw new MergeConflictError('merge: both users have password credentials', [
@@ -1123,8 +1133,9 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  const r = await client.query<ActiveTreatmentProgramMergePair>(
-    `SELECT t.id::text AS target_instance_id,
+  const r = await runMergeSql<ActiveTreatmentProgramMergePair>(
+    client,
+    sql`SELECT t.id::text AS target_instance_id,
             t.assignment_source AS target_assignment_source,
             t.template_id::text AS target_template_id,
             d.id::text AS duplicate_instance_id,
@@ -1132,11 +1143,10 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
             d.template_id::text AS duplicate_template_id
      FROM treatment_program_instances t
      INNER JOIN treatment_program_instances d
-       ON t.patient_user_id = $1::uuid
-      AND d.patient_user_id = $2::uuid
+       ON t.patient_user_id = ${targetId}::uuid
+      AND d.patient_user_id = ${duplicateId}::uuid
       AND t.status = 'active'
       AND d.status = 'active'`,
-    [targetId, duplicateId],
   );
   const pair = r.rows[0];
   if (!pair) return;
@@ -1166,7 +1176,8 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
   const closingInstanceId =
     targetIsPromo && !duplicateIsPromo ? pair.target_instance_id : pair.duplicate_instance_id;
 
-  await client.query(
+  await runMergePgText(
+    client,
     `WITH closed AS (
        UPDATE treatment_program_instances
        SET status = 'completed', updated_at = now()
@@ -1201,16 +1212,16 @@ async function assertOpenTestAttemptsSafe(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  const r = await client.query<{ c: string }>(
-    `SELECT COUNT(*)::text AS c
+  const r = await runMergeSql<{ c: string }>(
+    client,
+    sql`SELECT COUNT(*)::text AS c
      FROM test_attempts t
      INNER JOIN test_attempts d
-       ON t.patient_user_id = $1::uuid
-      AND d.patient_user_id = $2::uuid
+       ON t.patient_user_id = ${targetId}::uuid
+      AND d.patient_user_id = ${duplicateId}::uuid
       AND t.submitted_at IS NULL
       AND d.submitted_at IS NULL
       AND t.instance_stage_item_id = d.instance_stage_item_id`,
-    [targetId, duplicateId],
   );
   const n = parseInt(r.rows[0]?.c ?? '0', 10);
   if (n > 0) {
@@ -1229,9 +1240,9 @@ async function clearDuplicateEmailBeforeTargetNormalization(
   client: PlatformMergeDbClient,
   duplicateId: string,
 ): Promise<void> {
-  await client.query(
-    `UPDATE platform_users SET email = NULL, email_normalized = NULL, updated_at = now() WHERE id = $1::uuid`,
-    [duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE platform_users SET email = NULL, email_normalized = NULL, updated_at = now() WHERE id = ${duplicateId}::uuid`,
   );
 }
 
@@ -1243,7 +1254,8 @@ async function mergeExtendedUserOwnedData(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  await client.query(
+  await runMergePgText(
+    client,
     `INSERT INTO material_ratings (user_id, target_kind, target_id, stars, updated_at)
      SELECT $1::uuid, target_kind, target_id, stars, updated_at
      FROM material_ratings WHERE user_id = $2::uuid
@@ -1255,9 +1267,10 @@ async function mergeExtendedUserOwnedData(
        updated_at = GREATEST(material_ratings.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM material_ratings WHERE user_id = $1::uuid`, [duplicateId]);
+  await runMergeSql(client, sql`DELETE FROM material_ratings WHERE user_id = ${duplicateId}::uuid`);
 
-  await client.query(
+  await runMergePgText(
+    client,
     `INSERT INTO patient_daily_warmup_presentations (
        user_id, content_page_id, updated_at, last_rotation_at, skip_next_scheduled_rotation
      )
@@ -1287,11 +1300,13 @@ async function mergeExtendedUserOwnedData(
        updated_at = GREATEST(patient_daily_warmup_presentations.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM patient_daily_warmup_presentations WHERE user_id = $1::uuid`, [
-    duplicateId,
-  ]);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM patient_daily_warmup_presentations WHERE user_id = ${duplicateId}::uuid`,
+  );
 
-  await client.query(
+  await runMergePgText(
+    client,
     `INSERT INTO be_patient_booking_profiles (
        organization_id, platform_user_id, is_problematic, booking_blocked, problematic_note, updated_at, updated_by
      )
@@ -1311,9 +1326,10 @@ async function mergeExtendedUserOwnedData(
        updated_by = COALESCE(be_patient_booking_profiles.updated_by, EXCLUDED.updated_by)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM be_patient_booking_profiles WHERE platform_user_id = $1::uuid`, [
-    duplicateId,
-  ]);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM be_patient_booking_profiles WHERE platform_user_id = ${duplicateId}::uuid`,
+  );
 
   // Migration 0200 dropped the single global `product_analytics_user_hourly_pkey` and replaced it
   // with two partial unique indexes split on `organization_id` nullability (global vs per-org
@@ -1321,7 +1337,8 @@ async function mergeExtendedUserOwnedData(
   // target can match both partial predicates in one statement, so this merge runs once per branch.
   // `organization_id` must be carried through explicitly -- omitting it (as the pre-0200 version of
   // this INSERT did) silently drops every merged row's clinic association.
-  await client.query(
+  await runMergePgText(
+    client,
     `INSERT INTO product_analytics_user_hourly (
        organization_id, bucket_hour, user_id, entry_channel, page_key,
        app_opens, page_views, push_opens, active_minutes, last_seen_at, updated_at
@@ -1339,7 +1356,8 @@ async function mergeExtendedUserOwnedData(
        updated_at = GREATEST(product_analytics_user_hourly.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],
   );
-  await client.query(
+  await runMergePgText(
+    client,
     `INSERT INTO product_analytics_user_hourly (
        organization_id, bucket_hour, user_id, entry_channel, page_key,
        app_opens, page_views, push_opens, active_minutes, last_seen_at, updated_at
@@ -1358,49 +1376,50 @@ async function mergeExtendedUserOwnedData(
        updated_at = GREATEST(product_analytics_user_hourly.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],
   );
-  await client.query(`DELETE FROM product_analytics_user_hourly WHERE user_id = $1::uuid`, [
-    duplicateId,
-  ]);
+  await runMergeSql(
+    client,
+    sql`DELETE FROM product_analytics_user_hourly WHERE user_id = ${duplicateId}::uuid`,
+  );
 
-  await client.query(
-    `DELETE FROM patient_diary_day_snapshots d
-     WHERE d.platform_user_id = $2::uuid
+  await runMergeSql(
+    client,
+    sql`DELETE FROM patient_diary_day_snapshots d
+     WHERE d.platform_user_id = ${duplicateId}::uuid
        AND EXISTS (
          SELECT 1 FROM patient_diary_day_snapshots t
-         WHERE t.platform_user_id = $1::uuid AND t.local_date = d.local_date
+         WHERE t.platform_user_id = ${targetId}::uuid AND t.local_date = d.local_date
        )`,
-    [targetId, duplicateId],
   );
-  await client.query(
-    `UPDATE patient_diary_day_snapshots SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE patient_diary_day_snapshots SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
   );
 
-  await client.query(
-    `DELETE FROM user_web_push_subscriptions d
-     WHERE d.user_id = $2::uuid
+  await runMergeSql(
+    client,
+    sql`DELETE FROM user_web_push_subscriptions d
+     WHERE d.user_id = ${duplicateId}::uuid
        AND EXISTS (
          SELECT 1 FROM user_web_push_subscriptions t
-         WHERE t.user_id = $1::uuid AND t.endpoint = d.endpoint
+         WHERE t.user_id = ${targetId}::uuid AND t.endpoint = d.endpoint
        )`,
-    [targetId, duplicateId],
   );
-  await client.query(
-    `UPDATE user_web_push_subscriptions SET user_id = $1::uuid WHERE user_id = $2::uuid`,
-    [targetId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE user_web_push_subscriptions SET user_id = ${targetId}::uuid WHERE user_id = ${duplicateId}::uuid`,
   );
 
-  await client.query(
-    `DELETE FROM broadcast_audit_recipients
-     WHERE platform_user_id = $2::uuid
+  await runMergeSql(
+    client,
+    sql`DELETE FROM broadcast_audit_recipients
+     WHERE platform_user_id = ${duplicateId}::uuid
        AND audit_id IN (
-         SELECT audit_id FROM broadcast_audit_recipients WHERE platform_user_id = $1::uuid
+         SELECT audit_id FROM broadcast_audit_recipients WHERE platform_user_id = ${targetId}::uuid
        )`,
-    [targetId, duplicateId],
   );
-  await client.query(
-    `UPDATE broadcast_audit_recipients SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
+  await runMergeSql(
+    client,
+    sql`UPDATE broadcast_audit_recipients SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
   );
 
   const simpleRepoints: Array<[string, [string, string]]> = [
@@ -1465,8 +1484,8 @@ async function mergeExtendedUserOwnedData(
       [targetId, duplicateId],
     ],
   ];
-  for (const [sql, params] of simpleRepoints) {
-    await client.query(sql, params);
+  for (const [queryText, params] of simpleRepoints) {
+    await runMergePgText(client, queryText, params);
   }
 
   await repointPlatformUserContactsForMerge(client, targetId, duplicateId);
@@ -1480,12 +1499,12 @@ export async function enrichPickMergeCandidatesWithBookingCounts(
   a: PickMergeTargetCandidate,
   b: PickMergeTargetCandidate,
 ): Promise<[PickMergeTargetCandidate, PickMergeTargetCandidate]> {
-  const r = await client.query<{ uid: string; c: string }>(
-    `SELECT platform_user_id::text AS uid, COUNT(*)::text AS c
+  const r = await runMergeSql<{ uid: string; c: string }>(
+    client,
+    sql`SELECT platform_user_id::text AS uid, COUNT(*)::text AS c
      FROM patient_bookings
-     WHERE platform_user_id = ANY($1::uuid[])
+     WHERE platform_user_id = ANY(${[a.id, b.id]}::uuid[])
      GROUP BY platform_user_id`,
-    [[a.id, b.id]],
   );
   const map = new Map<string, number>();
   for (const row of r.rows) {

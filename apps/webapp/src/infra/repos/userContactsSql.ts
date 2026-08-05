@@ -1,10 +1,9 @@
-import type { PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient } from 'pg';
 import { sql } from 'drizzle-orm';
 import { syncUserContactsMirror } from '@bersoncare/platform-merge';
-import type { PlatformMergeDbClient } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
-  runWebappPgText,
+  runWebappSql,
   type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
 import { platformUsers, userContacts } from '../../../db/schema/schema';
@@ -50,20 +49,11 @@ export function primaryPhoneCoalesceFor(puAlias: string): string {
   return `COALESCE((SELECT uc.value_normalized FROM user_contacts uc WHERE uc.platform_user_id = ${puAlias}.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1), ${puAlias}.phone_normalized)`;
 }
 
-function toMergeDbClient(executor: WebappSqlExecutor | PoolClient): PlatformMergeDbClient {
-  const db =
-    'release' in executor && typeof (executor as PoolClient).release === 'function'
-      ? getWebappSqlFromPgClient(executor as PoolClient)
-      : (executor as WebappSqlExecutor);
-  return {
-    query: async <R extends QueryResultRow = QueryResultRow>(
-      text: string,
-      params?: unknown[],
-    ) => {
-      const r = await runWebappPgText<R>(text, params ?? [], db);
-      return { rows: r.rows, rowCount: r.rowCount };
-    },
-  };
+function resolveWebappSqlExecutor(executor: WebappSqlExecutor | PoolClient): WebappSqlExecutor {
+  if ('release' in executor && typeof (executor as PoolClient).release === 'function') {
+    return getWebappSqlFromPgClient(executor as PoolClient);
+  }
+  return executor as WebappSqlExecutor;
 }
 
 /** Rebuild `user_contacts` from four sources after a contact write (D15b/6 dual-write). */
@@ -71,7 +61,10 @@ export async function syncUserContactsMirrorWebapp(
   executor: WebappSqlExecutor | PoolClient,
   platformUserId: string,
 ): Promise<void> {
-  await syncUserContactsMirror(toMergeDbClient(executor), platformUserId);
+  const db = resolveWebappSqlExecutor(executor);
+  await syncUserContactsMirror({
+    executeSql: (fragment) => runWebappSql(db, fragment),
+  }, platformUserId);
 }
 
 /** Drizzle COALESCE for primary phone when `userContacts` is joined for the user. */

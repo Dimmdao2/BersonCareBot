@@ -2,8 +2,10 @@
  * Binding-first messenger phone: update webapp canon (`public.platform_users`) in the same DB/TX as integrator.
  * Uses qualified `public.*` names so behavior does not depend on connection `search_path`.
  */
+import { sql } from 'drizzle-orm';
 import { classifyMergeFailure } from './mergeFailureClassification.js';
 import { mergeLogger as logger } from './mergeLogger.js';
+import { runMergeSql } from './mergeSql.js';
 import {
   mergePlatformUsersInTransaction,
   pickMergeTargetId,
@@ -55,19 +57,19 @@ async function loadPickCandidate(
   db: MessengerPhoneBindDb,
   id: string,
 ): Promise<PickMergeTargetCandidate | null> {
-  const r = await db.query<{
+  const r = await runMergeSql<{
     id: string;
     phone_normalized: string | null;
     integrator_user_id: string | null;
     created_at: Date | string;
   }>(
-    `SELECT id::text,
+    db,
+    sql`SELECT id::text,
             phone_normalized,
             integrator_user_id::text AS integrator_user_id,
             created_at
      FROM public.platform_users
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [id],
+     WHERE id = ${id}::uuid AND merged_into_id IS NULL`,
   );
   const row = r.rows[0];
   if (!row) return null;
@@ -84,24 +86,24 @@ async function findOtherPlatformUserWithSamePhone(
   excludeId: string,
   phoneNormalized: string,
 ): Promise<string | null> {
-  const fromContacts = await db.query<{ id: string }>(
-    `SELECT uc.platform_user_id::text AS id
+  const fromContacts = await runMergeSql<{ id: string }>(
+    db,
+    sql`SELECT uc.platform_user_id::text AS id
      FROM public.user_contacts uc
      INNER JOIN public.platform_users pu ON pu.id = uc.platform_user_id
      WHERE uc.contact_kind = 'phone'
-       AND uc.value_normalized = $1
+       AND uc.value_normalized = ${phoneNormalized}
        AND pu.merged_into_id IS NULL
-       AND uc.platform_user_id <> $2::uuid
+       AND uc.platform_user_id <> ${excludeId}::uuid
      LIMIT 1`,
-    [phoneNormalized, excludeId],
   );
   if (fromContacts.rows[0]?.id) return fromContacts.rows[0].id;
 
-  const legacy = await db.query<{ id: string }>(
-    `SELECT id::text FROM public.platform_users
-     WHERE phone_normalized = $1 AND merged_into_id IS NULL AND id <> $2::uuid
+  const legacy = await runMergeSql<{ id: string }>(
+    db,
+    sql`SELECT id::text FROM public.platform_users
+     WHERE phone_normalized = ${phoneNormalized} AND merged_into_id IS NULL AND id <> ${excludeId}::uuid
      LIMIT 1`,
-    [phoneNormalized, excludeId],
   );
   return legacy.rows[0]?.id ?? null;
 }
@@ -119,15 +121,15 @@ async function writeConfirmedPhoneAndMirror(
   canonicalIntegratorUserId: string,
 ): Promise<void> {
   await syncPlatformUserPhoneHistoryOnConfirm(db, platformUserId, phoneNormalized, 'messenger');
-  const upd = await db.query(
-    `UPDATE public.platform_users SET
-       phone_normalized = $2,
+  const upd = await runMergeSql(
+    db,
+    sql`UPDATE public.platform_users SET
+       phone_normalized = ${phoneNormalized},
        patient_phone_trust_at = now(),
-       integrator_user_id = COALESCE(integrator_user_id, $3::bigint),
+       integrator_user_id = COALESCE(integrator_user_id, ${canonicalIntegratorUserId}::bigint),
        updated_at = now()
-     WHERE id = $1::uuid
+     WHERE id = ${platformUserId}::uuid
        AND merged_into_id IS NULL`,
-    [platformUserId, phoneNormalized, canonicalIntegratorUserId],
   );
   if ((upd.rowCount ?? 0) < 1) {
     throw new MessengerPhoneLinkError('db_transient_failure');
@@ -140,11 +142,11 @@ async function findOtherPlatformUserWithSameIntegrator(
   excludeId: string,
   integratorUserId: string,
 ): Promise<string | null> {
-  const r = await db.query<{ id: string }>(
-    `SELECT id::text FROM public.platform_users
-     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL AND id <> $2::uuid
+  const r = await runMergeSql<{ id: string }>(
+    db,
+    sql`SELECT id::text FROM public.platform_users
+     WHERE integrator_user_id = ${integratorUserId}::bigint AND merged_into_id IS NULL AND id <> ${excludeId}::uuid
      LIMIT 1`,
-    [integratorUserId, excludeId],
   );
   return r.rows[0]?.id ?? null;
 }
@@ -154,14 +156,14 @@ async function resolveBoundPlatformUserId(
   channelCode: string,
   externalId: string,
 ): Promise<string | null> {
-  const r = await db.query<{ platform_user_id: string }>(
-    `SELECT pu.id::text AS platform_user_id
+  const r = await runMergeSql<{ platform_user_id: string }>(
+    db,
+    sql`SELECT pu.id::text AS platform_user_id
      FROM public.user_channel_bindings ucb
      INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
-     WHERE ucb.channel_code = $1 AND ucb.external_id = $2
+     WHERE ucb.channel_code = ${channelCode} AND ucb.external_id = ${externalId}
        AND pu.merged_into_id IS NULL
      LIMIT 1`,
-    [channelCode, externalId],
   );
   return r.rows[0]?.platform_user_id ?? null;
 }
@@ -222,27 +224,23 @@ export async function applyMessengerPhonePublicBind(
   };
 
   for (let round = 0; round < mergeRoundMax; round++) {
-    const rowMeta: {
-      rows: Array<{ existing_int_uid: string | null }>;
-      rowCount?: number;
-    } = await db.query<{ existing_int_uid: string | null }>(
-      `SELECT pu.integrator_user_id::text AS existing_int_uid
+    const rowMeta: { rows: { existing_int_uid: string | null }[]; rowCount?: number } =
+      await runMergeSql<{ existing_int_uid: string | null }>(
+        db,
+        sql`SELECT pu.integrator_user_id::text AS existing_int_uid
        FROM public.platform_users pu
-       WHERE pu.id = $1::uuid AND pu.merged_into_id IS NULL`,
-      [platformUserId],
-    );
+       WHERE pu.id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL`,
+      );
     const rawIntUid: string | null | undefined = rowMeta.rows[0]?.existing_int_uid;
     const existingInt: string | null =
       typeof rawIntUid === 'string' && rawIntUid.trim() !== '' ? rawIntUid.trim() : null;
 
     if (existingInt && existingInt !== canonicalIntegratorUserId && existingInt !== '') {
-      const canonPu: { rows: Array<{ id: string }>; rowCount?: number } = await db.query<{
-        id: string;
-      }>(
-        `SELECT id::text FROM public.platform_users
-         WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
+      const canonPu: { rows: { id: string }[]; rowCount?: number } = await runMergeSql<{ id: string }>(
+        db,
+        sql`SELECT id::text FROM public.platform_users
+         WHERE integrator_user_id = ${canonicalIntegratorUserId}::bigint AND merged_into_id IS NULL
          LIMIT 1`,
-        [canonicalIntegratorUserId],
       );
       const otherId: string | undefined = canonPu.rows[0]?.id;
       if (otherId && otherId !== platformUserId) {
@@ -256,20 +254,20 @@ export async function applyMessengerPhonePublicBind(
         continue;
       }
       // Channel already on this platform user; `integrator_user_id` stale vs canonical from integrator — realign if unique key allows.
-      const realign = await db.query(
-        `UPDATE public.platform_users SET
-           integrator_user_id = $1::bigint,
+      const realign = await runMergeSql(
+        db,
+        sql`UPDATE public.platform_users SET
+           integrator_user_id = ${canonicalIntegratorUserId}::bigint,
            updated_at = now()
-         WHERE id = $2::uuid
+         WHERE id = ${platformUserId}::uuid
            AND merged_into_id IS NULL
-           AND integrator_user_id::text = $3
+           AND integrator_user_id::text = ${existingInt}
            AND NOT EXISTS (
              SELECT 1 FROM public.platform_users pu2
-             WHERE pu2.integrator_user_id = $1::bigint
+             WHERE pu2.integrator_user_id = ${canonicalIntegratorUserId}::bigint
                AND pu2.merged_into_id IS NULL
-               AND pu2.id <> $2::uuid
+               AND pu2.id <> ${platformUserId}::uuid
            )`,
-        [canonicalIntegratorUserId, platformUserId, existingInt],
       );
       if ((realign.rowCount ?? 0) < 1) {
         throw new MessengerPhoneLinkError('integrator_id_mismatch', {

@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm';
 import { mergeLogger as logger } from './mergeLogger.js';
 import type { ManualMergeResolution } from './manualMergeResolution.js';
 import type { PlatformMergeDbClient } from './pgPlatformUserMerge.js';
+import { runMergeSql } from './mergeSql.js';
 import {
   normalizeSupplementaryContactEmail,
   normalizeSupplementaryContactPhone,
@@ -115,22 +117,23 @@ export async function repointPlatformUserContactsForMerge(
   duplicateId: string,
 ): Promise<void> {
   try {
-    await client.query(
-      `INSERT INTO platform_user_contacts (
+    await runMergeSql(
+      client,
+      sql`INSERT INTO platform_user_contacts (
          platform_user_id, contact_type, value, value_normalized, source, created_at, updated_at
        )
-       SELECT $1::uuid, contact_type, value, value_normalized, source, created_at, updated_at
+       SELECT ${targetId}::uuid, contact_type, value, value_normalized, source, created_at, updated_at
        FROM platform_user_contacts
-       WHERE platform_user_id = $2::uuid
+       WHERE platform_user_id = ${duplicateId}::uuid
        ON CONFLICT (platform_user_id, contact_type, value_normalized) DO UPDATE SET
          value = EXCLUDED.value,
          source = EXCLUDED.source,
          updated_at = GREATEST(platform_user_contacts.updated_at, EXCLUDED.updated_at)`,
-      [targetId, duplicateId],
     );
-    await client.query(`DELETE FROM platform_user_contacts WHERE platform_user_id = $1::uuid`, [
-      duplicateId,
-    ]);
+    await runMergeSql(
+      client,
+      sql`DELETE FROM platform_user_contacts WHERE platform_user_id = ${duplicateId}::uuid`,
+    );
   } catch (err) {
     logger.info(
       {
@@ -153,15 +156,15 @@ export async function persistMergeLosingContacts(
   const saved: MergeContactsSaved[] = [];
   for (const candidate of candidates) {
     try {
-      await client.query(
-        `INSERT INTO platform_user_contacts (
+      await runMergeSql(
+        client,
+        sql`INSERT INTO platform_user_contacts (
            platform_user_id, contact_type, value, value_normalized, source, created_at, updated_at
-         ) VALUES ($1::uuid, $2::text, $3::text, $4::text, 'merge', now(), now())
+         ) VALUES (${targetId}::uuid, ${candidate.contactType}::text, ${candidate.value}::text, ${candidate.valueNormalized}::text, 'merge', now(), now())
          ON CONFLICT (platform_user_id, contact_type, value_normalized) DO UPDATE SET
            value = EXCLUDED.value,
            source = 'merge',
            updated_at = now()`,
-        [targetId, candidate.contactType, candidate.value, candidate.valueNormalized],
       );
       saved.push({
         contactType: candidate.contactType,
@@ -189,11 +192,12 @@ export async function pruneIdentityPlatformUserContactsAfterMerge(
   targetId: string,
 ): Promise<void> {
   try {
-    await client.query(
-      `DELETE FROM platform_user_contacts AS p
+    await runMergeSql(
+      client,
+      sql`DELETE FROM platform_user_contacts AS p
        USING platform_users AS u
-       WHERE p.platform_user_id = $1::uuid
-         AND u.id = $1::uuid
+       WHERE p.platform_user_id = ${targetId}::uuid
+         AND u.id = ${targetId}::uuid
          AND (
            (
              p.contact_type IN ('phone', 'whatsapp')
@@ -206,7 +210,6 @@ export async function pruneIdentityPlatformUserContactsAfterMerge(
              AND p.value_normalized = u.email_normalized
            )
          )`,
-      [targetId],
     );
   } catch (err) {
     logger.info(

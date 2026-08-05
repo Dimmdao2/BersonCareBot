@@ -661,10 +661,16 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             (definer RPC, не Drizzle CRUD); platform-merge — shared `mergeSql.ts` (`runMergeSql`); `userIdentityFioWrite.ts`,
             `identityProjectionWrite.ts`, `phoneHistorySync.ts` — raw `.query()` strings → Drizzle `sql`
             fragments (compiled через `PgDialect`); `userContactsMirrorWrite.ts` — reuse `runMergeSql`.
-            `pnpm --dir packages/platform-merge typecheck` зелёный. **Остаток touched-path:** webapp
-            `userContactsSql.ts`/`userIdentityFioSql.ts` adapter bridges (`toMergeDbClient` → `runWebappPgText`);
-            platform-merge `messengerPhonePublicBind.ts`/`pgPlatformUserMerge.ts`/`mergeContactFallback.ts`;
-            `directPublic/*` — sql через порт, отдельный объём.
+            `pnpm --dir packages/platform-merge typecheck` зелёный. **ПРОГРЕСС 05.08 (#987, slice 4):**
+            webapp `userContactsSql.ts`/`userIdentityFioSql.ts` — убраны `toMergeDbClient`→`runWebappPgText`
+            bridges; mirror sync через `MergeSqlExecutor` + `runWebappSql`/`executeSql`. platform-merge —
+            `mergeSql.ts` расширен (`MergeSqlExecutor`, `runMergePgText`); `messengerPhonePublicBind.ts`,
+            `mergeContactFallback.ts`, `pgPlatformUserMerge.ts` — все production `.query()` → `runMergeSql` /
+            `runMergePgText` (единственный `.query` остался в адаптере `mergeDbClientToSqlExecutor`).
+            `pnpm --dir packages/platform-merge typecheck` и `pnpm --dir apps/integrator typecheck` зелёные;
+            `vitest run --project unit userContactsSql.unit.test.ts` 4/4. **Остаток D18b touched-path:**
+            `directPublic/*` и прочие не-touched webapp/integrator файлы с `runWebappPgText`/`.query` —
+            отдельный объём до pre-TEST Track D.
       - [x] **D18c — перепись остатка и снятие списка исключений, последним.** Когда вырезано всё, что вырезается:
             перепись поимённо с классификацией «миграция / законная обёртка / чистить», чистка остатка, список
             до нуля. Пункт закрывается тем, что проверка перестаёт находить исключения, а не отчётом.

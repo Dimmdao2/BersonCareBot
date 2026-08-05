@@ -1,10 +1,9 @@
-import type { PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient } from 'pg';
 import { eq, sql } from 'drizzle-orm';
 import { syncUserIdentityFioMirror } from '@bersoncare/platform-merge';
-import type { PlatformMergeDbClient } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
-  runWebappPgText,
+  runWebappSql,
   type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
@@ -25,20 +24,11 @@ export const FIO = {
 export const FIO_SELECT =
   `${FIO.displayName} AS display_name, ${FIO.firstName} AS first_name, ${FIO.lastName} AS last_name, ${FIO.patronymic} AS patronymic, ${FIO.birthDate} AS birth_date`;
 
-function toMergeDbClient(executor: WebappSqlExecutor | PoolClient): PlatformMergeDbClient {
-  const db =
-    'release' in executor && typeof (executor as PoolClient).release === 'function'
-      ? getWebappSqlFromPgClient(executor as PoolClient)
-      : (executor as WebappSqlExecutor);
-  return {
-    query: async <R extends QueryResultRow = QueryResultRow>(
-      text: string,
-      params?: unknown[],
-    ) => {
-      const r = await runWebappPgText<R>(text, params ?? [], db);
-      return { rows: r.rows, rowCount: r.rowCount };
-    },
-  };
+function resolveWebappSqlExecutor(executor: WebappSqlExecutor | PoolClient): WebappSqlExecutor {
+  if ('release' in executor && typeof (executor as PoolClient).release === 'function') {
+    return getWebappSqlFromPgClient(executor as PoolClient);
+  }
+  return executor as WebappSqlExecutor;
 }
 
 /** Mirror FIO from `platform_users` into `user_identity` after a write (D15b/5 dual-write). */
@@ -46,7 +36,10 @@ export async function syncUserIdentityFioMirrorWebapp(
   executor: WebappSqlExecutor | PoolClient,
   platformUserId: string,
 ): Promise<void> {
-  await syncUserIdentityFioMirror(toMergeDbClient(executor), platformUserId);
+  const db = resolveWebappSqlExecutor(executor);
+  await syncUserIdentityFioMirror({
+    executeSql: (fragment) => runWebappSql(db, fragment),
+  }, platformUserId);
 }
 
 /** Drizzle LEFT JOIN target: `userIdentity.platformUserId = platformUsers.id`. */
