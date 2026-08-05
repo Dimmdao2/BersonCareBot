@@ -9,6 +9,7 @@
  * duplicated as `pgUserProjection.mergeCandidates` (webapp) and `mergeCandidatesDirect.mergeCandidateIdsViaPlatformMerge`
  * (integrator) — both already called the same `mergePlatformUsersInTransaction` primitive below.
  */
+import { sql } from 'drizzle-orm';
 import { MergeConflictError } from './platformUserMergeErrors.js';
 import {
   mergePlatformUsersInTransaction,
@@ -18,6 +19,7 @@ import {
   type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
+import { runMergeSql } from './mergeSql.js';
 import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
 import { syncUserContactsMirror } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
@@ -58,10 +60,10 @@ async function loadCandidateForMerge(
   db: PlatformMergeDbClient,
   id: string,
 ): Promise<PickMergeTargetCandidate | null> {
-  const r = await db.query<IdentityMergeRow>(
-    `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, created_at
-     FROM platform_users WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [id],
+  const r = await runMergeSql<IdentityMergeRow>(
+    db,
+    sql`SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, created_at
+     FROM platform_users WHERE id = ${id}::uuid AND merged_into_id IS NULL`,
   );
   const row = r.rows[0];
   if (!row) return null;
@@ -120,11 +122,11 @@ export async function collectIdentityProjectionCandidates(
 ): Promise<string[]> {
   const ids: string[] = [];
 
-  const byInt = await db.query<{ id: string }>(
-    `SELECT id::text AS id FROM platform_users
-     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
+  const byInt = await runMergeSql<{ id: string }>(
+    db,
+    sql`SELECT id::text AS id FROM platform_users
+     WHERE integrator_user_id = ${params.integratorUserId}::bigint AND merged_into_id IS NULL
      LIMIT 3`,
-    [params.integratorUserId],
   );
   if (byInt.rows.length > 1) {
     throw new MergeConflictError(
@@ -136,11 +138,11 @@ export async function collectIdentityProjectionCandidates(
 
   const phoneNormalized = trimmedOrNull(params.phoneNormalized);
   if (phoneNormalized) {
-    const byPhone = await db.query<{ id: string }>(
-      `SELECT id::text AS id FROM platform_users
-       WHERE phone_normalized = $1 AND merged_into_id IS NULL
+    const byPhone = await runMergeSql<{ id: string }>(
+      db,
+      sql`SELECT id::text AS id FROM platform_users
+       WHERE phone_normalized = ${phoneNormalized} AND merged_into_id IS NULL
        LIMIT 3`,
-      [phoneNormalized],
     );
     if (byPhone.rows.length > 1) {
       throw new MergeConflictError(
@@ -154,13 +156,13 @@ export async function collectIdentityProjectionCandidates(
   const channelCode = trimmedOrNull(params.channelCode);
   const externalId = trimmedOrNull(params.externalId);
   if (channelCode && externalId) {
-    const byChannel = await db.query<{ user_id: string }>(
-      `SELECT pu.id::text AS user_id
+    const byChannel = await runMergeSql<{ user_id: string }>(
+      db,
+      sql`SELECT pu.id::text AS user_id
        FROM user_channel_bindings ucb
        INNER JOIN platform_users pu ON pu.id = ucb.user_id
-       WHERE ucb.channel_code = $1 AND ucb.external_id = $2 AND pu.merged_into_id IS NULL
+       WHERE ucb.channel_code = ${channelCode} AND ucb.external_id = ${externalId} AND pu.merged_into_id IS NULL
        LIMIT 1`,
-      [channelCode, externalId],
     );
     if (byChannel.rows[0]) ids.push(byChannel.rows[0].user_id);
   }
@@ -185,24 +187,17 @@ export async function insertIdentityProjection(
   },
 ): Promise<string> {
   const displayName = input.displayName ?? '';
-  const res = await db.query<{ id: string }>(
-    `INSERT INTO platform_users (
+  const res = await runMergeSql<{ id: string }>(
+    db,
+    sql`INSERT INTO platform_users (
        integrator_user_id, phone_normalized, display_name, first_name, last_name, email,
        patient_phone_trust_at
      )
      VALUES (
-       $1::bigint, $2, $3, $4, $5, $6,
-       CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN now() ELSE NULL END
+       ${input.integratorUserId}::bigint, ${input.phoneNormalized}, ${displayName}, ${input.firstName}, ${input.lastName}, ${input.email},
+       CASE WHEN ${input.phoneNormalized}::text IS NOT NULL AND trim(${input.phoneNormalized}::text) <> '' THEN now() ELSE NULL END
      )
      RETURNING id::text AS id`,
-    [
-      input.integratorUserId,
-      input.phoneNormalized,
-      displayName,
-      input.firstName,
-      input.lastName,
-      input.email,
-    ],
   );
   const id = res.rows[0]?.id;
   if (!id) throw new MergeConflictError('insertIdentityProjection: insert returned no id', []);
@@ -211,10 +206,10 @@ export async function insertIdentityProjection(
   if (phoneNormalized) {
     // D28: brand-new account created with an already-confirmed number — open its first active
     // `user_phone_history` spell (no prior row to close, unlike `enrichIdentityProjection`).
-    await db.query(
-      `INSERT INTO user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
-       VALUES ($1::uuid, $2::text, now(), NULL, 'projection')`,
-      [id, phoneNormalized],
+    await runMergeSql(
+      db,
+      sql`INSERT INTO user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
+       VALUES (${id}::uuid, ${phoneNormalized}::text, now(), NULL, 'projection')`,
     );
   }
   await syncUserIdentityFioMirror(db, id);
@@ -252,45 +247,36 @@ export async function enrichIdentityProjection(
     // new number lands, so the old number stops appearing confirmed.
     await syncPlatformUserPhoneHistoryOnConfirm(db, platformUserId, phoneNormalized, 'projection');
   }
-  const upd = await db.query(
-    `UPDATE platform_users SET
+  const upd = await runMergeSql(
+    db,
+    sql`UPDATE platform_users SET
        display_name = CASE
-         WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
-          AND $3::text IS NOT NULL AND trim($3::text) <> ''
-          AND $4::text IS NOT NULL AND trim($4::text) <> ''
-         THEN $2::text
+         WHEN ${input.displayName}::text IS NOT NULL AND trim(${input.displayName}::text) <> ''
+          AND ${input.firstName}::text IS NOT NULL AND trim(${input.firstName}::text) <> ''
+          AND ${input.lastName}::text IS NOT NULL AND trim(${input.lastName}::text) <> ''
+         THEN ${input.displayName}::text
          WHEN (display_name IS NULL OR trim(display_name) = '')
-          AND $2::text IS NOT NULL AND trim($2::text) <> ''
-         THEN $2::text
+          AND ${input.displayName}::text IS NOT NULL AND trim(${input.displayName}::text) <> ''
+         THEN ${input.displayName}::text
          ELSE display_name
        END,
        first_name = CASE
-         WHEN $8::text IN ('telegram', 'max') THEN COALESCE(first_name, $3::text)
-         ELSE COALESCE($3::text, first_name)
+         WHEN ${input.channelCode}::text IN ('telegram', 'max') THEN COALESCE(first_name, ${input.firstName}::text)
+         ELSE COALESCE(${input.firstName}::text, first_name)
        END,
        last_name = CASE
-         WHEN $8::text IN ('telegram', 'max') THEN COALESCE(last_name, $4::text)
-         ELSE COALESCE($4::text, last_name)
+         WHEN ${input.channelCode}::text IN ('telegram', 'max') THEN COALESCE(last_name, ${input.lastName}::text)
+         ELSE COALESCE(${input.lastName}::text, last_name)
        END,
-       email = COALESCE($5::text, email),
-       phone_normalized = COALESCE($6::text, phone_normalized),
+       email = COALESCE(${input.email}::text, email),
+       phone_normalized = COALESCE(${input.phoneNormalized}::text, phone_normalized),
        patient_phone_trust_at = CASE
-         WHEN $6::text IS NOT NULL AND trim($6::text) <> '' THEN now()
+         WHEN ${input.phoneNormalized}::text IS NOT NULL AND trim(${input.phoneNormalized}::text) <> '' THEN now()
          ELSE patient_phone_trust_at
        END,
-       integrator_user_id = COALESCE(integrator_user_id, $7::bigint),
+       integrator_user_id = COALESCE(integrator_user_id, ${input.integratorUserId}::bigint),
        updated_at = now()
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [
-      platformUserId,
-      input.displayName,
-      input.firstName,
-      input.lastName,
-      input.email,
-      input.phoneNormalized,
-      input.integratorUserId,
-      input.channelCode,
-    ],
+     WHERE id = ${platformUserId}::uuid AND merged_into_id IS NULL`,
   );
   if ((upd.rowCount ?? 0) < 1) {
     throw new MergeConflictError('enrichIdentityProjection: update matched no row', [
@@ -308,12 +294,12 @@ export async function upsertChannelBindingForProjection(
   channelCode: string,
   externalId: string,
 ): Promise<boolean> {
-  const res = await db.query<{ user_id: string }>(
-    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-     VALUES ($1::uuid, $2, $3)
+  const res = await runMergeSql<{ user_id: string }>(
+    db,
+    sql`INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
+     VALUES (${platformUserId}::uuid, ${channelCode}, ${externalId})
      ON CONFLICT (channel_code, external_id) DO NOTHING
      RETURNING user_id::text AS user_id`,
-    [platformUserId, channelCode, externalId],
   );
   return res.rows.length > 0;
 }
@@ -326,17 +312,17 @@ export async function seedChannelPreferencesDefaultsForProjection(
   now: Date,
 ): Promise<void> {
   if (!CHANNEL_PREFERENCES_SEED_CHANNELS.has(channelCode)) return;
-  await db.query(
-    `INSERT INTO user_channel_preferences (
+  await runMergeSql(
+    db,
+    sql`INSERT INTO user_channel_preferences (
        user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
      )
-     VALUES ($1::text, $1::uuid, $2, true, true, $3)
+     VALUES (${platformUserId}::text, ${platformUserId}::uuid, ${channelCode}, true, true, ${now})
      ON CONFLICT (user_id, channel_code) DO UPDATE SET
        platform_user_id = COALESCE(user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
        is_enabled_for_messages = true,
        is_enabled_for_notifications = true,
        updated_at = EXCLUDED.updated_at`,
-    [platformUserId, channelCode, now],
   );
 }
 

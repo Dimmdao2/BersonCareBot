@@ -1,11 +1,18 @@
 /**
  * Wave 3 phase 14B + R0/S3R — projection transactions go through `withPoolTransaction`.
- * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ * Domain SQL — Drizzle CRUD + `runWebappSql` for session/constraint fragments.
  */
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import { withPoolTransaction } from '@/infra/db/withClient';
-import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { nullableToIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappSql,
+  webappSqlFromPgText,
+  type WebappSqlExecutor,
+} from '@/infra/db/runWebappSql';
 import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
 import {
   upsertIdentityProjection,
@@ -13,10 +20,8 @@ import {
 } from '@bersoncare/platform-merge';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
-  CONTACTS,
+  drizzlePrimaryPhoneCol,
   syncUserContactsMirrorWebapp,
-  USER_CONTACTS_PRIMARY_EMAIL_LATERAL,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
 } from '@/infra/repos/userContactsSql';
 import { findCanonicalUserIdByPhone } from '@/infra/repos/pgCanonicalPlatformUser';
 import {
@@ -30,17 +35,27 @@ import {
   findPlatformUserIdWithPhoneConflict,
 } from '@/infra/repos/pgAdminClientProfileConflicts';
 import type { UserProjectionPort } from '@/modules/identity/ports';
+import {
+  platformUsers,
+  userNotificationTopics,
+} from '../../../db/schema/schema';
 
-function txPgText<T = unknown>(
+function txExecutor(client: PoolClient): WebappSqlExecutor {
+  return getWebappSqlFromPgClient(client);
+}
+
+async function txSql<T = unknown>(
   client: PoolClient,
-  queryText: string,
-  values: readonly unknown[] = [],
+  fragment: ReturnType<typeof sql.raw> | Parameters<typeof runWebappSql<T>>[1],
 ) {
-  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
+  return runWebappSql<T>(txExecutor(client), fragment);
 }
 
 function deferPlatformUserUniqueConstraints(client: PoolClient) {
-  return txPgText(client, `SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`);
+  return txSql(
+    client,
+    sql`SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`,
+  );
 }
 
 class PatchAdminClientProfileNoRowsError extends Error {
@@ -96,15 +111,21 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async findByIntegratorId(integratorUserId) {
-    const result = await runWebappPgText<{ id: string; phone_normalized: string | null }>(
-      `SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized
-       FROM platform_users pu
-       ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
-       WHERE pu.integrator_user_id = $1::bigint AND pu.merged_into_id IS NULL`,
-      [integratorUserId],
-    );
-    if (result.rows.length === 0) return null;
-    const row = result.rows[0]!;
+    const rows = await getWebappSqlDb()
+      .select({
+        id: platformUsers.id,
+        phone_normalized: drizzlePrimaryPhoneCol,
+      })
+      .from(platformUsers)
+      .where(
+        and(
+          eq(platformUsers.integratorUserId, Number(integratorUserId)),
+          isNull(platformUsers.mergedIntoId),
+        ),
+      )
+      .limit(1);
+    if (rows.length === 0) return null;
+    const row = rows[0]!;
     return { platformUserId: row.id, phoneNormalized: row.phone_normalized };
   },
 
@@ -117,11 +138,15 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const pool = getPool();
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpdatePhone);
     await withPoolTransaction(pool, async (client) => {
-      await txPgText(
-        client,
-        'UPDATE platform_users SET phone_normalized = $1, patient_phone_trust_at = now(), updated_at = now() WHERE id = $2',
-        [phoneNormalized, platformUserId],
-      );
+      const tx = txExecutor(client);
+      await tx
+        .update(platformUsers)
+        .set({
+          phoneNormalized,
+          patientPhoneTrustAt: sql`now()`,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(platformUsers.id, platformUserId));
       await applyPlatformUserPhoneHistoryTransition(client, {
         platformUserId,
         newPhoneNormalized: phoneNormalized,
@@ -150,12 +175,14 @@ export const pgUserProjectionPort: UserProjectionPort = {
     vals.push(params.phoneNormalized);
     const pool = getPool();
     await withPoolTransaction(pool, async (client) => {
-      const updated = await txPgText<{ id: string }>(
+      const updated = await txSql<{ id: string }>(
         client,
-        `UPDATE platform_users SET ${sets.join(', ')}
+        webappSqlFromPgText(
+          `UPDATE platform_users SET ${sets.join(', ')}
          WHERE phone_normalized = $${idx + 1} AND merged_into_id IS NULL
          RETURNING id`,
-        vals,
+          vals,
+        ),
       );
       for (const row of updated.rows) {
         await syncUserIdentityFioMirrorWebapp(client, row.id);
@@ -169,14 +196,22 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async upsertNotificationTopics(params) {
+    const db = getWebappSqlDb();
     for (const topic of params.topics) {
-      await runWebappPgText(
-        `INSERT INTO user_notification_topics (user_id, topic_code, is_enabled)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (user_id, topic_code) DO UPDATE SET
-           is_enabled = EXCLUDED.is_enabled, updated_at = now()`,
-        [params.platformUserId, topic.topicCode, topic.isEnabled],
-      );
+      await db
+        .insert(userNotificationTopics)
+        .values({
+          userId: params.platformUserId,
+          topicCode: topic.topicCode,
+          isEnabled: topic.isEnabled,
+        })
+        .onConflictDoUpdate({
+          target: [userNotificationTopics.userId, userNotificationTopics.topicCode],
+          set: {
+            isEnabled: topic.isEnabled,
+            updatedAt: sql`now()`,
+          },
+        });
     }
   },
 
@@ -185,13 +220,13 @@ export const pgUserProjectionPort: UserProjectionPort = {
     // under the OLD role cannot keep riding on stale claims. `session_epoch` only increments when the
     // role actually changes (IS DISTINCT FROM), so a no-op call (role already correct) does not force
     // a needless re-login.
-    const result = await runWebappPgText(
-      `UPDATE platform_users SET
-         role = $1,
-         session_epoch = session_epoch + CASE WHEN role IS DISTINCT FROM $1 THEN 1 ELSE 0 END,
+    const result = await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE platform_users SET
+         role = ${role},
+         session_epoch = session_epoch + CASE WHEN role IS DISTINCT FROM ${role} THEN 1 ELSE 0 END,
          updated_at = now()
-       WHERE id = $2`,
-      [role, platformUserId],
+       WHERE id = ${platformUserId}::uuid`,
     );
     if (result.rowCount === 0) {
       throw new Error(`updateRole: user ${platformUserId} not found`);
@@ -199,20 +234,18 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async getProfileEmailFields(platformUserId) {
-    const result = await runWebappPgText<{
-      email: string | null;
-      email_verified_at: Date | string | null;
-    }>(
-      `SELECT pu.email, pu.email_verified_at
-       FROM platform_users pu
-       ${USER_CONTACTS_PRIMARY_EMAIL_LATERAL}
-       WHERE pu.id = $1`,
-      [platformUserId],
-    );
-    if (result.rows.length === 0) {
+    const rows = await getWebappSqlDb()
+      .select({
+        email: platformUsers.email,
+        email_verified_at: platformUsers.emailVerifiedAt,
+      })
+      .from(platformUsers)
+      .where(eq(platformUsers.id, platformUserId))
+      .limit(1);
+    if (rows.length === 0) {
       return { email: null, emailVerifiedAt: null };
     }
-    const row = result.rows[0];
+    const row = rows[0]!;
     return {
       email: row.email,
       emailVerifiedAt: nullableToIsoStringSafe(row.email_verified_at),
@@ -220,25 +253,41 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async clearStaffAccountEmail(platformUserId) {
-    const current = await runWebappPgText<{ email: string | null }>(
-      `SELECT email FROM platform_users
-       WHERE id = $1::uuid AND role IN ('doctor', 'admin') AND merged_into_id IS NULL`,
-      [platformUserId],
-    );
-    if (current.rows.length === 0) {
+    const db = getWebappSqlDb();
+    const current = await db
+      .select({ email: platformUsers.email })
+      .from(platformUsers)
+      .where(
+        and(
+          eq(platformUsers.id, platformUserId),
+          inArray(platformUsers.role, ['doctor', 'admin']),
+          isNull(platformUsers.mergedIntoId),
+        ),
+      )
+      .limit(1);
+    if (current.length === 0) {
       return { ok: false as const, reason: 'not_found_or_not_staff' as const };
     }
-    const email = current.rows[0]?.email;
+    const email = current[0]?.email;
     if (email == null || email.trim() === '') {
       return { ok: false as const, reason: 'already_empty' as const };
     }
-    await runWebappPgText(
-      `UPDATE platform_users
-       SET email = NULL, email_normalized = NULL, email_verified_at = NULL, updated_at = now()
-       WHERE id = $1::uuid AND role IN ('doctor', 'admin') AND merged_into_id IS NULL`,
-      [platformUserId],
-    );
-    await syncUserContactsMirrorWebapp(getPool(), platformUserId);
+    await db
+      .update(platformUsers)
+      .set({
+        email: null,
+        emailNormalized: null,
+        emailVerifiedAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(platformUsers.id, platformUserId),
+          inArray(platformUsers.role, ['doctor', 'admin']),
+          isNull(platformUsers.mergedIntoId),
+        ),
+      );
+    await syncUserContactsMirrorWebapp(db, platformUserId);
     return { ok: true as const };
   },
 
@@ -312,11 +361,13 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
     try {
       return await withPoolTransaction(pool, async (client) => {
-        const result = await txPgText(
+        const result = await txSql(
           client,
-          `UPDATE platform_users SET ${sets.join(', ')}
+          webappSqlFromPgText(
+            `UPDATE platform_users SET ${sets.join(', ')}
            WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
-          vals,
+            vals,
+          ),
         );
 
         if ((result.rowCount ?? 0) === 0) {

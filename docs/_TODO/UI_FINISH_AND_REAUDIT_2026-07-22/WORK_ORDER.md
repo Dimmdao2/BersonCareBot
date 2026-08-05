@@ -653,9 +653,18 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             `PgDialect`, `drizzle-orm` dep); webapp `pgOAuthUserResolve.ts` — все 10 `runWebappPgText` убраны
             (Drizzle CRUD + `runWebappSql` только для `app.*` definer RPC). `pnpm --dir apps/integrator
             typecheck` и `pnpm --dir packages/platform-merge typecheck` зелёные; `pgOAuthUserResolve.ts` без
-            новых TS-ошибок. **Остаток touched-path:** D15b readers — `pgUserProjection.ts`,
-            `pgPatientOrganization.ts`, `userContactsSql.ts`/`userIdentityFioSql.ts` adapters,
-            `userIdentityFioWrite.ts` (platform-merge); `directPublic/*` — sql через порт, отдельный объём.
+            новых TS-ошибок. **ПРОГРЕСС 05.08 (#987, slice 3):** webapp `pgUserProjection.ts` — все
+            `runWebappPgText` убраны (Drizzle CRUD на `platformUsers`/`userNotificationTopics`; dynamic
+            profile patches через `runWebappSql`+`webappSqlFromPgText`; `session_epoch`/`SET CONSTRAINTS` —
+            `runWebappSql` fragments); `pgPatientOrganization.ts` — `runWebappPgText` → `runWebappSql` для
+            `app.read_current_patient_active_organizations` / `app.resolve_current_patient_treatment_program_organization`
+            (definer RPC, не Drizzle CRUD); platform-merge — shared `mergeSql.ts` (`runMergeSql`); `userIdentityFioWrite.ts`,
+            `identityProjectionWrite.ts`, `phoneHistorySync.ts` — raw `.query()` strings → Drizzle `sql`
+            fragments (compiled через `PgDialect`); `userContactsMirrorWrite.ts` — reuse `runMergeSql`.
+            `pnpm --dir packages/platform-merge typecheck` зелёный. **Остаток touched-path:** webapp
+            `userContactsSql.ts`/`userIdentityFioSql.ts` adapter bridges (`toMergeDbClient` → `runWebappPgText`);
+            platform-merge `messengerPhonePublicBind.ts`/`pgPlatformUserMerge.ts`/`mergeContactFallback.ts`;
+            `directPublic/*` — sql через порт, отдельный объём.
       - [x] **D18c — перепись остатка и снятие списка исключений, последним.** Когда вырезано всё, что вырезается:
             перепись поимённо с классификацией «миграция / законная обёртка / чистить», чистка остатка, список
             до нуля. Пункт закрывается тем, что проверка перестаёт находить исключения, а не отчётом.

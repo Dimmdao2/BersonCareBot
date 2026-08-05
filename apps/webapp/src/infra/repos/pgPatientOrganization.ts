@@ -1,8 +1,9 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   CreateManualOrganizationClientResult,
@@ -75,8 +76,9 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
     async listActiveEnrollmentsByPlatformUser(platformUserId) {
       void platformUserId;
       const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
-        runWebappPgText<ActiveOrganizationRow>(
-          'SELECT * FROM app.read_current_patient_active_organizations()',
+        runWebappSql<ActiveOrganizationRow>(
+          getWebappSqlDb(),
+          sql`SELECT * FROM app.read_current_patient_active_organizations()`,
         ),
       );
       return result.rows.map(mapOrgEnrollment);
@@ -255,9 +257,9 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
     async findTreatmentProgramOrganizationForPatient(platformUserId, instanceId) {
       void platformUserId;
       const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
-        runWebappPgText<{ organization_id: string | null }>(
-          'SELECT app.resolve_current_patient_treatment_program_organization($1::uuid) AS organization_id',
-          [instanceId],
+        runWebappSql<{ organization_id: string | null }>(
+          getWebappSqlDb(),
+          sql`SELECT app.resolve_current_patient_treatment_program_organization(${instanceId}::uuid) AS organization_id`,
         ),
       );
       return result.rows[0]?.organization_id ?? null;

@@ -1,13 +1,6 @@
-import { sql, type SQL } from 'drizzle-orm';
-import { PgDialect } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import type { PlatformMergeDbClient } from './pgPlatformUserMerge.js';
-
-const pgDialect = new PgDialect();
-
-async function runMergeSql(db: PlatformMergeDbClient, fragment: SQL): Promise<void> {
-  const { sql: text, params } = pgDialect.sqlToQuery(fragment);
-  await db.query(text, params);
-}
+import { runMergeSql } from './mergeSql.js';
 
 /**
  * D15b/6 dual-write: rebuild `user_contacts` for one user from the four source tables.

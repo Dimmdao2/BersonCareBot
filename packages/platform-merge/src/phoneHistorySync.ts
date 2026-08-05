@@ -7,7 +7,9 @@
  * row forever (`uq_user_phone_history_phone_active`), which is exactly the state that later blocks a
  * different, legitimate owner of that same (reassigned/SIM-recycled) number from confirming it themselves.
  */
+import { sql } from 'drizzle-orm';
 import type { PlatformMergeDbClient } from './pgPlatformUserMerge.js';
+import { runMergeSql } from './mergeSql.js';
 
 /** `user_phone_history.source` values written by this package's own confirm-paths. */
 export type PhoneHistorySyncSource = 'messenger' | 'projection';
@@ -26,20 +28,20 @@ export async function syncPlatformUserPhoneHistoryOnConfirm(
   newPhoneNormalized: string,
   source: PhoneHistorySyncSource,
 ): Promise<void> {
-  const current = await db.query<{ phone_normalized: string | null }>(
-    `SELECT phone_normalized FROM public.platform_users WHERE id = $1::uuid`,
-    [platformUserId],
+  const current = await runMergeSql<{ phone_normalized: string | null }>(
+    db,
+    sql`SELECT phone_normalized FROM public.platform_users WHERE id = ${platformUserId}::uuid`,
   );
   if (current.rows[0]?.phone_normalized === newPhoneNormalized) return;
 
-  await db.query(
-    `UPDATE public.user_phone_history SET valid_to = now()
-     WHERE platform_user_id = $1::uuid AND valid_to IS NULL`,
-    [platformUserId],
+  await runMergeSql(
+    db,
+    sql`UPDATE public.user_phone_history SET valid_to = now()
+     WHERE platform_user_id = ${platformUserId}::uuid AND valid_to IS NULL`,
   );
-  await db.query(
-    `INSERT INTO public.user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
-     VALUES ($1::uuid, $2::text, now(), NULL, $3::text)`,
-    [platformUserId, newPhoneNormalized, source],
+  await runMergeSql(
+    db,
+    sql`INSERT INTO public.user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
+     VALUES (${platformUserId}::uuid, ${newPhoneNormalized}::text, now(), NULL, ${source}::text)`,
   );
 }
