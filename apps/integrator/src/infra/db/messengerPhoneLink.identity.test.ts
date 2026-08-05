@@ -258,6 +258,17 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       return rows([{ id }]);
     }
     if (q.startsWith('update platform_users')) {
+      if (
+        q.includes('phone_normalized = $1') &&
+        q.includes('patient_phone_trust_at') &&
+        q.includes('id = $3')
+      ) {
+        const hit = tables.platformUsers.find((u) => u.id === p[2] && u.merged_into_id === null);
+        if (!hit) return rows([]);
+        hit.phone_normalized = at(0);
+        if (hit.integrator_user_id === null) hit.integrator_user_id = at(1);
+        return { rows: [] as T[], rowCount: 1 };
+      }
       if (q.includes('phone_normalized = $2')) {
         const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
         if (!hit) return rows([]);
@@ -808,7 +819,7 @@ describe('чужой якорь канала при записи идентич�
   // кандидат пришёл ТОЛЬКО из привязки канала и его `integrator_user_id` непуст и не равен
   // каноническому — отказывать явным кодом (например `channel_anchor_owned_by_other_user`), как
   // уже делает `applyMessengerPhonePublicBind` для похожего случая.
-  it.fails('дано: канал привязан к чужому аккаунту, а своего у человека ещё нет → тогда ЯВНЫЙ отказ, и настройки НЕ уходят в чужой аккаунт (план: D20_INTEGRATOR_MAP.md, Уровень 1 п.6)', async () => {
+  it('дано: канал привязан к чужому аккаунту, а своего у человека ещё нет → тогда ЯВНЫЙ отказ, и настройки НЕ уходят в чужой аккаунт (план: D20_INTEGRATOR_MAP.md, Уровень 1 п.6)', async () => {
     // ФАКТ на сегодня (не то, что проверяет этот тест): отказа в коде нет — единственным
     // кандидатом становится чужой аккаунт, и настройки молча пишутся в него.
     const tables = emptyTables({

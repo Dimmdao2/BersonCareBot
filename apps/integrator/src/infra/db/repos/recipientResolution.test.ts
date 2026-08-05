@@ -29,6 +29,26 @@ import {
   parseMaxPlatformUserId,
   readMaxOutboundRecipient,
 } from '../../../integrations/max/maxRecipient.js';
+
+const drizzleLimitResults = vi.hoisted(() => ({ queue: [] as Record<string, unknown>[][] }));
+
+vi.mock('../drizzle.js', () => ({
+  getIntegratorDrizzleSession: () => ({
+    select: () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: () => ({
+            limit: async () => drizzleLimitResults.queue.shift() ?? [],
+          }),
+        }),
+        where: () => ({
+          limit: async () => drizzleLimitResults.queue.shift() ?? [],
+        }),
+      }),
+    }),
+  }),
+}));
+
 import { resolveCanonicalPlatformUserIdByChannel } from './platformUserByChannel.js';
 import { getPhoneNormalizedForDeliveryLookup } from './platformUserDeliveryPhone.js';
 
@@ -189,6 +209,7 @@ describe('резолв платформенного пользователя: «
   it('дано: привязки канала нет → когда резолв по каналу → тогда null, и отправлять некому', async () => {
     // АРБИТР: в resolveCanonicalPlatformUserIdByChannel() вернуть `row?.platform_user_id ?? ''`
     // вместо null-проверки — второй expect (пустая строка) покраснеет.
+    drizzleLimitResults.queue = [[]];
     const empty = fakeDb([]);
     expect(await resolveCanonicalPlatformUserIdByChannel(empty, {
       channelCode: 'telegram',
@@ -202,6 +223,7 @@ describe('резолв платформенного пользователя: «
     // АРБИТР: в resolveCanonicalPlatformUserIdByChannel() заменить возврат на
     // `return row?.platform_user_id ?? null` (без проверки trim) — тест покраснеет:
     // вернётся '   ' вместо null.
+    drizzleLimitResults.queue = [[{ userId: '   ' }], [{ mergedIntoId: null }]];
     const blank = fakeDb([{ platform_user_id: '   ' }]);
     return expect(
       resolveCanonicalPlatformUserIdByChannel(blank, {
@@ -214,6 +236,10 @@ describe('резолв платформенного пользователя: «
   it('дано: id найден с посторонними пробелами → когда резолв → тогда он обрезан до канонической формы', () => {
     // Один и тот же человек не должен получаться «двумя разными» из-за пробела в ключе.
     // АРБИТР: убрать `.trim()` в возвращаемом значении — тест покраснеет.
+    drizzleLimitResults.queue = [
+      [{ userId: ' 1c312a64-fab8-4b75-b24e-88a1d6ebe4e0 ' }],
+      [{ mergedIntoId: null }],
+    ];
     const found = fakeDb([{ platform_user_id: ' 1c312a64-fab8-4b75-b24e-88a1d6ebe4e0 ' }]);
     return expect(
       resolveCanonicalPlatformUserIdByChannel(found, {
@@ -241,6 +267,7 @@ describe('резолв платформенного пользователя: «
   it('дано: у найденного пользователя телефон пуст → когда резолв → тогда null, а не пустой номер в SMS', () => {
     // АРБИТР: в getPhoneNormalizedForDeliveryLookup() вернуть `raw ?? null` без проверки
     // на непустоту — пробельная строка дойдёт до SMS-адаптера, и первый expect покраснеет.
+    drizzleLimitResults.queue = [[{ phoneNormalized: '   ' }], [{ phoneNormalized: null }]];
     const blank = fakeDb([{ phone_normalized: '   ' }]);
     const missing = fakeDb([{ phone_normalized: null }]);
     return Promise.all([

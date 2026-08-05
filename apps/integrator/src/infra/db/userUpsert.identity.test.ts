@@ -164,7 +164,8 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       return rows([{ user_id: p[0] }]);
     }
     if (q.startsWith('insert into user_channel_preferences')) {
-      tables.channelPrefs.push({ user_id: p[0]!, channel_code: p[1]! });
+      const channelCode = q.includes('is_enabled_for_messages') ? (p[2] ?? p[1])! : p[1]!;
+      tables.channelPrefs.push({ user_id: p[0]!, channel_code: channelCode });
       return rows([]);
     }
     if (q.startsWith('insert into user_notification_topics')) return rows([]);
@@ -277,7 +278,18 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       return rows([{ id }]);
     }
     if (q.startsWith('update platform_users')) {
-      // `applyMessengerPhonePublicBind`'s final phone-set UPDATE (3 params: id, phone, integratorId).
+      if (
+        q.includes('phone_normalized = $1') &&
+        q.includes('patient_phone_trust_at') &&
+        q.includes('id = $3')
+      ) {
+        const hit = tables.platformUsers.find((u) => u.id === p[2] && u.merged_into_id === null);
+        if (!hit) return { rows: [] as T[], rowCount: 0 };
+        hit.phone_normalized = at(0);
+        if (!hit.integrator_user_id) hit.integrator_user_id = at(1);
+        return { rows: [] as T[], rowCount: 1 };
+      }
+      // `applyMessengerPhonePublicBind`'s final phone-set UPDATE (legacy 3-param shape: id, phone, integratorId).
       if (q.includes('phone_normalized = $2')) {
         const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
         if (!hit) return { rows: [] as T[], rowCount: 0 };
@@ -297,8 +309,29 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
         hit.integrator_user_id = at(0);
         return { rows: [] as T[], rowCount: 1 };
       }
-      // enrichIdentityProjection params: [platformUserId, displayName, firstName, lastName, email,
-      // phoneNormalized, integratorUserId, channelCode]
+      // enrichIdentityProjection: platformUserId is bound last (`WHERE id = $N`).
+      if (q.includes('display_name = case')) {
+        const idMatch = q.match(/where id = \$(\d+)/);
+        const platformUserId = idMatch ? at(Number(idMatch[1]) - 1) : p[0];
+        const hit = tables.platformUsers.find(
+          (u) => u.id === platformUserId && u.merged_into_id === null,
+        );
+        if (!hit) return { rows: [] as T[], rowCount: 0 };
+        const [, displayName, firstName, lastName, , phoneNormalized, integratorUserId, channelCode] = p;
+        const isMessenger = channelCode === 'telegram' || channelCode === 'max';
+        if (displayName && firstName && lastName) hit.display_name = displayName;
+        else if (!hit.display_name && displayName) hit.display_name = displayName;
+        hit.first_name = isMessenger
+          ? (hit.first_name ?? firstName ?? null)
+          : (firstName ?? hit.first_name ?? null);
+        hit.last_name = isMessenger
+          ? (hit.last_name ?? lastName ?? null)
+          : (lastName ?? hit.last_name ?? null);
+        if (phoneNormalized) hit.phone_normalized = phoneNormalized;
+        if (integratorUserId && !hit.integrator_user_id) hit.integrator_user_id = integratorUserId;
+        return { rows: [] as T[], rowCount: 1 };
+      }
+      // enrichIdentityProjection (legacy param order): [platformUserId, displayName, ...]
       const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
       if (!hit) return { rows: [] as T[], rowCount: 0 };
       const [, displayName, firstName, lastName, , phoneNormalized, integratorUserId, channelCode] = p;

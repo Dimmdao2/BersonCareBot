@@ -133,6 +133,19 @@ function makeDb(state: State) {
       return { rows: [], rowCount: 1 };
     }
 
+    if (
+      q.startsWith('update platform_users') &&
+      q.includes('phone_normalized = $1') &&
+      q.includes('patient_phone_trust_at') &&
+      q.includes('id = $3')
+    ) {
+      const hit = state.platformUsers.find((u) => u.id === p[2] && u.merged_into_id === null);
+      if (!hit) return { rows: [], rowCount: 0 };
+      hit.phone_normalized = at(0);
+      if (hit.integrator_user_id === null) hit.integrator_user_id = at(1);
+      return { rows: [], rowCount: 1 };
+    }
+
     if (q.startsWith('delete from user_contacts')) {
       const before = state.userContacts.length;
       state.userContacts = state.userContacts.filter((uc) => uc.platform_user_id !== p[0]);
@@ -199,7 +212,9 @@ describe('D15b/6 MF-2 — applyMessengerPhonePublicBind after 0380', () => {
         is_primary: true,
       },
     ]);
-    const updateIdx = db.statements.findIndex((s) => s.includes('update platform_users') && s.includes('phone_normalized = $2'));
+    const updateIdx = db.statements.findIndex(
+      (s) => s.includes('update platform_users') && s.includes('phone_normalized = $1'),
+    );
     const mirrorIdx = db.statements.findIndex((s) => s.startsWith('delete from user_contacts'));
     expect(updateIdx).toBeGreaterThanOrEqual(0);
     expect(mirrorIdx).toBeGreaterThan(updateIdx);
