@@ -270,7 +270,19 @@ Patient-card **−30% bundle gate FAIL** (manifest method unchanged vs §4; no `
 
 **Chromium headless (local profile, TEST cookies, no 4G throttle):** raw `/tmp/doctor-runtime-a71e222b3.json` — cold FCP 180–304ms, idle 1.1–1.6s; patient tab switch → duplicate `GET …/payments` (×2). Stream heuristic: shell/tabs before heavy overview media; `?tab=records` deep-link — no overview APIs.
 
-**Next product slice (не DB):** lazy `TemplateEditor`, dynamic chat in `DoctorOpenChatButton`, defer FullCalendar on home/schedule — порядок из bundle advisory.
+**Next product slice (FCP, не DB):** advisory [Trace first-load bundles](ef3a13eb-7457-428f-b7cb-40d4d8c6c427) — gzip cold JS доминирует FCP на 4G; TTFB не узкое место.
+
+| P0 | Маршрут | Файлы | Est. −gzip | Статус |
+|----|---------|-------|------------|--------|
+| 1 | lfk-templates | `LfkTemplatesPageClient.tsx` — не монтировать `TemplateEditor` до create/select | ~80–120KB | open |
+| 2 | patient-card (+ home/schedule panel) | `DoctorOpenChatButton.tsx` — `next/dynamic` chat chunk | ~40–70KB | **code** `DoctorOpenChatButton.tsx` |
+| 3 | home | `DoctorTodayMiniCalendar.tsx` — убрать/отложить FullCalendar с first paint | ~100–180KB | open |
+| 3b | home (мин.) | `TodayMiniCalendarWithModal.tsx` — dynamic только `DoctorCalendarEventPanel` | ~30–50KB | open |
+| 4–5 | schedule | `ScheduleCalendarTab.tsx` — dynamic event panel / FC grid | med | open |
+
+**Bundle gate:** patient-card −30% **FAIL** (manifest +0.4% §7); `patient-card-progressive` todo = streaming code only, **не** bundle acceptance.
+
+**Проверка после slice:** compressed JS / manifest на TEST, не только nginx p95.
 
 ---
 

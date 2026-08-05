@@ -12,7 +12,7 @@ todos:
     content: Классифицировать post-load fetch и перенести данные первого видимого экрана в общие server-first loaders
     status: completed
   - id: patient-card-progressive
-    content: "УСТАРЕЛО/ЗАМЕНЕНО → doctor-loading-closure (DL-MSG/DL-TZ/DL-STREAM). Перевести карточку клиента на active-tab server bootstrap, Suspense и lazy visited-tab mounting без потери состояния"
+    content: "УСТАРЕЛО/ЗАМЕНЕНО → closure DL-STREAM. Streaming code done; bundle −30% gate FAIL (§7) — не acceptance close"
     status: completed
   - id: route-rollout
     content: "Catalogs (Stage 2 b2032b468) + schedule/Today (Stage 3 7821a26a6). test-rollout closed owner Safari 2026-08-05"

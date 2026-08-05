@@ -1,9 +1,17 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { type ComponentProps, type ReactNode, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
-import { DoctorClientEmbeddedChat } from '@/app/app/doctor/clients/DoctorClientEmbeddedChat';
+
+const DoctorClientEmbeddedChat = dynamic(
+  () =>
+    import('@/app/app/doctor/clients/DoctorClientEmbeddedChat').then(
+      (mod) => mod.DoctorClientEmbeddedChat,
+    ),
+  { ssr: false },
+);
 
 type Props = {
   patientUserId: string;
@@ -20,9 +28,9 @@ type Props = {
 /**
  * Универсальная кнопка «Открыть чат» + модалка с чистой перепиской клиента.
  *
- * Открывает переписку (DoctorClientEmbeddedChat) в модалке БЕЗ ухода со страницы —
- * годится и для Заявок, и для карточки пациента. Чат монтируется ЛЕНИВО (только когда
- * модалка открыта), поэтому переписка не грузится, пока кнопку не нажали.
+ * Открывает переписку в модалке БЕЗ ухода со страницы — годится для Заявок и карточки
+ * пациента. `DoctorClientEmbeddedChat` — отдельный `next/dynamic` chunk, грузится только
+ * после открытия модалки (статический import тянул ChatView в parser bundle родительских страниц).
  */
 export function DoctorOpenChatButton({
   patientUserId,
