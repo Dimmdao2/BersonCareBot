@@ -367,6 +367,7 @@ import {
   wrapContentPagesPortWithWriteClearance,
   wrapContentSectionsPortWithWriteClearance,
 } from '@/app-layer/content/contentWriteClearancePorts';
+import { wrapSystemSettingsServiceWithPatientHomeWriteClearance } from '@/app-layer/patient-home/patientHomeSettingsWriteClearance';
 import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
@@ -600,6 +601,7 @@ const orgEntitlementsPort = !inMemoryRepos
  */
 const orgBrandingService = createOrgBrandingService({
   port: !inMemoryRepos ? createPgOrgBrandingPort() : createInMemoryOrgBrandingPort(),
+  assertWriteClearance: assertMechanicWriteClearance,
   resolveBrandingAccess: (organizationId: string) =>
     resolveMechanicAccess(orgEntitlementsPort, organizationId, 'branding'),
 });
@@ -776,10 +778,14 @@ const systemSettingsPort = !inMemoryRepos
 const appRuntimeSettingsPort = !inMemoryRepos
   ? createPgAppRuntimeSettingsPort()
   : inMemoryAppRuntimeSettingsPort;
-const systemSettingsService = createSystemSettingsService(systemSettingsPort, {
+const systemSettingsServiceBase = createSystemSettingsService(systemSettingsPort, {
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
 });
+const systemSettingsService = wrapSystemSettingsServiceWithPatientHomeWriteClearance(
+  systemSettingsServiceBase,
+  assertMechanicWriteClearance,
+);
 const specialistTasksPort = !inMemoryRepos
   ? createPgSpecialistTasksPort((task) =>
       prepareSpecialistTaskReminderDeliveries(task, {
@@ -803,7 +809,9 @@ const specialistTasksPort = !inMemoryRepos
       }),
     )
   : inMemorySpecialistTasksPort;
-const specialistTasksService = createSpecialistTasksService(specialistTasksPort);
+const specialistTasksService = createSpecialistTasksService(specialistTasksPort, {
+  assertWriteClearance: assertMechanicWriteClearance,
+});
 let platformEntitlementsService!: ReturnType<typeof createPlatformEntitlementsService>;
 const saasBillingService = createSaasBillingService({
   repository: saasBillingRepository,
@@ -827,7 +835,9 @@ platformEntitlementsService = createPlatformEntitlementsService(
     : createInMemoryPlatformEntitlementsPort(),
 );
 const runtimeConfig = createRuntimeConfigProvider(appRuntimeSettingsPort);
-const notifTemplatesService = createNotifTemplatesService(systemSettingsService);
+const notifTemplatesService = createNotifTemplatesService(systemSettingsService, {
+  assertWriteClearance: assertMechanicWriteClearance,
+});
 const doctorAppointmentsPort = doctorAppointmentsCanonicalPort;
 const doctorAnalyticsMetricAccountsPort =
   !inMemoryRepos && bookingEngineCorePort
@@ -1238,6 +1248,7 @@ const patientHomeBlocksService = createPatientHomeBlocksService({
   contentPages: contentPagesPort,
   contentSections: contentSectionsPort,
   courses: coursesService,
+  assertWriteClearance: assertMechanicWriteClearance,
 });
 const treatmentProgramProgressService = createTreatmentProgramProgressService({
   instances: treatmentProgramInstancePort,

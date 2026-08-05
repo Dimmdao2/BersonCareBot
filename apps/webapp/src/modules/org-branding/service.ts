@@ -148,6 +148,11 @@ function brandingMutationFailure(state: MechanicAccessState): OrgBrandMutationFa
 export function createOrgBrandingService(deps: {
   port: OrgBrandingPort;
   /**
+   * 3.2: physically refuses branding writes unless a passing `branding` mutation decision
+   * already ran in this request (injected from `buildAppDeps.ts`).
+   */
+  assertWriteClearance?: (mechanic: 'branding') => void;
+  /**
    * Existing entitlement resolver, wired at the composition root. Only paid additions depend on
    * it — core context never does (§3.4). The complete access state, rather than a boolean, keeps
    * presentation visible in `read_only` while refusing mutations through the same tariff ladder.
@@ -240,6 +245,7 @@ export function createOrgBrandingService(deps: {
         (await deps.resolveBrandingAccess(ctx.organizationId)).state,
       );
       if (failure) return failure;
+      deps.assertWriteClearance?.('branding');
       const draft = await deps.port.saveDraft({
         // The trusted context is the ONLY source of the organization id.
         organizationId: ctx.organizationId,
@@ -257,6 +263,7 @@ export function createOrgBrandingService(deps: {
         (await deps.resolveBrandingAccess(ctx.organizationId)).state,
       );
       if (failure) return failure;
+      deps.assertWriteClearance?.('branding');
       const published = await deps.port.publishDraft({
         organizationId: ctx.organizationId,
         actorPlatformUserId: ctx.actorPlatformUserId,
@@ -273,6 +280,7 @@ export function createOrgBrandingService(deps: {
         (await deps.resolveBrandingAccess(ctx.organizationId)).state,
       );
       if (failure) return failure;
+      deps.assertWriteClearance?.('branding');
       const unpublished = await deps.port.unpublish({
         organizationId: ctx.organizationId,
         actorPlatformUserId: ctx.actorPlatformUserId,

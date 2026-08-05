@@ -10,7 +10,16 @@ function trimTitle(title: string): string {
   return title.trim();
 }
 
-export function createSpecialistTasksService(port: SpecialistTasksPort) {
+export function createSpecialistTasksService(
+  port: SpecialistTasksPort,
+  deps?: {
+    /**
+     * 3.2: physically refuses specialist-task writes unless a passing `specialist_tasks`
+     * mutation decision already ran in this request.
+     */
+    assertWriteClearance?: (mechanic: 'specialist_tasks') => void;
+  },
+) {
   return {
     listForOwner(params: Parameters<SpecialistTasksPort['listForOwner']>[0]) {
       return port.listForOwner(params);
@@ -41,6 +50,7 @@ export function createSpecialistTasksService(port: SpecialistTasksPort) {
     },
 
     async create(input: CreateSpecialistTaskInput) {
+      deps?.assertWriteClearance?.('specialist_tasks');
       const title = trimTitle(input.title);
       if (!title) throw new Error('empty_title');
       const description = input.description?.trim() ? input.description.trim() : null;
@@ -48,6 +58,7 @@ export function createSpecialistTasksService(port: SpecialistTasksPort) {
     },
 
     async update(taskId: string, ownerUserId: string, patch: UpdateSpecialistTaskInput) {
+      deps?.assertWriteClearance?.('specialist_tasks');
       if (patch.title !== undefined) {
         const title = trimTitle(patch.title);
         if (!title) throw new Error('empty_title');
@@ -63,10 +74,12 @@ export function createSpecialistTasksService(port: SpecialistTasksPort) {
     },
 
     complete(taskId: string, ownerUserId: string) {
+      deps?.assertWriteClearance?.('specialist_tasks');
       return port.complete(taskId, ownerUserId);
     },
 
     delete(taskId: string, ownerUserId: string) {
+      deps?.assertWriteClearance?.('specialist_tasks');
       return port.delete(taskId, ownerUserId);
     },
 

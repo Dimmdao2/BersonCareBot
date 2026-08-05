@@ -117,8 +117,18 @@ export class NotifTemplateConflictError extends Error {
  * `system-settings` service chokepoint on write (throws `SystemSettingsOrgContextRequiredError` if
  * missing — the caller/route resolves it from the current session's organization membership).
  */
-export function createNotifTemplatesService(systemSettings: SystemSettingsLike) {
+export function createNotifTemplatesService(
+  systemSettings: SystemSettingsLike,
+  options?: {
+    /**
+     * 3.2: physically refuses branding template writes unless a passing `branding` mutation
+     * decision already ran in this request.
+     */
+    assertWriteClearance?: (mechanic: 'branding') => void;
+  },
+) {
   const presentationCarrierKey = notifTemplateSettingKey('created', 'patient');
+  const assertWriteClearance = options?.assertWriteClearance;
 
   function metadataFor(
     row: SystemSetting | null,
@@ -329,6 +339,7 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
       expectedUpdatedAt: string | null,
       options: SystemSettingsWriteOptionsLike = {},
     ): Promise<ManagedNotifTemplateEntry> {
+      assertWriteClearance?.('branding');
       const validatedChannels = validateManagedNotifTemplateChannels(event, audience, channels);
       const key = notifTemplateSettingKey(event, audience);
       const { globalRow, effectiveRow, exactOrgRow } = await readResolutionRows(
@@ -384,6 +395,7 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
       expectedUpdatedAt: string | null,
       options: SystemSettingsWriteOptionsLike = {},
     ): Promise<ManagedNotifPresentationEntry> {
+      assertWriteClearance?.('branding');
       const signature = input.signature.trim();
       const contacts = input.contacts.trim();
       if (

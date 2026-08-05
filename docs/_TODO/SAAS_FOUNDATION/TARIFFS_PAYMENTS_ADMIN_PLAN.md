@@ -1065,7 +1065,22 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       src/app-layer/content/contentWriteClearancePorts.mechanicWriteClearance.test.ts
       src/modules/memberships/service.mechanicWriteClearance.test.ts
       src/modules/patient-files/service.mechanicWriteClearance.test.ts` — 4 файла / 8 тестов PASS.
-      **Ещё открыто:** остальные гейтящиеся write-поверхности из реестра (patient_home_today, branding, …).
+      **Добор 05.08 (#1069, patient_home_today + branding + specialist_tasks):** `patientHomeBlocksService`
+      write-пути (`setBlockVisibility`, `setBlockIcon`, `reorderBlocks`, `addItem`, `updateItem`, `deleteItem`,
+      `reorderItems`) + `wrapSystemSettingsServiceWithPatientHomeWriteClearance` на `deps.systemSettings` для
+      per-org `patient_home_*` ключей (`patient_home_today` / `warmups` по карте ключа); `orgBrandingService`
+      (`saveDraft`/`publishDraft`/`unpublish`) + `notifTemplatesService` (`saveManagedTemplate`/
+      `saveManagedPresentation`); `specialistTasksService` (`create`/`update`/`complete`/`delete`). Доказательство:
+      `pnpm --dir apps/webapp exec vitest run
+      src/modules/patient-home/service.mechanicWriteClearance.test.ts
+      src/app-layer/patient-home/patientHomeSettingsWriteClearance.mechanicWriteClearance.test.ts
+      src/modules/org-branding/service.mechanicWriteClearance.test.ts
+      src/modules/notif-templates/notifTemplatesService.mechanicWriteClearance.test.ts
+      src/modules/specialist-tasks/service.mechanicWriteClearance.test.ts` — 5 файлов / 11 тестов PASS.
+      **Ещё открыто:** `booking` (services/slots/schedule-blocks), `warmups` (`reminders.updateRule`),
+      `booking_prepayment`, `promo`, `external_calendar`, `payments`/delivery keys в admin settings PATCH;
+      намеренно без двери: `patient_card`, `patient_app`, `patient_diaries`; store-deferred;
+      `custom_domain` (`DECLARED_NO_SURFACE`).
 - [ ] **3.3** Реестр защищённых точек перестаёт врать: ни одного исключения, прикрывающего реальную запись. Ложное
       исключение хуже отсутствующего — проверка покрытия на нём зеленеет.
 - [x] **3.4** ✅ **УТОЧНЕНО 08-01 (`wt/tariff-plan-triage`): СДЕЛАНО**, с одной сознательной поправкой к тексту.

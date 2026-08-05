@@ -28,6 +28,11 @@ type Candidate = {
 };
 
 type PatientHomeServiceDeps = {
+  /**
+   * 3.2: physically refuses patient-home block/item writes unless a passing
+   * `patient_home_today` mutation decision already ran in this request.
+   */
+  assertWriteClearance?: (mechanic: 'patient_home_today') => void;
   port: PatientHomeBlocksPort;
   contentPages: {
     listAll(): Promise<
@@ -145,16 +150,22 @@ async function assertCmsTargetExists(
 }
 
 export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
+  function assertPatientHomeTodayWriteClearance(): void {
+    deps.assertWriteClearance?.('patient_home_today');
+  }
+
   return {
     async listBlocksWithItems(): Promise<PatientHomeBlock[]> {
       return deps.port.listBlocksWithItems();
     },
 
     async setBlockVisibility(code: string, visible: boolean): Promise<void> {
+      assertPatientHomeTodayWriteClearance();
       await deps.port.setBlockVisibility(parseBlockCode(code), visible);
     },
 
     async setBlockIcon(code: string, iconImageUrl: string | null): Promise<void> {
+      assertPatientHomeTodayWriteClearance();
       const parsed = parseBlockCode(code);
       if (!supportsConfigurablePatientHomeBlockIcon(parsed)) {
         throw new Error(`block_icon_not_supported:${parsed}`);
@@ -163,6 +174,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
     },
 
     async reorderBlocks(orderedCodes: string[]): Promise<void> {
+      assertPatientHomeTodayWriteClearance();
       assertKnownBlockCodes(orderedCodes);
       const uniq = new Set(orderedCodes);
       if (uniq.size !== orderedCodes.length) {
@@ -178,6 +190,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
     },
 
     async addItem(input: PatientHomeBlockItemAddInput): Promise<string> {
+      assertPatientHomeTodayWriteClearance();
       assertManageableBlock(input.blockCode);
       if (!isTargetTypeAllowedForBlock(input.blockCode, input.targetType)) {
         throw new Error(`invalid_target_type_for_block:${input.blockCode}:${input.targetType}`);
@@ -196,6 +209,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
     },
 
     async updateItem(id: string, patch: PatientHomeBlockItemPatch): Promise<void> {
+      assertPatientHomeTodayWriteClearance();
       const itemId = id.trim();
       if (!itemId) throw new Error('empty_item_id');
 
@@ -256,6 +270,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
     },
 
     async deleteItem(id: string): Promise<void> {
+      assertPatientHomeTodayWriteClearance();
       const itemId = id.trim();
       if (!itemId) throw new Error('empty_item_id');
       await deps.port.deleteItem(itemId);
@@ -268,6 +283,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
     },
 
     async reorderItems(blockCode: string, orderedItemIds: string[]): Promise<void> {
+      assertPatientHomeTodayWriteClearance();
       const parsedCode = parseBlockCode(blockCode);
       assertManageableBlock(parsedCode);
       const uniq = new Set(orderedItemIds);
