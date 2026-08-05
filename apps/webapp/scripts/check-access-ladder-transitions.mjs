@@ -8,8 +8,7 @@
  *      purely by the degradation anchor and the policy's graceDays/readOnlyDays/terminalState.
  *   2. Changing policy VALUES in the tariff row changes resolved behaviour without touching the
  *      function body — the mechanism is data-driven.
- *   3. A mechanic-level policy overrides the system-level policy for that mechanic; unset mechanics
- *      fall back to the system policy.
+ *   3. Every mechanic inherits the system-level policy; stored per-mechanic ladder JSON is ignored.
  *   4. A critical mechanic (никогда-class, e.g. patient_card) stays full_access regardless of any
  *      policy or degradation date.
  *   5. Self-test gate: each proof is re-run against a deliberately broken variant of the extracted
@@ -26,16 +25,15 @@ import pg from 'pg';
 const root = path.resolve(import.meta.dirname, '..', '..', '..');
 const pgBin = '/usr/lib/postgresql/16/bin';
 const osUser = userInfo().username;
-// Both doors were redefined by 0320, then again by the forward-only #1069 Т5-Т8 (owner 03.08)
-// migration 0344, which removes the trial-extension `grace` branch (post-trial rule now applies
-// the instant `ends_at` passes) but keeps this ladder's own graceDays/readOnlyDays progression
-// verbatim. The proof must extract those CURRENT bodies, not an earlier migration, otherwise a
-// green private-cluster run would not cover live tariff edits.
+// Both doors: mechanic door updated in #1069 T1 migration 0374 (owner 05.08); cabinet door from 0346.
 const mechanicMigrationPath = path.join(
   root,
-  'apps/webapp/db/drizzle-migrations/0344_saas_trial_grace_discount_window_local.sql',
+  'apps/webapp/db/drizzle-migrations/0374_system_access_ladder_only_local.sql',
 );
-const cabinetMigrationPath = mechanicMigrationPath;
+const cabinetMigrationPath = path.join(
+  root,
+  'apps/webapp/db/drizzle-migrations/0346_saas_trial_grace_discount_window_local.sql',
+);
 const mechanicRegistryPath = path.join(
   root,
   'apps/webapp/src/modules/org-entitlements/types.ts',
@@ -436,8 +434,8 @@ const MECHANIC_POLICY = {
 async function proveTransitionsByDate(connection) {
   await clearPolicyHistory(connection);
   await setPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: { courses: MECHANIC_POLICY },
+    systemAccessPolicy: MECHANIC_POLICY,
+    mechanicAccessPolicies: {},
   });
 
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '1 day' });
@@ -489,8 +487,8 @@ async function proveTransitionsByDate(connection) {
 async function provePolicyIsData(connection) {
   await clearPolicyHistory(connection);
   await setPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: { courses: MECHANIC_POLICY },
+    systemAccessPolicy: MECHANIC_POLICY,
+    mechanicAccessPolicies: {},
   });
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-10 days' });
   const withReadOnlyTerminal = await resolveAs(connection, ORG_ID, 'courses');
@@ -499,8 +497,8 @@ async function provePolicyIsData(connection) {
   }
 
   await setPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: { courses: { ...MECHANIC_POLICY, terminalState: 'disabled' } },
+    systemAccessPolicy: { ...MECHANIC_POLICY, terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
   });
   const withDisabledTerminal = await resolveAs(connection, ORG_ID, 'courses');
   if (withDisabledTerminal.state !== 'disabled') {
@@ -513,16 +511,14 @@ async function provePolicyIsData(connection) {
 
 /**
  * §5a 2.9/2.10 — the resolver reads the live tariff on its next question, but uses the immutable
- * edit record to retain a stage that was already running. This covers both ladder subjects:
- * mechanic-level extension while in grace, then system-policy shortening while in read-only.
+ * edit record to retain a stage that was already running: system-policy extension while in grace,
+ * then system-policy shortening while in read-only (mechanics inherit the same ladder).
  */
 async function proveLivePolicyChangesAreProspective(connection) {
   await clearPolicyHistory(connection);
   await setPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: {
-      courses: { graceDays: 3, readOnlyDays: 2, notifications: [], terminalState: 'disabled' },
-    },
+    systemAccessPolicy: { graceDays: 3, readOnlyDays: 2, notifications: [], terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
   });
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-2 days' });
   const beforeExtension = await resolveAs(connection, ORG_ID, 'courses');
@@ -530,10 +526,8 @@ async function proveLivePolicyChangesAreProspective(connection) {
     fail(`2 days into 3-day grace expected grace before extension, got ${beforeExtension.state}`);
   }
   await editPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: {
-      courses: { graceDays: 5, readOnlyDays: 2, notifications: [], terminalState: 'disabled' },
-    },
+    systemAccessPolicy: { graceDays: 5, readOnlyDays: 2, notifications: [], terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
   });
   const afterExtension = await resolveAs(connection, ORG_ID, 'courses');
   if (afterExtension.state !== 'grace') {
@@ -564,25 +558,21 @@ async function proveLivePolicyChangesAreProspective(connection) {
   }
 }
 
-/** The mechanic door has its own policy source and must retain its started grace stage too. */
+/** The mechanic door inherits system policy and must retain a started grace stage on edit. */
 async function proveGraceShorteningPreservesStartedMechanicStage(connection) {
   await clearPolicyHistory(connection);
   await setPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: {
-      courses: { graceDays: 5, readOnlyDays: 3, notifications: [], terminalState: 'disabled' },
-    },
+    systemAccessPolicy: { graceDays: 5, readOnlyDays: 3, notifications: [], terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
   });
   await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3 days' });
   const beforeShortening = await resolveAs(connection, ORG_ID, 'courses');
   if (beforeShortening.state !== 'grace') {
-    fail(`3 days into 5-day mechanic grace expected grace before shortening, got ${beforeShortening.state}`);
+    fail(`3 days into 5-day inherited grace expected grace before shortening, got ${beforeShortening.state}`);
   }
   await editPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: {
-      courses: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
-    },
+    systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
   });
   const afterShortening = await resolveAs(connection, ORG_ID, 'courses');
   if (afterShortening.state !== 'grace') {
@@ -594,8 +584,8 @@ async function proveGraceShorteningPreservesStartedMechanicStage(connection) {
 async function provePaidSnapshotBeatsLiveTariff(connection) {
   await clearPolicyHistory(connection);
   await setPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: { courses: MECHANIC_POLICY },
+    systemAccessPolicy: MECHANIC_POLICY,
+    mechanicAccessPolicies: {},
   });
   await setPaidPeriod(connection, { endsAtIntervalFromNow: '1 day' });
   await connection.query(
@@ -623,8 +613,8 @@ async function provePaidSnapshotBeatsLiveTariff(connection) {
   );
 }
 
-/** Proof 3: mechanic-level policy beats system-level; unset mechanics fall back to system. */
-async function proveMechanicOverridesSystem(connection) {
+/** Proof 3: every mechanic inherits the system policy; stored mechanic JSON does not override. */
+async function proveMechanicInheritsSystemOnly(connection) {
   await clearPolicyHistory(connection);
   await setPolicies(connection, {
     systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'disabled' },
@@ -635,8 +625,8 @@ async function proveMechanicOverridesSystem(connection) {
   const branchesOnSystemPolicy = await resolveAs(connection, ORG_ID, 'branches');
   if (branchesOnSystemPolicy.state !== 'read_only') {
     fail(
-      `unconfigured mechanic must fall back to the system policy (1+1 days, 1.5 days in => ` +
-        `read_only), got ${branchesOnSystemPolicy.state}`,
+      `mechanic must inherit the system policy (1+1 days, 1.5 days in => read_only), got ` +
+        `${branchesOnSystemPolicy.state}`,
     );
   }
   if (branchesOnSystemPolicy.policy_source !== 'system') {
@@ -649,15 +639,18 @@ async function proveMechanicOverridesSystem(connection) {
       branches: { graceDays: 10, readOnlyDays: 10, notifications: [], terminalState: 'disabled' },
     },
   });
-  const branchesOnMechanicPolicy = await resolveAs(connection, ORG_ID, 'branches');
-  if (branchesOnMechanicPolicy.state !== 'grace') {
+  const branchesIgnoringStoredOverride = await resolveAs(connection, ORG_ID, 'branches');
+  if (branchesIgnoringStoredOverride.state !== 'read_only') {
     fail(
-      `a mechanic-level policy must override the system policy (10-day grace, 1.5 days in => grace), ` +
-        `got ${branchesOnMechanicPolicy.state}`,
+      `stored mechanic policy must NOT override system (still 1+1 days => read_only), got ` +
+        `${branchesIgnoringStoredOverride.state}`,
     );
   }
-  if (branchesOnMechanicPolicy.policy_source !== 'mechanic') {
-    fail(`expected policy_source mechanic, got ${branchesOnMechanicPolicy.policy_source}`);
+  if (branchesIgnoringStoredOverride.policy_source !== 'system') {
+    fail(
+      `expected policy_source system after ignoring stored override, got ` +
+        `${branchesIgnoringStoredOverride.policy_source}`,
+    );
   }
 }
 
@@ -775,11 +768,11 @@ async function proveCabinetTransitionsAndDataRestoration(connection) {
 async function provePaidPeriodDrivesTheLadder(connection) {
   await clearPolicyHistory(connection);
   await setPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: { courses: MECHANIC_POLICY },
+    systemAccessPolicy: MECHANIC_POLICY,
+    mechanicAccessPolicies: {},
   });
 
-  // Период оплачен и не истёк — полный доступ. It must NOT come from the old "assigned tariff"
+  // Период оплачен и не истёк — полный доступ.
   // branch: the same organization goes on to degrade below without anything else changing.
   await setPaidPeriod(connection, { endsAtIntervalFromNow: '1 day' });
   const paid = await resolveAs(connection, ORG_ID, 'courses');
@@ -813,8 +806,8 @@ async function provePaidPeriodDrivesTheLadder(connection) {
 
   // Конечное состояние — тоже данные, и на денежном якоре тоже.
   await setPolicies(connection, {
-    systemAccessPolicy: null,
-    mechanicAccessPolicies: { courses: { ...MECHANIC_POLICY, terminalState: 'disabled' } },
+    systemAccessPolicy: { ...MECHANIC_POLICY, terminalState: 'disabled' },
+    mechanicAccessPolicies: {},
   });
   const disabledTerminal = await resolveAs(connection, ORG_ID, 'courses');
   if (disabledTerminal.state !== 'disabled') {
@@ -872,33 +865,29 @@ async function provePaidPeriodDrivesTheCabinet(connection) {
  */
 const REGRESSIONS = [
   {
-    label: 'mechanic policy no longer overrides system policy',
-    proof: proveMechanicOverridesSystem,
+    label: 'stored mechanic policy overrides system again',
+    proof: proveMechanicInheritsSystemOnly,
     breakSource: (source) =>
       source.replace(
+        `tariff.system_access_policy AS policy,`,
         `COALESCE(
         tariff.mechanic_access_policies -> p_mechanic,
         tariff.system_access_policy
       ) AS policy,`,
-        `tariff.system_access_policy AS policy,`,
       ),
   },
   {
-    label: 'retroactive block restored — a live shortening ejects an in-progress mechanic stage',
+    label: 'retroactive block restored — a live shortening ejects an in-progress stage',
     proof: async (connection) => {
       await clearPolicyHistory(connection);
       await setPolicies(connection, {
-        systemAccessPolicy: null,
-        mechanicAccessPolicies: {
-          courses: { graceDays: 2, readOnlyDays: 5, notifications: [], terminalState: 'disabled' },
-        },
+        systemAccessPolicy: { graceDays: 2, readOnlyDays: 5, notifications: [], terminalState: 'disabled' },
+        mechanicAccessPolicies: {},
       });
       await setDegradationAnchor(connection, { endsAtIntervalFromNow: '-3 days' });
       await editPolicies(connection, {
-        systemAccessPolicy: null,
-        mechanicAccessPolicies: {
-          courses: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
-        },
+        systemAccessPolicy: { graceDays: 0, readOnlyDays: 0, notifications: [], terminalState: 'disabled' },
+        mechanicAccessPolicies: {},
       });
       const access = await resolveAs(connection, ORG_ID, 'courses');
       if (access.state !== 'read_only') {
@@ -1064,8 +1053,8 @@ try {
     console.log('  proof OK: a caller cannot resolve another organization\'s tariff state');
     await provePaidSnapshotBeatsLiveTariff(connection);
     console.log('  proof OK: an active paid snapshot beats a changed live tariff');
-    await proveMechanicOverridesSystem(connection);
-    console.log('  proof OK: mechanic-level policy overrides system-level policy');
+    await proveMechanicInheritsSystemOnly(connection);
+    console.log('  proof OK: every mechanic inherits the system policy; stored overrides are ignored');
     await proveCriticalMechanicNeverDegrades(connection);
     console.log('  proof OK: critical (никогда-class) mechanic never degrades');
     await proveNoAgentMechanicExclusions(connection);
@@ -1081,8 +1070,8 @@ try {
   await runRegressionSelfTests();
 
   console.log(
-    'Access ladder transitions proof: OK — dates, data-driven policy, mechanic-over-system ' +
-      'precedence, cabinet restoration, no agent mechanic exclusions, and all regression self-tests went red as designed.',
+    'Access ladder transitions proof: OK — dates, data-driven policy, system-only inheritance, ' +
+      'cabinet restoration, no agent mechanic exclusions, and all regression self-tests went red as designed.',
   );
 } finally {
   if (serverStarted) {

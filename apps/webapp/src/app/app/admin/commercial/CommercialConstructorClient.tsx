@@ -11,7 +11,6 @@ import {
   type AccessTerminalState,
   type DowngradePolicyMap,
   type MailingTemplate,
-  type MechanicAccessPolicyMap,
   type MechanicDowngradePolicy,
   type OrgMechanic,
   type RegistrationTariffPolicy,
@@ -102,7 +101,6 @@ type TariffDraft = {
   mechanics: Record<OrgMechanic, boolean>;
   quotas: TariffQuotaMap;
   systemAccessPolicy: AccessPolicyDraft | null;
-  mechanicAccessPolicies: Partial<Record<OrgMechanic, AccessPolicyDraft>>;
   downgradePolicies: DowngradePolicyMap;
   /** §T3 — this tariff's marketing letters, edited on the «Рассылки» tab. */
   mailingTemplates: MailingTemplate[];
@@ -146,7 +144,6 @@ const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
 const OVERRIDABLE_MECHANICS = MECHANICS.filter(
   (mechanic) => MECHANIC_REGISTRY[mechanic].class !== 'никогда',
 );
-const POLICY_MECHANICS = OVERRIDABLE_MECHANICS;
 // §5a stage 4b.3 — "места" has no downgrade state (seat overage is billed, not blocked; owner
 // 30.07, #4a.1), so it gets no downgrade-policy knob at all.
 const DOWNGRADE_MECHANICS = OVERRIDABLE_MECHANICS.filter(
@@ -193,7 +190,6 @@ function emptyTariffDraft(): TariffDraft {
     mechanics: emptyMechanics(),
     quotas: {},
     systemAccessPolicy: null,
-    mechanicAccessPolicies: {},
     downgradePolicies: {},
     mailingTemplates: [],
   };
@@ -218,12 +214,6 @@ function tariffToDraft(tariff: Tariff): TariffDraft {
     systemAccessPolicy: tariff.systemAccessPolicy
       ? accessPolicyToDraft(tariff.systemAccessPolicy)
       : null,
-    mechanicAccessPolicies: Object.fromEntries(
-      Object.entries(tariff.mechanicAccessPolicies).map(([mechanic, policy]) => [
-        mechanic,
-        accessPolicyToDraft(policy),
-      ]),
-    ),
     downgradePolicies: tariff.downgradePolicies,
     mailingTemplates: tariff.mailingTemplates,
   };
@@ -279,18 +269,6 @@ const ACCESS_TERMINAL_STATE_LABELS: Record<AccessTerminalState, string> = {
   read_only: 'только чтение',
   disabled: 'выключено',
 };
-
-/**
- * Т1 (owner 03.08) — a mechanic with no own row inherits this verbatim; shown next to every
- * exception so the difference from the inherited value is visible, not just the override itself.
- */
-function describeAccessPolicy(policy: AccessPolicyDraft | null): string {
-  if (!policy) return 'не настроен';
-  const terminal = policy.terminalState ? ACCESS_TERMINAL_STATE_LABELS[policy.terminalState] : '—';
-  const grace = policy.graceDays.trim() ? policy.graceDays : '—';
-  const readOnly = policy.readOnlyDays.trim() ? policy.readOnlyDays : '—';
-  return `терпение ${grace} дн., только чтение ${readOnly} дн., затем ${terminal}`;
-}
 
 /**
  * §5a item 2.6a — `warnable` says whether this mechanic has an early-warning threshold at all.
@@ -373,39 +351,25 @@ function NumericLimitEditor({
 
 function AccessPolicyEditor({
   title,
-  subtitle,
   value,
   onChange,
-  onRemove,
 }: {
   title: string;
-  /** Т1 — shown only on a per-mechanic exception, naming the system default it overrides. */
-  subtitle?: string;
   value: AccessPolicyDraft | null;
   onChange: (value: AccessPolicyDraft | null) => void;
-  onRemove?: () => void;
 }) {
   return (
     <div className="space-y-2 rounded-xl border border-border/70 p-3">
       <div className="flex items-center justify-between gap-2">
-        <div>
-          <Label>{title}</Label>
-          {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
-        </div>
-        {onRemove ? (
-          <Button type="button" size="sm" variant="outline" onClick={onRemove}>
-            Убрать исключение
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => onChange(value ? null : emptyAccessPolicyDraft())}
-          >
-            {value ? 'Не настроено' : 'Настроить'}
-          </Button>
-        )}
+        <Label>{title}</Label>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange(value ? null : emptyAccessPolicyDraft())}
+        >
+          {value ? 'Не настроено' : 'Настроить'}
+        </Button>
       </div>
       {value ? (
         <div className="grid gap-2 sm:grid-cols-2">
@@ -647,9 +611,6 @@ export function CommercialConstructorClient() {
   const [reason, setReason] = useState('');
   const [organizationId, setOrganizationId] = useState('');
   const [assignedTariffId, setAssignedTariffId] = useState('none');
-  // Т1 (owner 03.08) — the mechanic picked here becomes a NEW exception, added via the button
-  // below; mechanics not picked stay on inherited system access, never a duplicated form.
-  const [newAccessExceptionMechanic, setNewAccessExceptionMechanic] = useState<OrgMechanic | ''>('');
   const [overrideMechanic, setOverrideMechanic] = useState<OrgMechanic>('booking');
   const [overrideEnabled, setOverrideEnabled] = useState(true);
   const [overrideQuota, setOverrideQuota] = useState<TariffQuota | null>(null);
@@ -723,16 +684,6 @@ export function CommercialConstructorClient() {
     () => state.organizations.find((organization) => organization.id === organizationId) ?? null,
     [organizationId, state.organizations],
   );
-  // Т1 — the only mechanics rendered with their own access-policy form are the ones that already
-  // carry an exception; everything else stays implicit (inherits system access at read time).
-  const accessPolicyExceptionMechanics = useMemo(
-    () => POLICY_MECHANICS.filter((mechanic) => tariff.mechanicAccessPolicies[mechanic]),
-    [tariff.mechanicAccessPolicies],
-  );
-  const availableAccessExceptionMechanics = useMemo(
-    () => POLICY_MECHANICS.filter((mechanic) => !tariff.mechanicAccessPolicies[mechanic]),
-    [tariff.mechanicAccessPolicies],
-  );
   const selectedManualTariffId = assignedTariffId === 'none' ? null : assignedTariffId;
   const manualAssignmentChanged = Boolean(
     selectedOrganization &&
@@ -794,15 +745,8 @@ export function CommercialConstructorClient() {
       ? Math.round(Number(tariff.additionalSeatPriceRub) * 100)
       : null;
     let systemAccessPolicy: AccessLifecyclePolicy | null;
-    let mechanicAccessPolicies: MechanicAccessPolicyMap;
     try {
       systemAccessPolicy = accessPolicyFromDraft(tariff.systemAccessPolicy);
-      mechanicAccessPolicies = Object.fromEntries(
-        Object.entries(tariff.mechanicAccessPolicies).map(([mechanic, policy]) => [
-          mechanic,
-          accessPolicyFromDraft(policy)!,
-        ]),
-      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Проверьте лестницу доступа');
       return;
@@ -819,7 +763,7 @@ export function CommercialConstructorClient() {
       mechanics: tariff.mechanics,
       quotas: tariff.quotas,
       systemAccessPolicy,
-      mechanicAccessPolicies,
+      mechanicAccessPolicies: {},
       downgradePolicies: tariff.downgradePolicies,
       mailingTemplates: tariff.mailingTemplates,
       includedSeats: nullableNonnegativeInteger(tariff.includedSeats),
@@ -1057,96 +1001,6 @@ export function CommercialConstructorClient() {
                 setTariff((current) => ({ ...current, systemAccessPolicy }))
               }
             />
-            <div className="space-y-2 rounded-xl border border-border/70 p-3">
-              <Label>Исключения по механикам</Label>
-              <p className="text-sm text-muted-foreground">
-                Без исключения механика наследует «Доступ к системе» целиком — грейс, только чтение
-                и что после них, без отдельной настройки. Добавляйте исключение только там, где этой
-                механике реально нужно другое поведение.
-              </p>
-              {accessPolicyExceptionMechanics.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Исключений нет — все механики наследуют доступ к системе.
-                </p>
-              ) : (
-                <div className="grid gap-2 md:grid-cols-2">
-                  {accessPolicyExceptionMechanics.map((mechanic) => (
-                    <AccessPolicyEditor
-                      key={mechanic}
-                      title={`Исключение: ${MECHANIC_REGISTRY[mechanic].label}`}
-                      subtitle={`Наследуемое значение (доступ к системе): ${describeAccessPolicy(tariff.systemAccessPolicy)}`}
-                      value={tariff.mechanicAccessPolicies[mechanic] ?? null}
-                      onChange={(policy) =>
-                        setTariff((current) => {
-                          const mechanicAccessPolicies = { ...current.mechanicAccessPolicies };
-                          if (policy) mechanicAccessPolicies[mechanic] = policy;
-                          else delete mechanicAccessPolicies[mechanic];
-                          return { ...current, mechanicAccessPolicies };
-                        })
-                      }
-                      onRemove={() =>
-                        setTariff((current) => {
-                          const mechanicAccessPolicies = { ...current.mechanicAccessPolicies };
-                          delete mechanicAccessPolicies[mechanic];
-                          return { ...current, mechanicAccessPolicies };
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-              {availableAccessExceptionMechanics.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select
-                    value={newAccessExceptionMechanic || 'unset'}
-                    onValueChange={(value) => {
-                      if (value && value !== 'unset') setNewAccessExceptionMechanic(value as OrgMechanic);
-                    }}
-                  >
-                    <SelectTrigger
-                      aria-label="Механика для нового исключения"
-                      displayLabel={
-                        newAccessExceptionMechanic
-                          ? MECHANIC_REGISTRY[newAccessExceptionMechanic].label
-                          : 'Выберите механику'
-                      }
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unset" disabled>
-                        Выберите механику
-                      </SelectItem>
-                      {availableAccessExceptionMechanics.map((mechanic) => (
-                        <SelectItem key={mechanic} value={mechanic}>
-                          {MECHANIC_REGISTRY[mechanic].label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={!newAccessExceptionMechanic}
-                    onClick={() => {
-                      if (!newAccessExceptionMechanic) return;
-                      const mechanic = newAccessExceptionMechanic;
-                      setTariff((current) => ({
-                        ...current,
-                        mechanicAccessPolicies: {
-                          ...current.mechanicAccessPolicies,
-                          [mechanic]: emptyAccessPolicyDraft(),
-                        },
-                      }));
-                      setNewAccessExceptionMechanic('');
-                    }}
-                  >
-                    Добавить исключение
-                  </Button>
-                </div>
-              ) : null}
-            </div>
             <div className="grid gap-2 md:grid-cols-2">
               {DOWNGRADE_MECHANICS.map((mechanic) => (
                 <DowngradePolicyEditor
@@ -1729,33 +1583,6 @@ export function CommercialConstructorClient() {
                     возвращайтесь сюда за текстами.
                   </p>
                 )}
-                {accessPolicyExceptionMechanics.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Ни у одной механики нет своего исключения (вкладка «Тарифы») — все шлют триггеры
-                    доступа к системе выше.
-                  </p>
-                ) : null}
-                {accessPolicyExceptionMechanics.map((mechanic) => (
-                    <AccessNotificationsEditor
-                      key={mechanic}
-                      title={`Исключение: ${MECHANIC_REGISTRY[mechanic].label}`}
-                      rows={tariff.mechanicAccessPolicies[mechanic]!.notifications}
-                      templates={tariff.mailingTemplates}
-                      onChange={(notifications) =>
-                        setTariff((current) => {
-                          const policy = current.mechanicAccessPolicies[mechanic];
-                          if (!policy) return current;
-                          return {
-                            ...current,
-                            mechanicAccessPolicies: {
-                              ...current.mechanicAccessPolicies,
-                              [mechanic]: { ...policy, notifications },
-                            },
-                          };
-                        })
-                      }
-                    />
-                ))}
                 <div className="space-y-1">
                   <Label htmlFor="notifications-reason">Причина изменения (необязательно)</Label>
                   <Input

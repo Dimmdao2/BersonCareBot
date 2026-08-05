@@ -102,14 +102,14 @@ beforeEach(() => {
 });
 
 describe('/api/admin/commercial tariff persistence', () => {
-  it('writes mechanic policies through route/service/PG mapping and reads them back', async () => {
+  it('never persists per-mechanic ladder policies (#1069 T1, owner 05.08)', async () => {
     const createResponse = await POST(
       new Request('http://127.0.0.1/api/admin/commercial', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           action: 'create_tariff',
-          reason: 'round-trip proof',
+          reason: 'strip mechanic ladder proof',
           tariff: {
             name: 'Lifecycle policy',
             description: '',
@@ -141,10 +141,7 @@ describe('/api/admin/commercial tariff persistence', () => {
     const readBody = (await readResponse.json()) as {
       tariffs: Array<{ mechanicAccessPolicies: Record<string, unknown> }>;
     };
-    expect(readBody.tariffs[0]?.mechanicAccessPolicies).toEqual({
-      payments: paymentPolicy,
-      branding: brandingPolicy,
-    });
+    expect(readBody.tariffs[0]?.mechanicAccessPolicies).toEqual({});
   });
 
   it('accepts legacy clinical_tests JSON but never serializes it as a configurable tariff mechanic', async () => {

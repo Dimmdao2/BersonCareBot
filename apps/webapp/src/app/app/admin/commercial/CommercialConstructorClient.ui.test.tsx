@@ -85,11 +85,8 @@ describe('commercial constructor access ladder', () => {
     expect(screen.queryByText(/квот/i)).not.toBeInTheDocument();
   });
 
-  // Т1 (owner 03.08) — «Доступ к системе определяет работу всех вложенных механик»: no per-mechanic
-  // form by default, only an opt-in exception; once added, it is labelled as an exception and shows
-  // what it inherits.
-  it('shows no per-mechanic access form by default; an added exception is labelled and shows the inherited value', async () => {
-    const user = userEvent.setup();
+  // #1069 T1 (owner 05.08): one system ladder only — no per-mechanic exception UI.
+  it('shows only the system access ladder form, never mechanic exceptions', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -107,44 +104,13 @@ describe('commercial constructor access ladder', () => {
     render(<CommercialConstructorClient />);
     await screen.findByRole('button', { name: 'Создать' });
 
-    // Before any exception exists, there is exactly one lifecycle form on the page — the system's —
-    // and no mechanic carries its own "Настроить"/"Терпение: дней" box.
     expect(screen.getAllByRole('button', { name: 'Настроить' })).toHaveLength(1);
-    expect(
-      screen.getByText('Исключений нет — все механики наследуют доступ к системе.'),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Настроить' }));
-    fireEvent.change(screen.getByLabelText('Доступ к системе: Терпение: дней'), {
-      target: { value: '3' },
-    });
-    fireEvent.change(screen.getByLabelText('Доступ к системе: Только чтение: дней'), {
-      target: { value: '2' },
-    });
-    await user.click(screen.getByLabelText('Доступ к системе: Затем'));
-    await user.click(await screen.findByRole('option', { name: 'Только чтение' }));
-
-    await user.click(screen.getByLabelText('Механика для нового исключения'));
-    await user.click(await screen.findByRole('option', { name: 'Курсы' }));
-    await user.click(screen.getByRole('button', { name: 'Добавить исключение' }));
-
-    // The added row is visibly an exception, names what it overrides, and shows the inherited value.
-    expect(screen.getByText('Исключение: Курсы')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Наследуемое значение (доступ к системе): терпение 3 дн., только чтение 2 дн., затем только чтение',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Убрать исключение' })).toBeInTheDocument();
-    // Removing it drops the exception back to plain inheritance.
-    await user.click(screen.getByRole('button', { name: 'Убрать исключение' }));
-    expect(screen.queryByText('Исключение: Курсы')).not.toBeInTheDocument();
-    expect(
-      screen.getByText('Исключений нет — все механики наследуют доступ к системе.'),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Исключения по механикам/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Добавить исключение/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Исключение:/i)).not.toBeInTheDocument();
   });
 
-  it('submits and reloads system and mechanic policies without replacing owner values', async () => {
+  it('submits and reloads only the system access policy', async () => {
     const user = userEvent.setup();
     let savedTariff: Record<string, unknown> | null = null;
     let submitted: Record<string, unknown> | null = null;
@@ -190,25 +156,6 @@ describe('commercial constructor access ladder', () => {
     });
     await user.click(screen.getByLabelText('Доступ к системе: Затем'));
     await user.click(await screen.findByRole('option', { name: 'Выключено' }));
-
-    // Т1 (owner 03.08) — a mechanic-level exception is opt-in: pick it, then add it.
-    // Everything not picked keeps inheriting «Доступ к системе» above.
-    await user.click(screen.getByLabelText('Механика для нового исключения'));
-    await user.click(await screen.findByRole('option', { name: 'Онлайн-запись' }));
-    await user.click(screen.getByRole('button', { name: 'Добавить исключение' }));
-
-    fireEvent.change(screen.getByLabelText('Исключение: Онлайн-запись: Терпение: дней'), {
-      target: { value: '1' },
-    });
-    fireEvent.change(screen.getByLabelText('Исключение: Онлайн-запись: Только чтение: дней'), {
-      target: { value: '5' },
-    });
-    await user.click(screen.getByLabelText('Исключение: Онлайн-запись: Затем'));
-    const openSelect = document.querySelector<HTMLElement>(
-      '[data-slot="select-content"][data-open]',
-    );
-    expect(openSelect).not.toBeNull();
-    await user.click(within(openSelect!).getByRole('option', { name: 'Только чтение' }));
     await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitFor(() =>
@@ -221,14 +168,7 @@ describe('commercial constructor access ladder', () => {
             notifications: [],
             terminalState: 'disabled',
           },
-          mechanicAccessPolicies: {
-            booking: {
-              graceDays: 1,
-              readOnlyDays: 5,
-              notifications: [],
-              terminalState: 'read_only',
-            },
-          },
+          mechanicAccessPolicies: {},
         },
       }),
     );
@@ -236,10 +176,7 @@ describe('commercial constructor access ladder', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Тариф с политикой/ }));
 
     expect(screen.getByLabelText('Доступ к системе: Терпение: дней')).toHaveValue(6);
-    expect(screen.getByLabelText('Исключение: Онлайн-запись: Только чтение: дней')).toHaveValue(5);
-    expect(screen.getByLabelText('Исключение: Онлайн-запись: Затем')).toHaveTextContent(
-      'Только чтение',
-    );
+    expect(screen.queryByText(/Исключение:/i)).not.toBeInTheDocument();
   });
 
   // Т2/Т3/Т7 (owner 04.08) — Т3 moved the letter itself off the rule row onto its own «Рассылки»

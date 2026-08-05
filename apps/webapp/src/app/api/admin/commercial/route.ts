@@ -81,6 +81,7 @@ const tariffInputSchema = z.object({
     })
     .strict(),
   systemAccessPolicy: accessPolicySchema.nullable(),
+  /** Accepted for API compat; service always persists `{}` (#1069 T1, owner 05.08). */
   mechanicAccessPolicies: z.record(z.string(), accessPolicySchema),
   downgradePolicies: z.record(z.string(), downgradePolicySchema),
   mailingTemplates: z.array(mailingTemplateSchema),

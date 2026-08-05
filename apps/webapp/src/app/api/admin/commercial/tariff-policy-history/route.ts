@@ -2,8 +2,8 @@
  * GET /api/admin/commercial/tariff-policy-history — §5a item 2.11. Reuses `admin_audit_log`
  * (`listAdminAuditLog`), not a new table: `pgPlatformEntitlements.ts` already writes the full
  * before/after `saas_tariffs` row on every `saas_tariff_create/update/deactivate`, and that row
- * carries both ladder subjects — `systemAccessPolicy` (cabinet) and `mechanicAccessPolicies` (each
- * mechanic). This route only narrows to those actions and shapes the "было → стало" diff; see
+ * carries the system ladder subject — `systemAccessPolicy` (cabinet). Per-mechanic ladder exceptions
+ * were removed (#1069 T1, owner 05.08). This route narrows to tariff audit actions and shapes the
  * `diffTariffPolicySnapshots`.
  *
  * Same gate as the constructor itself (`requirePlatformOperationsApiContext`) — a clinic principal

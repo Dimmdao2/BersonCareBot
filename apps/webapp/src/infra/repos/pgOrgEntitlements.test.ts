@@ -136,12 +136,6 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
       graceDays: 5,
       notifications: [],
     });
-    expect(snapshot.tariff?.mechanicAccessPolicies.courses).toMatchObject({
-      graceDays: 2,
-      readOnlyDays: 4,
-      notifications: [],
-      terminalState: 'read_only',
-    });
   });
 
   it('maps the canonical database door result without recomputing lifecycle in TypeScript', async () => {
@@ -149,7 +143,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
       rows: [
         {
           state: 'grace',
-          policy_source: 'mechanic',
+          policy_source: 'system',
           warning: {
             until: '2026-07-03T00:00:00.000Z',
             count: 1,
@@ -167,7 +161,7 @@ describe('createPgOrgEntitlementsPort usage projection', () => {
     ).resolves.toEqual({
       mechanic: 'courses',
       state: 'grace',
-      policySource: 'mechanic',
+      policySource: 'system',
       warning: {
         until: '2026-07-03T00:00:00.000Z',
         count: 1,

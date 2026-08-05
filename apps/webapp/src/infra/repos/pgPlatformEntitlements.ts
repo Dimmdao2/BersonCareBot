@@ -160,7 +160,7 @@ function tariffValues(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
     mechanics: input.mechanics,
     quotas: input.quotas,
     systemAccessPolicy: input.systemAccessPolicy,
-    mechanicAccessPolicies: input.mechanicAccessPolicies,
+    mechanicAccessPolicies: {},
     downgradePolicies: input.downgradePolicies,
     mailingTemplates: input.mailingTemplates,
     includedSeats: input.includedSeats,

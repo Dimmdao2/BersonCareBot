@@ -229,19 +229,8 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   const systemAccessPolicy = input.systemAccessPolicy
     ? resolveAccessPolicyNotifications(input.systemAccessPolicy, templatesById)
     : null;
+  // #1069 T1 (owner 05.08): one system ladder only — per-mechanic ladder config is not persisted.
   const mechanicAccessPolicies = {} as Tariff['mechanicAccessPolicies'];
-  for (const [mechanic, policy] of Object.entries(input.mechanicAccessPolicies)) {
-    // Owner 02.08: clinical tests are built into treatment programs, not a tariff mechanism.
-    // Old tariff JSON may still carry this retired configuration key; ignore it on resave.
-    if (mechanic === 'clinical_tests') continue;
-    assertMechanic(mechanic);
-    if (!policy) continue;
-    assertAccessPolicy(policy);
-    if (MECHANIC_REGISTRY[mechanic].class === 'никогда') {
-      throw new Error('critical_mechanic_access_policy_forbidden');
-    }
-    mechanicAccessPolicies[mechanic] = resolveAccessPolicyNotifications(policy, templatesById);
-  }
   const mechanics: Record<string, boolean> = {};
   for (const mechanic of Object.keys(input.mechanics)) {
     if (mechanic === 'clinical_tests') continue;

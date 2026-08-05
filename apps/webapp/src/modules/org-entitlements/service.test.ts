@@ -1115,25 +1115,22 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
     );
   });
 
-  it('refuses an access-lifecycle policy on any critical mechanic (no ladder)', () => {
+  it('strips per-mechanic ladder policies on save (#1069 T1, owner 05.08)', async () => {
     const service = createPlatformEntitlementsService(servicePort());
-    for (const mechanic of criticalMechanics()) {
-      expect(() =>
-        service.createTariff(
-          baseTariffInput({
-            mechanicAccessPolicies: {
-              [mechanic]: {
-                graceDays: 1,
-                readOnlyDays: 1,
-                notifications: [],
-                terminalState: 'read_only',
-              },
-            },
-          }),
-          { actorId: null, reason: '' },
-        ),
-      ).toThrow('critical_mechanic_access_policy_forbidden');
-    }
+    const tariff = await service.createTariff(
+      baseTariffInput({
+        mechanicAccessPolicies: {
+          branding: {
+            graceDays: 1,
+            readOnlyDays: 1,
+            notifications: [],
+            terminalState: 'read_only',
+          },
+        },
+      }),
+      { actorId: null, reason: '' },
+    );
+    expect(tariff.mechanicAccessPolicies).toEqual({});
   });
 
   it('refuses a numeric quota on any critical mechanic (no number)', () => {
