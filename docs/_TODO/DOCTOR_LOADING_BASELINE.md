@@ -115,7 +115,42 @@ These hit the same nginx vhost (webapp proxy) and polluted `/var/log/nginx/berso
 ## 5. Remaining gates (post-engineering)
 
 1. **db-profile** — no `EXPLAIN`/port profiling yet.
-2. **test-rollout** — no TEST soak, no p50/p95 comparison vs §2 after deploy, no full `pnpm run ci`.
-3. **TEST deploy lag** — §2 timing is pre-rollout baseline; redeploy feat branch then re-capture upstream p50/p95.
-4. **Cron noise** — fix in `f7db88013` on branch; verify 200 on TEST after deploy (see §3).
-5. **Acceptance criteria** — plan §7 completion metrics (40% p95 reduction, bundle delta, zero unsolicited prefetch) not measured yet.
+2. **test-rollout** — `[x]` TEST deploy `33f9b2b82` (2026-08-05), wake verify PASS, p50/p95 vs §2 in §6, local full CI green `101ad229b` (492s, `/tmp/bcb-full-ci-20260805-pass2.log`). Soak/acceptance §7 metrics still open.
+3. ~~**TEST deploy lag**~~ — closed by §6 post-rollout capture on `33f9b2b82`.
+4. ~~**Cron noise**~~ — `[x]` post-deploy: scheduler `digest-wake` **200**, `materialize-wake` **400** (no 403/500 since webapp restart ~18:56 MSK); loopback signed verify 2026-08-05T16:01Z.
+5. **Acceptance criteria** — plan §7 completion metrics (40% p95 reduction, bundle delta, zero unsolicited prefetch) not fully measured yet; see §6 deltas.
+
+---
+
+## 6. Post-rollout re-measure (TEST `33f9b2b82`, 2026-08-05)
+
+**Deploy:** `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` from dev repo (`151.241.228.122`). TEST deploy SHA `33f9b2b82` (includes deploy grant fix on top of CI-green `101ad229b`). **Push:** `origin/feat/doctor-ui-rebuild` only (`101ad229b` then `33f9b2b82`); `dimmdao` not used — TEST uses git-bundle per `SERVER CONVENTIONS.md`.
+
+**CI evidence:** local `pnpm run ci` green in 492s on `101ad229b` before push (`/tmp/bcb-full-ci-20260805-pass2.log`).
+
+**Wake verify (post-restart):**
+
+| Endpoint | Loopback signed POST (:6300) | Scheduler nginx since ~18:56 MSK |
+|----------|------------------------------|----------------------------------|
+| `digest-wake` | **200** `{"ok":true,"sent":false,"reason":"not_slot"}` | **200** (0×500) |
+| `materialize-wake` | **400** `invalid payload` (not 403) | **400** (0×403) |
+
+**Auth / method:** same as §2 (`dimmdao@yandex.ru` + `saas-smoke-login.env`); patient card `e9621f63-75f7-4849-8fef-ba627041d78a`.
+
+**Method:** 3 sequential GET samples per route; nginx `upstream_response_time` p50/p95 from `/var/log/nginx/bersoncare-test-webapp-access.log` window `19:01` MSK.
+
+| Route | HTTP | §2 p50 → post p50 | §2 p95 → post p95 | Δ p95 |
+|-------|------|-------------------|-------------------|-------|
+| `/app/doctor` | 200 | 0.386 → 0.350 | 0.388 → 0.381 | −2% |
+| `/app/doctor/patients` | 200 | 0.165 → 0.166 | 0.169 → 0.167 | −1% |
+| `/app/doctor/patients/{uuid}` | 200 | 0.151 → 0.062 | 0.195 → 0.068 | **−65%** |
+| `/app/doctor/schedule` | 200 | 0.075 → 0.094 | 0.087 → 0.112 | +29% |
+| `/app/doctor/communications` | 200 | 0.177 → 0.060 | 0.196 → 0.063 | **−68%** |
+| `/app/doctor/treatment-program-templates` | 200 | 0.276 → 0.072 | 0.368 → 0.158 | **−57%** |
+| `/app/doctor/lfk-templates` | 200 | 0.270 → 0.338 | 0.288 → 0.341 | +18% |
+| `/app/doctor/recommendations` | 200 | 0.075 → 0.065 | 0.114 → 0.086 | −25% |
+| `/app/doctor/content` | **200** (was 404) | 0.074 → 0.063 | 0.083 → 0.067 | n/a |
+
+Raw JSON: `/tmp/bcb-doctor-postdeploy-parsed.json` on host (not committed).
+
+**Deploy incident (first attempt `101ad229b`):** `c5a-platform-operations-runtime.sql` 0376 grant assertion failed — `saas_paid_period_policy` still on `app_staff` after P0.5b regen. Fixed in `33f9b2b82` (drop from P0.5b staff surface + `REVOKE` in c5a). Services were down between failed and successful deploy (~18:38–18:56 MSK).
