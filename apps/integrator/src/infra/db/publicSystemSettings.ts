@@ -2,10 +2,11 @@
  * Runtime reads of canonical `public.system_settings` (unified DB) for the integrator.
  *
  * All of them go through DB-owned SECURITY DEFINER capabilities with fixed key allow-lists. There
- * is deliberately no direct-table reader here: no integrator role holds SELECT on that table (see
- * the explicit REVOKE in deploy/postgres/integrator-server-runtime-config.sql), nor EXECUTE on
- * `app.current_org_id()` which its RLS policy calls, so any direct read is a hard `42501` under
- * every principal of this app.
+ * is deliberately no direct-table reader here. The base login is REVOKEd from that table outright
+ * (deploy/postgres/integrator-server-runtime-config.sql), and while it can `SET ROLE app_staff` --
+ * which does hold SELECT and `app.current_org_id()` -- none of this app's background contours run
+ * under a staff principal. Bootstrap, infra and the operational capability roles hold neither, so
+ * a direct read from any of them is a hard `42501`.
  */
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';

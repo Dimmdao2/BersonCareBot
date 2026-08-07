@@ -24,11 +24,6 @@ export async function runIntegratorSql<T = unknown>(
   fragment: SQL,
 ): Promise<DbQueryResult<T>> {
   const { sql: text, params } = pgDialect.sqlToQuery(fragment);
-  // Canonical admin settings live in `public` — always use DbPort.query (also matches unit-test doubles).
-  if (text.includes('public.system_settings')) {
-    return db.query<T>(text, params);
-  }
-
   const withSession = db as DbPort & { integratorDrizzle?: IntegratorDrizzleDb };
   if (withSession.integratorDrizzle) {
     try {

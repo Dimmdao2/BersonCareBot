@@ -124,6 +124,9 @@ describe('D30 schedulerDecisionGuard', () => {
     ['russian_message', "const job = { text: 'Напомина' + 'ние: приём' };"],
     ['business_branch', "if (rule.reminderKind === 'visit') send();"],
     ['business_branch', "if (['visit', 'followup'].includes(rule.reminderKind)) send();"],
+    // Deliberate violation fixture: this string IS the thing schedulerDecisionGuard must reject,
+    // so the repo-wide ban on settings-table SQL does not apply to it.
+    // eslint-disable-next-line no-restricted-syntax
     ['decision_table_read', 'const query = db.raw`select * from public.system_settings`;'],
   ] as const)('rejects %s self-test fixture', (kind, fixture) => {
     expect(findSchedulerDecisionViolations('fixture.ts', fixture)).toEqual(

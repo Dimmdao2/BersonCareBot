@@ -177,9 +177,11 @@ REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
 -- ---------------------------------------------------------------------------
 -- Non-secret integrator runtime settings.
 --
--- Found 2026-08-07: no integrator role holds SELECT on public.system_settings, nor EXECUTE on
--- app.current_org_id() which that table's RLS policy calls, so EVERY direct read of it from this
--- app was a hard 42501 -- always, under every principal. It was invisible in the TEST journal only
+-- Found 2026-08-07: reads of public.system_settings only work under a STAFF principal -- app_staff
+-- holds SELECT on it and EXECUTE on app.current_org_id(), which its RLS policy calls. Every
+-- BACKGROUND contour of this app (bootstrap, infra, and the operational capability roles) holds
+-- neither, and the base login is REVOKEd from the table outright below. All seven readers sat on
+-- exactly those background paths, so each was a hard 42501. It was invisible in the TEST journal only
 -- because nobody had exercised the handlers. Reproduced by replaying each reader against the TEST
 -- build; all six failed. What that silently cost, per reader:
 --   * admin_/doctor_ messenger id lists -> `resolveMessengerStaffAdmin failed, treating as
