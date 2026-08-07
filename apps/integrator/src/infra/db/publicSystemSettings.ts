@@ -120,6 +120,41 @@ export async function fetchIntegratorProviderRuntimeSettingValueJson(
   return row?.value_json ?? null;
 }
 
+/**
+ * Operator probe cadence through its own DB-owned capability.
+ *
+ * The operational capability roles hold no SELECT on `public.system_settings` and no EXECUTE on
+ * `app.current_org_id()` (which the table's RLS policy calls), so the direct read above is a hard
+ * `42501` under them. Callers pick this path via `getCurrentIntegratorTechnicalRuntimeRole()`.
+ */
+export async function fetchOperatorHealthProbeConfigValueJson(db: DbPort): Promise<unknown | null> {
+  const result = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT app.read_operator_health_probe_config() AS value_json`,
+  );
+  return result.rows[0]?.value_json ?? null;
+}
+
+/** Verbose operational logging flag through its capability; boolean-only, fail-safe false. */
+export async function fetchOperationalVerboseLogFlag(db: DbPort): Promise<boolean> {
+  const result = await runIntegratorSql<{ enabled: boolean | null }>(
+    db,
+    sql`SELECT app.read_operational_verbose_log_flag() AS enabled`,
+  );
+  return result.rows[0]?.enabled === true;
+}
+
+/** Organizations with the clinic Google Calendar switch on, for the outbound probe only. */
+export async function listGoogleCalendarProbeOrganizationIdsViaCapability(
+  db: DbPort,
+): Promise<string[]> {
+  const result = await runIntegratorSql<{ organization_id: string }>(
+    db,
+    sql`SELECT app.list_google_calendar_probe_organization_ids()::text AS organization_id`,
+  );
+  return result.rows.map((row) => row.organization_id);
+}
+
 export async function readPublicSystemSettingString(
   db: DbPort,
   key: string,

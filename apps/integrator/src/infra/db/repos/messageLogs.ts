@@ -5,6 +5,7 @@ import { logger } from '../../observability/logger.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import { deliveryAttemptLogs } from '../schema/integratorPublicProduct.js';
+import { getCurrentIntegratorTechnicalRuntimeRole } from '../withClient.js';
 import { getOperationalVerboseLogEnabled } from './operationalVerboseLog.js';
 
 type DeliveryAttemptLogParams = {
@@ -79,6 +80,19 @@ export async function insertDeliveryAttemptLog(
       await runIntegratorSql(
         db,
         sql`SELECT app.record_global_email_delivery_attempt(
+          ${intentType}, ${intentEventId}, ${correlationId}, ${channel}, ${status}, ${attempt}, ${reason}, ${payloadJson}::jsonb, ${occurredAt}::timestamptz
+        )`,
+      );
+    } else if (getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_delivery_worker') {
+      // A worker-drained send keeps its own `worker:*` principal all the way through the audit, so
+      // it never took the delivery-handler branch above -- and that branch would reject it anyway,
+      // because app.record_global_email_delivery_attempt hard-pins p_channel = 'email'. The direct
+      // insert below is a cross-schema write the delivery worker role cannot do: it has no USAGE on
+      // `integrator`, so every max/telegram/sms attempt died with `42P01 relation
+      // "delivery_attempt_logs" does not exist` and rolled its transaction back.
+      await runIntegratorSql(
+        db,
+        sql`SELECT app.record_operational_delivery_attempt_audit(
           ${intentType}, ${intentEventId}, ${correlationId}, ${channel}, ${status}, ${attempt}, ${reason}, ${payloadJson}::jsonb, ${occurredAt}::timestamptz
         )`,
       );

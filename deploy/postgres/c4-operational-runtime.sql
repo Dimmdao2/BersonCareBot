@@ -506,6 +506,16 @@ GRANT UPDATE (last_seen_at, occurrence_count, error_detail) ON TABLE public.oper
 GRANT INSERT ON TABLE public.notification_delivery_attempts TO app_owner;
 GRANT INSERT ON TABLE integrator.delivery_attempt_logs TO app_owner;
 GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
+-- app.resolve_operator_probe_incidents (below) runs SECURITY DEFINER as app_owner and closes probe
+-- incidents by writing resolved_at only — the alert/occurrence columns above stay out of its reach.
+GRANT UPDATE (resolved_at) ON TABLE public.operator_incidents TO app_owner;
+-- app.read_operator_outbound_probe_meta / app.record_operator_outbound_probe_run (below) are the
+-- scheduler's only path to public.operator_job_status. They pin job_key inside the function body,
+-- so app_owner needs exactly the columns that single row's upsert touches — never DELETE.
+GRANT SELECT, INSERT ON TABLE public.operator_job_status TO app_owner;
+GRANT UPDATE (job_family, last_status, last_started_at, last_finished_at, last_success_at,
+  last_failure_at, last_duration_ms, last_error, meta_json)
+  ON TABLE public.operator_job_status TO app_owner;
 
 -- app.resolve_outgoing_delivery_scope is owned by the webapp drizzle migration ledger (latest body in
 -- apps/webapp/db/drizzle-migrations/*). This overlay pins owner/ACL only. Never recreate the body here:
@@ -731,6 +741,340 @@ REVOKE ALL ON FUNCTION app.read_media_worker_runtime_setting(text) FROM
   app_staff, app_patient, app_worker,
   app_operational_diagnostic, app_operational_delivery_worker, app_operational_scheduler;
 GRANT EXECUTE ON FUNCTION app.read_media_worker_runtime_setting(text) TO app_operational_media_worker;
+
+-- ---------------------------------------------------------------------------
+-- Operator outbound probe contour (scheduler) and the non-email delivery audit
+-- capability (delivery worker).
+--
+-- Why these exist (found 2026-08-07 in the TEST journal): the operator health probe tick and the
+-- worker-drained delivery audit were shipped against `public.system_settings`, `public.operator_
+-- job_status` and `integrator.delivery_attempt_logs` as PLAIN TABLE ACCESS, which no operational
+-- capability role has or should have. On TEST that produced, every single day:
+--   * 12075 x `42501 permission denied for table operator_job_status` -> `Runtime scheduler tick
+--     failed` every 5s, i.e. the MAX / Telegram / Google Calendar probes never ran at all;
+--   * `42501 permission denied for function current_org_id` on the RLS policy behind
+--     public.system_settings -> the admin-configured probe config was silently ignored;
+--   * `42P01 relation "delivery_attempt_logs" does not exist` -> every non-email delivery attempt
+--     lost its audit row and rolled back its transaction.
+-- The canon of this file is "runtime login receives EXECUTE on the function, never table SELECT",
+-- so each gap below is closed by a single-purpose SECURITY DEFINER capability whose scope is
+-- pinned inside the body (fixed settings key / fixed job_key / fixed dedup-key prefix set). None
+-- of them widens the managed-role table surface, adds an RLS policy, or takes a settings key that
+-- could carry provider secrets.
+-- ---------------------------------------------------------------------------
+
+-- Scheduler-only read of the admin probe cadence. Fixed key, admin scope, global row.
+CREATE OR REPLACE FUNCTION app.read_operator_health_probe_config()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'operator_health_probe_config'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$function$;
+ALTER FUNCTION app.read_operator_health_probe_config() OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.read_operator_health_probe_config() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_operator_health_probe_config() FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.read_operator_health_probe_config() TO app_operational_scheduler;
+
+-- Verbose-logging flag for integrator operational logs. Boolean-only, fail-safe false; both
+-- background contours read it on their own cadence, neither may reach the settings table.
+CREATE OR REPLACE FUNCTION app.read_operational_verbose_log_flag()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT COALESCE((
+    SELECT lower(COALESCE(setting.value_json ->> 'value', '')) IN ('true', '1')
+    FROM public.system_settings AS setting
+    WHERE setting.key = 'debug_forward_to_admin'
+      AND setting.scope = 'admin'
+      AND setting.organization_id IS NULL
+    LIMIT 1
+  ), false)
+$function$;
+ALTER FUNCTION app.read_operational_verbose_log_flag() OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.read_operational_verbose_log_flag() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_operational_verbose_log_flag() FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.read_operational_verbose_log_flag()
+  TO app_operational_delivery_worker, app_operational_scheduler;
+
+-- Organizations whose clinic-level Google Calendar switch is on, for the outbound probe only.
+-- Returns ids, never any calendar credential; the per-organization config read stays where it is.
+CREATE OR REPLACE FUNCTION app.list_google_calendar_probe_organization_ids()
+RETURNS SETOF uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.organization_id
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'google_calendar_enabled'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NOT NULL
+    AND lower(COALESCE(setting.value_json ->> 'value', '')) IN ('true', '1')
+  ORDER BY setting.updated_at DESC, setting.organization_id
+$function$;
+ALTER FUNCTION app.list_google_calendar_probe_organization_ids() OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.list_google_calendar_probe_organization_ids() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.list_google_calendar_probe_organization_ids() FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.list_google_calendar_probe_organization_ids()
+  TO app_operational_scheduler;
+
+-- The probe tick's own job-status row. job_key is pinned here, so the capability cannot read or
+-- write any other operator job family even though it is one shared table.
+CREATE OR REPLACE FUNCTION app.read_operator_outbound_probe_meta()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT COALESCE((
+    SELECT status.meta_json
+    FROM public.operator_job_status AS status
+    WHERE status.job_key = 'health.outbound_probe.run'
+    LIMIT 1
+  ), '{}'::jsonb)
+$function$;
+ALTER FUNCTION app.read_operator_outbound_probe_meta() OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.read_operator_outbound_probe_meta() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_operator_outbound_probe_meta() FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.read_operator_outbound_probe_meta() TO app_operational_scheduler;
+
+CREATE OR REPLACE FUNCTION app.record_operator_outbound_probe_run(
+  p_last_status text,
+  p_finished_at timestamp with time zone,
+  p_last_error text,
+  p_meta_json jsonb
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  IF p_last_status IS NULL
+    OR p_last_status NOT IN ('success', 'failure')
+    OR p_finished_at IS NULL
+    OR p_meta_json IS NULL
+    OR jsonb_typeof(p_meta_json) <> 'object'
+    OR pg_column_size(p_meta_json) > 65536
+    OR length(COALESCE(p_last_error, '')) > 1000
+  THEN
+    RAISE EXCEPTION 'invalid operator outbound probe run input'
+      USING ERRCODE = '23514';
+  END IF;
+
+  INSERT INTO public.operator_job_status AS status (
+    job_key, job_family, last_status, last_started_at, last_finished_at,
+    last_success_at, last_failure_at, last_duration_ms, last_error, meta_json
+  ) VALUES (
+    'health.outbound_probe.run', 'health', p_last_status, p_finished_at, p_finished_at,
+    CASE WHEN p_last_status = 'success' THEN p_finished_at END,
+    CASE WHEN p_last_status = 'failure' THEN p_finished_at END,
+    0, NULLIF(p_last_error, ''), p_meta_json
+  )
+  ON CONFLICT (job_key) DO UPDATE SET
+    job_family = 'health',
+    last_status = EXCLUDED.last_status,
+    last_finished_at = EXCLUDED.last_finished_at,
+    last_success_at = CASE
+      WHEN EXCLUDED.last_status = 'success' THEN EXCLUDED.last_finished_at
+      ELSE status.last_success_at
+    END,
+    last_failure_at = CASE
+      WHEN EXCLUDED.last_status = 'failure' THEN EXCLUDED.last_finished_at
+      ELSE NULL
+    END,
+    last_duration_ms = 0,
+    last_error = EXCLUDED.last_error,
+    meta_json = EXCLUDED.meta_json;
+END
+$function$;
+ALTER FUNCTION app.record_operator_outbound_probe_run(text, timestamp with time zone, text, jsonb)
+  OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.record_operator_outbound_probe_run(text, timestamp with time zone, text, jsonb)
+  FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.record_operator_outbound_probe_run(text, timestamp with time zone, text, jsonb)
+  FROM app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.record_operator_outbound_probe_run(text, timestamp with time zone, text, jsonb)
+  TO app_operational_scheduler;
+
+-- Closing probe incidents after a probe recovers. The prefix allow-list is fixed here so the
+-- capability can never resolve an incident outside the three outbound probes it owns.
+CREATE OR REPLACE FUNCTION app.resolve_operator_probe_incidents(p_dedup_key_prefix text)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+DECLARE
+  v_resolved integer;
+BEGIN
+  IF p_dedup_key_prefix IS NULL
+    OR p_dedup_key_prefix NOT IN (
+      'outbound:max:', 'outbound:telegram:', 'outbound:google_calendar:'
+    )
+  THEN
+    RAISE EXCEPTION 'invalid operator probe incident prefix'
+      USING ERRCODE = '23514';
+  END IF;
+
+  WITH resolved AS (
+    UPDATE public.operator_incidents AS incident
+    SET resolved_at = now()
+    WHERE incident.resolved_at IS NULL
+      AND incident.dedup_key LIKE p_dedup_key_prefix || '%'
+    RETURNING incident.id
+  )
+  SELECT count(*)::integer INTO v_resolved FROM resolved;
+
+  RETURN v_resolved;
+END
+$function$;
+ALTER FUNCTION app.resolve_operator_probe_incidents(text) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.resolve_operator_probe_incidents(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.resolve_operator_probe_incidents(text) FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.resolve_operator_probe_incidents(text) TO app_operational_scheduler;
+
+-- Probe failures must open an incident too, but app.open_or_touch_operator_incident stays
+-- delivery-worker-only (the cross-contour block below asserts the scheduler does NOT hold it).
+-- This is the scheduler's own narrow door: direction, integration and error_class are pinned to
+-- the three outbound probes, so it can never open an incident for another contour's failure.
+CREATE OR REPLACE FUNCTION app.open_or_touch_operator_probe_incident(
+  p_integration text,
+  p_error_class text,
+  p_error_detail text
+)
+RETURNS TABLE (id uuid, occurrence_count integer)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  IF p_integration IS NULL
+    OR p_error_class IS NULL
+    OR (p_integration, p_error_class) NOT IN (
+      ('max', 'max_probe_failed'),
+      ('telegram', 'telegram_probe_failed'),
+      ('google_calendar', 'google_calendar_probe_failed')
+    )
+    OR length(COALESCE(p_error_detail, '')) > 1000
+  THEN
+    RAISE EXCEPTION 'invalid operator probe incident input'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN QUERY
+  SELECT incident.id, incident.occurrence_count
+  FROM app.open_or_touch_operator_incident(
+    'outbound:' || p_integration || ':' || p_error_class,
+    'outbound',
+    p_integration,
+    p_error_class,
+    NULLIF(p_error_detail, '')
+  ) AS incident;
+END
+$function$;
+ALTER FUNCTION app.open_or_touch_operator_probe_incident(text, text, text) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.open_or_touch_operator_probe_incident(text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.open_or_touch_operator_probe_incident(text, text, text) FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_delivery_worker, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.open_or_touch_operator_probe_incident(text, text, text)
+  TO app_operational_scheduler;
+
+-- Delivery attempt audit for the channels app.record_global_email_delivery_attempt cannot take:
+-- that one hard-pins p_channel = 'email', so a worker-drained max/telegram/sms attempt had no
+-- persistence path at all and fell through to a direct cross-schema INSERT that 42P01'd.
+CREATE OR REPLACE FUNCTION app.record_operational_delivery_attempt_audit(
+  p_intent_type text,
+  p_intent_event_id text,
+  p_correlation_id text,
+  p_channel text,
+  p_status text,
+  p_attempt integer,
+  p_reason text,
+  p_payload_json jsonb,
+  p_occurred_at timestamp with time zone
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  IF p_intent_type IS NULL
+    OR NULLIF(btrim(p_intent_event_id), '') IS NULL
+    OR p_channel IS NULL
+    OR p_channel NOT IN ('max', 'telegram', 'sms', 'web_push', 'email')
+    OR p_status IS NULL
+    OR p_status NOT IN ('success', 'failed')
+    OR p_attempt IS NULL
+    OR p_attempt NOT BETWEEN 1 AND 100
+    OR p_payload_json IS NULL
+    OR jsonb_typeof(p_payload_json) <> 'object'
+    OR p_occurred_at IS NULL
+    OR length(p_intent_type) > 200
+    OR length(p_intent_event_id) > 500
+    OR length(COALESCE(p_correlation_id, '')) > 500
+    OR length(COALESCE(p_reason, '')) > 1000
+    OR pg_column_size(p_payload_json) > 65536
+  THEN
+    RAISE EXCEPTION 'invalid operational delivery attempt audit input'
+      USING ERRCODE = '23514';
+  END IF;
+
+  INSERT INTO integrator.delivery_attempt_logs (
+    intent_type, intent_event_id, correlation_id, channel,
+    status, attempt, reason, payload_json, occurred_at
+  ) VALUES (
+    NULLIF(p_intent_type, ''),
+    NULLIF(p_intent_event_id, ''),
+    NULLIF(p_correlation_id, ''),
+    p_channel,
+    p_status,
+    p_attempt,
+    NULLIF(p_reason, ''),
+    p_payload_json,
+    p_occurred_at
+  );
+END
+$function$;
+ALTER FUNCTION app.record_operational_delivery_attempt_audit(
+  text, text, text, text, text, integer, text, jsonb, timestamp with time zone
+) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.record_operational_delivery_attempt_audit(
+  text, text, text, text, text, integer, text, jsonb, timestamp with time zone
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.record_operational_delivery_attempt_audit(
+  text, text, text, text, text, integer, text, jsonb, timestamp with time zone
+) FROM app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.record_operational_delivery_attempt_audit(
+  text, text, text, text, text, integer, text, jsonb, timestamp with time zone
+) TO app_operational_delivery_worker;
 
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO
   app_operational_diagnostic,
@@ -1120,6 +1464,8 @@ WITH managed(role_name) AS (VALUES
   ('function','app.read_integrator_platform_integration_availability()','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.revalidate_specialist_task_reminder_materialization(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.apply_specialist_task_reminder_success_outcome(uuid)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.read_operational_verbose_log_flag()','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,jsonb,timestamp with time zone)','EXECUTE','app_operational_delivery_worker',false),
   ('schema','app','USAGE','app_operational_scheduler',false),
   ('schema','integrator','USAGE','app_operational_scheduler',false),
   ('schema','public','USAGE','app_operational_scheduler',false),
@@ -1130,6 +1476,13 @@ WITH managed(role_name) AS (VALUES
   ('table','public.reminder_rules','SELECT','app_operational_scheduler',false),
   ('function','app.release_principal_context()','EXECUTE','app_operational_scheduler',false),
   ('function','app.list_scheduler_reminder_organization_ids()','EXECUTE','app_operational_scheduler',false),
+  ('function','app.read_operator_health_probe_config()','EXECUTE','app_operational_scheduler',false),
+  ('function','app.read_operational_verbose_log_flag()','EXECUTE','app_operational_scheduler',false),
+  ('function','app.list_google_calendar_probe_organization_ids()','EXECUTE','app_operational_scheduler',false),
+  ('function','app.read_operator_outbound_probe_meta()','EXECUTE','app_operational_scheduler',false),
+  ('function','app.record_operator_outbound_probe_run(text,timestamp with time zone,text,jsonb)','EXECUTE','app_operational_scheduler',false),
+  ('function','app.resolve_operator_probe_incidents(text)','EXECUTE','app_operational_scheduler',false),
+  ('function','app.open_or_touch_operator_probe_incident(text,text,text)','EXECUTE','app_operational_scheduler',false),
   ('schema','app','USAGE','app_operational_media_worker',false),
   ('schema','public','USAGE','app_operational_media_worker',false),
   ('table','public.media_transcode_jobs','SELECT','app_operational_media_worker',false),

@@ -7,9 +7,11 @@ import type { GoogleCalendarConfig } from './config.js';
 import { logger } from '../../infra/observability/logger.js';
 import {
   listExactOrganizationIdsWithTruePublicSystemSetting,
+  listGoogleCalendarProbeOrganizationIdsViaCapability,
   readExactOrganizationPublicSystemSettingString,
   readPublicSystemSettingString,
 } from '../../infra/db/publicSystemSettings.js';
+import { getCurrentIntegratorTechnicalRuntimeRole } from '../../infra/db/withClient.js';
 import { isPlatformIntegrationAvailable } from '../../infra/db/platformIntegrationAvailability.js';
 
 async function readDbSetting(
@@ -78,10 +80,12 @@ async function readConfigFromDb(organizationId: string): Promise<GoogleCalendarC
  */
 export async function listGoogleCalendarProbeOrganizationIds(): Promise<string[]> {
   try {
-    return await listExactOrganizationIdsWithTruePublicSystemSetting(
-      createDbPort(),
-      'google_calendar_enabled',
-    );
+    // Under the scheduler capability role the settings table is unreachable, so the probe used to
+    // see an empty list and report google_calendar as skipped_not_configured forever.
+    const db = createDbPort();
+    return getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_scheduler'
+      ? await listGoogleCalendarProbeOrganizationIdsViaCapability(db)
+      : await listExactOrganizationIdsWithTruePublicSystemSetting(db, 'google_calendar_enabled');
   } catch (err) {
     logger.warn({ err }, '[google-calendar] failed to list clinic configs for operator probe');
     return [];

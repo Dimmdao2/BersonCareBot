@@ -2,9 +2,11 @@ import { z } from 'zod';
 import { createDbPort } from '../infra/db/client.js';
 import { logger } from '../infra/observability/logger.js';
 import {
+  fetchOperatorHealthProbeConfigValueJson,
   fetchPublicSystemSettingValueJson,
   parseSystemSettingInnerWithSchema,
 } from '../infra/db/publicSystemSettings.js';
+import { getCurrentIntegratorTechnicalRuntimeRole } from '../infra/db/withClient.js';
 
 export const OPERATOR_HEALTH_PROBE_CONFIG_KEY = 'operator_health_probe_config';
 export const OPERATOR_HEALTH_PROBE_NAMES = ['max', 'telegram', 'google_calendar'] as const;
@@ -96,11 +98,13 @@ export function isOperatorHealthProbeDue(input: {
 /** DB-backed config with fail-safe registry-equivalent defaults after a reset/delete. */
 export async function getOperatorHealthProbeConfig(): Promise<OperatorHealthProbeConfig> {
   try {
-    const valueJson = await fetchPublicSystemSettingValueJson(
-      createDbPort(),
-      OPERATOR_HEALTH_PROBE_CONFIG_KEY,
-      'admin',
-    );
+    // Under an operational capability role (the scheduler tick) the settings table is out of
+    // reach by design; its dedicated capability is the only path that is not a hard 42501.
+    const db = createDbPort();
+    const valueJson =
+      getCurrentIntegratorTechnicalRuntimeRole() === undefined
+        ? await fetchPublicSystemSettingValueJson(db, OPERATOR_HEALTH_PROBE_CONFIG_KEY, 'admin')
+        : await fetchOperatorHealthProbeConfigValueJson(db);
     const parsed =
       valueJson === null ? null : parseSystemSettingInnerWithSchema(valueJson, configSchema);
     return parsed ?? DEFAULT_OPERATOR_HEALTH_PROBE_CONFIG;
