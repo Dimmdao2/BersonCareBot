@@ -87,9 +87,11 @@ export async function insertDeliveryAttemptLog(
       // A worker-drained send keeps its own `worker:*` principal all the way through the audit, so
       // it never took the delivery-handler branch above -- and that branch would reject it anyway,
       // because app.record_global_email_delivery_attempt hard-pins p_channel = 'email'. The direct
-      // insert below is a cross-schema write the delivery worker role cannot do: it has no USAGE on
-      // `integrator`, so every max/telegram/sms attempt died with `42P01 relation
-      // "delivery_attempt_logs" does not exist` and rolled its transaction back.
+      // insert below then died with `42P01 relation "delivery_attempt_logs" does not exist`. The
+      // cause is NAME RESOLUTION, not schema access: the Drizzle table is declared UNQUALIFIED
+      // (schema/integratorPublicProduct.ts `pgTable('delivery_attempt_logs')`) while the row lives
+      // in schema `integrator`, and the operational login's search_path is only "$user", public.
+      // USAGE on `integrator` is in fact granted -- the schema was never the missing piece.
       await runIntegratorSql(
         db,
         sql`SELECT app.record_operational_delivery_attempt_audit(

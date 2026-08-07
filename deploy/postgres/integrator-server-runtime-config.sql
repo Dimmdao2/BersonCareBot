@@ -27,16 +27,25 @@ REVOKE EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability
   FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
   FROM :"integrator_runtime_config_role";
-REVOKE EXECUTE ON FUNCTION app.read_integrator_runtime_setting(text)
-  FROM :"integrator_runtime_config_role";
-REVOKE EXECUTE ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid)
-  FROM :"integrator_runtime_config_role";
-REVOKE EXECUTE ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid)
-  FROM :"integrator_runtime_config_role";
-REVOKE EXECUTE ON FUNCTION app.read_operator_health_probe_config()
-  FROM :"integrator_runtime_config_role";
-REVOKE EXECUTE ON FUNCTION app.read_operational_verbose_log_flag()
-  FROM :"integrator_runtime_config_role";
+-- These five are created by this file, so on a database that predates it they do not exist yet and
+-- an unguarded REVOKE would abort the DOWN path under \set ON_ERROR_STOP on.
+DO $integrator_runtime_new_capability_revoke$
+DECLARE
+  v_signature text;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'app.read_integrator_runtime_setting(text)',
+    'app.read_integrator_google_calendar_setting(text,uuid)',
+    'app.read_integrator_clinic_delivery_credential(text,uuid)',
+    'app.read_operator_health_probe_config()',
+    'app.read_operational_verbose_log_flag()'
+  ] LOOP
+    IF to_regprocedure(v_signature) IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM %I', v_signature, :'integrator_runtime_config_role');
+    END IF;
+  END LOOP;
+END
+$integrator_runtime_new_capability_revoke$;
 REVOKE EXECUTE ON FUNCTION app.release_principal_context()
   FROM :"integrator_runtime_config_role";
 \echo 'Integrator server-runtime config grants DOWN complete.'
@@ -132,11 +141,6 @@ ALTER FUNCTION app.record_global_email_delivery_attempt(
 ALTER FUNCTION app.read_integrator_auth_channel_setting(text) OWNER TO app_owner;
 ALTER FUNCTION app.read_integrator_platform_integration_availability() OWNER TO app_owner;
 ALTER FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text) OWNER TO app_owner;
-ALTER FUNCTION app.read_integrator_runtime_setting(text) OWNER TO app_owner;
-ALTER FUNCTION app.read_integrator_google_calendar_setting(text, uuid) OWNER TO app_owner;
-ALTER FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) OWNER TO app_owner;
-ALTER FUNCTION app.read_operator_health_probe_config() OWNER TO app_owner;
-ALTER FUNCTION app.read_operational_verbose_log_flag() OWNER TO app_owner;
 
 -- 0244_public_app_base_url_runtime_setting registered app_base_url in the projection at
 -- audience='public' for the anonymous landing page. The unique index backing this projection is
@@ -181,7 +185,9 @@ REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
 -- holds SELECT on it and EXECUTE on app.current_org_id(), which its RLS policy calls. Every
 -- BACKGROUND contour of this app (bootstrap, infra, and the operational capability roles) holds
 -- neither, and the base login is REVOKEd from the table outright below. All seven readers sat on
--- exactly those background paths, so each was a hard 42501. It was invisible in the TEST journal only
+-- exactly those background paths, so each was a hard 42501. (Seven call sites; the replay exercised
+-- six of them directly -- the seventh, the per-clinic calendar read, sits inside readConfigFromDb and
+-- was reached through it.) It was invisible in the TEST journal only
 -- because nobody had exercised the handlers. Reproduced by replaying each reader against the TEST
 -- build; all six failed. What that silently cost, per reader:
 --   * admin_/doctor_ messenger id lists -> `resolveMessengerStaffAdmin failed, treating as
@@ -338,6 +344,15 @@ REVOKE ALL ON FUNCTION app.read_integrator_runtime_setting(text)
 REVOKE ALL ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid)
   FROM app_staff, app_patient, app_worker;
+
+-- Ownership is pinned AFTER the bodies above exist. These five are created by THIS file, so an
+-- ALTER placed with the other ownership pins (which target functions the migration ledger already
+-- created) would run before the CREATE and abort the whole overlay under \set ON_ERROR_STOP on.
+ALTER FUNCTION app.read_integrator_runtime_setting(text) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_google_calendar_setting(text, uuid) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) OWNER TO app_owner;
+ALTER FUNCTION app.read_operator_health_probe_config() OWNER TO app_owner;
+ALTER FUNCTION app.read_operational_verbose_log_flag() OWNER TO app_owner;
 REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_provider_runtime_setting(text)
   FROM :"integrator_runtime_config_role" CASCADE;
 DO $provider_runtime_acl_scrub$

@@ -510,8 +510,11 @@ GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
 -- incidents by writing resolved_at only — the alert/occurrence columns above stay out of its reach.
 GRANT UPDATE (resolved_at) ON TABLE public.operator_incidents TO app_owner;
 -- app.read_operator_outbound_probe_meta / app.record_operator_outbound_probe_run (below) are the
--- scheduler's only path to public.operator_job_status. They pin job_key inside the function body,
--- so app_owner needs exactly the columns that single row's upsert touches — never DELETE.
+-- scheduler's only path to public.operator_job_status, and they pin job_key inside their bodies.
+-- These grants, however, are TABLE-WIDE: app_owner owns every SECURITY DEFINER function in schema
+-- app, so the privilege is reachable from any of them, not only from the two that pin the key. The
+-- real bound here is the column list and the absence of DELETE — the job_key pin is a property of
+-- those two function bodies and is NOT enforced by the grant.
 GRANT SELECT, INSERT ON TABLE public.operator_job_status TO app_owner;
 GRANT UPDATE (job_family, last_status, last_started_at, last_finished_at, last_success_at,
   last_failure_at, last_duration_ms, last_error, meta_json)
@@ -811,6 +814,13 @@ REVOKE ALL ON FUNCTION app.list_google_calendar_probe_organization_ids() FROM
 GRANT EXECUTE ON FUNCTION app.list_google_calendar_probe_organization_ids()
   TO app_operational_scheduler;
 
+-- NOT granted to the scheduler on purpose, and the google_calendar probe therefore still reports
+-- skipped_not_configured. Making it work needs app.read_integrator_platform_integration_availability
+-- (which the cross-contour block below asserts the scheduler must NOT hold) plus the calendar
+-- accessor, whose NULL-organization branch returns google_client_secret -- i.e. it would hand the
+-- scheduler contour the platform OAuth secret. That is a widening of a deliberate wall, so it is an
+-- owner decision, not a side effect of a log fix. The max and telegram probes work without it.
+
 -- The probe tick's own job-status row. job_key is pinned here, so the capability cannot read or
 -- write any other operator job family even though it is one shared table.
 CREATE OR REPLACE FUNCTION app.read_operator_outbound_probe_meta()
@@ -1003,7 +1013,11 @@ BEGIN
   IF p_intent_type IS NULL
     OR NULLIF(btrim(p_intent_event_id), '') IS NULL
     OR p_channel IS NULL
-    OR p_channel NOT IN ('max', 'telegram', 'sms', 'web_push', 'email')
+    -- Vocabulary is `Channel` in apps/integrator/src/kernel/contracts/unifiedMessage.ts: the SMS tag
+    -- is 'smsc', NOT 'sms' -- that file says so in capitals and forbids renaming it. 'unknown' is
+    -- written by the dev-redirect SUPPRESS branch (dispatchPort.ts, readChannel(intent) ?? 'unknown')
+    -- and must persist too, or that path starts rolling back instead of recording a suppressed send.
+    OR p_channel NOT IN ('max', 'telegram', 'smsc', 'web_push', 'email', 'unknown')
     OR p_status IS NULL
     OR p_status NOT IN ('success', 'failed')
     OR p_attempt IS NULL
