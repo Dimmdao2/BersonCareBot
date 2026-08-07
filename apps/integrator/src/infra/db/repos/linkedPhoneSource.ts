@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
 import {
-  fetchPublicSystemSettingValueJson,
+  fetchIntegratorRuntimeSettingValueJson,
   parseSystemSettingInnerWithSchema,
 } from '../publicSystemSettings.js';
 
@@ -48,7 +48,7 @@ export async function getIntegratorLinkedPhoneSource(
     return cache.value;
   }
   try {
-    const valueJson = await fetchPublicSystemSettingValueJson(db, KEY);
+    const valueJson = await fetchIntegratorRuntimeSettingValueJson(db, KEY);
     const parsed =
       valueJson !== null
         ? parseSystemSettingInnerWithSchema(valueJson, integratorLinkedPhoneSourceInnerSchema)

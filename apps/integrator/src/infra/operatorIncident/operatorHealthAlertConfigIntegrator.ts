@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   extractSystemSettingInnerValue,
-  fetchPublicSystemSettingValueJson,
+  fetchIntegratorRuntimeSettingValueJson,
 } from '../db/publicSystemSettings.js';
 import { runIntegratorSql } from '../db/runIntegratorSql.js';
 import type { DbPort } from '../../kernel/contracts/index.js';
@@ -160,10 +160,10 @@ function parseLegacyConfig(valueJson: unknown): OperatorHealthAlertConfigIntegra
 export async function loadOperatorHealthAlertConfigIntegrator(
   db: DbPort,
 ): Promise<OperatorHealthAlertConfigIntegrator> {
-  const operatorJson = await fetchPublicSystemSettingValueJson(db, 'operator_health_alert_config');
+  const operatorJson = await fetchIntegratorRuntimeSettingValueJson(db, 'operator_health_alert_config');
   const operatorParsed = parseOperatorConfig(operatorJson);
   if (operatorParsed) return operatorParsed;
-  const legacyJson = await fetchPublicSystemSettingValueJson(db, 'admin_incident_alert_config');
+  const legacyJson = await fetchIntegratorRuntimeSettingValueJson(db, 'admin_incident_alert_config');
   return parseLegacyConfig(legacyJson);
 }
 

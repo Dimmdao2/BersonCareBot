@@ -3,7 +3,7 @@ import { logger } from '../infra/observability/logger.js';
 import { recordDataQualityIncidentAndMaybeTelegram } from '../infra/db/dataQualityIncidentAlert.js';
 import type { IntegrationDataQualityErrorReason } from '../shared/integrationDataQuality/types.js';
 import {
-  fetchPublicSystemSettingValueJson,
+  fetchIntegratorRuntimeSettingValueJson,
   parseSystemSettingStringValue,
 } from '../infra/db/publicSystemSettings.js';
 
@@ -41,7 +41,7 @@ type DisplayTzResolve =
 async function resolveAppDisplayTimezone(db: DbPort): Promise<DisplayTzResolve> {
   let valueJson: unknown | null;
   try {
-    valueJson = await fetchPublicSystemSettingValueJson(db, APP_DISPLAY_TZ_KEY);
+    valueJson = await fetchIntegratorRuntimeSettingValueJson(db, APP_DISPLAY_TZ_KEY);
   } catch (err) {
     logger.warn({ err, reason: 'query_failed' }, '[appDisplayTimezone] fallback');
     return {

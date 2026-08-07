@@ -10,7 +10,8 @@ import type {
 import { parseMessengerIdTokens } from './parseMessengerIdTokens.js';
 import {
   extractSystemSettingInnerValue,
-  fetchPublicSystemSettingValueJson,
+  fetchIntegratorRuntimeSettingValueJson,
+  type IntegratorRuntimeSettingKey,
 } from './publicSystemSettings.js';
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin };
@@ -25,8 +26,8 @@ export function parseIdTokens(input: unknown): string[] {
   return parseMessengerIdTokens(input);
 }
 
-async function loadSettingInner(db: DbPort, key: string): Promise<unknown> {
-  const valueJson = await fetchPublicSystemSettingValueJson(db, key);
+async function loadSettingInner(db: DbPort, key: IntegratorRuntimeSettingKey): Promise<unknown> {
+  const valueJson = await fetchIntegratorRuntimeSettingValueJson(db, key);
   if (valueJson === null) return null;
   const inner = extractSystemSettingInnerValue(valueJson);
   return inner === undefined ? valueJson : inner;

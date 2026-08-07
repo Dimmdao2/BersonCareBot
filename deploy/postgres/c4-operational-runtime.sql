@@ -764,20 +764,9 @@ GRANT EXECUTE ON FUNCTION app.read_media_worker_runtime_setting(text) TO app_ope
 -- ---------------------------------------------------------------------------
 
 -- Scheduler-only read of the admin probe cadence. Fixed key, admin scope, global row.
-CREATE OR REPLACE FUNCTION app.read_operator_health_probe_config()
-RETURNS jsonb
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $function$
-  SELECT setting.value_json
-  FROM public.system_settings AS setting
-  WHERE setting.key = 'operator_health_probe_config'
-    AND setting.scope = 'admin'
-    AND setting.organization_id IS NULL
-  LIMIT 1
-$function$;
+-- Body lives in deploy/postgres/integrator-server-runtime-config.sql (it runs earlier and the
+-- integrator API login needs the same capability for its operator-health route); only the
+-- operational-role ACL belongs here.
 ALTER FUNCTION app.read_operator_health_probe_config() OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.read_operator_health_probe_config() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_operator_health_probe_config() FROM
@@ -787,22 +776,8 @@ GRANT EXECUTE ON FUNCTION app.read_operator_health_probe_config() TO app_operati
 
 -- Verbose-logging flag for integrator operational logs. Boolean-only, fail-safe false; both
 -- background contours read it on their own cadence, neither may reach the settings table.
-CREATE OR REPLACE FUNCTION app.read_operational_verbose_log_flag()
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $function$
-  SELECT COALESCE((
-    SELECT lower(COALESCE(setting.value_json ->> 'value', '')) IN ('true', '1')
-    FROM public.system_settings AS setting
-    WHERE setting.key = 'debug_forward_to_admin'
-      AND setting.scope = 'admin'
-      AND setting.organization_id IS NULL
-    LIMIT 1
-  ), false)
-$function$;
+-- Body lives in deploy/postgres/integrator-server-runtime-config.sql (the API and webhook
+-- contours read the same flag under the base login); only the operational-role ACL belongs here.
 ALTER FUNCTION app.read_operational_verbose_log_flag() OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.read_operational_verbose_log_flag() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_operational_verbose_log_flag() FROM

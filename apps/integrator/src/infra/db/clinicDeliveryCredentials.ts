@@ -4,8 +4,9 @@ import {
   type ResolvedSmtpOutboundConfig,
 } from '../../config/smtpOutbound.js';
 import {
-  readExactOrganizationPublicSystemSettingString,
-  readExactOrganizationPublicSystemSettingValueJson,
+  fetchIntegratorClinicDeliveryCredentialValueJson,
+  type IntegratorClinicDeliveryCredentialKey,
+  parseSystemSettingStringValue,
 } from './publicSystemSettings.js';
 import { getCurrentOrganizationPrincipalId } from '../principal/organizationPrincipal.js';
 import { resolveOrganizationMechanicLifecycleAccess } from './organizationMechanicLifecycleDoor.js';
@@ -17,7 +18,10 @@ export type ClinicDeliveryCredential =
   | { channel: 'telegram'; botToken: string }
   | { channel: 'max'; apiKey: string };
 
-const SETTINGS: Record<ClinicDeliveryChannel, { key: string; mechanic: string }> = {
+const SETTINGS: Record<
+  ClinicDeliveryChannel,
+  { key: IntegratorClinicDeliveryCredentialKey; mechanic: string }
+> = {
   email: { key: 'clinic_smtp_outbound', mechanic: 'clinic_smtp' },
   smsc: { key: 'clinic_smsc_api_key', mechanic: 'clinic_sms' },
   telegram: { key: 'clinic_telegram_bot_token', mechanic: 'clinic_telegram_bot' },
@@ -46,20 +50,16 @@ export function createClinicDeliveryCredentialResolver(db: DbPort) {
         mechanic: setting.mechanic,
       });
       if (!access.mutationAllowed) return null;
-      if (channel === 'email') {
-        const valueJson = await readExactOrganizationPublicSystemSettingValueJson(
-          db,
-          setting.key,
-          organizationId,
-        );
-        const smtp = valueJson === null ? null : parseSmtpOutboundValueJson(valueJson);
-        return smtp?.configured ? { channel, smtp } : null;
-      }
-      const value = await readExactOrganizationPublicSystemSettingString(
+      const valueJson = await fetchIntegratorClinicDeliveryCredentialValueJson(
         db,
         setting.key,
         organizationId,
       );
+      if (channel === 'email') {
+        const smtp = valueJson === null ? null : parseSmtpOutboundValueJson(valueJson);
+        return smtp?.configured ? { channel, smtp } : null;
+      }
+      const value = valueJson === null ? null : parseSystemSettingStringValue(valueJson);
       if (!value) return null;
       if (channel === 'smsc') return { channel, apiKey: value };
       if (channel === 'telegram') return { channel, botToken: value };

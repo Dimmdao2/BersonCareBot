@@ -6,21 +6,23 @@ import { createDbPort } from '../../infra/db/client.js';
 import type { GoogleCalendarConfig } from './config.js';
 import { logger } from '../../infra/observability/logger.js';
 import {
-  listExactOrganizationIdsWithTruePublicSystemSetting,
+  fetchIntegratorGoogleCalendarGlobalSettingString,
+  fetchIntegratorGoogleCalendarOrganizationSettingString,
+  type IntegratorGoogleCalendarGlobalSettingKey,
   listGoogleCalendarProbeOrganizationIdsViaCapability,
-  readExactOrganizationPublicSystemSettingString,
-  readPublicSystemSettingString,
 } from '../../infra/db/publicSystemSettings.js';
-import { getCurrentIntegratorTechnicalRuntimeRole } from '../../infra/db/withClient.js';
 import { isPlatformIntegrationAvailable } from '../../infra/db/platformIntegrationAvailability.js';
 
-async function readDbSetting(
-  key: string,
-  organizationId: string | null = null,
+/**
+ * Platform-wide Google OAuth identity. Goes through the calendar capability, not a settings-table
+ * read: no integrator role can touch `public.system_settings`, so this used to return null for
+ * every value and left the clinic's calendar integration permanently disabled.
+ */
+async function readGlobalGoogleSetting(
+  key: IntegratorGoogleCalendarGlobalSettingKey,
 ): Promise<string | null> {
   try {
-    const db = createDbPort();
-    return await readPublicSystemSettingString(db, key, 'admin', { organizationId });
+    return await fetchIntegratorGoogleCalendarGlobalSettingString(createDbPort(), key);
   } catch {
     return null;
   }
@@ -42,12 +44,12 @@ async function readConfigFromDb(organizationId: string): Promise<GoogleCalendarC
       refreshToken,
       platformAvailable,
     ] = await Promise.all([
-      readExactOrganizationPublicSystemSettingString(db, 'google_calendar_enabled', organizationId),
-      readDbSetting('google_client_id'),
-      readDbSetting('google_client_secret'),
-      readDbSetting('google_redirect_uri'),
-      readExactOrganizationPublicSystemSettingString(db, 'google_calendar_id', organizationId),
-      readExactOrganizationPublicSystemSettingString(db, 'google_refresh_token', organizationId),
+      fetchIntegratorGoogleCalendarOrganizationSettingString(db, 'google_calendar_enabled', organizationId),
+      readGlobalGoogleSetting('google_client_id'),
+      readGlobalGoogleSetting('google_client_secret'),
+      readGlobalGoogleSetting('google_redirect_uri'),
+      fetchIntegratorGoogleCalendarOrganizationSettingString(db, 'google_calendar_id', organizationId),
+      fetchIntegratorGoogleCalendarOrganizationSettingString(db, 'google_refresh_token', organizationId),
       isPlatformIntegrationAvailable(db, 'google_calendar'),
     ]);
     return {
@@ -80,12 +82,10 @@ async function readConfigFromDb(organizationId: string): Promise<GoogleCalendarC
  */
 export async function listGoogleCalendarProbeOrganizationIds(): Promise<string[]> {
   try {
-    // Under the scheduler capability role the settings table is unreachable, so the probe used to
-    // see an empty list and report google_calendar as skipped_not_configured forever.
-    const db = createDbPort();
-    return getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_scheduler'
-      ? await listGoogleCalendarProbeOrganizationIdsViaCapability(db)
-      : await listExactOrganizationIdsWithTruePublicSystemSetting(db, 'google_calendar_enabled');
+    // Probe-only caller, and the settings table is unreachable from this app under every
+    // principal, so there is no second path to keep: the probe used to see an empty list here and
+    // report google_calendar as skipped_not_configured forever.
+    return await listGoogleCalendarProbeOrganizationIdsViaCapability(createDbPort());
   } catch (err) {
     logger.warn({ err }, '[google-calendar] failed to list clinic configs for operator probe');
     return [];

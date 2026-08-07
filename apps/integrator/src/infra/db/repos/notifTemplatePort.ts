@@ -4,7 +4,11 @@
  * Falls back to hardcoded defaults when no DB row exists.
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { readPublicSystemSettingString } from '../publicSystemSettings.js';
+import {
+  fetchIntegratorRuntimeSettingValueJson,
+  type IntegratorRuntimeSettingKey,
+  parseSystemSettingStringValue,
+} from '../publicSystemSettings.js';
 import { interpolateTemplate } from '../../../kernel/orchestrator/templateInterpolation.js';
 
 export type NotifTemplateEvent = 'created' | 'cancelled' | 'rescheduled';
@@ -46,7 +50,7 @@ export const NOTIF_TEMPLATE_DEFAULTS: Record<
 export function notifTemplateKey(
   event: NotifTemplateEvent,
   audience: NotifTemplateAudience,
-): string {
+): IntegratorRuntimeSettingKey {
   return `notif_template:${event}:${audience}`;
 }
 
@@ -58,7 +62,8 @@ export async function getNotifTemplate(
 ): Promise<string> {
   try {
     const key = notifTemplateKey(event, audience);
-    const text = await readPublicSystemSettingString(db, key, 'admin');
+    const valueJson = await fetchIntegratorRuntimeSettingValueJson(db, key);
+    const text = valueJson === null ? null : parseSystemSettingStringValue(valueJson);
     if (text !== null) return text;
   } catch {
     // DB unavailable: fall through to default

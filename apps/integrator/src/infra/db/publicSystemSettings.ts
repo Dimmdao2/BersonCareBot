@@ -1,15 +1,16 @@
 /**
- * Runtime reads from canonical `public.system_settings` (unified DB).
+ * Runtime reads of canonical `public.system_settings` (unified DB) for the integrator.
+ *
+ * All of them go through DB-owned SECURITY DEFINER capabilities with fixed key allow-lists. There
+ * is deliberately no direct-table reader here: no integrator role holds SELECT on that table (see
+ * the explicit REVOKE in deploy/postgres/integrator-server-runtime-config.sql), nor EXECUTE on
+ * `app.current_org_id()` which its RLS policy calls, so any direct read is a hard `42501` under
+ * every principal of this app.
  */
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
-
-export type PublicSystemSettingScope = 'global' | 'doctor' | 'admin';
-export type PublicSystemSettingsReadOptions = {
-  organizationId?: string | null;
-};
 
 export type IntegratorProviderRuntimeSettingKey =
   | 'telegram_bot_token'
@@ -21,8 +22,6 @@ export type IntegratorProviderRuntimeSettingKey =
   | 'smsc_enabled'
   | 'smsc_api_key'
   | 'smsc_base_url';
-
-export const publicSystemSettingScopeSchema = z.enum(['global', 'doctor', 'admin']);
 
 /** Wrapper shape stored in the `value_json` column. */
 export const systemSettingValueEnvelopeSchema = z
@@ -74,36 +73,6 @@ export function parseSystemSettingInnerWithSchema<T>(
   return parsed.success ? parsed.data : null;
 }
 
-export async function fetchPublicSystemSettingValueJson(
-  db: DbPort,
-  key: string,
-  scope: PublicSystemSettingScope = 'admin',
-  options: PublicSystemSettingsReadOptions = {},
-): Promise<unknown | null> {
-  const organizationId = options.organizationId?.trim() || null;
-  const res = organizationId
-    ? await runIntegratorSql<{ value_json: unknown }>(
-        db,
-        sql`SELECT value_json
-            FROM public.system_settings
-            WHERE key = ${key}
-              AND scope = ${scope}
-              AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)
-            ORDER BY organization_id IS NULL ASC
-            LIMIT 1`,
-      )
-    : await runIntegratorSql<{ value_json: unknown }>(
-        db,
-        sql`SELECT value_json
-            FROM public.system_settings
-            WHERE key = ${key} AND scope = ${scope} AND organization_id IS NULL
-            LIMIT 1`,
-      );
-  const row = res.rows[0];
-  if (!row) return null;
-  return row.value_json;
-}
-
 /**
  * Global provider configuration through the DB-owned fixed allowlist capability.
  * The integrator runtime login receives EXECUTE on the function, never table SELECT.
@@ -120,13 +89,105 @@ export async function fetchIntegratorProviderRuntimeSettingValueJson(
   return row?.value_json ?? null;
 }
 
+export type IntegratorRuntimeSettingKey =
+  | 'integrator_linked_phone_source'
+  | 'admin_telegram_ids'
+  | 'admin_max_ids'
+  | 'doctor_telegram_ids'
+  | 'doctor_max_ids'
+  | 'operator_health_alert_config'
+  | 'admin_incident_alert_config'
+  | 'app_display_timezone'
+  | `notif_template:${'created' | 'cancelled' | 'rescheduled'}:${'patient' | 'doctor'}`;
+
+export type IntegratorGoogleCalendarGlobalSettingKey =
+  | 'google_client_id'
+  | 'google_client_secret'
+  | 'google_redirect_uri';
+
+export type IntegratorGoogleCalendarOrganizationSettingKey =
+  | 'google_calendar_enabled'
+  | 'google_calendar_id'
+  | 'google_refresh_token';
+
+export type IntegratorClinicDeliveryCredentialKey =
+  | 'clinic_smtp_outbound'
+  | 'clinic_smsc_api_key'
+  | 'clinic_telegram_bot_token'
+  | 'clinic_max_bot_api_key';
+
 /**
- * Operator probe cadence through its own DB-owned capability.
- *
- * The operational capability roles hold no SELECT on `public.system_settings` and no EXECUTE on
- * `app.current_org_id()` (which the table's RLS policy calls), so the direct read above is a hard
- * `42501` under them. Callers pick this path via `getCurrentIntegratorTechnicalRuntimeRole()`.
+ * Clinic-owned delivery credential (tariff branding) for the EXACT current organization.
+ * The tariff-mechanic gate runs in the caller, before this read.
  */
+export async function fetchIntegratorClinicDeliveryCredentialValueJson(
+  db: DbPort,
+  key: IntegratorClinicDeliveryCredentialKey,
+  organizationId: string,
+): Promise<unknown | null> {
+  const normalizedOrganizationId = organizationId.trim();
+  if (!normalizedOrganizationId) return null;
+  const result = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT app.read_integrator_clinic_delivery_credential(
+      ${key}, ${normalizedOrganizationId}::uuid
+    ) AS value_json`,
+  );
+  return result.rows[0]?.value_json ?? null;
+}
+
+/**
+ * Non-secret integrator runtime settings through the DB-owned fixed allow-list capability.
+ *
+ * Each caller had its own fail-safe, which is why the pre-capability 42501 stayed invisible in
+ * the journal until the handlers were actually exercised (found 2026-08-07).
+ */
+export async function fetchIntegratorRuntimeSettingValueJson(
+  db: DbPort,
+  key: IntegratorRuntimeSettingKey,
+): Promise<unknown | null> {
+  const result = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT app.read_integrator_runtime_setting(${key}) AS value_json`,
+  );
+  return result.rows[0]?.value_json ?? null;
+}
+
+/** Platform-wide Google OAuth identity (credentials); global rows only. */
+export async function fetchIntegratorGoogleCalendarGlobalSettingString(
+  db: DbPort,
+  key: IntegratorGoogleCalendarGlobalSettingKey,
+): Promise<string | null> {
+  const result = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT app.read_integrator_google_calendar_setting(${key}, NULL) AS value_json`,
+  );
+  const row = result.rows[0];
+  return row ? parseSystemSettingStringValue(row.value_json) : null;
+}
+
+/**
+ * Per-clinic calendar connection; EXACT organization row only, never a global fallback — a clinic
+ * connection must not inherit another clinic's calendar or refresh token.
+ */
+export async function fetchIntegratorGoogleCalendarOrganizationSettingString(
+  db: DbPort,
+  key: IntegratorGoogleCalendarOrganizationSettingKey,
+  organizationId: string,
+): Promise<string | null> {
+  const normalizedOrganizationId = organizationId.trim();
+  if (!normalizedOrganizationId) return null;
+  const result = await runIntegratorSql<{ value_json: unknown }>(
+    db,
+    sql`SELECT app.read_integrator_google_calendar_setting(
+      ${key}, ${normalizedOrganizationId}::uuid
+    ) AS value_json`,
+  );
+  const row = result.rows[0];
+  return row ? parseSystemSettingStringValue(row.value_json) : null;
+}
+
+/** Operator probe cadence; read by the scheduler tick and by the operator-health route alike. */
 export async function fetchOperatorHealthProbeConfigValueJson(db: DbPort): Promise<unknown | null> {
   const result = await runIntegratorSql<{ value_json: unknown }>(
     db,
@@ -153,73 +214,4 @@ export async function listGoogleCalendarProbeOrganizationIdsViaCapability(
     sql`SELECT app.list_google_calendar_probe_organization_ids()::text AS organization_id`,
   );
   return result.rows.map((row) => row.organization_id);
-}
-
-export async function readPublicSystemSettingString(
-  db: DbPort,
-  key: string,
-  scope: PublicSystemSettingScope = 'admin',
-  options: PublicSystemSettingsReadOptions = {},
-): Promise<string | null> {
-  const valueJson = await fetchPublicSystemSettingValueJson(db, key, scope, options);
-  if (valueJson === null) return null;
-  return parseSystemSettingStringValue(valueJson);
-}
-
-/** Exact organization row; used for clinic-owned external account credentials. */
-export async function readExactOrganizationPublicSystemSettingString(
-  db: DbPort,
-  key: string,
-  organizationId: string,
-): Promise<string | null> {
-  const normalizedOrganizationId = organizationId.trim();
-  if (!normalizedOrganizationId) return null;
-  const res = await runIntegratorSql<{ value_json: unknown }>(
-    db,
-    sql`SELECT value_json
-        FROM public.system_settings
-        WHERE key = ${key}
-          AND scope = 'admin'
-          AND organization_id = ${normalizedOrganizationId}::uuid
-        LIMIT 1`,
-  );
-  return res.rows[0] ? parseSystemSettingStringValue(res.rows[0].value_json) : null;
-}
-
-/** Exact organization row, preserving the setting envelope for structured restricted credentials. */
-export async function readExactOrganizationPublicSystemSettingValueJson(
-  db: DbPort,
-  key: string,
-  organizationId: string,
-): Promise<unknown | null> {
-  const normalizedOrganizationId = organizationId.trim();
-  if (!normalizedOrganizationId) return null;
-  const res = await runIntegratorSql<{ value_json: unknown }>(
-    db,
-    sql`SELECT value_json
-        FROM public.system_settings
-        WHERE key = ${key}
-          AND scope = 'admin'
-          AND organization_id = ${normalizedOrganizationId}::uuid
-        LIMIT 1`,
-  );
-  return res.rows[0]?.value_json ?? null;
-}
-
-/** Organization rows whose envelope contains the literal boolean/string true. */
-export async function listExactOrganizationIdsWithTruePublicSystemSetting(
-  db: DbPort,
-  key: string,
-): Promise<string[]> {
-  const res = await runIntegratorSql<{ organization_id: string }>(
-    db,
-    sql`SELECT organization_id::text AS organization_id
-        FROM public.system_settings
-        WHERE key = ${key}
-          AND scope = 'admin'
-          AND organization_id IS NOT NULL
-          AND lower(COALESCE(value_json ->> 'value', '')) IN ('true', '1')
-        ORDER BY updated_at DESC, organization_id`,
-  );
-  return res.rows.map((row) => row.organization_id);
 }

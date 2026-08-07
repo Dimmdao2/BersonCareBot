@@ -27,6 +27,16 @@ REVOKE EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability
   FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
   FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_integrator_runtime_setting(text)
+  FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid)
+  FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid)
+  FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_operator_health_probe_config()
+  FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.read_operational_verbose_log_flag()
+  FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.release_principal_context()
   FROM :"integrator_runtime_config_role";
 \echo 'Integrator server-runtime config grants DOWN complete.'
@@ -122,6 +132,11 @@ ALTER FUNCTION app.record_global_email_delivery_attempt(
 ALTER FUNCTION app.read_integrator_auth_channel_setting(text) OWNER TO app_owner;
 ALTER FUNCTION app.read_integrator_platform_integration_availability() OWNER TO app_owner;
 ALTER FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_runtime_setting(text) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_google_calendar_setting(text, uuid) OWNER TO app_owner;
+ALTER FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) OWNER TO app_owner;
+ALTER FUNCTION app.read_operator_health_probe_config() OWNER TO app_owner;
+ALTER FUNCTION app.read_operational_verbose_log_flag() OWNER TO app_owner;
 
 -- 0244_public_app_base_url_runtime_setting registered app_base_url in the projection at
 -- audience='public' for the anonymous landing page. The unique index backing this projection is
@@ -157,6 +172,169 @@ $function$;
 
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
+  FROM app_staff, app_patient, app_worker;
+
+-- ---------------------------------------------------------------------------
+-- Non-secret integrator runtime settings.
+--
+-- Found 2026-08-07: no integrator role holds SELECT on public.system_settings, nor EXECUTE on
+-- app.current_org_id() which that table's RLS policy calls, so EVERY direct read of it from this
+-- app was a hard 42501 -- always, under every principal. It was invisible in the TEST journal only
+-- because nobody had exercised the handlers. Reproduced by replaying each reader against the TEST
+-- build; all six failed. What that silently cost, per reader:
+--   * admin_/doctor_ messenger id lists -> `resolveMessengerStaffAdmin failed, treating as
+--     non-admin`: a doctor or admin writing to the Telegram/MAX bot was NOT recognised as staff;
+--   * operator_health_alert_config -> reportOperatorFailure returned before dispatching, so
+--     operator critical alerts were never delivered at all;
+--   * notif_template:* -> patients received the hardcoded default text, never the clinic's edit;
+--   * app_display_timezone -> silently pinned to the compiled default;
+--   * integrator_linked_phone_source -> the admin phone-resolution policy was ignored.
+-- Same capability shape as the provider accessor above: fixed key allow-list, admin scope, global
+-- row, EXECUTE only for the narrow integrator runtime login. Deliberately separate from that
+-- accessor because this one must never be able to return a provider secret.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION app.read_integrator_runtime_setting(p_key text)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE p_key IN (
+      'integrator_linked_phone_source',
+      'admin_telegram_ids',
+      'admin_max_ids',
+      'doctor_telegram_ids',
+      'doctor_max_ids',
+      'operator_health_alert_config',
+      'admin_incident_alert_config',
+      'app_display_timezone',
+      'notif_template:created:patient',
+      'notif_template:created:doctor',
+      'notif_template:cancelled:patient',
+      'notif_template:cancelled:doctor',
+      'notif_template:rescheduled:patient',
+      'notif_template:rescheduled:doctor'
+    )
+    AND setting.key = p_key
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$function$;
+
+-- Google Calendar connection values. Kept apart from the non-secret accessor above because the
+-- platform OAuth identity and the per-clinic refresh token ARE credentials. The organization
+-- argument decides which half of the allow-list is reachable, so a global call can never reach a
+-- clinic row and a clinic call can never reach the platform secret. Exact organization match only:
+-- a clinic connection must never inherit another clinic's calendar (mirrors the read it replaces).
+CREATE OR REPLACE FUNCTION app.read_integrator_google_calendar_setting(
+  p_key text,
+  p_organization_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE (
+      (p_organization_id IS NULL
+        AND p_key IN ('google_client_id', 'google_client_secret', 'google_redirect_uri')
+        AND setting.organization_id IS NULL)
+      OR
+      (p_organization_id IS NOT NULL
+        AND p_key IN ('google_calendar_enabled', 'google_calendar_id', 'google_refresh_token')
+        AND setting.organization_id = p_organization_id)
+    )
+    AND setting.key = p_key
+    AND setting.scope = 'admin'
+  LIMIT 1
+$function$;
+
+-- Operator health probe cadence and the verbose-log flag. Both are read by BOTH the operational
+-- contours (scheduler / delivery worker, whose grants live in c4-operational-runtime.sql) and by
+-- this app's own API route and webhooks under the base login, so the body is created here -- this
+-- file runs before the C4 overlay -- and each side grants only itself.
+CREATE OR REPLACE FUNCTION app.read_operator_health_probe_config()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE setting.key = 'operator_health_probe_config'
+    AND setting.scope = 'admin'
+    AND setting.organization_id IS NULL
+  LIMIT 1
+$function$;
+
+CREATE OR REPLACE FUNCTION app.read_operational_verbose_log_flag()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT COALESCE((
+    SELECT lower(COALESCE(setting.value_json ->> 'value', '')) IN ('true', '1')
+    FROM public.system_settings AS setting
+    WHERE setting.key = 'debug_forward_to_admin'
+      AND setting.scope = 'admin'
+      AND setting.organization_id IS NULL
+    LIMIT 1
+  ), false)
+$function$;
+
+REVOKE ALL ON FUNCTION app.read_operator_health_probe_config() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_operator_health_probe_config()
+  FROM app_staff, app_patient, app_worker;
+REVOKE ALL ON FUNCTION app.read_operational_verbose_log_flag() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_operational_verbose_log_flag()
+  FROM app_staff, app_patient, app_worker;
+
+-- Clinic-owned delivery credentials (tariff branding: the clinic's own Telegram/MAX bot, SMTP or
+-- SMSC key). Same 42501 as everything else above, and the caller swallows it, so a clinic that had
+-- paid for branding silently kept sending through the platform sender. Exact organization row
+-- only; the tariff-mechanic gate stays in the caller, which runs before this read.
+CREATE OR REPLACE FUNCTION app.read_integrator_clinic_delivery_credential(
+  p_key text,
+  p_organization_id uuid
+)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.value_json
+  FROM public.system_settings AS setting
+  WHERE p_organization_id IS NOT NULL
+    AND p_key IN (
+      'clinic_smtp_outbound',
+      'clinic_smsc_api_key',
+      'clinic_telegram_bot_token',
+      'clinic_max_bot_api_key'
+    )
+    AND setting.key = p_key
+    AND setting.scope = 'admin'
+    AND setting.organization_id = p_organization_id
+  LIMIT 1
+$function$;
+
+REVOKE ALL ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid)
+  FROM app_staff, app_patient, app_worker;
+REVOKE ALL ON FUNCTION app.read_integrator_runtime_setting(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_integrator_runtime_setting(text)
+  FROM app_staff, app_patient, app_worker;
+REVOKE ALL ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid)
   FROM app_staff, app_patient, app_worker;
 REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_provider_runtime_setting(text)
   FROM :"integrator_runtime_config_role" CASCADE;
@@ -379,6 +557,16 @@ GRANT EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
 GRANT EXECUTE ON FUNCTION app.read_integrator_auth_channel_setting(text)
   TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability()
+  TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_integrator_runtime_setting(text)
+  TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid)
+  TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid)
+  TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_operator_health_probe_config()
+  TO :"integrator_runtime_config_role";
+GRANT EXECUTE ON FUNCTION app.read_operational_verbose_log_flag()
   TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
   TO :"integrator_runtime_config_role";
