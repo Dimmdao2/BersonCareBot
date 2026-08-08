@@ -88,8 +88,9 @@ PG16 на `:5432` (SERVER CONVENTIONS.md:124; `migrate-all.sh:84,:91` пинов
    §D его закрывает — раздел заведён, чтобы первый будущий тип был объявлен, а не унаследовал дефолт.
 7. **definerExceptions** — SECURITY DEFINER функции как ПЕРЕЧИСЛЕННЫЕ исключения, каждая со
    строкой-обоснованием, владельцем, точным ACL и **`searchPath` — ожидаемым `proconfig`**
-   (у definer-функций пути РАЗНЫЕ: `c5a` несёт 4 разных `SET search_path` на definer-функциях,
-   прототип evidence/12 §4 — `pg_catalog, app_control`; поэтому значение per-функция, не константа).
+   (у definer-функций пути РАЗНЫЕ: среди 253 `app.*`-функций живьём 5 различных значений `proconfig`
+   — от `pg_catalog` до `app, app_ext, pg_catalog`; поэтому значение per-функция, не константа,
+   и снимается дословно переписью Ф2, не выдумывается).
    `searchPath` **применяет тело функции в миграции** (оно и так несёт `SET search_path` — одна
    власть, генератор его НЕ дублирует, иначе спор двух движков как dbt #6238); декларация лишь несёт
    ОЖИДАЕМОЕ, против которого §F ловит дрейф/инъекцию. (capability-only как норма отвергнута —
@@ -187,12 +188,14 @@ export const declaration: PrivilegeDeclaration = {
     },
   },
   definerExceptions: {
+    // searchPath НИЖЕ — иллюстративный; ТОЧНОЕ значение перепись Ф2 снимает дословно из
+    // pg_proc.proconfig (§F сравнивает байтово — выдуманный литерал дал бы ложный красный).
     'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)': {
       owner: 'app_owner', execute: ['app_staff', 'app_patient', 'app_clinic_billing'],
-      searchPath: 'pg_catalog',   // ожидаемый proconfig; применяет тело в миграции, §F сверяет
+      searchPath: 'app, app_ext, pg_catalog',   // живое значение: тело зовёт app_ext.hmac (p2-b:231)
       why: 'вход принципала: HMAC-подпись проверяется до установки GUC (packages/db-principal/src/index.ts)' },
     'app.list_platform_organization_members(uuid)': {
-      owner: 'app_owner', execute: ['app_platform_settings'], searchPath: 'pg_catalog',
+      owner: 'app_owner', execute: ['app_platform_settings'], searchPath: 'pg_catalog',  // живое
       why: 'платформенный подсчёт мест без чтения platform_users/инвайтов (c5a:1293-1355)' },
   },
 };
@@ -783,6 +786,17 @@ org-таблицах (свип §G.2 караулит; фаза миграций
 остаётся поведенческим доказательством (§3); watermark-журнал мигратора не переписывается (§H).*
 
 ---
+
+## Changelog Ч1.2-r8 → Ч1.2-r9 (по находкам критика №9)
+
+- **MAJOR-1** (корень: пример вписывал конкретный `searchPath: 'pg_catalog'`, неверный для
+  `install_signed_context` — та несёт `app, app_ext, pg_catalog`, зовёт `app_ext.hmac`; §F краснел бы
+  байтово в первый день) → **класс устранён**: пример помечен иллюстративным, ТОЧНОЕ значение снимает
+  Ф2 дословно из `pg_proc.proconfig`; заодно неверный литерал исправлен на живой (`app, app_ext, pg_catalog`).
+- **MINOR-1** → «c5a несёт 4 РАЗНЫХ пути» — на деле 4 одинаковых (`pg_catalog`); переписано на
+  реальный факт: среди 253 `app.*`-функций 5 различных значений `proconfig`.
+- **MINOR-2** (не дефект схемы) → живой `platform_users` дрейфнул в RLS+FORCE; отмечено в FACTS §1.4
+  (Ф6 берёт красный §11.3 с a0-слепка либо восстанавливает состояние).
 
 ## Changelog Ч1.2-r7 → Ч1.2-r8 (по находкам критика №8)
 
