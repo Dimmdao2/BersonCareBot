@@ -11,13 +11,18 @@ import { platformUsers, userIdentity } from '../../../db/schema/schema';
 /** Requires `platform_users` aliased as `pu`. */
 export const USER_IDENTITY_FIO_JOIN = 'LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id';
 
-/** COALESCE expressions; requires {@link USER_IDENTITY_FIO_JOIN}. */
+/**
+ * FIO read expressions. `user_identity` is the source of truth (D15b/5, migration 0381 made the
+ * mirror total — one row per `platform_users` row, merge tombstones included), so there is no
+ * fallback to the legacy columns: a missing mirror row is a defect that must surface as NULL, not
+ * be hidden behind a COALESCE. Requires {@link USER_IDENTITY_FIO_JOIN}.
+ */
 export const FIO = {
-  firstName: 'COALESCE(ui.first_name, pu.first_name)',
-  lastName: 'COALESCE(ui.last_name, pu.last_name)',
-  patronymic: 'COALESCE(ui.patronymic, pu.patronymic)',
-  displayName: 'COALESCE(ui.display_name, pu.display_name)',
-  birthDate: 'COALESCE(ui.birth_date, pu.birth_date)',
+  firstName: 'ui.first_name',
+  lastName: 'ui.last_name',
+  patronymic: 'ui.patronymic',
+  displayName: 'ui.display_name',
+  birthDate: 'ui.birth_date',
 } as const;
 
 /** Five FIO columns with legacy column aliases for drop-in SELECT lists. */
@@ -49,11 +54,11 @@ export async function syncUserIdentityFioMirrorWebapp(
 /** Drizzle LEFT JOIN target: `userIdentity.platformUserId = platformUsers.id`. */
 export const drizzleUserIdentityFioJoin = eq(userIdentity.platformUserId, platformUsers.id);
 
-/** COALESCE FIO columns for Drizzle selects that already join {@link userIdentity}. */
+/** FIO columns for Drizzle selects that already join {@link userIdentity} (no legacy fallback). */
 export const drizzleFioCols = {
-  displayName: sql<string>`COALESCE(${userIdentity.displayName}, ${platformUsers.displayName})`,
-  firstName: sql<string | null>`COALESCE(${userIdentity.firstName}, ${platformUsers.firstName})`,
-  lastName: sql<string | null>`COALESCE(${userIdentity.lastName}, ${platformUsers.lastName})`,
-  patronymic: sql<string | null>`COALESCE(${userIdentity.patronymic}, ${platformUsers.patronymic})`,
-  birthDate: sql<string | null>`COALESCE(${userIdentity.birthDate}, ${platformUsers.birthDate})`,
+  displayName: sql<string>`${userIdentity.displayName}`,
+  firstName: sql<string | null>`${userIdentity.firstName}`,
+  lastName: sql<string | null>`${userIdentity.lastName}`,
+  patronymic: sql<string | null>`${userIdentity.patronymic}`,
+  birthDate: sql<string | null>`${userIdentity.birthDate}`,
 };

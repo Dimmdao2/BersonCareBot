@@ -115,24 +115,10 @@ export async function findCanonicalUserIdByPhone(
     )
     .orderBy(asc(platformUsers.createdAt))
     .limit(3);
-  const fromContacts = pickUniqueCanonicalId(
+  return pickUniqueCanonicalId(
     viaContacts,
     '[canonical] multiple canonical rows for phone via user_contacts (redacted)',
   );
-  if (fromContacts != null) return fromContacts;
-
-  const legacy = await db
-    .select({ id: platformUsers.id })
-    .from(platformUsers)
-    .where(
-      and(
-        eq(platformUsers.phoneNormalized, phoneNormalized),
-        isNull(platformUsers.mergedIntoId),
-      ),
-    )
-    .orderBy(asc(platformUsers.createdAt))
-    .limit(3);
-  return pickUniqueCanonicalId(legacy, '[canonical] multiple canonical rows for phone (redacted)');
 }
 
 /** Exactly one canonical row per integrator id. */
@@ -179,28 +165,9 @@ export async function findTrustedCanonicalUserIdByPhone(
     )
     .orderBy(asc(platformUsers.createdAt))
     .limit(3);
-  if (viaContacts.length > 0) {
-    return pickUniqueCanonicalId(
-      viaContacts,
-      '[canonical] multiple trusted canonical rows for phone via user_contacts (redacted)',
-    );
-  }
-
-  const legacy = await db
-    .select({ id: platformUsers.id })
-    .from(platformUsers)
-    .where(
-      and(
-        eq(platformUsers.phoneNormalized, phoneNormalized),
-        isNull(platformUsers.mergedIntoId),
-        isNotNull(platformUsers.patientPhoneTrustAt),
-      ),
-    )
-    .orderBy(asc(platformUsers.createdAt))
-    .limit(3);
   return pickUniqueCanonicalId(
-    legacy,
-    '[canonical] multiple trusted canonical rows for phone (redacted)',
+    viaContacts,
+    '[canonical] multiple trusted canonical rows for phone via user_contacts (redacted)',
   );
 }
 
@@ -209,22 +176,9 @@ export async function findCanonicalUserIdByChannelBinding(
   channelCode: string,
   externalId: string,
 ): Promise<string | null> {
-  const viaContacts = await db
-    .select({ user_id: userContacts.platformUserId })
-    .from(userContacts)
-    .innerJoin(platformUsers, eq(platformUsers.id, userContacts.platformUserId))
-    .where(
-      and(
-        eq(userContacts.contactKind, 'channel'),
-        eq(userContacts.channelCode, channelCode),
-        eq(userContacts.valueNormalized, externalId),
-        isNull(platformUsers.mergedIntoId),
-      ),
-    )
-    .limit(1);
-  if (viaContacts[0]?.user_id) return viaContacts[0].user_id;
-
-  const legacy = await db
+  // `user_channel_bindings` is the source of truth for messenger links: the integrator hot path
+  // reads it directly, and the `user_contacts` copy of it was removed by migration 0382.
+  const rows = await db
     .select({ user_id: userChannelBindings.userId })
     .from(userChannelBindings)
     .innerJoin(platformUsers, eq(platformUsers.id, userChannelBindings.userId))
@@ -236,7 +190,7 @@ export async function findCanonicalUserIdByChannelBinding(
       ),
     )
     .limit(1);
-  return legacy[0]?.user_id ?? null;
+  return rows[0]?.user_id ?? null;
 }
 
 export type CandidateIds = {

@@ -36,7 +36,7 @@ import {
 import {
   CONTACTS,
   CONTACTS_HAS_PHONE,
-  primaryPhoneCoalesceFor,
+  primaryPhoneSubqueryFor,
   USER_CONTACTS_PRIMARY_LATERALS,
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
 } from '@/infra/repos/userContactsSql';
@@ -248,7 +248,7 @@ function canonicalAppointmentOrgPredicate(alias: string, organizationId?: string
 
 /** Exported for join semantics tests; keep in sync with `appointment_records` ↔ `platform_users` attribution rules. */
 export function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
-  const puPhone = primaryPhoneCoalesceFor(puAlias);
+  const puPhone = primaryPhoneSubqueryFor(puAlias);
   const arAt = `COALESCE(${arAlias}.record_at, ${arAlias}.created_at)`;
   return `(
       ${arAlias}.platform_user_id = ${puAlias}.id

@@ -42,12 +42,15 @@ describe('findTrustedCanonicalUserIdByPhone — D15b/6 user_contacts reader', ()
     expect(drizzleLimitResults.queue).toHaveLength(0);
   });
 
-  it('falls back to platform_users.patient_phone_trust_at when user_contacts has no row', async () => {
+  it('does NOT fall back to platform_users when user_contacts has no row', async () => {
+    // D15b/6 slice 5: `user_contacts` is the only source of trusted phones. A legacy fallback here
+    // would resurrect the second lookup that migration 0380 made meaningless when it moved
+    // uniqueness off `platform_users`, and would hide a missing mirror row instead of showing it.
     drizzleLimitResults.queue = [[], [{ id: TRUSTED_USER_ID }]];
 
     const id = await findTrustedCanonicalUserIdByPhone(makeDb(), PHONE);
 
-    expect(id).toBe(TRUSTED_USER_ID);
-    expect(drizzleLimitResults.queue).toHaveLength(0);
+    expect(id).toBeNull();
+    expect(drizzleLimitResults.queue).toHaveLength(1);
   });
 });

@@ -32,10 +32,17 @@ export const USER_CONTACTS_PRIMARY_EMAIL_LATERAL = `LEFT JOIN LATERAL (
 export const USER_CONTACTS_PRIMARY_LATERALS = `${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
      ${USER_CONTACTS_PRIMARY_EMAIL_LATERAL}`;
 
-/** COALESCE primary contact columns; requires {@link USER_CONTACTS_PRIMARY_LATERAL}s. */
+/**
+ * Primary contact columns. `user_contacts` is the source of truth (D15b/6): it holds the uniqueness
+ * ("one phone = one account", migration 0380) and, unlike the scalar columns it replaced, it can
+ * hold the several confirmed phones and e-mails one person is allowed to have
+ * (`IDENTITY_AND_MERGE_SCHEME.md` §2). No fallback to the legacy columns: canonical coverage is
+ * total and merge tombstones carry no contacts on either side. Requires
+ * {@link USER_CONTACTS_PRIMARY_LATERAL}s.
+ */
 export const CONTACTS = {
-  phoneNormalized: 'COALESCE(uc_pri_phone.value_normalized, pu.phone_normalized)',
-  emailNormalized: 'COALESCE(uc_pri_email.value_normalized, pu.email_normalized)',
+  phoneNormalized: 'uc_pri_phone.value_normalized',
+  emailNormalized: 'uc_pri_email.value_normalized',
 } as const;
 
 /** Non-empty primary phone (requires phone lateral). */
@@ -44,9 +51,9 @@ export const CONTACTS_HAS_PHONE = `(${CONTACTS.phoneNormalized} IS NOT NULL AND 
 /** Missing/blank primary phone (requires phone lateral). */
 export const CONTACTS_NO_PHONE = `(${CONTACTS.phoneNormalized} IS NULL OR btrim(${CONTACTS.phoneNormalized}) = '')`;
 
-/** Primary phone COALESCE for arbitrary `platform_users` alias (no lateral join required). */
-export function primaryPhoneCoalesceFor(puAlias: string): string {
-  return `COALESCE((SELECT uc.value_normalized FROM user_contacts uc WHERE uc.platform_user_id = ${puAlias}.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1), ${puAlias}.phone_normalized)`;
+/** Primary phone for an arbitrary `platform_users` alias (no lateral join required). */
+export function primaryPhoneSubqueryFor(puAlias: string): string {
+  return `(SELECT uc.value_normalized FROM user_contacts uc WHERE uc.platform_user_id = ${puAlias}.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1)`;
 }
 
 function resolveWebappSqlExecutor(executor: WebappSqlExecutor | PoolClient): WebappSqlExecutor {
@@ -71,21 +78,19 @@ export async function syncUserContactsMirrorWebapp(
   await syncUserContactsMirror(webappMergeSqlExecutor(db), platformUserId);
 }
 
-/** Drizzle COALESCE for primary phone when `userContacts` is joined for the user. */
-export const drizzlePrimaryPhoneCol = sql<string | null>`COALESCE(
-  (SELECT ${userContacts.valueNormalized} FROM ${userContacts}
+/** Drizzle primary phone for the user (reads `user_contacts` only). */
+export const drizzlePrimaryPhoneCol = sql<string | null>`(
+  SELECT ${userContacts.valueNormalized} FROM ${userContacts}
    WHERE ${userContacts.platformUserId} = ${platformUsers.id}
      AND ${userContacts.contactKind} = 'phone'
      AND ${userContacts.isPrimary} = true
-   LIMIT 1),
-  ${platformUsers.phoneNormalized}
+   LIMIT 1
 )`;
 
-export const drizzlePrimaryEmailCol = sql<string | null>`COALESCE(
-  (SELECT ${userContacts.valueNormalized} FROM ${userContacts}
+export const drizzlePrimaryEmailCol = sql<string | null>`(
+  SELECT ${userContacts.valueNormalized} FROM ${userContacts}
    WHERE ${userContacts.platformUserId} = ${platformUsers.id}
      AND ${userContacts.contactKind} = 'email'
      AND ${userContacts.isPrimary} = true
-   LIMIT 1),
-  ${platformUsers.emailNormalized}
+   LIMIT 1
 )`;

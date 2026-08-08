@@ -218,7 +218,6 @@ export const userContacts = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     platformUserId: uuid('platform_user_id').notNull(),
     contactKind: text('contact_kind').notNull(),
-    channelCode: text('channel_code'),
     valueNormalized: text('value_normalized').notNull(),
     isPrimary: boolean('is_primary').default(false).notNull(),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'string' }),
@@ -244,9 +243,6 @@ export const userContacts = pgTable(
     uniqueIndex('uq_user_contacts_email')
       .on(table.valueNormalized)
       .where(sql`(contact_kind = 'email'::text)`),
-    uniqueIndex('uq_user_contacts_channel')
-      .on(table.channelCode, table.valueNormalized)
-      .where(sql`(contact_kind = 'channel'::text)`),
     foreignKey({
       columns: [table.platformUserId],
       foreignColumns: [platformUsers.id],
@@ -254,15 +250,11 @@ export const userContacts = pgTable(
     }).onDelete('cascade'),
     check(
       'user_contacts_kind_check',
-      sql`contact_kind = ANY (ARRAY['phone'::text, 'email'::text, 'channel'::text])`,
+      sql`contact_kind = ANY (ARRAY['phone'::text, 'email'::text])`,
     ),
     check(
       'user_contacts_source_origin_check',
-      sql`source_origin = ANY (ARRAY['platform_users'::text, 'oauth_binding'::text, 'phone_history'::text, 'channel_binding'::text])`,
-    ),
-    check(
-      'user_contacts_channel_shape_check',
-      sql`((contact_kind = 'channel'::text) AND (channel_code IS NOT NULL)) OR ((contact_kind <> 'channel'::text) AND (channel_code IS NULL))`,
+      sql`source_origin = ANY (ARRAY['platform_users'::text, 'oauth_binding'::text, 'phone_history'::text])`,
     ),
   ],
 );

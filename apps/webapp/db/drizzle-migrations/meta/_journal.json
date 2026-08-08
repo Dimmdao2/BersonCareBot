@@ -2640,6 +2640,27 @@
       "when": 1793539230123,
       "tag": "0380_drop_platform_users_contact_unique_d15b6_local",
       "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1793539230124,
+      "tag": "0381_user_identity_total_mirror_d15b5_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 378,
+      "version": "7",
+      "when": 1793539230125,
+      "tag": "0382_user_contacts_drop_channel_slice_d15b6_local",
+      "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1793539230126,
+      "tag": "0383_channel_bindings_reconcile_d25_local",
+      "breakpoints": true
     }
   ]
 }

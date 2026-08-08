@@ -18,10 +18,10 @@ export async function syncUserContactsMirror(
   await runMergeSql(
     db,
     sql`INSERT INTO user_contacts (
-       platform_user_id, contact_kind, channel_code, value_normalized,
+       platform_user_id, contact_kind, value_normalized,
        is_primary, confirmed_at, source_origin, updated_at
      )
-     SELECT pu.id, 'phone', NULL, pu.phone_normalized,
+     SELECT pu.id, 'phone', pu.phone_normalized,
             true, pu.patient_phone_trust_at, 'platform_users', now()
      FROM platform_users pu
      WHERE pu.id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL AND pu.phone_normalized IS NOT NULL`,
@@ -30,10 +30,10 @@ export async function syncUserContactsMirror(
   await runMergeSql(
     db,
     sql`INSERT INTO user_contacts (
-       platform_user_id, contact_kind, channel_code, value_normalized,
+       platform_user_id, contact_kind, value_normalized,
        is_primary, confirmed_at, source_origin, updated_at
      )
-     SELECT pu.id, 'email', NULL, pu.email_normalized,
+     SELECT pu.id, 'email', pu.email_normalized,
             true, pu.email_verified_at, 'platform_users', now()
      FROM platform_users pu
      WHERE pu.id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL AND pu.email_normalized IS NOT NULL`,
@@ -42,10 +42,10 @@ export async function syncUserContactsMirror(
   await runMergeSql(
     db,
     sql`INSERT INTO user_contacts (
-       platform_user_id, contact_kind, channel_code, value_normalized,
+       platform_user_id, contact_kind, value_normalized,
        is_primary, confirmed_at, source_origin, updated_at
      )
-     SELECT ob.user_id, 'email', ob.provider, lower(btrim(ob.email)),
+     SELECT ob.user_id, 'email', lower(btrim(ob.email)),
             false, ob.created_at, 'oauth_binding', now()
      FROM user_oauth_bindings ob
      INNER JOIN platform_users pu ON pu.id = ob.user_id
@@ -58,10 +58,10 @@ export async function syncUserContactsMirror(
   await runMergeSql(
     db,
     sql`INSERT INTO user_contacts (
-       platform_user_id, contact_kind, channel_code, value_normalized,
+       platform_user_id, contact_kind, value_normalized,
        is_primary, confirmed_at, source_origin, updated_at
      )
-     SELECT uph.platform_user_id, 'phone', NULL, uph.phone_normalized,
+     SELECT uph.platform_user_id, 'phone', uph.phone_normalized,
             false, uph.valid_from, 'phone_history', now()
      FROM user_phone_history uph
      INNER JOIN platform_users pu ON pu.id = uph.platform_user_id
@@ -70,18 +70,9 @@ export async function syncUserContactsMirror(
        AND pu.merged_into_id IS NULL`,
   );
 
-  await runMergeSql(
-    db,
-    sql`INSERT INTO user_contacts (
-       platform_user_id, contact_kind, channel_code, value_normalized,
-       is_primary, confirmed_at, source_origin, updated_at
-     )
-     SELECT ucb.user_id, 'channel', ucb.channel_code, ucb.external_id,
-            false, ucb.created_at, 'channel_binding', now()
-     FROM user_channel_bindings ucb
-     INNER JOIN platform_users pu ON pu.id = ucb.user_id
-     WHERE ucb.user_id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL`,
-  );
+  // No `channel` slice: messenger links live in `public.user_channel_bindings` and are read from
+  // there (migration 0382 removed the mirrored copy — it was 131/131 identical and duplicated that
+  // table's uniqueness, while the integrator hot path never read the mirror in the first place).
 }
 
 /** Remove duplicate mirror rows before rebuilding target contacts (post-D15b/6 uniqueness on user_contacts). */
