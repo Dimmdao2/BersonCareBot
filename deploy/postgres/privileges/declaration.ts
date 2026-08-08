@@ -330,9 +330,12 @@ const roles: Record<string, RoleDecl> = {
   },
   app_identity_bootstrap: {
     kind: 'capability',
-    scope: 'OWN', // TODO(owner?): evidence/13 §4/§6.1 left OWN-vs-NONE open; depends on whether the
-    // role reads any org table directly (no table-grant census for it). OWN chosen (registration
-    // bootstrap on the registrant's own identity row, d15b4-…-identity-bootstrap-role.sql) — confirm.
+    scope: 'NONE', // RESOLVED 08.08 from d15b4-…-identity-bootstrap-role.sql:31-42 — grants are ONLY
+    // on public.platform_users + public.user_identity (global pre-session identity tables, NOT
+    // organization_id-bearing be_* org tables) + EXECUTE on 3 policy functions. Touches zero org
+    // tables → NONE (cell-traversal expects zero on every org table). Not OWN: pre-session there is
+    // no own-row yet (the role is RESOLVING identity); its platform_users access is walled by that
+    // table's own membership-gated RLS policy (migration 0353), a separate concern from org-scope.
     login: false, superuser: false, bypassrls: false, inherit: false, createrole: false, rolconfig: null,
     // grantedTo (nonstaff/integrator/dev-nonstaff logins + dev migrator) lives in envMapping (login members).
   },
