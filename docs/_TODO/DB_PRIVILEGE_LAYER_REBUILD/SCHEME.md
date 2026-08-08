@@ -1,6 +1,7 @@
 # SCHEME — целевая схема слоя прав БД BersonCareBot
 
-Черновик Ч1.1 (PLAN.md Ф1). Реализует четыре принятых принципа (PLAN.md «Целевая архитектура»).
+Черновик Ч1.2 — ревизия после адверсарного критика №1 (PLAN.md Ф1). Реализует четыре принятых
+принципа (PLAN.md «Целевая архитектура»).
 Каждое решение несёт ссылку на FACTS.md, evidence/ или код (`файл:строка`). Ничего из §9 FACTS
 (capability-only, «всегда бросать», AST, EXPLAIN) схема не использует.
 
@@ -16,28 +17,51 @@ Node (`scripts/verify-a1-rls-conformance.mjs`, `scripts/a0-greenfield-baseline-l
 там не нормирован (pgbedrock — YAML, Atlas — HCL, pg_permissions — таблица), значит выбираем то,
 что дешевле сопровождать здесь.
 
-Декларация содержит шесть разделов (всё, чем управляет генератор, — и ничего больше):
+Декларация содержит восемь разделов (всё, чем управляет генератор, — и ничего больше):
 
-1. **roles** — все роли: логины, терминальные, capability, владельцы; атрибуты
+1. **roles** — все канонические роли: терминальные, capability, владельцы; атрибуты
    (`login/superuser/bypassrls/inherit/createrole/rolconfig`), членства с опциями
    (`ADMIN/INHERIT/SET` — как в c5a: `GRANT app_clinic_billing TO app_staff WITH ADMIN FALSE,
-   INHERIT FALSE, SET TRUE`, `c5a-platform-operations-runtime.sql:32`).
+   INHERIT FALSE, SET TRUE`, `c5a-platform-operations-runtime.sql:31`). `app_owner` объявляется с
+   `bypassrls: true` и обоснованием: NOLOGIN definer-шов, деплой ЖЁСТКО ассертит `rolbypassrls`
+   (`deploy-test-saas.sh:907`, `deploy-test.sh:174`); снятие BYPASSRLS — изменение модели
+   безопасности, развилка владельца №5 (§I), схема его не проектирует.
 2. **scopes** — область на роль, `ORG | OWN | GLOBAL | NONE` — ровно те «11 строк», которых
    требует FACTS §1.5 (без объявленной области `app_patient` даёт 65 ложных «тихих нулей»).
-3. **tables** — на таблицу: владелец, признак `org` (несёт `organization_id`), режим RLS
+3. **schemas + database** — по каждой схеме (`public/app/integrator/drizzle/app_control`):
+   `USAGE/CREATE` по-ролево; по базе: `CONNECT` — привязан к логинам, рендерится с env-маппингом
+   (§A.1). Схемный `USAGE` — первый рубеж 42501 (evidence/12 §1).
+4. **tables** — на таблицу: владелец, признак `org` (несёт `organization_id`), режим RLS
    (`force` — обязателен для org-таблиц), гранты по ролям **включая колоночные** (колоночный
    GRANT — живой механизм: `app_patient` держит `UPDATE(calendar_timezone, reminder_muted_until)`
    на `platform_users`, FACTS §1.4; громкий 42501 на новой невыданной колонке доказан,
    evidence/12 §7), политики (имя, PERMISSIVE/RESTRICTIVE, команда, роли, USING, WITH CHECK —
-   RESTRICTIVE обязан быть выразим: композиция И/ИЛИ доказана, evidence/12 §10).
-4. **definerExceptions** — SECURITY DEFINER функции как ПЕРЕЧИСЛЕННЫЕ исключения, каждая со
+   RESTRICTIVE обязан быть выразим: композиция И/ИЛИ доказана, evidence/12 §10). Правило для
+   последовательностей: роль с `INSERT/UPDATE` на таблице получает `USAGE` на её
+   последовательностях (serial-DEFAULT требует USAGE; точная необходимость для
+   identity-последовательностей — требует прогона в Ф3); исключения — явными sequence-записями.
+5. **functions / views** — явные ACL не-definer функций и представлений: по умолчанию ничего
+   (бутстрап §D снимает и дефолт, и уже материализованный `PUBLIC EXECUTE`), EXECUTE — только
+   перечисленным здесь; представления — обязательный `security_invoker` (§G.6).
+6. **definerExceptions** — SECURITY DEFINER функции как ПЕРЕЧИСЛЕННЫЕ исключения, каждая со
    строкой-обоснованием и точным ACL (capability-only как норма отвергнута — FACTS §9.4,
    evidence/07 §5; definer — «аудируемое исключение», evidence/07 §5 «защитимая середина»).
-5. **orgTableAllowlist** — выводится из `tables[*].org == true`; это же множество ест event
+7. **creators** — закрытый список создающих ролей (`postgres`, мигратор-логин, `app_owner`,
+   `saas_telemetry_owner`, `saas_system_health_owner`; точный состав фиксирует перепись Ф2):
+   defaults живут по-создающей-роли и не наследуются членством (evidence/12 §3b) — список едят
+   бутстрап §D.3 и default-hardening генератора §B.
+8. **orgTableAllowlist** — выводится из `tables[*].org == true`; это же множество ест event
    trigger (§E) — отдельного списка нет, одна власть (принцип 1).
-6. **environments** — отображение канонических ролей на логины окружений
-   (`bcb_test_staff_login` ↔ `app_runtime_staff_login` стенда, `verify-a1-rls-conformance.mjs:21-22`;
-   мигратор-логин обнаруживается из env — `deploy-test-saas.sh:546-548,640`).
+
+### A.1 Привязка к окружению — вне декларации
+
+Логины — единственная env-зависимая часть (стенд: `app_runtime_staff_login`, TEST: `bcb_test_*` —
+`scripts/verify-a1-rls-conformance.mjs:21-22`; мигратор-логин обнаруживается из env —
+`deploy-test-saas.sh:546-548,640`). Они живут НЕ в декларации, а в маленьком per-env маппинге
+`deploy/postgres/privileges/env/<env>.json` (`каноническая роль → логин`; для TEST допустимо
+discovery из env при деплое — ровно как сегодня). Все login-специфичные статьи
+(`GRANT <терминал> TO <логин>`, `GRANT CONNECT`) генератор рендерит В МОМЕНТ ПРИМЕНЕНИЯ из
+декларации + маппинга; этот рендер не коммитится.
 
 ### Живой образец (2 роли-терминала + 1 платформенная; 3 реальные таблицы)
 
@@ -49,8 +73,10 @@ export const declaration: PrivilegeDeclaration = {
     app_platform_settings: { kind: 'terminal', scope: 'GLOBAL', login: false, bypassrls: false },
     app_clinic_billing:    { kind: 'capability', scope: 'ORG',
                              grantedTo: [{ role: 'app_staff', admin: false, inherit: false, set: true }] },
-    app_owner:             { kind: 'owner', scope: 'NONE', members: [] },  // ноль членов вне окна миграций
-    bcb_test_staff_login:  { kind: 'login', memberOf: ['app_staff'], inherit: false },
+    app_owner:             { kind: 'owner', scope: 'NONE', members: [],   // ноль членов вне окна миграций
+                             bypassrls: true,  // definer-шов; ассерт деплоя deploy-test-saas.sh:907; развилка №5
+                           },
+    // логинов здесь НЕТ — биндинг «app_staff → bcb_test_staff_login» живёт в env-маппинге (§A.1)
   },
   tables: {
     'public.be_appointments': {
@@ -94,26 +120,49 @@ export const declaration: PrivilegeDeclaration = {
 
 ## B. Генератор
 
-**Вход** — декларация; **выход** — один детерминированный `deploy/postgres/generated/privileges.sql`,
-**закоммиченный** в репозиторий (диффы прав видны на ревью; CI перегенерирует и падает при
-расхождении файла с декларацией — та же дисциплина, что у drizzle-снапшотов). Скрипт —
-`scripts/generate-db-privileges.mjs`, по образцу существующих (`a0-greenfield-baseline-lib.mjs`).
+**Вход** — декларация; **выход №1** — детерминированный `deploy/postgres/generated/privileges.sql`,
+**закоммиченный**: вся env-НЕзависимая истина (роли и членства канонических ролей, схемные,
+табличные, колоночные, sequence-, function- и view-гранты, политики, ACL definer-исключений,
+default-privilege hardening). Login-специфичные статьи (биндинг логинов, CONNECT) в него НЕ входят —
+их генератор рендерит при применении из декларации + env-маппинга (§A.1), рендер не коммитится.
+CI держит два гейта: (а) побайтная перегенерация закоммиченного артефакта — расхождение с
+декларацией = красный (та же дисциплина, что у drizzle-снапшотов); (б) тест детерминизма: один и
+тот же вход → побайтно тот же выход. Скрипт — `scripts/generate-db-privileges.mjs`, по образцу
+существующих (`a0-greenfield-baseline-lib.mjs`).
 
 Свойства выходного SQL — все доказаны исполнением:
 
 - **полное переприменение**: на каждый объект `REVOKE ALL … FROM <все управляемые роли>` затем
   точные GRANT; `DROP POLICY IF EXISTS` затем `CREATE POLICY`; идемпотентность побайтно доказана
   (evidence/12 §8);
+- **default-privilege hardening в выходе**: на каждую роль из `creators` (§A.7) — идемпотентные
+  `ALTER DEFAULT PRIVILEGES FOR ROLE <r> REVOKE ALL ON TABLES/SEQUENCES/FUNCTIONS/TYPES FROM
+  PUBLIC` (те же статьи, что бутстрап §D.3): создатель, добавленный в декларацию ПОЗЖЕ t=0,
+  получает hardening при ближайшем применении, а не никогда; расхождение ловят §F (pg_default_acl)
+  и свип §G.7;
 - **одна транзакция** (`psql -1 -v ON_ERROR_STOP=1`): раздельные autocommit-операторы ломают
   открытых читателей 42501 в окне — запрещено (FACTS §4.1, evidence/12 §9);
 - порядок статей внутри файла отсортирован (стабильный дифф).
 
-**Место в конвейере:** тот же слот, где сегодня идёт цепочка оверлеев после миграций —
-`runtime_overlay_apply_post_migration_chain` (`deploy/host/runtime-overlay-rehydrate-lib.sh:65`),
-исполнитель — существующий админ-канал `runtime_overlay_admin_psql`. Это соответствует предписанию
-Liquibase «гранты отдельным changelog, runAlways, подключается последним» (evidence/07 §2).
-Стенд a1 в CI применяет **тот же самый файл** вместо четырёх оверлеев, которые он проигрывает
-сегодня (`verify-a1-rls-conformance.mjs:405-429`) — одна дорожка для CI, TEST и будущего прода.
+**Место в конвейере — ДВА шага, порядок несущий:**
+
+1. **До миграций — `sync-org-allowlist`.** Reject-режим стены §E бьёт и DDL самих миграций, любой
+   ролью включая суперпользователя (evidence/12 §6), а генерат идёт в ПОСТ-миграционном слоте
+   (`run_strict_post_migration_closure` — `deploy-test-saas.sh:2685`, вызов `:3170` — после
+   `pnpm migrate` `:3092-3101`). Синхронизируй allowlist только генератом — и объявленная новая
+   org-таблица билась бы при `CREATE TABLE` об allowlist ПРОШЛОГО деплоя: 42501, DDL откачен,
+   деплой красный. Поэтому отдельный маленький шаг: читает ТУ ЖЕ декларацию, полностью
+   переприменяет `app_control.org_table_allowlist` одной транзакцией (исполнитель —
+   `runtime_overlay_admin_psql`), встаёт СТРОГО перед `pnpm migrate`; в стенде a1 — перед его
+   migrate-шагом. **Fail-closed:** шаг упал → деплой умирает ДО миграций (`ON_ERROR_STOP`, exit 1),
+   стена ни на миг не выключалась — режима «окно открыто» в этой схеме не существует вовсе.
+2. **После миграций — сам генерат**, в том же слоте, где сегодня идёт цепочка оверлеев
+   (`runtime_overlay_apply_post_migration_chain`, `deploy/host/runtime-overlay-rehydrate-lib.sh:65`),
+   тем же админ-каналом. Генерат повторно переприменяет и allowlist (идемпотентно) — строки,
+   снятые из декларации, уходят на этом шаге. Это соответствует предписанию Liquibase «гранты
+   отдельным changelog, runAlways, подключается последним» (evidence/07 §2). Стенд a1 в CI
+   применяет **тот же самый файл** вместо четырёх оверлеев, которые он проигрывает сегодня
+   (`verify-a1-rls-conformance.mjs:405-429`) — одна дорожка для CI, TEST и будущего прода.
 
 **Гейт «миграции — только схема»:** новая миграция с `GRANT/REVOKE/CREATE POLICY/CREATE ROLE/
 ALTER ROLE/ALTER DEFAULT PRIVILEGES` = красная сборка (PLAN.md Ф2). Двум движкам нельзя спорить за
@@ -124,27 +173,40 @@ ALTER ROLE/ALTER DEFAULT PRIVILEGES` = красная сборка (PLAN.md Ф2)
 | Класс | Примеры | Судьба |
 |---|---|---|
 | Чистые права/политики/роли | `p0-5b-grants.sql`, `d3-4-…`, `phase4-locked-helper-rls-policies.sql`, `phase4-force-rls-cutover.sql`, `dev-c4…c10`, `s5`, `u9a`, `d2`, `d15b4` | **поглощаются декларацией**, файлы удаляются |
-| Смешанные: definer-тела + их ACL + сверки | `c5a`, `c4`, `integrator-server-runtime-config.sql`, `p2-b`, `organization-member-invites-rls.sql`, `specialist-*`, `patient-*`, `public-*`, `reference-catalog-rls.sql`, `saas-*`, `store-*`, `e1-*` | **расщепляются**: тела функций → миграции (схема); ACL/политики/exact-wall-блоки → декларация (сверку берёт §F) |
+| Смешанные: definer-тела + их ACL + сверки | `c5a`, `c4`, `integrator-server-runtime-config.sql`, `organization-member-invites-rls.sql`, `specialist-*`, `patient-*`, `public-*`, `reference-catalog-rls.sql`, `saas-*`, `store-*`, `e1-*` | **расщепляются**: тела функций → миграции (схема); ACL/политики/exact-wall-блоки → декларация (сверку берёт §F) |
+| Параметризованный рантайм-шаг | `p2-b` — HMAC-секрет подписи принципала подаётся psql-переменной при применении (`p2-b:80-92,150-157`; `deploy-test-saas.sh:475-483`; стенд `verify-a1-rls-conformance.mjs:408-419`) | **остаётся отдельным деплой-шагом вне миграций и вне генератора**: статическая миграция секрет нести не может, генератор несёт только права. Тела definer-функций → миграции; их ACL/владелец → декларация; за файлом остаются объекты секрета и его засев |
 | Онлайн-индексы | `c4d-…`, `d30-…` | остаются как есть (не права) |
 | Данные/фикстуры | `p0-data-fix-…`, `test-settings-override.sql`, `test-saas-isolation-telemetry-fixtures.sql`, `dev-c2-dev-bypass-fixture.sql` | остаются (данные, не права) |
 | Разовый бутстрап | новый `bootstrap-deny-by-default.sql` (§D) + установка event trigger (§E) | два новых файла |
 
+Правило классификации: файл несёт только GRANT/REVOKE/политики/роли → класс 1; несёт
+CREATE FUNCTION/TABLE вперемешку с ACL → класс 2 (расщепить); требует значения из env в момент
+применения → параметризованный шаг; индексы/данные — как есть. Таблица выше — образцы, НЕ полная
+перепись: `p0-5-role-split`, `p2-c1/c2/c3`, `smoke-reference-catalog-*`,
+`test-owner-ready-locked-matrix`, `test-strict-rls-finalizer`, `test-patient-identity-capability-gate`,
+`u5a-*`, `platform-owner-identity-pin`, `runtime-overlay-app-owner-handoff`, `dev-c0/c1/c3` ещё не
+классифицированы. **Исчерпывающая пофайловая классификация всех 61 по этому правилу — обязательный
+артефакт переписи Ф2** (вместе с переписью каталога).
+
 **Конечное состояние: в `deploy/postgres/` права существуют только в `generated/privileges.sql`;
-всего ≤12 файлов вместо 61** (генерат + бутстрап + триггер + индексы/данные/фикстуры).
+всего ≤12 файлов вместо 61** (генерат 1 + бутстрап 1 + триггер 1 + p2-b 1 + индексы 2 +
+данные/фикстуры 4 = 10; запас 2 — на находки переписи Ф2).
 
 ## C. Модель владения
 
 | Что | Кто | Основание |
 |---|---|---|
-| Таблицы | мигратор-роль (логин из env; в стенде — `bcb_a0_owner`) | так уже есть: drizzle применяет DDL под этим логином (`scripts/migrate-all.sh`); FORCE RLS удерживает и владельца — потому FORCE несущий и остаётся |
-| SECURITY DEFINER функции | `app_owner` — NOLOGIN, **ноль членов** вне окна миграций | канон уже в коде: `verify-a1-rls-conformance.mjs:301-319,466-472` (окно `grant/revoke_migrator_app_owner_membership`, постпроверка нуля членов), `c5a:44` (`ALTER FUNCTION … OWNER TO app_owner`) |
+| Таблицы | мигратор-роль (логин из env; в стенде — `bcb_a0_owner`) — по умолчанию; перечисленные исключения владения — поле `owner` декларации (§A.4): `saas_isolation_*` владеет `saas_telemetry_owner` (`saas-isolation-telemetry.sql:75-77`), три таблицы шва `app.context_signing_secrets/principal_context/context_nonce_ledger` — `app_owner` (ассерт шва: `deploy-test-saas.sh:909-913`) | так уже есть: drizzle применяет DDL под этим логином (`scripts/migrate-all.sh`); FORCE RLS удерживает и владельца — потому FORCE несущий и остаётся |
+| SECURITY DEFINER функции | `app_owner` — NOLOGIN + BYPASSRLS (объявлен, §A п.1), **ноль членов** вне окна миграций | канон уже в коде: `verify-a1-rls-conformance.mjs:300-315,444-449,466-474` (окно `open/close_migration_window`, постпроверка нуля членов), `c5a:43` (`ALTER FUNCTION … OWNER TO app_owner`) |
 | Event trigger | суперпользователь `postgres` | владеть event trigger может только суперпользователь — доказано, evidence/12 §6 |
 | Миграции запускает | мигратор-логин через `scripts/migrate-all.sh` с временным членством в `app_owner` | `deploy-test-saas.sh:134-166`; FACTS §3 (поломка №6 и её починка) |
 | Генератор применяет | админ-канал деплоя (`runtime_overlay_admin_psql`, sudo-postgres) | ему нужны ALTER ROLE/OWNER на чужие объекты; тот же канал, что и оверлеи сегодня (`runtime-overlay-rehydrate-lib.sh:113`) |
 
-Ни одна рантайм-роль не владеет ничем и не имеет `BYPASSRLS/SUPERUSER/CREATEROLE` — сегодня это
-проверяет стенд (`verify-a1-rls-conformance.mjs:460-467`), в целевой схеме это строки декларации,
-сверяемые §F.
+Ни одна рантайм-роль не владеет ничем и не имеет `BYPASSRLS/SUPERUSER/CREATEROLE`. Сегодня стенд
+проверяет из этого ЧАСТЬ: `rolbypassrls/rolsuper/rolinherit` и членства
+(`verify-a1-rls-conformance.mjs:457-486`); CREATEROLE и владение объектами рантайм-ролями не
+проверяет никто. В целевой схеме всё это — строки декларации, сверяемые §F (включая недостающие
+классы).
 
 ## D. Deny-by-default — разовый бутстрап
 
@@ -159,16 +221,21 @@ ALTER ROLE/ALTER DEFAULT PRIVILEGES` = красная сборка (PLAN.md Ф2)
    декларации (PUBLIC CONNECT/TEMPORARY — неявный дефолт, evidence/12 §1).
 2. `REVOKE ALL ON SCHEMA public, app, integrator, drizzle FROM PUBLIC;` затем `GRANT USAGE`
    по-ролево из декларации. `CREATE` на схемах — только владельцам (§C).
-3. **Закрытый список создающих ролей** — defaults живут по-создающей-роли (evidence/12 §3b:
-   членство НЕ наследует defaults): `postgres`, мигратор-логин, `app_owner`,
-   `saas_telemetry_owner`, `saas_system_health_owner` (владельцы, создающие объекты в оверлеях
-   сегодня — `saas-isolation-telemetry.sql`, `saas-system-health-diagnostics.sql`; точный список
-   фиксирует перепись Ф2 и он попадает в декларацию). На каждого:
+3. **Закрытый список создающих ролей** — раздел `creators` декларации (§A.7; defaults живут
+   по-создающей-роли, членство их НЕ наследует — evidence/12 §3b; владельцы, создающие объекты в
+   оверлеях сегодня, — `saas-isolation-telemetry.sql`, `saas-system-health-diagnostics.sql`).
+   На каждого:
    `ALTER DEFAULT PRIVILEGES FOR ROLE <r> REVOKE ALL ON TABLES/SEQUENCES/FUNCTIONS/TYPES FROM PUBLIC;`
-   — особенно FUNCTIONS/TYPES, где дефолт PUBLIC EXECUTE/USAGE (evidence/12 §1).
+   — особенно FUNCTIONS/TYPES, где дефолт PUBLIC EXECUTE/USAGE (evidence/12 §1). Создателей,
+   добавленных ПОСЛЕ бутстрапа, закрывает генератор — те же статьи в каждом генерате (§B).
 4. Никаких «положительных» default privileges не заводим вовсе: права на новые объекты выдаёт
    только генератор при следующем деплое. Посхемный REVOKE не вычитает глобальный грант
    (evidence/12 §3d) — ещё одна причина не держать положительных дефолтов.
+5. **Снятие уже МАТЕРИАЛИЗОВАННОГО `PUBLIC EXECUTE`**: пп.3-4 меняют только дефолты для будущих
+   объектов — существующие функции сохраняют materialized PUBLIC EXECUTE (evidence/12 §3a: дефолт
+   не трогает уже созданное). Бутстрап перечисляет все функции схем `app/public/integrator` и
+   выполняет `REVOKE ALL ON FUNCTION … FROM PUBLIC` на каждой; список ведётся от декларации —
+   definer-исключения (§A.6) и явно выданные функции (§A.5) тут же получают ровно объявленный ACL.
 
 До бутстрапа снимается перепись фактических прав (та же машинерия, что §F) — чтобы «красный»
 шаг приёмки был воспроизводим и ничего живого не отвалилось молча.
@@ -183,7 +250,7 @@ ALTER ROLE/ALTER DEFAULT PRIVILEGES` = красная сборка (PLAN.md Ф2)
   прототипа (evidence/12 §4) и определение из FACTS §1.3.
 - **Теги:** `CREATE TABLE`, `CREATE TABLE AS`, **`ALTER TABLE`** — поздняя org-колонка ловится,
   без тега ALTER дыра (evidence/12 §6, оговорка В0.2).
-- **Режим: reject.** Org-таблица не в allowlist (= `tables[*].org` декларации, §A.5) →
+- **Режим: reject.** Org-таблица не в allowlist (= `tables[*].org` декларации, §A.8) →
   `RAISE … ERRCODE '42501'`, DDL откатывается (доказано `to_regclass = NULL`, evidence/12 §5).
   Обоснование: принцип 2 требует «громкий 42501 на dev, никогда не тихая утечка» (PLAN.md);
   accept-режим («молча поставить RLS+FORCE») дал бы таблицу со стеной, но БЕЗ политик и БЕЗ строки
@@ -193,14 +260,23 @@ ALTER ROLE/ALTER DEFAULT PRIVILEGES` = красная сборка (PLAN.md Ф2)
 - Для объявленных org-таблиц триггер тут же ставит `ENABLE`+`FORCE ROW LEVEL SECURITY` — таблица
   рождается за стеной ещё до прихода политик генератором (RLS без политик = deny-all для
   не-владельца); механика доказана (evidence/12 §4).
-- **Защита от рекурсии:** собственные ALTER триггера снова зовут `ddl_command_end` (лог прототипа,
-  evidence/12 §4) — обработчик ставит session-GUC `app.ddl_wall_active` и выходит немедленно,
-  если тот уже стоит; плюс существующая перепроверка флагов.
+- **Защита от рекурсии — ровно как в доказанном прототипе:** собственные ALTER триггера снова
+  зовут `ddl_command_end` (лог прототипа: 3 вызова на один CREATE TABLE, evidence/12 §4), и
+  обработчик завершает их корректно, потому что ИДЕМПОТЕНТЕН — перед каждым `ALTER` перечитывает
+  `relrowsecurity/relforcerowsecurity` и не делает ничего, если флаг уже стоит (рекурсивный вызов —
+  no-op). Session-GUC «стена уже отработала» ЗАПРЕЩЁН: он пережил бы обработчик и ГАСИЛ БЫ
+  allowlist-проверку следующих DDL той же сессии/транзакции. Подавить reject рекурсия и без GUC не
+  может: вложенный вызов видит в `pg_event_trigger_ddl_commands()` только СВОИ команды — ALTER по
+  таблице, только что прошедшей allowlist. Всё сверх прототипа (например, скип по `objid` в
+  локальной переменной, очищаемой на выходе обработчика) — требует прогона в Ф3.
 - **Владелец — `postgres`** (только суперпользователь, evidence/12 §6); компрометация
   суперпользователя — вне этой стены, там же доказано. Allowlist-таблица в схеме `app_control`,
-  закрыта от всех рантайм-ролей; генератор синхронизирует её из декларации в той же транзакции.
+  закрыта от всех рантайм-ролей; синхронизируется из декларации ДВАЖДЫ за деплой — шагом
+  `sync-org-allowlist` ДО миграций и генератом ПОСЛЕ (§B «Место в конвейере», шаги 1-2; порядок —
+  решение блокера: reject бьёт и DDL самих миграций).
 - CI-гейт `check-new-table-rls-coverage.mjs` (уже в CI — FACTS §2) остаётся страховкой на период
-  внедрения; после включения reject-режима на dev/CI/TEST он избыточен и снимается.
+  внедрения; снимать ли его после включения reject-режима — развилка владельца №6 (§I),
+  рекомендация: оставить оба (гейт ловит на диффе кода, стена — на исполнении).
 
 ## F. Двусторонняя сверка declared ↔ catalog
 
@@ -220,20 +296,28 @@ evidence/07 §1) — с точечных exact-wall-блоков на **всю �
 | column ACL | `pg_attribute.attacl` | c5a:1311-1319; без него табличная проверка врёт (FACTS §1.4) |
 | function ACL + `prosecdef` + владелец | `pg_proc.proacl/prosecdef/proowner` | c5a:1320-1336,1345 |
 | политики, вкл. RESTRICTIVE, USING/WITH CHECK-текст | `pg_policies` | c5a:1719-1721; RESTRICTIVE меняет семантику — evidence/12 §10 |
-| атрибуты ролей | `pg_roles`: `rolcanlogin/rolsuper/rolbypassrls/rolinherit/rolcreaterole/rolconfig` | `verify-a1-rls-conformance.mjs:460-461`; pgTAP атрибуты не покрывает — писать самим (evidence/07 §3) |
-| членства с опциями | `pg_auth_members` (admin/inherit/set) | c5a:32; rig:462-480 |
+| атрибуты ролей | `pg_roles`: `rolcanlogin/rolsuper/rolbypassrls/rolinherit/rolcreaterole/rolconfig` | `verify-a1-rls-conformance.mjs:457-461` (частично); pgTAP атрибуты не покрывает — писать самим (evidence/07 §3) |
+| членства с опциями | `pg_auth_members` (admin/inherit/set) | c5a:31; rig:462-486 |
 | владельцы объектов | `relowner/proowner` | §C |
+| schema ACL | `pg_namespace.nspacl` через `aclexplode(COALESCE(…, acldefault('n',…)))` | §A.3; USAGE — первый рубеж 42501, evidence/12 §1 |
+| database ACL (CONNECT/TEMP/CREATE) | `pg_database.datacl` | §A.3; PUBLIC CONNECT/TEMP — неявный дефолт, evidence/12 §1 |
+| sequence ACL | `pg_class.relacl` при `relkind='S'` | §A.4 (правило USAGE) |
+| default privileges — обе стороны | `pg_default_acl` (`defaclrole/defaclobjtype/defaclacl`) | §B hardening + §G.7; evidence/12 §3 |
+| view: ACL + `security_invoker` | `pg_class.relacl/reloptions` при `relkind='v'` | §A.5; §G.6; FACTS §4 (definer-view видит чужое) |
 
 **Где бежит:** (1) CI — на одноразовом кластере a1 после миграций + генерата; (2) деплой-постчек
 на TEST сразу после применения генерата (тот же слот, что нынешние постчеки
 `deploy-test-saas.sh:500-521`). Скрипт один: `scripts/verify-db-privileges-conformance.mjs`.
+Env-независимая часть ожидаемого состояния одна на все среды; **login-биндинг (членство логина в
+терминале, CONNECT логинов) — ПО-ОКРУЖЕННАЯ часть сверки**: ожидаемые строки для неё рендерятся в
+момент проверки из декларации + env-маппинга (§A.1) — то же правило, что у генератора (§B).
 
 **Красный:** ненулевое число строк в любом направлении; вывод печатает сами строки
 (`направление, роль, объект, привилегия/политика`) и завершает `exit 1` — деплой падает.
 Приёмка Ф4: ручной `GRANT SELECT ON … TO app_staff` мимо декларации обязан дать ровно одну
 строку `actual-not-declared` (PLAN.md Ф4).
 
-## G. Свип — 6 каталожных инвариантов
+## G. Свип — 7 каталожных инвариантов
 
 Один файл `scripts/db-privileges-sweep.sql`, каждый запрос обязан вернуть **0 строк**
 (шаблон Splinter/GitLab — evidence/07 §3). Эскизы для этой базы:
@@ -253,12 +337,22 @@ SELECT c.oid::regclass FROM pg_class c WHERE c.relrowsecurity
 SELECT polrelid::regclass, polname FROM pg_policy WHERE polroles = ARRAY[0]::oid[];
 SELECT c.oid::regclass FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) x
 WHERE x.grantee=0 AND c.relnamespace::regnamespace::text IN ('public','app','integrator');
--- 5. нет неожиданного BYPASSRLS/SUPERUSER (allowlist: только postgres)
-SELECT rolname FROM pg_roles WHERE (rolbypassrls OR rolsuper) AND rolname <> 'postgres';
--- 6. представления — только security_invoker (definer-представление видит чужое: FACTS §4, замер Sol)
+-- 5. нет неожиданного BYPASSRLS/SUPERUSER. Allowlist: postgres (суперпользователь) и app_owner —
+--    объявленный BYPASSRLS definer-шов (§A п.1; деплой сам его ассертит: deploy-test-saas.sh:907)
+SELECT rolname FROM pg_roles WHERE (rolbypassrls OR rolsuper)
+  AND rolname NOT IN ('postgres', 'app_owner');
+-- 6. представления — только security_invoker, обе формы записи true|on
+--    (definer-представление видит чужое: FACTS §4, замер Sol)
 SELECT c.oid::regclass FROM pg_class c WHERE c.relkind='v'
   AND c.relnamespace::regnamespace::text IN ('public','app','integrator')
-  AND COALESCE((SELECT NOT ('security_invoker=true' = ANY(c.reloptions))), true);
+  AND NOT EXISTS (SELECT 1 FROM unnest(c.reloptions) o
+                  WHERE o IN ('security_invoker=true','security_invoker=on'));
+-- 7. ноль положительных default-грантов PUBLIC/рантайм-ролям (закрывает создателя, добавленного
+--    после t=0; собственная запись создателя о себе — не нарушение)
+SELECT d.defaclrole::regrole, d.defaclobjtype, a.grantee::regrole
+FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) a
+WHERE a.grantee <> d.defaclrole
+  AND (a.grantee = 0 OR a.grantee::regrole::text LIKE 'app\_%');
 ```
 
 Свип — страховка движка, не основной механизм (принцип 4): в нормальной жизни вечно зелёный,
@@ -284,10 +378,16 @@ SELECT c.oid::regclass FROM pg_class c WHERE c.relkind='v'
    1892 ячеек `(роль × таблица × принципал)` ноль чужих строк (FACTS §6) + стенд PASS.
 6. **Оверлеи:** расщепление по таблице §B; каждый удаляемый файл — отдельный коммит с тремя
    транскриптами (его отсутствие компенсировано генератом — сверка зелёная без него).
-7. **Baseline-сжатие 377 миграций (~160 с правами — PLAN.md Ф1):** по протоколу Django
-   (evidence/07 §2): сжать → старые файлы сохранить → выпустить → дождаться, пока все живые базы
-   (TEST, позже прод) пройдут watermark за точку сжатия → только потом архивировать. Для свежих
-   сред — baseline-слепок (механика a0 уже есть: `scripts/a0-greenfield-baseline-lib.mjs`).
+7. **Baseline-сжатие 377 миграций (~160 с правами — PLAN.md Ф1):** протокол Django (сжать →
+   старые файлы сохранить → выпустить → дождаться → архивировать, evidence/07 §2) переложен на
+   НАШ мигратор честно — drizzle применяет по watermark `created_at`, не по хэшу. Условие
+   архивации старых файлов: у ВСЕХ живых баз (TEST, позже прод) `max(created_at)` журнала
+   `drizzle.__drizzle_migrations` ≥ `created_at` последней пред-сжатия миграции — каждая живая
+   база уже проиграла всё сжимаемое. **Сжатый baseline НИКОГДА не попадает в журнал drizzle**:
+   это слепок для свежих сред (механика a0 уже есть: `scripts/a0-greenfield-baseline-lib.mjs`),
+   несущий в себе и журнал, снятый на точке сжатия, — как сегодняшний a0-слепок, после которого
+   стенд проигрывает только хвост миграций (FACTS §3). Watermark свежей базы поэтому сразу стоит
+   ЗА точкой сжатия, и мигратор продолжает с первой пост-сжатия миграции.
    GRANT-статьи внутри исторических миграций остаются в файлах (история), но носителем истины
    быть перестают: генератор всё равно полностью переприменяет ACL поверх (§B, full reapply).
    Приёмочный тест сжатия: старый и сжатый пути в контейнерах, сравнение
@@ -300,7 +400,9 @@ SELECT c.oid::regclass FROM pg_class c WHERE c.relkind='v'
 
 **Вне рамок схемы:** Result-типизация порта и 177 мест гашения (отдельный механизм —
 evidence/07 §4); отгрузка журнала/алертинг 42501; починка угадывания роли в Node
-(`withClient.ts:56-66`, FACTS §1.1) — устраняется своей работой Ф6; клиентский код приложения;
+(`withClient.ts:56-66`, FACTS §1.1) — устраняется своей работой Ф6; `pgEmailSetupFlowPort`,
+гасящий любую ошибку вкл. 42501 в `reason:'user_not_found'` (FACTS §11.7), — закрывается
+код-фиксом в Ф6 (PLAN.md Ф6), не механизмом этой схемы; клиентский код приложения;
 прод (не трогается — миграция прода на SaaS отдельным решением владельца).
 
 **Развилки (дополняю рекомендациями к листу PLAN.md):**
@@ -318,6 +420,14 @@ evidence/07 §4); отгрузка журнала/алертинг 42501; поч
    Node-обвязка уже в репозитории. Генератор здесь — ~сотни строк поверх уже доказанных механик
    (evidence/12 §8). Пересмотреть, если сопровождение своего станет заметной статьёй.
 4. **Приёмка этой схемы (Ч1.3)** — продуктовое решение владельца.
+5. **BYPASSRLS у `app_owner`: оставить-и-объявить или снимать.** Рекомендация — оставить и
+   объявить в декларации (соответствует живым ассертам деплоя: `deploy-test-saas.sh:907`,
+   `deploy-test.sh:174`; перевод 19 живых definer-аксессоров на BYPASSRLS-владельца уже признан
+   в самом деплое изменением модели безопасности — `deploy-test-saas.sh:1383-1387`). Снятие —
+   отдельный анализ модели безопасности; эта схема его не проектирует.
+6. **`check-new-table-rls-coverage.mjs` после включения reject-режима §E.** Рекомендация —
+   оставить оба (ремень+подтяжки: CI-гейт ловит на диффе кода до кластера, стена — на
+   исполнении); замена стеной — решение владельца, не инженера.
 
 ---
 
@@ -326,3 +436,35 @@ evidence/07 §4); отгрузка журнала/алертинг 42501; поч
 каталог и исполнение, ни одной статической/AST (§9.3) и ни одной через EXPLAIN (§4); FORCE RLS
 сохраняется на всех org-таблицах (констрейнт задачи; свип §G.2 его караулит); стенд a1 остаётся
 поведенческим доказательством (§3); watermark-журнал мигратора не переписывается (§H).*
+
+---
+
+## Changelog Ч1.1 → Ч1.2 (по находкам критика №1)
+
+- **B1** → §B :147-166 + §E :272-276: шаг `sync-org-allowlist` ДО `pnpm migrate`, генерат — после;
+  fail-closed, окна «стена выключена» нет (порядок сверен: `deploy-test-saas.sh:2685,:3170,:3092-3101`).
+- **M2** → §A п.1 :22-28, :76-78, §C :200,:205-209, §G.5 :340-343: `app_owner` объявлен
+  `bypassrls: true` с обоснованием; свип №5 = `{postgres, app_owner}`; снятие — развилка №5.
+- **M3** → §A.1 :56-64, §B :123-131, §F :311-313: артефакт env-независимый; логины — per-env
+  маппинг с рендером при применении; CI = байт-чек + детерминизм; сверка логинов по-окруженная.
+- **M4** → §A пп.3-5 :31-45, §D.5 :234-238, §F :302-306: схемы/база/sequences/функции/представления
+  в декларации и сверке (+pg_default_acl); бутстрап снимает материализованный PUBLIC EXECUTE.
+- **M5** → §E :263-271: guard = идемпотентная перепроверка флагов (как в прототипе); session-GUC
+  запрещён; всё сверх прототипа — «требует прогона в Ф3».
+- **M6** → §B :177, :190-192: `p2-b` — параметризованный рантайм-шаг вне миграций и генератора;
+  учтён в ≤12 (10 + запас 2).
+- **M7** → §B :138-142, §F :305, §G.7 :350-354: default-hardening в каждом генерате; `pg_default_acl`
+  двусторонне; свип-инвариант №7.
+- **m9** → :25, :200, :300: `c5a:32→31`, `c5a:44→43` — сверено по файлу.
+- **m10** → §C :205-209: стенд проверяет только `rolbypassrls/rolsuper/rolinherit`+членства
+  (`:457-486`); CREATEROLE/владение не проверяет никто.
+- **m11** → §C :199: исключения владения — `saas_telemetry_owner` (`saas-isolation-telemetry.sql:75-77`),
+  три `app.*`-таблицы шва у `app_owner`.
+- **m12** → §B :182-189: правило классификации + список неклассифицированных; полная перепись 61 —
+  артефакт Ф2.
+- **m13** → §A п.1/§A.1/:79: логины изъяты из декларации (см. M3).
+- **m14** → §H.7 :381-395: сжатие через watermark `created_at`; baseline никогда не входит в журнал.
+- **m15** → §G.6 :344-349: обе формы `security_invoker=true|on`.
+- **m16** → §I :402-406: `pgEmailSetupFlowPort` (FACTS §11.7) — код-фикс Ф6, вне схемы.
+- **Развилки** → §I :423-431: добавлены №5 (BYPASSRLS `app_owner`) и №6 (судьба
+  `check-new-table-rls-coverage.mjs`); №1-4 сохранены.
