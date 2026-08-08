@@ -87,9 +87,14 @@ PG16 на `:5432` (SERVER CONVENTIONS.md:124; `migrate-all.sh:84,:91` пинов
    (посчитано grep'ом), но дефолт `PUBLIC USAGE` на типах существует (evidence/12 §1), hardening
    §D его закрывает — раздел заведён, чтобы первый будущий тип был объявлен, а не унаследовал дефолт.
 7. **definerExceptions** — SECURITY DEFINER функции как ПЕРЕЧИСЛЕННЫЕ исключения, каждая со
-   строкой-обоснованием, владельцем и точным ACL (capability-only как норма отвергнута —
-   FACTS §9.4, evidence/07 §5; definer — «аудируемое исключение», evidence/07 §5 «защитимая
-   середина»). Этот же список ест CI-сканер красного списка миграций (§B).
+   строкой-обоснованием, владельцем, точным ACL и **`searchPath` — ожидаемым `proconfig`**
+   (у definer-функций пути РАЗНЫЕ: `c5a` несёт 4 разных `SET search_path` на definer-функциях,
+   прототип evidence/12 §4 — `pg_catalog, app_control`; поэтому значение per-функция, не константа).
+   `searchPath` **применяет тело функции в миграции** (оно и так несёт `SET search_path` — одна
+   власть, генератор его НЕ дублирует, иначе спор двух движков как dbt #6238); декларация лишь несёт
+   ОЖИДАЕМОЕ, против которого §F ловит дрейф/инъекцию. (capability-only как норма отвергнута —
+   FACTS §9.4, evidence/07 §5; definer — «аудируемое исключение», «защитимая середина».) Этот же
+   список ест CI-сканер красного списка миграций (§B).
 8. **creators** — закрытый список создающих ролей (`postgres`, мигратор-логин, `app_owner`,
    `saas_telemetry_owner`, `saas_system_health_owner`; состав фиксирует перепись Ф2): defaults
    живут по-создающей-роли, членством не наследуются (evidence/12 §3b) — список едят
@@ -107,9 +112,13 @@ PG16 на `:5432` (SERVER CONVENTIONS.md:124; `migrate-all.sh:84,:91` пинов
     `dev-c0-runtime-logins.sql:130-137` обязан быть `NULL`, поэтому (логин,база) — структурно
     единственный дом для его `search_path`; тот же `public, integrator` TEST несёт легитимно на
     уровне роли (`bcb_test_*`, FACTS §4); а `integrator` в пути ОБЯЗАН быть, иначе неквалифицированный
-    `pgTable` даёт 42P01 (FACTS §1.1). Ф2 объявляет её как **исключение со значением
-    `search_path=public,integrator`**, НЕ сбрасывает (сброс воспроизвёл бы 42P01). Реальный пробел,
+    `pgTable` даёт 42P01 (FACTS §1.1). Ф2 объявляет её как **исключение со значением, ДОСЛОВНО как
+    в каталоге** — `search_path=public, integrator` (пробел после запятой — так хранит
+    `pg_db_role_setting.setconfig`; §F сравнивает байтово, Ф2 обязана снять точный текст, иначе
+    ложный красный), НЕ сбрасывает (сброс воспроизвёл бы 42P01). Реальный пробел,
     который §A.10 чинит, — что строка НЕ ОБЪЯВЛЕНА и невидима сверке, а не что она «неверна».
+    Второй живой член класса — `bcb_webapp_prod IN DATABASE bcb_webapp_prod SET …` — на ВНЕ-контурной
+    базе (§H.1), в юрисдикцию не входит; в переписи помечается как чужой, не сверяется.
     Владелец каждой управляемой базы — её мигратор-логин (`datdba`, перепись 08.08:
     `bersoncarebot_test→bersoncarebot_test`, `bcb_webapp_dev→bcb_webapp_dev_user`); класса не было
     НИ в §C, НИ в §F.
@@ -129,8 +138,9 @@ env этого кластера (TEST и dev — один кластер, см. 
 - **источник пароля** — ссылка на env-секрет (имя переменной), НИКОГДА не литерал;
 - **атрибуты — все пиновятся**: `LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEROLE`
   (стенд уже ассертит `NOT rolinherit` у логинов — `verify-a1-rls-conformance.mjs:460-461`);
-- **rolconfig (уровень роли, `setdatabase=0`) — по умолчанию `NULL`**, исключения явно (класс
-  дефекта — login-уровневый `search_path`, FACTS §9.6; ассерт — `dev-c0-runtime-logins.sql:136`);
+- **rolconfig (уровень роли, `setdatabase=0`) — по умолчанию `NULL`**, исключения явно (ожидание
+  `NULL` — по ассерту `dev-c0-runtime-logins.sql:136`; родственный класс — search_path без
+  `integrator` даёт 42P01, FACTS §1.1, §9.6);
   ⚠ это НЕ покрывает `ALTER ROLE … IN DATABASE`/`ALTER DATABASE … SET` — они уходят в
   `pg_db_role_setting` (`setdatabase≠0`), невидимый `pg_roles.rolconfig`; ими владеет §A.10;
 - **VALID UNTIL / connection limit** — пиновятся (дефолт: не заданы); **CONNECT** на базу.
@@ -179,9 +189,10 @@ export const declaration: PrivilegeDeclaration = {
   definerExceptions: {
     'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)': {
       owner: 'app_owner', execute: ['app_staff', 'app_patient', 'app_clinic_billing'],
+      searchPath: 'pg_catalog',   // ожидаемый proconfig; применяет тело в миграции, §F сверяет
       why: 'вход принципала: HMAC-подпись проверяется до установки GUC (packages/db-principal/src/index.ts)' },
     'app.list_platform_organization_members(uuid)': {
-      owner: 'app_owner', execute: ['app_platform_settings'],
+      owner: 'app_owner', execute: ['app_platform_settings'], searchPath: 'pg_catalog',
       why: 'платформенный подсчёт мест без чтения platform_users/инвайтов (c5a:1293-1355)' },
   },
 };
@@ -232,9 +243,10 @@ CONNECT) в него НЕ входят — их генератор рендер�
   Оба сводят живую строку `bcb_webapp_dev_user IN DATABASE bcb_webapp_dev` к ОБЪЯВЛЕННОМУ значению
   (для неё — `SET search_path=public,integrator`, несущее, §A.10; `RESET` — только там, где
   перепись Ф2 объявила пусто); без статей §A.10 сверяемо, но НЕ применяемо — дрейф краснел бы в §F
-  без шага в зелёный. Ту же машинерию §F распространяет и на `pg_proc.proconfig`
-  (`ALTER FUNCTION … SET search_path`) definer-исключений — тот же класс боковой двери search_path,
-  что закрыт для ролей и баз; ожидаемое — из `definerExceptions[*]`, статьи генерата, сверка §F;
+  без шага в зелёный. `proconfig` definer-функций (`SET search_path`) — тот же класс боковой двери,
+  но его **применяет тело функции в миграции** (одна власть, генератор НЕ дублирует — иначе спор
+  движков, dbt #6238); генератор его НЕ эмитит, §F лишь СВЕРЯЕТ `pg_proc.proconfig` против
+  `definerExceptions[*].searchPath` (§A.7);
 - **одна транзакция** (`psql -1 -v ON_ERROR_STOP=1`): раздельные autocommit-операторы ломают
   открытых читателей 42501 в окне — запрещено (FACTS §4.1, evidence/12 §9);
 - порядок статей отсортирован (стабильный дифф).
@@ -526,7 +538,7 @@ evidence/07 §1) — с точечных exact-wall-блоков на **всю �
 | table ACL (вкл. `is_grantable` против объявленного `grantable`) | `pg_class.relacl` через `aclexplode(COALESCE(relacl, acldefault(…)))` | c5a:1297-1310; is_grantable — c5a:1300 |
 | RLS-флаги таблиц | `pg_class.relrowsecurity/relforcerowsecurity` против `tables[*].rls` — обе стороны: force-таблица без флага И флаг на таблице, объявленной `'off'` | §B (RLS-статьи генерата); красный сегодня — 5 таблиц FACTS §1.3 |
 | column ACL | `pg_attribute.attacl` | c5a:1311-1319; без него табличная проверка врёт (FACTS §1.4) |
-| function ACL + `prosecdef` + владелец + `proconfig` | `pg_proc.proacl/prosecdef/proowner/proconfig` (схемы вкл. `app_ext`); `proconfig` — тот же класс боковой двери search_path, ожидаемое из `definerExceptions[*]` | c5a:1320-1336,1345; proconfig — та же логика, что §A.10 для ролей/баз |
+| function ACL + `prosecdef` + владелец + `proconfig` | `pg_proc.proacl/prosecdef/proowner/proconfig` (схемы вкл. `app_ext`); `proconfig` против `definerExceptions[*].searchPath` (§A.7) — применяет ТЕЛО функции в миграции, §F только сверяет (не генератор) | c5a:1320-1336,1345; proconfig — класс боковой двери, закрыт как §A.10, но власть — тело функции |
 | политики, вкл. RESTRICTIVE, USING/WITH CHECK-текст | `pg_policies` | c5a:1719-1721; RESTRICTIVE меняет семантику — evidence/12 §10 |
 | атрибуты ролей | `pg_roles`: `rolcanlogin/rolsuper/rolbypassrls/rolinherit/rolcreaterole/rolconfig` (⚠ `rolconfig` — ТОЛЬКО `setdatabase=0`; `setdatabase≠0` — отдельный класс ниже) | `verify-a1-rls-conformance.mjs:457-461` (частично); pgTAP атрибуты не покрывает — писать самим (evidence/07 §3); ловит и остаточный BYPASSRLS мигратора после упавшего migrate (§B шаг 5) |
 | per-db настройки + владелец базы — обе стороны | `pg_db_role_setting` ОБА scope (`setdatabase=0` И `≠0`) против §A.1 rolconfig + §A.10; `pg_database.datdba` против §A.10 — по всем управляемым базам | §A.10; ловит живую строку `bcb_webapp_dev_user IN DATABASE bcb_webapp_dev` (перепись 08.08) и подмену владельца базы — класс, который `pg_roles.rolconfig` не видит |
@@ -738,7 +750,8 @@ app-слой, включены явными пунктами Ф6 (решение
    стеной; запрет транзиентов красил бы легальную историю.
 8. **Провижининг логинов — в контуре декларации** (env-маппинг §A.1, `roles-install` применяет,
    §F сверяет) — инженерное решение 08.08: вне контура истина уровня логина живёт в двух местах
-   и §F не караулит класс дефекта FACTS §9.6 (login-level `search_path`).
+   и §F не караулит `rolconfig`/search_path логинов (родственный класс — 42P01 при пути без
+   `integrator`, FACTS §1.1).
 9. **BYPASSRLS у `saas_system_health_owner` — оставить-и-объявить** — инженерное решение 08.08:
    то же обращение, что Р5 (NOLOGIN definer-владелец, ноль членов, живой деплой атрибут уже
    ставит — §A п.1); заодно закрыт спор оверлеев dev/TEST.
@@ -756,9 +769,9 @@ app-слой, включены явными пунктами Ф6 (решение
 Не покрыты сверкой и оставлены осознанно (низкий риск — мигратор НЕ суперпользователь, а перечисленные
 объекты требуют либо суперпользователя, либо владения): каталоги foreign-data-wrapper / user-mapping и
 ACL больших объектов (`pg_largeobject_metadata.lomacl`) — в этой базе не используются (грепом ноль). Если
-появятся — завести класс §F тем же паттерном. `proconfig` definer-функций (`ALTER FUNCTION … SET`) —
-НЕ в этом списке: он того же класса «боковая дверь search_path», что закрыт для ролей/баз, и сверяется
-§F из `definerExceptions` (§B).
+появятся — завести класс §F тем же паттерном. `proconfig` definer-функций (`SET search_path`) —
+НЕ в этом списке: тот же класс «боковая дверь search_path», применяется телом функции в миграции
+(одна власть), а §F сверяет его против `definerExceptions[*].searchPath` (§A.7, §F).
 
 ---
 
@@ -770,6 +783,18 @@ org-таблицах (свип §G.2 караулит; фаза миграций
 остаётся поведенческим доказательством (§3); watermark-журнал мигратора не переписывается (§H).*
 
 ---
+
+## Changelog Ч1.2-r7 → Ч1.2-r8 (по находкам критика №8)
+
+- **MAJOR-1** (`proconfig` сверялся/применялся «из `definerExceptions[*]`», но такого поля нет; плюс
+  спор двух движков — тело функции в миграции и генератор оба несли бы `SET search_path`) →
+  добавлено поле `definerExceptions[*].searchPath` (§A.7 + пример); власть одна — **тело функции в
+  миграции**, генератор `proconfig` НЕ эмитит, §F только сверяет против объявленного значения (§B, §F, §I).
+- **MINOR-1** → второй живой член класса `setdatabase≠0` — `bcb_webapp_prod` — помечен вне-контурным (§A.10).
+- **MINOR-2** → объявляемое значение dev-строки дословно как в каталоге: `public, integrator`
+  (пробел после запятой; §F сравнивает байтово, Ф2 снимает точный текст).
+- **MINOR-3** → цитата уточнена: ожидание `rolconfig=NULL` — по `dev-c0:136`; §9.6/§1.1 — родственный
+  класс (path без `integrator` = 42P01), а не «login-level search_path — дефект».
 
 ## Changelog Ч1.2-r6 → Ч1.2-r7 (по находкам критика №7)
 
