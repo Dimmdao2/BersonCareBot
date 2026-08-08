@@ -71,6 +71,25 @@ echo "код выхода psql: $? (0 = вся транзакция закомм
 echo "статей выполнено: $(wc -l < "$WORKDIR/apply-1.out"); хвост:"
 tail -5 "$WORKDIR/apply-1.out"
 
+banner "4b. LOGIN-РЕНДЕР ИЗ ENV-МАППИНГА (§A.1) — применяется ОТДЕЛЬНО, в артефакт не входит"
+node "$CLI" --declaration "$DECLARATION" --env proof --db "$DB" > "$WORKDIR/env-proof.sql"
+grep -c '^ALTER ROLE .* PASSWORD ' "$WORKDIR/env-proof.sql" \
+  | sed 's/^/статей PASSWORD (значение — psql-переменная, литерала в тексте нет): /'
+grep '^ALTER ROLE .* PASSWORD ' "$WORKDIR/env-proof.sql"
+psql_db -1 -v ON_ERROR_STOP=1 \
+  -v PGPASSWORD_BCB_PROOF_MIGRATOR=dummy-not-a-real-secret \
+  -v PGPASSWORD_BCB_PROOF_STAFF=dummy-not-a-real-secret \
+  -f "$WORKDIR/env-proof.sql" | tail -3
+echo "код выхода psql: $?"
+echo "--- РЕАЛЬНОЕ соединение логином (не SET ROLE из суперпользователя) ---"
+psql -h "$SOCKDIR" -U bcb_proof_staff_login -d "$DB" -v ON_ERROR_STOP=0 <<'SQL'
+SELECT session_user AS "логин", current_user AS "текущая роль";
+SET ROLE app_staff;
+SELECT current_user AS "текущая роль после SET ROLE";
+SELECT count(*) FROM public.phone_challenges;
+SELECT app.public_booking_otp_issue('+79990000002') AS "штатный definer-путь";
+SQL
+
 banner "5. ЗЕЛЁНЫЙ — ПОСЛЕ генератора: ноль строк И ошибка в журнале"
 psql_db -v ON_ERROR_STOP=0 <<'SQL'
 SELECT relname, relrowsecurity AS rls, relforcerowsecurity AS force, relacl::text
