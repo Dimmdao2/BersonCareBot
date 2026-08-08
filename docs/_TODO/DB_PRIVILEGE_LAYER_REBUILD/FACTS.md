@@ -83,6 +83,11 @@ app_staff             | public.be_organization_members      | чужих стр�
 ```
 `[ФАКТ]` У `public.be_organization_members` `relrowsecurity = false`.
 
+`[ФАКТ 08.08, перепись Ф2 — дрейф]` Пять биллинг-ячеек (`saas_billing_*`, `admin_audit_log`) на TEST
+теперь несут RLS+FORCE — утечка там закрыта (вероятно другой работой). Живыми остаются **2 ячейки**
+на `be_organization_members` (RLS off, SELECT у `app_staff`/`app_platform_settings`). Полный
+пересчёт — `evidence/13-f2-census.md`. Т.е. картина утечки СУЗИЛАСЬ с 7 до 2 ячеек.
+
 `[ФАКТ]` По `app_staff` в целом: **чисто 167, запрещено 4, утечка 1, слепота 0** из 172. Правило не
 флагует всё подряд — это довод в его пользу.
 
@@ -91,6 +96,12 @@ app_staff             | public.be_organization_members      | чужих стр�
 `[ФАКТ]` Таблица с `organization_id`, читаемая арендной ролью, обязана нести RLS+FORCE. Нарушают:
 `appointment_records`, `be_organization_members`, `outgoing_delivery_queue`, `patient_bookings`,
 `product_analytics_hourly`. Это живой дефект, **не починен**.
+
+`[ФАКТ 08.08, перепись Ф2 — дрейф]` Пересчёт живьём: нарушителей **6 на TEST / 7 на dev**, не 5 —
+добавились `reference_catalog_snapshot_receipts` (обе) и `patient_specialist_links` (только dev).
+Управляемые базы РАЗЛИЧАЮТСЯ по набору дефектов → декларация обязана иметь per-базовые разделы (как и
+заложено в SCHEME §A). Точный список — `evidence/13-f2-census.md`. Ф6 берёт красный по ЖИВОМУ набору
+каждой базы или с a0-слепка, не по числу «5».
 
 ### 1.4 `platform_users` — единственная стена на ПДн, RLS выключен
 
