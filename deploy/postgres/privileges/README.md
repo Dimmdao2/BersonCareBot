@@ -1,61 +1,123 @@
-# `deploy/postgres/privileges/` — DB privilege DECLARATION (Ф2.2 draft)
+# `deploy/postgres/privileges/` — DECLARATION слоя прав БД («как должно быть»)
 
-## What this is
+## Что это
 
-`declaration.ts` is the **single typed source of truth** for the DB privilege layer: cluster roles,
-per-env logins, and per-database schemas / tables / policies / definer functions / ownership /
-db-settings. It is a transcription of the **live catalog census**
-(`docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/13-f2-census.md`, read-only, 2026-08-08) **minus
-known defects** (SCHEME §H.1), shaped per **SCHEME §A** (ten sections) and reconcilable per
-**SCHEME §F**.
+`declaration.ts` — **единственный типизированный источник истины** по правам БД: решения владельца,
+кластерные роли, per-env логины и порты, и по каждой из **239 классифицированных таблиц** — класс
+данных, требуемая стена, режим RLS, владелец, обоснованные гранты и отзываемые гранты.
 
-**Status: DRAFT.** Nothing here is wired into any deploy. No SQL has run. The generator (Ф2.3) that
-turns this into `deploy/postgres/generated/privileges.<db>.sql` and `expected-state.json` does not
-exist yet. Do not `import` this into deploy paths until Ф2.3.
+Это уже **не** транскрипция живого каталога. Черновик Ф2.2 переписывал снятое состояние минус
+известные дефекты; текущий файл несёт **решённую модель** — решения владельца от 2026-08-08,
+объявленный класс и стену на каждой таблице, модель двух портов, узкую роль резолвера, роль прунера
+и приёмочный инвариант. Там, где сегодняшний код делает то, что модель запрещает, объявлена **модель**,
+а код перечислен в `CODE_MUST_CHANGE` — грант никогда не выдаётся «потому что код туда ходит».
 
-## Who applies what (SCHEME §B — three appliers, do not confuse them)
+**Статус: ничего не применено.** Файл не подключён ни к одному деплою, ни одна DDL/DML/GRANT не
+исполнялась, генератор (Ф2.3) его ещё не потребляет. Не импортировать в деплой-пути до Ф2.3.
 
-The declaration is **one source** consumed by **three different mechanisms**. A field's *value* is
-declared here; *who writes it to the catalog* is not the generator for every field:
+Проверка типов (обязана быть зелёной):
 
-| Field class | Applied by | Note |
+```bash
+./node_modules/.bin/tsc --noEmit --strict deploy/postgres/privileges/declaration.ts
+```
+
+## Решения владельца 2026-08-08 (нормативны; в файле — `OWNER_DECISIONS`)
+
+| # | Решение | Дата | Где в файле |
+|---|---|---|---|
+| D1 | **Глобал-админ НЕ видит медицинские и клинические данные.** Платформенная роль — только коммерция, каркас клиник и аудит. Дословно: «Глобал админ не лезет в медицину, **пока** так». Пометка «пока» сохранена: это решение о ТЕКУЩЕМ состоянии, не навсегда | 08.08 | `PLATFORM_ROLE_SCOPE` (`mayTouch` / `mustNotTouch`), `provisional: true` |
+| D2 | **Пациент видит ТОЛЬКО тесты, добавленные в его программу.** Не клинические тесты с приёма, не внутренние комментарии персонала о себе, не пометку «проблемный» и счётчик неявок. Дословно: «он НЕ ВИДИТ внутренние комментарии и пометку проблемный и тд» | 08.08 | `PATIENT_VISIBILITY` + `revoke` на `be_appointment_staff_comments`, `be_patient_booking_profiles` + `policyRequirement` на `test_attempts`/`test_results`/`clinical_test_*` |
+| D3 | **Справочники: глобальный шаблон → копия на организацию** при её создании; клиника владеет своей копией, арендатор НЕ пишет в шаблон | 08.08 | `REFERENCE_MODEL`, стены `reference-template` / `reference-org-copy` |
+| D4 | **Ровно ДВА порта: webapp и integrator.** Воркеры, крон и прунер своих подключений не открывают | 08.08 | `PORTS`, поле `port` на каждом логине, `mustFold` там, где сегодня третий порт |
+| D5 | **Узкая роль резолвера** для предмаршрутного поиска интегратора вместо четырёхстороннего членства | 08.08 | роль `app_integrator_resolver`, definer `app.resolve_organization_for_channel_identity` |
+| D6 | **Приёмочный инвариант:** «любой запрос к базе данных без контекста и точного совпадения разрешений выдает 0 строк и пишет ошибку в журнал» | 08.08 | `ACCEPTANCE_INVARIANT` (см. ниже) |
+| D7 | **Стена по объявленному КЛАССУ**, а не по наличию `organization_id` | 08.08 | `DataClass`, `Wall`, `WALL_TEMPLATES`, `CLASS_DEFAULT_WALL` |
+| D8 | **Прунер** под своей сервисной ролью через порт webapp (внутренний эндпоинт), никогда под арендной | 08.08 | роль `app_operational_maintenance`, definer `app.prune_context_nonce_ledger` |
+| D9 | **Суперпользователь сохраняет полный доступ** (путь DBA), на проде — сильный пароль. Не дефект, объявлен | 08.08 | роль `postgres` (`kind: 'superuser'`, `bypassrls: true`) |
+
+Открытые развилки владельца собраны одним листом в `OWNER_GATES_OPEN` (O3 пустой дискриминатор
+аренды · O4 мёртвые таблицы с ПДн · O5 направление cutover `user_identity`/`user_contacts` ·
+O6 сводить ли staff/nonstaff-логины порта webapp в один). У каждой — рекомендация и safe-default.
+
+## Приёмочный инвариант и что он меняет
+
+Инвариант владельца состоит из двух половин, и цена у них разная:
+
+- **«выдаёт 0 строк»** — это сегодняшний механизм: RLS+FORCE на каждой объявленной таблице,
+  deny-by-default (SCHEME §D) и стена в точке рождения (§E). Без принципала предикат ложен.
+- **«и пишет ошибку в журнал»** — а вот этого сегодня НЕТ, и это **изменение поведения**. Сейчас
+  отсутствие принципала даёт **тихий ноль**: `app.current_org_id()` возвращает NULL, предикат просто
+  ложен, в журнал не пишется ничего, а приложение глотает ошибку (FACTS §1.1: 61 тыс. отказов в сутки
+  нашли только чтением `pg_stat`; §11.7: `pgEmailSetupFlowPort` превращает 42501 в
+  `reason:'user_not_found'`). Под инвариантом **context-аксессоры обязаны RAISE**, а не возвращать
+  NULL: `app.current_org_id()`, `app.current_patient_user_id()`, `app.current_integrator_user_id()`.
+
+Это **не** отвергнутое FACTS §9.2 «всегда бросать»: там предлагалось заменить отказ движка
+throw-ами на уровне приложения. Здесь отказывает по-прежнему движок; меняется только то, что три
+аксессора перестают отвечать NULL на «контекста нет».
+
+**Приёмочный тест:** открыть сессию логином порта, НЕ ставить принципал, сделать SELECT по каждой
+объявленной таблице. Ожидание: 0 строк **и** запись отказа в журнале. Тихий ноль с пустым журналом = FAIL.
+
+## Кто что применяет (SCHEME §B — три применителя, не путать)
+
+Декларация — **один источник**, который потребляют **три разных механизма**. Значение поля объявлено
+здесь; кто пишет его в каталог — не всегда генератор:
+
+| Класс поля | Применяет | Примечание |
 |---|---|---|
-| roles + attributes + memberships (cluster) | `roles-install` (§B step 1) from decl **+ env-mapping** | cluster-level; survives restore |
-| login records (name, membership, `passwordEnv`, CONNECT, `rolconfig`) | **env-render** at apply time (decl + `env/<env>.json`) | **NOT committed** — never a literal password |
-| schema/table/column/sequence/function/view ACLs, policies, RLS flags, owners, per-db `datdba` + `ALTER DATABASE SET`, default-priv hardening | **generator** → committed `generated/privileges.<db>.sql` | env-independent truth |
-| `definerExceptions[*].searchPath` (`proconfig`) | **the function BODY in its migration** — NOT the generator | one authority (dbt #6238); §F only *compares* it |
-| per-`(login,db)` `ALTER ROLE … IN DATABASE … SET` (`dbSettings.perRoleInDatabase`) | **env-render** at apply time | e.g. dev's `search_path=public, integrator` |
-| org-table wall (allowlist, `ENABLE/FORCE RLS` on birth) | **event trigger** (§E) reads `orgTableAllowlist` | derived from `tables[*].org===true` |
+| роли, атрибуты, членства (кластер), в т.ч. новые `app_integrator_resolver`, `app_operational_maintenance`, `app_migration_phase` | `roles-install` (§B шаг 1) из декларации **+ env-маппинга** | кластерный уровень, переживает restore |
+| записи логинов (имя, членство, `passwordEnv`, CONNECT, `rolconfig`, **`port`**) | **env-render** в момент применения (декларация + `env/<env>.json`) | **не коммитится** — никогда не литерал пароля |
+| ACL схем/таблиц/колонок/последовательностей/функций/представлений, политики, флаги RLS, владельцы, `datdba`, `ALTER DATABASE … SET`, hardening дефолтных привилегий | **генератор** → закоммиченный `generated/privileges.<db>.sql` | env-независимая истина |
+| `definerExceptions[*].searchPath` (`proconfig`) | **ТЕЛО функции в её миграции**, НЕ генератор | одна власть (dbt #6238); §F только *сравнивает* |
+| `ACCEPTANCE_INVARIANT.contextAccessorsMustRaise` | **ТЕЛО функции в её миграции** | там же, где `searchPath`; генератор тел не пишет |
+| `dbSettings.perRoleInDatabase` (`ALTER ROLE … IN DATABASE … SET`) | **env-render** в момент применения | напр. dev-строка `search_path=public, integrator` |
+| стена org-таблиц (allowlist, `ENABLE/FORCE RLS` при рождении) | **event trigger** (§E) читает `orgTableAllowlist` | выводится из `tables[*].org === true` |
+| `wall`, `cls`, `policyRequirement`, `revoke`, `removal`, `codeMustChange` | **человек и ревью, не машина** | это ТРЕБОВАНИЕ к политике/грантам; генератор эмитит уже написанные политики, а `policyRequirement` — критерий, против которого их принимают |
 
-**Byte-exactness matters:** `searchPath` and `dbSettings` strings are stored **verbatim** as the
-catalog holds them (e.g. `search_path=public, integrator` — space after the comma). §F compares
-byte-for-byte; a reformatted literal is a false-red.
+**Байтовая точность важна:** строки `searchPath` и `dbSettings` хранятся дословно как в каталоге
+(например `search_path=public, integrator` — с пробелом после запятой). §F сравнивает побайтово;
+переформатированный литерал = ложный красный.
 
-## Census gaps still open (see the `// GAPS` block at the top of `declaration.ts`)
+## Дисциплина, зашитая в типы
 
-These are the inputs the read-only census could not settle; the generator/owner triage must close
-them before this leaves draft. Grep `TODO(census-gap)` and `TODO(owner?)` in `declaration.ts`.
+- **Грант без обоснования не объявляется.** `GrantDecl` требует поле `why` структурно —
+  компилятор не даст выдать привилегию молча. Не можешь обосновать — не гранты, а `revoke`.
+- **Не штамповать текущее использование.** Владелец это прямо отверг: если сегодняшний код делает
+  то, что модель запрещает, объявляется модель, а код уходит в `CODE_MUST_CHANGE` (18 пунктов).
+- **Таблицы под снос стен не получают.** `disposition: 'PENDING_REMOVAL'` + `wall: 'pending-removal'`
+  + `grants: {}` + `removal.{verdict,source,blockedBy}`. Это ИМЕНОВАННОЕ исключение для §F, а не
+  молчание, и заодно защита от того, чтобы тратить работу по стенам на копию (evidence/15, evidence/18).
+- **Классификация вместо угадывания.** Где перепись не перечислила полный `relacl`, стоит
+  `grantMatrix: 'G2-pending'`: класс и стена объявлены, исчерпывающий набор строк ACL не выдуман.
 
-- **G1** — exact 11 tenant-bypassable roles (the SET ROLE × principal sweep was not re-run). One
-  scope (`app_identity_bootstrap` OWN-vs-NONE) is left `TODO(owner?)`.
-- **G2** — full per-table grant matrix (~235 tables): census enumerated only a handful; the rest is
-  `TODO(census-gap)` rather than guessed.
-- **G3** — which of the 38 migrator-owned + 1 `app_platform_settings`-owned definer functions are
-  intentional vs drift; only 1 of the 38 is named in the census.
-- **G4** — NOINHERIT drift on `bcb_test_staff_login`, `bcb_test_worker_login`, `bcb_webapp_dev_user`
-  (live `rolinherit=t` vs SCHEME §A.1 pin) — pinned to live value, reconciliation deferred.
-- **G5** — `app_ext` schema owner differs per db (TEST `postgres` / dev `bcb_webapp_dev_user`).
-- **G6** — `platform_users` Ф6 red baseline (now RLS+FORCE) — owner gate at Ч1.3, not a decl value.
-- **G7** — `reference_catalog_snapshot_receipts` (both) + dev `patient_specialist_links`: true org
-  tables vs false-positive. Declared `org:true` (they carry `organization_id`).
-- **G8** — policy names/bodies (9 on `platform_users`, 4 on `admin_audit_log`, …) not enumerated.
-- **G9** — exact env-secret variable names + per-login CONNECT/VALID UNTIL/conn-limit (live in the
-  deploy secret store, not the catalog). `passwordEnv` values are convention placeholders.
+## Числа (считаются самим файлом — `DECLARATION_STATS`)
 
-## Discipline honored
+- 239 классифицированных таблиц: **225 с объявленным классом и стеной**, **14 `PENDING_REMOVAL`**.
+- По классам: P 110 · C 66 · S 45 · T 13 · R 5.
+- По стенам: `clinic+patient` 91 · `clinic` 64 · `definer-only` 25 · `platform-role` 23 ·
+  `pending-removal` 14 · `reference-org-copy` 10 · `platform-role+clinic` 5 · `closed` 3 ·
+  `reference-template` 2 · `parent` 1 · `parent+patient` 1.
+- 116 таблиц объявлены `org: true`; 42 несут отзыв живого гранта; 20 кластерных ролей; 13 TEST-логинов
+  и 4 dev-логина.
 
-Every value traces to the census (`evidence/13 §N`) or repo code (`file:line`) — no invented
-literals. Refuted approaches (FACTS §9: capability-only, always-throw, AST, EXPLAIN-proofs) are not
-reintroduced. The two managed DBs (`bersoncarebot_test`, `bcb_webapp_dev`) are encoded separately
-because they genuinely differ (SCHEME §A / evidence/13 §2.2). `prod` and out-of-jurisdiction /
-foreign / ephemeral roles are excluded per SCHEME §A jurisdiction.
+## Пробелы (блок `// GAPS` в шапке `declaration.ts`)
+
+Открыты: **G1** точный список 11 tenant-обходимых ролей · **G2** полная матрица грантов (~239 таблиц) ·
+**G3** целевой владелец 38+1 definer-функций · **G8** имена/тела политик · **G9** имена env-секретов
+и per-login CONNECT/VALID UNTIL · **G10** покрытие самой классификации (239 из 307 отношений) ·
+**G11** объёмы, снятые с `reltuples` (врут — доказано дважды), нужен `count(*)`.
+
+Закрыты в этом круге: **G4** (NOINHERIT — решено как РЕШЕНИЕ: все логины объявлены NOINHERIT, живой
+`rolinherit=t` объявлен дрейфом, потому что INHERIT — механизм дефекта И3) · **G5** (владелец `app_ext`
+= `postgres` на обеих базах) · **G6** (baseline Ф6 — не значение декларации) · **G7**
+(`reference_catalog_snapshot_receipts` и dev-`patient_specialist_links` — ИСТИННЫЕ org-таблицы).
+
+## Читать вместе с этим
+
+- `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/ACCESS_MODEL.md` — «кто и куда ходит и почему» одним листом,
+  без SQL: **это документ, который читает владелец**;
+- `SCHEME.md` — принятый механизм (§A форма декларации, §C владение, §F сверка, §I решения);
+- `FINDINGS_TABLES.md` — 27 дефектов и per-table классы;
+- `evidence/13-f2-census.md` — живые значения; `evidence/14-*` — «кто пользуется / зачем»;
+  `evidence/15`, `evidence/16`, `evidence/18` — судьба таблиц, ретеншен, дубли.
