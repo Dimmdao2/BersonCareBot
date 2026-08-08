@@ -20,7 +20,29 @@ const staffRole = 'app_staff';
 const patientRole = 'app_patient';
 const staffLoginRole = 'app_runtime_staff_login';
 const nonstaffLoginRole = 'app_runtime_nonstaff_login';
-const postgresPort = '57439';
+/**
+ * Capability roles the a0-greenfield baseline references from `CREATE POLICY … TO <role>`.
+ * They carry no privileges in this rig and are never authenticated as — they exist only so the
+ * baseline's policy ACLs resolve during restore. Keep in sync with the baseline; the check is
+ * mechanical, not a judgement call:
+ *   grep -ohE 'CREATE POLICY [^;]*? TO ([a-z_, ]+)' \
+ *     docs/ARCHITECTURE/DB_DUMPS/a0-greenfield/schema.sql | sed -E 's/.* TO //' | tr ',' '\n' | sort -u
+ */
+const capabilityRolesRequiredByBaseline = [
+  'app_platform_settings',
+  'app_clinic_billing',
+  'app_operational_web_push_reminder',
+  'app_web_push_reminder_discovery_definer',
+];
+const externalRolesRequiredByMigrationTail = [
+  'app_worker',
+  'app_operational_diagnostic',
+  'app_operational_delivery_worker',
+  'app_operational_scheduler',
+  'app_operational_media_worker',
+  'app_identity_bootstrap',
+];
+const postgresPort = '5432';
 const signingSecret = 'a1-synthetic-signing-secret-2026-locked-proof';
 const fixturePath = path.join(repoRoot, 'docs', 'ARCHITECTURE', 'DB_DUMPS', 'a1-rls', 'seed.sql');
 const missingContextDenialPath = path.join(
@@ -34,6 +56,12 @@ const missingContextDenialPath = path.join(
 const scrubbedEnvironmentKeys = Object.freeze([
   'A1_DATABASE_URL_NONSTAFF',
   'A1_DATABASE_URL_STAFF',
+  // scripts/migrate-all.sh treats ANY value of these — including one inherited from the caller's
+  // shell — as an explicit env selection, and then accepts only the exact canonical TEST or DEV
+  // pair. An inherited value would therefore abort this disposable-cluster run. Scrubbing them
+  // makes "unset" real, which selects the guard's no-env branch.
+  'API_ENV_FILE',
+  'WEBAPP_ENV_FILE',
   'DATABASE_URL',
   'DATABASE_URL_NONSTAFF',
   'DATABASE_URL_STAFF',
@@ -238,6 +266,20 @@ try {
       `CREATE ROLE ${quoteIdent(appOwnerRole)} NOLOGIN NOINHERIT BYPASSRLS;`,
       `CREATE ROLE ${quoteIdent(staffLoginRole)} LOGIN NOINHERIT NOBYPASSRLS;`,
       `CREATE ROLE ${quoteIdent(nonstaffLoginRole)} LOGIN NOINHERIT NOBYPASSRLS;`,
+      // Roles the a0-greenfield baseline names in `CREATE POLICY … TO <role>`. Postgres resolves
+      // those role names when the policy is created, so restoring the baseline fails outright if
+      // any of them is absent — `restore_schema_baseline_failed:3, role "app_platform_settings"
+      // does not exist`. The baseline was regenerated 2026-08-01 with policies for these four
+      // capability roles; this harness predates that and created only the original three, so the
+      // whole conformance gate has been failing since. Derived from the baseline, not guessed:
+      //   grep -ohE 'CREATE POLICY [^;]*? TO ([a-z_, ]+)' <baseline> | sed -E 's/.* TO //'
+      // They only need to exist for the ACL to resolve; the rig never authenticates as them.
+      ...capabilityRolesRequiredByBaseline.map(
+        (role) => `CREATE ROLE ${quoteIdent(role)} NOLOGIN NOINHERIT NOBYPASSRLS;`,
+      ),
+      ...externalRolesRequiredByMigrationTail.map(
+        (role) => `CREATE ROLE ${quoteIdent(role)} NOLOGIN NOINHERIT NOBYPASSRLS;`,
+      ),
       `GRANT ${quoteIdent(staffRole)} TO ${quoteIdent(staffLoginRole)} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`,
       `GRANT ${quoteIdent(patientRole)} TO ${quoteIdent(nonstaffLoginRole)} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`,
     ].join('\n'),
@@ -254,29 +296,68 @@ try {
   await psqlAs(
     operatorRole,
     'postgres',
-    `ALTER ROLE ${quoteIdent(BASELINE_OWNER_ROLE)} BYPASSRLS;`,
+    [
+      `ALTER ROLE ${quoteIdent(BASELINE_OWNER_ROLE)} BYPASSRLS;`,
+      // Migrations from 0295 onward run `ALTER FUNCTION … OWNER TO app_owner`, which PostgreSQL
+      // permits only if the executing role can SET ROLE to app_owner — otherwise sqlstate 42501,
+      // `must be able to SET ROLE "app_owner"`. The canon keeps app_owner at ZERO members because
+      // it owns the runtime-reachable SECURITY DEFINER seam and backstops FORCE RLS, so the
+      // membership is opened for the migration step only and revoked below — the exact mechanism
+      // deploy/host/deploy-test-saas.sh already uses for $DBROLE
+      // (grant_migrator_app_owner_membership / revoke_migrator_app_owner_membership).
+      // INHERIT TRUE is required because each ownership transfer is immediately followed by
+      // REVOKE/GRANT statements on the now-app_owner-owned function. This matches the canonical
+      // wrappers' plain temporary GRANT; the membership is revoked before evidence below.
+      `GRANT ${quoteIdent(appOwnerRole)} TO ${quoteIdent(BASELINE_OWNER_ROLE)} WITH ADMIN FALSE, INHERIT TRUE, SET TRUE;`,
+    ].join('\n'),
     'open_migration_window',
+  );
+  await psqlAs(
+    operatorRole,
+    databaseName,
+    `GRANT USAGE, CREATE ON SCHEMA app TO ${quoteIdent(appOwnerRole)};`,
+    'prepare_app_owner_migration_schema',
   );
   const ledgerPath = path.join(scratchRoot, 'ledger-seed.sql');
   fs.writeFileSync(ledgerPath, buildLedgerSql(packageResult.manifest), { mode: 0o600 });
   await psqlFileAs(BASELINE_OWNER_ROLE, databaseName, ledgerPath, 'seed_migration_ledgers');
   await psqlFileAs(BASELINE_OWNER_ROLE, databaseName, seedPath, 'apply_a0_seed');
+  await psqlFileAs(BASELINE_OWNER_ROLE, databaseName, fixturePath, 'apply_a1_fixture');
 
-  const ownerUrl = `postgresql://${BASELINE_OWNER_ROLE}@localhost:${postgresPort}/${databaseName}?host=${encodeURIComponent(socketDir)}`;
+  // scripts/validate-migration-database-url.mjs forbids `host` as a query parameter and rejects any
+  // port other than 5432, so the disposable cluster's private socket directory must ride in the URL
+  // AUTHORITY — libpq's documented percent-encoded unix-socket form, which node-postgres accepts
+  // too — and not in the query string. Simply deleting `?host=` is NOT an option: `localhost:5432`
+  // then resolves over TCP to the SYSTEM PostgreSQL (measured, not assumed). The cluster listens on
+  // port 5432 so the socket file is `.s.PGSQL.5432`, the name libpq derives when the URL omits the
+  // port; with listen_addresses='' it binds no TCP port at all, so the port number only names a file
+  // inside this run's 0700 mkdtemp directory and cannot collide with the system cluster or with a
+  // concurrent run of this rig.
+  const socketAuthority = encodeURIComponent(socketDir);
+  const ownerUrl = `postgresql://${BASELINE_OWNER_ROLE}@${socketAuthority}/${databaseName}`;
   await run('/usr/bin/bash', ['scripts/migrate-all.sh'], {
     env: cleanEnvironment({
       DATABASE_URL: ownerUrl,
+      // The guard classifies a non-`localhost` disposable host through its existing explicit
+      // allowlist rather than a widened rule. The value is this run's ephemeral socket directory,
+      // generated moments ago by mkdtemp, so it authorises nothing that outlives the process.
+      SAAS_DISPOSABLE_ALLOWED_HOSTS: socketAuthority,
       NODE_ENV: 'test',
       CI: 'true',
       BOOKING_URL: 'http://127.0.0.1:4200',
-      API_ENV_FILE: path.join(scratchRoot, 'missing-api.env'),
-      WEBAPP_ENV_FILE: path.join(scratchRoot, 'missing-webapp.env'),
+      // API_ENV_FILE / WEBAPP_ENV_FILE are deliberately NOT set. They used to point at
+      // non-existent scratch paths to guarantee no real env file was picked up, but
+      // scripts/migrate-all.sh now treats ANY explicit value as an env selection and accepts
+      // only the exact canonical TEST or DEV pair — so those placeholder paths made the rig
+      // fail with `explicit env paths must be the exact canonical TEST or DEV pair`.
+      // Leaving both unset selects the guard's `no-env` branch, which is precisely what this
+      // disposable cluster needs: migrations run against the DATABASE_URL passed above and
+      // nothing else. Both keys are listed in scrubbedEnvironmentKeys, so an inherited value
+      // cannot leak in and "unset" is real.
     }),
     label: 'current_pending_migrations',
     timeout: 600_000,
   });
-  await psqlFileAs(BASELINE_OWNER_ROLE, databaseName, fixturePath, 'apply_a1_fixture');
-
   await psqlAs(
     operatorRole,
     databaseName,
@@ -358,7 +439,13 @@ try {
   await psqlAs(
     operatorRole,
     'postgres',
-    `ALTER ROLE ${quoteIdent(BASELINE_OWNER_ROLE)} NOBYPASSRLS;`,
+    [
+      `ALTER ROLE ${quoteIdent(BASELINE_OWNER_ROLE)} NOBYPASSRLS;`,
+      // Closes the temporary membership opened above. app_owner must return to zero members before
+      // anything is proved — deploy-test-saas.sh treats leftover membership as FATAL for the same
+      // reason, and the topology postcheck below re-asserts it rather than trusting this statement.
+      `REVOKE ${quoteIdent(appOwnerRole)} FROM ${quoteIdent(BASELINE_OWNER_ROLE)};`,
+    ].join('\n'),
     'close_migration_window',
   );
 
@@ -378,6 +465,12 @@ try {
     AND NOT pg_has_role('app_runtime_nonstaff_login', 'app_staff', 'MEMBER')
     AND NOT pg_has_role('app_runtime_staff_login', 'app_owner', 'MEMBER')
     AND NOT pg_has_role('app_runtime_nonstaff_login', 'app_owner', 'MEMBER')
+    AND NOT EXISTS (
+      SELECT 1
+      FROM pg_auth_members membership
+      JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+      WHERE granted_role.rolname = 'app_owner'
+    )
     AND 2 = (
       SELECT count(*)
       FROM pg_auth_members membership
@@ -429,8 +522,12 @@ try {
   await run('/usr/bin/env', ['pnpm', '--dir', 'packages/db-principal', 'build'], {
     label: 'build_db_principal',
   });
-  const staffUrl = `postgresql://${staffLoginRole}@localhost:${postgresPort}/${databaseName}?host=${encodeURIComponent(socketDir)}`;
-  const nonstaffUrl = `postgresql://${nonstaffLoginRole}@localhost:${postgresPort}/${databaseName}?host=${encodeURIComponent(socketDir)}`;
+  // Same authority form as ownerUrl. No migration guard runs on these, but `localhost:5432` in the
+  // authority would now be a live TCP address (the system cluster), so leaving the socket directory
+  // in a query parameter here would make correctness depend on node-postgres preferring the query
+  // override — a silent wrong-database connection if it ever stopped doing so.
+  const staffUrl = `postgresql://${staffLoginRole}@${socketAuthority}/${databaseName}`;
+  const nonstaffUrl = `postgresql://${nonstaffLoginRole}@${socketAuthority}/${databaseName}`;
   const runtimeOutput = await run(
     '/usr/bin/env',
     ['pnpm', '--dir', 'apps/webapp', 'exec', 'tsx', 'scripts/run-a1-rls-conformance.ts'],
