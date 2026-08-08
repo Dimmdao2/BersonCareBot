@@ -25,8 +25,9 @@ PG16 на `:5432` (SERVER CONVENTIONS.md:124; `migrate-all.sh:84,:91` пинов
 кластер РАЗДЕЛЯЕМЫЙ — перепись 08.08 (воспроизводимо:
 `sudo -u postgres psql -Atc "SELECT datname FROM pg_database"` и
 `… "SELECT rolname FROM pg_roles WHERE rolname NOT LIKE 'pg\_%'"`): **11 баз** (чужие `secondbrain`,
-`storylama_*`, `bcb_webapp_prod` — старая копия прода, вне контура; полный тег — §H.1) и **45 не-pg
-ролей** (чужие `brain*`/`storylama_*`/`tgcarebot`, эфемерные `pbt_tpl_*`). Сверка кластерных классов
+`storylama_*`, `bcb_webapp_prod` — старая копия прода, вне контура; эфемерные `scratch_migrate_debug`,
+`trackd_login_audit_*`; полный тег всех 11 — §H.1) и **45 не-pg ролей** (чужие
+`brain*`/`storylama_*`/`tgcarebot`, эфемерные `pbt_tpl_*`). Сверка кластерных классов
 «против объединения объявленных env» на таком кластере красна ПО ПОСТРОЕНИЮ, фильтр по именам
 запрещён (см. выше), ручной ignore-list забываем человеком. Поэтому граница юрисдикции —
 механическая: под сверкой роли, которые ОБЪЯВЛЕНЫ, либо ИМЕЮТ хоть один путь доступа к управляемой
@@ -95,14 +96,22 @@ PG16 на `:5432` (SERVER CONVENTIONS.md:124; `migrate-all.sh:84,:91` пинов
    wall-install §D.3 и default-hardening генератора §B.
 9. **orgTableAllowlist** — выводится из `tables[*].org == true`; это же множество ест event
    trigger (§E) — отдельного списка нет, одна власть (принцип 1).
-10. **dbSettings** — то, чего `pg_roles.rolconfig` НЕ показывает: `pg_db_role_setting` со
-    `setdatabase≠0` (`ALTER ROLE … IN DATABASE … SET`, `ALTER DATABASE … SET`) и ВЛАДЕЛЕЦ базы
-    (`pg_database.datdba`). Ожидаемое: `rolconfig` пары `(логин, эта_база)` и per-db дефолты — по
-    умолчанию пусто/`NULL`; владелец — мигратор-логин базы. Закрывает живые дефекты (перепись
-    08.08, read-only): строка `(bcb_webapp_dev_user IN DATABASE bcb_webapp_dev SET
-    search_path=public,integrator)` — класс FACTS §9.6 боковой дверью, невидимый §F-атрибутам ролей
-    (те читают лишь `setdatabase=0`); обе управляемые базы принадлежат своим логинам (`datdba`:
-    `bersoncarebot_test→bersoncarebot_test`, `bcb_webapp_dev→bcb_webapp_dev_user`) — класса не было
+10. **dbSettings** — то, чего `pg_roles.rolconfig` НЕ показывает и что до сих пор жило вне всякой
+    сверки: `pg_db_role_setting` со `setdatabase≠0` (`ALTER ROLE … IN DATABASE … SET`,
+    `ALTER DATABASE … SET`) и ВЛАДЕЛЕЦ базы (`pg_database.datdba`). Закрываемая брешь —
+    **НЕВИДИМОСТЬ этих строк для §F**, а НЕ их значение: §F-атрибуты ролей читают лишь
+    `setdatabase=0`, поэтому весь класс `setdatabase≠0` проходил мимо. Ожидаемое значение каждой
+    строки задаёт перепись Ф2, объявлением, а не сбросом. ⚠ **Живая строка
+    `(bcb_webapp_dev_user IN DATABASE bcb_webapp_dev SET search_path=public,integrator)` —
+    НЕСУЩАЯ, не дефект:** это dev-мигратор/владелец базы, его `rolconfig` уровня роли по ассерту
+    `dev-c0-runtime-logins.sql:130-137` обязан быть `NULL`, поэтому (логин,база) — структурно
+    единственный дом для его `search_path`; тот же `public, integrator` TEST несёт легитимно на
+    уровне роли (`bcb_test_*`, FACTS §4); а `integrator` в пути ОБЯЗАН быть, иначе неквалифицированный
+    `pgTable` даёт 42P01 (FACTS §1.1). Ф2 объявляет её как **исключение со значением
+    `search_path=public,integrator`**, НЕ сбрасывает (сброс воспроизвёл бы 42P01). Реальный пробел,
+    который §A.10 чинит, — что строка НЕ ОБЪЯВЛЕНА и невидима сверке, а не что она «неверна».
+    Владелец каждой управляемой базы — её мигратор-логин (`datdba`, перепись 08.08:
+    `bersoncarebot_test→bersoncarebot_test`, `bcb_webapp_dev→bcb_webapp_dev_user`); класса не было
     НИ в §C, НИ в §F.
 
 ### A.1 Привязка к окружению — per-env маппинг логинов (истина уровня логина)
@@ -220,8 +229,12 @@ CONNECT) в него НЕ входят — их генератор рендер�
 - **per-db настройки — сведение к §A.10**: per-db дефолты и владелец базы (`ALTER DATABASE …
   RESET/SET/OWNER TO`) — статьи генерата; per-`(логин,база)` (`ALTER ROLE … IN DATABASE …
   RESET/SET`) — рендер при применении из декларации + env-маппинга (§A.1), в артефакт не входит.
-  Оба сводят живую строку `bcb_webapp_dev_user IN DATABASE bcb_webapp_dev` к объявленному (пусто →
-  `RESET`); без них §A.10 сверяемо, но НЕ применяемо — дрейф краснел бы в §F без шага в зелёный;
+  Оба сводят живую строку `bcb_webapp_dev_user IN DATABASE bcb_webapp_dev` к ОБЪЯВЛЕННОМУ значению
+  (для неё — `SET search_path=public,integrator`, несущее, §A.10; `RESET` — только там, где
+  перепись Ф2 объявила пусто); без статей §A.10 сверяемо, но НЕ применяемо — дрейф краснел бы в §F
+  без шага в зелёный. Ту же машинерию §F распространяет и на `pg_proc.proconfig`
+  (`ALTER FUNCTION … SET search_path`) definer-исключений — тот же класс боковой двери search_path,
+  что закрыт для ролей и баз; ожидаемое — из `definerExceptions[*]`, статьи генерата, сверка §F;
 - **одна транзакция** (`psql -1 -v ON_ERROR_STOP=1`): раздельные autocommit-операторы ломают
   открытых читателей 42501 в окне — запрещено (FACTS §4.1, evidence/12 §9);
 - порядок статей отсортирован (стабильный дифф).
@@ -242,8 +255,12 @@ migrate-all.sh): сигнал «закрывающие гейты однажды
 дал бы ДЕДЛОК: единственный писатель watermark — шаг 6 в конце ЭТОЙ ЖЕ цепочки, оборванная на шаге
 0 цепочка до него не дойдёт, выход лишь ручной хирургией (запрещённой заплаткой). Поэтому красный
 watermark РЕПОРТится (деплой недоверен, отдельный код), цепочка ИДЁТ ДАЛЬШЕ, шаг 6 заживляет,
-следующий прогон зелёный. Прецедент heal-through в репо — closure exit-3 «gates RED, но TEST-юниты
-подняты» (`deploy-test.sh:191-195,:200-205`, `CLOSURE_GATE_RED_EXIT`). Шаги (каждый идемпотентен):
+следующий прогон зелёный. Аргумент дедлока самодостаточен (шаг 6 — единственный писатель знака в
+конце цепочки). Ближайший репо-прецедент — closure exit-3 (`deploy-test.sh:191-195,:200-205`,
+`CLOSURE_GATE_RED_EXIT`): он подтверждает «красный НЕ рушит окружение (юниты подняты)», но сам
+`exit 1` и цепочку останавливает — то есть подпирает половину («красный ≠ снос»), а не полный
+heal-through-в-том-же-прогоне; последнее — проектное решение здесь, помечено «требует прогона в Ф3».
+Шаги (каждый идемпотентен):
 
 0. **`watermark-check`** — старт цепочки: живой `max(created_at)` журнала
    `drizzle.__drizzle_migrations` против `app_control.privileges_watermark` конца ПРЕДЫДУЩЕГО
@@ -259,9 +276,11 @@ watermark РЕПОРТится (деплой недоверен, отдельн�
    «runtime roles must be provisioned BEFORE…» (`deploy-test-saas.sh:141-146`) и FACTS §3 №1-2.
 2. **restore** (только full-reset; в a1 — восстановление a0-слепка).
 3. **`wall-install`** — в базе: схема `app_control` + её таблицы `org_table_allowlist`,
-   `privileges_watermark` (шаги 0/6), `ddl_wall_log` (журнал фазы §E) + маркер-роль фазы (§E) +
-   event trigger (владелец `postgres`); deny-by-default §D (REVOKE PUBLIC, default-hardening
-   создателей, снятие материализованного `PUBLIC EXECUTE`).
+   `privileges_watermark` (шаги 0/6), `ddl_wall_log` (журнал фазы §E) + event trigger (владелец
+   `postgres`); deny-by-default §D (REVOKE PUBLIC, default-hardening создателей, снятие
+   материализованного `PUBLIC EXECUTE`). **Маркер-роль `app_migration_phase` создаёт НЕ этот шаг, а
+   `roles-install` (шаг 1)** — она кластерная (§A п.1), одна власть; wall-install лишь строит
+   триггер, читающий её членство.
 4. **`sync-org-allowlist`** — та же декларация; применяет allowlist **ТОЛЬКО ДОБАВЛЕНИЕМ/
    ОБНОВЛЕНИЕМ**, строк не удаляет (снятие — шаг 6, где финальное состояние известно). Одна
    транзакция, исполнитель — `runtime_overlay_admin_psql` (`runtime-overlay-rehydrate-lib.sh:113`).
@@ -458,7 +477,7 @@ p2-b:94; `app_control` создаёт сам wall-install, §B шаг 3).
     скобка элевации цепочки, что окружает `pnpm migrate` (временное членство + BYPASSRLS,
     `deploy-test-saas.sh:3092-3101`, снятие в `cleanup_elevation`): членство мигратор-логина в
     маркер-роли `app_migration_phase` (kind `service` в декларации §A п.1; NOLOGIN, создаёт
-    wall-install), проверка триггера — `pg_has_role(session_user, …, 'MEMBER')`. В фазе триггер
+    `roles-install` шаг 1), проверка триггера — `pg_has_role(session_user, …, 'MEMBER')`. В фазе триггер
     НЕ отвергает необъявленную org-таблицу, но ставит ей `ENABLE+FORCE ROW LEVEL SECURITY` и
     пишет каждую org-DDL в `app_control.ddl_wall_log`. Fail-closed смещается в конец деплоя, где
     финал ИЗВЕСТЕН: генерат + §F (§B шаги 6-7) красят деплой, если пережившая migrate таблица
@@ -507,7 +526,7 @@ evidence/07 §1) — с точечных exact-wall-блоков на **всю �
 | table ACL (вкл. `is_grantable` против объявленного `grantable`) | `pg_class.relacl` через `aclexplode(COALESCE(relacl, acldefault(…)))` | c5a:1297-1310; is_grantable — c5a:1300 |
 | RLS-флаги таблиц | `pg_class.relrowsecurity/relforcerowsecurity` против `tables[*].rls` — обе стороны: force-таблица без флага И флаг на таблице, объявленной `'off'` | §B (RLS-статьи генерата); красный сегодня — 5 таблиц FACTS §1.3 |
 | column ACL | `pg_attribute.attacl` | c5a:1311-1319; без него табличная проверка врёт (FACTS §1.4) |
-| function ACL + `prosecdef` + владелец | `pg_proc.proacl/prosecdef/proowner` (схемы вкл. `app_ext`) | c5a:1320-1336,1345 |
+| function ACL + `prosecdef` + владелец + `proconfig` | `pg_proc.proacl/prosecdef/proowner/proconfig` (схемы вкл. `app_ext`); `proconfig` — тот же класс боковой двери search_path, ожидаемое из `definerExceptions[*]` | c5a:1320-1336,1345; proconfig — та же логика, что §A.10 для ролей/баз |
 | политики, вкл. RESTRICTIVE, USING/WITH CHECK-текст | `pg_policies` | c5a:1719-1721; RESTRICTIVE меняет семантику — evidence/12 §10 |
 | атрибуты ролей | `pg_roles`: `rolcanlogin/rolsuper/rolbypassrls/rolinherit/rolcreaterole/rolconfig` (⚠ `rolconfig` — ТОЛЬКО `setdatabase=0`; `setdatabase≠0` — отдельный класс ниже) | `verify-a1-rls-conformance.mjs:457-461` (частично); pgTAP атрибуты не покрывает — писать самим (evidence/07 §3); ловит и остаточный BYPASSRLS мигратора после упавшего migrate (§B шаг 5) |
 | per-db настройки + владелец базы — обе стороны | `pg_db_role_setting` ОБА scope (`setdatabase=0` И `≠0`) против §A.1 rolconfig + §A.10; `pg_database.datdba` против §A.10 — по всем управляемым базам | §A.10; ловит живую строку `bcb_webapp_dev_user IN DATABASE bcb_webapp_dev` (перепись 08.08) и подмену владельца базы — класс, который `pg_roles.rolconfig` не видит |
@@ -734,6 +753,13 @@ app-слой, включены явными пунктами Ф6 (решение
 снимает его только разделение кластеров; здесь оно НЕ проектируется (вне мандата). Компенсация
 та же, что для суперпользователя вообще (§E: компрометация суперпользователя вне стены).
 
+Не покрыты сверкой и оставлены осознанно (низкий риск — мигратор НЕ суперпользователь, а перечисленные
+объекты требуют либо суперпользователя, либо владения): каталоги foreign-data-wrapper / user-mapping и
+ACL больших объектов (`pg_largeobject_metadata.lomacl`) — в этой базе не используются (грепом ноль). Если
+появятся — завести класс §F тем же паттерном. `proconfig` definer-функций (`ALTER FUNCTION … SET`) —
+НЕ в этом списке: он того же класса «боковая дверь search_path», что закрыт для ролей/баз, и сверяется
+§F из `definerExceptions` (§B).
+
 ---
 
 *Непротиворечие FACTS §9: definer-функции — перечисленные исключения, не норма (§9.4); отказ прав
@@ -744,6 +770,21 @@ org-таблицах (свип §G.2 караулит; фаза миграций
 остаётся поведенческим доказательством (§3); watermark-журнал мигратора не переписывается (§H).*
 
 ---
+
+## Changelog Ч1.2-r6 → Ч1.2-r7 (по находкам критика №7)
+
+- **MAJOR-1** (§A.10 инвертировал FACTS §9.6, метя рабочий dev-`search_path` как дефект к сбросу) →
+  §A.10 и §B переписаны: закрываемая брешь — НЕВИДИМОСТЬ строк `setdatabase≠0` для §F, НЕ их
+  значение; живая строка `bcb_webapp_dev_user IN DATABASE bcb_webapp_dev` — НЕСУЩАЯ (`integrator`
+  в пути обязателен, иначе 42P01, FACTS §1.1), Ф2 объявляет её исключением со значением, НЕ сбрасывает.
+- **MINOR-1** → маркер-роль `app_migration_phase` создаёт `roles-install` (шаг 1), не wall-install;
+  §B шаг 3 и §E выправлены (одна власть).
+- **MINOR-2** → прецедент closure exit-3 переописан честно: подпирает «красный ≠ снос окружения», но
+  сам `exit 1`; полный heal-through-в-прогоне — проектное решение, помечено «требует прогона в Ф3».
+- **MINOR-3** → перепись §A дополнена `scratch_migrate_debug`/`trackd_login_audit_*` (все 11 баз).
+- **Owner-вопрос → инженерно закрыт:** `proconfig` definer-функций (`ALTER FUNCTION … SET`) —
+  тот же класс боковой двери search_path, добавлен в §F-класс функций и §I; FDW/user-mapping/large-object
+  ACL — записаны принятым остаточным риском (§I, мигратор не суперпользователь, объектов в базе ноль).
 
 ## Changelog Ч1.2-r5 → Ч1.2-r6 (по находкам критика №6)
 
