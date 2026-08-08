@@ -33,6 +33,31 @@ const pool = createWebappPoolProvider({
   nonstaffConnectionString: requiredEnvironment('A1_DATABASE_URL_NONSTAFF'),
 });
 
+/**
+ * Every appointment row the caller can actually see, split by tenant.
+ *
+ * `appointmentById` proves "this row is visible / that row is not" — it cannot see a policy that
+ * returns a SUBSET of the caller's own rows, because it only ever asks for one known id. That
+ * partial-visibility mode exists on this database in the wild: the tenant's data is there, the
+ * policy hands back part of it, no error is raised anywhere. Asserting an exact own-tenant count
+ * turns silent-zero, partial visibility and cross-tenant leakage into a single comparison.
+ */
+async function appointmentVisibility(
+  organizationId: string,
+): Promise<{ own: number; foreign: number }> {
+  const result = await pool.query<{ own: string; foreign: string }>(
+    `SELECT
+       count(*) FILTER (WHERE organization_id = $1::uuid)::text AS own,
+       count(*) FILTER (WHERE organization_id <> $1::uuid)::text AS foreign
+     FROM public.be_appointments`,
+    [organizationId],
+  );
+  return {
+    own: Number(result.rows[0]?.own ?? -1),
+    foreign: Number(result.rows[0]?.foreign ?? -1),
+  };
+}
+
 async function appointmentById(id: string): Promise<EvidenceRow[]> {
   const result = await pool.query<EvidenceRow>(
     `SELECT
@@ -64,6 +89,10 @@ async function proveStaffTenant(
       assert.equal(own[0]?.context_org, organizationId);
       assert.equal(own[0]?.context_patient, null);
       assert.deepEqual(await appointmentById(foreignAppointmentId), []);
+      // Exact-count wall: 2 own rows (the fixture seeds two per tenant), 0 foreign. A subset
+      // (own < 2) is partial visibility; own === 0 is the silent-zero class; foreign > 0 is a
+      // cross-tenant leak. None of the three raises an error on its own.
+      assert.deepEqual(await appointmentVisibility(organizationId), { own: 2, foreign: 0 });
     },
   );
 }
@@ -84,6 +113,7 @@ async function provePatientTenant(
       assert.equal(own[0]?.context_org, organizationId);
       assert.equal(own[0]?.context_patient, platformUserId);
       assert.deepEqual(await appointmentById(foreignAppointmentId), []);
+      assert.deepEqual(await appointmentVisibility(organizationId), { own: 2, foreign: 0 });
     },
   );
 }

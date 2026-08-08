@@ -111,4 +111,54 @@ VALUES (
   '{"fixture":"a1-rls"}'::jsonb
 );
 
+-- Second appointment for EACH tenant. One row per tenant can only prove "visible / not visible";
+-- it cannot detect a policy that returns a SUBSET of the caller's own rows, because there is no
+-- subset to return. That partial-visibility mode was found live on this database and is invisible
+-- to a per-id lookup: the fixture row is returned, the assertion passes, and the other rows the
+-- tenant should see are silently missing. With two rows per tenant the runner asserts an exact
+-- count, so silent-zero (0), partial (1) and cross-tenant leak (>2) are all one comparison.
+INSERT INTO public.be_appointments (
+  id,
+  organization_id,
+  specialist_id,
+  platform_user_id,
+  start_at,
+  end_at,
+  duration_minutes,
+  source,
+  status,
+  created_at,
+  updated_at,
+  attribution_json
+)
+VALUES
+  (
+    'a0000000-0000-4000-8000-000000000015',
+    'a0000000-0000-4000-8000-000000000001',
+    '518ea988-9b5e-4ad8-8194-a2d98f43bd7b',
+    'a0000000-0000-4000-8000-000000000002',
+    '2099-01-03T10:00:00Z',
+    '2099-01-03T11:00:00Z',
+    60,
+    'native',
+    'confirmed',
+    '2026-01-01T00:00:00Z',
+    '2026-01-01T00:00:00Z',
+    '{"fixture":"a1-rls-partial-visibility"}'::jsonb
+  ),
+  (
+    'b0000000-0000-4000-8000-000000000015',
+    'b0000000-0000-4000-8000-000000000001',
+    'b0000000-0000-4000-8000-000000000003',
+    'b0000000-0000-4000-8000-000000000002',
+    '2099-01-03T10:00:00Z',
+    '2099-01-03T11:00:00Z',
+    60,
+    'native',
+    'confirmed',
+    '2026-01-01T00:00:00Z',
+    '2026-01-01T00:00:00Z',
+    '{"fixture":"a1-rls-partial-visibility"}'::jsonb
+  );
+
 COMMIT;
