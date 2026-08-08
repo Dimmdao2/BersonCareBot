@@ -1,0 +1,1149 @@
+### CMD: /bin/bash -lc 'cat README.md'
+--- OUT:
+# BersonCareBot
+
+Монорепозиторий платформы BersonCare: PWA webapp (кабинеты пациента и врача, CMS, программы лечения, запись), integrator (Telegram/MAX, webhook, доставка) и media-worker (HLS-транскод).
+
+- **Стек:** TypeScript (ESM), Next.js, Fastify, PostgreSQL (Drizzle + SQL-migrations integrator), grammY, Vitest
+- **Каналы:** PWA (`/app`) — основной UI; **Web Push — основной канал уведомлений**; Telegram, MAX, SMS, email — дополнительные; запись — собственный движок (см. [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md))
+- **Инфраструктура:** host deploy (systemd, nginx, cron) + GitHub Actions
+
+Суть продукта (пациент / специалист): [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md). Оглавление документации: [`docs/README.md`](docs/README.md). **Инструкции для AI-агентов:** [`AGENTS.md`](AGENTS.md) (дублирует `.cursor/rules/`). Контракт слоёв integrator: [`ARCHITECTURE.md`](ARCHITECTURE.md). Эксплуатация на хосте: [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md). В каталогах `apps/*/src/**` лежат файлы `имя_папки.md` с кратким назначением модуля — при изменении модуля их стоит дополнять.
+
+## Состав монорепо
+
+| Путь                                     | Назначение                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| [`apps/webapp`](apps/webapp)   
+
+### CMD: /bin/bash -lc 'cat docs/README.md'
+--- OUT:
+# Документация проекта
+
+- 🧭 **ГДЕ АКТУАЛЬНОЕ ПО КАЖДОЙ ОБЛАСТИ (читать первым):** [`CURRENT_AUTHORITY_MAP.md`](CURRENT_AUTHORITY_MAP.md) — единый указатель актуального источника на область (карта пациента, doctor UI, SaaS/tenant, backend, прод-готовность), чтобы не собирать по 10 докам. Старые планы несут форвард-ссылку на актуальное.
+- **Инструкции для AI-агентов (онбординг, правила):** [`../AGENTS.md`](../AGENTS.md) — единственный канонический текст правил; `.cursor/rules/000-start-here.mdc` зеркалит его маршрут для Cursor.
+- **Продукт (суть и возможности для пациента и специалиста):** [`PRODUCT_OVERVIEW.md`](PRODUCT_OVERVIEW.md) — канонический обзор без детализации экранов.
+- **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md) — долгоживущие хвосты, актуальный census корневых Cursor-планов и ссылки на архив.
+- **Текущий registry исполнения:** [`INITIATIVES.md`](INITIATIVES.md) — указатель канонов и датированный census; оперативный статус задач хранится только в taskdb (`project=bcb`).
+- **SaaS Foundation / T0 tenant-context cutover:** [`_TODO/SAAS_FOUNDATION/README.md`](_TODO/SAAS_FOUNDATION/README.md) — Phase 0/R1 закрыта; текущий next = [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](archive/2026-07-plans/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md).
+- **Магазин упражнений (base/author packs, покупка, выплаты):** [`_TODO/SAAS_FOUNDATION/EXERCISE_STORE_PLAN.md`](_TODO/SAAS_FOUNDATION/EXERCISE_STORE_PLAN.md) — канон по поручен
+
+### CMD: /bin/bash -lc "cat 'docs/ARCHITECTURE/SERVER CONVENTIONS.md'"
+--- OUT:
+# SERVER CONVENTIONS
+
+---
+
+## ⛔ HOST IDENTITY GATE — ПРОВЕРИТЬ ДО ЛЮБОЙ SERVER-КОМАНДЫ
+
+**Этот рабочий сервер `151.241.228.122` (`localhost`, workspace `/home/dev/dev-projects/BersonCareBot`) —
+только `DEV / RELAY / TEST`. Настоящий PROD находится только на `135.106.162.170` (`adelaide`).**
+
+- На `151.x` **запрещено** запускать, enable/restart/deploy или диагностировать как живой PROD любые
+  `bersoncarebot-*-prod.service`, `/opt/projects/bersoncarebot` и `/opt/env/bersoncarebot/*.prod`.
+  Это остатки старой топологии, а не runtime PROD.
+- Локальные имена `bersoncarebot-*-prod.service` на `151.x` с `2026-07-29` замаскированы в systemd (`/dev/null`);
+  снятые unit-файлы сохранены только для восстановления в root-only архиве
+  `/var/backups/bersoncarebot-disabled-prod-units-20260729/`.
+- На `151.x` штатно работают DEV из `/home/dev/dev-projects/BersonCareBot` и TEST из
+  `/opt/projects/bersoncarebot-test` с env `*.test` и юнитами `bersoncarebot-*-test.service`.
+- Любая команда для PROD допустима только после явной проверки target-host = `135.106.162.170` и отдельного
+  owner-разрешения на PROD. Команда пользователя про «сервер» без слова PROD относится к текущему `151.x`
+  DEV/TEST-хосту и **не** разрешает действие на `135.x`.
+
+Нижние разделы `Production` — справочник удалённого `135.x`, а не инструкция для выполнения на текущем `151.x`.
+Таблица «Топология серверов» ниже — канонический источник host identity; старые противоречащие формулировки
+в других документах недействительн
+
+### CMD: /bin/bash -lc "sed -n '221,440p' 'docs/ARCHITECTURE/SERVER CONVENTIONS.md'"
+--- OUT:
+- Режим: Next.js standalone (`output: "standalone"` в `next.config.ts`)
+- **Mini App auth (логи pino / journal):** маршруты `POST` `auth/telegram-init` и `auth/max-init` пишут структурные поля `route`, `miniappAuthOutcome` (`session_ok` | `denied` | `invalid_body` для Telegram), заголовок **`x-bc-auth-correlation-id`** (клиент задаёт в `AuthBootstrap`). Удобный grep: `miniappAuthOutcome` или строки `Mini App: initData принят`. **Точки входа (2026-05):** канонические пути **`/app/tg`** и **`/app/max`** (RSC `AppEntryRsc`); классификация неавторизованного входа — на сервере в `classifyUnauthenticatedAppEntry` + cookie/`ctx` legacy в `handlePlatformContextRequest` (`[redacted-token].ts`, вызывается из `apps/webapp/src/proxy.ts`). Вспомогательная **`classifyEntryHintFromRequest`** в том же модуле покрыта unit-тестами и **не** пробрасывается заголовком (избежание рассинхрона с RSC). Legacy: `?ctx=bot|max` на **`/app`**. Подробности и troubleshooting: [`MINIAPP_AUTH_FIX_EXECUTION_LOG.md`](./MINIAPP_AUTH_FIX_EXECUTION_LOG.md).
+
+#### HLS media-worker (VIDEO_HLS_DELIVERY)
+
+- Unit: `bersoncarebot-media-worker-prod.service`
+- WorkingDirectory: `/opt/projects/bersoncarebot/apps/media-worker`
+- EnvironmentFile: `/opt/env/bersoncarebot/media-worker.prod`
+- ExecStart: `/usr/bin/node dist/main.js` (после `pnpm --dir apps/media-worker build` на хосте)
+- Public port: нет  
+  Шаблоны юнита: `deploy/systemd/bersoncarebot-media-worker-prod.service` и
+  `deploy/systemd/bersoncarebot-media-worker-t
+
+### CMD: /bin/bash -lc "sed -n '441,700p' 'docs/ARCHITECTURE/SERVER CONVENTIONS.md'"
+--- OUT:
+- `INTEGRATOR_SHARED_SECRET=...`
+- `INTEGRATOR_API_URL=http://127.0.0.1:4200`
+- `ALLOW_DEV_AUTH_BYPASS=...`
+
+TEST webapp (`/opt/env/bersoncarebot/webapp.test`) запускается с `NODE_ENV=production`, поэтому обязан иметь
+`ALLOW_DEV_AUTH_BYPASS=false`. Канонический `bootstrap-c4-test-env.mjs --execute`, вызываемый общей TEST closure,
+идемпотентно закрепляет это значение перед рестартом; dev-bypass остаётся только в локальном DEV.
+
+### Dev cutover env
+
+Для симметрии с production dev-скрипты backfill/reconcile/gate используют отдельный файл:
+
+- `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`
+
+Назначение:
+
+- отдельный ops/dev-only env для `backfill-*`, `reconcile-*`, `projection-health`, `stage*-gate`;
+- не смешивает source и target DB URL в runtime env webapp;
+- позволяет запускать dev cutover тем же способом, что и prod.
+
+Ожидаемые ключи:
+
+- `DATABASE_URL` — **webapp dev** DB;
+- `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — **integrator dev** DB.
+
+Подтвержденные **имена dev БД** (по env preview в workspace, без секретов; **2026-06-10** — unified dev на audited host):
+
+| Назначение                     | Файл env                                                    | Переменная                | Имя БД                                                                                  |
+| ------------------------------ | ----------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------
+
+### CMD: /bin/bash -lc "sed -n '1,220p' docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md"
+--- OUT:
+# Локальная разработка и тестирование (агенты / QA)
+
+Канон для входа в кабинеты **без Telegram**, режимов запуска dev-серверов и живых проверок UI.  
+Связанные документы: [`SERVER CONVENTIONS.md`](./SERVER%20CONVENTIONS.md), [`apps/webapp/README.md`](../../apps/webapp/README.md), [`apps/webapp/src/modules/auth/auth.md`](../../apps/webapp/src/modules/auth/auth.md).
+
+---
+
+## 1. Подготовка окружения
+
+```bash
+pnpm install
+cp .env.example .env
+cp apps/webapp/.env.example apps/webapp/.env.dev
+# заполните DATABASE_URL, SESSION_COOKIE_SECRET, INTEGRATOR_* — см. комментарии в файлах
+pnpm run migrate  # первичный bootstrap; существующая DEV — через migrate-dev.sh ниже
+```
+
+| Файл                   | Назначение                                         |
+| ---------------------- | -------------------------------------------------- |
+| `.env`                 | integrator (API, worker при необходимости)         |
+| `apps/webapp/.env.dev` | webapp Next.js                                     |
+| `.env.cutover.dev`     | ops: backfill/reconcile (не для обычного UI-теста) |
+
+**База:** одна PostgreSQL `bcb_webapp_dev` (схемы `public` + `integrator`), один `DATABASE_URL` в обоих env — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md).
+
+### 1.1 Где UX-агенту смотреть интерфейс
+
+Агент выбирает среду по задаче:
+
+| Нужно                                                                             | Среда                       | Почему                                                 
+
+### CMD: /bin/bash -lc "sed -n '1,250p' deploy/HOST_DEPLOY_README.md"
+--- OUT:
+# Host Deployment for BersonCareBot
+
+> **HOST IDENTITY GATE:** PROD-команды этого файла выполняются только на `135.106.162.170` (`adelaide`).
+> Текущий рабочий хост `151.241.228.122` — DEV/RELAY/TEST; локальные `bersoncarebot-*-prod.service`,
+> `/opt/projects/bersoncarebot` и `*.prod` там являются остатками старой топологии, замаскированы и не должны
+> запускаться. Разделы TEST относятся к `151.x`. Канон host identity:
+> [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md).
+
+Этот файл описывает operational-модель `BersonCareBot` на двух явно разделённых хостах.
+
+В scope входят:
+
+- integrator API
+- integrator worker
+- webapp frontend
+- (инициатива **VIDEO_HLS_DELIVERY**) отдельный процесс **`apps/media-worker`** на хосте — **не** тот же unit, что integrator worker; см. § **systemd units → Worker**.
+
+Отдельный `BersonAdmin`/второй frontend в текущем host deploy **не подтверждён** и в этот документ не включён.
+
+Источник данных:
+
+- audit хоста от `2026-03-19`
+- текущие скрипты в `deploy/host/`
+- текущие unit templates в `deploy/systemd/`
+
+---
+
+## Кратко
+
+| Параметр              | Значение                                                                                                                                                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------
+
+### CMD: /bin/bash -lc "sed -n '251,500p' deploy/HOST_DEPLOY_README.md"
+--- OUT:
+3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/` (`0700`). Финальный артефакт всегда **зашифрован** `age` и никогда не существует как plaintext (даже во временном файле): при одной БД — `unified_<dbname>_<timestamp>.dump.age`; при двух URL — `integrator_<dbname>_<timestamp>.dump.age` и `webapp_<dbname>_<timestamp>.dump.age` (custom-format `pg_dump`-поток, зашифрованный). Рядом с каждым — атомарный чек-сумм манифест `<файл>.sha256` (mode `0600`); верификация — `sha256sum -c` (см. `deploy/postgres/README.md`).
+4. **Сколько генераций:** при **двух** разных `DATABASE_URL` — две генерации (артефакт+манифест каждая); при **одной** БД — **одна** генерация.
+5. **Обязательный prerequisite:** бинарь `age` в `PATH` и non-secret recipients file (по умолчанию `/opt/backups/age-recipients.txt`, публичные ключи `age -R`, приватный recovery-ключ хранится отдельно от хоста и от `/opt/backups`). Отсутствие любого из них — **fail closed до вызова `pg_dump`**, дамп не запускается.
+
+Режимы **`hourly`**, **`daily`**, **`weekly`**, **`manual`**, **`prune`** используют те же env-файлы; каталоги и retention — [`deploy/postgres/README.md`](../postgres/README.md).
+
+**Проверка на хосте (после того как `age`/recipients file подготовлены):** убедиться, что в `/opt/backups/postgres/pre-migrations/` появилась **одна** пара `.dump.age`+`.sha256` при unified БД (или две пары — при двух URL) после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`.
+
+**Установка/rehearsal реального
+
+### CMD: /bin/bash -lc "sed -n '501,750p' deploy/HOST_DEPLOY_README.md"
+--- OUT:
+```bash
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
+  "http://127.0.0.1:6200/api/internal/product-analytics/retention?dryRun=1"
+```
+
+**Примечание:** в файлах **`/etc/cron.d/*`** между расписанием и командой указывается пользователь (**`root`** в примерах выше). В **личном** `crontab` пользователя **`root`** (`crontab -e` от root) поле пользователя **не пишется** — только пять полей расписания и команда.
+
+Пример **частого** cron для reconcile HLS (прогресс хвоста; флаги pipeline + reconcile в админке):
+
+```cron
+*/10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" -H "Content-Type: application/json" --data "{\"limit\":50}" "http://127.0.0.1:6200/api/internal/media-transcode/reconcile" >/dev/null'
+```
+
+Пример **ночного** cron (раз в сутки **04:00 Europe/Moscow**; см. ваш `cron`/`CRON_TZ` на дистрибутиве):
+
+```cron
+CRON_TZ=Europe/Moscow
+0 4 * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" -H "Content-Type: application/json" --data "{\"limit\":50}" "http://127.0.0.1:6200/api/internal/media-transcode/reconcile" >/dev/null'
+```
+
+Пример **редкого** опроса `integrator_push_outbox` (guard tick: классификация + purge арх
+
+### CMD: /bin/bash -lc "sed -n '751,1000p' deploy/HOST_DEPLOY_README.md"
+--- OUT:
+  --fio-review-source-sha256=<approved-review-sha256> \
+  feat/doctor-ui-rebuild
+```
+
+Обычные UI/code обновления всегда идут через `deploy-test.sh`; повторное создание БД для них запрещено и не нужно.
+Hard wrapper останавливает writers, восстанавливает dump, выполняет owner-authority migration/overlay/settings chain,
+затем в том же stopped-writers окне выполняет hash-bound owner-reviewed FIO apply с durable conditional rollback,
+затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
+точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
+A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
+fail-closed до restore, если защищённый TEST-only data fixture packet не готов.
+После миграций, установки protected-principal helpers и базового FORCE finalizer общая closure сама вызывает канонический C4 TEST-bootstrap:
+после read-only source preflight атомарно заменяет каждый затронутый env-файл и добавляет/сохраняет четыре отдельных
+local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capability/
+discovery-definer роли, применяет C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
+Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
+сохраняются для безопасного повторного запуска. `DONE` допустим только после FIO reconciliation; отсутствие
+защищённого manife
+
+### CMD: /bin/bash -lc "sed -n '1001,1250p' deploy/HOST_DEPLOY_README.md"
+--- OUT:
+
+```bash
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+# loopback dry-run retention (без DELETE) — после вызова tick появится в operator_job_status:
+curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
+  "http://127.0.0.1:6200/api/internal/product-analytics/retention?dryRun=1"
+# в UI: /app/doctor/system-health → «Cron-задачи хоста»
+```
+
+---
+
+## Database facts
+
+Подтверждено audit'ом:
+
+- PostgreSQL слушает только `127.0.0.1:5432`
+- `psql` запускать под `postgres`: `sudo -u postgres psql`
+
+Не подтверждено текущим audit'ом:
+
+- точный актуальный список баз и owners
+
+Причина:
+
+- блок audit с `pg_database` оборвался из-за shell-ошибки, поэтому эти данные в документ не включены
+
+Если нужно обновить именно раздел по БД, выполнить отдельно:
+
+```bash
+sudo -u postgres psql -At -F $'\t' -c "SELECT datname, pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datallowconn ORDER BY datname;"
+sudo -u postgres psql -At -F $'\t' -c "SELECT rolname FROM pg_roles ORDER BY rolname;"
+```
+
+---
+
+## Известные текущие проблемы / несоответствия
+
+### 1. На prod host есть неотслеживаемый каталог `webapp/`
+
+В production repo audit показал:
+
+- `?? webapp/`
+
+При этом webapp unit запускает приложение из `apps/webapp`.
+
+### 2. Webapp стартует через `next start` с warning про standalone
+
+На части хостов в логах раньше встречалось:
+
+- `next start does not work with output: standalone`
+
+Актуальный unit в репозитории запускает **`server.js` из standalone** (см. `deploy/systemd/
+
+### CMD: /bin/bash -lc 'nl -ba scripts/check-db-chokepoint.mjs'
+--- OUT:
+     1	#!/usr/bin/env node
+     2	import { readdirSync, readFileSync, statSync } from 'node:fs';
+     3	import { join, relative } from 'node:path';
+     4	import { fileURLToPath } from 'node:url';
+     5	
+     6	const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+     7	
+     8	const scanRoots = ['apps/webapp/src', 'apps/integrator/src', 'apps/media-worker/src'];
+     9	const roleSwitchScanRoots = [...scanRoots, 'packages/db-principal/src'];
+    10	
+    11	const allowedPoolProviderFiles = new Set([
+    12	  '[redacted-token].ts',
+    13	  '[redacted-token].ts',
+    14	  '[redacted-token].ts',
+    15	  // S5-2 restricted settings capability: separate LOGIN/pool, bounded callback-only checkout.
+    16	  '[redacted-token].ts',
+    17	  '[redacted-token].ts',
+    18	  '[redacted-token].ts',
+    19	  '[redacted-token].ts',
+    20	  'apps/media-worker/src/poolProvider.ts',
+    21	  // D1 (C-1, 2026-07-26): boot-time schema probe called from instrumentation.ts `register()`,
+    22	  // before the DI container / app deps exist — there is no wired pool provider to hand it a
+    23	  // connection yet. Opens one `max: 1` pool, runs one query, closes it (see finally in
+    24	  // runBootProbePgText). Not a runtime request-path bypass. Живёт в `infra/db`, чтобы сырого
+    25	  // клиента не было нигде за пределами порта (01.08).
+    26	  'apps/webapp/src/infra/db/bootProbe.ts',
+    27	]);
+    28	
+    29	const allowedConnectFiles = new Set([
+    30	  'apps/webapp/src/infra/db
+
+### CMD: /bin/bash -lc "sed -n '618,771p' AGENTS.md"
+--- OUT:
+## 5. Clean Architecture: изоляция модулей
+
+### 🔴 Один общий проход, и мимо него нельзя (принцип владельца)
+
+**Что делать.** Там, где к чувствительному ресурсу или проверке ведёт несколько путей, оставлять ОДИН общий
+проход и механически запрещать обход. Не дублировать реализацию, не заводить второй импорт, не полагаться на
+то, что все вызовут нужное руками.
+
+**Кто.** Любой, кто заводит новый путь к такому ресурсу: маршрут, обращение к базе, запись задачи, чтение
+настройки, поднятие тестовой базы.
+
+**Когда срабатывает.** Появился второй способ сделать то же самое — значит первый перестал быть проходом и
+стал одним из вариантов; с этого момента правило нарушено, даже если оба варианта сегодня работают верно.
+
+**Что считается выполненным.** Есть единственная точка, через которую операция проходит, и есть механическая
+проверка, роняющая сборку на попытке пройти мимо. Договорённость «все зовут порт» выполнением не является.
+
+**Смысл.** Проверка, которую нужно не забыть позвать, отсутствует по умолчанию: забыть её — не поломка, а
+нормальное состояние кода, поэтому её отсутствие нечем обнаружить. Единственный проход переводит защиту из
+дисциплины в структуру: неверный путь перестаёт компилироваться, а не перестаёт нравиться ревьюеру. Побочно
+это убирает расхождение копий — две реализации одного правила рано или поздно разъезжаются, и первой ломается
+та, о которой забыли.
+
+
+### Доступ к базе — оба приложения, без исключений
+
+Правило действует одинаково в `apps/webapp/**` и `apps/in
+
+### CMD: /bin/bash -lc "nl -ba apps/webapp/eslint.config.mjs | sed -n '1,240p'; nl -ba apps/integrator/eslint.config.mjs 2>/dev/null | sed -n '1,240p'; rg -n 'no-restricted-imports|infra/db|infra/repos|from .pg.|drizzle' eslint.config.* apps/integrator apps/media-worker --glob '*eslint*' --glob '*.mjs'"
+--- OUT:
+     1	import nextConfig from 'eslint-config-next/core-web-vitals';
+     2	
+     3	export default [
+     4	  {
+     5	    ignores: [
+     6	      '.next/**',
+     7	      'node_modules/**',
+     8	      'out/**',
+     9	      'next-env.d.ts',
+    10	      '*.config.js',
+    11	      '*.config.mjs',
+    12	      '*.config.ts',
+    13	    ],
+    14	  },
+    15	  ...(Array.isArray(nextConfig) ? nextConfig : [nextConfig]),
+    16	
+    17	  // ─── Clean architecture: modules and routes must not reach into infra directly ───
+    18	  {
+    19	    files: ['src/modules/**/*.ts', 'src/modules/**/*.tsx'],
+    20	    ignores: ['src/modules/**/*.test.ts', 'src/modules/**/*.test.tsx'],
+    21	    rules: {
+    22	      'no-restricted-imports': [
+    23	        'error',
+    24	        {
+    25	          patterns: [
+    26	            {
+    27	              group: ['@/infra/db/*', '@/infra/db/client'],
+    28	              message: 'modules must not import infra/db directly. Use a port injected via DI.',
+    29	            },
+    30	            {
+    31	              group: ['@/infra/repos/*'],
+    32	              message:
+    33	                'modules must not import infra/repos directly. Define port in modules/*/ports.ts, implement in infra/repos, inject via buildAppDeps.',
+    34	            },
+    35	          ],
+    36	        },
+    37	      ],
+    38	      'no-restricted-syntax': [
+    39	        'error',
+    40	        {
+    41	          selector: 'ImportExpression > Literal[value
+
+### CMD: /bin/bash -lc "nl -ba eslint.config.mjs | sed -n '1,180p'"
+--- OUT:
+     1	import js from '@eslint/js';
+     2	import tsParser from '@typescript-eslint/parser';
+     3	import tsPlugin from '@typescript-eslint/eslint-plugin';
+     4	import prettier from 'eslint-config-prettier';
+     5	import globals from 'globals';
+     6	
+     7	const SETTINGS_TABLE_SQL_RE =
+     8	  '(from|join|into|update)\\s+("?public"?\\.)?"?(system_settings|app_runtime_settings)"?\\b';
+     9	const SETTINGS_TABLE_SQL_MESSAGE =
+    10	  'Прямое обращение к public.system_settings / public.app_runtime_settings из integrator запрещено: ' +
+    11	  'эти таблицы читаются только под staff-принципалом, а фоновые контуры приложения (bootstrap, infra, ' +
+    12	  'операционные роли) прав на них не имеют — запрос падает 42501 и молча уходит в fail-safe. ' +
+    13	  'Используй capability из infra/db/publicSystemSettings.ts, а новый ключ добавляй в allow-list ' +
+    14	  'соответствующей SECURITY DEFINER функции в оверлее.';
+    15	const settingsTableSqlBans = [
+    16	  { selector: `TemplateElement[value.raw=/${SETTINGS_TABLE_SQL_RE}/i]`, message: SETTINGS_TABLE_SQL_MESSAGE },
+    17	  { selector: `Literal[value=/${SETTINGS_TABLE_SQL_RE}/i]`, message: SETTINGS_TABLE_SQL_MESSAGE },
+    18	];
+    19	
+    20	export default [
+    21	  {
+    22	    ignores: [
+    23	      'dist/**',
+    24	      'node_modules/**',
+    25	      'coverage/**',
+    26	      'runs/**', // временные каталоги прогонов (песочницы Stryker и пр.) — не наш код
+    27	      'docs/archive/2026-07-rubitime-retir
+
+### CMD: /bin/bash -lc 'nl -ba apps/webapp/src/infra/db/client.ts; nl -ba apps/webapp/src/infra/db/withClient.ts; nl -ba apps/webapp/src/infra/db/runWebappSql.ts'
+--- OUT:
+     1	import type { Pool } from 'pg';
+     2	import {
+     3	  buildDbPrincipalApplyOptionsFromEnv,
+     4	  runWithDbBootstrapPrincipal,
+     5	} from '@bersoncare/db-principal';
+     6	import { env } from '@/config/env';
+     7	import {
+     8	  createConfigReaderPoolProvider,
+     9	  type ConfigReaderPoolProvider,
+    10	} from '@/infra/db/configReaderPoolProvider';
+    11	import { withPoolClient } from '@/infra/db/withClient';
+    12	import {
+    13	  createWebappPoolProvider,
+    14	  getWebappPoolRoutingMetrics,
+    15	  type WebappPoolRoutingMetrics,
+    16	} from '@/infra/db/webappPoolProvider';
+    17	
+    18	export const DATABASE_URL_STAFF_ENV = 'DATABASE_URL_STAFF';
+    19	export const DATABASE_URL_NONSTAFF_ENV = 'DATABASE_URL_NONSTAFF';
+    20	export const DATABASE_URL_CONFIG_READER_ENV = 'DATABASE_URL_CONFIG_READER';
+    21	
+    22	let pool: Pool | null = null;
+    23	let configReaderPool: ConfigReaderPoolProvider | null = null;
+    24	
+    25	type WebappRuntimeDatabaseEnv = {
+    26	  DATABASE_URL?: string;
+    27	  DATABASE_URL_STAFF?: string;
+    28	  DATABASE_URL_NONSTAFF?: string;
+    29	};
+    30	
+    31	function trimOptionalEnv(value: string | undefined): string {
+    32	  return (value ?? '').trim();
+    33	}
+    34	
+    35	export function resolveWebappPoolProviderConfig(
+    36	  input: WebappRuntimeDatabaseEnv,
+    37	): Parameters<typeof createWebappPoolProvider>[0] {
+    38	  const legacyConnectionString = trimOptionalEnv(input.DATABASE_URL);
+    39
+
+### CMD: /bin/bash -lc "nl -ba deploy/postgres/c5a-platform-operations-runtime.sql | sed -n '1,240p;1180,1380p;1500,1734p'"
+--- OUT:
+     1	-- C5A: extend the existing dedicated platform principal with commercial administration.
+     2	-- Application code enters the already-canonical app_platform_settings role only from an
+     3	-- authenticated platform principal; clinic staff never receive these mutation privileges.
+     4	
+     5	\set ON_ERROR_STOP on
+     6	\pset pager off
+     7	
+     8	SELECT 1 / (
+     9	  EXISTS (
+    10	    SELECT 1 FROM pg_roles
+    11	    WHERE rolname = 'app_platform_settings'
+    12	      AND NOT rolcanlogin
+    13	      AND NOT rolsuper
+    14	      AND NOT rolbypassrls
+    15	  )
+    16	)::int AS c5a_platform_role_is_safe;
+    17	
+    18	DO $c5a_clinic_billing_role$
+    19	BEGIN
+    20	  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_clinic_billing') THEN
+    21	    CREATE ROLE app_clinic_billing NOLOGIN NOINHERIT NOBYPASSRLS;
+    22	  END IF;
+    23	END
+    24	$c5a_clinic_billing_role$;
+    25	ALTER ROLE app_clinic_billing
+    26	  NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+    27	
+    28	-- app_staff is transport only. The clinic-management guard stamps a clinicBilling principal; the
+    29	-- shared DB-principal chokepoint then switches to this role for that exact-org request. An ordinary
+    30	-- staff principal remains app_staff and has no billing table ACL.
+    31	GRANT app_clinic_billing TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
+    32	GRANT USAGE ON SCHEMA public, app TO app_clinic_billing;
+    33	
+   
+
+### CMD: /bin/bash -lc "nl -ba docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs | sed -n '1,280p;1180,1400p'"
+--- OUT:
+     1	import { readFileSync } from 'node:fs';
+     2	
+     3	const root = 'docs/_TODO/SAAS_FOUNDATION';
+     4	
+     5	export const paths = {
+     6	  tiers: `${root}/scope-derivation/tiers-218.tsv`,
+     7	  batches: `${root}/scope-derivation/p0-4-batches.tsv`,
+     8	  beFkPaths: `${root}/scope-derivation/p0-4-be-fk-paths.tsv`,
+     9	};
+    10	
+    11	export const tiers = new Set(['SCOPED', 'BOOTSTRAP', 'INFRA', 'LEGACY', 'TELEMETRY']);
+    12	
+    13	export const scopedKinds = new Set([
+    14	  'direct_org_column',
+    15	  'denorm_org_column',
+    16	  'fk_path',
+    17	  'self_org_id',
+    18	  'polymorphic_resolver',
+    19	]);
+    20	
+    21	const denormResolutions = new Set([
+    22	  'attempt_parent_denorm',
+    23	  'audit_parent_denorm',
+    24	  'content_parent_denorm',
+    25	  'media_parent_denorm',
+    26	  'parent_denorm_copy',
+    27	  'parent_or_patient_org',
+    28	  'program_parent_denorm',
+    29	  'reference_parent_denorm',
+    30	]);
+    31	
+    32	const polymorphicResolutions = new Set(['polymorphic_resolver']);
+    33	
+    34	const bootstrapHybridTables = new Set([
+    35	  'public.system_settings',
+    36	  'public.system_settings_audit',
+    37	]);
+    38	
+    39	const bootstrapHybridOrgGatedTables = new Set([
+    40	  'public.platform_user_contacts',
+    41	  'public.user_phone_history',
+    42	]);
+    43	
+    44	const bootstrapRuntimeAudienceTables = new Set(['public.app_runtime_settings']);
+    45	
+    46	const bootstrapRuntimeAuditTables = ne
+
+### CMD: /bin/bash -lc 'nl -ba docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs; nl -ba docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs'
+--- OUT:
+     1	#!/usr/bin/env node
+     2	// CI guard: a public table carrying organization_id must be represented by the
+     3	// existing RLS descriptor model and its policy coverage. This deliberately
+     4	// composes P0.8 descriptors and the Phase 4 locked/force target set; it is not
+     5	// a second table taxonomy.
+     6	
+     7	import { readdirSync, readFileSync } from 'node:fs';
+     8	import { join } from 'node:path';
+     9	
+    10	import { readActualBaseTables, sourceDirs } from './actual-schema-tables.mjs';
+    11	import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
+    12	import { getPhase4LockedPolicyTargets } from './phase4-locked-policy-artifact.mjs';
+    13	import { postPhase4StrictPolicyExceptions } from './post-phase4-strict-policy-exceptions.mjs';
+    14	
+    15	const repoRoot = process.cwd();
+    16	const cutoverSqlPath = 'deploy/postgres/phase4-force-rls-cutover.sql';
+    17	
+    18	// This is not a parallel classification registry. It holds a public organization_id
+    19	// table deliberately outside the generic Phase 4 locked
+    20	// policy renderer, with the reason/policy evidence kept beside the guard.
+    21	const nonLockedPolicyExceptions = new Map([
+    22	  [
+    23	    'public.be_organization_members',
+    24	    {
+    25	      reason:
+    26	        'BOOTSTRAP identity-to-organization resolver is read before an organization context exists (R1 taxonomy).',
+    27	    },
+    28	  ],
+    29	  ...postPhase4StrictPolicyExceptions,
+    3
+
+### CMD: /bin/bash -lc "id; psql -d bersoncarebot_test -v ON_ERROR_STOP=1 -Atc \"SELECT current_user, current_database(), current_setting('server_version');\""
+--- OUT:
+uid=1001(dev) gid=1001(dev) groups=1001(dev),27(sudo),100(users),990(docker)
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  no pg_hba.conf entry for host "[local]", user "dev", database "bersoncarebot_test", no encryption
+
+
+### CMD: /bin/bash -lc 'namei -l /opt/env/bersoncarebot/api.test 2>/dev/null; namei -l /opt/env/bersoncarebot/webapp.test 2>/dev/null'
+--- OUT:
+f: /opt/env/bersoncarebot/api.test
+drwxr-xr-x root root   /
+drwxr-xr-x root root   opt
+drwxr-x--- root deploy env
+                        bersoncarebot - Permission denied
+f: /opt/env/bersoncarebot/webapp.test
+drwxr-xr-x root root   /
+drwxr-xr-x root root   opt
+drwxr-x--- root deploy env
+                        bersoncarebot - Permission denied
+
+
+### CMD: /bin/bash -lc "nl -ba package.json | sed -n '1,120p'; nl -ba .github/workflows/ci.yml | sed -n '1,240p'"
+--- OUT:
+     1	{
+     2	  "name": "berson-care-bot",
+     3	  "version": "1.0.0",
+     4	  "private": true,
+     5	  "type": "module",
+     6	  "scripts": {
+     7	    "dev": "pnpm --parallel --filter @bersoncare/integrator --filter @bersoncare/webapp run dev",
+     8	    "dev:integrator": "pnpm --dir apps/integrator dev",
+     9	    "worker:dev": "pnpm --dir apps/integrator worker:dev",
+    10	    "scheduler:dev": "pnpm --dir apps/integrator scheduler:dev",
+    11	    "dev:stop": "bash scripts/kill-local-dev-ports.sh",
+    12	    "webapp:dev": "bash scripts/kill-local-dev-ports.sh && pnpm --dir apps/webapp dev",
+    13	    "dev:turbo": "bash scripts/kill-local-dev-ports.sh && pnpm --dir apps/webapp dev:turbo",
+    14	    "build": "pnpm --dir packages/operator-db-schema run build && pnpm --dir packages/db-principal run build && pnpm --dir packages/error-tracking run build && pnpm --dir apps/integrator build",
+    15	    "build:webapp": "pnpm --dir packages/error-tracking run build && pnpm --dir apps/webapp build",
+    16	    "build:admin": "cd admin && pnpm install && pnpm run build",
+    17	    "start": "pnpm --dir apps/integrator start",
+    18	    "webapp:start": "pnpm --dir apps/webapp start",
+    19	    "webapp:typecheck": "pnpm --dir apps/webapp typecheck",
+    20	    "worker:start": "pnpm --dir apps/integrator worker:start",
+    21	    "scheduler:start": "pnpm --dir apps/integrator scheduler:start",
+    22	    "scheduler:start:host": "pnpm --dir apps/integrator scheduler:start
+
+### CMD: /bin/bash -lc 'set -a && source apps/webapp/.env.dev && set +a && psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT '"'server', current_user, current_database(), current_setting('server_version_num'); SELECT 'relkind', n.nspname, c.relkind, count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','integrator','app') GROUP BY n.nspname,c.relkind ORDER BY 
+--- OUT:
+/bin/bash: line 1: apps/webapp/.env.dev: Permission denied
+
+
+### CMD: /bin/bash -lc "nl -ba scripts/check-no-new-raw-sql.mjs | sed -n '294,680p'"
+--- OUT:
+   294	function resolveRelativeImport(fromFile, specifier, knownFiles) {
+   295	  const fromDir = posixPath.dirname(fromFile);
+   296	  const base = posixPath.normalize(posixPath.join(fromDir, specifier));
+   297	  const stripped = base.replace(/\.(js|mjs|cjs|jsx)$/, '');
+   298	  const candidates = [
+   299	    base,
+   300	    `${stripped}.ts`,
+   301	    `${stripped}.tsx`,
+   302	    `${stripped}/index.ts`,
+   303	    `${stripped}/index.tsx`,
+   304	  ];
+   305	  return candidates.find((candidate) => knownFiles.has(candidate)) ?? null;
+   306	}
+   307	
+   308	// Project-wide pass: resolves a query alias re-exported through a relative helper and
+   309	// imported by a consumer file, so moving the door behind an import can't clear the gate.
+   310	// `fileSources` is a `Map<relPath, source>` — real files for the live scan, or a small
+   311	// synthetic project for the self-test.
+   312	function analyzeProject(fileSources) {
+   313	  const sourceFiles = new Map();
+   314	  const literalAliasesByFile = new Map();
+   315	  for (const [rel, source] of fileSources) {
+   316	    const sourceFile = ts.createSourceFile(rel, source, ts.ScriptTarget.Latest, true);
+   317	    sourceFiles.set(rel, sourceFile);
+   318	    literalAliasesByFile.set(rel, computeQueryLiteralAliases(sourceFile));
+   319	  }
+   320	
+   321	  const seedsByFile = new Map([...sourceFiles.keys()].map((rel) => [rel, new Set()]));
+   322	  let queryAliasesByFile = new Map();
+   323	  let exportsByFile = new Map();
+
+### CMD: /bin/bash -lc 'nl -ba [redacted-token].ts'
+--- OUT:
+     1	import { Pool } from 'pg';
+     2	import type { PoolClient, PoolConfig } from 'pg';
+     3	import {
+     4	  applyDbPrincipalToConnection,
+     5	  [redacted-token],
+     6	  buildDbPrincipalApplyOptionsFromEnv,
+     7	  clearDbPrincipalFromConnection,
+     8	  type DbPrincipal,
+     9	  getCurrentDbPrincipal,
+    10	  isWebappLockedInfraCronSource,
+    11	} from '@bersoncare/db-principal';
+    12	import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
+    13	import { classifyPostgresIsolationDenial } from '@/[redacted-token]';
+    14	import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+    15	
+    16	function currentWebappDbSourceOperation() {
+    17	  return getCurrentWebappDbOperationFamily() ?? 'webapp_db_request';
+    18	}
+    19	
+    20	type WebappPoolProviderConfig = {
+    21	  connectionString?: string;
+    22	  staffConnectionString?: string;
+    23	  nonstaffConnectionString?: string;
+    24	  poolFactory?: (config: PoolConfig) => Pool;
+    25	};
+    26	
+    27	type WebappRuntimePoolKind = 'staff' | 'nonstaff';
+    28	
+    29	export type WebappPoolRoutingMetrics = {
+    30	  staffSelections: number;
+    31	  nonstaffSelections: number;
+    32	  missingPrincipalSelections: number;
+    33	  bootstrapSelections: number;
+    34	  infraSelections: number;
+    35	};
+    36	
+    37	const poolRoutingMetrics = new WeakMap<Pool, WebappPoolRoutingMetrics>();
+    38	
+    39	function prepareWebapp
+
+### CMD: /bin/bash -lc "nl -ba [redacted-token].ts; nl -ba [redacted-token].ts; nl -ba apps/integrator/src/infra/db/withClient.ts | sed -n '1,280p'; nl -ba apps/media-worker/src/withClient.ts; nl -ba apps/media-worker/src/poolProvider.ts"
+--- OUT:
+     1	import { sql, type SQL } from 'drizzle-orm';
+     2	import { PgDialect } from 'drizzle-orm/pg-core';
+     3	import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
+     4	import type { IntegratorDrizzleDb } from './drizzle.js';
+     5	
+     6	const pgDialect = new PgDialect();
+     7	
+     8	function toDbQueryResult<T>(raw: unknown): DbQueryResult<T> {
+     9	  const r = raw as { rows?: T[]; rowCount?: number };
+    10	  const out: DbQueryResult<T> = { rows: (r.rows ?? []) as T[] };
+    11	  if (typeof r.rowCount === 'number') {
+    12	    out.rowCount = r.rowCount;
+    13	  }
+    14	  return out;
+    15	}
+    16	
+    17	/**
+    18	 * Run a Drizzle `sql` fragment on the integrator session (pool or TX client).
+    19	 * When `db.integratorDrizzle` is set (active TX), uses that session; otherwise compiles
+    20	 * the fragment and runs via `db.query` (unit-test mocks and plain DbPort).
+    21	 */
+    22	export async function runIntegratorSql<T = unknown>(
+    23	  db: DbPort,
+    24	  fragment: SQL,
+    25	): Promise<DbQueryResult<T>> {
+    26	  const { sql: text, params } = pgDialect.sqlToQuery(fragment);
+    27	  const withSession = db as DbPort & { integratorDrizzle?: IntegratorDrizzleDb };
+    28	  if (withSession.integratorDrizzle) {
+    29	    try {
+    30	      const raw = await withSession.integratorDrizzle.execute(fragment);
+    31	      if (raw !== null && raw !== undefined && typeof raw === 'object' && 'rows' in raw) {
+    32	        con
+
+### CMD: /bin/bash -lc "rg -n '"'^export (async )?function (apply|clear|setDbOperational|install)|SET (LOCAL )?ROLE|RESET ROLE|set_config|search_path|BEGIN|release_principal|install_signed'"' packages/db-principal/src/index.ts | head -260"
+--- OUT:
+193:export async function setDbOperationalRuntimeRole(
+200:      statement = 'SET ROLE app_operational_diagnostic';
+203:      statement = 'SET ROLE app_operational_delivery_worker';
+206:      statement = 'SET ROLE app_operational_media_worker';
+209:      statement = 'SET ROLE app_operational_scheduler';
+212:      statement = 'SET ROLE app_config_reader';
+224:  await client.query(`SET ROLE ${DB_PRINCIPAL_PLATFORM_SETTINGS_ROLE}`);
+229:  await client.query(`SET ROLE ${DB_PRINCIPAL_CLINIC_BILLING_ROLE}`);
+234:  await client.query('RESET ROLE');
+237:/** Installs only an organization context for a narrow operational capability after its SET ROLE. */
+238:export async function [redacted-token](
+245:      await client.query('SELECT app.release_principal_context()');
+262:export async function [redacted-token](
+267:    await client.query('SELECT app.release_principal_context()');
+773:export async function applyCurrentDbPrincipalToTransaction(
+780:export async function applyDbPrincipalToTransaction(
+798:    await client.query("SELECT set_config('app.org', $1, true)", [principal.organizationId]);
+806:export async function applyCurrentDbPrincipalToConnection(
+813:export async function applyDbPrincipalToConnection(
+834:export async function clearDbPrincipalFromConnection(
+850:        await client.query('SELECT app.release_principal_context()');
+866:export async function clearDbPrincipalFromTransaction(
+882:        await client.query('SELECT app.release_principal_context()');
+1014:  await c
+
+### CMD: /bin/bash -lc "nl -ba packages/db-principal/src/index.ts | sed -n '175,285p;740,910p;980,1085p;1100,1270p'"
+--- OUT:
+   175	  source?: string;
+   176	};
+   177	
+   178	type DbPrincipalApplyScope = 'transaction' | 'connection';
+   179	
+   180	type DbPrincipalContextCell = {
+   181	  current: DbPrincipal | undefined;
+   182	  correlationId?: CorrelationId;
+   183	  observabilityOrganizationId?: string;
+   184	};
+   185	
+   186	type DbPrincipalQueryable = {
+   187	  query(
+   188	    sql: string,
+   189	    values?: readonly unknown[],
+   190	  ): Promise<{ rows?: readonly Record<string, unknown>[] } | unknown>;
+   191	};
+   192	
+   193	export async function setDbOperationalRuntimeRole(
+   194	  client: DbPrincipalQueryable,
+   195	  role: DbOperationalRuntimeRole,
+   196	): Promise<void> {
+   197	  let statement: string;
+   198	  switch (role) {
+   199	    case 'app_operational_diagnostic':
+   200	      statement = 'SET ROLE app_operational_diagnostic';
+   201	      break;
+   202	    case 'app_operational_delivery_worker':
+   203	      statement = 'SET ROLE app_operational_delivery_worker';
+   204	      break;
+   205	    case 'app_operational_media_worker':
+   206	      statement = 'SET ROLE app_operational_media_worker';
+   207	      break;
+   208	    case 'app_operational_scheduler':
+   209	      statement = 'SET ROLE app_operational_scheduler';
+   210	      break;
+   211	    case 'app_config_reader':
+   212	      statement = 'SET ROLE app_config_reader';
+   213	      break;
+   214	    default:
+   215	      throw new Error('Unsupported DB operational runtime role');
+   216	  }
+   217	  awai
+
+### CMD: /bin/bash -lc "nl -ba scripts/verify-a1-rls-conformance.mjs | sed -n '1,240p;240,520p;520,820p'"
+--- OUT:
+     1	#!/usr/bin/env node
+     2	
+     3	import { spawn, spawnSync } from 'node:child_process';
+     4	import fs from 'node:fs';
+     5	import os from 'node:os';
+     6	import path from 'node:path';
+     7	import {
+     8	  BASELINE_OWNER_ROLE,
+     9	  repoRoot,
+    10	  resolveTrustedPostgresBinaries,
+    11	  schemaPath,
+    12	  seedPath,
+    13	  sqlLiteral,
+    14	  validatePackage,
+    15	} from './a0-greenfield-baseline-lib.mjs';
+    16	
+    17	const operatorRole = 'bcb_a1_operator';
+    18	const appOwnerRole = 'app_owner';
+    19	const staffRole = 'app_staff';
+    20	const patientRole = 'app_patient';
+    21	const staffLoginRole = 'app_runtime_staff_login';
+    22	const nonstaffLoginRole = 'app_runtime_nonstaff_login';
+    23	const postgresPort = '57439';
+    24	const signingSecret = 'a1-synthetic-signing-secret-2026-locked-proof';
+    25	const fixturePath = path.join(repoRoot, 'docs', 'ARCHITECTURE', 'DB_DUMPS', 'a1-rls', 'seed.sql');
+    26	const missingContextDenialPath = path.join(
+    27	  repoRoot,
+    28	  'docs',
+    29	  'ARCHITECTURE',
+    30	  'DB_DUMPS',
+    31	  'a1-rls',
+    32	  'missing-context-denial.sql',
+    33	);
+    34	const scrubbedEnvironmentKeys = Object.freeze([
+    35	  'A1_DATABASE_URL_NONSTAFF',
+    36	  'A1_DATABASE_URL_STAFF',
+    37	  'DATABASE_URL',
+    38	  'DATABASE_URL_NONSTAFF',
+    39	  'DATABASE_URL_STAFF',
+    40	  'DB_PRINCIPAL_CONTEXT_MODE',
+    41	  'DB_PRINCIPAL_SIGNING_SECRET',
+    42	  'INTEGRATOR_DATABASE_URL',
+    43	  
+
+### CMD: /bin/bash -lc 'nl -ba apps/webapp/scripts/run-a1-rls-conformance.ts'
+--- OUT:
+     1	#!/usr/bin/env tsx
+     2	
+     3	import assert from 'node:assert/strict';
+     4	import { runWithDbPatientPrincipal, runWithDbStaffPrincipal } from '@bersoncare/db-principal';
+     5	import {
+     6	  createWebappPoolProvider,
+     7	  getWebappPoolRoutingMetrics,
+     8	} from '@/infra/db/webappPoolProvider';
+     9	
+    10	const ORG_A = 'a0000000-0000-4000-8000-000000000001';
+    11	const USER_A = 'a0000000-0000-4000-8000-000000000002';
+    12	const APPOINTMENT_A = 'a0000000-0000-4000-8000-000000000005';
+    13	const ORG_B = 'b0000000-0000-4000-8000-000000000001';
+    14	const USER_B = 'b0000000-0000-4000-8000-000000000002';
+    15	const APPOINTMENT_B = 'b0000000-0000-4000-8000-000000000005';
+    16	
+    17	type EvidenceRow = {
+    18	  id: string;
+    19	  current_role: string;
+    20	  login_role: string;
+    21	  context_org: string | null;
+    22	  context_patient: string | null;
+    23	};
+    24	
+    25	function requiredEnvironment(name: string): string {
+    26	  const value = process.env[name]?.trim();
+    27	  if (!value) throw new Error(`missing_${name.toLowerCase()}`);
+    28	  return value;
+    29	}
+    30	
+    31	const pool = createWebappPoolProvider({
+    32	  staffConnectionString: requiredEnvironment('A1_DATABASE_URL_STAFF'),
+    33	  nonstaffConnectionString: requiredEnvironment('A1_DATABASE_URL_NONSTAFF'),
+    34	});
+    35	
+    36	async function appointmentById(id: string): Promise<EvidenceRow[]> {
+    37	  const result = await pool.query<EvidenceR
+
+### CMD: /bin/bash -lc 'set -euo pipefail
+audit_pg_tmp=$(mktemp -d /tmp/bcb-db-audit.XXXXXX)
+audit_pg_data="$audit_pg_tmp/data"
+audit_pg_socket="$audit_pg_tmp/socket"
+mkdir -m 700 "$audit_pg_socket"
+cleanup_audit_pg() {
+  /usr/lib/postgresql/16/bin/pg_ctl -D "$audit_pg_data" -m immediate stop >/dev/null 2>&1 || true
+  case "$audit_pg_tmp" in /tmp/bcb-db-audit.*) rm -rf -- "$audit_pg_tmp" ;; *) exit 97 ;; e
+--- OUT:
+BEGIN
+CREATE ROLE
+CREATE ROLE
+CREATE ROLE
+CREATE SCHEMA
+GRANT
+CREATE FUNCTION
+GRANT
+CREATE TABLE
+INSERT 0 1
+CREATE FUNCTION
+ALTER FUNCTION
+REVOKE
+GRANT
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+GRANT
+CREATE POLICY
+CREATE POLICY
+CREATE POLICY
+CREATE TABLE
+INSERT 0 2
+ALTER TABLE
+ALTER TABLE
+GRANT
+CREATE POLICY
+CREATE TABLE
+INSERT 0 1
+ALTER TABLE
+ALTER TABLE
+GRANT
+CREATE POLICY
+CREATE POLICY
+CREATE SEQUENCE
+CREATE TABLE
+GRANT
+CREATE TABLE
+CREATE TABLE
+GRANT
+CREATE FUNCTION
+REVOKE
+CREATE TRIGGER
+CREATE TABLE
+INSERT 0 2
+ALTER TABLE
+ALTER TABLE
+GRANT
+CREATE POLICY
+CREATE VIEW
+ALTER VIEW
+GRANT
+CREATE TABLE
+INSERT 0 1
+GRANT
+CREATE TABLE
+INSERT 0 1
+GRANT
+ALTER TABLE
+CREATE FUNCTION
+CREATE PROCEDURE
+GRANT
+CREATE TABLE
+GRANT
+SET
+function_explain|OK
+function_runtime|ERROR|42501|permission denied for table hidden_table
+with_check_insert_explain|OK
+with_check_insert_runtime|ERROR|42501|new row violates row-level security policy for table "write_wall"
+sequence_explain|OK
+sequence_runtime|ERROR|42501|permission denied for sequence needed_seq
+trigger_explain|OK
+trigger_runtime|ERROR|42501|permission denied for table trigger_sink
+partial_rows_visible|1
+restrictive_plus_permissive_visible|0
+owner_view_visible|2
+column_a_explain|OK
+column_b_explain|ERROR|42501|permission denied for table column_wall
+select_star_after_add_column|{"a": 1, "secret": "newly_exposed"}
+call_explain|ERROR|42601|syntax error at or near "CALL"
+set_role_explain|ERROR|42601|syntax error at or near "SET"
+untyped_parameter_explai
+
+### CMD: /bin/bash -lc 'set -euo pipefail
+audit_pg_tmp=$(mktemp -d /tmp/bcb-db-audit.XXXXXX)
+audit_pg_data="$audit_pg_tmp/data"
+audit_pg_socket="$audit_pg_tmp/socket"
+mkdir -m 700 "$audit_pg_socket"
+cleanup_audit_pg() {
+  /usr/lib/postgresql/16/bin/pg_ctl -D "$audit_pg_data" -m immediate stop >/dev/null 2>&1 || true
+  case "$audit_pg_tmp" in /tmp/bcb-db-audit.*) rm -rf -- "$audit_pg_tmp" ;; *) exit 97 ;; e
+--- OUT:
+BEGIN
+CREATE ROLE
+CREATE SCHEMA
+GRANT
+CREATE FUNCTION
+GRANT
+CREATE TABLE
+CREATE FUNCTION
+REVOKE
+SET
+missing_table_acl_explain|ERROR|42501|permission denied for table no_table_acl
+missing_execute_explain|ERROR|42501|permission denied for function no_execute
+unqualified_missing_name_explain|ERROR|42P01|relation "no_table_acl" does not exist
+RESET
+ROLLBACK
+
+
+### CMD: /bin/bash -lc "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 127.0.0.1 'id'"
+--- OUT:
+Warning: Permanently added '127.0.0.1' (ED25519) to the list of known hosts.
+dev@127.0.0.1: Permission denied (publickey).
+
+
+### CMD: /bin/bash -lc "rg -n -i '\\b(create|refresh|alter|drop)[[:space:]]+(or[[:space:]]+replace[[:space:]]+)?(materialized[[:space:]]+)?view\\b|\\bsecurity_invoker\\b' apps/webapp apps/integrator deploy/postgres | head -200"
+--- OUT:
+rg: apps/webapp/.env.example: Permission denied (os error 13)
+
+
+### CMD: /bin/bash -lc "nl -ba scripts/check-db-chokepoint.mjs | sed -n '1,185p'
+nl -ba scripts/check-no-new-raw-sql.mjs | sed -n '1,170p'
+nl -ba scripts/check-no-new-raw-sql.mjs | sed -n '350,510p'
+nl -ba apps/webapp/eslint.config.mjs | sed -n '1,100p'
+nl -ba docs/_TODO/SAAS_FOUNDATION/scripts/actual-schema-tables.mjs | sed -n '1,125p'
+nl -ba docs/_TODO/SAAS_FOUNDATION/scripts/actual-schema-tables.mjs | s
+--- OUT:
+     1	#!/usr/bin/env node
+     2	import { readdirSync, readFileSync, statSync } from 'node:fs';
+     3	import { join, relative } from 'node:path';
+     4	import { fileURLToPath } from 'node:url';
+     5	
+     6	const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+     7	
+     8	const scanRoots = ['apps/webapp/src', 'apps/integrator/src', 'apps/media-worker/src'];
+     9	const roleSwitchScanRoots = [...scanRoots, 'packages/db-principal/src'];
+    10	
+    11	const allowedPoolProviderFiles = new Set([
+    12	  '[redacted-token].ts',
+    13	  '[redacted-token].ts',
+    14	  '[redacted-token].ts',
+    15	  // S5-2 restricted settings capability: separate LOGIN/pool, bounded callback-only checkout.
+    16	  '[redacted-token].ts',
+    17	  '[redacted-token].ts',
+    18	  '[redacted-token].ts',
+    19	  '[redacted-token].ts',
+    20	  'apps/media-worker/src/poolProvider.ts',
+    21	  // D1 (C-1, 2026-07-26): boot-time schema probe called from instrumentation.ts `register()`,
+    22	  // before the DI container / app deps exist — there is no wired pool provider to hand it a
+    23	  // connection yet. Opens one `max: 1` pool, runs one query, closes it (see finally in
+    24	  // runBootProbePgText). Not a runtime request-path bypass. Живёт в `infra/db`, чтобы сырого
+    25	  // клиента не было нигде за пределами порта (01.08).
+    26	  'apps/webapp/src/infra/db/bootProbe.ts',
+    27	]);
+    28	
+    29	const allowedConnectFiles = new Set([
+    30	  'apps/webapp/src/infra/db
+
+### CMD: /bin/bash -lc "nl -ba deploy/postgres/c5a-platform-operations-runtime.sql | sed -n '1,42p;1188,1260p;1280,1365p;1520,1735p'
+nl -ba [redacted-token].ts | sed -n '1,70p'
+nl -ba [redacted-token].ts | sed -n '35,190p'
+nl -ba apps/integrator/src/infra/db/withClient.ts | sed -n '45,85p;180,245p'
+nl -ba packages/db-principal/src/index.ts | sed -n '185,245p;1005,1150p'"
+--- OUT:
+     1	-- C5A: extend the existing dedicated platform principal with commercial administration.
+     2	-- Application code enters the already-canonical app_platform_settings role only from an
+     3	-- authenticated platform principal; clinic staff never receive these mutation privileges.
+     4	
+     5	\set ON_ERROR_STOP on
+     6	\pset pager off
+     7	
+     8	SELECT 1 / (
+     9	  EXISTS (
+    10	    SELECT 1 FROM pg_roles
+    11	    WHERE rolname = 'app_platform_settings'
+    12	      AND NOT rolcanlogin
+    13	      AND NOT rolsuper
+    14	      AND NOT rolbypassrls
+    15	  )
+    16	)::int AS c5a_platform_role_is_safe;
+    17	
+    18	DO $c5a_clinic_billing_role$
+    19	BEGIN
+    20	  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_clinic_billing') THEN
+    21	    CREATE ROLE app_clinic_billing NOLOGIN NOINHERIT NOBYPASSRLS;
+    22	  END IF;
+    23	END
+    24	$c5a_clinic_billing_role$;
+    25	ALTER ROLE app_clinic_billing
+    26	  NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+    27	
+    28	-- app_staff is transport only. The clinic-management guard stamps a clinicBilling principal; the
+    29	-- shared DB-principal chokepoint then switches to this role for that exact-org request. An ordinary
+    30	-- staff principal remains app_staff and has no billing table ACL.
+    31	GRANT app_clinic_billing TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
+    32	GRANT USAGE ON SCHEMA public, app TO app_clinic_billing;
+    33	
+   
+
+### CMD: /bin/bash -lc "nl -ba [redacted-token].ts | sed -n '15,48p'
+nl -ba [redacted-token].ts | sed -n '1,80p'
+nl -ba packages/db-principal/src/index.ts | sed -n '1160,1265p'
+nl -ba docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs | sed -n '1,75p;1175,1260p'
+nl -ba docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs | sed -n '1,185p'
+nl -ba docs/_TODO/SAAS_FOUNDATION/scripts/ch
+--- OUT:
+    15	}
+    16	
+    17	/**
+    18	 * Run a Drizzle `sql` fragment on the integrator session (pool or TX client).
+    19	 * When `db.integratorDrizzle` is set (active TX), uses that session; otherwise compiles
+    20	 * the fragment and runs via `db.query` (unit-test mocks and plain DbPort).
+    21	 */
+    22	export async function runIntegratorSql<T = unknown>(
+    23	  db: DbPort,
+    24	  fragment: SQL,
+    25	): Promise<DbQueryResult<T>> {
+    26	  const { sql: text, params } = pgDialect.sqlToQuery(fragment);
+    27	  const withSession = db as DbPort & { integratorDrizzle?: IntegratorDrizzleDb };
+    28	  if (withSession.integratorDrizzle) {
+    29	    try {
+    30	      const raw = await withSession.integratorDrizzle.execute(fragment);
+    31	      if (raw !== null && raw !== undefined && typeof raw === 'object' && 'rows' in raw) {
+    32	        const r = raw as { rows?: T[]; rowCount?: number };
+    33	        // Real pg/drizzle returns `rowCount` even for empty SELECT; test stubs often omit it.
+    34	        if (Array.isArray(r.rows) && (r.rows.length > 0 || typeof r.rowCount === 'number')) {
+    35	          return toDbQueryResult<T>(raw);
+    36	        }
+    37	      }
+    38	    } catch {
+    39	      // Partial test doubles may only implement `db.query`; fall through.
+    40	    }
+    41	  }
+    42	  return db.query<T>(text, params);
+    43	}
+    44	
+    45	/**
+    46	 * Bridge legacy `$1..$n` PostgreSQL query text to a Drizzle `SQL` fragment (run via
+    47	 * `
