@@ -512,7 +512,8 @@ API (в т.ч. по бронированиям)», писатель — `apps/we
   требуют RLS на org-таблице.
 - **Почему это не механическая правка.** Расписку читают ПОЛИТИКИ других таблиц (`reference_catalog_seed_owner`
   на `reference_categories`/`reference_items`) через `EXISTS` — включение RLS здесь изменит поведение засева.
-- **Доказательство.** Уже помечено как GAP G7 в `deploy/postgres/privileges/declaration.ts:50-52,797`;
+- **Доказательство.** Уже помечено как GAP G7 в `deploy/postgres/privileges/declaration.ts` (блок `// ПРОБЕЛЫ`
+  в шапке, «ЗАКРЫТЫ» → G7; строка таблицы `public.reference_catalog_snapshot_receipts`);
   новый дефект переписи `evidence/13-f2-census.md` §2.3 (не входил в «пять таблиц» FACTS §1.3).
 - **Часть-источник:** 3, Н12 (единственная таблица частей с двойным вердиктом НАРУШЕНИЕ+ВОПРОС).
 

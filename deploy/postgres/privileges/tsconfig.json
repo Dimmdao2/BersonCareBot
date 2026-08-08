@@ -1,0 +1,17 @@
+{
+  "//": "Проверка типов декларации прав БД. Запуск: ./node_modules/.bin/tsc --noEmit --strict -p deploy/postgres/privileges",
+  "//2": "allowImportingTsExtensions нужен потому, что Node исполняет эти файлы напрямую (type stripping) и требует явное '.ts' в спецификаторе импорта — генератор импортирует declaration.ts без сборки.",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "lib": ["es2023"],
+    "types": [],
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "files": ["types.ts", "declaration.ts"]
+}

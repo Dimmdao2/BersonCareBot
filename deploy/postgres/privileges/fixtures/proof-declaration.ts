@@ -32,7 +32,7 @@ import type {
   LoginRecord,
   PrivilegeDeclaration,
   RoleDecl,
-} from '../declaration.ts';
+} from '../types.ts';
 
 const roles: Record<string, RoleDecl> = {
   app_staff: {
