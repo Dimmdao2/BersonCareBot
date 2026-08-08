@@ -1,6 +1,6 @@
 # SCHEME — целевая схема слоя прав БД BersonCareBot
 
-Черновик Ч1.2-r2 — ревизия после адверсарного критика №2 (PLAN.md Ф1). Реализует четыре принятых
+Черновик Ч1.2-r3 — ревизия после адверсарного критика №3 (PLAN.md Ф1). Реализует четыре принятых
 принципа (PLAN.md «Целевая архитектура»). Каждое решение несёт ссылку на FACTS.md, evidence/ или
 код (`файл:строка`). Ничего из §9 FACTS (capability-only, «всегда бросать», AST, EXPLAIN) схема
 не использует.
@@ -16,14 +16,30 @@
 состояние в данных, сверяемое с каталогом» — pg_permissions/CIS (evidence/07 §1); формат носителя
 там не нормирован (pgbedrock — YAML, Atlas — HCL) — выбираем то, что дешевле сопровождать здесь.
 
-Декларация содержит девять разделов (всё, чем управляет генератор, — и ничего больше):
+**Скоупинг: КЛАСТЕР и БАЗЫ — раздельные уровни декларации.** Несущий факт: `bersoncarebot_test`
+и `bcb_webapp_dev` живут в ОДНОМ PG16 на `:5432` (SERVER CONVENTIONS.md:124; `migrate-all.sh:85,
+:92` пиновит оба таргета к `151.241.228.122`; `migrate-dev.sh:265` бьёт в `PGPORT=5432`), а роли
+и логины в Postgres — кластерные: per-database декларация ролей структурно врёт — TEST-сверка
+перечислила бы dev-логины как «необъявленные» (ложный красный), а фильтр по именам вернул бы
+неохраняемые роли. Поэтому раздел `cluster` владеет всеми ролями и логинами всех управляемых env
+кластера (login-set каждого env перечислен, §A.1), а разделы `databases.<db>` — per-database
+истиной (схемы, таблицы, гранты, политики, функции, типы, definer-исключения, creators,
+orgTableAllowlist). Один файл управляет обеими базами и их общими каноническими ролями; входит
+ли dev-БАЗА в контур стены/генератора сейчас — развилка №10 (§I).
+
+Декларация содержит девять разделов (всё, чем управляет генератор, — и ничего больше);
+разделы 1-2 — уровень `cluster`, разделы 3-9 — уровень `databases.<db>`:
 
 1. **roles** — все канонические роли: терминальные, capability, владельцы; атрибуты
    (`login/superuser/bypassrls/inherit/createrole/rolconfig`), членства с опциями
-   (`ADMIN/INHERIT/SET`, как в `c5a-platform-operations-runtime.sql:31`). `app_owner` объявляется
-   с `bypassrls: true` и обоснованием: NOLOGIN definer-шов, деплой ЖЁСТКО ассертит `rolbypassrls`
-   (`deploy-test-saas.sh:907`, `deploy-test.sh:174`); снятие BYPASSRLS — изменение модели
-   безопасности, развилка владельца №5 (§I), схема его не проектирует.
+   (`ADMIN/INHERIT/SET`, как в `c5a-platform-operations-runtime.sql:31`). С `bypassrls: true`
+   объявляются ДВЕ роли, обе с обоснованием: `app_owner` — NOLOGIN definer-шов, деплой жёстко
+   ассертит `rolbypassrls` (`deploy-test-saas.sh:907`, `deploy-test.sh:174`); и
+   `saas_system_health_owner` — NOLOGIN definer-владелец health-агрегации: живая цепочка ставит
+   ему BYPASSRLS (`saas-system-health-diagnostics.sql:166-173`, исполняется
+   `deploy-test-saas.sh:75,:732,:2832`), при этом `dev-c3-app-function-owners.sql:205` зовёт ТУ
+   ЖЕ кластерную роль «NOT BYPASSRLS» — мотивирующий пример last-writer-wins-бардака, который
+   декларация закрывает одной строкой. Снятие BYPASSRLS — развилки №5 и №9 (§I).
 2. **scopes** — область на роль, `ORG | OWN | GLOBAL | NONE` — ровно те «11 строк», которых
    требует FACTS §1.5 (без объявленной области `app_patient` даёт 65 ложных «тихих нулей»).
 3. **schemas + database** — по каждой схеме (`public/app/app_ext/integrator/drizzle/app_control`;
@@ -39,13 +55,16 @@
    evidence/12 §10). Правило для последовательностей: роль с `INSERT/UPDATE` на таблице получает
    `USAGE` на её последовательностях (serial-DEFAULT требует USAGE; необходимость для
    identity-последовательностей — требует прогона в Ф3); исключения — явными sequence-записями.
+   У каждого гранта есть поле `grantable` (`WITH GRANT OPTION`), по умолчанию `false` — и это
+   дефолтное `false` ВХОДИТ в ожидаемую сторону сверки: c5a уже сравнивает `is_grantable`
+   (`c5a:1300`), общая сверка §F делает то же по всем ACL-классам.
 5. **functions / views** — явные ACL не-definer функций и представлений: по умолчанию ничего
    (шаг wall-install §D снимает и дефолт, и уже материализованный `PUBLIC EXECUTE`), EXECUTE —
    только перечисленным здесь; представления — обязательный `security_invoker` (§G.6).
-6. **types** — явные `USAGE`-гранты по пользовательским типам. Сегодня раздел пуст: в 378 файлах
-   `apps/webapp/db/drizzle-migrations/` ноль `CREATE TYPE` (посчитано grep'ом), но дефолт
-   `PUBLIC USAGE` на типах существует (evidence/12 §1), hardening §D его закрывает — раздел
-   заведён, чтобы первый будущий тип был объявлен, а не унаследовал дефолт.
+6. **types** — явные `USAGE`-гранты по пользовательским типам. Сегодня раздел пуст: в 377
+   `.sql`-файлах `apps/webapp/db/drizzle-migrations/` (плюс каталог `meta/`) ноль `CREATE TYPE`
+   (посчитано grep'ом), но дефолт `PUBLIC USAGE` на типах существует (evidence/12 §1), hardening
+   §D его закрывает — раздел заведён, чтобы первый будущий тип был объявлен, а не унаследовал дефолт.
 7. **definerExceptions** — SECURITY DEFINER функции как ПЕРЕЧИСЛЕННЫЕ исключения, каждая со
    строкой-обоснованием и точным ACL (capability-only как норма отвергнута — FACTS §9.4,
    evidence/07 §5; definer — «аудируемое исключение», evidence/07 §5 «защитимая середина»).
@@ -60,8 +79,11 @@
 
 Логины — единственная env-зависимая часть (стенд: `app_runtime_staff_login`, TEST: `bcb_test_*` —
 `scripts/verify-a1-rls-conformance.mjs:21-22`; мигратор-логин обнаруживается из env —
-`deploy-test-saas.sh:546-548,640`). Они живут НЕ в декларации, а в per-env маппинге
-`deploy/postgres/privileges/env/<env>.json`. Маппинг — не пары имён, а полная запись логина
+`deploy-test-saas.sh:546-548,640`). Они живут НЕ в теле декларации, а в per-env маппинге
+`deploy/postgres/privileges/env/<env>.json`; раздел `cluster` декларации ПЕРЕЧИСЛЯЕТ управляемые
+env этого кластера (TEST и dev — один кластер, см. §A выше), так что множество всех легитимных
+логинов кластера = объединение объявленных env-маппингов — именно против него §F сверяет
+кластерные классы. Маппинг — не пары имён, а полная запись логина
 (иначе истина уровня логина бездомна и живёт в `dev-c0-runtime-logins.sql` + головах):
 
 - **имя логина → каноническая роль** (членство с опциями);
@@ -81,6 +103,7 @@
 
 ```ts
 export const declaration: PrivilegeDeclaration = {
+  // скоупинг §A: roles — уровень cluster; tables/definerExceptions — databases.<db> (тут плоско)
   roles: {
     app_staff:             { kind: 'terminal', scope: 'ORG', login: false, bypassrls: false },
     app_patient:           { kind: 'terminal', scope: 'OWN', login: false, bypassrls: false },
@@ -127,8 +150,9 @@ export const declaration: PrivilegeDeclaration = {
 
 ## B. Генератор
 
-**Вход** — декларация; **выход №1** — детерминированный `deploy/postgres/generated/privileges.sql`,
-**закоммиченный**: вся env-НЕзависимая истина (роли и членства канонических ролей, схемные,
+**Вход** — декларация; **выход №1** — детерминированный закоммиченный
+`deploy/postgres/generated/privileges.<db>.sql` (по файлу на управляемую базу — скоупинг §A):
+вся env-НЕзависимая истина (роли и членства канонических ролей — кластерная часть, схемные,
 табличные, колоночные, sequence-, type-, function- и view-гранты, политики, ACL definer-исключений,
 default-privilege hardening). Login-специфичные статьи (биндинг логинов, CONNECT) в него НЕ входят —
 их генератор рендерит при применении из декларации + env-маппинга (§A.1), рендер не коммитится.
@@ -136,11 +160,18 @@ CI держит два гейта: (а) побайтная перегенера�
 (дисциплина drizzle-снапшотов); (б) детерминизм: тот же вход → побайтно тот же выход.
 Скрипт — `scripts/generate-db-privileges.mjs`, по образцу `a0-greenfield-baseline-lib.mjs`.
 
-Свойства выходного SQL — все доказаны исполнением:
+Свойства выходного SQL — механики доказаны исполнением:
 
 - **полное переприменение**: на каждый объект `REVOKE ALL … FROM <все управляемые роли>` затем
   точные GRANT; `DROP POLICY IF EXISTS` затем `CREATE POLICY`; идемпотентность побайтно доказана
   (evidence/12 §8);
+- **RLS-флаги — статьи генерата, не только триггера**: на КАЖДУЮ объявленную таблицу (org и
+  не-org одинаково) генерат эмитит `ALTER TABLE … ENABLE|DISABLE ROW LEVEL SECURITY` и
+  `FORCE|NO FORCE` ровно по `tables[*].rls`. Без этого поле `rls` — мёртвая запись: триггер §E
+  ставит флаги только в момент DDL, существующие таблицы не тронет никто, и красный→зелёный Ф6
+  для 5 таблиц FACTS §1.3 неконструируем; `platform_users` при развилке №1 получает RLS строкой
+  декларации, не руками. Сами `ALTER … ROW LEVEL SECURITY` доказаны исполнением (evidence/12 §4,
+  вкл. идемпотентную перечитку флагов); эмиссия их генератором — приёмка Ф2 (три транскрипта);
 - **default-privilege hardening в выходе**: на каждую роль из `creators` (§A.8) — те же статьи,
   что wall-install §D.3: создатель, добавленный в декларацию ПОЗЖЕ, получает hardening при
   ближайшем применении, а не никогда; расхождение ловят §F (pg_default_acl) и свип §G.7;
@@ -176,6 +207,19 @@ hardening — всё это per-database и умирает с пересозда
    скобка помечает сессию мигратора для стены (§E, фаза миграций). Декларация пиновит мигратора
    `NOBYPASSRLS` в стационаре: BYPASSRLS, повисший после упавшего migrate, ловит сверка §F
    (атрибуты ролей); сегодня то же ассертит cleanup (`deploy-test.sh:83,177-178`).
+   **Маркер-скобка живёт в `scripts/migrate-all.sh`** — единственной точке любого легитимного
+   migrate (проверено по репо: корневой `pnpm migrate` = `bash scripts/migrate-all.sh`,
+   `package.json:80`; через него ходят `deploy-test-saas.sh:3101`, `deploy-test.sh:183`,
+   `deploy/host/migrate-dev.sh:259`, `scripts/deploy-saas-667.sh:236`, стенды `verify-a1:338`,
+   `verify-a0-greenfield-baseline.mjs:277`). Скобка (маркер фазы §E + pre-sync шаг 4) достаётся
+   каждому автоматически — иначе out-of-chain migrate бежал бы в стационарном reject и транзиент
+   класса 0095→0298 красил бы легальный хвост. Мимо migrate-all.sh ведёт только прямой per-app
+   `pnpm --dir apps/webapp|integrator run migrate` (фазы, которые он сам зовёт `:180-184`) — тот
+   скобку пропускает и бьётся о fail-closed reject; это штатный дефолт. Сегодня элевационные
+   скобки живут в двух местах (`deploy-test-saas.sh:3092-3102`; `migrate-dev.sh:69,:96`) —
+   целевая схема сводит маркер в migrate-all.sh; механика (как непривилегированный мигратор
+   получает и гарантированно теряет маркер — definer open/close по образцу `verify-a1:300-315`
+   либо адм-обёртка) — требует прогона в Ф3.
 6. **генерат** — в слоте нынешней цепочки оверлеев, тем же админ-каналом. Полное переприменение
    ACL/политик + ПОЛНОЕ переприменение allowlist: снятые из декларации строки уходят ЗДЕСЬ.
    Соответствует предписанию Liquibase «гранты отдельным changelog, runAlways, последним»
@@ -192,12 +236,15 @@ pending migrations → restart; SERVER CONVENTIONS.md:125) получает ТЕ
 **Гейт «миграции — только схема»:** новая миграция с `GRANT/REVOKE/CREATE POLICY/CREATE ROLE/
 ALTER ROLE/ALTER DEFAULT PRIVILEGES` = красная сборка (PLAN.md Ф2). Двум движкам нельзя спорить за
 один ACL — задокументированный wontfix dbt #6238 (evidence/07 §2б). Старые 377 не трогаются (§H).
+В тот же список — `CREATE MATERIALIZED VIEW`: RLS к matview не применяется ВООБЩЕ, org-данные в
+matview неоградимы — запрет дешёв, сегодня в 377 миграциях и 61 оверлее ноль `CREATE MATERIALIZED
+VIEW` (посчитано grep'ом), гейт ничего живого не красит; каталожный backstop — свип §G.1.
 
 ### Судьба 61 оверлея `deploy/postgres/*.sql` (посчитано: 61 файл)
 
 | Класс | Примеры | Судьба |
 |---|---|---|
-| Чистые права/политики | `p0-5b-grants.sql`, `d3-4-…`, `phase4-locked-helper-rls-policies.sql`, `phase4-force-rls-cutover.sql`, `dev-c4…c10`, `s5`, `u9a`, `d2`, `d15b4` | **поглощаются декларацией** (генерат), файлы удаляются |
+| Чистые права/политики | `p0-5b-grants.sql`, `d3-4-…`, `phase4-locked-helper-rls-policies.sql`, `phase4-force-rls-cutover.sql`, `phase4-app-worker-narrow-rls.sql` (политики + узкие EXECUTE), `dev-c4…c10`, `s5`, `u9a`, `d2`, `d15b4`; сюда же `integrator-login-public-identity-grants.sql` — чистые гранты, но грантополучатель — env-логин (psql-переменная): статьи рендерятся с env-маппингом §A.1; это файл из FACTS §2, чьё отсутствие однажды роняло весь входящий Telegram/Max на TEST — его содержимое обязано жить в декларации, не в голове | **поглощаются декларацией** (генерат), файлы удаляются |
 | Роли/логины | `p0-5b-role-split-staff-patient.sql`, `dev-c0-runtime-logins.sql` | **поглощаются `roles-install`** (декларация + env-маппинг §A.1) |
 | Смешанные: definer-тела + их ACL + сверки | `c5a`, `c4`, `integrator-server-runtime-config.sql`, `organization-member-invites-rls.sql`, `specialist-*`, `patient-*`, `public-*`, `reference-catalog-rls.sql`, `saas-*`, `store-*`, `e1-*` | **расщепляются**: тела функций → миграции (схема); ACL/политики/exact-wall-блоки → декларация (сверку берёт §F) |
 | Параметризованный рантайм-шаг | `p2-b` — HMAC-секрет подписи принципала подаётся psql-переменной при применении (`p2-b:80-92,150-157`; `deploy-test-saas.sh:471-479`; стенд `verify-a1-rls-conformance.mjs:411-419`) | **остаётся отдельным деплой-шагом вне миграций и вне генератора**: статическая миграция секрет нести не может, генератор несёт только права. Тела definer-функций → миграции; их ACL/владелец → декларация; за файлом остаются объекты секрета и его засев |
@@ -222,7 +269,7 @@ phase4-locked-helper-rls-policies) и держит захардкоженные 
 `platform-owner-identity-pin`, `runtime-overlay-app-owner-handoff`, `dev-c1/c3` не
 классифицированы. **Исчерпывающая пофайловая классификация всех 61 — обязательный артефакт Ф2.**
 
-**Конечное состояние: в `deploy/postgres/` права существуют только в `generated/privileges.sql`;
+**Конечное состояние: в `deploy/postgres/` права существуют только в `generated/privileges.<db>.sql`;
 итог — порядка десятка файлов вместо 61.** Точное число — ВЫХОД классификации Ф2, не угаданный
 потолок (минимум: генерат 1 + wall-install 1 + sync 1 + p2-b 1 + индексы 2 + данные/фикстуры 4;
 судьбу неклассифицированных решает Ф2).
@@ -268,6 +315,9 @@ p2-b:94; `app_control` создаёт сам wall-install, §B шаг 3).
    объектов (evidence/12 §3a: дефолт не трогает уже созданное). Шаг перечисляет все функции схем
    `app/public/app_ext/integrator` и выполняет `REVOKE ALL ON FUNCTION … FROM PUBLIC` на каждой;
    definer-исключения (§A.7) и явно выданные функции (§A.5) тут же получают объявленный ACL.
+
+Весь wall-install — ОДНА транзакция (`psql -1 -v ON_ERROR_STOP=1`), как и генерат: массовый REVOKE
+раздельными autocommit-операторами ломает открытых читателей 42501 в окне (FACTS §4.1, evidence/12 §9).
 
 До первого применения на живой базе снимается перепись фактических прав (машинерия §F) — чтобы
 «красный» шаг приёмки был воспроизводим и ничего живого не отвалилось молча.
@@ -341,7 +391,8 @@ evidence/07 §1) — с точечных exact-wall-блоков на **всю �
 
 | Класс | Каталог | Прецедент |
 |---|---|---|
-| table ACL | `pg_class.relacl` через `aclexplode(COALESCE(relacl, acldefault(…)))` | c5a:1297-1310 |
+| table ACL (вкл. `is_grantable` против объявленного `grantable`) | `pg_class.relacl` через `aclexplode(COALESCE(relacl, acldefault(…)))` | c5a:1297-1310; is_grantable — c5a:1300 |
+| RLS-флаги таблиц | `pg_class.relrowsecurity/relforcerowsecurity` против `tables[*].rls` — обе стороны: force-таблица без флага И флаг на таблице, объявленной без RLS | §B (RLS-статьи генерата); красный сегодня — 5 таблиц FACTS §1.3 |
 | column ACL | `pg_attribute.attacl` | c5a:1311-1319; без него табличная проверка врёт (FACTS §1.4) |
 | function ACL + `prosecdef` + владелец | `pg_proc.proacl/prosecdef/proowner` (схемы вкл. `app_ext`) | c5a:1320-1336,1345 |
 | политики, вкл. RESTRICTIVE, USING/WITH CHECK-текст | `pg_policies` | c5a:1719-1721; RESTRICTIVE меняет семантику — evidence/12 §10 |
@@ -357,10 +408,13 @@ evidence/07 §1) — с точечных exact-wall-блоков на **всю �
 
 **Где бежит:** (1) CI — на одноразовом кластере a1 после полной цепочки §B; (2) деплой-постчек
 на TEST — шаг 7 той же цепочки (слот нынешних постчеков `deploy-test-saas.sh:500-521`). Скрипт
-один: `scripts/verify-db-privileges-conformance.mjs`. Env-независимая часть ожидаемого одна на
-все среды; **login-уровень — ПО-ОКРУЖЕННАЯ часть сверки, и это ВСЕ классы записи логина §A.1**
-(членство в терминале, атрибуты вкл. `NOINHERIT`, `rolconfig IS NULL` либо объявленное
-исключение, CONNECT): ожидаемые строки рендерятся в момент проверки из декларации + env-маппинга.
+один: `scripts/verify-db-privileges-conformance.mjs`. **Скоуп сверки повторяет скоупинг §A:**
+кластерные классы (роли, логины, атрибуты, членства) — против ОБЪЕДИНЕНИЯ объявленных env
+кластера (dev-логин на TEST-сверке не «необъявленный»: он объявлен в env-маппинге dev того же
+кластера); per-database классы (ACL, политики, RLS-флаги, дефолты) — по-базово. Login-уровень —
+по-окруженная часть: все классы записи логина §A.1 (членство в терминале, атрибуты вкл.
+`NOINHERIT`, `rolconfig IS NULL` либо исключение, CONNECT) рендерятся в момент проверки из
+декларации + env-маппингов.
 
 **Красный:** ненулевое число строк в любом направлении; вывод печатает сами строки (`направление,
 роль, объект, привилегия/политика`), `exit 1` — деплой падает. Приёмка Ф4: ручной `GRANT SELECT
@@ -369,15 +423,22 @@ ON … TO app_staff` мимо декларации обязан дать ров�
 ## G. Свип — 7 каталожных инвариантов
 
 Один файл `scripts/db-privileges-sweep.sql`, каждый запрос обязан вернуть **0 строк**
-(шаблон Splinter/GitLab — evidence/07 §3). Эскизы для этой базы:
+(шаблон Splinter/GitLab — evidence/07 §3). **Списки свипа (роли И схемы) — рендер из
+декларации + env-маппинга, не inline-литералы:** это привилегированная истина; захардкоженная,
+она делает свип вторым источником (принцип 1) и красным по построению на живых средах — на TEST
+BYPASSRLS несут ТРИ роли (третья — `saas_system_health_owner`, §A п.1), на CI-кластере a1
+суперпользователь — `bcb_a1_operator` (`verify-a1-rls-conformance.mjs:17,:208`), не `postgres`.
+Плейсхолдеры `:allow_*`/`:schemas` заполняет тот же генератор; фильтр схем — все шесть схем §D,
+включая `drizzle` (org-таблиц там быть не должно — тоже инвариант). Эскизы:
 
 ```sql
--- 1. RLS на каждой org-таблице (красный сегодня: 5 таблиц FACTS §1.3)
+-- 1. RLS на каждой org-таблице (красный сегодня: 5 таблиц FACTS §1.3). relkind включает 'm':
+--    RLS к matview не применяется вовсе => org-matview красен ВСЕГДА (сегодня matview ноль, §B)
 SELECT c.oid::regclass FROM pg_class c
 JOIN pg_attribute a ON a.attrelid=c.oid AND a.attname='organization_id'
   AND a.attnum>0 AND NOT a.attisdropped
-WHERE c.relkind IN ('r','p')
-  AND c.relnamespace::regnamespace::text IN ('public','app','app_ext','integrator','app_control')
+WHERE c.relkind IN ('r','p','m')
+  AND c.relnamespace::regnamespace::text IN (:schemas)  -- шесть схем §D, рендер из декларации
   AND NOT c.relrowsecurity;
 -- 2. FORCE там же (тот же запрос с NOT c.relforcerowsecurity)
 -- 3. нет RLS-таблиц без единой политики
@@ -387,16 +448,17 @@ SELECT c.oid::regclass FROM pg_class c WHERE c.relrowsecurity
 SELECT polrelid::regclass, polname FROM pg_policy WHERE polroles = ARRAY[0]::oid[];
 SELECT c.oid::regclass FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) x
 WHERE x.grantee=0
-  AND c.relnamespace::regnamespace::text IN ('public','app','app_ext','integrator','app_control');
--- 5. нет неожиданного BYPASSRLS/SUPERUSER. Allowlist: postgres и app_owner — объявленный
---    definer-шов (§A п.1; deploy-test-saas.sh:907). Красный и на BYPASSRLS мигратора,
---    забытом упавшим migrate (§B шаг 5)
+  AND c.relnamespace::regnamespace::text IN (:schemas);
+-- 5. нет неожиданного BYPASSRLS/SUPERUSER. Allowlist НЕ пишется руками — рендер из декларации:
+--    роли с объявленным bypassrls (app_owner, saas_system_health_owner — §A п.1) + кластерный
+--    суперпользователь окружения (postgres на TEST/dev, bcb_a1_operator на a1 — verify-a1:17).
+--    Красный и на BYPASSRLS мигратора, забытом упавшим migrate (§B шаг 5)
 SELECT rolname FROM pg_roles WHERE (rolbypassrls OR rolsuper)
-  AND rolname NOT IN ('postgres', 'app_owner');
+  AND rolname NOT IN (:allow_bypass_or_super);
 -- 6. представления — только security_invoker, обе формы записи true|on
 --    (definer-представление видит чужое: FACTS §4, замер Sol)
 SELECT c.oid::regclass FROM pg_class c WHERE c.relkind='v'
-  AND c.relnamespace::regnamespace::text IN ('public','app','app_ext','integrator','app_control')
+  AND c.relnamespace::regnamespace::text IN (:schemas)
   AND NOT EXISTS (SELECT 1 FROM unnest(c.reloptions) o
                   WHERE o IN ('security_invoker=true','security_invoker=on'));
 -- 7. ноль положительных default-грантов кому бы то ни было, кроме создателя о себе: декларация
@@ -420,15 +482,19 @@ WHERE a.grantee <> d.defaclrole;
    FACTS §1.2-1.4). Машинерия переписи = §F наоборот. *(красный: сверка против пустой декларации.)*
 2. **Генератор + сверка §F на одноразовом кластере** (инфраструктура a1), полная цепочка §B.
    Зелёный = каталог после цепочки побайтно сходится с декларацией в обе стороны.
-3. **CI-гейты:** (а) новая миграция содержит GRANT/REVOKE/CREATE POLICY/CREATE ROLE → красный;
-   (б) `generated/privileges.sql` разошёлся с декларацией → красный.
+3. **CI-гейты:** (а) новая миграция содержит статью из красного списка §B (GRANT/REVOKE/CREATE
+   POLICY/CREATE ROLE/…/CREATE MATERIALIZED VIEW) → красный;
+   (б) `generated/privileges.<db>.sql` разошёлся с декларацией → красный.
 4. **`wall-install` + event trigger §E** — сначала одноразовый кластер и a1 (с механикой фазы
    миграций — прогоны Ф3), на TEST — только по команде владельца (деплой остановлен — FACTS §11).
    Вставка в оба пути деплоя — §B «оба пути — одна реализация».
 5. **Первое применение генерата на TEST = Ф6:** дефекты закрываются приведением реальности к
    декларации, не заплатками: 5 таблиц без RLS+FORCE (§1.3), 7 ячеек утечки (§1.2),
-   `platform_users` (§1.4 — после развилки №1). Доказательство — свип зелёный + обход 1892 ячеек
-   `(роль × таблица × принципал)` ноль чужих строк (FACTS §6) + стенд PASS.
+   `platform_users` (§1.4 — после развилки №1). Красный→зелёный здесь конструируем ИМЕННО
+   RLS-статьями генерата (§B): существующие таблицы §1.3 получают `ENABLE+FORCE` статьями
+   первого применения — триггер §E их не тронул бы никогда (их DDL в прошлом), а сверка §F
+   (строка RLS-флагов) держит зелёное состояние. Доказательство — свип зелёный + обход 1892
+   ячеек `(роль × таблица × принципал)` ноль чужих строк (FACTS §6) + стенд PASS.
 6. **Оверлеи:** расщепление по таблице §B; каждый удаляемый файл — отдельный коммит с тремя
    транскриптами (отсутствие компенсировано генератом — сверка зелёная без него).
 7. **Baseline-сжатие 377 миграций (~160 с правами — PLAN.md Ф1):** протокол Django (сжать →
@@ -453,7 +519,10 @@ WHERE a.grantee <> d.defaclrole;
 **Вне рамок схемы:** Result-типизация порта и 177 мест гашения (evidence/07 §4); отгрузка
 журнала/алертинг 42501; угадывание роли в Node (`withClient.ts:56-66`, FACTS §1.1) — своя работа
 Ф6; `pgEmailSetupFlowPort`, гасящий 42501 в `reason:'user_not_found'` (FACTS §11.7), — код-фикс
-Ф6, не механизм схемы; клиентский код; прод (не трогается — отдельное решение владельца).
+Ф6, не механизм схемы; туда же примыкают FACTS §11.5 (15 обходов ESLint-запрета в integrator) и
+§11.6 (2 живые находки ACCESS_SWEEP) — app-слой, схема на них УКАЗЫВАЕТ, не поглощает; входят ли
+они явными пунктами Ф6 — развилка №11; клиентский код; прод (не трогается — отдельное решение
+владельца).
 
 **Развилки (дополняю рекомендациями к листу PLAN.md):**
 
@@ -483,6 +552,18 @@ WHERE a.grantee <> d.defaclrole;
    §A.1, `roles-install` применяет, §F сверяет). Альтернатива — per-env runbook вне схемы: тогда
    истина уровня логина (класс дефекта FACTS §9.6 — login-level `search_path`) снова живёт в
    двух местах, и §F её не караулит.
+9. **BYPASSRLS у `saas_system_health_owner`: объявить-и-оставить или снимать.** Рекомендация —
+   объявить-и-оставить (то же обращение, что с `app_owner`: NOLOGIN definer-владелец, ноль
+   членов; живой деплой атрибут уже ставит — §A п.1); заодно закрывается спор оверлеев dev/TEST.
+   Снятие — отдельный анализ health-аксессоров, схема его не проектирует.
+10. **Dev-база — в контур стены/генератора сейчас или TEST-first.** Рекомендация — сейчас:
+    принцип 2 обещает «громкий 42501 на dev», кластер общий (§A) — полумера оставляет
+    незащищённой базу на том же кластере. Альтернатива — TEST-first, dev-БАЗА явно отложена
+    (кластерные разделы всё равно включают dev-логины — иначе структурный ложный красный §F).
+11. **FACTS §11.5 (15 обходов ESLint) + §11.6 (2 находки ACCESS_SWEEP) — явные пункты Ф6 или
+    вне контура.** Рекомендация — явными app-слойными пунктами Ф6 рядом с §11.7: открытые
+    дефекты того же расследования, лист Ф6 — место, где они не потеряются. Альтернатива —
+    отдельный трек. В обоих случаях это НЕ механизмы схемы БД.
 
 ---
 
@@ -494,37 +575,28 @@ WHERE a.grantee <> d.defaclrole;
 
 ---
 
-## Changelog Ч1.2 → Ч1.2-r2 (по находкам критика №2)
+## Changelog Ч1.2-r2 → Ч1.2-r3 (по находкам критика №3)
 
-- **B-1** → §B «Место в конвейере», §D: «разовый бутстрап» упразднён — restore стирает
-  per-database стену (`deploy-test-saas.sh:49,:3083-3084`); wall-install/roles-install —
-  идемпотентные шаги КАЖДОГО деплоя (паттерн rehydrate-lib:65); цепочка 7 шагов; greenfield/a1
-  и code-only путь покрыты явно.
-- **M-1** → §B шаг 1 + «Стенд a1»: pre-migrate `roles-install` из декларации + env-маппинга;
-  закрывает `deploy-test-saas.sh:141-146` и FACTS §3 №1-2; хардкод-списки риги
-  (`verify-a1:31,:37,:263-281`) заменяются рендером — изменение Ф5.
-- **M-2** → §E «Два режима», §H.7: фазу миграций помечает скобка элевации цепочки (`:3092-3101`),
-  маркер-роль, fail-closed без маркера; в фазе — RLS+FORCE+журнал вместо reject; финальный гейт —
-  генерат+§F; транзиент `0095:60`→`0298:10` доказан; маркер — «требует прогона в Ф3»; развилка №7.
-- **M-3** → §B шаги 4/6, §E (конец): одно поведение в обоих местах — sync до миграций ТОЛЬКО
-  добавляет/обновляет, снятия делает генерат после.
-- **M-4** → §A п.3, §D, §F, §G: `app_ext` (p2-b:94,107,129,189,231) — в переписи схем,
-  REVOKE-списке, перечислении функций, сверке и трёх фильтрах свипа; `app_control` создаёт
-  wall-install, включён в перепись/сверку.
-- **M-5** → §A.1, §F: маппинг = полная запись логина (пароль-ссылка, атрибуты с `NOT rolinherit`
-  `verify-a1:460-461`, rolconfig NULL `dev-c0-runtime-logins.sql:136`/FACTS §9.6, VALID UNTIL,
-  членства, CONNECT); едят roles-install и §F; развилка №8.
-- **M-6** → «Стенд a1»: «тот же файл вместо четырёх оверлеев» исправлено — генерат заменяет 2 из 4
-  (`p0-5b-grants`, `phase4-…-policies`), роли — roles-install, `p2-b` — шаг (`verify-a1:405-429`).
-- **m1** → §B шаг 5, §F, §G №5: скобка `ALTER ROLE $DBROLE BYPASSRLS` (`:3098`) названа;
-  NOBYPASSRLS мигратора пиновится; остаток после падения ловят §F и свип №5.
-- **m2** → §E «Владелец»: evidence/12 §6 доказал срабатывание на суперпользователе; reject
-  исполнялся только для не-суперпользователя — superuser-reject «требует прогона в Ф3».
-- **m3** → §G №7: `LIKE 'app\_%'` снят — красна любая чужая positive-запись (§D.4).
-- **m4** → §G: 7 инвариантов — согласовано с PLAN Ф5.
-- **m5** → §B «Конечное состояние»: «≤12» → «порядка десятка; точное число — выход Ф2».
-- **m6** → §A п.6, §B, §F: раздел types + строка type-ACL (`pg_type.typacl`); ноль `CREATE TYPE`
-  в 378 миграциях (посчитано) — раздел стартует пустым.
-- **m7** → §B «Оба пути»: code-only `deploy-test.sh` — шаги 1/3/4 перед его `pnpm migrate`
-  (`:183`), шаги 6-7 в closure-подрежиме (`:197` → `deploy-test-saas.sh:2958-2963,:2685`).
-- **Развилки** → §I: добавлены №7 (транзиенты) и №8 (логины в контуре); №1-6 сохранены.
+- **MAJOR-1** → §B, §F, §H.5: генерат эмитит RLS/FORCE-статьи по `tables[*].rls` для ВСЕХ
+  объявленных таблиц; §F сверяет `relrowsecurity/relforcerowsecurity` двусторонне;
+  красный→зелёный Ф6 для FACTS §1.3 конструируем именно этим.
+- **MAJOR-2** → §G, §A п.1, развилка №9: списки свипа — рендер из декларации+env, не литералы;
+  `saas_system_health_owner` объявлен `bypassrls: true` (`saas-system-health-diagnostics.sql:166-173`,
+  исполняется `deploy-test-saas.sh:75,:732,:2832`); противоречие `dev-c3…owners.sql:205` —
+  мотивирующий пример; a1-суперпользователь `bcb_a1_operator` (`verify-a1:17,:208`) — в рендер.
+- **MAJOR-3** → §A (скоупинг cluster/databases), §A.1, §B, §F, развилка №10: один PG16 `:5432`
+  несёт обе базы (SERVER CONVENTIONS.md:124; `migrate-all.sh:85,:92`; `migrate-dev.sh:265`) —
+  `cluster` владеет ролями/логинами всех env, `databases.<db>` — per-database истиной; §F
+  сверяет кластерные классы против объединения объявленных env.
+- **MAJOR-4** → §B шаг 5: маркер-скобка — в `scripts/migrate-all.sh`, chokepoint всех легитимных
+  migrate (`package.json:80`; вызовы: `deploy-test-saas.sh:3101`, `deploy-test.sh:183`,
+  `migrate-dev.sh:259`, `deploy-saas-667.sh:236`, `verify-a1:338`, `verify-a0:277`); путь мимо
+  (прямой per-app migrate) — fail-closed reject, штатно; механика — «требует прогона в Ф3».
+- **m1** → §B: классифицированы оба пропущенных из 61 — `phase4-app-worker-narrow-rls.sql` и
+  `integrator-login-public-identity-grants.sql` (файл FACTS §2, ронявший TEST). **m2** → §A п.6:
+  «378 файлов» → 377 `.sql` (+ `meta/`), посчитано. **m3** → §D: wall-install — одна транзакция
+  (FACTS §4.1, evidence/12 §9). **m4** → §G: фильтры схем — все шесть §D (добавлен `drizzle`),
+  рендер. **m5** → §A п.4, §F: поле `grantable`, дефолт `false`, в ожидаемой стороне
+  (`c5a:1300`). **m6** → §B (гейт), §G №1: `CREATE MATERIALIZED VIEW` в красный список гейта;
+  свип №1 — `relkind='m'`; сегодня matview ноль (посчитано).
+- **Развилки** → §I: добавлены №9-11; №1-8 сохранены; «Вне рамок» указывает на §11.5/§11.6.
