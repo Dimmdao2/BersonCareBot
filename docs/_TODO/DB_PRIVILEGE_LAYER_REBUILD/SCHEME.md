@@ -1,21 +1,21 @@
-# SCHEME revision 3 — целевой слой прав БД BersonCareBot
+# SCHEME revision 4 — целевой слой прав БД BersonCareBot
 
-Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), раздел «Права БД, роли и стены», затем
-[`PLAN.md`](PLAN.md). Текущий каталог используется только для проверки; право появляется лишь из доказанной
-потребности.
+Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), «Права БД, роли и стены», затем [`PLAN.md`](PLAN.md).
+Текущий каталог используется только для проверки; право появляется лишь из доказанной потребности.
 
 ## 1. Схема без SQL
 
 У данных две прикладные двери: порт **webapp** и порт **integrator**. DB-пароль открывает только соединение.
-Перед первым прикладным запросом порт подписывает одноразовый challenge своим Ed25519-ключом из env; база знает
-только public key. Перенести подпись в другой backend, транзакцию, login, role, purpose или вызов нельзя.
+Перед первым прикладным запросом порт предъявляет высокоэнтропийный ключ из env узкому verifier; база хранит только
+SHA-256 hash этого ключа. Hash из dump не устанавливает контекст, потому что verifier принимает исходный ключ.
 
 В PostgreSQL стоят две последовательные стены:
 
-1. statement gate расширения `bcb_port_guard` до запуска плана проверяет port attestation, требуемый класс
-   principal/service, роль и purpose; поэтому даже `WHERE false` и `LIMIT 0` без контекста дают `42501` и запись в
-   server log, а не тихий ноль;
-2. точные grants, `FORCE ROW LEVEL SECURITY` и policies ограничивают строки уже доказанного principal.
+1. до принятия контекста соединение остаётся в login-роли без table/column/sequence ACL и без достижимого
+   `SET ROLE` к роли с такими ACL; поэтому любой table statement, включая `WHERE false` и `LIMIT 0`, получает
+   statement-level `42501` от permission check, а PostgreSQL сам пишет ERROR в server log до чтения строк;
+2. после принятия контекста exact grants открывают только нужные операции, а `FORCE ROW LEVEL SECURITY` и policies
+   фильтруют строки уже доказанного principal. Policy не несёт гарантию громкого отказа без principal.
 
 Неизвестный человек не получает DB credentials или соединение. До входа webapp знает, что обслуживает конкретный
 pre-session request, и открывает за него только короткую attested-транзакцию с exact purpose/args; человеческого
@@ -32,50 +32,42 @@ Integrator и фоновые работы устанавливают service-к�
 которого выбирается одно из четырёх действий — убрать обход порта, выдать exact право, провести через шов или
 признать путь лишним.
 
-## 2. Statement gate, ключ и контекст
+## 2. Ключ, verifier и контекст
 
 ### 2.1 Исполняемый verifier
 
-`bcb_port_guard` — обязательное PostgreSQL 16 C-extension из exact extension allowlist. Оно проверяет Ed25519 через
-OpenSSL `EVP_PKEY_ED25519` + `EVP_DigestVerify` и ставит два server hooks:
+`app.install_port_context(...)` — единственный `SECURITY DEFINER` verifier шва 1. Он использует уже установленный
+`pgcrypto.digest` и до успеха не открывает runtime-role. Из login-роли разрешены только
+`BEGIN/COMMIT/ROLLBACK`, `app.issue_port_challenge(...)`, verifier и exact pre-session entrypoints после attestation.
 
-- `ExecutorStart` до `standard_ExecutorStart` проверяет каждый `SELECT/INSERT/UPDATE/DELETE/MERGE/CALL`, включая
-  план без scan;
-- `ProcessUtility` разрешает DDL/role/ACL/policy operations только `postgres` внутри окна §7.
+`app_ext.port_key_hashes` хранит `key_id`, порт, 32-byte `sha256_key_hash`, `not_before`, `not_after`, `revoked_at`.
+Ключ — случайные 32 bytes в env соответствующего порта. Порт передаёт его verifier как binary bind parameter по TLS,
+не SQL-literal; parameter не пишется в application/server log. Verifier вычисляет `digest(p_port_key, 'sha256')` и
+сравнивает 32 bytes с единственной active записью exact `key_id`/port. Таблицей владеет `app_object_owner`; только
+`app_seam_context_owner` имеет `SELECT`, миграционный канал меняет строки в окне §7, остальные роли имеют ноль ACL.
+Ключа в БД, backup и dump нет.
 
-Для прикладных login любой statement без принятого контекста отклоняется, кроме `BEGIN/COMMIT/ROLLBACK` и двух
-точных bootstrap-функций шва 1. Hook сверяет database OID, `session_user`, exact `current_user`, backend PID и
-`backend_start`, transaction id, класс контекста, purpose и объявленные target object/function OID. Неизвестный
-object или несовпадение даёт `42501` до исполнения плана. `postgres` — единственное постоянное исключение.
-
-Public keys хранятся в `app_ext.port_verification_keys`: `key_id`, порт, 32-byte key, `not_before`, `not_after`,
-`revoked_at`. Таблицей владеет `app_object_owner`; шов 1 имеет только `SELECT`, миграционный канал — изменение в
-окне §7, остальные роли — ноль ACL. Private keys есть только в env соответствующего порта и не попадают в БД,
-backup, dump, client или лог.
-
-### 2.2 Challenge и canonical bytes
+### 2.2 Challenge, привязки и single use
 
 1. Внутри `BEGIN`, до `SET LOCAL ROLE`, exact login вызывает
-   `app.issue_port_challenge(name, smallint, text, bytea) → bytea`. Функция генерирует `pg_strong_random` nonce
-   размером 32 bytes и держит единственный state `ISSUED` в private backend memory.
-2. Подписывается бинарный envelope с prefix `BCBCTX3\0` и полями в фиксированном порядке: version, `key_id`, port,
-   database OID, `session_user`, target role, backend PID/start, transaction id, class, principal identifiers,
-   purpose, expiry, 32-byte args hash и 32-byte nonce. Enum/boolean — один byte; integer — big-endian; UUID — raw
-   16 bytes; string — UTF-8 с unsigned 32-bit big-endian length. Необъявленных полей и JSON нет.
-3. Args hash — SHA-256 от ordered typed arguments: type OID, NULL marker, length и value. UUID — raw 16 bytes;
-   integer/date/timestamp — signed big-endian с PostgreSQL epoch; boolean — один byte; text/enum — exact UTF-8;
-   bytea — raw; array — element count и те же element encodings; JSON/JSONB — UTF-8 RFC 8785. Неизвестный type
-   останавливает generator. Один изменённый argument меняет hash.
-4. `app.install_signed_context(bytea, bytea) → void` требует 64-byte Ed25519 signature, active `key_id`, expiry не
-   далее 30 seconds и полное совпадение с server-derived challenge. Успех атомарно переводит backend state `ISSUED
-   → ACCEPTED`; повторный consume отклоняется.
-5. Transaction/subtransaction callback очищает state при commit, rollback и abort. Смена role, новая транзакция,
-   повтор PID с другим `backend_start` или возврат connection в pool делает контекст недействительным. Ошибка
-   установки/очистки уничтожает connection.
+   `app.issue_port_challenge(name, smallint, text, bytea) → bytea`. Функция генерирует 32 bytes через
+   `pgcrypto.gen_random_bytes`, записывает `ISSUED` state в private `app_ext.port_context_state` и возвращает nonce;
+   owner — `app_object_owner`, читать/менять может только шов 1.
+2. State сервером связан с database OID, `session_user`, target role, backend PID и `backend_start`, текущим
+   transaction id, классом/principal identifiers, purpose, expiry не далее 30 seconds и SHA-256 exact typed args.
+   Порт передаёт nonce, `key_id`, исходный ключ и те же значения verifier; caller-generated binding не принимается.
+3. В одной операции verifier повторно получает server-derived DB/backend/transaction identity, сверяет active
+   key/hash, все bindings и expiry, затем переводит nonce `ISSUED → ACCEPTED`. Несовпадение и второй consume дают
+   `42501`; до `ACCEPTED` переход к exact runtime-role невозможен.
+4. Accepted state привязан к одному backend и transaction. Смена role вне объявленного перехода, новая transaction,
+   повтор PID с другим `backend_start`, истечение срока или возврат connection в pool делает его недействительным;
+   ошибка установки/очистки уничтожает connection. Private state читают только функции шва 1, tenant-роли — никогда.
 
-Private backend state не является SQL-объектом и не доступен через GUC. Public key позволяет только проверять, но
-не выпускать контекст. Test vectors фиксируют один valid envelope и отдельные invalid vectors для каждого поля,
-подписи, expiry, replay и canonical encoding.
+Replay готового вызова не работает без того же backend/transaction и свежего single-use nonce. Hash не защищает
+слабый пароль от offline-перебора, поэтому ключ не пароль человека, а 256-bit random value. Компрометация env/памяти
+порта раскрывает исходный ключ до revoke — это именованный остаточный риск; read/dump hash такого свойства не даёт.
+Rotation добавляет новый `key_id`+hash, выкатывает новый env, держит короткое перекрытие `not_before/not_after`,
+затем ставит `revoked_at` старому; начатый challenge старого key после revoke не принимается.
 
 ### 2.3 Principal и service context
 
@@ -88,10 +80,10 @@ Private backend state не является SQL-объектом и не дос�
 - `integrator` или `service`: integrator id либо exact job/probe purpose.
 
 `app.current_org_id()`, `app.current_patient_user_id()`, `app.current_integrator_user_id()` и
-`app.require_platform_principal()` читают только accepted backend state и бросают `42501` при несовпадении. Custom
+`app.require_platform_principal()` читают только accepted private state и бросают `42501` при несовпадении. Custom
 GUC, caller UUID/email/delivery id сами полномочием не являются.
 
-Жизненный цикл обоих портов: `BEGIN` → чистый state → challenge → install context → `SET LOCAL ROLE` exact role →
+Жизненный цикл обоих портов: `BEGIN` → чистый state → challenge → verify/install context → переход в exact role →
 queries → `COMMIT/ROLLBACK`. Для следующей transaction proof выпускается заново.
 
 ## 3. Принципалы
@@ -101,15 +93,17 @@ queries → `COMMIT/ROLLBACK`. Для следующей transaction proof вы�
 | Login | Единственная точка входа | Standing access |
 |---|---|---|
 | `<env>_migrator` | deploy/migration channel | только `CONNECT`; owner-memberships существуют лишь внутри §7 |
-| `<env>_webapp_staff` | staff/platform/service webapp | `SET` только в объявленные webapp runtime-роли |
-| `<env>_webapp_patient` | patient и pre-session webapp | `SET app_patient`; exact pre-session entrypoints |
-| `<env>_integrator` | integrator и его jobs | `SET` только в delivery/scheduler роли |
+| `<env>_webapp_staff` | staff/platform/service webapp | verifier шва 1; exact pre-session entrypoints; ноль table ACL |
+| `<env>_webapp_patient` | patient и pre-session webapp | verifier шва 1; exact pre-session entrypoints; ноль table ACL |
+| `<env>_integrator` | integrator и его jobs | verifier шва 1; exact integrator entrypoints; ноль table ACL |
 
 Все четыре: `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`, прямых object ACL нет.
-Каждое разрешённое membership — `INHERIT FALSE, SET TRUE, ADMIN FALSE`; все остальные и транзитивные рёбра
-отсутствуют.
+До accepted context нет standing membership с `SET TRUE` к роли, у которой есть table ACL. Verifier атомарно
+устанавливает context и разрешает только exact target текущего backend/transaction; клиент не может сделать этот
+переход отдельным вызовом до проверки ключа. Любое прямое или транзитивное ребро login → table-granted role без
+этой привязки — FAIL свипа.
 
-| Member login | Exact target roles |
+| Login после accepted context | Exact target roles |
 |---|---|
 | `<env>_migrator` | нет standing membership |
 | `<env>_webapp_staff` | `app_staff`, `app_clinic_billing`, `app_platform_settings`, `app_worker`, `app_operational_media_worker`, `saas_telemetry_operator` |
@@ -141,7 +135,8 @@ authenticated internal webapp port; отдельного DB-входа в target
 
 ## 4. Стены данных
 
-Для каждой relation/command доступ равен AND из exact object/column grant, statement gate §2, `ENABLE`+`FORCE RLS`
+До accepted context ни одна достижимая роль не имеет table grant: permission check несёт безусловный громкий
+отказ. После context доступ для каждой relation/command равен AND из exact object/column grant, `ENABLE`+`FORCE RLS`
 и business policy exact role. Для `INSERT/UPDATE` тот же scope стоит в `WITH CHECK`. Restrictive policy повторно
 проверяет raising accessor; business policies могут складываться через OR только за ней.
 
@@ -149,23 +144,23 @@ authenticated internal webapp port; отдельного DB-входа в target
 - **Patient:** совпадают организация и patient либо доказанная enrollment/program/appointment связь; отсутствие
   patient-policy означает запрет.
 - **Platform:** `require_platform_principal()`; медицина роли недоступна.
-- **Service/integrator:** exact port/role/purpose; при наличии row scope он связан с подписанными args.
+- **Service/integrator:** exact port/role/purpose; при наличии row scope он связан с attested args.
 - **Auth/context:** runtime не имеет table ACL; только exact attested seam.
 
 `USING (true)` допустима только для exact service runtime-role либо seam owner, exact relation/columns и операции,
-когда потребность охватывает всю эту relation; statement gate и restrictive policy обязательны. Для
+когда потребность охватывает всю эту relation; accepted context и restrictive policy обязательны. Для
 principal-aware швов она запрещена. На `media_files` tenant и media-service используют разные policies; `NOINHERIT`
 не даёт им сложиться. Обе exact policies разных owners на `email_send_cooldowns` остаются раздельными.
 
 Writable surface декларации включает triggers и callees, FK, UNIQUE/EXCLUDE и cascades. Межстенный key содержит
-tenant key либо mutation идёт через exact signed seam с одинаковым внешним отказом.
+tenant key либо mutation идёт через exact attested seam с одинаковым внешним отказом.
 
 ## 5. Definer-швы и counts
 
-Целевой seam 1 содержит ровно эти signatures: `issue_port_challenge`, `install_signed_context`,
+Целевой seam 1 содержит ровно эти signatures: `issue_port_challenge`, `install_port_context`,
 `current_integrator_user_id`, `current_org_id`, `current_patient_user_id`, `require_platform_principal`.
 `release_principal_context` и `reset_principal_context` удаляются из definer surface: lifecycle держит transaction
-callback расширения. Это замена двух signatures двумя, а не утверждение, что census-набор не изменился.
+binding private state. Это замена двух signatures двумя, а не утверждение, что census-набор не изменился.
 
 | База | Целевые definer-signatures | Логических швов | Как получено |
 |---|---:|---:|---|
@@ -225,7 +220,7 @@ callback расширения. Это замена двух signatures двум�
 policies. Function `search_path` содержит только trusted schemas, `pg_catalog` и `pg_temp` последним; application
 objects в body квалифицированы. Runtime не имеет `TEMPORARY`/schema `CREATE`; `PUBLIC EXECUTE` отозван.
 
-Internal/trigger function не получает runtime `EXECUTE`, принимает только объявленное ребро и проверяет signed
+Internal/trigger function не получает runtime `EXECUTE`, принимает только объявленное ребро и проверяет attested
 root-call. Function без доказанного caller остаётся без runtime `EXECUTE`. Десять различающихся DEV/TEST bodies не
 получают union прав: surface берётся только из принятой migration chain для среды.
 
@@ -258,6 +253,7 @@ ownership/membership удаляется.
 Декларация перечисляет только выданное. Для каждого object она содержит exact identity, owner, ACL, policy,
 attributes и dependencies. Generator одной транзакцией отзывает всё управляемое у `PUBLIC`, login-, runtime-,
 service- и owner-ролей, затем назначает карту §6.1, выдаёт объявленное и выполняет двустороннюю сверку.
+Инвариант: login без context не имеет ACL или `SET`-пути к table-granted role; любой путь — FAIL независимо от policy.
 
 Контур включает database `CONNECT/CREATE/TEMPORARY/settings`; schemas; tables/columns/RLS/policies; sequences;
 functions/procedures/signatures/security/proconfig; invoker views; matviews/foreign tables; large objects; triggers,
@@ -294,36 +290,40 @@ Backup — локальная административная операция 
 Одна команда использует фактические каталоги и server log и печатает principal/object/result:
 
 1. красный baseline: сегодняшнее прямое подключение без port key отдаёт данные;
-2. каждый login из `pg_roles` с верным паролем, но без key: connection/первый statement отклонён, строк нет, log
-   event есть;
-3. каждая role и membership combination без exact context, включая `WHERE false` и `LIMIT 0`: `42501` до плана;
+2. каждый login из `pg_roles` с верным паролем, но без key: нет table ACL и перехода в table-granted role; первый
+   table statement отклонён permission check, строк нет, log event есть;
+3. каждая role и membership combination без exact context, включая `WHERE false` и `LIMIT 0`: `42501`; отдельный
+   свип доказывает ноль login/role paths, где table grant достижим без accepted context;
 4. `PUBLIC`: нет `CONNECT`, schema `USAGE`, `TEMPORARY` и defaults;
-5. каждая фактическая definer-signature текущей базы: exact declaration owner/caller/surface, без signed call отказ;
-6. negative vectors: другая DB/login/role/backend/start/transaction/class/purpose/arg, expiry, replay и bad signature;
+5. каждая фактическая definer-signature текущей базы: exact declaration owner/caller/surface, без attested call отказ;
+6. negative vectors: wrong key, dump hash вместо ключа, другая DB/login/role/backend/start/transaction/class/purpose/
+   arg, expiry, второй consume и replay;
 7. positive controls через оба порта: pre-session, staff, patient, platform, service и integrator получают только
    объявленный результат; неизвестный портом request не обслуживается;
-8. RLS/policy fault injection и `row_security=off` выявляют silent filtering/лишнюю видимость; отказ без log event
-   не засчитывается;
+8. после valid context RLS/policy fault injection и `row_security=off` выявляют silent filtering/лишнюю видимость;
+   до context громкость отдельно доказывается permission denial, не исполнением policy;
 9. owner/ACL/policy/function/role/cluster census двусторонне совпадает с вариантом декларации для этой базы;
 10. положительный и crash-контроли миграционного окна §7 оба проходят;
 11. зелёный target и снова красный после отката одной независимой поломки каждого механизма.
 
 ## 9. РАЗВИЛКИ, ЗАКРЫТЫЕ В ДИЗАЙНЕ
 
-1. **Port proof или identity proof:** независимы; port proof обязателен всегда, identity/service context уточняет его.
-2. **HMAC или asymmetric:** Ed25519; private key только в env порта, БД хранит public key — меньше secret surface.
-3. **Row policy или statement gate для громкого отказа:** hook до плана плюс RLS — policy одна не ловит zero-scan.
-4. **Формат/protocol оставить исполнителю или зафиксировать:** exact bytes, verifier, challenge state и vectors заданы
-   в §2 — импровизация не может вернуть DB-held signing secret или replay.
+1. **Port proof или identity proof:** независимы; key proof обязателен всегда, identity/service context уточняет его.
+2. **C-verifier с асимметричной подписью или hash:** SHA-256 hash; 256-bit ключ только в env, БД не хранит usable
+   secret, а PostgreSQL 16 проверяет штатным `pgcrypto` — тот же dump-boundary без нового компонента.
+3. **Policy/standing membership или grant/context transition:** второе; без context нет `SET`-пути к table grant,
+   zero-scan падает на permission check, а policies фильтруют только после principal — меньше исходного доступа.
+4. **Protocol оставить исполнителю или зафиксировать:** одна private SQL-state, key/hash, server nonce, DB/backend/
+   transaction/expiry/purpose/args bindings, atomic consume и rotation заданы в §2 — меньше места для replay.
 5. **Платформенная отметка:** отдельный raising accessor — меньше membership-only global access.
 6. **Неизвестный без соединения или pre-session через БД:** человек соединения не получает; известный webapp port
-   получает только signed pre-session purpose/args — меньше bootstrap table access.
+   получает только attested pre-session purpose/args — меньше bootstrap table access.
 7. **Один или два webapp login:** два — pre-session не достигает staff memberships.
 8. **Media worker как DB client или через порт:** compute остаётся, target DB path идёт через webapp без своего login.
 9. **Telemetry global или tenant:** только семь exact functions шва 36, ноль table ACL.
 10. **Три integrator service-роли или две:** две write-роли; diagnostic удалён, probe идёт швом 31.
 11. **Отдельная cleanup-role или `app_worker`:** одна роль до live evidence отдельной поверхности.
-12. **Сохранять `PUBLIC EXECUTE`:** нет; pre-session получает exact login grant и signed gate.
+12. **Сохранять `PUBLIC EXECUTE`:** нет; pre-session получает exact login grant после attestation.
 13. **Staff cross-user phone-history:** `EXECUTE` не выдаётся до конкретного live-отказа.
 14. **Caller `list_platform_organization_members`:** runtime `EXECUTE` пока не выдаётся.
 15. **132 functions или полный каталог:** exact per-database `prosecdef` census; меньшая выборка оставляла owners мимо
@@ -342,7 +342,7 @@ Backup — локальная административная операция 
 24. **Разные DEV/TEST bodies:** права только принятого body, не union.
 25. **Кто делает backup/restore:** локальный `postgres`; нового standing backup login и migrator-wide read нет,
     legacy owners dump игнорируются и нормализуются декларацией.
-26. **`USING (true)` для service `NONE`:** только exact role/object/operation за statement+restrictive gates.
+26. **`USING (true)` для service `NONE`:** только exact role/object/operation после grant+context+restrictive gates.
 27. **Crash-control или оба migration controls:** обязательны и positive real migration, и crash rollback.
 
 ## 10. ВОПРОСЫ ВЛАДЕЛЬЦУ
