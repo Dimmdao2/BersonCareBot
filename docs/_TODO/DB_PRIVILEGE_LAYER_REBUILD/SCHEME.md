@@ -1,4 +1,4 @@
-# SCHEME revision 7 — целевой слой прав БД BersonCareBot
+# SCHEME revision 8 — целевой слой прав БД BersonCareBot
 
 Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), «Права БД, роли и стены», затем [`PLAN.md`](PLAN.md); текущий каталог — только проверка, право появляется лишь из доказанной потребности.
 
@@ -13,7 +13,7 @@ deploy-канала, отдельные webapp staff и patient login и integra
 16 нет: `SET ROLE` проверяет membership `session_user`; `SECURITY DEFINER` его не меняет, а смена роли внутри функции
 не переживает возврат. Login не наследует права и не передаёт membership, но может выполнить `SET LOCAL ROLE` до
 контекста. После принятия policy expression exact runtime-роли, вычисляемый от имени querying role, сравнивает
-`current_user` с literal роли и передаёт его verifier для сверки с transcript; второй switch даёт `42501`. Внутри `SECURITY DEFINER` `current_user` для определения caller не используется.
+`current_user` с literal роли и передаёт его verifier для сверки с transcript; второй switch даёт `42501`.
 
 Громкий отказ несут два разных механизма:
 
@@ -49,15 +49,15 @@ definer-функций и недостижима вне миграционног
 `BYPASSRLS` подчиняется policies; следовательно, владение не создаёт скрытого runtime-обхода. Владельцы 42 швов
 владеют только функциями своего шва и получают только точные права на нужные relations.
 
-Недостающее право не угадывается заранее: оно остаётся невыданным до конкретного отказа живого прогона Ф7, после
-которого выбирается одно из четырёх действий — убрать обход порта, выдать exact право, провести через шов или
-признать путь лишним.
+Недостающее право, включая sequence, не угадывается заранее: оно остаётся невыданным до конкретного отказа живого
+прогона Ф7, после которого выбирается одно из четырёх действий — убрать обход порта, выдать exact право, провести
+через шов или признать путь лишним; exact право на sequence выдаётся только её named seam owner.
 
 ## 2. Ключ, verifier и контекст
 
 ### 2.1 Исполняемый verifier
 
-`app.install_port_context(...)` — единственный `SECURITY DEFINER` verifier шва 1; challenge шифрует штатная `app_ext.pgp_pub_encrypt_bytea`. `P` обязан быть OpenPGP RSA/ElGamal key с encryption-capable ключом или подключом `[E]`; signing/certification-only `[SC]` отвергается как `No encryption key found`.
+`app.install_port_context(...)` — единственный `SECURITY DEFINER` verifier шва 1; challenge шифрует штатная `app_ext.pgp_pub_encrypt_bytea`. `P` обязан быть OpenPGP RSA/ElGamal key с отдельным encryption subkey `[E]`; `[SC]` и master key с `[E]` не принимаются.
 Login имеет `EXECUTE` только на issue/verifier и exact pre-session entrypoints; membership §3.1 отдельно разрешает `SET LOCAL ROLE`, который сам контекст не создаёт.
 
 Приватный OpenPGP decryption key `K` живёт только в env порта. `app_ext.port_key_verifiers` хранит `key_id`, port,
@@ -75,7 +75,7 @@ public encryption key `P`, сроки и revoke. Владелец — `app_objec
    `app.install_port_context(challenge_id, key_id, proof)`; `K` не покидает процесс порта и не может стать bind value.
 4. Verifier заново строит bindings и принимает proof, только если его hash совпал с сохранённым и key active; затем
    атомарно переводит challenge `ISSUED → ACCEPTED`. Несовпадение, expiry и второй consume дают `42501`.
-5. Accepted state привязан к backend, transaction и target role. Policy проверяет `current_user` и вызывает `app.require_accepted_context(expected_identity name)` с тем же declaration-literal; verifier сверяет runtime-role с transcript либо seam-owner с attested root-map. Новая role/transaction, иной backend start, expiry или pool-return дают `42501`;
+5. Accepted state привязан к backend, transaction и target role. Policy проверяет `current_user` и вызывает `app.require_accepted_context(expected_identity name)` с тем же declaration-literal; verifier сверяет runtime-role с transcript либо seam-owner с attested root-map, чья signature передаётся портом в `T` при install context. Новая role/transaction, иной backend start, expiry или pool-return дают `42501`;
    ошибка очистки уничтожает connection. Private state читают только функции шва 1.
 
 | Артефакт у атакующего | Может | Не может |
@@ -96,7 +96,7 @@ public encryption key `P`, сроки и revoke. Владелец — `app_objec
 - `pre_session`: webapp request id, exact function/purpose/args, без tenant identity;
 - `integrator` или `service`: integrator id либо exact job/probe purpose.
 
-`app.require_accepted_context(expected_identity name)` сверяет policy-literal с target role transcript либо объявленной seam owner/root-map; вызываемые после него `current_org_id`, `current_patient_user_id`, `current_integrator_user_id`, `require_platform_principal` читают тот же bound state и бросают `42501` при его несоответствии. Custom GUC и caller-provided ids полномочием не являются.
+`app.require_accepted_context(expected_identity name)` и вызываемые после него `current_org_id`, `current_patient_user_id`, `current_integrator_user_id`, `require_platform_principal` читают тот же bound state и бросают `42501` при его несоответствии. Custom GUC и caller-provided ids полномочием не являются.
 
 Жизненный цикл обоих портов: `BEGIN` → чистый state → challenge/proof → install context → `SET LOCAL ROLE` exact role →
 queries → `COMMIT/ROLLBACK`. Для следующей transaction proof выпускается заново.
@@ -151,7 +151,7 @@ authenticated internal webapp port; отдельного DB-входа в target
 
 ## 4. Стены данных
 
-После `SET LOCAL ROLE` доступ для relation/command равен AND из exact object/column grant, `ENABLE`+`FORCE RLS`, обязательной restrictive context-policy с one-time accessor §1.2 и business policy exact role. Для `INSERT/UPDATE` тот же scope стоит в `WITH CHECK`; business policies могут складываться через OR только за restrictive policy.
+После `SET LOCAL ROLE` доступ для relation/command равен AND из exact object/column grant, `ENABLE`+`FORCE RLS`, обязательной restrictive context-policy с one-time accessor §1.2 и business policy exact role. Для `INSERT/UPDATE` тот же scope стоит в `WITH CHECK`; business policies могут складываться через OR только за restrictive policy. Защита sample values `pg_stats` (`most_common_vals`, `histogram_bounds`) зависит от активного RLS: таблица без стены выпускает через view и строки, и samples.
 Generator закрепляет gate как некоррелированный scalar subquery над scan: `USING (current_user = '<exact_role>'::name AND (SELECT app.require_accepted_context('<exact_role>'::name)) AND (<business predicate>))`; literal в DDL не приходит от caller, для write действует та же форма `WITH CHECK`.
 
 - **Staff:** строка принадлежит `current_org_id()` напрямую либо через объявленный scoped parent.
@@ -247,7 +247,7 @@ ownership/membership удаляется.
 
 Декларация перечисляет только выданное. Для каждого object она содержит exact identity, owner, ACL, policy, attributes и dependencies. Generator одной транзакцией отзывает всё управляемое у `PUBLIC`, login-, runtime-, service- и owner-ролей, затем назначает карту §6.1, выдаёт объявленное и выполняет двустороннюю сверку.
 Инвариант: прикладной login не имеет object ACL; membership точно совпадает с §3.1, без транзитивных рёбер; `pg_stat_activity`, `pg_stat_get_activity(integer)` и выбранные каталогом §1.1 `pg_stat_get_backend_*` не имеют `PUBLIC`/login/runtime ACL.
-Для каждого `relkind='S'` `aclexplode` не находит `PUBLIC` grants, а `has_sequence_privilege` даёт false на `USAGE`/`SELECT`/`UPDATE` для login/runtime/service-ролей; нужный `nextval`/`last_value` доступен только exact seam owner именованной sequence.
+Для каждого `relkind='S'` `aclexplode` не находит `PUBLIC` grants, а `has_sequence_privilege` даёт false на `USAGE`/`SELECT`/`UPDATE` для login/runtime/service-ролей; нужный `nextval`/`last_value` доступен только exact seam owner именованной sequence. Цена: 7 последовательностей, 0 identity-колонок, `app_staff` сейчас держит `rU` на пяти; прямые runtime-INSERT из `projectionOutbox.ts:27` и `integratorPushOutbox.ts:87` переезжают в поимённые швы.
 
 Контур включает database `CONNECT/CREATE/TEMPORARY/settings`; schemas; tables/columns/RLS/policies; sequences;
 functions/procedures/signatures/security/proconfig; invoker views; matviews/foreign tables; large objects; triggers,
@@ -297,7 +297,7 @@ Backup — локальная административная операция 
    прогоны с sentinel `K` доказывают отсутствие приватного key в application/server logs;
 8. positive controls через оба порта: pre-session, staff, patient, platform, service и integrator получают только
    объявленный результат; неизвестный портом request не обслуживается;
-9. после valid context RLS/policy fault injection и `row_security=off` выявляют silent filtering/лишнюю видимость;
+9. после valid context RLS/policy fault injection и `row_security=off` выявляют silent filtering/лишнюю видимость; без context runtime-role получает в `pg_stats` ноль строк прикладных таблиц;
 10. owner/ACL/policy/function/role/cluster census двусторонне совпадает с вариантом декларации для этой базы;
 11. положительный и crash-контроли миграционного окна §7 оба проходят;
 12. зелёный target и снова красный после отката одной независимой поломки каждого механизма.
@@ -335,8 +335,8 @@ Backup — локальная административная операция 
 29. **Row-by-row accessor или one-time gate:** one-time scalar subquery над scan; существующий/отсутствующий indexed value одинаково красные, existence oracle закрыт.
 30. **Activity SQL закрывать по памяти или каталогом:** каталогом; view и `pg_stat_get_activity` закрыты явно, всё семейство `pg_stat_get_backend_*` выбирается predicate §1.1, потому что same-login pool иначе показывает patient literals и новая версия может добавить путь.
 31. **Migrator подключается по `DATABASE_URL` или задаёт identity:** второе; deploy входит локальным `postgres`, `<env>_migrator` имеет `NOLOGIN`/без `CONNECT`, поэтому target migration runner работает только на database host через §7.
-32. **Sequence ACL напрямую или через context gate:** у `PUBLIC`/login/runtime/service ноль effective sequence ACL; named sequence доступна только exact attested seam, иначе `last_value` раскрывает счётчик, а `nextval` меняет его без контекста.
-33. **OpenPGP `[SC]` или encryption-capable key:** только RSA/ElGamal key/subkey `[E]`; иначе штатный `pgp_pub_encrypt_bytea` не находит ключ шифрования.
+32. **Sequence ACL напрямую или через context gate:** у `PUBLIC`/login/runtime/service ноль effective sequence ACL; named sequence доступна только exact attested seam, иначе `last_value` раскрывает счётчик, а `nextval` меняет его без контекста. Для отказа Ф7 доступны все четыре действия; exact право sequence получает только её named seam owner.
+33. **OpenPGP `[SC]` или encryption master key:** только RSA/ElGamal key с отдельным encryption subkey `[E]`; иначе штатный `pgp_pub_encrypt_bytea` не принимает ключ.
 
 ## 10. ВОПРОСЫ ВЛАДЕЛЬЦУ
 
