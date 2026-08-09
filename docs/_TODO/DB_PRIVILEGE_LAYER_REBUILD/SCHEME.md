@@ -1,342 +1,446 @@
-# SCHEME — целевая схема слоя прав БД BersonCareBot
+# SCHEME round 2 — целевой слой прав БД BersonCareBot
 
-Источник схемы — решения владельца в [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), раздел «Права БД,
-роли и стены». Состав входов и runtime-ролей принят из [`evidence/26-roles-and-logins-from-need.md`](evidence/26-roles-and-logins-from-need.md),
-состав владельцев definer-швов — из [`evidence/25-definer-seams-without-bypassrls.md`](evidence/25-definer-seams-without-bypassrls.md).
-Это целевая конструкция, а не описание или diff текущего каталога.
+Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), раздел «Права БД, роли и стены», затем
+[`PLAN.md`](PLAN.md). Round 2 закрывает findings двух ревью
+([`28`](evidence/28-scheme-gaps.md), [`29`](evidence/29-scheme-excess-and-traceability.md)) и принимает полный
+census [`30`](evidence/30-definer-seams-full-census.md). Это проект целевого состояния; ни текущий каталог, ни
+наблюдаемая работоспособность не являются основанием выдать право.
 
-## 1. Как будет устроен доступ
+## 1. Как выглядит система без SQL
 
-У базы ровно два прикладных порта: **webapp** и **integrator**. Порт здесь — единственная граница приложения,
-которая владеет пулом соединений, выбирает допустимый login для входа, после прикладной авторизации переключает
-соединение на точную runtime-роль, подписывает контекст известного принципала и устанавливает его в PostgreSQL.
+У приложения две и только две двери к данным: порт **webapp** и порт **integrator**. Пароль DB-login открывает
+сетевое соединение, но не данные. Перед любой работой порт доказывает базе своей асимметричной подписью: «этот
+вызов пришёл через меня». Это **port attestation**.
 
-У webapp один порт и два пула: login персонала и login пациента/предсессионного запроса. У integrator один порт
-и один пул. Мигратор — отдельный канал деплоя, не порт и не runtime. Глобальный администратор, фоновые задания,
-медиа, доставка, планировщик, диагностика, телеметрия и чистка журналов отдельных подключений не открывают: их
-работа входит через один из двух портов и выполняется после `SET ROLE` в роль с нужным набором прав.
+Личность человека — другое доказательство. После входа webapp отдельно подписывает: кто действует, в какой
+организации и в каком классе (`staff`, `patient`, `platform`). До входа личности нет, но attestation webapp-порта
+есть; база разрешает только точную предсессионную функцию с подписанными назначением и аргументами. Поэтому
+украденный пароль login не позволяет ни искать user id по email, ни узнавать организацию по delivery id, ни
+разрешать payment webhook.
 
-Результат конструкции: пароль login разрешает только установить соединение. Он не сообщает базе, кто действует,
-не открывает таблицы и не заменяет ключ порта. Данные появляются только при одновременном совпадении четырёх
-условий: вход через правильный порт, действительная подпись контекста, точная runtime-роль и точная политика
-конкретной таблицы.
+Integrator и фоновые работы предъявляют port attestation с точной служебной ролью и назначением. Они не выдают
+себе человеческую личность. Ни port attestation, ни principal context не заменяют друг друга: путь, которому
+нужна личность, обязан проверить оба; pre-session/service-путь проверяет порт и получает только свой узкий
+результат.
 
-Норма владельца:
+Строки затем ограничивает PostgreSQL: точный grant, обязательная restrictive policy проверки attestation и
+policy области данных. Прямой login, неверная роль, другая транзакция, другой backend, подменённый аргумент,
+отсутствующий или неверный контекст приводят к `42501`; запрос не возвращает строки, ошибка попадает в server log.
 
-> «БД не пускает мимо порта без ключа, а ключ даётся только портом. И порт автоматически не пускает без знания
-> кто это».
+Ни login, ни runtime-role, ни владелец definer-шва не имеет `BYPASSRLS`. Вне контролируемой миграционной
+транзакции полномочие обхода остаётся только у поимённого суперпользователя `postgres`.
 
-## 2. Ключ и подписанный контекст
+### Явное расхождение с прежней фразой про неизвестного
 
-### 2.1 Сквозной механизм
+Буквальная строка PLAN Ф3б «неизвестный не получает соединения» **смягчена осознанно**: неизвестный человек не
+получает DB credentials или соединение напрямую, но webapp-порт открывает за него короткую транзакцию для входа,
+регистрации и публичного lookup. В ней есть port attestation и нет principal context; доступны только точные
+pre-session seams. Полный запрет такой транзакции сделал бы DB-backed вход невозможным, а голое соединение без
+ключа вернуло бы дыру. Это расхождение, а не скрытое толкование прежней строки.
 
-1. Ключ `DB_PRINCIPAL_SIGNING_SECRET` живёт только в env webapp и integrator. Он не хранится в таблице, не
-   передаётся клиенту и не выдаётся login/runtime-ролям.
-2. Порт сначала устанавливает прикладную личность и разрешённый вид действия. Неопознанному запросу не выдаётся
-   обычное tenant-соединение. Предсессионные действия выполняются только через поимённые auth/resolver seams,
-   чей контракт не даёт вызывающему прямого доступа к таблицам.
-3. Порт подписывает короткоживущий контекст: вид принципала, его `organization_id`, `patient_user_id` или
-   `integrator_user_id`, разрешённый scope/назначение, срок действия и одноразовый nonce. Контекст привязывается к
-   конкретному backend-соединению.
-4. `app.install_signed_context(...)` как узкая `SECURITY DEFINER`-функция проверяет HMAC, срок, nonce и привязку
-   к соединению; только после этого устанавливает контекст. Повтор nonce отвергается.
-5. Политики получают значения только через контекстные accessors. `app.current_org_id()`,
-   `app.current_patient_user_id()` и `app.current_integrator_user_id()` обязаны **RAISE с SQLSTATE `42501`**,
-   если подписанного контекста нет, он истёк, не совпадает с видом роли или не подходит запросу. Возврат `NULL`
-   запрещён: это превращает отказ в тихий ноль.
-6. После транзакции порт освобождает/сбрасывает контекст до возврата соединения в пул. Следующий запрос не может
-   унаследовать личность предыдущего.
+## 2. Два независимых доказательства
 
-Таблицы ключа, nonce и установленного контекста не имеют ACL для login- и tenant/runtime-ролей. Их читает или
-меняет только `app_seam_context_owner` по именованным колонкам и политикам, привязанным к текущему backend.
-Поэтому роль внутри tenant-сессии не может ни узнать ключ, ни вставить себе контекст, ни продлить его.
+### 2.1 Port attestation: «это порт»
 
-Украденный пароль login без ключа даёт соединение с нулевой табличной поверхностью. Злоумышленник не может создать
-валидную подпись; `SET ROLE` само по себе данных не открывает; первый контекстный accessor бросает `42501`, строки
-не выдаются, PostgreSQL пишет ошибку в серверный лог.
+- У webapp и integrator свои private signing keys. Private keys живут только в env соответствующего порта, не
+  передаются клиенту и не попадают в PostgreSQL, backup или dump.
+- PostgreSQL хранит только public verification keys с `key_id`, портом и сроком действия. Exact columns читает
+  только verifier шва 1; менять allowlist может только миграционный канал. Login/runtime и остальные seam owners
+  не получают ACL.
+- PostgreSQL не хранит private/signing material: dump содержит только public verifier и не позволяет подписать
+  port attestation или principal.
+- В начале транзакции база выдаёт одноразовый challenge. Подписываемый envelope связывает `key_id`, точный порт,
+  database OID, `session_user`, целевой runtime-role либо signature definer-функции, backend identity вместе с
+  `backend_start`, transaction id, purpose, canonical hash аргументов, expiry и nonce.
+- База проверяет подпись public key, все привязки и одноразовость nonce. Принятый envelope живёт только как
+  transaction-local значение. Конец или abort транзакции уничтожает его силами PostgreSQL.
+- Любой pre-session/definer-вызов проверяет envelope с собственной константой function signature/purpose и hash
+  фактических аргументов **до первого чтения**. Caller-supplied UUID, email, delivery id, webhook id и custom GUC
+  сами по себе полномочием не являются.
 
-### 2.2 Два обязательных изменения
+Функция/акцессор port gate бросает `42501`, если envelope отсутствует, испорчен, просрочен, выпущен другим портом,
+для другой БД, login, роли, backend, транзакции, функции, purpose или набора аргументов. Проверка не возвращает
+`false`/`NULL`, потому что это был бы тихий ноль.
 
-- Контекстные accessors перестают возвращать `NULL` при отсутствии/несовпадении контекста и начинают бросать
-  `42501`.
-- Окружающий `bootstrap`-принципал перестаёт получать соединение с прямой табличной поверхностью. До установления
-  личности доступны только точные `EXECUTE` на предсессионные seams; у предсессионного login нет табличных прав.
+### 2.2 Principal context: «это такой человек»
 
-## 3. Логины: четыре входа на среду
+После прикладной идентификации порт подписывает отдельный principal envelope. Он повторно связан с уже принятой
+port attestation и той же DB/login/role/backend/transaction, а также содержит:
 
-| Login | Точка входа | Что ему разрешено |
+- `principal_class`: `staff`, `patient`, `integrator` или `platform`;
+- нужные этому классу `actor_user_id`, `organization_id`, `patient_user_id` либо `integrator_user_id`;
+- purpose, expiry и отдельный nonce.
+
+`app.current_org_id()`, `app.current_patient_user_id()` и `app.current_integrator_user_id()` проверяют подпись,
+port attestation, exact role и транзакцию и бросают `42501` при несовпадении. Для глобального администратора
+вводится отдельный бросающий accessor `app.require_platform_principal()`. Он не возвращает tenant id, а доказывает
+класс `platform`; без него `app_platform_settings` получает громкий отказ, а не silent zero.
+
+Principal одного класса нельзя использовать после `RESET ROLE; SET ROLE` в другой runtime-role: exact role входит
+в подпись и проверяется accessor-ом. Principal из прошлой транзакции, pool lease или повторно использованного PID
+недействителен.
+
+### 2.3 Жизненный цикл соединения
+
+Оба порта выполняют один порядок: `BEGIN` → проверка чистого transaction-local состояния → выбор exact role →
+challenge → port attestation → при необходимости principal context → запросы → `COMMIT/ROLLBACK`. Соединение с
+ошибкой установки или очистки уничтожается, а не возвращается в pool. Transaction-local хранение является
+основной fail-closed границей; application cleanup остаётся проверкой, не единственной защитой.
+
+В шве 1 остаётся шесть целевых функций: `install_signed_context`, три tenant/integrator accessor-а, новый port
+gate и `require_platform_principal`. Прежние `release_principal_context` и `reset_principal_context` перестают быть
+definer-контрактами: завершение транзакции само снимает контекст. Поэтому пересборка механизма не увеличивает
+census швов и функций.
+
+## 3. Логины, membership и runtime-роли
+
+### 3.1 Четыре прикладных login на среду
+
+| Login | Назначение | Standing access |
 |---|---|---|
-| `<env>_migrator` | канал деплоя | schema/DDL только в окне миграции; не участвует в runtime |
-| `<env>_webapp_staff` | пул персонала webapp | вход в допустимые webapp runtime-роли через `SET ROLE`; прямых прав на данные нет |
-| `<env>_webapp_patient` | пул пациента и предсессионных вызовов webapp | `EXECUTE` точных pre-session seams; после опознания — `SET ROLE app_patient`; прямых прав на таблицы нет |
-| `<env>_integrator` | пул integrator | вход только в три integrator runtime-роли через `SET ROLE`; прямых прав на данные нет |
+| `<env>_migrator` | канал deploy/migration | только `CONNECT`; временные DDL-полномочия выдаются внутри одной миграционной транзакции |
+| `<env>_webapp_staff` | staff/platform/service-транзакции webapp | `SET` только в объявленные webapp runtime-роли; прямых object ACL нет |
+| `<env>_webapp_patient` | patient и pre-session webapp | `SET app_patient` после идентификации; exact `EXECUTE` pre-session seams; прямых object ACL нет |
+| `<env>_integrator` | integrator и его service-транзакции | `SET` только в delivery/scheduler роли; exact `EXECUTE` integrator seams; прямых object ACL нет |
 
-`postgres` остаётся суперпользователем с сильным production-паролем, но не считается прикладным login. У
-глобального администратора отдельного login нет: он входит через webapp и после прикладного gate переключается в
-`app_platform_settings` с подписанным platform-контекстом.
+Все четыре: `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`. Каждое разрешённое
+membership имеет `INHERIT FALSE, SET TRUE, ADMIN FALSE`; все остальные рёбра отсутствуют. Декларация и сверка
+сравнивают все три option, а также транзитивную достижимость. `RESET ROLE` внутри соединения доступен всегда и не
+считается стеной: данные удерживают port/principal proof и exact role binding.
 
-Login состоит непосредственно только в ролях своего порта. Runtime-роли не состоят друг в друге и имеют
-`NOLOGIN`; транзитивных путей вроде tenant-role → platform-role нет.
+| Member login | Exact target roles |
+|---|---|
+| `<env>_migrator` | нет standing membership |
+| `<env>_webapp_staff` | `app_staff`, `app_clinic_billing`, `app_platform_settings`, `app_worker`, `app_operational_media_worker`, `saas_telemetry_operator` |
+| `<env>_webapp_patient` | `app_patient` |
+| `<env>_integrator` | `app_operational_delivery_worker`, `app_operational_scheduler` |
 
-## 4. Runtime-роли: десять различных наборов прав
+`postgres` — поимённый суперпользователь, не прикладной login. Глобальный администратор отдельного login не имеет.
 
-Все десять ролей — `NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`. Табличные,
-колоночные, функциональные и схемные права перечисляются поимённо в декларации; права одного набора не наследуются
-соседним набором.
+### 3.2 Девять runtime-ролей
 
-| Роль | Порт | Scope | Отличительный набор прав |
+Каждая роль — `NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT`, не член другой
+runtime-role.
+
+| Роль | Порт | Scope | Единственная потребность |
 |---|---|---|---|
-| `app_staff` | webapp | `ORG` | лечебная и организационная работа только своей клиники: пациенты, приёмы, расписание, услуги, программы и назначения; без platform-global и без управления деньгами клиники |
-| `app_patient` | webapp | `OWN` | только свои записи, программа, платежи и переписка в своей организации; профиль — только поимённые колонки; тесты — только включённые в его программу, без внутренних комментариев и служебных пометок |
-| `app_clinic_billing` | webapp | `ORG` | счета, подписка и тариф только своей клиники после gate управления клиникой; эти права не входят в каждую staff-сессию |
-| `app_platform_settings` | webapp | `GLOBAL` | организации, тарифы, счета и платформенный каркас; медицина и клинические данные исключены |
-| `app_worker` | webapp | `NONE` | фоновые задания webapp, retention и чистка журналов; без прав обычного сотрудника клиники |
-| `app_operational_media_worker` | webapp | `NONE` | точные операции над media files, заданиями транскода и технической статистикой воспроизведения |
-| `saas_telemetry_operator` | webapp | `GLOBAL` | только поимённые функции телеметрии изоляции; прямых табличных прав нет |
-| `app_operational_delivery_worker` | integrator | `NONE` | чтение/изменение точных очередей доставки и вызов поимённых функций materialization/delivery |
-| `app_operational_scheduler` | integrator | `NONE` | idempotency, scheduler ticks, incidents и probes; не получает право изменять очередь как delivery worker |
-| `app_operational_diagnostic` | integrator | `NONE` | только чтение диагностической проекции; никаких queue mutations |
+| `app_staff` | webapp | `ORG` | лечебная и организационная работа своей клиники |
+| `app_patient` | webapp | `OWN` | только свои данные в текущей организации; тесты только из своей программы, без внутренних полей |
+| `app_clinic_billing` | webapp | `ORG` | коммерция своей клиники после отдельного application gate |
+| `app_platform_settings` | webapp | `PLATFORM` | тарифы, счета и каркас организаций; медицина исключена |
+| `app_worker` | webapp | `NONE` | webapp jobs, retention и очистка журналов |
+| `app_operational_media_worker` | webapp | `NONE` | точные media/transcode/statistics operations |
+| `saas_telemetry_operator` | webapp | `PLATFORM_SERVICE` | только exact functions телеметрии изоляции, ноль table ACL |
+| `app_operational_delivery_worker` | integrator | `NONE` | точные очереди и delivery operations |
+| `app_operational_scheduler` | integrator | `NONE` | idempotency, ticks, incidents и probes без queue mutation доставки |
 
-Недоказанное право не выдаётся. Если живой прогон получает `42501`, решение принимается по конкретному отказу:
-удалить обход порта, выдать точное право, перенести операцию в seam либо признать путь лишним. Расширение роли
-«на всякий случай» запрещено.
+`app_operational_diagnostic` удаляется как лишняя роль: её единственный read-only health-путь вызывает точную
+probe-функцию шва 31 через integrator port attestation. Он не получает table ACL и не переезжает в delivery-role,
+поэтому удаление роли не расширяет права health-проверки.
 
-## 5. Владельцы 35 definer-швов
+### 3.3 Громкий отказ для пяти прежних service-путей `NONE`
 
-132 функции разделяются по назначению между 35 владельцами. Каждый владелец имеет форму
-`NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`, не имеет членов и не
-владеет таблицами. Он владеет только функциями своего шва и получает только нужные операции на поимённых колонках
-своих таблиц. `EXECUTE` функции выдаётся точным caller-ролям, не `PUBLIC` по умолчанию.
+У service-пути нет tenant id, но отсутствие строкового tenant-предиката не означает отсутствие стены. Каждая
+служебная операция требует port attestation с exact port, role, transaction и purpose. На прямых таблицах стоит
+`AS RESTRICTIVE` policy, вызывающая бросающий service/port accessor; только за ней применима business policy exact
+role. `USING (true)` допустима для runtime-role лишь когда объявленная работа действительно охватывает все строки
+**этой одной таблицы**; exact columns/operations и restrictive port gate остаются обязательны.
 
-| # | Owner | Шов | Функций | Ограниченная поверхность |
-|---:|---|---|---:|---|
-| 1 | `app_seam_context_owner` | подписанный контекст | 6 | nonce, signing secret и principal context; доступ привязан к backend |
-| 2 | `app_seam_password_auth_owner` | парольный вход | 9 | password credentials, ALTCHA/rate-limit, минимальные identity/settings колонки |
-| 3 | `app_seam_email_otp_owner` | email OTP | 8 | challenges/cooldowns, доставка OTP, минимальная регистрация пользователя |
-| 4 | `app_seam_passkey_owner` | passkey | 9 | passkey accounts, challenges и credentials |
-| 5 | `app_seam_phone_binding_owner` | привязка телефона/канала | 3 | channel bindings и активный phone-history interval |
-| 6 | `app_seam_self_security_owner` | self-security/session epoch | 4 | PIN и поимённое изменение session epoch |
-| 7 | `app_seam_identity_lookup_owner` | предсессионный identity lookup | 2 | ID и предпочтённый auth-канал, без адресной книги |
-| 8 | `app_seam_patient_invite_owner` | patient invite | 7 | invite/proof/bearer, enrollment и минимальная identity поверхность |
-| 9 | `app_seam_org_invite_owner` | staff organization invite | 2 | token lookup/accept и атомарное membership creation |
-| 10 | `app_seam_specialist_provision_owner` | первая организация специалиста | 5 | атомарный provisioning организации, владельца и снимка справочника |
-| 11 | `app_seam_public_slug_owner` | public slug resolver | 2 | active slug/directory/organization columns |
-| 12 | `app_seam_public_booking_owner` | public booking resolver | 1 | active branch/service/availability/mapping columns |
-| 13 | `app_seam_dedicated_bot_owner` | dedicated bot resolver | 2 | active bot binding без выдачи credential surface caller-у |
-| 14 | `app_seam_payment_webhook_owner` | payment webhook resolver | 3 | provider identifiers, invoice и точный provider setting |
-| 15 | `app_seam_delivery_scope_owner` | delivery scope resolver | 1 | organization scope точной queue/reminder/broadcast/incident строки |
-| 16 | `app_seam_patient_program_resolver_owner` | patient program resolver | 1 | program + active enrollment, суженные подписанным patient id |
-| 17 | `app_seam_settings_preauth_owner` | preauth settings | 5 | allowlist публичных provider/VAPID ключей |
-| 18 | `app_seam_settings_integrator_owner` | integrator settings | 5 | allowlist runtime-настроек integrator |
-| 19 | `app_seam_settings_runtime_owner` | runtime settings | 5 | allowlist server/public/patient settings |
-| 20 | `app_seam_org_commerce_owner` | SaaS/org commerce | 8 | tariff/access/quota/billing операции, суженные организацией |
-| 21 | `app_seam_patient_org_projection_owner` | patient org projection | 2 | активные организации и entitlements текущего пациента |
-| 22 | `app_seam_patient_booking_owner` | patient booking | 2 | appointments/booking projection текущего пациента |
-| 23 | `app_seam_patient_self_actions_owner` | patient self actions | 3 | timezone, plan-open и support activity только текущего пациента |
-| 24 | `app_seam_reminder_patient_owner` | patient reminder actions | 8 | occurrence/rule/settings/journal текущего пациента |
-| 25 | `app_seam_reminder_materialization_owner` | reminder materialization | 5 | scheduler scan и точные materialization operations |
-| 26 | `app_seam_reminder_specialist_owner` | specialist reminder | 4 | specialist task и одна transaction-local queue row |
-| 27 | `app_seam_reminder_appointment_owner` | appointment reminder | 2 | appointment и одна transaction-local queue row |
-| 28 | `app_seam_reminder_email_cooldown_owner` | email cooldown | 2 | exact cooldown marker columns |
-| 29 | `app_seam_telemetry_patient_owner` | patient telemetry | 2 | analytics текущей организации и пациента |
-| 30 | `app_seam_telemetry_media_owner` | media telemetry | 2 | media organization и resolution aggregates/events |
-| 31 | `app_seam_telemetry_operator_owner` | operator telemetry | 5 | named global incident/delivery telemetry columns |
-| 32 | `app_seam_catalog_public_owner` | public booking cities | 1 | только активные строки публичного справочника |
-| 33 | `app_seam_catalog_admin_owner` | clinical measure kinds | 3 | нормализованные list/save/upsert справочника |
-| 34 | `app_seam_org_directory_owner` | platform org directory | 1 | member identity/role/status для platform-only caller |
-| 35 | `app_seam_telemetry_exclusion_owner` | telemetry exclusion | 2 | exact test-account identifiers и enrollment lookup |
+| Прежний service-путь | Целевой denial |
+|---|---|
+| `app_worker` | webapp attestation + exact `app_worker` + job purpose; чужой job/table не проходит |
+| media worker | отдельный процесс обращается по authenticated internal HTTP к webapp-порту; DB-login у процесса нет; в БД — webapp attestation + exact media purpose |
+| delivery worker | integrator attestation + exact delivery role/purpose; queue business policy ограничивает допустимые состояния/lease |
+| scheduler | integrator attestation + exact scheduler role/purpose; delivery mutation policy отсутствует |
+| diagnostic | runtime-role отсутствует; exact probe-function шва 31 проверяет integrator attestation и возвращает фиксированный health result |
 
-`saas_system_health_owner` — отдельный уже выделенный health-шов и в число 35 не входит. Он также
-`NOLOGIN NOBYPASSRLS`, не имеет членов, получает named-column `SELECT` только на curated health-таблицы и
-поимённые политики `TO saas_system_health_owner`. Один общий владелец 132 функций больше не существует как
-источник общей силы. Если техническая роль `app_owner` сохраняется для перехода, она `NOBYPASSRLS` и не имеет
-широкой табличной или функциональной поверхности.
+`media_files` не выбирает между «tenant» и «worker». Tenant-вызовы проходят restrictive port+principal gate и
+org/patient business policy; media service проходит другую exact-role policy с media purpose. Из-за `NOINHERIT`
+policies tenant и service ролей не складываются для одного caller.
 
-## 6. Стены по классам таблиц
+## 4. Стена данных
 
-Норма владельца:
+Для каждой relation/command доступ образует один AND:
 
-> «Все таблицы с любыми данными клиник/докторов и пациентов должны быть обязательно закрыты стенами и клиники и
-> пациента, с правильным доступом глобал админа. Как и системные таблицы платформы должны нести стену своей роли».
+1. точный object/column grant;
+2. `ENABLE ROW LEVEL SECURITY` и `FORCE ROW LEVEL SECURITY`;
+3. обязательная `AS RESTRICTIVE` gate-policy, чей accessor проверяет port attestation и бросает `42501`;
+4. principal/service business policy exact role; для `INSERT/UPDATE` тот же scope закреплён в `WITH CHECK`.
 
-Стена каждой таблицы состоит одновременно из трёх слоёв: **GRANT на точную операцию/колонки · `ENABLE ROW LEVEL
-SECURITY` + `FORCE ROW LEVEL SECURITY` · policy на точную роль с точным строковым предикатом**. Отсутствие любого
-слоя означает отказ, а не fallback к более широкой роли.
+Business policies могут быть permissive и объединяться через OR только **внутри** уже обязательного restrictive
+gate. Там, где подразумевается conjunction организации, человека и business condition, оно записывается одной
+policy либо несколькими restrictive policies. Catalog invariant запрещает table/role/command без gate и широкую
+permissive policy, которая применима другой роли через membership.
 
-### 6.1 Данные клиник, докторов и пациентов
+### Классы
 
-К этому классу относятся строки, принадлежащие организации/клинике, специалисту или пациенту напрямую либо через
-scoped parent: клинические данные, приёмы, программы, назначения, коммуникации, расписание, услуги, memberships,
-файлы и связанные события.
+- **Клиника/staff:** строка принадлежит `app.current_org_id()` напрямую либо через объявленный scoped parent.
+- **Patient:** одновременно совпадают организация и `current_patient_user_id()` либо доказанная связь
+  enrollment/program/appointment; отсутствие patient-policy означает полный запрет.
+- **Platform:** policy вызывает `require_platform_principal()`; роли нет на медицинских таблицах.
+- **Integrator/service:** проверяется exact port/role/purpose; где row scope существует, он дополнительно связан с
+  подписанными аргументами или выведен функцией, но caller-provided GUC/identifier не является authority.
+- **Authentication/context secrets:** runtime-role не имеет table ACL; доступ только через exact seam call с
+  port proof. Public key не является secret, но его изменение также недоступно runtime.
 
-- **Стена клиники:** policy `TO app_staff`/`TO app_clinic_billing` требует
-  `row.organization_id = app.current_org_id()` либо то же равенство через объявленный scoped parent. Операции и
-  колонки различаются между staff и billing.
-- **Стена пациента:** отсутствие patient-policy означает полный запрет пациенту. Если пациентский доступ нужен,
-  policy `TO app_patient` одновременно требует организацию и владельца:
-  `row.organization_id = app.current_org_id()` **AND** `row.patient_user_id = app.current_patient_user_id()` либо
-  доказанную связь через enrollment/program/appointment. Дополнительное бизнес-условие остаётся внутри policy:
-  например, пациент видит только тест, включённый в его программу.
-- **Глобальный администратор:** на клинических/медицинских таблицах policy для `app_platform_settings` отсутствует.
-  Его корректный доступ ограничен платформенным каркасом, организациями, тарифами и коммерцией; «глобал админ не
-  лезет в медицину, пока так».
+### Транзитивная сила записи
 
-Так одна и та же tenant-таблица несёт обе стены: организация ограничивает любую арендную видимость, а пациентская
-policy дополнительно ограничивает видимость конкретным человеком. «Стена пациента» не означает, что пациенту
-положен доступ к каждой таблице; она означает точный patient-предикат там, где доступ объявлен, и полный отказ там,
-где он не объявлен.
+Декларация writable surface включает не только таблицу, но и `pg_trigger`, вызываемые trigger functions, FK,
+UNIQUE/EXCLUDE и cascade actions. Trigger-definer входит в полный function census; invoker-trigger не получает
+силу шире caller. Межстенный FK/UNIQUE либо включает tenant key, либо mutation выполняет exact seam с signed scope
+и одинаковым внешним отказом, не раскрывающим существование чужого ключа. Нельзя считать relation безопасной,
+проверив только текст прямой функции.
 
-### 6.2 Системные таблицы платформы
+## 5. Все definer-швы
 
-Организации как платформенные объекты, тарифы, SaaS billing/policies, глобальные настройки и platform directory
-имеют RLS+FORCE и policy только на свою точную роль или seam owner. `app_platform_settings` требует подписанный
-platform-контекст, установленный webapp-портом после gate глобального администратора. Само членство login в роли
-не открывает строки. Tenant-роль не получает эти таблицы как побочный эффект staff-доступа.
+Census 30 распределил **244 функции по 42 швам**. Точная арифметика воспроизводится командой:
 
-### 6.3 Операционные и интеграторские таблицы
+```bash
+printf '%s\n' 6 17 25 9 13 8 2 7 2 11 3 1 2 3 1 1 7 10 5 8 4 2 3 8 6 4 2 2 2 2 12 2 3 1 2 7 4 5 5 11 12 4 \
+  | awk '{s+=$1} END{print s}'
+```
 
-Очереди, idempotency, scheduler state, media jobs, telemetry и health имеют RLS+FORCE и policy на точную
-служебную роль либо exact seam owner. Delivery, scheduler и diagnostic не делят общий широкий policy. Если
-операция уже знает организацию или queue id, policy сужается этим значением и подписанным контекстом. Глобальная
-техническая агрегация получает только явное исключение из следующего раздела.
+Она печатает `244`; полный catalog mapping и owner census — evidence/30 Q2/Q6/Q7.
 
-### 6.4 Ключ, контекст и authentication secrets
+| # | Owner | Шов | Функций |
+|---:|---|---|---:|
+| 1 | `app_seam_context_owner` | port attestation и principal context | 6 |
+| 2 | `app_seam_password_auth_owner` | password auth/rate limit | 17 |
+| 3 | `app_seam_email_otp_owner` | email OTP | 25 |
+| 4 | `app_seam_passkey_owner` | passkey | 9 |
+| 5 | `app_seam_phone_binding_owner` | contact/channel binding | 13 |
+| 6 | `app_seam_self_security_owner` | PIN/session epoch | 8 |
+| 7 | `app_seam_identity_lookup_owner` | pre-session identity lookup | 2 |
+| 8 | `app_seam_patient_invite_owner` | patient invite | 7 |
+| 9 | `app_seam_org_invite_owner` | staff organization invite | 2 |
+| 10 | `app_seam_specialist_provision_owner` | specialist/first-org provisioning | 11 |
+| 11 | `app_seam_public_slug_owner` | public slug | 3 |
+| 12 | `app_seam_public_booking_owner` | public booking | 1 |
+| 13 | `app_seam_dedicated_bot_owner` | dedicated bot | 2 |
+| 14 | `app_seam_payment_webhook_owner` | payment webhook | 3 |
+| 15 | `app_seam_delivery_scope_owner` | delivery scope | 1 |
+| 16 | `app_seam_patient_program_resolver_owner` | patient program resolver | 1 |
+| 17 | `app_seam_settings_preauth_owner` | preauth settings | 7 |
+| 18 | `app_seam_settings_integrator_owner` | integrator settings | 10 |
+| 19 | `app_seam_settings_runtime_owner` | runtime settings | 5 |
+| 20 | `app_seam_org_commerce_owner` | SaaS/org commerce | 8 |
+| 21 | `app_seam_patient_org_projection_owner` | patient/org projection | 4 |
+| 22 | `app_seam_patient_booking_owner` | patient booking | 2 |
+| 23 | `app_seam_patient_self_actions_owner` | patient self actions | 3 |
+| 24 | `app_seam_reminder_patient_owner` | patient reminders | 8 |
+| 25 | `app_seam_reminder_materialization_owner` | reminder materialization/discovery | 6 |
+| 26 | `app_seam_reminder_specialist_owner` | specialist reminder | 4 |
+| 27 | `app_seam_reminder_appointment_owner` | appointment reminder | 2 |
+| 28 | `app_seam_reminder_email_cooldown_owner` | email cooldown | 2 |
+| 29 | `app_seam_telemetry_patient_owner` | patient telemetry | 2 |
+| 30 | `app_seam_telemetry_media_owner` | media telemetry | 2 |
+| 31 | `app_seam_telemetry_operator_owner` | operator telemetry/probes | 12 |
+| 32 | `app_seam_catalog_public_owner` | public catalogs | 2 |
+| 33 | `app_seam_catalog_admin_owner` | clinical measure kinds | 3 |
+| 34 | `app_seam_org_directory_owner` | platform org directory | 1 |
+| 35 | `app_seam_telemetry_exclusion_owner` | telemetry exclusion | 2 |
+| 36 | `saas_telemetry_owner` | SaaS isolation telemetry | 7 |
+| 37 | `saas_system_health_owner` | curated system health | 4 |
+| 38 | `app_seam_login_token_owner` | messenger login tokens | 5 |
+| 39 | `app_seam_oauth_owner` | OAuth binding | 5 |
+| 40 | `app_seam_phone_otp_owner` | phone OTP/challenges | 11 |
+| 41 | `app_seam_staff_security_owner` | staff 2FA/TOTP/recovery | 12 |
+| 42 | `app_seam_patient_lfk_media_owner` | patient LFK/platform-media entitlement | 4 |
 
-Nonce/context/signing, password/OTP/passkey и invite secret surfaces не имеют ACL для runtime-ролей. Их стены —
-RLS+FORCE, named-column grants и policies только на соответствующий `app_seam_*_owner`; наружу выходит лишь
-результат фиксированной функции.
+Каждый owner имеет `NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`, не имеет
+членов, не владеет relation/schema/database и владеет только функциями своего шва. Доступ к relations — exact
+column/operation grants и policies. `saas_telemetry_owner` и `saas_system_health_owner` обоснованы соответственно
+global isolation telemetry и curated cross-tenant health, а не тем, что они уже существовали.
 
-## 7. Как право проходит через стену
+Все TEST-функции владельца login-migrator получают NOLOGIN owners из таблицы; ни одна функция не остаётся у login.
+`start_provisioned_organization_trial()` уходит от runtime-role `app_platform_settings` к
+`app_seam_specialist_provision_owner`. `app_owner` в целевом составе отсутствует. Ни login-, ни runtime-role не
+владеет definer-функцией.
 
-Обычная выдача доступа всегда поимённа:
+Body census evidence/30 не нашёл ни одной функции, которой нужен `BYPASSRLS`: cross-tenant чтение даётся только
+exact policies на named relations/columns.
 
-1. декларация выдаёт роли или seam owner только нужный `USAGE`, `EXECUTE` и table/column ACL;
-2. на этой же точной таблице декларация создаёт policy `TO <exact role_or_owner>`;
-3. policy проверяет signed org/patient/integrator/platform context и, где нужно, дополнительную связь строки;
-4. `FORCE RLS` подчиняет стене владельца таблицы; владелец функции таблицей не владеет;
-5. отсутствие policy или контекста закрывает доступ. Общей policy для «всех внутренних ролей» нет.
+Для каждой definer-функции обязательны:
 
-`BYPASSRLS` не используется ни одной runtime-ролью, seam owner, `app_owner`, health owner или стационарным
-мигратором. В постоянном состоянии единственное техническое исключение — суперпользователь `postgres`.
+- function-level `search_path`, содержащий только trusted schemas с `pg_catalog` и `pg_temp` последним; все
+  application relations/functions/types/operators в body квалифицированы схемой;
+- database `TEMPORARY` отозван у `PUBLIC` и runtime logins; runtime не имеет `CREATE` ни в одной schema из path;
+- `EXECUTE` отозван у `PUBLIC` по умолчанию. Весь DEV `PUBLIC`-set из census evidence/30 Q5 отзывается, а нужные
+  pre-session функции получают exact caller только через порт;
+- port-entrypoint проверяет signed exact function/purpose/arguments до первого relation access; custom GUC и
+  caller id не authority;
+- internal/trigger function не имеет `EXECUTE` у login/runtime, принимает только объявленное ребро вызова от
+  owner и проверяет signed root-call той же транзакции; caller-controlled часть её входа уже входит в hash root;
+- объявленная прямая и транзитивная relation/trigger/constraint/function surface;
+- exact caller list; функция без доказанного caller сохраняет owner, но не получает runtime `EXECUTE`.
 
-### 7.1 Честное cross-tenant исключение
+Фактические **72** DEV-функции с `PUBLIC EXECUTE` получены и помечены `REVOKE` точной Q5-командой (на DEV она
+печатала `72|231`, на TEST — `0|244`):
 
-До сессии или до определения scope некоторые функции действительно не могут иметь tenant predicate: поиск
-публичного slug/booking, auth identity, webhook invoice, delivery scope, scheduler materialization, глобальная
-операционная телеметрия и curated health. Для них допустима policy `USING (true)` только в следующей узкой форме:
+```sql
+BEGIN TRANSACTION READ ONLY;
+WITH funcs AS (
+  SELECT p.oid,p.proacl,p.proowner
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE p.prosecdef AND n.nspname IN ('app','public','integrator','app_ext')
+), expanded AS (
+  SELECT DISTINCT f.oid,x.grantee
+  FROM funcs f
+  CROSS JOIN LATERAL aclexplode(coalesce(f.proacl,acldefault('f',f.proowner))) x
+  WHERE x.privilege_type='EXECUTE'
+)
+SELECT count(DISTINCT oid) FILTER (WHERE grantee=0),count(DISTINCT oid) FROM expanded;
+ROLLBACK;
+```
 
-- на одной поимённой таблице;
-- `TO` одному точному `NOLOGIN NOBYPASSRLS` seam owner;
-- только вместе с named-column ACL;
-- функция имеет фиксированное тело и выдаёт наружу минимальный результат;
-- `EXECUTE` функции выдан точным caller-ролям;
-- policy и исключение присутствуют в декларации и видны в `pg_policy`/двусторонней сверке.
+Cross-tenant `USING (true)` допустима только exact NOLOGIN seam owner на exact relation/columns за обязательным
+restrictive signed-call gate. Для principal-aware швов она запрещена. Две policies разных owners на
+`email_send_cooldowns` объявляются обе: слияние OTP и reminder owners расширило бы соседние credential surfaces.
 
-Это сознательное, видимое в каталоге cross-tenant исключение. Оно не называется tenant-policy и не маскируется
-общим owner, `PUBLIC`, владением таблицей или `BYPASSRLS`. Если контекст уже существует, `USING (true)` запрещён:
-policy обязана использовать signed principal или transaction-local точный идентификатор.
+## 6. Декларация, генератор и полный объектный контур
 
-## 8. Окно миграции
+Декларация перечисляет только выданное. Генератор одной транзакцией отзывает всё управляемое у `PUBLIC`, login-,
+runtime-, service- и owner-ролей, затем выдаёт объявленное и делает двустороннюю сверку. Обязательный объектный
+контур:
 
-Временная элевация существует только внутри migration wrapper:
+- database: `CONNECT`, `CREATE`, `TEMPORARY`, owner и per-role/per-database settings;
+- schemas: owner, `USAGE`, `CREATE`;
+- ordinary/partitioned tables, columns, RLS/FORCE, permissive/restrictive policies and commands;
+- sequences (`USAGE/SELECT/UPDATE`) — default и уже существующие;
+- functions/procedures: owner, `SECURITY`, `EXECUTE`, signature, `proconfig/search_path`;
+- views: owner и `security_invoker=true`; любой definer-view — отдельный именованный seam;
+- materialized views и foreign tables: по умолчанию запрещены для managed data; появление требует отдельной
+  declaration/wall, иначе generator/sweep падает;
+- large objects и их ACL: tenant/medical payload в large objects запрещён; любое разрешённое исключение exact и
+  объявленное;
+- triggers, trigger functions, constraints и cascade dependencies;
+- FDW, foreign servers, user mappings, publications, subscriptions, replication slots, extensions, languages,
+  tablespaces и их owners/ACL.
 
-1. до окна migrator — `NOBYPASSRLS`, не член object/seam-owner ролей; runtime writers остановлены или отдельно
-   скоординированы;
-2. непосредственно вокруг schema migration суперпользователь временно выдаёт migrator `BYPASSRLS` для backfill
-   под FORCE и только нужные owner-memberships для owner-only DDL;
-3. сразу после migration выполняются `ALTER ROLE <migrator> NOBYPASSRLS` и `REVOKE <owner> FROM <migrator>` для
-   каждого временного membership;
-4. cleanup повторяется обработчиком ошибки/сигнала;
-5. post-state проверяет `rolbypassrls=false` и отсутствие каждого временного membership до возврата runtime.
+Generator, preflight и sweep получают список seam owners из декларации; число швов не зашивается в оснастку.
 
-Исторические применённые миграции не переписываются. Новая closure приводит итоговый каталог к этой схеме.
+Relations, schemas и managed database принадлежат поимённым `NOLOGIN` owner-ролям либо `postgres`, но не login,
+runtime или seam owner. Это исключает скрытую силу владельца и сохраняет действие `FORCE RLS`.
 
-## 9. Декларация и генератор
+Cluster-wide allowlist строится из фактических `pg_roles`, owners и memberships. Только `postgres` может иметь
+`SUPERUSER`, `REPLICATION`, server-file/program роли, `pg_read_all_data`/`pg_write_all_data`, создавать
+subscriptions/extensions либо владеть managed database/tablespace. У migrator и приложения явно false/absent:
+`SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, `BYPASSRLS`; отсутствуют memberships в
+`pg_read_server_files`, `pg_write_server_files`, `pg_execute_server_program` и других powerful predefined roles.
+FDW/server/user mapping или extension вне exact allowlist — FAIL, не «неизвестный объект».
 
-Единственная декларация перечисляет только то, что **GRANTED**: роли/login-атрибуты и membership, database/schema
-доступ, table/column/function ACL, function ownership, RLS/FORCE и policies. Поля «у кого отобрать» нет — «мы же
-сбрасываем все гранты».
+Default privileges закрываются отдельно для каждого возможного creator. Event trigger проверяет `CREATE TABLE` и
+`ALTER TABLE`, включая позднее добавление scope-колонки, и либо устанавливает объявленную стену, либо отклоняет
+DDL; trigger защищён от рекурсии и принадлежит `postgres`. CI запрещает ACL/policy/role DDL в новых migrations и
+требует declaration для нового объекта. Sweep страхует те же каталожные инварианты, не заменяя generator.
 
-Генератор применяет декларацию в одной транзакции:
+## 7. Миграционное окно без переживающей crash элевации
 
-1. оптом отзывает управляемые database/schema/table/column/function права у `PUBLIC`, всех runtime/service/owner
-   ролей **и login-ролей**;
-2. удаляет управляемые policies и восстанавливает только объявленные;
-3. нормализует атрибуты ролей, memberships и owners;
-4. выдаёт только перечисленные гранты и создаёт только перечисленные policies;
-5. выполняет двустороннюю сверку: `объявлено EXCEPT существует` и `существует EXCEPT объявлено` обязаны быть пусты
-   для ACL, column ACL, function ACL, policies, ownership, memberships и role attributes;
-6. при любой ошибке откатывает всю reapplication, не оставляя полуприменённых прав.
+`<env>_migrator` никогда не получает persistent `BYPASSRLS`. Managed database остаётся во владении `postgres`,
+а object owners — NOLOGIN.
 
-Миграции несут только schema changes. `GRANT`, `REVOKE`, `CREATE/DROP POLICY` и `CREATE/ALTER ROLE` в новых
-миграциях запрещены gate-ом: права меняются только декларацией и генератором.
+Migration wrapper открывает одно контролируемое соединение `postgres` и одну транзакцию. Внутри неё он выдаёт
+migrator только нужные временные owner-memberships/DDL grants и исполняет schema changes через
+`SET LOCAL ROLE <env>_migrator`; backfill, которому действительно нужно пройти `FORCE RLS`, выполняется после
+`RESET ROLE` самим поимённым `postgres`; затем временные grants/memberships отзываются и post-state проверяется
+**до commit**. Grant, migration, cleanup и catalog assertions атомарны.
 
-## 10. Deny by default и стена при рождении таблицы
+Crash, `SIGKILL`, потеря соединения или host до commit откатывают и migration, и временную выдачу; trap не является
+границей безопасности. После commit у migrator остаётся только standing access из §3.1. Никакая прикладная роль не
+имеет обхода ни внутри, ни вне окна; единственное объявленное исключение — суперпользователь `postgres` в
+контролируемой миграционной/локальной административной операции.
 
-- `PUBLIC`, login- и runtime-роли не получают default privileges на новые схемы, таблицы, sequences и функции.
-- Создатели объектов перечислены и для каждого их `ALTER DEFAULT PRIVILEGES` закрыт отдельно.
-- Новая таблица появляется только вместе с классом, owner, RLS+FORCE, точными grants и policies в декларации.
-- Event trigger проверяет `CREATE TABLE` и `ALTER TABLE`: tenant/org-таблица получает стену или DDL отклоняется;
-  позднее добавление ownership/org-колонки не проходит мимо gate. Trigger защищён от рекурсии и принадлежит
-  суперпользователю.
-- CI проверяет, что новая migration с таблицей несёт schema declaration для стены и не содержит ACL/policy/role
-  DDL. Забытое объявление даёт громкий отказ, а не временную широкую доступность.
-- Периодический sweep повторяет каталожные инварианты как страховку; источником стены остаётся PostgreSQL.
+## 8. Исполняемая приёмка
 
-## 11. Журнал отказов
+Одна команда использует фактические каталоги, а не декларацию, и печатает principal/object/result для каждого
+пункта:
 
-Журнал — системный server log PostgreSQL. Таблица-журнал в управляемой базе не создаётся.
+1. красный baseline на непочиненной базе;
+2. каждый login из `pg_roles` напрямую с верным паролем и без port key: отказ, ноль строк, log event;
+3. каждая достижимая role/membership combination без attestation/context: тот же громкий отказ;
+4. `PUBLIC`: нет `CONNECT`, schema `USAGE`, `TEMPORARY` и default privileges;
+5. каждая фактическая definer-функция, включая все 244 census-signatures: без exact signed call отказ; owner не
+   login/runtime; `PUBLIC EXECUTE` отсутствует;
+6. exact-role/transaction/backend/argument negative controls: повтор, другая role, transaction, backend и один
+   изменённый аргумент дают `42501`;
+7. positive controls через оба порта: pre-session получает только минимальный результат; staff/patient/platform,
+   service и integrator видят только объявленную область;
+8. `row_security=off` выявляет silent filtering; ни один ожидаемый отказ не засчитывается без server-log event;
+9. сверка ACL/policies/owners охватывает object classes §6, triggers/constraints и powerful cluster paths;
+10. crash injection до commit миграционной транзакции оставляет migrator без memberships/grants/BYPASS и каталог
+    без частично применённой migration.
 
-Отсутствующий/неверный контекст вызывает `42501` в accessor или permission error на ACL; PostgreSQL сам пишет
-ошибку в server log. RLS policy фильтрует строки только после доказанного принципала и не используется как
-замена громкому отказу. Ни runtime-роль, ни tenant не имеют права очищать или подменять server log; его retention
-и ротация — системная эксплуатация, не DML приложения.
+Исключения перечислены поимённо: `postgres`; migrator — только внутри атомарной транзакции §7 и без собственного
+`BYPASSRLS`. Положительный контроль обязателен: стена, не пустившая порты, является поломкой.
 
-## 12. Исполняемое доказательство приёмки
+## 9. Закрытие 12 gaps ревью полноты
 
-Одна acceptance-команда строит кандидатов из фактического `pg_roles`, а не из декларации, и печатает отдельный
-результат по каждому принципалу и классу таблиц. Она обязана доказать всё перечисленное ниже.
+| Gap | Статус в дизайне | Чем закрыт |
+|---|---|---|
+| G1 pre-session/cross-tenant без ключа | закрыт | port attestation обязательна для каждого seam; function/purpose/args подписаны |
+| G2 login наследует runtime-права | закрыт | login `NOINHERIT`, memberships `INHERIT FALSE/SET TRUE/ADMIN FALSE`, прямых ACL нет |
+| G3 context не связан с role/transaction | закрыт | DB/login/exact role/backend start/transaction binding; transaction-local lifetime; bad connection уничтожается |
+| G4 HMAC verifier противоречит env-only | закрыт | asymmetric private keys только в env портов; в БД только public verification keys |
+| G5 неполный definer census | закрыт | 244 функции распределены по 42 швам; ноль login/runtime owners |
+| G6 caller id/GUC становится authority | закрыт | canonical args входят в signed call; GUC без валидной подписи отвергается |
+| G7 unsafe search path/TEMP | закрыт | pinned trusted `search_path`, qualified objects, TEMP/CREATE revoked, `proconfig` сверяется |
+| G8 permissive OR снимает AND | закрыт | обязательная restrictive gate; conjunction — restrictive/единая policy; catalog invariant |
+| G9 FK/UNIQUE/triggers вне модели | закрыт | dependency surface в declaration; tenant keys либо exact signed seam; uniform external denial |
+| G10 sequences/views/matview/foreign/LO вне модели | закрыт | полный object contour §6, default deny и двусторонняя сверка |
+| G11 crash оставляет BYPASS | закрыт | migrator не получает BYPASS; одно соединение/транзакция; crash rollback |
+| G12 replication/files/program/FDW/extensions/DB owner | закрыт | cluster-wide allowlist и отдельная acceptance-инвентаризация всех мощных путей |
 
-0. **Красный baseline:** до применения схемы тот же сценарий прямого подключения с верным паролем и без ключа
-   воспроизводит дефект — хотя бы один защищаемый запрос отдаёт контрольную строку. Это описание обязательного
-   transcript из плана, а не разрешение заново обследовать текущее состояние при проектировании схемы.
-1. **Каждый login кластера**, включая не созданные проектом: прямое подключение с верным паролем, но без ключа
-   порта; запрос каждого класса таблиц не выдаёт ни одной строки, завершается отказом и создаёт сопоставленную
-   строку в server log.
-2. **Каждая роль кластера:** переключение в роль без установленного подписанного контекста даёт тот же результат.
-3. **`PUBLIC`:** нет `CONNECT` к управляемой базе и `USAGE` на управляемых схемах; посторонняя роль не может даже
-   начать табличный запрос.
-4. **Каждая `SECURITY DEFINER`-функция:** вызов без требуемого контекста/точного caller разрешения завершается
-   отказом и не выдаёт данные. Для обнаружения скрытого тихого фильтра проверочный вызов использует
-   `row_security=off`, где это применимо.
-5. **Исключения:** поимённо объявлены только `postgres` и migrator внутри зафиксированного migration window;
-   любой другой `rolbypassrls=true`, незаявленный membership/ACL/policy или доступ считается провалом.
-6. **Server log:** для каждого ожидаемого отказа найдено отдельное событие с principal, ролью, запросом/классом и
-   причиной. В базе не появилось journal rows.
-7. **Обязательный положительный контроль:** те же запросы через webapp и integrator с ключом, правильным login,
-   ролью и подписанным контекстом возвращают заранее подготовленные строки только своей области. Отдельно
-   подтверждаются staff своей клиники, patient только свои данные, platform admin только платформенная
-   поверхность и три integrator роли. Если положительный контроль не видит свои строки, это поломка приложения,
-   а не доказательство безопасности.
+Это закрытие **в проекте**, не утверждение о реализованной БД. Green status Ф1 не заменяет Ф4–Ф8 и живую
+приёмку.
 
-Выход команды — полный перечень проверенных login/roles/functions и бинарный PASS/FAIL для отказа, нулевой выдачи,
-log event и positive control. Приёмка недействительна при выборке принципалов из декларации, пропущенной функции,
-тихом нуле без server-log события или отсутствии положительного контроля.
+## 10. РАЗВИЛКИ, ЗАКРЫТЫЕ В ДИЗАЙНЕ
 
-## 13. Переходные зависимости — не часть целевой схемы
+Каждая строка ниже — ранее открытый выбор и его явное инженерное закрытие по правилу владельца «меньше доступа».
 
-Эти пункты нужны для перехода, но не определяют состав прав:
+1. **Port proof или identity proof:** разделены; port proof обязателен всегда, identity добавляется позже — иначе
+   pre-session снова получает данные только по паролю login.
+2. **HMAC secret в БД или env:** asymmetric signing; private key только в env, public key в БД — dump не даёт
+   возможности подписывать principal.
+3. **Платформенная отметка:** введён класс `platform` со своим raising accessor — меньше, чем открыть global role
+   по membership, и выполняет громкий отказ.
+4. **Неизвестный без соединения или pre-session через БД:** разрешена только attested транзакция webapp без
+   identity и с exact seam — меньше, чем голый bootstrap login, и явно отмечено расхождение с буквальной строкой.
+5. **Один или два webapp login:** два — staff login не доступен предсессионному пути даже при ошибке role switch.
+6. **Медиа-воркер как DB client или через порт:** отдельный compute process остаётся, но DB вызывает через internal
+   webapp port — отдельного DB входа и секрета у него нет.
+7. **Telemetry global или tenant:** global только через семь функций шва 36, без table ACL и с port call proof —
+   уже прямого доступа не выдаётся.
+8. **Три integrator service-роли или одна:** остаются две write-роли; diagnostic-role удалена, probe идёт exact
+   function шва 31 — меньше и объединённой широкой роли, и read-role с table ACL.
+9. **Отдельная роль очистки или `app_worker`:** одна `app_worker` до live evidence различия — новая роль без
+   доказанного отдельного набора прав не создаётся.
+10. **Сохранять ли `PUBLIC EXECUTE`:** весь DEV `PUBLIC`-set отзывается; pre-session получает exact login grant и
+    signature gate — PUBLIC шире доказанной потребности.
+11. **Staff cross-user `close_active_user_phone_history`:** staff `EXECUTE` не выдаётся; patient-self остаётся —
+    недоказанный cross-user доступ закрыт до конкретного live-отказа.
+12. **Caller `list_platform_organization_members`:** runtime `EXECUTE` пока не выдаётся; функция остаётся в шве 34
+    без caller до доказанной потребности — меньше, чем угадать platform caller.
+13. **132 DEV-функции или весь кластер:** принят полный набор 244/42 из census 30 — меньший census оставлял скрытую
+    силу login/runtime owners.
+14. **Владельцы `saas_telemetry_owner`, health и discovery:** telemetry/health остаются отдельными швами 36/37;
+    discovery входит в шов 25 — функция не наследует соседнюю поверхность только из-за прежнего owner.
+15. **`app_owner` оставить переходно или удалить:** в target отсутствует — контейнер общей силы не сохраняется.
+16. **`require_staff_security_self_user_id` definer или invoker:** становится invoker/accessor без table ACL; его
+    контракт остаётся, привилегия не выдается без потребности.
+17. **Два owners на `email_send_cooldowns` или слияние:** остаются две exact policies — слияние owners дало бы
+    reminder-функциям OTP/password surface.
+18. **Десять различающихся DEV/TEST bodies:** target body выбирает принятая migration chain/live-run; union прав
+    двух версий запрещён как лишний доступ.
+19. **Кто делает backup после стены:** существующий backup переводится на локальную административную операцию
+    `postgres`; новый постоянный backup login и migrator-wide read не создаются.
+20. **`USING (true)` для service scope NONE:** разрешено только exact role/table за restrictive signed port gate;
+    общий service-policy или доступ без gate запрещён.
 
-- provisioning/preflight перестаёт требовать отдельные URL/logins для telemetry, delivery, scheduler,
-  diagnostic и media; он проверяет два порта, их login-memberships и role switching;
-- webapp config-reader, media worker, cron/pruner и прочие фоновые пути перестают открывать свои DB connections и
-  идут через владеющий порт;
-- проверки, fixtures и deploy wrappers перестают требовать постоянный `app_owner BYPASSRLS` и проверяют 35
-  seam owners плюс отдельный `saas_system_health_owner` в форме `NOBYPASSRLS`;
-- права, не доказанные Ф2/Ф3, остаются невыданными до конкретного отказа Ф7; тогда право добавляется только через
-  декларацию либо путь удаляется/переносится в seam.
+Шесть повторов round 1 удалены: правило про BYPASS, принцип недовыдачи, два изменения контекста, механику стены,
+запрет отдельных worker-connections и acceptance-критерий каждый изложены один раз в несущем разделе. Седьмой
+излишек — `app_operational_diagnostic` — удалён без расширения прав.
 
 ## ВОПРОСЫ ВЛАДЕЛЬЦУ
 
-Нет. Недоказанные caller/column права намеренно не включены по правилу «лучше меньше доступа» и должны решаться
-по конкретным отказам живого прогона Ф7, а не расширением этой схемы заранее.
+Нет. Все развилки, поднятые evidence/25, evidence/26 и ревью 28/29, перечислены в §10 и закрыты в сторону меньшего
+доступа; deployment drift из evidence/30 не превращён в union grants.
