@@ -2661,6 +2661,13 @@
       "when": 1793539230126,
       "tag": "0383_channel_bindings_reconcile_d25_local",
       "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1793539230127,
+      "tag": "0384_telegram_state_delivery_signal_local",
+      "breakpoints": true
     }
   ]
 }
