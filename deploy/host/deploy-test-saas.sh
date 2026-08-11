@@ -2970,20 +2970,51 @@ run_strict_closure_catalog_self_test(){
   echo "shared strict TEST closure catalog self-test: OK (no env/DB/service/cron mutation)"
 }
 
+resolve_c4_self_test_repo_file(){
+  local self_test_repo_root="$1" relative_path="$2" requested_path resolved_path
+  case "$relative_path" in
+    /*|..|../*|*/../*|*/..)
+      echo "FATAL: unsafe C4 self-test repository path: $relative_path" >&2
+      return 1
+      ;;
+  esac
+  requested_path="$self_test_repo_root/$relative_path"
+  resolved_path="$(realpath "$requested_path")"
+  if [[ ! -f "$requested_path" || -L "$requested_path" || "$resolved_path" != "$self_test_repo_root/"* ]]; then
+    echo "FATAL: C4 self-test artifact escaped current checkout: $relative_path" >&2
+    return 1
+  fi
+  printf '%s\n' "$resolved_path"
+}
+
 run_c4_operational_chain_self_test(){
+  local self_test_repo_root self_test_deploy_script self_test_provisioner self_test_readiness
+  local self_test_media_cutover self_test_media_retirement self_test_password_smoke
+  local self_test_bootstrap self_test_secret_preflight self_test_retirement_test
+  self_test_repo_root="$(realpath "$DEPLOY_TEST_SAAS_SCRIPT_DIR/../..")"
+  self_test_deploy_script="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/deploy-test-saas.sh)"
+  [ "$self_test_deploy_script" = "$(realpath "${BASH_SOURCE[0]}")" ] || {
+    echo "FATAL: C4 self-test is not bound to the executing checkout" >&2
+    exit 1
+  }
+  self_test_provisioner="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_PROVISIONER")"
+  self_test_readiness="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_READINESS")"
+  self_test_media_cutover="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_CONTROL_CUTOVER")"
+  self_test_media_retirement="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_LOGIN_RETIREMENT")"
+  self_test_password_smoke="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_PASSWORD_SMOKE")"
+  self_test_bootstrap="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/bootstrap-c4-test-env.mjs)"
+  self_test_secret_preflight="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/saas-c2-secret-preflight.mjs)"
+  self_test_retirement_test="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/retire-media-db-login.test.mjs)"
   run_strict_closure_catalog_self_test
-  bash -n "$SRC_REPO/deploy/host/deploy-test-saas.sh" \
-    "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" \
-    "$SRC_REPO/$C4_OPERATIONAL_READINESS" \
-    "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" \
-    "$SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT"
-  bash "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" --self-test
-  bash "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" --self-test
-  bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"
-  node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
-  node "$SRC_REPO/deploy/host/saas-c2-secret-preflight.mjs" --self-test
-  node "$SRC_REPO/deploy/host/retire-media-db-login.test.mjs"
-  echo "C4 canonical fresh wrapper segment + shared catalog closure self-test: OK (no env/DB/service/cron mutation)"
+  bash -n "$self_test_deploy_script" "$self_test_provisioner" "$self_test_readiness" \
+    "$self_test_media_cutover" "$self_test_media_retirement"
+  bash "$self_test_media_cutover" --self-test
+  bash "$self_test_provisioner" --self-test
+  bash "$self_test_password_smoke"
+  node "$self_test_bootstrap" --self-test
+  node "$self_test_secret_preflight" --self-test
+  node "$self_test_retirement_test"
+  echo "C4 canonical fresh wrapper segment + shared catalog closure self-test: OK (checkout=$self_test_repo_root; no env/DB/service/cron mutation)"
 }
 
 full_reset_usage(){
