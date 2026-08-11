@@ -36,4 +36,13 @@ describe('runMediaWorkerTick', () => {
     expect(processTranscodeJob).toHaveBeenCalledTimes(1);
     expect(claimedClaim).toHaveBeenCalledWith('worker-a', 30);
   });
+
+  it('propagates a control failure instead of treating it as disabled, idle, or processed', async () => {
+    const failure = new Error('control unavailable');
+    const rejectedClaim: MediaWorkerControlPort['claim'] = vi.fn(async () => {
+      throw failure;
+    });
+
+    await expect(runMediaWorkerTick(context(control(rejectedClaim)))).rejects.toBe(failure);
+  });
 });
