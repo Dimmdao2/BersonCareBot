@@ -1346,3 +1346,21 @@ env/build, без authenticated control probe и проверки/retirement leg
 - Реальный preflight: fourth media URL rejected `3/3` env, aliases rejected `28/28`, positive control green.
 - PostgreSQL 16 retirement PASS; media `16`, route `8/8`, seam `7/7`, exact commands `11`, chokepoints PASS.
 - Webapp type/lint, syntax, ancestry/diff-check и clean final tree PASS.
+
+## Fix verification MEDIA-DB-DOOR-FINAL-FIX-2026-08-11 — `76e1f5e85`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тот же сохранённый deploy-order gate**: actual bootstrap caller trace + fault mutations |
+| Вердикт | **PASS media DB-door stage — к integration CI/land** |
+
+- **DEPLOY-001 ИСПРАВЛЕНО:** `bootstrap-systemd-prod.sh` останавливает legacy media, рестартует новый webapp и
+  вызывает общий sequence: `is-active → authenticated control → exact legacy login retirement → media restart`.
+  Inactive webapp, control failure и retirement failure не доходят до media; helper bypass и перестановка дают RED.
+- **MEDIA-010 ИСПРАВЛЕНО:** active PROD/hard-migration runbooks требуют три DB login и ordered automatic cutover;
+  active-doc census не нашёл five-contour/five-URL формулировок вне historical evidence/archive/audit.
+- Сохранены env negatives `3/3 + 28/28`, media `16`, route `8/8`, seam `7/7`, PostgreSQL retirement,
+  chokepoint/self-test, syntax/diff/show check и чистое дерево.
+
+PASS принимает удаление третьей media DB-door и deploy safety; full privilege-layer, mTLS host и relation grants
+остаются отдельными открытыми требованиями.
