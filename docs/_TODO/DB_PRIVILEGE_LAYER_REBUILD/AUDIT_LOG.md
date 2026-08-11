@@ -866,3 +866,117 @@ runtime suites, chokepoint/self-test и diff-check прошли.
 Подтверждено сохраняемое: verify-only startup без migration pool, target-only repo selection, physical-client
 surface с `on`, bounded scheduler transactions, rotation preflight/rollback/drain/listener и отсутствие legacy
 chokepoint bypass.
+
+## Fix verification POSTDROP-REGISTRY-FIX-2026-08-11 — `59a696bce`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `59a696bce`, `wt/post-drop-registry-closure` |
+| Метод | **Тест + взгляд**: прежний independent finding, worker disposable catalog fault, leader diff/audit gate |
+| Вердикт | **PASS — REGISTRY-001 исправлен; к land** |
+
+- **REGISTRY-001 ИСПРАВЛЕНО.** `integrator.message_drafts` остаётся историческим `LEGACY`, но exact exclusion
+  убирает relation только из broad `app_staff` grant-set. UP и DOWN дополнительно снимают stale whole-table и
+  column-level ACL; остальные LEGACY grants сохранены.
+- Disposable production-shaped catalog: `SELECT=f INSERT=f UPDATE=f DELETE=f`; четыре операции под `app_staff`
+  получили `permission denied`. Fault injection без normalizer → exit `1` на
+  `FATAL: app_staff SELECT ACL ... must be false`, затем repair green.
+- Два render и checked artifact: `cmp=0/0`; старый P0.8.5 import-fix сохранён
+  (`git diff --quiet 3a89dcb66 59a696bce -- ...smoke-p0-8-5-integrator-scoped-policies.mjs` → exit `0`).
+- Лидер после amend фактического комментария запустил `pnpm run audit` → exit `0`; P0.10 actual-schema registry,
+  P0.8.5, P0.13, generated grants/policies и product smoke contract зелёные. `git diff --check` → exit `0`.
+- Устаревший комментарий «нет FORCE RLS» исправлен: live contract — FORCE deny-all плюс отсутствие ACL, чтобы
+  boundary не зависел от одного слоя.
+
+## Completion audit DECL-OPERABILITY-2026-08-11 — current candidate `a8356d565`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд + executable declaration census / production artifact check** |
+| Вердикт | **FAIL — каталог стал fail-closed, но полная рабочая grant-матрица и artifacts отсутствуют** |
+
+### DECL-008 — `--gaps=0` скрывает незаполненную grant-матрицу
+
+**ОТКРЫТО — MUST FIX.** Прямой импорт `declaration.ts` и census собранных revision-10 DB дал для каждой базы:
+
+```text
+active=225 tablesWithAnyGrant=2 tableGrantEntries=3 permissive=225 restrictive=225 failClosed=75
+```
+
+Исходная семантическая перепись одновременно печатает `grantMatrixPending=225`, `openGaps=G1,G2,G3,G8,G9,G10,G11`,
+но `revision10Database()` принудительно ставит каждому relation `grantMatrix: undefined`; поэтому команда
+`node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --gaps` ложно возвращает по обеим DB
+`пробелов 0`. Grants сейчас есть только у `public.be_appointments` и точечной колонки `public.platform_users`.
+Это безопасный deny-by-default, но не рабочий целевой результат владельца: отсутствует полный exact
+runtime/function → relation/column/operation → purpose census. Нельзя закрывать gap marker, пока каждый живой DB path
+не получил необходимый grant либо не переведён в named seam; positive product paths должны доказать достаточность.
+
+### DECL-009 — production privilege artifacts не соответствуют candidate declaration
+
+**ОТКРЫТО — MUST FIX.** Read-only команда
+`node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --check` → exit `1`: оба privileges
+artifact расходятся, оба allowlist совпадают. Первое расхождение: committed artifact выдаёт install/clear всем шести
+DEV+TEST login одновременно, candidate правильно рендерит только три login своей environment. Production artifacts
+обязаны быть regenerated/tracked и пройти deterministic `--check`; fixture-only `2/2` этого не доказывает.
+
+### HOST-001 — mTLS пока доказан только disposable acceptance, не host cutover
+
+**ОТКРЫТО — ДО DEV/TEST.** `rg` на current `feat` находит exact
+`hostssl ... scram-sha-256 clientcert=verify-full clientname=CN` только в `SCHEME.md` и
+`deploy/postgres/port-context/acceptance.sh`; deploy/host не содержит renderer/install/readiness HBA/CA/CRL contract.
+Следовательно два порта доказаны на одноразовом PG16, но DEV/TEST host ещё не переведён и не защищён этим HBA.
+Нужны штатный host apply/preflight/rollback, per-port env certificate paths и live positive/negative probes.
+
+## Fix verification MEDIA-DB-DOOR-R2-2026-08-11 — `a5684df48`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent route/runtime/AST/deploy census + TEST role read-only introspection |
+| Вердикт | **FAIL — MEDIA-001–004 исправлены; старый media DB login/credential остаётся** |
+
+### Исправлено громко
+
+- **MEDIA-001 ИСПРАВЛЕНО.** Control route `8/8` PASS; mutation operational-media→staff дала `1 failed / 7 passed`.
+- **MEDIA-002 ИСПРАВЛЕНО.** Chokepoint/self-test exit `0`, семь import forms отклонены; alias mutation exit `1` и
+  два offender. `20` production TS files, `0` DB dependency, `0` runtime DB credential identifier hit.
+- **MEDIA-003/004 ИСПРАВЛЕНО.** Media `4 files / 11 tests`, error-tracking init/loop/fatal и bounded isolation
+  reporter PASS; control schema содержит `11` bounded commands. PostgreSQL seam `7/7`, webapp type/lint PASS.
+
+### MEDIA-005 — legacy media login переживает HTTP cutover
+
+**ОТКРЫТО — MUST FIX.** Read-only TEST catalog: `bcb_test_operational_media_login` имеет `LOGIN` и membership в
+`app_operational_media_worker`; census двух ролей дал `1` login из `2`, membership `1`. Current candidate declaration
+ещё объявляет login (`rg ... declaration.ts | wc -l` → `4`), а executable DROP role census дал `0`. PROD deploy не
+вызывает `saas-c2-secret-preflight`; runtime probe с одновременно новыми control fields и старым `DATABASE_URL` дал
+`legacy_env_parse=accepted`, `database_url_still_in_process=true`. Это сохраняет третий DB credential family.
+Fix обязан: удалить login/membership из declaration и host provisioning, fail-closed запретить legacy DB env,
+подключить preflight к TEST/PROD и безопасно retire live role только после zero-owner/ACL census.
+
+## Fix verification DECL-FIX3-2026-08-11 — `a8356d565`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent PostgreSQL 16.14 catalog/restore/crash probes |
+| Вердикт | **FAIL — DECL-006 PASS; DECL-001/003/007 и operability остаются** |
+
+- **DECL-006 ИСПРАВЛЕНО.** Marker следует после table/function DDL и обоих owner switches; kill exit `143`,
+  table/function/memberships rollback → `t/t/t`.
+- **DECL-002/004/005 PASS сохранён:** app_ext topology; database owner postgres и unsafe roles `0`; dump→recreate→
+  restore owner mismatch `0`.
+
+### DECL-010 — bilateral verifier пропускает PUBLIC и cross-environment ACL
+
+**ОТКРЫТО — MUST FIX.** Independent mutations установили cross-env EXECUTE install, PUBLIC SELECT на
+`be_appointments` и login USAGE на `app_ext`; catalog introspection каждой дала `1`, но `catalog-verifier.mjs`
+вернул `catalog verifier green`/exit `0`. Unexpected install/clear grantee исключён условием, PUBLIC отсутствует в
+principal/table ACL census. Verifier обязан сравнивать все effective grantees/ACL в обе стороны до reapply.
+
+### DECL-011 — production proof подменяет громкий context gate
+
+**ОТКРЫТО — MUST FIX.** Fixture создаёт `require_accepted_context()` как `SELECT true`, а staff proof заранее
+устанавливает patient context. Реальный `SET ROLE app_staff; SELECT count(*) FROM public.be_appointments` без
+context успешно вернул `0`, вместо `42501` и PostgreSQL log event. Production-shaped proof обязан использовать
+фактический transaction-bound gate и negative no-context query; тихий ноль не считается успехом.
+
+DECL-008/009 остаются частью того же fixer: полный purpose-backed grant census и deterministic production artifacts,
+а не только fixture artifacts. Штатный proof-run exit `0` признан false-green до закрытия DECL-010/011.

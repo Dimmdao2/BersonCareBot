@@ -631,18 +631,14 @@ function restoreDump(plan, dumpPath) {
       `restore verification failed: public.platform_users rows=${platformUsers || 0}`,
     );
   }
-  const integratorIdentities = Number(
-    superuserPsqlScalar(
-      plan,
-      plan.dbName,
-      'SELECT count(*) FROM integrator.identities;',
-      'verify integrator identities restored',
-    ),
+  const legacyIdentityTable = superuserPsqlScalar(
+    plan,
+    plan.dbName,
+    "SELECT to_regclass('integrator.identities') IS NULL;",
+    'verify legacy integrator identities stay dropped',
   );
-  if (!Number.isFinite(integratorIdentities) || integratorIdentities <= 0) {
-    throw new Error(
-      `restore verification failed: integrator.identities rows=${integratorIdentities || 0}`,
-    );
+  if (legacyIdentityTable !== 't') {
+    throw new Error('restore verification failed: integrator.identities was resurrected');
   }
 }
 

@@ -347,18 +347,6 @@ const patientOwnedColumns = new Map([
   // is an org catalog definition) and stays org-only.
   ['public.be_patient_package_items', { column: 'platform_user_id' }],
 
-  // integrator.* direct_org_column (P0.8.5), patient identity = integrator.users.id (bigint),
-  // read from the dedicated `app.integrator_user_id` GUC (castType: "bigint" — see the note above
-  // integrator identity tables). contacts/content_access_grants verified via
-  // apps/integrator/src/infra/db/migrations/core/20260306_0014_create_contacts.sql and
-  // 20260311_0002_create_user_reminders.sql (user_id bigint REFERENCES users(id)). mailing_logs
-  // and user_subscriptions originally referenced the legacy telegram_users(id) space, but
-  // apps/integrator/src/integrations/telegram/db/migrations/20260306_0010_detach_telegram_users_refs.sql
-  // rewrites their user_id values through integrator.identities and re-points the FK to
-  // users(id).
-  ['integrator.contacts', { column: 'user_id', castType: 'bigint' }],
-  ['integrator.content_access_grants', { column: 'user_id', castType: 'bigint' }],
-
   // B4-core-3 census follow-up (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #658): 4 more
   // public.* direct_org_column tables with a direct `user_id` column referencing
   // platform_users(id) (NOT NULL) that record per-viewer media playback telemetry — same shape
@@ -392,100 +380,8 @@ const patientOwnedColumns = new Map([
 // INNER JOINs from the policy row down to the identity-bearing terminal table/column — a broken or
 // NULL hop anywhere denies (fail-closed), same as a direct column predicate.
 const patientChainOwnedTables = new Map([
-  // I2 identity-bridge (P0.4.I2, direct_org_column): owner is reached in ONE hop through
-  // integrator.identities(id, user_id bigint REFERENCES integrator.users(id)).
-  [
-    'integrator.conversations',
-    {
-      hops: [
-        {
-          table: 'integrator.identities',
-          alias: 'b4f_conversations_identity',
-          parentPk: 'id',
-          localFk: 'user_identity_id',
-        },
-      ],
-      terminalColumn: 'user_id',
-      castType: 'bigint',
-    },
-  ],
-  [
-    'integrator.message_drafts',
-    {
-      hops: [
-        {
-          table: 'integrator.identities',
-          alias: 'b4f_message_drafts_identity',
-          parentPk: 'id',
-          localFk: 'identity_id',
-        },
-      ],
-      terminalColumn: 'user_id',
-      castType: 'bigint',
-    },
-  ],
-  [
-    'integrator.user_questions',
-    {
-      hops: [
-        {
-          table: 'integrator.identities',
-          alias: 'b4f_user_questions_identity',
-          parentPk: 'id',
-          localFk: 'user_identity_id',
-        },
-      ],
-      terminalColumn: 'user_id',
-      castType: 'bigint',
-    },
-  ],
-
-  // I3 parent-denorm (P0.4.I3, denorm_org_column): owner reached by walking to the immediate
-  // parent, then (where the parent itself is identity-bridged, not directly user-owned) on through
-  // integrator.identities. Reminder technical rows walk to canonical public.reminder_rules via
-  // its stable integrator_rule_id and direct bigint integrator_user_id.
-  [
-    'integrator.conversation_messages',
-    {
-      hops: [
-        {
-          table: 'integrator.conversations',
-          alias: 'b4f_conv',
-          parentPk: 'id',
-          localFk: 'conversation_id',
-        },
-        {
-          table: 'integrator.identities',
-          alias: 'b4f_ident',
-          parentPk: 'id',
-          localFk: 'user_identity_id',
-        },
-      ],
-      terminalColumn: 'user_id',
-      castType: 'bigint',
-    },
-  ],
-  [
-    'integrator.question_messages',
-    {
-      hops: [
-        {
-          table: 'integrator.user_questions',
-          alias: 'b4f_question',
-          parentPk: 'id',
-          localFk: 'question_id',
-        },
-        {
-          table: 'integrator.identities',
-          alias: 'b4f_ident',
-          parentPk: 'id',
-          localFk: 'user_identity_id',
-        },
-      ],
-      terminalColumn: 'user_id',
-      castType: 'bigint',
-    },
-  ],
+  // I3 parent-denorm (P0.4.I3, denorm_org_column): reminder technical rows walk to canonical
+  // public.reminder_rules via its stable integrator_rule_id and direct bigint integrator_user_id.
   [
     'integrator.user_reminder_occurrences',
     {
