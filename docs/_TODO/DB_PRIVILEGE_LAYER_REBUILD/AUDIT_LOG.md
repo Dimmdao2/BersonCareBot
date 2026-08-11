@@ -1364,3 +1364,23 @@ env/build, без authenticated control probe и проверки/retirement leg
 
 PASS принимает удаление третьей media DB-door и deploy safety; full privilege-layer, mTLS host и relation grants
 остаются отдельными открытыми требованиями.
+
+## Fix verification RUNTIME-FIX6-2026-08-11 — `c2e5d5cad`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тот же сохранённый runtime gate**: repo-wide AST census + SET-membership + real PG16 error path |
+| Вердикт | **PASS runtime capability catalog — к integration CI/land** |
+
+- **RUNTIME-013 ИСПРАВЛЕНО:** integrator resolver descriptor добавлен; webapp pre-session/telemetry явны;
+  health источники идут через reachable `app_worker`; запрещённые webapp service/tenant descriptors удалены.
+  PG16 acceptance: `10` function rows и `15` relation descriptors, каждый SET-able exact port login.
+- **RUNTIME-014 ИСПРАВЛЕНО:** recursive production AST census сканирует оба app source roots, исключая tests/
+  generated; находит `10` literal roots + `1` dynamic wrapper. Add/move/remove/extra/cross-port/wrong-port mutations
+  красные.
+- **RUNTIME-016 ИСПРАВЛЕНО:** real disposable PG16 даёт SQLSTATE chain `42501`, `statement_count=1`,
+  `fallback=0`; server statement count подтверждён. Async rejected assertion исправлен.
+- Targeted integrator `23 pass / 1 opt-in skip`, webapp `14`, catalog `8`, db-principal `25 + 14 faults`, strict
+  closure, generator byte-check, оба lint/typecheck, raw-SQL/chokepoint self-tests и `git show --check` — PASS.
+
+Этот PASS принимает runtime wrapper/catalog wiring, но не relation grant matrix, host mTLS или live DEV/TEST.
