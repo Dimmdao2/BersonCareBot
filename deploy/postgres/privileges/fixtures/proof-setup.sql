@@ -22,8 +22,13 @@
 CREATE ROLE app_staff NOLOGIN INHERIT;
 CREATE ROLE app_patient NOLOGIN INHERIT;
 CREATE ROLE app_owner NOLOGIN INHERIT BYPASSRLS;
+CREATE ROLE app_object_owner NOLOGIN NOINHERIT NOBYPASSRLS;
 CREATE ROLE bcb_proof_migrator LOGIN INHERIT;
 CREATE ROLE bcb_proof_staff_login LOGIN NOINHERIT;
+CREATE ROLE app_proof_owner NOLOGIN NOINHERIT NOBYPASSRLS;
+CREATE ROLE app_proof_seam_owner NOLOGIN NOINHERIT NOBYPASSRLS;
+CREATE ROLE bcb_proof_window_migrator NOLOGIN NOINHERIT NOBYPASSRLS;
+GRANT CREATE ON SCHEMA public TO app_proof_owner;
 GRANT app_staff TO bcb_proof_staff_login WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
 -- ⚠ ДЕФЕКТ-ФОН: остаточное членство в app_owner после «упавшего migrate» (SCHEME §C: ноль членов
 --   в стационаре). Генератор обязан его снять.
