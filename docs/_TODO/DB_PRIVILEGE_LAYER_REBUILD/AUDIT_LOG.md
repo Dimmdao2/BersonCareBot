@@ -1319,3 +1319,30 @@ RUNTIME-013 остаётся false-green. Нужен production-source discovery
   relation transaction красит readiness test.
 - Webapp `13` targeted tests, catalog/callsite unit `5/5`, db-principal `25` + `14 FAULT`, оба lint/typecheck,
   raw-SQL/chokepoint gates и deterministic artifacts прошли; финальное audit tree чистое.
+
+## Audit MEDIA-DB-DOOR-FINAL-R3-2026-08-11 — `be2b7b744` / HEAD `441e5fb04`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: reuse deploy-order/env/retirement kill-set across every actual caller |
+| Вердикт | **FAIL — основной cutover gate PASS; 2 MUST FIX; не к land/TEST** |
+
+### DEPLOY-001 — bootstrap-systemd-prod обходит общий cutover gate
+
+**ОТКРЫТО — MUST FIX.** `bootstrap-systemd-prod.sh` запускает webapp, затем напрямую media-worker при наличии
+env/build, без authenticated control probe и проверки/retirement legacy role. На первом rollout он может поднять
+старый media-worker с DB-door и завершиться успешно. Исправленные `deploy-prod.sh`/`deploy-test-saas.sh` и helper
+недостаточны, пока этот actual caller не использует ту же ordered sequence.
+
+### MEDIA-010 — ещё два активных runbook описывают старый порядок
+
+**ОТКРЫТО — MUST FIX.** `SAAS_PROD_DEPLOY_PROCESS.md` всё ещё требует `5-contour operational roles` и readiness
+до traffic cutover; `HARD_MIGRATION_PROTOCOL.md` требует media-control readiness до restart. Первый cutover тогда
+обращается к старому/остановленному webapp; automatic ordered retirement не описан.
+
+### Подтверждено и сохраняется
+
+- Общий helper fault-test red на restart-before-retirement; provision/preflight/bootstrap self-tests PASS.
+- Реальный preflight: fourth media URL rejected `3/3` env, aliases rejected `28/28`, positive control green.
+- PostgreSQL 16 retirement PASS; media `16`, route `8/8`, seam `7/7`, exact commands `11`, chokepoints PASS.
+- Webapp type/lint, syntax, ancestry/diff-check и clean final tree PASS.
