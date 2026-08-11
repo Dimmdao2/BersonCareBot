@@ -1384,3 +1384,30 @@ PASS принимает удаление третьей media DB-door и deploy 
   closure, generator byte-check, оба lint/typecheck, raw-SQL/chokepoint self-tests и `git show --check` — PASS.
 
 Этот PASS принимает runtime wrapper/catalog wiring, но не relation grant matrix, host mTLS или live DEV/TEST.
+
+## Audit DB-ACCESS-PROGRESS-2026-08-11 — main `b27bebfa6`, candidates through `da5679122`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд + repository/process evidence**: owner goal → ancestry → audit/fix sequence → CI/land hygiene |
+| Вердикт | **PASS WITH CORRECTIONS — clear convergence; обязательный locked CI исправлен** |
+
+- **ЦИКЛА НЕТ:** function census `4 findings → f27bf390b PASS`; runtime завершил пять содержательных сужений
+  `9 → 3 → 3 → 4 → 3 → c2e5d5cad PASS`; media после одного ancestry-replay сузился
+  `5 → 4 → 2 → 76e1f5e85 PASS`. После финальных fixer SHA новые blind audits не запускаются: используется
+  сохранённый kill-set и лидерская проверка.
+- **PROCESS-CI-001 ИСПРАВЛЕНО ГРОМКО:** первый прямой `pnpm run ci` обнаружил ambient-env зависимость двух
+  `d15b6PhoneMessengerBindMirror` tests. Коммит `da5679122` передаёт явный fake Pool; exact test без
+  `DATABASE_URL` — `2/2 PASS`. Обязательный gate затем выполнен штатно:
+  `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` → lock acquired/released, `rc=0`, `604s`.
+  Внутри: integrator `374`, db-principal `21` + PostgreSQL 16 fault acceptance, webapp `1166`, media `16`,
+  production build `426` страниц и полный repository audit — PASS.
+- Main на снимке аудитора чист и совпадал с origin; product candidates не были выданы за landed. Runtime
+  `c2e5d5cad`, seams `f27bf390b` и media stack through `da5679122` оставались candidate+proved.
+- **ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** host mTLS отсутствует; login ACL ещё не обнулены; seam-кандидат оставляет
+  `223` relation gaps/DB и две missing named APIs; atomic reset/regrant/restore, DEV/TEST probes и PostgreSQL
+  live journal proof ещё не выполнены. Taskdb #1084/#1085 остаются `doing`; их descriptions надо обновить после
+  ближайших lands.
+- Не продолжать старую `wt/port-context-grants`: её callsite census не уменьшает gaps. Критический путь:
+  land media → runtime → seams; затем full semantic grant matrix + atomic artifacts; host mTLS DEV; TEST
+  deploy/probes/logging; финальный locked CI/taskdb/push.
