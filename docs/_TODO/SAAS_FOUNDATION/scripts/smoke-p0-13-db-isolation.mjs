@@ -94,7 +94,6 @@ GRANT SELECT ON
   public.be_patient_package_items,
   public.notification_delivery_attempts,
   public.system_settings,
-  integrator.content_access_grants,
   public.reminder_rules,
   integrator.user_reminder_occurrences,
   integrator.user_reminder_delivery_logs,
@@ -184,16 +183,6 @@ CREATE POLICY p0_13_2_system_settings ON public.system_settings
       NULLIF(current_setting('app.org', true), '') IS NOT NULL
       AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
     )
-  );
-
-ALTER TABLE integrator.content_access_grants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE integrator.content_access_grants FORCE ROW LEVEL SECURITY;
-CREATE POLICY p0_13_2_content_access_grants ON integrator.content_access_grants
-  FOR SELECT USING (
-    NULLIF(current_setting('app.org', true), '') IS NOT NULL
-    AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
-    AND NULLIF(current_setting('app.integrator_user_id', true), '') IS NOT NULL
-    AND user_id = NULLIF(current_setting('app.integrator_user_id', true), '')::bigint
   );
 
 ALTER TABLE integrator.user_reminder_delivery_logs ENABLE ROW LEVEL SECURITY;
@@ -388,13 +377,6 @@ SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a r
 
 SET app.org = '${orgA}';
 SET app.integrator_user_id = '${syntheticIntegratorUserIds.patientA1}';
-SELECT count(*)::int AS integrator_a1_grant_count FROM integrator.content_access_grants \gset
-\if :integrator_a1_grant_count
-\else
-\echo 'FATAL: integrator patient A1 must see own direct bridge row.'
-SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead
-\endif
-
 SELECT count(*)::int AS integrator_a1_log_count FROM integrator.user_reminder_delivery_logs \gset
 \if :integrator_a1_log_count
 \else
@@ -403,7 +385,7 @@ SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a r
 \endif
 
 SET app.integrator_user_id = '${syntheticIntegratorUserIds.patientB1}';
-SELECT count(*)::int AS integrator_wrong_patient_count FROM integrator.content_access_grants \gset
+SELECT count(*)::int AS integrator_wrong_patient_count FROM integrator.user_reminder_delivery_logs \gset
 \if :integrator_wrong_patient_count
 \echo 'FATAL: integrator wrong patient must see zero rows inside org A.'
 SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a real error under ON_ERROR_STOP instead

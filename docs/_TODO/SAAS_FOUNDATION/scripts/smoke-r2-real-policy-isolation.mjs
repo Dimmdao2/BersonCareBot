@@ -223,8 +223,7 @@ function columnTypeForPatientCast(castType = 'uuid') {
   return castType === 'bigint' ? 'bigint' : 'uuid';
 }
 
-function defaultPkType(table, column) {
-  if (table === 'integrator.identities' && column === 'id') return 'bigint';
+function defaultPkType() {
   return 'uuid';
 }
 
@@ -361,9 +360,6 @@ function collectPolicySurfaceColumns() {
   addBaseTable(columnsByTable, 'public.be_organizations');
   addColumn(columnsByTable, 'public.be_organizations', 'organization_id', 'uuid');
   addBaseTable(columnsByTable, 'public.platform_users');
-  addBaseTable(columnsByTable, 'integrator.identities');
-  addColumn(columnsByTable, 'integrator.identities', 'user_id', 'bigint');
-
   return new Map(
     [...columnsByTable.entries()].sort(([left], [right]) => left.localeCompare(right)),
   );

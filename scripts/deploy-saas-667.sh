@@ -482,9 +482,8 @@ BEGIN
   IF v_count <> 6 THEN RAISE EXCEPTION 'ASSERT FAILED: integrator SaaS migration count = %, expected 6', v_count; END IF;
 
   FOREACH v_table IN ARRAY ARRAY[
-    'contacts', 'content_access_grants', 'user_reminder_rules', 'user_subscriptions',
-    'conversations', 'message_drafts', 'user_questions', 'mailings', 'mailing_logs',
-    'conversation_messages', 'question_messages', 'user_reminder_occurrences',
+    'user_subscriptions', 'message_drafts', 'mailings', 'mailing_logs',
+    'user_reminder_occurrences',
     'user_reminder_delivery_logs'
   ] LOOP
     EXECUTE format('SELECT count(*) FROM integrator.%I WHERE organization_id IS NULL', v_table)
@@ -500,11 +499,10 @@ BEGIN
   SELECT count(*) INTO v_count
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
   WHERE (n.nspname, c.relname) IN (
-    ('integrator', 'contacts'), ('integrator', 'conversations'),
     ('public', 'org_enrollments'), ('public', 'clinical_visit')
   ) AND c.relrowsecurity IS TRUE AND c.relforcerowsecurity IS FALSE;
-  IF v_count <> 4 THEN
-    RAISE EXCEPTION 'ASSERT FAILED: representative dormant NO FORCE RLS table count = %, expected 4', v_count;
+  IF v_count <> 2 THEN
+    RAISE EXCEPTION 'ASSERT FAILED: representative dormant NO FORCE RLS table count = %, expected 2', v_count;
   END IF;
 
   SELECT count(*) INTO v_count FROM pg_roles
@@ -548,7 +546,6 @@ UNION ALL SELECT 'active_specialists', count(*), 1 FROM public.be_specialists WH
 UNION ALL SELECT 'canonical_appointments_minimum', count(*), 1
 FROM public.be_appointments WHERE specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid
 UNION ALL SELECT 'drizzle_migrations_minimum', count(*), 178 FROM drizzle.__drizzle_migrations
-UNION ALL SELECT 'contacts_null_org', count(*), 0 FROM integrator.contacts WHERE organization_id IS NULL
 UNION ALL SELECT 'required_memberships', count(*), 2 FROM public.be_organization_members
 WHERE platform_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4'::uuid
    OR platform_user_id = (

@@ -7,7 +7,6 @@ import { join } from 'node:path';
 import {
   getP085IntegratorDirectUserBridgeDescriptors,
   getP085IntegratorIdentityBridgeDescriptors,
-  getP085IntegratorMailingsRootDescriptors,
   getP085IntegratorParentDenormDescriptors,
   getP085IntegratorScopedDescriptors,
   renderP085PolicyStatements,
@@ -56,52 +55,49 @@ function sqlLiteral(value) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-function renderIntegratorBridgeSetup() {
-  return [
-    'CREATE TABLE integrator.users (',
-    '  id bigint PRIMARY KEY,',
-    '  synthetic_org_hint uuid NOT NULL',
-    ');',
-    'CREATE TABLE integrator.identities (',
-    '  id uuid PRIMARY KEY,',
-    '  user_id bigint NOT NULL REFERENCES integrator.users(id),',
-    '  synthetic_org_hint uuid NOT NULL',
-    ');',
-    `INSERT INTO integrator.users (id, synthetic_org_hint) VALUES (1001, '${orgA}'), (1002, '${orgB}');`,
-    `INSERT INTO integrator.identities (id, user_id, synthetic_org_hint) VALUES`,
-    `  (md5('integrator.identity|org-a')::uuid, 1001, '${orgA}'),`,
-    `  (md5('integrator.identity|org-b')::uuid, 1002, '${orgB}');`,
-    `ALTER TABLE integrator.users OWNER TO :"p0_8_5_owner_role";`,
-    `ALTER TABLE integrator.identities OWNER TO :"p0_8_5_owner_role";`,
-    `GRANT SELECT ON TABLE integrator.users, integrator.identities TO :"p0_8_5_app_role";`,
-  ].join('\n');
-}
-
 function renderTargetTableSetup(descriptors) {
-  return descriptors
-    .map((descriptor, index) => {
-      const target = quoteQualifiedName(descriptor.table);
-      const payloadA = sqlLiteral(`p0-8-5-${descriptor.sourceStage}-org-a-${index}`);
-      const payloadB = sqlLiteral(`p0-8-5-${descriptor.sourceStage}-org-b-${index}`);
+  if (
+    descriptors.map(({ table }) => table).join(',') !==
+    'integrator.user_reminder_delivery_logs,integrator.user_reminder_occurrences'
+  ) {
+    throw new Error('P0.8.5 scratch setup only supports the post-drop reminder targets');
+  }
 
-      return [
-        `DROP TABLE IF EXISTS ${target} CASCADE;`,
-        `CREATE TABLE ${target} (`,
-        '  id uuid PRIMARY KEY,',
-        '  organization_id uuid NOT NULL,',
-        '  bridge_user_id bigint,',
-        '  bridge_identity_id uuid,',
-        '  parent_id uuid,',
-        '  payload text NOT NULL',
-        ');',
-        `INSERT INTO ${target} (id, organization_id, bridge_user_id, bridge_identity_id, parent_id, payload) VALUES`,
-        `  (md5(${sqlLiteral(`${descriptor.table}|org-a`)})::uuid, '${orgA}', 1001, md5('integrator.identity|org-a')::uuid, NULL, ${payloadA}),`,
-        `  (md5(${sqlLiteral(`${descriptor.table}|org-b`)})::uuid, '${orgB}', 1002, md5('integrator.identity|org-b')::uuid, NULL, ${payloadB});`,
-        `ALTER TABLE ${target} OWNER TO :"p0_8_5_owner_role";`,
-        `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${target} TO :"p0_8_5_app_role";`,
-      ].join('\n');
-    })
-    .join('\n');
+  return String.raw`
+DROP TABLE IF EXISTS integrator.user_reminder_delivery_logs CASCADE;
+DROP TABLE IF EXISTS integrator.user_reminder_occurrences CASCADE;
+DROP TABLE IF EXISTS public.reminder_rules CASCADE;
+CREATE TABLE public.reminder_rules (
+  integrator_rule_id text PRIMARY KEY,
+  integrator_user_id bigint NOT NULL
+);
+CREATE TABLE integrator.user_reminder_occurrences (
+  id uuid PRIMARY KEY,
+  rule_id text NOT NULL REFERENCES public.reminder_rules(integrator_rule_id),
+  organization_id uuid NOT NULL,
+  payload text NOT NULL
+);
+CREATE TABLE integrator.user_reminder_delivery_logs (
+  id uuid PRIMARY KEY,
+  occurrence_id uuid NOT NULL REFERENCES integrator.user_reminder_occurrences(id),
+  organization_id uuid NOT NULL,
+  payload text NOT NULL
+);
+INSERT INTO public.reminder_rules VALUES ('rule-a', 1001), ('rule-b', 1002);
+INSERT INTO integrator.user_reminder_occurrences VALUES
+  (md5('occurrence-a')::uuid, 'rule-a', '${orgA}', 'occurrence-a'),
+  (md5('occurrence-b')::uuid, 'rule-b', '${orgB}', 'occurrence-b');
+INSERT INTO integrator.user_reminder_delivery_logs VALUES
+  (md5('delivery-a')::uuid, md5('occurrence-a')::uuid, '${orgA}', 'delivery-a'),
+  (md5('delivery-b')::uuid, md5('occurrence-b')::uuid, '${orgB}', 'delivery-b');
+ALTER TABLE public.reminder_rules OWNER TO :"p0_8_5_owner_role";
+ALTER TABLE integrator.user_reminder_occurrences OWNER TO :"p0_8_5_owner_role";
+ALTER TABLE integrator.user_reminder_delivery_logs OWNER TO :"p0_8_5_owner_role";
+GRANT SELECT ON TABLE public.reminder_rules TO :"p0_8_5_app_role";
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  integrator.user_reminder_occurrences,
+  integrator.user_reminder_delivery_logs
+TO :"p0_8_5_app_role";`;
 }
 
 function renderVisibleRowsCte(descriptors) {
@@ -128,7 +124,6 @@ function renderSmokeSql() {
   const i1Descriptors = getP085IntegratorDirectUserBridgeDescriptors();
   const i2Descriptors = getP085IntegratorIdentityBridgeDescriptors();
   const i3Descriptors = getP085IntegratorParentDenormDescriptors();
-  const i4Descriptors = getP085IntegratorMailingsRootDescriptors();
   const descriptors = getP085IntegratorScopedDescriptors();
   const totalRows = descriptors.length * 2;
   const perOrgRows = descriptors.length;
@@ -183,12 +178,7 @@ CREATE SCHEMA IF NOT EXISTS integrator;
 GRANT USAGE, CREATE ON SCHEMA integrator TO :"p0_8_5_owner_role";
 GRANT USAGE ON SCHEMA integrator TO :"p0_8_5_app_role";
 
-DROP TABLE IF EXISTS integrator.identities CASCADE;
-DROP TABLE IF EXISTS integrator.users CASCADE;
-
 ${renderTargetTableSetup(descriptors)}
-
-${renderIntegratorBridgeSetup()}
 
 ${policyStatements}
 
@@ -245,14 +235,13 @@ SELECT (
   count(*) FILTER (WHERE source_stage = 'P0.4.I1') = ${i1Descriptors.length}
   AND count(*) FILTER (WHERE source_stage = 'P0.4.I2') = ${i2Descriptors.length}
   AND count(*) FILTER (WHERE source_stage = 'P0.4.I3') = ${denormPerOrgRows}
-  AND count(*) FILTER (WHERE source_stage = 'P0.4.I4') = ${i4Descriptors.length}
   AND count(*) FILTER (WHERE source_stage = 'P0.4.I3' AND scoping_kind = 'denorm_org_column') = ${denormPerOrgRows}
 )::int AS p0_8_5_app_org_a_source_split_ok
 FROM visible_integrator_rows \gset
 
 \if :p0_8_5_app_org_a_source_split_ok
 \else
-\echo 'FATAL: org A visibility should preserve the 5/3/4/1 P0.4 source split and denorm child descriptors.'
+\echo 'FATAL: org A visibility should preserve the post-drop P0.4.I3 reminder descriptors.'
 SELECT 1 / 0 AS p0_8_5_abort;
 \endif
 
@@ -285,7 +274,7 @@ SELECT 1 / 0 AS p0_8_5_abort;
 RESET ROLE;
 ROLLBACK;
 
-\echo 'P0.8.5 integrator scoped scratch smoke OK: 13 targets, I1=5, I2=3, I3=4, I4=1, NOBYPASSRLS, dormant unset/empty permit, org A/B isolation.'
+\echo 'P0.8.5 integrator scoped scratch smoke OK: 2 post-drop I3 targets, NOBYPASSRLS, dormant unset/empty permit, org A/B isolation.'
 `;
 }
 

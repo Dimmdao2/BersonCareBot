@@ -40,7 +40,6 @@ const expectedRows = new Map([
   ['public.be_working_days', 'breaks'],
   ['public.be_working_hours', 'breaks'],
   ['integrator.user_reminder_delivery_logs', 'payload_json,error_code'],
-  ['integrator.content_access_grants', 'meta_json'],
   ['public.idempotency_keys', 'response_body'],
   ['integrator.idempotency_keys', 'response_body'],
   ['public.integrator_push_outbox', 'payload,last_error'],
