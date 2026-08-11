@@ -413,3 +413,12 @@ Runtime 390px подтвердил account tabs и русские date picker н
 Снимки обновлены в игнорируемом `.claude/screenshots/UI-GLOBAL-ADMIN-2026-08-11/`. Повторная попытка открыть
 `/app/admin/app-settings` упёрлась в уже зафиксированный redirect/access loop локального dev-admin; поэтому
 `DoctorField` подтверждён unit-тестом, lint, typecheck и production build, но не runtime-снимком.
+
+### Независимый аудит и исправление 2026-08-11
+
+Первичный runtime-аудит snapshot `cd578d4b5` дал **FAIL** по трём пунктам: кнопки строки журнала всё ещё
+переносились, время платежей зависело от timezone браузера, а две settings-карточки перекрывали neutral border.
+
+**ИСПРАВЛЕНО** коммитами `cc9b3adc9` + `2179c2a1b`: browser replay на desktop 1480×1024 и 390px подтвердил
+кнопки в одной строке, `app_display_timezone` независимо от browser timezone, neutral border
+`rgba(35,42,49,.1)` и отсутствие document-level overflow. Остальной ранее принятый stage не менялся.
