@@ -1000,3 +1000,25 @@ context успешно вернул `0`, вместо `42501` и PostgreSQL log 
 
 DECL-008/009 остаются частью того же fixer: полный purpose-backed grant census и deterministic production artifacts,
 а не только fixture artifacts. Штатный proof-run exit `0` признан false-green до закрытия DECL-010/011.
+
+## Fix verification DECL-FAILCLOSED-2026-08-11 — `1017b5686`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent gap fault injection и disposable PostgreSQL 16.14 ACL mutations |
+| Вердикт | **PASS bounded fail-closed gate — к land; grant-этап не готов** |
+
+- **DECL-008 false-green ИСПРАВЛЕН.** `generate-cli.mjs --gaps`, generation, `--stdout` и `--check` завершаются
+  exit `2`, пока relation имеет missing/unresolved/неполный direct access status. На каждой DB machine census:
+  `classified=238 active=225 pending=13 direct=1 unresolved=224 gaps=224`; SQL не создаётся.
+- **DECL-010 перечисленные ACL bypass ИСПРАВЛЕНЫ в verifier.** Независимые mutations PUBLIC relation EXECUTE/ACL,
+  TEST-login ACL в DEV DB, schema USAGE и CREATE дали exit `1`; после каждого revoke verifier снова exit `0`.
+  Отсутствующая declared role не вызывает SQL-ошибку.
+- Fault injection missing status и direct без purpose/code/grant независимо красит `collectGaps()` и generation.
+  Коммит добавляет `0` строк GRANT/REVOKE и не маскирует relations как `no-runtime-surface`.
+- TypeScript strict, три Node syntax checks и `git diff --check` → exit `0`; scope ровно пять файлов,
+  audit worktree чист, disposable clusters удалены.
+
+**ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** `224/225` ACTIVE relations на каждую DB не имеют доказанного per-callsite access;
+production artifacts не regenerated; DECL-011 actual context/no-context `42501` + PostgreSQL log proof отсутствует.
+PASS принимает только защиту от ложной готовности, а не Ф3б/декларацию целиком.
