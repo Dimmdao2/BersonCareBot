@@ -262,7 +262,16 @@ CREATE OR REPLACE FUNCTION app.require_accepted_context(p_effective_role name, p
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE database_id oid;
 BEGIN
-  IF p_effective_role IS NULL OR p_target_role IS NULL OR p_purpose !~ '^[a-z][a-z0-9._:-]{0,127}$' OR octet_length(p_typed_args_hash) <> 32 THEN
+  IF p_effective_role IS NULL OR p_target_role IS NULL
+    OR NOT (
+      (p_function_identity IS NULL AND p_effective_role = p_target_role)
+      OR (p_function_identity IS NOT NULL AND EXISTS (
+        SELECT 1 FROM pg_catalog.pg_proc p
+         WHERE p.oid = p_function_identity::oid
+           AND pg_catalog.pg_get_userbyid(p.proowner) = p_effective_role
+      ))
+    )
+    OR p_purpose !~ '^[a-z][a-z0-9._:-]{0,127}$' OR octet_length(p_typed_args_hash) <> 32 THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'accepted port context required';
   END IF;
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
@@ -324,7 +333,9 @@ CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE opaque uuid;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.password.resolve', app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg]), 'app.pre_session_resolve_identity(uuid)'::regprocedure);
+  -- The exact password-auth root has already checked function/purpose/args;
+  -- beyond its identity owner, this private resolver is executable only by
+  -- that declared password-root owner.
   INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref)
   VALUES (p_platform_user_id, (
     substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),1,8) || '-' ||

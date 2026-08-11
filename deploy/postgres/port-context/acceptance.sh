@@ -161,8 +161,8 @@ case "$fault" in
   EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='port context already installed for transaction'; END \$\$; ALTER FUNCTION app.install_port_context(uuid,app.port_context_claims) OWNER TO app_seam_context_owner" ;;
   forbidden_tag) psql_admin -c "CREATE OR REPLACE FUNCTION app.hash_port_typed_args(p_args app.port_typed_arg[]) RETURNS bytea LANGUAGE plpgsql IMMUTABLE SECURITY INVOKER SET search_path=pg_catalog AS \$\$ BEGIN -- fault_forbidden_tag
     RETURN decode('$h0','hex'); END \$\$; ALTER FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) OWNER TO app_object_owner" ;;
-  wrong_function|wrong_purpose|wrong_hash|wrong_xid|wrong_backend|wrong_role)
-    gate_effective_check="p_effective_role IS NULL OR p_target_role IS NULL"
+  wrong_function|wrong_purpose|wrong_hash|wrong_xid|wrong_backend|wrong_role|wrong_effective_role)
+    gate_effective_check="p_effective_role IS NULL OR p_target_role IS NULL OR NOT ((p_function_identity IS NULL AND p_effective_role = p_target_role) OR (p_function_identity IS NOT NULL AND EXISTS (SELECT 1 FROM pg_catalog.pg_proc effective_function WHERE effective_function.oid=p_function_identity::oid AND pg_catalog.pg_get_userbyid(effective_function.proowner)=p_effective_role)))"
     gate_backend_check='c.backend_pid = pg_backend_pid()'
     gate_xid_check='c.transaction_id = pg_current_xact_id()'
     gate_role_check='c.target_role = p_target_role'
@@ -176,6 +176,7 @@ case "$fault" in
       wrong_xid) gate_xid_check='true' ;;
       wrong_backend) gate_backend_check='true' ;;
       wrong_role) gate_role_check='true' ;;
+      wrong_effective_role) gate_effective_check="p_effective_role IS NULL OR p_target_role IS NULL" ;;
     esac
     psql_admin <<SQL >/dev/null
 CREATE OR REPLACE FUNCTION app.require_accepted_context(p_effective_role name,p_target_role name,p_context_class app.port_context_class,p_purpose text,p_typed_args_hash bytea,p_function_identity regprocedure)
@@ -285,7 +286,7 @@ run_gate_fault() {
 BEGIN;
 SELECT app.install_port_context('00000000-0000-0000-0000-000000000101',ROW(1,'staff','app_staff','relation',NULL,decode('$h0','hex'),'$opaque_actor'::uuid,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims);
 SET LOCAL ROLE app_staff;
-SELECT app.require_accepted_context('app_staff','app_staff','staff','relation',decode('$h0','hex'),'app.named_staff_root()'::regprocedure);
+SELECT app.require_accepted_context('app_seam_staff_security_owner','app_staff','staff','relation',decode('$h0','hex'),'app.named_staff_root()'::regprocedure);
 ROLLBACK;
 SQL
 );;
@@ -309,7 +310,15 @@ SQL
 BEGIN;
 SELECT app.install_port_context('00000000-0000-0000-0000-000000000101',ROW(1,'staff','app_staff','relation',NULL,decode('$h0','hex'),'$opaque_actor'::uuid,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims);
 SET LOCAL ROLE app_staff;
-SELECT app.require_accepted_context('app_staff','app_patient','staff','relation',decode('$h0','hex'),NULL::regprocedure);
+SELECT app.require_accepted_context('app_patient','app_patient','staff','relation',decode('$h0','hex'),NULL::regprocedure);
+ROLLBACK;
+SQL
+);;
+    wrong_effective_role) result=$(psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -qAt <<SQL
+BEGIN;
+SELECT app.install_port_context('00000000-0000-0000-0000-000000000101',ROW(1,'staff','app_staff','relation',NULL,decode('$h0','hex'),'$opaque_actor'::uuid,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims);
+SET LOCAL ROLE app_staff;
+SELECT app.require_accepted_context('app_seam_password_auth_owner','app_staff','staff','relation',decode('$h0','hex'),NULL::regprocedure);
 ROLLBACK;
 SQL
 );;
@@ -366,7 +375,7 @@ if [[ -n "$fault" ]]; then
       assert_eq "$(psql_admin -Atc "SELECT encode(app.hash_port_typed_args(ARRAY[ROW('unknown@1',decode('00','hex'))::app.port_typed_arg]),'hex')")" "$h0"
       emit_fault_evidence typed_tag_validation_removed unknown_tag_hashed
       ;;
-    wrong_function|wrong_purpose|wrong_hash|wrong_xid|wrong_backend|wrong_role)
+    wrong_function|wrong_purpose|wrong_hash|wrong_xid|wrong_backend|wrong_role|wrong_effective_role)
       run_gate_fault "$fault"
       emit_fault_evidence "gate_${fault}_comparison_removed" only_corresponding_context_field_accepted
       ;;
@@ -415,6 +424,7 @@ must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-
 must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000101',ROW(1,'staff','app_staff','relation',NULL,decode('$h0','hex'),NULL,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims);"
 must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000107',ROW(1,'pre_session','app_pre_session','auth.password.begin','app.pre_session_begin_password_login(text)'::regprocedure,decode('$h0','hex'),NULL,NULL,NULL,NULL,'$request'::uuid)::app.port_context_claims); SET LOCAL ROLE app_pre_session; SELECT app.pre_session_begin_password_login('other@example.test');"
 must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000101',ROW(1,'staff','app_staff','relation',NULL,decode('$h0','hex'),'$opaque_actor'::uuid,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims); SET LOCAL ROLE app_patient; SELECT * FROM app.demo_context_records;"
+must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000101',ROW(1,'staff','app_staff','relation',NULL,decode('$h0','hex'),'$opaque_actor'::uuid,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims); SET LOCAL ROLE app_staff; SELECT app.require_accepted_context('app_seam_password_auth_owner','app_staff','staff','relation',decode('$h0','hex'),NULL::regprocedure);"
 must_fail_state 42501 psql_as "$staff_login" "$staff_password" "$cert_dir/staff-old.crt" "$cert_dir/staff-old.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000101',ROW(1,'staff','app_staff','relation',NULL,decode('$h0','hex'),'$opaque_actor'::uuid,NULL,'$org_a'::uuid,NULL,NULL)::app.port_context_claims); COMMIT; BEGIN; SET LOCAL ROLE app_staff; SELECT * FROM app.context_gate_probe;"
 must_fail_state 22023 psql_admin -c "SELECT app.hash_port_typed_args(ARRAY[ROW('unknown@1',decode('00','hex'))::app.port_typed_arg]);"
 
@@ -561,7 +571,7 @@ grep -q 'accepted port context required' "$log_file" || fail '42501 denial absen
 
 if [[ "$single_mode" != --single && -z "$fault" ]]; then
   printf 'fault\tinjected\tmechanism\texpected_error_or_result\n'
-  faults=(clientcert broad_hba forbidden_claim forbidden_tag wrong_function wrong_purpose wrong_hash wrong_xid wrong_backend wrong_role business_using_true dropped_restrictive_gate removed_force_rls)
+  faults=(clientcert broad_hba forbidden_claim forbidden_tag wrong_function wrong_purpose wrong_hash wrong_xid wrong_backend wrong_role wrong_effective_role business_using_true dropped_restrictive_gate removed_force_rls)
   for batch_start in 0 3 6 9 12; do
     batch_pids=()
     batch_faults=()
