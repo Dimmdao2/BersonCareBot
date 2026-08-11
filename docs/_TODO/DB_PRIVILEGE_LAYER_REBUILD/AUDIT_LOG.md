@@ -378,3 +378,53 @@ artifact с самим собой. Нужны apply к disposable clone, catalog
 - Каркас declaration/generator, атомарный apply, deterministic `--check` и реальный rollback membership полезны.
 - `bash deploy/postgres/privileges/fixtures/proof-run.sh` и `git diff --check 0da3b5e7f^..0da3b5e7f` прошли, но не
   доказывают закрытие DECL-001–007.
+
+## Audit pass TRUST-2026-08-11 — revision-10 SQL/rotation acceptance
+
+| Поле | Значение |
+|---|---|
+| Candidate | `67f884340`, `wt/port-context-trust` |
+| Метод | **Тест + взгляд**: independent PG16 named-root/catalog probes и поштучный запуск 13 заявленных mutations |
+| Вердикт | **FAIL — шесть MUST FIX; к сведению/DEV/TEST не готов** |
+
+### TRUST-001 — installer запрещает named roots большинству context classes
+
+**ОТКРЫТО — MUST FIX.** Matrix требует `function_identity IS NULL` для staff/patient/platform/tenant-service/service.
+Реальный PG16 install с объявленной staff capability и non-NULL root дал `42501 port context class identity
+mismatch`. Relation access и named-root identity должны различаться по declared capability, а не запрещаться классом.
+
+### TRUST-002 — integrator resolver принимает готовую произвольную identity/org пару
+
+**ОТКРЫТО — MUST FIX.** `resolve_integrator_request(bigint,uuid)` не разрешает external identity и не проверяет
+user→organization; он возвращает caller-supplied `77 + org` эхом. Такой результат нельзя считать human identity
+proof и затем устанавливать как `app_integrator_request`.
+
+### TRUST-003 — A→I map не участвует в runtime handoff
+
+**ОТКРЫТО — MUST FIX.** Accessors возвращают physical actor/subject прямо из context. Acceptance получает отличный
+opaque ID, но следующая транзакция его не использует. Нужен реальный opaque context ref → private Variant-A
+physical resolver перед бизнес-доступом, чтобы будущая I меняла внутренний resolver, а не public contract.
+
+### TRUST-004 — role/owner/EXECUTE graph неполон
+
+**ОТКРЫТО — MUST FIX.** Несколько объявленных runtime roles и большинство seam owners не имеют требуемых exact
+`USAGE app`/gate EXECUTE. Catalog probe также показал `hash_port_typed_args` и четыре application types владельцем
+superuser creator, а не `app_object_owner`.
+
+### TRUST-005 — 13 mutation tests дают ложный PASS
+
+**ОТКРЫТО — MUST FIX.** Поштучный `PORTCTX_INJECT_FAULT=<fault> ... --single` показал: два HBA faults неизвестны;
+forbidden claims/tags и шесть wrong-* падают на injection с `42P13 cannot change name of input parameter`; только
+три policy/RLS faults достигают механизма. Runner принимает любой nonzero. Каждая мутация обязана сначала успешно
+внести поломку, затем упасть на точном behavioral assertion и подтвердить ожидаемый error/result.
+
+### TRUST-006 — rotation доказана только primitive sentinel, не runtime drain
+
+**ОТКРЫТО — MUST FIX.** CRL reload и отказ нового соединения доказаны, но drain — прямой terminate одного известного
+PID. Нет PoolConfig/env overlap, catalog enumeration всех backend отозванного credential, закрытия webapp/integrator
+pools и проверки, что старый backend не появился снова.
+
+### Что сохраняется
+
+- Базовый exact-CN + clientcert + SCRAM, CRL reload primitive и три настоящие policy/FORCE-RLS mutations полезны.
+- Независимый `acceptance.sh --single` и полный runner печатают `OK`, но этот итог не является PASS до TRUST-005.
