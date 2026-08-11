@@ -30,4 +30,10 @@ describe('staffSecurityErrorText — email_password_login fallback', () => {
       'Не удалось подготовить защищённый вход. Повторите попытку позже.',
     );
   });
+
+  it('directs passwordless patient accounts to a supported login method', () => {
+    expect(staffSecurityErrorText('password_not_available_for_role', 'email_password_login')).toBe(
+      'Вход по паролю не доступен. Выполните вход по коду или выберите другой способ',
+    );
+  });
 });

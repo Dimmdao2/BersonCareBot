@@ -6,6 +6,7 @@ import { apiJson } from '@/shared/lib/apiJson';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { patchAdminSetting } from './patchAdminSetting';
 
 export type EmailSmtpSectionProps = {
@@ -100,7 +101,7 @@ export function EmailSmtpSection({
   }
 
   return (
-    <Card className="border-border">
+    <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Исходящая почта (SMTP)</CardTitle>
         <p className="text-xs text-muted-foreground">
@@ -108,16 +109,16 @@ export function EmailSmtpSection({
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium">SMTP host</span>
+        <DoctorField label="SMTP host" htmlFor="smtp-host">
           <Input
+            id="smtp-host"
             value={host}
             onChange={(e) => setHost(e.target.value)}
             disabled={isPending}
             autoComplete="off"
             placeholder="smtp.example.com"
           />
-        </label>
+        </DoctorField>
         <div className="grid max-w-md grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Порт</span>
@@ -137,18 +138,18 @@ export function EmailSmtpSection({
             disabled={isPending}
           />
         </div>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium">Пользователь</span>
+        <DoctorField label="Пользователь" htmlFor="smtp-user">
           <Input
+            id="smtp-user"
             value={user}
             onChange={(e) => setUser(e.target.value)}
             disabled={isPending}
             autoComplete="off"
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium">Пароль</span>
+        </DoctorField>
+        <DoctorField label="Пароль" htmlFor="smtp-password">
           <Input
+            id="smtp-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -156,10 +157,10 @@ export function EmailSmtpSection({
             autoComplete="new-password"
             placeholder={_hasStoredPassword ? '(без изменения — оставьте пустым)' : ''}
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium">От кого (From)</span>
+        </DoctorField>
+        <DoctorField label="От кого (From)" htmlFor="smtp-from">
           <Input
+            id="smtp-from"
             type="email"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
@@ -167,7 +168,7 @@ export function EmailSmtpSection({
             autoComplete="off"
             placeholder="noreply@example.com"
           />
-        </label>
+        </DoctorField>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" onClick={handleSave} disabled={isPending}>

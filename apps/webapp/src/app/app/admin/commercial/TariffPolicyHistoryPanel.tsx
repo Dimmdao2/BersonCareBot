@@ -5,6 +5,9 @@ import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from '@/shared
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import type { AccessLifecyclePolicy } from '@/modules/org-entitlements/types';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 
 type PolicyChange = {
   mechanic: string | null;
@@ -38,7 +41,7 @@ function policyLine(policy: AccessLifecyclePolicy | null): string {
   return `терпение ${policy.graceDays} дн. · только чтение ${policy.readOnlyDays} дн. · затем: ${terminal}`;
 }
 
-export function TariffPolicyHistoryPanel() {
+export function TariffPolicyHistoryPanel({ displayTimeZone }: { displayTimeZone: string }) {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,14 +77,22 @@ export function TariffPolicyHistoryPanel() {
       </DoctorSectionHeader>
 
       {error && (
-        <p className="text-sm text-destructive" role="alert">
-          Не удалось загрузить журнал ({error}).
+        <DataLoadFailureNotice
+          title="Не удалось загрузить журнал изменений."
+          digest="TARIFF-POLICY-HISTORY"
+          devMessage={error}
+          onRetry={() => void load()}
+          retrying={loading}
+        />
+      )}
+      {loading && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Загружаем журнал изменений…
         </p>
       )}
-      {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
 
       {!loading && !error && items.length === 0 && (
-        <p className="text-sm text-muted-foreground">Правок политики пока не было.</p>
+        <DoctorEmptyState size="xs">Правок политики пока не было.</DoctorEmptyState>
       )}
 
       {!loading && items.length > 0 && (
@@ -94,7 +105,8 @@ export function TariffPolicyHistoryPanel() {
                   <div>
                     <span className="font-medium">{item.tariffName ?? item.tariffId ?? '—'}</span>{' '}
                     <span className="text-muted-foreground">
-                      · {item.actorLabel} · {new Date(item.createdAt).toLocaleString()}
+                      · {item.actorLabel} ·{' '}
+                      {formatDisplayZoneInstantRu(item.createdAt, displayTimeZone)}
                     </span>
                   </div>
                   <Button

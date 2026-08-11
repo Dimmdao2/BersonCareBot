@@ -8,10 +8,7 @@ export default async function ClinicsPage() {
 
   return (
     <DoctorAppShell title="Клиники">
-      <DoctorPageHeader
-        title="Клиники"
-        subtitle="Клиенты платформы, их тарифы и коммерческое состояние"
-      />
+      <DoctorPageHeader title="Клиники" />
       <ClinicsConsoleClient />
     </DoctorAppShell>
   );

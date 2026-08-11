@@ -1,13 +1,5 @@
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
-import {
-  DoctorDnaFlatListSelectionStrip,
-  doctorDnaFlatListClass,
-  doctorDnaFlatListClickableClass,
-  doctorDnaFlatListPrimaryClass,
-  doctorDnaFlatListRowClass,
-  doctorDnaFlatListSelectedPrimaryClass,
-} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 
 export type AccountTab = 'profile' | 'security' | 'notifications' | 'install';
 
@@ -20,32 +12,23 @@ const ACCOUNT_TABS: ReadonlyArray<{ id: AccountTab; label: string }> = [
 
 export function AccountTabs({ activeTab }: { activeTab: AccountTab }) {
   return (
-    <nav aria-label="Разделы аккаунта">
-      <ul className={doctorDnaFlatListClass}>
-        {ACCOUNT_TABS.map((tab, index) => {
+    <nav className="min-w-0 max-w-full" aria-label="Разделы аккаунта">
+      <div className="flex gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {ACCOUNT_TABS.map((tab) => {
           const isSelected = tab.id === activeTab;
           const href = tab.id === 'profile' ? '/app/account' : `/app/account?tab=${tab.id}`;
           return (
-            <li key={tab.id}>
-              <Link
-                href={href}
-                className={cn(
-                  doctorDnaFlatListRowClass,
-                  doctorDnaFlatListClickableClass,
-                  'w-full',
-                  index === 0 && 'border-t-0',
-                  doctorDnaFlatListPrimaryClass,
-                  isSelected && doctorDnaFlatListSelectedPrimaryClass,
-                )}
-                aria-current={isSelected ? 'page' : undefined}
-              >
-                {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
-                {tab.label}
-              </Link>
-            </li>
+            <Link
+              key={tab.id}
+              href={href}
+              className={doctorSectionTabClass(isSelected)}
+              aria-current={isSelected ? 'page' : undefined}
+            >
+              {tab.label}
+            </Link>
           );
         })}
-      </ul>
+      </div>
     </nav>
   );
 }

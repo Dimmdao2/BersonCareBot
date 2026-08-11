@@ -21,6 +21,9 @@ type Props = {
   disabled?: boolean;
   placeholder?: string;
   testId?: string;
+  id?: string;
+  ariaLabel?: string;
+  className?: string;
   /** Максимальная допустимая дата (включительно), формат "yyyy-MM-dd". */
   max?: string;
 };
@@ -31,6 +34,9 @@ export function DoctorDatePicker({
   disabled,
   placeholder = 'Выберите дату',
   testId,
+  id,
+  ariaLabel,
+  className,
   max,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -42,13 +48,16 @@ export function DoctorDatePicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
+        id={id}
         type="button"
+        aria-label={ariaLabel}
         disabled={disabled}
         data-testid={testId}
         className={cn(
           buttonVariants({ variant: 'outline', size: 'default' }),
           'w-full justify-start gap-2 font-normal',
           !dt?.isValid && 'text-muted-foreground',
+          className,
         )}
       >
         <CalendarDays className="size-4 shrink-0 opacity-70" />

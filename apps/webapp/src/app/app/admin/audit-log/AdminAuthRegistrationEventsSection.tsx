@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/pri
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   Select,
   SelectContent,
@@ -223,9 +225,20 @@ export function AdminAuthRegistrationEventsSection() {
             </Link>
           </div>
         ) : null}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {!data?.items.length && !loading && !error ? (
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        {error ? (
+          <DataLoadFailureNotice
+            title="Не удалось загрузить события регистрации."
+            digest="AUTH-REGISTRATION-EVENTS"
+            devMessage={error}
+            onRetry={() => void load()}
+            retrying={loading}
+          />
+        ) : loading && !data ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            Загружаем события регистрации…
+          </p>
+        ) : !data?.items.length ? (
+          <DoctorEmptyState size="xs">{emptyMessage}</DoctorEmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">

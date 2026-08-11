@@ -33,6 +33,8 @@ export function staffSecurityErrorText(error: string | undefined, action: Securi
       return 'Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.';
     case 'password_login_unavailable':
       return 'Для аккаунта не настроен вход по паролю. Используйте другой способ входа.';
+    case 'password_not_available_for_role':
+      return 'Вход по паролю не доступен. Выполните вход по коду или выберите другой способ';
     case 'password_changed_session_reissue_failed':
       return 'Пароль изменён, но сеанс завершён. Войдите снова с новым паролем.';
     case 'rate_limited':

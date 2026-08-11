@@ -12,11 +12,15 @@ import type {
 import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/shared/ui/doctor/primitives/card';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -37,6 +41,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import { SaasBillingProviderSettings } from './SaasBillingProviderSettings';
 
 const INVOICE_STATUS_LABELS: Record<SaasBillingInvoiceStatus, string> = {
@@ -67,22 +72,12 @@ function isInvoiceOverdue(row: SaasBillingPlatformInvoiceRow): boolean {
   );
 }
 
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+function formatDateTime(value: string, displayTimeZone: string): string {
+  return formatDisplayZoneInstantRu(value, displayTimeZone);
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
+function formatDate(value: string, displayTimeZone: string): string {
+  return formatDisplayZoneInstantRu(value, displayTimeZone).split(',')[0]!;
 }
 
 const REFUND_ERROR_LABELS: Record<string, string> = {
@@ -211,18 +206,25 @@ function PlatformPaymentsSummarySection({
     void load();
   }, [load]);
 
-  if (loading) return <p className="text-sm text-muted-foreground">Загрузка сводки…</p>;
-  if (error) {
+  if (loading) {
     return (
-      <p className="text-sm text-destructive" role="alert">
-        Сводка не загрузилась ({error}).
+      <p role="status" className="text-sm text-muted-foreground">
+        Загружаем сводку…
       </p>
     );
   }
-  if (!summary || summary.byCurrency.length === 0) {
+  if (error) {
     return (
-      <p className="text-sm text-muted-foreground">За этот период платежей нет — сводка пуста.</p>
+      <DataLoadFailureNotice
+        title="Не удалось загрузить сводку платежей."
+        digest="SAAS-PAYMENTS-SUMMARY"
+        devMessage={error}
+        onRetry={() => void load()}
+      />
     );
+  }
+  if (!summary || summary.byCurrency.length === 0) {
+    return <DoctorEmptyState size="xs">За этот период платежей нет.</DoctorEmptyState>;
   }
 
   return (
@@ -410,20 +412,20 @@ function ReconciliationSection({
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="reconcile-from">Период с</Label>
-            <Input
+            <DoctorDatePicker
               id="reconcile-from"
-              type="date"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={setFrom}
+              placeholder="Выберите начало периода"
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="reconcile-to">Период по</Label>
-            <Input
+            <DoctorDatePicker
               id="reconcile-to"
-              type="date"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={setTo}
+              placeholder="Выберите конец периода"
             />
           </div>
           <div className="flex items-end">
@@ -658,6 +660,7 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [organizations, setOrganizations] = useState<OrganizationOption[] | null>(null);
   const [tariffs, setTariffs] = useState<TariffOption[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(true);
   const [organizationId, setOrganizationId] = useState('');
   const [amountRub, setAmountRub] = useState('');
   const [currency, setCurrency] = useState('RUB');
@@ -667,22 +670,28 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [error, setError] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const json = await apiJson<
-          | { ok: true; organizations: OrganizationOption[]; tariffs: TariffOption[] }
-          | { ok: false; error?: string }
-        >('/api/admin/organizations', { credentials: 'include' });
-        if (json.ok) {
-          setOrganizations(json.organizations);
-          setTariffs(json.tariffs);
-        }
-      } catch (e) {
-        setLoadError(e instanceof Error ? e.message : 'network');
+  const loadOptions = useCallback(async () => {
+    setLoadingOptions(true);
+    setLoadError(null);
+    try {
+      const json = await apiJson<
+        | { ok: true; organizations: OrganizationOption[]; tariffs: TariffOption[] }
+        | { ok: false; error?: string }
+      >('/api/admin/organizations', { credentials: 'include' });
+      if (json.ok) {
+        setOrganizations(json.organizations);
+        setTariffs(json.tariffs);
       }
-    })();
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'network');
+    } finally {
+      setLoadingOptions(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadOptions();
+  }, [loadOptions]);
 
   const selectedTariff = useMemo(() => {
     const org = organizations?.find((o) => o.id === organizationId);
@@ -780,10 +789,19 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
         ) : (
           <div className="space-y-3">
             {loadError && (
-              <p className="text-sm text-destructive" role="alert">
-                Список клиник не загрузился ({loadError}).
-              </p>
+              <DataLoadFailureNotice
+                title="Не удалось загрузить список клиник."
+                digest="MANUAL-INVOICE-ORGANIZATIONS"
+                devMessage={loadError}
+                onRetry={() => void loadOptions()}
+                retrying={loadingOptions}
+              />
             )}
+            {loadingOptions ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                Загружаем список клиник…
+              </p>
+            ) : null}
             <div className="space-y-1.5">
               <Label htmlFor="manual-invoice-org">Кому (клиника)</Label>
               <Select value={organizationId} onValueChange={(v) => setOrganizationId(v ?? '')}>
@@ -937,7 +955,7 @@ function CancelInvoiceDialog({
   );
 }
 
-export function PlatformPaymentsSection() {
+export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: string }) {
   const [applied, setApplied] = useState<FilterState>(emptyFilters);
   const [draft, setDraft] = useState<FilterState>(emptyFilters);
   const [loading, setLoading] = useState(true);
@@ -1008,16 +1026,18 @@ export function PlatformPaymentsSection() {
       </Card>
 
       <Card id="platform-payments">
-        <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+        <CardHeader className="gap-3">
           <div>
             <CardTitle className="text-base">Платежи</CardTitle>
             <CardDescription>
               Счета клиник за тариф из нашего журнала (`saas_billing_invoices`).
             </CardDescription>
           </div>
-          <Button type="button" onClick={() => setManualInvoiceOpen(true)}>
-            Выставить счёт
-          </Button>
+          <CardAction>
+            <Button type="button" onClick={() => setManualInvoiceOpen(true)}>
+              Выставить счёт
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1046,20 +1066,20 @@ export function PlatformPaymentsSection() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payments-from">Дата с</Label>
-              <Input
+              <DoctorDatePicker
                 id="payments-from"
-                type="date"
                 value={draft.from}
-                onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+                onChange={(from) => setDraft((d) => ({ ...d, from }))}
+                placeholder="Выберите начало периода"
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="payments-to">Дата по</Label>
-              <Input
+              <DoctorDatePicker
                 id="payments-to"
-                type="date"
                 value={draft.to}
-                onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+                onChange={(to) => setDraft((d) => ({ ...d, to }))}
+                placeholder="Выберите конец периода"
               />
             </div>
             <div className="space-y-1.5">
@@ -1071,7 +1091,7 @@ export function PlatformPaymentsSection() {
                 placeholder="Название клиники"
               />
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
               <Button
                 type="button"
                 variant="secondary"
@@ -1090,15 +1110,19 @@ export function PlatformPaymentsSection() {
             </div>
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              Список платежей не загрузился ({error}).
+          {error ? (
+            <DataLoadFailureNotice
+              title="Не удалось загрузить список платежей."
+              digest="SAAS-PAYMENTS-LIST"
+              devMessage={error}
+              onRetry={() => void load()}
+              retrying={loading}
+            />
+          ) : loading ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Загружаем платежи…
             </p>
-          )}
-
-          {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
-
-          {!loading && !error && (
+          ) : (
             <div className="overflow-x-auto rounded-md border border-border/60">
               <table className="w-full min-w-[980px] text-left text-sm">
                 <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
@@ -1124,18 +1148,18 @@ export function PlatformPaymentsSection() {
                     (payments ?? []).map((row) => (
                       <tr key={row.id} className="border-t border-border/50 hover:bg-muted/30">
                         <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-muted-foreground">
-                          {formatDateTime(row.createdAt)}
+                          {formatDateTime(row.createdAt, displayTimeZone)}
                         </td>
                         <td className="px-3 py-2 align-top font-medium">{row.organizationTitle}</td>
                         <td className="px-3 py-2 align-top text-xs text-muted-foreground">
                           {row.description ?? row.tariffName}
                           <br />
-                          {formatDate(row.servicePeriodStartsAt)} —{' '}
-                          {formatDate(row.servicePeriodEndsAt)}
+                          {formatDate(row.servicePeriodStartsAt, displayTimeZone)} —{' '}
+                          {formatDate(row.servicePeriodEndsAt, displayTimeZone)}
                           {row.expiresAt && (
                             <>
                               <br />
-                              Срок действия: {formatDateTime(row.expiresAt)}
+                              Срок действия: {formatDateTime(row.expiresAt, displayTimeZone)}
                             </>
                           )}
                         </td>

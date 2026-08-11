@@ -24,6 +24,8 @@ import { AuditLogMergeTarget } from '@/components/admin/AuditLogMergeTarget';
 import { auditActorShortLabel } from '@/infra/adminAuditLogPresentation';
 import { CopyForAiButton } from '@/app/app/settings/CopyForAiButton';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 
 type AuditItem = {
   id: string;
@@ -150,7 +152,7 @@ const emptyFilters = (): FilterState => ({
   to: '',
 });
 
-export function AdminAuditLogSection() {
+export function AdminAuditLogSection({ displayTimeZone }: { displayTimeZone: string }) {
   const searchParams = useSearchParams();
   const [applied, setApplied] = useState<FilterState>(emptyFilters);
   const [draft, setDraft] = useState<FilterState>(emptyFilters);
@@ -286,20 +288,20 @@ export function AdminAuditLogSection() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="audit-from">Дата с</Label>
-            <Input
+            <DoctorDatePicker
               id="audit-from"
-              type="date"
               value={draft.from}
-              onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+              onChange={(from) => setDraft((d) => ({ ...d, from }))}
+              placeholder="Выберите начало периода"
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="audit-to">Дата по</Label>
-            <Input
+            <DoctorDatePicker
               id="audit-to"
-              type="date"
               value={draft.to}
-              onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+              onChange={(to) => setDraft((d) => ({ ...d, to }))}
+              placeholder="Выберите конец периода"
             />
           </div>
           <div className="flex items-end">
@@ -342,7 +344,7 @@ export function AdminAuditLogSection() {
                     <th className="px-3 py-2 font-medium">Цель</th>
                     <th className="px-3 py-2 font-medium">Актор</th>
                     <th className="px-3 py-2 font-medium">Статус</th>
-                    <th className="px-3 py-2 font-medium w-10" />
+                    <th className="w-36 whitespace-nowrap px-3 py-2 font-medium" />
                   </tr>
                 </thead>
                 <tbody>
@@ -359,7 +361,7 @@ export function AdminAuditLogSection() {
                         <Fragment key={row.id}>
                           <tr className="border-t border-border/50 hover:bg-muted/30">
                             <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-muted-foreground">
-                              {new Date(row.created_at).toLocaleString()}
+                              {formatDisplayZoneInstantRu(row.created_at, displayTimeZone)}
                             </td>
                             <td className="px-3 py-2 align-top">
                               <div className="flex flex-wrap items-center gap-1">
@@ -373,7 +375,7 @@ export function AdminAuditLogSection() {
                               {row.action === 'auto_merge_conflict' && row.repeat_count > 1 && (
                                 <p className="mt-1 text-[10px] text-muted-foreground">
                                   Повторов: {row.repeat_count}, последнее:{' '}
-                                  {new Date(row.last_seen_at).toLocaleString()}
+                                  {formatDisplayZoneInstantRu(row.last_seen_at, displayTimeZone)}
                                 </p>
                               )}
                             </td>
@@ -384,7 +386,7 @@ export function AdminAuditLogSection() {
                               {auditActorShortLabel(row.actor_id, row.action)}
                             </td>
                             <td className="px-3 py-2 align-top">
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-wrap items-center gap-1">
                                 <Badge variant={statusBadgeVariant(row.status)}>{row.status}</Badge>
                                 {isOpenConflictLabel(row) ? (
                                   <span className="text-[10px] text-amber-700 dark:text-amber-400">
@@ -393,7 +395,8 @@ export function AdminAuditLogSection() {
                                 ) : null}
                                 {row.resolved_at ? (
                                   <span className="text-[10px] text-muted-foreground">
-                                    закрыт {new Date(row.resolved_at).toLocaleString()}
+                                    закрыт{' '}
+                                    {formatDisplayZoneInstantRu(row.resolved_at, displayTimeZone)}
                                   </span>
                                 ) : null}
                                 {canManuallyResolveAuditRow(row) ? (
@@ -401,7 +404,7 @@ export function AdminAuditLogSection() {
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    className="h-7 mt-1 text-[10px]"
+                                    className="h-7 text-[10px]"
                                     disabled={resolvingId === row.id}
                                     onClick={async () => {
                                       setResolvingId(row.id);
@@ -429,8 +432,8 @@ export function AdminAuditLogSection() {
                                 ) : null}
                               </div>
                             </td>
-                            <td className="px-3 py-2 align-top">
-                              <div className="flex flex-col gap-1">
+                            <td className="w-36 whitespace-nowrap px-3 py-2 align-top">
+                              <div className="flex flex-nowrap items-center gap-1">
                                 <CopyForAiButton
                                   payload={row as unknown as Record<string, unknown>}
                                   label="Скопировать"

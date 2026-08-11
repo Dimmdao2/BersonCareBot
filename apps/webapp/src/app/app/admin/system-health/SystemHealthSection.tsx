@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { apiJson } from '@/shared/lib/apiJson';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
@@ -416,13 +418,6 @@ function statusLabel(status: string): string {
   return techProbeStatusHuman(status);
 }
 
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return 'нет данных';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'нет данных';
-  return d.toLocaleString();
-}
-
 export function computeWorkerStatus(payload: SystemHealthPayload | null): {
   api: 'active' | 'down' | 'unknown';
   worker: 'active' | 'idle' | 'no_activity' | 'no_signal';
@@ -520,6 +515,7 @@ function healthCardAiSnapshot(
 function NotificationDeliveryChannelBlock({
   channel,
   agg,
+  formatDateTime,
 }: {
   channel: string;
   agg?: {
@@ -533,6 +529,7 @@ function NotificationDeliveryChannelBlock({
     lastErrorReason: string | null;
     lastErrorMessage: string | null;
   };
+  formatDateTime: (value: string | null | undefined) => string;
 }) {
   return (
     <div className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
@@ -607,16 +604,16 @@ function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccor
   const snapshot = aiSnapshot ?? healthCardAiSnapshot(name, status, { status }, null, null);
   return (
     <div className="rounded-md border border-border/60">
-      <div className="flex w-full items-center gap-1 px-2 py-1">
+      <div className="flex w-full flex-wrap items-center gap-1 px-2 py-1">
         <Button
           type="button"
           variant="ghost"
-          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-1 py-1.5 text-left h-auto"
+          className="flex h-auto min-w-0 basis-full flex-1 items-center justify-between gap-3 overflow-hidden px-1 py-1.5 text-left sm:basis-auto"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          <span className="font-medium">{name}</span>
-          <span className="flex items-center gap-2">
+          <span className="min-w-0 truncate font-medium">{name}</span>
+          <span className="flex shrink-0 items-center gap-2">
             <StatusPill status={status} />
             <ChevronDown
               className={cn(
@@ -630,7 +627,7 @@ function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccor
         <CopyForAiButton
           payload={snapshot}
           label="Скопировать"
-          className="h-7 shrink-0 px-2 text-xs"
+          className="ml-auto h-7 shrink-0 px-2 text-xs"
         />
       </div>
       {open ? (
@@ -834,7 +831,7 @@ function saasIsolationAccordionStatus(
   return 'no_data';
 }
 
-export function SystemHealthSection() {
+export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SystemHealthPayload | null>(null);
@@ -850,6 +847,13 @@ export function SystemHealthSection() {
   >('all');
   const [saasServiceFilter, setSaasServiceFilter] = useState<'all' | SaasIsolationSourceService>(
     'all',
+  );
+  const formatDateTime = useCallback(
+    (value: string | null | undefined): string => {
+      if (!value || Number.isNaN(new Date(value).getTime())) return 'нет данных';
+      return formatDisplayZoneInstantRu(value, displayTimeZone);
+    },
+    [displayTimeZone],
   );
 
   const load = useCallback(async () => {
@@ -988,9 +992,19 @@ export function SystemHealthSection() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {error ? (
-            <p className="text-destructive">Не удалось загрузить данные ({error}).</p>
+            <DataLoadFailureNotice
+              title="Не удалось загрузить состояние системы."
+              digest="SYSTEM-HEALTH"
+              devMessage={error}
+              onRetry={() => void load()}
+              retrying={loading}
+            />
           ) : null}
-          {loading ? <p className="text-muted-foreground">Загрузка…</p> : null}
+          {loading ? (
+            <p role="status" className="text-muted-foreground">
+              Загружаем состояние системы…
+            </p>
+          ) : null}
           {!loading && !error && (
             <>
               <p className="text-muted-foreground">Снимок на: {formatDateTime(data?.fetchedAt)}</p>
@@ -2097,7 +2111,14 @@ export function SystemHealthSection() {
               </p>
               {NOTIFICATION_DELIVERY_CHANNEL_ORDER.map((ch) => {
                 const agg = data?.notificationDelivery?.byChannel?.[ch];
-                return <NotificationDeliveryChannelBlock key={ch} channel={ch} agg={agg} />;
+                return (
+                  <NotificationDeliveryChannelBlock
+                    key={ch}
+                    channel={ch}
+                    agg={agg}
+                    formatDateTime={formatDateTime}
+                  />
+                );
               })}
               <DetailRow label="Детализация" value="только обезличенные агрегаты" />
             </HealthAccordionItem>

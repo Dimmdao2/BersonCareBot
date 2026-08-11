@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { DoctorSectionActions } from '@/shared/ui/doctor/DoctorSection';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 
@@ -86,13 +87,15 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
           При включении DSN нужно ввести заново. Выключение очищает сохранённый DSN.
         </p>
         {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-        <Button
-          type="button"
-          onClick={save}
-          disabled={isPending || (enabled && dsn.trim().length === 0)}
-        >
-          Сохранить
-        </Button>
+        <DoctorSectionActions>
+          <Button
+            type="button"
+            onClick={save}
+            disabled={isPending || (enabled && dsn.trim().length === 0)}
+          >
+            Сохранить
+          </Button>
+        </DoctorSectionActions>
       </CardContent>
     </Card>
   );

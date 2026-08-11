@@ -31,6 +31,7 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -816,17 +817,23 @@ export function CommercialConstructorClient() {
   }
 
   if (loading) {
-    return <p role="status">Загрузка коммерческих настроек…</p>;
+    return (
+      <DoctorSection>
+        <p role="status" className="text-sm text-muted-foreground">
+          Загружаем коммерческие настройки…
+        </p>
+      </DoctorSection>
+    );
   }
 
   if (loadError) {
     return (
-      <DoctorSection className="space-y-3" role="alert">
-        <p>Не удалось загрузить коммерческие настройки: {loadError}</p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
+      <DoctorSection>
+        <DataLoadFailureNotice
+          title="Не удалось загрузить коммерческие настройки."
+          digest="COMMERCIAL-SETTINGS"
+          devMessage={loadError}
+          onRetry={() => {
             setLoading(true);
             setLoadError(null);
             void loadState()
@@ -837,9 +844,8 @@ export function CommercialConstructorClient() {
               )
               .finally(() => setLoading(false));
           }}
-        >
-          Повторить
-        </Button>
+          retrying={loading}
+        />
       </DoctorSection>
     );
   }
