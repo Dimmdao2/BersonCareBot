@@ -197,17 +197,25 @@ psql_db -Atc "SELECT (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid =
 psql_db -Atc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'public.migration_window_seam()'::regprocedure;"
 set +e
 PGHOST="$SOCKDIR" setsid node "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" \
-  --db "$DB" --migrator bcb_proof_window_migrator --owner app_proof_owner \
-  --migration "$FIXTURES_DIR/migration-window-kill.sql" >"$WORKDIR/migration-kill.out" 2>&1 &
+  --db "$DB" --migrator bcb_proof_window_migrator \
+  --step "app_proof_owner:$FIXTURES_DIR/migration-window-kill.sql" \
+  --step "app_proof_seam_owner:$FIXTURES_DIR/migration-window-kill-seam.sql" >"$WORKDIR/migration-kill.out" 2>&1 &
 KILL_PID=$!
-sleep 1
+for _ in $(seq 1 100); do
+  if psql -h "$SOCKDIR" -U postgres -d "$DB" -Atc "SELECT count(*) FROM pg_stat_activity WHERE datname = '$DB' AND query LIKE '%migration_window_kill_marker%' AND wait_event_type = 'Timeout'" | grep -qx 1; then
+    break
+  fi
+  sleep 0.05
+done
+psql -h "$SOCKDIR" -U postgres -d "$DB" -Atc "SELECT count(*) FROM pg_stat_activity WHERE datname = '$DB' AND query LIKE '%migration_window_kill_marker%' AND wait_event_type = 'Timeout'" | grep -qx 1
 kill -TERM -- "-$KILL_PID"
 wait "$KILL_PID"
 KILL_RC=$?
 set -e
 echo "killed wrapper exit: $KILL_RC (expected non-zero)"
 psql_db -Atc "SELECT to_regclass('public.migration_window_killed') IS NULL AS killed_window_rolled_back;"
-psql_db -Atc "SELECT NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = 'bcb_proof_window_migrator'::regrole AND roleid = 'app_proof_owner'::regrole) AS membership_rolled_back;"
+psql_db -Atc "SELECT to_regprocedure('public.migration_window_killed_seam()') IS NULL AS killed_seam_rolled_back;"
+psql_db -Atc "SELECT NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = 'bcb_proof_window_migrator'::regrole AND roleid IN ('app_proof_owner'::regrole, 'app_proof_seam_owner'::regrole)) AS memberships_rolled_back;"
 
 banner "12. ACTUAL REVISION-10 ARTIFACT — disposable production-shaped catalog"
 PROD_DB=bcb_webapp_dev
@@ -228,6 +236,14 @@ SELECT app_ext.resolve_variant_a_identity('00000000-0000-0000-0000-000000000000'
 RESET ROLE;
 SQL
 echo "app_ext owner execution: context and identity seam accessors executed under their exact owners; login access remains ungranted"
+psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -v ON_ERROR_STOP=1 <<'SQL'
+CREATE ROLE rev10_stale_execute_probe NOLOGIN;
+GRANT EXECUTE ON FUNCTION app.current_org_id() TO rev10_stale_execute_probe;
+SELECT has_function_privilege('rev10_stale_execute_probe', 'app.current_org_id()', 'EXECUTE') AS stale_execute_installed;
+SQL
+psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -1 -v ON_ERROR_STOP=1 -f "$WORKDIR/rev10/privileges.$PROD_DB.sql" >/dev/null
+psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname IN ('app', 'app_ext') AND has_function_privilege('rev10_stale_execute_probe', p.oid, 'EXECUTE')" | grep -qx 0
+echo "stale EXECUTE after reapply=0 (arbitrary-role injection was installed then removed by the production generator)"
 EXPECTED_ACTIVE="$(node --experimental-strip-types -e "import('./deploy/postgres/privileges/declaration.ts').then(({declaration})=>console.log(Object.values(declaration.databases.bcb_webapp_dev.tables).filter(t=>t.disposition==='ACTIVE').length))")"
 EXPECTED_POLICIES="$(node --experimental-strip-types -e "import('./deploy/postgres/privileges/declaration.ts').then(({declaration})=>console.log(Object.values(declaration.databases.bcb_webapp_dev.tables).flatMap(t=>t.policies??[]).length))")"
 ACTUAL_RELATIONS="$(psql -h "$SOCKDIR" -U postgres -d "$PROD_DB" -Atc "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','app','integrator','app_ext','drizzle') AND c.relkind IN ('r','p')")"

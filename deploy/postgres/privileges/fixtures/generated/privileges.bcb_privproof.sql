@@ -76,6 +76,27 @@ ALTER ROLE "app_staff" RESET ALL;
 
 -- роль postgres: kind=superuser — объявлена для сверки §F, декларацией НЕ управляется.
 
+-- ─────────── 1a. OWNERSHIP BASELINE: ordinary application objects ───────────
+DO $bcb$
+DECLARE o record;
+BEGIN
+  FOR o IN SELECT c.relkind, n.nspname, c.relname FROM pg_catalog.pg_class c
+             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle')
+              AND c.relkind IN ('v', 'm') ORDER BY n.nspname, c.relname LOOP
+    EXECUTE pg_catalog.format('ALTER %s %I.%I OWNER TO %I', CASE o.relkind WHEN 'v' THEN 'VIEW' ELSE 'MATERIALIZED VIEW' END, o.nspname, o.relname, 'app_object_owner');
+  END LOOP;
+  FOR o IN SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle') AND t.typtype IN ('b', 'c', 'd', 'e', 'r') AND t.typelem = 0 AND t.typrelid = 0 ORDER BY 1, 2 LOOP
+    EXECUTE pg_catalog.format('ALTER TYPE %I.%I OWNER TO %I', o.nspname, o.typname, 'app_object_owner');
+  END LOOP;
+  FOR o IN SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname IN ('app', 'app_ext') AND NOT p.prosecdef ORDER BY 1, 2, 3 LOOP
+    EXECUTE pg_catalog.format('ALTER FUNCTION %I.%I(%s) OWNER TO %I', o.nspname, o.proname, o.args, 'app_object_owner');
+  END LOOP;
+END
+$bcb$;
+
 -- ─────────── 2. ЧЛЕНСТВА КАНОНИЧЕСКИХ РОЛЕЙ (SCHEME §A.1) ───────────
 -- Членств ЛОГИНОВ здесь нет: их рендерит roles-install из env-маппинга (§A.1).
 
@@ -269,28 +290,6 @@ ALTER FUNCTION app.public_booking_otp_issue(text) OWNER TO "app_owner";
 REVOKE ALL ON FUNCTION app.public_booking_otp_issue(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.public_booking_otp_issue(text) FROM "app_migration_phase", "app_patient", "app_staff", "bcb_proof_migrator", "bcb_proof_staff_login";
 GRANT EXECUTE ON FUNCTION app.public_booking_otp_issue(text) TO "app_staff";
-
--- ─────────── 8b. OWNERSHIP: sequences/types/views/invoker functions ───────────
--- These catalog classes are reconciled even when their ACL surface is empty.
-DO $bcb$
-DECLARE o record;
-BEGIN
-  FOR o IN SELECT c.relkind, n.nspname, c.relname FROM pg_catalog.pg_class c
-             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle')
-              AND c.relkind IN ('S', 'v', 'm') ORDER BY n.nspname, c.relname LOOP
-    EXECUTE pg_catalog.format('ALTER %s %I.%I OWNER TO %I', CASE o.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' ELSE 'MATERIALIZED VIEW' END, o.nspname, o.relname, 'bcb_proof_migrator');
-  END LOOP;
-  FOR o IN SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
-            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle') AND t.typtype IN ('b', 'c', 'd', 'e', 'r') AND t.typelem = 0 AND t.typrelid = 0 ORDER BY 1, 2 LOOP
-    EXECUTE pg_catalog.format('ALTER TYPE %I.%I OWNER TO %I', o.nspname, o.typname, 'bcb_proof_migrator');
-  END LOOP;
-  FOR o IN SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE n.nspname IN ('app', 'app_ext') AND NOT p.prosecdef ORDER BY 1, 2, 3 LOOP
-    EXECUTE pg_catalog.format('ALTER FUNCTION %I.%I(%s) OWNER TO %I', o.nspname, o.proname, o.args, 'bcb_proof_migrator');
-  END LOOP;
-END
-$bcb$;
 
 -- ─────────── 9. ПРЕДСТАВЛЕНИЯ (SCHEME §A.5/§G.6) ───────────
 

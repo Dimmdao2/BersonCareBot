@@ -276,12 +276,20 @@ export function collectGaps(declaration, dbName) {
       const policies = table.policies ?? [];
       const restrictiveContext = policies.some((policy) => !isTodo(policy)
         && policy.as === 'RESTRICTIVE'
-        && String(policy.using ?? '').includes('app.current_org_id()')
-        && String(policy.withCheck ?? '').includes('app.current_org_id()'));
+        && (context
+          ? String(policy.using ?? '').includes('app.require_accepted_context(')
+            && String(policy.withCheck ?? '').includes('app.require_accepted_context(')
+          : String(policy.using ?? '').includes('app.current_org_id()')
+            && String(policy.withCheck ?? '').includes('app.current_org_id()')));
       if (!restrictiveContext) add(site, 'active relation lacks the restrictive transaction-context gate');
-      const hasAcl = Object.keys(table.grants ?? {}).length > 0;
       const permissiveBusiness = policies.some((policy) => !isTodo(policy) && policy.as === 'PERMISSIVE');
-      if (hasAcl && !permissiveBusiness) add(site, 'active relation ACL lacks a declared permissive business policy');
+      if (!permissiveBusiness) add(site, 'active relation lacks a declared permissive business policy');
+      for (const policy of policies) {
+        if (context && !isTodo(policy) && policy.as === 'PERMISSIVE'
+          && (String(policy.using ?? '').trim() === 'true' || String(policy.withCheck ?? '').trim() === 'true')) {
+          add(site, `permissive policy '${policy.name}' uses unconditional true`);
+        }
+      }
     }
   }
 
@@ -541,10 +549,46 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     out.push('');
   }
 
+  /* — 1a. ordinary ownership baseline — */
+  // This pass intentionally precedes all exact seam reconciliation.  A restore performed with
+  // --no-owner --role=app_object_owner must leave ordinary objects there; narrow owners below are
+  // the final authority for their relations and signatures.
+  out.push(
+    '-- ─────────── 1a. OWNERSHIP BASELINE: ordinary application objects ───────────',
+    'DO $bcb$', 'DECLARE o record;', 'BEGIN',
+    "  FOR o IN SELECT c.relkind, n.nspname, c.relname FROM pg_catalog.pg_class c",
+    '             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace',
+    "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle')",
+    "              AND c.relkind IN ('v', 'm') ORDER BY n.nspname, c.relname LOOP",
+    `    EXECUTE pg_catalog.format('ALTER %s %I.%I OWNER TO %I', CASE o.relkind WHEN 'v' THEN 'VIEW' ELSE 'MATERIALIZED VIEW' END, o.nspname, o.relname, ${lit('app_object_owner')});`,
+    '  END LOOP;',
+    "  FOR o IN SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace",
+    "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle') AND t.typtype IN ('b', 'c', 'd', 'e', 'r') AND t.typelem = 0 AND t.typrelid = 0 ORDER BY 1, 2 LOOP",
+    `    EXECUTE pg_catalog.format('ALTER TYPE %I.%I OWNER TO %I', o.nspname, o.typname, ${lit('app_object_owner')});`,
+    '  END LOOP;',
+    "  FOR o IN SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
+    "            WHERE n.nspname IN ('app', 'app_ext') AND NOT p.prosecdef ORDER BY 1, 2, 3 LOOP",
+    `    EXECUTE pg_catalog.format('ALTER FUNCTION %I.%I(%s) OWNER TO %I', o.nspname, o.proname, o.args, ${lit('app_object_owner')});`,
+    '  END LOOP;',
+    'END', '$bcb$;', '',
+  );
+
   /* — 1b. private transaction context — */
   const portContext = declaration.portContext;
   if (portContext) {
     out.push('-- ─────────── 1b. REVISION-10 PRIVATE PORT CONTEXT ───────────', '');
+    out.push(
+      '-- Every managed routine is swept before exact per-regprocedure grants are restored.',
+      'DO $bcb$', 'DECLARE f record; r record;', 'BEGIN',
+      "  FOR f IN SELECT n.nspname, p.proname, p.proowner, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
+      "            WHERE n.nspname IN ('app', 'app_ext', 'public', 'integrator', 'drizzle') ORDER BY 1, 2, 3 LOOP",
+      "    EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM PUBLIC', f.nspname, f.proname, f.args);",
+      '    FOR r IN SELECT rolname FROM pg_catalog.pg_roles WHERE oid <> f.proowner ORDER BY rolname LOOP',
+      "      EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %I.%I(%s) FROM %I', f.nspname, f.proname, f.args, r.rolname);",
+      '    END LOOP;',
+      '  END LOOP;',
+      'END', '$bcb$;', '',
+    );
     for (const [identity, relation] of Object.entries(portContext.privateRelations).sort(([a], [b]) => a.localeCompare(b))) {
       const { qualified } = splitQualified(identity, `portContext.privateRelations.${identity}`);
       out.push(`ALTER TABLE ${qualified} OWNER TO ${q(relation.owner)};`);
@@ -569,17 +613,22 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       }
     }
     const functionRows = Object.entries(portContext.functions).sort(([a], [b]) => a.localeCompare(b)).map(([signature, fn]) =>
-      `(${lit(signature)}, ${lit(fn.owner)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[])`,
+      `(${lit(signature)}, ${lit(fn.owner)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[], ARRAY[${fn.execute.map(lit).join(', ')}]::name[])`,
     );
+    const functionAclPrincipals = [...new Set([...managed, ...logins.keys()])].sort().map(lit).join(', ');
     out.push(
       '-- Catalog-side exact check: owner, SECURITY, volatility, parallel and proconfig for every signature.',
       'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
-      '  WITH expected(sig, owner_name, is_definer, volatility, parallelism, config) AS (VALUES',
+      '  WITH expected(sig, owner_name, is_definer, volatility, parallelism, config, execute_roles) AS (VALUES',
       functionRows.map((row) => `    ${row}`).join(',\n'),
       '  ) SELECT e.sig INTO bad FROM expected e LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure(e.sig)',
       '      WHERE p.oid IS NULL OR pg_catalog.pg_get_userbyid(p.proowner) <> e.owner_name OR p.prosecdef <> e.is_definer',
       '         OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism',
-      "         OR coalesce(p.proconfig, ARRAY[]::text[]) IS DISTINCT FROM e.config LIMIT 1;",
+      "         OR coalesce(p.proconfig, ARRAY[]::text[]) IS DISTINCT FROM e.config",
+      "         OR EXISTS (SELECT 1 FROM pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')",
+      "         OR EXISTS (SELECT 1 FROM unnest(e.execute_roles) r WHERE NOT pg_catalog.has_function_privilege(r, e.sig, 'EXECUTE'))",
+      ...(functionAclPrincipals ? [`         OR EXISTS (SELECT 1 FROM unnest(ARRAY[${functionAclPrincipals}]::name[]) r WHERE r <> e.owner_name::name AND NOT r = ANY(e.execute_roles) AND pg_catalog.has_function_privilege(r, e.sig, 'EXECUTE'))`] : []),
+      '       LIMIT 1;',
       "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'port-context function catalog mismatch: %', bad; END IF;",
       'END', '$bcb$;', '',
     );
@@ -829,28 +878,6 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     );
   }
   out.push('');
-
-  /* — 9. представления — */
-  out.push(
-    '-- ─────────── 8b. OWNERSHIP: sequences/types/views/invoker functions ───────────',
-    '-- These catalog classes are reconciled even when their ACL surface is empty.',
-    'DO $bcb$', 'DECLARE o record;', 'BEGIN',
-    "  FOR o IN SELECT c.relkind, n.nspname, c.relname FROM pg_catalog.pg_class c",
-    '             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace',
-    "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle')",
-    "              AND c.relkind IN ('S', 'v', 'm') ORDER BY n.nspname, c.relname LOOP",
-    `    EXECUTE pg_catalog.format('ALTER %s %I.%I OWNER TO %I', CASE o.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' ELSE 'MATERIALIZED VIEW' END, o.nspname, o.relname, ${lit(dbOwner)});`,
-    '  END LOOP;',
-    "  FOR o IN SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace",
-    "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle') AND t.typtype IN ('b', 'c', 'd', 'e', 'r') AND t.typelem = 0 AND t.typrelid = 0 ORDER BY 1, 2 LOOP",
-    `    EXECUTE pg_catalog.format('ALTER TYPE %I.%I OWNER TO %I', o.nspname, o.typname, ${lit(dbOwner)});`,
-    '  END LOOP;',
-    "  FOR o IN SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
-    "            WHERE n.nspname IN ('app', 'app_ext') AND NOT p.prosecdef ORDER BY 1, 2, 3 LOOP",
-    `    EXECUTE pg_catalog.format('ALTER FUNCTION %I.%I(%s) OWNER TO %I', o.nspname, o.proname, o.args, ${lit(dbOwner)});`,
-    '  END LOOP;',
-    'END', '$bcb$;', '',
-  );
 
   /* — 9. представления — */
   const views = db.functionsViews?.views ?? {};
