@@ -9,6 +9,9 @@
   --doctor-control-radius: 24px;
   --doctor-block-padding: 18px;
   --doctor-block-border: rgba(35, 42, 49, 0.1);
+  --doctor-field-sm: 12rem;
+  --doctor-field-md: 24rem;
+  --doctor-field-lg: 40rem;
   --doctor-list-inline-padding: 18px;
   --doctor-flat-list-divider: #f0efeb;
   --doctor-section-tab-hover: color-mix(in srgb, var(--muted-foreground) 18%, #ffffff);

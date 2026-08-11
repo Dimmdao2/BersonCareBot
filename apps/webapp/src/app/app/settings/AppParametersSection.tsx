@@ -5,6 +5,7 @@ import TimezoneSelect, { type ITimezoneOption } from 'react-timezone-select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { isValidSupportContactSetting } from '@/lib/url/isValidSupportContactSetting';
 import { isValidIanaTimeZoneId } from '@/shared/timezone/ianaTimezonesForAdminUi';
 import { mergePatientTimezoneSelectLabels } from '@/shared/timezone/patientTimezoneSelectLabels';
@@ -73,20 +74,21 @@ export function AppParametersSection({
       <CardContent className="flex flex-col gap-5">
         <section className="flex flex-col gap-2">
           <p className="text-sm font-semibold">Контакты и поддержка</p>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Support contact (путь или URL)</span>
+          <DoctorField
+            label="Support contact (путь или URL)"
+            htmlFor="app-support-contact"
+            width="lg"
+            hint="Путь вида /app/… (форма в приложении) или внешняя ссылка https://… Пустое — дефолт из кода."
+          >
             <Input
+              id="app-support-contact"
               type="text"
               placeholder="/app/patient/support или https://t.me/…"
               value={support}
               onChange={(e) => setSupport(e.target.value)}
               disabled={isPending}
             />
-            <span className="text-xs text-muted-foreground">
-              Путь вида /app/… (форма в приложении) или внешняя ссылка https://… Пустое — дефолт из
-              кода.
-            </span>
-          </label>
+          </DoctorField>
         </section>
 
         <section className="flex flex-col gap-2">
