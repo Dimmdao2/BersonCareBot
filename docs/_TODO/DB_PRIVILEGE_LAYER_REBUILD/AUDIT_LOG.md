@@ -1514,3 +1514,23 @@ payment UPDATE за реальные `status/updated_at`; лишние DELETE/UP
 
 Следующий gate: законченная narrow matrix + исправленные live PENDING paths + phone completion без delegated-args
 обхода, затем один disposable PostgreSQL 16 reset/regrant behavior proof и повтор этого сохранённого kill-set.
+
+## Land gate GRANTS-R2-2026-08-12 — `456f7e3e4`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд**: owner-порядок + deploy/migration/runtime path; targeted checks только подтверждают diff |
+| Вердикт | **FAIL — DB candidate сохранён в origin, но не приземляется до точки ноль/cutover** |
+
+- **GRANTS-R2-LAND-001 — ОТКРЫТО — MUST FIX.** Ранний fail-closed guard в `deploy-test.sh` покрывает только уже
+  выбранный `port-context`. В поддерживаемом `locked` ordinary deploy доходит до `pnpm migrate`; journal включает
+  `0385`, которая удаляет `install_signed_context`, `release_principal_context` и `reset_principal_context`, пока
+  locked runtime ещё вызывает их. Достижимый путь: TEST на `0384` + locked env → deploy применяет `0385` раньше
+  точки ноль/mTLS cutover → runtime/closure не стартуют. Это нарушает owner-порядок и делает ветку небезопасной
+  промежуточной поставкой.
+- Решение land-gate: не замораживать все TEST deploy искусственным общим guard. DB candidate остаётся запушенным;
+  в `feat` сначала входят только независимо безопасные изменения. Следующий DB-этап — воспроизводимая миграция
+  точки ноль и её отдельное disposable/DEV доказательство; `0385` и новая выдача применяются только после него.
+- Остальной gate на `456f7e3e4` зелёный: `git diff --check`; bash syntax; bootstrap self-test; relation/catalog
+  `17/17`; generated `--check`; phone completion `2/2`; прямых patient/pre-session grants и target `BYPASSRLS`
+  нет. Host mTLS, zero-state и TEST cutover честно остаются открыты.

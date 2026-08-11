@@ -478,6 +478,13 @@ export interface PrivilegeDeclaration {
     roles: Record<string, RoleDecl>;
   };
   envMapping: Record<string, Record<string, LoginRecord>>;
+  /**
+   * Exact legacy application principals removed by the separate zero-state migration.
+   * Target roles and env logins are added by the generator automatically; patterns are forbidden.
+   */
+  zeroState?: {
+    legacyRoles: string[];
+  };
   databases: Record<string, DatabaseDecl>;
   /** Revision-10 transaction-context surface, separate from ordinary relation ACLs. */
   portContext?: {
