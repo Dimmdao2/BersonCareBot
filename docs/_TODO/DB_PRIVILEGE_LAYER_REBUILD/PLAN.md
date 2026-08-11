@@ -205,13 +205,16 @@ ORDER BY table_schema, table_name, privilege_type;"
 ### Исполнение варианта A — один технический этап до Ф4
 
 - [x] **Ф3б-A1 — зафиксировать исполняемый mTLS/context contract.** Определены first-match
-      `hostssl ... scram-sha-256 clientcert=verify-full` HBA и exact certificate→login maps для двух портов;
+      `hostssl ... scram-sha-256 clientcert=verify-full` HBA и отдельный exact certificate-CN→login для трёх
+      application logins (staff/patient material only webapp env; integrator material only integrator env), без
+      `pg_ident`/user-name mapping;
       exact SQL signatures/types `install_port_context`, boolean `require_accepted_context`, platform gate,
       accessors, cleanup, private capability/accepted-state rows, typed-args framing, definer/RLS split,
       declaration-derived census and revocation/pool-drain controls — в `SCHEME.md`. **Historical replacement:**
-      custom OpenPGP transaction challenge expressly replaced; A1 changes no code, migration, DB, deploy or declaration
+      custom OpenPGP transaction challenge expressly replaced. A1-MTLS-001…008 kill-set закрыт в `SCHEME.md`;
+      A1 changes no code, migration, DB, deploy or declaration
 - [ ] **Ф3б-A2 — mTLS material and rotation.** For each port place client private key/certificate/CA only in
-      its env; configure PostgreSQL public CA/CRL verifier material and exact HBA/user-map rows. Test bounded
+      its env; configure PostgreSQL public CA/CRL verifier material and exact HBA/certificate-CN rows. Test bounded
       certificate overlap, reload semantics, CRL revocation and mandatory pool drain/backend termination; DB never
       stores a port private key
 - [ ] **Ф3б-A3 — единый transaction wrapper портов.** Единственная точка DB checkout executes
