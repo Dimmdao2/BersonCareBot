@@ -607,16 +607,16 @@ function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccor
   const snapshot = aiSnapshot ?? healthCardAiSnapshot(name, status, { status }, null, null);
   return (
     <div className="rounded-md border border-border/60">
-      <div className="flex w-full items-center gap-1 px-2 py-1">
+      <div className="flex w-full flex-wrap items-center gap-1 px-2 py-1">
         <Button
           type="button"
           variant="ghost"
-          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-1 py-1.5 text-left h-auto"
+          className="flex h-auto min-w-0 basis-full flex-1 items-center justify-between gap-3 overflow-hidden px-1 py-1.5 text-left sm:basis-auto"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          <span className="font-medium">{name}</span>
-          <span className="flex items-center gap-2">
+          <span className="min-w-0 truncate font-medium">{name}</span>
+          <span className="flex shrink-0 items-center gap-2">
             <StatusPill status={status} />
             <ChevronDown
               className={cn(
@@ -630,7 +630,7 @@ function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccor
         <CopyForAiButton
           payload={snapshot}
           label="Скопировать"
-          className="h-7 shrink-0 px-2 text-xs"
+          className="ml-auto h-7 shrink-0 px-2 text-xs"
         />
       </div>
       {open ? (

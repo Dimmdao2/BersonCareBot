@@ -13,10 +13,7 @@ export default async function ClinicPage({
 
   return (
     <DoctorAppShell title="Карточка клиники">
-      <DoctorPageHeader
-        title="Карточка клиники"
-        subtitle="Тариф, состояние, пробный период и расход"
-      />
+      <DoctorPageHeader title="Карточка клиники" />
       <ClinicsConsoleClient organizationId={organizationId} />
     </DoctorAppShell>
   );

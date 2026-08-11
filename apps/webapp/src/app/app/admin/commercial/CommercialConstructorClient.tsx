@@ -28,6 +28,7 @@ import {
 } from '@/modules/org-entitlements/accessNotifications';
 import {
   DoctorSection,
+  DoctorSectionActions,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
@@ -823,23 +824,25 @@ export function CommercialConstructorClient() {
     return (
       <DoctorSection className="space-y-3" role="alert">
         <p>Не удалось загрузить коммерческие настройки: {loadError}</p>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setLoading(true);
-            setLoadError(null);
-            void loadState()
-              .catch((error: unknown) =>
-                setLoadError(
-                  error instanceof Error ? error.message : 'Не удалось загрузить данные',
-                ),
-              )
-              .finally(() => setLoading(false));
-          }}
-        >
-          Повторить
-        </Button>
+        <DoctorSectionActions>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setLoading(true);
+              setLoadError(null);
+              void loadState()
+                .catch((error: unknown) =>
+                  setLoadError(
+                    error instanceof Error ? error.message : 'Не удалось загрузить данные',
+                  ),
+                )
+                .finally(() => setLoading(false));
+            }}
+          >
+            Повторить
+          </Button>
+        </DoctorSectionActions>
       </DoctorSection>
     );
   }

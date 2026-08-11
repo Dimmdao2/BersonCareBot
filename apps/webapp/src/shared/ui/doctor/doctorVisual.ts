@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 /** Page-level section container for doctor pages. */
 export const doctorSectionCardClass =
-  'rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
+  'rounded-[var(--doctor-page-block-radius,12px)] border border-[var(--doctor-block-border)] bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
 
 /** Inner list row/card inside page-level sections. */
 export const doctorSectionItemClass =

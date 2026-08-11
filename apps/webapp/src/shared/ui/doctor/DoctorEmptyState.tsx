@@ -1,11 +1,12 @@
-import type { ComponentPropsWithoutRef } from 'react';
+import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import {
   doctorEmptyStateClass,
   doctorEmptyStateCompactClass,
 } from '@/shared/ui/doctor/doctorVisual';
 
-type DoctorEmptyStateProps = ComponentPropsWithoutRef<'div'> & {
+type DoctorEmptyStateProps = Omit<ComponentPropsWithoutRef<'div'>, 'children' | 'title'> & {
+  children: ReactNode;
   /** `"sm"` (default) for page-level lists; `"xs"` for inline hints inside dense panels. */
   size?: 'sm' | 'xs';
 };

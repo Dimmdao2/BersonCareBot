@@ -51,7 +51,8 @@ export const DOCTOR_HEADER_INNER_CLASS =
   'flex w-full min-h-14 items-center gap-1.5 px-4 py-2 md:px-6';
 
 /** Контейнер страницы врача (как `AppShell` doctor): 12px сверху/по бокам, 24px снизу. */
-export const DOCTOR_PAGE_CONTAINER_CLASS = 'mx-auto w-full max-w-7xl px-3 pt-3 pb-6';
+export const DOCTOR_PAGE_CONTAINER_CLASS =
+  'mx-auto min-h-full w-full max-w-7xl flex-1 px-3 pt-3 pb-6';
 
 /**
  * Альтернативный контейнер для full-height страниц (Пациенты, Коммуникации, Заявки, Расписание-список).

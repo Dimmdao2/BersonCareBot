@@ -384,7 +384,7 @@ export function AdminAuditLogSection() {
                               {auditActorShortLabel(row.actor_id, row.action)}
                             </td>
                             <td className="px-3 py-2 align-top">
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-wrap items-center gap-1">
                                 <Badge variant={statusBadgeVariant(row.status)}>{row.status}</Badge>
                                 {isOpenConflictLabel(row) ? (
                                   <span className="text-[10px] text-amber-700 dark:text-amber-400">
@@ -401,7 +401,7 @@ export function AdminAuditLogSection() {
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    className="h-7 mt-1 text-[10px]"
+                                    className="h-7 text-[10px]"
                                     disabled={resolvingId === row.id}
                                     onClick={async () => {
                                       setResolvingId(row.id);
@@ -430,7 +430,7 @@ export function AdminAuditLogSection() {
                               </div>
                             </td>
                             <td className="px-3 py-2 align-top">
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-wrap items-center gap-1">
                                 <CopyForAiButton
                                   payload={row as unknown as Record<string, unknown>}
                                   label="Скопировать"

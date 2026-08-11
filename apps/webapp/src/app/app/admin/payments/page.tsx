@@ -7,10 +7,7 @@ export default async function PlatformPaymentsPage() {
   await requirePlatformOperationsPage();
   return (
     <DoctorAppShell title="Платежи">
-      <DoctorPageHeader
-        title="Платежи"
-        subtitle="Как клиники платят платформе за тариф — наш журнал, не ЮKassa"
-      />
+      <DoctorPageHeader title="Платежи" />
       <PlatformPaymentsSection />
     </DoctorAppShell>
   );

@@ -32,10 +32,7 @@ export default async function DoctorTreatmentProgramPromoPage() {
 
   return (
     <DoctorAppShell title="Промо-программа" user={session.user} backHref="/app/doctor">
-      <DoctorPageHeader
-        title="Промо-программа по умолчанию"
-        subtitle="Шаблон для пациентов без назначенной программы. Экземпляр создаётся при первом действии или при создании напоминания «Программа реабилитации»."
-      />
+      <DoctorPageHeader title="Промо-программа по умолчанию" />
       <DefaultPromoProgramClient
         initialTemplateId={currentId ?? ''}
         templates={templates.map((t) => ({ id: t.id, title: t.title.trim() || t.id }))}

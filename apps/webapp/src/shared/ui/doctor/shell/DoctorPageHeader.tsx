@@ -12,8 +12,6 @@ import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeH
 export type DoctorPageHeaderProps = {
   /** Заголовок страницы (слева). Строка приводится к роли page-title (`text-base`). */
   title: ReactNode;
-  /** Необязательная подпись под заголовком (`text-xs text-muted-foreground`). */
-  subtitle?: ReactNode;
   /** Важные уведомления/баннеры (центр-право): system-health и т.п. */
   info?: ReactNode;
   /** Вкладки раздела (право): для секций с табами (S2/S5/S6). */
@@ -45,7 +43,6 @@ export type DoctorPageHeaderProps = {
  */
 export function DoctorPageHeader({
   title,
-  subtitle,
   info,
   tabs,
   tabsClassName,
@@ -70,9 +67,8 @@ export function DoctorPageHeader({
       )}
     >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border/70 px-[var(--doctor-block-padding,18px)] py-2">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-1 flex-col">
           {typeof title === 'string' ? <h1 className={doctorPageTitleClass}>{title}</h1> : title}
-          {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
         {info || tabs ? (
           <div className="flex min-w-0 basis-full flex-wrap items-center justify-end gap-x-3 gap-y-1.5 md:flex-1 md:basis-auto">

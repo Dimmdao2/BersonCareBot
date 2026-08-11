@@ -8,10 +8,7 @@ export default async function CommercialPage() {
   await requirePlatformOperationsPage();
   return (
     <DoctorAppShell title="Тарифы и триал">
-      <DoctorPageHeader
-        title="Тарифы и триал"
-        subtitle="Конструктор тарифов и правила доступа организаций"
-      />
+      <DoctorPageHeader title="Тарифы и триал" />
       <CommercialConstructorClient />
       <TariffPolicyHistoryPanel />
     </DoctorAppShell>
