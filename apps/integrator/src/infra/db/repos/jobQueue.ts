@@ -1,10 +1,18 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { messageRetryJobs } from '../schema/integratorQueues.js';
+import {
+  claimDueOutgoingDeliveries,
+  enqueueOutgoingDeliveryIfAbsent,
+  markOutgoingDeliveryDead,
+  markOutgoingDeliverySent,
+  resetStaleOutgoingDeliveryProcessing,
+} from './outgoingDeliveryQueue.js';
+import { getOutgoingDeliveryReclaimConfig } from './outgoingDeliveryReclaimSettings.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type MessageRetryJobRow = {
-  id: number;
+  id: string;
   phoneNormalized: string | null;
   messageText: string | null;
   kind: string | null;
@@ -14,6 +22,53 @@ export type MessageRetryJobRow = {
   maxAttempts: number;
 };
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function eventIdFromPayload(payload: Record<string, unknown>): string {
+  const intent = asRecord(payload.intent);
+  const meta = asRecord(intent.meta);
+  return asString(meta.eventId) ?? `message-retry:${randomUUID()}`;
+}
+
+function channelFromPayload(payload: Record<string, unknown>): string {
+  const intent = asRecord(payload.intent);
+  const intentPayload = asRecord(intent.payload);
+  const delivery = asRecord(intentPayload.delivery);
+  const channels = Array.isArray(delivery.channels) ? delivery.channels : [];
+  const firstChannel = channels.map(asString).find((channel) => channel !== null);
+  if (firstChannel) return firstChannel;
+
+  const targets = Array.isArray(payload.targets) ? payload.targets : [];
+  const target = targets.map(asRecord).find((item) => asString(item.resource) !== null);
+  return asString(target?.resource) ?? 'smsc';
+}
+
+function messageFields(payload: Record<string, unknown>): {
+  phoneNormalized: string | null;
+  messageText: string | null;
+} {
+  const intent = asRecord(payload.intent);
+  const intentPayload = asRecord(intent.payload);
+  const message = asRecord(intentPayload.message);
+  const targets = Array.isArray(payload.targets) ? payload.targets : [];
+  const address = asRecord(asRecord(targets[0]).address);
+  return {
+    phoneNormalized: asString(address.phoneNormalized),
+    messageText: asString(message.text),
+  };
+}
+
+/**
+ * Compatibility producer entry point. The former retry queue is now represented by an
+ * `inbound_reply` row in the one canonical outgoing-delivery queue; the only worker consumer is
+ * `runOutgoingDeliveryWorkerTick`.
+ */
 export async function enqueueMessageRetryJob(
   db: DbPort,
   input: {
@@ -27,156 +82,110 @@ export async function enqueueMessageRetryJob(
     payloadJson: Record<string, unknown>;
   },
 ): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
   const delaySec = Math.max(0, Math.trunc(input.firstTryDelaySeconds));
-  await d.insert(messageRetryJobs).values({
-    phoneNormalized: input.phoneNormalized,
-    messageText: input.messageText,
-    nextTryAt:
-      input.firstTryAt ?? sql`now() + (${String(delaySec)}::text || ' seconds')::interval`,
-    attemptsDone: 0,
-    maxAttempts: Math.max(1, Math.trunc(input.maxAttempts)),
-    status: 'pending',
-    kind: input.kind,
+  const eventId = eventIdFromPayload(input.payloadJson);
+  const inserted = await enqueueOutgoingDeliveryIfAbsent(db, {
+    eventId,
+    kind: 'inbound_reply',
+    channel: channelFromPayload(input.payloadJson),
     payloadJson: input.payloadJson,
+    maxAttempts: Math.max(1, Math.trunc(input.maxAttempts)),
   });
+  if (!inserted) return;
+
+  const runAt = input.firstTryAt ?? new Date(Date.now() + delaySec * 1_000).toISOString();
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
+        SET next_retry_at = ${runAt}::timestamptz,
+            updated_at = now()
+        WHERE event_id = ${eventId}
+          AND status = 'pending'`,
+  );
 }
 
 /**
- * Claim: CTE + UPDATE … FOR UPDATE SKIP LOCKED — та же семантика, что и legacy SQL, через `execute(sql)`.
+ * Retained for the retired drain diagnostic only. Runtime worker startup no longer calls this:
+ * it uses `claimDueOutgoingDeliveries` through the canonical outgoing-delivery loop.
  */
 export async function claimDueMessageRetryJobs(
   db: DbPort,
   limit: number,
 ): Promise<MessageRetryJobRow[]> {
-  const d = getIntegratorDrizzleSession(db);
-  const lim = Math.max(1, Math.trunc(limit));
-  const res = await d.execute(sql`
-    WITH due AS (
-      SELECT id
-      FROM integrator.message_retry_jobs
-      WHERE status = 'pending'
-        AND next_try_at <= now()
-      ORDER BY next_try_at ASC
-      LIMIT ${lim}
-      FOR UPDATE SKIP LOCKED
-    )
-    UPDATE integrator.message_retry_jobs j
-    SET status = 'processing',
-        updated_at = now()
-    FROM due
-    WHERE j.id = due.id
-    RETURNING
-      j.id,
-      j.phone_normalized AS "phoneNormalized",
-      j.message_text AS "messageText",
-      j.kind,
-      j.next_try_at::text AS "runAt",
-      j.payload_json AS "payloadJson",
-      j.attempts_done AS "attemptsDone",
-      j.max_attempts AS "maxAttempts"
-  `);
-  return res.rows as MessageRetryJobRow[];
+  const rows = await claimDueOutgoingDeliveries(db, limit);
+  return rows.map((row) => {
+    const fields = messageFields(row.payloadJson);
+    return {
+      id: row.id,
+      phoneNormalized: fields.phoneNormalized,
+      messageText: fields.messageText,
+      kind: row.kind,
+      runAt: row.nextRetryAt,
+      payloadJson: row.payloadJson,
+      attemptsDone: row.attemptCount,
+      maxAttempts: row.maxAttempts,
+    };
+  });
 }
 
-/**
- * Returns only an expired legacy worker lease to `pending`.
- *
- * `message_retry_jobs` predates the unified queue and has no separate lease column: its
- * `updated_at` is advanced atomically when `claimDueMessageRetryJobs` changes the row to
- * `processing`. Reclaim deliberately preserves `next_try_at`, attempts and the historical
- * payload, so a pre-cutover appointment remains scheduled for its original due time and goes
- * through the compatibility consumer exactly once per successful claim.
- */
 export async function reclaimStaleMessageRetryJobProcessing(
   db: DbPort,
   staleAfterMinutes: number,
 ): Promise<number> {
-  const minutes = Math.max(1, Math.trunc(staleAfterMinutes));
-  const d = getIntegratorDrizzleSession(db);
-  const result = await d.execute(sql`WITH stale AS (
-      SELECT id
-      FROM integrator.message_retry_jobs
-      WHERE status = 'processing'
-        AND updated_at < now() - ((${String(minutes)}::text || ' minutes')::interval)
-      FOR UPDATE SKIP LOCKED
-    )
-    UPDATE integrator.message_retry_jobs AS job
-    SET status = 'pending',
-        updated_at = now()
-    FROM stale
-    WHERE job.id = stale.id
-    RETURNING job.id`);
-  return result.rows.length;
+  const config = await getOutgoingDeliveryReclaimConfig(db);
+  const result = await resetStaleOutgoingDeliveryProcessing(
+    db,
+    staleAfterMinutes,
+    config.maxReclaimCount,
+  );
+  return result.reclaimed + result.deadLettered;
 }
 
 export async function rescheduleMessageRetryJob(
   db: DbPort,
   input: {
-    id: number;
+    id: string;
     attemptsDone: number;
-    retryDelaySeconds: number;
+    nextRunAt: string;
     lastError?: string;
   },
 ): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  const delay = Math.max(1, Math.trunc(input.retryDelaySeconds));
-  const attempts = Math.max(0, Math.trunc(input.attemptsDone));
-  await d
-    .update(messageRetryJobs)
-    .set({
-      status: 'pending',
-      attemptsDone: attempts,
-      nextTryAt: sql`now() + (${String(delay)}::text || ' seconds')::interval`,
-      lastError: input.lastError ?? null,
-      updatedAt: sql`now()`,
-    })
-    .where(eq(messageRetryJobs.id, input.id));
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
+        SET status = 'failed_retryable',
+            attempt_count = ${Math.max(0, Math.trunc(input.attemptsDone))},
+            next_retry_at = ${input.nextRunAt}::timestamptz,
+            last_error = ${input.lastError ?? null},
+            updated_at = now()
+        WHERE id = ${input.id}::uuid
+          AND status = 'processing'`,
+  );
 }
 
-export async function completeMessageRetryJob(db: DbPort, id: number): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  await d
-    .update(messageRetryJobs)
-    .set({ status: 'done', updatedAt: sql`now()` })
-    .where(eq(messageRetryJobs.id, id));
+export async function completeMessageRetryJob(db: DbPort, id: string): Promise<void> {
+  await markOutgoingDeliverySent(db, id);
 }
 
 export async function failMessageRetryJob(
   db: DbPort,
-  input: { id: number; lastError?: string },
+  input: { id: string; lastError?: string },
 ): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  await d
-    .update(messageRetryJobs)
-    .set({
-      status: 'dead',
-      lastError: input.lastError ?? null,
-      updatedAt: sql`now()`,
-    })
-    .where(eq(messageRetryJobs.id, input.id));
+  await markOutgoingDeliveryDead(db, input.id, input.lastError ?? null);
 }
 
-/**
- * Отмена напоминаний по записи: те же фильтры, что и legacy `UPDATE … WHERE payload_json->'booking'->>'bookingId'`.
- */
 export async function cancelPendingBookingReminderJobsByBookingId(
   db: DbPort,
   bookingId: string,
 ): Promise<void> {
-  const d = getIntegratorDrizzleSession(db);
-  await d
-    .update(messageRetryJobs)
-    .set({
-      status: 'dead',
-      lastError: 'booking_cancelled',
-      updatedAt: sql`now()`,
-    })
-    .where(
-      and(
-        inArray(messageRetryJobs.status, ['pending', 'processing']),
-        eq(messageRetryJobs.kind, 'message.deliver'),
-        sql`${messageRetryJobs.payloadJson}->'booking'->>'bookingId' = ${bookingId}`,
-      ),
-    );
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
+        SET status = 'dead',
+            dead_at = now(),
+            last_error = 'booking_cancelled',
+            updated_at = now()
+        WHERE status IN ('pending', 'processing', 'failed_retryable')
+          AND payload_json->'booking'->>'bookingId' = ${bookingId}`,
+  );
 }

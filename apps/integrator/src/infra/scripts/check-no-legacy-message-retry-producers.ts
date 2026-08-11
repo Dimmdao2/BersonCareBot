@@ -36,6 +36,6 @@ for (const file of await filesUnder(srcRoot)) {
   }
 }
 if (violations.length > 0) {
-  throw new Error(`legacy message_retry_jobs producer forbidden:\n${violations.join('\n')}`);
+  throw new Error(`legacy retry producer forbidden:\n${violations.join('\n')}`);
 }
-process.stdout.write('legacy message_retry_jobs producer gate: PASS\n');
+process.stdout.write('legacy retry producer gate: PASS\n');
