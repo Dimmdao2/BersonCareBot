@@ -248,3 +248,70 @@ empty array дал `0|NULL|NULL|NULL|2|1|1`; все десять binary-send з�
 
 Disposable PostgreSQL аудит остановлен и удалён; репозиторий и DEV/TEST он не менял. Полный текст команд и
 сценариев находится в run record и `/tmp/f3b-a1-mtls-auditor-codex-20260811.log`.
+
+## Audit pass IMPL-2026-08-11 — mTLS/context executable core
+
+| Поле | Значение |
+|---|---|
+| Candidate | `11665f28a`, `wt/port-context-impl` |
+| Acceptance commit | `d2f85bc39` — только поведенческие тесты, продукт не исправляет |
+| Run | `f3b-impl-auditor-codex-20260811`, `gpt-5.6-sol`, `xhigh` |
+| Метод | **Тест + взгляд**: blind 9-class kill-set, disposable PostgreSQL 16, fault injection, pool/call-site census, catalog/role/ACL inspection |
+| Вердикт | **FAIL — семь MUST FIX; candidate не приземляется** |
+| Run record | `/home/dev/brain/runs/agent-port/f3b-impl-auditor-codex-20260811.json` |
+
+### IMPL-001 — core не подключён к production DB paths
+
+**Статус: ОТКРЫТО — MUST FIX.** Webapp, integrator и media продолжают создавать connection-string pools и
+устанавливать legacy signed context; новый wrapper вне экспорта не вызывается. Exact HBA поэтому либо остановит
+сервисы, либо старые URL/login останутся обходами двух trust domains. Полный census также нашёл отдельные telemetry,
+config-reader, purge, operational, runtime-migration/boot и media doors; их надо свернуть в webapp/integrator или
+заменить exact named roots/admin channel.
+
+### IMPL-002 — transaction wrapper не удерживает callback на одном client и не уничтожает failure
+
+**Статус: ОТКРЫТО — MUST FIX.** Callback не получает checkout-client и может выполнить query на другом backend;
+cleanup failure не вызывает `release(error)`. Wrapper также ставит `request_id` всем классам и всегда H0, поэтому
+нарушает claims matrix и не способен обслужить named root с typed args. Acceptance commit содержит пять красных тестов.
+
+### IMPL-003 — SQL принимает malformed context и typed args
+
+**Статус: ОТКРЫТО — MUST FIX.** Реальный PG16 принял staff с лишним `subject_ref`, NULL protocol version и unknown
+tag; NULL `type_tag` вернул тихий NULL. Нужны exact required+forbidden matrices, закрытый набор десяти tags, binary
+length/value validation и одинаковый production Node↔SQL encoder. Live layout держит `pgcrypto` в `app_ext`, поэтому
+`app.digest` candidate сломан; штатный PG16 `pg_catalog.sha256(bytea)` убирает эту лишнюю зависимость.
+
+### IMPL-004 — role/ownership/pre-session graph не обслуживает живые пути
+
+**Статус: ОТКРЫТО — MUST FIX.** Login roles остались INHERIT; webapp staff получил delivery role; integrator не
+получил scheduler; helper owner/EXECUTE неверен; named pre-session roots, platform/accessors/resolver/A→I handoff
+отсутствуют. Дополнительный runtime census доказал дыру принятого A1: integrator login имеет delivery/scheduler, но
+живому webhook request и pre-routing нужны exact `app_integrator_request` и `app_integrator_resolver`. Tenant-scoped
+jobs также требуют отдельного org-carrying service class; broad staff/patient grants запрещены.
+
+### IMPL-005 — rotation/revocation существует только на бумаге
+
+**Статус: ОТКРЫТО — MUST FIX.** Disposable HBA проверяет базовый cert+SCRAM, но реальные PoolConfig/env, overlap,
+expired/revoked/server-impersonation controls, CRL reload и mandatory drain/termination surviving backends отсутствуют.
+
+### IMPL-006 — revision-9 declaration/generator/migration/restore отсутствуют
+
+**Статус: ОТКРЫТО — MUST FIX.** `generate-cli.mjs --gaps` завершился `exit=2` с девятью gaps на каждую базу;
+direct contract не является атомарным production apply. Из `a5c6472a1` разрешено восстановить object census, grammar,
+blanket revoke, ownership/default privilege generator и atomic/idempotent proof, но не custom crypto/context rows,
+старые generated SQL или упрощённый evidence fixture.
+
+### IMPL-007 — зелёный demo acceptance не ловит независимую поломку механизма
+
+**Статус: ОТКРЫТО — MUST FIX.** Endianness mutation production Node, удаление install, `USING(true)` и снятие FORCE
+RLS оставили старый acceptance зелёным; script не подключён к package/CI. `d2f85bc39` добавил первые красные wrapper
+tests, но все девять kill-set классов должны получить поведенческое/introspection evidence по своей природе.
+
+### Подтверждено и сохраняется
+
+- Базовый PG16 HBA exact CN + certificate + SCRAM работает; wrong/missing certificate, password-only, non-TLS и
+  Unix socket application login отклоняются.
+- Контекст конструктивно привязывается к DB OID, backend PID, xid8, login и capability; фиксированный definer
+  `search_path`, FORCE RLS и raising `42501` с PostgreSQL log исполнимы.
+- Candidate — полезный core, не выбрасывается; он наращивается тем же kill-set. Новый blind audit этого surface не
+  нужен: fixer делает acceptance commit зелёным и закрывает семь findings, лидер проверяет итог.
