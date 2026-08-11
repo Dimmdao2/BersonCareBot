@@ -1,4 +1,4 @@
-# SCHEME revision 9 — целевой слой прав БД BersonCareBot
+# SCHEME revision 10 — целевой слой прав БД BersonCareBot
 
 Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), «Права БД, роли и стены», затем [`PLAN.md`](PLAN.md). Это target-contract до Ф4: не миграция и не описание текущего каталога.
 
@@ -32,7 +32,7 @@ Positive controls: valid webapp staff/patient certificate with its exact login C
 
 ### 2.1 Types, claims and declared capability
 
-`app.port_name` is enum `('webapp','integrator')`; `app.port_context_class` is enum `('pre_session','staff','patient','platform','integrator','service')`. `app.port_typed_arg` is composite `(type_tag text, value bytea)`. `app.port_context_claims` is:
+`app.port_name` is enum `('webapp','integrator')`; `app.port_context_class` is enum `('pre_session','staff','patient','platform','integrator','tenant_service','service')`. `app.port_typed_arg` is composite `(type_tag text, value bytea)`. `app.port_context_claims` is:
 
 ```sql
 (protocol_version smallint, context_class app.port_context_class, target_role name,
@@ -41,7 +41,7 @@ Positive controls: valid webapp staff/patient certificate with its exact login C
  integrator_user_id bigint, request_id uuid)
 ```
 
-Only version `1` is accepted; purpose is ASCII `[a-z][a-z0-9._:-]{0,127}` and hash is 32 bytes. `actor_ref`/`subject_ref` are opaque protocol IDs, never `platform_users.id`. Complete non-NULL matrix: `pre_session` = `request_id,function_identity`; `staff` = `actor_ref,organization_id`; `patient` = `actor_ref,subject_ref,organization_id`; `platform` = `actor_ref`; `integrator` = `integrator_user_id`; `service` = none. Every other identity field is NULL. Named seam roots always carry `function_identity`; direct relations carry NULL and zero-arg hash.
+Only version `1` is accepted with `protocol_version IS NOT DISTINCT FROM 1`; purpose is ASCII `[a-z][a-z0-9._:-]{0,127}` and hash is 32 bytes. `actor_ref`/`subject_ref` are opaque protocol IDs, never `platform_users.id`. Complete non-NULL matrix: `pre_session` = `request_id,function_identity`; `staff` = `actor_ref,organization_id`; `patient` = `actor_ref,subject_ref,organization_id`; `platform` = `actor_ref`; `integrator` = `integrator_user_id,organization_id`; `tenant_service` = `organization_id`; `service` = none. Every forbidden identity field is NULL. Named seam roots always carry exact `function_identity` and their actual typed-args hash; direct relations carry NULL and zero-arg hash.
 
 `app_ext.port_context_capabilities`, owned by `app_seam_context_owner`, is the declaration-owned allowlist:
 
@@ -53,7 +53,7 @@ Only version `1` is accepted; purpose is ASCII `[a-z][a-z0-9._:-]{0,127}` and ha
  UNIQUE NULLS NOT DISTINCT (port,session_login,target_role,context_class,purpose,function_identity))
 ```
 
-It contains only declared rows. Installer derives port from `session_user` (both webapp logins → webapp, integrator → integrator); caller cannot name port or login. Capability must exactly equal derived port/login and claims class/role/purpose/function identity and be active. This also limits pre-session to named function/purpose/args and no tenant/medical access.
+It contains only declared rows. Installer accepts the session login only by exact equality to its capability row and derives the port from that row; caller cannot name port or login and fixture login names are never compiled into the contract. Capability must exactly equal derived port/login and claims class/role/purpose/function identity and be active. This also limits pre-session to named function/purpose/args and no tenant/medical access; the integrator resolver is a distinct narrow capability, never a human DB credential.
 
 ### 2.2 Private state and exact SQL surface
 
@@ -121,9 +121,9 @@ Every membership is `INHERIT FALSE, SET TRUE, ADMIN FALSE`, with no transitive e
 |---|---|
 | `<env>_webapp_staff` | `app_pre_session,app_staff,app_clinic_billing,app_platform_settings,app_worker,app_operational_media_worker,saas_telemetry_operator` |
 | `<env>_webapp_patient` | `app_pre_session,app_patient` |
-| `<env>_integrator` | `app_operational_delivery_worker,app_operational_scheduler` |
+| `<env>_integrator` | `app_integrator_request,app_integrator_resolver,app_operational_delivery_worker,app_operational_scheduler,app_tenant_service,app_service` |
 
-Global admin uses webapp staff login/role; no own login. `app_object_owner` is NOLOGIN, memberless, no definer functions and subject to FORCE RLS. 42 narrow seam owners remain separate, NOLOGIN, memberless, without BYPASSRLS. `app_operational_diagnostic` is absent.
+Global admin uses webapp staff login/role; no own login. Webapp has no delivery-role membership. `app_object_owner` is NOLOGIN, memberless, no definer functions and subject to FORCE RLS. 42 narrow seam owners remain separate, NOLOGIN, memberless, without BYPASSRLS. `app_operational_diagnostic` is absent.
 
 The 42 exact owners/seams remain: `app_seam_context_owner` (port/context), `app_seam_password_auth_owner`,
 `app_seam_email_otp_owner`, `app_seam_passkey_owner`, `app_seam_phone_binding_owner`,

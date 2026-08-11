@@ -730,3 +730,139 @@ target role и этого bypass не ловит. Нужны actual effective-ro
 `cross_org_rows_visible`, `no_context_query_returned_row`, `owner_query_bypassed_context_gate`. Rotation сохранила
 drain `2→0`, rotated certificate подключился, PostgreSQL log содержит `4` context denial, `certificate revoked` и
 ровно `2` administrator termination.
+
+## Fix verification DECL-FIX2-2026-08-11 — `d1336ca0c`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `d1336ca0c`, `wt/port-context-decl` |
+| Метод | **Взгляд + independent production-shaped PostgreSQL 16.14 restore/catalog/fault probes** |
+| Вердикт | **FAIL — DECL-002/004/005 исправлены; DECL-001/003/006/007 остаются** |
+
+### Исправлено громко
+
+- **DECL-002 ИСПРАВЛЕНО.** `app_ext` owner `app_object_owner`; USAGE только у object owner и двух exact identity/
+  context owners, без PUBLIC/login ACL.
+- **DECL-004 ИСПРАВЛЕНО.** Обе DB owner postgres; `unsafe_application_roles=0`.
+- **DECL-005 ИСПРАВЛЕНО.** Independent dump→recreate→restore→generator: `restore_owner_mismatches=0` для DB,
+  sequence, type, view, invoker и exact seams.
+
+### DECL-001 — runtime ACL пуст и imported RLS predicate нарушает org wall
+
+**ОТКРЫТО — MUST FIX.** Census каждой DB: `238 managed / 225 active / 13 pending`, `225 restrictive / 225
+permissive`, из permissive `150` table-specific + `75` fail-closed, `USING true=0`. Но table grants фактически
+содержат только один patient UPDATE; SELECT/INSERT/DELETE и runtime schema USAGE отсутствуют. После временного
+минимального USAGE+SELECT на `public.be_appointments`: same staff проходит, staff list падает на patient accessor,
+patient видит `cross-org-same-subject`, no-context/owner bypass закрыты. Patient branch обязан проверять organization,
+а combined predicate — не вызывать громкий accessor чужого class в легитимной staff-ветке.
+
+### DECL-003 — function/ACL census не двусторонний
+
+**ОТКРЫТО — MUST FIX.** Declared `10/10`, live `app/app_ext=11`; undeclared `app.is_staff()`. Return mismatches `2`:
+`hash_port_typed_args` fixture создаёт `void` вместо `bytea`, `require_platform_principal` — `void` вместо `boolean`.
+Install/clear получают по `6` non-owner grantees — DEV+TEST логины вместе, а не три своей среды. Stale EXECUTE
+reapply снимает (`1→0`), но verifier-before-reapply и обратный invoker/return census отсутствуют.
+
+### DECL-006 — crash proof не достигает второго DDL/owner switch
+
+**ОТКРЫТО — MUST FIX.** Marker стоит после table DDL и sleep в первом step; function и второй owner switch находятся
+во втором step, который ещё не запускался при kill. Поэтому function absence после `exit=143` вакуумна. Marker должен
+доказывать выполнение table+function и обоих switches до kill.
+
+### DECL-007 — реальные catalog drifts переживают reapply
+
+**ОТКРЫТО — MUST FIX.** Independent injection после production artifact: undeclared relation, `USING true` policy,
+invoker function, arbitrary table ACL и default ACL остались после reapply (`1→1`); stale function EXECUTE снят,
+unsafe role attrs исправлены, dropped declared policy восстановлена. Extra relation осталась owner postgres.
+Committed mutations используют соседний `DO RAISE`, production-shaped proof запускает только DEV. Нужен настоящий
+двусторонний catalog verifier для DEV+TEST и fault mutations через него.
+
+Четыре artifacts tracked и deterministic `--check=0`; штатные proof/type/syntax/diff gates зелёные, но false-green
+по перечисленным четырём findings.
+
+## Fix verification TRUST-FIX3-2026-08-11 — `992b90add`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `992b90add`, `wt/port-context-trust` |
+| Метод | **Тест + взгляд**: independent PostgreSQL 16.14 acceptance, direct gate/ACL/RLS probes, rotation/log census |
+| Вердикт | **PASS — TRUST-005 исправлен; к интеграции после совмещения веток** |
+
+- **TRUST-005 ИСПРАВЛЕНО.** Старый relation exploit с фактическим `current_user=app_staff` и подложным
+  effective seam-owner теперь получает `42501`; relation positive даёт `app_staff|true|tenant-a`.
+- Committed acceptance: `bash deploy/postgres/port-context/acceptance.sh` → exit `0`;
+  `rg -c '^FAULT' /tmp/portctx-audit3-acceptance.log` → `14`. `wrong_role` и `wrong_effective_role` дают разные
+  behavioral FAULT, `physical_ids_in_context_refs=0`, `fallback_root_owners=0`.
+- Прямой named-root gate с exact owner/regprocedure может вернуть stateless boolean, но не повышает полномочия
+  внешнего запроса: relation → `42501`, `app_ext` и чужой root → permission denied; только exact разрешённый root
+  проходит. Login без `SET ROLE` не имеет EXECUTE общего gate.
+- Rotation/log: revoked certificate → exit `2`; новый сертификат подключился; PostgreSQL log содержит
+  `certificate revoked=1`, administrative termination `=2`, context denials `=5`; старых staff backend `=0`.
+- После merge audited SQL/acceptance-файлы не изменены:
+  `git diff --quiet 992b90add HEAD -- deploy/postgres/port-context/contract.sql deploy/postgres/port-context/acceptance.sh`
+  → exit `0`.
+
+## Audit POSTDROP-REGISTRY-R2-2026-08-11 — stale `e99950c236`, current `3a89dcb66`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent disposable PostgreSQL, migration/overlay/catalog probes, generator mutations |
+| Вердикт | **FAIL — один finding остаётся и на `3a89dcb66`; не к land** |
+
+### Исправлено громко
+
+- **P0.8.5 stale import ИСПРАВЛЕН в `3a89dcb66`.** Старый `e99950c236` не запускал smoke из-за удалённого
+  `getP085IntegratorMailingsRootDescriptors`; current HEAD удаляет три зависшие строки. Остальные независимые
+  проверки старого candidate подтвердили: `pnpm run audit` PASS, A1 RLS conformance PASS, P0.13 PASS, dropped
+  relation census `0`, source-model mutation ловит ровно `10` ложных `public.*`, generator determinism `4/4`,
+  disposable leftovers `0` DB / `0` roles.
+
+### REGISTRY-001 — `integrator.message_drafts` всё ещё имеет runtime DML ACL
+
+**ОТКРЫТО — MUST FIX.** Production-shaped catalog probe на старом candidate дал
+`postdrop_registry_state=0|t|t|0|t|t|t|t`: dropped relations `0`, `message_drafts` имеет RLS+FORCE и ноль policy,
+но все четыре `app_staff` ACL истинны. Проверка current `3a89dcb66` подтвердила ту же причину: строка
+`LEGACY|integrator.message_drafts` попадает в `appStaffGrantTiers`, а generated `p0-5b-grants.sql` включает relation
+в grant table. Текущего row bypass из-за FORCE нет, но owner contract требует **без runtime SELECT/DML grants**;
+deny-all не должен зависеть только от RLS. Fix должен сохранить нужные LEGACY grants другим таблицам, убрать все
+четыре ACL у `message_drafts` и доказать это после production-shaped overlays.
+
+## Audit RUNTIME-FIX2-2026-08-11 — `8ba36e2e1`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `8ba36e2e1`, `wt/port-context-runtime` |
+| Метод | **Тест + взгляд**: independent live-shape pool/client probes, targeted suites, lint/type/chokepoint |
+| Вердикт | **FAIL — три MUST FIX; один auditor criterion отклонён как не-finding** |
+
+### RUNTIME-004 — named-root metadata теряется в live DbPort/transaction paths
+
+**ОТКРЫТО — MUST FIX.** Integrator `createDbPort()` выполняет `pool.connect() → client.query()`, а exact
+function/purpose/typed-args discovery обёрнут только вокруг `Pool.query()`. Live-shape probe для
+`app.resolve_outgoing_delivery_scope(uuid)` установил `function_identity=NULL` и zero-args hash; revision-10 gate
+отказывает `42501`. Достижимы outgoing scope/incident, scheduler organization/appointment reminder roots. Webapp
+аналогично устанавливает контекст до Drizzle callback, поэтому password named root внутри callback не может передать
+свою exact identity. Нужен единый transaction/client path без generic SQL-parser bypass.
+
+### RUNTIME-003 — неизвестный infra source fail-open получает service capability
+
+**ОТКРЫТО — MUST FIX.** Integrator возвращает `service` для любого неизвестного source; webapp — для любого infra
+source вне media/cron allowlist. Опечатка или новый незарегистрированный caller получает `app_service` вместо
+громкого отказа до checkout. Нужен exact allowlist с сохранением принятого media-source mapping.
+
+### RUNTIME-LINT — обязательный webapp gate красный
+
+**ОТКРЫТО — MUST FIX.** `pnpm --dir apps/webapp run lint` падает на `check-no-new-raw-sql` в двух новых
+`portContextRuntime.test.ts`; broad suppression запрещён. Integrator lint, оба typecheck, db-principal и targeted
+runtime suites, chokepoint/self-test и diff-check прошли.
+
+### Отклонено громко: missing-principal `connects=1/releases=1(error)`
+
+**НЕ FINDING.** Реализация валидирует principal до `pool.connect()`: probe получил ожидаемую ошибку при
+`connects=0`, backend не взят и утечки нет. Требовать checkout ради последующего `release(error)` ухудшает boundary и
+не следует owner requirement. Regression должен фиксировать fail-before-checkout (`connects=0/releases=0`), а не
+искусственно воспроизводить более дорогой путь.
+
+Подтверждено сохраняемое: verify-only startup без migration pool, target-only repo selection, physical-client
+surface с `on`, bounded scheduler transactions, rotation preflight/rollback/drain/listener и отсутствие legacy
+chokepoint bypass.
