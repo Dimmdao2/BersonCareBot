@@ -701,3 +701,32 @@ worker-side control path больше не видны как isolation failure.
   auth-before-body и sanitised HTTP failures покрыты.
 - Deploy/env follow-up обязателен в этом же fixer: старый media DB credential/login убрать, новый control URL/secret
   провизионить и проверять readiness; текущий candidate fail-closed не стартует со старым env.
+
+## Fix verification TRUST-FIX2-2026-08-11 — `0fb40d181`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `0fb40d181`, `wt/port-context-trust` |
+| Метод | **Взгляд + independent disposable PostgreSQL 16.14 probes** |
+| Вердикт | **FAIL — TRUST-003/004 исправлены; TRUST-005 имеет один непойманный effective-role bypass** |
+
+### Исправлено громко
+
+- **TRUST-003 ИСПРАВЛЕНО `0fb40d181`.** Physical actor/staff, actor/platform и patient subject refs получают
+  `42501`; opaque resolver → следующая transaction → private physical resolver проходит;
+  `physical_ids_in_context_refs=0`; context owner не читает physical map.
+- **TRUST-004 ИСПРАВЛЕНО `0fb40d181`.** Пять reachable roots имеют пять exact owners,
+  `fallback_root_owners=0`; двусторонний metadata/effective-EXECUTE census: `0` mismatches. Явный call graph требует
+  gate у `8` seam owners и hash у `3`, поэтому отсутствие прав у остальных — необходимая узость, не finding.
+
+### TRUST-005 — effective role не связан с фактическим current_user
+
+**ОТКРЫТО — MUST FIX.** `require_accepted_context` проверяет `p_effective_role` только на NULL. Independent mTLS
+staff probe передал `p_effective_role=app_seam_password_auth_owner` при фактическом `current_user=app_staff` и
+получил `true` (`wrong_effective_role_result=app_staff:true`). Committed `wrong_role` mutation меняет stored
+target role и этого bypass не ловит. Нужны actual effective-role comparison и отдельная behavioral mutation.
+
+Остальные `12` механизмов и target-role mutation поведенческие; три RLS faults дали реальные
+`cross_org_rows_visible`, `no_context_query_returned_row`, `owner_query_bypassed_context_gate`. Rotation сохранила
+drain `2→0`, rotated certificate подключился, PostgreSQL log содержит `4` context denial, `certificate revoked` и
+ровно `2` administrator termination.
