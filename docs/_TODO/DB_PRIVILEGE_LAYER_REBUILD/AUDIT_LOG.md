@@ -1259,3 +1259,24 @@ permission denied, а лишний caller сохранит EXECUTE.
 - Independent PG16 mutations: `13/16` пойманы, три пропущенных соответствуют SEAM-002–004.
 - Dedicated-bot owner/caller/surface верны; lexical surfaces `467`, автоматически созданных grant entries `0`.
 - `generate-cli.mjs --gaps` честно exit `2`: `223` relation gaps на каждую DB и обе missing APIs остаются открыты.
+
+## Fix verification FUNCTION-CENSUS-FIX-2026-08-11 — `f27bf390b`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тот же сохранённый test+view gate**: exact authority comparison и PostgreSQL 16 catalog mutations |
+| Вердикт | **PASS bounded function/seam census — к land; relation grant matrix остаётся открыта** |
+
+- **SEAM-001 ИСПРАВЛЕНО:** authoritative pre-session `authority=34 mapped=34 exact=34`; у каждой only caller
+  `app_pre_session`. Mutation с REVOKE красная.
+- **SEAM-002 ИСПРАВЛЕНО:** actual EXECUTE ACL сравнивается со всеми catalog grantee; произвольный rogue LOGIN
+  красит verifier, generated reconciliation снимает grant и возвращает green.
+- **SEAM-003 ИСПРАВЛЕНО:** extra-definer closure покрывает `public/app/integrator/app_ext/drizzle`, исключая
+  extension-owned/system objects; лишняя `public` SECURITY DEFINER красит verifier и transactional closure.
+- **SEAM-004 ИСПРАВЛЕНО:** 42 seam owners memberless bilateral; обе membership directions red → reapply → green.
+- Unit census/context `8/8`; strict TypeScript; PG16 function acceptance TEST `247`, DEV `234`, `42` owners и
+  `12` real mutations/DB; context catalog acceptance `10` capabilities — PASS. Scope ровно пять privilege-файлов,
+  `git show --check f27bf390b` и чистое дерево — PASS.
+
+**ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** `generate-cli.mjs --gaps` exit `2`, `223` relation gaps/DB и две missing named APIs.
+Этот PASS принимает точный function/seam census, а не полную grant/RLS operability.
