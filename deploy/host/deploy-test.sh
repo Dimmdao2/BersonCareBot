@@ -118,16 +118,33 @@ read_test_identity(){
   sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=$url_expression && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\""
 }
 
-assert_locked_test_mode(){
-  local env_file mode
+resolve_test_runtime_mode(){
+  local env_file mode resolved_mode=""
   for env_file in "$API_ENV" "$WEBAPP_ENV"; do
     mode="$(sudo -u deploy bash -lc "set -a && . '$env_file' && set +a && printf '%s' \"\${DB_PRINCIPAL_CONTEXT_MODE:-legacy-guc}\"")"
-    [ "$mode" = "locked" ] || { echo "FATAL: $env_file must use DB_PRINCIPAL_CONTEXT_MODE=locked, got $mode" >&2; exit 1; }
+    case "$mode" in
+      locked|port-context) ;;
+      *)
+        echo "FATAL: $env_file must use DB_PRINCIPAL_CONTEXT_MODE=locked or port-context, got $mode" >&2
+        exit 1
+        ;;
+    esac
+    if [ -z "$resolved_mode" ]; then
+      resolved_mode="$mode"
+    elif [ "$resolved_mode" != "$mode" ]; then
+      echo "FATAL: TEST DB_PRINCIPAL_CONTEXT_MODE mismatch: $resolved_mode vs $mode in $env_file" >&2
+      exit 1
+    fi
   done
+  printf '%s\n' "$resolved_mode"
 }
 
 echo "== deploy-test: ${BRANCH}  ->  ${DEPLOY_REPO} =="
-assert_locked_test_mode
+TEST_DB_PRINCIPAL_CONTEXT_MODE="$(resolve_test_runtime_mode)"
+if [ "$TEST_DB_PRINCIPAL_CONTEXT_MODE" = "port-context" ]; then
+  echo "FATAL: ordinary deploy-test.sh cannot migrate port-context TEST yet: refusing the legacy application DATABASE_URL/app_owner/BYPASSRLS migration path. Wire deploy-test.sh to deploy/postgres/privileges/migrate-local.mjs with exact declared owners before rerunning." >&2
+  exit 1
+fi
 [ -r "$SRC_REPO/$STRICT_CLOSURE" ] || { echo "FATAL: missing $SRC_REPO/$STRICT_CLOSURE" >&2; exit 1; }
 
 # 1) Бандлим ветку из dev-репо (perm-safe перенос; deploy не читает /home/dev).
