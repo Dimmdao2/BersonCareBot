@@ -1136,3 +1136,47 @@ control + internal secret и отсутствие DB credential.
   dependency, owned-object abort и идемпотентность.
 - `node scripts/check-db-chokepoint.mjs`, его self-test, shell/MJS syntax, build и diff-check прошли.
 - Эти зелёные проверки принимают retirement primitive, но не готовность процесса или deploy-chain.
+
+## Audit RUNTIME-FIX4-2026-08-11 — `93f7a1207`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent PostgreSQL 16 transaction/readiness faults, callsite/catalog mutation и deploy wiring removal |
+| Вердикт | **FAIL — RUNTIME-011/012 PASS; 4 MUST FIX; не к land** |
+
+### RUNTIME-013 — generated env стирает relation capabilities
+
+**ОТКРЫТО — MUST FIX.** `renderPortContextRuntimeEnv` строит JSON только из десяти named-root descriptors, а
+`bootstrap-c4-test-env.mjs` заменяет переменную целиком. Независимая команда над declaration/render вывела
+`integrator missing=delivery,scheduler,service` и `webapp missing=service`; runtime probe подтвердил те же четыре
+`Missing declared ... port capability`. Relation-capabilities должны жить в том же declaration-derived каталоге
+и сохраняться при host render, иначе startup/readiness неоперабелен.
+
+### RUNTIME-014 — generator проверяет сам себя, не production callsites
+
+**ОТКРЫТО — MUST FIX.** Mutation
+`password_login_acquire.functionIdentity → app.password_login_complete(uuid,boolean)` оставила
+`port-context-catalog.test.mjs` `2/2` и оба regenerated artifact checks зелёными, после чего реальный callsite упал
+на missing unique descriptor. Нужен независимый exact callsite↔catalog behavioral oracle.
+
+### RUNTIME-015 — deploy closure seed apply не защищён self-test
+
+**ОТКРЫТО — MUST FIX.** После временного удаления `install_port_context_capability_catalog` из
+`deploy-test-saas.sh` shell syntax, bootstrap self-test и catalog test остались зелёными. Self-test общей
+post-migration closure обязан краснеть, когда exact seed перестал применяться.
+
+### RUNTIME-016 — новый PG oracle нарушает raw-SQL gate
+
+**ОТКРЫТО — MUST FIX.** `node scripts/check-no-new-raw-sql.mjs` → exit `1` на
+`apps/integrator/src/infra/db/runIntegratorSql.integration.test.ts:21,47,54`; из-за этого webapp lint завершился
+exit `1`. Behavioral PostgreSQL oracle сохраняется, но должен пользоваться разрешённым test DB port/harness, а не
+новым прямым `pg.Pool.query`.
+
+### Исправлено громко
+
+- **RUNTIME-011 ИСПРАВЛЕНО.** Integrator suite: `67` files / `391` passed; disposable PostgreSQL вернул исходный
+  `42501`, `fallbackCalls=0`. Возврат catch/fallback mutation дал `1 failed / 3 passed`.
+- **RUNTIME-012 ИСПРАВЛЕНО.** Возврат named roots внутрь relation transaction сделал оба readiness unit tests
+  красными; disposable PostgreSQL дал `42501` внутри relation-context и success в exact named-context.
+- DB-principal `25/25`, PG16 fault suite, chokepoint/self-test, integrator lint/typecheck, webapp typecheck и
+  diff-check прошли; fault mutations откатились, дерево аудитора чистое.
