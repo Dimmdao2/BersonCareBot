@@ -63,7 +63,6 @@ INFRA|public.saas_trial_policy
 INFRA|public.saas_registration_tariff_policy
 INFRA|public.saas_paid_period_policy
 INFRA|public.webapp_schema_migrations
-LEGACY|integrator.message_retry_jobs
 LEGACY|integrator.user_reminder_rules
 LEGACY|public.appointment_records
 LEGACY|public.booking_cities

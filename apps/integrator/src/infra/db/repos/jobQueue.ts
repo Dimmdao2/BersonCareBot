@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import {
@@ -10,6 +9,7 @@ import {
 } from './outgoingDeliveryQueue.js';
 import { getOutgoingDeliveryReclaimConfig } from './outgoingDeliveryReclaimSettings.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
+import { INBOUND_REPLY_QUEUE_KIND } from '../../delivery/deliveryContract.js';
 
 export type MessageRetryJobRow = {
   id: string;
@@ -30,13 +30,13 @@ function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
-function eventIdFromPayload(payload: Record<string, unknown>): string {
+function eventIdFromPayload(payload: Record<string, unknown>): string | null {
   const intent = asRecord(payload.intent);
   const meta = asRecord(intent.meta);
-  return asString(meta.eventId) ?? `message-retry:${randomUUID()}`;
+  return asString(meta.eventId);
 }
 
-function channelFromPayload(payload: Record<string, unknown>): string {
+function channelFromPayload(payload: Record<string, unknown>): string | null {
   const intent = asRecord(payload.intent);
   const intentPayload = asRecord(intent.payload);
   const delivery = asRecord(intentPayload.delivery);
@@ -46,7 +46,24 @@ function channelFromPayload(payload: Record<string, unknown>): string {
 
   const targets = Array.isArray(payload.targets) ? payload.targets : [];
   const target = targets.map(asRecord).find((item) => asString(item.resource) !== null);
-  return asString(target?.resource) ?? 'smsc';
+  return asString(target?.resource);
+}
+
+function assertCanonicalMessageRetryInput(input: {
+  kind: string;
+  payloadJson: Record<string, unknown>;
+}): { eventId: string; channel: string } {
+  const intent = asRecord(input.payloadJson.intent);
+  if (input.kind !== 'message.deliver' || asString(intent.type) !== 'message.send') {
+    throw new Error('Unsupported legacy message retry job kind or payload intent');
+  }
+
+  const eventId = eventIdFromPayload(input.payloadJson);
+  const channel = channelFromPayload(input.payloadJson);
+  if (eventId === null || channel === null) {
+    throw new Error('Unsupported legacy message retry job payload: eventId and delivery channel are required');
+  }
+  return { eventId, channel };
 }
 
 function messageFields(payload: Record<string, unknown>): {
@@ -83,25 +100,16 @@ export async function enqueueMessageRetryJob(
   },
 ): Promise<void> {
   const delaySec = Math.max(0, Math.trunc(input.firstTryDelaySeconds));
-  const eventId = eventIdFromPayload(input.payloadJson);
-  const inserted = await enqueueOutgoingDeliveryIfAbsent(db, {
+  const { eventId, channel } = assertCanonicalMessageRetryInput(input);
+  const runAt = input.firstTryAt ?? new Date(Date.now() + delaySec * 1_000).toISOString();
+  await enqueueOutgoingDeliveryIfAbsent(db, {
     eventId,
-    kind: 'inbound_reply',
-    channel: channelFromPayload(input.payloadJson),
+    kind: INBOUND_REPLY_QUEUE_KIND,
+    channel,
     payloadJson: input.payloadJson,
     maxAttempts: Math.max(1, Math.trunc(input.maxAttempts)),
+    nextRetryAt: runAt,
   });
-  if (!inserted) return;
-
-  const runAt = input.firstTryAt ?? new Date(Date.now() + delaySec * 1_000).toISOString();
-  await runIntegratorSql(
-    db,
-    sql`UPDATE public.outgoing_delivery_queue
-        SET next_retry_at = ${runAt}::timestamptz,
-            updated_at = now()
-        WHERE event_id = ${eventId}
-          AND status = 'pending'`,
-  );
 }
 
 /**
