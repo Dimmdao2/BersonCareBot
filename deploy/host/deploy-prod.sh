@@ -7,6 +7,7 @@ WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.prod
 MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.prod
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
+SAAS_C2_SECRET_PREFLIGHT=deploy/host/saas-c2-secret-preflight.mjs
 C5A_PLATFORM_OPERATIONS_RUNTIME=deploy/postgres/c5a-platform-operations-runtime.sql
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
@@ -109,6 +110,7 @@ require_file "${MEDIA_WORKER_ENV_FILE}" "Media-worker environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
 require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_RUNTIME}" "C4 operational runtime contract"
 require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}" "C4 operational readiness probe"
+require_file "${PROJECT_ROOT}/${SAAS_C2_SECRET_PREFLIGHT}" "SaaS C2 secret preflight"
 require_file "${PROJECT_ROOT}/${C5A_PLATFORM_OPERATIONS_RUNTIME}" "C5A platform operations runtime overlay"
 require_file "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}" "Specialist owner provisioning overlay"
 require_file "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}" "Reference catalog RLS overlay"
@@ -124,6 +126,13 @@ require_unit_file "${MEDIA_WORKER_SERVICE}"
 
 # B0.2 (#1057): refuse before any build/restart work if the artifact retains a mock-payment surface.
 bash "${PROJECT_ROOT}/deploy/host/assert-no-mock-payment-deploy.sh" "${PROJECT_ROOT}"
+
+# All three service env files are checked as raw declarations before a build,
+# migration, or restart can leave a media DB credential live.
+node "${PROJECT_ROOT}/${SAAS_C2_SECRET_PREFLIGHT}" \
+  --process-env-file="webapp:${WEBAPP_ENV_FILE}" \
+  --process-env-file="integrator:${ENV_FILE}" \
+  --process-env-file="media-worker:${MEDIA_WORKER_ENV_FILE}"
 
 require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
 require_sudo_rule "API restart" /bin/systemctl restart "${API_SERVICE}"

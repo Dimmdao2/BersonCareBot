@@ -146,14 +146,7 @@ diagnostic_url="$DATABASE_URL_DIAGNOSTIC"
 delivery_url="$DATABASE_URL_DELIVERY_WORKER"
 scheduler_url="$DATABASE_URL_SCHEDULER"
 unset DATABASE_URL
-set -a
-# shellcheck disable=SC1090
-. "$MEDIA_WORKER_ENV_FILE"
-set +a
-: "${DATABASE_URL:?missing media-worker DATABASE_URL}"
-media_url="$DATABASE_URL"
-
-urls=("$diagnostic_url" "$delivery_url" "$scheduler_url" "$media_url")
+urls=("$diagnostic_url" "$delivery_url" "$scheduler_url")
 roles=()
 passwords=()
 database=""
@@ -182,8 +175,8 @@ for url in "${urls[@]}"; do
   passwords+=("$password")
 done
 [ "$TEST_BOOTSTRAP" != "1" ] || validate_test_database "$database"
-[ "$(printf '%s\n' "${roles[@]}" | sort -u | wc -l)" -eq 4 ] || {
-  echo "FATAL: four operational URLs must use four distinct roles" >&2
+[ "$(printf '%s\n' "${roles[@]}" | sort -u | wc -l)" -eq 3 ] || {
+  echo "FATAL: three operational URLs must use three distinct roles" >&2
   exit 1
 }
 
@@ -200,13 +193,12 @@ SQL
   printf '%s' "$password" |
     sudo -u postgres node "$PASSWORD_SETTER" "$database" "$role"
 done
-unset password passwords urls diagnostic_url delivery_url scheduler_url media_url endpoint DATABASE_URL
+unset password passwords urls diagnostic_url delivery_url scheduler_url endpoint DATABASE_URL
 
 sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
   -v c4_diagnostic_login_role="${roles[0]}" \
   -v c4_delivery_worker_login_role="${roles[1]}" \
   -v c4_scheduler_login_role="${roles[2]}" \
-  -v c4_media_worker_login_role="${roles[3]}" \
   -f - < "$OVERLAY"
 
 API_ENV_FILE="$API_ENV_FILE" WEBAPP_ENV_FILE="$WEBAPP_ENV_FILE" MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV_FILE" \

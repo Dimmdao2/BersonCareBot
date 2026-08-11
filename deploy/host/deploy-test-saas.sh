@@ -558,22 +558,20 @@ bootstrap_and_provision_c4_operational_runtime(){
     WEBAPP_ENV_FILE="$WEBAPP_ENV" \
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
     bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env
-  echo "   C4 operational bootstrap/provision: OK (four isolated TEST contours)"
+  echo "   C4 operational bootstrap/provision: OK (three DB contours + media HTTP control)"
 }
 
 reapply_c4_operational_runtime_overlays(){
-  local diagnostic_role delivery_worker_role scheduler_role media_worker_role
+  local diagnostic_role delivery_worker_role scheduler_role
   diagnostic_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DIAGNOSTIC)"
   delivery_worker_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DELIVERY_WORKER)"
   scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
-  media_worker_role="$(discover_media_worker_runtime_role)"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v c4_diagnostic_login_role="$diagnostic_role" \
     -v c4_delivery_worker_login_role="$delivery_worker_role" \
     -v c4_scheduler_login_role="$scheduler_role" \
-    -v c4_media_worker_login_role="$media_worker_role" \
     -f "$DEPLOY_REPO/$C4_OPERATIONAL_RUNTIME"
-  echo "   C4 operational runtime overlays: OK (four isolated contours)"
+  echo "   C4 operational runtime overlays: OK (three DB contours + media capability)"
 }
 
 assert_c4_operational_runtime_ready(){
@@ -644,7 +642,7 @@ grant_webapp_bootstrap_base_login_d3_4(){
   scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
   operator_role="$(discover_saas_isolation_operator_role)"
   validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$role_name"
-  validate_pg_identifier "webapp.test media-worker DATABASE_URL role" "$media_worker_role"
+  validate_pg_identifier "webapp media control capability role" "$media_worker_role"
   validate_pg_identifier "webapp.test staff DATABASE_URL_STAFF role" "$staff_role"
   [ "$role_name" != "$staff_role" ] || {
     echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases staff role '$staff_role'; refusing D3.4 mutation" >&2
@@ -2861,6 +2859,7 @@ run_c4_operational_chain_self_test(){
   bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"
   node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
   node "$SRC_REPO/deploy/host/saas-c2-secret-preflight.mjs" --self-test
+  node "$SRC_REPO/deploy/host/retire-media-db-login.test.mjs"
   echo "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)"
 }
 

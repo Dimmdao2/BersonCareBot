@@ -158,17 +158,17 @@ reviewed template; активный `FragmentPath` обязан указыват
 - `WorkingDirectory=/opt/projects/bersoncarebot/apps/media-worker`
 - `EnvironmentFile=/opt/env/bersoncarebot/media-worker.prod`
 - `ExecStart=/usr/bin/node dist/main.js`
-- Публичного порта нет (только исходящие к БД / S3 / `ffmpeg`).
+- Публичного порта нет (только authenticated HTTP control, S3 и `ffmpeg`).
 
 Root/operator отдельно устанавливает host-gated unit. `deploy-prod.sh` сверяет установленный root-owned unit с
 reviewed template, собирает `apps/media-worker`, перезапускает сервис при наличии отдельного `media-worker.prod` и
-проверяет `systemctl is-active`. Этот env использует только media operational login; повторное использование
-webapp/integrator credential запрещено. Пользователю **`deploy`** нужны только узкие права
+проверяет `systemctl is-active`. Этот env не содержит PostgreSQL login; media capability выбирает только webapp
+control seam. Пользователю **`deploy`** нужны только узкие права
 `restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](sudoers-deploy.example).
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 
-Первичное создание/нормализация четырёх operational login и применение C4 grants выполняются отдельно от обычного
+Первичное создание/нормализация трёх DB operational login и применение C4 grants выполняются отдельно от обычного
 deploy, **от root/DB-admin**, после наличия актуальной схемы и root-owned env-файлов:
 
 One-time PROD порядок (без фиксации значений секретов в репозитории):
@@ -177,7 +177,8 @@ One-time PROD порядок (без фиксации значений секр�
    файлы: `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`, `DATABASE_URL_SCHEDULER` — в `api.prod`;
    media operational `DATABASE_URL` — в `media-worker.prod`.
 2. root запускает единственный штатный entrypoint ниже. Он сверяет раздельность URL, создаёт/нормализует роли,
-   передаёт пароли в PostgreSQL без вывода, применяет C4 overlay и сам запускает readiness четырёх login.
+   передаёт пароли в PostgreSQL без вывода, применяет C4 overlay и сам запускает readiness трёх DB login плюс
+   authenticated media HTTP control.
 3. Повторный запуск этой команды является явной операцией re-provision/rotation и повторно устанавливает пароли из
    защищённых URL. Обычный `deploy-prod.sh` эту команду и password setter не вызывает, PROD-env не переписывает и
    только fail-closed проверяет уже подготовленный C4-контракт перед рестартом.
@@ -186,7 +187,11 @@ One-time PROD порядок (без фиксации значений секр�
 bash /opt/projects/bersoncarebot/deploy/host/provision-c4-operational-runtime.sh
 ```
 
-Для первого C4-прогона на свежем TEST, когда отдельный `media-worker.test` и operational URL ещё отсутствуют,
+Если до HTTP cutover существовал media PostgreSQL LOGIN, root/DB-admin снимает его после control-only preflight
+отдельной атомарной операцией: `deploy/host/retire-media-db-login.sh --database <каноническая-БД> --role <точный-legacy-login>`.
+Скрипт не принимает маски; ownership или неизвестная dependency откатывают все revoke, а уже отсутствующая роль — PASS.
+
+Для первого C4-прогона на свежем TEST, когда отдельный `media-worker.test` ещё отсутствует,
 root сначала использует тот же скрипт в явном TEST-bootstrap режиме (PROD-пути в этом режиме запрещены):
 
 ```bash
@@ -197,7 +202,7 @@ MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test \
 bash /opt/projects/bersoncarebot-test/deploy/host/provision-c4-operational-runtime.sh --bootstrap-test-env
 ```
 
-Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL
+Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт control-only media-worker env
 и принудительно закрепляет в `webapp.test`
 `ALLOW_DEV_AUTH_BYPASS=false` (TEST работает как production-сборка; dev-bypass разрешён только локальному DEV),
 переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
@@ -207,7 +212,7 @@ Bootstrap дополнительно требует точный канонич�
 PROD checkout, dev-home или другого/stale каталога блокируется до чтения и изменения env/БД.
 Перед любым bootstrap wrapper запускает `bootstrap-c4-test-env.mjs --check`: обязательны только исходные
 `api.test`/`webapp.test`; отсутствующий `media-worker.test` допустим и детерминированно строится в памяти. Этот режим
-ничего не пишет. После per-file update общий C2 preflight уже требует и проверяет полный набор всех четырёх operational URL.
+ничего не пишет. После per-file update общий C2 preflight уже требует три DB operational URL и control-only media env.
 
 Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
 повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из

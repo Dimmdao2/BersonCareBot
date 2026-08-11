@@ -29,10 +29,9 @@
 --   - lines 842-846: `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO
 --     app_operational_diagnostic, app_operational_delivery_worker, app_operational_scheduler,
 --     app_operational_media_worker;` (the capability roles, cleanup-time edge)
---   - lines 877-879: `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO
---     :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role", :"c4_scheduler_login_role",
---     :"c4_media_worker_login_role";` (the four distinct operator-provisioned LOGIN roles, apply-time edge)
--- DEV has one shared login standing in for all four logins (see dev-c5's header) -- this file gives that
+--   - the three distinct operator-provisioned DB LOGIN roles receive the same cleanup grant at apply time.
+--     `app_operational_media_worker` is selected only inside the webapp control seam and has no LOGIN.
+-- DEV has one shared login standing in for all three DB logins (see dev-c5's header) -- this file gives that
 -- one login the same direct grant, and gives app_operational_delivery_worker (the only capability role this
 -- DEV unblock has exercised end-to-end) the matching capability-role grant. The other three capability
 -- roles (diagnostic/scheduler/media_worker) are left untouched -- out of this unblock's scope, same as

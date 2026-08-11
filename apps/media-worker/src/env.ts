@@ -7,13 +7,13 @@ import { z } from 'zod';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
+type ProcessEnv = Record<string, string | undefined>;
 
-/** Local dev: optional webapp `.env.dev` + `apps/media-worker/.env`. Production uses only process env (e.g. systemd `EnvironmentFile`). */
+/** Local development reads only the worker-local env; it must never inherit webapp DB credentials. */
 function loadDotenv() {
   if (process.env.NODE_ENV !== 'production') {
-    config({ path: join(__dirname, '../../webapp/.env.dev') });
+    config({ path: join(__dirname, '../.env') });
   }
-  config();
 }
 
 const schema = z.object({
@@ -51,6 +51,22 @@ const schema = z.object({
     .transform((v) => v === 'true'),
 });
 
+const legacyDatabaseCredentialKey =
+  /^(?:DATABASE_URL|PG(?:PASSWORD|SERVICE|SERVICEFILE|SSLCERT|SSLKEY|SSLROOTCERT)|(?:MEDIA(?:_WORKER)?|MEDIA_WORKER)_(?:(?:DATABASE|DB|POSTGRES)_?(?:URL|PASSWORD|PASS|CERT(?:IFICATE)?|KEY|SSL(?:CERT|KEY|ROOTCERT))|URL|PASSWORD|PASS|CERT(?:IFICATE)?|KEY|SSL(?:CERT|KEY|ROOTCERT)))$/;
+
+/**
+ * The media process is deliberately not a PostgreSQL trust domain. Check raw
+ * process keys rather than the parsed runtime contract so a stale empty or
+ * ignored credential cannot survive a unit/environment-file change.
+ */
+export function assertNoLegacyMediaDatabaseCredentials(env: ProcessEnv = process.env): void {
+  for (const key of Object.keys(env)) {
+    if (legacyDatabaseCredentialKey.test(key)) {
+      throw new Error(`media-worker must not receive legacy database credential ${key}`);
+    }
+  }
+}
+
 export type MediaWorkerEnv = z.infer<typeof schema> & {
   ffmpegPathResolved: string;
   lockId: string;
@@ -58,6 +74,7 @@ export type MediaWorkerEnv = z.infer<typeof schema> & {
 
 export function loadMediaWorkerEnv(): MediaWorkerEnv {
   loadDotenv();
+  assertNoLegacyMediaDatabaseCredentials();
   const parsed = schema.parse({
     NODE_ENV: process.env.NODE_ENV,
     DATABASE_URL: process.env.DATABASE_URL,
