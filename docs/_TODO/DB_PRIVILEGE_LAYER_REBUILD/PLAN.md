@@ -146,7 +146,7 @@ transaction-bound port context и доказательство варианта 
       и subject id. Отложенный privacy scope остаётся в
       `RU_PRIVACY_AND_PRODUCTION_READINESS/PII_MEDICAL_STORE_SEPARATION_RECON_2026-07-24.md`
 - [x] **Совместимость A → I обязательна уже сейчас.** Port proof и human identity proof — разные части контекста;
-      transcript версионируется; identity lookup — отдельный шов; криптографическое доказательство порта не
+      versioned context class/claims — отдельный шов; доказательство порта не
       связывается навсегда с физическим `platform_users.id`
 
 ### Фактическое состояние на 11.08.2026 — изучено, A ещё не реализован
@@ -154,9 +154,9 @@ transaction-bound port context и доказательство варианта 
 - [x] В приложении есть единый AsyncLocalStorage principal carrier, `bootstrap`, маршрутизация webapp в
       staff/nonstaff pool, интеграторский allowlist технических `source`, установка роли и уничтожение соединения
       при ошибке очистки. Это готовый транспортный каркас
-- [x] Для опознанных principal существует `app.install_signed_context`: HMAC, nonce ledger, expiry, backend PID,
-      role switching и pool cleanup. Протокол нельзя оставить как есть: симметричный секрет хранится и в env, и
-      в БД; transcript не содержит port/database/login/role/transaction/class/purpose/args
+- [x] Для опознанных principal существует `app.install_signed_context`: старый HMAC context/pool carrier.
+      Он не является target: mTLS должен проверять порт при открытии connection, а новый context — быть
+      server-bound к login/backend/transaction/capability
 - [x] Pre-session бизнес-швы уже существуют: password, OTP, passkey, OAuth, PIN, invite, public resolver и
       rate-limit. Их бизнес-логику сохраняем; меняется способ допуска к вызову
 - [x] Нынешний `bootstrap` не является полномочием порта: webapp принимает любую внутреннюю строку `source`, а
@@ -164,9 +164,9 @@ transaction-bound port context и доказательство варианта 
 - [x] На живой DEV bare nonstaff login имеет прямые table ACL, membership `app_identity_bootstrap` и безусловный
       `EXECUTE` на pre-session функции. Поэтому верный DB-пароль без port key уже является доступом — главный
       инвариант A не держится
-- [x] Целевые `app.issue_port_challenge`, `app.install_port_context` и
-      `app.require_accepted_context` отсутствуют в коде и DEV. В декларации ветки `wt/declaration` они остаются
-      `pendingFunctions`, потому что exact signatures не определены
+- [x] Целевые mTLS-HBA rules, `app.install_port_context` и
+      `app.require_accepted_context` отсутствуют в коде и DEV. В декларации ветки `wt/declaration` target
+      context functions остаются `pendingFunctions` до реализации A2–A9
 - [x] Текущие `current_*` accessors без контекста возвращают `NULL`, а не бросают ошибку; обычные auth-вызовы не
       собраны в transaction-bound port context
 
@@ -175,8 +175,8 @@ Read-only проверка фактической DEV-границы, без ч�
 ```bash
 # Поиск реализации в индексированном коде и точный поиск в исполняемых каталогах:
 node /home/dev/brain/tools/code-search.mjs \
-  "issue port challenge install port context accepted context pre-session verifier" --repo bcb -k 20
-rg -n "install_port_context|issue_port_challenge|require_accepted_context|pre_session" \
+  "install port context accepted context mTLS pre-session" --repo bcb -k 20
+rg -n "install_port_context|require_accepted_context|pre_session" \
   packages apps deploy/postgres
 
 # Каталог фактически поднятой DEV-базы и effective direct grants login:
@@ -189,8 +189,7 @@ SELECT current_database(), current_user;
 SELECT n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
 WHERE n.nspname='app' AND p.proname IN (
-  'install_signed_context', 'issue_port_challenge',
-  'install_port_context', 'require_accepted_context'
+  'install_signed_context', 'install_port_context', 'require_accepted_context'
 ) ORDER BY p.proname, pg_get_function_identity_arguments(p.oid);
 SELECT parent.rolname, membership.inherit_option, membership.set_option, membership.admin_option
 FROM pg_auth_members membership
@@ -205,22 +204,27 @@ ORDER BY table_schema, table_name, privilege_type;"
 
 ### Исполнение варианта A — один технический этап до Ф4
 
-- [ ] **Ф3б-A1 — зафиксировать исполняемый контракт.** До генерации Ф4 определить exact SQL signatures и типы
-      `issue_port_challenge`, `install_port_context`, `require_accepted_context`, platform accessor и cleanup;
-      transcript включает key id, port, database OID, session login, target role, backend identity, transaction id,
-      context class, version, purpose, typed-args hash, expiry и nonce hash. Это техническое решение, не owner gate
-- [ ] **Ф3б-A2 — ключ и ротация.** Для каждого порта приватный ключ живёт только в env процесса; БД хранит только
-      public verifier, key id, port, срок и revoke. Проверить overlap-ротацию и доказать, что dump+старый proof не
-      позволяют ответить на новый challenge
-- [ ] **Ф3б-A3 — единый transaction wrapper портов.** Единственная точка DB checkout выполняет
-      `BEGIN → clean state → issue challenge → port proof → install context → SET LOCAL ROLE → queries →
-      COMMIT/ROLLBACK`; новый proof нужен каждой транзакции. Прямой query вне wrapper механически запрещён
+- [x] **Ф3б-A1 — зафиксировать исполняемый mTLS/context contract.** Определены first-match
+      `hostssl ... scram-sha-256 clientcert=verify-full` HBA и exact certificate→login maps для двух портов;
+      exact SQL signatures/types `install_port_context`, boolean `require_accepted_context`, platform gate,
+      accessors, cleanup, private capability/accepted-state rows, typed-args framing, definer/RLS split,
+      declaration-derived census and revocation/pool-drain controls — в `SCHEME.md`. **Historical replacement:**
+      custom OpenPGP transaction challenge expressly replaced; A1 changes no code, migration, DB, deploy or declaration
+- [ ] **Ф3б-A2 — mTLS material and rotation.** For each port place client private key/certificate/CA only in
+      its env; configure PostgreSQL public CA/CRL verifier material and exact HBA/user-map rows. Test bounded
+      certificate overlap, reload semantics, CRL revocation and mandatory pool drain/backend termination; DB never
+      stores a port private key
+- [ ] **Ф3б-A3 — единый transaction wrapper портов.** Единственная точка DB checkout executes
+      `BEGIN → RESET ROLE → clear context → install declared context → SET LOCAL ROLE → queries → clear →
+      RESET ROLE → COMMIT/ROLLBACK`; every transaction installs a fresh context and any cleanup failure destroys
+      the client. Direct query outside wrapper is mechanically forbidden
 - [ ] **Ф3б-A4 — отдельный pre-session principal.** Заменить общий unsigned `bootstrap` на `pre_session` только в
       webapp; request id, exact purpose/function и typed-args hash строит порт, а не HTTP-клиент. До human principal
       разрешены только операции опознания; после доказательства личности порт переходит на human context
-- [ ] **Ф3б-A5 — verifier и private state в PostgreSQL.** Accepted state одноразовый и связан с port/login/backend/
-      transaction/role/class/purpose/args; wrong/replayed/expired/mismatched proof бросает permission error. Таблицы
-      challenge/context закрыты от login/runtime/seam ролей и читаются только context seam
+- [ ] **Ф3б-A5 — context gate and private state in PostgreSQL.** Accepted context is bound server-side to declared
+      capability, mTLS-authenticated login/port, database/backend/transaction, role/class/purpose/args. Wrong
+      capability/binding/role/transaction or cleared context raises `42501`; private rows are inaccessible to
+      login/runtime/non-context seam owners
 - [ ] **Ф3б-A6 — закрыть каждый pre-session шов.** Каждый существующий auth/public `SECURITY DEFINER` первым
       действием требует accepted `pre_session` exact purpose/args; caller-supplied UUID сам по себе не полномочие;
       владельцы швов имеют только named relation/column/action surface
@@ -230,20 +234,20 @@ ORDER BY table_schema, table_name, privilege_type;"
 - [ ] **Ф3б-A8 — громкий fail closed и очистка.** `current_*`/platform/service accessors бросают при missing,
       expired или mismatched context; cleanup выполняется на success/error/rollback, а ошибка cleanup уничтожает
       connection. Отказ попадает в системный Postgres log без отдельной audit-таблицы
-- [ ] **Ф3б-A9 — исполняемое доказательство.** Живые negative vectors: DB password без key; wrong port/login/DB/
-      role/backend/transaction/class/purpose/args; expiry; replay; pool reuse; прямой definer call; `SET ROLE` без
-      context; dump и logged proof. Positive controls: webapp pre-session/login, staff, patient, platform и
-      integrator/service проходят только через свои порты
+- [ ] **Ф3б-A9 — исполняемое доказательство.** Live negatives: password without accepted certificate; wrong/missing/
+      expired/revoked certificate, CN map/login/port, non-TLS/socket and server impersonation; wrong capability/
+      DB/role/backend/transaction/class/purpose/args, pool reuse, direct definer call and `SET ROLE` without
+      context. Positive webapp pre-session/staff/patient/platform/service and integrator paths pass only via their ports
 - [ ] **Ф3б-A10 — сохранить путь к I.** Контекст и seam APIs используют версионированные actor/subject fields и
       отдельный identity resolver. Тест/документ фиксирует, что будущая замена `platform_users.id` на opaque subject
-      id не требует менять port challenge, role graph или RLS gate; реальный перенос данных остаётся privacy-этапом
+      id не требует менять mTLS port proof, role graph или RLS gate; реальный перенос данных остаётся privacy-этапом
 
 ### Граница ответственности
 
 **Владелец уже решил:** A сейчас; I — будущее направление обезличивания; неизвестный человек не имеет своего
-DB-доступа; ключ только у порта; доступ минимальный; отказ громкий. **Агент решает без нового owner-вопроса:** exact
-types/signatures, crypto transcript/challenge, rotation, wrapper API, seam mapping и тестовые vectors по принятой
-`SCHEME.md` и мировой практике. Новый owner gate возникает только если реализация меняет продуктовый auth-flow,
+DB-доступа; private client key only in port env; доступ минимальный; отказ громкий. **Агент решает без нового
+owner-вопроса:** exact HBA/map/material layout, context signatures, rotation/revocation, wrapper API, seam mapping
+and test vectors by accepted `SCHEME.md` and standard practice. Новый owner gate возникает только если реализация меняет product auth-flow,
 стоимость/инфраструктуру или отказывается от совместимости с I.
 
 ## Ф4 — декларация и генератор (принцип 1)
