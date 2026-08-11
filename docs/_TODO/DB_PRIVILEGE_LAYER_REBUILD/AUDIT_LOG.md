@@ -624,3 +624,80 @@ target. С `ON_ERROR_STOP` свежий post-drop deploy оборвётся до
 - В worker runtime остались два loops: projection outbox и единственный outgoing delivery; legacy job loop удалён.
 - Readiness/C4/dev-c7 active paths: exact census legacy relation `0`.
 - Fault mutation canonical relation и `next_retry_at <= now()` действительно красит behavior tests.
+
+## Fix verification TEST-QUEUE-FIX1-2026-08-11 — `066200cfa`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `066200cfa`, acceptance `2835d4e8e`, `wt/test-worker-queue-cutover` |
+| Метод | Тот же red race oracle + post-drop disposable deploy/ops checks + exact active-reference census |
+| Вердикт | **PASS — QUEUE-001–003 ИСПРАВЛЕНЫ; К LAND И TEST DEPLOY** |
+
+- **QUEUE-001 ИСПРАВЛЕНО.** Absolute `nextRetryAt` входит в исходный INSERT; acceptance `4/4` green. Независимая
+  мутация, игнорирующая его, красит два assertions и откатана.
+- **QUEUE-002 ИСПРАВЛЕНО.** Stale grant/checker/declaration target удалён; `p0-5b-grants.sql` с `ON_ERROR_STOP`
+  проходит на post-drop disposable PostgreSQL.
+- **QUEUE-003 ИСПРАВЛЕНО.** Drizzle metadata, purge и `user-phone-admin info` больше не запрашивают legacy relation;
+  post-drop info path проходит. Exact active census вне historical migrations/retired diagnostic: `0` files.
+- Integrator suite: `374 passed`, `3 expected-fail`, `14 skipped`; typecheck/lint PASS. Webapp relevant tests `2/2`,
+  typecheck/lint PASS; `git diff --check` PASS.
+
+## Audit pass TEST-QUEUE-CI-NAME-2026-08-11 — `bf5fb38f1`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `bf5fb38f1`, `wt/test-worker-queue-ci-fix` |
+| Метод | **Взгляд + точный gate + штатный Integrator Vitest** |
+| Вердикт | **PASS — К LAND; production-код и тело теста не изменены** |
+
+- **CI blocker ИСПРАВЛЕН.** Коммит является ровно `R100`-переименованием
+  `jobQueue.cutover.integration.test.ts` → `jobQueue.cutover.postgres.integration.test.ts`: `0` вставок,
+  `0` удалений, blob до/после `1d42586a6c7662e7aa0256437cdbb30e7936bd37`.
+- Новое имя входит в каноническую категорию disposable PostgreSQL harness у
+  `scripts/check-no-new-raw-sql.mjs`; сам gate/allowlist не менялся. Gate: `production debt: 0`.
+- Точный PostgreSQL test: `1 file / 4 tests passed`. Штатный Integrator suite: `62` файлов прошли,
+  `3` пропущены; `374 passed`, `3 expected fail`, `14 skipped`. Vitest glob продолжает включать файл.
+
+## Audit pass MEDIA-DB-DOOR-2026-08-11 — `72c1f2c17` + `e2cdadb5d`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `72c1f2c17`, acceptance `e2cdadb5d`, `wt/media-db-door` |
+| Метод | **Тест + взгляд**: disposable PostgreSQL, control-route/runtime faults, AST/dependency census |
+| Вердикт | **FAIL — четыре MUST FIX; не к land/deploy** |
+
+### MEDIA-001 — locked runtime не назначает operational media role
+
+**ОТКРЫТО — MUST FIX.** Authenticated `ready` под locked mode получает HTTP `409`: source
+`api/internal/media-worker/control:POST` отсутствует в locked allowlist, а существующий infra mapping назначает
+`app_staff`, не `app_operational_media_worker`. Достижимый результат — media-worker падает на startup readiness.
+Acceptance route test: `4 PASS / 1 FAIL`, ожидался `200`, получен `409`.
+
+### MEDIA-002 — DB chokepoint допускает alias нового Pool
+
+**ОТКРЫТО — MUST FIX.** Временная production mutation `import { Pool as DatabasePool } from 'pg'; new
+DatabasePool()` прошла `check-db-chokepoint` и его self-test. Точный `new Pool()` gate ловит. Нужен AST-level import/
+constructor census, чтобы третий DB pool/login нельзя было вернуть переименованием символа.
+
+### MEDIA-003 — удалён обязательный error tracking процесса
+
+**ОТКРЫТО — MUST FIX.** Candidate удалил `apps/media-worker/src/errorTracking.ts`, capture loop/fatal и dependency
+`@bersoncare/error-tracking`; после включения документированного backend исключения media-worker останутся только в
+journal. Сохранить error tracking без прямого DB-door: DB-backed конфигурация должна приходить через узкий control seam.
+
+### MEDIA-004 — потеряна SaaS isolation telemetry
+
+**ОТКРЫТО — MUST FIX.** `media_worker/media_transcode_tick` остаётся обязательным семейством operator-health, но
+worker telemetry и native hooks удалены, а control route не имеет узкой команды для записи signal. Ошибки
+worker-side control path больше не видны как isolation failure.
+
+### Подтверждено и сохраняется
+
+- Disposable PostgreSQL: `7/7` — claim concurrency, stale/future, quarantine, spoof/wrong-owner/cross-org/replay,
+  retry/failure, HLS/program completion и atomic rollback multi-row update.
+- Media unit/runtime: `8` tests, typecheck, build PASS; webapp typecheck/lint PASS.
+- Runtime AST census candidate: `18` production TS, прямых forbidden DB hits `0`; production DB dependencies пусты.
+- Control commands ограничены `ready, watermark, claim, load, processing, retry, failed, done_hls, done_program`;
+  auth-before-body и sanitised HTTP failures покрыты.
+- Deploy/env follow-up обязателен в этом же fixer: старый media DB credential/login убрать, новый control URL/secret
+  провизионить и проверять readiness; текущий candidate fail-closed не стартует со старым env.
