@@ -940,6 +940,13 @@ media, scheduler, web-push reminder): host reset/retirement ещё не прим
 (`log_min_error_statement=error`, systemd journal), но громкий context-denial должен быть доказан после cutover
 живым `42501` и записью PostgreSQL journal.
 
+Тот же live catalog подтверждает старый role-only обход до cutover: запрос
+`SELECT r, pg_has_role(r,'app_platform_settings','MEMBER'), pg_has_role(r,'app_platform_settings','USAGE'),
+pg_has_role(r,'app_platform_settings','SET') FROM unnest(ARRAY['bcb_test_staff_login',
+'bcb_dev_runtime_staff_login']) r` вернул для обоих `MEMBER=t, USAGE=f, SET=t`. Это допустимое SET-membership
+только в целевом контракте, где login имеет ноль relation ACL и каждый запрос требует принятого platform context;
+на текущем host целевой context/RLS reset ещё не применён, поэтому live состояние не считается безопасным.
+
 ## Fix verification MEDIA-DB-DOOR-R2-2026-08-11 — `a5684df48`
 
 | Поле | Значение |
