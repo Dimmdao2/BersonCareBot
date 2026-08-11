@@ -36,7 +36,6 @@ export function assertIntegratorDiagnosticPoolReady(): Promise<void> {
 export function assertDeliveryWorkerPoolReady(): Promise<void> {
   return probeReadOnly('worker:projection-outbox-tick', 'delivery', [
     'SELECT 1 FROM integrator.projection_outbox WHERE false',
-    'SELECT 1 FROM integrator.message_retry_jobs WHERE false',
     'SELECT 1 FROM public.outgoing_delivery_queue WHERE false',
     "SELECT resolution FROM app.resolve_outgoing_delivery_scope('00000000-0000-4000-8000-000000000000'::uuid)",
     "SELECT app.operator_incident_alert_already_sent('00000000-0000-4000-8000-000000000000'::uuid)",

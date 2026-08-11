@@ -64,7 +64,6 @@ VALUES
   ('integrator', 'identities'),
   ('integrator', 'integration_data_quality_incidents'),
   ('integrator', 'message_drafts'),
-  ('integrator', 'message_retry_jobs'),
   ('integrator', 'projection_outbox'),
   ('integrator', 'question_messages'),
   ('integrator', 'telegram_state'),

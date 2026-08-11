@@ -468,7 +468,7 @@ async function clearMessengerAttributedPhonesForBindings(
 
 export async function deleteIntegratorPhoneData(
   integratorDb: Pool,
-  digs: string,
+  _digs: string,
   integratorUserIds: string[],
   messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
 ): Promise<void> {
@@ -479,16 +479,7 @@ export async function deleteIntegratorPhoneData(
       await clearMessengerAttributedPhonesForBindings(client, messengerBindings);
     }
 
-    // R7 retirement: the two raw provider-history tables formerly purged here
-    // are already dropped from the schema.
-    // Purging them is moot once the tables no longer exist -- the data is gone with the table itself.
-
-    await runPurgeClientPgText(
-      client,
-      `DELETE FROM message_retry_jobs
-       WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
+    // The retired retry queue was dropped after its drain; no phone-keyed queue cleanup remains.
 
     if (integratorUserIds.length > 0) {
       await runPurgeClientPgText(client, `DELETE FROM users WHERE id = ANY($1::bigint[])`, [
