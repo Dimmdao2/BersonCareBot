@@ -6,19 +6,12 @@ import { renderOrgColumnDormantPolicyStatements } from './rls-sql-renderer.mjs';
 export const p085PolicyName = 'saas_org_dormant_p0_8_5';
 
 export const expectedP085IntegratorDirectUserBridgeTargets = Object.freeze([
-  'integrator.contacts',
-  'integrator.content_access_grants',
 ]);
 
 export const expectedP085IntegratorIdentityBridgeTargets = Object.freeze([
-  'integrator.conversations',
-  'integrator.message_drafts',
-  'integrator.user_questions',
 ]);
 
 export const expectedP085IntegratorParentDenormTargets = Object.freeze([
-  'integrator.conversation_messages',
-  'integrator.question_messages',
   'integrator.user_reminder_delivery_logs',
   'integrator.user_reminder_occurrences',
 ]);

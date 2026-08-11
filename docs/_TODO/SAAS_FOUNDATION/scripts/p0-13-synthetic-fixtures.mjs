@@ -32,7 +32,6 @@ export const requiredFixtureFamilies = Object.freeze([
   'fk_path',
   'denorm_path',
   'bootstrap',
-  'integrator_scoped',
   'integrator_denorm',
 ]);
 
@@ -271,32 +270,6 @@ export const p013SyntheticFixture = Object.freeze({
       notes: 'organization-specific system_settings override row',
     }),
     Object.freeze({
-      fixtureId: 'integrator-content-grant-a1',
-      family: 'integrator_scoped',
-      table: 'integrator.content_access_grants',
-      organizationKey: 'org_a',
-      organizationId: syntheticFixtureIds.orgA,
-      patientKey: 'patient_a1',
-      patientUserId: syntheticFixtureIds.patientA1,
-      principalKey: 'patient_a1',
-      principalUserId: syntheticFixtureIds.patientA1,
-      expectedScope: 'org_a/patient_a1',
-      notes: 'P0.8.5 integrator direct user bridge representative',
-    }),
-    Object.freeze({
-      fixtureId: 'integrator-content-grant-b1',
-      family: 'integrator_scoped',
-      table: 'integrator.content_access_grants',
-      organizationKey: 'org_b',
-      organizationId: syntheticFixtureIds.orgB,
-      patientKey: 'patient_b1',
-      patientUserId: syntheticFixtureIds.patientB1,
-      principalKey: 'patient_b1',
-      principalUserId: syntheticFixtureIds.patientB1,
-      expectedScope: 'org_b/patient_b1',
-      notes: 'cross-org P0.8.5 integrator direct user bridge representative',
-    }),
-    Object.freeze({
       fixtureId: 'integrator-reminder-log-a1',
       family: 'integrator_denorm',
       table: 'integrator.user_reminder_delivery_logs',
@@ -471,8 +444,6 @@ export function renderP013SyntheticFixtureCompatSchemaSql() {
 DROP TABLE IF EXISTS
   integrator.user_reminder_delivery_logs,
   integrator.user_reminder_occurrences,
-  integrator.content_access_grants,
-  integrator.users,
   public.notification_delivery_attempts,
   public.be_patient_package_items,
   public.be_package_items,
@@ -579,20 +550,6 @@ CREATE UNIQUE INDEX p0_13_system_settings_global_uidx
 CREATE UNIQUE INDEX p0_13_system_settings_org_uidx
   ON public.system_settings (key, scope, organization_id)
   WHERE organization_id IS NOT NULL;
-
-CREATE TABLE integrator.users (
-  id bigint PRIMARY KEY
-);
-
-CREATE TABLE integrator.content_access_grants (
-  id text PRIMARY KEY,
-  user_id bigint NOT NULL REFERENCES integrator.users(id) ON DELETE CASCADE,
-  content_id text NOT NULL,
-  purpose text NOT NULL,
-  expires_at timestamptz NOT NULL,
-  meta_json jsonb NOT NULL DEFAULT '{}'::jsonb,
-  organization_id uuid
-);
 
 CREATE TABLE public.reminder_rules (
   integrator_rule_id text PRIMARY KEY,
@@ -755,26 +712,6 @@ INSERT INTO public.system_settings (key, scope, organization_id, value_json)
 VALUES ('p0_13_fixture_global', 'admin', '${syntheticFixtureIds.orgB}'::uuid, '{"value":"org-b"}'::jsonb)
 ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE
   SET value_json = EXCLUDED.value_json;
-
-INSERT INTO integrator.users (id)
-VALUES
-  (${syntheticIntegratorUserIds.doctorA}),
-  (${syntheticIntegratorUserIds.doctorB}),
-  (${syntheticIntegratorUserIds.patientA1}),
-  (${syntheticIntegratorUserIds.patientA2}),
-  (${syntheticIntegratorUserIds.patientB1})
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO integrator.content_access_grants (id, user_id, content_id, purpose, expires_at, organization_id)
-VALUES
-  ('integrator-content-grant-a1', ${syntheticIntegratorUserIds.patientA1}, 'p0-13-content-a1', 'p0_13_fixture', '2099-01-01T00:00:00Z', '${syntheticFixtureIds.orgA}'::uuid),
-  ('integrator-content-grant-b1', ${syntheticIntegratorUserIds.patientB1}, 'p0-13-content-b1', 'p0_13_fixture', '2099-01-01T00:00:00Z', '${syntheticFixtureIds.orgB}'::uuid)
-ON CONFLICT (id) DO UPDATE
-  SET user_id = EXCLUDED.user_id,
-      content_id = EXCLUDED.content_id,
-      purpose = EXCLUDED.purpose,
-      expires_at = EXCLUDED.expires_at,
-      organization_id = EXCLUDED.organization_id;
 
 INSERT INTO public.reminder_rules (
   integrator_rule_id,

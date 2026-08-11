@@ -217,8 +217,9 @@ export function renderNullableSharedPatientPredicate({
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656):
 // chain-only patient ownership — tables with NO direct patient-identifying column, where the
 // owning patient is only reachable by walking one or more FK hops to a table that DOES carry one
-// (e.g. integrator.conversation_messages -> integrator.conversations -> integrator.identities, or
-// public.support_delivery_events -> public.support_conversation_messages -> public.support_conversations).
+// (e.g. integrator.user_reminder_delivery_logs -> integrator.user_reminder_occurrences ->
+// public.reminder_rules, or public.support_delivery_events -> public.support_conversation_messages
+// -> public.support_conversations).
 // Rendered as a single EXISTS with a chain of INNER JOINs (not nested EXISTS) so a broken/NULL hop
 // anywhere in the chain naturally fails the join and denies (fail-closed), matching the shape
 // already proven live in smoke-p0-13-db-isolation.mjs for user_reminder_delivery_logs.

@@ -107,16 +107,8 @@ if (sql.includes('ALTER TABLE "public".')) {
   fail('P0.8.5 generated SQL must not target public tables');
 }
 
-// B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #653): the I1
-// direct-user-bridge targets all carry a direct bigint user_id column referencing
-// integrator.users(id). Helper
-// alignment (B4-fanout, taskdb #656): the bigint cast reads the DEDICATED `app.integrator_user_id`
-// helper, never the `app.current_patient_user_id()` UUID helper.
-//
-// The I2 identity-bridge (conversations/message_drafts/user_questions) and I3 parent-denorm
-// targets are CHAIN-owned (taskdb #656 gap closure): their patient identity is only reachable via
-// a JOIN through integrator.identities (I2) or multiple hops (I3) — see
-// rls-descriptor-model.mjs `patientChainOwnedTables`, no longer a documented-open gap.
+// The surviving post-drop I3 reminder targets are chain-owned: their patient identity is reached
+// through canonical public.reminder_rules and the dedicated bigint integrator-user context.
 const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
 const patientOwnedTables = new Set(patientOwnedDescriptors.map((descriptor) => descriptor.table));
 const expectedPatientOwnedTables = new Set(expectedP085IntegratorDirectUserBridgeTargets);
