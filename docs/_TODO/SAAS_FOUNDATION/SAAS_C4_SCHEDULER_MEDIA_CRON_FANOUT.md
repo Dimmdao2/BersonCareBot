@@ -29,33 +29,33 @@ with missing-org/cross-org rows denied and counted.
 
 ## Media-Worker
 
-| ID                     | Entrypoint                                    | Source file                                                                      | Principal source                                  | DB surfaces                                                                      | Locked-mode posture                                                                                                                                                                                                                | Repo-side proof                                                   |
-| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `media-worker-main`    | systemd process loop                          | `apps/media-worker/src/main.ts`                                                  | delegates to tick                                 | `media_transcode_jobs`, `media_files`, S3 object operations                      | No direct DB call in `main.ts`; pool provider is principal-aware.                                                                                                                                                                  | Static checker verifies main delegates to `runMediaWorkerTick`.   |
-| `media-worker-tick`    | pipeline flag, stale reclaim, claim           | `apps/media-worker/src/workerTick.ts`                                            | `infra`, source `media-worker:tick`               | restricted runtime-setting accessor, stale processing reclaim, pending job claim | Dedicated `media-worker.prod/test` credential; locked checkout executes `SET ROLE app_operational_media_worker`. Direct `app_runtime_settings` access is denied.                                                                   | Static checker + focused media-worker tests.                      |
-| `media-worker-claim`   | `FOR UPDATE SKIP LOCKED` claim                | `apps/media-worker/src/jobs/claim.ts`                                            | tick infra source                                 | `media_transcode_jobs`, `media_files`                                            | Claim requires both job/media organization IDs to be non-null and equal; violations are terminally quarantined with `organization_invariant_violation`.                                                                            | Existing claim tests + C4 checker verify equality and quarantine. |
-| `media-worker-process` | transcode metadata updates and terminal state | `apps/media-worker/src/processTranscodeJob.ts`                                   | `app_operational_media_worker`, nested under tick | `media_files`, `media_transcode_jobs`, fake/local S3 in tests                    | Exact `SELECT/UPDATE` grants only. The capability cannot become staff, patient, legacy worker, or another operational capability.                                                                                                  | Focused principal tests verify infra/tick context.                |
-| `media-worker-sql`     | media-worker SQL chokepoint                   | `apps/media-worker/src/runMediaWorkerSql.ts`, `withClient.ts`, `poolProvider.ts` | current ALS principal                             | all media-worker SQL                                                             | Locked mode accepts only allowlisted `infra` source `media-worker:tick` and rejects organization, missing, bootstrap, patient, staff, integrator, and unknown infra sources before checkout; cleanup uses principal release/reset. | Static checker verifies pre-checkout guard and allowlist.         |
+| ID                     | Entrypoint                              | Source file                                                                                               | Principal source                               | DB / external surfaces                                          | Locked-mode posture                                                                                                                                     | Repo-side proof                                     |
+| ---------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `media-worker-main`    | systemd process loop                    | `apps/media-worker/src/main.ts`                                                                           | control-only process                           | authenticated HTTP control, S3 and FFmpeg                       | Worker env has no DB URL/login/principal material; startup first proves the authenticated control route is ready.                                       | Env/startup tests plus DB-door chokepoint.          |
+| `media-worker-tick`    | pipeline flag, stale reclaim, claim     | `apps/media-worker/src/workerTick.ts`, `control.ts`                                                       | bearer-authenticated webapp command            | control commands for setting, reclaim and claim                 | Every queue/config operation crosses the bounded HTTP client; no PostgreSQL dependency is importable by the media-worker package.                       | Focused client/tick tests and chokepoint self-test. |
+| `media-worker-control` | authenticated command route and DB seam | `apps/webapp/src/app/api/internal/media-worker/control/route.ts`, `app-layer/media/mediaWorkerControl.ts` | webapp infra principal, exact media capability | `media_transcode_jobs`, `media_files`, runtime settings         | Webapp verifies the shared internal secret, installs `app_operational_media_worker` inside its DB chokepoint, and exposes only the typed command union. | Route tests plus disposable PostgreSQL seam proof.  |
+| `media-worker-process` | transcode and terminal state            | `apps/media-worker/src/processTranscodeJob.ts`                                                            | control client; no local DB principal          | S3/FFmpeg; state transitions through authenticated HTTP control | Heavy processing stays outside Next.js; load/processing/retry/fail/complete state changes return through the same webapp seam.                          | Focused media-worker processing/control tests.      |
 
 Remaining gate: strict+FORCE fixture must claim and complete a real fake-S3 media job once, then prove a missing-org
 job fails closed and surfaces in metrics.
 
 ## Operational Login / Capability Contract
 
-| Process contour        | Env URL                                                | SET-only capability                 | Exact DB surface                                                                                                                                                                                                        |
-| ---------------------- | ------------------------------------------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API diagnostic         | `DATABASE_URL_DIAGNOSTIC`                              | `app_operational_diagnostic`        | `integrator.projection_outbox`: `SELECT`                                                                                                                                                                                |
-| Delivery worker        | `DATABASE_URL_DELIVERY_WORKER`                         | `app_operational_delivery_worker`   | `integrator.projection_outbox`, `integrator.message_retry_jobs` (renamed from `rubitime_create_retry_jobs` 2026-07-24), `public.outgoing_delivery_queue`: `SELECT/UPDATE`; narrow operator-alert attempt audit function |
-| Scheduler              | `DATABASE_URL_SCHEDULER`                               | `app_operational_scheduler`         | `integrator.idempotency_keys`: `SELECT/INSERT/UPDATE/DELETE`; PostgreSQL advisory lock                                                                                                                                  |
-| Media worker           | `DATABASE_URL` in `media-worker.prod/test`             | `app_operational_media_worker`      | `public.media_transcode_jobs`, `public.media_files`: `SELECT/UPDATE`; two-key SECURITY DEFINER runtime accessor                                                                                                         |
-| Web Push reminder tick | `DATABASE_URL_WEB_PUSH_REMINDER` in `webapp.prod/test` | `app_operational_web_push_reminder` | organization-ID discovery definer, organization-scoped reminder occurrence/delivery/analytics writes, exact `operator_job_status` key                                                                                   |
+| Process contour        | Env URL                                                       | SET-only capability                 | Exact DB surface                                                                                                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API diagnostic         | `DATABASE_URL_DIAGNOSTIC`                                     | `app_operational_diagnostic`        | `integrator.projection_outbox`: `SELECT`                                                                                                                                                                                |
+| Delivery worker        | `DATABASE_URL_DELIVERY_WORKER`                                | `app_operational_delivery_worker`   | `integrator.projection_outbox`, `integrator.message_retry_jobs` (renamed from `rubitime_create_retry_jobs` 2026-07-24), `public.outgoing_delivery_queue`: `SELECT/UPDATE`; narrow operator-alert attempt audit function |
+| Scheduler              | `DATABASE_URL_SCHEDULER`                                      | `app_operational_scheduler`         | `integrator.idempotency_keys`: `SELECT/INSERT/UPDATE/DELETE`; PostgreSQL advisory lock                                                                                                                                  |
+| Media worker           | no DB URL; `MEDIA_WORKER_CONTROL_URL` + `INTERNAL_JOB_SECRET` | selected by the webapp control seam | `public.media_transcode_jobs`, `public.media_files`: narrow operations behind the authenticated typed control route                                                                                                     |
+| Web Push reminder tick | `DATABASE_URL_WEB_PUSH_REMINDER` in `webapp.prod/test`        | `app_operational_web_push_reminder` | organization-ID discovery definer, organization-scoped reminder occurrence/delivery/analytics writes, exact `operator_job_status` key                                                                                   |
 
-All five base logins are `LOGIN NOINHERIT NOBYPASSRLS`; each has exactly one `WITH INHERIT FALSE, SET TRUE`
-membership. Base logins have no target-table privileges. Capability roles are terminal leaves and cannot become
-staff, patient, legacy `app_worker`, or sibling capabilities. The repeatable operator overlay is
-`deploy/postgres/c4-operational-runtime.sql`, plus `deploy/postgres/c4-web-push-reminder-runtime.sql` for the fifth
-webapp-owned contour. TEST deploy discovers login names from all five URLs, applies both overlays after required
-tables/helpers exist, and runs positive plus cross-contour readiness probes before restart.
+The database base logins in this table are `LOGIN NOINHERIT NOBYPASSRLS`, have no target-table privileges and retain
+only their declared SET-only memberships. The media worker is deliberately not a database base login: the existing
+webapp login selects `app_operational_media_worker` only inside the authenticated control-route transaction. The
+repeatable overlays remain `deploy/postgres/c4-operational-runtime.sql` and
+`deploy/postgres/c4-web-push-reminder-runtime.sql`; TEST deploy proves the three integrator operational DB URLs,
+restarts the new webapp, proves the separate authenticated media HTTP control, retires the exact legacy media login,
+and only then starts media-worker.
 The Web Push capability alone receives `EXECUTE` on the complete locked-policy dependency bundle:
 `app.is_staff()`, `app.current_org_id()`, `app.current_patient_user_id()`, and
 `app.current_integrator_user_id()`. Existing strict policies may evaluate those helpers in addition to the dedicated
@@ -100,8 +100,11 @@ only `failed/provider_rejected`, then rethrows the original provider error, whil
 
 First production rollout is a separate root/DB-admin operation:
 `deploy/host/provision-c4-operational-runtime.sh`. Before mutation it runs the shared all-URL C2 preflight across the
-root-owned webapp/API/media env files. It then creates or normalizes the five distinct LOGIN roles, sets their existing passwords without printing them, applies both overlays as PostgreSQL admin, and
-runs readiness. Ordinary deploy remains readiness-only and receives no role-creation sudo authority.
+root-owned webapp/API/media env files. It then creates or normalizes exactly three distinct integrator operational
+LOGIN roles, sets their existing passwords without printing them, applies the overlay as PostgreSQL admin, and runs
+readiness. Media remains authenticated HTTP control and receives no DB login. On PROD, full readiness requires the
+new webapp control route and the provisioner automatically retires the exact legacy media login; retirement is not a
+separate manual command. Ordinary deploy remains readiness-only and receives no role-creation sudo authority.
 PROD env credentials are prepared once by the operator before that initial provision. A later explicit root invocation
 of the provision command is the only C4 password reassertion/rotation path; ordinary code deploy/migrate never invokes
 bootstrap, provision, or the password setter, never rewrites PROD env, and only checks the already-provisioned contract.
@@ -121,8 +124,10 @@ The project root is also locked to the canonical `/opt/projects/bersoncarebot-te
 bootstrap from running a stale or PROD artifact.
 The canonical fresh/code-only TEST strict closure now owns this bootstrap/provision step. It runs after migrations,
 protected principal helpers, and the base/FORCE finalizer, then reapplies both overlays again after the locked DB
-matrix. The shared readiness script must authenticate through five distinct URLs, and the webapp systemd unit must
-expose the exact `/opt/env/bersoncarebot/webapp.test` file containing `DATABASE_URL_WEB_PUSH_REMINDER` before restart.
+matrix. Before restart the shared readiness script authenticates through the three distinct DB URLs only. The closure
+then starts the new webapp, proves the authenticated media control route, automatically retires the exact legacy
+media login, and starts media-worker. The webapp systemd unit must expose the exact
+`/opt/env/bersoncarebot/webapp.test` file containing `DATABASE_URL_WEB_PUSH_REMINDER` before restart.
 An earlier read-only `--check` validates the api/webapp source contract while allowing a missing media env, and proves
 that the missing output can be rendered without writing. Runtime readiness performs real fail-if-succeeds sibling
 denials and transactionally proves only the exact `reminders.web_push_only.tick` status row is writable/visible.
@@ -177,12 +182,11 @@ inventory/checker coverage fails `pnpm run check:saas-c4-scheduler-media-cron-fa
 - [`../../../apps/integrator/src/infra/runtime/scheduler/main.ts`](../../../apps/integrator/src/infra/runtime/scheduler/main.ts)
 - [`../../../apps/integrator/src/infra/db/integratorPoolProvider.ts`](../../../apps/integrator/src/infra/db/integratorPoolProvider.ts)
 - [`../../../apps/integrator/src/infra/db/operationalPoolReadiness.ts`](../../../apps/integrator/src/infra/db/operationalPoolReadiness.ts)
-- [`../../../apps/media-worker/src/withClient.ts`](../../../apps/media-worker/src/withClient.ts)
-- [`../../../apps/media-worker/src/poolProvider.ts`](../../../apps/media-worker/src/poolProvider.ts)
-- [`../../../apps/media-worker/src/serverRuntimeConfig.ts`](../../../apps/media-worker/src/serverRuntimeConfig.ts)
+- [`../../../apps/media-worker/src/control.ts`](../../../apps/media-worker/src/control.ts)
+- [`../../../apps/media-worker/src/workerTick.ts`](../../../apps/media-worker/src/workerTick.ts)
 - [`../../../apps/media-worker/src/processTranscodeJob.ts`](../../../apps/media-worker/src/processTranscodeJob.ts)
-- [`../../../apps/media-worker/src/processTranscodeJob.principal.test.ts`](../../../apps/media-worker/src/processTranscodeJob.principal.test.ts)
-- webapp internal route files under [`../../../apps/webapp/src/app/api/internal`](../../../apps/webapp/src/app/api/internal)
+- [`../../../apps/webapp/src/app/api/internal/media-worker/control/route.ts`](../../../apps/webapp/src/app/api/internal/media-worker/control/route.ts)
+- [`../../../apps/webapp/src/app-layer/media/mediaWorkerControl.ts`](../../../apps/webapp/src/app-layer/media/mediaWorkerControl.ts)
 - [`scripts/check-c4-scheduler-media-cron-fanout.mjs`](scripts/check-c4-scheduler-media-cron-fanout.mjs)
 - [`../../../deploy/postgres/c4-operational-runtime.sql`](../../../deploy/postgres/c4-operational-runtime.sql)
 - [`../../../deploy/host/provision-c4-operational-runtime.sh`](../../../deploy/host/provision-c4-operational-runtime.sh)

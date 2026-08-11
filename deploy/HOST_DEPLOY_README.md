@@ -30,7 +30,7 @@
 | Параметр              | Значение                                                                                                                                                                                                                                                        |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Deploy user           | `deploy`                                                                                                                                                                                                                                                        |
-| Prod host              | `135.106.162.170` (`adelaide`)                                                                                                                                                                                                                                  |
+| Prod host             | `135.106.162.170` (`adelaide`)                                                                                                                                                                                                                                  |
 | Prod project dir      | `/opt/projects/bersoncarebot`                                                                                                                                                                                                                                   |
 | Prod env dir          | `/opt/env/bersoncarebot`                                                                                                                                                                                                                                        |
 | PostgreSQL            | `127.0.0.1:5432`                                                                                                                                                                                                                                                |
@@ -158,35 +158,45 @@ reviewed template; активный `FragmentPath` обязан указыват
 - `WorkingDirectory=/opt/projects/bersoncarebot/apps/media-worker`
 - `EnvironmentFile=/opt/env/bersoncarebot/media-worker.prod`
 - `ExecStart=/usr/bin/node dist/main.js`
-- Публичного порта нет (только исходящие к БД / S3 / `ffmpeg`).
+- Публичного порта нет (только authenticated HTTP control, S3 и `ffmpeg`).
 
 Root/operator отдельно устанавливает host-gated unit. `deploy-prod.sh` сверяет установленный root-owned unit с
 reviewed template, собирает `apps/media-worker`, перезапускает сервис при наличии отдельного `media-worker.prod` и
-проверяет `systemctl is-active`. Этот env использует только media operational login; повторное использование
-webapp/integrator credential запрещено. Пользователю **`deploy`** нужны только узкие права
+проверяет `systemctl is-active`. Этот env не содержит PostgreSQL login; media capability выбирает только webapp
+control seam. Пользователю **`deploy`** нужны только узкие права
 `restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](sudoers-deploy.example).
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 
-Первичное создание/нормализация четырёх operational login и применение C4 grants выполняются отдельно от обычного
+Первичное создание/нормализация трёх DB operational login и применение C4 grants выполняются отдельно от обычного
 deploy, **от root/DB-admin**, после наличия актуальной схемы и root-owned env-файлов:
 
 One-time PROD порядок (без фиксации значений секретов в репозитории):
 
-1. root/DB-admin создаёт четыре отдельных PostgreSQL LOGIN/пароля и записывает полные connection URL в защищённые
+1. root/DB-admin создаёт три отдельных PostgreSQL LOGIN/пароля и записывает полные connection URL в защищённые
    файлы: `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`, `DATABASE_URL_SCHEDULER` — в `api.prod`;
-   media operational `DATABASE_URL` — в `media-worker.prod`.
-2. root запускает единственный штатный entrypoint ниже. Он сверяет раздельность URL, создаёт/нормализует роли,
-   передаёт пароли в PostgreSQL без вывода, применяет C4 overlay и сам запускает readiness четырёх login.
-3. Повторный запуск этой команды является явной операцией re-provision/rotation и повторно устанавливает пароли из
+   media-worker не получает PostgreSQL URL: в `media-worker.prod` рендерятся `MEDIA_WORKER_CONTROL_URL` и
+   общий с webapp `INTERNAL_JOB_SECRET`.
+2. Обычный deploy сначала поднимает новый webapp, но не запускает DB operational процессы и media-worker, пока
+   C4-контракт не готов. Если это первый переход, deploy громко остановится на C4 gate, оставив новый control route
+   доступным для root-проверки.
+3. root запускает единственный штатный entrypoint ниже. Он сверяет раздельность URL, создаёт/нормализует роли,
+   передаёт пароли в PostgreSQL без вывода, применяет C4 overlay, проверяет три DB login и authenticated media HTTP
+   control, затем автоматически отзывает права и удаляет exact legacy media login.
+4. Повторный запуск этой команды является явной операцией re-provision/rotation и повторно устанавливает пароли из
    защищённых URL. Обычный `deploy-prod.sh` эту команду и password setter не вызывает, PROD-env не переписывает и
-   только fail-closed проверяет уже подготовленный C4-контракт перед рестартом.
+   после root provision надо запустить повторно: он fail-closed проверит готовый C4-контракт и только затем запустит
+   operational процессы и media-worker.
 
 ```bash
 bash /opt/projects/bersoncarebot/deploy/host/provision-c4-operational-runtime.sh
 ```
 
-Для первого C4-прогона на свежем TEST, когда отдельный `media-worker.test` и operational URL ещё отсутствуют,
+Если до HTTP cutover существовал media PostgreSQL LOGIN, штатный provisioner после control-only preflight сам
+вызывает exact retirement primitive. Маски не принимаются; ownership или неизвестная dependency откатывают все
+revoke, а уже отсутствующая роль — PASS. Отдельного ручного шага retirement нет.
+
+Для первого C4-прогона на свежем TEST, когда отдельный `media-worker.test` ещё отсутствует,
 root сначала использует тот же скрипт в явном TEST-bootstrap режиме (PROD-пути в этом режиме запрещены):
 
 ```bash
@@ -197,7 +207,7 @@ MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test \
 bash /opt/projects/bersoncarebot-test/deploy/host/provision-c4-operational-runtime.sh --bootstrap-test-env
 ```
 
-Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL
+Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт control-only media-worker env
 и принудительно закрепляет в `webapp.test`
 `ALLOW_DEV_AUTH_BYPASS=false` (TEST работает как production-сборка; dev-bypass разрешён только локальному DEV),
 переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
@@ -207,9 +217,12 @@ Bootstrap дополнительно требует точный канонич�
 PROD checkout, dev-home или другого/stale каталога блокируется до чтения и изменения env/БД.
 Перед любым bootstrap wrapper запускает `bootstrap-c4-test-env.mjs --check`: обязательны только исходные
 `api.test`/`webapp.test`; отсутствующий `media-worker.test` допустим и детерминированно строится в памяти. Этот режим
-ничего не пишет. После per-file update общий C2 preflight уже требует и проверяет полный набор всех четырёх operational URL.
+ничего не пишет. После per-file update общий C2 preflight уже требует три DB operational URL и control-only media env.
 
-Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
+В TEST bootstrap/provision подготавливает три DB login и выполняет только DB readiness, пока webapp остановлен.
+Strict closure затем запускает новый webapp, проверяет authenticated media control и автоматически вызывает exact
+retirement перед запуском media-worker. Скрипт до любых изменений ролей запускает общий C2 preflight по
+`webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
 повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из
 `api.prod`/`webapp.prod`/`media-worker.prod` и передаёт только через stdin в
 `deploy/host/set-postgres-role-password.mjs`. Примитив не использует интерактивный `\password`: пароль отсутствует
@@ -219,7 +232,7 @@ duration, parameter, error-context и optional pgAudit logging, а driver/server
 PTY/non-TTY, повторная ротация и отсутствие утечки проверяются disposable-скриптом
 `deploy/host/smoke-set-postgres-role-password.sh`. Затем provision применяет
 `deploy/postgres/c4-operational-runtime.sql` локально через системного `postgres`
-и запускает readiness всех четырёх различных login. Обычный
+и запускает readiness трёх различных DB login и authenticated media HTTP control. Обычный
 `deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4
 контракт перед рестартом сервисов.
 
@@ -760,16 +773,17 @@ Hard wrapper останавливает writers, восстанавливает 
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
 fail-closed до restore, если защищённый TEST-only data fixture packet не готов.
 После миграций, установки protected-principal helpers и базового FORCE finalizer общая closure сама вызывает канонический C4 TEST-bootstrap:
-после read-only source preflight атомарно заменяет каждый затронутый env-файл и добавляет/сохраняет четыре отдельных
-local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capability/
+после read-only source preflight атомарно заменяет каждый затронутый env-файл, добавляет/сохраняет три отдельных
+local-only DB URL (`127.0.0.1:5432/bersoncarebot_test`) и control-only media env, создаёт base/capability/
 discovery-definer роли, применяет C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
 Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
 сохраняются для безопасного повторного запуска. `DONE` допустим только после FIO reconciliation; отсутствие
 защищённого manifest или несовпадение SHA-256 останавливает прогон до restore.
 Безопасная локальная репетиция точного C4-сегмента wrapper (не читает и не меняет host env, БД, systemd или cron):
 `bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`.
-Readiness выполняет разрешённые операции и cross-contour negative probes для четырёх operational capability;
-каждый base login остаётся отделён от соседних scheduler, delivery, diagnostic и media surfaces.
+Readiness выполняет разрешённые операции и cross-contour negative probes для трёх DB operational capability,
+затем authenticated media control probe; каждый DB base login остаётся отделён от соседних scheduler, delivery и
+diagnostic surfaces, а media-worker не получает DB login или credential.
 Legacy product-smoke fixture `/run/bersoncarebot/saas-smoke.fixture`, сохранённые сессии/refs и их credential
 convergence/mint выведены из deploy решением владельца 30.07.2026. Отсутствие временного файла в `/run` не блокирует
 сборку, миграции, security closure или запуск TEST. Продуктовые проверки выполняются отдельными целевыми тестами.
@@ -987,15 +1001,15 @@ sudo systemctl reload nginx
 
 Все изменения расписания выполняются через `node /home/dev/brain/tools/cronport.mjs`; сырой `crontab` и `/etc/cron.d` не используются.
 
-| Именованная задача                                                | Обязательность                                      | Назначение                                                                                                                              |
-| ----------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **`bersoncarebot-specialist-task-reminders`** (имя на усмотрение) | **рекомендуется** после миграции `0102`             | `POST /api/internal/specialist-task-reminders/tick` каждые 5–15 мин — напоминания врачу по `specialist_tasks`                           |
-| `bersoncarebot-media-purge`                                       | обязателен (медиа CMS)                              | purge очереди удаления `media-pending-delete`                                                                                           |
-| `bersoncarebot-media-multipart` (имя на усмотрение)               | рекомендуется                                       | multipart cleanup                                                                                                                       |
-| `bersoncarebot-webapp-hls-retention`                              | рекомендуется                                       | playback + HLS proxy errors retention (weekly)                                                                                          |
-| `bersoncarebot-product-analytics-retention`                       | рекомендуется                                       | `POST /api/internal/product-analytics/retention` (weekly)                                                                               |
-| `bersoncarebot-saas-billing-renewal` (имя на усмотрение)          | рекомендуется после К5                              | `POST /api/internal/saas-billing/renewal/tick` ежечасно — счёт продления тарифа истёкшим `saas_billing_subscriptions`                   |
-| прочие                                                            | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, reconcile HLS, health-guard и т.д.                                                                                              |
+| Именованная задача                                                | Обязательность                                      | Назначение                                                                                                            |
+| ----------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **`bersoncarebot-specialist-task-reminders`** (имя на усмотрение) | **рекомендуется** после миграции `0102`             | `POST /api/internal/specialist-task-reminders/tick` каждые 5–15 мин — напоминания врачу по `specialist_tasks`         |
+| `bersoncarebot-media-purge`                                       | обязателен (медиа CMS)                              | purge очереди удаления `media-pending-delete`                                                                         |
+| `bersoncarebot-media-multipart` (имя на усмотрение)               | рекомендуется                                       | multipart cleanup                                                                                                     |
+| `bersoncarebot-webapp-hls-retention`                              | рекомендуется                                       | playback + HLS proxy errors retention (weekly)                                                                        |
+| `bersoncarebot-product-analytics-retention`                       | рекомендуется                                       | `POST /api/internal/product-analytics/retention` (weekly)                                                             |
+| `bersoncarebot-saas-billing-renewal` (имя на усмотрение)          | рекомендуется после К5                              | `POST /api/internal/saas-billing/renewal/tick` ежечасно — счёт продления тарифа истёкшим `saas_billing_subscriptions` |
+| прочие                                                            | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, reconcile HLS, health-guard и т.д.                                                                            |
 
 **Наблюдаемость в админке:** после каждого успешного/ошибочного вызова internal job (и backup-скриптов) в **`public.operator_job_status`** пишется tick. Сводка — **`GET /api/admin/system-health`** → поле **`cronJobs`**, UI **`/app/doctor/system-health`** → «Cron-задачи хоста». Канон ключей: **`apps/webapp/src/modules/operator-health/cronJobRegistry.ts`**. Smoke после deploy:
 
