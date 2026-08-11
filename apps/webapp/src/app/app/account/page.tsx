@@ -194,11 +194,8 @@ export default async function AccountPage({
 
   return (
     <DoctorAppShell title="Аккаунт" user={session.user}>
-      <DoctorPageHeader title="Аккаунт" />
-      <div className="flex flex-col gap-3">
-        <AccountTabs activeTab={tab} />
-        {content}
-      </div>
+      <DoctorPageHeader title="Аккаунт" tabs={<AccountTabs activeTab={tab} />} />
+      {content}
     </DoctorAppShell>
   );
 }

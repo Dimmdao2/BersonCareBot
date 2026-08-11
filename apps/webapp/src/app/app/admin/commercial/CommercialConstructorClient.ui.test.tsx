@@ -9,6 +9,25 @@ afterEach(() => {
 });
 
 describe('commercial constructor access ladder', () => {
+  it('shows a human-readable retry state without exposing the transport error', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => {
+        throw new Error("Failed to execute 'json' on 'Response': Unexpected end of JSON input");
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CommercialConstructorClient />);
+
+    expect(await screen.findByText('Не удалось загрузить коммерческие настройки.')).toBeVisible();
+    expect(screen.getByText(/COMMERCIAL-SETTINGS/)).toBeVisible();
+    expect(screen.queryByText(/Unexpected end of JSON input/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+
   it('does not render retired tariff controls from legacy API data', async () => {
     vi.stubGlobal(
       'fetch',

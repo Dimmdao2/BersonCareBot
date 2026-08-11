@@ -12,11 +12,14 @@ import type {
 import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from '@/shared/ui/doctor/primitives/card';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -211,18 +214,25 @@ function PlatformPaymentsSummarySection({
     void load();
   }, [load]);
 
-  if (loading) return <p className="text-sm text-muted-foreground">Загрузка сводки…</p>;
-  if (error) {
+  if (loading) {
     return (
-      <p className="text-sm text-destructive" role="alert">
-        Сводка не загрузилась ({error}).
+      <p role="status" className="text-sm text-muted-foreground">
+        Загружаем сводку…
       </p>
     );
   }
-  if (!summary || summary.byCurrency.length === 0) {
+  if (error) {
     return (
-      <p className="text-sm text-muted-foreground">За этот период платежей нет — сводка пуста.</p>
+      <DataLoadFailureNotice
+        title="Не удалось загрузить сводку платежей."
+        digest="SAAS-PAYMENTS-SUMMARY"
+        devMessage={error}
+        onRetry={() => void load()}
+      />
     );
+  }
+  if (!summary || summary.byCurrency.length === 0) {
+    return <DoctorEmptyState size="xs">За этот период платежей нет.</DoctorEmptyState>;
   }
 
   return (
@@ -1008,16 +1018,18 @@ export function PlatformPaymentsSection() {
       </Card>
 
       <Card id="platform-payments">
-        <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+        <CardHeader className="gap-3">
           <div>
             <CardTitle className="text-base">Платежи</CardTitle>
             <CardDescription>
               Счета клиник за тариф из нашего журнала (`saas_billing_invoices`).
             </CardDescription>
           </div>
-          <Button type="button" onClick={() => setManualInvoiceOpen(true)}>
-            Выставить счёт
-          </Button>
+          <CardAction>
+            <Button type="button" onClick={() => setManualInvoiceOpen(true)}>
+              Выставить счёт
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1090,15 +1102,19 @@ export function PlatformPaymentsSection() {
             </div>
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              Список платежей не загрузился ({error}).
+          {error ? (
+            <DataLoadFailureNotice
+              title="Не удалось загрузить список платежей."
+              digest="SAAS-PAYMENTS-LIST"
+              devMessage={error}
+              onRetry={() => void load()}
+              retrying={loading}
+            />
+          ) : loading ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Загружаем платежи…
             </p>
-          )}
-
-          {loading && <p className="text-sm text-muted-foreground">Загрузка…</p>}
-
-          {!loading && !error && (
+          ) : (
             <div className="overflow-x-auto rounded-md border border-border/60">
               <table className="w-full min-w-[980px] text-left text-sm">
                 <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
