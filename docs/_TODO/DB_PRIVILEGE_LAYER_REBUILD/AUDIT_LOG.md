@@ -270,20 +270,26 @@ config-reader, purge, operational, runtime-migration/boot и media doors; их �
 
 ### IMPL-002 — transaction wrapper не удерживает callback на одном client и не уничтожает failure
 
-**Статус: ОТКРЫТО — MUST FIX.** Callback не получает checkout-client и может выполнить query на другом backend;
+**Статус: ИСПРАВЛЕНО В ВЕТКЕ `9472e76ea`, ЕЩЁ НЕ ПРИЗЕМЛЕНО.** Callback не получает checkout-client и может выполнить query на другом backend;
 cleanup failure не вызывает `release(error)`. Wrapper также ставит `request_id` всем классам и всегда H0, поэтому
 нарушает claims matrix и не способен обслужить named root с typed args. Acceptance commit содержит пять красных тестов.
 
 ### IMPL-003 — SQL принимает malformed context и typed args
 
-**Статус: ОТКРЫТО — MUST FIX.** Реальный PG16 принял staff с лишним `subject_ref`, NULL protocol version и unknown
+**Статус: ЧАСТИЧНО ИСПРАВЛЕНО `9472e76ea`, ОСТАЁТСЯ ОТКРЫТО.** Node/SQL core теперь fail-closed по claims matrix,
+safe bigint и десяти typed tags; используется `pg_catalog.sha256`, а package acceptance зелёный. Полный named-root
+typed-args и независимый fault-injection coverage ещё не доказаны. Исходный аудит: реальный PG16 принял staff с
+лишним `subject_ref`, NULL protocol version и unknown
 tag; NULL `type_tag` вернул тихий NULL. Нужны exact required+forbidden matrices, закрытый набор десяти tags, binary
 length/value validation и одинаковый production Node↔SQL encoder. Live layout держит `pgcrypto` в `app_ext`, поэтому
 `app.digest` candidate сломан; штатный PG16 `pg_catalog.sha256(bytea)` убирает эту лишнюю зависимость.
 
 ### IMPL-004 — role/ownership/pre-session graph не обслуживает живые пути
 
-**Статус: ОТКРЫТО — MUST FIX.** Login roles остались INHERIT; webapp staff получил delivery role; integrator не
+**Статус: ЧАСТИЧНО ИСПРАВЛЕНО `9472e76ea`, ОСТАЁТСЯ ОТКРЫТО.** Revision 10 исправила memberships/context classes:
+добавлены integrator request/resolver и tenant-service, webapp→delivery убран. Полные role attributes, owners,
+accessors, roots/resolver implementation и A→I handoff ещё не собраны. Исходный аудит: login roles остались INHERIT;
+webapp staff получил delivery role; integrator не
 получил scheduler; helper owner/EXECUTE неверен; named pre-session roots, platform/accessors/resolver/A→I handoff
 отсутствуют. Дополнительный runtime census доказал дыру принятого A1: integrator login имеет delivery/scheduler, но
 живому webhook request и pre-routing нужны exact `app_integrator_request` и `app_integrator_resolver`. Tenant-scoped
@@ -303,7 +309,9 @@ blanket revoke, ownership/default privilege generator и atomic/idempotent proof
 
 ### IMPL-007 — зелёный demo acceptance не ловит независимую поломку механизма
 
-**Статус: ОТКРЫТО — MUST FIX.** Endianness mutation production Node, удаление install, `USING(true)` и снятие FORCE
+**Статус: ЧАСТИЧНО ИСПРАВЛЕНО `9472e76ea`, ОСТАЁТСЯ ОТКРЫТО.** Disposable acceptance теперь входит в package test,
+а пять wrapper tests зелёные; остальные независимые mutations девяти gate-классов ещё не закрыты. Исходный аудит:
+endianness mutation production Node, удаление install, `USING(true)` и снятие FORCE
 RLS оставили старый acceptance зелёным; script не подключён к package/CI. `d2f85bc39` добавил первые красные wrapper
 tests, но все девять kill-set классов должны получить поведенческое/introspection evidence по своей природе.
 
