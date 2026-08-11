@@ -4,13 +4,12 @@
 
 CREATE SCHEMA IF NOT EXISTS app;
 CREATE SCHEMA IF NOT EXISTS app_ext;
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA app;
 
 DO $$ BEGIN
   CREATE TYPE app.port_name AS ENUM ('webapp', 'integrator');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
-  CREATE TYPE app.port_context_class AS ENUM ('pre_session', 'staff', 'patient', 'platform', 'integrator', 'service');
+  CREATE TYPE app.port_context_class AS ENUM ('pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE app.port_typed_arg AS (type_tag text, value bytea);
@@ -29,7 +28,8 @@ DO $$
 DECLARE role_name text;
 BEGIN
   FOREACH role_name IN ARRAY ARRAY['app_pre_session', 'app_staff', 'app_patient', 'app_platform_settings',
-    'app_operational_delivery_worker', 'app_seam_context_owner', 'app_seam_identity_lookup_owner',
+    'app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker', 'app_operational_scheduler',
+    'app_tenant_service', 'app_service', 'app_seam_context_owner', 'app_seam_identity_lookup_owner',
     'app_object_owner', 'app_migrator'] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', role_name);
@@ -39,13 +39,13 @@ BEGIN
 END $$;
 
 -- SET is explicit and INHERIT is false on every login→runtime edge.
-GRANT app_pre_session, app_staff, app_platform_settings, app_operational_delivery_worker TO :"app_staff_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
+GRANT app_pre_session, app_staff, app_platform_settings TO :"app_staff_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
 GRANT app_pre_session, app_patient TO :"app_patient_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
-GRANT app_operational_delivery_worker TO :"integrator_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
+GRANT app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service TO :"integrator_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
 REVOKE ALL ON DATABASE :"DBNAME" FROM PUBLIC;
 GRANT CONNECT ON DATABASE :"DBNAME" TO :"app_staff_login", :"app_patient_login", :"integrator_login";
 REVOKE ALL ON SCHEMA public, app_ext FROM PUBLIC;
-GRANT USAGE ON SCHEMA app TO :"app_staff_login", :"app_patient_login", :"integrator_login", app_staff, app_patient, app_platform_settings, app_operational_delivery_worker, app_seam_context_owner, app_seam_identity_lookup_owner;
+GRANT USAGE ON SCHEMA app TO :"app_staff_login", :"app_patient_login", :"integrator_login", app_staff, app_patient, app_platform_settings, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_identity_lookup_owner;
 GRANT USAGE ON SCHEMA app_ext TO app_seam_context_owner, app_seam_identity_lookup_owner;
 
 CREATE TABLE IF NOT EXISTS app_ext.port_context_capabilities (
@@ -92,35 +92,42 @@ BEGIN
   payload := convert_to('BCBPORTARGS', 'SQL_ASCII') || E'\\000'::bytea || int2send(1::smallint) || int2send(count::smallint);
   FOREACH item IN ARRAY p_args LOOP
     ordinal := ordinal + 1;
-    IF item IS NULL OR item.type_tag !~ '^[a-z][a-z0-9_.]*@[1-9][0-9]*$' OR octet_length(convert_to(item.type_tag, 'SQL_ASCII')) > 128 OR (item.value IS NOT NULL AND octet_length(item.value) > 1048576) THEN
+    IF item IS NULL OR item.type_tag IS NULL OR item.type_tag NOT IN ('uuid@1','oid@1','integer@1','bigint@1','xid8@1','boolean@1','text@1','name@1','bytea@1','timestamptz@1') OR octet_length(convert_to(item.type_tag, 'SQL_ASCII')) > 128 OR (item.value IS NOT NULL AND octet_length(item.value) > 1048576)
+      OR (item.value IS NOT NULL AND item.type_tag IN ('uuid@1') AND octet_length(item.value) <> 16)
+      OR (item.value IS NOT NULL AND item.type_tag IN ('oid@1','integer@1') AND octet_length(item.value) <> 4)
+      OR (item.value IS NOT NULL AND item.type_tag IN ('bigint@1','xid8@1','timestamptz@1') AND octet_length(item.value) <> 8)
+      OR (item.value IS NOT NULL AND item.type_tag = 'boolean@1' AND (octet_length(item.value) <> 1 OR get_byte(item.value, 0) NOT IN (0, 1))) THEN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'invalid port typed arg';
     END IF;
     payload := payload || int2send(ordinal::smallint) || int2send(1::smallint) || int2send(octet_length(convert_to(item.type_tag, 'SQL_ASCII'))::smallint) || convert_to(item.type_tag, 'SQL_ASCII') || int2send(2::smallint);
     IF item.value IS NULL THEN payload := payload || decode('ffffffff', 'hex');
     ELSE payload := payload || int4send(octet_length(item.value)) || item.value; END IF;
   END LOOP;
-  RETURN app.digest(payload, 'sha256');
+  RETURN pg_catalog.sha256(payload);
 END $$;
 
 CREATE OR REPLACE FUNCTION app.install_port_context(p_capability_id uuid, p_claims app.port_context_claims)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE expected_port app.port_name; cap app_ext.port_context_capabilities%ROWTYPE; database_id oid;
 BEGIN
-  IF session_user = 'portctx_webapp_staff'::name OR session_user = 'portctx_webapp_patient'::name THEN expected_port := 'webapp';
-  ELSIF session_user = 'portctx_integrator'::name THEN expected_port := 'integrator';
-  ELSE RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'unmanaged session login cannot install port context'; END IF;
-  IF p_claims.protocol_version <> 1 OR p_claims.purpose !~ '^[a-z][a-z0-9._:-]{0,127}$' OR octet_length(p_claims.typed_args_hash) <> 32 THEN
+  IF NOT (p_claims.protocol_version IS NOT DISTINCT FROM 1) OR p_claims.purpose !~ '^[a-z][a-z0-9._:-]{0,127}$' OR octet_length(p_claims.typed_args_hash) <> 32 THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'invalid port context claims';
   END IF;
-  IF (p_claims.context_class = 'pre_session' AND (p_claims.request_id IS NULL OR p_claims.function_identity IS NULL))
-    OR (p_claims.context_class = 'staff' AND (p_claims.actor_ref IS NULL OR p_claims.organization_id IS NULL))
-    OR (p_claims.context_class = 'patient' AND (p_claims.actor_ref IS NULL OR p_claims.subject_ref IS NULL OR p_claims.organization_id IS NULL))
-    OR (p_claims.context_class = 'platform' AND p_claims.actor_ref IS NULL)
-    OR (p_claims.context_class = 'integrator' AND p_claims.integrator_user_id IS NULL) THEN
+  IF (p_claims.context_class = 'pre_session' AND NOT (p_claims.request_id IS NOT NULL AND p_claims.function_identity IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL))
+    OR (p_claims.context_class = 'staff' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL AND p_claims.integrator_user_id IS NULL))
+    OR (p_claims.context_class = 'patient' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL AND p_claims.integrator_user_id IS NULL))
+    OR (p_claims.context_class = 'platform' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL AND p_claims.integrator_user_id IS NULL))
+    OR (p_claims.context_class = 'integrator' AND NOT (p_claims.integrator_user_id IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL))
+    OR (p_claims.context_class = 'tenant_service' AND NOT (p_claims.organization_id IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL))
+    OR (p_claims.context_class = 'service' AND NOT (p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL)) THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context class identity mismatch';
   END IF;
   SELECT * INTO cap FROM app_ext.port_context_capabilities WHERE capability_id = p_capability_id FOR SHARE;
-  IF NOT FOUND OR cap.port <> expected_port OR cap.session_login <> session_user OR cap.target_role <> p_claims.target_role
+  IF NOT FOUND OR cap.session_login <> session_user THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'unmanaged session login cannot install port context';
+  END IF;
+  expected_port := cap.port;
+  IF cap.target_role <> p_claims.target_role
     OR cap.context_class <> p_claims.context_class OR cap.purpose <> p_claims.purpose
     OR cap.function_identity IS DISTINCT FROM p_claims.function_identity OR cap.active_from > clock_timestamp()
     OR (cap.active_until IS NOT NULL AND cap.active_until <= clock_timestamp()) THEN
@@ -165,7 +172,7 @@ ALTER FUNCTION app.require_accepted_context(name, name, app.port_context_class, 
 ALTER FUNCTION app.current_org_id() OWNER TO app_seam_context_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.install_port_context(uuid, app.port_context_claims), app.clear_port_context() TO :"app_staff_login", :"app_patient_login", :"integrator_login";
-GRANT EXECUTE ON FUNCTION app.require_accepted_context(name, name, app.port_context_class, text, bytea, regprocedure), app.current_org_id() TO app_staff, app_patient, app_platform_settings, app_operational_delivery_worker;
+GRANT EXECUTE ON FUNCTION app.require_accepted_context(name, name, app.port_context_class, text, bytea, regprocedure), app.current_org_id() TO app_staff, app_patient, app_platform_settings, app_integrator_request, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service;
 
 -- Representative FORCE RLS relation. The full declaration generator expands this pattern to every managed object.
 GRANT USAGE, CREATE ON SCHEMA app TO app_object_owner;
@@ -174,10 +181,10 @@ CREATE TABLE IF NOT EXISTS app.demo_context_records (organization_id uuid NOT NU
 ALTER TABLE app.demo_context_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app.demo_context_records FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS demo_context_gate ON app.demo_context_records;
-CREATE POLICY demo_context_gate ON app.demo_context_records AS RESTRICTIVE FOR ALL TO app_staff, app_patient, app_platform_settings, app_operational_delivery_worker
-  USING (app.require_accepted_context(current_user::name, current_user::name, CASE WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user = 'app_operational_delivery_worker' THEN 'integrator'::app.port_context_class ELSE 'staff'::app.port_context_class END, 'relation', decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'), NULL::regprocedure))
-  WITH CHECK (app.require_accepted_context(current_user::name, current_user::name, CASE WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user = 'app_operational_delivery_worker' THEN 'integrator'::app.port_context_class ELSE 'staff'::app.port_context_class END, 'relation', decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'), NULL::regprocedure));
-CREATE POLICY demo_context_business ON app.demo_context_records AS PERMISSIVE FOR SELECT TO app_staff, app_patient, app_platform_settings, app_operational_delivery_worker USING (organization_id = app.current_org_id());
+CREATE POLICY demo_context_gate ON app.demo_context_records AS RESTRICTIVE FOR ALL TO app_staff, app_patient, app_platform_settings, app_integrator_request, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service
+  USING (app.require_accepted_context(current_user::name, current_user::name, CASE WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user = 'app_integrator_request' THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user = 'app_service' THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END, 'relation', decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'), NULL::regprocedure))
+  WITH CHECK (app.require_accepted_context(current_user::name, current_user::name, CASE WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user = 'app_integrator_request' THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user = 'app_service' THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END, 'relation', decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'), NULL::regprocedure));
+CREATE POLICY demo_context_business ON app.demo_context_records AS PERMISSIVE FOR SELECT TO app_staff, app_patient, app_platform_settings, app_integrator_request, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service USING (organization_id = app.current_org_id());
 RESET ROLE;
 ALTER TABLE app.demo_context_records OWNER TO app_object_owner;
 REVOKE CREATE ON SCHEMA app FROM app_object_owner;

@@ -78,7 +78,7 @@ psql_admin -v app_staff_login="$staff_login" -v app_patient_login="$patient_logi
 psql_admin -c "INSERT INTO app_ext.port_context_capabilities(capability_id,port,session_login,target_role,context_class,purpose) VALUES
  ('00000000-0000-0000-0000-000000000101','webapp','$staff_login','app_staff','staff','relation'),
  ('00000000-0000-0000-0000-000000000102','webapp','$patient_login','app_patient','patient','relation'),
- ('00000000-0000-0000-0000-000000000103','integrator','$integrator_login','app_operational_delivery_worker','integrator','relation');
+ ('00000000-0000-0000-0000-000000000103','integrator','$integrator_login','app_integrator_request','integrator','relation');
  INSERT INTO app.demo_context_records VALUES ('00000000-0000-0000-0000-000000000001','accepted');"
 
 cat > "$data_dir/pg_hba.conf" <<EOF
@@ -120,7 +120,7 @@ run_context() {
 BEGIN;
 RESET ROLE;
 SELECT app.clear_port_context();
-SELECT app.install_port_context(:'cap'::uuid, ROW(1, :'class'::app.port_context_class, :'role'::name, 'relation', NULL::regprocedure, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'), CASE WHEN :'class' IN ('staff','patient') THEN '00000000-0000-0000-0000-000000000010'::uuid ELSE NULL END, CASE WHEN :'class' = 'patient' THEN '00000000-0000-0000-0000-000000000020'::uuid ELSE NULL END, CASE WHEN :'class' IN ('staff','patient') THEN '00000000-0000-0000-0000-000000000001'::uuid ELSE NULL END, CASE WHEN :'class' = 'integrator' THEN 1 ELSE NULL END, '00000000-0000-0000-0000-000000000030'::uuid)::app.port_context_claims);
+SELECT app.install_port_context(:'cap'::uuid, ROW(1, :'class'::app.port_context_class, :'role'::name, 'relation', NULL::regprocedure, decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'), CASE WHEN :'class' IN ('staff','patient') THEN '00000000-0000-0000-0000-000000000010'::uuid ELSE NULL END, CASE WHEN :'class' = 'patient' THEN '00000000-0000-0000-0000-000000000020'::uuid ELSE NULL END, CASE WHEN :'class' IN ('staff','patient','integrator') THEN '00000000-0000-0000-0000-000000000001'::uuid ELSE NULL END, CASE WHEN :'class' = 'integrator' THEN 1 ELSE NULL END, NULL::uuid)::app.port_context_claims);
 SET LOCAL ROLE :"role";
 :access_sql
 RESET ROLE;
@@ -130,7 +130,7 @@ SQL
 }
 run_context "$staff_login" "$staff_password" "$cert_dir/$staff_login.crt" "$cert_dir/$staff_login.key" 00000000-0000-0000-0000-000000000101 app_staff staff staff
 run_context "$patient_login" "$patient_password" "$cert_dir/$patient_login.crt" "$cert_dir/$patient_login.key" 00000000-0000-0000-0000-000000000102 app_patient patient patient
-run_context "$integrator_login" "$integrator_password" "$cert_dir/$integrator_login.crt" "$cert_dir/$integrator_login.key" 00000000-0000-0000-0000-000000000103 app_operational_delivery_worker integrator integrator
+run_context "$integrator_login" "$integrator_password" "$cert_dir/$integrator_login.crt" "$cert_dir/$integrator_login.key" 00000000-0000-0000-0000-000000000103 app_integrator_request integrator integrator
 must_fail psql_as "$staff_login" "$staff_password" "$cert_dir/$staff_login.crt" "$cert_dir/$staff_login.key" -c "BEGIN; SELECT app.install_port_context('00000000-0000-0000-0000-000000000101', ROW(1,'staff','app_staff','wrong',NULL,decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'00000000-0000-0000-0000-000000000010',NULL,'00000000-0000-0000-0000-000000000001',NULL,'00000000-0000-0000-0000-000000000030')::app.port_context_claims);"
 
 # SQL framing agrees with Node for NULL/empty distinction and all PG16 binary-send primitives.
