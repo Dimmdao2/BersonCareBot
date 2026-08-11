@@ -1022,3 +1022,67 @@ DECL-008/009 остаются частью того же fixer: полный pur
 **ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** `224/225` ACTIVE relations на каждую DB не имеют доказанного per-callsite access;
 production artifacts не regenerated; DECL-011 actual context/no-context `42501` + PostgreSQL log proof отсутствует.
 PASS принимает только защиту от ложной готовности, а не Ф3б/декларацию целиком.
+
+## Audit RUNTIME-FIX3-2026-08-11 — `7f0f6238a` merged as `1ff9729e5`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: production callsite census, real PostgreSQL 16 transaction fault, startup path inspection |
+| Вердикт | **FAIL — три MUST FIX; не к land** |
+
+### RUNTIME-010 — production capability catalog/seed/env rendering отсутствует
+
+**ОТКРЫТО — MUST FIX.** Production census нашёл шесть integrator и четыре webapp password named-root callsites,
+но exact-loop по их `functionIdentity` дал `declaration_matches=0` для каждого. Поиск
+`rg -n "INSERT INTO app_ext\\.port_context_capabilities|port_context_capabilities \\(" deploy apps packages scripts
+--glob '!*.md'` находит только DDL и disposable fixture; поиск двух `*_PORT_CONTEXT_CAPABILITIES_JSON` в
+`deploy/host deploy/env scripts` → exit `1`. Runtime требует unique descriptor до checkout, поэтому delivery,
+scheduler/appointment и password roots не запускаются. Нужен один declaration-derived production catalog,
+DB seed и env renderer; unit-only UUID/purpose не authority.
+
+### RUNTIME-011 — active transaction повторяет SQL и маскирует `42501`
+
+**ОТКРЫТО — MUST FIX.** Real PG16 probe временным behavioral test вызвал `runIntegratorSql` внутри active Drizzle
+transaction. Получено `{ code: '25P02', fallbackCalls: 1 }` вместо исходного `{ code: '42501', fallbackCalls: 0 }`:
+catch-all проглотил permission failure и вызвал `db.query` второй раз на aborted transaction. Исправление обязано
+сохранить первый PostgreSQL error и исключить повтор/side effect; тест сохранён как oracle в audit result, temporary
+file удалён.
+
+### RUNTIME-012 — readiness повышает relation context до named roots
+
+**ОТКРЫТО — MUST FIX.** `operationalPoolReadiness.ts` открывает ambient delivery/scheduler transaction, а затем
+вызывает exact named roots на том же checkout. Worker/scheduler обязаны выполнить readiness при startup, поэтому
+после появления descriptors получают `42501`: named operation должна выбрать capability **до** checkout, а не
+внутри relation transaction.
+
+### Что сохранено
+
+- Integrator targeted: `5 files / 23 tests`; webapp: `3 files / 13 tests`; db-principal `25`, PostgreSQL acceptance
+  и `14` faults — PASS.
+- Bare `SET LOCAL ROLE app_platform_settings` без platform context → `42501`; missing principal checkout `0/0`,
+  exact source allowlists, cleanup/rotation/drain и chokepoints подтверждены.
+- Оба lint/typecheck, raw-SQL self-test (`13` synthetic bypass) и diff-check PASS; audit tree clean.
+
+### Live DEV/TEST ACL baseline до reset
+
+Команда:
+
+```bash
+for db_name in bersoncarebot_test bcb_webapp_dev; do
+  sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d "$db_name" -P pager=off -F '|' -Atc "
+    SELECT current_database(),'runtime_acl_rows',count(*)
+    FROM information_schema.role_table_grants
+    WHERE grantee IN ('app_staff','app_patient','app_platform_settings','app_clinic_billing','app_worker',
+      'app_operational_media_worker','app_operational_delivery_worker','app_operational_scheduler',
+      'app_integrator_request','app_integrator_resolver','app_tenant_service','app_service')
+      AND table_schema IN ('public','integrator','app','app_ext');
+    SELECT current_database(),'login_acl_rows',count(*)
+    FROM information_schema.role_table_grants g
+    JOIN pg_roles r ON r.rolname=g.grantee AND r.rolcanlogin
+    WHERE g.table_schema IN ('public','integrator','app','app_ext');"
+done
+```
+
+вернула TEST `runtime_acl_rows=1011`, `login_acl_rows=2496`; DEV `967` и `3177`. Это baseline старой схемы, не
+принимаемый результат: atomic reset обязан дать application login table/column/sequence ACL `0`, затем наложить
+только exact declaration runtime/seam grants.
