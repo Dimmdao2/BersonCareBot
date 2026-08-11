@@ -47,6 +47,24 @@ describe('DB-backed product values', () => {
     });
   });
 
+  it('omits the maintenance booking CTA when the org booking URL is unavailable', async () => {
+    const { RuntimeSettingUnavailableError } = await import('./runtimeSettingUnavailable');
+    fakes.getPatientRuntimeBool.mockResolvedValue(true);
+    fakes.getPatientRuntimeValue.mockImplementation(async (key: string) => {
+      if (key === 'patient_app_maintenance_message') return 'Техработы';
+      if (key === 'patient_booking_url') {
+        throw new RuntimeSettingUnavailableError('patient_booking_url');
+      }
+      throw new Error(`unexpected key ${key}`);
+    });
+
+    await expect(getPatientMaintenanceConfig('org-1')).resolves.toEqual({
+      enabled: true,
+      message: 'Техработы',
+      bookingUrl: null,
+    });
+  });
+
   it('refuses an invalid database timezone instead of substituting a compiled timezone', async () => {
     fakes.getPublicRuntimeValue.mockResolvedValue('not/a timezone');
 

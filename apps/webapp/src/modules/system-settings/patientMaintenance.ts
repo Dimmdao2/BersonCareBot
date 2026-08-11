@@ -2,6 +2,7 @@ import {
   getPatientRuntimeBool,
   getPatientRuntimeValue,
 } from '@/modules/system-settings/configAdapter';
+import { isRuntimeSettingUnavailable } from '@/modules/system-settings/runtimeSettingUnavailable';
 import type { PatientBusinessGate } from '@/modules/platform-access';
 import { patientPathsAllowedDuringPhoneActivation } from '@/modules/platform-access';
 
@@ -73,7 +74,7 @@ export function patientMaintenanceReplacesPatientShell(
 /**
  * DB-backed patient maintenance flags (scope admin). No env fallbacks for these keys.
  * При выключенном режиме не читает message/booking из БД (одно чтение флага).
- * При включённом — параллельно читает message и URL.
+ * При включённом — читает message; booking URL опционален (нет строки → без CTA, без 500).
  */
 export async function getPatientMaintenanceConfig(
   organizationId: string | null = null,
@@ -86,12 +87,18 @@ export async function getPatientMaintenanceConfig(
       bookingUrl: null,
     };
   }
-  const [messageRaw, bookingRaw] = await Promise.all([
-    getPatientRuntimeValue('patient_app_maintenance_message'),
-    organizationId === null
-      ? Promise.resolve(null)
-      : getPatientRuntimeValue('patient_booking_url', organizationId),
-  ]);
+  const messageRaw = await getPatientRuntimeValue('patient_app_maintenance_message');
+  // Booking CTA is optional: missing/unavailable org URL must not take down the patient shell.
+  // Fail-closed runtime read still applies to the provider; here we only omit the CTA.
+  let bookingRaw: string | null = null;
+  if (organizationId !== null) {
+    try {
+      bookingRaw = await getPatientRuntimeValue('patient_booking_url', organizationId);
+    } catch (err) {
+      if (!isRuntimeSettingUnavailable(err)) throw err;
+      bookingRaw = null;
+    }
+  }
   return {
     enabled: true,
     message: normalizePatientMaintenanceMessage(messageRaw),
