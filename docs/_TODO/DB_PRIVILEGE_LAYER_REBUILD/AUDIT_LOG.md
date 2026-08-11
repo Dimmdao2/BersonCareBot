@@ -1441,3 +1441,25 @@ PASS принимает удаление третьей media DB-door и deploy 
   зафиксированной цепочки FAIL→fix→`c2e5d5cad`→integration PASS; отдельный новый product PASS им не присваивается.
 
 Этот PASS не принимает full relation grants, atomic reset/regrant/restore, host mTLS или DEV/TEST cutover.
+
+## Integration verification FUNCTION-SEAM-MERGE-2026-08-11 — `f08d6acdc`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Сохранённый function-census kill-set + runtime/media regressions + mandatory locked full CI** |
+| Вердикт | **PASS — exact SECURITY DEFINER seam совместим с landed runtime/media; к land** |
+
+- Merge `f08d6acdc` (`f27bf390b` + main `12eec600e`) прошёл без конфликтов; diff против main ограничен девятью
+  `deploy/postgres/privileges/**` файлами. Runtime generator/catalog изменения и seam closure сохранились вместе.
+- Function census: `34/34` genuine pre-session roots имеют единственного caller `app_pre_session`; TEST `247`,
+  DEV `234`, `42` memberless seam owners и `12` реальных красных mutations на каждую БД — PASS. Rogue LOGIN
+  EXECUTE, extra definer и обе membership directions обнаруживаются и transactional reapply их очищает.
+- Runtime/media regressions: `10` function capabilities, `15` SET-able relation descriptors, `14` port-context
+  faults, integrator targeted `16`, webapp `23`, media `16`, db-principal `25` — PASS.
+- Fail-closed сохранён намеренно: `generate-cli.mjs --gaps` для TEST и DEV возвращает exit `2`,
+  `unresolved=223`, missing named APIs `2`; relation grants не расширены и gaps не замаскированы.
+- `pnpm install --frozen-lockfile`, затем `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` → lock
+  acquired/released, `rc=0`, `545s`; полный test/build/audit и dependency audit — PASS.
+
+Этот PASS принимает exact function/seam census, но не full relation grants, atomic artifacts, host mTLS или
+DEV/TEST cutover.
