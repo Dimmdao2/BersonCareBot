@@ -866,3 +866,24 @@ runtime suites, chokepoint/self-test и diff-check прошли.
 Подтверждено сохраняемое: verify-only startup без migration pool, target-only repo selection, physical-client
 surface с `on`, bounded scheduler transactions, rotation preflight/rollback/drain/listener и отсутствие legacy
 chokepoint bypass.
+
+## Fix verification POSTDROP-REGISTRY-FIX-2026-08-11 — `59a696bce`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `59a696bce`, `wt/post-drop-registry-closure` |
+| Метод | **Тест + взгляд**: прежний independent finding, worker disposable catalog fault, leader diff/audit gate |
+| Вердикт | **PASS — REGISTRY-001 исправлен; к land** |
+
+- **REGISTRY-001 ИСПРАВЛЕНО.** `integrator.message_drafts` остаётся историческим `LEGACY`, но exact exclusion
+  убирает relation только из broad `app_staff` grant-set. UP и DOWN дополнительно снимают stale whole-table и
+  column-level ACL; остальные LEGACY grants сохранены.
+- Disposable production-shaped catalog: `SELECT=f INSERT=f UPDATE=f DELETE=f`; четыре операции под `app_staff`
+  получили `permission denied`. Fault injection без normalizer → exit `1` на
+  `FATAL: app_staff SELECT ACL ... must be false`, затем repair green.
+- Два render и checked artifact: `cmp=0/0`; старый P0.8.5 import-fix сохранён
+  (`git diff --quiet 3a89dcb66 59a696bce -- ...smoke-p0-8-5-integrator-scoped-policies.mjs` → exit `0`).
+- Лидер после amend фактического комментария запустил `pnpm run audit` → exit `0`; P0.10 actual-schema registry,
+  P0.8.5, P0.13, generated grants/policies и product smoke contract зелёные. `git diff --check` → exit `0`.
+- Устаревший комментарий «нет FORCE RLS» исправлен: live contract — FORCE deny-all плюс отсутствие ACL, чтобы
+  boundary не зависел от одного слоя.
