@@ -1804,6 +1804,164 @@ const db_bcb_webapp_dev: DatabaseDecl = {
 };
 
 /* ============================================================================================
+ * REVISION 10 — port/context declaration.  The older census above is retained only as the
+ * object inventory; this adapter is the executable target and deliberately has no compatibility
+ * identities, OpenPGP/challenge state, or diagnostic login.
+ * ========================================================================================== */
+
+const REV10_RUNTIME = [
+  'app_pre_session', 'app_staff', 'app_patient', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+  'app_operational_media_worker', 'saas_telemetry_operator', 'app_integrator_request',
+  'app_integrator_resolver', 'app_operational_delivery_worker', 'app_operational_scheduler',
+  'app_tenant_service', 'app_service',
+] as const;
+
+const REV10_SEAM_OWNERS = [
+  'app_seam_context_owner', 'app_seam_password_auth_owner', 'app_seam_email_otp_owner',
+  'app_seam_passkey_owner', 'app_seam_phone_binding_owner', 'app_seam_self_security_owner',
+  'app_seam_identity_lookup_owner', 'app_seam_patient_invite_owner', 'app_seam_org_invite_owner',
+  'app_seam_specialist_provision_owner', 'app_seam_public_slug_owner', 'app_seam_public_booking_owner',
+  'app_seam_dedicated_bot_owner', 'app_seam_payment_webhook_owner', 'app_seam_delivery_scope_owner',
+  'app_seam_patient_program_resolver_owner', 'app_seam_settings_preauth_owner',
+  'app_seam_settings_integrator_owner', 'app_seam_settings_runtime_owner', 'app_seam_org_commerce_owner',
+  'app_seam_patient_org_projection_owner', 'app_seam_patient_booking_owner',
+  'app_seam_patient_self_actions_owner', 'app_seam_reminder_patient_owner',
+  'app_seam_reminder_materialization_owner', 'app_seam_reminder_specialist_owner',
+  'app_seam_reminder_appointment_owner', 'app_seam_reminder_email_cooldown_owner',
+  'app_seam_telemetry_patient_owner', 'app_seam_telemetry_media_owner',
+  'app_seam_telemetry_operator_owner', 'app_seam_catalog_public_owner',
+  'app_seam_catalog_admin_owner', 'app_seam_org_directory_owner',
+  'app_seam_telemetry_exclusion_owner', 'saas_telemetry_owner', 'saas_system_health_owner',
+  'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
+  'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
+] as const;
+
+function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string): RoleDecl {
+  return { kind, scope, login: false, superuser: false, bypassrls: false, inherit: false,
+    createrole: false, rolconfig: null, members: [], why };
+}
+
+const REV10_ROLES: Record<string, RoleDecl> = Object.fromEntries([
+  ...REV10_RUNTIME.map((name) => [name, revision10Role('terminal', 'NONE', 'revision-10 runtime role')]),
+  ...REV10_SEAM_OWNERS.map((name) => [name, revision10Role('owner', 'NONE', 'revision-10 narrow seam owner')]),
+  ['app_object_owner', revision10Role('owner', 'NONE', 'ordinary application objects only; no definer functions')],
+  ['bcb_dev_migrator', revision10Role('service', 'NONE', 'local postgres migration wrapper identity')],
+  ['bcb_test_migrator', revision10Role('service', 'NONE', 'local postgres migration wrapper identity')],
+  ['postgres', { kind: 'superuser', scope: 'GLOBAL', login: true, superuser: true, bypassrls: true,
+    inherit: true, createrole: true, rolconfig: null, why: 'local administrative exception only' }],
+]);
+
+function rev10Membership(role: string) {
+  return { role, admin: false, inherit: false, set: true } as const;
+}
+
+const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
+  dev: {
+    bcb_dev_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+        'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_DEV_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
+    bcb_dev_webapp_patient: { port: 'webapp', canonicalRole: 'app_patient', memberships: [
+      rev10Membership('app_pre_session'), rev10Membership('app_patient'),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_DEV_WEBAPP_PATIENT_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
+    bcb_dev_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
+      ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
+        'app_operational_scheduler', 'app_tenant_service', 'app_service'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_DEV_INTEGRATOR_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
+  },
+  test: {
+    bcb_test_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+        'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_TEST_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
+    bcb_test_webapp_patient: { port: 'webapp', canonicalRole: 'app_patient', memberships: [
+      rev10Membership('app_pre_session'), rev10Membership('app_patient'),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_TEST_WEBAPP_PATIENT_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
+    bcb_test_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
+      ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
+        'app_operational_scheduler', 'app_tenant_service', 'app_service'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_TEST_INTEGRATOR_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
+  },
+};
+
+const REV10_CONTEXT = {
+  classes: ['pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'],
+  privateRelations: {
+    'app_ext.port_context_capabilities': { owner: 'app_seam_context_owner', columns: [
+      'capability_id', 'port', 'session_login', 'target_role', 'context_class', 'purpose', 'function_identity',
+      'active_from', 'active_until',
+    ] },
+    'app_ext.accepted_port_contexts': { owner: 'app_seam_context_owner', columns: [
+      'database_oid', 'backend_pid', 'transaction_id', 'capability_id', 'session_login', 'port', 'target_role',
+      'context_class', 'purpose', 'function_identity', 'typed_args_hash', 'actor_ref', 'subject_ref',
+      'organization_id', 'integrator_user_id', 'request_id', 'installed_at', 'cleared_at',
+    ] },
+    'app_ext.variant_a_identity_refs': { owner: 'app_seam_identity_lookup_owner', columns: [
+      'physical_user_id', 'opaque_ref', 'created_at',
+    ] },
+  },
+  functions: {
+    'app.install_port_context(uuid,app.port_context_claims)': { owner: 'app_seam_context_owner', security: 'DEFINER',
+      execute: ['bcb_dev_webapp_staff', 'bcb_dev_webapp_patient', 'bcb_dev_integrator', 'bcb_test_webapp_staff',
+        'bcb_test_webapp_patient', 'bcb_test_integrator'], purpose: 'install', typedArgs: ['uuid', 'app.port_context_claims'] },
+    'app.clear_port_context()': { owner: 'app_seam_context_owner', security: 'DEFINER',
+      execute: ['bcb_dev_webapp_staff', 'bcb_dev_webapp_patient', 'bcb_dev_integrator', 'bcb_test_webapp_staff',
+        'bcb_test_webapp_patient', 'bcb_test_integrator'], purpose: 'clear', typedArgs: [] },
+    'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': {
+      owner: 'app_seam_context_owner', security: 'DEFINER', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
+      purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'] },
+    'app.require_platform_principal()': { owner: 'app_seam_context_owner', security: 'DEFINER',
+      execute: ['app_platform_settings', 'saas_telemetry_operator', ...REV10_SEAM_OWNERS], purpose: 'platform', typedArgs: [] },
+    'app.current_org_id()': { owner: 'app_seam_context_owner', security: 'DEFINER', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [] },
+    'app.current_actor_user_id()': { owner: 'app_seam_context_owner', security: 'DEFINER', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [] },
+    'app.current_patient_user_id()': { owner: 'app_seam_context_owner', security: 'DEFINER', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [] },
+    'app.current_integrator_user_id()': { owner: 'app_seam_context_owner', security: 'DEFINER', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [] },
+    'app.hash_port_typed_args(app.port_typed_arg[])': { owner: 'app_seam_context_owner', security: 'INVOKER', execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'] },
+    'app_ext.resolve_variant_a_identity(uuid)': { owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', execute: ['app_pre_session'], purpose: 'variant-a-resolve', typedArgs: ['uuid'] },
+  },
+} as const;
+
+function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): DatabaseDecl {
+  const legacy = name === 'bersoncarebot_test' ? db_bersoncarebot_test : db_bcb_webapp_dev;
+  const loginNames = Object.keys(REV10_ENV_MAPPING[name === 'bersoncarebot_test' ? 'test' : 'dev']);
+  const known = new Set([...Object.keys(REV10_ROLES), ...loginNames, 'pg_database_owner']);
+  const tables = Object.fromEntries(Object.entries(legacy.tables).map(([key, table]) => [key, {
+    ...table, owner: 'app_object_owner', rls: table.disposition === 'PENDING_REMOVAL' ? 'n/a' : 'force',
+    grants: Object.fromEntries(Object.entries(table.grants).filter(([role]) => known.has(role))),
+    policies: (table.policies ?? []).filter((policy) => !('todo' in policy) && policy.to.every((role) => known.has(role) || role === 'PUBLIC')),
+    grantMatrix: undefined,
+  }]));
+  return {
+    ...legacy,
+    database: { owner: 'app_object_owner', connect: loginNames, publicConnectTempDefect: false },
+    schemas: {
+      app: { owner: 'app_object_owner', present: true, usage: [...REV10_RUNTIME, ...loginNames], create: ['app_object_owner'] },
+      app_ext: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
+      public: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
+      integrator: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
+      drizzle: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
+    },
+    tables,
+    sequences: { rule: 'all sequence ACL is exact and deny-by-default', examples: {} },
+    functionsViews: { default: 'all views are SECURITY INVOKER; no undeclared view ACL', views: {} },
+    definerExceptions: { defaults: { schema: 'app', securityDefiner: true, owner: 'app_seam_context_owner',
+      searchPath: ['search_path=pg_catalog, app, app_ext, pg_temp'], publicExecute: false, coveredCount: 0,
+      rule: 'every definer root has an explicit revision-10 seam owner and no PUBLIC EXECUTE' },
+    proconfigExceptions: {}, ownershipExceptions: { intentional: {}, drift: {} } },
+    creators: ['postgres', 'app_object_owner', ...REV10_SEAM_OWNERS],
+    orgTableAllowlist: { derivedFrom: 'tables[*].org === true', named: Object.keys(tables).filter((key) => tables[key].org === true).sort(),
+      fullCountLive: Object.keys(tables).filter((key) => tables[key].org === true).length, todo: '' },
+    dbSettings: { datdba: 'app_object_owner', perRoleInDatabase: {} },
+  } as DatabaseDecl;
+}
+
+/* ============================================================================================
  * СБОРКА
  * ========================================================================================== */
 
@@ -1819,13 +1977,14 @@ export const declaration: PrivilegeDeclaration = {
   ownerGatesOpen: OWNER_GATES_OPEN,
   cluster: {
     envs: ['test', 'dev'], // TEST + dev на одном общем PG16 :5432 (SCHEME §A); прод вне скоупа
-    roles,
+    roles: REV10_ROLES,
   },
-  envMapping,
+  envMapping: REV10_ENV_MAPPING,
   databases: {
-    bersoncarebot_test: db_bersoncarebot_test,
-    bcb_webapp_dev: db_bcb_webapp_dev,
+    bersoncarebot_test: revision10Database('bersoncarebot_test'),
+    bcb_webapp_dev: revision10Database('bcb_webapp_dev'),
   },
+  portContext: REV10_CONTEXT,
 };
 
 /* ============================================================================================

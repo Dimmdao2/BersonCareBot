@@ -169,6 +169,8 @@ export interface LoginRecord {
   mustFold?: string;
   canonicalRole: string | null;
   membership?: Membership;
+  /** Revision-10 permits one port login to SET only its explicitly named runtime roles. */
+  memberships?: Membership[];
   login: true;
   superuser: false;
   bypassrls: false;
@@ -422,6 +424,18 @@ export interface PrivilegeDeclaration {
   };
   envMapping: Record<string, Record<string, LoginRecord>>;
   databases: Record<string, DatabaseDecl>;
+  /** Revision-10 transaction-context surface, separate from ordinary relation ACLs. */
+  portContext?: {
+    classes: readonly string[];
+    privateRelations: Record<string, { owner: string; columns: readonly string[] }>;
+    functions: Record<string, {
+      owner: string;
+      security: 'DEFINER' | 'INVOKER';
+      execute: readonly string[];
+      purpose: string;
+      typedArgs: readonly string[];
+    }>;
+  };
 }
 
 /* ============================================================================================

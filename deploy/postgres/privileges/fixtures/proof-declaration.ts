@@ -37,19 +37,19 @@ import type {
 const roles: Record<string, RoleDecl> = {
   app_staff: {
     kind: 'terminal', scope: 'ORG',
-    login: false, superuser: false, bypassrls: false, inherit: true, createrole: false,
+    login: false, superuser: false, bypassrls: false, inherit: false, createrole: false,
     rolconfig: null,
   },
   app_patient: {
     kind: 'terminal', scope: 'OWN',
-    login: false, superuser: false, bypassrls: false, inherit: true, createrole: false,
+    login: false, superuser: false, bypassrls: false, inherit: false, createrole: false,
     rolconfig: null,
   },
   app_owner: {
     kind: 'owner', scope: 'NONE',
     login: false, superuser: false,
-    bypassrls: true, // definer-шов (SCHEME §I R5) — как в производственной декларации
-    inherit: true, createrole: false, rolconfig: null,
+    bypassrls: false,
+    inherit: false, createrole: false, rolconfig: null,
     members: [], // ноль членов в стационаре (SCHEME §C)
   },
   app_migration_phase: {
@@ -71,7 +71,7 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
   proof: {
     bcb_proof_migrator: {
       canonicalRole: null,
-      login: true, superuser: false, bypassrls: false, createrole: false, inherit: true,
+      login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
       passwordEnv: 'PGPASSWORD_BCB_PROOF_MIGRATOR',
       rolconfig: ['search_path=public, integrator'], // байт-в-байт как на TEST (пробел после запятой)
       connect: ['bcb_privproof'],

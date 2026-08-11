@@ -105,15 +105,22 @@ SQL
 echo "--- журнал сервера: запись отказа ---"
 grep -E "ОШИБКА|ERROR" "$LOGFILE" | tail -5
 
-banner "6. СНОВА КРАСНЫЙ — дефект возвращён внутри транзакции и ОТКАЧЕН"
+banner "6. СНОВА КРАСНЫЙ — независимые grant/owner/policy/member мутации откатываются"
 psql_db -v ON_ERROR_STOP=0 <<'SQL'
 BEGIN;
 GRANT SELECT ON TABLE public.phone_challenges TO app_staff;
+ALTER TABLE public.phone_challenges OWNER TO app_owner;
+DROP POLICY be_organization_members_staff_org ON public.be_organization_members;
+GRANT app_patient TO bcb_proof_staff_login WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
 ALTER TABLE public.be_organization_members DISABLE ROW LEVEL SECURITY;
 SET ROLE app_staff;
 SELECT count(*) AS "снова видно (phone_challenges)" FROM public.phone_challenges;
 SELECT count(*) AS "снова видно чужих членств" FROM public.be_organization_members;
 RESET ROLE;
+SELECT pg_get_userbyid(c.relowner) AS "подсаженный owner"
+  FROM pg_class c WHERE c.oid = 'public.phone_challenges'::regclass;
+SELECT EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.roleid = 'app_patient'::regrole
+               AND m.member = 'bcb_proof_staff_login'::regrole) AS "подсаженный member";
 ROLLBACK;
 SET ROLE app_staff;
 SELECT count(*) AS "после ROLLBACK — снова стена" FROM public.phone_challenges;
@@ -168,13 +175,31 @@ node "$CLI" --declaration "$DECLARATION" --db "$DB" --out-dir "$WORKDIR/stale" -
 echo "код выхода --check на устаревшем артефакте: $? (1 = красный)"
 set -e
 
-banner "10. ГРОМКИЙ ОТКАЗ на ПРОИЗВОДСТВЕННОЙ декларации (пробелы переписи)"
+banner "10. REVISION-10 DECLARATION — --gaps и --check зелёные"
+node "$CLI" --gaps
+node "$CLI" --all --out-dir "$WORKDIR/production-gen" >/dev/null
+node "$CLI" --check --out-dir "$WORKDIR/production-gen"
+
+banner "11. NOLOGIN MIGRATOR WINDOW — commit path and killed-before-commit rollback"
+psql_db -v ON_ERROR_STOP=1 -c "GRANT USAGE, CREATE ON SCHEMA public TO app_proof_owner"
+PGHOST="$SOCKDIR" node "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" \
+  --db "$DB" --migrator bcb_proof_window_migrator --owner app_proof_owner \
+  --migration "$FIXTURES_DIR/migration-window.sql" \
+  --backfill "$FIXTURES_DIR/migration-window-backfill.sql" \
+  --post "$FIXTURES_DIR/migration-window-post.sql"
+psql_db -Atc "SELECT (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'public.migration_window_probe'::regclass) || ':' || value FROM public.migration_window_probe WHERE id = 1;"
 set +e
-node "$CLI" --gaps >"$WORKDIR/gaps.txt" 2>&1
-GAPS_RC=$?
+PGHOST="$SOCKDIR" setsid node "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" \
+  --db "$DB" --migrator bcb_proof_window_migrator --owner app_proof_owner \
+  --migration "$FIXTURES_DIR/migration-window-kill.sql" >"$WORKDIR/migration-kill.out" 2>&1 &
+KILL_PID=$!
+sleep 1
+kill -TERM -- "-$KILL_PID"
+wait "$KILL_PID"
+KILL_RC=$?
 set -e
-echo "код выхода --gaps: $GAPS_RC (2 = декларация неполна)"
-grep -c '•' "$WORKDIR/gaps.txt" | sed 's/^/мест с пробелами: /'
-head -6 "$WORKDIR/gaps.txt"
+echo "killed wrapper exit: $KILL_RC (expected non-zero)"
+psql_db -Atc "SELECT to_regclass('public.migration_window_killed') IS NULL AS killed_window_rolled_back;"
+psql_db -Atc "SELECT NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = 'bcb_proof_window_migrator'::regrole AND roleid = 'app_proof_owner'::regrole) AS membership_rolled_back;"
 
 banner "ГОТОВО — кластер удаляется"

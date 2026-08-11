@@ -143,11 +143,44 @@ export function collectGaps(declaration, dbName) {
   const { roles, logins } = principals(declaration);
   const known = (name) => roles.has(name) || logins.has(name) || isSystemRole(name);
 
+  const context = declaration.portContext;
+  if (context) {
+    for (const [name, relation] of Object.entries(context.privateRelations)) {
+      if (!known(relation.owner)) add(`portContext.privateRelations.${name}`, `неизвестный владелец '${relation.owner}'`);
+      if (relation.columns.length === 0) add(`portContext.privateRelations.${name}`, 'private relation has no exact columns');
+    }
+    for (const [signature, fn] of Object.entries(context.functions)) {
+      if (!known(fn.owner)) add(`portContext.functions.${signature}`, `неизвестный владелец '${fn.owner}'`);
+      for (const grantee of fn.execute) {
+        if (!known(grantee)) add(`portContext.functions.${signature}`, `неизвестный EXECUTE grantee '${grantee}'`);
+      }
+      if (!fn.purpose || !Array.isArray(fn.typedArgs)) {
+        add(`portContext.functions.${signature}`, 'function lacks purpose or typed-args recipe');
+      }
+    }
+  }
+
   /* — роли — */
   for (const name of sortedKeys(declaration.cluster.roles)) {
     const role = declaration.cluster.roles[name];
+    if (role.kind !== 'superuser' && (role.login || role.superuser || role.bypassrls || role.inherit || role.createrole)) {
+      add(`cluster.roles.${name}`, 'managed role must be NOLOGIN/NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS/NOINHERIT');
+    }
     for (const m of role.grantedTo ?? []) {
       if (!known(m.role)) add(`cluster.roles.${name}.grantedTo`, `неизвестный принципал '${m.role}'`);
+    }
+  }
+
+  for (const [env, records] of Object.entries(declaration.envMapping ?? {})) {
+    for (const [loginName, login] of Object.entries(records)) {
+      if (login.superuser || login.bypassrls || login.inherit || login.createrole) {
+        add(`envMapping.${env}.${loginName}`, 'application login has a prohibited role attribute');
+      }
+      for (const edge of login.memberships ?? (login.membership ? [login.membership] : [])) {
+        if (!roles.has(edge.role) || edge.admin || edge.inherit || !edge.set) {
+          add(`envMapping.${env}.${loginName}.memberships`, 'membership must name a declared role with ADMIN FALSE, INHERIT FALSE, SET TRUE');
+        }
+      }
     }
   }
 
@@ -345,9 +378,11 @@ function roleAttributeClause(decl) {
   return [
     decl.login ? 'LOGIN' : 'NOLOGIN',
     decl.superuser ? 'SUPERUSER' : 'NOSUPERUSER',
+    'NOCREATEDB',
     decl.bypassrls ? 'BYPASSRLS' : 'NOBYPASSRLS',
     decl.inherit ? 'INHERIT' : 'NOINHERIT',
     decl.createrole ? 'CREATEROLE' : 'NOCREATEROLE',
+    'NOREPLICATION',
   ].join(' ');
 }
 
@@ -486,6 +521,27 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       `ALTER ROLE ${q(roleName)} ${roleAttributeClause(role)};`,
     );
     emitRolconfig(out, roleName, role.rolconfig, `cluster.roles.${roleName}.rolconfig`);
+    out.push('');
+  }
+
+  /* — 1b. private transaction context — */
+  const portContext = declaration.portContext;
+  if (portContext) {
+    out.push('-- ─────────── 1b. REVISION-10 PRIVATE PORT CONTEXT ───────────', '');
+    for (const [identity, relation] of Object.entries(portContext.privateRelations).sort(([a], [b]) => a.localeCompare(b))) {
+      const { qualified } = splitQualified(identity, `portContext.privateRelations.${identity}`);
+      out.push(`ALTER TABLE ${qualified} OWNER TO ${q(relation.owner)};`);
+      out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM PUBLIC;`);
+      const targets = managed.filter((name) => name !== relation.owner);
+      if (targets.length > 0) out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM ${revokeList(targets)};`);
+    }
+    for (const [signature, fn] of Object.entries(portContext.functions).sort(([a], [b]) => a.localeCompare(b))) {
+      out.push(`ALTER FUNCTION ${signature} OWNER TO ${q(fn.owner)};`);
+      out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);
+      const targets = managed.filter((name) => name !== fn.owner);
+      if (targets.length > 0) out.push(`REVOKE ALL ON FUNCTION ${signature} FROM ${revokeList(targets)};`);
+      if (fn.execute.length > 0) out.push(`GRANT EXECUTE ON FUNCTION ${signature} TO ${[...fn.execute].sort().map(q).join(', ')};`);
+    }
     out.push('');
   }
 
@@ -879,13 +935,15 @@ export function renderEnvSql(declaration, env, dbName) {
       out.push(`ALTER ROLE ${q(loginName)} CONNECTION LIMIT ${record.connectionLimit};`);
     }
     emitRolconfig(out, loginName, record.rolconfig, `envMapping.${env}.${loginName}.rolconfig`);
-    if (record.canonicalRole) {
-      if (!roles.has(record.canonicalRole)) {
-        throw new Error(`envMapping.${env}.${loginName}: каноническая роль '${record.canonicalRole}' не объявлена`);
+    const memberships = record.memberships ?? (record.canonicalRole
+      ? [record.membership ?? { role: record.canonicalRole, admin: false, inherit: record.inherit, set: true }]
+      : []);
+    for (const m of memberships) {
+      if (!roles.has(m.role)) {
+        throw new Error(`envMapping.${env}.${loginName}: роль '${m.role}' не объявлена`);
       }
-      const m = record.membership ?? { admin: false, inherit: record.inherit, set: true };
       out.push(
-        `GRANT ${q(record.canonicalRole)} TO ${q(loginName)} WITH ADMIN ${m.admin ? 'TRUE' : 'FALSE'}, `
+        `GRANT ${q(m.role)} TO ${q(loginName)} WITH ADMIN ${m.admin ? 'TRUE' : 'FALSE'}, `
         + `INHERIT ${m.inherit ? 'TRUE' : 'FALSE'}, SET ${m.set ? 'TRUE' : 'FALSE'};`,
       );
     }
