@@ -624,3 +624,20 @@ target. С `ON_ERROR_STOP` свежий post-drop deploy оборвётся до
 - В worker runtime остались два loops: projection outbox и единственный outgoing delivery; legacy job loop удалён.
 - Readiness/C4/dev-c7 active paths: exact census legacy relation `0`.
 - Fault mutation canonical relation и `next_retry_at <= now()` действительно красит behavior tests.
+
+## Fix verification TEST-QUEUE-FIX1-2026-08-11 — `066200cfa`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `066200cfa`, acceptance `2835d4e8e`, `wt/test-worker-queue-cutover` |
+| Метод | Тот же red race oracle + post-drop disposable deploy/ops checks + exact active-reference census |
+| Вердикт | **PASS — QUEUE-001–003 ИСПРАВЛЕНЫ; К LAND И TEST DEPLOY** |
+
+- **QUEUE-001 ИСПРАВЛЕНО.** Absolute `nextRetryAt` входит в исходный INSERT; acceptance `4/4` green. Независимая
+  мутация, игнорирующая его, красит два assertions и откатана.
+- **QUEUE-002 ИСПРАВЛЕНО.** Stale grant/checker/declaration target удалён; `p0-5b-grants.sql` с `ON_ERROR_STOP`
+  проходит на post-drop disposable PostgreSQL.
+- **QUEUE-003 ИСПРАВЛЕНО.** Drizzle metadata, purge и `user-phone-admin info` больше не запрашивают legacy relation;
+  post-drop info path проходит. Exact active census вне historical migrations/retired diagnostic: `0` files.
+- Integrator suite: `374 passed`, `3 expected-fail`, `14 skipped`; typecheck/lint PASS. Webapp relevant tests `2/2`,
+  typecheck/lint PASS; `git diff --check` PASS.
