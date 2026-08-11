@@ -29,6 +29,8 @@ export type EnqueueOutgoingDeliveryInput = {
   channel: string;
   payloadJson: Record<string, unknown>;
   maxAttempts?: number;
+  /** Absolute first-attempt time. Omitted means the row is due immediately. */
+  nextRetryAt?: string;
 };
 
 /** Copies only the bounded ambient correlation UUID into the queue's existing intent metadata. */
@@ -75,7 +77,16 @@ export async function enqueueOutgoingDeliveryIfAbsent(
        attempt_count,
        max_attempts,
        next_retry_at
-     ) VALUES (${input.eventId}, ${input.kind}, ${input.channel}, ${JSON.stringify(payloadJson)}::jsonb, 'pending', 0, ${maxAttempts}, now())
+     ) VALUES (
+       ${input.eventId},
+       ${input.kind},
+       ${input.channel},
+       ${JSON.stringify(payloadJson)}::jsonb,
+       'pending',
+       0,
+       ${maxAttempts},
+       COALESCE(${input.nextRetryAt ?? null}::timestamptz, now())
+     )
      ON CONFLICT (event_id) DO NOTHING
      RETURNING true AS inserted`,
   );

@@ -36,13 +36,24 @@ const envSchema = z.object({
     .default('')
     .transform((val) => (isTest && process.env.USE_REAL_DATABASE !== '1' ? '' : (val ?? ''))),
   DB_PRINCIPAL_CONTEXT_MODE: z
-    .enum(['legacy-guc', 'shadow', 'locked'])
+    .enum(['legacy-guc', 'shadow', 'locked', 'port-context'])
     .optional()
     .default('legacy-guc'),
   DB_PRINCIPAL_SIGNING_SECRET: z
     .string()
     .optional()
     .transform((v) => (v ?? '').trim()),
+  /** Target DB runtime: two physical webapp mTLS logins, never a generic fallback URL. */
+  DATABASE_URL_STAFF: z.string().optional().transform((v) => (v ?? '').trim()),
+  DATABASE_URL_PATIENT: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_STAFF_LOGIN: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_PATIENT_LOGIN: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_TLS_CA_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_STAFF_CERT_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_STAFF_KEY_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_PATIENT_CERT_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_DB_PATIENT_KEY_FILE: z.string().optional().transform((v) => (v ?? '').trim()),
+  WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: z.string().optional().transform((v) => (v ?? '').trim()),
   /** Infrastructure key custody for U3S TOTP/recovery envelopes; parsed lazily by the typed crypto port. */
   STAFF_SECURITY_KEYRING_JSON: z.string().optional(),
   /** Required in production; in test uses safe default. In development must be set (no repo default). */
@@ -200,6 +211,16 @@ const parsed = envSchema.parse({
   DATABASE_URL: process.env.DATABASE_URL,
   DB_PRINCIPAL_CONTEXT_MODE: process.env.DB_PRINCIPAL_CONTEXT_MODE,
   DB_PRINCIPAL_SIGNING_SECRET: process.env.DB_PRINCIPAL_SIGNING_SECRET,
+  DATABASE_URL_STAFF: process.env.DATABASE_URL_STAFF,
+  DATABASE_URL_PATIENT: process.env.DATABASE_URL_PATIENT,
+  WEBAPP_DB_STAFF_LOGIN: process.env.WEBAPP_DB_STAFF_LOGIN,
+  WEBAPP_DB_PATIENT_LOGIN: process.env.WEBAPP_DB_PATIENT_LOGIN,
+  WEBAPP_DB_TLS_CA_FILE: process.env.WEBAPP_DB_TLS_CA_FILE,
+  WEBAPP_DB_STAFF_CERT_FILE: process.env.WEBAPP_DB_STAFF_CERT_FILE,
+  WEBAPP_DB_STAFF_KEY_FILE: process.env.WEBAPP_DB_STAFF_KEY_FILE,
+  WEBAPP_DB_PATIENT_CERT_FILE: process.env.WEBAPP_DB_PATIENT_CERT_FILE,
+  WEBAPP_DB_PATIENT_KEY_FILE: process.env.WEBAPP_DB_PATIENT_KEY_FILE,
+  WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: process.env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON,
   STAFF_SECURITY_KEYRING_JSON: process.env.STAFF_SECURITY_KEYRING_JSON,
   SESSION_COOKIE_SECRET: process.env.SESSION_COOKIE_SECRET,
   INTEGRATOR_SHARED_SECRET: process.env.INTEGRATOR_SHARED_SECRET,
@@ -330,11 +351,17 @@ export const env = parsed;
  * `next dev` без URL — ошибка; production runtime без URL — см. `instrumentation.ts` и `getPool()`.
  */
 export function webappReposAreInMemory(): boolean {
-  if ((env.DATABASE_URL ?? '').trim()) return false;
+  const runtimeDatabaseConfigured =
+    env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+      ? Boolean((env.DATABASE_URL_STAFF ?? '').trim() && (env.DATABASE_URL_PATIENT ?? '').trim())
+      : Boolean((env.DATABASE_URL ?? '').trim());
+  if (runtimeDatabaseConfigured) return false;
   if (isTest) return true;
   if (process.env.NODE_ENV === 'development') {
     throw new Error(
-      'DATABASE_URL is not set. Configure the webapp PostgreSQL URL (e.g. apps/webapp/.env.dev or .env.local).',
+      env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+        ? 'DATABASE_URL_STAFF and DATABASE_URL_PATIENT are required in webapp port-context mode.'
+        : 'DATABASE_URL is not set. Configure the webapp PostgreSQL URL (e.g. apps/webapp/.env.dev or .env.local).',
     );
   }
   return true;

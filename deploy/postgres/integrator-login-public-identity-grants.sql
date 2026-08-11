@@ -1,5 +1,12 @@
 -- Integrator login role: minimal identity/notification grant closure for bootstrap access.
 --
+-- POST-DROP CONTRACT (2026-08-11): the legacy integrator identity, contact, state and conversation
+-- relations described in the historical A7 notes below were removed by migrations
+-- 20260808_0001..0012. They are not recreated or granted here. The only remaining direct
+-- integrator-table surface in this overlay is the technical idempotency queue; canonical identity,
+-- support and notification access is through the public relations listed below.
+-- HISTORICAL A7 NOTES BELOW ARE SUPERSEDED FOR EVERY REMOVED integrator.* RELATION.
+--
 -- UPDATE (A7 live re-verify, TEST): the original public.*-only scope below got the
 -- `telegram-webhook:pre-routing` platform_users read working, but A7 re-verify against a genuinely
 -- NEW telegram id then hit a SECOND, deeper layer of the SAME defect: (1) every RLS-protected table
@@ -261,22 +268,6 @@ REVOKE SELECT, DELETE,
   INSERT ("key", "request_hash", "status", "response_body", "expires_at"),
   UPDATE ("expires_at", "request_hash", "status", "response_body")
   ON TABLE integrator.idempotency_keys FROM :"integrator_login_public_identity_grants_role";
-REVOKE SELECT ON TABLE integrator.message_drafts FROM :"integrator_login_public_identity_grants_role";
-REVOKE SELECT ON TABLE integrator.conversations FROM :"integrator_login_public_identity_grants_role";
-REVOKE SELECT ON TABLE integrator.conversation_messages FROM :"integrator_login_public_identity_grants_role";
-REVOKE SELECT ON TABLE integrator.contacts FROM :"integrator_login_public_identity_grants_role";
-REVOKE SELECT,
-  INSERT ("user_id", "resource", "external_id", "created_at", "updated_at"),
-  UPDATE ("updated_at")
-  ON TABLE integrator.identities FROM :"integrator_login_public_identity_grants_role";
-REVOKE USAGE ON SEQUENCE integrator.identities_id_seq FROM :"integrator_login_public_identity_grants_role";
-REVOKE SELECT,
-  INSERT ("identity_id", "username", "first_name", "last_name", "state", "last_start_at", "last_update_id", "created_at", "updated_at"),
-  UPDATE ("username", "first_name", "last_name", "state", "last_start_at", "last_update_id", "updated_at")
-  ON TABLE integrator.telegram_state FROM :"integrator_login_public_identity_grants_role";
-REVOKE INSERT ("created_at", "updated_at"), SELECT ("id", "merged_into_user_id")
-  ON TABLE integrator.users FROM :"integrator_login_public_identity_grants_role";
-REVOKE USAGE ON SEQUENCE integrator.users_id_seq FROM :"integrator_login_public_identity_grants_role";
 
 -- A7 addendum #2 (org resolution).
 REVOKE SELECT ON TABLE public.org_enrollments FROM :"integrator_login_public_identity_grants_role";
@@ -384,34 +375,9 @@ GRANT SELECT ON TABLE public.be_organization_members TO :"integrator_login_publi
 GRANT SELECT ON TABLE public.org_enrollments TO :"integrator_login_public_identity_grants_role";
 GRANT SELECT ON TABLE public.be_organizations TO :"integrator_login_public_identity_grants_role";
 
--- A7 addendum #3: integrator's own schema, narrowly scoped to the tables/columns the bootstrap
--- pre-routing + D1 write path actually touches for a brand-new user (see header for the full
--- per-table trace to source).
-GRANT SELECT ON TABLE integrator.contacts TO :"integrator_login_public_identity_grants_role";
-
-GRANT SELECT ON TABLE integrator.identities TO :"integrator_login_public_identity_grants_role";
-GRANT INSERT ("user_id", "resource", "external_id", "created_at", "updated_at")
-  ON TABLE integrator.identities TO :"integrator_login_public_identity_grants_role";
-GRANT UPDATE ("updated_at") ON TABLE integrator.identities TO :"integrator_login_public_identity_grants_role";
-GRANT USAGE ON SEQUENCE integrator.identities_id_seq TO :"integrator_login_public_identity_grants_role";
-
-GRANT SELECT ON TABLE integrator.telegram_state TO :"integrator_login_public_identity_grants_role";
-GRANT INSERT ("identity_id", "username", "first_name", "last_name", "state", "last_start_at", "last_update_id", "created_at", "updated_at")
-  ON TABLE integrator.telegram_state TO :"integrator_login_public_identity_grants_role";
-GRANT UPDATE ("username", "first_name", "last_name", "state", "last_start_at", "last_update_id", "updated_at")
-  ON TABLE integrator.telegram_state TO :"integrator_login_public_identity_grants_role";
-
-GRANT INSERT ("created_at", "updated_at") ON TABLE integrator.users TO :"integrator_login_public_identity_grants_role";
-GRANT SELECT ("id", "merged_into_user_id") ON TABLE integrator.users TO :"integrator_login_public_identity_grants_role";
-GRANT USAGE ON SEQUENCE integrator.users_id_seq TO :"integrator_login_public_identity_grants_role";
-
 GRANT SELECT, INSERT ("key", "request_hash", "status", "response_body", "expires_at"),
   UPDATE ("expires_at", "request_hash", "status", "response_body"), DELETE
   ON TABLE integrator.idempotency_keys TO :"integrator_login_public_identity_grants_role";
-
-GRANT SELECT ON TABLE integrator.message_drafts TO :"integrator_login_public_identity_grants_role";
-GRANT SELECT ON TABLE integrator.conversations TO :"integrator_login_public_identity_grants_role";
-GRANT SELECT ON TABLE integrator.conversation_messages TO :"integrator_login_public_identity_grants_role";
 
 -- Owner retirement 2026-07-30: the integrator no longer owns any diary/LFK path. Reapplying the
 -- overlay also removes privileges granted by an older revision.

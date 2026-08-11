@@ -7,6 +7,8 @@
  *   node deploy/postgres/privileges/generate-cli.mjs --check          # ГЕЙТ CI: перегенерировать и сверить
  *   node deploy/postgres/privileges/generate-cli.mjs --gaps           # перечислить пробелы декларации
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база>   # login-рендер (НЕ коммитится)
+ *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база> --port-context-env <webapp|integrator>
+ *   node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only # exact DB capability seeds
  *
  * Флаги:
  *   --declaration <путь>  другой файл декларации (по умолчанию ./declaration.ts) — нужен пруф-фикстурам
@@ -24,8 +26,10 @@ import {
   DeclarationGapError,
   collectGaps,
   generateOrgAllowlistSql,
+  generatePortContextCapabilitySeedSql,
   generatePrivilegesSql,
   renderEnvSql,
+  renderPortContextRuntimeEnv,
 } from './generate.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -39,7 +43,7 @@ function parseArgs(argv) {
     const token = argv[i];
     if (!token.startsWith('--')) throw new Error(`неожиданный аргумент '${token}'`);
     const key = token.slice(2);
-    const takesValue = ['db', 'out', 'out-dir', 'declaration', 'env'].includes(key);
+    const takesValue = ['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env'].includes(key);
     if (takesValue) {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith('--')) throw new Error(`--${key} требует значение`);
@@ -65,10 +69,14 @@ function artifactPaths(outDir, dbName) {
   return {
     privileges: path.join(outDir, `privileges.${dbName}.sql`),
     allowlist: path.join(outDir, `org-allowlist.${dbName}.sql`),
+    portContext: path.join(outDir, `port-context-capabilities.${dbName}.sql`),
   };
 }
 
-function buildArtifacts(declaration, dbName, withAllowlist, source) {
+function buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly = false) {
+  if (portContextOnly) {
+    return [{ kind: 'portContext', text: generatePortContextCapabilitySeedSql(declaration, dbName) }];
+  }
   const artifacts = [{ kind: 'privileges', text: generatePrivilegesSql(declaration, dbName, { source }) }];
   if (withAllowlist) {
     artifacts.push({ kind: 'allowlist', text: generateOrgAllowlistSql(declaration, dbName, { source }) });
@@ -93,8 +101,18 @@ function reportGaps(declaration, dbNames) {
   let total = 0;
   for (const dbName of dbNames) {
     const gaps = collectGaps(declaration, dbName);
+    const tables = Object.values(declaration.databases[dbName]?.tables ?? {});
+    const access = tables.reduce((counts, table) => {
+      const key = table.access?.kind ?? 'missing';
+      counts[key] = (counts[key] ?? 0) + 1;
+      return counts;
+    }, {});
+    const active = tables.filter((table) => table.disposition === 'ACTIVE').length;
+    const pending = tables.filter((table) => table.disposition === 'PENDING_REMOVAL').length;
+    const directEntries = tables.reduce((count, table) => count + (table.access?.kind === 'direct'
+      ? Object.keys(table.grants ?? {}).length : 0), 0);
     total += gaps.length;
-    console.log(`\n=== ${dbName}: пробелов ${gaps.length} ===`);
+    console.log(`\n=== ${dbName}: classified=${tables.length} active=${active} pending=${pending} access=${JSON.stringify(access)} directGrantEntries=${directEntries} unresolved=${access.unresolved ?? 0} gaps=${gaps.length} ===`);
     for (const gap of gaps) console.log(`  • ${gap.site}: ${gap.reason}`);
   }
   return total;
@@ -105,6 +123,7 @@ async function main() {
   const declarationPath = args.values.get('declaration') ?? DEFAULT_DECLARATION;
   const outDir = args.values.get('out-dir') ?? DEFAULT_OUT_DIR;
   const withAllowlist = !args.flags.has('no-allowlist');
+  const portContextOnly = args.flags.has('port-context-only');
   const declaration = await loadDeclaration(declarationPath);
   const source = path.relative(repoRoot, path.resolve(declarationPath));
   const allDbs = Object.keys(declaration.databases).sort();
@@ -118,6 +137,16 @@ async function main() {
   if (args.values.has('env')) {
     const env = args.values.get('env');
     if (!args.values.has('db')) throw new Error('--env требует --db');
+    if (args.values.has('port-context-env')) {
+      const rendered = renderPortContextRuntimeEnv(
+        declaration,
+        env,
+        args.values.get('db'),
+        args.values.get('port-context-env'),
+      );
+      process.stdout.write(`${rendered.key}='${rendered.value.replaceAll("'", `'"'"'`)}'\n`);
+      return;
+    }
     process.stdout.write(renderEnvSql(declaration, env, args.values.get('db')));
     return;
   }
@@ -126,7 +155,7 @@ async function main() {
     let red = 0;
     for (const dbName of dbNames) {
       const paths = artifactPaths(outDir, dbName);
-      for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source)) {
+      for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly)) {
         const file = paths[artifact.kind];
         if (!fs.existsSync(file)) {
           console.error(`КРАСНЫЙ ${dbName}/${artifact.kind}: артефакт ${path.relative(repoRoot, file)} не закоммичен`);
@@ -153,7 +182,9 @@ async function main() {
 
   if (args.flags.has('stdout') || (args.values.has('out') && args.values.get('out') === '-')) {
     if (dbNames.length !== 1) throw new Error('--stdout требует ровно одну базу (--db)');
-    process.stdout.write(generatePrivilegesSql(declaration, dbNames[0], { source }));
+    process.stdout.write(portContextOnly
+      ? generatePortContextCapabilitySeedSql(declaration, dbNames[0])
+      : generatePrivilegesSql(declaration, dbNames[0], { source }));
     return;
   }
 
@@ -162,11 +193,11 @@ async function main() {
   fs.mkdirSync(explicitOut ? path.dirname(path.resolve(explicitOut)) : outDir, { recursive: true });
   for (const dbName of dbNames) {
     const paths = artifactPaths(outDir, dbName);
-    for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source)) {
-      const file = explicitOut && artifact.kind === 'privileges'
+    for (const artifact of buildArtifacts(declaration, dbName, withAllowlist, source, portContextOnly)) {
+      const file = explicitOut && (artifact.kind === 'privileges' || artifact.kind === 'portContext')
         ? path.resolve(explicitOut)
         : paths[artifact.kind];
-      if (explicitOut && artifact.kind !== 'privileges') continue;
+      if (explicitOut && artifact.kind !== 'privileges' && artifact.kind !== 'portContext') continue;
       fs.writeFileSync(file, artifact.text, 'utf8');
       console.log(`записано: ${path.relative(repoRoot, file)} (${artifact.text.length} байт)`);
     }

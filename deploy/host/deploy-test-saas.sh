@@ -28,6 +28,13 @@ if [[ -L "$RUNTIME_OVERLAY_LIB" || ! -f "$RUNTIME_OVERLAY_LIB" || "$(realpath "$
 fi
 # shellcheck source=deploy/host/runtime-overlay-rehydrate-lib.sh
 source "$RUNTIME_OVERLAY_LIB"
+MEDIA_CONTROL_CUTOVER_LIB="$DEPLOY_TEST_SAAS_SCRIPT_DIR/media-control-cutover-sequence.sh"
+if [[ -L "$MEDIA_CONTROL_CUTOVER_LIB" || ! -f "$MEDIA_CONTROL_CUTOVER_LIB" || "$(realpath "$MEDIA_CONTROL_CUTOVER_LIB")" != "$MEDIA_CONTROL_CUTOVER_LIB" ]]; then
+  echo "FATAL: shared media-control cutover library path guard failed" >&2
+  exit 1
+fi
+# shellcheck source=deploy/host/media-control-cutover-sequence.sh
+source "$MEDIA_CONTROL_CUTOVER_LIB"
 
 SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
@@ -79,8 +86,11 @@ E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
+C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
+C4_MEDIA_LOGIN_RETIREMENT=deploy/host/retire-media-db-login.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
 C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
+PORT_CONTEXT_CAPABILITY_SEED=deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
@@ -504,10 +514,12 @@ assert_api_runtime_can_release_principal_context(){
 }
 
 assert_media_worker_runtime_can_release_principal_context(){
-  local ok
-  ok="$(sudo -u deploy bash -lc "set -a && . '$MEDIA_WORKER_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE'))::text;\"")"
-  [ "$ok" = "true" ] || { echo "FATAL: media-worker TEST runtime cannot see/execute app.release_principal_context()" >&2; exit 1; }
-  echo "   app.release_principal_context: OK (visible + executable through media-worker DATABASE_URL)"
+  sudo -u deploy bash -lc "set -a && . '$MEDIA_WORKER_ENV' && set +a && \\
+    [ -n \"\${MEDIA_WORKER_CONTROL_URL:-}\" ] && [ -n \"\${INTERNAL_JOB_SECRET:-}\" ] && \\
+    curl --fail --silent --show-error --max-time 10 -H \"Authorization: Bearer \$INTERNAL_JOB_SECRET\" \\
+      -H 'content-type: application/json' --data '{\"type\":\"ready\"}' \\
+      \"\$MEDIA_WORKER_CONTROL_URL/api/internal/media-worker/control\" | grep -q '\"ok\":true'"
+  echo "   media-worker HTTP control ready: OK (no PostgreSQL credential)"
 }
 
 assert_webapp_credential_helper_runtime_acl(){
@@ -548,7 +560,7 @@ discover_webapp_migrator_role(){
 }
 
 discover_media_worker_runtime_role(){
-  discover_database_role_from_env "media-worker.test" "$MEDIA_WORKER_ENV"
+  printf '%s\n' app_operational_media_worker
 }
 
 bootstrap_and_provision_c4_operational_runtime(){
@@ -558,31 +570,95 @@ bootstrap_and_provision_c4_operational_runtime(){
     WEBAPP_ENV_FILE="$WEBAPP_ENV" \
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
     bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env
-  echo "   C4 operational bootstrap/provision: OK (four isolated TEST contours)"
+  echo "   C4 operational bootstrap/provision: OK (three DB contours + media HTTP control)"
+}
+
+install_port_context_capability_catalog(){
+  local contract_present runtime_mode count
+  contract_present="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc \
+    "SELECT to_regclass('app_ext.port_context_capabilities') IS NOT NULL;")"
+  runtime_mode="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && printf '%s' \"\${DB_PRINCIPAL_CONTEXT_MODE:-legacy-guc}\"")"
+  if [ "$contract_present" != "t" ]; then
+    [ "$runtime_mode" != "port-context" ] || {
+      echo "FATAL: port-context mode requires app_ext.port_context_capabilities before restart" >&2
+      exit 1
+    }
+    echo "   port-context capability catalog: dormant until contract migration"
+    return
+  fi
+  sudo -u postgres psql -d "$DB" -X -1 -v ON_ERROR_STOP=1 \
+    -f "$DEPLOY_REPO/$PORT_CONTEXT_CAPABILITY_SEED" >/dev/null
+  count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc \
+    "SELECT count(*) FROM app_ext.port_context_capabilities
+      WHERE active_until IS NULL
+        AND session_login IN ('bcb_test_webapp_staff','bcb_test_integrator');")"
+  [ "$count" = "10" ] || {
+    echo "FATAL: expected 10 active declaration-owned TEST port-context capabilities, got $count" >&2
+    exit 1
+  }
+  echo "   port-context capability catalog: OK (10 exact declaration-owned rows)"
 }
 
 reapply_c4_operational_runtime_overlays(){
-  local diagnostic_role delivery_worker_role scheduler_role media_worker_role
+  local diagnostic_role delivery_worker_role scheduler_role
   diagnostic_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DIAGNOSTIC)"
   delivery_worker_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DELIVERY_WORKER)"
   scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
-  media_worker_role="$(discover_media_worker_runtime_role)"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v c4_diagnostic_login_role="$diagnostic_role" \
     -v c4_delivery_worker_login_role="$delivery_worker_role" \
     -v c4_scheduler_login_role="$scheduler_role" \
-    -v c4_media_worker_login_role="$media_worker_role" \
     -f "$DEPLOY_REPO/$C4_OPERATIONAL_RUNTIME"
-  echo "   C4 operational runtime overlays: OK (four isolated contours)"
+  echo "   C4 operational runtime overlays: OK (three DB contours + media capability)"
 }
 
 assert_c4_operational_runtime_ready(){
+  local mode="${1:-}"
+  local readiness_args=()
+  [ -z "$mode" ] || readiness_args+=("$mode")
   sudo -u deploy env \
     API_ENV_FILE="$API_ENV" \
     WEBAPP_ENV_FILE="$WEBAPP_ENV" \
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
-    bash "$DEPLOY_REPO/$C4_OPERATIONAL_READINESS"
-  echo "   C4 operational runtime readiness: OK (four distinct URLs; positive + cross-contour negatives)"
+    bash "$DEPLOY_REPO/$C4_OPERATIONAL_READINESS" "${readiness_args[@]}"
+  if [ "$mode" = "--database-only" ]; then
+    echo "   C4 operational DB readiness: OK (media HTTP control deferred until new webapp restart)"
+  else
+    echo "   C4 operational runtime readiness: OK (three distinct DB URLs + media HTTP control; positive + cross-contour negatives)"
+  fi
+}
+
+assert_legacy_media_login_retired(){
+  local absent
+  absent="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -qAtc \
+    "SELECT (to_regrole('bcb_test_operational_media_login') IS NULL)::text;")"
+  [ "$absent" = "true" ] || {
+    echo "FATAL: legacy TEST media DB login survived canonical C4 provisioning" >&2
+    exit 1
+  }
+}
+
+retire_legacy_media_login_after_control(){
+  sudo bash "$DEPLOY_REPO/$C4_MEDIA_LOGIN_RETIREMENT" \
+    --database "$DB" \
+    --role bcb_test_operational_media_login
+}
+
+media_cutover_require_new_webapp_running(){
+  sudo systemctl is-active --quiet bersoncarebot-webapp-test
+}
+
+media_cutover_require_authenticated_control(){
+  assert_c4_operational_runtime_ready
+}
+
+media_cutover_require_legacy_login_retired(){
+  retire_legacy_media_login_after_control
+  assert_legacy_media_login_retired
+}
+
+media_cutover_restart_worker(){
+  sudo systemctl restart bersoncarebot-media-worker-test
 }
 
 discover_webapp_staff_runtime_role(){
@@ -644,7 +720,7 @@ grant_webapp_bootstrap_base_login_d3_4(){
   scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
   operator_role="$(discover_saas_isolation_operator_role)"
   validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$role_name"
-  validate_pg_identifier "webapp.test media-worker DATABASE_URL role" "$media_worker_role"
+  validate_pg_identifier "webapp media control capability role" "$media_worker_role"
   validate_pg_identifier "webapp.test staff DATABASE_URL_STAFF role" "$staff_role"
   [ "$role_name" != "$staff_role" ] || {
     echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases staff role '$staff_role'; refusing D3.4 mutation" >&2
@@ -2736,8 +2812,10 @@ run_strict_post_migration_closure(){
 
   log "strict closure: base policies -> safe specialized overlays -> exact FORCE assertions"
   apply_test_strict_rls_finalizer
-  log "strict closure: C4 five-contour TEST env preflight + root provisioning"
+  log "strict closure: C4 three-DB + media-control TEST env preflight and root provisioning"
   bootstrap_and_provision_c4_operational_runtime
+  log "strict closure: declaration-owned port-context capability catalog"
+  install_port_context_capability_catalog
 
   # SaaS TEST walkthrough demo-fixture seed removed 2026-07-24 (owner: the Clinic A/B demo data was
   # only needed to validate tenant walls during their setup; the walls are in place, and the
@@ -2774,13 +2852,16 @@ run_strict_post_migration_closure(){
   grant_webapp_bootstrap_base_login_d3_4
   assert_staff_security_self_runtime_acl_ready
 
-  assert_c4_operational_runtime_ready
+  assert_c4_operational_runtime_ready --database-only
   assert_integrator_server_runtime_config_ready
 
-  log "strict closure: restart locked TEST units"
+  log "strict closure: restart locked TEST API/worker/scheduler/webapp before media control probe"
   install_and_assert_media_worker_test_unit
   mark_e1_runtime_coverage_start
-  for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
+  for unit_name in api worker scheduler webapp; do
+    sudo systemctl restart "bersoncarebot-$unit_name-test"
+  done
+  run_media_control_cutover_sequence
   sleep 4
   assert_test_units_active
   assert_test_health_ok
@@ -2831,7 +2912,8 @@ assert_strict_closure_deploy_checkout_ready(){
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
     "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
-    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" \
+    "$C4_MEDIA_CONTROL_CUTOVER" "$C4_MEDIA_LOGIN_RETIREMENT" \
+    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" "$PORT_CONTEXT_CAPABILITY_SEED" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
@@ -2853,15 +2935,86 @@ assert_strict_closure_deploy_checkout_ready(){
   assert_test_runtime_mode_ready
 }
 
+run_strict_closure_catalog_self_test(){
+  local catalog_probe_status
+  set +e
+  (
+    set -e
+    P2_B_CONTEXT_INSTALLED=0
+    for function_name in \
+      assert_test_writers_stopped assert_cleanup_elevation log bash \
+      install_p0_5b_runtime_wall install_p2_b_protected_principal_context \
+      rehydrate_post_restore_runtime_overlays provision_saas_isolation_operator_login \
+      install_saas_isolation_telemetry_overlay \
+      install_saas_isolation_telemetry_test_fixtures_overlay \
+      install_saas_system_health_diagnostics_overlay \
+      install_integrator_server_runtime_config_overlay \
+      install_integrator_login_public_identity_grants_overlay \
+      run_saas_isolation_test_scenario_proof grant_api_runtime_migration_ledger_read \
+      assert_api_runtime_can_read_migration_ledger grant_webapp_bootstrap_base_login_d3_4 \
+      sudo apply_test_strict_rls_finalizer bootstrap_and_provision_c4_operational_runtime; do
+      eval "$function_name(){ :; }"
+    done
+    install_port_context_capability_catalog(){ return 73; }
+    # This is the first call after the catalog install. It makes a removed catalog call
+    # fail safely and deterministically instead of reaching any live TEST operation.
+    run_test_patient_identity_capability_gate(){ return 74; }
+    run_strict_post_migration_closure
+  )
+  catalog_probe_status=$?
+  set -e
+  [ "$catalog_probe_status" = "73" ] || {
+    echo "FATAL: shared strict closure did not invoke install_port_context_capability_catalog at the required point (status=$catalog_probe_status)" >&2
+    exit 1
+  }
+  echo "shared strict TEST closure catalog self-test: OK (no env/DB/service/cron mutation)"
+}
+
+resolve_c4_self_test_repo_file(){
+  local self_test_repo_root="$1" relative_path="$2" requested_path resolved_path
+  case "$relative_path" in
+    /*|..|../*|*/../*|*/..)
+      echo "FATAL: unsafe C4 self-test repository path: $relative_path" >&2
+      return 1
+      ;;
+  esac
+  requested_path="$self_test_repo_root/$relative_path"
+  resolved_path="$(realpath "$requested_path")"
+  if [[ ! -f "$requested_path" || -L "$requested_path" || "$resolved_path" != "$self_test_repo_root/"* ]]; then
+    echo "FATAL: C4 self-test artifact escaped current checkout: $relative_path" >&2
+    return 1
+  fi
+  printf '%s\n' "$resolved_path"
+}
+
 run_c4_operational_chain_self_test(){
-  bash -n "$SRC_REPO/deploy/host/deploy-test-saas.sh" \
-    "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" \
-    "$SRC_REPO/$C4_OPERATIONAL_READINESS"
-  bash "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" --self-test
-  bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"
-  node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
-  node "$SRC_REPO/deploy/host/saas-c2-secret-preflight.mjs" --self-test
-  echo "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)"
+  local self_test_repo_root self_test_deploy_script self_test_provisioner self_test_readiness
+  local self_test_media_cutover self_test_media_retirement self_test_password_smoke
+  local self_test_bootstrap self_test_secret_preflight self_test_retirement_test
+  self_test_repo_root="$(realpath "$DEPLOY_TEST_SAAS_SCRIPT_DIR/../..")"
+  self_test_deploy_script="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/deploy-test-saas.sh)"
+  [ "$self_test_deploy_script" = "$(realpath "${BASH_SOURCE[0]}")" ] || {
+    echo "FATAL: C4 self-test is not bound to the executing checkout" >&2
+    exit 1
+  }
+  self_test_provisioner="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_PROVISIONER")"
+  self_test_readiness="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_READINESS")"
+  self_test_media_cutover="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_CONTROL_CUTOVER")"
+  self_test_media_retirement="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_LOGIN_RETIREMENT")"
+  self_test_password_smoke="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_PASSWORD_SMOKE")"
+  self_test_bootstrap="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/bootstrap-c4-test-env.mjs)"
+  self_test_secret_preflight="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/saas-c2-secret-preflight.mjs)"
+  self_test_retirement_test="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/retire-media-db-login.test.mjs)"
+  run_strict_closure_catalog_self_test
+  bash -n "$self_test_deploy_script" "$self_test_provisioner" "$self_test_readiness" \
+    "$self_test_media_cutover" "$self_test_media_retirement"
+  bash "$self_test_media_cutover" --self-test
+  bash "$self_test_provisioner" --self-test
+  bash "$self_test_password_smoke"
+  node "$self_test_bootstrap" --self-test
+  node "$self_test_secret_preflight" --self-test
+  node "$self_test_retirement_test"
+  echo "C4 canonical fresh wrapper segment + shared catalog closure self-test: OK (checkout=$self_test_repo_root; no env/DB/service/cron mutation)"
 }
 
 full_reset_usage(){
@@ -2945,6 +3098,10 @@ shell_quote(){
 }
 
 case "${1:-}" in
+  --strict-closure-catalog-self-test)
+    run_strict_closure_catalog_self_test
+    exit 0
+    ;;
   --c4-operational-chain-self-test)
     run_c4_operational_chain_self_test
     exit 0
@@ -3009,8 +3166,11 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 [ -r "$SRC_REPO/$C4_OPERATIONAL_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_RUNTIME"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_PROVISIONER"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_READINESS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_READINESS"; exit 1; }
+[ -r "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER"; exit 1; }
+[ -x "$SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"; exit 1; }
+[ -r "$SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED"; exit 1; }
 [ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
 sudo node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check

@@ -1,10 +1,3 @@
-integrator.contacts
-integrator.content_access_grants
-integrator.conversation_messages
-integrator.conversations
-integrator.message_drafts
-integrator.question_messages
-integrator.user_questions
 integrator.user_reminder_delivery_logs
 integrator.user_reminder_occurrences
 public.admin_audit_log

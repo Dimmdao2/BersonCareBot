@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
-import type { ClaimedJob } from './jobs/claim.js';
+import type { ClaimedJob } from './control.js';
 import type { TranscodeContext } from './processTranscodeJob.js';
 import { buildPosterFfmpegArgs } from './ffmpeg/hlsArgs.js';
 import { runFfmpeg } from './ffmpeg/runFfmpeg.js';
@@ -11,7 +11,6 @@ import {
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
 } from './hlsStorageLayout.js';
-import { runMediaWorkerPgText } from './runMediaWorkerSql.js';
 import { probeVideoDurationSeconds } from './ffmpeg/probeVideoDurationSeconds.js';
 import {
   downloadObjectToFile,
@@ -35,16 +34,7 @@ export async function processProgramSubmissionTranscodeJob(
   const sourceKey = media.s3_key.trim();
   const mediaRoot = mediaRootFromSourceS3Key(sourceKey);
   if (!isCanonicalMediaRootForId(mediaRoot, job.mediaId)) {
-    await runMediaWorkerPgText(
-      ctx.pool,
-      `UPDATE public.media_transcode_jobs SET status = 'failed', last_error = $2, finished_at = now(), updated_at = now() WHERE id = $1::uuid`,
-      [job.id, 'non_canonical_s3_key_layout'],
-    );
-    await runMediaWorkerPgText(
-      ctx.pool,
-      `UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
-      [job.mediaId, 'non_canonical_s3_key_layout'],
-    );
+    await ctx.control.failed(job, ctx.lockId, 'non_canonical_s3_key_layout');
     return;
   }
 
@@ -57,11 +47,7 @@ export async function processProgramSubmissionTranscodeJob(
   const posterLocal = join(posterDir, 'poster.jpg');
 
   try {
-    await runMediaWorkerPgText(
-      ctx.pool,
-      `UPDATE public.media_files SET video_processing_status = 'processing', video_processing_error = NULL WHERE id = $1::uuid`,
-      [job.mediaId],
-    );
+    await ctx.control.processing(job, ctx.lockId);
 
     await downloadObjectToFile(ctx.s3Client, ctx.bucket, sourceKey, src);
 
@@ -143,46 +129,19 @@ export async function processProgramSubmissionTranscodeJob(
     const qualitiesJson = JSON.stringify([
       { label: '480p', height: 480, path: '480p.mp4', bandwidth: 900_000 },
     ]);
-    await runMediaWorkerPgText(
-      ctx.pool,
-      `UPDATE public.media_files SET
-        s3_key = $1,
-        mime_type = 'video/mp4',
-        video_processing_status = 'ready',
-        video_processing_error = NULL,
-        video_delivery_override = 'mp4',
-        available_qualities_json = $2::jsonb,
-        hls_master_playlist_s3_key = NULL,
-        hls_artifact_prefix = NULL,
-        poster_s3_key = $4,
-        video_duration_seconds = COALESCE($5, video_duration_seconds)
-      WHERE id = $3::uuid`,
-      [outputKey, qualitiesJson, job.mediaId, posterKey, videoDurationSeconds],
-    );
-
-    await runMediaWorkerPgText(
-      ctx.pool,
-      `UPDATE public.media_transcode_jobs
-       SET status = 'done', locked_at = NULL, locked_by = NULL, last_error = NULL, finished_at = now(), updated_at = now()
-       WHERE id = $1::uuid`,
-      [job.id],
-    );
+    await ctx.control.doneProgram(job, ctx.lockId, {
+      outputKey,
+      posterKey,
+      qualitiesJson,
+      durationSeconds: videoDurationSeconds,
+    });
     ctx.log.info(
       { jobId: job.id, mediaId: job.mediaId, outcome: 'done', mode: 'program_submission_480p' },
       'transcode completed',
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await runMediaWorkerPgText(
-      ctx.pool,
-      `UPDATE public.media_transcode_jobs SET status = 'failed', last_error = $2, finished_at = now(), updated_at = now() WHERE id = $1::uuid`,
-      [job.id, msg.slice(0, 8000)],
-    );
-    await runMediaWorkerPgText(
-      ctx.pool,
-      `UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
-      [job.mediaId, msg.slice(0, 8000)],
-    );
+    await ctx.control.failed(job, ctx.lockId, msg.slice(0, 8000));
     ctx.log.warn(
       { jobId: job.id, mediaId: job.mediaId, err: msg.slice(0, 200) },
       'program_submission_transcode_failed',

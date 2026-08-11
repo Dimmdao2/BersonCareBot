@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { PoolClient } from 'pg';
 import {
   applyDbPrincipalToTransaction,
   buildDbPrincipalApplyOptionsFromEnv,
@@ -10,6 +11,7 @@ import {
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
+import { withPortContextTransaction } from '@bersoncare/db-principal';
 import * as schema from '../../../db/schema';
 import { getPool } from './client';
 import {
@@ -17,6 +19,10 @@ import {
   reportDbQueryFailure,
   reportPrincipalSetupFailure,
 } from '@/infra/db/saasIsolationDbFailureReporting';
+import {
+  createWebappPortContextRuntimeConfig,
+  webappPortContextPrincipal,
+} from '@/infra/db/portContextRuntime';
 
 export type DrizzleDb = NodePgDatabase<typeof schema>;
 type DrizzleTransaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
@@ -40,6 +46,8 @@ function drizzlePrincipalSql(queryText: string, values: readonly unknown[] = [])
       return sql.raw('SET ROLE app_clinic_billing');
     case 'SELECT app.release_principal_context()':
       return sql`SELECT app.release_principal_context()`;
+    case 'SELECT app.clear_port_context()':
+      return sql`SELECT app.clear_port_context()`;
     case "SELECT set_config('app.org', $1, true)":
       return sql`SELECT set_config('app.org', ${values[0]}, true)`;
     case "SELECT set_config('app.patient_user_id', $1, true)":
@@ -69,6 +77,19 @@ function drizzlePrincipalSql(queryText: string, values: readonly unknown[] = [])
       )
     `;
   }
+
+  if (queryText.includes('app.install_port_context') && values.length === 11) {
+    return sql`
+      SELECT app.install_port_context(
+        ${values[0]}::uuid,
+        ROW(1, ${values[1]}::app.port_context_class, ${values[2]}::name, ${values[3]}::text,
+          ${values[4]}::regprocedure, ${values[5]}::bytea, ${values[6]}::uuid, ${values[7]}::uuid,
+          ${values[8]}::uuid, ${values[9]}::bigint, ${values[10]}::uuid)::app.port_context_claims
+      )
+    `;
+  }
+
+  if (/^SET LOCAL ROLE [a-z_][a-z0-9_]{0,62}$/.test(queryText)) return sql.raw(queryText);
 
   throw new Error(`Unsupported DB principal Drizzle statement: ${queryText}`);
 }
@@ -104,6 +125,32 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
   const wrappedTransaction: DrizzleDb['transaction'] = ((callback, config) => {
     // Drizzle may await pool checkout before entering this callback; preserve the caller identity.
     const principalSnapshot = getCurrentDbPrincipal();
+    if (process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context') {
+      // Do not let Drizzle acquire an unrelated backend before its callback. The shared lifecycle
+      // owns this physical checkout from BEGIN through cleanup and destroys it on every fault.
+      return (async () => {
+        const runtime = createWebappPortContextRuntimeConfig(process.env);
+        const selected = webappPortContextPrincipal(
+          principalSnapshot,
+          runtime.capabilities,
+        ).principal;
+        const client = await getPool().connect();
+        let completed = false;
+        try {
+          const result = await withPortContextTransaction(client, selected, async (sameClient) =>
+            callback(
+              drizzle(sameClient as unknown as PoolClient, {
+                schema,
+              }) as unknown as DrizzleTransaction,
+            ),
+          );
+          completed = true;
+          return result;
+        } finally {
+          if (completed) client.release();
+        }
+      })() as ReturnType<DrizzleDb['transaction']>;
+    }
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
     return rawTransaction(async (tx) => {
       const queryable = drizzlePrincipalQueryable(tx);

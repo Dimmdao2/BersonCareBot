@@ -2,8 +2,10 @@ import type { SQL } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import { portTypedArgsForFunctionIdentity } from '@bersoncare/db-principal';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import { drizzleOnPgClient } from '@/infra/db/pgAdvisoryLock';
+import { runWithWebappPortOperation } from '@/infra/db/portContextRuntime';
 
 const pgDialect = new PgDialect();
 
@@ -49,6 +51,29 @@ export async function runWebappSql<T = unknown>(
 ): Promise<WebappQueryResult<T>> {
   const raw = await db.execute(fragment);
   return normalizeExecute<T>(raw);
+}
+
+/**
+ * Execute one declared SECURITY DEFINER root with its exact canonical argument transcript.
+ * The scope wraps the lazy Drizzle execution itself, so the runtime selects the named capability
+ * before pool checkout. The descriptor supplies the single declared purpose for this identity.
+ */
+export async function runWebappNamedRoot<T = unknown>(
+  db: WebappSqlExecutor,
+  functionIdentity: string,
+  functionArgs: readonly unknown[],
+  fragment: SQL,
+): Promise<WebappQueryResult<T>> {
+  if ('rollback' in db) {
+    throw new Error('Webapp named root must start before the relation transaction');
+  }
+  return runWithWebappPortOperation(
+    {
+      functionIdentity,
+      typedArgs: portTypedArgsForFunctionIdentity(functionIdentity, functionArgs),
+    },
+    () => runWebappSql<T>(db, fragment),
+  );
 }
 
 /**

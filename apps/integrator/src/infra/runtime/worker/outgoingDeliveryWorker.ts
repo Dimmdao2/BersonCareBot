@@ -104,7 +104,10 @@ function runWithOutgoingDeliveryCorrelation<T>(row: OutgoingDeliveryQueueRow, fn
 }
 
 function runWithDeliveryQueueCapability<T>(fn: () => T): T {
-  return runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, fn);
+  return runWithInfraPrincipal(
+    { source: 'worker:outgoing-delivery-tick', portCapability: 'delivery' },
+    fn,
+  );
 }
 
 function queueMarkDead(

@@ -37,19 +37,19 @@ import type {
 const roles: Record<string, RoleDecl> = {
   app_staff: {
     kind: 'terminal', scope: 'ORG',
-    login: false, superuser: false, bypassrls: false, inherit: true, createrole: false,
+    login: false, superuser: false, bypassrls: false, inherit: false, createrole: false,
     rolconfig: null,
   },
   app_patient: {
     kind: 'terminal', scope: 'OWN',
-    login: false, superuser: false, bypassrls: false, inherit: true, createrole: false,
+    login: false, superuser: false, bypassrls: false, inherit: false, createrole: false,
     rolconfig: null,
   },
   app_owner: {
     kind: 'owner', scope: 'NONE',
     login: false, superuser: false,
-    bypassrls: true, // definer-шов (SCHEME §I R5) — как в производственной декларации
-    inherit: true, createrole: false, rolconfig: null,
+    bypassrls: false,
+    inherit: false, createrole: false, rolconfig: null,
     members: [], // ноль членов в стационаре (SCHEME §C)
   },
   app_migration_phase: {
@@ -71,7 +71,7 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
   proof: {
     bcb_proof_migrator: {
       canonicalRole: null,
-      login: true, superuser: false, bypassrls: false, createrole: false, inherit: true,
+      login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
       passwordEnv: 'PGPASSWORD_BCB_PROOF_MIGRATOR',
       rolconfig: ['search_path=public, integrator'], // байт-в-байт как на TEST (пробел после запятой)
       connect: ['bcb_privproof'],
@@ -118,14 +118,17 @@ const db_bcb_privproof: DatabaseDecl = {
     // ── ДЕФЕКТ №1 (FINDINGS_TABLES.md, часть 3, Н2) ──
     'public.phone_challenges': {
       org: false, // организации у таблицы нет — это глобальная таблица входа
-      rls: 'off', // ЖИВАЯ правда; RLS-backstop — открытый вопрос владельца И1, фикстура его не решает
+      rls: 'force',
       owner: 'migrator',
       grants: {
         // ЦЕЛЬ: у арендных ролей НИ ОДНОГО табличного права. Путь персонала — только
         // EXECUTE на definer-аксессор (см. definerExceptions ниже).
         app_owner: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], // владелец definer-аксессоров (0245:64)
       },
-      policies: [],
+      policies: [{
+        name: 'phone_challenges_context_gate', as: 'RESTRICTIVE', cmd: 'ALL', to: ['PUBLIC'],
+        using: 'app.current_org_id() IS NOT NULL', withCheck: 'app.current_org_id() IS NOT NULL',
+      }],
       drift: 'ЖИВОЕ: app_staff=arwd на таблице с ОТП открытым текстом. ЦЕЛЬ: ноль табличных прав '
         + 'арендным ролям — запрос без прав обязан дать громкий 42501, а не тихий ноль.',
     },
@@ -134,13 +137,18 @@ const db_bcb_privproof: DatabaseDecl = {
     //    → app_staff USAGE,SELECT — значит, INSERT на самой таблице у app_staff есть).
     'public.integrator_push_outbox': {
       org: false, // organization_id колонки нет (apps/webapp/db/schema/schema.ts:3197-3217)
-      rls: 'off',
+      rls: 'force',
       owner: 'migrator',
       grants: {
         app_staff: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
         app_owner: ['SELECT'],
       },
-      policies: [],
+      policies: [
+        { name: 'integrator_push_outbox_context_gate', as: 'RESTRICTIVE', cmd: 'ALL', to: ['PUBLIC'],
+          using: 'app.current_org_id() IS NOT NULL', withCheck: 'app.current_org_id() IS NOT NULL' },
+        { name: 'integrator_push_outbox_staff', as: 'PERMISSIVE', cmd: 'ALL', to: ['app_staff'],
+          using: 'true', withCheck: 'true' },
+      ],
     },
     // ── ДЕФЕКТ №2 (FACTS §1.2-1.3) ──
     'public.be_organization_members': {
@@ -152,6 +160,9 @@ const db_bcb_privproof: DatabaseDecl = {
         app_owner: ['SELECT', 'INSERT', 'UPDATE'],
       },
       policies: [{
+        name: 'be_organization_members_context_gate', as: 'RESTRICTIVE', cmd: 'ALL', to: ['PUBLIC'],
+        using: 'app.current_org_id() IS NOT NULL', withCheck: 'app.current_org_id() IS NOT NULL',
+      }, {
         name: 'be_organization_members_staff_org',
         as: 'PERMISSIVE', cmd: 'ALL', to: ['app_staff'],
         using: 'organization_id = app.current_org_id()',

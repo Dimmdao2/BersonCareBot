@@ -169,6 +169,8 @@ export interface LoginRecord {
   mustFold?: string;
   canonicalRole: string | null;
   membership?: Membership;
+  /** Revision-10 permits one port login to SET only its explicitly named runtime roles. */
+  memberships?: Membership[];
   login: true;
   superuser: false;
   bypassrls: false;
@@ -230,6 +232,13 @@ export interface TableDecl {
   grants: Record<string, GrantDecl>;
   /** полный relacl переписью не перечислен (GAP G2) — класс+стена объявлены, ACL не выдуман. */
   grantMatrix?: 'G2-pending';
+  /**
+   * Executable access census.  An ACTIVE relation cannot be generated until it is
+   * either backed by a direct grant, one or more exact definer seams, or a demonstrated
+   * absence of a runtime surface.  `unresolved` is deliberately machine-readable
+   * so `--gaps` fails instead of treating deny-by-default as an operable matrix.
+   */
+  access?: RelationAccess;
   /** живые гранты, которые модель СНИМАЕТ, с причиной. */
   revoke?: Record<string, string>;
   /** требуемая семантика политик СВЕРХ шаблона стены (тела политик — GAP G8). */
@@ -240,6 +249,53 @@ export interface TableDecl {
   codeMustChange?: string[];
   removal?: RemovalDecl;
   drift?: string;
+}
+
+export interface NamedSeamAccess {
+  regprocedure: string;
+  owner: string;
+  /** Runtime/seam role which invokes the root. Triggers have no SQL caller. */
+  caller?: string;
+  invocation: 'runtime' | 'trigger';
+  columns: string[];
+  operations: Privilege[];
+  purpose: string;
+}
+
+export type RelationAccess =
+  | { kind: 'direct'; codePaths: string[]; purpose: string }
+  | { kind: 'named-seams'; seams: NamedSeamAccess[]; purpose: string }
+  | { kind: 'no-runtime-surface'; evidence: string[]; purpose: string }
+  | { kind: 'unresolved'; reason: string; codePaths: string[] };
+
+export interface FunctionRelationSurface {
+  relation: string;
+  columns: readonly string[];
+  operations: readonly Privilege[];
+  /** The census is evidence for a later exact grant stage, not authority to emit grants now. */
+  evidence: 'pg16-function-body-lexical-upper-bound';
+}
+
+export interface DeclaredFunction {
+  owner: string;
+  security: 'DEFINER' | 'INVOKER';
+  /** Exact SQL result type, compared against pg_proc.prorettype. */
+  returns: string;
+  /** Exact pg_proc attributes; omission is a declaration gap, never a generator default. */
+  volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
+  parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
+  proconfig: readonly string[];
+  execute: readonly string[];
+  /** Add exactly the three login grantees connected to the rendered database. */
+  loginExecute?: true;
+  purpose: string;
+  typedArgs: readonly string[];
+  /** Omitted means both declared databases; otherwise this is the exact per-DB presence set. */
+  databases?: readonly string[];
+  relationSurfaces?: readonly FunctionRelationSurface[];
+  /** Exact same-seam/context roots used when this wrapper has no direct relation access. */
+  delegatesTo?: readonly string[];
+  invocation?: 'runtime' | 'trigger';
 }
 
 /**
@@ -297,7 +353,8 @@ export interface DefinerExceptionsSection {
   defaults: {
     schema: 'app';
     securityDefiner: true;
-    owner: 'app_owner';
+    /** Historical field retained for fixture compatibility; revision 10 never uses it as a fallback. */
+    owner: string;
     searchPath: string[];
     publicExecute: false;
     coveredCount: number;
@@ -422,6 +479,26 @@ export interface PrivilegeDeclaration {
   };
   envMapping: Record<string, Record<string, LoginRecord>>;
   databases: Record<string, DatabaseDecl>;
+  /** Revision-10 transaction-context surface, separate from ordinary relation ACLs. */
+  portContext?: {
+    classes: readonly string[];
+    privateRelations: Record<string, { owner: string; columns: readonly string[] }>;
+    /** One runtime catalog. Function-bound rows also feed the exact DB seed; relation rows feed env only. */
+    capabilities: Record<string, {
+      port: Port;
+      /** Exact key consumed by the runtime; allows the same key on both physical ports. */
+      runtimeName?: string;
+      /** Canonical role of the one application login used for this capability in each environment. */
+      sessionRole: string;
+      targetRole: string;
+      contextClass: string;
+      purpose: string;
+      functionIdentity?: string;
+      /** Exact infra source allowlist for relation capabilities; empty for typed human principals. */
+      runtimeSources?: readonly string[];
+    }>;
+    functions: Record<string, DeclaredFunction>;
+  };
 }
 
 /* ============================================================================================

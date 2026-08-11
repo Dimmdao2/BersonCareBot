@@ -306,10 +306,9 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
 - apply the D3.4 bootstrap/base-login grant closure from
   `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` to the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role, falling back to `DATABASE_URL` only when dual-pool URLs are absent, before any TEST
-  service restart or product smoke. The same invocation must discover the actual media-worker login from the
-  separate `media-worker.test` `DATABASE_URL`, pass it separately to the artifact, and then prove through that exact URL that
-  `app.release_principal_context()` is visible and executable. After the final helper recreation/grants, it must also
-  use the actual `DATABASE_URL_STAFF` and `DATABASE_URL_NONSTAFF` paths to prove that only the staff runtime can call
+  service restart or product smoke. Media-worker has no DB login and is not passed to this artifact. After the final
+  helper recreation/grants, the invocation must use the actual `DATABASE_URL_STAFF` and `DATABASE_URL_NONSTAFF`
+  paths to prove that only the staff runtime can call
   `app.staff_user_has_password_credentials(uuid)`; the probe uses a synthetic UUID and emits no returned value.
   This repo artifact grants the proven bootstrap direct
   read surface plus the composed D2 FB#1 phone/contact write surface and EXECUTE on the narrow pre-auth
@@ -318,7 +317,7 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   base login. Before restart the overlay must normalize only that nonstaff login to `LOGIN NOINHERIT NOBYPASSRLS`,
   remove every unexpected direct membership, and rebuild exactly one direct `app_patient` edge with
   `ADMIN FALSE, INHERIT FALSE, SET TRUE`; the separate staff-pool login is not passed to or changed by this step.
-  Before invoking the mutating SQL, the TEST wrapper must discover the exact staff, media, migrator, API,
+  Before invoking the mutating SQL, the TEST wrapper must discover the exact staff, migrator, API,
   operational, diagnostic, and operator logins and reject any equality with the nonstaff login; it must also reject
   a missing, non-login, or superuser target. These identity checks are read-only and must finish before `psql -f`.
   Final catalog proof must reject every transitive role other than `app_patient`, protected-table owner membership,
@@ -341,20 +340,27 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   setting shapes are both supported; a present empty array is authoritative, while a missing/denied projection
   retains the legacy environment fallback. Never fix this path by granting `app_patient`, `app_staff`, or the
   nonstaff base login direct `SELECT` on `public.system_settings`.
-- after strict policy installation, apply `deploy/postgres/c4-operational-runtime.sql` using the four distinct
+- after strict policy installation, apply `deploy/postgres/c4-operational-runtime.sql` using the three distinct
   logins discovered from API `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`,
-  `DATABASE_URL_SCHEDULER`, and separate `media-worker.test` `DATABASE_URL`. Apply it again after any strict
-  finalizer that recreates the media policies. Before restart, each base login must call release directly, then
-  `SET ROLE` only its own SET-only capability; positive exact-surface probes and cross-contour negatives must pass.
+  `DATABASE_URL_SCHEDULER`. Media-worker must instead contain `MEDIA_WORKER_CONTROL_URL` and the webapp-matching
+  `INTERNAL_JOB_SECRET`, with no DB/PG/principal credential. Apply the overlay again after any strict finalizer that
+  recreates the media policies. Before restarting DB operational processes, each of the three DB base logins must
+  call release directly, then `SET ROLE` only its own SET-only capability; positive exact-surface probes and
+  cross-contour negatives must pass. Authenticated media-control readiness is deliberately later: stop any old
+  media-worker, restart the new webapp, prove its authenticated control route, automatically retire the exact legacy
+  media DB login, and only then restart media-worker. Full readiness against a stopped or old webapp is invalid.
   On the first production rollout, root/DB-admin must run
-  `deploy/host/provision-c4-operational-runtime.sh` after the schema is current and the root-owned API/media env files
-  contain the four distinct operational URLs. The script must run the shared C2 preflight against
+  `deploy/host/provision-c4-operational-runtime.sh` after the schema is current, the new webapp control route is live,
+  and the root-owned API/media env files contain the three distinct operational DB URLs and the control-only media
+  configuration. The script must run the shared C2 preflight against
   `webapp.prod`/`api.prod`/`media-worker.prod` before any role/password mutation, rejecting reuse of any ambient or
-  operator login. Ordinary `deploy-prod.sh` remains readiness-only: it must not create
+  operator login, then full readiness and automatic exact legacy-login retirement. Ordinary `deploy-prod.sh`
+  remains readiness-only: it must not create
   roles, set passwords, or gain broader sudo. The overlay must scrub stale direct/column/type/default ACLs catalog-wide,
   reject managed-role ownership including independent types and other owner dependencies, exclude only structurally
   autogenerated array types (never user domains over arrays), rebuild the exact allowlist, and pass its catalog
-  assertion before restart.
+  assertion before DB operational restart. `bootstrap-systemd-prod.sh` and `deploy-prod.sh` must both enter the same
+  shared media-control cutover helper; neither may directly start media-worker around that order.
 - after migration `0185_saas_isolation_diagnostics` and runtime-role discovery, apply
   `deploy/postgres/saas-isolation-telemetry.sql` with the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role (falling back to `DATABASE_URL`), the `api.test` `DATABASE_URL` role, and the

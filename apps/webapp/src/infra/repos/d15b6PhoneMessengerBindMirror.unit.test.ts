@@ -2,6 +2,7 @@
  * D15b/6 audit MF: `user_contacts` mirror after messenger channel bind + canonical phone lookup.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Pool } from 'pg';
 
 const syncMirrorMock = vi.hoisted(() => vi.fn());
 const syncContactsMirrorMock = vi.hoisted(() => vi.fn());
@@ -62,6 +63,14 @@ import { createPgPhoneMessengerBindPort } from '@/infra/repos/pgPhoneMessengerBi
 const SESSION_USER_ID = '00000000-0000-4000-8000-0000000d0001';
 const NEW_LOGIN_USER_ID = '00000000-0000-4000-8000-0000000d0003';
 const fakeClient = { tag: 'tx-client' };
+const fakePool = {
+  connect() {
+    throw new Error('test unexpectedly requested a pool connection');
+  },
+  query() {
+    throw new Error('test unexpectedly queried through the pool');
+  },
+} as unknown as Pool;
 
 function channelBindingInsertIndex(): number {
   return runIdentityClientPgTextMock.mock.calls.findIndex(
@@ -87,7 +96,7 @@ describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ user_id: SESSION_USER_ID }] });
 
-    const port = createPgPhoneMessengerBindPort();
+    const port = createPgPhoneMessengerBindPort(fakePool);
     const result = await port.applyMessengerContactPreOtp(fakeClient as never, {
       phoneNormalized: '+79001234567',
       channelCode: 'telegram',
@@ -124,7 +133,7 @@ describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
       return { rows: [] };
     });
 
-    const port = createPgPhoneMessengerBindPort();
+    const port = createPgPhoneMessengerBindPort(fakePool);
     const result = await port.applyMessengerContactPreOtp(fakeClient as never, {
       phoneNormalized: '+79007654321',
       channelCode: 'telegram',

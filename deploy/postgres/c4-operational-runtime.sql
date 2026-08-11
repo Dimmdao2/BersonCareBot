@@ -1,6 +1,7 @@
 -- C4 least-privilege operational runtime roles.
--- Creates four NOLOGIN capability roles and binds four operator-provisioned LOGIN roles through
--- PostgreSQL 16 SET-only membership edges. Passwords/URLs are never managed here.
+-- Creates four NOLOGIN capability roles and binds the three DB operational capabilities
+-- through PostgreSQL 16 SET-only LOGIN membership edges. The media capability is selected
+-- only by the webapp control seam; passwords/URLs are never managed here.
 
 \set ON_ERROR_STOP on
 \pset pager off
@@ -20,12 +21,6 @@ SELECT 1 / 0;
 \echo 'FATAL: missing c4_scheduler_login_role'
 SELECT 1 / 0;
 \endif
-\if :{?c4_media_worker_login_role}
-\else
-\echo 'FATAL: missing c4_media_worker_login_role'
-SELECT 1 / 0;
-\endif
-
 BEGIN;
 
 \if :{?c4_operational_down}
@@ -40,10 +35,9 @@ CREATE POLICY "saas_org_dormant_p0_8_4" ON public.media_transcode_jobs FOR ALL
 REVOKE app_operational_diagnostic FROM :"c4_diagnostic_login_role";
 REVOKE app_operational_delivery_worker FROM :"c4_delivery_worker_login_role";
 REVOKE app_operational_scheduler FROM :"c4_scheduler_login_role";
-REVOKE app_operational_media_worker FROM :"c4_media_worker_login_role";
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 ), managed_oids AS (
@@ -83,7 +77,7 @@ SELECT 1 / (NOT EXISTS (
 ))::int AS c4_down_managed_roles_own_no_objects;
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 ), schemas(schema_name) AS (
@@ -103,7 +97,7 @@ SELECT format('REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA %I FROM %I', sche
 \gexec
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 )
@@ -119,7 +113,7 @@ WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
 \gexec
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 )
@@ -142,7 +136,7 @@ WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
 \gexec
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 )
@@ -165,9 +159,9 @@ WHERE defaults.defaclobjtype IN ('r', 'S', 'f', 'T')
 \gexec
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
-  :"c4_scheduler_login_role", :"c4_media_worker_login_role";
-REVOKE ALL ON TABLE integrator.projection_outbox, integrator.message_retry_jobs,
-  integrator.idempotency_keys, integrator.user_reminder_occurrences,
+  :"c4_scheduler_login_role";
+REVOKE ALL ON TABLE integrator.projection_outbox, integrator.idempotency_keys,
+  integrator.user_reminder_occurrences,
   public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents,
   public.media_transcode_jobs, public.media_files, public.app_runtime_settings FROM
   app_operational_diagnostic, app_operational_delivery_worker,
@@ -203,7 +197,8 @@ REVOKE USAGE ON SCHEMA integrator, public FROM app_owner;
 DROP ROLE IF EXISTS app_operational_diagnostic;
 DROP ROLE IF EXISTS app_operational_delivery_worker;
 DROP ROLE IF EXISTS app_operational_scheduler;
-DROP ROLE IF EXISTS app_operational_media_worker;
+-- The media capability is now selected by the webapp staff login for the authenticated
+-- HTTP control seam; declaration cutover owns its eventual removal.
 COMMIT;
 \echo 'C4 operational runtime overlay DOWN complete.'
 \quit
@@ -213,15 +208,13 @@ SELECT 1 / (
   (SELECT count(DISTINCT role_name) FROM (VALUES
     (:'c4_diagnostic_login_role'),
     (:'c4_delivery_worker_login_role'),
-    (:'c4_scheduler_login_role'),
-    (:'c4_media_worker_login_role')
-  ) roles(role_name)) = 4
+    (:'c4_scheduler_login_role')
+  ) roles(role_name)) = 3
   AND NOT EXISTS (
     SELECT 1 FROM (VALUES
       (:'c4_diagnostic_login_role'),
       (:'c4_delivery_worker_login_role'),
-      (:'c4_scheduler_login_role'),
-      (:'c4_media_worker_login_role')
+      (:'c4_scheduler_login_role')
     ) roles(role_name)
     LEFT JOIN pg_roles role_state ON role_state.rolname = roles.role_name
     WHERE role_state.oid IS NULL OR NOT role_state.rolcanlogin OR role_state.rolsuper
@@ -257,12 +250,11 @@ ALTER ROLE app_operational_media_worker NOLOGIN NOSUPERUSER NOCREATEDB NOCREATER
 ALTER ROLE :"c4_diagnostic_login_role" NOINHERIT NOBYPASSRLS NOCREATEDB NOREPLICATION;
 ALTER ROLE :"c4_delivery_worker_login_role" NOINHERIT NOBYPASSRLS NOCREATEDB NOREPLICATION;
 ALTER ROLE :"c4_scheduler_login_role" NOINHERIT NOBYPASSRLS NOCREATEDB NOREPLICATION;
-ALTER ROLE :"c4_media_worker_login_role" NOINHERIT NOBYPASSRLS NOCREATEDB NOREPLICATION;
 
 -- Managed runtime roles must never own database objects: ownership cannot be scrubbed with REVOKE.
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 ), managed_oids AS (
@@ -304,7 +296,7 @@ SELECT 1 / (NOT EXISTS (
 -- Catalog-wide direct/default ACL scrub. Exact grants are rebuilt below.
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 ), schemas(schema_name) AS (
@@ -325,7 +317,7 @@ SELECT format('REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA %I FROM %I', sche
 
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 )
@@ -342,7 +334,7 @@ WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
 
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 )
@@ -366,7 +358,7 @@ WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
 
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 )
@@ -392,8 +384,7 @@ WHERE defaults.defaclobjtype IN ('r', 'S', 'f', 'T')
 WITH expected(capability_name, login_name) AS (VALUES
   ('app_operational_diagnostic', :'c4_diagnostic_login_role'),
   ('app_operational_delivery_worker', :'c4_delivery_worker_login_role'),
-  ('app_operational_scheduler', :'c4_scheduler_login_role'),
-  ('app_operational_media_worker', :'c4_media_worker_login_role')
+  ('app_operational_scheduler', :'c4_scheduler_login_role')
 )
 SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
 FROM expected
@@ -403,14 +394,14 @@ JOIN pg_roles member ON member.oid = membership.member
 WHERE member.rolname <> expected.login_name
 \gexec
 
--- Remove every stale capability edge from the four base logins before installing the one allowed edge.
+-- Remove every stale capability edge from the three DB base logins before installing the allowed edge.
 SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
 FROM pg_auth_members membership
 JOIN pg_roles granted ON granted.oid = membership.roleid
 JOIN pg_roles member ON member.oid = membership.member
 WHERE member.rolname IN (
   :'c4_diagnostic_login_role', :'c4_delivery_worker_login_role',
-  :'c4_scheduler_login_role', :'c4_media_worker_login_role'
+  :'c4_scheduler_login_role'
 )
 \gexec
 
@@ -428,19 +419,18 @@ WHERE member.rolname IN (
 GRANT app_operational_diagnostic TO :"c4_diagnostic_login_role" WITH INHERIT FALSE, SET TRUE;
 GRANT app_operational_delivery_worker TO :"c4_delivery_worker_login_role" WITH INHERIT FALSE, SET TRUE;
 GRANT app_operational_scheduler TO :"c4_scheduler_login_role" WITH INHERIT FALSE, SET TRUE;
-GRANT app_operational_media_worker TO :"c4_media_worker_login_role" WITH INHERIT FALSE, SET TRUE;
 
-REVOKE ALL ON TABLE integrator.projection_outbox, integrator.message_retry_jobs,
-  integrator.idempotency_keys, integrator.user_reminder_occurrences, public.reminder_rules,
+REVOKE ALL ON TABLE integrator.projection_outbox, integrator.idempotency_keys,
+  integrator.user_reminder_occurrences, public.reminder_rules,
   public.outgoing_delivery_queue,
   public.broadcast_audit, public.operator_incidents, public.media_transcode_jobs,
   public.media_files, public.app_runtime_settings FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
-  :"c4_scheduler_login_role", :"c4_media_worker_login_role";
+  :"c4_scheduler_login_role";
 REVOKE EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text),
   app.reset_principal_context(), app.current_org_id(), app.current_patient_user_id(), app.is_staff()
   FROM :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
-  :"c4_scheduler_login_role", :"c4_media_worker_login_role";
+  :"c4_scheduler_login_role";
 
 GRANT USAGE ON SCHEMA app TO
   app_operational_diagnostic,
@@ -459,9 +449,6 @@ GRANT USAGE ON SCHEMA public TO
 REVOKE ALL ON TABLE integrator.projection_outbox FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
-REVOKE ALL ON TABLE integrator.message_retry_jobs FROM
-  app_operational_diagnostic, app_operational_delivery_worker,
-  app_operational_scheduler, app_operational_media_worker;
 REVOKE ALL ON TABLE integrator.idempotency_keys FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
@@ -478,7 +465,6 @@ REVOKE ALL ON TABLE integrator.user_reminder_occurrences, public.reminder_rules,
 
 GRANT SELECT ON TABLE integrator.projection_outbox TO app_operational_diagnostic;
 GRANT SELECT, UPDATE ON TABLE integrator.projection_outbox TO app_operational_delivery_worker;
-GRANT SELECT, UPDATE ON TABLE integrator.message_retry_jobs TO app_operational_delivery_worker;
 GRANT SELECT, UPDATE ON TABLE public.outgoing_delivery_queue TO app_operational_delivery_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE integrator.idempotency_keys TO app_operational_scheduler;
 GRANT SELECT ON TABLE public.reminder_rules TO app_operational_scheduler;
@@ -744,6 +730,14 @@ REVOKE ALL ON FUNCTION app.read_media_worker_runtime_setting(text) FROM
   app_staff, app_patient, app_worker,
   app_operational_diagnostic, app_operational_delivery_worker, app_operational_scheduler;
 GRANT EXECUTE ON FUNCTION app.read_media_worker_runtime_setting(text) TO app_operational_media_worker;
+
+-- The HTTP control seam reads only the two server-audience error-tracking projections;
+-- it never exposes their values to the caller except the typed config snapshot.
+REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC,
+  app_patient, app_worker, app_operational_diagnostic,
+  app_operational_delivery_worker, app_operational_scheduler;
+GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
+  TO app_operational_media_worker;
 
 -- ---------------------------------------------------------------------------
 -- Operator outbound probe contour (scheduler) and the non-email delivery audit
@@ -1099,10 +1093,10 @@ END
 $c4_patient_reminder_materialization_acl$;
 GRANT USAGE ON SCHEMA app TO
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
-  :"c4_scheduler_login_role", :"c4_media_worker_login_role";
+  :"c4_scheduler_login_role";
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
-  :"c4_scheduler_login_role", :"c4_media_worker_login_role";
+  :"c4_scheduler_login_role";
 
 -- Extend only the media policies with the new media capability. Legacy app_worker remains for rollback compatibility.
 GRANT EXECUTE ON FUNCTION app.is_staff(), app.current_org_id(), app.current_patient_user_id()
@@ -1120,8 +1114,7 @@ CREATE POLICY "saas_org_dormant_p0_8_4" ON public.media_transcode_jobs FOR ALL
 WITH expected(login_name, capability_name) AS (VALUES
   (:'c4_diagnostic_login_role', 'app_operational_diagnostic'),
   (:'c4_delivery_worker_login_role', 'app_operational_delivery_worker'),
-  (:'c4_scheduler_login_role', 'app_operational_scheduler'),
-  (:'c4_media_worker_login_role', 'app_operational_media_worker')
+  (:'c4_scheduler_login_role', 'app_operational_scheduler')
 )
 SELECT 1 / (
   NOT EXISTS (
@@ -1151,8 +1144,8 @@ SELECT 1 / (
     SELECT 1 FROM expected
     JOIN pg_roles login ON login.rolname = expected.login_name
     CROSS JOIN LATERAL (VALUES
-      ('integrator.projection_outbox'), ('integrator.message_retry_jobs'),
-      ('integrator.idempotency_keys'), ('integrator.user_reminder_occurrences'),
+      ('integrator.projection_outbox'), ('integrator.idempotency_keys'),
+      ('integrator.user_reminder_occurrences'),
       ('public.reminder_rules'), ('public.outgoing_delivery_queue'),
       ('public.broadcast_audit'), ('public.operator_incidents'),
       ('public.media_transcode_jobs'), ('public.media_files'), ('public.app_runtime_settings')
@@ -1361,7 +1354,7 @@ SELECT 1 / (
 
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
-  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  (:'c4_scheduler_login_role'),
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 ), actual(kind, identity, privilege_type, role_name, is_grantable) AS (
@@ -1425,11 +1418,9 @@ WITH managed(role_name) AS (VALUES
   ('schema','app','USAGE',:'c4_diagnostic_login_role',false),
   ('schema','app','USAGE',:'c4_delivery_worker_login_role',false),
   ('schema','app','USAGE',:'c4_scheduler_login_role',false),
-  ('schema','app','USAGE',:'c4_media_worker_login_role',false),
   ('function','app.release_principal_context()','EXECUTE',:'c4_diagnostic_login_role',false),
   ('function','app.release_principal_context()','EXECUTE',:'c4_delivery_worker_login_role',false),
   ('function','app.release_principal_context()','EXECUTE',:'c4_scheduler_login_role',false),
-  ('function','app.release_principal_context()','EXECUTE',:'c4_media_worker_login_role',false),
   ('schema','app','USAGE','app_operational_diagnostic',false),
   ('schema','integrator','USAGE','app_operational_diagnostic',false),
   ('table','integrator.projection_outbox','SELECT','app_operational_diagnostic',false),
@@ -1439,8 +1430,6 @@ WITH managed(role_name) AS (VALUES
   ('schema','public','USAGE','app_operational_delivery_worker',false),
   ('table','integrator.projection_outbox','SELECT','app_operational_delivery_worker',false),
   ('table','integrator.projection_outbox','UPDATE','app_operational_delivery_worker',false),
-  ('table','integrator.message_retry_jobs','SELECT','app_operational_delivery_worker',false),
-  ('table','integrator.message_retry_jobs','UPDATE','app_operational_delivery_worker',false),
   ('table','public.outgoing_delivery_queue','SELECT','app_operational_delivery_worker',false),
   ('table','public.outgoing_delivery_queue','UPDATE','app_operational_delivery_worker',false),
   ('function','app.release_principal_context()','EXECUTE','app_operational_delivery_worker',false),

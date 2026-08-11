@@ -45,7 +45,7 @@ async function startScheduler(): Promise<void> {
   // data access). infra is the right shape here — same as the actual dispatch tick below.
   let lockHandle: Awaited<ReturnType<typeof tryAcquireSchedulerLock>>;
   try {
-    lockHandle = await runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }, () =>
+    lockHandle = await runWithInfraPrincipal({ source: 'scheduler:acquire-lock', portCapability: 'scheduler' }, () =>
       tryAcquireSchedulerLock(SCHEDULER_LOCK_KEY),
     );
   } catch (error) {

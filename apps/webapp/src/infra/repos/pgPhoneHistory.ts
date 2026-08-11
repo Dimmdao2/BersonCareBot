@@ -1,8 +1,5 @@
 /** Wave 3 phase 15C — TX-scoped SQL via `runWebappPgText` on caller `PoolClient`. */
-import {
-  buildDbPrincipalApplyOptionsFromEnv,
-  getCurrentDbPrincipalOrganizationId,
-} from '@bersoncare/db-principal';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { Pool, PoolClient } from 'pg';
 import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
 import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
@@ -29,8 +26,8 @@ export async function applyPlatformUserPhoneHistoryTransition(
   },
 ): Promise<void> {
   const db = getWebappSqlFromPgClient(client as PoolClient);
-  const principalMode = buildDbPrincipalApplyOptionsFromEnv(process.env).mode;
-  if (principalMode === 'locked') {
+  const principalMode = process.env.DB_PRINCIPAL_CONTEXT_MODE;
+  if (principalMode === 'locked' || principalMode === 'port-context') {
     await runWebappPgText(
       'SELECT app.close_active_user_phone_history($1::uuid)',
       [opts.platformUserId],

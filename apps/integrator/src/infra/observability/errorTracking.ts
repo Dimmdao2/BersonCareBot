@@ -12,6 +12,12 @@ export async function initIntegratorErrorTracking(
   db: DbPort,
   processRole: Extract<ErrorTrackingProcessRole, 'api' | 'worker' | 'scheduler'>,
 ): Promise<void> {
+  if (process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context') {
+    // Startup has not installed a declared principal yet. Error tracking is optional, so it must
+    // not create an unauthenticated DB checkout merely to read its dark-launch settings.
+    await initErrorTracking({ enabled: false, dsn: '', service: 'integrator', processRole });
+    return;
+  }
   try {
     const [enabled, dsn] = await Promise.all([
       readGlobalServerRuntimeString(db, 'error_tracking_enabled'),

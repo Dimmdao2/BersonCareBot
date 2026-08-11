@@ -6,7 +6,6 @@
  */
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
-import { getIntegratorPurgePoolProvider } from '@/infra/db/integratorPurgePoolProvider';
 import { startPoolTransaction } from '@/infra/db/withClient';
 import { runPurgeClientPgText, runPurgePoolPgText } from '@/infra/platformUserPurgeSql';
 import {
@@ -50,6 +49,9 @@ export function appendIntegratorSearchPathToConnectionString(connectionString: s
  * - If explicit integrator URL equals `DATABASE_URL`, same `search_path` is applied (single cluster, integrator schema).
  */
 export function getIntegratorPoolForPurge(): Pool | null {
+  if ((process.env.DB_PRINCIPAL_CONTEXT_MODE ?? '').trim() === 'port-context') {
+    return getPool();
+  }
   const explicit =
     trimEnv('INTEGRATOR_DATABASE_URL') ||
     trimEnv('USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL') ||
@@ -75,7 +77,10 @@ export function getIntegratorPoolForPurge(): Pool | null {
     ? appendIntegratorSearchPathToConnectionString(baseUrl)
     : baseUrl;
 
-  return getIntegratorPurgePoolProvider(connectionString);
+  // This is a local administrative compatibility path. Runtime target mode never creates a
+  // second integrator pool; deploy-only tooling owns any separately credentialed migration work.
+  void connectionString;
+  return getPool();
 }
 
 /** Только цифры; для сопоставления записей по номеру. */
@@ -463,7 +468,7 @@ async function clearMessengerAttributedPhonesForBindings(
 
 export async function deleteIntegratorPhoneData(
   integratorDb: Pool,
-  digs: string,
+  _digs: string,
   integratorUserIds: string[],
   messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
 ): Promise<void> {
@@ -474,16 +479,7 @@ export async function deleteIntegratorPhoneData(
       await clearMessengerAttributedPhonesForBindings(client, messengerBindings);
     }
 
-    // R7 retirement: the two raw provider-history tables formerly purged here
-    // are already dropped from the schema.
-    // Purging them is moot once the tables no longer exist -- the data is gone with the table itself.
-
-    await runPurgeClientPgText(
-      client,
-      `DELETE FROM message_retry_jobs
-       WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
+    // The retired retry queue was dropped after its drain; no phone-keyed queue cleanup remains.
 
     if (integratorUserIds.length > 0) {
       await runPurgeClientPgText(client, `DELETE FROM users WHERE id = ANY($1::bigint[])`, [

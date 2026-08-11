@@ -13,6 +13,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { declaration } from '../postgres/privileges/declaration.ts';
+import { renderPortContextRuntimeEnv } from '../postgres/privileges/generate.mjs';
 
 const TEST_PATHS = {
   api: '/opt/env/bersoncarebot/api.test',
@@ -25,10 +27,7 @@ const OPERATIONAL_KEYS = [
   ['DATABASE_URL_DELIVERY_WORKER', 'bcb_test_operational_delivery_login'],
   ['DATABASE_URL_SCHEDULER', 'bcb_test_operational_scheduler_login'],
 ];
-const MEDIA_ROLE = 'bcb_test_operational_media_login';
 const MEDIA_COPY_KEYS = [
-  'DB_PRINCIPAL_CONTEXT_MODE',
-  'DB_PRINCIPAL_SIGNING_SECRET',
   'LOG_LEVEL',
   'FFMPEG_PATH',
   'S3_ENDPOINT',
@@ -39,13 +38,21 @@ const MEDIA_COPY_KEYS = [
   'S3_FORCE_PATH_STYLE',
 ];
 const MEDIA_REQUIRED_KEYS = [
-  'DB_PRINCIPAL_CONTEXT_MODE',
-  'DB_PRINCIPAL_SIGNING_SECRET',
+  'MEDIA_WORKER_CONTROL_URL',
+  'INTERNAL_JOB_SECRET',
   'S3_ENDPOINT',
   'S3_ACCESS_KEY',
   'S3_SECRET_KEY',
   'S3_PRIVATE_BUCKET',
 ];
+const TEST_PORT_CONTEXT = {
+  api: renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'integrator'),
+  webapp: renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'webapp'),
+};
+const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
+  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|(?:DATABASE|DB|POSTGRES|POSTGRESQL)_(?:URL|PASSWORD|PASS|CONNECTION_STRING)|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
+const CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY =
+  /^(?:DATABASE_URL_MEDIA_WORKER|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
 
 function fail(message) {
   throw new Error(message);
@@ -139,6 +146,16 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   const webappText = readFileSync(webappPath, 'utf8');
   const api = parseEnv(apiText, 'api.test');
   const webapp = parseEnv(webappText, 'webapp.test');
+  for (const [label, values] of [
+    ['api.test', api],
+    ['webapp.test', webapp],
+  ]) {
+    for (const key of values.keys()) {
+      if (CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
+        fail(`${label} must not declare a fourth media-worker database credential ${key}`);
+      }
+    }
+  }
   const baseUrl = api.get('DATABASE_URL');
   if (!baseUrl) fail('api.test is missing DATABASE_URL');
   validateBaseUrl(baseUrl);
@@ -155,16 +172,30 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   for (const [key, role] of OPERATIONAL_KEYS) {
     apiAdditions.set(key, api.get(key) || makeUrl(baseUrl, role));
   }
-  const webappAdditions = new Map([['ALLOW_DEV_AUTH_BYPASS', 'false']]);
+  apiAdditions.set(TEST_PORT_CONTEXT.api.key, TEST_PORT_CONTEXT.api.value);
+  const webappAdditions = new Map([
+    ['ALLOW_DEV_AUTH_BYPASS', 'false'],
+    [TEST_PORT_CONTEXT.webapp.key, TEST_PORT_CONTEXT.webapp.value],
+  ]);
 
+  const mediaAdditions = new Map([
+    ['MEDIA_WORKER_CONTROL_URL', webapp.get('APP_BASE_URL') ?? ''],
+    ['INTERNAL_JOB_SECRET', webapp.get('INTERNAL_JOB_SECRET') ?? ''],
+  ]);
   let mediaText;
   if (mediaExists) {
-    mediaText = readFileSync(mediaPath, 'utf8');
+    mediaText = upsertEnv(readFileSync(mediaPath, 'utf8'), mediaAdditions)
+      .split('\n')
+      .filter((line) => {
+        const key = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(line)?.[1];
+        return (
+          !key ||
+          (!LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key) && !key.startsWith('DB_PRINCIPAL_'))
+        );
+      })
+      .join('\n');
   } else {
-    const media = new Map([
-      ['NODE_ENV', 'production'],
-      ['DATABASE_URL', makeUrl(baseUrl, MEDIA_ROLE)],
-    ]);
+    const media = new Map([['NODE_ENV', 'production'], ...mediaAdditions]);
     for (const key of MEDIA_COPY_KEYS) {
       if (api.get(key)) media.set(key, api.get(key));
     }
@@ -175,16 +206,22 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   }
 
   const parsedMedia = parseEnv(mediaText, 'media-worker.test');
-  if (!parsedMedia.get('DATABASE_URL')) fail('media-worker.test is missing DATABASE_URL');
-  validateBaseUrl(parsedMedia.get('DATABASE_URL'));
+  for (const key of parsedMedia.keys()) {
+    if (LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key) || key.startsWith('DB_PRINCIPAL_')) {
+      fail(`media-worker.test retained prohibited database configuration ${key}`);
+    }
+  }
   for (const key of MEDIA_REQUIRED_KEYS) {
     if (!parsedMedia.get(key)) fail(`media-worker.test is missing ${key}`);
   }
-  if (
-    parsedMedia.get('DB_PRINCIPAL_CONTEXT_MODE') !== api.get('DB_PRINCIPAL_CONTEXT_MODE') ||
-    parsedMedia.get('DB_PRINCIPAL_SIGNING_SECRET') !== api.get('DB_PRINCIPAL_SIGNING_SECRET')
-  ) {
-    fail('media-worker.test principal contract must match api.test');
+  try {
+    const controlUrl = new URL(parsedMedia.get('MEDIA_WORKER_CONTROL_URL'));
+    if (controlUrl.protocol !== 'http:' && controlUrl.protocol !== 'https:') throw new Error();
+  } catch {
+    fail('media-worker.test has invalid MEDIA_WORKER_CONTROL_URL');
+  }
+  if (parsedMedia.get('INTERNAL_JOB_SECRET') !== webapp.get('INTERNAL_JOB_SECRET')) {
+    fail('media-worker.test must use the webapp internal control secret');
   }
 
   if (write) {
@@ -222,7 +259,11 @@ function selfTest() {
         common +
         s3,
     );
-    writeFileSync(webapp, "NODE_ENV='production'\nALLOW_DEV_AUTH_BYPASS='true'\n" + common);
+    writeFileSync(
+      webapp,
+      "NODE_ENV='production'\nALLOW_DEV_AUTH_BYPASS='true'\nAPP_BASE_URL='http://127.0.0.1:6200'\nINTERNAL_JOB_SECRET='control-secret'\n" +
+        common,
+    );
     const apiBeforeCheck = readFileSync(api, 'utf8');
     const webappBeforeCheck = readFileSync(webapp, 'utf8');
     chmodSync(api, 0o000);
@@ -247,6 +288,31 @@ function selfTest() {
       readFileSync(webapp, 'utf8') !== webappBeforeCheck
     ) {
       fail('source validation failure modified an existing env file');
+    }
+    for (const target of [api, webapp]) {
+      const beforeMutation = readFileSync(target, 'utf8');
+      writeFileSync(
+        target,
+        `${beforeMutation}DATABASE_URL_MEDIA_WORKER='postgresql://fourth:secret@127.0.0.1:5432/bersoncarebot_test'\n`,
+      );
+      let fourthOperationalKeyRejected = false;
+      try {
+        bootstrap({
+          apiPath: api,
+          webappPath: webapp,
+          mediaPath: media,
+          ownerUid: process.getuid(),
+          deployGid: process.getgid(),
+          write: false,
+        });
+      } catch {
+        fourthOperationalKeyRejected = true;
+      } finally {
+        writeFileSync(target, beforeMutation);
+      }
+      if (!fourthOperationalKeyRejected) {
+        fail('bootstrap accepted a fourth media-worker operational database key');
+      }
     }
     bootstrap({
       apiPath: api,
@@ -275,12 +341,27 @@ function selfTest() {
     for (const [key, role] of OPERATIONAL_KEYS) {
       if (new URL(firstApi.get(key)).username !== role) fail(`self-test wrong role for ${key}`);
     }
-    if (new URL(firstMedia.get('DATABASE_URL')).username !== MEDIA_ROLE)
-      fail('self-test wrong media role');
+    if (
+      firstMedia.get('MEDIA_WORKER_CONTROL_URL') !== 'http://127.0.0.1:6200' ||
+      firstMedia.get('DATABASE_URL') ||
+      firstMedia.get('DB_PRINCIPAL_SIGNING_SECRET')
+    ) {
+      fail('self-test media env retained a database door or wrong control URL');
+    }
     const firstWebapp = parseEnv(readFileSync(webapp, 'utf8'), 'webapp.test');
     if (firstWebapp.get('ALLOW_DEV_AUTH_BYPASS') !== 'false') {
       fail('self-test did not disable dev auth bypass in webapp.test');
     }
+    if (firstApi.get(TEST_PORT_CONTEXT.api.key) !== TEST_PORT_CONTEXT.api.value) {
+      fail('self-test did not render declaration-owned integrator capabilities');
+    }
+    if (firstWebapp.get(TEST_PORT_CONTEXT.webapp.key) !== TEST_PORT_CONTEXT.webapp.value) {
+      fail('self-test did not render declaration-owned webapp capabilities');
+    }
+    writeFileSync(
+      media,
+      `${readFileSync(media, 'utf8')}PGSSLMODE='verify-full'\nPGSSLCRL='/tmp/crl'\nPGSSLCRLDIR='/tmp/crl.d'\nPGSSLMINPROTOCOLVERSION='TLSv1.3'\nMEDIA_WORKER_CA='ca'\nMEDIA_DATABASE_CA='ca'\nMEDIA_POSTGRESQL_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRESQL_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRES_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRES_PASSWORD='secret'\nMEDIA_WORKER_CONNECTION_STRING='postgresql://legacy:secret@127.0.0.1/db'\nMEDIA_CONNECTION_STRING='postgresql://legacy:secret@127.0.0.1/db'\nDB_URL='postgresql://legacy:secret@127.0.0.1/db'\n`,
+    );
     bootstrap({
       apiPath: api,
       webappPath: webapp,
@@ -289,6 +370,12 @@ function selfTest() {
       deployGid: process.getgid(),
     });
     const secondApi = parseEnv(readFileSync(api, 'utf8'), 'api.test');
+    const secondMedia = parseEnv(readFileSync(media, 'utf8'), 'media-worker.test');
+    for (const key of secondMedia.keys()) {
+      if (LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
+        fail(`bootstrap retained prohibited media credential ${key}`);
+      }
+    }
     if (secondApi.get('DATABASE_URL_DIAGNOSTIC') !== firstApi.get('DATABASE_URL_DIAGNOSTIC'))
       fail('bootstrap is not idempotent');
     console.log('bootstrap-c4-test-env self-test: OK');

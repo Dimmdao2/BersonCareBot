@@ -4,64 +4,22 @@ import {
   type SaasIsolationBackgroundSource,
   type SaasIsolationTelemetryTransportStatus,
 } from '@bersoncare/db-principal';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import {
-  createIntegratorSaasIsolationTelemetryPoolProvider,
-  withIntegratorSaasIsolationTelemetryClient,
-} from '../db/integratorPoolProvider.js';
-import { integratorSqlFromPgText } from '../db/runIntegratorSql.js';
 import { logger } from './logger.js';
-import type { Pool } from 'pg';
-
-let telemetryPool: ReturnType<typeof createIntegratorSaasIsolationTelemetryPoolProvider> | null =
-  null;
-function getTelemetryPool(): ReturnType<typeof createIntegratorSaasIsolationTelemetryPoolProvider> {
-  const connectionString = (process.env.DATABASE_URL ?? '').trim();
-  if (!connectionString) throw new Error('DATABASE_URL is required');
-  telemetryPool ??= createIntegratorSaasIsolationTelemetryPoolProvider(connectionString);
-  return telemetryPool;
-}
-
-let telemetryDrizzle: NodePgDatabase | null = null;
-function getTelemetryDrizzle(): NodePgDatabase {
-  telemetryDrizzle ??= drizzle(getTelemetryPool());
-  return telemetryDrizzle;
-}
 
 function query(sql: string, values: readonly unknown[]): Promise<unknown> {
-  return getTelemetryDrizzle().execute(integratorSqlFromPgText(sql, values));
+  // Context-install/query failures must never recurse into another DB checkout. In port-context
+  // mode PostgreSQL logs the denial; this reporter deliberately stays process-local.
+  void sql;
+  void values;
+  return Promise.reject(new Error('port_context_telemetry_is_local'));
 }
 
 export async function probeSaasIsolationTelemetryWriter(
-  pool: Pick<Pool, 'connect'>,
+  _pool: never,
   source: SaasIsolationBackgroundSource,
 ): Promise<void> {
-  try {
-    await withIntegratorSaasIsolationTelemetryClient(pool, async (client) => {
-      const clientDb = drizzle(client);
-      try {
-        await clientDb.execute(integratorSqlFromPgText('BEGIN'));
-        await clientDb.execute(
-          integratorSqlFromPgText('SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
-            'unclassified_background_operation',
-            source.service,
-            source.operation,
-            'explained',
-          ]),
-        );
-        await clientDb.execute(integratorSqlFromPgText('ROLLBACK'));
-      } catch (error) {
-        try {
-          await clientDb.execute(integratorSqlFromPgText('ROLLBACK'));
-        } catch {
-          // The probe still fails; preserve only a redacted process-level status.
-        }
-        throw error;
-      }
-    });
-  } catch {
-    throw new Error('saas_isolation_telemetry_writer_probe_failed');
-  }
+  void source;
+  throw new Error('port_context_telemetry_is_local');
 }
 
 function logTransportStatus(
@@ -80,7 +38,7 @@ function createReporter(source: SaasIsolationBackgroundSource): SaasIsolationBac
   return createSaasIsolationBackgroundReporter({
     source,
     query,
-    probe: () => probeSaasIsolationTelemetryWriter(getTelemetryPool(), source),
+    probe: () => Promise.reject(new Error('port_context_telemetry_is_local')),
     onStatus: (status) => logTransportStatus(source, status),
   });
 }

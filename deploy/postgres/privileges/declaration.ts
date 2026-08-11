@@ -59,10 +59,15 @@
  */
 
 import { WALL_TEMPLATES, expandTables } from './types.ts';
+import { BUSINESS_SEAM_FUNCTIONS } from './function-census.ts';
+// The canonical locked descriptor module is executable ESM; its public shape is narrowed below
+// so this declaration remains strict without a second source-of-truth .d.ts file.
+// @ts-expect-error no declaration file exists for the canonical executable descriptor module.
+import { getPhase4LockedPolicyTargets, renderPhase4StrictPredicate } from '../../../docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs';
 import type {
   AcceptanceInvariant, CodeChange, DatabaseDecl, DefinerException, DefinerExceptionsSection, LoginRecord,
   OwnerDecision, OwnerGate, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
-  ReferenceModel, RoleDecl, TableDecl, TableRow,
+  PolicyDecl, ReferenceModel, RoleDecl, TableDecl, TableRow,
 } from './types.ts';
 
 /* ============================================================================================
@@ -194,9 +199,6 @@ export const CODE_MUST_CHANGE: CodeChange[] = [
   { id: 'C6', becauseOf: 'D4-two-ports',
     what: 'интегратор открывает ПЯТЫЙ пул без принципала — под телеметрию изоляции',
     where: ['apps/integrator/src/infra/db/integratorPoolProvider.ts:159-166'] },
-  { id: 'C7', becauseOf: 'D4-two-ports',
-    what: 'media-worker — отдельное процессное семейство со своим DATABASE_URL (третий порт)',
-    where: ['docs/_TODO/SAAS_FOUNDATION/SAAS_C2_SECRETS_DEPLOYMENT_PLUMBING.md:12-26'] },
   { id: 'C8', becauseOf: 'D4-two-ports',
     what: 'SAAS_ISOLATION_OPERATOR_DATABASE_URL / DATABASE_URL_CONFIG_READER — логины вне двух портов, обязаны '
       + 'ходить через webapp',
@@ -598,14 +600,6 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
       login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
       passwordEnv: 'PGPASSWORD_BCB_TEST_OP_DIAGNOSTIC', rolconfig: null, connect: ['bersoncarebot_test'],
     },
-    bcb_test_operational_media_login: {
-      port: 'webapp',
-      mustFold: 'C7 — media-worker сегодня отдельное процессное семейство со своим DATABASE_URL',
-      canonicalRole: 'app_operational_media_worker',
-      membership: { role: 'app_operational_media_worker', admin: false, inherit: false, set: true },
-      login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
-      passwordEnv: 'PGPASSWORD_BCB_TEST_OP_MEDIA', rolconfig: null, connect: ['bersoncarebot_test'],
-    },
     bcb_test_operational_scheduler_login: {
       port: 'integrator',
       mustFold: 'C5 — DATABASE_URL_SCHEDULER',
@@ -686,6 +680,10 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
     },
   },
 };
+
+// Retained legacy census input; revision 10 below is the executable exported role/login graph.
+void roles;
+void envMapping;
 
 /* ============================================================================================
  * SECTION 3 — definer: умолчания + proconfig-исключения (evidence/13 §3.1/§3.2), общие для обеих баз
@@ -889,11 +887,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'набранный, но не отправленный текст', pol: 'D25: пациентская ветка построена на EXISTS по '
     + 'integrator.identities, у которой стены нет и которая СНОСИТСЯ — перевесить на public.user_channel_bindings',
     defect: ['D25-foundation-identities'] },
-  { t: 'integrator.message_retry_jobs', cls: 'S', why: 'очередь повторной отправки сообщений — недоставленные '
-    + 'SMS/сообщения не досылаются', defect: ['D14-integrator-no-wall'],
-    drop: { verdict: 'DROP', source: 'evidence/15 §3 — волна 1; заменена public.outgoing_delivery_queue',
-      blockedBy: '10 строк pending — не раньше 2026-08-29 17:00 MSK (живая работа, удаление = потерянное сообщение '
-      + 'человеку)' } },
   { t: 'integrator.projection_outbox', cls: 'S', org: false, why: 'очередь проекций событий в webapp — события '
     + 'интегратора перестают доезжать в webapp',
     revoke: { app_staff: 'D14: payload несёт события по конкретным пациентам и записям.' },
@@ -1556,7 +1549,7 @@ const db_bersoncarebot_test: DatabaseDecl = {
       'bersoncarebot_test', 'bcb_test_integrator_login', 'bcb_test_nonstaff_login',
       'bcb_test_staff_login', 'bcb_test_worker_login', 'bcb_test_maintenance_login',
       'bcb_test_operational_delivery_login', 'bcb_test_operational_diagnostic_login',
-      'bcb_test_operational_media_login', 'bcb_test_operational_scheduler_login',
+      'bcb_test_operational_scheduler_login',
       'bcb_test_operational_web_push_reminder_login', 'bcb_saas_operator_test', 'bcb_saas_diag_test',
       'app_operational_web_push_reminder', // evidence/13 §1.1: datacl даёт CONNECT этой РОЛИ напрямую
     ],
@@ -1577,7 +1570,7 @@ const db_bersoncarebot_test: DatabaseDecl = {
         'app_operational_web_push_reminder', 'app_identity_bootstrap', 'app_operational_diagnostic',
         'app_operational_delivery_worker', 'app_operational_scheduler', 'app_operational_media_worker',
         'bcb_test_operational_diagnostic_login', 'bcb_test_operational_delivery_login',
-        'bcb_test_operational_scheduler_login', 'bcb_test_operational_media_login',
+        'bcb_test_operational_scheduler_login',
         'app_integrator_resolver', // НОВАЯ (D5): USAGE нужен ради одного definer-аксессора
         'app_operational_maintenance', // НОВАЯ (D8): USAGE ради app.prune_context_nonce_ledger
       ],
@@ -1804,6 +1797,386 @@ const db_bcb_webapp_dev: DatabaseDecl = {
 };
 
 /* ============================================================================================
+ * REVISION 10 — port/context declaration.  The older census above is retained only as the
+ * object inventory; this adapter is the executable target and deliberately has no compatibility
+ * identities, OpenPGP/challenge state, or diagnostic login.
+ * ========================================================================================== */
+
+const REV10_RUNTIME = [
+  'app_pre_session', 'app_staff', 'app_patient', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+  'app_operational_media_worker', 'saas_telemetry_operator', 'app_integrator_request',
+  'app_integrator_resolver', 'app_operational_delivery_worker', 'app_operational_scheduler',
+  'app_tenant_service', 'app_service',
+] as const;
+
+const REV10_SEAM_OWNERS = [
+  'app_seam_context_owner', 'app_seam_password_auth_owner', 'app_seam_email_otp_owner',
+  'app_seam_passkey_owner', 'app_seam_phone_binding_owner', 'app_seam_self_security_owner',
+  'app_seam_identity_lookup_owner', 'app_seam_patient_invite_owner', 'app_seam_org_invite_owner',
+  'app_seam_specialist_provision_owner', 'app_seam_public_slug_owner', 'app_seam_public_booking_owner',
+  'app_seam_dedicated_bot_owner', 'app_seam_payment_webhook_owner', 'app_seam_delivery_scope_owner',
+  'app_seam_patient_program_resolver_owner', 'app_seam_settings_preauth_owner',
+  'app_seam_settings_integrator_owner', 'app_seam_settings_runtime_owner', 'app_seam_org_commerce_owner',
+  'app_seam_patient_org_projection_owner', 'app_seam_patient_booking_owner',
+  'app_seam_patient_self_actions_owner', 'app_seam_reminder_patient_owner',
+  'app_seam_reminder_materialization_owner', 'app_seam_reminder_specialist_owner',
+  'app_seam_reminder_appointment_owner', 'app_seam_reminder_email_cooldown_owner',
+  'app_seam_telemetry_patient_owner', 'app_seam_telemetry_media_owner',
+  'app_seam_telemetry_operator_owner', 'app_seam_catalog_public_owner',
+  'app_seam_catalog_admin_owner', 'app_seam_org_directory_owner',
+  'app_seam_telemetry_exclusion_owner', 'saas_telemetry_owner', 'saas_system_health_owner',
+  'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
+  'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
+] as const;
+
+function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string): RoleDecl {
+  return { kind, scope, login: false, superuser: false, bypassrls: false, inherit: false,
+    createrole: false, rolconfig: null, members: [], why };
+}
+
+const REV10_ROLES: Record<string, RoleDecl> = Object.fromEntries([
+  ...REV10_RUNTIME.map((name) => [name, revision10Role('terminal', 'NONE', 'revision-10 runtime role')]),
+  ...REV10_SEAM_OWNERS.map((name) => [name, revision10Role('owner', 'NONE', 'revision-10 narrow seam owner')]),
+  ['app_object_owner', revision10Role('owner', 'NONE', 'ordinary application objects only; no definer functions')],
+  ['bcb_dev_migrator', revision10Role('service', 'NONE', 'local postgres migration wrapper identity')],
+  ['bcb_test_migrator', revision10Role('service', 'NONE', 'local postgres migration wrapper identity')],
+  ['postgres', { kind: 'superuser', scope: 'GLOBAL', login: true, superuser: true, bypassrls: true,
+    inherit: true, createrole: true, rolconfig: null, why: 'local administrative exception only' }],
+]);
+
+function rev10Membership(role: string) {
+  return { role, admin: false, inherit: false, set: true } as const;
+}
+
+const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
+  dev: {
+    bcb_dev_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+        'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_DEV_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
+    bcb_dev_webapp_patient: { port: 'webapp', canonicalRole: 'app_patient', memberships: [
+      rev10Membership('app_pre_session'), rev10Membership('app_patient'),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_DEV_WEBAPP_PATIENT_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
+    bcb_dev_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
+      ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
+        'app_operational_scheduler', 'app_tenant_service', 'app_service'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_DEV_INTEGRATOR_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
+  },
+  test: {
+    bcb_test_webapp_staff: { port: 'webapp', canonicalRole: 'app_staff', memberships: [
+      ...['app_pre_session', 'app_staff', 'app_clinic_billing', 'app_platform_settings', 'app_worker',
+        'app_operational_media_worker', 'saas_telemetry_operator'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_TEST_WEBAPP_STAFF_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
+    bcb_test_webapp_patient: { port: 'webapp', canonicalRole: 'app_patient', memberships: [
+      rev10Membership('app_pre_session'), rev10Membership('app_patient'),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_TEST_WEBAPP_PATIENT_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
+    bcb_test_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
+      ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
+        'app_operational_scheduler', 'app_tenant_service', 'app_service'].map(rev10Membership),
+    ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
+    passwordEnv: 'BCB_TEST_INTEGRATOR_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
+  },
+};
+
+const rev10Function = <T extends {
+  owner: string;
+  security: 'DEFINER' | 'INVOKER';
+  returns: string;
+  execute: readonly string[];
+  purpose: string;
+  typedArgs: readonly string[];
+  volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
+  parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
+  proconfig: readonly string[];
+}>(entry: T): T => entry;
+
+const INTEGRATOR_DELIVERY_SOURCES = [
+  'delivery-handler',
+  'max-webhook:record-outcome',
+  'telegram-webhook:record-outcome',
+  'worker:job-queue-drain',
+  'worker:outgoing-delivery-tick',
+  'worker:projection-outbox-tick',
+] as const;
+const INTEGRATOR_SCHEDULER_SOURCES = [
+  'scheduler:acquire-lock',
+  'scheduler:claim-due-jobs',
+  'scheduler:handle-tick-event',
+] as const;
+const INTEGRATOR_SERVICE_SOURCES = [
+  'integrator-health-check',
+  'integrator-projection-health',
+] as const;
+const INTEGRATOR_MIGRATION_LEDGER_SOURCES = ['integrator-startup-migration-ledger'] as const;
+const WEBAPP_PRE_SESSION_SOURCES = [
+  'webapp-public-runtime-config',
+  'webapp-server-runtime-config',
+  'webapp-public-smtp-config',
+] as const;
+const WEBAPP_MEDIA_SOURCES = [
+  'api/internal/media-worker/control:POST',
+  'api/internal/media-hls-proxy-errors/retention:POST',
+  'api/internal/media-playback-stats/retention:POST',
+  'api/internal/media-pending-delete/purge:POST',
+  'api/internal/media-multipart/cleanup:POST',
+  'api/internal/media-preview/process:POST',
+  'api/internal/media-transcode/enqueue:POST',
+  'api/internal/media-transcode/reconcile:POST',
+] as const;
+const WEBAPP_WORKER_SOURCES = [
+  'api/integrator/operator-health/digest-wake:POST',
+  'api/integrator/system-health/guard-wake:POST',
+  'api/internal/operator-health-digest/tick:POST',
+  'api/internal/operator-health-critical/tick:POST',
+  'api/internal/system-health-guard/tick:POST',
+  'api/internal/product-analytics/retention:POST',
+  'api/internal/specialist-task-reminders/tick:POST',
+  'api/internal/heartbeat/pipeline_delivery:POST',
+  'api/internal/heartbeat/pipeline_delivery:GET',
+  'api/internal/heartbeat/digest:POST',
+  'api/internal/heartbeat/digest:GET',
+  'webapp-health-check',
+  'api/health:GET',
+] as const;
+const WEBAPP_TELEMETRY_SOURCES = ['webapp-saas-isolation-telemetry'] as const;
+
+const REV10_CONTEXT = {
+  classes: ['pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'],
+  privateRelations: {
+    'app_ext.port_context_capabilities': { owner: 'app_seam_context_owner', columns: [
+      'capability_id', 'port', 'session_login', 'target_role', 'context_class', 'purpose', 'function_identity',
+      'active_from', 'active_until',
+    ] },
+    'app_ext.accepted_port_contexts': { owner: 'app_seam_context_owner', columns: [
+      'database_oid', 'backend_pid', 'transaction_id', 'capability_id', 'session_login', 'port', 'target_role',
+      'context_class', 'purpose', 'function_identity', 'typed_args_hash', 'actor_ref', 'subject_ref',
+      'organization_id', 'integrator_user_id', 'request_id', 'installed_at', 'cleared_at',
+    ] },
+    'app_ext.variant_a_identity_refs': { owner: 'app_seam_identity_lookup_owner', columns: [
+      'physical_user_id', 'opaque_ref', 'created_at',
+    ] },
+  },
+  capabilities: {
+    integrator_request_relation: { port: 'integrator', runtimeName: 'request',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request',
+      contextClass: 'integrator', purpose: 'relation' },
+    integrator_resolver_relation: { port: 'integrator', runtimeName: 'resolver',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_resolver',
+      contextClass: 'integrator', purpose: 'relation' },
+    integrator_delivery_relation: { port: 'integrator', runtimeName: 'delivery',
+      sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
+      contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_DELIVERY_SOURCES },
+    integrator_scheduler_relation: { port: 'integrator', runtimeName: 'scheduler',
+      sessionRole: 'app_integrator_request', targetRole: 'app_operational_scheduler',
+      contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_SCHEDULER_SOURCES },
+    integrator_tenant_service_relation: { port: 'integrator', runtimeName: 'tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service',
+      contextClass: 'tenant_service', purpose: 'relation' },
+    integrator_service_relation: { port: 'integrator', runtimeName: 'service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service',
+      contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_SERVICE_SOURCES },
+    integrator_migration_ledger_relation: { port: 'integrator', runtimeName: 'migration_ledger',
+      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
+      purpose: 'relation', runtimeSources: INTEGRATOR_MIGRATION_LEDGER_SOURCES },
+    webapp_pre_session_relation: { port: 'webapp', runtimeName: 'pre_session', sessionRole: 'app_staff',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'relation',
+      runtimeSources: WEBAPP_PRE_SESSION_SOURCES },
+    webapp_staff_relation: { port: 'webapp', runtimeName: 'staff', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff', purpose: 'relation' },
+    webapp_patient_relation: { port: 'webapp', runtimeName: 'patient', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'relation' },
+    webapp_clinic_billing_relation: { port: 'webapp', runtimeName: 'clinicBilling', sessionRole: 'app_staff',
+      targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'relation' },
+    webapp_platform_relation: { port: 'webapp', runtimeName: 'platform', sessionRole: 'app_staff',
+      targetRole: 'app_platform_settings', contextClass: 'platform', purpose: 'relation' },
+    webapp_worker_relation: { port: 'webapp', runtimeName: 'worker', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service', purpose: 'relation',
+      runtimeSources: WEBAPP_WORKER_SOURCES },
+    webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
+      targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
+      runtimeSources: WEBAPP_MEDIA_SOURCES },
+    webapp_telemetry_relation: { port: 'webapp', runtimeName: 'telemetry', sessionRole: 'app_staff',
+      targetRole: 'saas_telemetry_operator', contextClass: 'service', purpose: 'relation',
+      runtimeSources: WEBAPP_TELEMETRY_SOURCES },
+    password_login_acquire: { port: 'webapp', sessionRole: 'app_staff', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.password.acquire',
+      functionIdentity: 'app.password_login_acquire(text,text,uuid,text)' },
+    password_login_complete: { port: 'webapp', sessionRole: 'app_staff', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.password.complete',
+      functionIdentity: 'app.password_login_complete(uuid,boolean)' },
+    password_login_read_altcha_secret: { port: 'webapp', sessionRole: 'app_staff', targetRole: 'app_pre_session',
+      contextClass: 'pre_session', purpose: 'auth.password.altcha-secret',
+      functionIdentity: 'app.password_login_read_altcha_secret()' },
+    password_login_issue_altcha_challenge: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.altcha-issue',
+      functionIdentity: 'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)' },
+    resolve_outgoing_delivery_scope: { port: 'integrator', sessionRole: 'app_integrator_request',
+      targetRole: 'app_operational_delivery_worker', contextClass: 'service', purpose: 'delivery.resolve-scope',
+      functionIdentity: 'app.resolve_outgoing_delivery_scope(uuid)' },
+    operator_incident_alert_already_sent: { port: 'integrator', sessionRole: 'app_integrator_request',
+      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+      purpose: 'delivery.incident-alert-status',
+      functionIdentity: 'app.operator_incident_alert_already_sent(uuid)' },
+    mark_operator_incident_alert_sent: { port: 'integrator', sessionRole: 'app_integrator_request',
+      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+      purpose: 'delivery.incident-alert-mark', functionIdentity: 'app.mark_operator_incident_alert_sent(uuid)' },
+    list_scheduler_reminder_organization_ids: { port: 'integrator', sessionRole: 'app_integrator_request',
+      targetRole: 'app_operational_scheduler', contextClass: 'service',
+      purpose: 'scheduler.reminder-organizations',
+      functionIdentity: 'app.list_scheduler_reminder_organization_ids()' },
+    revalidate_appointment_reminder_materialization: { port: 'integrator',
+      sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
+      contextClass: 'service', purpose: 'delivery.appointment-reminder-revalidate',
+      functionIdentity: 'app.revalidate_appointment_reminder_materialization(uuid)' },
+    advance_appointment_reminder_messenger_ladder: { port: 'integrator',
+      sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
+      contextClass: 'service', purpose: 'delivery.appointment-reminder-advance',
+      functionIdentity: 'app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)' },
+  },
+  functions: {
+    ...BUSINESS_SEAM_FUNCTIONS,
+    'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
+      execute: [], purpose: 'install', typedArgs: ['uuid', 'app.port_context_claims'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.clear_port_context()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
+      execute: [], purpose: 'clear', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': rev10Function({
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
+      purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.require_platform_principal()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean',
+      execute: ['app_platform_settings', 'saas_telemetry_operator', ...REV10_SEAM_OWNERS], purpose: 'platform', typedArgs: [],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
+    'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
+    'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_pre_session', 'app_seam_identity_lookup_owner'], purpose: 'variant-a-resolve', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+  },
+} as const;
+
+type LockedPolicyTarget = { policyName: string; descriptor: { table: string } };
+
+const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
+  (getPhase4LockedPolicyTargets() as LockedPolicyTarget[]).map((target: LockedPolicyTarget) => [target.descriptor.table, target]),
+);
+
+const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user = 'app_integrator_request' THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user = 'app_service' THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
+const REV10_EMPTY_TYPED_ARGS_HASH = "decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex')";
+
+function revision10ContextGate(table: string, index: number): PolicyDecl {
+  const predicate = `app.require_accepted_context(current_user::name, current_user::name, ${REV10_CONTEXT_ROLE_CLASS}, 'relation', ${REV10_EMPTY_TYPED_ARGS_HASH}, NULL::regprocedure)`;
+  return {
+    name: `rev10_context_gate_${index + 1}`,
+    as: 'RESTRICTIVE',
+    cmd: 'ALL',
+    to: [...REV10_RUNTIME],
+    using: predicate,
+    withCheck: predicate,
+    note: `accepted-context validator for ${table}`,
+  };
+}
+
+function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): DatabaseDecl {
+  const legacy = name === 'bersoncarebot_test' ? db_bersoncarebot_test : db_bcb_webapp_dev;
+  const loginNames = Object.keys(REV10_ENV_MAPPING[name === 'bersoncarebot_test' ? 'test' : 'dev']);
+  const known = new Set([...Object.keys(REV10_ROLES), ...loginNames, 'pg_database_owner']);
+  const tables = Object.fromEntries(Object.entries(legacy.tables).map(([key, table], index) => {
+    const grants = Object.fromEntries(Object.entries(table.grants).filter(([role]) => known.has(role) && role !== 'app_object_owner'));
+    if (key === 'public.be_appointments') {
+      grants.app_staff = { privs: ['SELECT'], why: 'staff appointment list via the declared org-bound RLS branch' };
+      grants.app_patient = { privs: ['SELECT', 'UPDATE'], why: 'patient reads and reschedules only own appointment in own organization' };
+    }
+    const explicitPolicies = (table.policies ?? []).filter((policy): policy is PolicyDecl => !('todo' in policy)
+      && policy.to.every((role) => known.has(role) || role === 'PUBLIC'));
+    const active = table.disposition === 'ACTIVE';
+    const contextGate = active ? [revision10ContextGate(key, index)] : [];
+    const locked = REV10_LOCKED_POLICIES.get(key);
+    const classSafe = (predicate: string) => predicate
+      .replaceAll('app.is_staff()', "current_user = 'app_staff'::name")
+      .replaceAll('app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()', 'app.current_patient_user_id() IS NOT NULL AND "organization_id" = app.current_org_id() AND "platform_user_id" = app.current_patient_user_id()')
+      .replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()', '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
+    const business: PolicyDecl[] = !active ? [] : locked ? [{
+      name: `rev10_${locked.policyName}`,
+      as: 'PERMISSIVE', cmd: 'ALL', to: [...REV10_RUNTIME],
+      using: classSafe(renderPhase4StrictPredicate(locked.descriptor)),
+      withCheck: classSafe(renderPhase4StrictPredicate(locked.descriptor)),
+      note: `locked descriptor policy for ${key}`,
+    }] : explicitPolicies.length > 0 ? explicitPolicies : [{
+      // No classified visibility was recovered for this surface.  It is intentionally closed,
+      // never widened with a synthetic org predicate or USING (true).
+      name: `rev10_fail_closed_${index + 1}`,
+      as: 'PERMISSIVE', cmd: 'ALL', to: [...REV10_RUNTIME],
+      using: 'false', withCheck: 'false',
+      note: `fail-closed pending an exact specialized business-policy export for ${key}`,
+    }];
+    const access = !active ? undefined : key === 'public.be_appointments'
+      ? { kind: 'direct' as const, purpose: 'staff appointment list and patient-owned reschedule', codePaths: [
+        'apps/webapp/src/modules/appointments/**',
+        'apps/webapp/src/app/api/**/appointments/**',
+      ] }
+      : key === 'public.clinic_dedicated_bot_bindings'
+        ? { kind: 'named-seams' as const, purpose: 'dedicated-bot runtime resolver plus its non-runtime sync trigger', seams: [
+          { regprocedure: 'app.resolve_clinic_dedicated_bot_organization(text,text)',
+            owner: 'app_seam_dedicated_bot_owner', caller: 'app_integrator_resolver', invocation: 'runtime' as const,
+            columns: ['channel', 'organization_id', 'credential_fingerprint', 'is_active'], operations: ['SELECT' as const],
+            purpose: 'resolve one active dedicated-bot binding by channel and credential fingerprint' },
+          { regprocedure: 'app.sync_clinic_dedicated_bot_binding()', owner: 'app_seam_dedicated_bot_owner',
+            invocation: 'trigger' as const, columns: ['channel', 'organization_id', 'credential_fingerprint', 'is_active', 'updated_at'],
+            operations: ['SELECT' as const, 'INSERT' as const, 'DELETE' as const],
+            purpose: 'maintain the binding projection as a database trigger; no runtime EXECUTE grantee' },
+        ] }
+      : key === 'public.booking_calendar_map'
+        ? { kind: 'unresolved' as const,
+          reason: 'missing named API: direct integrator calendar-map R/W has no accepted SECURITY DEFINER root',
+          codePaths: ['apps/integrator/src/infra/db/repos/bookingCalendarMap.ts'] }
+      : key === 'public.phone_messenger_bind_secrets'
+        ? { kind: 'unresolved' as const,
+          reason: 'missing named API: bearer-secret R/W has no accepted SECURITY DEFINER root',
+          codePaths: ['apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts'] }
+      : { kind: 'unresolved' as const,
+        reason: 'revision-10 access census has no exact repository/seam proof; deny-by-default is not operability',
+        codePaths: [] };
+    return [key, {
+      ...table, owner: 'app_object_owner', rls: table.disposition === 'PENDING_REMOVAL' ? 'n/a' : 'force',
+      grants, policies: [...contextGate, ...explicitPolicies, ...business], access,
+    }];
+  }));
+  return {
+    ...legacy,
+    database: { owner: 'postgres', connect: loginNames, publicConnectTempDefect: false },
+    schemas: {
+      app: { owner: 'app_object_owner', present: true,
+        usage: [...REV10_RUNTIME, 'app_seam_context_owner', ...loginNames], create: ['app_object_owner'] },
+      app_ext: { owner: 'app_object_owner', present: true,
+        usage: ['app_seam_context_owner', 'app_seam_identity_lookup_owner'], create: ['app_object_owner'] },
+      public: { owner: 'app_object_owner', present: true, usage: ['app_staff', 'app_patient'], create: ['app_object_owner'] },
+      integrator: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
+      drizzle: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
+    },
+    tables,
+    sequences: { rule: 'all sequence ACL is exact and deny-by-default', examples: {} },
+    functionsViews: { default: 'all views are SECURITY INVOKER; no undeclared view ACL', views: {} },
+    definerExceptions: { defaults: { schema: 'app', securityDefiner: true, owner: 'app_object_owner',
+      searchPath: ['search_path=pg_catalog, app, app_ext, pg_temp'], publicExecute: false, coveredCount: 0,
+      rule: 'no SECURITY DEFINER function is allowed outside the exact portContext.functions census' },
+    proconfigExceptions: {}, ownershipExceptions: { intentional: {}, drift: {} } },
+    creators: ['postgres', 'app_object_owner', ...REV10_SEAM_OWNERS],
+    orgTableAllowlist: { derivedFrom: 'tables[*].org === true', named: Object.keys(tables).filter((key) => tables[key].org === true).sort(),
+      fullCountLive: Object.keys(tables).filter((key) => tables[key].org === true).length, todo: '' },
+    dbSettings: { datdba: 'postgres', perRoleInDatabase: {} },
+  } as DatabaseDecl;
+}
+
+/* ============================================================================================
  * СБОРКА
  * ========================================================================================== */
 
@@ -1819,13 +2192,14 @@ export const declaration: PrivilegeDeclaration = {
   ownerGatesOpen: OWNER_GATES_OPEN,
   cluster: {
     envs: ['test', 'dev'], // TEST + dev на одном общем PG16 :5432 (SCHEME §A); прод вне скоупа
-    roles,
+    roles: REV10_ROLES,
   },
-  envMapping,
+  envMapping: REV10_ENV_MAPPING,
   databases: {
-    bersoncarebot_test: db_bersoncarebot_test,
-    bcb_webapp_dev: db_bcb_webapp_dev,
+    bersoncarebot_test: revision10Database('bersoncarebot_test'),
+    bcb_webapp_dev: revision10Database('bcb_webapp_dev'),
   },
+  portContext: REV10_CONTEXT,
 };
 
 /* ============================================================================================

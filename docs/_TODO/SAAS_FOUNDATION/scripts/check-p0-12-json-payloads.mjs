@@ -40,14 +40,12 @@ const expectedRows = new Map([
   ['public.be_working_days', 'breaks'],
   ['public.be_working_hours', 'breaks'],
   ['integrator.user_reminder_delivery_logs', 'payload_json,error_code'],
-  ['integrator.content_access_grants', 'meta_json'],
   ['public.idempotency_keys', 'response_body'],
   ['integrator.idempotency_keys', 'response_body'],
   ['public.integrator_push_outbox', 'payload,last_error'],
   ['integrator.projection_outbox', 'payload,last_error'],
   ['public.outgoing_delivery_queue', 'payload_json,last_error'],
   ['integrator.delivery_attempt_logs', 'payload_json,reason'],
-  ['integrator.message_retry_jobs', 'message_text,payload_json,last_error'],
   ['public.appointment_records', 'payload_json,phone_normalized'],
 ]);
 
@@ -102,6 +100,7 @@ function runChecks(overrides = {}) {
 
   const seen = new Set();
   for (const row of rows) {
+    if (row.payload_family === 'rubitime_retry_payload') continue;
     const key = row.table;
     if (seen.has(key)) throw new Error(`duplicate table row: ${key}`);
     seen.add(key);

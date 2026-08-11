@@ -41,7 +41,7 @@ BEGIN
   END IF;
 END
 $bcb$;
-ALTER ROLE "app_migration_phase" NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEROLE;
+ALTER ROLE "app_migration_phase" NOLOGIN NOSUPERUSER NOCREATEDB NOBYPASSRLS NOINHERIT NOCREATEROLE NOREPLICATION;
 ALTER ROLE "app_migration_phase" RESET ALL;
 
 DO $bcb$
@@ -51,7 +51,7 @@ BEGIN
   END IF;
 END
 $bcb$;
-ALTER ROLE "app_owner" NOLOGIN NOSUPERUSER BYPASSRLS INHERIT NOCREATEROLE;
+ALTER ROLE "app_owner" NOLOGIN NOSUPERUSER NOCREATEDB NOBYPASSRLS NOINHERIT NOCREATEROLE NOREPLICATION;
 ALTER ROLE "app_owner" RESET ALL;
 
 DO $bcb$
@@ -61,7 +61,7 @@ BEGIN
   END IF;
 END
 $bcb$;
-ALTER ROLE "app_patient" NOLOGIN NOSUPERUSER NOBYPASSRLS INHERIT NOCREATEROLE;
+ALTER ROLE "app_patient" NOLOGIN NOSUPERUSER NOCREATEDB NOBYPASSRLS NOINHERIT NOCREATEROLE NOREPLICATION;
 ALTER ROLE "app_patient" RESET ALL;
 
 DO $bcb$
@@ -71,10 +71,31 @@ BEGIN
   END IF;
 END
 $bcb$;
-ALTER ROLE "app_staff" NOLOGIN NOSUPERUSER NOBYPASSRLS INHERIT NOCREATEROLE;
+ALTER ROLE "app_staff" NOLOGIN NOSUPERUSER NOCREATEDB NOBYPASSRLS NOINHERIT NOCREATEROLE NOREPLICATION;
 ALTER ROLE "app_staff" RESET ALL;
 
 -- роль postgres: kind=superuser — объявлена для сверки §F, декларацией НЕ управляется.
+
+-- ─────────── 1a. OWNERSHIP BASELINE: ordinary application objects ───────────
+DO $bcb$
+DECLARE o record;
+BEGIN
+  FOR o IN SELECT c.relkind, n.nspname, c.relname FROM pg_catalog.pg_class c
+             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle')
+              AND c.relkind IN ('v', 'm') ORDER BY n.nspname, c.relname LOOP
+    EXECUTE pg_catalog.format('ALTER %s %I.%I OWNER TO %I', CASE o.relkind WHEN 'v' THEN 'VIEW' ELSE 'MATERIALIZED VIEW' END, o.nspname, o.relname, 'app_object_owner');
+  END LOOP;
+  FOR o IN SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle') AND t.typtype IN ('b', 'c', 'd', 'e', 'r') AND t.typelem = 0 AND t.typrelid = 0 ORDER BY 1, 2 LOOP
+    EXECUTE pg_catalog.format('ALTER TYPE %I.%I OWNER TO %I', o.nspname, o.typname, 'app_object_owner');
+  END LOOP;
+  FOR o IN SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname IN ('app', 'app_ext') AND NOT p.prosecdef ORDER BY 1, 2, 3 LOOP
+    EXECUTE pg_catalog.format('ALTER FUNCTION %I.%I(%s) OWNER TO %I', o.nspname, o.proname, o.args, 'app_object_owner');
+  END LOOP;
+END
+$bcb$;
 
 -- ─────────── 2. ЧЛЕНСТВА КАНОНИЧЕСКИХ РОЛЕЙ (SCHEME §A.1) ───────────
 -- Членств ЛОГИНОВ здесь нет: их рендерит roles-install из env-маппинга (§A.1).
@@ -106,7 +127,7 @@ $bcb$;
 
 ALTER DATABASE "bcb_privproof" OWNER TO "bcb_proof_migrator";
 REVOKE ALL ON DATABASE "bcb_privproof" FROM PUBLIC;
-REVOKE ALL ON DATABASE "bcb_privproof" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff";
+REVOKE ALL ON DATABASE "bcb_privproof" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff", "bcb_proof_staff_login";
 -- CONNECT bcb_proof_migrator: логин — статья в env-рендере (§A.1/§D.1).
 -- CONNECT bcb_proof_staff_login: логин — статья в env-рендере (§A.1/§D.1).
 ALTER DATABASE "bcb_privproof" RESET ALL;
@@ -115,7 +136,7 @@ ALTER DATABASE "bcb_privproof" RESET ALL;
 
 ALTER SCHEMA "app" OWNER TO "app_owner";
 REVOKE ALL ON SCHEMA "app" FROM PUBLIC;
-REVOKE ALL ON SCHEMA "app" FROM "app_migration_phase", "app_patient", "app_staff";
+REVOKE ALL ON SCHEMA "app" FROM "app_migration_phase", "app_patient", "app_staff", "bcb_proof_migrator", "bcb_proof_staff_login";
 GRANT USAGE ON SCHEMA "app" TO "app_patient", "app_staff";
 
 -- схема app_control: present:false — её создаёт и закрывает шаг wall-install (§B шаг 3);
@@ -123,7 +144,7 @@ GRANT USAGE ON SCHEMA "app" TO "app_patient", "app_staff";
 
 ALTER SCHEMA "public" OWNER TO "pg_database_owner";
 REVOKE ALL ON SCHEMA "public" FROM PUBLIC;
-REVOKE ALL ON SCHEMA "public" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff";
+REVOKE ALL ON SCHEMA "public" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff", "bcb_proof_migrator", "bcb_proof_staff_login";
 GRANT USAGE ON SCHEMA "public" TO "app_owner", "app_patient", "app_staff";
 
 -- ─────────── 5. HARDENING ДЕФОЛТНЫХ ПРАВ СОЗДАТЕЛЕЙ (SCHEME §B/§D.3) ───────────
@@ -149,7 +170,7 @@ ALTER TABLE "public"."be_organization_members" OWNER TO "bcb_proof_migrator";
 ALTER TABLE "public"."be_organization_members" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."be_organization_members" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."be_organization_members" FROM PUBLIC;
-REVOKE ALL PRIVILEGES ON TABLE "public"."be_organization_members" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff";
+REVOKE ALL PRIVILEGES ON TABLE "public"."be_organization_members" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff", "bcb_proof_staff_login";
 GRANT SELECT, INSERT, UPDATE ON TABLE "public"."be_organization_members" TO "app_owner";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."be_organization_members" TO "app_staff";
 -- последовательности public.be_organization_members: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
@@ -164,7 +185,7 @@ BEGIN
               AND d.deptype IN ('a', 'i')
             ORDER BY 1 LOOP
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
-    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_migration_phase", "app_owner", "app_patient", "app_staff"', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_migration_phase", "app_owner", "app_patient", "app_staff", "bcb_proof_staff_login"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_owner"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_staff"', s);
   END LOOP;
@@ -179,14 +200,15 @@ BEGIN
   END LOOP;
 END
 $bcb$;
+CREATE POLICY "be_organization_members_context_gate" ON "public"."be_organization_members" AS RESTRICTIVE FOR ALL TO PUBLIC USING (app.current_org_id() IS NOT NULL) WITH CHECK (app.current_org_id() IS NOT NULL);
 CREATE POLICY "be_organization_members_staff_org" ON "public"."be_organization_members" AS PERMISSIVE FOR ALL TO "app_staff" USING (organization_id = app.current_org_id()) WITH CHECK (organization_id = app.current_org_id());
 
--- ── public.integrator_push_outbox (org=false, rls=off) ──
+-- ── public.integrator_push_outbox (org=false, rls=force) ──
 ALTER TABLE "public"."integrator_push_outbox" OWNER TO "bcb_proof_migrator";
-ALTER TABLE "public"."integrator_push_outbox" NO FORCE ROW LEVEL SECURITY;
-ALTER TABLE "public"."integrator_push_outbox" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."integrator_push_outbox" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."integrator_push_outbox" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."integrator_push_outbox" FROM PUBLIC;
-REVOKE ALL PRIVILEGES ON TABLE "public"."integrator_push_outbox" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff";
+REVOKE ALL PRIVILEGES ON TABLE "public"."integrator_push_outbox" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff", "bcb_proof_staff_login";
 GRANT SELECT ON TABLE "public"."integrator_push_outbox" TO "app_owner";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."integrator_push_outbox" TO "app_staff";
 -- последовательности public.integrator_push_outbox: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
@@ -201,7 +223,7 @@ BEGIN
               AND d.deptype IN ('a', 'i')
             ORDER BY 1 LOOP
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
-    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_migration_phase", "app_owner", "app_patient", "app_staff"', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_migration_phase", "app_owner", "app_patient", "app_staff", "bcb_proof_staff_login"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_staff"', s);
   END LOOP;
 END
@@ -215,13 +237,15 @@ BEGIN
   END LOOP;
 END
 $bcb$;
+CREATE POLICY "integrator_push_outbox_context_gate" ON "public"."integrator_push_outbox" AS RESTRICTIVE FOR ALL TO PUBLIC USING (app.current_org_id() IS NOT NULL) WITH CHECK (app.current_org_id() IS NOT NULL);
+CREATE POLICY "integrator_push_outbox_staff" ON "public"."integrator_push_outbox" AS PERMISSIVE FOR ALL TO "app_staff" USING (true) WITH CHECK (true);
 
--- ── public.phone_challenges (org=false, rls=off) ──
+-- ── public.phone_challenges (org=false, rls=force) ──
 ALTER TABLE "public"."phone_challenges" OWNER TO "bcb_proof_migrator";
-ALTER TABLE "public"."phone_challenges" NO FORCE ROW LEVEL SECURITY;
-ALTER TABLE "public"."phone_challenges" DISABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."phone_challenges" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."phone_challenges" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."phone_challenges" FROM PUBLIC;
-REVOKE ALL PRIVILEGES ON TABLE "public"."phone_challenges" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff";
+REVOKE ALL PRIVILEGES ON TABLE "public"."phone_challenges" FROM "app_migration_phase", "app_owner", "app_patient", "app_staff", "bcb_proof_staff_login";
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."phone_challenges" TO "app_owner";
 -- последовательности public.phone_challenges: правило §A.4 (INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях)
 DO $bcb$
@@ -235,7 +259,7 @@ BEGIN
               AND d.deptype IN ('a', 'i')
             ORDER BY 1 LOOP
     EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM PUBLIC', s);
-    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_migration_phase", "app_owner", "app_patient", "app_staff"', s);
+    EXECUTE pg_catalog.format('REVOKE ALL ON SEQUENCE %s FROM "app_migration_phase", "app_owner", "app_patient", "app_staff", "bcb_proof_staff_login"', s);
     EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %s TO "app_owner"', s);
   END LOOP;
 END
@@ -249,6 +273,7 @@ BEGIN
   END LOOP;
 END
 $bcb$;
+CREATE POLICY "phone_challenges_context_gate" ON "public"."phone_challenges" AS RESTRICTIVE FOR ALL TO PUBLIC USING (app.current_org_id() IS NOT NULL) WITH CHECK (app.current_org_id() IS NOT NULL);
 
 -- ─────────── 7. ЯВНЫЕ ПОСЛЕДОВАТЕЛЬНОСТИ (SCHEME §A.4, исключения из правила) ───────────
 
@@ -259,38 +284,12 @@ $bcb$;
 
 ALTER FUNCTION app.current_org_id() OWNER TO "app_owner";
 REVOKE ALL ON FUNCTION app.current_org_id() FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.current_org_id() FROM "app_migration_phase", "app_patient", "app_staff";
+REVOKE ALL ON FUNCTION app.current_org_id() FROM "app_migration_phase", "app_patient", "app_staff", "bcb_proof_migrator", "bcb_proof_staff_login";
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO "app_patient", "app_staff";
 ALTER FUNCTION app.public_booking_otp_issue(text) OWNER TO "app_owner";
 REVOKE ALL ON FUNCTION app.public_booking_otp_issue(text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.public_booking_otp_issue(text) FROM "app_migration_phase", "app_patient", "app_staff";
+REVOKE ALL ON FUNCTION app.public_booking_otp_issue(text) FROM "app_migration_phase", "app_patient", "app_staff", "bcb_proof_migrator", "bcb_proof_staff_login";
 GRANT EXECUTE ON FUNCTION app.public_booking_otp_issue(text) TO "app_staff";
--- правило по умолчанию (§A.7): каждая SECURITY DEFINER функция схемы app,
--- не названная исключением, обязана иметь владельца app_owner и НОЛЬ PUBLIC EXECUTE.
-DO $bcb$
-DECLARE f record;
-BEGIN
-  FOR f IN SELECT pg_catalog.format(
-             '%I.%I(%s)', n.nspname, p.proname,
-             pg_catalog.replace(pg_catalog.pg_get_function_identity_arguments(p.oid), ', ', ',')
-           ) AS sig
-             FROM pg_catalog.pg_proc p
-             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-            WHERE n.nspname = 'app' AND p.prosecdef
-              -- ключи исключений сравниваются в форме декларации: схема.имя(типы без пробелов)
-              AND pg_catalog.format(
-                    '%s.%s(%s)', n.nspname, p.proname,
-                    pg_catalog.replace(pg_catalog.pg_get_function_identity_arguments(p.oid), ', ', ',')
-                  ) NOT IN (
-      'app.current_org_id()',
-      'app.public_booking_otp_issue(text)'
-              )
-            ORDER BY 1 LOOP
-    EXECUTE pg_catalog.format('ALTER FUNCTION %s OWNER TO %I', f.sig, 'app_owner');
-    EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', f.sig);
-  END LOOP;
-END
-$bcb$;
 
 -- ─────────── 9. ПРЕДСТАВЛЕНИЯ (SCHEME §A.5/§G.6) ───────────
 

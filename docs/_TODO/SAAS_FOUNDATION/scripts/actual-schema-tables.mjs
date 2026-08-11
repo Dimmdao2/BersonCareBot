@@ -207,6 +207,21 @@ function readMigrationCreatedTables(dirFiles) {
   return tables;
 }
 
+function readMigrationEverCreatedTables(dirFiles) {
+  const tables = new Set();
+
+  for (const file of dirFiles) {
+    const content = stripSqlLineComments(readFileSync(file, 'utf8'));
+
+    for (const event of extractOrderedStatements(content)) {
+      if (event.kind === 'create') tables.add(event.table);
+      if (event.kind === 'rename') tables.add(event.to);
+    }
+  }
+
+  return tables;
+}
+
 function readQualifiedDrops(files, schema) {
   const tables = new Set();
 
@@ -242,6 +257,7 @@ export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
 
   const integratorMigrationFiles = discoverIntegratorMigrationFiles(repoRoot);
   const integratorTables = readMigrationCreatedTables(integratorMigrationFiles);
+  const integratorEverCreatedTables = readMigrationEverCreatedTables(integratorMigrationFiles);
   // A later webapp migration may retire an explicitly qualified integrator table.
   // Account for that cross-runner DROP instead of resurrecting the table merely because
   // its historical CREATE remains in the integrator migration ledger.
@@ -257,7 +273,9 @@ export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
   // (baseline/pre-migration-era tables, `public.be_*`, etc.) — is public.
   const publicTables = new Set([
     ...webappCreatedTables,
-    ...Array.from(schemaDeclaredTables).filter((table) => !integratorTables.has(table)),
+    ...Array.from(schemaDeclaredTables).filter(
+      (table) => !integratorEverCreatedTables.has(table),
+    ),
   ]);
 
   return [

@@ -55,11 +55,13 @@ DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="${1:-feat/doctor-ui-rebuild}"
 API_ENV=/opt/env/bersoncarebot/api.test
 WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
+MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
 APP_OWNER_ROLE=app_owner
 STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
+SAAS_C2_SECRET_PREFLIGHT=deploy/host/saas-c2-secret-preflight.mjs
 D30_OUTGOING_DELIVERY_QUEUE_ORGANIZATION_STATUS_DUE_ONLINE_INDEX=deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
@@ -136,6 +138,15 @@ chmod 644 "$BUNDLE"
 sudo -u deploy git -C "$DEPLOY_REPO" fetch "$BUNDLE" "$BRANCH"
 sudo -u deploy git -C "$DEPLOY_REPO" checkout -f -B "$BRANCH" FETCH_HEAD
 echo "   HEAD: $(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD)"
+
+[ -r "$DEPLOY_REPO/$SAAS_C2_SECRET_PREFLIGHT" ] || {
+  echo "FATAL: missing $SAAS_C2_SECRET_PREFLIGHT" >&2
+  exit 1
+}
+node "$DEPLOY_REPO/$SAAS_C2_SECRET_PREFLIGHT" \
+  --process-env-file="webapp:$WEBAPP_ENV" \
+  --process-env-file="integrator:$API_ENV" \
+  --process-env-file="media-worker:$MEDIA_WORKER_ENV"
 
 # 3) Сборка (тот же порядок, что в deploy-prod.sh) — от имени deploy.
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \

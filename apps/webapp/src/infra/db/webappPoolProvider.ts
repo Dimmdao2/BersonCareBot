@@ -8,10 +8,16 @@ import {
   type DbPrincipal,
   getCurrentDbPrincipal,
   isWebappLockedInfraCronSource,
+  isWebappLockedMediaWorkerControlSource,
 } from '@bersoncare/db-principal';
+import { withPortContextTransaction } from '@bersoncare/db-principal';
 import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporterRuntime';
 import { classifyPostgresIsolationDenial } from '@/infra/db/saasIsolationDbFailureReporting';
 import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import {
+  type WebappPortContextRuntimeConfig,
+  webappPortContextPrincipal,
+} from '@/infra/db/portContextRuntime';
 
 function currentWebappDbSourceOperation() {
   return getCurrentWebappDbOperationFamily() ?? 'webapp_db_request';
@@ -22,6 +28,7 @@ type WebappPoolProviderConfig = {
   staffConnectionString?: string;
   nonstaffConnectionString?: string;
   poolFactory?: (config: PoolConfig) => Pool;
+  portContext?: WebappPortContextRuntimeConfig;
 };
 
 type WebappRuntimePoolKind = 'staff' | 'nonstaff';
@@ -32,6 +39,14 @@ export type WebappPoolRoutingMetrics = {
   missingPrincipalSelections: number;
   bootstrapSelections: number;
   infraSelections: number;
+};
+
+export type WebappPortContextPool = Pool & {
+  /** Atomically cuts new checkouts to a replacement certificate generation, then drains the old. */
+  rotatePortContextPools(
+    next: WebappPortContextRuntimeConfig,
+    drainTimeoutMs?: number,
+  ): Promise<void>;
 };
 
 const poolRoutingMetrics = new WeakMap<Pool, WebappPoolRoutingMetrics>();
@@ -153,7 +168,10 @@ function choosePoolKindForPrincipal(
     principal?.kind === 'staff' ||
     principal?.kind === 'clinicBilling' ||
     principal?.kind === 'platform' ||
-    (principal?.kind === 'infra' && isWebappLockedInfraCronSource(principal.source))
+    (principal?.kind === 'infra' && (
+      isWebappLockedInfraCronSource(principal.source) ||
+      (principal.organizationId === undefined && isWebappLockedMediaWorkerControlSource(principal.source))
+    ))
       ? 'staff'
       : 'nonstaff';
 
@@ -273,6 +291,9 @@ function createEmptyRoutingMetrics(): WebappPoolRoutingMetrics {
 
 export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool {
   const poolFactory = config.poolFactory ?? ((poolConfig: PoolConfig) => new Pool(poolConfig));
+  if (config.portContext) {
+    return createPortContextWebappPool(config.portContext, poolFactory);
+  }
   const singleConnectionString = config.connectionString?.trim();
   const staffConnectionString = config.staffConnectionString?.trim();
   const nonstaffConnectionString = config.nonstaffConnectionString?.trim();
@@ -301,6 +322,210 @@ export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool
     nonstaffPool: createWebappPool(resolvedNonstaffConnectionString, 2, poolFactory),
     metrics: createEmptyRoutingMetrics(),
   });
+}
+
+/**
+ * Target runtime: the two webapp mTLS logins are physical pools, while every query is a freshly
+ * installed transaction context. This path deliberately has no DATABASE_URL/nonstaff fallback.
+ */
+function createPortContextWebappPool(
+  config: WebappPortContextRuntimeConfig,
+  poolFactory: (config: PoolConfig) => Pool,
+): WebappPortContextPool {
+  type Generation = {
+    config: WebappPortContextRuntimeConfig;
+    staffPool: Pool;
+    patientPool: Pool;
+    clients: Set<PoolClient>;
+  };
+  const listeners = new Set<(error: Error) => void>();
+  const generations = new Set<Generation>();
+  const wrappedClients = new WeakSet<PoolClient>();
+  const createGeneration = (next: WebappPortContextRuntimeConfig): Generation => {
+    const generation = {
+      config: next,
+      staffPool: poolFactory({ ...next.staff, max: 3 }),
+      patientPool: poolFactory({ ...next.patient, max: 2 }),
+      clients: new Set<PoolClient>(),
+    };
+    for (const listener of listeners) {
+      generation.staffPool.on('error', listener);
+      generation.patientPool.on('error', listener);
+    }
+    generations.add(generation);
+    return generation;
+  };
+  const checkout = async (generation: Generation, selectedPool: Pool): Promise<PoolClient> => {
+    const client = await selectedPool.connect();
+    generation.clients.add(client);
+    if (!wrappedClients.has(client)) {
+      const rawRelease = client.release.bind(client);
+      client.release = ((error?: Error) => {
+        generation.clients.delete(client);
+        rawRelease(error);
+      }) as PoolClient['release'];
+      wrappedClients.add(client);
+    }
+    return client;
+  };
+  const preflight = async (generation: Generation): Promise<void> => {
+    for (const selectedPool of [generation.staffPool, generation.patientPool]) {
+      const client = await checkout(generation, selectedPool);
+      try {
+        await client.query('SELECT 1');
+      } finally {
+        client.release();
+      }
+    }
+  };
+  const endGeneration = async (generation: Generation): Promise<void> => {
+    try {
+      await Promise.all([generation.staffPool.end(), generation.patientPool.end()]);
+    } finally {
+      generations.delete(generation);
+    }
+  };
+  const forceGeneration = (generation: Generation, error: Error): void => {
+    for (const client of [...generation.clients]) client.release(error);
+  };
+  const awaitDrain = async (generation: Generation, timeoutMs: number): Promise<void> => {
+    const ending = endGeneration(generation);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = await Promise.race([
+      ending.then(() => false),
+      new Promise<true>((resolve) => {
+        timer = setTimeout(() => resolve(true), timeoutMs);
+      }),
+    ]);
+    if (timer) clearTimeout(timer);
+    if (!timedOut) return;
+    const error = new Error('port-context old webapp pools did not drain before timeout');
+    forceGeneration(generation, error);
+    let forcedTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        ending,
+        new Promise<never>((_, reject) => {
+          forcedTimer = setTimeout(() => reject(error), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (forcedTimer) clearTimeout(forcedTimer);
+    }
+  };
+  let active = createGeneration(config);
+  const metrics = createEmptyRoutingMetrics();
+  let routedPool: WebappPortContextPool;
+
+  const select = (generation = active) => {
+    const selected = webappPortContextPrincipal(
+      getCurrentDbPrincipal(),
+      generation.config.capabilities,
+    );
+    if (selected.pool === 'staff') metrics.staffSelections += 1;
+    else metrics.nonstaffSelections += 1;
+    return {
+      pool: selected.pool === 'staff' ? generation.staffPool : generation.patientPool,
+      principal: selected.principal,
+    };
+  };
+
+  const query = async (
+    ...args: Parameters<Pool['query']>
+  ): Promise<Awaited<ReturnType<Pool['query']>>> => {
+    if (typeof args.at(-1) === 'function') {
+      throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
+    }
+    const generation = active;
+    const execute = async (): Promise<Awaited<ReturnType<Pool['query']>>> => {
+      const selected = select(generation);
+      const client = await checkout(generation, selected.pool);
+      let completed = false;
+      try {
+        const result = await withPortContextTransaction(
+          client,
+          selected.principal,
+          async (sameClient) => {
+            const clientQuery = sameClient.query.bind(sameClient) as unknown as (
+              ...queryArgs: Parameters<Pool['query']>
+            ) => ReturnType<Pool['query']>;
+            return clientQuery(...args);
+          },
+        );
+        completed = true;
+        return result as Awaited<ReturnType<Pool['query']>>;
+      } finally {
+        if (completed) client.release();
+      }
+    };
+    return execute();
+  };
+
+  const rotatePortContextPools = async (
+    next: WebappPortContextRuntimeConfig,
+    drainTimeoutMs = 30_000,
+  ): Promise<void> => {
+    if (!Number.isSafeInteger(drainTimeoutMs) || drainTimeoutMs < 1) {
+      throw new Error('port-context pool drain timeout must be a positive integer');
+    }
+    const replacement = createGeneration(next);
+    try {
+      await preflight(replacement);
+    } catch (error) {
+      forceGeneration(replacement, error instanceof Error ? error : new Error(String(error)));
+      await endGeneration(replacement).catch(() => undefined);
+      throw error;
+    }
+    const previous = active;
+    // A single synchronous pointer swap is the checkout boundary: old credentials cannot reappear.
+    active = replacement;
+    await awaitDrain(previous, drainTimeoutMs);
+  };
+
+  routedPool = new Proxy(active.staffPool, {
+    get(target, prop, receiver): unknown {
+      if (prop === 'query') return query;
+      if (prop === 'connect') {
+        // Direct checkout is only consumed by withClient.ts, which applies the same wrapper.
+        return () => {
+          const generation = active;
+          return checkout(generation, select(generation).pool);
+        };
+      }
+      if (prop === 'rotatePortContextPools') return rotatePortContextPools;
+      if (prop === 'end')
+        return () => Promise.all([...generations].map(endGeneration)).then(() => undefined);
+      if (prop === 'totalCount') return active.staffPool.totalCount + active.patientPool.totalCount;
+      if (prop === 'idleCount') return active.staffPool.idleCount + active.patientPool.idleCount;
+      if (prop === 'waitingCount')
+        return active.staffPool.waitingCount + active.patientPool.waitingCount;
+      if (prop === 'on')
+        return (event: string, listener: (error: Error) => void) => {
+          if (event === 'error') {
+            listeners.add(listener);
+            for (const generation of generations) {
+              generation.staffPool.on('error', listener);
+              generation.patientPool.on('error', listener);
+            }
+          }
+          return routedPool;
+        };
+      if (prop === 'off' || prop === 'removeListener')
+        return (event: string, listener: (error: Error) => void) => {
+          if (event === 'error') {
+            listeners.delete(listener);
+            for (const generation of generations) {
+              generation.staffPool.removeListener('error', listener);
+              generation.patientPool.removeListener('error', listener);
+            }
+          }
+          return routedPool;
+        };
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as WebappPortContextPool;
+  poolRoutingMetrics.set(routedPool, metrics);
+  return routedPool;
 }
 
 export function getWebappPoolRoutingMetrics(pool: Pool): WebappPoolRoutingMetrics | undefined {
