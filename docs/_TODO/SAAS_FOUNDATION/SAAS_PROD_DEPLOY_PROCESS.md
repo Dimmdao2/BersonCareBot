@@ -194,7 +194,8 @@ working as designed (fail-closed on pre-existing elevation) — not a bug to wor
 The post-migration closure itself now runs end to end on a from-zero prod dump: roles+grants → protected
 principal helpers → reviewed overlays → isolation telemetry → integrator login grants → **reversible SaaS
 isolation scenario proof** → TEST settings → **base policies → safe overlays → exact FORCE assertions** →
-C4 five-contour provisioning → strict+FORCE reassertion → nginx → TEST unit restart. Two things surfaced:
+C4 three-DB-login provisioning plus authenticated media control → strict+FORCE reassertion → nginx → ordered TEST
+restart (new webapp → control → legacy media-login retirement → media-worker). Two things surfaced:
 
 **(a) Three verification steps are built on the S3 demo clinics A/B and cannot run without them.**
 `test-patient-identity-capability-gate.sql`, `test-owner-ready-locked-matrix.sql` (26 hardcoded fixture
@@ -282,7 +283,8 @@ should be retired/reduced post-cutover, not reused as a service login.)
 
 1. `deploy/postgres/p2-b-protected-principal-context.sql` — principal-context functions + api role NOINHERIT + SET-only memberships.
 2. `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` — webapp bootstrap/base-login grants (→ the nonstaff/webapp role, NOT the integrator role).
-3. `deploy/postgres/c4-operational-runtime.sql` (+ `deploy/host/provision-c4-operational-runtime.sh`) — 5-contour operational roles.
+3. `deploy/postgres/c4-operational-runtime.sql` (+ `deploy/host/provision-c4-operational-runtime.sh`) — exactly three
+   operational DB logins; media-worker has no DB login and enters only through authenticated webapp HTTP control.
 4. `deploy/postgres/integrator-server-runtime-config.sql` — api role: EXECUTE on `read_global_server_runtime_setting`/`read_integrator_smtp_outbound_setting`/`release_principal_context`.
 5. `deploy/postgres/integrator-login-public-identity-grants.sql` — D1/D2 identity+diary column-scoped writes + narrow integrator-schema reads (`-v integrator_login_public_identity_grants_role=<prod integrator role>`).
 6. `deploy/postgres/saas-isolation-telemetry.sql` — `report_saas_isolation_event` EXECUTE.
@@ -385,12 +387,16 @@ email-code option, because the public login path runs under a bootstrap principa
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-- Build+release services (mirror `deploy-prod.sh` code path).
+- Build+release services (mirror `deploy-prod.sh` code path). Stop any legacy media-worker before activating the new
+  build. Start/restart the new webapp first; never start media-worker alongside it in one ungated systemd command.
 - **Run the same `assert_*` gates the TEST closure runs** (they're env-parameterized — point them at prod env files),
   BEFORE traffic cutover, fail-closed: `assert_api_runtime_can_release_principal_context`,
   `assert_integrator_server_runtime_config_ready`, `assert_api_runtime_can_read_migration_ledger`,
-  `deploy/host/assert-c4-operational-runtime-ready.sh`. These catch exactly the class of grant mistake that took TEST
-  down on 2026-07-24 — do not skip.
+  and `deploy/host/assert-c4-operational-runtime-ready.sh --database-only`. Then require the exact shared
+  media cutover sequence used by both PROD callers: new webapp active → authenticated control probe → automatic
+  exact legacy media-login retirement → media-worker restart. Full C4 readiness must not probe the stopped/old
+  webapp before this point, and traffic must not flip until the sequence is green. These gates catch exactly the
+  class of grant mistake that took TEST down on 2026-07-24 — do not skip.
 - Locked product smoke (`docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --mode=locked`) green.
 
 ## 5. Cutover + rollback (per INFRA-01 §I5/§rollback)
