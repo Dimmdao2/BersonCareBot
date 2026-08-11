@@ -70,6 +70,11 @@ assert_regular_env_file "$API_ENV_FILE"
 assert_regular_env_file "$WEBAPP_ENV_FILE"
 assert_regular_env_file "$MEDIA_WORKER_ENV_FILE"
 
+node "$REPO_ROOT/deploy/host/saas-c2-secret-preflight.mjs" \
+  --process-env-file="webapp:$WEBAPP_ENV_FILE" \
+  --process-env-file="integrator:$API_ENV_FILE" \
+  --process-env-file="media-worker:$MEDIA_WORKER_ENV_FILE" >/dev/null
+
 set -a
 # shellcheck disable=SC1090
 . "$API_ENV_FILE"

@@ -46,6 +46,7 @@ const allowedConnectFiles = new Set([
 
 const allowedRoleSwitchFiles = new Set([
   'packages/db-principal/src/index.ts',
+  'packages/db-principal/src/portContext.ts',
   'apps/webapp/src/app-layer/db/drizzle.ts',
 ]);
 

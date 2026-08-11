@@ -77,6 +77,10 @@ describe('POST /api/internal/media-worker/control', () => {
     control.assertMediaWorkerControlReady.mockImplementationOnce(async () => {
       const principalOptions = { mode: 'locked', signer: { secret: 'route-acceptance-secret' } } as const;
       const currentPrincipal = dbPrincipal.getCurrentDbPrincipal();
+      expect(currentPrincipal).toEqual({
+        kind: 'infra',
+        source: 'api/internal/media-worker/control:POST',
+      });
       dbPrincipal.assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
         currentPrincipal,
         principalOptions,

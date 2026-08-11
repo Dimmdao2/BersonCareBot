@@ -43,6 +43,8 @@ const MEDIA_REQUIRED_KEYS = [
   'S3_SECRET_KEY',
   'S3_PRIVATE_BUCKET',
 ];
+const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
+  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|PASSWORD|PASS|KEY)(?:_[A-Z0-9]+)*))$/;
 
 function fail(message) {
   throw new Error(message);
@@ -162,7 +164,13 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   if (mediaExists) {
     mediaText = upsertEnv(readFileSync(mediaPath, 'utf8'), mediaAdditions)
       .split('\n')
-      .filter((line) => !/^(?:DATABASE_URL(?:=|_)|DB_PRINCIPAL_)/.test(line))
+      .filter((line) => {
+        const key = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(line)?.[1];
+        return (
+          !key ||
+          (!LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key) && !key.startsWith('DB_PRINCIPAL_'))
+        );
+      })
       .join('\n');
   } else {
     const media = new Map([
@@ -179,11 +187,23 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   }
 
   const parsedMedia = parseEnv(mediaText, 'media-worker.test');
+  for (const key of parsedMedia.keys()) {
+    if (LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key) || key.startsWith('DB_PRINCIPAL_')) {
+      fail(`media-worker.test retained prohibited database configuration ${key}`);
+    }
+  }
   for (const key of MEDIA_REQUIRED_KEYS) {
     if (!parsedMedia.get(key)) fail(`media-worker.test is missing ${key}`);
   }
-  try { new URL(parsedMedia.get('MEDIA_WORKER_CONTROL_URL')); } catch { fail('media-worker.test has invalid MEDIA_WORKER_CONTROL_URL'); }
-  if (parsedMedia.get('INTERNAL_JOB_SECRET') !== webapp.get('INTERNAL_JOB_SECRET')) fail('media-worker.test must use the webapp internal control secret');
+  try {
+    const controlUrl = new URL(parsedMedia.get('MEDIA_WORKER_CONTROL_URL'));
+    if (controlUrl.protocol !== 'http:' && controlUrl.protocol !== 'https:') throw new Error();
+  } catch {
+    fail('media-worker.test has invalid MEDIA_WORKER_CONTROL_URL');
+  }
+  if (parsedMedia.get('INTERNAL_JOB_SECRET') !== webapp.get('INTERNAL_JOB_SECRET')) {
+    fail('media-worker.test must use the webapp internal control secret');
+  }
 
   if (write) {
     writeProtected(mediaPath, mediaText, ownerUid, deployGid);
@@ -273,12 +293,21 @@ function selfTest() {
     for (const [key, role] of OPERATIONAL_KEYS) {
       if (new URL(firstApi.get(key)).username !== role) fail(`self-test wrong role for ${key}`);
     }
-    if (firstMedia.get('MEDIA_WORKER_CONTROL_URL') !== 'http://127.0.0.1:6200' || firstMedia.get('DATABASE_URL') || firstMedia.get('DB_PRINCIPAL_SIGNING_SECRET'))
+    if (
+      firstMedia.get('MEDIA_WORKER_CONTROL_URL') !== 'http://127.0.0.1:6200' ||
+      firstMedia.get('DATABASE_URL') ||
+      firstMedia.get('DB_PRINCIPAL_SIGNING_SECRET')
+    ) {
       fail('self-test media env retained a database door or wrong control URL');
+    }
     const firstWebapp = parseEnv(readFileSync(webapp, 'utf8'), 'webapp.test');
     if (firstWebapp.get('ALLOW_DEV_AUTH_BYPASS') !== 'false') {
       fail('self-test did not disable dev auth bypass in webapp.test');
     }
+    writeFileSync(
+      media,
+      `${readFileSync(media, 'utf8')}PGSSLMODE='verify-full'\nPGSSLCRL='/tmp/crl'\nPGSSLCRLDIR='/tmp/crl.d'\nPGSSLMINPROTOCOLVERSION='TLSv1.3'\nMEDIA_WORKER_CA='ca'\nMEDIA_DATABASE_CA='ca'\nMEDIA_POSTGRESQL_URL='postgresql://legacy:secret@127.0.0.1/db'\n`,
+    );
     bootstrap({
       apiPath: api,
       webappPath: webapp,
@@ -287,6 +316,12 @@ function selfTest() {
       deployGid: process.getgid(),
     });
     const secondApi = parseEnv(readFileSync(api, 'utf8'), 'api.test');
+    const secondMedia = parseEnv(readFileSync(media, 'utf8'), 'media-worker.test');
+    for (const key of secondMedia.keys()) {
+      if (LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
+        fail(`bootstrap retained prohibited media credential ${key}`);
+      }
+    }
     if (secondApi.get('DATABASE_URL_DIAGNOSTIC') !== firstApi.get('DATABASE_URL_DIAGNOSTIC'))
       fail('bootstrap is not idempotent');
     console.log('bootstrap-c4-test-env self-test: OK');

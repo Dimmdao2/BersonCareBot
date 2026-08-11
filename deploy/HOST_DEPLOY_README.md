@@ -225,7 +225,7 @@ duration, parameter, error-context и optional pgAudit logging, а driver/server
 PTY/non-TTY, повторная ротация и отсутствие утечки проверяются disposable-скриптом
 `deploy/host/smoke-set-postgres-role-password.sh`. Затем provision применяет
 `deploy/postgres/c4-operational-runtime.sql` локально через системного `postgres`
-и запускает readiness всех четырёх различных login. Обычный
+и запускает readiness трёх различных DB login и authenticated media HTTP control. Обычный
 `deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4
 контракт перед рестартом сервисов.
 
@@ -766,16 +766,17 @@ Hard wrapper останавливает writers, восстанавливает 
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
 fail-closed до restore, если защищённый TEST-only data fixture packet не готов.
 После миграций, установки protected-principal helpers и базового FORCE finalizer общая closure сама вызывает канонический C4 TEST-bootstrap:
-после read-only source preflight атомарно заменяет каждый затронутый env-файл и добавляет/сохраняет четыре отдельных
-local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capability/
+после read-only source preflight атомарно заменяет каждый затронутый env-файл, добавляет/сохраняет три отдельных
+local-only DB URL (`127.0.0.1:5432/bersoncarebot_test`) и control-only media env, создаёт base/capability/
 discovery-definer роли, применяет C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
 Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
 сохраняются для безопасного повторного запуска. `DONE` допустим только после FIO reconciliation; отсутствие
 защищённого manifest или несовпадение SHA-256 останавливает прогон до restore.
 Безопасная локальная репетиция точного C4-сегмента wrapper (не читает и не меняет host env, БД, systemd или cron):
 `bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`.
-Readiness выполняет разрешённые операции и cross-contour negative probes для четырёх operational capability;
-каждый base login остаётся отделён от соседних scheduler, delivery, diagnostic и media surfaces.
+Readiness выполняет разрешённые операции и cross-contour negative probes для трёх DB operational capability,
+затем authenticated media control probe; каждый DB base login остаётся отделён от соседних scheduler, delivery и
+diagnostic surfaces, а media-worker не получает DB login или credential.
 Legacy product-smoke fixture `/run/bersoncarebot/saas-smoke.fixture`, сохранённые сессии/refs и их credential
 convergence/mint выведены из deploy решением владельца 30.07.2026. Отсутствие временного файла в `/run` не блокирует
 сборку, миграции, security closure или запуск TEST. Продуктовые проверки выполняются отдельными целевыми тестами.

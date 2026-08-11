@@ -7,7 +7,7 @@ const REQUIRED_PROCESS_NAMES = new Set(['webapp', 'integrator', 'media-worker'])
 const REQUIRED_SHARED_KEYS = ['DB_PRINCIPAL_CONTEXT_MODE', 'DB_PRINCIPAL_SIGNING_SECRET'];
 const MEDIA_CONTROL_KEYS = ['MEDIA_WORKER_CONTROL_URL', 'INTERNAL_JOB_SECRET'];
 const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
-  /^(?:DATABASE_URL|PG(?:PASSWORD|SERVICE|SERVICEFILE|SSLCERT|SSLKEY|SSLROOTCERT)|(?:MEDIA(?:_WORKER)?|MEDIA_WORKER)_(?:(?:DATABASE|DB|POSTGRES)_?(?:URL|PASSWORD|PASS|CERT(?:IFICATE)?|KEY|SSL(?:CERT|KEY|ROOTCERT))|URL|PASSWORD|PASS|CERT(?:IFICATE)?|KEY|SSL(?:CERT|KEY|ROOTCERT)))$/;
+  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|PASSWORD|PASS|KEY)(?:_[A-Z0-9]+)*))$/;
 const WEBAPP_DATABASE_URL_KEYS = [
   'DATABASE_URL_STAFF',
   'DATABASE_URL_NONSTAFF',
@@ -206,7 +206,8 @@ function validateLoadedFiles(loadedFiles) {
     fail('media-worker must not receive DB principal configuration');
   }
   try {
-    new URL(mediaWorker?.values.get('MEDIA_WORKER_CONTROL_URL') ?? '');
+    const controlUrl = new URL(mediaWorker?.values.get('MEDIA_WORKER_CONTROL_URL') ?? '');
+    if (controlUrl.protocol !== 'http:' && controlUrl.protocol !== 'https:') throw new Error();
   } catch {
     fail('media-worker MEDIA_WORKER_CONTROL_URL must be an HTTP URL');
   }
@@ -302,7 +303,7 @@ function renderReport(loadedFiles, summary) {
   ];
   for (const file of loadedFiles) {
     lines.push(
-      `process=${file.processName} env_file=${file.basename} mode=${file.values.get('DB_PRINCIPAL_CONTEXT_MODE')}`,
+      `process=${file.processName} env_file=${file.basename} mode=${file.processName === 'media-worker' ? 'control-only' : file.values.get('DB_PRINCIPAL_CONTEXT_MODE')}`,
     );
   }
   return `${lines.join('\n')}\n`;
@@ -398,31 +399,42 @@ INTERNAL_JOB_SECRET=control-secret
       ? { ...file, values: new Map(file.values).set('INTERNAL_JOB_SECRET', 'wrong-control-secret') }
       : file,
   );
-  const brokenLegacyMediaDatabaseUrl = fixtureFiles.map((file) =>
-    file.processName === 'media-worker'
-      ? { ...file, values: new Map(file.values).set('DATABASE_URL', '') }
-      : file,
+  const legacyMediaCredentialKeys = [
+    'DATABASE_URL',
+    'DB_PRINCIPAL_CONTEXT_MODE',
+    'DB_PRINCIPAL_SIGNING_SECRET',
+    'PGSSLMODE',
+    'PGSSLCRL',
+    'PGSSLCRLDIR',
+    'PGSSLMINPROTOCOLVERSION',
+    'MEDIA_WORKER_CA',
+    'MEDIA_DATABASE_CA',
+    'MEDIA_POSTGRESQL_URL',
+  ];
+  const brokenLegacyMediaCredentials = legacyMediaCredentialKeys.map((key) =>
+    fixtureFiles.map((file) =>
+      file.processName === 'media-worker'
+        ? { ...file, values: new Map(file.values).set(key, '') }
+        : file,
+    ),
   );
-  const brokenLegacyMediaCertificate = fixtureFiles.map((file) =>
-    file.processName === 'media-worker'
-      ? { ...file, values: new Map(file.values).set('MEDIA_WORKER_CERT', 'legacy-cert') }
-      : file,
-  );
-  for (const broken of [
+  const brokenFixtures = [
     brokenSecret,
     brokenCrossProcessUsername,
     brokenOperationalUsername,
     brokenMediaSecret,
-    brokenLegacyMediaDatabaseUrl,
-    brokenLegacyMediaCertificate,
-  ]) {
+    ...brokenLegacyMediaCredentials,
+  ];
+  for (const broken of brokenFixtures) {
     try {
       validateLoadedFiles(broken);
     } catch {
       detected += 1;
     }
   }
-  if (detected !== 6) fail('self-test did not detect all secret/login collision regressions');
+  if (detected !== brokenFixtures.length) {
+    fail('self-test did not detect all secret/login collision regressions');
+  }
   console.log('saas-c2-secret-preflight self-test: OK');
 }
 

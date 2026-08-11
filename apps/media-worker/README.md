@@ -10,7 +10,7 @@ Node.js воркер, который через authenticated webapp control rou
 
 ## Очередь и claim
 
-- Выбор следующей задачи: [`src/jobs/claim.ts`](./src/jobs/claim.ts) — `claimNextJob`, порядок **`ORDER BY created_at ASC`** среди строк со статусом `pending` (и окном `next_attempt_at`).
+- Worker отправляет `claim` в [`src/control.ts`](./src/control.ts); атомарный выбор следующей задачи выполняет webapp seam [`../webapp/src/app-layer/media/mediaWorkerControl.ts`](../webapp/src/app-layer/media/mediaWorkerControl.ts) под `app_operational_media_worker`. Порядок — **`ORDER BY created_at ASC`** среди строк со статусом `pending` (и окном `next_attempt_at`).
 - Отдельного приоритета для массового **legacy backfill** (скрипт `video-hls-backfill-legacy` в webapp) **нет**: новые загрузки и backfill конкурируют в одной очереди FIFO по времени создания job.
 
 ## Перенос / копирование модуля в другой проект

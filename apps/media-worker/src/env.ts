@@ -18,15 +18,14 @@ function loadDotenv() {
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  DATABASE_URL: z.string().min(1),
-  DB_PRINCIPAL_CONTEXT_MODE: z
-    .enum(['legacy-guc', 'shadow', 'locked'])
-    .optional()
-    .default('legacy-guc'),
-  DB_PRINCIPAL_SIGNING_SECRET: z
+  MEDIA_WORKER_CONTROL_URL: z
     .string()
-    .optional()
-    .transform((value) => (value ?? '').trim()),
+    .url()
+    .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
+      message: 'MEDIA_WORKER_CONTROL_URL must use HTTP or HTTPS',
+    }),
+  INTERNAL_JOB_SECRET: z.string().trim().min(1),
+  MEDIA_WORKER_CONTROL_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   POLL_MS: z.coerce.number().int().positive().default(5000),
   STALE_LOCK_MINUTES: z.coerce.number().int().positive().default(30),
   MAX_TRANSCODE_ATTEMPTS: z.coerce.number().int().positive().default(5),
@@ -52,7 +51,7 @@ const schema = z.object({
 });
 
 const legacyDatabaseCredentialKey =
-  /^(?:DATABASE_URL|PG(?:PASSWORD|SERVICE|SERVICEFILE|SSLCERT|SSLKEY|SSLROOTCERT)|(?:MEDIA(?:_WORKER)?|MEDIA_WORKER)_(?:(?:DATABASE|DB|POSTGRES)_?(?:URL|PASSWORD|PASS|CERT(?:IFICATE)?|KEY|SSL(?:CERT|KEY|ROOTCERT))|URL|PASSWORD|PASS|CERT(?:IFICATE)?|KEY|SSL(?:CERT|KEY|ROOTCERT)))$/;
+  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|PASSWORD|PASS|KEY)(?:_[A-Z0-9]+)*))$/;
 
 /**
  * The media process is deliberately not a PostgreSQL trust domain. Check raw
@@ -77,9 +76,9 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
   assertNoLegacyMediaDatabaseCredentials();
   const parsed = schema.parse({
     NODE_ENV: process.env.NODE_ENV,
-    DATABASE_URL: process.env.DATABASE_URL,
-    DB_PRINCIPAL_CONTEXT_MODE: process.env.DB_PRINCIPAL_CONTEXT_MODE,
-    DB_PRINCIPAL_SIGNING_SECRET: process.env.DB_PRINCIPAL_SIGNING_SECRET,
+    MEDIA_WORKER_CONTROL_URL: process.env.MEDIA_WORKER_CONTROL_URL,
+    INTERNAL_JOB_SECRET: process.env.INTERNAL_JOB_SECRET,
+    MEDIA_WORKER_CONTROL_TIMEOUT_MS: process.env.MEDIA_WORKER_CONTROL_TIMEOUT_MS,
     POLL_MS: process.env.MEDIA_WORKER_POLL_MS ?? process.env.POLL_MS,
     STALE_LOCK_MINUTES: process.env.MEDIA_WORKER_STALE_LOCK_MINUTES,
     MAX_TRANSCODE_ATTEMPTS: process.env.MEDIA_WORKER_MAX_ATTEMPTS,
@@ -94,15 +93,6 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
     S3_REGION: process.env.S3_REGION,
     S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
   });
-  if (
-    (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'shadow' ||
-      parsed.DB_PRINCIPAL_CONTEXT_MODE === 'locked') &&
-    !parsed.DB_PRINCIPAL_SIGNING_SECRET
-  ) {
-    throw new Error(
-      `DB_PRINCIPAL_SIGNING_SECRET is required when DB_PRINCIPAL_CONTEXT_MODE=${parsed.DB_PRINCIPAL_CONTEXT_MODE}.`,
-    );
-  }
   const ffmpegPathResolved =
     parsed.FFMPEG_PATH || (require('@ffmpeg-installer/ffmpeg').path as string);
   const lockId = parsed.MEDIA_WORKER_LOCK_ID || `${hostname()}-${process.pid}`;

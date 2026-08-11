@@ -582,7 +582,7 @@ assert_c4_operational_runtime_ready(){
     WEBAPP_ENV_FILE="$WEBAPP_ENV" \
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
     bash "$DEPLOY_REPO/$C4_OPERATIONAL_READINESS"
-  echo "   C4 operational runtime readiness: OK (four distinct URLs; positive + cross-contour negatives)"
+  echo "   C4 operational runtime readiness: OK (three distinct DB URLs + media HTTP control; positive + cross-contour negatives)"
 }
 
 discover_webapp_staff_runtime_role(){

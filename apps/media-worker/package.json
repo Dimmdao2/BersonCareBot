@@ -5,30 +5,25 @@
   "type": "module",
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "pnpm --dir ../../packages/db-principal run build && pnpm --dir ../../packages/error-tracking run build && pnpm run clean && tsc -p tsconfig.build.json",
+    "build": "pnpm --dir ../../packages/error-tracking run build && pnpm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm --dir ../../packages/db-principal run build && vitest --run --passWithNoTests"
+    "test": "vitest --run --passWithNoTests"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "@bersoncare/error-tracking": "workspace:*",
     "@aws-sdk/client-s3": "3.1107.0",
-    "@bersoncare/db-principal": "workspace:*",
     "@bersoncare/error-tracking": "workspace:*",
-    "drizzle-orm": "^0.45.2",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "dotenv": "^17.4.2",
-    "pg": "^8.23.0",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
-    "@types/pg": "^8.21.0",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
