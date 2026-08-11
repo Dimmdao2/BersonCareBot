@@ -1463,3 +1463,54 @@ PASS принимает удаление третьей media DB-door и deploy 
 
 Этот PASS принимает exact function/seam census, но не full relation grants, atomic artifacts, host mTLS или
 DEV/TEST cutover.
+
+## Audit RELATION-MATRIX-WIP-2026-08-11 — `75c0d9530` + незакоммиченный grants diff
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд**: independent runtime callsite/RLS/role×operation×column review; generator self-check — только контроль |
+| Вердикт | **FAIL — направление верное, но WIP нельзя коммитить/land/deploy** |
+
+`node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --gaps --db bcb_webapp_dev`
+дал `classified=238 active=225 pending=13 unresolved=0 gaps=0`; `git diff --check` — PASS. Это доказывает
+внутреннюю замкнутость декларации, но не least privilege и не работоспособность runtime после cutover.
+
+### REL-001 — живые пути ошибочно попали в PENDING_REMOVAL
+
+**ОТКРЫТО — MUST FIX.** Нулевые grants до переключения кода ломают active runtime: `appointment_records`
+используется projection/purge/merge/admin stats; legacy integrator relations ещё участвуют в channel routing,
+message threads и merge preview. `integrator.identities` дополнительно нужен staff Telegram username path и
+RLS-предикату `telegram_state`. Каждый путь надо атомарно перевести на retained model либо временно вернуть
+relation в ACTIVE с точным доступом. **ИСПРАВЛЕНО В WIP:** шесть duplicate writes в
+`be_appointment_events` удалены; retained `be_appointment_history_events` остаётся write authority.
+
+### REL-002 — tenant grants не совпадают с RLS и реальными операциями
+
+**ОТКРЫТО — MUST FIX.** У `app_tenant_service` найдены `48` relations, где grant существует, но permissive policy
+допускает только staff/patient; calendar sync и platform merge после cutover получают RLS deny. Простое tenant OR
+запрещено: calendar нужны exact SELECT-колонки, merge — главным образом `UPDATE(platform_user_id)`, а не broad
+table UPDATE. Integrator idempotency/data-quality/projection также требуют role-specific scope, а не role-only
+policy.
+
+### REL-003 — lexical upper bound был выдан как privilege authority
+
+**ОТКРЫТО — MUST FIX.** Измеренный WIP всё ещё содержит сотни table-wide staff/tenant operation edges. Достижимые
+примеры: UPDATE audit/history rows; изменение provider payload/idempotency identifiers; расширение payment intent/
+payment UPDATE за реальные `status/updated_at`; лишние DELETE/UPDATE для package/specialist/reference paths.
+Требуется exact role×operation×column census и command-aware org/patient RLS; `gaps=0` критерием завершения не
+является.
+
+### Исправлено громко в том же WIP и должно сохраниться
+
+- **FIXED:** `app_patient` direct table grants сведены к нулю; self-booking идёт через boolean/named roots.
+- **FIXED:** tenant `platform_users` DELETE снят, INSERT/UPDATE ограничиваются конкретными колонками.
+- **FIXED:** `integrator.idempotency_keys` и `integration_data_quality_incidents` переводятся на named seams.
+- **FIXED:** `projection_outbox`: request — exact INSERT; worker — SELECT + exact UPDATE; DELETE/app_service сняты.
+- **FIXED:** tenant `be_appointments` — SELECT `id, package_usage_ref` и UPDATE `platform_user_id`.
+- **FIXED:** лишние operation edges сняты с `be_package_items`, `be_subscription_packages`,
+  `be_specialist_rooms`, `recommendation_regions`.
+- **FIXED:** strict capability tuple восстановлен; migration ledger — named root; deploy gate делает bilateral
+  exact closure и PostgreSQL 16 faults missing/mutated/stale красные.
+
+Следующий gate: законченная narrow matrix + исправленные live PENDING paths + phone completion без delegated-args
+обхода, затем один disposable PostgreSQL 16 reset/regrant behavior proof и повтор этого сохранённого kill-set.
