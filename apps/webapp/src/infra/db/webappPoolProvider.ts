@@ -40,6 +40,11 @@ export type WebappPoolRoutingMetrics = {
   infraSelections: number;
 };
 
+export type WebappPortContextPool = Pool & {
+  /** Atomically cuts new checkouts to a replacement certificate generation, then drains the old. */
+  rotatePortContextPools(next: WebappPortContextRuntimeConfig, drainTimeoutMs?: number): Promise<void>;
+};
+
 const poolRoutingMetrics = new WeakMap<Pool, WebappPoolRoutingMetrics>();
 
 function prepareWebappPoolClient(_client: PoolClient): void {
@@ -319,17 +324,20 @@ export function createWebappPoolProvider(config: WebappPoolProviderConfig): Pool
 function createPortContextWebappPool(
   config: WebappPortContextRuntimeConfig,
   poolFactory: (config: PoolConfig) => Pool,
-): Pool {
-  const staffPool = poolFactory({ ...config.staff, max: 3 });
-  const patientPool = poolFactory({ ...config.patient, max: 2 });
+): WebappPortContextPool {
+  let active = {
+    config,
+    staffPool: poolFactory({ ...config.staff, max: 3 }),
+    patientPool: poolFactory({ ...config.patient, max: 2 }),
+  };
   const metrics = createEmptyRoutingMetrics();
-  let routedPool: Pool;
+  let routedPool: WebappPortContextPool;
 
   const select = () => {
-    const selected = webappPortContextPrincipal(getCurrentDbPrincipal(), config.capabilities);
+    const selected = webappPortContextPrincipal(getCurrentDbPrincipal(), active.config.capabilities);
     if (selected.pool === 'staff') metrics.staffSelections += 1;
     else metrics.nonstaffSelections += 1;
-    return { pool: selected.pool === 'staff' ? staffPool : patientPool, principal: selected.principal };
+    return { pool: selected.pool === 'staff' ? active.staffPool : active.patientPool, principal: selected.principal };
   };
 
   const query = async (...args: Parameters<Pool['query']>): Promise<Awaited<ReturnType<Pool['query']>>> => {
@@ -355,20 +363,51 @@ function createPortContextWebappPool(
     }
   };
 
-  routedPool = new Proxy(staffPool, {
+  const rotatePortContextPools = async (
+    next: WebappPortContextRuntimeConfig,
+    drainTimeoutMs = 30_000,
+  ): Promise<void> => {
+    if (!Number.isSafeInteger(drainTimeoutMs) || drainTimeoutMs < 1) {
+      throw new Error('port-context pool drain timeout must be a positive integer');
+    }
+    const replacement = {
+      config: next,
+      staffPool: poolFactory({ ...next.staff, max: 3 }),
+      patientPool: poolFactory({ ...next.patient, max: 2 }),
+    };
+    const previous = active;
+    // A single synchronous pointer swap is the checkout boundary: old credentials cannot reappear.
+    active = replacement;
+    const drained = Promise.all([previous.staffPool.end(), previous.patientPool.end()]);
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(
+        () => reject(new Error('port-context old webapp pools did not drain before timeout')),
+        drainTimeoutMs,
+      );
+    });
+    try {
+      await Promise.race([drained, timeout]);
+    } finally {
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+    }
+  };
+
+  routedPool = new Proxy(active.staffPool, {
     get(target, prop, receiver): unknown {
       if (prop === 'query') return query;
       if (prop === 'connect') {
         // Direct checkout is only consumed by withClient.ts, which applies the same wrapper.
         return () => select().pool.connect();
       }
-      if (prop === 'end') return async () => Promise.all([staffPool.end(), patientPool.end()]);
-      if (prop === 'totalCount') return staffPool.totalCount + patientPool.totalCount;
-      if (prop === 'idleCount') return staffPool.idleCount + patientPool.idleCount;
-      if (prop === 'waitingCount') return staffPool.waitingCount + patientPool.waitingCount;
+      if (prop === 'rotatePortContextPools') return rotatePortContextPools;
+      if (prop === 'end') return async () => Promise.all([active.staffPool.end(), active.patientPool.end()]);
+      if (prop === 'totalCount') return active.staffPool.totalCount + active.patientPool.totalCount;
+      if (prop === 'idleCount') return active.staffPool.idleCount + active.patientPool.idleCount;
+      if (prop === 'waitingCount') return active.staffPool.waitingCount + active.patientPool.waitingCount;
       return Reflect.get(target, prop, receiver);
     },
-  }) as Pool;
+  }) as WebappPortContextPool;
   poolRoutingMetrics.set(routedPool, metrics);
   return routedPool;
 }

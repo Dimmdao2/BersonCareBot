@@ -5,7 +5,7 @@ import { getCurrentDbPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-p
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
-import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
+import { createIntegratorPoolProvider, type IntegratorPortContextPool } from './integratorPoolProvider.js';
 import { createIntegratorPortContextRuntimeConfig } from './portContextRuntime.js';
 import { integratorDrizzleSchema } from './integratorDrizzleSchema.js';
 import {
@@ -22,7 +22,9 @@ function databaseUrlDiagnostics(): {
   databaseHost?: string;
   databaseName?: string;
 } {
-  const raw = env.DATABASE_URL;
+  const raw = env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+    ? env.INTEGRATOR_DB_URL
+    : env.DATABASE_URL;
   if (raw == null || String(raw).trim() === '') {
     return { databaseUrlConfigured: false };
   }
@@ -90,9 +92,9 @@ function logDbError(fields: Record<string, unknown>, msg: string): void {
 export const db = createIntegratorPoolProvider({
   ...(env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
     ? {
-        connectionString: env.DATABASE_URL,
+        connectionString: env.INTEGRATOR_DB_URL,
         portContext: createIntegratorPortContextRuntimeConfig({
-          DATABASE_URL: env.DATABASE_URL,
+          INTEGRATOR_DB_URL: env.INTEGRATOR_DB_URL,
           INTEGRATOR_DB_LOGIN: env.INTEGRATOR_DB_LOGIN,
           INTEGRATOR_DB_TLS_CA_FILE: env.INTEGRATOR_DB_TLS_CA_FILE,
           INTEGRATOR_DB_TLS_CERT_FILE: env.INTEGRATOR_DB_TLS_CERT_FILE,
@@ -261,6 +263,21 @@ export function createDbPort(pool: Pool = db): DbPort {
       }
     },
   };
+}
+
+/** Runtime certificate-overlap operation: atomically route new checkouts then drain/end old pool. */
+export async function rotateIntegratorPortContextPool(
+  nextEnv: Record<string, string | undefined>,
+  drainTimeoutMs?: number,
+): Promise<void> {
+  if (env.DB_PRINCIPAL_CONTEXT_MODE !== 'port-context') {
+    throw new Error('Integrator port-context pool rotation is unavailable outside port-context mode');
+  }
+  const rotating = db as IntegratorPortContextPool;
+  if (typeof rotating.rotatePortContextPool !== 'function') {
+    throw new Error('Integrator port-context pool rotation is not installed');
+  }
+  await rotating.rotatePortContextPool(createIntegratorPortContextRuntimeConfig(nextEnv), drainTimeoutMs);
 }
 
 /** Проверяет доступность БД коротким health-запросом. */

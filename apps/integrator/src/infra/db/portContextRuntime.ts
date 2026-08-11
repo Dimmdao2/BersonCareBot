@@ -50,18 +50,18 @@ function pem(path: string, name: string): string {
 }
 
 export function createIntegratorPortContextRuntimeConfig(env: Record<string, string | undefined>): IntegratorPortContextRuntimeConfig {
-  const connectionString = requireValue(env.DATABASE_URL, 'DATABASE_URL');
+  const connectionString = requireValue(env.INTEGRATOR_DB_URL, 'INTEGRATOR_DB_URL');
   const expectedLogin = requireValue(env.INTEGRATOR_DB_LOGIN, 'INTEGRATOR_DB_LOGIN');
   let url: URL;
-  try { url = new URL(connectionString); } catch { throw new Error('DATABASE_URL must be a PostgreSQL URL'); }
+  try { url = new URL(connectionString); } catch { throw new Error('INTEGRATOR_DB_URL must be a PostgreSQL URL'); }
   if ((url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') || !url.hostname) {
-    throw new Error('DATABASE_URL must use a TCP PostgreSQL host');
+    throw new Error('INTEGRATOR_DB_URL must use a TCP PostgreSQL host');
   }
   if (decodeURIComponent(url.username) !== expectedLogin) {
-    throw new Error('DATABASE_URL username must equal INTEGRATOR_DB_LOGIN');
+    throw new Error('INTEGRATOR_DB_URL username must equal INTEGRATOR_DB_LOGIN');
   }
   for (const parameter of ['ssl', 'sslmode', 'sslrootcert', 'sslcert', 'sslkey']) {
-    if (url.searchParams.has(parameter)) throw new Error(`DATABASE_URL must not override mTLS through ${parameter}`);
+    if (url.searchParams.has(parameter)) throw new Error(`INTEGRATOR_DB_URL must not override mTLS through ${parameter}`);
   }
   let parsed: unknown;
   try { parsed = JSON.parse(requireValue(env.INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON, 'INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON')); }
@@ -78,6 +78,10 @@ export function createIntegratorPortContextRuntimeConfig(env: Record<string, str
     const descriptor = value as Partial<IntegratorPortCapabilityDescriptor>;
     if (!descriptor.capabilityId || !UUID_RE.test(descriptor.capabilityId) || !descriptor.targetRole || !ROLE_RE.test(descriptor.targetRole) || !descriptor.purpose || !PURPOSE_RE.test(descriptor.purpose) || !['pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'].includes(descriptor.contextClass ?? '')) {
       throw new Error(`port capability ${name} has an invalid descriptor`);
+    }
+    if ((descriptor.purpose === 'relation' && descriptor.functionIdentity) ||
+        (descriptor.purpose !== 'relation' && !descriptor.functionIdentity)) {
+      throw new Error(`port capability ${name} must declare a function identity exactly for a named root`);
     }
     capabilities[name] = descriptor as IntegratorPortCapabilityDescriptor;
   }
@@ -103,7 +107,28 @@ export function integratorPortContextPrincipal(
 ): PortContextPrincipal {
   if (!principal) throw new Error('An integrator principal is required in port-context mode');
   const ambientCapability = capabilityStorage.getStore();
-  const key = ambientCapability ?? (principal.kind === 'integrator' ? 'request' : principal.kind === 'organization' ? 'tenant_service' : principal.kind === 'bootstrap' ? 'resolver' : principal.kind === 'infra' ? 'service' : undefined);
+  const defaultCapability = principal.kind === 'integrator'
+    ? 'request'
+    : principal.kind === 'organization'
+      ? 'tenant_service'
+      : principal.kind === 'bootstrap'
+        ? 'resolver'
+        : principal.kind === 'infra'
+          ? 'service'
+          : undefined;
+  // An outer scheduler/delivery scope must never lend its service capability to a nested
+  // organization transaction. Mismatched scopes fail before the first business query.
+  const key = ambientCapability === undefined
+    ? defaultCapability
+    : ambientCapability === 'request' && principal.kind === 'integrator'
+      ? ambientCapability
+      : ambientCapability === 'resolver' && principal.kind === 'bootstrap'
+        ? ambientCapability
+        : ambientCapability === 'tenant_service' && principal.kind === 'organization'
+          ? ambientCapability
+          : (ambientCapability === 'delivery' || ambientCapability === 'scheduler' || ambientCapability === 'service') && principal.kind === 'infra'
+            ? ambientCapability
+            : undefined;
   if (!key || !capabilities[key]) throw new Error(`Missing declared integrator port capability: ${key ?? principal.kind}`);
   const descriptor = capabilities[key];
   const base = { capabilityId: descriptor.capabilityId, contextClass: descriptor.contextClass, targetRole: descriptor.targetRole, purpose: descriptor.purpose, ...(descriptor.functionIdentity ? { functionIdentity: descriptor.functionIdentity } : {}) };

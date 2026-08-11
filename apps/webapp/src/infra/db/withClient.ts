@@ -9,7 +9,7 @@ import {
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
-import { withPortContextTransaction } from '@bersoncare/db-principal';
+import { startPortContextTransaction, withPortContextTransaction } from '@bersoncare/db-principal';
 import { getPool } from '@/infra/db/client';
 import {
   reportDbCleanupFailure,
@@ -156,6 +156,22 @@ export type PoolTransactionHandle = {
 };
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
+  if (isPortContextMode()) {
+    const client = await pool.connect();
+    let handle: Awaited<ReturnType<typeof startPortContextTransaction>>;
+    try {
+      handle = await startPortContextTransaction(client, currentWebappPortContextPrincipal());
+    } catch (error) {
+      // The shared lifecycle has already destroyed this exact checkout.
+      throw error;
+    }
+    return {
+      client: handle.client as PoolClient,
+      commit: () => handle.commit(),
+      rollback: () => handle.rollback(),
+      release: async () => handle.release(),
+    };
+  }
   // Keep both connection- and transaction-scope installs bound to the pre-checkout identity.
   const principalSnapshot = getCurrentDbPrincipal();
   const principalApplyOptions = getDbPrincipalApplyOptions();

@@ -29,6 +29,14 @@ export type PortContextQueryable = {
   release?(error?: Error): void;
 };
 
+export type PortContextTransactionHandle = {
+  /** The only client that may be used while this declared context is installed. */
+  client: PortContextQueryable;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  release(): void;
+};
+
 export type PortTypedArg = { typeTag: string; value: Buffer | null };
 
 const PURPOSE_RE = /^[a-z][a-z0-9._:-]{0,127}$/;
@@ -201,4 +209,79 @@ export async function withPortContextTransaction<T>(
     client.release?.(failure);
     throw failure;
   }
+}
+
+/**
+ * Starts the same exact-client lifecycle for callers that must keep a bounded session resource
+ * (the scheduler advisory-lock holder and legacy transaction-handle adapters). A query, rollback,
+ * commit, or cleanup failure marks the checkout poisoned; `release()` then destroys it.
+ */
+export async function startPortContextTransaction(
+  rawClient: PortContextQueryable,
+  principal: PortContextPrincipal,
+): Promise<PortContextTransactionHandle> {
+  const integratorUserId = normalizeIntegratorUserId(principal.integratorUserId);
+  assertPrincipal(principal);
+  const requestId = assertUuid('requestId', principal.requestId);
+  const actorRef = assertUuid('actorRef', principal.actorRef);
+  const subjectRef = assertUuid('subjectRef', principal.subjectRef);
+  const organizationId = assertUuid('organizationId', principal.organizationId);
+  const typedArgsHash = hashPortTypedArgs(principal.typedArgs ?? []);
+  let poisoned: Error | undefined;
+  const fail = (error: unknown): Error => {
+    const normalized = error instanceof Error ? error : new Error(String(error));
+    poisoned ??= normalized;
+    return normalized;
+  };
+  const client: PortContextQueryable = {
+    query: async (sql, values) => {
+      try {
+        return await rawClient.query(sql, values);
+      } catch (error) {
+        throw fail(error);
+      }
+    },
+    release: (error) => rawClient.release?.(error),
+  };
+
+  try {
+    await client.query('BEGIN');
+    await client.query('RESET ROLE');
+    await client.query('SELECT app.clear_port_context()');
+    await client.query(
+      'SELECT app.install_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
+      [
+        principal.capabilityId, principal.contextClass, principal.targetRole, principal.purpose,
+        principal.functionIdentity ?? null, typedArgsHash, actorRef, subjectRef, organizationId,
+        integratorUserId, requestId,
+      ],
+    );
+    await client.query(`SET LOCAL ROLE ${principal.targetRole}`);
+  } catch (error) {
+    const failure = fail(error);
+    try { await rawClient.query('ROLLBACK'); } catch { /* the client is destroyed below. */ }
+    rawClient.release?.(failure);
+    throw failure;
+  }
+
+  return {
+    client,
+    commit: async () => {
+      try {
+        await client.query('RESET ROLE');
+        await client.query('SELECT app.clear_port_context()');
+        await client.query('COMMIT');
+      } catch (error) {
+        throw fail(error);
+      }
+    },
+    rollback: async () => {
+      try {
+        await rawClient.query('ROLLBACK');
+      } catch (error) {
+        throw fail(error);
+      }
+    },
+    release: () => rawClient.release?.(poisoned),
+  };
 }

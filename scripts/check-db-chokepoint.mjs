@@ -29,6 +29,9 @@ const disposableOrAdminPoolProviderFiles = new Set([
 const allowedConnectFiles = new Set([
   'apps/webapp/src/infra/db/withClient.ts',
   'apps/integrator/src/infra/db/withClient.ts',
+  // Port-context Drizzle transactions acquire exactly one client and hand it immediately to the
+  // shared lifecycle; this is not a second pool or a generic checkout path.
+  'apps/webapp/src/app-layer/db/drizzle.ts',
   'apps/webapp/src/infra/db/webappPoolProvider.ts',
   'apps/integrator/src/infra/db/integratorPoolProvider.ts',
   'apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts',

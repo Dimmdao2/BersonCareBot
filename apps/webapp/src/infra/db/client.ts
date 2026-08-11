@@ -1,10 +1,11 @@
 import type { Pool } from 'pg';
-import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
+import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { withPoolClient } from '@/infra/db/withClient';
 import {
   createWebappPoolProvider,
   getWebappPoolRoutingMetrics,
+  type WebappPortContextPool,
   type WebappPoolRoutingMetrics,
 } from '@/infra/db/webappPoolProvider';
 import { createWebappPortContextRuntimeConfig } from '@/infra/db/portContextRuntime';
@@ -82,12 +83,53 @@ export function getPool(): Pool {
   return pool;
 }
 
+/** Runtime certificate-overlap operation: new checkouts switch first, old pools then drain/end. */
+export async function rotateWebappPortContextPools(
+  nextEnv: Record<string, string | undefined>,
+  drainTimeoutMs?: number,
+): Promise<void> {
+  if (env.DB_PRINCIPAL_CONTEXT_MODE !== 'port-context') {
+    throw new Error('Webapp port-context pool rotation is unavailable outside port-context mode');
+  }
+  const rotating = getPool() as WebappPortContextPool;
+  if (typeof rotating.rotatePortContextPools !== 'function') {
+    throw new Error('Webapp port-context pool rotation is not installed');
+  }
+  await rotating.rotatePortContextPools(createWebappPortContextRuntimeConfig(nextEnv), drainTimeoutMs);
+}
+
 /** Read the already-collected counters without creating a pool or doing I/O. */
 export function getCurrentWebappPoolRoutingMetrics(): WebappPoolRoutingMetrics | undefined {
   return pool ? getWebappPoolRoutingMetrics(pool) : undefined;
 }
 
 export async function checkDbHealth(): Promise<boolean> {
+  if (env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context') {
+    try {
+      // Validate both target mTLS pools before touching either one; no generic URL may mask a
+      // missing staff/patient credential in the target topology.
+      createWebappPortContextRuntimeConfig({
+        DATABASE_URL_STAFF: env.DATABASE_URL_STAFF,
+        DATABASE_URL_PATIENT: env.DATABASE_URL_PATIENT,
+        WEBAPP_DB_STAFF_LOGIN: env.WEBAPP_DB_STAFF_LOGIN,
+        WEBAPP_DB_PATIENT_LOGIN: env.WEBAPP_DB_PATIENT_LOGIN,
+        WEBAPP_DB_TLS_CA_FILE: env.WEBAPP_DB_TLS_CA_FILE,
+        WEBAPP_DB_STAFF_CERT_FILE: env.WEBAPP_DB_STAFF_CERT_FILE,
+        WEBAPP_DB_STAFF_KEY_FILE: env.WEBAPP_DB_STAFF_KEY_FILE,
+        WEBAPP_DB_PATIENT_CERT_FILE: env.WEBAPP_DB_PATIENT_CERT_FILE,
+        WEBAPP_DB_PATIENT_KEY_FILE: env.WEBAPP_DB_PATIENT_KEY_FILE,
+        WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON,
+      });
+      return await runWithDbInfraPrincipal({ source: 'webapp-health-check' }, () =>
+        withPoolClient(getPool(), async (client) => {
+          await client.query('select 1');
+          return true;
+        }),
+      );
+    } catch {
+      return false;
+    }
+  }
   try {
     resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv());
   } catch {

@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { PoolClient } from 'pg';
 import {
   applyDbPrincipalToTransaction,
   buildDbPrincipalApplyOptionsFromEnv,
@@ -10,7 +11,7 @@ import {
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
-import { hashPortTypedArgs } from '@bersoncare/db-principal';
+import { withPortContextTransaction } from '@bersoncare/db-principal';
 import * as schema from '../../../db/schema';
 import { getPool } from './client';
 import {
@@ -125,45 +126,25 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
     // Drizzle may await pool checkout before entering this callback; preserve the caller identity.
     const principalSnapshot = getCurrentDbPrincipal();
     if (process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context') {
-      return rawTransaction(async (tx) => {
-        const queryable = drizzlePrincipalQueryable(tx);
+      // Do not let Drizzle acquire an unrelated backend before its callback. The shared lifecycle
+      // owns this physical checkout from BEGIN through cleanup and destroys it on every fault.
+      return (async () => {
+        const client = await getPool().connect();
+        let completed = false;
         const runtime = createWebappPortContextRuntimeConfig(process.env);
         const selected = webappPortContextPrincipal(principalSnapshot, runtime.capabilities).principal;
-        const typedArgsHash = hashPortTypedArgs(selected.typedArgs ?? []);
-        let callbackError: unknown;
         try {
-          await queryable.query('RESET ROLE');
-          await queryable.query('SELECT app.clear_port_context()');
-          await queryable.query(
-            'SELECT app.install_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
-            [
-              selected.capabilityId,
-              selected.contextClass,
-              selected.targetRole,
-              selected.purpose,
-              selected.functionIdentity ?? null,
-              typedArgsHash,
-              selected.actorRef ?? null,
-              selected.subjectRef ?? null,
-              selected.organizationId ?? null,
-              selected.integratorUserId === undefined ? null : String(selected.integratorUserId),
-              selected.requestId ?? null,
-            ],
+          const result = await withPortContextTransaction(client, selected, async (sameClient) =>
+            callback(
+              drizzle(sameClient as unknown as PoolClient, { schema }) as unknown as DrizzleTransaction,
+            ),
           );
-          await queryable.query(`SET LOCAL ROLE ${selected.targetRole}`);
-          return await callback(tx);
-        } catch (error) {
-          callbackError = error;
-          throw error;
+          completed = true;
+          return result;
         } finally {
-          try {
-            await queryable.query('RESET ROLE');
-            await queryable.query('SELECT app.clear_port_context()');
-          } catch (error) {
-            if (callbackError === undefined) throw error;
-          }
+          if (completed) client.release();
         }
-      }, config);
+      })() as ReturnType<DrizzleDb['transaction']>;
     }
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
     return rawTransaction(async (tx) => {

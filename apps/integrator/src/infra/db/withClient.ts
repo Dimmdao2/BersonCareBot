@@ -9,7 +9,7 @@ import {
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
-import { withPortContextTransaction } from '@bersoncare/db-principal';
+import { startPortContextTransaction, withPortContextTransaction } from '@bersoncare/db-principal';
 import {
   createIntegratorPortContextRuntimeConfig,
   integratorPortContextPrincipal,
@@ -36,6 +36,24 @@ async function withPortContextPoolTransaction<T>(pool: Pool, fn: (client: PoolCl
   } finally {
     if (completed) client.release();
   }
+}
+
+/** Bounded session resource for the scheduler's declared advisory-lock capability. */
+export async function checkoutIntegratorPortContextSession(pool: Pool): Promise<{
+  client: PoolClient;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  release(): void;
+}> {
+  if (!isPortContextMode()) throw new Error('Port-context scheduler session requested outside port-context mode');
+  const client = await pool.connect();
+  const handle = await startPortContextTransaction(client, currentPortContextPrincipal());
+  return {
+    client: handle.client as PoolClient,
+    commit: () => handle.commit(),
+    rollback: () => handle.rollback(),
+    release: () => handle.release(),
+  };
 }
 
 const principalApplyOptionsByClient = new WeakMap<PoolClient, DbPrincipalApplyOptions>();

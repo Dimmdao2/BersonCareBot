@@ -65,4 +65,19 @@ describe('integrator port-context runtime', () => {
     });
     expect(pools).toBe(1);
   });
+
+  it('fails closed when an organization nested inside a delivery scope would inherit that service capability', () => {
+    const delivery: IntegratorPortCapabilityDescriptor = {
+      ...request,
+      capabilityId: '00000000-0000-0000-0000-000000000104',
+      targetRole: 'app_operational_delivery_worker',
+      contextClass: 'service',
+    };
+    expect(() => runWithIntegratorPortCapability('delivery', () =>
+      integratorPortContextPrincipal(
+        { kind: 'organization', organizationId: ORG },
+        { request, delivery, tenant_service: { ...request, capabilityId: '00000000-0000-0000-0000-000000000105', targetRole: 'app_tenant_service', contextClass: 'tenant_service' } },
+      ),
+    )).toThrow('Missing declared integrator port capability');
+  });
 });

@@ -21,6 +21,10 @@ type IntegratorPoolProviderConfig = {
   portContext?: IntegratorPortContextRuntimeConfig;
 };
 
+export type IntegratorPortContextPool = Pool & {
+  rotatePortContextPool(next: IntegratorPortContextRuntimeConfig, drainTimeoutMs?: number): Promise<void>;
+};
+
 function prepareIntegratorPoolClient(_client: PoolClient): void {
   // Dormant SAAS hook: future per-process DB principal setup belongs here.
 }
@@ -96,14 +100,15 @@ export function createIntegratorPoolProvider(config: IntegratorPoolProviderConfi
 function createPortContextIntegratorPool(
   config: IntegratorPortContextRuntimeConfig,
   poolFactory: (config: PoolConfig) => Pool,
-): Pool {
-  const pool = poolFactory({ ...config.pool, max: 5 });
+): IntegratorPortContextPool {
+  let active = { config, pool: poolFactory({ ...config.pool, max: 5 }) };
   const query = async (...args: Parameters<Pool['query']>): Promise<Awaited<ReturnType<Pool['query']>>> => {
     if (typeof args.at(-1) === 'function') throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
-    const client = await pool.connect();
+    const selected = active;
+    const client = await selected.pool.connect();
     let completed = false;
     try {
-      const principal = integratorPortContextPrincipal(getCurrentDbPrincipal(), config.capabilities);
+      const principal = integratorPortContextPrincipal(getCurrentDbPrincipal(), selected.config.capabilities);
       const result = await withPortContextTransaction(client, principal, async (sameClient) => {
         const clientQuery = sameClient.query.bind(sameClient) as unknown as (
           ...queryArgs: Parameters<Pool['query']>
@@ -116,12 +121,38 @@ function createPortContextIntegratorPool(
       if (completed) client.release();
     }
   };
-  return new Proxy(pool, {
+  const rotatePortContextPool = async (
+    next: IntegratorPortContextRuntimeConfig,
+    drainTimeoutMs = 30_000,
+  ): Promise<void> => {
+    if (!Number.isSafeInteger(drainTimeoutMs) || drainTimeoutMs < 1) {
+      throw new Error('port-context pool drain timeout must be a positive integer');
+    }
+    const replacement = { config: next, pool: poolFactory({ ...next.pool, max: 5 }) };
+    const previous = active;
+    active = replacement;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(
+        () => reject(new Error('port-context old integrator pool did not drain before timeout')),
+        drainTimeoutMs,
+      );
+    });
+    try {
+      await Promise.race([previous.pool.end(), timeout]);
+    } finally {
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+    }
+  };
+  return new Proxy(active.pool, {
     get(target, prop, receiver): unknown {
       if (prop === 'query') return query;
+      if (prop === 'connect') return () => active.pool.connect();
+      if (prop === 'end') return () => active.pool.end();
+      if (prop === 'rotatePortContextPool') return rotatePortContextPool;
       return Reflect.get(target, prop, receiver);
     },
-  }) as Pool;
+  }) as IntegratorPortContextPool;
 }
 
 /** Dedicated true-global telemetry transport; intentionally bypasses request-principal installation. */

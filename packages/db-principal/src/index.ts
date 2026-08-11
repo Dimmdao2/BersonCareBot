@@ -5,10 +5,12 @@ import { isWebappLockedInfraCronSource } from './webappLockedInfraCronSources.js
 export {
   hashPortTypedArgs,
   PORT_CONTEXT_ZERO_ARGS_HASH,
+  startPortContextTransaction,
   withPortContextTransaction,
   type PortContextClass,
   type PortContextPrincipal,
   type PortContextQueryable,
+  type PortContextTransactionHandle,
   type PortTypedArg,
 } from './portContext.js';
 

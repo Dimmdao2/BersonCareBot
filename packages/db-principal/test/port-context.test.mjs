@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { hashPortTypedArgs, withPortContextTransaction } from '../dist/portContext.js';
+import { hashPortTypedArgs, startPortContextTransaction, withPortContextTransaction } from '../dist/portContext.js';
 
 const STAFF_PRINCIPAL = {
   capabilityId: '00000000-0000-0000-0000-000000000101',
@@ -90,4 +90,16 @@ test('rejects an unsafe JavaScript number before serializing an integrator bigin
     /safe integer/i,
   );
   assert.deepEqual(queries, []);
+});
+
+test('manual transaction handle destroys its exact checkout after a business query fault', async () => {
+  const queryFailure = new Error('injected business query failure');
+  const { client, releases } = recordingClient(async (sql) => {
+    if (sql === 'SELECT business_fault') throw queryFailure;
+  });
+  const handle = await startPortContextTransaction(client, STAFF_PRINCIPAL);
+  await assert.rejects(handle.client.query('SELECT business_fault'), queryFailure);
+  await handle.rollback();
+  handle.release();
+  assert.deepEqual(releases, [queryFailure]);
 });

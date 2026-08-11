@@ -99,6 +99,10 @@ function parseCapabilities(raw: string | undefined): Record<string, PortCapabili
     ) {
       throw new Error(`port capability ${name} has an invalid descriptor`);
     }
+    if ((descriptor.purpose === 'relation' && descriptor.functionIdentity) ||
+        (descriptor.purpose !== 'relation' && !descriptor.functionIdentity)) {
+      throw new Error(`port capability ${name} must declare a function identity exactly for a named root`);
+    }
     capabilities[name] = descriptor as PortCapabilityDescriptor;
   }
   return capabilities;
@@ -163,6 +167,12 @@ export function webappPortContextPrincipal(
     case 'platform':
       if (principal.kind !== 'platform') throw new Error('Platform port context requires a platform principal');
       return { pool: 'staff', principal: { ...base, actorRef: principal.platformUserId } };
+    case 'tenant_service':
+      if (principal.kind !== 'organization') throw new Error('Tenant-service port context requires an organization principal');
+      return { pool: 'staff', principal: { ...base, organizationId: principal.organizationId } };
+    case 'service':
+      if (principal.kind !== 'infra') throw new Error('Service port context requires an explicit infra principal');
+      return { pool: 'staff', principal: base };
     case 'pre_session':
       if (principal.kind !== 'bootstrap' || !descriptor.functionIdentity) throw new Error('Pre-session port context requires an explicit named-root capability');
       return { pool: 'staff', principal: { ...base, requestId: randomUUID() } };

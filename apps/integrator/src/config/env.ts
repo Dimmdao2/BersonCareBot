@@ -19,7 +19,9 @@ const parsed = z
       .optional()
       .transform((value) => /^(1|true|yes)$/i.test((value ?? '').trim())),
 
-    DATABASE_URL: z.string().min(1),
+    /** Legacy topology only. The mTLS runtime uses INTEGRATOR_DB_URL exclusively. */
+    DATABASE_URL: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_URL: z.string().optional().transform((value) => (value ?? '').trim()),
     APP_BASE_URL: z
       .string()
       .url()
@@ -65,6 +67,14 @@ if (
   throw new Error(
     `DB_PRINCIPAL_SIGNING_SECRET is required when DB_PRINCIPAL_CONTEXT_MODE=${parsed.DB_PRINCIPAL_CONTEXT_MODE}.`,
   );
+}
+
+if (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' && !parsed.INTEGRATOR_DB_URL) {
+  throw new Error('INTEGRATOR_DB_URL is required when DB_PRINCIPAL_CONTEXT_MODE=port-context.');
+}
+
+if (parsed.DB_PRINCIPAL_CONTEXT_MODE !== 'port-context' && !parsed.DATABASE_URL) {
+  throw new Error('DATABASE_URL is required outside port-context mode.');
 }
 
 /** Нормализованные и валидированные переменные окружения. */

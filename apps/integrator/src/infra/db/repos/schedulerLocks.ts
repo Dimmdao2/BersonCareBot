@@ -5,6 +5,7 @@ import {
   pgTrySessionAdvisoryLock,
 } from '../pgAdvisoryLock.js';
 import {
+  checkoutIntegratorPortContextSession,
   checkoutIntegratorPoolClient,
   destroyPreparedIntegratorClient,
   releasePreparedIntegratorClient,
@@ -31,7 +32,9 @@ export class SchedulerLockLostError extends Error {
 }
 
 export async function tryAcquireSchedulerLock(key: number): Promise<DbLockHandle | null> {
-  const client = await checkoutIntegratorPoolClient(db);
+  const portContext = process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context';
+  const session = portContext ? await checkoutIntegratorPortContextSession(db) : undefined;
+  const client = session?.client ?? await checkoutIntegratorPoolClient(db);
   // This client is held open for the lifetime of the process instead of being returned to the
   // pool, so it never passes through the pool's own idle-client error handling. Without a
   // listener here, a dead connection (DB restart, pgbouncer drop) emits an unhandled 'error' and
@@ -51,7 +54,12 @@ export async function tryAcquireSchedulerLock(key: number): Promise<DbLockHandle
   try {
     const locked = await pgTrySessionAdvisoryLock(client, key);
     if (!locked) {
-      await releasePreparedIntegratorClient(client);
+      if (session) {
+        await session.rollback();
+        session.release();
+      } else {
+        await releasePreparedIntegratorClient(client);
+      }
       return null;
     }
 
@@ -65,9 +73,18 @@ export async function tryAcquireSchedulerLock(key: number): Promise<DbLockHandle
           logger.error({ err }, 'Failed to release scheduler lock');
         } finally {
           if (unlockError) {
-            await destroyPreparedIntegratorClient(client, unlockError);
+            if (session) {
+              try { await session.rollback(); } finally { session.release(); }
+            } else {
+              await destroyPreparedIntegratorClient(client, unlockError);
+            }
           } else {
-            await releasePreparedIntegratorClient(client);
+            if (session) {
+              await session.commit();
+              session.release();
+            } else {
+              await releasePreparedIntegratorClient(client);
+            }
           }
         }
       },
@@ -87,7 +104,11 @@ export async function tryAcquireSchedulerLock(key: number): Promise<DbLockHandle
       },
     };
   } catch (err) {
-    await releasePreparedIntegratorClient(client);
+    if (session) {
+      try { await session.rollback(); } finally { session.release(); }
+    } else {
+      await releasePreparedIntegratorClient(client);
+    }
     throw err;
   }
 }
