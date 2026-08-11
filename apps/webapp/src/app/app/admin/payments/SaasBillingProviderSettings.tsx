@@ -17,7 +17,7 @@ import {
   CardTitle,
 } from '@/shared/ui/doctor/primitives/card';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   Select,
   SelectContent,
@@ -177,17 +177,15 @@ export function SaasBillingProviderSettings() {
         ) : (
           <>
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="saas-yookassa-shop-id">Shop ID</Label>
+              <DoctorField label="Shop ID" htmlFor="saas-yookassa-shop-id">
                 <Input
                   id="saas-yookassa-shop-id"
                   value={shopId}
                   onChange={(event) => setShopId(event.target.value)}
                   autoComplete="off"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="saas-yookassa-api-key">Новый секретный ключ</Label>
+              </DoctorField>
+              <DoctorField label="Новый секретный ключ" htmlFor="saas-yookassa-api-key">
                 <Input
                   id="saas-yookassa-api-key"
                   type="password"
@@ -196,9 +194,8 @@ export function SaasBillingProviderSettings() {
                   placeholder={hasStoredApiKey ? 'Ключ сохранён' : ''}
                   autoComplete="new-password"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="saas-yookassa-webhook-secret">Секрет вебхука</Label>
+              </DoctorField>
+              <DoctorField label="Секрет вебхука" htmlFor="saas-yookassa-webhook-secret">
                 <Input
                   id="saas-yookassa-webhook-secret"
                   type="password"
@@ -207,9 +204,8 @@ export function SaasBillingProviderSettings() {
                   placeholder={hasStoredWebhookSecret ? 'Секрет сохранён' : ''}
                   autoComplete="new-password"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="saas-yookassa-vat-code">НДС в чеке</Label>
+              </DoctorField>
+              <DoctorField label="НДС в чеке" htmlFor="saas-yookassa-vat-code">
                 <Select
                   value={vatCode}
                   onValueChange={(value) => value !== null && setVatCode(value)}
@@ -230,9 +226,8 @@ export function SaasBillingProviderSettings() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="saas-yookassa-tax-system-code">Система налогообложения</Label>
+              </DoctorField>
+              <DoctorField label="Система налогообложения" htmlFor="saas-yookassa-tax-system-code">
                 <Select
                   value={taxSystemCode}
                   onValueChange={(value) => value !== null && setTaxSystemCode(value)}
@@ -253,7 +248,7 @@ export function SaasBillingProviderSettings() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </DoctorField>
             </div>
             <div className="flex items-center gap-3">
               <Button type="button" onClick={() => void save()} disabled={saving || !settings}>

@@ -10,6 +10,7 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import {
@@ -36,9 +37,7 @@ type SlugApiResponse =
     };
 
 type SlugApiErrorCode =
-  | OrganizationSlugMutationErrorCode
-  | 'invalid_body'
-  | 'directory_unavailable';
+  OrganizationSlugMutationErrorCode | 'invalid_body' | 'directory_unavailable';
 
 export function clinicSlugErrorMessage(error: SlugApiErrorCode) {
   switch (error) {
@@ -119,8 +118,11 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
   }
 
   const slugField = (
-    <label className="flex max-w-md flex-col gap-1" htmlFor={fieldId}>
-      <span className="text-sm font-medium">Slug клиники</span>
+    <DoctorField
+      label="Slug клиники"
+      htmlFor={fieldId}
+      hint="Латинские буквы, цифры и дефисы, от 3 до 63 символов."
+    >
       <Input
         id={fieldId}
         value={candidate}
@@ -131,10 +133,7 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
         spellCheck={false}
         disabled={pending}
       />
-      <span className="text-xs text-muted-foreground">
-        Латинские буквы, цифры и дефисы, от 3 до 63 символов.
-      </span>
-    </label>
+    </DoctorField>
   );
 
   return (

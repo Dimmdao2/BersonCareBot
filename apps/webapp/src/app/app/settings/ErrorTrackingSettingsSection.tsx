@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { DoctorSectionActions } from '@/shared/ui/doctor/DoctorSection';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 
@@ -69,9 +70,14 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
             aria-label="Error tracking"
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium">DSN</span>
+        <DoctorField
+          label="DSN"
+          htmlFor="error-tracking-dsn"
+          width="lg"
+          hint="При включении DSN нужно ввести заново. Выключение очищает сохранённый DSN."
+        >
           <Input
+            id="error-tracking-dsn"
             type="password"
             value={dsn}
             onChange={(event) => setDsn(event.target.value)}
@@ -82,10 +88,7 @@ export function ErrorTrackingSettingsSection({ initialEnabled, hasStoredDsn }: P
             autoComplete="off"
             spellCheck={false}
           />
-        </label>
-        <p className="text-xs text-muted-foreground">
-          При включении DSN нужно ввести заново. Выключение очищает сохранённый DSN.
-        </p>
+        </DoctorField>
         {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
         <DoctorSectionActions>
           <Button

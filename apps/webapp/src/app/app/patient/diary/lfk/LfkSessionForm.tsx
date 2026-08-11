@@ -22,6 +22,7 @@ import {
 import { markLfkSession } from './actions';
 import { cn } from '@/lib/utils';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { PatientDatePicker } from '@/shared/ui/patient/PatientDatePicker';
 
 type Complex = { id: string; title: string };
 
@@ -185,10 +186,10 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           <DialogHeader>
             <DialogTitle>Дата занятия</DialogTitle>
           </DialogHeader>
-          <Input
-            type="date"
+          <PatientDatePicker
             value={dateDraft}
-            onChange={(e) => setDateDraft(e.target.value)}
+            onChange={setDateDraft}
+            ariaLabel="Дата занятия"
             className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <DialogFooter className="flex flex-row flex-wrap gap-2 sm:justify-between">

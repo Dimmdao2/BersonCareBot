@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -239,17 +240,16 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
 
       {step === 'enter' ? (
         <div className="flex max-w-md flex-col gap-3">
-          <label className="text-sm font-medium" htmlFor="doctor-account-email">
-            Новый email
-          </label>
-          <Input
-            id="doctor-account-email"
-            type="email"
-            autoComplete="email"
-            value={emailDraft}
-            onChange={(e) => setEmailDraft(e.target.value)}
-            placeholder="email@example.com"
-          />
+          <DoctorField label="Новый email" htmlFor="doctor-account-email">
+            <Input
+              id="doctor-account-email"
+              type="email"
+              autoComplete="email"
+              value={emailDraft}
+              onChange={(e) => setEmailDraft(e.target.value)}
+              placeholder="email@example.com"
+            />
+          </DoctorField>
           {startError ? <p className="text-destructive text-sm">{startError}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => void startEmail()}>
@@ -276,20 +276,19 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
           <p className="text-muted-foreground text-sm">
             Код отправлен на указанный email. Введите его ниже.
           </p>
-          <label className="text-sm font-medium" htmlFor="doctor-account-email-code">
-            Код подтверждения
-          </label>
-          <Input
-            id="doctor-account-email-code"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="000000"
-            maxLength={8}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-            disabled={codeLoading || hardBlocked}
-          />
+          <DoctorField label="Код подтверждения" htmlFor="doctor-account-email-code">
+            <Input
+              id="doctor-account-email-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              maxLength={8}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              disabled={codeLoading || hardBlocked}
+            />
+          </DoctorField>
           {codeError ? <p className="text-destructive text-sm">{codeError}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button

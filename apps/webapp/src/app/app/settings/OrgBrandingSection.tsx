@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -92,8 +92,7 @@ export function OrgBrandingSection({
       ) : null}
 
       <div className="flex max-w-md flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="org-brand-name">Название клиники</Label>
+        <DoctorField label="Название клиники" htmlFor="org-brand-name">
           <Input
             id="org-brand-name"
             value={name}
@@ -104,7 +103,7 @@ export function OrgBrandingSection({
             disabled={!brandingMutationAvailable || saving}
             maxLength={120}
           />
-        </div>
+        </DoctorField>
 
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Логотип</span>

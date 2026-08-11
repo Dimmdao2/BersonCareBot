@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import type { MaterialRatingDetailPreset } from '@/modules/material-rating/detailTimeRange';
 import type {
   MaterialRatingDoctorDetailDay,
@@ -128,24 +128,24 @@ export function MaterialRatingDetailClient({
 
       {preset === 'custom' ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <label className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <span className="text-muted-foreground">С</span>
-            <Input
+            <DoctorDatePicker
+              ariaLabel="Начало периода"
               className="w-auto"
-              type="date"
               value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
+              onChange={setCustomFrom}
             />
-          </label>
-          <label className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
             <span className="text-muted-foreground">По</span>
-            <Input
+            <DoctorDatePicker
+              ariaLabel="Конец периода"
               className="w-auto"
-              type="date"
               value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
+              onChange={setCustomTo}
             />
-          </label>
+          </div>
           <span className="text-xs text-muted-foreground">Не более 31 дня</span>
         </div>
       ) : null}

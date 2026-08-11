@@ -392,22 +392,29 @@ R1 (пациентский адаптив). Дубль заголовка стр
 - R5, global-admin load states: общий `DataLoadFailureNotice` получил штатный retry и гарантированно скрывает
   техническую деталь вне development. На канонические error/loading/empty-ветки переведены ошибки регистрации,
   коммерческие настройки, список и сводка платежей, список клиник для ручного счёта, здоровье системы, архив
-  сбоев и журнал политики тарифа. Основной `AdminAuditLogSection` не включён: один `error` там смешивает сбой
-  загрузки и сбой закрытия конфликта, сначала требуется разнести состояния по назначению.
+  сбоев и журнал политики тарифа. В основном `AdminAuditLogSection` состояния разделены по назначению:
+  `loadError` показывает канонический retry без таблицы, а `resolveError` оставляет уже загруженные строки
+  видимыми после неудачного закрытия конфликта.
 - R4: «Выставить счёт» использует `CardAction`; мобильные действия фильтра платежей складываются вертикально и
   больше не обрезают кнопку выгрузки.
 - B2: `AccountTabs` переведён с вертикального flat-list на `doctorSectionTabClass` и поднят в слот `tabs`
   `DoctorPageHeader`.
 - R7, global-admin: журнал операций, здоровье системы и история политики тарифа форматируют моменты через
   `formatDisplayZoneInstantRu` с `app_display_timezone`; date-фильтры журнала и платежей используют
-  `DoctorDatePicker`. Команда
+  `DoctorDatePicker`. Оставшиеся врачебные/settings-поля также переведены на `DoctorDatePicker`; пациентская
+  дата занятия использует изолированный `PatientDatePicker` на `react-day-picker` и patient primitives.
+  Команда
   `rg -n 'toLocale(Date|Time)?String\(\s*\)' apps/webapp/src --glob '*.{ts,tsx}' --glob '!*.test.*'`
   не возвращает строк. Команда `rg -n 'type="date"' apps/webapp/src --glob '*.tsx' --glob '!*.test.*'`
-  возвращает четыре оставшихся места — только врачебные/пациентские экраны, их без runtime-проверки не трогали.
-- B6 выполнен в подтверждённой безопасной границе: токены `--doctor-field-sm/md/lg`, общий `DoctorField` и
-  ограничение ширины для `Support contact` и полей SMTP. Полная механическая миграция отложена: команда
-  `rg -n '<Input|<SelectTrigger|<Textarea' apps/webapp/src/app/app/admin apps/webapp/src/app/app/settings --glob '*.tsx' | wc -l`
-  возвращает `295`, массово менять этот объём без поэкранной приёмки нельзя.
+  возвращает `0`.
+- B6: токены `--doctor-field-sm/md/lg` и общий `DoctorField` применены по смыслу к активным системным формам:
+  OAuth/VAPID/SMTP, режимам, видео, домену и бренду клиники, email врача, напоминаниям, реквизитам ЮKassa и
+  фильтрам основного журнала. Команда
+  `rg -n '<DoctorField' apps/webapp/src/app/app/admin apps/webapp/src/app/app/settings --glob '*.tsx' | wc -l`
+  возвращает `57` вхождений в `16` файлах (до прохода: `6` в `3`). Счётчик базовых
+  `Input`/`SelectTrigger`/`Textarea` не является прогрессом миграции: эти контролы остаются детьми обёртки.
+  Компактные toolbar/table-контролы и динамические booking/commercial-сетки оставлены до runtime-приёмки,
+  потому что обёртка там меняет композицию, а не только ширину поля.
 
 Runtime 390px подтвердил account tabs и русские date picker на платежах без document-level horizontal overflow.
 Снимки обновлены в игнорируемом `.claude/screenshots/UI-GLOBAL-ADMIN-2026-08-11/`. Повторная попытка открыть

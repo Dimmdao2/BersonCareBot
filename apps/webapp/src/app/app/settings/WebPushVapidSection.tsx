@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { patchAdminSetting } from './patchAdminSetting';
 
 export type WebPushVapidSectionProps = {
@@ -72,19 +73,19 @@ export function WebPushVapidSection({
         </p>
       </CardHeader>
       <CardContent className="flex max-w-xl flex-col gap-4">
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium">Публичный ключ</span>
+        <DoctorField label="Публичный ключ" htmlFor="web-push-public-key" width="lg">
           <Input
+            id="web-push-public-key"
             value={publicKey}
             onChange={(e) => setPublicKey(e.target.value)}
             disabled={isPending}
             autoComplete="off"
             spellCheck={false}
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium">Приватный ключ</span>
+        </DoctorField>
+        <DoctorField label="Приватный ключ" htmlFor="web-push-private-key" width="lg">
           <Input
+            id="web-push-private-key"
             type="password"
             value={privateKeyInput}
             onChange={(e) => setPrivateKeyInput(e.target.value)}
@@ -92,7 +93,7 @@ export function WebPushVapidSection({
             autoComplete="off"
             spellCheck={false}
           />
-        </label>
+        </DoctorField>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" onClick={handleSave} disabled={isPending}>
             Сохранить

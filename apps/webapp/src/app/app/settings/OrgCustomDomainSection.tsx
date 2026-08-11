@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ORG_CUSTOM_DOMAIN_HOSTNAME_KEY } from '@/modules/system-settings/orgCustomDomainHostname';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
-import { Label } from '@/shared/ui/doctor/primitives/label';
+import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -86,14 +86,13 @@ export function OrgCustomDomainSection({
 
       {!mutationAvailable ? (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-muted-foreground">
-          Собственный домен доступен только для просмотра. Сохранённое доменное имя остаётся записанным, но
-          изменения недоступны.
+          Собственный домен доступен только для просмотра. Сохранённое доменное имя остаётся
+          записанным, но изменения недоступны.
         </p>
       ) : null}
 
       <div className="flex max-w-md flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="org-custom-domain-hostname">Доменное имя</Label>
+        <DoctorField label="Доменное имя" htmlFor="org-custom-domain-hostname">
           <Input
             id="org-custom-domain-hostname"
             value={hostname}
@@ -107,7 +106,7 @@ export function OrgCustomDomainSection({
             spellCheck={false}
             disabled={!mutationAvailable || saving}
           />
-        </div>
+        </DoctorField>
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {justSaved && !dirty ? <p className="text-sm text-muted-foreground">Сохранено.</p> : null}
