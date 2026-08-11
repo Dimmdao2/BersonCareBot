@@ -299,7 +299,8 @@ export interface DefinerExceptionsSection {
   defaults: {
     schema: 'app';
     securityDefiner: true;
-    owner: 'app_owner';
+    /** Historical field retained for fixture compatibility; revision 10 never uses it as a fallback. */
+    owner: string;
     searchPath: string[];
     publicExecute: false;
     coveredCount: number;
@@ -431,6 +432,10 @@ export interface PrivilegeDeclaration {
     functions: Record<string, {
       owner: string;
       security: 'DEFINER' | 'INVOKER';
+      /** Exact pg_proc attributes; omission is a declaration gap, never a generator default. */
+      volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
+      parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
+      proconfig: readonly string[];
       execute: readonly string[];
       purpose: string;
       typedArgs: readonly string[];

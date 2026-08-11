@@ -157,6 +157,12 @@ export function collectGaps(declaration, dbName) {
       if (!fn.purpose || !Array.isArray(fn.typedArgs)) {
         add(`portContext.functions.${signature}`, 'function lacks purpose or typed-args recipe');
       }
+      if (!['DEFINER', 'INVOKER'].includes(fn.security)
+        || !['IMMUTABLE', 'STABLE', 'VOLATILE'].includes(fn.volatility)
+        || !['SAFE', 'RESTRICTED', 'UNSAFE'].includes(fn.parallel)
+        || !Array.isArray(fn.proconfig)) {
+        add(`portContext.functions.${signature}`, 'exact security/volatility/parallel/proconfig is required');
+      }
     }
   }
 
@@ -265,6 +271,17 @@ export function collectGaps(declaration, dbName) {
           if (grantee !== 'PUBLIC' && !known(grantee)) add(psite, `неизвестная роль '${grantee}'`);
         }
       }
+    }
+    if (table.disposition === 'ACTIVE') {
+      const policies = table.policies ?? [];
+      const restrictiveContext = policies.some((policy) => !isTodo(policy)
+        && policy.as === 'RESTRICTIVE'
+        && String(policy.using ?? '').includes('app.current_org_id()')
+        && String(policy.withCheck ?? '').includes('app.current_org_id()'));
+      if (!restrictiveContext) add(site, 'active relation lacks the restrictive transaction-context gate');
+      const hasAcl = Object.keys(table.grants ?? {}).length > 0;
+      const permissiveBusiness = policies.some((policy) => !isTodo(policy) && policy.as === 'PERMISSIVE');
+      if (hasAcl && !permissiveBusiness) add(site, 'active relation ACL lacks a declared permissive business policy');
     }
   }
 
@@ -460,7 +477,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
   const isRole = (name) => roles.has(name);
   const resolveOwner = (declared) => (declared === 'migrator' ? dbOwner : declared);
   /** Управляемые роли, у которых безопасно отзывать права на объекте с владельцем `owner`. */
-  const revokeTargets = (owner) => managed.filter((r) => r !== owner);
+  const revokeTargets = (owner) => [...new Set([...managed, ...logins.keys()])].filter((r) => r !== owner).sort();
 
   const out = [];
 
@@ -532,16 +549,40 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       const { qualified } = splitQualified(identity, `portContext.privateRelations.${identity}`);
       out.push(`ALTER TABLE ${qualified} OWNER TO ${q(relation.owner)};`);
       out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM PUBLIC;`);
-      const targets = managed.filter((name) => name !== relation.owner);
+      const targets = revokeTargets(relation.owner);
       if (targets.length > 0) out.push(`REVOKE ALL PRIVILEGES ON TABLE ${qualified} FROM ${revokeList(targets)};`);
     }
     for (const [signature, fn] of Object.entries(portContext.functions).sort(([a], [b]) => a.localeCompare(b))) {
       out.push(`ALTER FUNCTION ${signature} OWNER TO ${q(fn.owner)};`);
       out.push(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);
-      const targets = managed.filter((name) => name !== fn.owner);
+      const targets = revokeTargets(fn.owner);
       if (targets.length > 0) out.push(`REVOKE ALL ON FUNCTION ${signature} FROM ${revokeList(targets)};`);
       if (fn.execute.length > 0) out.push(`GRANT EXECUTE ON FUNCTION ${signature} TO ${[...fn.execute].sort().map(q).join(', ')};`);
+      out.push(`ALTER FUNCTION ${signature} ${fn.security === 'DEFINER' ? 'SECURITY DEFINER' : 'SECURITY INVOKER'};`);
+      out.push(`ALTER FUNCTION ${signature} ${fn.volatility};`);
+      out.push(`ALTER FUNCTION ${signature} PARALLEL ${fn.parallel};`);
+      out.push(`ALTER FUNCTION ${signature} RESET ALL;`);
+      for (const config of fn.proconfig) {
+        const eq = config.indexOf('=');
+        if (eq <= 0) throw new DeclarationGapError([{ site: `portContext.functions.${signature}.proconfig`, reason: `invalid setting '${config}'` }]);
+        out.push(`ALTER FUNCTION ${signature} SET ${q(config.slice(0, eq))} TO ${config.slice(eq + 1)};`);
+      }
     }
+    const functionRows = Object.entries(portContext.functions).sort(([a], [b]) => a.localeCompare(b)).map(([signature, fn]) =>
+      `(${lit(signature)}, ${lit(fn.owner)}, ${fn.security === 'DEFINER' ? 'true' : 'false'}, ${lit({ IMMUTABLE: 'i', STABLE: 's', VOLATILE: 'v' }[fn.volatility])}, ${lit({ SAFE: 's', RESTRICTED: 'r', UNSAFE: 'u' }[fn.parallel])}, ARRAY[${fn.proconfig.map(lit).join(', ')}]::text[])`,
+    );
+    out.push(
+      '-- Catalog-side exact check: owner, SECURITY, volatility, parallel and proconfig for every signature.',
+      'DO $bcb$', 'DECLARE bad text;', 'BEGIN',
+      '  WITH expected(sig, owner_name, is_definer, volatility, parallelism, config) AS (VALUES',
+      functionRows.map((row) => `    ${row}`).join(',\n'),
+      '  ) SELECT e.sig INTO bad FROM expected e LEFT JOIN pg_catalog.pg_proc p ON p.oid = pg_catalog.to_regprocedure(e.sig)',
+      '      WHERE p.oid IS NULL OR pg_catalog.pg_get_userbyid(p.proowner) <> e.owner_name OR p.prosecdef <> e.is_definer',
+      '         OR p.provolatile <> e.volatility OR p.proparallel <> e.parallelism',
+      "         OR coalesce(p.proconfig, ARRAY[]::text[]) IS DISTINCT FROM e.config LIMIT 1;",
+      "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'port-context function catalog mismatch: %', bad; END IF;",
+      'END', '$bcb$;', '',
+    );
     out.push('');
   }
 
@@ -770,42 +811,46 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       out.push(`REVOKE ALL ON FUNCTION ${sig} FROM PUBLIC;`);
     }
   }
-  const defaults = db.definerExceptions?.defaults;
-  if (defaults) {
-    const exceptionRows = [...namedExceptions].sort().map((s) => `      ${lit(s)}`);
+  if (portContext) {
+    const exactDefiners = Object.entries(portContext.functions)
+      .filter(([, fn]) => fn.security === 'DEFINER')
+      .map(([signature]) => lit(signature)).sort();
     out.push(
-      `-- правило по умолчанию (§A.7): каждая SECURITY DEFINER функция схемы ${defaults.schema},`,
-      `-- не названная исключением, обязана иметь владельца ${defaults.owner} и НОЛЬ PUBLIC EXECUTE.`,
-      'DO $bcb$',
-      'DECLARE f record;',
-      'BEGIN',
-      '  FOR f IN SELECT pg_catalog.format(',
-      "             '%I.%I(%s)', n.nspname, p.proname,",
-      "             pg_catalog.replace(pg_catalog.pg_get_function_identity_arguments(p.oid), ', ', ',')",
-      '           ) AS sig',
-      '             FROM pg_catalog.pg_proc p',
-      '             JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
-      `            WHERE n.nspname = ${lit(defaults.schema)} AND p.prosecdef`,
-      ...(exceptionRows.length > 0
-        ? [
-          '              -- ключи исключений сравниваются в форме декларации: схема.имя(типы без пробелов)',
-          '              AND pg_catalog.format(',
-          "                    '%s.%s(%s)', n.nspname, p.proname,",
-          "                    pg_catalog.replace(pg_catalog.pg_get_function_identity_arguments(p.oid), ', ', ',')",
-          '                  ) NOT IN (',
-          exceptionRows.join(',\n'),
-          '              )',
-        ]
-        : []),
-      '            ORDER BY 1 LOOP',
-      `    EXECUTE pg_catalog.format('ALTER FUNCTION %s OWNER TO %I', f.sig, ${lit(defaults.owner)});`,
-      "    EXECUTE pg_catalog.format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', f.sig);",
-      '  END LOOP;',
-      'END',
-      '$bcb$;',
+      '-- SECURITY DEFINER has no fallback owner: every live signature must be declared exactly.',
+      'DO $bcb$', 'DECLARE f text;', 'BEGIN',
+      '  SELECT pg_catalog.format(\'%I.%I(%s)\', n.nspname, p.proname,',
+      "           pg_catalog.replace(pg_catalog.pg_get_function_identity_arguments(p.oid), ', ', ',')) INTO f",
+      '    FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace',
+      "   WHERE p.prosecdef AND n.nspname IN ('app', 'app_ext')",
+      ...(exactDefiners.length > 0 ? [`     AND pg_catalog.format('%I.%I(%s)', n.nspname, p.proname, pg_catalog.replace(pg_catalog.pg_get_function_identity_arguments(p.oid), ', ', ',')) NOT IN (${exactDefiners.join(', ')})`] : []),
+      '   LIMIT 1;',
+      "  IF f IS NOT NULL THEN RAISE EXCEPTION 'undeclared SECURITY DEFINER function: %', f; END IF;",
+      'END', '$bcb$;', '',
     );
   }
   out.push('');
+
+  /* — 9. представления — */
+  out.push(
+    '-- ─────────── 8b. OWNERSHIP: sequences/types/views/invoker functions ───────────',
+    '-- These catalog classes are reconciled even when their ACL surface is empty.',
+    'DO $bcb$', 'DECLARE o record;', 'BEGIN',
+    "  FOR o IN SELECT c.relkind, n.nspname, c.relname FROM pg_catalog.pg_class c",
+    '             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace',
+    "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle')",
+    "              AND c.relkind IN ('S', 'v', 'm') ORDER BY n.nspname, c.relname LOOP",
+    `    EXECUTE pg_catalog.format('ALTER %s %I.%I OWNER TO %I', CASE o.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' ELSE 'MATERIALIZED VIEW' END, o.nspname, o.relname, ${lit(dbOwner)});`,
+    '  END LOOP;',
+    "  FOR o IN SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace",
+    "            WHERE n.nspname IN ('public', 'app', 'integrator', 'app_ext', 'drizzle') AND t.typtype IN ('b', 'c', 'd', 'e', 'r') AND t.typelem = 0 AND t.typrelid = 0 ORDER BY 1, 2 LOOP",
+    `    EXECUTE pg_catalog.format('ALTER TYPE %I.%I OWNER TO %I', o.nspname, o.typname, ${lit(dbOwner)});`,
+    '  END LOOP;',
+    "  FOR o IN SELECT n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS args FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace",
+    "            WHERE n.nspname IN ('app', 'app_ext') AND NOT p.prosecdef ORDER BY 1, 2, 3 LOOP",
+    `    EXECUTE pg_catalog.format('ALTER FUNCTION %I.%I(%s) OWNER TO %I', o.nspname, o.proname, o.args, ${lit(dbOwner)});`,
+    '  END LOOP;',
+    'END', '$bcb$;', '',
+  );
 
   /* — 9. представления — */
   const views = db.functionsViews?.views ?? {};
@@ -926,8 +971,8 @@ export function renderEnvSql(declaration, env, dbName) {
       '  END IF;',
       'END',
       '$bcb$;',
-      `ALTER ROLE ${q(loginName)} LOGIN NOSUPERUSER NOBYPASSRLS `
-      + `${record.inherit ? 'INHERIT' : 'NOINHERIT'} NOCREATEROLE;`,
+      `ALTER ROLE ${q(loginName)} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS `
+      + `${record.inherit ? 'INHERIT' : 'NOINHERIT'};`,
       `ALTER ROLE ${q(loginName)} PASSWORD :'${record.passwordEnv}';`,
     );
     if (record.validUntil) out.push(`ALTER ROLE ${q(loginName)} VALID UNTIL ${lit(record.validUntil)};`);

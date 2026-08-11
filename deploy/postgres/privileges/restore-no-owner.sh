@@ -12,5 +12,7 @@ dump="$2"
 privileges_sql="$3"
 [[ -f "$dump" && -f "$privileges_sql" ]] || { echo 'dump or generated privileges SQL is missing' >&2; exit 66; }
 
-pg_restore --no-owner --no-privileges --dbname="$db" "$dump"
-psql -X -d "$db" -1 -v ON_ERROR_STOP=1 -f "$privileges_sql"
+# Old OWNER metadata is deliberately ignored: application DDL/data is created as the ordinary
+# object owner, then the generated artifact assigns the exact seam owners and ACL/policy wall.
+pg_restore -U postgres --no-owner --no-privileges --role=app_object_owner --dbname="$db" "$dump"
+psql -X -U postgres -d "$db" -1 -v ON_ERROR_STOP=1 -f "$privileges_sql"

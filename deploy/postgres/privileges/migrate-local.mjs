@@ -16,6 +16,14 @@ function value(name) {
   return process.argv[at + 1];
 }
 
+function values(name) {
+  const result = [];
+  for (let i = 0; i < process.argv.length; i += 1) {
+    if (process.argv[i] === `--${name}` && process.argv[i + 1]) result.push(process.argv[i + 1]);
+  }
+  return result;
+}
+
 function sqlIdentifier(value) {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value)) throw new Error(`unsafe role name '${value}'`);
   return `"${value}"`;
@@ -23,11 +31,23 @@ function sqlIdentifier(value) {
 
 const db = value('db');
 const migrator = value('migrator');
-const owners = [value('owner')];
-const migration = realpathSync(resolve(value('migration')));
+const legacyOwners = values('owner');
+const legacyMigration = process.argv.includes('--migration') ? realpathSync(resolve(value('migration'))) : null;
+const steps = values('step').map((step) => {
+  const at = step.indexOf(':');
+  if (at <= 0 || at === step.length - 1) throw new Error(`--step must be <owner>:<sql-file>, got '${step}'`);
+  return { owner: step.slice(0, at), migration: realpathSync(resolve(step.slice(at + 1))) };
+});
+if (steps.length === 0) {
+  if (legacyOwners.length !== 1 || !legacyMigration) {
+    throw new Error('use one legacy --owner + --migration pair, or one or more --step <owner>:<sql-file>');
+  }
+  steps.push({ owner: legacyOwners[0], migration: legacyMigration });
+}
+const owners = [...new Set(steps.map((step) => step.owner))];
 const backfill = process.argv.includes('--backfill') ? realpathSync(resolve(value('backfill'))) : null;
 const post = process.argv.includes('--post') ? realpathSync(resolve(value('post'))) : null;
-if (!existsSync(migration) || (backfill && !existsSync(backfill)) || (post && !existsSync(post))) {
+if (steps.some((step) => !existsSync(step.migration)) || (backfill && !existsSync(backfill)) || (post && !existsSync(post))) {
   throw new Error('migration/backfill/post file does not exist');
 }
 
@@ -38,7 +58,7 @@ const statements = [
   'BEGIN;',
   ...owners.map((owner) => `GRANT ${sqlIdentifier(owner)} TO ${qMigrator} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`),
   `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
-  ...owners.flatMap((owner) => [
+  ...steps.flatMap(({ owner, migration }) => [
     `SET LOCAL ROLE ${sqlIdentifier(owner)};`,
     "SELECT session_user, current_user, has_schema_privilege(current_user, 'public', 'CREATE') AS can_create_public;",
     `\\i ${migration}`,

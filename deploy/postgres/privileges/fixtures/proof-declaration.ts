@@ -118,14 +118,17 @@ const db_bcb_privproof: DatabaseDecl = {
     // ── ДЕФЕКТ №1 (FINDINGS_TABLES.md, часть 3, Н2) ──
     'public.phone_challenges': {
       org: false, // организации у таблицы нет — это глобальная таблица входа
-      rls: 'off', // ЖИВАЯ правда; RLS-backstop — открытый вопрос владельца И1, фикстура его не решает
+      rls: 'force',
       owner: 'migrator',
       grants: {
         // ЦЕЛЬ: у арендных ролей НИ ОДНОГО табличного права. Путь персонала — только
         // EXECUTE на definer-аксессор (см. definerExceptions ниже).
         app_owner: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'], // владелец definer-аксессоров (0245:64)
       },
-      policies: [],
+      policies: [{
+        name: 'phone_challenges_context_gate', as: 'RESTRICTIVE', cmd: 'ALL', to: ['PUBLIC'],
+        using: 'app.current_org_id() IS NOT NULL', withCheck: 'app.current_org_id() IS NOT NULL',
+      }],
       drift: 'ЖИВОЕ: app_staff=arwd на таблице с ОТП открытым текстом. ЦЕЛЬ: ноль табличных прав '
         + 'арендным ролям — запрос без прав обязан дать громкий 42501, а не тихий ноль.',
     },
@@ -134,13 +137,18 @@ const db_bcb_privproof: DatabaseDecl = {
     //    → app_staff USAGE,SELECT — значит, INSERT на самой таблице у app_staff есть).
     'public.integrator_push_outbox': {
       org: false, // organization_id колонки нет (apps/webapp/db/schema/schema.ts:3197-3217)
-      rls: 'off',
+      rls: 'force',
       owner: 'migrator',
       grants: {
         app_staff: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
         app_owner: ['SELECT'],
       },
-      policies: [],
+      policies: [
+        { name: 'integrator_push_outbox_context_gate', as: 'RESTRICTIVE', cmd: 'ALL', to: ['PUBLIC'],
+          using: 'app.current_org_id() IS NOT NULL', withCheck: 'app.current_org_id() IS NOT NULL' },
+        { name: 'integrator_push_outbox_staff', as: 'PERMISSIVE', cmd: 'ALL', to: ['app_staff'],
+          using: 'true', withCheck: 'true' },
+      ],
     },
     // ── ДЕФЕКТ №2 (FACTS §1.2-1.3) ──
     'public.be_organization_members': {
@@ -152,6 +160,9 @@ const db_bcb_privproof: DatabaseDecl = {
         app_owner: ['SELECT', 'INSERT', 'UPDATE'],
       },
       policies: [{
+        name: 'be_organization_members_context_gate', as: 'RESTRICTIVE', cmd: 'ALL', to: ['PUBLIC'],
+        using: 'app.current_org_id() IS NOT NULL', withCheck: 'app.current_org_id() IS NOT NULL',
+      }, {
         name: 'be_organization_members_staff_org',
         as: 'PERMISSIVE', cmd: 'ALL', to: ['app_staff'],
         using: 'organization_id = app.current_org_id()',
