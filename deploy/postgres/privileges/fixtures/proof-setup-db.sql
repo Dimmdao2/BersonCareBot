@@ -6,6 +6,8 @@
 
 \set ON_ERROR_STOP on
 
+GRANT CREATE ON SCHEMA public TO app_proof_owner;
+
 CREATE SCHEMA app AUTHORIZATION app_owner;
 GRANT USAGE ON SCHEMA app TO app_staff, app_patient;
 

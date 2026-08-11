@@ -927,6 +927,26 @@ DEV+TEST login одновременно, candidate правильно ренде
 Следовательно два порта доказаны на одноразовом PG16, но DEV/TEST host ещё не переведён и не защищён этим HBA.
 Нужны штатный host apply/preflight/rollback, per-port env certificate paths и live positive/negative probes.
 
+**Живой DEV/TEST census 11.08 подтверждает finding, не только отсутствие кода.** Команда
+`hostname -I; sudo -u postgres psql -X -v ON_ERROR_STOP=1 -Atc "SELECT current_database(), current_user,
+current_setting('server_version'); SHOW hba_file; SHOW ssl; SHOW ssl_ca_file; SHOW ssl_crl_file; SHOW ssl_cert_file;
+SHOW ssl_key_file;"` доказала target `151.241.228.122`, PostgreSQL `16.14`, `ssl=on`, пустые CA/CRL и штатные
+snakeoil server certificate/key. `sudo awk 'NF && $1 !~ /^#/' /etc/postgresql/16/main/pg_hba.conf` показал общие
+`host all all 127.0.0.1/32 scram-sha-256` и `host all all ::1/128 scram-sha-256`, без обязательного client cert.
+Read-only `pg_authid` census (`rolpassword LIKE 'SCRAM-SHA-256$%'`, без вывода hash) подтвердил, что пароли
+прикладных логинов уже SCRAM; обновление PostgreSQL для этого не требуется. Одновременно `pg_roles` всё ещё
+показывает LOGIN у старых `app_staff`/`app_patient` и семейства TEST operational login (delivery, diagnostic,
+media, scheduler, web-push reminder): host reset/retirement ещё не применён. Logging base уже ведёт ошибки в stderr
+(`log_min_error_statement=error`, systemd journal), но громкий context-denial должен быть доказан после cutover
+живым `42501` и записью PostgreSQL journal.
+
+Тот же live catalog подтверждает старый role-only обход до cutover: запрос
+`SELECT r, pg_has_role(r,'app_platform_settings','MEMBER'), pg_has_role(r,'app_platform_settings','USAGE'),
+pg_has_role(r,'app_platform_settings','SET') FROM unnest(ARRAY['bcb_test_staff_login',
+'bcb_dev_runtime_staff_login']) r` вернул для обоих `MEMBER=t, USAGE=f, SET=t`. Это допустимое SET-membership
+только в целевом контракте, где login имеет ноль relation ACL и каждый запрос требует принятого platform context;
+на текущем host целевой context/RLS reset ещё не применён, поэтому live состояние не считается безопасным.
+
 ## Fix verification MEDIA-DB-DOOR-R2-2026-08-11 — `a5684df48`
 
 | Поле | Значение |
@@ -980,3 +1000,25 @@ context успешно вернул `0`, вместо `42501` и PostgreSQL log 
 
 DECL-008/009 остаются частью того же fixer: полный purpose-backed grant census и deterministic production artifacts,
 а не только fixture artifacts. Штатный proof-run exit `0` признан false-green до закрытия DECL-010/011.
+
+## Fix verification DECL-FAILCLOSED-2026-08-11 — `1017b5686`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent gap fault injection и disposable PostgreSQL 16.14 ACL mutations |
+| Вердикт | **PASS bounded fail-closed gate — к land; grant-этап не готов** |
+
+- **DECL-008 false-green ИСПРАВЛЕН.** `generate-cli.mjs --gaps`, generation, `--stdout` и `--check` завершаются
+  exit `2`, пока relation имеет missing/unresolved/неполный direct access status. На каждой DB machine census:
+  `classified=238 active=225 pending=13 direct=1 unresolved=224 gaps=224`; SQL не создаётся.
+- **DECL-010 перечисленные ACL bypass ИСПРАВЛЕНЫ в verifier.** Независимые mutations PUBLIC relation EXECUTE/ACL,
+  TEST-login ACL в DEV DB, schema USAGE и CREATE дали exit `1`; после каждого revoke verifier снова exit `0`.
+  Отсутствующая declared role не вызывает SQL-ошибку.
+- Fault injection missing status и direct без purpose/code/grant независимо красит `collectGaps()` и generation.
+  Коммит добавляет `0` строк GRANT/REVOKE и не маскирует relations как `no-runtime-surface`.
+- TypeScript strict, три Node syntax checks и `git diff --check` → exit `0`; scope ровно пять файлов,
+  audit worktree чист, disposable clusters удалены.
+
+**ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** `224/225` ACTIVE relations на каждую DB не имеют доказанного per-callsite access;
+production artifacts не regenerated; DECL-011 actual context/no-context `42501` + PostgreSQL log proof отсутствует.
+PASS принимает только защиту от ложной готовности, а не Ф3б/декларацию целиком.

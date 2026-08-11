@@ -169,6 +169,8 @@ export interface LoginRecord {
   mustFold?: string;
   canonicalRole: string | null;
   membership?: Membership;
+  /** Revision-10 permits one port login to SET only its explicitly named runtime roles. */
+  memberships?: Membership[];
   login: true;
   superuser: false;
   bypassrls: false;
@@ -230,6 +232,13 @@ export interface TableDecl {
   grants: Record<string, GrantDecl>;
   /** полный relacl переписью не перечислен (GAP G2) — класс+стена объявлены, ACL не выдуман. */
   grantMatrix?: 'G2-pending';
+  /**
+   * Executable access census.  An ACTIVE relation cannot be generated until it is
+   * either backed by a direct grant, an exact definer seam, or a demonstrated
+   * absence of a runtime surface.  `unresolved` is deliberately machine-readable
+   * so `--gaps` fails instead of treating deny-by-default as an operable matrix.
+   */
+  access?: RelationAccess;
   /** живые гранты, которые модель СНИМАЕТ, с причиной. */
   revoke?: Record<string, string>;
   /** требуемая семантика политик СВЕРХ шаблона стены (тела политик — GAP G8). */
@@ -241,6 +250,12 @@ export interface TableDecl {
   removal?: RemovalDecl;
   drift?: string;
 }
+
+export type RelationAccess =
+  | { kind: 'direct'; codePaths: string[]; purpose: string }
+  | { kind: 'named-seam'; regprocedure: string; owner: string; caller: string; columns: string[]; operations: Privilege[]; purpose: string }
+  | { kind: 'no-runtime-surface'; evidence: string[]; purpose: string }
+  | { kind: 'unresolved'; reason: string; codePaths: string[] };
 
 /**
  * КОМПАКТНАЯ строка таблицы — то, что пишет и читает человек. Всё, что выводится из класса,
@@ -297,7 +312,8 @@ export interface DefinerExceptionsSection {
   defaults: {
     schema: 'app';
     securityDefiner: true;
-    owner: 'app_owner';
+    /** Historical field retained for fixture compatibility; revision 10 never uses it as a fallback. */
+    owner: string;
     searchPath: string[];
     publicExecute: false;
     coveredCount: number;
@@ -422,6 +438,26 @@ export interface PrivilegeDeclaration {
   };
   envMapping: Record<string, Record<string, LoginRecord>>;
   databases: Record<string, DatabaseDecl>;
+  /** Revision-10 transaction-context surface, separate from ordinary relation ACLs. */
+  portContext?: {
+    classes: readonly string[];
+    privateRelations: Record<string, { owner: string; columns: readonly string[] }>;
+    functions: Record<string, {
+      owner: string;
+      security: 'DEFINER' | 'INVOKER';
+      /** Exact SQL result type, compared against pg_proc.prorettype. */
+      returns: string;
+      /** Exact pg_proc attributes; omission is a declaration gap, never a generator default. */
+      volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
+      parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
+      proconfig: readonly string[];
+      execute: readonly string[];
+      /** Add exactly the three login grantees connected to the rendered database. */
+      loginExecute?: true;
+      purpose: string;
+      typedArgs: readonly string[];
+    }>;
+  };
 }
 
 /* ============================================================================================
