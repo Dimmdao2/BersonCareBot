@@ -887,3 +887,42 @@ chokepoint bypass.
   P0.8.5, P0.13, generated grants/policies и product smoke contract зелёные. `git diff --check` → exit `0`.
 - Устаревший комментарий «нет FORCE RLS» исправлен: live contract — FORCE deny-all плюс отсутствие ACL, чтобы
   boundary не зависел от одного слоя.
+
+## Completion audit DECL-OPERABILITY-2026-08-11 — current candidate `a8356d565`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд + executable declaration census / production artifact check** |
+| Вердикт | **FAIL — каталог стал fail-closed, но полная рабочая grant-матрица и artifacts отсутствуют** |
+
+### DECL-008 — `--gaps=0` скрывает незаполненную grant-матрицу
+
+**ОТКРЫТО — MUST FIX.** Прямой импорт `declaration.ts` и census собранных revision-10 DB дал для каждой базы:
+
+```text
+active=225 tablesWithAnyGrant=2 tableGrantEntries=3 permissive=225 restrictive=225 failClosed=75
+```
+
+Исходная семантическая перепись одновременно печатает `grantMatrixPending=225`, `openGaps=G1,G2,G3,G8,G9,G10,G11`,
+но `revision10Database()` принудительно ставит каждому relation `grantMatrix: undefined`; поэтому команда
+`node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --gaps` ложно возвращает по обеим DB
+`пробелов 0`. Grants сейчас есть только у `public.be_appointments` и точечной колонки `public.platform_users`.
+Это безопасный deny-by-default, но не рабочий целевой результат владельца: отсутствует полный exact
+runtime/function → relation/column/operation → purpose census. Нельзя закрывать gap marker, пока каждый живой DB path
+не получил необходимый grant либо не переведён в named seam; positive product paths должны доказать достаточность.
+
+### DECL-009 — production privilege artifacts не соответствуют candidate declaration
+
+**ОТКРЫТО — MUST FIX.** Read-only команда
+`node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --check` → exit `1`: оба privileges
+artifact расходятся, оба allowlist совпадают. Первое расхождение: committed artifact выдаёт install/clear всем шести
+DEV+TEST login одновременно, candidate правильно рендерит только три login своей environment. Production artifacts
+обязаны быть regenerated/tracked и пройти deterministic `--check`; fixture-only `2/2` этого не доказывает.
+
+### HOST-001 — mTLS пока доказан только disposable acceptance, не host cutover
+
+**ОТКРЫТО — ДО DEV/TEST.** `rg` на current `feat` находит exact
+`hostssl ... scram-sha-256 clientcert=verify-full clientname=CN` только в `SCHEME.md` и
+`deploy/postgres/port-context/acceptance.sh`; deploy/host не содержит renderer/install/readiness HBA/CA/CRL contract.
+Следовательно два порта доказаны на одноразовом PG16, но DEV/TEST host ещё не переведён и не защищён этим HBA.
+Нужны штатный host apply/preflight/rollback, per-port env certificate paths и live positive/negative probes.
