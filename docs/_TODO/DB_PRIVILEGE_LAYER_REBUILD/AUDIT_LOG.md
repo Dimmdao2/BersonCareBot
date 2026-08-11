@@ -500,3 +500,42 @@ pool. Конфигурация только с двумя целевыми mTLS 
   config-reader/telemetry/purge/boot pools удалены.
 - Shared `withPortContextTransaction` удерживает callback на exact client и уничтожает checkout на ошибке.
 - Targeted Vitest: webapp `4 passed`, integrator `2 passed`; оба typecheck, chokepoint и self-test — PASS.
+
+## Fix verification TRUST-FIX1-2026-08-11 — `805d801be`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `805d801be`, `wt/port-context-trust` |
+| Метод | **Тест + взгляд**: повтор TRUST-001–006 на disposable PostgreSQL 16, independent catalog census и 13 mutations |
+| Вердикт | **FAIL — TRUST-001/002 и server-half 006 закрыты; TRUST-003/004/005 остаются** |
+
+### Исправлено громко
+
+- **TRUST-001 ИСПРАВЛЕНО `805d801be`.** Staff/service и остальные declared named roots устанавливаются и
+  исполняются с exact function; wrong function/purpose получают `42501`.
+- **TRUST-002 ИСПРАВЛЕНО `805d801be`.** Integrator resolver использует external identity mapping и отвергает
+  неизвестную/inactive cross-org связь; caller-supplied identity/org echo удалён.
+- **TRUST-006 SERVER HALF ИСПРАВЛЕНО `805d801be`.** Два surviving backends перечисляются и завершаются: count
+  `2 → 2 → 0`; PostgreSQL log содержит один revoked-certificate refusal и два administrator termination. Runtime
+  PoolConfig/env overlap/restart остаётся отдельным RUNTIME-009.
+
+### TRUST-003 — opaque handoff работает, но physical context refs всё ещё принимаются
+
+**ОТКРЫТО — MUST FIX.** Следующая staff/patient/platform transaction действительно принимает opaque refs и private
+resolver возвращает physical identity (`variant_map_rows=2`, `mapped_opaque_refs_used_in_context=2`). Но installer
+не валидирует принадлежность actor/subject refs opaque map, а xid-probe сам COMMIT-ит physical actor. Catalog после
+baseline: `physical_ids_in_context_refs=1`. Это нарушает invariant «context row не содержит physical ID».
+
+### TRUST-004 — exact seam ownership/EXECUTE topology не построена
+
+**ОТКРЫТО — MUST FIX.** Catalog census: `seam_owners=42`, `seam_missing_app_usage=0`, но
+`seam_missing_gate_execute=39`, `seam_missing_hash_execute=39`; пять business roots принадлежат fallback
+`app_seam_context_owner`. Revision 10 запрещает owner fallback: каждому signature нужен exact owner и execution graph.
+
+### TRUST-005 — mutation runner всё ещё даёт составные/искусственные красные
+
+**ОТКРЫТО — MUST FIX.** Шесть `wrong_function|purpose|hash|xid|backend|role` заменяют весь gate одним `RETURN true`
+и выполняют один составной mismatch, а не шесть независимых поломок. Три RLS/policy mutations только замечают
+catalog drift и вызывают искусственный `fault_detected`; заявленные cross-tenant/no-context/owner-bypass behavioral
+результаты не выполняются. Каждая mutation должна успешно сломать ровно свой механизм и покраснеть на точном
+достижимом результате.
