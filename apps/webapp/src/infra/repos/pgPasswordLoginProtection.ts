@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type {
   PasswordLoginProtectionPort,
   PasswordProofAdmission,
@@ -31,8 +31,15 @@ type CompleteRow = {
 export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPort {
   return {
     async acquirePasswordProof(params): Promise<PasswordProofAdmission> {
-      const result = await runWebappSql<AcquireRow>(
+      const result = await runWebappNamedRoot<AcquireRow>(
         getWebappSqlDb(),
+        'app.password_login_acquire(text,text,uuid,text)',
+        [
+          params.emailNormalized,
+          params.identifierKey,
+          params.altchaProof?.challengeId ?? null,
+          params.altchaProof?.challengeDigest ?? null,
+        ],
         sql`SELECT
            status,
            lease_token::text AS lease_token,
@@ -70,8 +77,10 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
     },
 
     async completePasswordProof(params): Promise<PasswordProofCompletion> {
-      const result = await runWebappSql<CompleteRow>(
+      const result = await runWebappNamedRoot<CompleteRow>(
         getWebappSqlDb(),
+        'app.password_login_complete(uuid,boolean)',
+        [params.leaseToken, params.passwordVerified],
         sql`SELECT
            accepted,
            succeeded,
@@ -102,16 +111,25 @@ export function createPgPasswordLoginProtectionPort(): PasswordLoginProtectionPo
     },
 
     async readAltchaRootSecret() {
-      const result = await runWebappSql<{ secret: string | null }>(
+      const result = await runWebappNamedRoot<{ secret: string | null }>(
         getWebappSqlDb(),
+        'app.password_login_read_altcha_secret()',
+        [],
         sql`SELECT app.password_login_read_altcha_secret() AS secret`,
       );
       return result.rows[0]?.secret ?? null;
     },
 
     async registerAltchaChallenge(params) {
-      const result = await runWebappSql<{ issued: boolean }>(
+      const result = await runWebappNamedRoot<{ issued: boolean }>(
         getWebappSqlDb(),
+        'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)',
+        [
+          params.emailNormalized,
+          params.challengeId,
+          params.challengeDigest,
+          params.expiresAt,
+        ],
         sql`SELECT app.password_login_issue_altcha_challenge(
            ${params.emailNormalized},
            ${params.challengeId}::uuid,

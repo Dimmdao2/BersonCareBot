@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { hashPortTypedArgs, withPortContextTransaction } from '../dist/portContext.js';
+import {
+  hashPortTypedArgs,
+  portTypedArg,
+  startPortContextTransaction,
+  withPortContextTransaction,
+} from '../dist/portContext.js';
+import { EventEmitter } from 'node:events';
 
 const STAFF_PRINCIPAL = {
   capabilityId: '00000000-0000-0000-0000-000000000101',
@@ -90,4 +96,79 @@ test('rejects an unsafe JavaScript number before serializing an integrator bigin
     /safe integer/i,
   );
   assert.deepEqual(queries, []);
+});
+
+test('manual transaction handle destroys its exact checkout after a business query fault', async () => {
+  const queryFailure = new Error('injected business query failure');
+  const { client, releases } = recordingClient(async (sql) => {
+    if (sql === 'SELECT business_fault') throw queryFailure;
+  });
+  const handle = await startPortContextTransaction(client, STAFF_PRINCIPAL);
+  await assert.rejects(handle.client.query('SELECT business_fault'), queryFailure);
+  await handle.rollback();
+  handle.release();
+  assert.deepEqual(releases, [queryFailure]);
+});
+
+test('accepts an exact named root for a staff context and installs its canonical typed-argument hash', async () => {
+  const { client, queries } = recordingClient();
+  await withPortContextTransaction(
+    client,
+    {
+      ...STAFF_PRINCIPAL,
+      purpose: 'staff.save_profile',
+      functionIdentity: 'app.save_staff_profile(uuid,text)',
+      typedArgs: [
+        portTypedArg('uuid', '00000000-0000-0000-0000-000000000010'),
+        portTypedArg('text', 'Иван'),
+      ],
+    },
+    async () => undefined,
+  );
+  const install = queries.find(([sql]) => sql.includes('app.install_port_context'));
+  assert.ok(install);
+  assert.equal(install[1][4], 'app.save_staff_profile(uuid,text)');
+  assert.deepEqual(
+    install[1][5],
+    hashPortTypedArgs([
+      portTypedArg('uuid', '00000000-0000-0000-0000-000000000010'),
+      portTypedArg('text', 'Иван'),
+    ]),
+  );
+});
+
+test('destroys a checked-out client when principal validation fails before BEGIN', async () => {
+  const failure = recordingClient();
+  await assert.rejects(
+    withPortContextTransaction(
+      failure.client,
+      { ...STAFF_PRINCIPAL, capabilityId: 'not-a-uuid' },
+      async () => undefined,
+    ),
+    /capabilityId must be a UUID/,
+  );
+  assert.deepEqual(failure.queries, []);
+  assert.equal(failure.releases.length, 1);
+  assert.match(failure.releases[0].message, /capabilityId must be a UUID/);
+});
+
+test('manual handle preserves the physical client event surface', async () => {
+  const emitter = new EventEmitter();
+  const raw = Object.assign(emitter, {
+    async query() {
+      return undefined;
+    },
+    release() {
+      /* test checkout */
+    },
+  });
+  const handle = await startPortContextTransaction(raw, STAFF_PRINCIPAL);
+  let seen = false;
+  handle.client.on('physical-error', () => {
+    seen = true;
+  });
+  raw.emit('physical-error');
+  assert.equal(seen, true);
+  await handle.rollback();
+  handle.release();
 });

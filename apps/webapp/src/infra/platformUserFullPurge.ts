@@ -6,7 +6,6 @@
  */
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
-import { getIntegratorPurgePoolProvider } from '@/infra/db/integratorPurgePoolProvider';
 import { startPoolTransaction } from '@/infra/db/withClient';
 import { runPurgeClientPgText, runPurgePoolPgText } from '@/infra/platformUserPurgeSql';
 import {
@@ -50,6 +49,9 @@ export function appendIntegratorSearchPathToConnectionString(connectionString: s
  * - If explicit integrator URL equals `DATABASE_URL`, same `search_path` is applied (single cluster, integrator schema).
  */
 export function getIntegratorPoolForPurge(): Pool | null {
+  if ((process.env.DB_PRINCIPAL_CONTEXT_MODE ?? '').trim() === 'port-context') {
+    return getPool();
+  }
   const explicit =
     trimEnv('INTEGRATOR_DATABASE_URL') ||
     trimEnv('USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL') ||
@@ -75,7 +77,10 @@ export function getIntegratorPoolForPurge(): Pool | null {
     ? appendIntegratorSearchPathToConnectionString(baseUrl)
     : baseUrl;
 
-  return getIntegratorPurgePoolProvider(connectionString);
+  // This is a local administrative compatibility path. Runtime target mode never creates a
+  // second integrator pool; deploy-only tooling owns any separately credentialed migration work.
+  void connectionString;
+  return getPool();
 }
 
 /** Только цифры; для сопоставления записей по номеру. */

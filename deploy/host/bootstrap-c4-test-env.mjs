@@ -13,6 +13,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { declaration } from '../postgres/privileges/declaration.ts';
+import { renderPortContextRuntimeEnv } from '../postgres/privileges/generate.mjs';
 
 const TEST_PATHS = {
   api: '/opt/env/bersoncarebot/api.test',
@@ -43,6 +45,10 @@ const MEDIA_REQUIRED_KEYS = [
   'S3_SECRET_KEY',
   'S3_PRIVATE_BUCKET',
 ];
+const TEST_PORT_CONTEXT = {
+  api: renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'integrator'),
+  webapp: renderPortContextRuntimeEnv(declaration, 'test', 'bersoncarebot_test', 'webapp'),
+};
 const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
   /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|(?:DATABASE|DB|POSTGRES|POSTGRESQL)_(?:URL|PASSWORD|PASS|CONNECTION_STRING)|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
 const CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY =
@@ -166,7 +172,11 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   for (const [key, role] of OPERATIONAL_KEYS) {
     apiAdditions.set(key, api.get(key) || makeUrl(baseUrl, role));
   }
-  const webappAdditions = new Map([['ALLOW_DEV_AUTH_BYPASS', 'false']]);
+  apiAdditions.set(TEST_PORT_CONTEXT.api.key, TEST_PORT_CONTEXT.api.value);
+  const webappAdditions = new Map([
+    ['ALLOW_DEV_AUTH_BYPASS', 'false'],
+    [TEST_PORT_CONTEXT.webapp.key, TEST_PORT_CONTEXT.webapp.value],
+  ]);
 
   const mediaAdditions = new Map([
     ['MEDIA_WORKER_CONTROL_URL', webapp.get('APP_BASE_URL') ?? ''],
@@ -341,6 +351,12 @@ function selfTest() {
     const firstWebapp = parseEnv(readFileSync(webapp, 'utf8'), 'webapp.test');
     if (firstWebapp.get('ALLOW_DEV_AUTH_BYPASS') !== 'false') {
       fail('self-test did not disable dev auth bypass in webapp.test');
+    }
+    if (firstApi.get(TEST_PORT_CONTEXT.api.key) !== TEST_PORT_CONTEXT.api.value) {
+      fail('self-test did not render declaration-owned integrator capabilities');
+    }
+    if (firstWebapp.get(TEST_PORT_CONTEXT.webapp.key) !== TEST_PORT_CONTEXT.webapp.value) {
+      fail('self-test did not render declaration-owned webapp capabilities');
     }
     writeFileSync(
       media,

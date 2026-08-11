@@ -5,18 +5,27 @@ import {
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
 } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, withPortContextTransaction } from '@bersoncare/db-principal';
 import {
   assertIntegratorLockedPrincipalClassified,
-  getCurrentIntegratorTechnicalRuntimeRole,
   prepareIntegratorTechnicalPoolClient,
 } from './withClient.js';
+import {
+  integratorPortContextPrincipal,
+  type IntegratorPortContextRuntimeConfig,
+} from './portContextRuntime.js';
 
 type IntegratorPoolProviderConfig = {
   connectionString: string;
-  diagnosticConnectionString?: string;
-  deliveryWorkerConnectionString?: string;
-  schedulerConnectionString?: string;
   poolFactory?: (config: PoolConfig) => Pool;
+  portContext?: IntegratorPortContextRuntimeConfig;
+};
+
+export type IntegratorPortContextPool = Pool & {
+  rotatePortContextPool(
+    next: IntegratorPortContextRuntimeConfig,
+    drainTimeoutMs?: number,
+  ): Promise<void>;
 };
 
 function prepareIntegratorPoolClient(_client: PoolClient): void {
@@ -32,10 +41,6 @@ function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
   client.release(
     cleanupError instanceof Error ? cleanupError : new Error('DB principal cleanup failed'),
   );
-}
-
-function toTelemetryReleaseError(failure: unknown): Error {
-  return failure instanceof Error ? failure : new Error(String(failure));
 }
 
 function installPrincipalAwarePoolQuery(pool: Pool): void {
@@ -84,102 +89,171 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
 
 export function createIntegratorPoolProvider(config: IntegratorPoolProviderConfig): Pool {
   const poolFactory = config.poolFactory ?? ((poolConfig: PoolConfig) => new Pool(poolConfig));
+  if (config.portContext) return createPortContextIntegratorPool(config.portContext, poolFactory);
   const createPool = (connectionString: string, max: number): Pool => {
     const pool = poolFactory({ connectionString, max });
     pool.on('connect', prepareIntegratorPoolClient);
     installPrincipalAwarePoolQuery(pool);
     return pool;
   };
-  const requestPool = createPool(config.connectionString, 5);
-  const diagnosticConnectionString = config.diagnosticConnectionString?.trim();
-  const deliveryWorkerConnectionString = config.deliveryWorkerConnectionString?.trim();
-  const schedulerConnectionString = config.schedulerConnectionString?.trim();
-  const diagnosticPool = diagnosticConnectionString
-    ? createPool(diagnosticConnectionString, 2)
-    : undefined;
-  const deliveryWorkerPool = deliveryWorkerConnectionString
-    ? createPool(deliveryWorkerConnectionString, 4)
-    : undefined;
-  const schedulerPool = schedulerConnectionString
-    ? createPool(schedulerConnectionString, 2)
-    : undefined;
-  for (const operationalPool of [diagnosticPool, deliveryWorkerPool, schedulerPool]) {
-    operationalPool?.on('error', (error, client) => requestPool.emit('error', error, client));
-  }
-  let routedPool: Pool;
-  const selectPool = (): Pool => {
-    const options = buildDbPrincipalApplyOptionsFromEnv(process.env);
-    const role = options.mode === 'locked' ? getCurrentIntegratorTechnicalRuntimeRole() : undefined;
-    if (role === 'app_operational_diagnostic') {
-      if (!diagnosticPool)
-        throw new Error(
-          'DATABASE_URL_DIAGNOSTIC is required for diagnostic DB access in locked mode',
-        );
-      return diagnosticPool;
-    }
-    if (role === 'app_operational_delivery_worker') {
-      if (!deliveryWorkerPool)
-        throw new Error(
-          'DATABASE_URL_DELIVERY_WORKER is required for delivery worker DB access in locked mode',
-        );
-      return deliveryWorkerPool;
-    }
-    if (role === 'app_operational_scheduler') {
-      if (!schedulerPool)
-        throw new Error(
-          'DATABASE_URL_SCHEDULER is required for scheduler DB access in locked mode',
-        );
-      return schedulerPool;
-    }
-    return requestPool;
+  return createPool(config.connectionString, 5);
+}
+
+/** Target runtime has exactly one integrator physical mTLS pool. */
+function createPortContextIntegratorPool(
+  config: IntegratorPortContextRuntimeConfig,
+  poolFactory: (config: PoolConfig) => Pool,
+): IntegratorPortContextPool {
+  type Generation = {
+    config: IntegratorPortContextRuntimeConfig;
+    pool: Pool;
+    clients: Set<PoolClient>;
   };
-  const routedConnect = (): Promise<PoolClient> => selectPool().connect();
-  const routedQuery = (...args: Parameters<Pool['query']>): ReturnType<Pool['query']> =>
-    selectPool().query(...args);
-  const routedEnd = async (): Promise<void> => {
-    await Promise.all([
-      requestPool.end(),
-      diagnosticPool?.end(),
-      deliveryWorkerPool?.end(),
-      schedulerPool?.end(),
+  const listeners = new Set<(error: Error) => void>();
+  const generations = new Set<Generation>();
+  const wrappedClients = new WeakSet<PoolClient>();
+  const createGeneration = (next: IntegratorPortContextRuntimeConfig): Generation => {
+    const generation = {
+      config: next,
+      pool: poolFactory({ ...next.pool, max: 5 }),
+      clients: new Set<PoolClient>(),
+    };
+    for (const listener of listeners) generation.pool.on('error', listener);
+    generations.add(generation);
+    return generation;
+  };
+  const checkout = async (generation: Generation): Promise<PoolClient> => {
+    const client = await generation.pool.connect();
+    generation.clients.add(client);
+    if (!wrappedClients.has(client)) {
+      const rawRelease = client.release.bind(client);
+      client.release = ((error?: Error) => {
+        generation.clients.delete(client);
+        rawRelease(error);
+      }) as PoolClient['release'];
+      wrappedClients.add(client);
+    }
+    return client;
+  };
+  const preflight = async (generation: Generation): Promise<void> => {
+    const client = await checkout(generation);
+    try {
+      await client.query('SELECT 1');
+    } finally {
+      client.release();
+    }
+  };
+  const endGeneration = async (generation: Generation): Promise<void> => {
+    try {
+      await generation.pool.end();
+    } finally {
+      generations.delete(generation);
+    }
+  };
+  const forceGeneration = (generation: Generation, error: Error): void => {
+    for (const client of [...generation.clients]) client.release(error);
+  };
+  const awaitDrain = async (generation: Generation, timeoutMs: number): Promise<void> => {
+    const ending = endGeneration(generation);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = await Promise.race([
+      ending.then(() => false),
+      new Promise<true>((resolve) => {
+        timer = setTimeout(() => resolve(true), timeoutMs);
+      }),
     ]);
+    if (timer) clearTimeout(timer);
+    if (!timedOut) return;
+    const error = new Error('port-context old integrator pool did not drain before timeout');
+    forceGeneration(generation, error);
+    let forcedTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        ending,
+        new Promise<never>((_, reject) => {
+          forcedTimer = setTimeout(() => reject(error), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (forcedTimer) clearTimeout(forcedTimer);
+    }
   };
-  routedPool = new Proxy(requestPool, {
+  let active = createGeneration(config);
+  const query = async (
+    ...args: Parameters<Pool['query']>
+  ): Promise<Awaited<ReturnType<Pool['query']>>> => {
+    if (typeof args.at(-1) === 'function')
+      throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
+    const selected = active;
+    const execute = async (): Promise<Awaited<ReturnType<Pool['query']>>> => {
+      const principal = integratorPortContextPrincipal(
+        getCurrentDbPrincipal(),
+        selected.config.capabilities,
+      );
+      const client = await checkout(selected);
+      let completed = false;
+      try {
+        const result = await withPortContextTransaction(client, principal, async (sameClient) => {
+          const clientQuery = sameClient.query.bind(sameClient) as unknown as (
+            ...queryArgs: Parameters<Pool['query']>
+          ) => ReturnType<Pool['query']>;
+          return clientQuery(...args);
+        });
+        completed = true;
+        return result as Awaited<ReturnType<Pool['query']>>;
+      } finally {
+        if (completed) client.release();
+      }
+    };
+    return execute();
+  };
+  const rotatePortContextPool = async (
+    next: IntegratorPortContextRuntimeConfig,
+    drainTimeoutMs = 30_000,
+  ): Promise<void> => {
+    if (!Number.isSafeInteger(drainTimeoutMs) || drainTimeoutMs < 1) {
+      throw new Error('port-context pool drain timeout must be a positive integer');
+    }
+    const replacement = createGeneration(next);
+    try {
+      await preflight(replacement);
+    } catch (error) {
+      forceGeneration(replacement, error instanceof Error ? error : new Error(String(error)));
+      await endGeneration(replacement).catch(() => undefined);
+      throw error;
+    }
+    const previous = active;
+    active = replacement;
+    await awaitDrain(previous, drainTimeoutMs);
+  };
+  let proxy: IntegratorPortContextPool;
+  proxy = new Proxy(active.pool, {
     get(target, prop, receiver): unknown {
-      if (prop === 'connect') return routedConnect;
-      if (prop === 'query') return routedQuery;
-      if (prop === 'end') return routedEnd;
+      if (prop === 'query') return query;
+      if (prop === 'connect') return () => checkout(active);
+      if (prop === 'end')
+        return () => Promise.all([...generations].map(endGeneration)).then(() => undefined);
+      if (prop === 'rotatePortContextPool') return rotatePortContextPool;
+      if (prop === 'on')
+        return (event: string, listener: (error: Error) => void) => {
+          if (event === 'error') {
+            listeners.add(listener);
+            for (const generation of generations) generation.pool.on('error', listener);
+          }
+          return proxy;
+        };
+      if (prop === 'off' || prop === 'removeListener')
+        return (event: string, listener: (error: Error) => void) => {
+          if (event === 'error') {
+            listeners.delete(listener);
+            for (const generation of generations) generation.pool.removeListener('error', listener);
+          }
+          return proxy;
+        };
       return Reflect.get(target, prop, receiver);
     },
-  }) as Pool;
-  return routedPool;
+  }) as IntegratorPortContextPool;
+  return proxy;
 }
 
 /** Dedicated true-global telemetry transport; intentionally bypasses request-principal installation. */
-export function createIntegratorSaasIsolationTelemetryPoolProvider(connectionString: string): Pool {
-  return new Pool({
-    connectionString,
-    max: 1,
-    application_name: 'bcb_integrator_saas_telemetry',
-    connectionTimeoutMillis: 250,
-    query_timeout: 200,
-    statement_timeout: 200,
-  });
-}
-
-/** Runs one telemetry operation on a dedicated checked-out client without request-principal installation. */
-export async function withIntegratorSaasIsolationTelemetryClient<T>(
-  pool: Pick<Pool, 'connect'>,
-  fn: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  let failure: unknown;
-  try {
-    return await fn(client);
-  } catch (error) {
-    failure = error;
-    throw error;
-  } finally {
-    client.release(failure === undefined ? undefined : toTelemetryReleaseError(failure));
-  }
-}

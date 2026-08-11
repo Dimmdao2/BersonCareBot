@@ -90,6 +90,7 @@ C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
 C4_MEDIA_LOGIN_RETIREMENT=deploy/host/retire-media-db-login.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
 C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
+PORT_CONTEXT_CAPABILITY_SEED=deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
@@ -570,6 +571,32 @@ bootstrap_and_provision_c4_operational_runtime(){
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
     bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env
   echo "   C4 operational bootstrap/provision: OK (three DB contours + media HTTP control)"
+}
+
+install_port_context_capability_catalog(){
+  local contract_present runtime_mode count
+  contract_present="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc \
+    "SELECT to_regclass('app_ext.port_context_capabilities') IS NOT NULL;")"
+  runtime_mode="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && printf '%s' \"\${DB_PRINCIPAL_CONTEXT_MODE:-legacy-guc}\"")"
+  if [ "$contract_present" != "t" ]; then
+    [ "$runtime_mode" != "port-context" ] || {
+      echo "FATAL: port-context mode requires app_ext.port_context_capabilities before restart" >&2
+      exit 1
+    }
+    echo "   port-context capability catalog: dormant until contract migration"
+    return
+  fi
+  sudo -u postgres psql -d "$DB" -X -1 -v ON_ERROR_STOP=1 \
+    -f "$DEPLOY_REPO/$PORT_CONTEXT_CAPABILITY_SEED" >/dev/null
+  count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc \
+    "SELECT count(*) FROM app_ext.port_context_capabilities
+      WHERE active_until IS NULL
+        AND session_login IN ('bcb_test_webapp_staff','bcb_test_integrator');")"
+  [ "$count" = "10" ] || {
+    echo "FATAL: expected 10 active declaration-owned TEST port-context capabilities, got $count" >&2
+    exit 1
+  }
+  echo "   port-context capability catalog: OK (10 exact declaration-owned rows)"
 }
 
 reapply_c4_operational_runtime_overlays(){
@@ -2787,6 +2814,8 @@ run_strict_post_migration_closure(){
   apply_test_strict_rls_finalizer
   log "strict closure: C4 three-DB + media-control TEST env preflight and root provisioning"
   bootstrap_and_provision_c4_operational_runtime
+  log "strict closure: declaration-owned port-context capability catalog"
+  install_port_context_capability_catalog
 
   # SaaS TEST walkthrough demo-fixture seed removed 2026-07-24 (owner: the Clinic A/B demo data was
   # only needed to validate tenant walls during their setup; the walls are in place, and the
@@ -2882,8 +2911,9 @@ assert_strict_closure_deploy_checkout_ready(){
     "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
-    "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" "$C4_MEDIA_CONTROL_CUTOVER" "$C4_MEDIA_LOGIN_RETIREMENT" \
-    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" \
+    "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
+    "$C4_MEDIA_CONTROL_CUTOVER" "$C4_MEDIA_LOGIN_RETIREMENT" \
+    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" "$PORT_CONTEXT_CAPABILITY_SEED" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
@@ -2905,19 +2935,86 @@ assert_strict_closure_deploy_checkout_ready(){
   assert_test_runtime_mode_ready
 }
 
+run_strict_closure_catalog_self_test(){
+  local catalog_probe_status
+  set +e
+  (
+    set -e
+    P2_B_CONTEXT_INSTALLED=0
+    for function_name in \
+      assert_test_writers_stopped assert_cleanup_elevation log bash \
+      install_p0_5b_runtime_wall install_p2_b_protected_principal_context \
+      rehydrate_post_restore_runtime_overlays provision_saas_isolation_operator_login \
+      install_saas_isolation_telemetry_overlay \
+      install_saas_isolation_telemetry_test_fixtures_overlay \
+      install_saas_system_health_diagnostics_overlay \
+      install_integrator_server_runtime_config_overlay \
+      install_integrator_login_public_identity_grants_overlay \
+      run_saas_isolation_test_scenario_proof grant_api_runtime_migration_ledger_read \
+      assert_api_runtime_can_read_migration_ledger grant_webapp_bootstrap_base_login_d3_4 \
+      sudo apply_test_strict_rls_finalizer bootstrap_and_provision_c4_operational_runtime; do
+      eval "$function_name(){ :; }"
+    done
+    install_port_context_capability_catalog(){ return 73; }
+    # This is the first call after the catalog install. It makes a removed catalog call
+    # fail safely and deterministically instead of reaching any live TEST operation.
+    run_test_patient_identity_capability_gate(){ return 74; }
+    run_strict_post_migration_closure
+  )
+  catalog_probe_status=$?
+  set -e
+  [ "$catalog_probe_status" = "73" ] || {
+    echo "FATAL: shared strict closure did not invoke install_port_context_capability_catalog at the required point (status=$catalog_probe_status)" >&2
+    exit 1
+  }
+  echo "shared strict TEST closure catalog self-test: OK (no env/DB/service/cron mutation)"
+}
+
+resolve_c4_self_test_repo_file(){
+  local self_test_repo_root="$1" relative_path="$2" requested_path resolved_path
+  case "$relative_path" in
+    /*|..|../*|*/../*|*/..)
+      echo "FATAL: unsafe C4 self-test repository path: $relative_path" >&2
+      return 1
+      ;;
+  esac
+  requested_path="$self_test_repo_root/$relative_path"
+  resolved_path="$(realpath "$requested_path")"
+  if [[ ! -f "$requested_path" || -L "$requested_path" || "$resolved_path" != "$self_test_repo_root/"* ]]; then
+    echo "FATAL: C4 self-test artifact escaped current checkout: $relative_path" >&2
+    return 1
+  fi
+  printf '%s\n' "$resolved_path"
+}
+
 run_c4_operational_chain_self_test(){
-  bash -n "$SRC_REPO/deploy/host/deploy-test-saas.sh" \
-    "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" \
-    "$SRC_REPO/$C4_OPERATIONAL_READINESS" \
-    "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" \
-    "$SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT"
-  bash "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" --self-test
-  bash "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" --self-test
-  bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"
-  node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
-  node "$SRC_REPO/deploy/host/saas-c2-secret-preflight.mjs" --self-test
-  node "$SRC_REPO/deploy/host/retire-media-db-login.test.mjs"
-  echo "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)"
+  local self_test_repo_root self_test_deploy_script self_test_provisioner self_test_readiness
+  local self_test_media_cutover self_test_media_retirement self_test_password_smoke
+  local self_test_bootstrap self_test_secret_preflight self_test_retirement_test
+  self_test_repo_root="$(realpath "$DEPLOY_TEST_SAAS_SCRIPT_DIR/../..")"
+  self_test_deploy_script="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/deploy-test-saas.sh)"
+  [ "$self_test_deploy_script" = "$(realpath "${BASH_SOURCE[0]}")" ] || {
+    echo "FATAL: C4 self-test is not bound to the executing checkout" >&2
+    exit 1
+  }
+  self_test_provisioner="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_PROVISIONER")"
+  self_test_readiness="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_READINESS")"
+  self_test_media_cutover="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_CONTROL_CUTOVER")"
+  self_test_media_retirement="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_LOGIN_RETIREMENT")"
+  self_test_password_smoke="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_PASSWORD_SMOKE")"
+  self_test_bootstrap="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/bootstrap-c4-test-env.mjs)"
+  self_test_secret_preflight="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/saas-c2-secret-preflight.mjs)"
+  self_test_retirement_test="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/retire-media-db-login.test.mjs)"
+  run_strict_closure_catalog_self_test
+  bash -n "$self_test_deploy_script" "$self_test_provisioner" "$self_test_readiness" \
+    "$self_test_media_cutover" "$self_test_media_retirement"
+  bash "$self_test_media_cutover" --self-test
+  bash "$self_test_provisioner" --self-test
+  bash "$self_test_password_smoke"
+  node "$self_test_bootstrap" --self-test
+  node "$self_test_secret_preflight" --self-test
+  node "$self_test_retirement_test"
+  echo "C4 canonical fresh wrapper segment + shared catalog closure self-test: OK (checkout=$self_test_repo_root; no env/DB/service/cron mutation)"
 }
 
 full_reset_usage(){
@@ -3001,6 +3098,10 @@ shell_quote(){
 }
 
 case "${1:-}" in
+  --strict-closure-catalog-self-test)
+    run_strict_closure_catalog_self_test
+    exit 0
+    ;;
   --c4-operational-chain-self-test)
     run_c4_operational_chain_self_test
     exit 0
@@ -3069,6 +3170,7 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 [ -x "$SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"; exit 1; }
+[ -r "$SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED"; exit 1; }
 [ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
 sudo node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check

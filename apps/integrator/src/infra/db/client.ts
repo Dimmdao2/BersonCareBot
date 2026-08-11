@@ -5,13 +5,18 @@ import { getCurrentDbPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-p
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
-import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
+import {
+  createIntegratorPoolProvider,
+  type IntegratorPortContextPool,
+} from './integratorPoolProvider.js';
+import { createIntegratorPortContextRuntimeConfig } from './portContextRuntime.js';
 import { integratorDrizzleSchema } from './integratorDrizzleSchema.js';
 import {
   checkoutIntegratorPoolClient,
   prepareIntegratorTransactionClient,
   releasePreparedIntegratorClient,
   withIntegratorPoolClient,
+  withIntegratorPoolTransaction,
 } from './withClient.js';
 import { reportIntegratorIsolationFailure } from '../observability/saasIsolationTelemetry.js';
 
@@ -20,7 +25,8 @@ function databaseUrlDiagnostics(): {
   databaseHost?: string;
   databaseName?: string;
 } {
-  const raw = env.DATABASE_URL;
+  const raw =
+    env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' ? env.INTEGRATOR_DB_URL : env.DATABASE_URL;
   if (raw == null || String(raw).trim() === '') {
     return { databaseUrlConfigured: false };
   }
@@ -86,10 +92,21 @@ function logDbError(fields: Record<string, unknown>, msg: string): void {
 
 /** Общий пул подключений к PostgreSQL. */
 export const db = createIntegratorPoolProvider({
-  connectionString: env.DATABASE_URL,
-  diagnosticConnectionString: env.DATABASE_URL_DIAGNOSTIC,
-  deliveryWorkerConnectionString: env.DATABASE_URL_DELIVERY_WORKER,
-  schedulerConnectionString: env.DATABASE_URL_SCHEDULER,
+  ...(env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+    ? {
+        connectionString: env.INTEGRATOR_DB_URL,
+        portContext: createIntegratorPortContextRuntimeConfig({
+          INTEGRATOR_DB_URL: env.INTEGRATOR_DB_URL,
+          INTEGRATOR_DB_LOGIN: env.INTEGRATOR_DB_LOGIN,
+          INTEGRATOR_DB_TLS_CA_FILE: env.INTEGRATOR_DB_TLS_CA_FILE,
+          INTEGRATOR_DB_TLS_CERT_FILE: env.INTEGRATOR_DB_TLS_CERT_FILE,
+          INTEGRATOR_DB_TLS_KEY_FILE: env.INTEGRATOR_DB_TLS_KEY_FILE,
+          INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON: env.INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON,
+        }),
+      }
+    : {
+        connectionString: env.DATABASE_URL,
+      }),
 });
 
 db.on('error', (err) => {
@@ -142,6 +159,27 @@ export function createDbPort(pool: Pool = db): DbPort {
       }
     },
     async tx<T>(fn: (txDb: DbPort) => Promise<T>): Promise<T> {
+      if (env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context') {
+        return withIntegratorPoolTransaction(pool, async (client) => {
+          const integratorDrizzle = drizzle(client, { schema: integratorDrizzleSchema });
+          const txPort: DbPort = {
+            integratorDrizzle,
+            query: async <Row = QueryResultRow>(
+              sql: string,
+              params?: unknown[],
+            ): Promise<DbQueryResult<Row>> => {
+              const res = await client.query(sql, params);
+              return {
+                rows: res.rows as Row[],
+                ...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
+              };
+            },
+            tx: async <Row>(nested: (inner: DbPort) => Promise<Row>): Promise<Row> =>
+              nested(txPort),
+          };
+          return fn(txPort);
+        });
+      }
       let client;
       try {
         client = await checkoutIntegratorPoolClient(pool);
@@ -230,6 +268,48 @@ export function createDbPort(pool: Pool = db): DbPort {
   };
 }
 
+/** Runtime certificate-overlap operation: atomically route new checkouts then drain/end old pool. */
+export async function rotateIntegratorPortContextPool(
+  nextEnv: Record<string, string | undefined>,
+  drainTimeoutMs?: number,
+): Promise<void> {
+  if (env.DB_PRINCIPAL_CONTEXT_MODE !== 'port-context') {
+    throw new Error(
+      'Integrator port-context pool rotation is unavailable outside port-context mode',
+    );
+  }
+  const rotating = db as IntegratorPortContextPool;
+  if (typeof rotating.rotatePortContextPool !== 'function') {
+    throw new Error('Integrator port-context pool rotation is not installed');
+  }
+  await rotating.rotatePortContextPool(
+    createIntegratorPortContextRuntimeConfig(nextEnv),
+    drainTimeoutMs,
+  );
+}
+
+let rotationSignalInstalled = false;
+let rotationInFlight: Promise<void> | null = null;
+
+/** SIGHUP reloads certificate paths/URL from the process environment without a restart. */
+export function installIntegratorPortContextRotationSignal(): void {
+  if (rotationSignalInstalled || env.DB_PRINCIPAL_CONTEXT_MODE !== 'port-context') return;
+  rotationSignalInstalled = true;
+  process.on('SIGHUP', () => {
+    if (rotationInFlight) return;
+    rotationInFlight = rotateIntegratorPortContextPool(process.env)
+      .catch((error: unknown) => {
+        logger.error(
+          { message: error instanceof Error ? error.message : String(error) },
+          '[db][rotation] integrator port-context rotation failed',
+        );
+      })
+      .finally(() => {
+        rotationInFlight = null;
+      });
+  });
+}
+
 /** Проверяет доступность БД коротким health-запросом. */
 export async function healthCheckDb(): Promise<boolean> {
   try {
@@ -246,3 +326,5 @@ export async function healthCheckDb(): Promise<boolean> {
 export async function closeDb(): Promise<void> {
   await db.end();
 }
+
+installIntegratorPortContextRotationSignal();

@@ -239,8 +239,18 @@ describe('outgoingDeliveryWorker: двойной отказ (обработка 
     const h = harness({
       // ROW_BAD идёт ПЕРВОЙ — так тест доказывает устойчивость тика к порядку.
       claimed: [
-        claimedRow({ id: ROW_BAD, incidentId: 'inc-bad', attemptCount: 6, maxAttempts: 6 }),
-        claimedRow({ id: ROW_OK, incidentId: 'inc-ok', attemptCount: 1, maxAttempts: 6 }),
+        claimedRow({
+          id: ROW_BAD,
+          incidentId: 'f0000000-0000-4000-8000-00000000000f',
+          attemptCount: 6,
+          maxAttempts: 6,
+        }),
+        claimedRow({
+          id: ROW_OK,
+          incidentId: '10000000-0000-4000-8000-000000000001',
+          attemptCount: 1,
+          maxAttempts: 6,
+        }),
       ],
       scopeByRowId: {
         [ROW_BAD]: { queue_kind: 'operator_alert', organization_id: ORG, resolution: 'tenant' },
@@ -282,7 +292,14 @@ describe('outgoingDeliveryWorker: двойной отказ (обработка 
     const ORG = 'd0000000-0000-4000-8000-00000000000d';
 
     const h = harness({
-      claimed: [claimedRow({ id: ROW_ID, incidentId: 'inc-c', attemptCount: 6, maxAttempts: 6 })],
+      claimed: [
+        claimedRow({
+          id: ROW_ID,
+          incidentId: '20000000-0000-4000-8000-000000000002',
+          attemptCount: 6,
+          maxAttempts: 6,
+        }),
+      ],
       scopeByRowId: { [ROW_ID]: { queue_kind: 'operator_alert', organization_id: ORG, resolution: 'tenant' } },
       writeFailsForRowIds: new Set(), // финализация проходит успешно
     });
@@ -326,7 +343,14 @@ describe('outgoingDeliveryWorker: двойной отказ (обработка 
     const ORG = 'd0000000-0000-4000-8000-00000000000d';
 
     const h = harness({
-      claimed: [claimedRow({ id: ROW_ID, incidentId: 'inc-e', attemptCount: 1, maxAttempts: 6 })],
+      claimed: [
+        claimedRow({
+          id: ROW_ID,
+          incidentId: '30000000-0000-4000-8000-000000000003',
+          attemptCount: 1,
+          maxAttempts: 6,
+        }),
+      ],
       scopeByRowId: { [ROW_ID]: { queue_kind: 'operator_alert', organization_id: ORG, resolution: 'tenant' } },
       writeFailsForRowIds: new Set(), // финализация проходит успешно
     });

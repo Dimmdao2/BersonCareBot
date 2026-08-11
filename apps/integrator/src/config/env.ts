@@ -19,7 +19,9 @@ const parsed = z
       .optional()
       .transform((value) => /^(1|true|yes)$/i.test((value ?? '').trim())),
 
-    DATABASE_URL: z.string().min(1),
+    /** Legacy topology only. The mTLS runtime uses INTEGRATOR_DB_URL exclusively. */
+    DATABASE_URL: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_URL: z.string().optional().transform((value) => (value ?? '').trim()),
     APP_BASE_URL: z
       .string()
       .url()
@@ -32,17 +34,19 @@ const parsed = z
         }
       }, 'APP_BASE_URL must use the http or https protocol')
       .transform((value) => value.replace(/\/$/, '')),
-    DATABASE_URL_DIAGNOSTIC: z.string().optional().default(''),
-    DATABASE_URL_DELIVERY_WORKER: z.string().optional().default(''),
-    DATABASE_URL_SCHEDULER: z.string().optional().default(''),
     DB_PRINCIPAL_CONTEXT_MODE: z
-      .enum(['legacy-guc', 'shadow', 'locked'])
+      .enum(['legacy-guc', 'shadow', 'locked', 'port-context'])
       .optional()
       .default('legacy-guc'),
     DB_PRINCIPAL_SIGNING_SECRET: z
       .string()
       .optional()
       .transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_LOGIN: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_TLS_CA_FILE: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_TLS_CERT_FILE: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_DB_TLS_KEY_FILE: z.string().optional().transform((value) => (value ?? '').trim()),
+    INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON: z.string().optional().transform((value) => (value ?? '').trim()),
 
     BOOKING_URL: z.string().min(1),
     CONTENT_SERVICE_BASE_URL: z.string().optional().default(''),
@@ -63,6 +67,14 @@ if (
   throw new Error(
     `DB_PRINCIPAL_SIGNING_SECRET is required when DB_PRINCIPAL_CONTEXT_MODE=${parsed.DB_PRINCIPAL_CONTEXT_MODE}.`,
   );
+}
+
+if (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' && !parsed.INTEGRATOR_DB_URL) {
+  throw new Error('INTEGRATOR_DB_URL is required when DB_PRINCIPAL_CONTEXT_MODE=port-context.');
+}
+
+if (parsed.DB_PRINCIPAL_CONTEXT_MODE !== 'port-context' && !parsed.DATABASE_URL) {
+  throw new Error('DATABASE_URL is required outside port-context mode.');
 }
 
 /** Нормализованные и валидированные переменные окружения. */

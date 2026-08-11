@@ -13,7 +13,7 @@ export async function runSchedulerTick(
   nowIso: string,
   limit = 50,
 ): Promise<number> {
-  return runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs' }, () =>
+  return runWithInfraPrincipal({ source: 'scheduler:claim-due-jobs', portCapability: 'scheduler' }, () =>
     runSchedulerTickInner(deps, nowIso, limit),
   );
 }

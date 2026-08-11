@@ -28,6 +28,8 @@
  * нынешний бардак и вырос.
  */
 
+import { createHash } from 'node:crypto';
+
 export const GENERATOR_VERSION = 1;
 
 /** Канонический порядок привилегий (стабильный дифф). */
@@ -125,6 +127,167 @@ function managedRoleNames(declaration) {
 function functionExecute(db, fn) {
   const logins = fn.loginExecute ? db.database.connect ?? [] : [];
   return [...new Set([...fn.execute, ...logins])].sort();
+}
+
+const PORT_CONTEXT_PURPOSE_RE = /^[a-z][a-z0-9._:-]{0,127}$/;
+
+function deterministicCapabilityId(dbName, loginName, capabilityName) {
+  const bytes = createHash('sha256')
+    .update(`bcb-port-context-capability\0${dbName}\0${loginName}\0${capabilityName}`, 'utf8')
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function portContextLoginRecords(declaration, dbName) {
+  const records = [];
+  for (const [env, mapping] of Object.entries(declaration.envMapping ?? {})) {
+    for (const [loginName, record] of Object.entries(mapping)) {
+      if (record.port && record.connect?.includes(dbName)) records.push({ env, loginName, record });
+    }
+  }
+  return records;
+}
+
+export function resolvePortContextCapabilities(declaration, dbName) {
+  const context = declaration.portContext;
+  if (!context) return [];
+  const roles = declaration.cluster?.roles ?? {};
+  const logins = portContextLoginRecords(declaration, dbName);
+  const rows = [];
+  const exact = new Set();
+  const runtimeNames = new Set();
+  const runtimeSources = new Set();
+  for (const [name, capability] of Object.entries(context.capabilities ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
+    const site = `portContext.capabilities.${name}`;
+    if (!['webapp', 'integrator'].includes(capability.port)) {
+      throw new DeclarationGapError([{ site, reason: `unknown port '${capability.port}'` }]);
+    }
+    if (!roles[capability.sessionRole] || !roles[capability.targetRole]) {
+      throw new DeclarationGapError([{ site, reason: 'sessionRole and targetRole must name declared roles' }]);
+    }
+    if (!context.classes.includes(capability.contextClass)) {
+      throw new DeclarationGapError([{ site, reason: `unknown context class '${capability.contextClass}'` }]);
+    }
+    if (!PORT_CONTEXT_PURPOSE_RE.test(capability.purpose)) {
+      throw new DeclarationGapError([{ site, reason: `invalid purpose '${capability.purpose}'` }]);
+    }
+    const runtimeName = capability.runtimeName ?? name;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(runtimeName)) {
+      throw new DeclarationGapError([{ site, reason: `invalid runtime name '${runtimeName}'` }]);
+    }
+    const runtimeKey = `${capability.port}\0${runtimeName}`;
+    if (runtimeNames.has(runtimeKey)) {
+      throw new DeclarationGapError([{ site, reason: `duplicate ${capability.port} runtime name '${runtimeName}'` }]);
+    }
+    runtimeNames.add(runtimeKey);
+    const isRelation = capability.purpose === 'relation';
+    const hasFunctionIdentity = typeof capability.functionIdentity === 'string';
+    if (isRelation === hasFunctionIdentity || (hasFunctionIdentity
+      && !/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\(.*\)$/.test(capability.functionIdentity))) {
+      throw new DeclarationGapError([{
+        site,
+        reason: 'relation capability must omit functionIdentity; named root must declare an exact identity',
+      }]);
+    }
+    if (capability.runtimeSources !== undefined && (!Array.isArray(capability.runtimeSources)
+      || capability.runtimeSources.some((source) => typeof source !== 'string' || !source.trim()))) {
+      throw new DeclarationGapError([{ site, reason: 'runtimeSources must contain exact non-empty strings' }]);
+    }
+    for (const source of capability.runtimeSources ?? []) {
+      const sourceKey = `${capability.port}\0${source}`;
+      if (runtimeSources.has(sourceKey)) {
+        throw new DeclarationGapError([{ site, reason: `duplicate ${capability.port} runtime source '${source}'` }]);
+      }
+      runtimeSources.add(sourceKey);
+    }
+    const matches = logins.filter(({ record }) =>
+      record.port === capability.port && record.canonicalRole === capability.sessionRole);
+    if (matches.length !== 1) {
+      throw new DeclarationGapError([{
+        site,
+        reason: `expected one ${capability.port} login with canonical role ${capability.sessionRole} for ${dbName}, got ${matches.length}`,
+      }]);
+    }
+    const { loginName } = matches[0];
+    const targetMemberships = matches[0].record.memberships.filter(
+      (membership) => membership.role === capability.targetRole && membership.set,
+    );
+    if (targetMemberships.length !== 1) {
+      throw new DeclarationGapError([{
+        site,
+        reason: `${loginName} must have exactly one SET-able membership in ${capability.targetRole}, got ${targetMemberships.length}`,
+      }]);
+    }
+    const exactKey = [loginName, capability.targetRole, capability.contextClass,
+      capability.purpose, capability.functionIdentity ?? runtimeName].join('\0');
+    if (exact.has(exactKey)) {
+      throw new DeclarationGapError([{ site, reason: 'duplicate exact capability tuple' }]);
+    }
+    exact.add(exactKey);
+    rows.push({
+      name,
+      runtimeName,
+      capabilityId: deterministicCapabilityId(dbName, loginName, name),
+      sessionLogin: loginName,
+      ...capability,
+    });
+  }
+  return rows;
+}
+
+export function renderPortContextRuntimeEnv(declaration, env, dbName, port) {
+  if (!declaration.envMapping?.[env]) throw new Error(`env '${env}' не объявлен в декларации`);
+  if (!['webapp', 'integrator'].includes(port)) throw new Error(`unknown port '${port}'`);
+  const rows = resolvePortContextCapabilities(declaration, dbName).filter((row) => row.port === port);
+  const descriptors = Object.fromEntries(rows.map((row) => [row.runtimeName, {
+    capabilityId: row.capabilityId,
+    targetRole: row.targetRole,
+    contextClass: row.contextClass,
+    purpose: row.purpose,
+    ...(row.functionIdentity ? { functionIdentity: row.functionIdentity } : {}),
+    ...(row.runtimeSources?.length ? { runtimeSources: row.runtimeSources } : {}),
+  }]));
+  const key = port === 'webapp'
+    ? 'WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON'
+    : 'INTEGRATOR_PORT_CONTEXT_CAPABILITIES_JSON';
+  return { key, value: JSON.stringify(descriptors) };
+}
+
+export function generatePortContextCapabilitySeedSql(declaration, dbName) {
+  const rows = resolvePortContextCapabilities(declaration, dbName)
+    .filter((row) => row.functionIdentity);
+  if (!declaration.portContext || rows.length === 0) return '';
+  const managedLogins = portContextLoginRecords(declaration, dbName)
+    .map(({ loginName }) => loginName).sort();
+  const values = rows.map((row) =>
+    `  (${lit(row.capabilityId)}::uuid, ${lit(row.port)}::app.port_name, ${lit(row.sessionLogin)}::name, `
+    + `${lit(row.targetRole)}::name, ${lit(row.contextClass)}::app.port_context_class, ${lit(row.purpose)}, `
+    + `${lit(row.functionIdentity)}::regprocedure)`).join(',\n');
+  return [
+    '-- Declaration-owned production port-context capabilities: exact replace for managed logins.',
+    'CREATE TEMP TABLE bcb_declared_port_context_capabilities ON COMMIT DROP AS',
+    'SELECT * FROM (VALUES',
+    values,
+    ') AS v(capability_id, port, session_login, target_role, context_class, purpose, function_identity);',
+    'DELETE FROM app_ext.port_context_capabilities existing',
+    ` WHERE existing.session_login = ANY (ARRAY[${managedLogins.map(lit).join(', ')}]::name[])`,
+    '   AND existing.function_identity IS NOT NULL',
+    '   AND NOT EXISTS (SELECT 1 FROM bcb_declared_port_context_capabilities declared',
+    '                   WHERE declared.capability_id = existing.capability_id);',
+    'INSERT INTO app_ext.port_context_capabilities',
+    '  (capability_id, port, session_login, target_role, context_class, purpose, function_identity)',
+    'SELECT capability_id, port, session_login, target_role, context_class, purpose, function_identity',
+    '  FROM bcb_declared_port_context_capabilities',
+    'ON CONFLICT (capability_id) DO UPDATE SET',
+    '  port = EXCLUDED.port, session_login = EXCLUDED.session_login, target_role = EXCLUDED.target_role,',
+    '  context_class = EXCLUDED.context_class, purpose = EXCLUDED.purpose,',
+    '  function_identity = EXCLUDED.function_identity, active_until = NULL;',
+    '',
+  ].join('\n');
 }
 
 /* ─────────────────────────── детектор пробелов ─────────────────────────── */
@@ -658,6 +821,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
       "  IF bad IS NOT NULL THEN RAISE EXCEPTION 'port-context function catalog mismatch: %', bad; END IF;",
       'END', '$bcb$;', '',
     );
+    out.push(generatePortContextCapabilitySeedSql(declaration, dbName));
     out.push('');
   }
 

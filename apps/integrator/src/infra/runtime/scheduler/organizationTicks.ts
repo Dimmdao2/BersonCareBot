@@ -21,12 +21,12 @@ export async function runSchedulerOrganizationTicks(
   deps: SchedulerOrganizationTickDeps,
 ): Promise<number> {
   const organizationIds = await runWithInfraPrincipal(
-    { source: 'scheduler:claim-due-jobs' },
+    { source: 'scheduler:claim-due-jobs', portCapability: 'scheduler' },
     deps.listOrganizationIds,
   );
   const occurredAt = deps.nowIso();
   for (const organizationId of organizationIds) {
-    const result = await runWithInfraPrincipal({ source: 'scheduler:handle-tick-event' }, () =>
+    const result = await runWithInfraPrincipal({ source: 'scheduler:handle-tick-event', portCapability: 'scheduler' }, () =>
       deps.eventGateway.handleIncomingEvent(
         {
           type: 'schedule.tick',

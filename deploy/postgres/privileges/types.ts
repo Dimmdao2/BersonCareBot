@@ -442,6 +442,20 @@ export interface PrivilegeDeclaration {
   portContext?: {
     classes: readonly string[];
     privateRelations: Record<string, { owner: string; columns: readonly string[] }>;
+    /** One runtime catalog. Function-bound rows also feed the exact DB seed; relation rows feed env only. */
+    capabilities: Record<string, {
+      port: Port;
+      /** Exact key consumed by the runtime; allows the same key on both physical ports. */
+      runtimeName?: string;
+      /** Canonical role of the one application login used for this capability in each environment. */
+      sessionRole: string;
+      targetRole: string;
+      contextClass: string;
+      purpose: string;
+      functionIdentity?: string;
+      /** Exact infra source allowlist for relation capabilities; empty for typed human principals. */
+      runtimeSources?: readonly string[];
+    }>;
     functions: Record<string, {
       owner: string;
       security: 'DEFINER' | 'INVOKER';
