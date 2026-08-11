@@ -17,6 +17,12 @@ describe('media-worker database door', () => {
       'MEDIA_WORKER_CA',
       'MEDIA_DATABASE_CA',
       'MEDIA_POSTGRESQL_URL',
+      'POSTGRESQL_URL',
+      'POSTGRES_URL',
+      'POSTGRES_PASSWORD',
+      'MEDIA_WORKER_CONNECTION_STRING',
+      'MEDIA_CONNECTION_STRING',
+      'DB_URL',
     ]) {
       expect(() => assertNoLegacyMediaDatabaseCredentials({ [key]: '' }), key).toThrow(key);
     }
@@ -28,6 +34,8 @@ describe('media-worker database door', () => {
         MEDIA_WORKER_CONTROL_URL: 'http://127.0.0.1:6200',
         MEDIA_WORKER_CONTROL_TIMEOUT_MS: '5000',
         MEDIA_WORKER_LOCK_ID: 'worker-1',
+        MEDIA_WORKER_WATERMARK_FONT: '/usr/share/fonts/truetype/test.ttf',
+        MEDIA_WORKER_MAX_ATTEMPTS: '5',
         INTERNAL_JOB_SECRET: 'control-secret',
       }),
     ).not.toThrow();

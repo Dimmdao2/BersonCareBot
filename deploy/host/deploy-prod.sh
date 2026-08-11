@@ -7,6 +7,7 @@ WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.prod
 MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.prod
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
+C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
 SAAS_C2_SECRET_PREFLIGHT=deploy/host/saas-c2-secret-preflight.mjs
 C5A_PLATFORM_OPERATIONS_RUNTIME=deploy/postgres/c5a-platform-operations-runtime.sql
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
@@ -110,6 +111,7 @@ require_file "${MEDIA_WORKER_ENV_FILE}" "Media-worker environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
 require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_RUNTIME}" "C4 operational runtime contract"
 require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}" "C4 operational readiness probe"
+require_file "${PROJECT_ROOT}/${C4_MEDIA_CONTROL_CUTOVER}" "C4 media control cutover sequence"
 require_file "${PROJECT_ROOT}/${SAAS_C2_SECRET_PREFLIGHT}" "SaaS C2 secret preflight"
 require_file "${PROJECT_ROOT}/${C5A_PLATFORM_OPERATIONS_RUNTIME}" "C5A platform operations runtime overlay"
 require_file "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}" "Specialist owner provisioning overlay"
@@ -123,6 +125,9 @@ require_unit_file "${WORKER_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
 require_unit_file "${WEBAPP_SERVICE}"
 require_unit_file "${MEDIA_WORKER_SERVICE}"
+
+# shellcheck source=deploy/host/media-control-cutover-sequence.sh
+source "${PROJECT_ROOT}/${C4_MEDIA_CONTROL_CUTOVER}"
 
 # B0.2 (#1057): refuse before any build/restart work if the artifact retains a mock-payment surface.
 bash "${PROJECT_ROOT}/deploy/host/assert-no-mock-payment-deploy.sh" "${PROJECT_ROOT}"
@@ -200,12 +205,10 @@ psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_INVIT
 
 # Guardrail: fail before service restart if critical public columns are missing (shared list).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
-bash "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}"
 
-sudo -n /bin/systemctl restart "${API_SERVICE}"
-sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
-sudo -n /bin/systemctl restart "${SCHEDULER_SERVICE}"
-
+# The first rollout may not have the three operational DB roles yet. Bring up only the new
+# webapp first, so the root provisioner can prove the authenticated control route without
+# restarting any DB operational process on an unprovisioned contract.
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
 # Next may not listen on 6200 immediately; curl exits 7 on connection refused — retry like /health below.
 chunk_url="http://127.0.0.1:6200/_next/static/chunks/${sample_chunk}"
@@ -226,7 +229,27 @@ if [ "${chunk_ok}" != "1" ]; then
   fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (last HTTP ${chunk_http_code:-<none>})"
 fi
 
-sudo -n /bin/systemctl restart "${MEDIA_WORKER_SERVICE}"
+media_cutover_require_new_webapp_running(){
+  [ "${chunk_ok}" = "1" ] || fail "new webapp did not reach the media-control cutover gate"
+}
+media_cutover_require_authenticated_control(){
+  bash "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}"
+}
+media_cutover_require_legacy_login_retired(){
+  local absent
+  absent="$(psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -qAtc \
+    "SELECT (to_regrole('bcb_prod_operational_media_login') IS NULL)::text;")"
+  [ "${absent}" = "true" ] ||
+    fail "legacy media DB login still exists; root must run provision-c4-operational-runtime.sh now that the new webapp is live, then rerun deploy"
+}
+media_cutover_restart_worker(){
+  sudo -n /bin/systemctl restart "${MEDIA_WORKER_SERVICE}"
+}
+run_media_control_cutover_sequence
+
+sudo -n /bin/systemctl restart "${API_SERVICE}"
+sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
+sudo -n /bin/systemctl restart "${SCHEDULER_SERVICE}"
 if ! sudo -n /bin/systemctl is-active --quiet "${MEDIA_WORKER_SERVICE}"; then
   echo "deploy-prod: ${MEDIA_WORKER_SERVICE} is not active. Last journal lines:" >&2
   sudo -n journalctl -u "${MEDIA_WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true

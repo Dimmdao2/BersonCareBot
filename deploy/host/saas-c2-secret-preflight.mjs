@@ -7,7 +7,9 @@ const REQUIRED_PROCESS_NAMES = new Set(['webapp', 'integrator', 'media-worker'])
 const REQUIRED_SHARED_KEYS = ['DB_PRINCIPAL_CONTEXT_MODE', 'DB_PRINCIPAL_SIGNING_SECRET'];
 const MEDIA_CONTROL_KEYS = ['MEDIA_WORKER_CONTROL_URL', 'INTERNAL_JOB_SECRET'];
 const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
-  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|PASSWORD|PASS|KEY)(?:_[A-Z0-9]+)*))$/;
+  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|(?:DATABASE|DB|POSTGRES|POSTGRESQL)_(?:URL|PASSWORD|PASS|CONNECTION_STRING)|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
+const CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY =
+  /^(?:DATABASE_URL_MEDIA_WORKER|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
 const WEBAPP_DATABASE_URL_KEYS = [
   'DATABASE_URL_STAFF',
   'DATABASE_URL_NONSTAFF',
@@ -191,9 +193,14 @@ function validateLoadedFiles(loadedFiles) {
 
   const webapp = seen.get('webapp');
   const mediaWorker = seen.get('media-worker');
-  for (const key of mediaWorker?.values.keys() ?? []) {
-    if (LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
-      fail(`media-worker must not receive legacy database credential ${key}`);
+  for (const file of loadedFiles) {
+    for (const key of file.values.keys()) {
+      if (CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
+        fail(`${file.processName} must not declare media-worker database credential ${key}`);
+      }
+      if (file.processName === 'media-worker' && LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
+        fail(`media-worker must not receive legacy database credential ${key}`);
+      }
     }
   }
   for (const key of MEDIA_CONTROL_KEYS) {
@@ -410,6 +417,12 @@ INTERNAL_JOB_SECRET=control-secret
     'MEDIA_WORKER_CA',
     'MEDIA_DATABASE_CA',
     'MEDIA_POSTGRESQL_URL',
+    'POSTGRESQL_URL',
+    'POSTGRES_URL',
+    'POSTGRES_PASSWORD',
+    'MEDIA_WORKER_CONNECTION_STRING',
+    'MEDIA_CONNECTION_STRING',
+    'DB_URL',
   ];
   const brokenLegacyMediaCredentials = legacyMediaCredentialKeys.map((key) =>
     fixtureFiles.map((file) =>
@@ -424,6 +437,13 @@ INTERNAL_JOB_SECRET=control-secret
     brokenOperationalUsername,
     brokenMediaSecret,
     ...brokenLegacyMediaCredentials,
+    ...['webapp', 'integrator', 'media-worker'].map((processName) =>
+      fixtureFiles.map((file) =>
+        file.processName === processName
+          ? { ...file, values: new Map(file.values).set('DATABASE_URL_MEDIA_WORKER', '') }
+          : file,
+      ),
+    ),
   ];
   for (const broken of brokenFixtures) {
     try {

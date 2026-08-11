@@ -8,7 +8,16 @@ WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-operational-runtime.sql"
 PASSWORD_SETTER="$PROJECT_ROOT/deploy/host/set-postgres-role-password.mjs"
+MEDIA_LOGIN_RETIREMENT="$PROJECT_ROOT/deploy/host/retire-media-db-login.sh"
 TEST_BOOTSTRAP=0
+
+legacy_media_login_for_database(){
+  case "$1" in
+    bersoncarebot_test) printf '%s\n' bcb_test_operational_media_login ;;
+    bersoncarebot) printf '%s\n' bcb_prod_operational_media_login ;;
+    *) return 1 ;;
+  esac
+}
 
 validate_test_bootstrap_paths(){
   [ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ] || { echo "FATAL: TEST bootstrap requires canonical TEST project root" >&2; return 1; }
@@ -74,6 +83,18 @@ run_self_test(){
     echo "FATAL: self-test accepted non-canonical TEST database" >&2
     return 1
   fi
+  [ "$(legacy_media_login_for_database bersoncarebot_test)" = bcb_test_operational_media_login ] || {
+    echo "FATAL: self-test resolved wrong TEST legacy media login" >&2
+    return 1
+  }
+  [ "$(legacy_media_login_for_database bersoncarebot)" = bcb_prod_operational_media_login ] || {
+    echo "FATAL: self-test resolved wrong PROD legacy media login" >&2
+    return 1
+  }
+  if legacy_media_login_for_database unknown_database >/dev/null 2>&1; then
+    echo "FATAL: self-test accepted unknown database for legacy media login retirement" >&2
+    return 1
+  fi
   echo "provision-c4-operational-runtime self-test: OK"
 }
 
@@ -123,6 +144,7 @@ fi
 [ -r "$MEDIA_WORKER_ENV_FILE" ] || { echo "FATAL: cannot read $MEDIA_WORKER_ENV_FILE" >&2; exit 1; }
 [ -r "$OVERLAY" ] || { echo "FATAL: cannot read $OVERLAY" >&2; exit 1; }
 [ -x "$PASSWORD_SETTER" ] || { echo "FATAL: cannot execute $PASSWORD_SETTER" >&2; exit 1; }
+[ -x "$MEDIA_LOGIN_RETIREMENT" ] || { echo "FATAL: cannot execute $MEDIA_LOGIN_RETIREMENT" >&2; exit 1; }
 
 # Reject any webapp/API/operator role reuse before CREATE/ALTER/password mutation.
 node "$PROJECT_ROOT/deploy/host/saas-c2-secret-preflight.mjs" \
@@ -201,6 +223,18 @@ sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
   -v c4_scheduler_login_role="${roles[2]}" \
   -f - < "$OVERLAY"
 
+if [ "$TEST_BOOTSTRAP" = "1" ]; then
+  API_ENV_FILE="$API_ENV_FILE" WEBAPP_ENV_FILE="$WEBAPP_ENV_FILE" MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV_FILE" \
+    bash "$PROJECT_ROOT/deploy/host/assert-c4-operational-runtime-ready.sh" --database-only
+  echo "C4 root/DB-admin provisioning: OK (three DB contours prepared; media retirement waits for the new webapp control route)"
+  exit 0
+fi
 API_ENV_FILE="$API_ENV_FILE" WEBAPP_ENV_FILE="$WEBAPP_ENV_FILE" MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV_FILE" \
   bash "$PROJECT_ROOT/deploy/host/assert-c4-operational-runtime-ready.sh"
-echo "C4 root/DB-admin provisioning: OK"
+
+legacy_media_login="$(legacy_media_login_for_database "$database")" || {
+  echo "FATAL: no exact legacy media login declaration for database $database" >&2
+  exit 1
+}
+bash "$MEDIA_LOGIN_RETIREMENT" --database "$database" --role "$legacy_media_login"
+echo "C4 root/DB-admin provisioning: OK (legacy media DB login retired)"

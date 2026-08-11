@@ -28,6 +28,13 @@ if [[ -L "$RUNTIME_OVERLAY_LIB" || ! -f "$RUNTIME_OVERLAY_LIB" || "$(realpath "$
 fi
 # shellcheck source=deploy/host/runtime-overlay-rehydrate-lib.sh
 source "$RUNTIME_OVERLAY_LIB"
+MEDIA_CONTROL_CUTOVER_LIB="$DEPLOY_TEST_SAAS_SCRIPT_DIR/media-control-cutover-sequence.sh"
+if [[ -L "$MEDIA_CONTROL_CUTOVER_LIB" || ! -f "$MEDIA_CONTROL_CUTOVER_LIB" || "$(realpath "$MEDIA_CONTROL_CUTOVER_LIB")" != "$MEDIA_CONTROL_CUTOVER_LIB" ]]; then
+  echo "FATAL: shared media-control cutover library path guard failed" >&2
+  exit 1
+fi
+# shellcheck source=deploy/host/media-control-cutover-sequence.sh
+source "$MEDIA_CONTROL_CUTOVER_LIB"
 
 SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
@@ -79,6 +86,8 @@ E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
+C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
+C4_MEDIA_LOGIN_RETIREMENT=deploy/host/retire-media-db-login.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
 C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
@@ -577,12 +586,52 @@ reapply_c4_operational_runtime_overlays(){
 }
 
 assert_c4_operational_runtime_ready(){
+  local mode="${1:-}"
+  local readiness_args=()
+  [ -z "$mode" ] || readiness_args+=("$mode")
   sudo -u deploy env \
     API_ENV_FILE="$API_ENV" \
     WEBAPP_ENV_FILE="$WEBAPP_ENV" \
     MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
-    bash "$DEPLOY_REPO/$C4_OPERATIONAL_READINESS"
-  echo "   C4 operational runtime readiness: OK (three distinct DB URLs + media HTTP control; positive + cross-contour negatives)"
+    bash "$DEPLOY_REPO/$C4_OPERATIONAL_READINESS" "${readiness_args[@]}"
+  if [ "$mode" = "--database-only" ]; then
+    echo "   C4 operational DB readiness: OK (media HTTP control deferred until new webapp restart)"
+  else
+    echo "   C4 operational runtime readiness: OK (three distinct DB URLs + media HTTP control; positive + cross-contour negatives)"
+  fi
+}
+
+assert_legacy_media_login_retired(){
+  local absent
+  absent="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -qAtc \
+    "SELECT (to_regrole('bcb_test_operational_media_login') IS NULL)::text;")"
+  [ "$absent" = "true" ] || {
+    echo "FATAL: legacy TEST media DB login survived canonical C4 provisioning" >&2
+    exit 1
+  }
+}
+
+retire_legacy_media_login_after_control(){
+  sudo bash "$DEPLOY_REPO/$C4_MEDIA_LOGIN_RETIREMENT" \
+    --database "$DB" \
+    --role bcb_test_operational_media_login
+}
+
+media_cutover_require_new_webapp_running(){
+  sudo systemctl is-active --quiet bersoncarebot-webapp-test
+}
+
+media_cutover_require_authenticated_control(){
+  assert_c4_operational_runtime_ready
+}
+
+media_cutover_require_legacy_login_retired(){
+  retire_legacy_media_login_after_control
+  assert_legacy_media_login_retired
+}
+
+media_cutover_restart_worker(){
+  sudo systemctl restart bersoncarebot-media-worker-test
 }
 
 discover_webapp_staff_runtime_role(){
@@ -2736,7 +2785,7 @@ run_strict_post_migration_closure(){
 
   log "strict closure: base policies -> safe specialized overlays -> exact FORCE assertions"
   apply_test_strict_rls_finalizer
-  log "strict closure: C4 five-contour TEST env preflight + root provisioning"
+  log "strict closure: C4 three-DB + media-control TEST env preflight and root provisioning"
   bootstrap_and_provision_c4_operational_runtime
 
   # SaaS TEST walkthrough demo-fixture seed removed 2026-07-24 (owner: the Clinic A/B demo data was
@@ -2774,13 +2823,16 @@ run_strict_post_migration_closure(){
   grant_webapp_bootstrap_base_login_d3_4
   assert_staff_security_self_runtime_acl_ready
 
-  assert_c4_operational_runtime_ready
+  assert_c4_operational_runtime_ready --database-only
   assert_integrator_server_runtime_config_ready
 
-  log "strict closure: restart locked TEST units"
+  log "strict closure: restart locked TEST API/worker/scheduler/webapp before media control probe"
   install_and_assert_media_worker_test_unit
   mark_e1_runtime_coverage_start
-  for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
+  for unit_name in api worker scheduler webapp; do
+    sudo systemctl restart "bersoncarebot-$unit_name-test"
+  done
+  run_media_control_cutover_sequence
   sleep 4
   assert_test_units_active
   assert_test_health_ok
@@ -2830,7 +2882,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
-    "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
+    "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" "$C4_MEDIA_CONTROL_CUTOVER" "$C4_MEDIA_LOGIN_RETIREMENT" \
     "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
@@ -2856,7 +2908,10 @@ assert_strict_closure_deploy_checkout_ready(){
 run_c4_operational_chain_self_test(){
   bash -n "$SRC_REPO/deploy/host/deploy-test-saas.sh" \
     "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" \
-    "$SRC_REPO/$C4_OPERATIONAL_READINESS"
+    "$SRC_REPO/$C4_OPERATIONAL_READINESS" \
+    "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" \
+    "$SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT"
+  bash "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" --self-test
   bash "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" --self-test
   bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"
   node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
@@ -3010,6 +3065,8 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 [ -r "$SRC_REPO/$C4_OPERATIONAL_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_RUNTIME"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_PROVISIONER"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_READINESS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_READINESS"; exit 1; }
+[ -r "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER"; exit 1; }
+[ -x "$SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"; exit 1; }
 [ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }

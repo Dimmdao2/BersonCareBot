@@ -44,7 +44,9 @@ const MEDIA_REQUIRED_KEYS = [
   'S3_PRIVATE_BUCKET',
 ];
 const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
-  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|PASSWORD|PASS|KEY)(?:_[A-Z0-9]+)*))$/;
+  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|(?:DATABASE|DB|POSTGRES|POSTGRESQL)_(?:URL|PASSWORD|PASS|CONNECTION_STRING)|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
+const CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY =
+  /^(?:DATABASE_URL_MEDIA_WORKER|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
 
 function fail(message) {
   throw new Error(message);
@@ -138,6 +140,16 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
   const webappText = readFileSync(webappPath, 'utf8');
   const api = parseEnv(apiText, 'api.test');
   const webapp = parseEnv(webappText, 'webapp.test');
+  for (const [label, values] of [
+    ['api.test', api],
+    ['webapp.test', webapp],
+  ]) {
+    for (const key of values.keys()) {
+      if (CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
+        fail(`${label} must not declare a fourth media-worker database credential ${key}`);
+      }
+    }
+  }
   const baseUrl = api.get('DATABASE_URL');
   if (!baseUrl) fail('api.test is missing DATABASE_URL');
   validateBaseUrl(baseUrl);
@@ -173,10 +185,7 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, wr
       })
       .join('\n');
   } else {
-    const media = new Map([
-      ['NODE_ENV', 'production'],
-      ...mediaAdditions,
-    ]);
+    const media = new Map([['NODE_ENV', 'production'], ...mediaAdditions]);
     for (const key of MEDIA_COPY_KEYS) {
       if (api.get(key)) media.set(key, api.get(key));
     }
@@ -240,7 +249,11 @@ function selfTest() {
         common +
         s3,
     );
-    writeFileSync(webapp, "NODE_ENV='production'\nALLOW_DEV_AUTH_BYPASS='true'\nAPP_BASE_URL='http://127.0.0.1:6200'\nINTERNAL_JOB_SECRET='control-secret'\n" + common);
+    writeFileSync(
+      webapp,
+      "NODE_ENV='production'\nALLOW_DEV_AUTH_BYPASS='true'\nAPP_BASE_URL='http://127.0.0.1:6200'\nINTERNAL_JOB_SECRET='control-secret'\n" +
+        common,
+    );
     const apiBeforeCheck = readFileSync(api, 'utf8');
     const webappBeforeCheck = readFileSync(webapp, 'utf8');
     chmodSync(api, 0o000);
@@ -265,6 +278,31 @@ function selfTest() {
       readFileSync(webapp, 'utf8') !== webappBeforeCheck
     ) {
       fail('source validation failure modified an existing env file');
+    }
+    for (const target of [api, webapp]) {
+      const beforeMutation = readFileSync(target, 'utf8');
+      writeFileSync(
+        target,
+        `${beforeMutation}DATABASE_URL_MEDIA_WORKER='postgresql://fourth:secret@127.0.0.1:5432/bersoncarebot_test'\n`,
+      );
+      let fourthOperationalKeyRejected = false;
+      try {
+        bootstrap({
+          apiPath: api,
+          webappPath: webapp,
+          mediaPath: media,
+          ownerUid: process.getuid(),
+          deployGid: process.getgid(),
+          write: false,
+        });
+      } catch {
+        fourthOperationalKeyRejected = true;
+      } finally {
+        writeFileSync(target, beforeMutation);
+      }
+      if (!fourthOperationalKeyRejected) {
+        fail('bootstrap accepted a fourth media-worker operational database key');
+      }
     }
     bootstrap({
       apiPath: api,
@@ -306,7 +344,7 @@ function selfTest() {
     }
     writeFileSync(
       media,
-      `${readFileSync(media, 'utf8')}PGSSLMODE='verify-full'\nPGSSLCRL='/tmp/crl'\nPGSSLCRLDIR='/tmp/crl.d'\nPGSSLMINPROTOCOLVERSION='TLSv1.3'\nMEDIA_WORKER_CA='ca'\nMEDIA_DATABASE_CA='ca'\nMEDIA_POSTGRESQL_URL='postgresql://legacy:secret@127.0.0.1/db'\n`,
+      `${readFileSync(media, 'utf8')}PGSSLMODE='verify-full'\nPGSSLCRL='/tmp/crl'\nPGSSLCRLDIR='/tmp/crl.d'\nPGSSLMINPROTOCOLVERSION='TLSv1.3'\nMEDIA_WORKER_CA='ca'\nMEDIA_DATABASE_CA='ca'\nMEDIA_POSTGRESQL_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRESQL_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRES_URL='postgresql://legacy:secret@127.0.0.1/db'\nPOSTGRES_PASSWORD='secret'\nMEDIA_WORKER_CONNECTION_STRING='postgresql://legacy:secret@127.0.0.1/db'\nMEDIA_CONNECTION_STRING='postgresql://legacy:secret@127.0.0.1/db'\nDB_URL='postgresql://legacy:secret@127.0.0.1/db'\n`,
     );
     bootstrap({
       apiPath: api,
