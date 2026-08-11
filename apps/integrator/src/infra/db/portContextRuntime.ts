@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { PoolConfig } from 'pg';
-import { portTypedArgsForFunctionIdentity } from '@bersoncare/db-principal';
 import type {
   DbPrincipal,
   PortContextClass,
@@ -41,19 +40,33 @@ const DELIVERY_INFRA_SOURCES = new Set([
   'worker:projection-outbox-tick',
 ]);
 
+const SCHEDULER_INFRA_SOURCES = new Set([
+  'scheduler:acquire-lock',
+  'scheduler:claim-due-jobs',
+  'scheduler:handle-tick-event',
+]);
+
+const SERVICE_INFRA_SOURCES = new Set([
+  'integrator-health-check',
+  'integrator-projection-health',
+]);
+
+const MIGRATION_LEDGER_INFRA_SOURCES = new Set(['integrator-startup-migration-ledger']);
+
 export function integratorPortCapabilityForInfraSource(
   source: string | undefined,
 ): IntegratorPortCapabilityName {
   const normalized = source?.trim() ?? '';
-  if (normalized.startsWith('scheduler:')) return 'scheduler';
+  if (SCHEDULER_INFRA_SOURCES.has(normalized)) return 'scheduler';
   if (DELIVERY_INFRA_SOURCES.has(normalized)) return 'delivery';
-  return 'service';
+  if (SERVICE_INFRA_SOURCES.has(normalized)) return 'service';
+  if (MIGRATION_LEDGER_INFRA_SOURCES.has(normalized)) return 'migration_ledger';
+  throw new Error(`Unknown integrator infra source in port-context mode: ${normalized || '<missing>'}`);
 }
 
 const capabilityStorage = new AsyncLocalStorage<IntegratorPortCapabilityName>();
 export type IntegratorPortOperation = {
   functionIdentity: string;
-  purpose: string;
   typedArgs: readonly PortTypedArg[];
 };
 const operationStorage = new AsyncLocalStorage<IntegratorPortOperation>();
@@ -63,32 +76,6 @@ export function runWithIntegratorPortOperation<T>(
   fn: () => T,
 ): T {
   return operationStorage.run(operation, fn);
-}
-
-export function integratorPortOperationForQuery(
-  queryText: string,
-  values: readonly unknown[],
-  capabilities: Record<string, IntegratorPortCapabilityDescriptor>,
-): IntegratorPortOperation | undefined {
-  const matches = Object.values(capabilities).filter((descriptor) => {
-    if (!descriptor.functionIdentity) return false;
-    return queryText.includes(
-      `${descriptor.functionIdentity.slice(0, descriptor.functionIdentity.indexOf('('))}(`,
-    );
-  });
-  if (
-    new Set(matches.map((descriptor) => `${descriptor.functionIdentity}\0${descriptor.purpose}`))
-      .size > 1
-  ) {
-    throw new Error('A DB statement may invoke only one declared named-root capability');
-  }
-  const descriptor = matches[0];
-  if (!descriptor?.functionIdentity) return undefined;
-  return {
-    functionIdentity: descriptor.functionIdentity,
-    purpose: descriptor.purpose,
-    typedArgs: portTypedArgsForFunctionIdentity(descriptor.functionIdentity, values),
-  };
 }
 
 /** Call-site adapter: selects a typed declared capability, never infers it from a source label. */
@@ -231,11 +218,10 @@ export function integratorPortContextPrincipal(
             : undefined;
   // An outer scheduler/delivery scope never lends its service capability to a nested
   // organization transaction; the nested scope selects tenant_service explicitly.
-  const key = operation
-    ? Object.entries(capabilities).find(
+  const operationMatches = operation
+    ? Object.entries(capabilities).filter(
         ([, descriptor]) =>
           descriptor.functionIdentity === operation.functionIdentity &&
-          descriptor.purpose === operation.purpose &&
           (principal.kind === 'integrator'
             ? descriptor.contextClass === 'integrator'
             : principal.kind === 'organization'
@@ -245,7 +231,15 @@ export function integratorPortContextPrincipal(
                 : principal.kind === 'bootstrap'
                   ? descriptor.contextClass === 'pre_session'
                   : false),
-      )?.[0]
+      )
+    : [];
+  if (operation && operationMatches.length !== 1) {
+    throw new Error(
+      `Missing unique declared integrator port capability for ${operation.functionIdentity}`,
+    );
+  }
+  const key = operation
+    ? operationMatches[0]![0]
     : ambientCapability === undefined
       ? defaultCapability
       : ambientCapability === 'request' && principal.kind === 'integrator'

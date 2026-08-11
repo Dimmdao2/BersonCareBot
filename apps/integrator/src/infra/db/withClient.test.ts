@@ -280,11 +280,11 @@ describe('работа без разрешённого принципала не
     const session = createFakeSession();
     const pool = poolReusingOneConnection(session);
 
-    await expect(
+    expect(() =>
       runWithInfraPrincipal({ source: 'неизвестный-источник' }, () =>
         checkoutIntegratorPoolClient(pool),
       ),
-    ).rejects.toThrow('DB infra principal source is not allowed');
+    ).toThrow('Unknown integrator infra source');
 
     await expect(
       runWithBootstrapPrincipal({ source: 'неизвестный-источник' }, () =>

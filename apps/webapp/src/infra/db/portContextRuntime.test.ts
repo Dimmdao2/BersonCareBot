@@ -2,12 +2,12 @@ import type { Pool, PoolClient, PoolConfig } from 'pg';
 import { describe, expect, it } from 'vitest';
 import { hashPortTypedArgs, portTypedArg, runWithDbStaffPrincipal } from '@bersoncare/db-principal';
 import { createWebappPoolProvider } from './webappPoolProvider';
+import { runPgPoolPgText } from './runWebappSql';
 import {
   createWebappPortContextRuntimeConfig,
   type PortCapabilityDescriptor,
   type WebappPortContextRuntimeConfig,
   runWithWebappPortOperation,
-  webappPortOperationForQuery,
   webappPortContextPrincipal,
 } from './portContextRuntime';
 
@@ -78,7 +78,7 @@ describe('webapp port-context runtime', () => {
 
     const result = await runWithDbStaffPrincipal(
       { organizationId: ORG, platformUserId: USER },
-      () => pool.query('SELECT exact_client'),
+      () => runPgPoolPgText(pool, 'SELECT exact_client'),
     );
 
     expect(result.rows[0]).toHaveProperty('client');
@@ -109,7 +109,7 @@ describe('webapp port-context runtime', () => {
     });
     await expect(
       runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
-        pool.query('SELECT failure'),
+        runPgPoolPgText(pool, 'SELECT failure'),
       ),
     ).rejects.toThrow('clear failed');
     expect(log).toContain('ROLLBACK');
@@ -139,7 +139,6 @@ describe('webapp port-context runtime', () => {
     const selected = runWithWebappPortOperation(
       {
         functionIdentity: named.functionIdentity!,
-        purpose: named.purpose,
         typedArgs: [arg],
       },
       () =>
@@ -155,25 +154,7 @@ describe('webapp port-context runtime', () => {
     });
   });
 
-  it('derives an exact named operation and canonical args from a real pg call', () => {
-    const named: PortCapabilityDescriptor = {
-      ...staffCapability,
-      purpose: 'staff.read_profile',
-      functionIdentity: 'app.read_staff_profile(uuid)',
-    };
-    expect(
-      webappPortOperationForQuery('SELECT app.read_staff_profile($1::uuid)', [USER], {
-        staff: staffCapability,
-        named,
-      }),
-    ).toEqual({
-      functionIdentity: named.functionIdentity,
-      purpose: named.purpose,
-      typedArgs: [portTypedArg('uuid', USER)],
-    });
-  });
-
-  it('installs the exact named descriptor and argument hash for a real pool query', async () => {
+  it('installs the explicit named descriptor and argument hash before a pool query', async () => {
     const installs: unknown[][] = [];
     const named: PortCapabilityDescriptor = {
       ...staffCapability,
@@ -203,14 +184,51 @@ describe('webapp port-context runtime', () => {
       },
     });
     await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
-      pool.query('SELECT app.read_staff_profile($1::uuid)', [USER]),
+      runWithWebappPortOperation(
+        {
+          functionIdentity: named.functionIdentity!,
+          typedArgs: [portTypedArg('uuid', USER)],
+        },
+        () => runPgPoolPgText(pool, 'SELECT app.read_staff_profile($1::uuid)', [USER]),
+      ),
     );
     expect(installs).toHaveLength(1);
     expect(installs[0]?.[4]).toBe(named.functionIdentity);
     expect(installs[0]?.[5]).toEqual(hashPortTypedArgs([portTypedArg('uuid', USER)]));
   });
 
-  it('maps health, general workers and media workers to distinct service capabilities', () => {
+  it('rejects a missing principal before physical checkout', async () => {
+    let connects = 0;
+    let releases = 0;
+    const pool = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://staff/app' },
+        patient: { connectionString: 'postgresql://patient/app' },
+        capabilities: { staff: staffCapability },
+      },
+      poolFactory: () =>
+        ({
+          connect: async () => {
+            connects += 1;
+            return {
+              query: async () => ({ rows: [], rowCount: 0 }),
+              release: () => {
+                releases += 1;
+              },
+            };
+          },
+          on: () => undefined,
+          end: async () => undefined,
+        }) as unknown as Pool,
+    });
+    await expect(runPgPoolPgText(pool, 'SELECT 1')).rejects.toThrow(
+      'A webapp principal is required',
+    );
+    expect(connects).toBe(0);
+    expect(releases).toBe(0);
+  });
+
+  it('maps only exact health, general-worker and media-worker sources', () => {
     const descriptor = (capabilityId: string, targetRole: string): PortCapabilityDescriptor => ({
       capabilityId,
       targetRole,
@@ -241,6 +259,21 @@ describe('webapp port-context runtime', () => {
         capabilities,
       ).principal.targetRole,
     ).toBe('app_operational_media_worker');
+    expect(
+      webappPortContextPrincipal(
+        { kind: 'infra', source: 'api/internal/media-worker/control:POST' },
+        capabilities,
+      ).principal.targetRole,
+    ).toBe('app_operational_media_worker');
+    expect(() =>
+      webappPortContextPrincipal(
+        { kind: 'infra', source: 'api/internal/product-analytics/retention:POS' },
+        capabilities,
+      ),
+    ).toThrow('Unknown webapp infra source');
+    expect(() =>
+      webappPortContextPrincipal({ kind: 'infra', source: undefined }, capabilities),
+    ).toThrow('<missing>');
   });
 
   it('authenticates both replacement pools before swapping and keeps the old generation on failure', async () => {
@@ -282,7 +315,7 @@ describe('webapp port-context runtime', () => {
       }),
     ).rejects.toThrow('certificate rejected');
     await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
-      provider.query('SELECT after_failed_rotation'),
+      runPgPoolPgText(provider, 'SELECT after_failed_rotation'),
     );
     expect(created[0]?.queries).toContain('SELECT after_failed_rotation');
     expect(created[0]?.endCalls).toBe(0);

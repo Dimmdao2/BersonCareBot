@@ -1,10 +1,12 @@
 import type { Pool, PoolClient, PoolConfig } from 'pg';
 import { describe, expect, it } from 'vitest';
 import { hashPortTypedArgs, portTypedArg, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import type { DbPort } from '../../kernel/contracts/index.js';
 import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
+import { runIntegratorSql } from './runIntegratorSql.js';
+import { sql } from 'drizzle-orm';
 import {
   integratorPortContextPrincipal,
-  integratorPortOperationForQuery,
   integratorPortCapabilityForInfraSource,
   runWithIntegratorPortCapability,
   runWithIntegratorPortOperation,
@@ -130,11 +132,13 @@ describe('integrator port-context runtime', () => {
     const selected = runWithIntegratorPortOperation(
       {
         functionIdentity: named.functionIdentity,
-        purpose: named.purpose,
         typedArgs: [arg],
       },
       () =>
-        integratorPortContextPrincipal({ kind: 'infra', source: 'worker' }, { exact_scope: named }),
+        integratorPortContextPrincipal(
+          { kind: 'infra', source: 'worker:outgoing-delivery-tick' },
+          { exact_scope: named },
+        ),
     );
     expect(selected).toMatchObject({
       functionIdentity: named.functionIdentity,
@@ -143,26 +147,7 @@ describe('integrator port-context runtime', () => {
     });
   });
 
-  it('derives the declared named operation from a real pg call instead of using the class default', () => {
-    const named = {
-      ...request,
-      functionIdentity: 'app.resolve_outgoing_delivery_scope(uuid)',
-      purpose: 'delivery.resolve_scope',
-    };
-    expect(
-      integratorPortOperationForQuery(
-        'SELECT * FROM app.resolve_outgoing_delivery_scope($1::uuid)',
-        [ORG],
-        { request, named },
-      ),
-    ).toEqual({
-      functionIdentity: named.functionIdentity,
-      purpose: named.purpose,
-      typedArgs: [portTypedArg('uuid', ORG)],
-    });
-  });
-
-  it('installs the exact named descriptor and argument hash for a real pool query', async () => {
+  it('installs the explicit named descriptor and argument hash before a connect-client query', async () => {
     const installs: unknown[][] = [];
     const service: IntegratorPortCapabilityDescriptor = {
       ...request,
@@ -197,19 +182,67 @@ describe('integrator port-context runtime', () => {
       },
     });
     await runWithDbInfraPrincipal({ source: 'integrator-health-check' }, () =>
-      provider.query('SELECT app.resolve_outgoing_delivery_scope($1::uuid)', [ORG]),
+      runWithIntegratorPortOperation(
+        {
+          functionIdentity: named.functionIdentity!,
+          typedArgs: [portTypedArg('uuid', ORG)],
+        },
+        () =>
+          runIntegratorSql(
+            provider as unknown as DbPort,
+            sql`SELECT app.resolve_outgoing_delivery_scope(${ORG}::uuid)`,
+          ),
+      ),
     );
     expect(installs).toHaveLength(1);
     expect(installs[0]?.[4]).toBe(named.functionIdentity);
     expect(installs[0]?.[5]).toEqual(hashPortTypedArgs([portTypedArg('uuid', ORG)]));
   });
 
-  it('maps scheduler and delivery sources to their runtime roles without caller omissions', () => {
+  it('rejects a missing principal before physical checkout', async () => {
+    let connects = 0;
+    let releases = 0;
+    const provider = createIntegratorPoolProvider({
+      connectionString: 'postgresql://integrator/app',
+      portContext: {
+        pool: { connectionString: 'postgresql://integrator/app' },
+        capabilities: { request },
+      },
+      poolFactory: () =>
+        ({
+          connect: async () => {
+            connects += 1;
+            return {
+              query: async () => ({ rows: [], rowCount: 0 }),
+              release: () => {
+                releases += 1;
+              },
+            };
+          },
+          on: () => undefined,
+          end: async () => undefined,
+        }) as unknown as Pool,
+    });
+    await expect(
+      runIntegratorSql(provider as unknown as DbPort, sql`SELECT ${1}::integer`),
+    ).rejects.toThrow('An integrator principal is required');
+    expect(connects).toBe(0);
+    expect(releases).toBe(0);
+  });
+
+  it('maps only exact scheduler, delivery, service and migration-ledger sources', () => {
     expect(integratorPortCapabilityForInfraSource('scheduler:claim-due-jobs')).toBe('scheduler');
     expect(integratorPortCapabilityForInfraSource('worker:outgoing-delivery-tick')).toBe(
       'delivery',
     );
     expect(integratorPortCapabilityForInfraSource('integrator-health-check')).toBe('service');
+    expect(integratorPortCapabilityForInfraSource('integrator-startup-migration-ledger')).toBe(
+      'migration_ledger',
+    );
+    expect(() => integratorPortCapabilityForInfraSource('scheduler:claim-due-job')).toThrow(
+      'Unknown integrator infra source',
+    );
+    expect(() => integratorPortCapabilityForInfraSource(undefined)).toThrow('<missing>');
   });
 
   it('preflights replacement authentication before swap and forwards pool error listeners after rotation', async () => {

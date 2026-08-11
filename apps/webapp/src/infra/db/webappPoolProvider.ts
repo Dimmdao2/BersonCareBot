@@ -15,8 +15,6 @@ import { classifyPostgresIsolationDenial } from '@/infra/db/saasIsolationDbFailu
 import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import {
   type WebappPortContextRuntimeConfig,
-  runWithWebappPortOperation,
-  webappPortOperationForQuery,
   webappPortContextPrincipal,
 } from '@/infra/db/portContextRuntime';
 
@@ -435,29 +433,6 @@ function createPortContextWebappPool(
       throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
     }
     const generation = active;
-    const first = args[0] as unknown;
-    const queryText =
-      typeof first === 'string'
-        ? first
-        : typeof first === 'object' &&
-            first !== null &&
-            'text' in first &&
-            typeof first.text === 'string'
-          ? first.text
-          : '';
-    const configValues =
-      typeof first === 'object' &&
-      first !== null &&
-      'values' in first &&
-      Array.isArray(first.values)
-        ? first.values
-        : [];
-    const positionalValues = Array.isArray(args[1]) ? args[1] : configValues;
-    const operation = webappPortOperationForQuery(
-      queryText,
-      positionalValues,
-      generation.config.capabilities,
-    );
     const execute = async (): Promise<Awaited<ReturnType<Pool['query']>>> => {
       const selected = select(generation);
       const client = await checkout(generation, selected.pool);
@@ -479,7 +454,7 @@ function createPortContextWebappPool(
         if (completed) client.release();
       }
     };
-    return operation ? runWithWebappPortOperation(operation, execute) : execute();
+    return execute();
   };
 
   const rotatePortContextPools = async (

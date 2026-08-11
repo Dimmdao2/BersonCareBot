@@ -12,8 +12,6 @@ import {
 } from './withClient.js';
 import {
   integratorPortContextPrincipal,
-  integratorPortOperationForQuery,
-  runWithIntegratorPortOperation,
   type IntegratorPortContextRuntimeConfig,
 } from './portContextRuntime.js';
 
@@ -187,29 +185,6 @@ function createPortContextIntegratorPool(
     if (typeof args.at(-1) === 'function')
       throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
     const selected = active;
-    const first = args[0] as unknown;
-    const queryText =
-      typeof first === 'string'
-        ? first
-        : typeof first === 'object' &&
-            first !== null &&
-            'text' in first &&
-            typeof first.text === 'string'
-          ? first.text
-          : '';
-    const configValues =
-      typeof first === 'object' &&
-      first !== null &&
-      'values' in first &&
-      Array.isArray(first.values)
-        ? first.values
-        : [];
-    const positionalValues = Array.isArray(args[1]) ? args[1] : configValues;
-    const operation = integratorPortOperationForQuery(
-      queryText,
-      positionalValues,
-      selected.config.capabilities,
-    );
     const execute = async (): Promise<Awaited<ReturnType<Pool['query']>>> => {
       const principal = integratorPortContextPrincipal(
         getCurrentDbPrincipal(),
@@ -230,7 +205,7 @@ function createPortContextIntegratorPool(
         if (completed) client.release();
       }
     };
-    return operation ? runWithIntegratorPortOperation(operation, execute) : execute();
+    return execute();
   };
   const rotatePortContextPool = async (
     next: IntegratorPortContextRuntimeConfig,

@@ -1,7 +1,9 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
+import { portTypedArgsForFunctionIdentity } from '@bersoncare/db-principal';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import type { IntegratorDrizzleDb } from './drizzle.js';
+import { runWithIntegratorPortOperation } from './portContextRuntime.js';
 
 const pgDialect = new PgDialect();
 
@@ -40,6 +42,30 @@ export async function runIntegratorSql<T = unknown>(
     }
   }
   return db.query<T>(text, params);
+}
+
+/**
+ * Execute one declared SECURITY DEFINER root with its exact canonical argument transcript.
+ * The operation scope begins before `DbPort.query`, so `connect -> client.query` ports select and
+ * install the named capability before checking out the physical client. An already-open relation
+ * transaction cannot be upgraded to a named-root context and is rejected loudly.
+ */
+export async function runIntegratorNamedRoot<T = unknown>(
+  db: DbPort,
+  functionIdentity: string,
+  functionArgs: readonly unknown[],
+  fragment: SQL,
+): Promise<DbQueryResult<T>> {
+  const withSession = db as DbPort & { integratorDrizzle?: IntegratorDrizzleDb };
+  if (withSession.integratorDrizzle) {
+    throw new Error('Integrator named root must start before the relation transaction');
+  }
+  const { sql: text, params } = pgDialect.sqlToQuery(fragment);
+  const operation = {
+    functionIdentity,
+    typedArgs: portTypedArgsForFunctionIdentity(functionIdentity, functionArgs),
+  };
+  return runWithIntegratorPortOperation(operation, () => db.query<T>(text, params));
 }
 
 /**
