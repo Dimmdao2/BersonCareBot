@@ -54,6 +54,13 @@ ALTER ROLE :"app_staff_login" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLIC
 ALTER ROLE :"app_patient_login" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
 ALTER ROLE :"integrator_login" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
 
+-- The application type and invoker-helper owner is deliberately separate from
+-- the three login principals and from every SECURITY DEFINER seam.
+ALTER TYPE app.port_name OWNER TO app_object_owner;
+ALTER TYPE app.port_context_class OWNER TO app_object_owner;
+ALTER TYPE app.port_typed_arg OWNER TO app_object_owner;
+ALTER TYPE app.port_context_claims OWNER TO app_object_owner;
+
 -- Every application edge is SET-only.  No runtime role is a member of another
 -- runtime role, so this graph has no transitive escalation path.
 GRANT app_pre_session, app_staff, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator TO :"app_staff_login" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE;
@@ -63,9 +70,35 @@ GRANT app_integrator_request, app_integrator_resolver, app_operational_delivery_
 REVOKE ALL ON DATABASE :"DBNAME" FROM PUBLIC;
 GRANT CONNECT ON DATABASE :"DBNAME" TO :"app_staff_login", :"app_patient_login", :"integrator_login";
 REVOKE ALL ON SCHEMA public, app, app_ext FROM PUBLIC;
-GRANT USAGE ON SCHEMA app TO :"app_staff_login", :"app_patient_login", :"integrator_login",
-  app_pre_session, app_staff, app_patient, app_platform_settings, app_integrator_request, app_integrator_resolver,
-  app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner;
+-- Schema USAGE is exact infrastructure access, not object access.  Every
+-- declared runtime role and seam owner gets it so a newly declared gate/root
+-- cannot accidentally depend on the creating superuser's ACL.
+DO $$
+DECLARE role_name text;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY[
+    'app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_worker',
+    'app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver',
+    'app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service',
+    'app_seam_context_owner','app_seam_password_auth_owner','app_seam_email_otp_owner','app_seam_passkey_owner',
+    'app_seam_phone_binding_owner','app_seam_self_security_owner','app_seam_identity_lookup_owner',
+    'app_seam_patient_invite_owner','app_seam_org_invite_owner','app_seam_specialist_provision_owner',
+    'app_seam_public_slug_owner','app_seam_public_booking_owner','app_seam_dedicated_bot_owner',
+    'app_seam_payment_webhook_owner','app_seam_delivery_scope_owner','app_seam_patient_program_resolver_owner',
+    'app_seam_settings_preauth_owner','app_seam_settings_integrator_owner','app_seam_settings_runtime_owner',
+    'app_seam_org_commerce_owner','app_seam_patient_org_projection_owner','app_seam_patient_booking_owner',
+    'app_seam_patient_self_actions_owner','app_seam_reminder_patient_owner','app_seam_reminder_materialization_owner',
+    'app_seam_reminder_specialist_owner','app_seam_reminder_appointment_owner','app_seam_reminder_email_cooldown_owner',
+    'app_seam_telemetry_patient_owner','app_seam_telemetry_media_owner','app_seam_telemetry_operator_owner',
+    'app_seam_catalog_public_owner','app_seam_catalog_admin_owner','app_seam_org_directory_owner',
+    'app_seam_telemetry_exclusion_owner','saas_telemetry_owner','saas_system_health_owner',
+    'app_seam_login_token_owner','app_seam_oauth_owner','app_seam_phone_otp_owner',
+    'app_seam_staff_security_owner','app_seam_patient_lfk_media_owner'
+  ] LOOP
+    EXECUTE format('GRANT USAGE ON SCHEMA app TO %I', role_name);
+  END LOOP;
+END $$;
+GRANT USAGE ON SCHEMA app TO :"app_staff_login", :"app_patient_login", :"integrator_login";
 GRANT USAGE ON SCHEMA app_ext TO app_seam_context_owner, app_seam_identity_lookup_owner, app_seam_password_auth_owner;
 ALTER SCHEMA app OWNER TO app_object_owner;
 ALTER SCHEMA app_ext OWNER TO app_object_owner;
@@ -110,9 +143,22 @@ CREATE TABLE IF NOT EXISTS app_ext.variant_a_identity_refs (
   opaque_ref uuid NOT NULL UNIQUE,
   created_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
+CREATE TABLE IF NOT EXISTS app_ext.integrator_external_identities (
+  external_identity uuid PRIMARY KEY,
+  integrator_user_id bigint NOT NULL,
+  organization_id uuid NOT NULL
+);
+CREATE TABLE IF NOT EXISTS app_ext.integrator_user_organizations (
+  integrator_user_id bigint NOT NULL,
+  organization_id uuid NOT NULL,
+  active boolean NOT NULL,
+  PRIMARY KEY (integrator_user_id, organization_id)
+);
 ALTER TABLE app_ext.port_context_capabilities OWNER TO app_seam_context_owner;
 ALTER TABLE app_ext.accepted_port_contexts OWNER TO app_seam_context_owner;
 ALTER TABLE app_ext.variant_a_identity_refs OWNER TO app_seam_identity_lookup_owner;
+ALTER TABLE app_ext.integrator_external_identities OWNER TO app_seam_identity_lookup_owner;
+ALTER TABLE app_ext.integrator_user_organizations OWNER TO app_seam_identity_lookup_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM PUBLIC, :"app_staff_login", :"app_patient_login", :"integrator_login";
 REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM app_pre_session, app_staff, app_patient, app_platform_settings,
   app_integrator_request, app_integrator_resolver, app_tenant_service, app_service, app_seam_password_auth_owner;
@@ -162,18 +208,18 @@ BEGIN
   IF NOT (p_claims.protocol_version IS NOT DISTINCT FROM 1) OR p_claims.purpose !~ '^[a-z][a-z0-9._:-]{0,127}$' OR octet_length(p_claims.typed_args_hash) <> 32 THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'invalid port context claims';
   END IF;
-  IF (p_claims.context_class = 'pre_session' AND NOT (p_claims.request_id IS NOT NULL AND p_claims.function_identity IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL))
-    OR (p_claims.context_class = 'staff' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL AND p_claims.integrator_user_id IS NULL))
-    OR (p_claims.context_class = 'patient' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL AND p_claims.integrator_user_id IS NULL))
-    OR (p_claims.context_class = 'platform' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL AND p_claims.integrator_user_id IS NULL))
+  IF (p_claims.context_class = 'pre_session' AND NOT (p_claims.request_id IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL))
+    OR (p_claims.context_class = 'staff' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL))
+    OR (p_claims.context_class = 'patient' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NOT NULL AND p_claims.organization_id IS NOT NULL AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL))
+    OR (p_claims.context_class = 'platform' AND NOT (p_claims.actor_ref IS NOT NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.request_id IS NULL AND p_claims.integrator_user_id IS NULL))
     OR (p_claims.context_class = 'integrator' AND NOT (
-      p_claims.integrator_user_id IS NOT NULL AND p_claims.organization_id IS NOT NULL
-      AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL
-      AND ((p_claims.target_role = 'app_integrator_request' AND p_claims.function_identity IS NULL)
-        OR (p_claims.target_role = 'app_integrator_resolver' AND p_claims.function_identity IS NOT NULL))
+      (p_claims.target_role = 'app_integrator_request' AND p_claims.integrator_user_id IS NOT NULL AND p_claims.organization_id IS NOT NULL
+        AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL)
+      OR (p_claims.target_role = 'app_integrator_resolver' AND p_claims.integrator_user_id IS NULL AND p_claims.organization_id IS NULL
+        AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.request_id IS NULL)
     ))
-    OR (p_claims.context_class = 'tenant_service' AND NOT (p_claims.organization_id IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL))
-    OR (p_claims.context_class = 'service' AND NOT (p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL AND p_claims.function_identity IS NULL)) THEN
+    OR (p_claims.context_class = 'tenant_service' AND NOT (p_claims.organization_id IS NOT NULL AND p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL))
+    OR (p_claims.context_class = 'service' AND NOT (p_claims.actor_ref IS NULL AND p_claims.subject_ref IS NULL AND p_claims.organization_id IS NULL AND p_claims.integrator_user_id IS NULL AND p_claims.request_id IS NULL)) THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context class identity mismatch';
   END IF;
   SELECT * INTO cap FROM app_ext.port_context_capabilities WHERE capability_id = p_capability_id FOR SHARE;
@@ -240,12 +286,24 @@ BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION app.current_actor_user_id()
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-DECLARE value uuid;
-BEGIN SELECT actor_ref INTO value FROM app_ext.accepted_port_contexts WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role IN ('app_staff','app_patient','app_platform_settings'); IF value IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted actor context required'; END IF; RETURN value; END $$;
+DECLARE opaque_ref uuid; physical_id uuid;
+BEGIN
+  SELECT actor_ref INTO opaque_ref FROM app_ext.accepted_port_contexts
+   WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role IN ('app_staff','app_patient','app_platform_settings');
+  IF opaque_ref IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted actor context required'; END IF;
+  SELECT app_ext.resolve_variant_a_physical(opaque_ref) INTO physical_id;
+  RETURN physical_id;
+END $$;
 CREATE OR REPLACE FUNCTION app.current_patient_user_id()
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-DECLARE value uuid;
-BEGIN SELECT subject_ref INTO value FROM app_ext.accepted_port_contexts WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role='app_patient'; IF value IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted patient context required'; END IF; RETURN value; END $$;
+DECLARE opaque_ref uuid; physical_id uuid;
+BEGIN
+  SELECT subject_ref INTO opaque_ref FROM app_ext.accepted_port_contexts
+   WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role='app_patient';
+  IF opaque_ref IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted patient context required'; END IF;
+  SELECT app_ext.resolve_variant_a_physical(opaque_ref) INTO physical_id;
+  RETURN physical_id;
+END $$;
 CREATE OR REPLACE FUNCTION app.current_integrator_user_id()
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE value bigint;
@@ -271,6 +329,15 @@ BEGIN
   RETURN opaque;
 END $$;
 
+CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+DECLARE physical_id uuid;
+BEGIN
+  SELECT physical_user_id INTO physical_id FROM app_ext.variant_a_identity_refs WHERE opaque_ref = p_opaque_ref;
+  IF physical_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted opaque identity context required'; END IF;
+  RETURN physical_id;
+END $$;
+
 -- Representative named roots: pre-session has no relation access, and the
 -- integrator resolver is a separate declared pre-routing capability.
 CREATE OR REPLACE FUNCTION app.pre_session_begin_password_login(p_email text)
@@ -285,12 +352,37 @@ BEGIN
   PERFORM app.require_accepted_context('app_seam_password_auth_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.password.resolve', app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg]), 'app.pre_session_resolve_identity(uuid)'::regprocedure);
   RETURN app_ext.resolve_variant_a_identity(p_platform_user_id);
 END $$;
-CREATE OR REPLACE FUNCTION app.resolve_integrator_request(p_integrator_user_id bigint, p_organization_id uuid)
+CREATE OR REPLACE FUNCTION app.resolve_integrator_request(p_external_identity uuid)
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+DECLARE resolved_user_id bigint; resolved_organization_id uuid;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_integrator_resolver'::name, 'integrator'::app.port_context_class, 'integrator.resolve', app.hash_port_typed_args(ARRAY[ROW('bigint@1', int8send(p_integrator_user_id))::app.port_typed_arg, ROW('uuid@1', uuid_send(p_organization_id))::app.port_typed_arg]), 'app.resolve_integrator_request(bigint,uuid)'::regprocedure);
-  RETURN 'integrator:' || p_integrator_user_id::text || ':' || p_organization_id::text;
+  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_integrator_resolver'::name, 'integrator'::app.port_context_class, 'integrator.resolve', app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_external_identity))::app.port_typed_arg]), 'app.resolve_integrator_request(uuid)'::regprocedure);
+  SELECT e.integrator_user_id, e.organization_id INTO resolved_user_id, resolved_organization_id
+    FROM app_ext.integrator_external_identities e
+    JOIN app_ext.integrator_user_organizations u ON u.integrator_user_id=e.integrator_user_id AND u.organization_id=e.organization_id AND u.active
+   WHERE e.external_identity=p_external_identity;
+  IF resolved_user_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active integrator identity association required'; END IF;
+  RETURN 'integrator:' || resolved_user_id::text || ':' || resolved_organization_id::text;
 END $$;
+
+-- Named roots are capabilities, not a context-class exception: relation and
+-- exact-root capabilities are both valid wherever the declaration provides
+-- them.  These disposable roots exercise every non-pre-session class.
+CREATE OR REPLACE FUNCTION app.named_staff_root()
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_staff','staff','named.staff',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_staff_root()'::regprocedure); RETURN 'named-staff'; END $$;
+CREATE OR REPLACE FUNCTION app.named_patient_root()
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_patient','patient','named.patient',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_patient_root()'::regprocedure); RETURN 'named-patient'; END $$;
+CREATE OR REPLACE FUNCTION app.named_platform_root()
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_platform_settings','platform','named.platform',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_platform_root()'::regprocedure); RETURN 'named-platform'; END $$;
+CREATE OR REPLACE FUNCTION app.named_tenant_service_root()
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_tenant_service','tenant_service','named.tenant-service',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_tenant_service_root()'::regprocedure); RETURN 'named-tenant-service'; END $$;
+CREATE OR REPLACE FUNCTION app.named_service_root()
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_service','service','named.service',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_service_root()'::regprocedure); RETURN 'named-service'; END $$;
 
 ALTER FUNCTION app.install_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.clear_port_context() OWNER TO app_seam_context_owner;
@@ -301,21 +393,35 @@ ALTER FUNCTION app.current_actor_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_patient_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_integrator_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
+ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.pre_session_begin_password_login(text) OWNER TO app_seam_password_auth_owner;
 ALTER FUNCTION app.pre_session_resolve_identity(uuid) OWNER TO app_seam_password_auth_owner;
-ALTER FUNCTION app.resolve_integrator_request(bigint,uuid) OWNER TO app_seam_identity_lookup_owner;
+ALTER FUNCTION app.resolve_integrator_request(uuid) OWNER TO app_seam_identity_lookup_owner;
+ALTER FUNCTION app.named_staff_root() OWNER TO app_seam_context_owner;
+ALTER FUNCTION app.named_patient_root() OWNER TO app_seam_context_owner;
+ALTER FUNCTION app.named_platform_root() OWNER TO app_seam_context_owner;
+ALTER FUNCTION app.named_tenant_service_root() OWNER TO app_seam_context_owner;
+ALTER FUNCTION app.named_service_root() OWNER TO app_seam_context_owner;
+ALTER FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) OWNER TO app_object_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app_ext FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.install_port_context(uuid,app.port_context_claims), app.clear_port_context() TO :"app_staff_login", :"app_patient_login", :"integrator_login";
 GRANT EXECUTE ON FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) TO app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner;
-GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_staff, app_patient, app_platform_settings, app_integrator_request, app_tenant_service, app_service, app_seam_password_auth_owner, app_seam_identity_lookup_owner;
-GRANT EXECUTE ON FUNCTION app.require_platform_principal(), app.current_actor_user_id() TO app_platform_settings;
+GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner;
+GRANT EXECUTE ON FUNCTION app.require_platform_principal() TO app_platform_settings;
+GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO app_staff, app_patient, app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_patient, app_integrator_request, app_tenant_service;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_integrator_request;
 GRANT EXECUTE ON FUNCTION app.pre_session_begin_password_login(text), app.pre_session_resolve_identity(uuid) TO app_pre_session;
 GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_identity(uuid) TO app_seam_password_auth_owner;
-GRANT EXECUTE ON FUNCTION app.resolve_integrator_request(bigint,uuid) TO app_integrator_resolver;
+GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_physical(uuid) TO app_seam_context_owner;
+GRANT EXECUTE ON FUNCTION app.resolve_integrator_request(uuid) TO app_integrator_resolver;
+GRANT EXECUTE ON FUNCTION app.named_staff_root() TO app_staff;
+GRANT EXECUTE ON FUNCTION app.named_patient_root() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.named_platform_root() TO app_platform_settings;
+GRANT EXECUTE ON FUNCTION app.named_tenant_service_root() TO app_tenant_service;
+GRANT EXECUTE ON FUNCTION app.named_service_root() TO app_service;
 
 -- Two tenant rows, one platform row and one service row are representative
 -- managed surfaces.  Each is FORCE RLS and has a separate restrictive gate.
