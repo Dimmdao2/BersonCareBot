@@ -1,9 +1,13 @@
-import type { Pool, PoolConfig } from 'pg';
+import type { Pool, PoolClient, PoolConfig } from 'pg';
 import { describe, expect, it } from 'vitest';
+import { hashPortTypedArgs, portTypedArg, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
 import {
   integratorPortContextPrincipal,
+  integratorPortOperationForQuery,
+  integratorPortCapabilityForInfraSource,
   runWithIntegratorPortCapability,
+  runWithIntegratorPortOperation,
   type IntegratorPortCapabilityDescriptor,
 } from './portContextRuntime.js';
 
@@ -24,7 +28,11 @@ describe('integrator port-context runtime', () => {
         { kind: 'integrator', integratorUserId: '42', organizationId: ORG, source: 'anything' },
         { request },
       ),
-    ).toMatchObject({ targetRole: 'app_integrator_request', contextClass: 'integrator', integratorUserId: '42' });
+    ).toMatchObject({
+      targetRole: 'app_integrator_request',
+      contextClass: 'integrator',
+      integratorUserId: '42',
+    });
     const delivery: IntegratorPortCapabilityDescriptor = {
       ...request,
       capabilityId: '00000000-0000-0000-0000-000000000104',
@@ -37,7 +45,10 @@ describe('integrator port-context runtime', () => {
         { request, delivery },
       ),
     );
-    expect(selected).toMatchObject({ capabilityId: delivery.capabilityId, targetRole: delivery.targetRole });
+    expect(selected).toMatchObject({
+      capabilityId: delivery.capabilityId,
+      targetRole: delivery.targetRole,
+    });
   });
 
   it('creates one physical pool even when request, delivery and scheduler capabilities are declared', () => {
@@ -45,7 +56,10 @@ describe('integrator port-context runtime', () => {
     const fake = {
       on: () => undefined,
       query: async () => ({ rows: [], rowCount: 0 }),
-      connect: async () => ({ query: async () => ({ rows: [], rowCount: 0 }), release: () => undefined }),
+      connect: async () => ({
+        query: async () => ({ rows: [], rowCount: 0 }),
+        release: () => undefined,
+      }),
       end: async () => undefined,
     } as unknown as Pool;
     createIntegratorPoolProvider({
@@ -54,8 +68,18 @@ describe('integrator port-context runtime', () => {
         pool: { connectionString: 'postgresql://integrator@example.test/app', ssl: {} },
         capabilities: {
           request,
-          delivery: { ...request, capabilityId: '00000000-0000-0000-0000-000000000104', targetRole: 'app_operational_delivery_worker', contextClass: 'service' },
-          scheduler: { ...request, capabilityId: '00000000-0000-0000-0000-000000000105', targetRole: 'app_operational_scheduler', contextClass: 'service' },
+          delivery: {
+            ...request,
+            capabilityId: '00000000-0000-0000-0000-000000000104',
+            targetRole: 'app_operational_delivery_worker',
+            contextClass: 'service',
+          },
+          scheduler: {
+            ...request,
+            capabilityId: '00000000-0000-0000-0000-000000000105',
+            targetRole: 'app_operational_scheduler',
+            contextClass: 'service',
+          },
         },
       },
       poolFactory: (_config: PoolConfig) => {
@@ -66,18 +90,199 @@ describe('integrator port-context runtime', () => {
     expect(pools).toBe(1);
   });
 
-  it('fails closed when an organization nested inside a delivery scope would inherit that service capability', () => {
+  it('switches an organization nested inside a delivery scope to the tenant-service capability', () => {
     const delivery: IntegratorPortCapabilityDescriptor = {
       ...request,
       capabilityId: '00000000-0000-0000-0000-000000000104',
       targetRole: 'app_operational_delivery_worker',
       contextClass: 'service',
     };
-    expect(() => runWithIntegratorPortCapability('delivery', () =>
+    const selected = runWithIntegratorPortCapability('delivery', () =>
       integratorPortContextPrincipal(
         { kind: 'organization', organizationId: ORG },
-        { request, delivery, tenant_service: { ...request, capabilityId: '00000000-0000-0000-0000-000000000105', targetRole: 'app_tenant_service', contextClass: 'tenant_service' } },
+        {
+          request,
+          delivery,
+          tenant_service: {
+            ...request,
+            capabilityId: '00000000-0000-0000-0000-000000000105',
+            targetRole: 'app_tenant_service',
+            contextClass: 'tenant_service',
+          },
+        },
       ),
-    )).toThrow('Missing declared integrator port capability');
+    );
+    expect(selected).toMatchObject({
+      contextClass: 'tenant_service',
+      targetRole: 'app_tenant_service',
+      organizationId: ORG,
+    });
+  });
+
+  it('selects a named capability by exact function and purpose and carries canonical typed args', () => {
+    const named = {
+      ...request,
+      contextClass: 'service' as const,
+      functionIdentity: 'app.resolve_outgoing_delivery_scope(uuid)',
+      purpose: 'delivery.resolve_scope',
+    };
+    const arg = portTypedArg('uuid', ORG);
+    const selected = runWithIntegratorPortOperation(
+      {
+        functionIdentity: named.functionIdentity,
+        purpose: named.purpose,
+        typedArgs: [arg],
+      },
+      () =>
+        integratorPortContextPrincipal({ kind: 'infra', source: 'worker' }, { exact_scope: named }),
+    );
+    expect(selected).toMatchObject({
+      functionIdentity: named.functionIdentity,
+      purpose: named.purpose,
+      typedArgs: [arg],
+    });
+  });
+
+  it('derives the declared named operation from a real pg call instead of using the class default', () => {
+    const named = {
+      ...request,
+      functionIdentity: 'app.resolve_outgoing_delivery_scope(uuid)',
+      purpose: 'delivery.resolve_scope',
+    };
+    expect(
+      integratorPortOperationForQuery(
+        'SELECT * FROM app.resolve_outgoing_delivery_scope($1::uuid)',
+        [ORG],
+        { request, named },
+      ),
+    ).toEqual({
+      functionIdentity: named.functionIdentity,
+      purpose: named.purpose,
+      typedArgs: [portTypedArg('uuid', ORG)],
+    });
+  });
+
+  it('installs the exact named descriptor and argument hash for a real pool query', async () => {
+    const installs: unknown[][] = [];
+    const service: IntegratorPortCapabilityDescriptor = {
+      ...request,
+      contextClass: 'service',
+      targetRole: 'app_service',
+    };
+    const named: IntegratorPortCapabilityDescriptor = {
+      ...service,
+      capabilityId: '00000000-0000-0000-0000-000000000119',
+      functionIdentity: 'app.resolve_outgoing_delivery_scope(uuid)',
+      purpose: 'delivery.resolve_scope',
+    };
+    const provider = createIntegratorPoolProvider({
+      connectionString: 'postgresql://integrator/app',
+      portContext: {
+        pool: { connectionString: 'postgresql://integrator/app' },
+        capabilities: { service, named },
+      },
+      poolFactory: () => {
+        const client = {
+          query: async (query: string, values?: readonly unknown[]) => {
+            if (query.includes('app.install_port_context')) installs.push([...(values ?? [])]);
+            return { rows: [], rowCount: 0 };
+          },
+          release: () => undefined,
+        } as unknown as PoolClient;
+        return {
+          connect: async () => client,
+          on: () => undefined,
+          end: async () => undefined,
+        } as unknown as Pool;
+      },
+    });
+    await runWithDbInfraPrincipal({ source: 'integrator-health-check' }, () =>
+      provider.query('SELECT app.resolve_outgoing_delivery_scope($1::uuid)', [ORG]),
+    );
+    expect(installs).toHaveLength(1);
+    expect(installs[0]?.[4]).toBe(named.functionIdentity);
+    expect(installs[0]?.[5]).toEqual(hashPortTypedArgs([portTypedArg('uuid', ORG)]));
+  });
+
+  it('maps scheduler and delivery sources to their runtime roles without caller omissions', () => {
+    expect(integratorPortCapabilityForInfraSource('scheduler:claim-due-jobs')).toBe('scheduler');
+    expect(integratorPortCapabilityForInfraSource('worker:outgoing-delivery-tick')).toBe(
+      'delivery',
+    );
+    expect(integratorPortCapabilityForInfraSource('integrator-health-check')).toBe('service');
+  });
+
+  it('preflights replacement authentication before swap and forwards pool error listeners after rotation', async () => {
+    const generations: Array<{
+      url: string;
+      listeners: Set<(error: Error) => void>;
+      endCalls: number;
+    }> = [];
+    const poolFactory = (config: PoolConfig): Pool => {
+      const state = {
+        url: String(config.connectionString),
+        listeners: new Set<(error: Error) => void>(),
+        endCalls: 0,
+      };
+      generations.push(state);
+      const pool = {
+        on: (event: string, listener: (error: Error) => void) => {
+          if (event === 'error') state.listeners.add(listener);
+          return pool;
+        },
+        removeListener: (event: string, listener: (error: Error) => void) => {
+          if (event === 'error') state.listeners.delete(listener);
+          return pool;
+        },
+        connect: async () => ({
+          generation: state.url,
+          query: async (query: string) => {
+            if (state.url.includes('rejected') && query === 'SELECT 1')
+              throw new Error('new credential rejected');
+            return { rows: [], rowCount: 1 };
+          },
+          release: () => undefined,
+        }),
+        end: async () => {
+          state.endCalls += 1;
+        },
+      } as unknown as Pool;
+      return pool;
+    };
+    const provider = createIntegratorPoolProvider({
+      connectionString: 'postgresql://old/app',
+      portContext: {
+        pool: { connectionString: 'postgresql://old/app' },
+        capabilities: { request },
+      },
+      poolFactory,
+    }) as Pool & {
+      rotatePortContextPool(next: {
+        pool: PoolConfig;
+        capabilities: Record<string, IntegratorPortCapabilityDescriptor>;
+      }): Promise<void>;
+    };
+    let observed: Error | undefined;
+    provider.on('error', (error) => {
+      observed = error;
+    });
+    await expect(
+      provider.rotatePortContextPool({
+        pool: { connectionString: 'postgresql://rejected/app' },
+        capabilities: { request },
+      }),
+    ).rejects.toThrow('new credential rejected');
+    const stillOld = (await provider.connect()) as PoolClient & { generation: string };
+    expect(stillOld.generation).toContain('old');
+    stillOld.release();
+    expect(generations[0]?.endCalls).toBe(0);
+
+    await provider.rotatePortContextPool({
+      pool: { connectionString: 'postgresql://new/app' },
+      capabilities: { request },
+    });
+    const emitted = new Error('replacement idle client failed');
+    for (const listener of generations[2]!.listeners) listener(emitted);
+    expect(observed).toBe(emitted);
   });
 });

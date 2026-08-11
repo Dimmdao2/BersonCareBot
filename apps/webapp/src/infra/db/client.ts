@@ -14,6 +14,8 @@ export const DATABASE_URL_STAFF_ENV = 'DATABASE_URL_STAFF';
 export const DATABASE_URL_NONSTAFF_ENV = 'DATABASE_URL_NONSTAFF';
 
 let pool: Pool | null = null;
+let rotationSignalInstalled = false;
+let rotationInFlight: Promise<void> | null = null;
 
 type WebappRuntimeDatabaseEnv = {
   DATABASE_URL?: string;
@@ -63,22 +65,23 @@ function readWebappRuntimeDatabaseEnv(): WebappRuntimeDatabaseEnv {
 }
 
 export function getPool(): Pool {
-  pool ??= env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
-    ? createWebappPoolProvider({
-        portContext: createWebappPortContextRuntimeConfig({
-          DATABASE_URL_STAFF: env.DATABASE_URL_STAFF,
-          DATABASE_URL_PATIENT: env.DATABASE_URL_PATIENT,
-          WEBAPP_DB_STAFF_LOGIN: env.WEBAPP_DB_STAFF_LOGIN,
-          WEBAPP_DB_PATIENT_LOGIN: env.WEBAPP_DB_PATIENT_LOGIN,
-          WEBAPP_DB_TLS_CA_FILE: env.WEBAPP_DB_TLS_CA_FILE,
-          WEBAPP_DB_STAFF_CERT_FILE: env.WEBAPP_DB_STAFF_CERT_FILE,
-          WEBAPP_DB_STAFF_KEY_FILE: env.WEBAPP_DB_STAFF_KEY_FILE,
-          WEBAPP_DB_PATIENT_CERT_FILE: env.WEBAPP_DB_PATIENT_CERT_FILE,
-          WEBAPP_DB_PATIENT_KEY_FILE: env.WEBAPP_DB_PATIENT_KEY_FILE,
-          WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON,
-        }),
-      })
-    : createWebappPoolProvider(resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()));
+  pool ??=
+    env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+      ? createWebappPoolProvider({
+          portContext: createWebappPortContextRuntimeConfig({
+            DATABASE_URL_STAFF: env.DATABASE_URL_STAFF,
+            DATABASE_URL_PATIENT: env.DATABASE_URL_PATIENT,
+            WEBAPP_DB_STAFF_LOGIN: env.WEBAPP_DB_STAFF_LOGIN,
+            WEBAPP_DB_PATIENT_LOGIN: env.WEBAPP_DB_PATIENT_LOGIN,
+            WEBAPP_DB_TLS_CA_FILE: env.WEBAPP_DB_TLS_CA_FILE,
+            WEBAPP_DB_STAFF_CERT_FILE: env.WEBAPP_DB_STAFF_CERT_FILE,
+            WEBAPP_DB_STAFF_KEY_FILE: env.WEBAPP_DB_STAFF_KEY_FILE,
+            WEBAPP_DB_PATIENT_CERT_FILE: env.WEBAPP_DB_PATIENT_CERT_FILE,
+            WEBAPP_DB_PATIENT_KEY_FILE: env.WEBAPP_DB_PATIENT_KEY_FILE,
+            WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON: env.WEBAPP_PORT_CONTEXT_CAPABILITIES_JSON,
+          }),
+        })
+      : createWebappPoolProvider(resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()));
 
   return pool;
 }
@@ -95,7 +98,27 @@ export async function rotateWebappPortContextPools(
   if (typeof rotating.rotatePortContextPools !== 'function') {
     throw new Error('Webapp port-context pool rotation is not installed');
   }
-  await rotating.rotatePortContextPools(createWebappPortContextRuntimeConfig(nextEnv), drainTimeoutMs);
+  await rotating.rotatePortContextPools(
+    createWebappPortContextRuntimeConfig(nextEnv),
+    drainTimeoutMs,
+  );
+}
+
+/** SIGHUP reloads certificate paths/URLs from the process environment without a restart. */
+export function installWebappPortContextRotationSignal(): void {
+  if (rotationSignalInstalled || env.DB_PRINCIPAL_CONTEXT_MODE !== 'port-context') return;
+  rotationSignalInstalled = true;
+  process.on('SIGHUP', () => {
+    if (rotationInFlight) return;
+    rotationInFlight = rotateWebappPortContextPools(process.env)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[db][rotation] webapp port-context rotation failed', { message });
+      })
+      .finally(() => {
+        rotationInFlight = null;
+      });
+  });
 }
 
 /** Read the already-collected counters without creating a pool or doing I/O. */

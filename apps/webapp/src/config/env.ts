@@ -351,11 +351,17 @@ export const env = parsed;
  * `next dev` без URL — ошибка; production runtime без URL — см. `instrumentation.ts` и `getPool()`.
  */
 export function webappReposAreInMemory(): boolean {
-  if ((env.DATABASE_URL ?? '').trim()) return false;
+  const runtimeDatabaseConfigured =
+    env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+      ? Boolean((env.DATABASE_URL_STAFF ?? '').trim() && (env.DATABASE_URL_PATIENT ?? '').trim())
+      : Boolean((env.DATABASE_URL ?? '').trim());
+  if (runtimeDatabaseConfigured) return false;
   if (isTest) return true;
   if (process.env.NODE_ENV === 'development') {
     throw new Error(
-      'DATABASE_URL is not set. Configure the webapp PostgreSQL URL (e.g. apps/webapp/.env.dev or .env.local).',
+      env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context'
+        ? 'DATABASE_URL_STAFF and DATABASE_URL_PATIENT are required in webapp port-context mode.'
+        : 'DATABASE_URL is not set. Configure the webapp PostgreSQL URL (e.g. apps/webapp/.env.dev or .env.local).',
     );
   }
   return true;

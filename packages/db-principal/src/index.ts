@@ -4,6 +4,8 @@ import { isWebappLockedInfraCronSource } from './webappLockedInfraCronSources.js
 
 export {
   hashPortTypedArgs,
+  portTypedArg,
+  portTypedArgsForFunctionIdentity,
   PORT_CONTEXT_ZERO_ARGS_HASH,
   startPortContextTransaction,
   withPortContextTransaction,
@@ -12,6 +14,7 @@ export {
   type PortContextQueryable,
   type PortContextTransactionHandle,
   type PortTypedArg,
+  type PortTypedArgType,
 } from './portContext.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -772,10 +775,7 @@ export function assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
   if (!principal) {
     throw new Error('DB principal context is required before scoped DB access in locked mode');
   }
-  if (
-    principal.kind === 'infra' &&
-    !isWebappLockedInfraCronSource(principal.source)
-  ) {
+  if (principal.kind === 'infra' && !isWebappLockedInfraCronSource(principal.source)) {
     throw new Error(
       'DB infra principal is not allowed to use the webapp request DB pool in locked mode',
     );

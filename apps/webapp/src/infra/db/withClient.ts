@@ -34,10 +34,11 @@ async function withPortContextPoolTransaction<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  const principal = currentWebappPortContextPrincipal();
   const client = await pool.connect();
   let completed = false;
   try {
-    const result = await withPortContextTransaction(client, currentWebappPortContextPrincipal(), async (sameClient) =>
+    const result = await withPortContextTransaction(client, principal, async (sameClient) =>
       fn(sameClient as PoolClient),
     );
     completed = true;
@@ -157,10 +158,11 @@ export type PoolTransactionHandle = {
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
   if (isPortContextMode()) {
+    const principal = currentWebappPortContextPrincipal();
     const client = await pool.connect();
     let handle: Awaited<ReturnType<typeof startPortContextTransaction>>;
     try {
-      handle = await startPortContextTransaction(client, currentWebappPortContextPrincipal());
+      handle = await startPortContextTransaction(client, principal);
     } catch (error) {
       // The shared lifecycle has already destroyed this exact checkout.
       throw error;

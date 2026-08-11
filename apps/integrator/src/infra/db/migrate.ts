@@ -42,7 +42,8 @@ export function resolveStartupMigrationMode(
   dbPrincipalContextMode: string | undefined,
 ): StartupMigrationMode {
   const normalized = dbPrincipalContextMode?.trim();
-  if (normalized === 'locked' || normalized === 'shadow' || normalized === 'port-context') return 'verify-ledger-only';
+  if (normalized === 'locked' || normalized === 'shadow' || normalized === 'port-context')
+    return 'verify-ledger-only';
   return 'run-ddl-migrations';
 }
 
@@ -518,17 +519,21 @@ export async function runStartupMigrationGateWithDeps(
   if (deps.dbPrincipalContextMode?.trim() === 'port-context' && deps.createDb === undefined) {
     // The runtime login has no DDL capability and must never instantiate the legacy migration
     // pool. Ledger verification goes through the same mTLS/context chokepoint as every query.
-    const [{ db: runtimePool }, { withIntegratorPoolClient }, { runWithDbBootstrapPrincipal }, { runWithIntegratorPortCapability }] =
-      await Promise.all([
-        import('./client.js'),
-        import('./withClient.js'),
-        import('@bersoncare/db-principal'),
-        import('./portContextRuntime.js'),
-      ]);
+    const [
+      { db: runtimePool },
+      { withIntegratorPoolClient },
+      { runWithDbInfraPrincipal },
+      { runWithIntegratorPortCapability },
+    ] = await Promise.all([
+      import('./client.js'),
+      import('./withClient.js'),
+      import('@bersoncare/db-principal'),
+      import('./portContextRuntime.js'),
+    ]);
     const runtimeLedger: MigrationDbClient = {
       query: async <T extends object>(text: string, values?: unknown[]) =>
-        runWithIntegratorPortCapability('resolver', () =>
-          runWithDbBootstrapPrincipal({ source: 'integrator-server-runtime-config' }, () =>
+        runWithIntegratorPortCapability('migration_ledger', () =>
+          runWithDbInfraPrincipal({ source: 'integrator-startup-migration-ledger' }, () =>
             withIntegratorPoolClient(runtimePool, async (client) => client.query<T>(text, values)),
           ),
         ),
@@ -536,7 +541,13 @@ export async function runStartupMigrationGateWithDeps(
     };
     const migrations = await (deps.discoverMigrationsFn ?? discoverMigrations)();
     await verifyStartupMigrationState(runtimeLedger, migrations);
-    logger.info({ dbPrincipalContextMode: deps.dbPrincipalContextMode, migrationLedger: INTEGRATOR_MIGRATIONS_TABLE }, 'Integrator port-context startup verified migration ledger without a DDL pool');
+    logger.info(
+      {
+        dbPrincipalContextMode: deps.dbPrincipalContextMode,
+        migrationLedger: INTEGRATOR_MIGRATIONS_TABLE,
+      },
+      'Integrator port-context startup verified migration ledger without a DDL pool',
+    );
     return;
   }
 
@@ -567,7 +578,8 @@ export async function runStartupMigrationGateWithDeps(
 export async function runStartupMigrationGate(): Promise<void> {
   await runStartupMigrationGateWithDeps({
     dbPrincipalContextMode: env.DB_PRINCIPAL_CONTEXT_MODE,
-    databaseUrl: env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' ? env.INTEGRATOR_DB_URL : env.DATABASE_URL,
+    databaseUrl:
+      env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context' ? env.INTEGRATOR_DB_URL : env.DATABASE_URL,
   });
 }
 

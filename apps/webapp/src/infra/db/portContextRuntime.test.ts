@@ -1,10 +1,13 @@
 import type { Pool, PoolClient, PoolConfig } from 'pg';
 import { describe, expect, it } from 'vitest';
-import { runWithDbStaffPrincipal } from '@bersoncare/db-principal';
+import { hashPortTypedArgs, portTypedArg, runWithDbStaffPrincipal } from '@bersoncare/db-principal';
 import { createWebappPoolProvider } from './webappPoolProvider';
 import {
   createWebappPortContextRuntimeConfig,
   type PortCapabilityDescriptor,
+  type WebappPortContextRuntimeConfig,
+  runWithWebappPortOperation,
+  webappPortOperationForQuery,
   webappPortContextPrincipal,
 } from './portContextRuntime';
 
@@ -23,7 +26,11 @@ function fakePool(log: string[], releases: Error[], cleanupFails = false): Pool 
   const client = {
     async query(sql: string) {
       log.push(sql);
-      if (cleanupFails && sql === 'SELECT app.clear_port_context()' && log.filter((entry) => entry === sql).length === 2) {
+      if (
+        cleanupFails &&
+        sql === 'SELECT app.clear_port_context()' &&
+        log.filter((entry) => entry === sql).length === 2
+      ) {
         throw new Error('clear failed');
       }
       return { rows: [{ client }], rowCount: 1 };
@@ -69,8 +76,9 @@ describe('webapp port-context runtime', () => {
       poolFactory: (_config: PoolConfig) => fakePool(log, releases),
     });
 
-    const result = await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
-      pool.query('SELECT exact_client'),
+    const result = await runWithDbStaffPrincipal(
+      { organizationId: ORG, platformUserId: USER },
+      () => pool.query('SELECT exact_client'),
     );
 
     expect(result.rows[0]).toHaveProperty('client');
@@ -100,7 +108,9 @@ describe('webapp port-context runtime', () => {
       poolFactory: (_config: PoolConfig) => fakePool(log, releases, true),
     });
     await expect(
-      runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () => pool.query('SELECT failure')),
+      runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
+        pool.query('SELECT failure'),
+      ),
     ).rejects.toThrow('clear failed');
     expect(log).toContain('ROLLBACK');
     expect(releases).toHaveLength(1);
@@ -116,5 +126,224 @@ describe('webapp port-context runtime', () => {
       pool: 'staff',
       principal: { capabilityId: CAPABILITY, targetRole: 'app_staff', contextClass: 'staff' },
     });
+  });
+
+  it('selects a named capability by exact function and purpose instead of the class default', () => {
+    const arg = portTypedArg('uuid', USER);
+    const named: PortCapabilityDescriptor = {
+      ...staffCapability,
+      capabilityId: '00000000-0000-0000-0000-000000000109',
+      purpose: 'staff.read_profile',
+      functionIdentity: 'app.read_staff_profile(uuid)',
+    };
+    const selected = runWithWebappPortOperation(
+      {
+        functionIdentity: named.functionIdentity!,
+        purpose: named.purpose,
+        typedArgs: [arg],
+      },
+      () =>
+        webappPortContextPrincipal(
+          { kind: 'staff', organizationId: ORG, platformUserId: USER },
+          { staff: staffCapability, read_profile: named },
+        ),
+    );
+    expect(selected.principal).toMatchObject({
+      capabilityId: named.capabilityId,
+      functionIdentity: named.functionIdentity,
+      typedArgs: [arg],
+    });
+  });
+
+  it('derives an exact named operation and canonical args from a real pg call', () => {
+    const named: PortCapabilityDescriptor = {
+      ...staffCapability,
+      purpose: 'staff.read_profile',
+      functionIdentity: 'app.read_staff_profile(uuid)',
+    };
+    expect(
+      webappPortOperationForQuery('SELECT app.read_staff_profile($1::uuid)', [USER], {
+        staff: staffCapability,
+        named,
+      }),
+    ).toEqual({
+      functionIdentity: named.functionIdentity,
+      purpose: named.purpose,
+      typedArgs: [portTypedArg('uuid', USER)],
+    });
+  });
+
+  it('installs the exact named descriptor and argument hash for a real pool query', async () => {
+    const installs: unknown[][] = [];
+    const named: PortCapabilityDescriptor = {
+      ...staffCapability,
+      capabilityId: '00000000-0000-0000-0000-000000000114',
+      purpose: 'staff.read_profile',
+      functionIdentity: 'app.read_staff_profile(uuid)',
+    };
+    const pool = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://staff/app' },
+        patient: { connectionString: 'postgresql://patient/app' },
+        capabilities: { staff: staffCapability, named },
+      },
+      poolFactory: () => {
+        const client = {
+          query: async (query: string, values?: readonly unknown[]) => {
+            if (query.includes('app.install_port_context')) installs.push([...(values ?? [])]);
+            return { rows: [], rowCount: 0 };
+          },
+          release: () => undefined,
+        } as unknown as PoolClient;
+        return {
+          connect: async () => client,
+          on: () => undefined,
+          end: async () => undefined,
+        } as unknown as Pool;
+      },
+    });
+    await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
+      pool.query('SELECT app.read_staff_profile($1::uuid)', [USER]),
+    );
+    expect(installs).toHaveLength(1);
+    expect(installs[0]?.[4]).toBe(named.functionIdentity);
+    expect(installs[0]?.[5]).toEqual(hashPortTypedArgs([portTypedArg('uuid', USER)]));
+  });
+
+  it('maps health, general workers and media workers to distinct service capabilities', () => {
+    const descriptor = (capabilityId: string, targetRole: string): PortCapabilityDescriptor => ({
+      capabilityId,
+      targetRole,
+      contextClass: 'service',
+      purpose: 'relation',
+    });
+    const capabilities = {
+      service: descriptor('00000000-0000-0000-0000-000000000111', 'app_service'),
+      worker: descriptor('00000000-0000-0000-0000-000000000112', 'app_worker'),
+      media_worker: descriptor(
+        '00000000-0000-0000-0000-000000000113',
+        'app_operational_media_worker',
+      ),
+    };
+    expect(
+      webappPortContextPrincipal({ kind: 'infra', source: 'webapp-health-check' }, capabilities)
+        .principal.targetRole,
+    ).toBe('app_service');
+    expect(
+      webappPortContextPrincipal(
+        { kind: 'infra', source: 'api/internal/product-analytics/retention:POST' },
+        capabilities,
+      ).principal.targetRole,
+    ).toBe('app_worker');
+    expect(
+      webappPortContextPrincipal(
+        { kind: 'infra', source: 'api/internal/media-transcode/enqueue:POST' },
+        capabilities,
+      ).principal.targetRole,
+    ).toBe('app_operational_media_worker');
+  });
+
+  it('authenticates both replacement pools before swapping and keeps the old generation on failure', async () => {
+    const created: Array<{ url: string; queries: string[]; endCalls: number }> = [];
+    const poolFactory = (config: PoolConfig): Pool => {
+      const state = { url: String(config.connectionString), queries: [] as string[], endCalls: 0 };
+      created.push(state);
+      const pool = {
+        on: () => pool,
+        removeListener: () => pool,
+        connect: async () => ({
+          query: async (query: string) => {
+            state.queries.push(query);
+            if (state.url.includes('rejected') && query === 'SELECT 1')
+              throw new Error('certificate rejected');
+            return { rows: [{ generation: state.url }], rowCount: 1 };
+          },
+          release: () => undefined,
+        }),
+        end: async () => {
+          state.endCalls += 1;
+        },
+      } as unknown as Pool;
+      return pool;
+    };
+    const provider = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://old-staff/app' },
+        patient: { connectionString: 'postgresql://old-patient/app' },
+        capabilities: { staff: staffCapability },
+      },
+      poolFactory,
+    }) as Pool & { rotatePortContextPools(next: WebappPortContextRuntimeConfig): Promise<void> };
+    await expect(
+      provider.rotatePortContextPools({
+        staff: { connectionString: 'postgresql://rejected-staff/app' },
+        patient: { connectionString: 'postgresql://new-patient/app' },
+        capabilities: { staff: staffCapability },
+      }),
+    ).rejects.toThrow('certificate rejected');
+    await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
+      provider.query('SELECT after_failed_rotation'),
+    );
+    expect(created[0]?.queries).toContain('SELECT after_failed_rotation');
+    expect(created[0]?.endCalls).toBe(0);
+  });
+
+  it('destroys an old checked-out client that prevents certificate-generation drain', async () => {
+    const forced: Error[] = [];
+    const poolFactory = (config: PoolConfig): Pool => {
+      const clients = new Set<object>();
+      let finishEnd: (() => void) | undefined;
+      let ending = false;
+      const maybeFinish = () => {
+        if (ending && clients.size === 0) finishEnd?.();
+      };
+      const pool = {
+        on: () => pool,
+        removeListener: () => pool,
+        connect: async () => {
+          const client = {
+            query: async () => ({ rows: [], rowCount: 1 }),
+            release: (error?: Error) => {
+              if (error) forced.push(error);
+              clients.delete(client);
+              maybeFinish();
+            },
+          };
+          clients.add(client);
+          return client;
+        },
+        end: () => {
+          ending = true;
+          if (clients.size === 0) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            finishEnd = resolve;
+          });
+        },
+      } as unknown as Pool;
+      void config;
+      return pool;
+    };
+    const provider = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://old-staff/app' },
+        patient: { connectionString: 'postgresql://old-patient/app' },
+        capabilities: { staff: staffCapability },
+      },
+      poolFactory,
+    }) as Pool & {
+      rotatePortContextPools(next: WebappPortContextRuntimeConfig, timeout?: number): Promise<void>;
+    };
+    await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
+      provider.connect(),
+    );
+    await provider.rotatePortContextPools(
+      {
+        staff: { connectionString: 'postgresql://new-staff/app' },
+        patient: { connectionString: 'postgresql://new-patient/app' },
+        capabilities: { staff: staffCapability },
+      },
+      2,
+    );
+    expect(forced.some((error) => /did not drain/.test(error.message))).toBe(true);
   });
 });

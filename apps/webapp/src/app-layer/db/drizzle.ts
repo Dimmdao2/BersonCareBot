@@ -129,14 +129,19 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
       // Do not let Drizzle acquire an unrelated backend before its callback. The shared lifecycle
       // owns this physical checkout from BEGIN through cleanup and destroys it on every fault.
       return (async () => {
+        const runtime = createWebappPortContextRuntimeConfig(process.env);
+        const selected = webappPortContextPrincipal(
+          principalSnapshot,
+          runtime.capabilities,
+        ).principal;
         const client = await getPool().connect();
         let completed = false;
-        const runtime = createWebappPortContextRuntimeConfig(process.env);
-        const selected = webappPortContextPrincipal(principalSnapshot, runtime.capabilities).principal;
         try {
           const result = await withPortContextTransaction(client, selected, async (sameClient) =>
             callback(
-              drizzle(sameClient as unknown as PoolClient, { schema }) as unknown as DrizzleTransaction,
+              drizzle(sameClient as unknown as PoolClient, {
+                schema,
+              }) as unknown as DrizzleTransaction,
             ),
           );
           completed = true;

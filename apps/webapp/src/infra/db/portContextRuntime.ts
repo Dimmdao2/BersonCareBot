@@ -1,7 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { PoolConfig } from 'pg';
-import type { DbPrincipal, PortContextClass, PortContextPrincipal } from '@bersoncare/db-principal';
+import {
+  isWebappLockedInfraCronSource,
+  portTypedArgsForFunctionIdentity,
+} from '@bersoncare/db-principal';
+import type {
+  DbPrincipal,
+  PortContextClass,
+  PortContextPrincipal,
+  PortTypedArg,
+} from '@bersoncare/db-principal';
 
 export type PortCapabilityDescriptor = {
   capabilityId: string;
@@ -17,9 +27,56 @@ export type WebappPortContextRuntimeConfig = {
   capabilities: Record<string, PortCapabilityDescriptor>;
 };
 
+export type WebappPortOperation = {
+  functionIdentity: string;
+  purpose: string;
+  typedArgs: readonly PortTypedArg[];
+};
+
+const operationStorage = new AsyncLocalStorage<WebappPortOperation>();
+
+export function runWithWebappPortOperation<T>(operation: WebappPortOperation, fn: () => T): T {
+  return operationStorage.run(operation, fn);
+}
+
+export function webappPortOperationForQuery(
+  queryText: string,
+  values: readonly unknown[],
+  capabilities: Record<string, PortCapabilityDescriptor>,
+): WebappPortOperation | undefined {
+  const matches = Object.values(capabilities).filter((descriptor) => {
+    if (!descriptor.functionIdentity) return false;
+    return queryText.includes(
+      `${descriptor.functionIdentity.slice(0, descriptor.functionIdentity.indexOf('('))}(`,
+    );
+  });
+  if (
+    new Set(matches.map((descriptor) => `${descriptor.functionIdentity}\0${descriptor.purpose}`))
+      .size > 1
+  ) {
+    throw new Error('A DB statement may invoke only one declared named-root capability');
+  }
+  const descriptor = matches[0];
+  if (!descriptor?.functionIdentity) return undefined;
+  return {
+    functionIdentity: descriptor.functionIdentity,
+    purpose: descriptor.purpose,
+    typedArgs: portTypedArgsForFunctionIdentity(descriptor.functionIdentity, values),
+  };
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ROLE_RE = /^[a-z_][a-z0-9_]{0,62}$/;
 const PURPOSE_RE = /^[a-z][a-z0-9._:-]{0,127}$/;
+const MEDIA_WORKER_SOURCES = new Set([
+  'api/internal/media-hls-proxy-errors/retention:POST',
+  'api/internal/media-playback-stats/retention:POST',
+  'api/internal/media-pending-delete/purge:POST',
+  'api/internal/media-multipart/cleanup:POST',
+  'api/internal/media-preview/process:POST',
+  'api/internal/media-transcode/enqueue:POST',
+  'api/internal/media-transcode/reconcile:POST',
+]);
 
 function required(value: string | undefined, name: string): string {
   const trimmed = value?.trim() ?? '';
@@ -67,8 +124,14 @@ function strictMtlsPoolConfig(input: {
     ssl: {
       rejectUnauthorized: true,
       ca: requireFile(required(input.caFile, 'WEBAPP_DB_TLS_CA_FILE'), 'WEBAPP_DB_TLS_CA_FILE'),
-      cert: requireFile(required(input.certFile, `${input.label}_DB_TLS_CERT_FILE`), `${input.label}_DB_TLS_CERT_FILE`),
-      key: requireFile(required(input.keyFile, `${input.label}_DB_TLS_KEY_FILE`), `${input.label}_DB_TLS_KEY_FILE`),
+      cert: requireFile(
+        required(input.certFile, `${input.label}_DB_TLS_CERT_FILE`),
+        `${input.label}_DB_TLS_CERT_FILE`,
+      ),
+      key: requireFile(
+        required(input.keyFile, `${input.label}_DB_TLS_KEY_FILE`),
+        `${input.label}_DB_TLS_KEY_FILE`,
+      ),
       servername: url.hostname,
     },
   };
@@ -92,23 +155,40 @@ function parseCapabilities(raw: string | undefined): Record<string, PortCapabili
     }
     const descriptor = candidate as Partial<PortCapabilityDescriptor>;
     if (
-      !descriptor.capabilityId || !UUID_RE.test(descriptor.capabilityId) ||
-      !descriptor.targetRole || !ROLE_RE.test(descriptor.targetRole) ||
-      !descriptor.purpose || !PURPOSE_RE.test(descriptor.purpose) ||
-      !['pre_session', 'staff', 'patient', 'platform', 'integrator', 'tenant_service', 'service'].includes(descriptor.contextClass ?? '')
+      !descriptor.capabilityId ||
+      !UUID_RE.test(descriptor.capabilityId) ||
+      !descriptor.targetRole ||
+      !ROLE_RE.test(descriptor.targetRole) ||
+      !descriptor.purpose ||
+      !PURPOSE_RE.test(descriptor.purpose) ||
+      ![
+        'pre_session',
+        'staff',
+        'patient',
+        'platform',
+        'integrator',
+        'tenant_service',
+        'service',
+      ].includes(descriptor.contextClass ?? '')
     ) {
       throw new Error(`port capability ${name} has an invalid descriptor`);
     }
-    if ((descriptor.purpose === 'relation' && descriptor.functionIdentity) ||
-        (descriptor.purpose !== 'relation' && !descriptor.functionIdentity)) {
-      throw new Error(`port capability ${name} must declare a function identity exactly for a named root`);
+    if (
+      (descriptor.purpose === 'relation' && descriptor.functionIdentity) ||
+      (descriptor.purpose !== 'relation' && !descriptor.functionIdentity)
+    ) {
+      throw new Error(
+        `port capability ${name} must declare a function identity exactly for a named root`,
+      );
     }
     capabilities[name] = descriptor as PortCapabilityDescriptor;
   }
   return capabilities;
 }
 
-export function createWebappPortContextRuntimeConfig(env: Record<string, string | undefined>): WebappPortContextRuntimeConfig {
+export function createWebappPortContextRuntimeConfig(
+  env: Record<string, string | undefined>,
+): WebappPortContextRuntimeConfig {
   return {
     staff: strictMtlsPoolConfig({
       connectionString: env.DATABASE_URL_STAFF,
@@ -133,7 +213,35 @@ export function createWebappPortContextRuntimeConfig(env: Record<string, string 
 function capabilityFor(
   capabilities: Record<string, PortCapabilityDescriptor>,
   name: string,
+  principal: DbPrincipal,
 ): PortCapabilityDescriptor {
+  const operation = operationStorage.getStore();
+  if (operation) {
+    const matches = Object.entries(capabilities).filter(
+      ([, descriptor]) =>
+        descriptor.functionIdentity === operation.functionIdentity &&
+        descriptor.purpose === operation.purpose &&
+        (principal.kind === 'staff' || principal.kind === 'clinicBilling'
+          ? descriptor.contextClass === 'staff'
+          : principal.kind === 'patient'
+            ? descriptor.contextClass === 'patient'
+            : principal.kind === 'platform'
+              ? descriptor.contextClass === 'platform'
+              : principal.kind === 'organization'
+                ? descriptor.contextClass === 'tenant_service'
+                : principal.kind === 'infra'
+                  ? descriptor.contextClass === 'service'
+                  : principal.kind === 'bootstrap'
+                    ? descriptor.contextClass === 'pre_session'
+                    : false),
+    );
+    if (matches.length !== 1) {
+      throw new Error(
+        `Missing unique declared webapp port capability for ${operation.functionIdentity} purpose ${operation.purpose}`,
+      );
+    }
+    return matches[0]![1];
+  }
   const capability = capabilities[name];
   if (!capability) throw new Error(`Missing declared webapp port capability: ${name}`);
   return capability;
@@ -148,35 +256,72 @@ export function webappPortContextPrincipal(
   capabilities: Record<string, PortCapabilityDescriptor>,
 ): { pool: 'staff' | 'patient'; principal: PortContextPrincipal } {
   if (!principal) throw new Error('A webapp principal is required in port-context mode');
-  const descriptorName = principal.kind === 'patient' ? 'patient' : principal.kind;
-  const descriptor = capabilityFor(capabilities, descriptorName);
+  const descriptorName =
+    principal.kind === 'organization'
+      ? 'tenant_service'
+      : principal.kind === 'infra'
+        ? MEDIA_WORKER_SOURCES.has(principal.source ?? '')
+          ? 'media_worker'
+          : isWebappLockedInfraCronSource(principal.source)
+            ? 'worker'
+            : 'service'
+        : principal.kind;
+  const descriptor = capabilityFor(capabilities, descriptorName, principal);
+  const operation = operationStorage.getStore();
   const base = {
     capabilityId: descriptor.capabilityId,
     contextClass: descriptor.contextClass,
     targetRole: descriptor.targetRole,
     purpose: descriptor.purpose,
     ...(descriptor.functionIdentity ? { functionIdentity: descriptor.functionIdentity } : {}),
-  } satisfies Omit<PortContextPrincipal, 'actorRef' | 'subjectRef' | 'organizationId' | 'integratorUserId' | 'requestId'>;
+    ...(operation ? { typedArgs: operation.typedArgs } : {}),
+  } satisfies Omit<
+    PortContextPrincipal,
+    'actorRef' | 'subjectRef' | 'organizationId' | 'integratorUserId' | 'requestId'
+  >;
   switch (descriptor.contextClass) {
     case 'staff':
-      if (principal.kind !== 'staff' && principal.kind !== 'clinicBilling') throw new Error(`Capability ${descriptorName} requires a staff principal`);
-      return { pool: 'staff', principal: { ...base, actorRef: principal.platformUserId, organizationId: principal.organizationId } };
+      if (principal.kind !== 'staff' && principal.kind !== 'clinicBilling')
+        throw new Error(`Capability ${descriptorName} requires a staff principal`);
+      return {
+        pool: 'staff',
+        principal: {
+          ...base,
+          actorRef: principal.platformUserId,
+          organizationId: principal.organizationId,
+        },
+      };
     case 'patient':
-      if (principal.kind !== 'patient' || !principal.organizationId) throw new Error('Patient port context requires an organization-scoped patient principal');
-      return { pool: 'patient', principal: { ...base, actorRef: principal.platformUserId, subjectRef: principal.platformUserId, organizationId: principal.organizationId } };
+      if (principal.kind !== 'patient' || !principal.organizationId)
+        throw new Error('Patient port context requires an organization-scoped patient principal');
+      return {
+        pool: 'patient',
+        principal: {
+          ...base,
+          actorRef: principal.platformUserId,
+          subjectRef: principal.platformUserId,
+          organizationId: principal.organizationId,
+        },
+      };
     case 'platform':
-      if (principal.kind !== 'platform') throw new Error('Platform port context requires a platform principal');
+      if (principal.kind !== 'platform')
+        throw new Error('Platform port context requires a platform principal');
       return { pool: 'staff', principal: { ...base, actorRef: principal.platformUserId } };
     case 'tenant_service':
-      if (principal.kind !== 'organization') throw new Error('Tenant-service port context requires an organization principal');
+      if (principal.kind !== 'organization')
+        throw new Error('Tenant-service port context requires an organization principal');
       return { pool: 'staff', principal: { ...base, organizationId: principal.organizationId } };
     case 'service':
-      if (principal.kind !== 'infra') throw new Error('Service port context requires an explicit infra principal');
+      if (principal.kind !== 'infra')
+        throw new Error('Service port context requires an explicit infra principal');
       return { pool: 'staff', principal: base };
     case 'pre_session':
-      if (principal.kind !== 'bootstrap' || !descriptor.functionIdentity) throw new Error('Pre-session port context requires an explicit named-root capability');
+      if (principal.kind !== 'bootstrap' || !descriptor.functionIdentity)
+        throw new Error('Pre-session port context requires an explicit named-root capability');
       return { pool: 'staff', principal: { ...base, requestId: randomUUID() } };
     default:
-      throw new Error(`Webapp capability ${descriptorName} has unsupported context class ${descriptor.contextClass}`);
+      throw new Error(
+        `Webapp capability ${descriptorName} has unsupported context class ${descriptor.contextClass}`,
+      );
   }
 }

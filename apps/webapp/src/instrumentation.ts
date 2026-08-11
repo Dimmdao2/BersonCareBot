@@ -15,13 +15,22 @@ export async function register(): Promise<void> {
     allowDevAuthBypass: parseDevAuthBypassFlag(process.env.ALLOW_DEV_AUTH_BYPASS),
   });
 
+  const portContext = process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context';
+  const runtimeDatabaseConfigured = portContext
+    ? Boolean(
+        (process.env.DATABASE_URL_STAFF ?? '').trim() &&
+        (process.env.DATABASE_URL_PATIENT ?? '').trim(),
+      )
+    : Boolean((process.env.DATABASE_URL ?? '').trim());
   if (
     process.env.NODE_ENV === 'production' &&
-    !(process.env.DATABASE_URL ?? '').trim() &&
+    !runtimeDatabaseConfigured &&
     process.env.npm_lifecycle_event === 'start'
   ) {
     throw new Error(
-      'DATABASE_URL is not set. Production webapp requires a PostgreSQL connection string in the environment.',
+      portContext
+        ? 'DATABASE_URL_STAFF and DATABASE_URL_PATIENT are required in webapp port-context mode.'
+        : 'DATABASE_URL is not set. Production webapp requires a PostgreSQL connection string in the environment.',
     );
   }
   if (process.env.NEXT_PHASE === 'phase-production-build') return;
@@ -33,6 +42,8 @@ export async function register(): Promise<void> {
   // Node-only transitive deps (dotenv, pg, Sentry) — from the Edge compilation.
   // See https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation#specifying-the-runtime
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { installWebappPortContextRotationSignal } = await import('@/infra/db/client');
+    installWebappPortContextRotationSignal();
     const { ensureAuthModulePortsBound } = await import('@/app-layer/di/bindAuthModulePorts');
     ensureAuthModulePortsBound();
     const { ensureSystemSettingsConfigAdapterBound } =

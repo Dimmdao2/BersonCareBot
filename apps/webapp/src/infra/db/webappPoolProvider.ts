@@ -15,6 +15,8 @@ import { classifyPostgresIsolationDenial } from '@/infra/db/saasIsolationDbFailu
 import { getCurrentWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import {
   type WebappPortContextRuntimeConfig,
+  runWithWebappPortOperation,
+  webappPortOperationForQuery,
   webappPortContextPrincipal,
 } from '@/infra/db/portContextRuntime';
 
@@ -42,7 +44,10 @@ export type WebappPoolRoutingMetrics = {
 
 export type WebappPortContextPool = Pool & {
   /** Atomically cuts new checkouts to a replacement certificate generation, then drains the old. */
-  rotatePortContextPools(next: WebappPortContextRuntimeConfig, drainTimeoutMs?: number): Promise<void>;
+  rotatePortContextPools(
+    next: WebappPortContextRuntimeConfig,
+    drainTimeoutMs?: number,
+  ): Promise<void>;
 };
 
 const poolRoutingMetrics = new WeakMap<Pool, WebappPoolRoutingMetrics>();
@@ -325,42 +330,156 @@ function createPortContextWebappPool(
   config: WebappPortContextRuntimeConfig,
   poolFactory: (config: PoolConfig) => Pool,
 ): WebappPortContextPool {
-  let active = {
-    config,
-    staffPool: poolFactory({ ...config.staff, max: 3 }),
-    patientPool: poolFactory({ ...config.patient, max: 2 }),
+  type Generation = {
+    config: WebappPortContextRuntimeConfig;
+    staffPool: Pool;
+    patientPool: Pool;
+    clients: Set<PoolClient>;
   };
+  const listeners = new Set<(error: Error) => void>();
+  const generations = new Set<Generation>();
+  const wrappedClients = new WeakSet<PoolClient>();
+  const createGeneration = (next: WebappPortContextRuntimeConfig): Generation => {
+    const generation = {
+      config: next,
+      staffPool: poolFactory({ ...next.staff, max: 3 }),
+      patientPool: poolFactory({ ...next.patient, max: 2 }),
+      clients: new Set<PoolClient>(),
+    };
+    for (const listener of listeners) {
+      generation.staffPool.on('error', listener);
+      generation.patientPool.on('error', listener);
+    }
+    generations.add(generation);
+    return generation;
+  };
+  const checkout = async (generation: Generation, selectedPool: Pool): Promise<PoolClient> => {
+    const client = await selectedPool.connect();
+    generation.clients.add(client);
+    if (!wrappedClients.has(client)) {
+      const rawRelease = client.release.bind(client);
+      client.release = ((error?: Error) => {
+        generation.clients.delete(client);
+        rawRelease(error);
+      }) as PoolClient['release'];
+      wrappedClients.add(client);
+    }
+    return client;
+  };
+  const preflight = async (generation: Generation): Promise<void> => {
+    for (const selectedPool of [generation.staffPool, generation.patientPool]) {
+      const client = await checkout(generation, selectedPool);
+      try {
+        await client.query('SELECT 1');
+      } finally {
+        client.release();
+      }
+    }
+  };
+  const endGeneration = async (generation: Generation): Promise<void> => {
+    try {
+      await Promise.all([generation.staffPool.end(), generation.patientPool.end()]);
+    } finally {
+      generations.delete(generation);
+    }
+  };
+  const forceGeneration = (generation: Generation, error: Error): void => {
+    for (const client of [...generation.clients]) client.release(error);
+  };
+  const awaitDrain = async (generation: Generation, timeoutMs: number): Promise<void> => {
+    const ending = endGeneration(generation);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = await Promise.race([
+      ending.then(() => false),
+      new Promise<true>((resolve) => {
+        timer = setTimeout(() => resolve(true), timeoutMs);
+      }),
+    ]);
+    if (timer) clearTimeout(timer);
+    if (!timedOut) return;
+    const error = new Error('port-context old webapp pools did not drain before timeout');
+    forceGeneration(generation, error);
+    let forcedTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        ending,
+        new Promise<never>((_, reject) => {
+          forcedTimer = setTimeout(() => reject(error), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (forcedTimer) clearTimeout(forcedTimer);
+    }
+  };
+  let active = createGeneration(config);
   const metrics = createEmptyRoutingMetrics();
   let routedPool: WebappPortContextPool;
 
-  const select = () => {
-    const selected = webappPortContextPrincipal(getCurrentDbPrincipal(), active.config.capabilities);
+  const select = (generation = active) => {
+    const selected = webappPortContextPrincipal(
+      getCurrentDbPrincipal(),
+      generation.config.capabilities,
+    );
     if (selected.pool === 'staff') metrics.staffSelections += 1;
     else metrics.nonstaffSelections += 1;
-    return { pool: selected.pool === 'staff' ? active.staffPool : active.patientPool, principal: selected.principal };
+    return {
+      pool: selected.pool === 'staff' ? generation.staffPool : generation.patientPool,
+      principal: selected.principal,
+    };
   };
 
-  const query = async (...args: Parameters<Pool['query']>): Promise<Awaited<ReturnType<Pool['query']>>> => {
+  const query = async (
+    ...args: Parameters<Pool['query']>
+  ): Promise<Awaited<ReturnType<Pool['query']>>> => {
     if (typeof args.at(-1) === 'function') {
       throw new Error('Callback-form pool.query is forbidden; use the promise-form DB chokepoint');
     }
-    const selected = select();
-    const client = await selected.pool.connect();
-    let completed = false;
-    try {
-      const result = await withPortContextTransaction(client, selected.principal, async (sameClient) => {
-        const clientQuery = sameClient.query.bind(sameClient) as unknown as (
-          ...queryArgs: Parameters<Pool['query']>
-        ) => ReturnType<Pool['query']>;
-        return clientQuery(...args);
-      });
-      completed = true;
-      return result as Awaited<ReturnType<Pool['query']>>;
-    } finally {
-      // The shared wrapper destroys on every failure. A successful transaction is the only client
-      // that may be returned to the pool.
-      if (completed) client.release();
-    }
+    const generation = active;
+    const first = args[0] as unknown;
+    const queryText =
+      typeof first === 'string'
+        ? first
+        : typeof first === 'object' &&
+            first !== null &&
+            'text' in first &&
+            typeof first.text === 'string'
+          ? first.text
+          : '';
+    const configValues =
+      typeof first === 'object' &&
+      first !== null &&
+      'values' in first &&
+      Array.isArray(first.values)
+        ? first.values
+        : [];
+    const positionalValues = Array.isArray(args[1]) ? args[1] : configValues;
+    const operation = webappPortOperationForQuery(
+      queryText,
+      positionalValues,
+      generation.config.capabilities,
+    );
+    const execute = async (): Promise<Awaited<ReturnType<Pool['query']>>> => {
+      const selected = select(generation);
+      const client = await checkout(generation, selected.pool);
+      let completed = false;
+      try {
+        const result = await withPortContextTransaction(
+          client,
+          selected.principal,
+          async (sameClient) => {
+            const clientQuery = sameClient.query.bind(sameClient) as unknown as (
+              ...queryArgs: Parameters<Pool['query']>
+            ) => ReturnType<Pool['query']>;
+            return clientQuery(...args);
+          },
+        );
+        completed = true;
+        return result as Awaited<ReturnType<Pool['query']>>;
+      } finally {
+        if (completed) client.release();
+      }
+    };
+    return operation ? runWithWebappPortOperation(operation, execute) : execute();
   };
 
   const rotatePortContextPools = async (
@@ -370,27 +489,18 @@ function createPortContextWebappPool(
     if (!Number.isSafeInteger(drainTimeoutMs) || drainTimeoutMs < 1) {
       throw new Error('port-context pool drain timeout must be a positive integer');
     }
-    const replacement = {
-      config: next,
-      staffPool: poolFactory({ ...next.staff, max: 3 }),
-      patientPool: poolFactory({ ...next.patient, max: 2 }),
-    };
+    const replacement = createGeneration(next);
+    try {
+      await preflight(replacement);
+    } catch (error) {
+      forceGeneration(replacement, error instanceof Error ? error : new Error(String(error)));
+      await endGeneration(replacement).catch(() => undefined);
+      throw error;
+    }
     const previous = active;
     // A single synchronous pointer swap is the checkout boundary: old credentials cannot reappear.
     active = replacement;
-    const drained = Promise.all([previous.staffPool.end(), previous.patientPool.end()]);
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timeoutHandle = setTimeout(
-        () => reject(new Error('port-context old webapp pools did not drain before timeout')),
-        drainTimeoutMs,
-      );
-    });
-    try {
-      await Promise.race([drained, timeout]);
-    } finally {
-      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-    }
+    await awaitDrain(previous, drainTimeoutMs);
   };
 
   routedPool = new Proxy(active.staffPool, {
@@ -398,13 +508,40 @@ function createPortContextWebappPool(
       if (prop === 'query') return query;
       if (prop === 'connect') {
         // Direct checkout is only consumed by withClient.ts, which applies the same wrapper.
-        return () => select().pool.connect();
+        return () => {
+          const generation = active;
+          return checkout(generation, select(generation).pool);
+        };
       }
       if (prop === 'rotatePortContextPools') return rotatePortContextPools;
-      if (prop === 'end') return async () => Promise.all([active.staffPool.end(), active.patientPool.end()]);
+      if (prop === 'end')
+        return () => Promise.all([...generations].map(endGeneration)).then(() => undefined);
       if (prop === 'totalCount') return active.staffPool.totalCount + active.patientPool.totalCount;
       if (prop === 'idleCount') return active.staffPool.idleCount + active.patientPool.idleCount;
-      if (prop === 'waitingCount') return active.staffPool.waitingCount + active.patientPool.waitingCount;
+      if (prop === 'waitingCount')
+        return active.staffPool.waitingCount + active.patientPool.waitingCount;
+      if (prop === 'on')
+        return (event: string, listener: (error: Error) => void) => {
+          if (event === 'error') {
+            listeners.add(listener);
+            for (const generation of generations) {
+              generation.staffPool.on('error', listener);
+              generation.patientPool.on('error', listener);
+            }
+          }
+          return routedPool;
+        };
+      if (prop === 'off' || prop === 'removeListener')
+        return (event: string, listener: (error: Error) => void) => {
+          if (event === 'error') {
+            listeners.delete(listener);
+            for (const generation of generations) {
+              generation.staffPool.removeListener('error', listener);
+              generation.patientPool.removeListener('error', listener);
+            }
+          }
+          return routedPool;
+        };
       return Reflect.get(target, prop, receiver);
     },
   }) as WebappPortContextPool;

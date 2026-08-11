@@ -9,7 +9,7 @@ import {
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
-import { startPortContextTransaction, withPortContextTransaction } from '@bersoncare/db-principal';
+import { withPortContextTransaction } from '@bersoncare/db-principal';
 import {
   createIntegratorPortContextRuntimeConfig,
   integratorPortContextPrincipal,
@@ -24,11 +24,15 @@ function currentPortContextPrincipal() {
   return integratorPortContextPrincipal(getCurrentDbPrincipal(), config.capabilities);
 }
 
-async function withPortContextPoolTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+async function withPortContextPoolTransaction<T>(
+  pool: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const principal = currentPortContextPrincipal();
   const client = await pool.connect();
   let completed = false;
   try {
-    const result = await withPortContextTransaction(client, currentPortContextPrincipal(), async (sameClient) =>
+    const result = await withPortContextTransaction(client, principal, async (sameClient) =>
       fn(sameClient as PoolClient),
     );
     completed = true;
@@ -38,21 +42,35 @@ async function withPortContextPoolTransaction<T>(pool: Pool, fn: (client: PoolCl
   }
 }
 
-/** Bounded session resource for the scheduler's declared advisory-lock capability. */
+/**
+ * Physical scheduler session whose advisory lock survives bounded context transactions.
+ * No SQL transaction remains open between scheduler ticks.
+ */
 export async function checkoutIntegratorPortContextSession(pool: Pool): Promise<{
   client: PoolClient;
-  commit(): Promise<void>;
-  rollback(): Promise<void>;
+  run<T>(fn: (client: PoolClient) => Promise<T>): Promise<T>;
   release(): void;
 }> {
-  if (!isPortContextMode()) throw new Error('Port-context scheduler session requested outside port-context mode');
+  if (!isPortContextMode())
+    throw new Error('Port-context scheduler session requested outside port-context mode');
+  const principal = currentPortContextPrincipal();
   const client = await pool.connect();
-  const handle = await startPortContextTransaction(client, currentPortContextPrincipal());
+  let destroyed = false;
   return {
-    client: handle.client as PoolClient,
-    commit: () => handle.commit(),
-    rollback: () => handle.rollback(),
-    release: () => handle.release(),
+    client,
+    run: async <T>(fn: (boundedClient: PoolClient) => Promise<T>): Promise<T> => {
+      try {
+        return await withPortContextTransaction(client, principal, async (sameClient) =>
+          fn(sameClient as PoolClient),
+        );
+      } catch (error) {
+        destroyed = true;
+        throw error;
+      }
+    },
+    release: () => {
+      if (!destroyed) client.release();
+    },
   };
 }
 
