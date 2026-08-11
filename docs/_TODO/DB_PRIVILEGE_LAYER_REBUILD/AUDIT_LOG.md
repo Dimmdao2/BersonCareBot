@@ -1086,3 +1086,53 @@ done
 вернула TEST `runtime_acl_rows=1011`, `login_acl_rows=2496`; DEV `967` и `3177`. Это baseline старой схемы, не
 принимаемый результат: atomic reset обязан дать application login table/column/sequence ACL `0`, затем наложить
 только exact declaration runtime/seam grants.
+
+## Audit MEDIA-DB-DOOR-FINAL-2026-08-11 — `d14926c9a`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent runtime/deploy ancestry census, PostgreSQL 16 retirement probes и env fault injection |
+| Вердикт | **FAIL — 5 MUST FIX; не к land/TEST** |
+
+### MEDIA-006 — control-only runtime не запускается
+
+**ОТКРЫТО — MUST FIX.** `apps/media-worker/src/env.ts` одновременно требует и запрещает `DATABASE_URL`, а
+`main.ts` всё ещё создаёт PostgreSQL pool/telemetry из `env.DATABASE_URL`. Штатно измерено:
+`pnpm --dir apps/media-worker test` → exit `1`, `1 failed / 8 passed`; `pnpm --dir apps/media-worker typecheck`
+→ exit `2`, потому что `MEDIA_WORKER_CONTROL_URL` отсутствует в типе env.
+
+### MEDIA-007 — принятые MEDIA-001–004 потеряны при replay
+
+**ОТКРЫТО — MUST FIX.** `git merge-base --is-ancestor a5684df48 d14926c9a` и
+`git merge-base --is-ancestor e2cdadb5d d14926c9a` → exit `1`. Поэтому в candidate нет уже принятого HTTP
+control route/client и PostgreSQL seam: оба exact webapp vitest пути вернули `No test files found`. Исправление
+обязано восстановить принятый код, а не только удалить credential.
+
+### MEDIA-008 — C4 по-прежнему строит четвёртый DB login
+
+**ОТКРЫТО — MUST FIX.** `bootstrap-c4-test-env.mjs`, `assert-c4-operational-runtime-ready.sh`,
+`deploy-test-saas.sh` и `c4-operational-runtime.sql` всё ещё генерируют/требуют media `DATABASE_URL`, четыре LOGIN
+и membership `app_operational_media_worker`, тогда как provisioner и revision-10 declaration уже ожидают три
+operational login. Общая цепочка внутренне несовместима и сохраняет третий DB credential family.
+
+### MEDIA-009 — env denylist имеет обходы
+
+**ОТКРЫТО — MUST FIX.** Preflight с валидным HTTP control и `PGSSLMODE=require` вернул exit `0`. Прямой fault
+probe также показал принятыми `PGSSLCRL`, `PGSSLCRLDIR`, `PGSSLMINPROTOCOLVERSION`, `MEDIA_WORKER_CA`,
+`MEDIA_DATABASE_CA`, `MEDIA_POSTGRESQL_URL`. Запрет должен покрывать PostgreSQL ambient/alias env, а self-test —
+краснеть на каждом классе обхода.
+
+### MEDIA-010 — активная инструкция противоречит cutover
+
+**ОТКРЫТО — MUST FIX.** Отдельный media DB URL/login всё ещё предписан в активных
+`apps/media-worker/README.md`, `deploy/env/README.md`, `deploy/HOST_DEPLOY_README.md` и C4/hard-migration docs.
+Исторические audit/evidence/archive записи не переписываются; активный runbook должен однозначно требовать HTTP
+control + internal secret и отсутствие DB credential.
+
+### Что подтверждено и сохраняется
+
+- `node deploy/host/retire-media-db-login.test.mjs` → exit `0`; расширенный disposable PostgreSQL 16 proof
+  подтвердил отзыв membership/table/column/schema/sequence/function/type/default ACL, rollback при cross-database
+  dependency, owned-object abort и идемпотентность.
+- `node scripts/check-db-chokepoint.mjs`, его self-test, shell/MJS syntax, build и diff-check прошли.
+- Эти зелёные проверки принимают retirement primitive, но не готовность процесса или deploy-chain.
