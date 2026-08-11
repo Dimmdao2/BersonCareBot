@@ -730,3 +730,52 @@ target role и этого bypass не ловит. Нужны actual effective-ro
 `cross_org_rows_visible`, `no_context_query_returned_row`, `owner_query_bypassed_context_gate`. Rotation сохранила
 drain `2→0`, rotated certificate подключился, PostgreSQL log содержит `4` context denial, `certificate revoked` и
 ровно `2` administrator termination.
+
+## Fix verification DECL-FIX2-2026-08-11 — `d1336ca0c`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `d1336ca0c`, `wt/port-context-decl` |
+| Метод | **Взгляд + independent production-shaped PostgreSQL 16.14 restore/catalog/fault probes** |
+| Вердикт | **FAIL — DECL-002/004/005 исправлены; DECL-001/003/006/007 остаются** |
+
+### Исправлено громко
+
+- **DECL-002 ИСПРАВЛЕНО.** `app_ext` owner `app_object_owner`; USAGE только у object owner и двух exact identity/
+  context owners, без PUBLIC/login ACL.
+- **DECL-004 ИСПРАВЛЕНО.** Обе DB owner postgres; `unsafe_application_roles=0`.
+- **DECL-005 ИСПРАВЛЕНО.** Independent dump→recreate→restore→generator: `restore_owner_mismatches=0` для DB,
+  sequence, type, view, invoker и exact seams.
+
+### DECL-001 — runtime ACL пуст и imported RLS predicate нарушает org wall
+
+**ОТКРЫТО — MUST FIX.** Census каждой DB: `238 managed / 225 active / 13 pending`, `225 restrictive / 225
+permissive`, из permissive `150` table-specific + `75` fail-closed, `USING true=0`. Но table grants фактически
+содержат только один patient UPDATE; SELECT/INSERT/DELETE и runtime schema USAGE отсутствуют. После временного
+минимального USAGE+SELECT на `public.be_appointments`: same staff проходит, staff list падает на patient accessor,
+patient видит `cross-org-same-subject`, no-context/owner bypass закрыты. Patient branch обязан проверять organization,
+а combined predicate — не вызывать громкий accessor чужого class в легитимной staff-ветке.
+
+### DECL-003 — function/ACL census не двусторонний
+
+**ОТКРЫТО — MUST FIX.** Declared `10/10`, live `app/app_ext=11`; undeclared `app.is_staff()`. Return mismatches `2`:
+`hash_port_typed_args` fixture создаёт `void` вместо `bytea`, `require_platform_principal` — `void` вместо `boolean`.
+Install/clear получают по `6` non-owner grantees — DEV+TEST логины вместе, а не три своей среды. Stale EXECUTE
+reapply снимает (`1→0`), но verifier-before-reapply и обратный invoker/return census отсутствуют.
+
+### DECL-006 — crash proof не достигает второго DDL/owner switch
+
+**ОТКРЫТО — MUST FIX.** Marker стоит после table DDL и sleep в первом step; function и второй owner switch находятся
+во втором step, который ещё не запускался при kill. Поэтому function absence после `exit=143` вакуумна. Marker должен
+доказывать выполнение table+function и обоих switches до kill.
+
+### DECL-007 — реальные catalog drifts переживают reapply
+
+**ОТКРЫТО — MUST FIX.** Independent injection после production artifact: undeclared relation, `USING true` policy,
+invoker function, arbitrary table ACL и default ACL остались после reapply (`1→1`); stale function EXECUTE снят,
+unsafe role attrs исправлены, dropped declared policy восстановлена. Extra relation осталась owner postgres.
+Committed mutations используют соседний `DO RAISE`, production-shaped proof запускает только DEV. Нужен настоящий
+двусторонний catalog verifier для DEV+TEST и fault mutations через него.
+
+Четыре artifacts tracked и deterministic `--check=0`; штатные proof/type/syntax/diff gates зелёные, но false-green
+по перечисленным четырём findings.
