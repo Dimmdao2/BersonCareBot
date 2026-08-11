@@ -589,3 +589,38 @@ sequence/type/view/invoker/helper владельцем `postgres`. Database owne
 переживает reapply. `generate-cli.mjs --check` возвращает `1`: отсутствуют четыре canonical generated
 `{privileges,org-allowlist}.{dev,test}.sql`. Production artifacts должны быть закоммичены и проверяться реальным
 apply/catalog verifier.
+
+## Audit pass TEST-QUEUE-2026-08-11 — post-drop worker cutover
+
+| Поле | Значение |
+|---|---|
+| Candidate | `18c2de38d`, acceptance `2835d4e8e`, `wt/test-worker-queue-cutover` |
+| Метод | **Тест + взгляд**: disposable PostgreSQL без legacy relation, concurrency/future/finalize probes и active-reference census |
+| Вердикт | **FAIL — три MUST FIX; TEST worker не запускать** |
+
+### QUEUE-001 — future enqueue публикуется как due до завершения постановки
+
+**ОТКРЫТО — MUST FIX.** Compatibility producer сначала INSERT с `next_retry_at=now()`, затем отдельный UPDATE
+future `runAt`. Canonical consumer успевает claim между ними; UPDATE уже не меняет `processing`. Acceptance
+`2835d4e8e` воспроизводит: `1 failed | 3 passed`, premature claim возвращает future row в processing. `runAt`
+должен входить в один atomic INSERT/upsert contract.
+
+### QUEUE-002 — post-migration TEST deploy выполняет grant на удалённую relation
+
+**ОТКРЫТО — MUST FIX.** `deploy-test-saas.sh` запускает `p0-5b-grants.sql`, где `message_retry_jobs` остаётся GRANT
+target. С `ON_ERROR_STOP` свежий post-drop deploy оборвётся до restart. Активные grants/checkers/declarations должны
+ссылаться только на canonical queue; historical migrations/retired drain diagnostics остаются историей.
+
+### QUEUE-003 — active ops info/cleanup paths обращаются к удалённой relation
+
+**ОТКРЫТО — MUST FIX.** `apps/webapp/scripts/user-phone-admin.ts info` падает на post-drop DB; active census candidate
+дал `8` executable files / `15` matches, включая Drizzle metadata, `platformUserFullPurge`, grant/declaration/P0-12.
+Удалить/перевести active paths; отсутствие producer для `webappPushNotify` подтверждено, его retired consumer не
+требует восстановления второго loop.
+
+### Подтверждено и сохраняется
+
+- Concurrent claim даёт одного владельца; stale lease/finalize/retry/dead и retry-kind contract проходят.
+- В worker runtime остались два loops: projection outbox и единственный outgoing delivery; legacy job loop удалён.
+- Readiness/C4/dev-c7 active paths: exact census legacy relation `0`.
+- Fault mutation canonical relation и `next_retry_at <= now()` действительно красит behavior tests.
