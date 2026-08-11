@@ -826,3 +826,43 @@ Committed mutations используют соседний `DO RAISE`, production
 в grant table. Текущего row bypass из-за FORCE нет, но owner contract требует **без runtime SELECT/DML grants**;
 deny-all не должен зависеть только от RLS. Fix должен сохранить нужные LEGACY grants другим таблицам, убрать все
 четыре ACL у `message_drafts` и доказать это после production-shaped overlays.
+
+## Audit RUNTIME-FIX2-2026-08-11 — `8ba36e2e1`
+
+| Поле | Значение |
+|---|---|
+| Candidate | `8ba36e2e1`, `wt/port-context-runtime` |
+| Метод | **Тест + взгляд**: independent live-shape pool/client probes, targeted suites, lint/type/chokepoint |
+| Вердикт | **FAIL — три MUST FIX; один auditor criterion отклонён как не-finding** |
+
+### RUNTIME-004 — named-root metadata теряется в live DbPort/transaction paths
+
+**ОТКРЫТО — MUST FIX.** Integrator `createDbPort()` выполняет `pool.connect() → client.query()`, а exact
+function/purpose/typed-args discovery обёрнут только вокруг `Pool.query()`. Live-shape probe для
+`app.resolve_outgoing_delivery_scope(uuid)` установил `function_identity=NULL` и zero-args hash; revision-10 gate
+отказывает `42501`. Достижимы outgoing scope/incident, scheduler organization/appointment reminder roots. Webapp
+аналогично устанавливает контекст до Drizzle callback, поэтому password named root внутри callback не может передать
+свою exact identity. Нужен единый transaction/client path без generic SQL-parser bypass.
+
+### RUNTIME-003 — неизвестный infra source fail-open получает service capability
+
+**ОТКРЫТО — MUST FIX.** Integrator возвращает `service` для любого неизвестного source; webapp — для любого infra
+source вне media/cron allowlist. Опечатка или новый незарегистрированный caller получает `app_service` вместо
+громкого отказа до checkout. Нужен exact allowlist с сохранением принятого media-source mapping.
+
+### RUNTIME-LINT — обязательный webapp gate красный
+
+**ОТКРЫТО — MUST FIX.** `pnpm --dir apps/webapp run lint` падает на `check-no-new-raw-sql` в двух новых
+`portContextRuntime.test.ts`; broad suppression запрещён. Integrator lint, оба typecheck, db-principal и targeted
+runtime suites, chokepoint/self-test и diff-check прошли.
+
+### Отклонено громко: missing-principal `connects=1/releases=1(error)`
+
+**НЕ FINDING.** Реализация валидирует principal до `pool.connect()`: probe получил ожидаемую ошибку при
+`connects=0`, backend не взят и утечки нет. Требовать checkout ради последующего `release(error)` ухудшает boundary и
+не следует owner requirement. Regression должен фиксировать fail-before-checkout (`connects=0/releases=0`), а не
+искусственно воспроизводить более дорогой путь.
+
+Подтверждено сохраняемое: verify-only startup без migration pool, target-only repo selection, physical-client
+surface с `on`, bounded scheduler transactions, rotation preflight/rollback/drain/listener и отсутствие legacy
+chokepoint bypass.
