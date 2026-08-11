@@ -229,6 +229,15 @@ BEGIN
     OR (cap.active_until IS NOT NULL AND cap.active_until <= clock_timestamp()) THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context capability mismatch';
   END IF;
+  -- Context capabilities carry only Variant-A opaque references.  The context
+  -- seam deliberately does not read the physical map: the identity seam owns
+  -- that lookup and is the sole place Variant I will replace.
+  IF p_claims.actor_ref IS NOT NULL THEN
+    PERFORM app_ext.resolve_variant_a_physical(p_claims.actor_ref);
+  END IF;
+  IF p_claims.subject_ref IS NOT NULL THEN
+    PERFORM app_ext.resolve_variant_a_physical(p_claims.subject_ref);
+  END IF;
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
   DELETE FROM app_ext.accepted_port_contexts WHERE cleared_at < clock_timestamp() - interval '24 hours';
   INSERT INTO app_ext.accepted_port_contexts (database_oid, backend_pid, transaction_id, capability_id, session_login, port, target_role, context_class, purpose, function_identity, typed_args_hash, actor_ref, subject_ref, organization_id, integrator_user_id, request_id)
@@ -370,19 +379,19 @@ END $$;
 -- them.  These disposable roots exercise every non-pre-session class.
 CREATE OR REPLACE FUNCTION app.named_staff_root()
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_staff','staff','named.staff',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_staff_root()'::regprocedure); RETURN 'named-staff'; END $$;
+BEGIN PERFORM app.require_accepted_context('app_seam_staff_security_owner','app_staff','staff','named.staff',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_staff_root()'::regprocedure); RETURN 'named-staff'; END $$;
 CREATE OR REPLACE FUNCTION app.named_patient_root()
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_patient','patient','named.patient',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_patient_root()'::regprocedure); RETURN 'named-patient'; END $$;
+BEGIN PERFORM app.require_accepted_context('app_seam_patient_self_actions_owner','app_patient','patient','named.patient',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_patient_root()'::regprocedure); RETURN 'named-patient'; END $$;
 CREATE OR REPLACE FUNCTION app.named_platform_root()
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_platform_settings','platform','named.platform',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_platform_root()'::regprocedure); RETURN 'named-platform'; END $$;
+BEGIN PERFORM app.require_accepted_context('app_seam_settings_runtime_owner','app_platform_settings','platform','named.platform',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_platform_root()'::regprocedure); RETURN 'named-platform'; END $$;
 CREATE OR REPLACE FUNCTION app.named_tenant_service_root()
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_tenant_service','tenant_service','named.tenant-service',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_tenant_service_root()'::regprocedure); RETURN 'named-tenant-service'; END $$;
+BEGIN PERFORM app.require_accepted_context('app_seam_org_commerce_owner','app_tenant_service','tenant_service','named.tenant-service',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_tenant_service_root()'::regprocedure); RETURN 'named-tenant-service'; END $$;
 CREATE OR REPLACE FUNCTION app.named_service_root()
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-BEGIN PERFORM app.require_accepted_context('app_seam_context_owner','app_service','service','named.service',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_service_root()'::regprocedure); RETURN 'named-service'; END $$;
+BEGIN PERFORM app.require_accepted_context('app_seam_delivery_scope_owner','app_service','service','named.service',decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a','hex'),'app.named_service_root()'::regprocedure); RETURN 'named-service'; END $$;
 
 ALTER FUNCTION app.install_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.clear_port_context() OWNER TO app_seam_context_owner;
@@ -397,17 +406,19 @@ ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid) OWNER TO app_seam_identi
 ALTER FUNCTION app.pre_session_begin_password_login(text) OWNER TO app_seam_password_auth_owner;
 ALTER FUNCTION app.pre_session_resolve_identity(uuid) OWNER TO app_seam_password_auth_owner;
 ALTER FUNCTION app.resolve_integrator_request(uuid) OWNER TO app_seam_identity_lookup_owner;
-ALTER FUNCTION app.named_staff_root() OWNER TO app_seam_context_owner;
-ALTER FUNCTION app.named_patient_root() OWNER TO app_seam_context_owner;
-ALTER FUNCTION app.named_platform_root() OWNER TO app_seam_context_owner;
-ALTER FUNCTION app.named_tenant_service_root() OWNER TO app_seam_context_owner;
-ALTER FUNCTION app.named_service_root() OWNER TO app_seam_context_owner;
+-- Each business root has its declared seam owner.  app_seam_context_owner is
+-- reserved for the port/context surface and is never a fallback owner.
+ALTER FUNCTION app.named_staff_root() OWNER TO app_seam_staff_security_owner;
+ALTER FUNCTION app.named_patient_root() OWNER TO app_seam_patient_self_actions_owner;
+ALTER FUNCTION app.named_platform_root() OWNER TO app_seam_settings_runtime_owner;
+ALTER FUNCTION app.named_tenant_service_root() OWNER TO app_seam_org_commerce_owner;
+ALTER FUNCTION app.named_service_root() OWNER TO app_seam_delivery_scope_owner;
 ALTER FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) OWNER TO app_object_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app_ext FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.install_port_context(uuid,app.port_context_claims), app.clear_port_context() TO :"app_staff_login", :"app_patient_login", :"integrator_login";
 GRANT EXECUTE ON FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) TO app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner;
-GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner;
+GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_staff_security_owner, app_seam_patient_self_actions_owner, app_seam_settings_runtime_owner, app_seam_org_commerce_owner, app_seam_delivery_scope_owner;
 GRANT EXECUTE ON FUNCTION app.require_platform_principal() TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO app_staff, app_patient, app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_patient, app_integrator_request, app_tenant_service;
