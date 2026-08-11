@@ -17,7 +17,6 @@ const allowedPoolProviderFiles = new Set([
   'apps/integrator/src/infra/db/integratorPoolProvider.ts',
   'apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts',
   'apps/integrator/src/infra/scripts/projectionHealthPoolProvider.ts',
-  'apps/media-worker/src/poolProvider.ts',
   // D1 (C-1, 2026-07-26): boot-time schema probe called from instrumentation.ts `register()`,
   // before the DI container / app deps exist — there is no wired pool provider to hand it a
   // connection yet. Opens one `max: 1` pool, runs one query, closes it (see finally in
@@ -29,13 +28,11 @@ const allowedPoolProviderFiles = new Set([
 const allowedConnectFiles = new Set([
   'apps/webapp/src/infra/db/withClient.ts',
   'apps/integrator/src/infra/db/withClient.ts',
-  'apps/media-worker/src/withClient.ts',
   // Phase 1 DB principal chokepoint: provider-level promise pool.query wrappers
   // must checkout a client so labels can be installed and cleared around the query.
   'apps/webapp/src/infra/db/webappPoolProvider.ts',
   'apps/webapp/src/infra/db/configReaderPoolProvider.ts',
   'apps/integrator/src/infra/db/integratorPoolProvider.ts',
-  'apps/media-worker/src/poolProvider.ts',
   // D30/D20-уровень-3 (31.07): одноразовые скрипты-доказательства конкуренции. Поднимают СВОЙ
   // временный PostgreSQL в /tmp и держат по нескольку параллельных сессий — иначе гонку за замком,
   // за строкой очереди и за ключом идемпотентности доказать нечем. Тот же класс, что снятый
@@ -179,6 +176,7 @@ function printOffenders(label, offenders) {
 if (process.argv.includes('--self-test')) {
   const virtualRel = 'apps/webapp/src/app/api/example/route.ts';
   const virtualAbs = join(repoRoot, virtualRel);
+  const virtualMediaWorkerRel = 'apps/media-worker/src/injectedPool.ts';
   const originalReadFileSync = readFileSync;
   const syntheticConnectionString = ['postgres', '://example'].join('');
   const syntheticSource = `
@@ -218,12 +216,15 @@ if (process.argv.includes('--self-test')) {
       roleSwitchOffenders.push(`${rel} (${roleSwitchCount}x runtime role switch signal)`);
     }
   }
+  const mediaWorkerPoolInjected = countRuntimeMatches(syntheticSource, /\bnew\s+(?:pg\.)?(?:Pg)?Pool\b/) > 0 &&
+    !allowedPoolProviderFiles.has(virtualMediaWorkerRel);
   if (
     poolOffenders.length === 1 &&
     connectOffenders.length === 1 &&
     layerRawSqlOffenders.length === 1 &&
     callbackQueryOffenders.length === 1 &&
-    roleSwitchOffenders.length === 1
+    roleSwitchOffenders.length === 1 &&
+    mediaWorkerPoolInjected
   ) {
     console.log('check-db-chokepoint self-test: OK');
     process.exit(0);

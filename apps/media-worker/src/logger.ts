@@ -1,6 +1,6 @@
 import pino from 'pino';
-import { getCurrentObservabilityContext } from '@bersoncare/db-principal';
 import type { MediaWorkerEnv } from './env.js';
+import { getCurrentObservabilityContext } from './observability.js';
 
 /**
  * Unified error shape for pino serializers (aligned with integrator/webapp) —

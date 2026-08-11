@@ -3,7 +3,6 @@ import type { Dirent } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
 import type { S3Client } from '@aws-sdk/client-s3';
-import type { Pool } from 'pg';
 import { buildHlsSingleVariantArgs, buildPosterFfmpegArgs } from './ffmpeg/hlsArgs.js';
 import {
   composeHlsVideoFilter,
@@ -12,7 +11,7 @@ import {
 } from './ffmpeg/watermarkVideoFilter.js';
 import { runFfmpeg } from './ffmpeg/runFfmpeg.js';
 import { backoffMsAfterFailure } from './jobs/backoff.js';
-import type { ClaimedJob } from './jobs/claim.js';
+import type { ClaimedJob, MediaWorkerControlPort } from './control.js';
 import type { Logger } from './logger.js';
 import { buildVodMasterPlaylistBody } from './hlsMasterPlaylist.js';
 import {
@@ -22,7 +21,6 @@ import {
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
 } from './hlsStorageLayout.js';
-import { runMediaWorkerPgText, runWithMediaWorkerInfraPrincipal } from './runMediaWorkerSql.js';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import {
   contentTypeForKey,
@@ -30,11 +28,9 @@ import {
   headObjectExists,
   putObjectWithRetry,
 } from './s3.js';
-import { readVideoWatermarkEnabled } from './watermarkEnabled.js';
 import { resolveWatermarkFontPath } from './watermarkFont.js';
 import { processProgramSubmissionTranscodeJob } from './processProgramSubmissionTranscode.js';
 import { probeVideoDurationSeconds } from './ffmpeg/probeVideoDurationSeconds.js';
-import { probeAndPersistVideoDurationSeconds } from './persistVideoDurationSeconds.js';
 
 /** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
 function compactTranscodeLogErrorCode(message: string): string {
@@ -48,13 +44,14 @@ function compactTranscodeLogErrorCode(message: string): string {
 }
 
 export type TranscodeContext = {
-  pool: Pool;
+  control: MediaWorkerControlPort;
   s3Client: S3Client;
   bucket: string;
   ffmpegBin: string;
   ffmpegTimeoutMs: number;
   maxAttempts: number;
   log: Logger;
+  lockId: string;
 };
 
 type MediaRow = {
@@ -67,77 +64,18 @@ type MediaRow = {
   usage_purpose: string | null;
 };
 
-async function fetchTerminalJobDurationMs(pool: Pool, jobId: string): Promise<number | null> {
-  const r = await runMediaWorkerPgText<{ ms: string | null }>(
-    pool,
-    `SELECT (EXTRACT(EPOCH FROM (finished_at - processing_started_at)) * 1000)::bigint::text AS ms
-     FROM public.media_transcode_jobs
-     WHERE id = $1::uuid AND finished_at IS NOT NULL AND processing_started_at IS NOT NULL`,
-    [jobId],
-  );
-  const raw = r.rows[0]?.ms;
-  if (raw == null) return null;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
-async function loadMedia(pool: Pool, mediaId: string): Promise<MediaRow | null> {
-  const r = await runMediaWorkerPgText<MediaRow>(
-    pool,
-    `SELECT id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status, video_duration_seconds, usage_purpose
-     FROM public.media_files WHERE id = $1::uuid`,
-    [mediaId],
-  );
-  return r.rows[0] ?? null;
-}
-
-async function markJobDone(pool: Pool, jobId: string): Promise<void> {
-  await runMediaWorkerPgText(
-    pool,
-    `UPDATE public.media_transcode_jobs
-     SET status = 'done',
-         locked_at = NULL,
-         locked_by = NULL,
-         last_error = NULL,
-         finished_at = now(),
-         updated_at = now()
-     WHERE id = $1::uuid`,
-    [jobId],
-  );
-}
-
 async function permanentFail(
   ctx: TranscodeContext,
-  jobId: string,
-  mediaId: string,
+  job: ClaimedJob,
   message: string,
 ): Promise<void> {
   const err = message.slice(0, 8000);
-  await runMediaWorkerPgText(
-    ctx.pool,
-    `UPDATE public.media_transcode_jobs
-     SET status = 'failed',
-         last_error = $2,
-         locked_at = NULL,
-         locked_by = NULL,
-         next_attempt_at = NULL,
-         finished_at = now(),
-         updated_at = now()
-     WHERE id = $1::uuid`,
-    [jobId, err],
-  );
-  await runMediaWorkerPgText(
-    ctx.pool,
-    `UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
-    [mediaId, err],
-  );
-  const durationMs = await fetchTerminalJobDurationMs(ctx.pool, jobId);
+  await ctx.control.failed(job, ctx.lockId, err);
   ctx.log.warn(
     {
-      jobId,
-      mediaId,
+      jobId: job.id,
+      mediaId: job.mediaId,
       outcome: 'failed_permanent',
-      durationMs,
       errorCode: compactTranscodeLogErrorCode(err),
     },
     'transcode_job_terminal',
@@ -146,53 +84,25 @@ async function permanentFail(
 
 async function retryableFail(
   ctx: TranscodeContext,
-  jobId: string,
-  mediaId: string,
-  attemptsAfterClaim: number,
+  job: ClaimedJob,
   maxAttempts: number,
   message: string,
 ): Promise<void> {
   const err = message.slice(0, 8000);
-  const isFinal = attemptsAfterClaim >= maxAttempts;
+  const isFinal = job.attempts >= maxAttempts;
   if (isFinal) {
-    await permanentFail(ctx, jobId, mediaId, err);
+    await permanentFail(ctx, job, err);
     return;
   }
-  const started = await runMediaWorkerPgText<{ t: string | null }>(
-    ctx.pool,
-    `SELECT processing_started_at::text AS t FROM public.media_transcode_jobs WHERE id = $1::uuid`,
-    [jobId],
-  );
-  const t0 = started.rows[0]?.t ? Date.parse(started.rows[0].t) : NaN;
-  const durationMs = Number.isFinite(t0) ? Math.max(0, Date.now() - t0) : null;
-  const backoff = backoffMsAfterFailure(attemptsAfterClaim);
+  const backoff = backoffMsAfterFailure(job.attempts);
   const nextAt = new Date(Date.now() + backoff).toISOString();
-  await runMediaWorkerPgText(
-    ctx.pool,
-    `UPDATE public.media_transcode_jobs
-     SET status = 'pending',
-         last_error = $2,
-         next_attempt_at = $3::timestamptz,
-         locked_at = NULL,
-         locked_by = NULL,
-         processing_started_at = NULL,
-         finished_at = NULL,
-         updated_at = now()
-     WHERE id = $1::uuid`,
-    [jobId, err, nextAt],
-  );
-  await runMediaWorkerPgText(
-    ctx.pool,
-    `UPDATE public.media_files SET video_processing_status = 'pending', video_processing_error = $2 WHERE id = $1::uuid`,
-    [mediaId, err],
-  );
+  await ctx.control.retry(job, ctx.lockId, nextAt, err);
   ctx.log.info(
     {
-      jobId,
-      mediaId,
+      jobId: job.id,
+      mediaId: job.mediaId,
       outcome: 'retry_pending',
-      durationMs,
-      attemptsAfterClaim,
+      attemptsAfterClaim: job.attempts,
       errorCode: compactTranscodeLogErrorCode(err),
     },
     'transcode_job_retry',
@@ -222,19 +132,26 @@ async function uploadDirRecursive(
  * HLS transcode (best-effort; failure to delete is logged but does not fail the job).
  */
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
-  return runWithMediaWorkerInfraPrincipal('media-worker:process-transcode-job', () =>
-    processTranscodeJobInner(ctx, job),
-  );
+  return processTranscodeJobInner(ctx, job);
 }
 
 async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
-  const media = await loadMedia(ctx.pool, job.mediaId);
+  const loaded = await ctx.control.load(job, ctx.lockId);
+  const media = loaded && {
+    id: loaded.id,
+    mime_type: loaded.mimeType,
+    s3_key: loaded.s3Key,
+    hls_master_playlist_s3_key: loaded.hlsMasterPlaylistS3Key,
+    video_processing_status: loaded.videoProcessingStatus,
+    video_duration_seconds: loaded.videoDurationSeconds,
+    usage_purpose: loaded.usagePurpose,
+  };
   if (!media || !media.s3_key?.trim()) {
-    await permanentFail(ctx, job.id, job.mediaId, 'missing_media_or_s3_key');
+    await permanentFail(ctx, job, 'missing_media_or_s3_key');
     return;
   }
   if (!media.mime_type.toLowerCase().startsWith('video/')) {
-    await permanentFail(ctx, job.id, job.mediaId, 'not_video');
+    await permanentFail(ctx, job, 'not_video');
     return;
   }
 
@@ -259,23 +176,20 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
         const src = join(tmpRoot, 'source.bin');
         try {
           await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key.trim(), src);
-          await probeAndPersistVideoDurationSeconds(ctx.pool, {
-            mediaId: job.mediaId,
-            localPath: src,
-            ffmpegBin: ctx.ffmpegBin,
-            timeoutMs: Math.min(ctx.ffmpegTimeoutMs, 120_000),
-            log: ctx.log,
-          });
+          const durationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, Math.min(ctx.ffmpegTimeoutMs, 120_000));
+          if (durationSeconds != null) {
+            await ctx.control.doneHls(job, ctx.lockId, { durationSeconds });
+            return;
+          }
         } catch (e) {
           ctx.log.warn({ err: e, mediaId: job.mediaId }, 'video_duration_backfill_failed');
         } finally {
           await rm(tmpRoot, { recursive: true, force: true });
         }
       }
-      await markJobDone(ctx.pool, job.id);
-      const durationMs = await fetchTerminalJobDurationMs(ctx.pool, job.id);
+      await ctx.control.doneHls(job, ctx.lockId, {});
       ctx.log.info(
-        { jobId: job.id, mediaId: job.mediaId, outcome: 'done', durationMs, skip: 'already_ready' },
+        { jobId: job.id, mediaId: job.mediaId, outcome: 'done', skip: 'already_ready' },
         'transcode completed',
       );
       return;
@@ -286,28 +200,22 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
   if (!isCanonicalMediaRootForId(mediaRoot, job.mediaId)) {
     await permanentFail(
       ctx,
-      job.id,
-      job.mediaId,
+      job,
       'non_canonical_s3_key_layout_expected_media_mediaId_file',
     );
     return;
   }
 
-  await runMediaWorkerPgText(
-    ctx.pool,
-    `UPDATE public.media_files SET video_processing_status = 'processing', video_processing_error = NULL WHERE id = $1::uuid`,
-    [job.mediaId],
-  );
+  await ctx.control.processing(job, ctx.lockId);
 
-  const watermarkEnabled = await readVideoWatermarkEnabled(ctx.pool);
+  const watermarkEnabled = await ctx.control.watermarkEnabled();
   let fontPath: string | null = null;
   if (watermarkEnabled) {
     fontPath = resolveWatermarkFontPath(ctx.log);
     if (!fontPath) {
       await permanentFail(
         ctx,
-        job.id,
-        job.mediaId,
+        job,
         'watermark_enabled_but_no_truetype_font_install_dejavu_or_set_MEDIA_WORKER_WATERMARK_FONT',
       );
       return;
@@ -372,9 +280,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     if (run720.code !== 0) {
       await retryableFail(
         ctx,
-        job.id,
-        job.mediaId,
-        job.attempts,
+        job,
         ctx.maxAttempts,
         `ffmpeg_720p_exit_${run720.code}: ${run720.stderrTail}`,
       );
@@ -400,9 +306,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     if (run480.code !== 0) {
       await retryableFail(
         ctx,
-        job.id,
-        job.mediaId,
-        job.attempts,
+        job,
         ctx.maxAttempts,
         `ffmpeg_480p_exit_${run480.code}: ${run480.stderrTail}`,
       );
@@ -428,9 +332,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     if (run360.code !== 0) {
       await retryableFail(
         ctx,
-        job.id,
-        job.mediaId,
-        job.attempts,
+        job,
         ctx.maxAttempts,
         `ffmpeg_360p_exit_${run360.code}: ${run360.stderrTail}`,
       );
@@ -453,9 +355,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     if (runPoster.code !== 0) {
       await retryableFail(
         ctx,
-        job.id,
-        job.mediaId,
-        job.attempts,
+        job,
         ctx.maxAttempts,
         `ffmpeg_poster_exit_${runPoster.code}: ${runPoster.stderrTail}`,
       );
@@ -477,9 +377,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     if (!masterOk) {
       await retryableFail(
         ctx,
-        job.id,
-        job.mediaId,
-        job.attempts,
+        job,
         ctx.maxAttempts,
         'master_head_missing_after_upload',
       );
@@ -491,27 +389,12 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
       { label: '480p', height: 480, path: '480p/index.m3u8', bandwidth: 900_000 },
       { label: '360p', height: 360, path: '360p/index.m3u8', bandwidth: 450_000 },
     ]);
-    await runMediaWorkerPgText(
-      ctx.pool,
-      `UPDATE public.media_files SET
-        video_processing_status = 'ready',
-        video_processing_error = NULL,
-        hls_master_playlist_s3_key = $1,
-        hls_artifact_prefix = $2,
-        poster_s3_key = $3,
-        available_qualities_json = $4::jsonb,
-        video_duration_seconds = COALESCE($6, video_duration_seconds)
-      WHERE id = $5::uuid`,
-      [masterKey, hlsBaseKeyPrefix, posterKey, qualitiesJson, job.mediaId, videoDurationSeconds],
-    );
-    await markJobDone(ctx.pool, job.id);
-    const durationMs = await fetchTerminalJobDurationMs(ctx.pool, job.id);
+    await ctx.control.doneHls(job, ctx.lockId, { masterKey, artifactPrefix: hlsBaseKeyPrefix, posterKey, qualitiesJson, durationSeconds: videoDurationSeconds });
     ctx.log.info(
       {
         jobId: job.id,
         mediaId: job.mediaId,
         outcome: 'done',
-        durationMs,
         masterKey,
         watermark: Boolean(watermarkEnabled),
       },
@@ -534,7 +417,7 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     ctx.log.error({ err: e, jobId: job.id }, 'transcode unexpected error');
-    await retryableFail(ctx, job.id, job.mediaId, job.attempts, ctx.maxAttempts, msg);
+    await retryableFail(ctx, job, ctx.maxAttempts, msg);
   } finally {
     await rm(tmpRoot, { recursive: true, force: true });
   }
