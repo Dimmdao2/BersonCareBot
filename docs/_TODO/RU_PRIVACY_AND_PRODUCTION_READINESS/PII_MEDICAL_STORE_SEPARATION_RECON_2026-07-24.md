@@ -41,6 +41,27 @@ the unified-Postgres direction. The **encryption angle is already covered by CRY
 picked up when 152-ФЗ work lands. Optional tiny cleanup (move `height_cm`/`weight_kg` out of the `platform_users`
 identity row) can happen anytime cheaply but is also not urgent. **No store-separation build now.**
 
+## OWNER CLARIFICATION 2026-08-11 — A now, preserve transition to I
+
+The current DB privilege rebuild uses **variant A**: an attested webapp pre-session transaction may call only exact
+identity/authentication seams before a human principal exists. This is a port-access decision, not
+depersonalization: medical and identity data remain linked as described above.
+
+**Variant I** is the future pseudonymization direction: medical rows use an opaque subject id and the identifying
+mapping lives behind a separate identity boundary. Its data migration remains deferred under the 2026-07-24
+decision; it is not added to the current RLS rebuild. The current build must preserve the migration seam:
+
+- port attestation is independent from human identity attestation;
+- the accepted context is versioned and separates actor, subject and organization fields;
+- pre-session identity resolution has its own named seam;
+- no port proof depends cryptographically on the physical `platform_users.id`;
+- a future resolver can translate identity → opaque subject without replacing challenge-response, transaction
+  binding, role graph or the RLS context gate.
+
+Therefore A → I is an incremental identity/data migration, not a rewrite of the port security boundary. This
+compatibility requirement belongs to `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` Ф3б-A10; actual pseudonymization remains
+in the privacy initiative and requires its own later owner-approved rollout.
+
 ## Bottom line (recon)
 
 - First-order cleanup independent of any option: `height_cm/weight_kg` (measurements) sitting in the identity row
@@ -48,4 +69,6 @@ identity row) can happen anytime cheaply but is also not urgent. **No store-sepa
 - (b) separate physical DB fights the unified-Postgres direction the owner just reaffirmed — likely off the table.
 - (a) separate schema and (c) key-separated encryption are the paths that fit the architecture; (c) largely overlaps
   the existing CRYPTO-01 plan. (d) is the strongest legal-grade control but the most invasive.
-- **No decision taken here.** Owner picks the control level; then it folds into CRYPTO-01 / RU-privacy master plan.
+- **Current decision:** no store-separation build now; variant A is implemented by the DB privilege work while
+  preserving the seam for future variant I. The exact pseudonymization/store control level remains a later
+  CRYPTO-01 / RU-privacy owner decision.

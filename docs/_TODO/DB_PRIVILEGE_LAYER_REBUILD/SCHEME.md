@@ -1,4 +1,4 @@
-# SCHEME revision 8 — целевой слой прав БД BersonCareBot
+# SCHEME revision 9 — целевой слой прав БД BersonCareBot
 
 Authority: [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), «Права БД, роли и стены», затем [`PLAN.md`](PLAN.md); текущий каталог — только проверка, право появляется лишь из доказанной потребности.
 
@@ -39,10 +39,13 @@ Restrictive policy вызывает raising accessor один раз над rela
 контекста допустим лишь при no-scan (`WHERE false`, `LIMIT 0`); обычный запрос даже к пустой relation проходит gate.
 Это сознательное сужение дословного owner-критерия решением ведущего: константный no-scan не видит и не удерживает данные.
 
-### 1.3 Явное расхождение с `PLAN.md` Ф3б
+### 1.3 Pre-session граница подтверждена владельцем
 
-Ф3б `PLAN.md` теперь помечает ожидающее слова владельца расхождение: человек не получает DB credentials, но до входа известный webapp port открывает attested transaction exact request/purpose/args без human principal.
-Это единственный вопрос §10. После входа порт ставит class и exact ids; integrator/jobs — service-контекст. До ответа пункт Ф3б не засчитывается ни в одну сторону.
+Решение 11.08: сейчас применяется вариант A. Человек не получает DB credentials или собственного соединения,
+но до входа известный webapp port открывает attested transaction exact request/purpose/typed-args hash без human
+principal. Эта транзакция имеет только exact pre-session entrypoints опознания; после входа порт ставит class и
+exact ids, integrator/jobs — service-контекст. Будущий вариант I отделит identity map и заменит subject id на
+opaque, не меняя port proof, transaction gate и role graph; сам перенос данных не входит в эту схему.
 
 Обычными объектами приложения владеет `app_object_owner`: роль не имеет `LOGIN`, `BYPASSRLS`, членов или
 definer-функций и недостижима вне миграционного окна. Под `FORCE RLS` владелец без
@@ -309,7 +312,10 @@ Backup — локальная административная операция 
 3. **Где узнать caller-role при definer:** runtime-policy связывает querying role с transcript; seam-policy ожидает owner и тем же verifier требует attested root-map. `current_user` внутри definer за caller не выдаётся; standing membership остаётся `INHERIT FALSE, SET TRUE, ADMIN FALSE`.
 4. **Protocol оставить исполнителю или зафиксировать:** private state, `K/P`, transcript, nonce hash, bindings, consume и rotation заданы в §2.
 5. **Платформенная отметка:** отдельный raising accessor — меньше membership-only global access.
-6. **Неизвестный без соединения или pre-session через БД:** выбран exact attested pre-session через известный port; это явное расхождение с буквальной Ф3б.
+6. **Неизвестный без соединения или pre-session через БД:** owner 11.08 выбрал вариант A — exact attested
+   pre-session через известный webapp port. Неизвестный человек не получает credentials/соединение, а порт получает
+   только exact auth capability до human principal. Вариант I с отдельным identity map остаётся будущим совместимым
+   направлением.
 7. **Три или четыре login:** решением ведущего четыре — deploy, webapp staff, webapp patient, integrator. Patient в target имеет ноль table privileges; отделить его дешевле, чем сливать. Владелец уведомлён и может переопределить; до этого fork закрыт.
 8. **Media worker как DB client или через порт:** compute остаётся, target DB path идёт через webapp без своего login.
 9. **Telemetry global или tenant:** только семь exact functions шва 36, ноль table ACL.
@@ -340,4 +346,7 @@ Backup — локальная административная операция 
 
 ## 10. ВОПРОСЫ ВЛАДЕЛЬЦУ
 
-Подтвердить ли для Ф3б границу §1.3: неизвестный человек не получает DB credentials/собственного соединения, а известный webapp port может открыть только attested pre-session transaction exact purpose/args без человеческого principal? Это единственная открытая формулировка.
+Открытых owner-вопросов по pre-session границе нет: вариант A подтверждён 11.08, вариант I оставлен будущему
+privacy-этапу. До Ф4 агент обязан технически закрыть exact identity argument types/signatures для
+`issue_port_challenge`/`install_port_context`/`require_accepted_context`; это implementation blocker, а не
+продуктовая развилка.

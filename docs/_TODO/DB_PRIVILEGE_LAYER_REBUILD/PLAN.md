@@ -1,4 +1,4 @@
-# PLAN v7 — слой прав БД: привести к мировой схеме
+# PLAN v8 — слой прав БД: привести к мировой схеме
 
 Дословные формулировки владельца — [`docs/OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md), раздел «Права БД,
 роли и стены». **Здесь они превращены в пункты работ**: каждое решение стоит в том шаге, где исполняется,
@@ -68,9 +68,11 @@
 пишется · база поднята и проверена на dev — с разбором каждой ошибки доступа: **чистить код или довыдать
 прав**.
 
-Порядок исполнения: Ф2 и Ф3 идут параллельно (независимые области) → Ф1 собирает схему из их результатов →
-аудит схемы → Ф4 декларация и генератор → Ф9 мусор миграциями → применение к dev → Ф8 журнал → Ф7 живой
-прогон и разбор недостачи → Ф5/Ф6 закрепление (стена в точке рождения, сверка, свип).
+Порядок исполнения после решения 11.08: Ф2 и Ф3 завершают состав ролей/швов → Ф3б-A1…A10 реализуют
+transaction-bound port context и доказательство варианта A → revision 9 получает повторный технический аудит →
+Ф4 заново генерируется из revision 9 → Ф9 мусор миграциями → применение к dev → Ф8 системный журнал → Ф7 живой
+прогон и разбор недостачи → Ф5/Ф6 закрепление (стена в точке рождения, сверка, свип). Декларация revision 8 не
+перепрыгивает Ф3б и не применяется как промежуточное состояние.
 
 ## Правило приёмки инкремента
 
@@ -95,7 +97,8 @@
       `app_owner` упразднён, лишние логины и роли из схемы убраны
 - [x] Ч1.3 Десять независимых проверок двумя моделями, пять кругов по два аудитора:
       12 разрывов (5 критических) → 4 → 4 → 3 → **чисто**. `evidence/28`–`/40`
-- [ ] Ч1.4 Приёмка владельцем — предъявлено; ждёт его слова по единственному открытому вопросу (Ф3б)
+- [ ] Ч1.4 Приёмка владельцем всей схемы — pre-session развилка Ф3б закрыта решением A от 11.08; перед повторным
+      предъявлением revision 9 должна получить exact signatures Ф3б-A1 и синхронизированную декларацию Ф4
 
 ## Ф2 — состав ролей и логинов заново, от потребности
 
@@ -132,24 +135,116 @@
 даётся только портом. И порт автоматически не пускает без знания кто это». Развитие его же пункта 6:
 «ключ из env, без которого база технически не отдаёт данные».
 
-Три требования, и все три обязательны — любое одно без остальных дырявое:
+### Решение развилки A/I (владелец, 11.08)
 
-- [ ] **Ключ живёт в env порта и больше нигде.** Подключение, у которого ключа нет, физически не может
-      установить контекст: подпись не сойдётся. Украденный пароль логина без ключа не даёт ничего
-- [ ] **Ни одна рантайм-роль не читает данные без установленного контекста.** Нет контекста — ноль строк
-      И громкая ошибка в системном логе (акцессоры контекста ОБЯЗАНЫ бросать, а не возвращать NULL:
-      сегодня они возвращают NULL, и это тихий ноль — прямое нарушение критерия приёмки)
-- [ ] **Порт не обслуживает запрос, о котором не знает, кто это.** Сегодня есть окружающий «bootstrap»-
-      принципал, под которым запрос без установленной личности всё же уходит в базу
-      (`requireRole.ts`, `webappPoolProvider.ts`) — эту дверь закрыть: неизвестный не получает соединения.
-      ⚠ **РАСХОЖДЕНИЕ, ЖДЁТ СЛОВА ВЛАДЕЛЬЦА (задано 09.08, ответа нет).** Схема реализует это как «неизвестный
-      не получает ДОСТУПА К ДАННЫМ»: чтобы опознать человека, порт обязан спросить базу, поэтому соединение на
-      этот момент нужно — но оно предъявляет ключ порта, не предъявляет личности и не имеет ни одного права на
-      таблицы, только вызов поимённых функций входа. Буквальное «не получает соединения» означало бы, что войти
-      в систему нельзя никому. До ответа владельца этот пункт НЕ засчитывается ни в одну сторону
-- [ ] **Таблицы ключа и контекста недоступны арендным ролям** — иначе контекст подделывается изнутри
-- [ ] Приёмка: три транскрипта. Красный — соединение с верным паролем, но без ключа, читает данные;
-      зелёный — то же соединение получает ошибку и строку в системном логе; снова красный после отката
+- [x] **A — текущая граница.** Неизвестный человек не получает DB credentials/собственного соединения. Известный
+      webapp port до human principal может открыть только attested pre-session transaction с exact
+      function/purpose/typed-args hash. Это необходимый вход в сам процесс опознания, а не доступ неизвестного
+      пользователя к данным
+- [x] **I — будущее обезличивание, не текущий scope.** Identity map отделяется от медицинского контура, медицина
+      адресуется opaque subject id. Переход A → I допустим без замены port-attestation: меняются identity resolver
+      и subject id. Отложенный privacy scope остаётся в
+      `RU_PRIVACY_AND_PRODUCTION_READINESS/PII_MEDICAL_STORE_SEPARATION_RECON_2026-07-24.md`
+- [x] **Совместимость A → I обязательна уже сейчас.** Port proof и human identity proof — разные части контекста;
+      transcript версионируется; identity lookup — отдельный шов; криптографическое доказательство порта не
+      связывается навсегда с физическим `platform_users.id`
+
+### Фактическое состояние на 11.08.2026 — изучено, A ещё не реализован
+
+- [x] В приложении есть единый AsyncLocalStorage principal carrier, `bootstrap`, маршрутизация webapp в
+      staff/nonstaff pool, интеграторский allowlist технических `source`, установка роли и уничтожение соединения
+      при ошибке очистки. Это готовый транспортный каркас
+- [x] Для опознанных principal существует `app.install_signed_context`: HMAC, nonce ledger, expiry, backend PID,
+      role switching и pool cleanup. Протокол нельзя оставить как есть: симметричный секрет хранится и в env, и
+      в БД; transcript не содержит port/database/login/role/transaction/class/purpose/args
+- [x] Pre-session бизнес-швы уже существуют: password, OTP, passkey, OAuth, PIN, invite, public resolver и
+      rate-limit. Их бизнес-логику сохраняем; меняется способ допуска к вызову
+- [x] Нынешний `bootstrap` не является полномочием порта: webapp принимает любую внутреннюю строку `source`, а
+      `applySignedDbPrincipal` для bootstrap очищает контекст и оставляет запрос под bare nonstaff login
+- [x] На живой DEV bare nonstaff login имеет прямые table ACL, membership `app_identity_bootstrap` и безусловный
+      `EXECUTE` на pre-session функции. Поэтому верный DB-пароль без port key уже является доступом — главный
+      инвариант A не держится
+- [x] Целевые `app.issue_port_challenge`, `app.install_port_context` и
+      `app.require_accepted_context` отсутствуют в коде и DEV. В декларации ветки `wt/declaration` они остаются
+      `pendingFunctions`, потому что exact signatures не определены
+- [x] Текущие `current_*` accessors без контекста возвращают `NULL`, а не бросают ошибку; обычные auth-вызовы не
+      собраны в transaction-bound port context
+
+Read-only проверка фактической DEV-границы, без чтения строк с ПДн:
+
+```bash
+# Поиск реализации в индексированном коде и точный поиск в исполняемых каталогах:
+node /home/dev/brain/tools/code-search.mjs \
+  "issue port challenge install port context accepted context pre-session verifier" --repo bcb -k 20
+rg -n "install_port_context|issue_port_challenge|require_accepted_context|pre_session" \
+  packages apps deploy/postgres
+
+# Каталог фактически поднятой DEV-базы и effective direct grants login:
+set -a
+. apps/webapp/.env.dev
+set +a
+bcb_probe_url="${DATABASE_URL_NONSTAFF:-$DATABASE_URL}"
+psql "$bcb_probe_url" -X -v ON_ERROR_STOP=1 -P pager=off -Atc "
+SELECT current_database(), current_user;
+SELECT n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
+FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+WHERE n.nspname='app' AND p.proname IN (
+  'install_signed_context', 'issue_port_challenge',
+  'install_port_context', 'require_accepted_context'
+) ORDER BY p.proname, pg_get_function_identity_arguments(p.oid);
+SELECT parent.rolname, membership.inherit_option, membership.set_option, membership.admin_option
+FROM pg_auth_members membership
+JOIN pg_roles parent ON parent.oid=membership.roleid
+JOIN pg_roles member ON member.oid=membership.member
+WHERE member.rolname=current_user ORDER BY parent.rolname;
+SELECT table_schema, table_name, privilege_type
+FROM information_schema.role_table_grants
+WHERE grantee=current_user AND table_schema IN ('public','app','integrator')
+ORDER BY table_schema, table_name, privilege_type;"
+```
+
+### Исполнение варианта A — один технический этап до Ф4
+
+- [ ] **Ф3б-A1 — зафиксировать исполняемый контракт.** До генерации Ф4 определить exact SQL signatures и типы
+      `issue_port_challenge`, `install_port_context`, `require_accepted_context`, platform accessor и cleanup;
+      transcript включает key id, port, database OID, session login, target role, backend identity, transaction id,
+      context class, version, purpose, typed-args hash, expiry и nonce hash. Это техническое решение, не owner gate
+- [ ] **Ф3б-A2 — ключ и ротация.** Для каждого порта приватный ключ живёт только в env процесса; БД хранит только
+      public verifier, key id, port, срок и revoke. Проверить overlap-ротацию и доказать, что dump+старый proof не
+      позволяют ответить на новый challenge
+- [ ] **Ф3б-A3 — единый transaction wrapper портов.** Единственная точка DB checkout выполняет
+      `BEGIN → clean state → issue challenge → port proof → install context → SET LOCAL ROLE → queries →
+      COMMIT/ROLLBACK`; новый proof нужен каждой транзакции. Прямой query вне wrapper механически запрещён
+- [ ] **Ф3б-A4 — отдельный pre-session principal.** Заменить общий unsigned `bootstrap` на `pre_session` только в
+      webapp; request id, exact purpose/function и typed-args hash строит порт, а не HTTP-клиент. До human principal
+      разрешены только операции опознания; после доказательства личности порт переходит на human context
+- [ ] **Ф3б-A5 — verifier и private state в PostgreSQL.** Accepted state одноразовый и связан с port/login/backend/
+      transaction/role/class/purpose/args; wrong/replayed/expired/mismatched proof бросает permission error. Таблицы
+      challenge/context закрыты от login/runtime/seam ролей и читаются только context seam
+- [ ] **Ф3б-A6 — закрыть каждый pre-session шов.** Каждый существующий auth/public `SECURITY DEFINER` первым
+      действием требует accepted `pre_session` exact purpose/args; caller-supplied UUID сам по себе не полномочие;
+      владельцы швов имеют только named relation/column/action surface
+- [ ] **Ф3б-A7 — убрать старую дверь.** У прикладных login ноль table/column/sequence ACL; убрать
+      `app_identity_bootstrap` и прямые bootstrap grants; `PUBLIC EXECUTE` отсутствует; membership даёт только
+      `SET LOCAL ROLE`, но без accepted context ни одна роль/функция данных не отдаёт
+- [ ] **Ф3б-A8 — громкий fail closed и очистка.** `current_*`/platform/service accessors бросают при missing,
+      expired или mismatched context; cleanup выполняется на success/error/rollback, а ошибка cleanup уничтожает
+      connection. Отказ попадает в системный Postgres log без отдельной audit-таблицы
+- [ ] **Ф3б-A9 — исполняемое доказательство.** Живые negative vectors: DB password без key; wrong port/login/DB/
+      role/backend/transaction/class/purpose/args; expiry; replay; pool reuse; прямой definer call; `SET ROLE` без
+      context; dump и logged proof. Positive controls: webapp pre-session/login, staff, patient, platform и
+      integrator/service проходят только через свои порты
+- [ ] **Ф3б-A10 — сохранить путь к I.** Контекст и seam APIs используют версионированные actor/subject fields и
+      отдельный identity resolver. Тест/документ фиксирует, что будущая замена `platform_users.id` на opaque subject
+      id не требует менять port challenge, role graph или RLS gate; реальный перенос данных остаётся privacy-этапом
+
+### Граница ответственности
+
+**Владелец уже решил:** A сейчас; I — будущее направление обезличивания; неизвестный человек не имеет своего
+DB-доступа; ключ только у порта; доступ минимальный; отказ громкий. **Агент решает без нового owner-вопроса:** exact
+types/signatures, crypto transcript/challenge, rotation, wrapper API, seam mapping и тестовые vectors по принятой
+`SCHEME.md` и мировой практике. Новый owner gate возникает только если реализация меняет продуктовый auth-flow,
+стоимость/инфраструктуру или отказывается от совместимости с I.
 
 ## Ф4 — декларация и генератор (принцип 1)
 
@@ -161,6 +256,8 @@
 `evidence/42-declaration-from-scheme.md` той же ветки. Коммит не влит в интеграционную ветку, не применён
 к DEV/TEST и не доказывает общую приёмку владельца: fixture проверяет один representative login-grant,
 а не полный обход всех логинов, ролей, definer-функций и обоих портов.
+После решения A от 11.08 целевая схема имеет revision 9, поэтому опубликованная декларация revision 8 теперь ещё
+и содержательно устарела: её нельзя вливать или применять до Ф3б-A1 и повторной генерации из revision 9.
 
 **БЛОКЕР ПОРЯДКА Ф4↔Ф7.** Production-generator намеренно отказывает при structural gaps, но `F4-G2…G6`
 в `evidence/42` оставлены до именованных живых отказов Ф7. Получается замкнутая зависимость: без артефакта
