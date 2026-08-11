@@ -51,6 +51,18 @@ describe('integrator port-context runtime', () => {
       capabilityId: delivery.capabilityId,
       targetRole: delivery.targetRole,
     });
+    const resolver: IntegratorPortCapabilityDescriptor = {
+      ...request,
+      capabilityId: '00000000-0000-0000-0000-000000000120',
+      targetRole: 'app_integrator_resolver',
+      contextClass: 'integrator',
+    };
+    expect(
+      integratorPortContextPrincipal(
+        { kind: 'bootstrap', source: 'telegram-webhook:pre-routing' },
+        { request, resolver },
+      ),
+    ).toMatchObject({ targetRole: 'app_integrator_resolver', contextClass: 'integrator' });
   });
 
   it('creates one physical pool even when request, delivery and scheduler capabilities are declared', () => {
@@ -153,6 +165,7 @@ describe('integrator port-context runtime', () => {
       ...request,
       contextClass: 'service',
       targetRole: 'app_service',
+      runtimeSources: ['integrator-health-check'],
     };
     const named: IntegratorPortCapabilityDescriptor = {
       ...service,
@@ -231,18 +244,25 @@ describe('integrator port-context runtime', () => {
   });
 
   it('maps only exact scheduler, delivery, service and migration-ledger sources', () => {
-    expect(integratorPortCapabilityForInfraSource('scheduler:claim-due-jobs')).toBe('scheduler');
-    expect(integratorPortCapabilityForInfraSource('worker:outgoing-delivery-tick')).toBe(
+    const capabilities = {
+      scheduler: { ...request, contextClass: 'service' as const, runtimeSources: ['scheduler:claim-due-jobs'] },
+      delivery: { ...request, contextClass: 'service' as const, runtimeSources: ['worker:outgoing-delivery-tick'] },
+      service: { ...request, contextClass: 'service' as const, runtimeSources: ['integrator-health-check'] },
+      migration_ledger: { ...request, contextClass: 'service' as const,
+        runtimeSources: ['integrator-startup-migration-ledger'] },
+    };
+    expect(integratorPortCapabilityForInfraSource('scheduler:claim-due-jobs', capabilities)).toBe('scheduler');
+    expect(integratorPortCapabilityForInfraSource('worker:outgoing-delivery-tick', capabilities)).toBe(
       'delivery',
     );
-    expect(integratorPortCapabilityForInfraSource('integrator-health-check')).toBe('service');
-    expect(integratorPortCapabilityForInfraSource('integrator-startup-migration-ledger')).toBe(
+    expect(integratorPortCapabilityForInfraSource('integrator-health-check', capabilities)).toBe('service');
+    expect(integratorPortCapabilityForInfraSource('integrator-startup-migration-ledger', capabilities)).toBe(
       'migration_ledger',
     );
-    expect(() => integratorPortCapabilityForInfraSource('scheduler:claim-due-job')).toThrow(
+    expect(() => integratorPortCapabilityForInfraSource('scheduler:claim-due-job', capabilities)).toThrow(
       'Unknown integrator infra source',
     );
-    expect(() => integratorPortCapabilityForInfraSource(undefined)).toThrow('<missing>');
+    expect(() => integratorPortCapabilityForInfraSource(undefined, capabilities)).toThrow('<missing>');
   });
 
   it('preflights replacement authentication before swap and forwards pool error listeners after rotation', async () => {

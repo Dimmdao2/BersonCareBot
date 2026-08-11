@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { getCurrentObservabilityContext } from '@bersoncare/db-principal';
+import { getCurrentObservabilityContext } from './observability.js';
 import type { MediaWorkerEnv } from './env.js';
 
 /**

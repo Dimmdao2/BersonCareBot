@@ -15,6 +15,7 @@ export type IntegratorPortCapabilityDescriptor = {
   contextClass: PortContextClass;
   purpose: string;
   functionIdentity?: string;
+  runtimeSources?: readonly string[];
 };
 
 export type IntegratorPortContextRuntimeConfig = {
@@ -31,36 +32,16 @@ export type IntegratorPortCapabilityName =
   | 'tenant_service'
   | 'service';
 
-const DELIVERY_INFRA_SOURCES = new Set([
-  'delivery-handler',
-  'max-webhook:record-outcome',
-  'telegram-webhook:record-outcome',
-  'worker:job-queue-drain',
-  'worker:outgoing-delivery-tick',
-  'worker:projection-outbox-tick',
-]);
-
-const SCHEDULER_INFRA_SOURCES = new Set([
-  'scheduler:acquire-lock',
-  'scheduler:claim-due-jobs',
-  'scheduler:handle-tick-event',
-]);
-
-const SERVICE_INFRA_SOURCES = new Set([
-  'integrator-health-check',
-  'integrator-projection-health',
-]);
-
-const MIGRATION_LEDGER_INFRA_SOURCES = new Set(['integrator-startup-migration-ledger']);
-
 export function integratorPortCapabilityForInfraSource(
   source: string | undefined,
+  capabilities: Record<string, IntegratorPortCapabilityDescriptor>,
 ): IntegratorPortCapabilityName {
   const normalized = source?.trim() ?? '';
-  if (SCHEDULER_INFRA_SOURCES.has(normalized)) return 'scheduler';
-  if (DELIVERY_INFRA_SOURCES.has(normalized)) return 'delivery';
-  if (SERVICE_INFRA_SOURCES.has(normalized)) return 'service';
-  if (MIGRATION_LEDGER_INFRA_SOURCES.has(normalized)) return 'migration_ledger';
+  const matches = Object.entries(capabilities).filter(
+    ([, descriptor]) => descriptor.purpose === 'relation'
+      && descriptor.runtimeSources?.includes(normalized),
+  );
+  if (matches.length === 1) return matches[0]![0] as IntegratorPortCapabilityName;
   throw new Error(`Unknown integrator infra source in port-context mode: ${normalized || '<missing>'}`);
 }
 
@@ -164,6 +145,11 @@ export function createIntegratorPortContextRuntimeConfig(
     ) {
       throw new Error(`port capability ${name} has an invalid descriptor`);
     }
+    if (descriptor.runtimeSources !== undefined && (!Array.isArray(descriptor.runtimeSources)
+      || descriptor.runtimeSources.some((source) => typeof source !== 'string' || !source.trim())
+      || new Set(descriptor.runtimeSources).size !== descriptor.runtimeSources.length)) {
+      throw new Error(`port capability ${name} has invalid runtime sources`);
+    }
     if (
       (descriptor.purpose === 'relation' && descriptor.functionIdentity) ||
       (descriptor.purpose !== 'relation' && !descriptor.functionIdentity)
@@ -206,15 +192,17 @@ export function integratorPortContextPrincipal(
   if (!principal) throw new Error('An integrator principal is required in port-context mode');
   const ambientCapability = capabilityStorage.getStore();
   const operation = operationStorage.getStore();
-  const defaultCapability =
-    principal.kind === 'integrator'
+  const defaultCapability = operation
+    ? undefined
+    : principal.kind === 'integrator'
       ? 'request'
       : principal.kind === 'organization'
         ? 'tenant_service'
         : principal.kind === 'bootstrap'
           ? 'resolver'
           : principal.kind === 'infra'
-            ? integratorPortCapabilityForInfraSource(principal.source)
+            ? ambientCapability
+              ?? integratorPortCapabilityForInfraSource(principal.source, capabilities)
             : undefined;
   // An outer scheduler/delivery scope never lends its service capability to a nested
   // organization transaction; the nested scope selects tenant_service explicitly.
@@ -268,6 +256,11 @@ export function integratorPortContextPrincipal(
   };
   switch (descriptor.contextClass) {
     case 'integrator':
+      if (descriptor.targetRole === 'app_integrator_resolver') {
+        if (principal.kind !== 'bootstrap')
+          throw new Error('Integrator resolver capability requires a bootstrap principal');
+        return base;
+      }
       if (principal.kind !== 'integrator')
         throw new Error('Integrator request capability requires an integrator principal');
       return {
@@ -284,8 +277,8 @@ export function integratorPortContextPrincipal(
         throw new Error('Service capability requires an explicit infra principal');
       return base;
     case 'pre_session':
-      if (principal.kind !== 'bootstrap' || !descriptor.functionIdentity)
-        throw new Error('Resolver capability requires an explicit named-root descriptor');
+      if (principal.kind !== 'bootstrap')
+        throw new Error('Pre-session capability requires a bootstrap principal');
       return { ...base, requestId: randomUUID() };
     default:
       throw new Error(

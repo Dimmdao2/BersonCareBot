@@ -5,6 +5,11 @@ import { basename } from 'node:path';
 
 const REQUIRED_PROCESS_NAMES = new Set(['webapp', 'integrator', 'media-worker']);
 const REQUIRED_SHARED_KEYS = ['DB_PRINCIPAL_CONTEXT_MODE', 'DB_PRINCIPAL_SIGNING_SECRET'];
+const MEDIA_CONTROL_KEYS = ['MEDIA_WORKER_CONTROL_URL', 'INTERNAL_JOB_SECRET'];
+const LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY =
+  /^(?:DATABASE_URL(?:_[A-Z0-9_]+)?|DB_PRINCIPAL_[A-Z0-9_]+|PG[A-Z0-9_]*|(?:DATABASE|DB|POSTGRES|POSTGRESQL)_(?:URL|PASSWORD|PASS|CONNECTION_STRING)|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
+const CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY =
+  /^(?:DATABASE_URL_MEDIA_WORKER|MEDIA(?:_WORKER)?_(?:(?:[A-Z0-9]+_)*(?:DATABASE|DB|POSTGRES|POSTGRESQL|PG)(?:_[A-Z0-9]+)*|(?:[A-Z0-9]+_)*(?:CONNECTION_STRING|PASSWORD|PASS|SSL[A-Z0-9]*|CERT(?:IFICATE)?|CA|KEY)(?:_[A-Z0-9]+)*))$/;
 const WEBAPP_DATABASE_URL_KEYS = [
   'DATABASE_URL_STAFF',
   'DATABASE_URL_NONSTAFF',
@@ -132,6 +137,7 @@ function assertNoSecretLeak(output, loadedFiles) {
     for (const key of [
       'DB_PRINCIPAL_SIGNING_SECRET',
       'DATABASE_URL',
+      'INTERNAL_JOB_SECRET',
       ...WEBAPP_DATABASE_URL_KEYS,
       ...INTEGRATOR_OPERATIONAL_URL_KEYS,
     ]) {
@@ -159,7 +165,7 @@ function validateLoadedFiles(loadedFiles) {
   }
 
   const signingFingerprints = new Map();
-  for (const file of loadedFiles) {
+  for (const file of loadedFiles.filter((file) => file.processName !== 'media-worker')) {
     for (const key of REQUIRED_SHARED_KEYS) {
       if (!file.values.has(key) || !file.values.get(key)?.trim()) {
         fail(`${file.processName} missing ${key}`);
@@ -186,6 +192,37 @@ function validateLoadedFiles(loadedFiles) {
   }
 
   const webapp = seen.get('webapp');
+  const mediaWorker = seen.get('media-worker');
+  for (const file of loadedFiles) {
+    for (const key of file.values.keys()) {
+      if (CROSS_PROCESS_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
+        fail(`${file.processName} must not declare media-worker database credential ${key}`);
+      }
+      if (file.processName === 'media-worker' && LEGACY_MEDIA_DATABASE_CREDENTIAL_KEY.test(key)) {
+        fail(`media-worker must not receive legacy database credential ${key}`);
+      }
+    }
+  }
+  for (const key of MEDIA_CONTROL_KEYS) {
+    if (!mediaWorker?.values.get(key)?.trim()) fail(`media-worker missing ${key}`);
+  }
+  if (
+    mediaWorker?.values.get('DB_PRINCIPAL_CONTEXT_MODE')?.trim() ||
+    mediaWorker?.values.get('DB_PRINCIPAL_SIGNING_SECRET')?.trim()
+  ) {
+    fail('media-worker must not receive DB principal configuration');
+  }
+  try {
+    const controlUrl = new URL(mediaWorker?.values.get('MEDIA_WORKER_CONTROL_URL') ?? '');
+    if (controlUrl.protocol !== 'http:' && controlUrl.protocol !== 'https:') throw new Error();
+  } catch {
+    fail('media-worker MEDIA_WORKER_CONTROL_URL must be an HTTP URL');
+  }
+  if (
+    mediaWorker?.values.get('INTERNAL_JOB_SECRET') !== webapp?.values.get('INTERNAL_JOB_SECRET')
+  ) {
+    fail('media-worker INTERNAL_JOB_SECRET must match webapp internal control secret');
+  }
   for (const key of WEBAPP_DATABASE_URL_KEYS) {
     const value = webapp?.values.get(key)?.trim() ?? '';
     if (!value) {
@@ -209,7 +246,6 @@ function validateLoadedFiles(loadedFiles) {
   }
 
   const integrator = seen.get('integrator');
-  const mediaWorker = seen.get('media-worker');
   const operationalUrls = INTEGRATOR_OPERATIONAL_URL_KEYS.map((key) => {
     const value = integrator?.values.get(key)?.trim() ?? '';
     if (!value) fail(`integrator missing ${key}`);
@@ -217,30 +253,18 @@ function validateLoadedFiles(loadedFiles) {
     return [key, value];
   });
   const integratorBaseUrl = integrator?.values.get('DATABASE_URL')?.trim() ?? '';
-  const mediaWorkerUrl = mediaWorker?.values.get('DATABASE_URL')?.trim() ?? '';
   if (!/^postgres(?:ql)?:\/\//.test(integratorBaseUrl))
     fail('integrator DATABASE_URL must be a PostgreSQL URL');
-  if (!/^postgres(?:ql)?:\/\//.test(mediaWorkerUrl))
-    fail('media-worker DATABASE_URL must be a PostgreSQL URL');
-  const runtimeUrls = [
-    integratorBaseUrl,
-    mediaWorkerUrl,
-    ...operationalUrls.map(([, value]) => value),
-  ];
+  const runtimeUrls = [integratorBaseUrl, ...operationalUrls.map(([, value]) => value)];
   if (new Set(runtimeUrls).size !== runtimeUrls.length) {
-    fail(
-      'integrator and media-worker operational DATABASE_URL values must use distinct login credentials',
-    );
+    fail('integrator operational DATABASE_URL values must use distinct login credentials');
   }
   const runtimeUsernames = [
     databaseUrlUsername(integratorBaseUrl, 'integrator DATABASE_URL'),
-    databaseUrlUsername(mediaWorkerUrl, 'media-worker DATABASE_URL'),
     ...operationalUrls.map(([key, value]) => databaseUrlUsername(value, `integrator ${key}`)),
   ];
   if (new Set(runtimeUsernames).size !== runtimeUsernames.length) {
-    fail(
-      'integrator and media-worker operational DATABASE_URL values must use distinct PostgreSQL login roles',
-    );
+    fail('integrator operational DATABASE_URL values must use distinct PostgreSQL login roles');
   }
   const allRuntimeUsernames = [
     ...WEBAPP_DATABASE_URL_KEYS.map((key) =>
@@ -250,7 +274,7 @@ function validateLoadedFiles(loadedFiles) {
   ];
   if (new Set(allRuntimeUsernames).size !== allRuntimeUsernames.length) {
     fail(
-      'all webapp, integrator, operator, and media runtime URLs must use distinct PostgreSQL login roles',
+      'all webapp, integrator, and operator runtime URLs must use distinct PostgreSQL login roles',
     );
   }
 
@@ -264,7 +288,9 @@ function validateLoadedFiles(loadedFiles) {
     integratorOperationalUrlShapes: Object.fromEntries(
       operationalUrls.map(([key, value]) => [key, fingerprintUrlHost(value)]),
     ),
-    mediaWorkerUrlShape: fingerprintUrlHost(mediaWorkerUrl),
+    mediaWorkerControlUrlShape: fingerprintUrlHost(
+      mediaWorker?.values.get('MEDIA_WORKER_CONTROL_URL') ?? '',
+    ),
   };
 }
 
@@ -278,13 +304,13 @@ function renderReport(loadedFiles, summary) {
     ...Object.entries(summary.integratorOperationalUrlShapes).map(
       ([key, value]) => `integrator_${key}_shape=${value}`,
     ),
-    `media-worker_DATABASE_URL_shape=${summary.mediaWorkerUrlShape}`,
+    `media-worker_CONTROL_URL_shape=${summary.mediaWorkerControlUrlShape}`,
     'restart_order=webapp integrator worker scheduler media-worker',
     'rollback_order=restore previous root-managed env files, restart same units, rerun this preflight',
   ];
   for (const file of loadedFiles) {
     lines.push(
-      `process=${file.processName} env_file=${file.basename} mode=${file.values.get('DB_PRINCIPAL_CONTEXT_MODE')}`,
+      `process=${file.processName} env_file=${file.basename} mode=${file.processName === 'media-worker' ? 'control-only' : file.values.get('DB_PRINCIPAL_CONTEXT_MODE')}`,
     );
   }
   return `${lines.join('\n')}\n`;
@@ -311,6 +337,7 @@ DB_PRINCIPAL_SIGNING_SECRET='${sharedSecret}'
 DATABASE_URL_STAFF=postgres://staff:staff-secret@127.0.0.1:5432/bersoncarebot_test
 DATABASE_URL_NONSTAFF=postgres://nonstaff:nonstaff-secret@127.0.0.1:5432/bersoncarebot_test
 SAAS_ISOLATION_OPERATOR_DATABASE_URL=postgres://saas_operator:operator-secret@127.0.0.1:5432/bersoncarebot_test
+INTERNAL_JOB_SECRET=control-secret
 `),
     },
     {
@@ -331,9 +358,8 @@ DATABASE_URL_SCHEDULER=postgres://scheduler:secret@127.0.0.1:5432/bersoncarebot_
       path: '/tmp/media.fixture',
       processName: 'media-worker',
       values: parseEnvText(`
-DB_PRINCIPAL_CONTEXT_MODE=shadow
-DB_PRINCIPAL_SIGNING_SECRET="${sharedSecret}"
-DATABASE_URL=postgres://media:secret@127.0.0.1:5432/bersoncarebot_test
+MEDIA_WORKER_CONTROL_URL=http://127.0.0.1:6200
+INTERNAL_JOB_SECRET=control-secret
 `),
     },
   ];
@@ -375,14 +401,60 @@ DATABASE_URL=postgres://media:secret@127.0.0.1:5432/bersoncarebot_test
       : file,
   );
   let detected = 0;
-  for (const broken of [brokenSecret, brokenCrossProcessUsername, brokenOperationalUsername]) {
+  const brokenMediaSecret = fixtureFiles.map((file) =>
+    file.processName === 'media-worker'
+      ? { ...file, values: new Map(file.values).set('INTERNAL_JOB_SECRET', 'wrong-control-secret') }
+      : file,
+  );
+  const legacyMediaCredentialKeys = [
+    'DATABASE_URL',
+    'DB_PRINCIPAL_CONTEXT_MODE',
+    'DB_PRINCIPAL_SIGNING_SECRET',
+    'PGSSLMODE',
+    'PGSSLCRL',
+    'PGSSLCRLDIR',
+    'PGSSLMINPROTOCOLVERSION',
+    'MEDIA_WORKER_CA',
+    'MEDIA_DATABASE_CA',
+    'MEDIA_POSTGRESQL_URL',
+    'POSTGRESQL_URL',
+    'POSTGRES_URL',
+    'POSTGRES_PASSWORD',
+    'MEDIA_WORKER_CONNECTION_STRING',
+    'MEDIA_CONNECTION_STRING',
+    'DB_URL',
+  ];
+  const brokenLegacyMediaCredentials = legacyMediaCredentialKeys.map((key) =>
+    fixtureFiles.map((file) =>
+      file.processName === 'media-worker'
+        ? { ...file, values: new Map(file.values).set(key, '') }
+        : file,
+    ),
+  );
+  const brokenFixtures = [
+    brokenSecret,
+    brokenCrossProcessUsername,
+    brokenOperationalUsername,
+    brokenMediaSecret,
+    ...brokenLegacyMediaCredentials,
+    ...['webapp', 'integrator', 'media-worker'].map((processName) =>
+      fixtureFiles.map((file) =>
+        file.processName === processName
+          ? { ...file, values: new Map(file.values).set('DATABASE_URL_MEDIA_WORKER', '') }
+          : file,
+      ),
+    ),
+  ];
+  for (const broken of brokenFixtures) {
     try {
       validateLoadedFiles(broken);
     } catch {
       detected += 1;
     }
   }
-  if (detected !== 3) fail('self-test did not detect all secret/login collision regressions');
+  if (detected !== brokenFixtures.length) {
+    fail('self-test did not detect all secret/login collision regressions');
+  }
   console.log('saas-c2-secret-preflight self-test: OK');
 }
 

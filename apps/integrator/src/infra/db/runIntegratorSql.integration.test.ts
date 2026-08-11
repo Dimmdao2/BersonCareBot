@@ -1,64 +1,59 @@
 import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool, type PoolClient } from 'pg';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
-import {
-  startDisposablePostgres,
-  type DisposablePostgres,
-} from '../scripts/d30DisposablePostgres.js';
+import type { IntegratorDrizzleDb } from './drizzle.js';
+import { createRealPostgresIntegrationTestHarness } from './realPostgresIntegrationTestHarness.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
 
-describe('runIntegratorSql transaction errors on disposable PostgreSQL 16', () => {
-  let disposable: DisposablePostgres;
-  let adminPool: Pool;
-  let runtimePool: Pool;
-  let client: PoolClient;
+const enabled =
+  process.env.RUN_INTEGRATOR_SQL_PERMISSION_TEST === '1' &&
+  process.env.USE_REAL_DATABASE === '1' &&
+  Boolean((process.env.DATABASE_URL ?? '').trim()) &&
+  Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
 
-  beforeAll(async () => {
-    disposable = startDisposablePostgres('run_integrator_sql_permission');
-    adminPool = new Pool({ connectionString: disposable.connectionString });
-    await adminPool.query(
-      'CREATE ROLE bcb_permission_oracle LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS',
-    );
-    const runtimeConnectionString = disposable.connectionString.replace(
-      'postgresql://postgres@/',
-      'postgresql://bcb_permission_oracle@/',
-    );
-    runtimePool = new Pool({ connectionString: runtimeConnectionString });
-    client = await runtimePool.connect();
-  });
+function findSqlStateInErrorChain(error: unknown, expected: string): string | undefined {
+  const seen = new Set<object>();
+  let cursor: unknown = error;
+  while (typeof cursor === 'object' && cursor !== null && !seen.has(cursor)) {
+    seen.add(cursor);
+    const candidate = cursor as { code?: unknown; cause?: unknown };
+    if (candidate.code === expected) return expected;
+    cursor = candidate.cause;
+  }
+  return undefined;
+}
 
-  afterAll(async () => {
-    client?.release();
-    await runtimePool?.end();
-    await adminPool?.end();
-    disposable?.stop();
-  });
+describe.skipIf(!enabled)('runIntegratorSql transaction errors (opt-in, allowed TEST DbPort)', () => {
+  const harness = createRealPostgresIntegrationTestHarness('worker:outgoing-delivery-tick');
 
-  it('keeps the first 42501 and never retries through DbPort.query', async () => {
-    const fallback = vi.fn();
-    const db = {
-      integratorDrizzle: drizzle(client),
-      query: fallback,
-      tx: vi.fn(),
-    } as unknown as DbPort;
+  it('propagates PostgreSQL 42501 from the active Drizzle transaction without DbPort fallback', async () => {
+    await harness.assertTestDatabases();
+    let fallback: ReturnType<typeof vi.spyOn> | undefined;
+    let statement: ReturnType<typeof vi.spyOn> | undefined;
 
-    await client.query('BEGIN');
     let caught: unknown;
     try {
-      await runIntegratorSql(db, sql`SELECT rolpassword FROM pg_catalog.pg_authid LIMIT 1`);
+      await harness.withRuntime((db) =>
+        db.tx(async (txDb) => {
+          fallback = vi.spyOn(txDb, 'query');
+          const active = txDb as DbPort & { integratorDrizzle?: Pick<IntegratorDrizzleDb, 'execute'> };
+          if (!active.integratorDrizzle) throw new Error('active Drizzle transaction is required');
+          statement = vi.spyOn(active.integratorDrizzle, 'execute');
+          await runIntegratorSql(
+            txDb,
+            sql`SELECT rolpassword FROM pg_catalog.pg_authid LIMIT 1`,
+          );
+        }),
+      );
     } catch (error) {
       caught = error;
-    } finally {
-      await client.query('ROLLBACK');
     }
 
     expect(caught).toBeInstanceOf(Error);
-    const postgresCode = (
-      caught as Error & { code?: string; cause?: { code?: string } }
-    ).code ?? (caught as Error & { cause?: { code?: string } }).cause?.code;
-    expect(postgresCode).toBe('42501');
+    expect(findSqlStateInErrorChain(caught, '42501')).toBe('42501');
+    expect(statement).toBeDefined();
+    expect(statement).toHaveBeenCalledTimes(1);
+    expect(fallback).toBeDefined();
     expect(fallback).not.toHaveBeenCalled();
   });
 });

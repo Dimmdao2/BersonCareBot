@@ -82,11 +82,11 @@ curl -s http://127.0.0.1:3200/health
 
 **Путь на хосте:** `/opt/env/bersoncarebot/media-worker.prod`
 
-Используется только `bersoncarebot-media-worker-prod.service`. `DATABASE_URL` обязан содержать отдельный
-NOINHERIT/NOBYPASSRLS login, связанный только с `app_operational_media_worker`; повторное использование
-`webapp.prod` или integrator worker/scheduler credential запрещено. Runtime-флаги читаются через закрытый
-двухключевой accessor, без прямого SELECT `app_runtime_settings`. Остальные media/S3/ffmpeg ключи сохраняются по
-контракту `apps/media-worker/src/env.ts`; значения в репозиторий не записываются.
+Используется только `bersoncarebot-media-worker-prod.service`. В файле нет `DATABASE_URL`, PostgreSQL login,
+TLS DB credential или principal context. Обязательны `MEDIA_WORKER_CONTROL_URL` и тот же
+`INTERNAL_JOB_SECRET`, что у webapp: worker выполняет только authenticated HTTP control commands, а webapp
+устанавливает `app_operational_media_worker` внутри своего typed DB chokepoint. Остальные media/S3/ffmpeg ключи
+сохраняются по контракту `apps/media-worker/src/env.ts`; значения в репозиторий не записываются.
 
 ---
 

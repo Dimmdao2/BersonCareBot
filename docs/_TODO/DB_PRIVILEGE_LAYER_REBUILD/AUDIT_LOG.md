@@ -1180,3 +1180,264 @@ exit `1`. Behavioral PostgreSQL oracle сохраняется, но должен
   красными; disposable PostgreSQL дал `42501` внутри relation-context и success в exact named-context.
 - DB-principal `25/25`, PG16 fault suite, chokepoint/self-test, integrator lint/typecheck, webapp typecheck и
   diff-check прошли; fault mutations откатились, дерево аудитора чистое.
+
+## Audit MEDIA-DB-DOOR-FINAL-R2-2026-08-11 — `f0e0adb3c`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent deploy-order inspection, env fault injection, PostgreSQL 16 retirement probes |
+| Вердикт | **FAIL — MEDIA-006/007 исправлены; DEPLOY-001 и MEDIA-008–010 MUST FIX; не к land/TEST** |
+
+### DEPLOY-001 — HTTP readiness вызывается до нового webapp
+
+**ОТКРЫТО — MUST FIX.** В PROD operational readiness вызывается до restart webapp, поэтому первый rollout получает
+старый процесс без control route и `404`. В TEST все units сначала остановлены, provision уже вызывает HTTP
+readiness, а webapp стартует позднее; первый cutover детерминированно падает. Deploy sequence обязан сначала
+поднять новый webapp, затем проверять authenticated media control, не открывая старый DB-door.
+
+### MEDIA-008 — четвёртый media credential не закрыт fail-closed
+
+**ОТКРЫТО — MUST FIX.** Реальный `saas-c2-secret-preflight.mjs` с `DATABASE_URL_MEDIA_WORKER` в API env вернул
+exit `0`. Mutation с четвёртым элементом `OPERATIONAL_KEYS` не покрасила
+`bootstrap-c4-test-env.mjs --self-test` (exit `0`). Старый URL/credential может пережить cutover; preflight,
+bootstrap oracle и автоматический retirement должны закрывать это как одно обязательное поведение.
+
+### MEDIA-009 — denylist пропускает обычные неизвестные DB aliases
+
+**ОТКРЫТО — MUST FIX.** Runtime guard принял `POSTGRESQL_URL`, `POSTGRES_URL`, `POSTGRES_PASSWORD`,
+`MEDIA_WORKER_CONNECTION_STRING`, `MEDIA_CONNECTION_STRING`, `DB_URL`; полный preflight с `POSTGRESQL_URL` в
+media env также вернул exit `0`. Запрет обязан ловить DB URL/credential families поведенчески, без списка только
+из уже известных старых имён.
+
+### MEDIA-010 — активный C4 runbook всё ещё описывает пять DB login/URL
+
+**ОТКРЫТО — MUST FIX.** `SAAS_C4_SCHEDULER_MEDIA_CRON_FANOUT.md` требует “five distinct LOGIN roles” и readiness
+через “five distinct URLs”, тогда как исполняемая цель — три DB login плюс authenticated HTTP control.
+
+### Исправлено громко
+
+- **MEDIA-006 ИСПРАВЛЕНО:** media-worker control-only runtime: `5 files / 16 tests`, typecheck/build PASS.
+- **MEDIA-007 ИСПРАВЛЕНО:** ancestry `442489525`, `a5684df48`, `e2cdadb5d` присутствует; route `8/8`, PostgreSQL
+  seam `7/7`, wrong-role и extra-command mutations красные.
+- Retirement primitive сохранил полный ACL rollback; chokepoint, штатные self-tests, webapp type/lint и
+  `git diff --check 442489525..f0e0adb3c` прошли. Эти PASS не принимают deploy/cutover целиком.
+
+## Audit FUNCTION-CENSUS-R2-2026-08-11 — `e94107b95`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent PostgreSQL 16 bilateral catalog mutations и read-only DEV/TEST comparison |
+| Вердикт | **FAIL — основной census подтверждён; 4 MUST FIX; не к land** |
+
+### SEAM-001 — 13 genuine pre-session функций недоступны `app_pre_session`
+
+**ОТКРЫТО — MUST FIX.** Сравнение `BUSINESS_SEAM_FUNCTIONS` с authoritative evidence/30 §7.1 дало
+`evidence=34 mapped=34 pre_session=21`. У 13 rate-limit/email OTP/public reference/VAPID/slug/SMTP/public-booking
+phone OTP функций caller заменён на `app_patient` либо другую runtime-роль. Exact pre-session checkout получит
+permission denied, а лишний caller сохранит EXECUTE.
+
+### SEAM-002 — verifier пропускает EXECUTE произвольному LOGIN
+
+**ОТКРЫТО — MUST FIX.** Disposable mutation `CREATE ROLE audit_rogue LOGIN; GRANT EXECUTE ... TO audit_rogue`
+оставила verifier зелёным: bilateral census ограничен известными declaration logins и PUBLIC.
+
+### SEAM-003 — verifier пропускает extra SECURITY DEFINER в `public`
+
+**ОТКРЫТО — MUST FIX.** `public.audit_extra()` осталась незамеченной, потому что extra-definer closure проверяет
+только `app`/`app_ext`. Все managed application schemas должны сравниваться bilateral.
+
+### SEAM-004 — seam owner может сам стать member другой роли
+
+**ОТКРЫТО — MUST FIX.** `GRANT app_service TO app_seam_dedicated_bot_owner` не покрасил verifier: проверяется
+только обратное направление membership. Все 42 seam owners обязаны быть memberless в обоих направлениях.
+
+### Подтверждено и сохраняется
+
+- Strict TypeScript и census tests `5/5`; штатная PG16 acceptance: TEST `247` definers/`42` owners, DEV `234`/`42`.
+- Read-only live comparison: metadata mismatch TEST `0/238`, DEV `0/225`; TEST-only presence `13/13`; obsolete
+  context functions `0`; OpenPGP/HMAC hits `0`.
+- Independent PG16 mutations: `13/16` пойманы, три пропущенных соответствуют SEAM-002–004.
+- Dedicated-bot owner/caller/surface верны; lexical surfaces `467`, автоматически созданных grant entries `0`.
+- `generate-cli.mjs --gaps` честно exit `2`: `223` relation gaps на каждую DB и обе missing APIs остаются открыты.
+
+## Fix verification FUNCTION-CENSUS-FIX-2026-08-11 — `f27bf390b`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тот же сохранённый test+view gate**: exact authority comparison и PostgreSQL 16 catalog mutations |
+| Вердикт | **PASS bounded function/seam census — к land; relation grant matrix остаётся открыта** |
+
+- **SEAM-001 ИСПРАВЛЕНО:** authoritative pre-session `authority=34 mapped=34 exact=34`; у каждой only caller
+  `app_pre_session`. Mutation с REVOKE красная.
+- **SEAM-002 ИСПРАВЛЕНО:** actual EXECUTE ACL сравнивается со всеми catalog grantee; произвольный rogue LOGIN
+  красит verifier, generated reconciliation снимает grant и возвращает green.
+- **SEAM-003 ИСПРАВЛЕНО:** extra-definer closure покрывает `public/app/integrator/app_ext/drizzle`, исключая
+  extension-owned/system objects; лишняя `public` SECURITY DEFINER красит verifier и transactional closure.
+- **SEAM-004 ИСПРАВЛЕНО:** 42 seam owners memberless bilateral; обе membership directions red → reapply → green.
+- Unit census/context `8/8`; strict TypeScript; PG16 function acceptance TEST `247`, DEV `234`, `42` owners и
+  `12` real mutations/DB; context catalog acceptance `10` capabilities — PASS. Scope ровно пять privilege-файлов,
+  `git show --check f27bf390b` и чистое дерево — PASS.
+
+**ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** `generate-cli.mjs --gaps` exit `2`, `223` relation gaps/DB и две missing named APIs.
+Этот PASS принимает точный function/seam census, а не полную grant/RLS operability.
+
+## Audit RUNTIME-FIX5-2026-08-11 — `9d7332be2` / HEAD `a5b12040d`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent repo-wide callsite census, disposable PostgreSQL 16 role/error probes |
+| Вердикт | **FAIL — RUNTIME-015 и 011/012 PASS; RUNTIME-013/014/016 MUST FIX; не к land** |
+
+### RUNTIME-013 — relation catalog противоречит active role graph
+
+**ОТКРЫТО — MUST FIX.** Формальный census `10 function rows + 14 relation env descriptors` зелёный, но integrator
+не имеет relation descriptor `resolver`, webapp не имеет active `pre_session`/telemetry, а webapp `service →
+app_service` и `tenant_service → app_tenant_service` недостижимы его exact staff login membership. Disposable
+role probe: `staff_app_service_set=false`, `staff_tenant_service_set=false`, `integrator_resolver_set=true`.
+`webapp-health-check` поэтому выбирает capability, после которой `SET LOCAL ROLE app_service` получает permission
+denied. Исправление не может расширить запрещённый webapp membership: source/capability надо назначить правильной
+достижимой роли по смыслу. Targeted integrator suite дополнительно red: `1 failed / 20 passed / 1 skipped` из-за
+sync `toThrow` против rejected Promise в `withClient.test.ts`.
+
+### RUNTIME-014 — callsite oracle не path-independent
+
+**ОТКРЫТО — MUST FIX.** Oracle содержит фиксированный `CALLSITE_FILES` из четырёх путей и не обнаруживает новые/
+перемещённые production roots repo-wide. Четыре локальные descriptor mutations краснеют, но фактический
+RUNTIME-013 остаётся false-green. Нужен production-source discovery, независимый от generator expected list.
+
+### RUNTIME-016 — committed PostgreSQL 42501 oracle красный
+
+**ОТКРЫТО — MUST FIX.** Реальный opt-in disposable PG16 исполняет statement один раз и даёт
+`fallbackCalls=0`, `cause.code=42501`, но committed test проверяет только top-level `error.code` и падает с
+`undefined`. Oracle обязан корректно доказывать SQLSTATE по фактической error chain и оставаться green без raw SQL.
+
+### Исправлено громко
+
+- **RUNTIME-015 ИСПРАВЛЕНО:** dedicated strict closure self-test green; удаление installer call даёт exit `1`,
+  `status=74`.
+- **RUNTIME-011/012 PASS сохранён:** failed SQL не ретраится; named roots выбираются до checkout, возврат внутрь
+  relation transaction красит readiness test.
+- Webapp `13` targeted tests, catalog/callsite unit `5/5`, db-principal `25` + `14 FAULT`, оба lint/typecheck,
+  raw-SQL/chokepoint gates и deterministic artifacts прошли; финальное audit tree чистое.
+
+## Audit MEDIA-DB-DOOR-FINAL-R3-2026-08-11 — `be2b7b744` / HEAD `441e5fb04`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: reuse deploy-order/env/retirement kill-set across every actual caller |
+| Вердикт | **FAIL — основной cutover gate PASS; 2 MUST FIX; не к land/TEST** |
+
+### DEPLOY-001 — bootstrap-systemd-prod обходит общий cutover gate
+
+**ОТКРЫТО — MUST FIX.** `bootstrap-systemd-prod.sh` запускает webapp, затем напрямую media-worker при наличии
+env/build, без authenticated control probe и проверки/retirement legacy role. На первом rollout он может поднять
+старый media-worker с DB-door и завершиться успешно. Исправленные `deploy-prod.sh`/`deploy-test-saas.sh` и helper
+недостаточны, пока этот actual caller не использует ту же ordered sequence.
+
+### MEDIA-010 — ещё два активных runbook описывают старый порядок
+
+**ОТКРЫТО — MUST FIX.** `SAAS_PROD_DEPLOY_PROCESS.md` всё ещё требует `5-contour operational roles` и readiness
+до traffic cutover; `HARD_MIGRATION_PROTOCOL.md` требует media-control readiness до restart. Первый cutover тогда
+обращается к старому/остановленному webapp; automatic ordered retirement не описан.
+
+### Подтверждено и сохраняется
+
+- Общий helper fault-test red на restart-before-retirement; provision/preflight/bootstrap self-tests PASS.
+- Реальный preflight: fourth media URL rejected `3/3` env, aliases rejected `28/28`, positive control green.
+- PostgreSQL 16 retirement PASS; media `16`, route `8/8`, seam `7/7`, exact commands `11`, chokepoints PASS.
+- Webapp type/lint, syntax, ancestry/diff-check и clean final tree PASS.
+
+## Fix verification MEDIA-DB-DOOR-FINAL-FIX-2026-08-11 — `76e1f5e85`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тот же сохранённый deploy-order gate**: actual bootstrap caller trace + fault mutations |
+| Вердикт | **PASS media DB-door stage — к integration CI/land** |
+
+- **DEPLOY-001 ИСПРАВЛЕНО:** `bootstrap-systemd-prod.sh` останавливает legacy media, рестартует новый webapp и
+  вызывает общий sequence: `is-active → authenticated control → exact legacy login retirement → media restart`.
+  Inactive webapp, control failure и retirement failure не доходят до media; helper bypass и перестановка дают RED.
+- **MEDIA-010 ИСПРАВЛЕНО:** active PROD/hard-migration runbooks требуют три DB login и ordered automatic cutover;
+  active-doc census не нашёл five-contour/five-URL формулировок вне historical evidence/archive/audit.
+- Сохранены env negatives `3/3 + 28/28`, media `16`, route `8/8`, seam `7/7`, PostgreSQL retirement,
+  chokepoint/self-test, syntax/diff/show check и чистое дерево.
+
+PASS принимает удаление третьей media DB-door и deploy safety; full privilege-layer, mTLS host и relation grants
+остаются отдельными открытыми требованиями.
+
+## Fix verification RUNTIME-FIX6-2026-08-11 — `c2e5d5cad`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тот же сохранённый runtime gate**: repo-wide AST census + SET-membership + real PG16 error path |
+| Вердикт | **PASS runtime capability catalog — к integration CI/land** |
+
+- **RUNTIME-013 ИСПРАВЛЕНО:** integrator resolver descriptor добавлен; webapp pre-session/telemetry явны;
+  health источники идут через reachable `app_worker`; запрещённые webapp service/tenant descriptors удалены.
+  PG16 acceptance: `10` function rows и `15` relation descriptors, каждый SET-able exact port login.
+- **RUNTIME-014 ИСПРАВЛЕНО:** recursive production AST census сканирует оба app source roots, исключая tests/
+  generated; находит `10` literal roots + `1` dynamic wrapper. Add/move/remove/extra/cross-port/wrong-port mutations
+  красные.
+- **RUNTIME-016 ИСПРАВЛЕНО:** real disposable PG16 даёт SQLSTATE chain `42501`, `statement_count=1`,
+  `fallback=0`; server statement count подтверждён. Async rejected assertion исправлен.
+- Targeted integrator `23 pass / 1 opt-in skip`, webapp `14`, catalog `8`, db-principal `25 + 14 faults`, strict
+  closure, generator byte-check, оба lint/typecheck, raw-SQL/chokepoint self-tests и `git show --check` — PASS.
+
+Этот PASS принимает runtime wrapper/catalog wiring, но не relation grant matrix, host mTLS или live DEV/TEST.
+
+## Audit DB-ACCESS-PROGRESS-2026-08-11 — main `b27bebfa6`, candidates through `da5679122`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Взгляд + repository/process evidence**: owner goal → ancestry → audit/fix sequence → CI/land hygiene |
+| Вердикт | **PASS WITH CORRECTIONS — clear convergence; обязательный locked CI исправлен** |
+
+- **ЦИКЛА НЕТ:** function census `4 findings → f27bf390b PASS`; runtime завершил пять содержательных сужений
+  `9 → 3 → 3 → 4 → 3 → c2e5d5cad PASS`; media после одного ancestry-replay сузился
+  `5 → 4 → 2 → 76e1f5e85 PASS`. После финальных fixer SHA новые blind audits не запускаются: используется
+  сохранённый kill-set и лидерская проверка.
+- **PROCESS-CI-001 ИСПРАВЛЕНО ГРОМКО:** первый прямой `pnpm run ci` обнаружил ambient-env зависимость двух
+  `d15b6PhoneMessengerBindMirror` tests. Коммит `da5679122` передаёт явный fake Pool; exact test без
+  `DATABASE_URL` — `2/2 PASS`. Обязательный gate затем выполнен штатно:
+  `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` → lock acquired/released, `rc=0`, `604s`.
+  Внутри: integrator `374`, db-principal `21` + PostgreSQL 16 fault acceptance, webapp `1166`, media `16`,
+  production build `426` страниц и полный repository audit — PASS.
+- **LAND-QUEUE-001 ИСПРАВЛЕНО ГРОМКО:** land gate выявил три ранних product-коммита без собственных строк
+  очереди: `434de6457 → 0d3653b1f → e537f0f52`. Они являются ancestry последовательно проверенных media
+  candidates (`72c1f2c17/e2cdadb5d`, затем финальный `76e1f5e85`) и не получают отдельный новый PASS: в queue
+  зарегистрировано, что их исходные неполные состояния заменены и приняты только в составе финального fixer.
+- Main на снимке аудитора чист и совпадал с origin; product candidates не были выданы за landed. Runtime
+  `c2e5d5cad`, seams `f27bf390b` и media stack through `da5679122` оставались candidate+proved.
+- **ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** host mTLS отсутствует; login ACL ещё не обнулены; seam-кандидат оставляет
+  `223` relation gaps/DB и две missing named APIs; atomic reset/regrant/restore, DEV/TEST probes и PostgreSQL
+  live journal proof ещё не выполнены. Taskdb #1084/#1085 остаются `doing`; их descriptions надо обновить после
+  ближайших lands.
+- Не продолжать старую `wt/port-context-grants`: её callsite census не уменьшает gaps. Критический путь:
+  land media → runtime → seams; затем full semantic grant matrix + atomic artifacts; host mTLS DEV; TEST
+  deploy/probes/logging; финальный locked CI/taskdb/push.
+
+## Integration verification RUNTIME-MEDIA-MERGE-2026-08-11 — `9414b5ef7`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Сохранённые runtime/media kill-sets + mandatory host-locked full CI** |
+| Вердикт | **PASS — runtime capability/context candidate совместим с landed media; к land** |
+
+- Merge `b97d61eeb` разрешил четыре реальных пересечения и сохранил обе границы: runtime relation/function
+  capabilities работают через два DB port factory; media-worker не имеет собственного DB pool/login и вызывает
+  authenticated webapp control. PostgreSQL 16 probes: `10` function capabilities, `15` SET-able relation
+  descriptors, `25` db-principal tests и `14` fault injections — PASS.
+- **RUNTIME-INTEGRATION-001 ИСПРАВЛЕНО:** C4 chain self-test раньше читал скрипты из hardcoded main checkout.
+  `9414b5ef7` оставляет live `SRC_REPO` без изменений, но self-test разрешает и path-guards все artifacts
+  относительно реально исполняемого checkout; exact gate подтвердил
+  `checkout=/home/dev/dev-projects/bcb-wt-portctx-runtime`.
+- Первый locked CI дошёл до dependency audit и обнаружил не source regression, а stale worktree install:
+  Vitest `4.1.6` при committed lock `4.1.10`; старые installed CVE packages дали red. После
+  `pnpm install --frozen-lockfile` actual Vitest `4.1.10`, старые packages отсутствуют, `pnpm audit` чист.
+- Финальный `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` → lock acquired/released, `rc=0`, `528s`:
+  integrator `390`, db-principal `25`, webapp `1182`, media `16`, PostgreSQL 16 acceptance, production build
+  `426` страниц и repository/dependency audit — PASS.
+- Land-queue ancestry registration покрывает промежуточные fix/merge commits только как части уже
+  зафиксированной цепочки FAIL→fix→`c2e5d5cad`→integration PASS; отдельный новый product PASS им не присваивается.
+
+Этот PASS не принимает full relation grants, atomic reset/regrant/restore, host mTLS или DEV/TEST cutover.

@@ -14,6 +14,7 @@ SELECT * FROM (VALUES
 ) AS v(capability_id, port, session_login, target_role, context_class, purpose, function_identity);
 DELETE FROM app_ext.port_context_capabilities existing
  WHERE existing.session_login = ANY (ARRAY['bcb_test_integrator', 'bcb_test_webapp_patient', 'bcb_test_webapp_staff']::name[])
+   AND existing.function_identity IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM bcb_declared_port_context_capabilities declared
                    WHERE declared.capability_id = existing.capability_id);
 INSERT INTO app_ext.port_context_capabilities
