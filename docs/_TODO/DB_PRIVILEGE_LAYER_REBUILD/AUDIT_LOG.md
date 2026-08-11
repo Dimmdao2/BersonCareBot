@@ -1280,3 +1280,42 @@ permission denied, а лишний caller сохранит EXECUTE.
 
 **ОСТАЁТСЯ ОТКРЫТО ГРОМКО:** `generate-cli.mjs --gaps` exit `2`, `223` relation gaps/DB и две missing named APIs.
 Этот PASS принимает точный function/seam census, а не полную grant/RLS operability.
+
+## Audit RUNTIME-FIX5-2026-08-11 — `9d7332be2` / HEAD `a5b12040d`
+
+| Поле | Значение |
+|---|---|
+| Метод | **Тест + взгляд**: independent repo-wide callsite census, disposable PostgreSQL 16 role/error probes |
+| Вердикт | **FAIL — RUNTIME-015 и 011/012 PASS; RUNTIME-013/014/016 MUST FIX; не к land** |
+
+### RUNTIME-013 — relation catalog противоречит active role graph
+
+**ОТКРЫТО — MUST FIX.** Формальный census `10 function rows + 14 relation env descriptors` зелёный, но integrator
+не имеет relation descriptor `resolver`, webapp не имеет active `pre_session`/telemetry, а webapp `service →
+app_service` и `tenant_service → app_tenant_service` недостижимы его exact staff login membership. Disposable
+role probe: `staff_app_service_set=false`, `staff_tenant_service_set=false`, `integrator_resolver_set=true`.
+`webapp-health-check` поэтому выбирает capability, после которой `SET LOCAL ROLE app_service` получает permission
+denied. Исправление не может расширить запрещённый webapp membership: source/capability надо назначить правильной
+достижимой роли по смыслу. Targeted integrator suite дополнительно red: `1 failed / 20 passed / 1 skipped` из-за
+sync `toThrow` против rejected Promise в `withClient.test.ts`.
+
+### RUNTIME-014 — callsite oracle не path-independent
+
+**ОТКРЫТО — MUST FIX.** Oracle содержит фиксированный `CALLSITE_FILES` из четырёх путей и не обнаруживает новые/
+перемещённые production roots repo-wide. Четыре локальные descriptor mutations краснеют, но фактический
+RUNTIME-013 остаётся false-green. Нужен production-source discovery, независимый от generator expected list.
+
+### RUNTIME-016 — committed PostgreSQL 42501 oracle красный
+
+**ОТКРЫТО — MUST FIX.** Реальный opt-in disposable PG16 исполняет statement один раз и даёт
+`fallbackCalls=0`, `cause.code=42501`, но committed test проверяет только top-level `error.code` и падает с
+`undefined`. Oracle обязан корректно доказывать SQLSTATE по фактической error chain и оставаться green без raw SQL.
+
+### Исправлено громко
+
+- **RUNTIME-015 ИСПРАВЛЕНО:** dedicated strict closure self-test green; удаление installer call даёт exit `1`,
+  `status=74`.
+- **RUNTIME-011/012 PASS сохранён:** failed SQL не ретраится; named roots выбираются до checkout, возврат внутрь
+  relation transaction красит readiness test.
+- Webapp `13` targeted tests, catalog/callsite unit `5/5`, db-principal `25` + `14 FAULT`, оба lint/typecheck,
+  raw-SQL/chokepoint gates и deterministic artifacts прошли; финальное audit tree чистое.
