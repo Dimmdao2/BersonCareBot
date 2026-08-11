@@ -61,7 +61,7 @@
 import { WALL_TEMPLATES, expandTables } from './types.ts';
 // The canonical locked descriptor module is executable ESM; its public shape is narrowed below
 // so this declaration remains strict without a second source-of-truth .d.ts file.
-// @ts-ignore no declaration file exists for the canonical executable descriptor module.
+// @ts-expect-error no declaration file exists for the canonical executable descriptor module.
 import { getPhase4LockedPolicyTargets, renderPhase4StrictPredicate } from '../../../docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs';
 import type {
   AcceptanceInvariant, CodeChange, DatabaseDecl, DefinerException, DefinerExceptionsSection, LoginRecord,
@@ -690,6 +690,10 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
     },
   },
 };
+
+// Retained legacy census input; revision 10 below is the executable exported role/login graph.
+void roles;
+void envMapping;
 
 /* ============================================================================================
  * SECTION 3 — definer: умолчания + proconfig-исключения (evidence/13 §3.1/§3.2), общие для обеих баз
